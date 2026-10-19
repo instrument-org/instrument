@@ -20,7 +20,10 @@ const log = createScopedLogger("FileThumbnails");
  * folder of pictures costs the system's work once and a read from disk on
  * every launch after it; a file written since is a new name and drawn again.
  * A file the system has no picture of is remembered as such the same way, so
- * a folder of them is not asked about on every visit.
+ * a folder of them is not asked about on every visit. What is on disk is held
+ * inside a count, a size and an age ({@link pruneThumbnails}), so the store
+ * does not come to hold a picture of every version of every file the person
+ * has ever looked at.
  *
  * Pages, Markdown and code are the exception: the app draws those itself
  * (`rendered-pictures.ts`), since the system runs no page's scripts and has
@@ -54,8 +57,12 @@ const PAGE_ASPECT = 0.78;
 /** Part of the key, so pictures drawn before a change to how they are drawn are drawn again. */
 const DRAWING = "10";
 
-/** How many are kept on disk; past it the least recently written go. */
+/** How many are kept on disk; past it the least recently drawn go. */
 const KEPT = 4000;
+/** How much disk they are kept on; past it the least recently drawn go. */
+const KEPT_BYTES = 256 * 1024 * 1024;
+/** How long one is kept since it was drawn. */
+const KEPT_MS = 60 * 24 * 60 * 60 * 1000;
 /** How many are drawn at once: the system's generator runs out of process. */
 const CONCURRENCY = 4;
 
@@ -149,7 +156,7 @@ export async function fileThumbnail(
     await fs.writeFile(stored, png);
     written += 1;
     if (written % 200 === 1) {
-      void prune(deps.dir);
+      void pruneThumbnails(deps.dir);
     }
     return { complete, png };
   })().finally(() => {
@@ -235,27 +242,61 @@ function pageShaped(hostPath: string, image: NativeImage | null) {
   return nativeImage.createFromBitmap(page, { height: pageHeight, width });
 }
 
-/** Lets the oldest go once more than {@link KEPT} are on disk. */
-async function prune(dir: string) {
+/** What a thumbnail has to be inside to be kept. */
+export interface Keep {
+  bytes: number;
+  count: number;
+  ms: number;
+}
+
+const KEEP: Keep = { bytes: KEPT_BYTES, count: KEPT, ms: KEPT_MS };
+
+/**
+ * Lets go of the ones drawn longest ago: any drawn more than `ms` ago, and
+ * then the oldest left while there are more than `count` of them or they
+ * come to more than `bytes` on disk.
+ *
+ * A count on its own is the wrong measure for a store whose entries run from
+ * an empty marker to a megabyte of drawn page, so a thousand photographs
+ * costs what a thousand markers does. And a file written since is a new name
+ * rather than a new picture, so without an age the pictures of every version
+ * of a file anyone has ever looked at stay until the count lets them go. One
+ * is a few hundred milliseconds of the system's work to draw again, which is
+ * worth less than two months of disk.
+ */
+export async function pruneThumbnails(dir: string, keep: Keep = KEEP) {
   try {
-    const names = await fs.readdir(dir);
-    if (names.length <= KEPT) {
-      return;
-    }
+    const now = Date.now();
     const aged = await Promise.all(
-      names.map(async (name) => {
+      (await fs.readdir(dir)).map(async (name) => {
         const stats = await fs.stat(path.join(dir, name)).catch(() => null);
-        return { at: stats?.mtimeMs ?? 0, name };
+        return { at: stats?.mtimeMs ?? 0, bytes: stats?.size ?? 0, name };
       }),
     );
     aged.sort((left, right) => left.at - right.at);
+    let count = aged.length;
+    let bytes = aged.reduce((total, each) => total + each.bytes, 0);
+    const gone: string[] = [];
+    for (const each of aged) {
+      if (
+        now - each.at <= keep.ms &&
+        count <= keep.count &&
+        bytes <= keep.bytes
+      ) {
+        break;
+      }
+      gone.push(each.name);
+      count -= 1;
+      bytes -= each.bytes;
+    }
     await Promise.all(
-      aged
-        .slice(0, aged.length - KEPT)
-        .map(({ name }) => fs.rm(path.join(dir, name), { force: true })),
+      gone.map((name) => fs.rm(path.join(dir, name), { force: true })),
     );
   } catch (error) {
-    log.warn(`Could not prune ${dir}: ${String(error)}`);
+    // A folder nothing has drawn into yet has nothing to prune.
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      log.warn(`Could not prune ${dir}: ${String(error)}`);
+    }
   }
 }
 

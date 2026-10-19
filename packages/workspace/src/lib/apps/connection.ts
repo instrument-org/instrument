@@ -1,8 +1,11 @@
 import { z } from "zod";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { type AbsolutePath } from "../../schemas/paths";
 import { getWorkspaceConfig } from "../workspace-config";
 import { appChanged } from "./changed";
+import { type AppManifest, type AppSlug } from "./manifest";
+import { loadApp, setAppAccount } from "./store";
 
 /**
  * Where an app stands, as the app (never the agent) records it. `connected`
@@ -67,7 +70,7 @@ export function describeConnection(
   manifestHash: string,
 ): string {
   if (!connection) {
-    return "not connected (run `app test`)";
+    return "not connected (run `instrument app test`)";
   }
   switch (connection.status) {
     case "connected": {
@@ -78,7 +81,7 @@ export function describeConnection(
           : `, ${connection.toolCount} tools`;
       return connection.manifestHash === manifestHash
         ? `connected${who}${tools}`
-        : "connected, but the manifest changed since it was tested (run `app test`)";
+        : "connected, but the manifest changed since it was tested (run `instrument app test`)";
     }
     case "declined": {
       return "declined by the user; ask again only if they bring it up";
@@ -107,6 +110,37 @@ export function isConnected(
     connection?.status === "connected" &&
     connection.manifestHash === manifestHash
   );
+}
+
+/**
+ * Names the account an app is signed in as, or clears the name
+ * (`setAppAccount`). Naming one can move a web app to the directory's
+ * address for that account, which changes the manifest's hash, so a
+ * connection pinned to the manifest before the move is pinned to it after:
+ * the directory chose the address, not the agent.
+ */
+export async function nameAppAccount(
+  appsDir: AbsolutePath,
+  slug: AppSlug,
+  account: string | undefined,
+): Promise<AppManifest> {
+  const before = await loadApp(appsDir, slug);
+  const manifest = await setAppAccount(appsDir, slug, account);
+  const after = await loadApp(appsDir, slug);
+  if (before.isErr() || after.isErr()) {
+    return manifest;
+  }
+  const moved = after.value.manifestHash !== before.value.manifestHash;
+  if (
+    moved &&
+    isConnected(await readConnection(slug), before.value.manifestHash)
+  ) {
+    await recordConnection(slug, {
+      manifestHash: after.value.manifestHash,
+      status: "connected",
+    });
+  }
+  return manifest;
 }
 
 export async function readConnection(

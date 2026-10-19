@@ -1,5 +1,5 @@
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
-import uFuzzy from "@leeoniya/ufuzzy";
+import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 
 export interface SkillMatch<T> {
   descriptionRanges: null | number[];
@@ -33,7 +33,7 @@ function rangesOverPlainName(
 // One shared matcher for the prompt slash-menu and the skills page, so a query
 // behaves the way search does everywhere else in the app and can show which
 // characters it matched.
-const fuzzy = new uFuzzy({ intraMode: 1 });
+const fuzzy = boundedFuzzy({ intraMode: 1 });
 
 // Ranks skills against `query`, returning per-field highlight ranges. An empty
 // query keeps the input order and highlights nothing. `limit` caps the result

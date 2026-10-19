@@ -1,27 +1,50 @@
 import { revokeSession } from "@/electron-main/auth/client";
 import { logger } from "@/electron-main/lib/electron-logger";
+import {
+  getUserDataDir,
+  workspaceInAppData,
+  workspaceKeysDir,
+} from "@/electron-main/lib/get-workspace-folder";
 import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
-import { workspaceSettingsDirOf } from "@/electron-main/lib/settings-migration";
 import {
   createWorkspace,
+  keysDirOf,
   listWorkspaces,
   registerStray,
+  removeFolderIfEmpty,
   unregisterWorkspace,
   whyNotDeletable,
 } from "@/electron-main/lib/workspace-management";
 import {
+  checkMoveTarget,
+  MoveVerdictSchema,
+  NotMovableSchema,
+  requestWorkspaceMove,
+} from "@/electron-main/lib/workspace-move";
+import {
   getResolvedWorkspace,
+  machineDirOwnedBy,
   readRegistry,
   readWorkspaceIdentity,
+  registerWorkspaceFolder,
   updateRegistry,
   WorkspaceColorSchema,
   WorkspaceIdentitySchema,
+  workspacePlaceConcern,
 } from "@/electron-main/lib/workspaces";
+import { FolderRefusalSchema } from "@/shared/workspace-folder-refusal";
+import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { readBearerTokenIn } from "@/electron-main/stores/workspace/session";
-import { app, shell } from "electron";
+import {
+  instrumentFolderUnchosen,
+  removeIfEmptySync,
+} from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
+import { shell } from "electron";
 import { execFile } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
@@ -48,14 +71,14 @@ async function sizeOnDisk(dir: string): Promise<null | number> {
   }
 }
 
-const userDataDir = () => app.getPath("userData");
-
 const WorkspaceRowSchema = z.object({
   /** Why Delete is unavailable, or null when it is offered. */
   deleteBlockedBy: z.string().nullable(),
   id: z.string(),
   identity: WorkspaceIdentitySchema,
   isDefault: z.boolean(),
+  /** Whether its folder is there to read; an unreachable one stays listed. */
+  isReachable: z.boolean(),
   isRegistered: z.boolean(),
   isResolved: z.boolean(),
   lastOpenedAt: z.number().nullable(),
@@ -94,14 +117,18 @@ const list = devOnly
   )
   .handler(() => {
     const resolved = getResolvedWorkspace();
-    const listings = listWorkspaces({ resolved, userDataDir: userDataDir() });
+    const listings = listWorkspaces({
+      resolved,
+      userDataDir: getUserDataDir(),
+    });
     return {
       pinned: resolved.pinned,
       workspaces: listings.map((listing) => ({
-        deleteBlockedBy: whyNotDeletable(listing, userDataDir()),
+        deleteBlockedBy: whyNotDeletable(listing, getUserDataDir()),
         id: listing.id,
         identity: listing.identity,
         isDefault: listing.isDefault,
+        isReachable: listing.isReachable,
         isRegistered: listing.isRegistered,
         isResolved: listing.isResolved,
         lastOpenedAt: listing.lastOpenedAt,
@@ -120,7 +147,7 @@ const sizes = devOnly
   .handler(async () => {
     const listings = listWorkspaces({
       resolved: getResolvedWorkspace(),
-      userDataDir: userDataDir(),
+      userDataDir: getUserDataDir(),
     });
     const measured = await Promise.all(
       listings.map(
@@ -145,10 +172,10 @@ const create = devOnly
   .handler(({ input }) => {
     const { id } = createWorkspace({
       color: input.color,
-      copySignInsFrom: input.copySignIns ? getResolvedWorkspace().path : null,
+      copySignInsFrom: input.copySignIns ? workspaceKeysDir() : null,
       developerMode: isDeveloperMode(),
       name: input.name,
-      userDataDir: userDataDir(),
+      userDataDir: getUserDataDir(),
     });
     return { id };
   });
@@ -167,12 +194,12 @@ const switchTo = devOnly
       });
     }
     if (
-      !readRegistry(userDataDir()).workspaces.some((w) => w.id === input.id)
+      !readRegistry(getUserDataDir()).workspaces.some((w) => w.id === input.id)
     ) {
       throw errors.NOT_FOUND({ message: `No workspace "${input.id}"` });
     }
     const choose = () => {
-      updateRegistry(userDataDir(), (registry) => ({
+      updateRegistry(getUserDataDir(), (registry) => ({
         ...registry,
         active: input.id,
       }));
@@ -191,15 +218,15 @@ const remove = devOnly
   .handler(async ({ errors, input }) => {
     const listings = listWorkspaces({
       resolved: getResolvedWorkspace(),
-      userDataDir: userDataDir(),
+      userDataDir: getUserDataDir(),
     });
-    const listing = listings.find(
-      (candidate) => path.resolve(candidate.path) === path.resolve(input.path),
+    const listing = listings.find((candidate) =>
+      samePath(candidate.path, input.path),
     );
     if (!listing) {
       throw errors.NOT_FOUND({ message: "No such workspace" });
     }
-    const blocked = whyNotDeletable(listing, userDataDir());
+    const blocked = whyNotDeletable(listing, getUserDataDir());
     if (blocked) {
       throw errors.UNAUTHORIZED({ message: blocked });
     }
@@ -207,19 +234,33 @@ const remove = devOnly
     // ends too, unless another workspace holds the same one (a workspace made
     // with the sign-in copied shares its session), which would be signed out
     // with it.
-    const token = readBearerTokenIn(workspaceSettingsDirOf(listing.path));
+    const token = readBearerTokenIn(keysDirOf(getUserDataDir(), listing));
     const sharedWith = listings.some(
       (other) =>
         other !== listing &&
-        readBearerTokenIn(workspaceSettingsDirOf(other.path)) === token,
+        readBearerTokenIn(keysDirOf(getUserDataDir(), other)) === token,
     );
     if (token !== null && !sharedWith) {
       await revokeSession(token).catch((error: unknown) => {
         logger.warn("Could not end the deleted workspace's session", error);
       });
     }
-    await shell.trashItem(listing.path);
-    unregisterWorkspace({ dir: listing.path, userDataDir: userDataDir() });
+    // Read before its `.instrument/` goes, since the id that says the
+    // machine folder is its own is in it. Its keys and browser profiles go
+    // to the Trash too. Of the folder itself only the app's part goes: what
+    // else is in it is the person's (finished work, downloads), and the
+    // folder is removed only once that leaves it empty. A folder that cannot
+    // be reached is only taken off the list: nothing of it can be read to
+    // say what is its own.
+    const ownMachineDir = machineDirOwnedBy(getUserDataDir(), listing);
+    if (listing.isReachable) {
+      await shell.trashItem(workspaceLayout(listing.path).dataDir);
+      removeFolderIfEmpty(listing.path);
+    }
+    if (ownMachineDir !== undefined) {
+      await shell.trashItem(ownMachineDir);
+    }
+    unregisterWorkspace({ dir: listing.path, userDataDir: getUserDataDir() });
   });
 
 const register = devOnly
@@ -228,17 +269,177 @@ const register = devOnly
     const registered = registerStray({
       dir: input.path,
       resolved: getResolvedWorkspace(),
-      userDataDir: userDataDir(),
+      userDataDir: getUserDataDir(),
     });
     if (!registered) {
       throw errors.NOT_FOUND({ message: "Not an unlisted workspace" });
     }
   });
 
+/**
+ * Where the person's Instrument folder is: still in the app's own data, or a
+ * folder they picked; and the folder the picker suggests for it.
+ */
+const folder = base
+  .output(
+    z.object({
+      inAppData: z.boolean(),
+      path: z.string(),
+      /** Set by `INSTRUMENT_WORKSPACE`, which keeps it where it is. */
+      pinned: z.boolean(),
+      suggested: z.string(),
+    }),
+  )
+  .handler(() => {
+    const workspace = getResolvedWorkspace();
+    return {
+      inAppData: workspaceInAppData(),
+      path: workspace.path,
+      pinned: workspace.pinned,
+      suggested: instrumentFolderUnchosen(),
+    };
+  });
+
+/** What a folder the person picked would be to their Instrument folder (`checkMoveTarget`). */
+const checkFolder = base
+  .input(z.object({ path: z.string() }))
+  .output(MoveVerdictSchema)
+  .handler(({ input }) =>
+    checkMoveTarget({
+      target: input.path,
+      userDataDir: getUserDataDir(),
+      workspace: getResolvedWorkspace(),
+    }),
+  );
+
+/**
+ * Move the Instrument folder to a folder the person picked: checked again,
+ * recorded for the next launch, and the app restarted to make it with
+ * nothing open (`workspace-move.ts`). A folder it cannot move to answers
+ * as `checkFolder` would; a restart the person declines over running
+ * agents records nothing. With `create`, a folder not there yet is made
+ * first (the better folder `checkFolder` offered), and taken away again,
+ * still empty, when nothing is recorded to move into it.
+ */
+const move = base
+  .input(z.object({ create: z.boolean().optional(), path: z.string() }))
+  .output(
+    z.union([
+      NotMovableSchema,
+      z.object({
+        kind: z.enum(["canceled", "on-next-launch", "relaunching"]),
+      }),
+    ]),
+  )
+  .handler(async ({ input }) => {
+    const workspace = getResolvedWorkspace();
+    let made = false;
+    if (input.create === true && path.isAbsolute(input.path)) {
+      try {
+        fs.mkdirSync(input.path);
+        made = true;
+      } catch {
+        // Already there, or not makeable: the check says which.
+      }
+    }
+    const unmake = () => {
+      if (made) {
+        removeIfEmptySync(input.path);
+      }
+    };
+    const verdict = checkMoveTarget({
+      target: input.path,
+      userDataDir: getUserDataDir(),
+      workspace,
+    });
+    if (verdict.kind !== "movable") {
+      unmake();
+      return verdict;
+    }
+    const request = () => {
+      requestWorkspaceMove({
+        target: input.path,
+        userDataDir: getUserDataDir(),
+        workspace,
+      });
+    };
+    // A build that cannot restart itself makes the move the next time it is
+    // started by hand.
+    if (!canRelaunch()) {
+      request();
+      return { kind: "on-next-launch" as const };
+    }
+    const outcome = await relaunchApp({ beforeRestart: request });
+    if (outcome === "canceled") {
+      unmake();
+    }
+    return { kind: outcome };
+  });
+
+/**
+ * Open the Instrument folder in a folder the person picked that already
+ * holds one, in place of this one, which stays where it is: checked for a
+ * place no workspace can be, registered and made the one to open, then the
+ * app restarted. A place the person is only warned of was shown to them
+ * when they picked it (`checkFolder`), so it opens.
+ */
+const open = base
+  .input(z.object({ path: z.string() }))
+  .output(
+    z.union([
+      z.object({
+        outcome: z.enum([
+          "canceled",
+          "not-a-workspace",
+          "relaunching",
+          "unsupported",
+        ]),
+      }),
+      z.object({ outcome: z.literal("refused"), reason: FolderRefusalSchema }),
+    ]),
+  )
+  .handler(async ({ errors, input }) => {
+    if (getResolvedWorkspace().pinned) {
+      throw errors.UNAUTHORIZED({
+        message:
+          "This instance is pinned to its workspace by INSTRUMENT_WORKSPACE",
+      });
+    }
+    const concern = workspacePlaceConcern({
+      dir: input.path,
+      userDataDir: getUserDataDir(),
+    });
+    if (concern?.kind === "refused") {
+      return { outcome: "refused" as const, reason: concern.reason };
+    }
+    const registered = registerWorkspaceFolder({
+      dir: input.path,
+      userDataDir: getUserDataDir(),
+    });
+    if (registered === undefined) {
+      return { outcome: "not-a-workspace" as const };
+    }
+    const choose = () => {
+      updateRegistry(getUserDataDir(), (registry) => ({
+        ...registry,
+        active: registered.id,
+      }));
+    };
+    if (!canRelaunch()) {
+      choose();
+      return { outcome: "unsupported" as const };
+    }
+    return { outcome: await relaunchApp({ beforeRestart: choose }) };
+  });
+
 export const workspaces = {
+  checkFolder,
   create,
   current,
+  folder,
   list,
+  move,
+  open,
   register,
   remove,
   sizes,

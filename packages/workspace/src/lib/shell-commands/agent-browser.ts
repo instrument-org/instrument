@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { execa } from "execa";
 import { defineCommand } from "just-bash";
 import { spawn } from "node:child_process";
@@ -6,14 +7,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { dedent, sleep } from "radashi";
 
-import { CHAT_FOLDER_NAMES } from "../../constants";
 import { cdpBridgeUrl } from "../../logic/server/cdp-bridge-path";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
 import { type BrowserConfig } from "../../types";
 import { WebSearch } from "../../tools/web-search";
-import { absolutePathJoin } from "../absolute-path-join";
 import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
   AGENT_BROWSER_PATH,
@@ -30,12 +29,21 @@ import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { askWindow } from "../chat/window-tab";
-import { getDownloadsDir, getScreenshotsDir } from "../chat-dir-utils";
-import { chatDir, resolveChat } from "../record-folders";
+import {
+  getAgentBrowserHomeDir,
+  getDownloadsDir,
+  getScreenshotsDir,
+} from "../chat-dir-utils";
+import { resolveChat } from "../record-folders";
 import { sessionRole } from "../chat/children";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
-import { hostPathOf, type WorkspaceFsLayout } from "../workspace-fs-layout";
+import {
+  hostPathOf,
+  shellPathOfHostSpelling,
+  unsandboxedOperandRefusal,
+  type WorkspaceFsLayout,
+} from "../workspace-fs-layout";
 import {
   agentBrowserFlagName,
   parseAgentBrowserArgs,
@@ -43,9 +51,13 @@ import {
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 import {
   currentBrowserFollowUp,
+  activeTab,
+  FOLLOW_UP_SAID_ARGS,
   FOLLOW_UP_SNAPSHOT_ARGS,
+  FOLLOW_UP_TABS_ARGS,
   FOLLOW_UP_WAIT_ARGS,
 } from "./agent-browser-follow-up";
+import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 import { workDir } from "../work-dir";
 
@@ -76,6 +88,16 @@ export const BLOCKED_FLAGS = new Set([
   "--session", // Harness injects this; derived from our session id.
   "--session-name", // Upstream's alias for --session.
 ]);
+
+// Loads a browser extension from a path, which only a browser agent-browser
+// launches itself takes: connected to Instrument's, already running, the
+// CLI drops it.
+const EXTENSION_FLAG = "--extension";
+
+// Registers a script the browser runs in every page, read from a path by the
+// CLI outside the sandbox, so the path is held to the folder rules
+// (resolveAgentBrowserPathArgs).
+const INIT_SCRIPT_FLAG = "--init-script";
 
 // Launch-state flags that imply an external local Chrome launch when no
 // connection-identity flag (--cdp, --auto-connect, --provider) is present:
@@ -245,7 +267,7 @@ const WORKSPACE_HELP_MANAGED = dedent`
        run snapshot -i yourself only for what that leaves out
 
   Inspecting a file you created:
-    agent-browser open work/report.html     Chat files load in the browser
+    agent-browser open site/report.html     Chat files load in the browser
     agent-browser open /full/path/x.html    A relative path, a full path, or a
                                             file:// URL of either all work
   Use this to check an HTML deliverable end to end -- rendered layout, interactivity, and console errors -- not just its source.
@@ -378,24 +400,6 @@ export function isDaemonConfigRace(output: string): boolean {
 }
 
 /**
- * Whether a file subcommand's operand names a file rather than a selector,
- * a ref, a URL or a word like `start`: a path spelled as one, or a name
- * ending in an extension these subcommands write or read.
- */
-function looksLikeFilePath(value: string): boolean {
-  if (value.includes("://") || /^[@#[-]/.test(value)) {
-    return false;
-  }
-  return (
-    /^(?:\/|\.{1,2}\/)/.test(value) ||
-    (!value.startsWith(".") && value.includes("/")) ||
-    /\.(?:png|jpe?g|webp|pdf|webm|mp4|har|json|zip|cpuprofile|txt|html?)$/i.test(
-      value,
-    )
-  );
-}
-
-/**
  * Subcommands whose operands include a file the browser process reads or
  * writes. Every other subcommand's operands are text the page receives as
  * typed (an `eval` script, a `fill` value, a `wait --fn` body), where a
@@ -413,11 +417,145 @@ const FILE_OPERAND_SUBCOMMANDS = new Set([
   "upload",
 ]);
 
+type Operand = { index: number; value: string };
+/** `prefix` is the part of the argument before the path, for `--flag=<path>`. */
+type FileOperand = { index: number; op: "read" | "write"; prefix?: string };
+
 /**
- * Spell the file operands of subcommands that take a file as the host does,
- * and check every file operand of `upload` exists. CDP reports success for
- * missing files, so the wrapper must fail before handing them to the browser
- * process.
+ * The operands of a file subcommand that name a file, and whether the
+ * browser process reads or writes it, picked out the way the CLI's own
+ * parser picks them (`cli/src/commands.rs` upstream; keep in step when the
+ * pinned version moves). `operands` are the subcommand's own, after it.
+ */
+function fileOperandsOf(
+  subcommand: string | undefined,
+  operands: Operand[],
+): FileOperand[] {
+  const writes = (operand: Operand | undefined): FileOperand[] =>
+    operand ? [{ index: operand.index, op: "write" }] : [];
+  const [first, second, third] = operands;
+  switch (subcommand) {
+    case "diff": {
+      // `--baseline <file>` is read, `--output <file>` written.
+      return operands.flatMap((operand, i): FileOperand[] => {
+        const next = operands[i + 1];
+        if (!next) {
+          return [];
+        }
+        if (operand.value === "-b" || operand.value === "--baseline") {
+          return [{ index: next.index, op: "read" }];
+        }
+        return operand.value === "-o" || operand.value === "--output"
+          ? writes(next)
+          : [];
+      });
+    }
+    case "download": {
+      return writes(second);
+    }
+    case "network": {
+      return first?.value === "har" && second?.value === "stop"
+        ? writes(third)
+        : [];
+    }
+    case "pdf": {
+      return writes(first);
+    }
+    case "profiler":
+    case "trace": {
+      return first?.value === "stop" ? writes(second) : [];
+    }
+    case "record": {
+      if (first?.value !== "start" && first?.value !== "restart") {
+        return [];
+      }
+      return writes(
+        positionalsOf(operands.slice(1), {
+          bool: ["--contact-sheet", "--cursor"],
+          valued: ["--contact-sheet-threshold", "--fps"],
+        })[0],
+      );
+    }
+    case "screenshot": {
+      const positionals = positionalsOf(operands, {
+        bool: ["--full", "--if-changed", "-f"],
+        valued: ["--threshold"],
+      });
+      if (positionals.length > 1) {
+        return writes(positionals[1]);
+      }
+      const [only] = positionals;
+      return only && isScreenshotPath(only.value) ? writes(only) : [];
+    }
+    case "upload": {
+      return operands.slice(1).map(({ index }) => ({ index, op: "read" }));
+    }
+    default: {
+      return [];
+    }
+  }
+}
+
+/**
+ * The page init scripts an invocation names, which the browser reads: the
+ * value after `--init-script`, and one spelled `--init-script=<path>`, which
+ * the CLI does not take for the flag today and is held as one all the same.
+ */
+function initScriptOperands(
+  args: string[],
+  globalFlags: ReturnType<typeof parseAgentBrowserArgs>["globalFlags"],
+): FileOperand[] {
+  const prefix = `${INIT_SCRIPT_FLAG}=`;
+  return [
+    ...globalFlags.flatMap(({ name, valueIndex }): FileOperand[] =>
+      name === INIT_SCRIPT_FLAG && valueIndex !== undefined
+        ? [{ index: valueIndex, op: "read" }]
+        : [],
+    ),
+    ...args.flatMap((arg, index): FileOperand[] =>
+      arg.startsWith(prefix) ? [{ index, op: "read", prefix }] : [],
+    ),
+  ];
+}
+
+/** The operands that are not a flag or a flag's value. */
+function positionalsOf(
+  operands: Operand[],
+  flags: { bool: string[]; valued: string[] },
+): Operand[] {
+  const positionals: Operand[] = [];
+  for (let i = 0; i < operands.length; i++) {
+    const value = operands[i]?.value ?? "";
+    if (flags.valued.includes(value)) {
+      i++;
+    } else if (!flags.bool.includes(value)) {
+      const operand = operands[i];
+      if (operand) {
+        positionals.push(operand);
+      }
+    }
+  }
+  return positionals;
+}
+
+/** Whether `screenshot`'s only operand is the file it writes rather than a selector. */
+function isScreenshotPath(value: string): boolean {
+  const relative = value.startsWith("./") || value.startsWith("../");
+  const selector = !relative && /^[.#@]/.test(value);
+  return (
+    !selector &&
+    (relative || value.includes("/") || /\.(?:png|jpe?g|webp)$/.test(value))
+  );
+}
+
+/**
+ * Spell the file operands of subcommands that take a file, and the page
+ * init scripts, as the host does, refuse one the folder rules keep from the
+ * agent, and check every file `upload` sends and every init script exists.
+ * The CLI and the browser it drives run outside the sandbox, so the rules
+ * are asked here, as `rg` and `du` ask them of theirs. CDP reports success
+ * for missing files, so the wrapper must fail before handing them to the
+ * browser process.
  */
 export async function resolveAgentBrowserPathArgs(
   args: string[],
@@ -428,37 +566,64 @@ export async function resolveAgentBrowserPathArgs(
       resolvePath(cwd: string, path: string): string;
     };
   },
+  layout: WorkspaceFsLayout,
 ): Promise<{ args: string[] } | { error: string }> {
-  const { subArgs, subcommand } = parseAgentBrowserArgs(args);
+  const { globalFlags, subArgs, subcommand } = parseAgentBrowserArgs(args);
   const textOperands = new Set(
     subcommand !== undefined && !FILE_OPERAND_SUBCOMMANDS.has(subcommand)
       ? subArgs.slice(1).map(({ index }) => index)
       : [],
   );
-  const fileOperands = new Set(
-    subcommand !== undefined && FILE_OPERAND_SUBCOMMANDS.has(subcommand)
-      ? subArgs
-          .slice(1)
-          .filter(({ value }) => looksLikeFilePath(value))
-          .map(({ index }) => index)
-      : [],
+  const initScripts = initScriptOperands(args, globalFlags);
+  const fileOperands = [
+    ...fileOperandsOf(subcommand, subArgs.slice(1)),
+    ...initScripts,
+  ];
+  const pathOf = ({ index, prefix = "" }: FileOperand) =>
+    (args[index] ?? "").slice(prefix.length);
+  const hostCwd = hostPathOf(ctx.fs.resolvePath(ctx.cwd, "."));
+  // A file named the way this computer names one is the file the CLI opens,
+  // so it meets the rules its shell spelling meets and reaches the CLI as
+  // the path it named rather than as a name in the working folder.
+  const shellPathOf = (named: string) =>
+    shellPathOfHostSpelling(named, { hostCwd }) ??
+    ctx.fs.resolvePath(ctx.cwd, named);
+  for (const operand of fileOperands) {
+    const named = pathOf(operand);
+    const refusal = unsandboxedOperandRefusal(
+      layout,
+      shellPathOf(named),
+      operand.op,
+    );
+    if (refusal !== undefined) {
+      return { error: `${named}: Permission denied\n${refusal}` };
+    }
+  }
+  for (const operand of initScripts) {
+    const named = pathOf(operand);
+    if (!(await ctx.fs.exists(shellPathOf(named)))) {
+      return { error: `Init script not found: "${named}".` };
+    }
+  }
+  const byIndex = new Map(
+    fileOperands.map((operand) => [operand.index, operand]),
   );
   // The daemon outlives the shell's `cd` and resolves a relative path
   // against the folder it was launched in, so a file operand goes to it
   // absolute.
-  const resolved = args.map((arg, index) =>
-    textOperands.has(index)
-      ? arg
-      : fileOperands.has(index)
-        ? hostPathOf(ctx.fs.resolvePath(ctx.cwd, arg))
-        : (hostPathArgs([arg])[0] ?? arg),
-  );
+  const resolved = args.map((arg, index) => {
+    const operand = byIndex.get(index);
+    if (operand) {
+      return `${operand.prefix ?? ""}${hostPathOf(shellPathOf(pathOf(operand)))}`;
+    }
+    return textOperands.has(index) ? arg : (hostPathArgs([arg])[0] ?? arg);
+  });
   if (subcommand !== "upload") {
     return { args: resolved };
   }
 
   for (const { value } of subArgs.slice(2)) {
-    if (!(await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, value)))) {
+    if (!(await ctx.fs.exists(shellPathOf(value)))) {
       return { error: `Upload file not found: "${value}".` };
     }
   }
@@ -517,6 +682,12 @@ export function classifyInvocation(
     return {
       kind: "refuse",
       stderr: `agent-browser: flag ${blockedArg} is not allowed. The browser session is managed automatically.\n`,
+    };
+  }
+  if (args.some((a) => agentBrowserFlagName(a) === EXTENSION_FLAG)) {
+    return {
+      kind: "refuse",
+      stderr: `agent-browser: flag ${EXTENSION_FLAG} has no effect on ${APP_NAME}'s browser: an extension loads only into a browser agent-browser starts itself, and this one is already running.\n`,
     };
   }
   const { subArgs, subcommand } = parseAgentBrowserArgs(args);
@@ -628,6 +799,7 @@ export function createAgentBrowserCommand({
     const bridgedArgs = await resolveAgentBrowserPathArgs(
       navigationArgs.args,
       ctx,
+      layout,
     );
     if ("error" in bridgedArgs) {
       return {
@@ -636,17 +808,14 @@ export function createAgentBrowserCommand({
         stdout: "",
       };
     }
-    const resolvedArgs = bridgedArgs.args;
+    const cappedWait = uncappedWait(bridgedArgs.args);
+    const resolvedArgs = capWait(bridgedArgs.args, cappedWait);
 
     // The home folder is read-only to native commands. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,
-    // download path); this is a per-chat sink for anything that falls back
+    // download path); this is the sink for anything that falls back
     // to $HOME, and holds the managed config and provider plugin script.
-    const homeDir = absolutePathJoin(
-      chatDir(chatId),
-      CHAT_FOLDER_NAMES.private,
-      "agent-browser-home",
-    );
+    const homeDir = getAgentBrowserHomeDir();
     const configPath = path.join(homeDir, "config.json");
 
     const commandArgs: string[] = [];
@@ -721,8 +890,10 @@ export function createAgentBrowserCommand({
       // AGENT_BROWSER_DEBUG:
       //   process.env.NODE_ENV === "development" ? "1" : undefined,
       AGENT_BROWSER_EXECUTABLE_PATH: undefined,
+      AGENT_BROWSER_EXTENSIONS: undefined,
       AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
       AGENT_BROWSER_IDLE_TIMEOUT_MS,
+      AGENT_BROWSER_INIT_SCRIPTS: undefined,
       AGENT_BROWSER_NAMESPACE: undefined,
       AGENT_BROWSER_PLUGINS: pluginRegistry,
       AGENT_BROWSER_PROFILE: undefined,
@@ -745,7 +916,7 @@ export function createAgentBrowserCommand({
       // packaged builds that is the Electron binary, which this var makes
       // behave as plain node. Inert for the Rust CLI and for Chrome.
       ELECTRON_RUN_AS_NODE: pluginRegistry ? "1" : undefined,
-      // A per-chat sink instead of the host home.
+      // The workspace's own sink instead of the host home.
       HOME: homeDir,
     };
 
@@ -756,6 +927,10 @@ export function createAgentBrowserCommand({
       stateDir: agentBrowserStateDir,
     };
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
+    // How long the command ran, which tells a capped wait that gave up from
+    // a failure that came back before the cap.
+    const startedAt = performance.now();
+    let elapsedMs: number;
     try {
       result = await runAgentBrowser({
         ...spawnOptions,
@@ -763,6 +938,7 @@ export function createAgentBrowserCommand({
         cancelSignal: ctx.signal,
         input: subprocessStdin(ctx.stdin),
       });
+      elapsedMs = performance.now() - startedAt;
     } finally {
       if (drivesHeldTabs) {
         await recordHeldTabHosts({ sessionId, chatId });
@@ -784,32 +960,48 @@ export function createAgentBrowserCommand({
       currentBrowserFollowUp()?.note({
         args: resolvedArgs,
         exitCode,
-        snapshot: async (signal) => {
+        read: async (signal) => {
+          const run = (readArgs: string[]) =>
+            runAgentBrowser({
+              ...spawnOptions,
+              args: [...connectionArgs, ...readArgs],
+              cancelSignal: signal,
+              input: undefined,
+            });
           // A click returns before the page it navigated to has loaded, and a
           // snapshot of a loading document has no controls in it. Resolves at
           // once on a page that is already past loading.
-          await runAgentBrowser({
-            ...spawnOptions,
-            args: [...connectionArgs, ...FOLLOW_UP_WAIT_ARGS],
-            cancelSignal: signal,
-            input: undefined,
-          });
-          const snapshot = await runAgentBrowser({
-            ...spawnOptions,
-            args: [...connectionArgs, ...FOLLOW_UP_SNAPSHOT_ARGS],
-            cancelSignal: signal,
-            input: undefined,
-          });
-          return snapshot.exitCode === 0 ? scrub(snapshot.stdout) : undefined;
+          await run(FOLLOW_UP_WAIT_ARGS);
+          const snapshot = await run(FOLLOW_UP_SNAPSHOT_ARGS);
+          if (snapshot.exitCode !== 0) {
+            return undefined;
+          }
+          // Together, since neither decides whether there is an attachment
+          // and one page's worth of either is a line of text.
+          const [tabs, said] = await Promise.all([
+            run(FOLLOW_UP_TABS_ARGS),
+            run(FOLLOW_UP_SAID_ARGS),
+          ]);
+          const active = activeTab(tabs.exitCode === 0 ? tabs.stdout : "");
+          return {
+            ...(said.exitCode === 0 && said.stdout.trim()
+              ? { said: scrub(said.stdout).trim() }
+              : {}),
+            snapshot: scrub(snapshot.stdout),
+            ...active,
+          };
         },
       });
     }
 
-    return {
+    const output = {
       exitCode,
       stderr: scrub(result.stderr),
       stdout: scrub(result.stdout),
     };
+    return cappedWait
+      ? cappedWaitResult(cappedWait, output, elapsedMs)
+      : output;
   });
 }
 
@@ -895,7 +1087,7 @@ async function recordHeldTabHosts({
  * which are the user's and outlive the task, and tabs it opened itself, each
  * opened behind whatever the user has up, so every page the agent works in
  * is one the user can find in the chat's tabs and none is put in front of
- * them. A page the user has open is handed to a task (`task new --tab`).
+ * them. A page the user has open is handed to a task (`instrument task new --tab`).
  */
 async function refuseBrowserFor(
   id: ChatId,

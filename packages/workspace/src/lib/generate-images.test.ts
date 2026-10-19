@@ -7,6 +7,7 @@ import { OUR_MODELS } from "@instrument-org/shared";
 import { generateImage } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { type WorkspaceConfig } from "../types";
 import { generateBufferedImage, generateImageStream } from "./generate-images";
@@ -145,6 +146,7 @@ async function collectStream() {
   const chunks = [];
   for await (const chunk of generateImageStream({
     callingModel: {} as never,
+    chatId: ChatIdSchema.parse("images"),
     configs: [] as never,
     count: 1,
     prompt: "a cat",

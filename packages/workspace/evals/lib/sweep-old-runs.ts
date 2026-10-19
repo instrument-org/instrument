@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { runtimeLayout } from "../../src/lib/runtime-dir";
+
 /**
  * Every temp folder an eval run or case leaves behind, by name prefix. Runs keep
  * their workspace so a transcript's files can be inspected afterwards; a day is
@@ -42,7 +44,7 @@ export function sweepOldRuns() {
  * go as soon as the report is written.
  */
 export function removePreparedSkills(workspaceRootDir: string) {
-  fs.rmSync(path.join(workspaceRootDir, "prepared-skills"), {
+  fs.rmSync(runtimeLayout(path.join(workspaceRootDir, "runtime")).skills, {
     force: true,
     recursive: true,
   });

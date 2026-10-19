@@ -118,16 +118,10 @@ describe("Settings tabs in the command menu in developer mode", () => {
         "Settings: Permissions",
         "Settings: Providers",
         "Settings: Skills",
+        "Settings: Storage",
         ...(debug ? ["Settings: Debug"] : []),
       ].sort(),
     );
-  });
-
-  it("lists Storage while some chats or tasks have problems in their folders", async () => {
-    answers.set("workspace.storage.invalidFolders.list", [{}]);
-    renderWithProviders(<SettingsTabRows />);
-
-    expect(await screen.findByText("Settings: Storage")).toBeTruthy();
   });
 });
 

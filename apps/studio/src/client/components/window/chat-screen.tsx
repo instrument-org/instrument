@@ -75,7 +75,7 @@ export function ChatScreen(props: ChatScreenProps) {
       <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
         <p>This chat no longer exists.</p>
         <Button onClick={props.onGone} size="sm" variant="outline">
-          Close it
+          Close
         </Button>
       </div>
     ) : (
@@ -229,7 +229,6 @@ function ChatScreenOfRecord({
                   // What the chat holds, over the composer.
                   beforeComposer={tiles}
                   composerLead={composerLead}
-                  composerPlaceholder="Talk to Instrument"
                   // Kept past this screen's unmount, so the row in the inbox
                   // can say the chat holds a draft while it does.
                   draftKey={{ chatId, scope: "chat" }}

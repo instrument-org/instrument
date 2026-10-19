@@ -7,9 +7,21 @@ import { BrowserHandoffButton } from "@/client/components/browser-handoff-button
 import { ClaudeSignInCode } from "@/client/components/claude-sign-in-code";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
+import { DropdownMenuItem } from "@/client/components/ui/dropdown-menu";
 import { Progress } from "@/client/components/ui/progress";
+import {
+  ProviderMoreMenu,
+  DISABLED_LINE,
+  DisableItem,
+  useProviderSwitch,
+} from "@/client/components/settings/provider-switch";
+import { cn } from "@/client/lib/utils";
 import { type RPCOutput, rpcClient } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
+import {
+  AIProviderConfigIdSchema,
+  APP_NAME,
+  CLAUDE_ACCOUNT_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -17,6 +29,10 @@ import { format } from "date-fns";
 import { capitalize } from "radashi";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "@/client/lib/toast";
+
+const CLAUDE_ID = AIProviderConfigIdSchema.parse(
+  CLAUDE_ACCOUNT_PROVIDER_CONFIG.id,
+);
 
 /** A usage window this full is worth pointing out a way past. */
 const RUNNING_LOW_PERCENT = 80;
@@ -38,6 +54,7 @@ export function ClaudeAccountCard() {
     rpcClient.claudeAccount.signOut.mutationOptions(),
   );
   const [hint, setHint] = useState<string>();
+  const providerSwitch = useProviderSwitch();
   const settings = useAtomValue(settingsModalAtom);
   const [showUsage, setShowUsage] = useState(
     settings?.providerUsage === "claude-account",
@@ -75,6 +92,7 @@ export function ClaudeAccountCard() {
 
   const installing = status.install?.state === "downloading";
   const waiting = status.signingIn || installing || signIn.isPending;
+  const off = status.kind === "signed-in" && providerSwitch.isOff(CLAUDE_ID);
 
   return (
     <Card className="gap-0 p-4">
@@ -82,7 +100,12 @@ export function ClaudeAccountCard() {
         className="flex items-start justify-between gap-4"
         {...settingAnchor("claude-account")}
       >
-        <div className="flex min-w-0 flex-1 items-start gap-3">
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 items-start gap-3",
+            off && "opacity-50 grayscale",
+          )}
+        >
           <div className="flex size-8 shrink-0 items-center justify-center">
             <AIProviderIcon type="claude-account" />
           </div>
@@ -91,12 +114,21 @@ export function ClaudeAccountCard() {
               Claude account
             </h3>
             <p className="text-sm text-muted-foreground">
-              {hint ?? describe(status)}
+              {off ? DISABLED_LINE : (hint ?? describe(status))}
             </p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {status.kind === "signed-in" ? (
+          {off ? (
+            <Button
+              onClick={() => {
+                providerSwitch.setEnabled(CLAUDE_ID, true);
+              }}
+              variant="outline"
+            >
+              Enable
+            </Button>
+          ) : status.kind === "signed-in" ? (
             <Button
               aria-expanded={showUsage}
               onClick={() => {
@@ -115,15 +147,23 @@ export function ClaudeAccountCard() {
             </Button>
           ) : null}
           {status.kind === "signed-in" ? (
-            <Button
-              disabled={signOut.isPending}
-              onClick={() => {
-                signOut.mutate({});
-              }}
-              variant="ghost"
-            >
-              Sign out
-            </Button>
+            <ProviderMoreMenu label="Claude account">
+              {!off && (
+                <DisableItem
+                  onSelect={() => {
+                    providerSwitch.setEnabled(CLAUDE_ID, false);
+                  }}
+                />
+              )}
+              <DropdownMenuItem
+                disabled={signOut.isPending}
+                onSelect={() => {
+                  signOut.mutate({});
+                }}
+              >
+                Sign out
+              </DropdownMenuItem>
+            </ProviderMoreMenu>
           ) : (
             <BrowserHandoffButton
               onCancel={() => {
@@ -145,7 +185,7 @@ export function ClaudeAccountCard() {
       {status.kind !== "signed-in" && status.signingIn && status.signInLink && (
         <ClaudeSignInCode className="mt-2 pl-11" link={status.signInLink} />
       )}
-      {status.kind === "signed-in" && showUsage && <PlanUsage />}
+      {status.kind === "signed-in" && !off && showUsage && <PlanUsage />}
     </Card>
   );
 }
@@ -175,7 +215,7 @@ function describe(status: Status) {
     }
     case "signed-out": {
       return status.expired
-        ? "Your Claude sign-in ran out. Continue with Claude to sign in again."
+        ? "You're signed out. Continue with Claude to sign in again."
         : "Pay for Claude Pro or Max? Use it here.";
     }
     case "not-a-plan": {

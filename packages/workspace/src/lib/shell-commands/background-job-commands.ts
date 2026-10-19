@@ -29,16 +29,16 @@ export const JOBS_COMMAND = {
   description: dedent`
     List the background processes this session started, with their status, run time and command.
     Unlike the rest of the shell, this survives across calls: a process started by an earlier call is still listed here. Use it at the start of a turn to find what is already running instead of starting a second copy.
-    Usage: \`jobs [--json]\`.
+    Usage: \`jobs [-l] [-p] [--json]\`. \`-l\` adds the pids each one is running, \`-p\` prints only those.
   `.trim(),
   name: "jobs",
 } as const;
 
 export const KILL_COMMAND = {
   description: dedent`
-    Stop background processes started by \`bash\`, waiting until each has really exited.
-    Usage: \`kill <id>...\`, where each id is one \`jobs\` reports (\`bg_1\`). A signal flag (\`-9\`) is accepted and ignored; termination always escalates on its own. Killing one that already finished is harmless.
-    Only these ids can be stopped -- there is no access to the machine's own processes, so a bare number is refused.
+    Stop a process you started, waiting until it has really exited.
+    Usage: \`kill [-SIGNAL] <bg_1|%1|pid>...\`. Takes a \`jobs\` id or the pid of anything your commands started, their children included, so \`lsof -ti :3000 | xargs kill\` frees a port your own server holds. Without a signal, or with TERM, INT or KILL, it escalates on its own until the process is gone; any other signal (\`-HUP\`, \`-0\`) is sent as given. \`kill -l\` lists signals.
+    Processes you did not start belong to the person and are refused.
   `.trim(),
   name: "kill",
 } as const;

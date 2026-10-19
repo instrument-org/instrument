@@ -3,17 +3,20 @@ import { eventIterator, type } from "@orpc/server";
 import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
+import { ChatReads } from "../../lib/chat-reads";
+import { ChatWrites } from "../../lib/chat-writes";
 import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
-import { setChatTopics } from "../../lib/chat/chats";
+import { attendChatArrivals } from "../../lib/records/take-arrivals";
+import { setChatTopic } from "../../lib/chat/chats";
 
-import { Store } from "../../lib/store";
 import { recordChatActivity } from "../../lib/chat-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
+import { closeQuestions } from "../../lib/chat/asks";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
@@ -31,9 +34,10 @@ const listWithParts = base
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
     const chatId = id;
-    const messages = await Store.getMessagesWithParts({
-      sessionId,
+    const messages = await ChatReads.transcript({
+      bytes: true,
       chatId,
+      sessionId,
     });
 
     if (messages.isErr()) {
@@ -58,14 +62,20 @@ const create = base
       asks: SessionMessageDataPart.AsksDataPartSchema.optional(),
       files: z.array(FileUpload.Schema).optional(),
       folders: z.array(z.object({ path: z.string() })).optional(),
+      /**
+       * The draft this message was sent from, by its id, recorded on the
+       * message: what tells the next launch the draft was sent, so a send
+       * interrupted partway through is finished rather than sent again.
+       */
+      fromDraft: z.string().optional(),
       id: ChatIdSchema,
       modelURI: AIGatewayModelURI.Schema,
       prompt: z.string(),
       /** The earlier message this one answers. */
       replyTo: SessionMessageDataPart.ReplyDataPartSchema.optional(),
       sessionId: StoreId.SessionSchema.optional(),
-      /** Topic ids for the chat this message opens, when it opens one. */
-      topics: z.array(z.string()).optional(),
+      /** The topic id for the chat this message opens, when it opens one. */
+      topic: z.string().optional(),
       viewing: SessionMessageDataPart.ViewContextDataPartSchema.optional(),
     }),
   )
@@ -78,12 +88,13 @@ const create = base
         asks,
         files,
         folders,
+        fromDraft,
         id,
         modelURI,
         prompt,
         replyTo,
         sessionId,
-        topics,
+        topic,
         viewing,
       },
     }) =>
@@ -94,6 +105,7 @@ const create = base
           captureException: context.workspaceConfig.captureException,
           configs: context.workspaceConfig.getAIProviderConfigs(),
           modelCache: context.workspaceConfig.modelCache,
+          modelRoutes: context.workspaceConfig.modelRoutes,
           modelURI,
         });
 
@@ -111,14 +123,14 @@ const create = base
         }
         // Without a session named, the message goes to the chat's own.
         const finalSessionId = sessionId ?? chatSession.value.id;
-        if (!sessionId && topics && topics.length > 0) {
-          await setChatTopics(chatId, topics);
+        if (!sessionId && topic) {
+          await setChatTopic(chatId, topic);
         }
 
-        const messageIdsBeforeResult = await Store.getMessageIds(
-          finalSessionId,
+        const messageIdsBeforeResult = await ChatReads.messageIds({
           chatId,
-        );
+          sessionId: finalSessionId,
+        });
         if (messageIdsBeforeResult.isErr()) {
           throw toORPCError(messageIdsBeforeResult.error, errors);
         }
@@ -129,6 +141,7 @@ const create = base
           asks,
           files,
           folders,
+          ...(fromDraft ? { fromDraft } : {}),
           modelURI,
           prompt,
           replyTo,
@@ -167,9 +180,15 @@ const create = base
 
         // Written now, so the conversation shows it the moment it was sent; the
         // session runs it when its turn comes and never writes it again.
-        const written = await Store.saveMessageWithParts(message, chatId);
+        const written = await ChatWrites.saveMessageWithParts(message, chatId);
         if (written.isErr()) {
           throw toORPCError(written.error, errors);
+        }
+        // Writing in the chat is the person's answer to whatever it asked,
+        // so a question still open there is closed rather than left to be
+        // answered against a turn that has moved on.
+        if (finalSessionId === chatSession.value.id) {
+          await closeQuestions(chatId);
         }
         context.workspaceRef.send({
           type: "addMessage",
@@ -206,12 +225,15 @@ const live = {
       // unobserved between the two; an event for a message the read already
       // covered only costs a redundant re-read of that message.
       const batches = changedMessageBatches(input, signal);
+      // Another device's records of the chat are noticed while it is shown.
+      const unattend = attendChatArrivals(input.id);
 
       try {
-        const initial = await Store.getMessagesWithParts(
-          { sessionId: input.sessionId, chatId: input.id },
-          { signal },
-        );
+        const initial = await ChatReads.transcript({
+          bytes: true,
+          chatId: input.id,
+          sessionId: input.sessionId,
+        });
         if (initial.isErr()) {
           throw toORPCError(initial.error, errors);
         }
@@ -230,16 +252,16 @@ const live = {
 
           if (batch.updated.size > 0) {
             const messageIds = [...batch.updated];
-            const readUpdated = () =>
-              Store.getMessagesWithParts(
-                { messageIds, sessionId: input.sessionId, chatId: input.id },
-                { signal },
-              );
 
             // A message and its parts are written and removed together, so
             // a read that fails falls back to a full reload, which surfaces a
             // persistent error the same way the initial read does.
-            const messages = await readUpdated();
+            const messages = await ChatReads.transcript({
+              bytes: true,
+              chatId: input.id,
+              only: batch.updated,
+              sessionId: input.sessionId,
+            });
 
             if (messages.isOk()) {
               for (const message of messages.value) {
@@ -255,10 +277,11 @@ const live = {
                 }
               }
             } else {
-              const reload = await Store.getMessagesWithParts(
-                { sessionId: input.sessionId, chatId: input.id },
-                { signal },
-              );
+              const reload = await ChatReads.transcript({
+                bytes: true,
+                chatId: input.id,
+                sessionId: input.sessionId,
+              });
               if (reload.isErr()) {
                 throw toORPCError(reload.error, errors);
               }
@@ -271,6 +294,7 @@ const live = {
       } finally {
         // for await only closes the iterator once the loop has been entered;
         // this also unsubscribes when the initial read throws.
+        unattend();
         await batches.return();
       }
     }),

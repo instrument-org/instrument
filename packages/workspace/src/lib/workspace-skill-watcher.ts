@@ -1,9 +1,9 @@
 import type { AsyncSubscription } from "@parcel/watcher";
 
-import fs from "node:fs/promises";
 import { noop } from "radashi";
 
 import { publisher } from "../rpc/publisher";
+import { afterFolderAppears, isFolder } from "./folder-appears";
 import {
   NATIVE_WATCHER_BACKEND,
   type NativeWatcherApi,
@@ -15,10 +15,13 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 const DEBOUNCE_MS = 150;
 
 interface WatcherEntry {
+  /** The subscription made once the folder turned up, while it is being made. */
+  appeared: Promise<void>;
   debounceTimer: null | ReturnType<typeof setTimeout>;
   disposed: boolean;
   init: Promise<void>;
   refCount: number;
+  stopWaiting: (() => void) | null;
   subscription: AsyncSubscription | null;
 }
 
@@ -40,10 +43,12 @@ export async function startWatchingWorkspaceSkills(): Promise<
   }
 
   const entry: WatcherEntry = {
+    appeared: Promise.resolve(),
     debounceTimer: null,
     disposed: false,
     init: Promise.resolve(),
     refCount: 1,
+    stopWaiting: null,
     subscription: null,
   };
   ACTIVE = entry;
@@ -60,18 +65,34 @@ export async function stopWorkspaceSkillWatcher(): Promise<void> {
   }
   ACTIVE = undefined;
   entry.disposed = true;
+  entry.stopWaiting?.();
   if (entry.debounceTimer) {
     clearTimeout(entry.debounceTimer);
   }
   await entry.init.catch(noop);
+  await entry.appeared.catch(noop);
   await entry.subscription?.unsubscribe().catch(noop);
   entry.subscription = null;
 }
 
 async function initialize(entry: WatcherEntry) {
+  const skillsDir = getWorkspaceSkillsDir();
+  if (isFolder(skillsDir)) {
+    await subscribe(entry, skillsDir);
+    return;
+  }
+  // A workspace with no skills has no folder until the first one is made.
+  entry.stopWaiting = afterFolderAppears(skillsDir, () => {
+    entry.appeared = subscribe(entry, skillsDir).then(() => {
+      if (!isDisposed(entry)) {
+        publisher.publish("skill.changed", null);
+      }
+    });
+  });
+}
+
+async function subscribe(entry: WatcherEntry, skillsDir: string) {
   try {
-    const skillsDir = getWorkspaceSkillsDir();
-    await fs.mkdir(skillsDir, { recursive: true });
     const parcel = await loadParcelWatcher();
     if (!parcel || isDisposed(entry)) {
       return;
@@ -137,10 +158,12 @@ async function release(entry: WatcherEntry) {
   if (ACTIVE === entry) {
     ACTIVE = undefined;
   }
+  entry.stopWaiting?.();
   if (entry.debounceTimer) {
     clearTimeout(entry.debounceTimer);
   }
   await entry.init;
+  await entry.appeared;
   await entry.subscription?.unsubscribe().catch((error: unknown) => {
     getWorkspaceConfig().captureException(error);
   });

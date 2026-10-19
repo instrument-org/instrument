@@ -29,7 +29,7 @@ const model = ({
   canonicalId: string;
   config?: string;
   name: string;
-  provider?: "anthropic" | "instrument" | "openrouter";
+  provider?: "anthropic" | "claude-account" | "instrument" | "openrouter";
   providerId?: string;
   replacedBy?: string;
   restricted?: string;
@@ -108,6 +108,23 @@ const openRouterDown: ModelListError[] = [
   },
 ];
 
+// This computer's connections, in the order added, for the cases about a URI
+// another computer chose.
+const here = [
+  {
+    id: AIProviderConfigIdSchema.parse("anthropic-key"),
+    type: "anthropic" as const,
+  },
+  {
+    id: AIProviderConfigIdSchema.parse("openrouter-key"),
+    type: "openrouter" as const,
+  },
+  {
+    id: AIProviderConfigIdSchema.parse("instrument"),
+    type: "instrument" as const,
+  },
+];
+
 const none = new Set<string>();
 // The removed connection is named by its kind only where a name is known; the
 // case below that leaves it out reads the fallback.
@@ -141,11 +158,43 @@ export const modelStatusScenarios = {
     modelURI: goneURI("claude-haiku-4.5", "removed-key"),
     providerNames: new Map([["anthropic", "Anthropic"]]),
   },
+  "provider turned off, same model elsewhere": {
+    disabled: new Set(["off-key"]),
+    dismissedOffers: none,
+    models: listed,
+    modelURI: goneURI("claude-haiku-4.5", "off-key"),
+    providerNames: new Map([["anthropic", "Anthropic"]]),
+  },
+  "Claude account signed out": {
+    dismissedOffers: none,
+    models: listed,
+    modelURI: model({
+      canonicalId: "claude-opus-4.5",
+      config: "claude-account",
+      name: "Claude Opus 4.5",
+      provider: "claude-account",
+    }).uri,
+    providerNames: new Map([["claude-account", "Claude account"]]),
+    signedOut: new Set(["claude-account"]),
+  },
   "provider removed, same model through OpenRouter and Instrument": {
     dismissedOffers: none,
     // Instrument listed last, so only the preference can put it first.
     models: [...listed, viaInstrument],
     modelURI: goneURI("claude-haiku-4.5", "removed-key"),
+  },
+  "another computer's connection, one of the kind here": {
+    connections: here,
+    dismissedOffers: none,
+    models: listed,
+    modelURI: goneURI("claude-sonnet-5.5", "their-anthropic-key"),
+  },
+  "another computer's connection, only another kind here": {
+    connections: here,
+    dismissedOffers: none,
+    models: listed,
+    modelURI: goneURI("claude-haiku-4.5", "their-anthropic-key"),
+    providerNames: new Map([["anthropic", "Anthropic"]]),
   },
   "withdrawn, nothing continues it": {
     dismissedOffers: none,

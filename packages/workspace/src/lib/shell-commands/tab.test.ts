@@ -1,9 +1,11 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
-import { ChatDirSchema } from "../../schemas/paths";
+import { WorkDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type WindowTabAction } from "../../schemas/window-tab";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -11,8 +13,11 @@ import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { createTabCommand } from "./tab";
 
 const chatId = ChatIdSchema.parse("tab-command-chat");
+// As this computer spells it, with a drive on Windows, where the browser's
+// addresses carry one.
+const chatFolder = path.resolve("/work/chats/tab-command-chat");
 const layout = buildWorkspaceFsLayout({
-  chatHostRoot: ChatDirSchema.parse("/work/chats/tab-command-chat"),
+  chatHostRoot: WorkDirSchema.parse(chatFolder),
 });
 
 // A page tab, by the session id the window's page tabs carry, and the
@@ -198,7 +203,9 @@ describe("tab close, replace and show", () => {
     const result = await run({}, "close", "tab-gone");
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toBe("tab: no tab tab-gone is open in this chat.\n");
+    expect(result.stderr).toBe(
+      "instrument tab: no tab tab-gone is open in this chat.\n",
+    );
   });
 
   it("points a tab at a page", async () => {
@@ -233,7 +240,7 @@ describe("tab close, replace and show", () => {
   });
 
   it("reads a local page under the chat's own folder", async () => {
-    pageUrls = ["file:///work/chats/tab-command-chat/notes.html"];
+    pageUrls = [pathToFileURL(path.join(chatFolder, "notes.html")).href];
     const result = await run({}, "read", pageTab);
 
     expect(result.stdout).toBe("Jar\nA rigid container.\n");
@@ -246,7 +253,7 @@ describe("tab close, replace and show", () => {
     expect(asked).toEqual([]);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      `tab: tab ${pageTab} shows a file outside your folders, so it can't be read.\n`,
+      `instrument tab: tab ${pageTab} shows a file outside your folders, so it can't be read.\n`,
     );
   });
 
@@ -264,7 +271,9 @@ describe("tab close, replace and show", () => {
     const result = await run({}, "read", "tab-gone");
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toBe("tab: no tab tab-gone is open in this chat.\n");
+    expect(result.stderr).toBe(
+      "instrument tab: no tab tab-gone is open in this chat.\n",
+    );
   });
 
   it("says nothing changed when no window answers", async () => {
@@ -280,7 +289,7 @@ describe("tab close, replace and show", () => {
     const result = await run({});
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Usage: tab open");
+    expect(result.stdout).toContain("Usage: instrument tab open");
   });
 
   it.each([
@@ -292,6 +301,6 @@ describe("tab close, replace and show", () => {
     const result = await run({}, ...args);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Usage: tab open");
+    expect(result.stderr).toContain("Usage: instrument tab open");
   });
 });

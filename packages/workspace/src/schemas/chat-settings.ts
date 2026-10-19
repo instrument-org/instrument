@@ -4,50 +4,7 @@ import {
 } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
-import { AbsolutePathSchema } from "./paths";
 import { StoreId } from "./store-id";
-
-/**
- * A folder this chat may use, read and write, made in the chat and good in
- * it alone. "card" is an allow from a permission card (or `task folder
- * --add`), "attached" a folder the user sent with a message. Where it mounts
- * is derived from its path and when it was granted (folder-reach.ts), never
- * stored.
- */
-const ChatGrantSchema = z.object({
-  grantedAt: z.coerce.date(),
-  path: AbsolutePathSchema,
-  source: z.enum(["attached", "card"]),
-});
-
-export type ChatGrant = z.output<typeof ChatGrantSchema>;
-
-/**
- * An app on this computer the agent may control in this chat, by the name a
- * script tells it by: an allow from a card, good in this chat alone.
- */
-const ChatAppGrantSchema = z.object({
-  app: z.string().min(1),
-  // The app's bundle id where it could be found, so a route that knows the
-  // app by its id (computer use, by the pid it acts on) meets the same grant.
-  bundleId: z.string().optional(),
-  grantedAt: z.coerce.date(),
-});
-
-export type ChatAppGrant = z.output<typeof ChatAppGrantSchema>;
-
-/**
- * A folder or an app the person said not now to in this chat: closed to it
- * here until they allow it, so asking again through another tool, or the
- * same one, does not turn the no into a yes.
- */
-const ChatDenialSchema = z.object({
-  deniedAt: z.coerce.date(),
-  kind: z.enum(["app", "folder"]),
-  target: z.string().min(1),
-});
-
-export type ChatDenial = z.output<typeof ChatDenialSchema>;
 
 // Load-bearing that this stays a plain object schema: it is parsed against the
 // whole settings file, whose `state` key it is meant to ignore rather than
@@ -65,15 +22,15 @@ export const ChatSettingsSchema = z.object({
   // when the copy happened.
   createdAt: z.coerce.date().optional(),
   createdWithAppVersion: z.string().optional(),
-  // The apps on this computer the agent may control in this chat. One that
-  // will not parse costs the chat these grants alone.
-  appGrants: z.array(ChatAppGrantSchema).optional().catch(undefined),
-  // What the person said not now to in this chat. One that will not parse
-  // costs the chat these alone.
-  denials: z.array(ChatDenialSchema).optional().catch(undefined),
-  // The folders granted in this chat, oldest first. One that will not parse
-  // costs the chat its grants rather than the rest of its settings.
-  grants: z.array(ChatGrantSchema).optional().catch(undefined),
+  // The name this chat's own folder was last given under `Chats/`, which is
+  // the app's whole hold on that folder: the folder is found by this name and
+  // never by what is inside it, so a folder moved out of `Chats/` is not
+  // followed, and the chat's next change makes a fresh one under its current
+  // title. A folder renamed in place is followed by the launch sweep, which
+  // writes the name the person gave it here (chat-folders/sweep.ts).
+  // References to what the person pasted are stored relative to the folder,
+  // so a rename breaks none of them.
+  folder: z.string().min(1).optional().catch(undefined),
   // When something happened in this chat, as opposed to when a file under it
   // was last written. It orders the chat list, and it is recorded rather than
   // observed because the observable timestamps do not mean what the list needs:
@@ -91,9 +48,7 @@ export const ChatSettingsSchema = z.object({
   reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
 });
 
-export const ChatSettingsUpdateSchema = ChatSettingsSchema.partial().extend({
-  lastActivityAt: z.coerce.date().optional(),
-});
+export const ChatSettingsUpdateSchema = ChatSettingsSchema.partial();
 
 export type ChatSettings = z.output<typeof ChatSettingsSchema>;
 export type ChatSettingsUpdate = z.output<typeof ChatSettingsUpdateSchema>;

@@ -7,8 +7,14 @@ import {
 import { dedent } from "radashi";
 
 import { type ChatId } from "../../schemas/chat-id";
-import { type WorkspaceFsLayout, shellPath } from "../workspace-fs-layout";
-import { workDir } from "../work-dir";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
+import {
+  installedProjectConfig,
+  installOutside,
+  installsPackages,
+  outsidePlan,
+  projectFolder,
+} from "../pnpm-outside";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
 import { resolveCommandContext, subprocessStdin } from "./utils";
@@ -36,6 +42,9 @@ export const PNX_COMMAND = {
 
 const GLOBAL_FLAGS = new Set(["--global", "-g"]);
 
+/** Subcommands that run install scripts in an installed project. */
+const BUILD_SUBCOMMANDS = new Set(["approve-builds", "rb", "rebuild"]);
+
 function blockedSubcommand(
   cmd: string,
   reason: string,
@@ -50,29 +59,6 @@ function blockedSubcommand(
   };
 }
 
-// Skip auto-install when the subcommand is itself a package management operation
-const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
-  "add",
-  "dedupe",
-  "fetch",
-  "i", // short for install
-  "import",
-  "install",
-  "install-test",
-  "it", // short for install-test
-  "link",
-  "ln", // short for link
-  "prune",
-  "rb", // short for rebuild
-  "rebuild",
-  "remove",
-  "rm", // short for remove
-  "uninstall",
-  "unlink",
-  "up", // short for update
-  "update",
-]);
-
 export function createNpxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   return createDlxAliasCommand(
     NPX_COMMAND.name,
@@ -81,41 +67,12 @@ export function createNpxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   );
 }
 
-export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
+export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
   return defineCommand(PNPM_COMMAND.name, async (args, ctx) => {
     const subcommand = args[0];
 
     if (subcommand === "exec") {
-      // `pnpm exec` normally resolves its command off PATH too, which would run
-      // arbitrary host binaries outside the sandbox's virtual filesystem. Allow
-      // it only for binaries the project has actually installed (present in
-      // node_modules/.bin). Those run correctly through real pnpm -- the
-      // isolated-store symlinks that just-bash can't follow resolve fine on the
-      // real filesystem -- while anything not installed locally is refused
-      // rather than resolved off PATH.
-      const binName = args
-        .slice(1)
-        .find((arg) => arg !== "--" && !arg.startsWith("-"));
-      if (!binName || binName.includes("/") || binName.includes("\\")) {
-        return blockedSubcommand(
-          "exec",
-          `Name a locally-installed binary to run, e.g. \`${PNPM_COMMAND.name} exec esbuild --version\`.`,
-        );
-      }
-      const localBin = ctx.fs.resolvePath(
-        ctx.cwd,
-        `node_modules/.bin/${binName}`,
-      );
-      if (!(await ctx.fs.exists(localBin))) {
-        return {
-          exitCode: 1,
-          stderr: dedent`
-            '${PNPM_COMMAND.name} exec ${binName}' is not allowed: only binaries installed in this project can be run with '${PNPM_COMMAND.name} exec'.
-            '${binName}' was not found in node_modules/.bin. Install it first (e.g. '${PNPM_COMMAND.name} add ${binName}'), or run a package.json script with '${PNPM_COMMAND.name} run <script>'.
-          `,
-          stdout: "",
-        };
-      }
+      // Passed through whole: a `-g` here belongs to the program it runs.
       const { env: execEnv, hostCwd } = resolveCommandContext(chatId, ctx);
       const execResult = await runPnpmCommand({
         args: ["exec", ...args.slice(1)],
@@ -146,20 +103,6 @@ export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
       );
     }
 
-    if (subcommand === "store") {
-      return blockedSubcommand(
-        "store",
-        "The shared package store is managed by the sandbox and must not be modified directly.",
-      );
-    }
-
-    if (subcommand === "publish" || subcommand === "pack") {
-      return blockedSubcommand(
-        subcommand,
-        "This is a sandboxed task workspace intended for development; publishing to the npm registry is not permitted.",
-      );
-    }
-
     const hasGlobalFlag = args.some((arg) => GLOBAL_FLAGS.has(arg));
     const filteredArgs = hasGlobalFlag
       ? args.filter((arg) => !GLOBAL_FLAGS.has(arg))
@@ -175,47 +118,23 @@ export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
     // The shell's cwd as a host path.
     const { hostCwd: cwd } = resolveCommandContext(chatId, ctx);
 
-    // The manifest is at the root of the chat's folder, which is also where the agent starts,
-    // so reaching this means it ran the command from somewhere else. Fail fast
-    // with guidance instead of pnpm's opaque
-    // ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND.
-    const isInformational =
-      !subcommand || subcommand.startsWith("-") || subcommand === "help";
-    const hasManifest =
-      (await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, "package.json"))) ||
-      (await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, "pnpm-workspace.yaml")));
-    if (!isInformational && !hasManifest) {
-      return {
-        exitCode: 1,
-        stderr: dedent`
-          No package manifest found here. Your package is this conversation's folder, which is also where you start.
-          Run package commands from there, e.g. \`cd ${shellPath(workDir(chatId))} && ${PNPM_COMMAND.name} ${filteredArgs.join(" ")}\`.
-        `,
-        stdout: "",
-      };
-    }
-
-    let installOutput = "";
-    if (!isInformational && !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand)) {
-      const installResult = await runPnpmCommand({
-        args: ["install"],
-        cwd,
-        env,
-        signal: ctx.signal,
-        chatId,
-      });
-      if (installResult.exitCode !== 0) {
-        installOutput = `[auto-install failed]\n${installResult.stdout}${installResult.stderr}\n\n`;
-      }
-    }
-    const result = await runPnpmCommand({
-      args: filteredArgs,
-      cwd,
-      env,
-      signal: ctx.signal,
-      stdin: subprocessStdin(ctx.stdin),
-      chatId,
-    });
+    // An install from the registry runs outside the sandbox, which refuses
+    // the links it makes on Windows; anything else runs inside it.
+    const plan = outsidePlan({ args: filteredArgs, cwd, layout });
+    const result = plan
+      ? await installOutside({ chatId, env, plan, signal: ctx.signal })
+      : await runPnpmCommand({
+          args: filteredArgs,
+          cwd,
+          env,
+          // A build reads the store its project was installed from.
+          ...(BUILD_SUBCOMMANDS.has(subcommand ?? "") && {
+            pnpmConfig: installedProjectConfig(projectFolder(layout, cwd)),
+          }),
+          signal: ctx.signal,
+          stdin: subprocessStdin(ctx.stdin),
+          chatId,
+        });
 
     let globalNote = "";
     if (hasGlobalFlag) {
@@ -226,12 +145,23 @@ export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
       `;
     }
 
+    // An install that stayed in the sandbox, where the sandbox refuses the
+    // links it makes (MXC on Windows).
+    const linkNote =
+      !plan &&
+      result.exitCode !== 0 &&
+      installsPackages(filteredArgs) &&
+      /EPERM[^\n]*symlink/.test(result.stderr + result.stdout)
+        ? systemNote`
+            The sandbox here does not let pnpm make the links this install needs. Only installs of npm registry packages work: no file:, link:, git or workspace dependencies, pnpmfiles, or project .npmrc, and only common options (-D, -E, -O, --save-peer, --frozen-lockfile, --prod, --offline).
+          `
+        : "";
+
     return {
       exitCode: result.exitCode,
-      // The auto-install report and the stripped-flag note are this wrapper's
-      // own diagnostics, so they join the command's stderr rather than its
-      // output.
-      stderr: installOutput + result.stderr + globalNote,
+      // The stripped-flag and link notes are this wrapper's own diagnostics,
+      // so they join the command's stderr rather than its output.
+      stderr: result.stderr + globalNote + linkNote,
       stdout: result.stdout,
     };
   });

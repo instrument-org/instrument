@@ -517,7 +517,7 @@ export function Omnibar({
         // A press on a row must not take the caret first: the box would blur,
         // the list would go, and the click would land on nothing.
         <div
-          className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover py-1 shadow-lg"
+          className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover py-1 shadow-float-lg"
           id={listId}
           onMouseDown={(event) => {
             event.preventDefault();
@@ -832,7 +832,10 @@ function useRows({
         ? { empty: `Nothing at “${folderName}”` }
         : listed?.kind === "refused"
           ? {
-              empty: `Instrument can’t read “${displayHostPath(listed.refusedBy ?? path.folder, home)}”`,
+              empty:
+                listed.reason === "app"
+                  ? `Instrument keeps “${folderName}” private`
+                  : `Instrument can’t read “${displayHostPath(listed.refusedBy ?? path.folder, home)}”`,
             }
           : listed
             ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”` }

@@ -35,12 +35,12 @@ async function runList(input: SubcommandInput, context: TaskCommandContext) {
   const selection = selectTasks(await listRowsOf(children), query);
   if (selection.shown.length === 0) {
     if (children.length === 0) {
-      return "No tasks yet. Create one with `task new`.\n";
+      return "No tasks yet. Create one with `instrument task new`.\n";
     }
     if (query.running && !query.since && !query.until) {
       return "No tasks running.\n";
     }
-    return `No task in that range, out of ${children.length}. Widen the dates, or list them all with \`task list --all\`.\n`;
+    return `No task in that range, out of ${children.length}. Widen the dates, or list them all with \`instrument task list --all\`.\n`;
   }
   return renderTaskList(selection);
 }

@@ -3,6 +3,31 @@ import { describe, expect, it } from "vitest";
 import { viewContextModelNote } from "./view-context-model-text";
 
 describe("viewContextModelNote", () => {
+  // What may be done with what is on screen is the permission rules' to say
+  // when the agent tries, so the note names the thing and nothing more.
+  it("names a file or folder on screen without saying what the agent may do with it", () => {
+    const folder = { display: "~/Notes", selected: [] };
+    expect([
+      viewContextModelNote({
+        file: { name: "plan.md", path: "/Users/casey/Notes/plan.md" },
+        folder,
+        screen: "file",
+      }),
+      viewContextModelNote({ folder, screen: "computer" }),
+    ]).toMatchInlineSnapshot(`
+      [
+        "
+      <instrument-system-note>
+      When the user sent this, the folder view showed the file \`/Users/casey/Notes/plan.md\` open. "This file", "this" and "it" refer to it. It sits in \`~/Notes\`, which "this folder" means.
+      </instrument-system-note>",
+        "
+      <instrument-system-note>
+      When the user sent this, the folder view showed the folder \`~/Notes\`. "This folder", "here", "in here" and "these" refer to that.
+      </instrument-system-note>",
+      ]
+    `);
+  });
+
   it("names what was picked to go with the message after the screen", () => {
     expect(
       viewContextModelNote({
@@ -23,7 +48,7 @@ describe("viewContextModelNote", () => {
       When the user sent this, the window showed a new tab: the box that opens any screen or asks you. Nothing in particular is in view.
       </instrument-system-note>
       <instrument-system-note>
-      They chose to send these with the message: the file \`/Users/casey/Notes/plan.md\` (you reach it at \`/Users/casey/Notes/plan.md\`); the folder \`/Volumes/Backup\` (no folder you can reach covers it yet: reading it asks the person first). "This", "these" and "it" refer to them first, then to what was on screen.
+      They chose to send these with the message: the file \`/Users/casey/Notes/plan.md\`; the folder \`/Volumes/Backup\`. "This", "these" and "it" refer to them first, then to what was on screen.
       </instrument-system-note>"
     `);
   });

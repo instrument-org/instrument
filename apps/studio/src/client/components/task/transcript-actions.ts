@@ -25,13 +25,10 @@ interface Target {
  */
 export function useTranscriptActions({
   id,
-  label,
   sessionId,
 }: {
   /** The record the session is in; absent where every call names its own. */
   id?: ChatId;
-  /** What the saved file is named after, where the task's name is not it: a chat's title, say. */
-  label?: string;
   sessionId: StoreId.Session | undefined;
 }) {
   // The stable `mutate` and the flag rather than the mutation objects, which
@@ -72,11 +69,11 @@ export function useTranscriptActions({
     }),
   );
 
-  // The session and label the hook was given, or the ones a call names: a
-  // list of sessions saves any of them through one instance rather than one
-  // per row.
+  // The session the hook was given, or the one a call names with its label:
+  // a list of sessions saves any of them through one instance rather than
+  // one per row.
   const targetOf = (target?: Target) => {
-    const name = target?.label ?? label;
+    const name = target?.label;
     const session = target?.sessionId ?? sessionId;
     const record = target?.id ?? id;
     return session && record

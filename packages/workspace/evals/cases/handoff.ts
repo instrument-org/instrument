@@ -21,10 +21,13 @@ import os from "node:os";
 import path from "node:path";
 
 import { AGENT_MESSAGE_LANGUAGE } from "../../src/constants";
-import { outputFolderPath } from "../../src/lib/chat/output-folder";
+import {
+  chatOutputFolder,
+  outputFolderPath,
+} from "../../src/lib/chat/output-folder";
 import { memoryDir, saveMemory } from "../../src/lib/memory/store";
 import { isToolPart } from "../../src/lib/is-tool-part";
-import { chatDir } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { chatGrants } from "../../src/lib/chat/grants";
 import { type Session } from "../../src/schemas/session";
 import { type ChatId } from "../../src/schemas/chat-id";
@@ -34,6 +37,7 @@ import {
   defineEval,
   type EvalCase,
 } from "../harness";
+import { deliveredFile } from "../lib/delivered-file";
 import { sheetHasAChart, sheetRecomputes, wroteADocument } from "./worker";
 
 export type Context = Parameters<Assertion["check"]>[0];
@@ -103,9 +107,12 @@ function lastReply(sessions: Session.WithMessagesAndParts[]): string {
   return said(sessions).at(-1)?.text ?? "";
 }
 
-/** The run's working folder, which the chat's tasks work in too. */
+/**
+ * The run's working folder, which the chat's tasks work in too, and the
+ * chat's own folder, where finished work goes.
+ */
 function treeDirs({ chatId }: Context): string[] {
-  return [chatDir(chatId)];
+  return [workDir(chatId), chatOutputFolder(chatId)];
 }
 
 /**
@@ -979,17 +986,17 @@ const steppedOnlyThroughTheCorrection: Assertion = {
 };
 
 const wroteTheGroceryList: Assertion = {
-  check: ({ sessions }) => {
+  check: ({ chatId, sessions }) => {
     const since = runStartedAt(sessions);
     const text =
       "wrote groceries.md in the workspace folder as a checklist of all four";
-    const file = path.join(WORKSPACE, "groceries.md");
-    const body = readText(file).toLowerCase();
+    const file = deliveredFile(chatId, "groceries.md");
+    const body = file ? readText(file).toLowerCase() : "";
     if (!body) {
       return fail(
         text,
-        `no groceries.md; the run wrote: ${recentFilesUnder(HOME, since)
-          .map((one) => path.relative(HOME, one))
+        `no groceries.md; the run wrote: ${[HOME, chatOutputFolder(chatId)]
+          .flatMap((dir) => recentFilesUnder(dir, since))
           .join(", ")}`,
       );
     }
@@ -2468,7 +2475,7 @@ export interface Scenario {
   sentCopied?: string[];
   setup?: EvalCase["setup"];
   slug: string;
-  topics?: EvalCase["topics"];
+  topic?: EvalCase["topic"];
 }
 
 export function toEval(scenario: Scenario): EvalCase {
@@ -2493,7 +2500,7 @@ export function toEval(scenario: Scenario): EvalCase {
         name: `handoff-${scenario.slug}`,
         prompt: "",
         setup: scenario.setup,
-        topics: scenario.topics,
+        topic: scenario.topic,
       },
       "prompt",
       { enumerable: true, get: () => scenario.prompt },
@@ -2657,13 +2664,11 @@ const SCENARIOS: Scenario[] = [
     ],
     prompt: "Can you write up a short report on these Q3 expenses?",
     slug: "topic-instruction",
-    topics: [
-      {
-        instructions:
-          "Reports for this topic go in a folder called Quarterly in the workspace folder.",
-        name: "Finance",
-      },
-    ],
+    topic: {
+      instructions:
+        "Reports for this topic go in a folder called Quarterly in the workspace folder.",
+      name: "Finance",
+    },
   },
   {
     // Dictated: "it" points back at the kitchen folder, "to do dot md" is
@@ -2821,24 +2826,6 @@ const SCENARIOS: Scenario[] = [
     sent: [path.join(HOME, "Documents", "Field Research")],
     setup: seedFieldResearch,
     slug: "long-work",
-  },
-  {
-    // A job the agent does itself, a few tool calls long, and a quick
-    // question sent while one of those calls is running: the turn reads it
-    // at its next step, and answers it without dropping the job.
-    assertions: [answeredTheQuickQuestion, renamedTheScans],
-    followUps: [
-      {
-        duringWork: { afterToolCalls: 1 },
-        prompt: "unrelated, quick: what's 18% of 240?",
-      },
-    ],
-    marks: [{ after: "18% of 240", match: QUICK_ANSWER, name: "quick answer" }],
-    prompt:
-      "Quick one: the scans in this folder have useless names. Rename each one from what's inside it to date-kind-sender.txt, like 2026-01-05-invoice-corbel-print-shop.txt, right here in this folder.",
-    sent: [path.join(HOME, "Documents", "Scans")],
-    setup: seedScans,
-    slug: "interrupt-foreground",
   },
   {
     // Two background jobs at once whose scratch would naturally share a

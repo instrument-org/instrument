@@ -7,7 +7,9 @@ import { type StoreId } from "../../schemas/store-id";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { generateTitleFromUserMessage } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
-import { Store } from "../store";
+import { ChatReads } from "../chat-reads";
+import { followTitle } from "../chat-folders/follow-title";
+import { cappedTitle } from "../chat-folders/folder-name";
 import { chatModelURI } from "../chat-settings";
 import { sessionRole } from "./children";
 import { updateSessionTitle } from "../update-session-title";
@@ -36,7 +38,7 @@ export async function retitleChat({
   keep?: boolean;
   sessionId: StoreId.Session;
 }): Promise<string | undefined> {
-  const messages = await Store.getMessagesWithParts({ sessionId, chatId: id });
+  const messages = await ChatReads.transcript({ chatId: id, sessionId });
   if (messages.isErr()) {
     return undefined;
   }
@@ -50,7 +52,7 @@ export async function retitleChat({
   if (!root || !reply) {
     return undefined;
   }
-  const session = await Store.getSession(sessionId, id);
+  const session = await ChatReads.session({ chatId: id, sessionId });
   if (session.isErr()) {
     return undefined;
   }
@@ -68,6 +70,7 @@ export async function retitleChat({
     captureException: workspaceConfig.captureException,
     configs: workspaceConfig.getAIProviderConfigs(),
     modelCache: workspaceConfig.modelCache,
+    modelRoutes: workspaceConfig.modelRoutes,
     modelURI,
   });
   if (!model.ok) {
@@ -84,8 +87,13 @@ export async function retitleChat({
   if (title.isErr()) {
     return undefined;
   }
-  if (title.value === session.value.title) {
-    return title.value;
+  // Cut here rather than on the way to storage, so the title compared, the
+  // title written and the title handed back are one string. A model that
+  // overran would otherwise be told its name was kept while a shorter one
+  // was stored.
+  const named = cappedTitle(title.value);
+  if (named === session.value.title) {
+    return named;
   }
   // Replaced only while the title is still the one read above: a title that
   // landed meanwhile (the opening call finishing late) is the newer fact.
@@ -93,9 +101,9 @@ export async function retitleChat({
     expectedCurrentTitle: session.value.title,
     sessionId,
     chatId: id,
-    title: title.value,
+    title: named,
   });
-  return title.value;
+  return named;
 }
 
 /**
@@ -146,7 +154,7 @@ async function retitleOnSettle({
     return;
   }
   const chatId = id;
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   if (session.isErr() || session.value.titleSettledAt) {
     return;
   }
@@ -156,5 +164,8 @@ async function retitleOnSettle({
   const title = await retitleChat({ id: chatId, keep: true, sessionId });
   if (title !== undefined) {
     await settleChatTitle(chatId);
+    // Between two turns, which is the only moment a folder may move: the
+    // chat has stopped, so nothing of its own holds the folder.
+    await followTitle(chatId, title);
   }
 }

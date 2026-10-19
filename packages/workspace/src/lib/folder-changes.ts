@@ -6,7 +6,6 @@ import { type ChatId } from "../schemas/chat-id";
 import { getFoldersBaseline, setFoldersBaseline } from "./folders-baseline";
 import { chatGrants } from "./chat/grants";
 import { folderReach } from "./chat/folder-reach";
-import { effectiveFolderAccess } from "./workspace-fs-layout";
 
 /**
  * Diffs the folders granted in the chat, as the agent reaches them, against
@@ -25,12 +24,10 @@ import { effectiveFolderAccess } from "./workspace-fs-layout";
 export function detectFolderChanges({
   messageId,
   sessionId,
-  signal,
   chatId,
 }: {
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
@@ -39,17 +36,9 @@ export function detectFolderChanges({
       const granted = new Set<string>(grants.map((grant) => grant.path));
       const current = Object.values(await folderReach(chatId, grants))
         .filter((folder) => granted.has(folder.path))
-        .map((folder) => ({
-          // The access the mount gets, so a granted folder holding the
-          // workspace is never announced as writable while the filesystem
-          // refuses the writes.
-          access: effectiveFolderAccess(folder),
-          path: folder.path,
-        }));
+        .map((folder) => ({ path: folder.path }));
 
-      const baseline = yield* getFoldersBaseline(chatId, sessionId, {
-        signal,
-      });
+      const baseline = yield* getFoldersBaseline(chatId, sessionId);
 
       // Re-baseline regardless of the outcome so the next message diffs against
       // the set as it stands now.
@@ -57,7 +46,6 @@ export function detectFolderChanges({
         chatId,
         sessionId,
         current.map(({ path }) => ({ path })),
-        { signal },
       );
 
       if (!baseline) {

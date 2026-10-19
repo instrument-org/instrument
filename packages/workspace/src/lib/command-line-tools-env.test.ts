@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const execFileSync = vi.hoisted(() => vi.fn());
-vi.mock("node:child_process", () => ({ execFileSync }));
+// `execFile` as well as the sync one: the rules reach iCloud's containers
+// through it, and a mock without it fails the whole file at import.
+const execFile = vi.hoisted(() => vi.fn());
+vi.mock("node:child_process", () => ({ execFile, execFileSync }));
 
 const existsSync = vi.hoisted(() => vi.fn());
 vi.mock("node:fs", () => ({ default: { existsSync } }));

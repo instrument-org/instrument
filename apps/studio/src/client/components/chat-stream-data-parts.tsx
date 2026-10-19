@@ -1,13 +1,13 @@
 import {
   backgroundProcessesModelNote,
-  browserStatusModelNote,
   dateChangeModelNote,
+  environmentChangeModelNote,
   isAddressableChatFilePath,
   jobEventModelNote,
   maxStepsModelNote,
   messageGapModelNote,
+  outputLimitModelNote,
   type SessionMessagePart,
-  viewContextModelNote,
 } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
 
@@ -39,6 +39,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-asks": "always",
   "data-folderChanges": "always",
   "data-permissionAnswer": "always",
+  // The card the question was asked on shows the answer.
+  "data-questionAnswer": "hidden",
   "data-attachments": "hidden",
   // Deliberately not "always". This part is a persisted record of what was
   // running when the turn began, and a card in the transcript saying "2 still
@@ -56,6 +58,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // summarizing compaction it would be describing.
   "data-contextRollover": "dev",
   "data-dateChange": "dev",
+  "data-environmentChange": "dev",
   // Retired, and shown to everyone rather than to developers, which is the
   // opposite of where it ended up before it was deleted. It was demoted to
   // "dev" because it was a live change card nobody wanted; what it is now is
@@ -83,6 +86,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // is the user's own choice, so naming the moment it changed describes
   // something they did rather than something our assembly did.
   "data-modelChange": "always",
+  // The max-steps treatment, for now: a developer's peek at the note the next
+  // turn carries. What a reader of a chat gets is the reply stopping mid-word,
+  // which is not enough; the card that says so is still to design.
+  "data-outputLimit": "dev",
   // Drawn by the chat stream over the user's bubble, not in the part's place
   // under it.
   "data-reply": "hidden",
@@ -95,10 +102,11 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // user typed has a visible cause.
   "data-taskEvent": "always",
   // What the agent is told about the chats around this one: the other
-  // chats at the moment this one opened, and the topics this one is filed
+  // chats at the moment this one opened, and the topic this one is filed
   // under. Context for the model; the head of the chat is the user's copy.
   "data-chatContext": "dev",
-  "data-chatTopics": "dev",
+  "data-topic": "dev",
+  "data-workspaceInstructions": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",
 };
@@ -116,12 +124,11 @@ export function isDataPart(
 }
 
 export function renderDataPart({
-  browserStatusContextAdded,
   ctx,
   part,
   pathsAlreadyShown,
+  stateNote,
 }: {
-  browserStatusContextAdded: boolean;
   ctx: RenderPartContext;
   part: SessionMessagePart.DataPart;
   /**
@@ -130,6 +137,11 @@ export function renderDataPart({
    * than per part.
    */
   pathsAlreadyShown?: ReadonlySet<string>;
+  /**
+   * What the model heard of a `state` part, from the stream's `stateNotes`:
+   * none when it heard nothing new, and then there is no card either.
+   */
+  stateNote: string | undefined;
 }): ReactNode {
   const visibility = dataPartVisibility(part);
   if (
@@ -170,6 +182,7 @@ export function renderDataPart({
       );
     }
     case "data-attachments":
+    case "data-questionAnswer":
     case "data-reply": {
       return null;
     }
@@ -183,16 +196,16 @@ export function renderDataPart({
         />
       );
     }
-    case "data-browserStatus": {
-      if (!browserStatusContextAdded) {
-        return null;
-      }
-      return (
+    case "data-browserStatus":
+    case "data-topic":
+    case "data-viewContext":
+    case "data-workspaceInstructions": {
+      return stateNote === undefined ? null : (
         <ModelContextDebugCard
           className={noteClassName}
           compact={compact}
           key={part.metadata.id}
-          text={browserStatusModelNote(part.data)}
+          text={stateNote}
         />
       );
     }
@@ -206,20 +219,6 @@ export function renderDataPart({
             part.data.chats.length === 0
               ? "The first chat"
               : `Other chats: ${part.data.chats.map((chat) => chat.title).join(" · ")}`
-          }
-        />
-      );
-    }
-    case "data-chatTopics": {
-      return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={
-            part.data.topics.length === 0
-              ? "No topics on this chat"
-              : `Topics: ${part.data.topics.map((topic) => topic.name).join(", ")}`
           }
         />
       );
@@ -241,6 +240,16 @@ export function renderDataPart({
           compact={compact}
           key={part.metadata.id}
           text={dateChangeModelNote(part.data)}
+        />
+      );
+    }
+    case "data-environmentChange": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={environmentChangeModelNote(part.data) ?? ""}
         />
       );
     }
@@ -331,6 +340,16 @@ export function renderDataPart({
     case "data-modelChange": {
       return <ModelChangeNote data={part.data} key={part.metadata.id} />;
     }
+    case "data-outputLimit": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={outputLimitModelNote(part.data)}
+        />
+      );
+    }
     case "data-skillChanges": {
       return (
         // Wider than the file grid's mt-2: that grid is a block of its own and
@@ -392,16 +411,6 @@ export function renderDataPart({
           compact={compact}
           key={part.metadata.id}
           text={`Could not read a ${part.data.originalType} part: ${part.data.reason}`}
-        />
-      );
-    }
-    case "data-viewContext": {
-      return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={viewContextModelNote(part.data)}
         />
       );
     }

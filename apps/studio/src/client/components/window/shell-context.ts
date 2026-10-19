@@ -1,4 +1,5 @@
-import { type AppPlace, type Draft } from "@/client/atoms/window";
+import { type Draft } from "@/client/atoms/drafts";
+import { type AppPlace } from "@/client/atoms/window";
 import {
   type ChatId,
   type SessionMessageDataPart,
@@ -50,7 +51,7 @@ export interface WindowShell {
     isViewOpen: boolean;
     leftOut: readonly string[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  setChatTopics: (id: ChatId, topics: string[]) => void;
+  setChatTopic: (id: ChatId, topic: null | string) => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;
   showDraft: (id: string) => void;
   topics: Topic[];

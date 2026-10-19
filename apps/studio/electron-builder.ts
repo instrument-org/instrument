@@ -111,8 +111,17 @@ const config: Configuration = {
   // linker-signed ad-hoc signature. A signed build re-signs it anyway; an
   // unsigned one (`identity: null`, the smoke test) is SIGKILLed on its first
   // fuse read on Apple Silicon unless the ad-hoc signature is reset.
+  //
+  // The asar is checked against the hash packaging records (Info.plist on
+  // macOS, a resource on Windows; Linux has no check), and nothing else is
+  // loaded as the app, so code that rewrites app.asar on disk does not run
+  // with Instrument's signature and grants on the next launch. Only the asar is
+  // covered, not app.asar.unpacked. Anything that edits the asar after
+  // packaging makes the app exit at launch; afterPack only reads it.
   electronFuses: {
+    enableEmbeddedAsarIntegrityValidation: true,
     enableNodeCliInspectArguments: false,
+    onlyLoadAppFromAsar: true,
     resetAdHocDarwinSignature: true,
   },
   // NSIS derives the Windows install folder (%LOCALAPPDATA%\Programs\<name>)
@@ -136,11 +145,6 @@ const config: Configuration = {
     productName: APP_PRODUCT_NAME,
   },
   extraResources: [
-    {
-      filter: ["**/*"],
-      from: "../../packages/workspace/templates/default",
-      to: "chat-template",
-    },
     {
       filter: ["**/*.json"],
       from: "../../registry/api",
@@ -166,6 +170,9 @@ const config: Configuration = {
   ],
   files: [
     "out/**/*",
+    // Build-time records of what each bundle holds, read by afterPack to
+    // write the third-party notices (electron-builder/bundled-packages.ts).
+    "!out/**/*.bundled-packages.json",
     "resources/**/*",
     "node_modules/**",
     "!**/node_modules/**/*.md",
@@ -222,9 +229,40 @@ const config: Configuration = {
     executableName: previewPackageName ?? APP_EXECUTABLE,
     icon: `build/${iconDir}icons`,
     // A preview runs from where it was unpacked, never installed system-wide.
-    target: isPreview
-      ? ["AppImage", "tar.gz"]
-      : ["AppImage", "deb", "rpm", "tar.gz"],
+    // A release ships no tar.gz: nothing updates one, and on Ubuntu it
+    // cannot start without a root-owned chrome-sandbox.
+    target: isPreview ? ["AppImage", "tar.gz"] : ["AppImage", "deb", "rpm"],
+  },
+  // electron-builder's own dependencies for each package, which `depends`
+  // replaces rather than adds to, plus bubblewrap: the sandbox the agent's
+  // programs run in, which they don't run without unless the person allows
+  // it (docs/architecture/native-sandbox-off.md).
+  deb: {
+    depends: [
+      "libgtk-3-0",
+      "libnotify4",
+      "libnss3",
+      "libxss1",
+      "libxtst6",
+      "xdg-utils",
+      "libatspi2.0-0",
+      "libuuid1",
+      "libsecret-1-0",
+      "bubblewrap",
+    ],
+  },
+  rpm: {
+    depends: [
+      "gtk3",
+      "libnotify",
+      "nss",
+      "libXScrnSaver",
+      "(libXtst or libXtst6)",
+      "xdg-utils",
+      "at-spi2-core",
+      "(libuuid or libuuid1)",
+      "bubblewrap",
+    ],
   },
   mac: {
     category: "public.app-category.productivity",
@@ -250,6 +288,11 @@ const config: Configuration = {
         from: "native/mac-helper/.build/bridge/instrument-mac.node",
         to: "bin/instrument-mac.node",
       },
+      // The Seatbelt launcher native commands start through.
+      {
+        from: "native/mac-helper/.build/bridge/instrument-seatbelt",
+        to: "bin/instrument-seatbelt",
+      },
     ],
     extendInfo: {
       // A preview claims no document types: installing one must not change
@@ -272,7 +315,7 @@ const config: Configuration = {
       // Asked the first time a task controls each app, named in the ask.
       NSAppleEventsUsageDescription: `${APP_NAME} works in this app for you when you ask it to.`,
       NSDesktopFolderUsageDescription: `${APP_NAME} reads and writes files on your Desktop when you ask it to work there.`,
-      NSDocumentsFolderUsageDescription: `${APP_NAME} reads and writes files in your Documents when you ask it to work there, and keeps what it makes in Documents/${APP_NAME}.`,
+      NSDocumentsFolderUsageDescription: `${APP_NAME} reads and writes files in your Documents when you ask it to work there, and when your ${APP_NAME} folder is there.`,
       NSDownloadsFolderUsageDescription: `${APP_NAME} reads and writes files in your Downloads when you ask it to work there.`,
       NSLocalNetworkUsageDescription: `${APP_NAME} uses your local network to connect to tools needed for your tasks.`,
       NSNetworkVolumesUsageDescription: `${APP_NAME} reads and writes files on a network drive when you ask it to work there.`,
@@ -313,6 +356,14 @@ const config: Configuration = {
     uninstallDisplayName: "${productName}",
   },
   productName: APP_PRODUCT_NAME,
+  // The AppImage's static runtime mounts it with whichever fusermount the
+  // system has, where the default toolset links libfuse2, which Ubuntu has not
+  // installed since 22.04. electron-builder's AppRun adds `--no-sandbox` where
+  // Ubuntu closes user namespaces, so a fresh install starts the AppImage as
+  // downloaded. 1.0.3 rather than 1.0.2 for electron-builder#9598.
+  toolsets: {
+    appimage: "1.0.3",
+  },
   protocols: [
     {
       // Required for Linux deep linking

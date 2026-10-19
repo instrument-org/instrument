@@ -60,6 +60,8 @@ const MAKERS: Record<string, { src: string }> = {
   tencent: { src: hunyuan },
   upstage: { src: upstage },
   "x-ai": { src: xai },
+  // Our gateway's spelling of the same maker.
+  xai: { src: xai },
   xiaomi: { src: xiaomi },
   "z-ai": { src: zhipu },
   "zai-org": { src: zhipu },

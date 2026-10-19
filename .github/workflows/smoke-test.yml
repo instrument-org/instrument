@@ -3,7 +3,6 @@ name: Smoke Test
 on:
   workflow_dispatch:
     inputs: {}
-  workflow_call: {}
 
 env:
   DO_NOT_TRACK: "1"

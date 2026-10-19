@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const live = {
   me: base
-    .input(z.object({ staleTime: z.number().optional().default(30_000) }))
+    .input(z.object({ staleTime: z.number().default(30_000) }))
     .handler(async function* ({ errors, input, signal }) {
       try {
         yield* createAuthenticatedLiveQuery({

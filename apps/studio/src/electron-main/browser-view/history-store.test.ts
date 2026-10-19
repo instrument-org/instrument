@@ -1,10 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
-  getWorkspaceFolder: () => "/unused",
+  workspaceBrowserDir: () => "/unused",
 }));
 
-import { createHistoryStore } from "./history-store";
+import { createHistoryStore, rewriteRecentFiles } from "./history-store";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -196,5 +199,66 @@ describe("opened files", () => {
     history.addFileOpen({ at: 1, path: "/a/one.txt", via: "tab" });
     history.clear();
     expect(history.openedFiles(10)).toHaveLength(1);
+  });
+});
+
+describe("the recent files after a move the app made", () => {
+  let browserDir: string;
+
+  beforeEach(() => {
+    browserDir = fs.mkdtempSync(path.join(os.tmpdir(), "history-moves-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(browserDir, { force: true, recursive: true });
+  });
+
+  function openFiles(...paths: string[]) {
+    const history = createHistoryStore(path.join(browserDir, "history.db"));
+    for (const [index, filePath] of paths.entries()) {
+      history.addFileOpen({ at: index + 1, path: filePath, via: "tab" });
+    }
+    history.close();
+  }
+
+  function recents(): string[] {
+    const history = createHistoryStore(path.join(browserDir, "history.db"));
+    const paths = history.openedFiles(10).map((file) => file.path);
+    history.close();
+    return paths;
+  }
+
+  it("keeps a row's history under where the folder went, and leaves one outside it", () => {
+    openFiles(
+      "/data/workspace/Chats/Dishwashers/notes.md",
+      "/Users/sam/tax.pdf",
+    );
+
+    const done = rewriteRecentFiles(browserDir, [
+      { from: "/data/workspace", to: "/Users/sam/Documents/Instrument" },
+    ]);
+
+    expect(recents()).toEqual([
+      "/Users/sam/tax.pdf",
+      "/Users/sam/Documents/Instrument/Chats/Dishwashers/notes.md",
+    ]);
+    expect(done).toEqual([
+      `wrote 1 recent file(s) where they went in ${path.join(browserDir, "history.db")}`,
+    ]);
+  });
+
+  it("says nothing on the run after, and makes no history where there is none", () => {
+    expect(
+      rewriteRecentFiles(browserDir, [{ from: "/data/workspace", to: "/now" }]),
+    ).toEqual([]);
+    expect(fs.existsSync(path.join(browserDir, "history.db"))).toBe(false);
+
+    openFiles("/data/workspace/report.pdf");
+    rewriteRecentFiles(browserDir, [{ from: "/data/workspace", to: "/now" }]);
+
+    expect(
+      rewriteRecentFiles(browserDir, [{ from: "/data/workspace", to: "/now" }]),
+    ).toEqual([]);
+    expect(recents()).toEqual(["/now/report.pdf"]);
   });
 });

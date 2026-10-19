@@ -18,15 +18,19 @@ import { internalAPIKey } from "./key-for-provider";
 /**
  * Language models for an OpenRouter-shaped config: by model id, either the
  * OpenAI Responses model or `chat`, the OpenRouter provider's own, both
- * reached through the config's gateway URL.
+ * reached through the config's gateway URL. `sourceModelIdOf` names the model
+ * an alias such as `instrument/auto` resolves to right now, which decides the
+ * alias's shape.
  */
 export async function createOpenRouterLanguageModel({
   chat,
   config,
+  sourceModelIdOf = () => undefined,
   workspaceServerURL,
 }: {
   chat: (modelId: string) => LanguageModelV4;
   config: AIGatewayProviderConfig.Type;
+  sourceModelIdOf?: (modelId: string) => string | undefined;
   workspaceServerURL: WorkspaceServerURL;
 }): Promise<(modelId: string) => LanguageModelV4> {
   const { createOpenAI } = await import("@ai-sdk/openai");
@@ -38,7 +42,7 @@ export async function createOpenRouterLanguageModel({
   });
   const middleware = openRouterResponsesMiddleware(config);
   return (modelId) =>
-    isServedThroughResponses(modelId)
+    isServedThroughResponses(modelId, sourceModelIdOf(modelId))
       ? wrapLanguageModel({ middleware, model: openai.responses(modelId) })
       : chat(modelId);
 }
@@ -54,15 +58,31 @@ export async function createOpenRouterLanguageModel({
  * whose commentary and final answer are the same words, the reply arrives as
  * that line said twice. The Responses API carries each item with its phase.
  *
- * Only OpenAI's models and our own aliases go this way: the aliases resolve
- * server-side to an OpenAI model today, and OpenRouter answers any model in
- * this shape should that change. Every other vendor stays on Chat Completions,
- * where the OpenRouter provider carries that vendor's reasoning fixes.
+ * Only OpenAI's models go this way, and our own aliases whose `sourceModelId`,
+ * the model our gateway resolves them to right now, is one of OpenAI's. Every
+ * other vendor stays on Chat Completions, where the OpenRouter provider
+ * carries that vendor's reasoning fixes (Anthropic's thinking signatures,
+ * Gemini's thought signatures).
+ *
+ * An alias with no `sourceModelId`, from a gateway that does not report one,
+ * goes to Responses. Every alias such a gateway serves resolves to an OpenAI
+ * model, and OpenRouter's Responses API answers other vendors too, so a wrong
+ * guess that way still gets an answer, only without the vendor's reasoning
+ * replay; a wrong guess the other way puts a GPT-5 model on the path that
+ * loses its phase.
  */
-export function isServedThroughResponses(modelId: string): boolean {
-  return (
-    modelId.startsWith("openai/") || modelId.startsWith(`${OUR_MODELS.prefix}/`)
-  );
+export function isServedThroughResponses(
+  modelId: string,
+  sourceModelId: string | undefined,
+): boolean {
+  if (modelId.startsWith(`${OUR_MODELS.prefix}/`)) {
+    return sourceModelId === undefined || isOpenAIModel(sourceModelId);
+  }
+  return isOpenAIModel(modelId);
+}
+
+function isOpenAIModel(modelId: string): boolean {
+  return modelId.startsWith("openai/");
 }
 
 /**

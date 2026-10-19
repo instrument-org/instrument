@@ -1,6 +1,6 @@
+import { draftOfGroup } from "@/client/atoms/drafts";
 import {
   type BrowserTab,
-  draftOfGroup,
   newTabHrefOf,
   type WindowTab,
 } from "@/client/atoms/window";

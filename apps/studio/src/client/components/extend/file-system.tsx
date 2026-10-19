@@ -10,14 +10,6 @@ import {
 import { ResizeHandle } from "@/client/components/resize-handle";
 import { Button } from "@/client/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/client/components/ui/command";
-import {
   ContextMenu,
   ContextMenuCheckboxItem,
   ContextMenuContent,
@@ -27,23 +19,19 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { LOADER_DELAY_MS } from "@/client/components/ui/delayed";
-import { Input } from "@/client/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -73,15 +61,11 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import {
   ArrowRight,
   ArrowUpDown,
-  Calendar,
-  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   Columns3,
-  FileArchiveIcon,
-  Filter,
   Grid2x2,
   LoaderCircle,
   Rows3,
@@ -196,6 +180,14 @@ export type FileSystemProps = {
   contextMenuPath?: null | string;
   /** Folder prefix to open initially, e.g. `"invoices/"`. */
   defaultPath?: string;
+  /**
+   * The folders the list shows opened in place, by path, when the caller
+   * holds the answer. Left out, the browser keeps its own for each folder it
+   * stands in, for as long as it is mounted.
+   */
+  openFolders?: ReadonlySet<string>;
+  /** What the toolbar search opens with typed in it. */
+  defaultSearch?: string;
   /** The item selected on opening, by path, e.g. `"invoices/march.pdf"`. */
   defaultSelectedPath?: string;
   /** The order the browser opens in, when name ascending is the wrong one. */
@@ -216,6 +208,11 @@ export type FileSystemProps = {
    * drags; an item it names nothing for does not either.
    */
   getHostPath?: (item: FileSystemItem) => string | undefined;
+  /**
+   * What the rows are grouped by, when the caller holds it; null for none.
+   * Left out, the browser keeps its own, ungrouped at first.
+   */
+  group?: FileSystemGroupKey | null;
   /** Flat manifest. Folders are optional; missing prefixes are inferred from file paths. */
   items: FileSystemItem[];
   /**
@@ -269,6 +266,8 @@ export type FileSystemProps = {
    * key is nobody's here.
    */
   onDuplicate?: (items: FileSystemItem[]) => void;
+  /** A press on empty space past the rows or tiles, which the view answers by letting go of the selection (or, in the columns, going back to the column's folder). */
+  onEmptyPress?: () => void;
   /**
    * Called on file open (double-click), replacing the built-in behavior. By
    * default PDF, DOCX, PPTX, XLSX, and image files open in a viewer dialog and
@@ -314,6 +313,10 @@ export type FileSystemProps = {
    * what was typed, so a name that could not be used is not lost.
    */
   onRenameCommit?: (item: FileSystemItem, name: string) => Promise<void> | void;
+  /** A folder opened or closed in place in the list, by its path. */
+  onOpenFolderChange?: (path: string, open: boolean) => void;
+  /** The search field's text changed, typed or cleared, or emptied by walking to a folder. */
+  onSearchChange?: (search: string) => void;
   /**
    * The selection moved. `item` is the one of it the keyboard is on, the last
    * picked; `items` is all of it, several after a ⌘- or Shift-click.
@@ -323,6 +326,7 @@ export type FileSystemProps = {
     items: FileSystemItem[],
   ) => void;
   onShowHiddenFilesChange?: (showHiddenFiles: boolean) => void;
+  onGroupChange?: (group: FileSystemGroupKey | null) => void;
   onSortChange?: (sort: FileSystemSortState) => void;
   /**
    * What is selected, to the Trash, by the platform's key for it: ⌘⌫ on the
@@ -342,6 +346,21 @@ export type FileSystemProps = {
   renderHeaderPrimary?: () => React.ReactNode;
   /** Controls drawn among the toolbar's own, between the filters and the search. */
   renderHeaderActions?: () => React.ReactNode;
+  /**
+   * Narrowed to this width beside a file open from it, in CSS px: the
+   * columns give up their preview of the selected file, which is open beside
+   * them, and the list keeps its columns past the names, as wide as this,
+   * for a sideways scroll to reach rather than dropping them.
+   */
+  besideWidth?: number;
+  /**
+   * Where the toolbar's controls go instead of a header of their own: `lead`
+   * takes the views, sort and filter, and `tail` the host's primary action,
+   * its actions and the search. With no `tail` the views fold into a menu,
+   * the search ends `lead`, and the host's own controls are left out, for a
+   * folder narrowed beside an open file.
+   */
+  toolbarInto?: { lead: HTMLElement | null; tail?: HTMLElement | null };
   /**
    * What the columns view shows past the last column while no file is
    * selected, given the folder that column lists.
@@ -459,12 +478,6 @@ function ArrowDown01Glyph(props: InlineRegistryIconProps) {
 }
 function ArrowUp01Glyph(props: InlineRegistryIconProps) {
   return <ChevronUp {...props} />;
-}
-function Calendar03Glyph(props: InlineRegistryIconProps) {
-  return <Calendar {...props} />;
-}
-function File01Glyph(props: InlineRegistryIconProps) {
-  return <FileArchiveIcon {...props} />;
 }
 function fileExtension(name: string) {
   const dotIndex = name.lastIndexOf(".");
@@ -616,52 +629,6 @@ const KIND_LABELS_BY_MIME_TYPE = new Map(
 );
 const FALLBACK_MIME_TYPE = "application/octet-stream";
 export type FileSystemViewerKind = "docx" | "image" | "pdf" | "pptx" | "xlsx";
-function fileTypeFilterGroup(mime: string): FileTypeFilterGroup {
-  if (
-    mime === "application/pdf" ||
-    mime === "application/msword" ||
-    mime === "application/vnd.ms-powerpoint" ||
-    mime ===
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
-    mime ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  ) {
-    return "Documents";
-  }
-  if (
-    mime === "application/vnd.ms-excel" ||
-    mime ===
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-    mime === "text/csv" ||
-    mime === "text/tab-separated-values"
-  ) {
-    return "Spreadsheets";
-  }
-  if (mime.startsWith("image/")) return "Images";
-  if (
-    mime === "application/json" ||
-    mime === "application/sql" ||
-    mime === "application/x-sh" ||
-    mime === "text/css" ||
-    mime === "text/javascript" ||
-    mime === "text/jsx" ||
-    mime === "text/x-go" ||
-    mime === "text/x-python" ||
-    mime === "text/x-rust" ||
-    mime === "text/x-typescript" ||
-    mime === "text/yaml"
-  ) {
-    return "Code";
-  }
-  if (
-    mime === "text/markdown" ||
-    mime === "text/mdx" ||
-    mime === "text/plain"
-  ) {
-    return "Text";
-  }
-  return "Archives & binary";
-}
 function mimeTypeForFile(file: { contentType?: string; name: string }) {
   return (
     file.contentType ??
@@ -701,8 +668,8 @@ export type FileSystemSortKey =
   | "createdAt"
   | "kind"
   | "name"
-  // Not in SORT_OPTIONS, so it never appears in the toolbar: only a list whose
-  // items carry `openedAt` can be in this order, and it opens in it.
+  // Offered only by a list whose items carry `openedAt` (OPENED_SORT_OPTION),
+  // which opens in it.
   | "openedAt"
   | "size"
   | "updatedAt";
@@ -753,6 +720,193 @@ function formatTimestamp(value: string | undefined) {
   if (Number.isNaN(date.getTime())) return null;
   return `${DAY_FORMAT.format(date)} at ${TIME_FORMAT.format(date)}`;
 }
+/**
+ * What a folder's rows can be grouped by, as the Finder groups them. The
+ * Finder's other choices need what the browser is not told: each file's
+ * application, its tags, when it was added. Its Name groups nothing.
+ */
+export type FileSystemGroupKey = "createdAt" | "kind" | "size" | "updatedAt";
+const GROUP_OPTIONS: Array<{ key: FileSystemGroupKey; label: string }> = [
+  { key: "kind", label: "Kind" },
+  { key: "updatedAt", label: "Date modified" },
+  { key: "createdAt", label: "Date created" },
+  { key: "size", label: "Size" },
+];
+/** One group: its heading, and where it stands among the folder's groups. */
+type EntryGroup = { label: string; rank: number };
+type Grouping = (entry: FileSystemEntry) => EntryGroup;
+// The Finder's kinds, in the order it lists them, which is no alphabet's.
+const KIND_GROUPS = [
+  "Folders",
+  "Applications",
+  "Documents",
+  "Images",
+  "PDF Documents",
+  "Music",
+  "Movies",
+  "Fonts",
+  "Presentations",
+  "Spreadsheets",
+  "Developer",
+  "Other",
+] as const;
+type KindGroup = (typeof KIND_GROUPS)[number];
+// Where the type alone does not say which kind the Finder puts a file in:
+// source is Developer, styles and plain words are Documents, JSON is Other.
+const KIND_GROUP_EXTENSIONS = new Map<string, KindGroup>([
+  ...[
+    "c",
+    "cc",
+    "cjs",
+    "cpp",
+    "cs",
+    "cts",
+    "cxx",
+    "go",
+    "h",
+    "hh",
+    "hpp",
+    "htm",
+    "html",
+    "java",
+    "js",
+    "jsx",
+    "kt",
+    "kts",
+    "lua",
+    "m",
+    "mjs",
+    "mm",
+    "mts",
+    "php",
+    "pl",
+    "pm",
+    "py",
+    "pyw",
+    "r",
+    "rb",
+    "rs",
+    "scala",
+    "sh",
+    "bash",
+    "fish",
+    "svelte",
+    "swift",
+    "ts",
+    "tsx",
+    "vue",
+    "xhtml",
+    "zsh",
+  ].map((extension): [string, KindGroup] => [extension, "Developer"]),
+  ...[
+    "css",
+    "csv",
+    "doc",
+    "docx",
+    "epub",
+    "ics",
+    "log",
+    "markdown",
+    "md",
+    "odt",
+    "pages",
+    "rtf",
+    "rtfd",
+    "tex",
+    "tsv",
+    "txt",
+  ].map((extension): [string, KindGroup] => [extension, "Documents"]),
+  ...["key", "odp", "ppt", "pptx"].map((extension): [string, KindGroup] => [
+    extension,
+    "Presentations",
+  ]),
+  ...["numbers", "ods", "xls", "xlsx"].map((extension): [string, KindGroup] => [
+    extension,
+    "Spreadsheets",
+  ]),
+  ...["otf", "ttc", "ttf", "woff", "woff2"].map(
+    (extension): [string, KindGroup] => [extension, "Fonts"],
+  ),
+]);
+function kindGroupOf(entry: FileSystemEntry): KindGroup {
+  if (
+    entry.name.endsWith(".app") ||
+    (entry.kind === "file" && entry.typeName === "Application")
+  ) {
+    return "Applications";
+  }
+  if (entry.kind === "folder") return "Folders";
+  const mime = mimeTypeForFile(entry);
+  if (mime === "application/pdf") return "PDF Documents";
+  const byExtension = KIND_GROUP_EXTENSIONS.get(fileExtension(entry.name));
+  if (byExtension) return byExtension;
+  if (mime.startsWith("image/")) return "Images";
+  if (mime.startsWith("audio/")) return "Music";
+  if (mime.startsWith("video/")) return "Movies";
+  if (mime.startsWith("font/")) return "Fonts";
+  if (mime.startsWith("text/")) return "Documents";
+  return "Other";
+}
+const MONTH_FORMAT = new Intl.DateTimeFormat("en-US", { month: "long" });
+const DAY_MS = 24 * 60 * 60 * 1000;
+// The Finder's ladder for a date, by calendar day: today, yesterday, the
+// seven days and the thirty before those, each month left of this year, and
+// then whole years, with no date (or one still to come) last.
+function dateGroupOf(value: string | undefined, now: Date): EntryGroup {
+  const time = value ? Date.parse(value) : Number.NaN;
+  const noDate = { label: "No Date", rank: Number.POSITIVE_INFINITY };
+  if (Number.isNaN(time)) return noDate;
+  const date = new Date(time);
+  const dayOf = (day: Date) =>
+    new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
+  const daysAgo = Math.round((dayOf(now) - dayOf(date)) / DAY_MS);
+  if (daysAgo < 0) return noDate;
+  if (daysAgo === 0) return { label: "Today", rank: 0 };
+  if (daysAgo === 1) return { label: "Yesterday", rank: 1 };
+  if (daysAgo <= 8) return { label: "Previous 7 Days", rank: 2 };
+  if (daysAgo <= 38) return { label: "Previous 30 Days", rank: 3 };
+  if (date.getFullYear() === now.getFullYear()) {
+    return { label: MONTH_FORMAT.format(date), rank: 15 - date.getMonth() };
+  }
+  return {
+    label: `${date.getFullYear()}`,
+    rank: 100 + now.getFullYear() - date.getFullYear(),
+  };
+}
+const SIZE_UNITS = ["bytes", "KB", "MB", "GB", "TB", "PB"];
+// The Finder's sizes, a power of ten apart and largest first, folders last.
+function sizeGroupOf(entry: FileSystemEntry): EntryGroup {
+  if (entry.kind === "folder") {
+    return { label: "--", rank: Number.POSITIVE_INFINITY };
+  }
+  const bytes = entry.size ?? 0;
+  if (bytes < 100) return { label: "Under 100 bytes", rank: 100 };
+  let power = 2;
+  while (bytes >= 10 ** (power + 1)) power += 1;
+  const step = (at: number) =>
+    `${10 ** (at % 3)} ${SIZE_UNITS[Math.floor(at / 3)] ?? "PB"}`;
+  return { label: `From ${step(power)} to ${step(power + 1)}`, rank: -power };
+}
+function groupingFor(group: FileSystemGroupKey): Grouping {
+  const now = new Date();
+  switch (group) {
+    case "createdAt": {
+      return (entry) => dateGroupOf(entry.createdAt, now);
+    }
+    case "kind": {
+      return (entry) => {
+        const label = kindGroupOf(entry);
+        return { label, rank: KIND_GROUPS.indexOf(label) };
+      };
+    }
+    case "size": {
+      return sizeGroupOf;
+    }
+    case "updatedAt": {
+      return (entry) => dateGroupOf(entry.updatedAt, now);
+    }
+  }
+}
 const SORT_OPTIONS: Array<{
   defaultDirection: "asc" | "desc";
   key: FileSystemSortKey;
@@ -764,36 +918,14 @@ const SORT_OPTIONS: Array<{
   { defaultDirection: "desc", key: "updatedAt", label: "Date modified" },
   { defaultDirection: "desc", key: "size", label: "Size" },
 ];
+// The order a list of files someone opened (the recents) opens in, and so
+// one its menu has to offer to get back to.
+const OPENED_SORT_OPTION = {
+  defaultDirection: "desc",
+  key: "openedAt",
+  label: "Date last opened",
+} as const;
 const DEFAULT_SORT: FileSystemSortState = { direction: "asc", key: "name" };
-type FileSystemDateFilterType = Exclude<FileSystemFilterType, "fileType">;
-type FileSystemFilter = {
-  id: string;
-  operator: FileSystemFilterOperator;
-  type: FileSystemFilterType;
-  value: string[];
-};
-type FileSystemFilterOperator =
-  | "after"
-  | "before"
-  | "in-range"
-  | "is"
-  | "is-any-of"
-  | "is-not"
-  | "not-in-range";
-type FileSystemFilterType = "dateCreated" | "dateModified" | "fileType";
-type FileTypeFilterGroup =
-  | "Archives & binary"
-  | "Code"
-  | "Documents"
-  | "Images"
-  | "Spreadsheets"
-  | "Text";
-type FileTypeFilterOption = {
-  group: FileTypeFilterGroup;
-  /** Sample file name so the option icon reuses the file-type sprite. */
-  iconFileName: string;
-  label: string;
-};
 // Primary key per the active sort; ties (and missing metadata) fall back to
 // the name order so results stay stable. The name tiebreak ignores the
 // direction, like Finder.
@@ -839,7 +971,8 @@ function compareEntriesBySort(
 }
 function defaultSortDirection(key: FileSystemSortKey) {
   return (
-    SORT_OPTIONS.find((option) => option.key === key)?.defaultDirection ?? "asc"
+    [OPENED_SORT_OPTION, ...SORT_OPTIONS].find((option) => option.key === key)
+      ?.defaultDirection ?? "asc"
   );
 }
 function entrySortTimestamp(
@@ -856,38 +989,6 @@ function entrySortTimestamp(
   const time = value ? Date.parse(value) : Number.NaN;
   return Number.isNaN(time) ? 0 : time;
 }
-const FILE_TYPE_FILTER_GROUPS: FileTypeFilterGroup[] = [
-  "Documents",
-  "Spreadsheets",
-  "Images",
-  "Code",
-  "Text",
-  "Archives & binary",
-];
-const FILTER_TYPE_LABELS: Record<FileSystemFilterType, string> = {
-  dateCreated: "Date created",
-  dateModified: "Date modified",
-  fileType: "File type",
-};
-const FILTER_OPERATOR_LABELS: Record<FileSystemFilterOperator, string> = {
-  after: "after",
-  before: "before",
-  "in-range": "in range",
-  is: "is",
-  "is-any-of": "is any of",
-  "is-not": "is not",
-  "not-in-range": "not in range",
-};
-// Relative cutoffs for the date filters, mirroring Extend's table filters.
-const DATE_FILTER_PRESETS = [
-  "1 day ago",
-  "3 days ago",
-  "1 week ago",
-  "1 month ago",
-  "3 months ago",
-  "6 months ago",
-  "1 year ago",
-];
 function buildFileSystemIndex(items: FileSystemItem[]): FileSystemIndex {
   const folders = new Map<string, FolderEntry>();
   const files = new Map<string, FileEntry>();
@@ -964,87 +1065,10 @@ function buildFileSystemIndex(items: FileSystemItem[]): FileSystemIndex {
   }
   return { children, files, folders };
 }
-function dateFilterPresetCutoff(preset: string) {
-  const date = new Date();
-  switch (preset) {
-    case "1 day ago": {
-      date.setDate(date.getDate() - 1);
-      break;
-    }
-    case "1 month ago": {
-      date.setMonth(date.getMonth() - 1);
-      break;
-    }
-    case "1 week ago": {
-      date.setDate(date.getDate() - 7);
-      break;
-    }
-    case "1 year ago": {
-      date.setFullYear(date.getFullYear() - 1);
-      break;
-    }
-    case "3 days ago": {
-      date.setDate(date.getDate() - 3);
-      break;
-    }
-    case "3 months ago": {
-      date.setMonth(date.getMonth() - 3);
-      break;
-    }
-    case "6 months ago": {
-      date.setMonth(date.getMonth() - 6);
-      break;
-    }
-    default: {
-      const parsed = Date.parse(preset);
-      if (!Number.isNaN(parsed)) return new Date(parsed);
-    }
-  }
-  return date;
-}
-function fileMatchesFilter(file: FileEntry, filter: FileSystemFilter) {
-  if (filter.value.length === 0) return true;
-  if (filter.type === "fileType") {
-    const matches = filter.value.includes(fileKindLabel(file));
-    return filter.operator === "is-not" ? !matches : matches;
-  }
-  const timestamp =
-    filter.type === "dateCreated" ? file.createdAt : file.updatedAt;
-  const time = timestamp ? Date.parse(timestamp) : Number.NaN;
-  if (Number.isNaN(time)) return false;
-  if (filter.operator === "in-range" || filter.operator === "not-in-range") {
-    const from = Date.parse(filter.value[0] ?? "");
-    const to = Date.parse(filter.value[1] ?? filter.value[0] ?? "");
-    const isInRange = time >= from && time <= to;
-    return filter.operator === "not-in-range" ? !isInRange : isInRange;
-  }
-  const cutoff = dateFilterPresetCutoff(filter.value[0] ?? "").getTime();
-  return filter.operator === "before" ? time <= cutoff : time >= cutoff;
-}
-function filterOperatorChoices(
-  filter: FileSystemFilter,
-): FileSystemFilterOperator[] {
-  if (filter.type === "fileType") {
-    return filter.value.length > 1 ? ["is-any-of", "is-not"] : ["is", "is-not"];
-  }
-  if (isCustomDateRangeValue(filter.value)) return ["in-range", "not-in-range"];
-  return ["before", "after"];
-}
 function folderHasChildren(index: FileSystemIndex, folder: FolderEntry) {
   return (
     (index.children.get(folder.path)?.length ?? 0) > 0 ||
     folder.hasChildren === true
-  );
-}
-// Custom ranges store two ISO timestamps instead of a relative preset.
-function isCustomDateRangeValue(value: string[]) {
-  return (
-    value.length === 2 &&
-    value.every(
-      (entry) =>
-        !DATE_FILTER_PRESETS.includes(entry) &&
-        !Number.isNaN(Date.parse(entry)),
-    )
   );
 }
 // The folder glyph as one SVG source, drawn from a data URL wherever a folder
@@ -1627,16 +1651,19 @@ const VIEW_OPTIONS: Array<{
   { icon: LayoutThreeColumnGlyph, label: "Columns", value: "columns" },
 ];
 export function FileSystem({
+  besideWidth,
   className,
   columnWidth: columnWidthProp,
   contextMenuPath = null,
   defaultPath = "",
+  defaultSearch = "",
   defaultSelectedPath,
   defaultSort,
   defaultView = "icons",
   emptyState,
   getFileUrl,
   getHostPath,
+  group: groupProp,
   items,
   pendingFolders,
   listColumns: listColumnsProp,
@@ -1647,6 +1674,7 @@ export function FileSystem({
   onColumnWidthChange,
   onCopyPath,
   onDuplicate,
+  onEmptyPress,
   onFileOpen,
   onItemContextMenu,
   onListColumnsChange,
@@ -1655,12 +1683,16 @@ export function FileSystem({
   onNewFolder,
   onOpenSeveral,
   onPathChange,
+  onOpenFolderChange,
   onRenameCommit,
+  onSearchChange,
+  onGroupChange,
   onSelectionChange,
   onShowHiddenFilesChange,
   onSortChange,
   onTrash,
   onViewChange,
+  openFolders,
   prefetchChildren,
   ref,
   renderFileActions,
@@ -1675,6 +1707,7 @@ export function FileSystem({
   showHiddenFiles: showHiddenFilesProp,
   sort: sortProp,
   title = "Files",
+  toolbarInto,
   view: viewProp,
 }: FileSystemProps) {
   const [internalView, setInternalView] = React.useState(defaultView);
@@ -1743,7 +1776,14 @@ export function FileSystem({
       index.files.get(selectedPath) ?? index.folders.get(selectedPath) ?? null
     );
   }, [index, selectedPath]);
-  const [searchInput, setSearchInput] = React.useState("");
+  const [searchInput, setSearchInput] = React.useState(defaultSearch);
+  const changeSearch = React.useCallback(
+    (next: string) => {
+      setSearchInput(next);
+      onSearchChange?.(next);
+    },
+    [onSearchChange],
+  );
   const searchInputRef = React.useRef<HTMLInputElement | null>(null);
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
   const searchQuery = normalizeSearchQuery(searchInput);
@@ -1756,6 +1796,18 @@ export function FileSystem({
     setInternalSort(next);
     onSortChange?.(next);
   };
+  const [internalGroup, setInternalGroup] =
+    React.useState<FileSystemGroupKey | null>(null);
+  const group = groupProp === undefined ? internalGroup : groupProp;
+  const setGroup = (next: FileSystemGroupKey | null) => {
+    setInternalGroup(next);
+    onGroupChange?.(next);
+  };
+  // Dates are grouped against the day the grouping is chosen on.
+  const grouping = React.useMemo(
+    () => (group === null ? null : groupingFor(group)),
+    [group],
+  );
   const [internalListColumns, setInternalListColumns] =
     React.useState(DEFAULT_LIST_COLUMNS);
   const listColumns = listColumnsProp ?? internalListColumns;
@@ -1772,23 +1824,11 @@ export function FileSystem({
     setInternalListColumnWidths(next);
     onListColumnWidthsChange?.(next);
   };
-  const [filters, setFilters] = React.useState<FileSystemFilter[]>([]);
-  const hasActiveFilters = filters.length > 0;
-  // Files must pass every active filter; folders stay visible through
-  // matching descendants, so the predicate only ever sees files.
-  const fileFilter = React.useMemo(() => {
-    if (filters.length === 0) return null;
-    return (file: FileEntry) =>
-      filters.every((filter) => fileMatchesFilter(file, filter));
-  }, [filters]);
-  // Paths that stay visible while searching or filtering: every file whose
-  // currentPath-relative path contains the query — the list view tree's
-  // hide-non-matches semantics — and that passes the filters, plus the
-  // ancestor folders leading to it. Folder names participate in search
-  // matches only when no filters are active; with filters, a folder is only
-  // as visible as the files inside it.
+  // Paths that stay visible while searching: every entry whose
+  // currentPath-relative path contains the query (the list view tree's
+  // hide-non-matches semantics), plus the ancestor folders leading to it.
   const visiblePaths = React.useMemo(() => {
-    if (!isSearching && !fileFilter) return null;
+    if (!isSearching) return null;
     const visible = new Set<string>();
     const markVisible = (path: string) => {
       while (path && path !== currentPath && !visible.has(path)) {
@@ -1797,24 +1837,14 @@ export function FileSystem({
       }
     };
     const matchesQuery = (path: string) =>
-      !isSearching ||
       path.slice(currentPath.length).toLowerCase().includes(searchQuery);
-    for (const [path, file] of index.files) {
+    for (const path of [...index.files.keys(), ...index.folders.keys()]) {
       if (path === currentPath) continue;
       if (currentPath && !path.startsWith(currentPath)) continue;
-      if (!matchesQuery(path)) continue;
-      if (fileFilter && !fileFilter(file)) continue;
-      markVisible(path);
-    }
-    if (!fileFilter) {
-      for (const path of index.folders.keys()) {
-        if (path === currentPath) continue;
-        if (currentPath && !path.startsWith(currentPath)) continue;
-        if (matchesQuery(path)) markVisible(path);
-      }
+      if (matchesQuery(path)) markVisible(path);
     }
     return visible;
-  }, [currentPath, fileFilter, index, isSearching, searchQuery]);
+  }, [currentPath, index, isSearching, searchQuery]);
   const visibleIndex = React.useMemo(() => {
     if (!visiblePaths) return index;
     const children = new Map<string, FileSystemEntry[]>();
@@ -1826,10 +1856,13 @@ export function FileSystem({
     }
     return { ...index, children };
   }, [index, visiblePaths]);
-  // Children re-sorted per the active sort; the default (name ascending)
-  // reuses the index's pre-sorted arrays untouched.
+  // Children re-sorted per the active sort, within their groups where the
+  // rows are grouped, the groups in their own fixed order whatever the
+  // sort's direction; the default (name ascending, ungrouped) reuses the
+  // index's pre-sorted arrays untouched.
   const sortedIndex = React.useMemo(() => {
     if (
+      grouping === null &&
       sort.key === DEFAULT_SORT.key &&
       sort.direction === DEFAULT_SORT.direction
     ) {
@@ -1837,15 +1870,22 @@ export function FileSystem({
     }
     const children = new Map<string, FileSystemEntry[]>();
     for (const [parentPath, parentChildren] of visibleIndex.children) {
+      const ranks = new Map(
+        grouping
+          ? parentChildren.map((entry) => [entry.path, grouping(entry).rank])
+          : [],
+      );
       children.set(
         parentPath,
-        [...parentChildren].sort((left, right) =>
-          compareEntriesBySort(left, right, sort),
+        [...parentChildren].sort(
+          (left, right) =>
+            (ranks.get(left.path) ?? 0) - (ranks.get(right.path) ?? 0) ||
+            compareEntriesBySort(left, right, sort),
         ),
       );
     }
     return { ...visibleIndex, children };
-  }, [sort, visibleIndex]);
+  }, [grouping, sort, visibleIndex]);
   // Which right-click a row has already answered for. The component's own
   // handler runs after it, and reports the empty space only for a press no
   // row claimed.
@@ -2004,126 +2044,6 @@ export function FileSystem({
         : { direction: defaultSortDirection(key), key },
     );
   };
-  // Distinct kinds across the loaded manifest, named as the Kind column names
-  // them, so two types of one kind are one option; the first file seen per
-  // kind lends its name to the option icon and its type to the group.
-  const fileTypeOptions = React.useMemo(() => {
-    const byKind = new Map<string, FileTypeFilterOption>();
-    for (const file of index.files.values()) {
-      const kind = fileKindLabel(file);
-      if (!byKind.has(kind)) {
-        // The leading-dot check keeps dotfiles (.gitignore) whole.
-        const dotIndex = file.name.lastIndexOf(".");
-        const extension =
-          dotIndex > 0 ? file.name.slice(dotIndex + 1).toLowerCase() : "";
-        byKind.set(kind, {
-          group: fileTypeFilterGroup(mimeTypeForFile(file)),
-          // A synthesized generic name, so files with branded icons
-          // (biome.json, next.config.ts, CLAUDE.md, …) don't lend them to
-          // the whole type; extensionless names keep their own icon
-          // (Dockerfile, Makefile).
-          iconFileName: extension ? `file.${extension}` : file.name,
-          label: kind,
-        });
-      }
-    }
-    return [...byKind.values()].sort((left, right) =>
-      left.label.localeCompare(right.label),
-    );
-  }, [index]);
-  const filterIdRef = React.useRef(0);
-  const [dateRangeDialog, setDateRangeDialog] = React.useState<null | {
-    initialRange?: {
-      from: Date;
-      to: Date;
-    };
-    type: FileSystemDateFilterType;
-  }>(null);
-  const toggleFileTypeFilterValue = React.useCallback(
-    (kind: string, checked: boolean) => {
-      const id = `filter-${++filterIdRef.current}`;
-      setFilters((previous) => {
-        const existing = previous.find((filter) => filter.type === "fileType");
-        if (!existing) {
-          if (!checked) return previous;
-          return [
-            ...previous,
-            {
-              id,
-              operator: "is" as const,
-              type: "fileType" as const,
-              value: [kind],
-            },
-          ];
-        }
-        const value = checked
-          ? [...new Set([kind, ...existing.value])]
-          : existing.value.filter((entry) => entry !== kind);
-        if (value.length === 0) {
-          return previous.filter((filter) => filter !== existing);
-        }
-        // "is" and "is any of" track the value count; "is not" is unaffected.
-        const operator =
-          existing.operator === "is" || existing.operator === "is-any-of"
-            ? value.length > 1
-              ? ("is-any-of" as const)
-              : ("is" as const)
-            : existing.operator;
-        return previous.map((filter) =>
-          filter === existing ? { ...filter, operator, value } : filter,
-        );
-      });
-    },
-    [],
-  );
-  const setDatePresetFilter = React.useCallback(
-    (type: FileSystemDateFilterType, preset: string) => {
-      const id = `filter-${++filterIdRef.current}`;
-      setFilters((previous) => [
-        ...previous.filter((filter) => filter.type !== type),
-        { id, operator: "after", type, value: [preset] },
-      ]);
-    },
-    [],
-  );
-  // Editing an existing custom range seeds the dialog with its bounds.
-  const openDateRangeDialog = React.useCallback(
-    (type: FileSystemDateFilterType) => {
-      const existing = filters.find((filter) => filter.type === type);
-      setDateRangeDialog({
-        initialRange:
-          existing && isCustomDateRangeValue(existing.value)
-            ? {
-                from: new Date(existing.value[0] ?? ""),
-                to: new Date(existing.value[1] ?? ""),
-              }
-            : undefined,
-        type,
-      });
-    },
-    [filters],
-  );
-  const applyCustomDateRange = React.useCallback(
-    (type: FileSystemDateFilterType, from: Date, to: Date) => {
-      const id = `filter-${++filterIdRef.current}`;
-      setFilters((previous) => {
-        const existing = previous.find((filter) => filter.type === type);
-        return [
-          ...previous.filter((filter) => filter.type !== type),
-          {
-            id,
-            operator:
-              existing?.operator === "not-in-range"
-                ? ("not-in-range" as const)
-                : ("in-range" as const),
-            type,
-            value: [from.toISOString(), to.toISOString()],
-          },
-        ];
-      });
-    },
-    [],
-  );
   // Below 560px the search input collapses into a popover, and below 360px the
   // folder name is dropped too. The view switcher answers to the toolbar's
   // container instead.
@@ -2201,12 +2121,12 @@ export function FileSystem({
         return { index: stack.length - 1, stack };
       });
       // Navigation exits search, like Finder.
-      setSearchInput("");
+      changeSearch("");
       setIsSearchExpanded(false);
       selectEntry(null);
       ensureChildren(path);
     },
-    [ensureChildren, selectEntry],
+    [changeSearch, ensureChildren, selectEntry],
   );
   React.useEffect(() => {
     ensureChildren(currentPath);
@@ -2868,13 +2788,14 @@ export function FileSystem({
   const treeExpansionRef = React.useRef(new Map<string, readonly string[]>());
   const viewProps: FileSystemViewProps = {
     attachedStagePaths,
+    besideWidth,
     columnWidth: columnWidthProp,
     currentPath,
     draggable: dragArea.draggable,
     enabledListColumns: listColumns,
     entries: currentEntries,
-    fileFilter,
     getFileUrl,
+    grouping,
     index: sortedIndex,
     listColumnWidths,
     loadingFolders,
@@ -2882,6 +2803,7 @@ export function FileSystem({
     menuTargetPath: contextMenuPath,
     moveFocusWithSelection,
     onColumnWidthChange,
+    onEmptyPress,
     onExpandFolder: ensureChildren,
     onFolderHover: prefetchChildren,
     onItemContextMenu: onItemContextMenu ? claimContextMenu : undefined,
@@ -2902,6 +2824,7 @@ export function FileSystem({
     renderNameField,
     renderTrailing,
     renderUnreadable,
+    rootTitle: title,
     rowGestures,
     searchQuery,
     selectedEntry,
@@ -2909,6 +2832,7 @@ export function FileSystem({
     selection,
     sort,
     treeExpansionRef,
+    ...(openFolders === undefined ? {} : { openFolders, onOpenFolderChange }),
   };
   // ⌘F focuses the toolbar search. Below 560px the field is in a popover,
   // outside the component, so a press with the caret already in it is ours too.
@@ -2936,6 +2860,111 @@ export function FileSystem({
       </Button>
     </DialogClose>
   );
+  // The toolbar's controls, drawn in its own header or, for a host that
+  // holds them in a row of its own, portalled there.
+  const viewSelect = (
+    <Select
+      onValueChange={(value) => setView(value as FileSystemView)}
+      value={view}
+    >
+      <SelectTrigger
+        aria-label="View"
+        className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
+        size="sm"
+      >
+        <SelectValue>
+          {activeViewOption ? (
+            <activeViewOption.icon
+              className={cn("size-4", VIEW_GLYPH_DIM_CLASSNAME)}
+            />
+          ) : null}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          focusListing();
+        }}
+        position="popper"
+      >
+        {VIEW_OPTIONS.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            <span className="flex items-center gap-2">
+              <option.icon className="size-4" />
+              {option.label}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+  const viewTabs = (tabsClassName: string) => (
+    <Tabs
+      // Arrows on a focused view only move between the views, and Return
+      // or Space picks one: switching on every arrow fought the listing
+      // for the same keys.
+      activationMode="manual"
+      className={tabsClassName}
+      onValueChange={(value) => setView(value as FileSystemView)}
+      value={view}
+    >
+      {/* A track a shade darker than the muted one, so it reads as a
+          well the choices sit in against the toolbar's own tint. */}
+      <TabsList className="h-8 bg-foreground/8 p-0.5">
+        {VIEW_OPTIONS.map((option) => (
+          <TabsTrigger
+            aria-label={`${option.label} view`}
+            className={VIEW_TAB_CLASSNAME}
+            key={option.value}
+            // Picked, a view hands the keyboard back to the listing,
+            // the way the Finder's toolbar never keeps it: the next arrow
+            // walks the folder rather than the views.
+            onClick={focusListing}
+            title={option.label}
+            value={option.value}
+          >
+            <option.icon className="size-4" />
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
+  );
+  const sortMenu = (
+    <FileSystemSortMenu
+      // `some`, not every, so a recent that has gone since is no reason to
+      // take the order away.
+      options={
+        items.some(
+          (item) => item.kind === "file" && item.openedAt !== undefined,
+        )
+          ? [OPENED_SORT_OPTION, ...SORT_OPTIONS]
+          : SORT_OPTIONS
+      }
+      group={group}
+      onGroupChange={setGroup}
+      onKeyChange={applySortKey}
+      onShowHiddenFilesChange={setShowHiddenFiles}
+      showHiddenFiles={showHiddenFiles}
+      sort={sort}
+    />
+  );
+  const searchField = (layout: "compact" | "full" | "minimal") => (
+    <FileSystemSearchField
+      inputRef={searchInputRef}
+      isExpanded={isSearchExpanded}
+      layout={layout}
+      onExpandedChange={setIsSearchExpanded}
+      onValueChange={changeSearch}
+      value={searchInput}
+    />
+  );
+  // Whether one of the views is drawn, rather than what stands for the
+  // folder when it has nothing to show.
+  const isViewShown =
+    currentUnreadable === null &&
+    !(isLoadingCurrentFolder && currentEntries.length === 0) &&
+    !(currentEntries.length === 0 && emptyState && !isSearching) &&
+    !(currentEntries.length === 0 && (view !== "columns" || isSearching));
   return (
     <div
       className={cn(
@@ -2999,175 +3028,105 @@ export function FileSystem({
       tabIndex={-1}
     >
       <FileSystemIconSpriteSheet />
-      <div
-        className="@container/finder-header relative flex h-12 shrink-0 items-center gap-1.5 border-b bg-muted/40 px-2"
-        // The toolbar is not the folder, and nothing is made or acted on here.
-        onContextMenu={(event) => {
-          event.preventDefault();
-        }}
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-0.5">
-          {renderHeaderLead ? renderHeaderLead() : null}
-          {headerLayout === "minimal" ? null : (
-            <span className="ml-1.5 truncate text-sm font-semibold">
-              {currentFolderName}
-            </span>
-          )}
-        </div>
-        {renderHeaderPrimary ? renderHeaderPrimary() : null}
-        {/* The switcher folds into a select only once the toolbar's own width
-          cannot hold the segmented control beside the rest; the folder name
-          truncates first. Both are mounted and the container decides. */}
-        <div className="flex @md/finder-header:hidden">
-          <Select
-            onValueChange={(value) => setView(value as FileSystemView)}
-            value={view}
-          >
-            <SelectTrigger
-              aria-label="View"
-              className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
-              size="sm"
-            >
-              <SelectValue>
-                {activeViewOption ? (
-                  <activeViewOption.icon
-                    className={cn("size-4", VIEW_GLYPH_DIM_CLASSNAME)}
-                  />
-                ) : null}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent
-              onCloseAutoFocus={(event) => {
-                event.preventDefault();
-                focusListing();
-              }}
-              position="popper"
-            >
-              {VIEW_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  <span className="flex items-center gap-2">
-                    <option.icon className="size-4" />
-                    {option.label}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Tabs
-          // Arrows on a focused view only move between the views, and Return
-          // or Space picks one: switching on every arrow fought the listing
-          // for the same keys.
-          activationMode="manual"
-          className="hidden gap-0 @md/finder-header:flex"
-          onValueChange={(value) => setView(value as FileSystemView)}
-          value={view}
-        >
-          {/* A track a shade darker than the muted one, so it reads as a
-              well the choices sit in against the toolbar's own tint. */}
-          <TabsList className="h-8 bg-foreground/8 p-0.5">
-            {VIEW_OPTIONS.map((option) => (
-              <TabsTrigger
-                aria-label={`${option.label} view`}
-                className={VIEW_TAB_CLASSNAME}
-                key={option.value}
-                // Picked, a view hands the keyboard back to the listing,
-                // the way the Finder's toolbar never keeps it: the next arrow
-                // walks the folder rather than the views.
-                onClick={focusListing}
-                title={option.label}
-                value={option.value}
+      {toolbarInto ? (
+        <>
+          {toolbarInto.lead &&
+            createPortal(
+              <div
+                className={cn(
+                  "flex min-w-0 items-center gap-1",
+                  toolbarInto.tail === undefined && "flex-1",
+                )}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                }}
               >
-                <option.icon className="size-4" />
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <div className="flex min-w-0 items-center justify-end gap-1.5">
-          <FileSystemSortSelect onKeyChange={applySortKey} sort={sort} />
-          <FileSystemFilterMenu
-            fileTypeOptions={fileTypeOptions}
-            filters={filters}
-            onOpenCustomRange={openDateRangeDialog}
-            onSelectDatePreset={setDatePresetFilter}
-            onShowHiddenFilesChange={setShowHiddenFiles}
-            onToggleFileType={toggleFileTypeFilterValue}
-            showHiddenFiles={showHiddenFiles}
-          />
-          {renderHeaderActions ? renderHeaderActions() : null}
-          <FileSystemSearchField
-            inputRef={searchInputRef}
-            isExpanded={isSearchExpanded}
-            layout={headerLayout}
-            onExpandedChange={setIsSearchExpanded}
-            onValueChange={setSearchInput}
-            value={searchInput}
-          />
-        </div>
-      </div>
-      {hasActiveFilters ? (
+                {toolbarInto.tail === undefined
+                  ? viewSelect
+                  : viewTabs("flex gap-0")}
+                {sortMenu}
+                {/* With the folder alone, its menu and search follow sort,
+                    beside the rows they act on and where search stands
+                    beside a file; beside a file, search alone, at the
+                    section's end. */}
+                {toolbarInto.tail === undefined ? (
+                  <>
+                    <span className="flex-1" />
+                    {searchField("compact")}
+                  </>
+                ) : (
+                  <>
+                    {renderHeaderActions ? renderHeaderActions() : null}
+                    {searchField("compact")}
+                  </>
+                )}
+              </div>,
+              toolbarInto.lead,
+            )}
+          {toolbarInto.tail &&
+            createPortal(
+              <div
+                className="flex items-center gap-1"
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                }}
+              >
+                {renderHeaderPrimary ? renderHeaderPrimary() : null}
+              </div>,
+              toolbarInto.tail,
+            )}
+        </>
+      ) : (
         <div
-          className="flex shrink-0 flex-wrap items-center gap-1 border-b bg-muted/20 px-2 py-1.5 text-xs text-muted-foreground"
+          className="@container/finder-header relative flex h-12 shrink-0 items-center gap-1.5 border-b bg-muted/40 px-2"
+          // The toolbar is not the folder, and nothing is made or acted on here.
           onContextMenu={(event) => {
             event.preventDefault();
           }}
         >
-          {filters.map((filter) => {
-            const dateFilterType =
-              filter.type === "fileType" ? null : filter.type;
-            return (
-              <FileSystemFilterPill
-                fileTypeOptions={fileTypeOptions}
-                filter={filter}
-                key={filter.id}
-                onOpenCustomRange={
-                  dateFilterType
-                    ? () => openDateRangeDialog(dateFilterType)
-                    : undefined
-                }
-                onOperatorChange={(operator) =>
-                  setFilters((previous) =>
-                    previous.map((entry) =>
-                      entry.id === filter.id ? { ...entry, operator } : entry,
-                    ),
-                  )
-                }
-                onRemove={() =>
-                  setFilters((previous) =>
-                    previous.filter((entry) => entry.id !== filter.id),
-                  )
-                }
-                onSelectDatePreset={(preset) =>
-                  setFilters((previous) =>
-                    previous.map((entry) =>
-                      entry.id === filter.id
-                        ? {
-                            ...entry,
-                            operator:
-                              entry.operator === "before" ||
-                              entry.operator === "after"
-                                ? entry.operator
-                                : "after",
-                            value: [preset],
-                          }
-                        : entry,
-                    ),
-                  )
-                }
-                onToggleFileType={toggleFileTypeFilterValue}
-              />
-            );
-          })}
-          <button
-            className="rounded-md px-1.5 py-0.5 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => setFilters([])}
-            type="button"
-          >
-            Clear
-          </button>
+          <div className="flex min-w-0 flex-1 items-center gap-0.5">
+            {renderHeaderLead ? renderHeaderLead() : null}
+            {headerLayout === "minimal" ? null : (
+              <span className="ml-1.5 truncate text-sm font-semibold">
+                {currentFolderName}
+              </span>
+            )}
+          </div>
+          {renderHeaderPrimary ? renderHeaderPrimary() : null}
+          {/* The switcher folds into a select only once the toolbar's own width
+            cannot hold the segmented control beside the rest; the folder name
+            truncates first. Both are mounted and the container decides. */}
+          <div className="flex @md/finder-header:hidden">{viewSelect}</div>
+          {viewTabs("hidden gap-0 @md/finder-header:flex")}
+          <div className="flex min-w-0 items-center justify-end gap-1.5">
+            {sortMenu}
+            {renderHeaderActions ? renderHeaderActions() : null}
+            {searchField(headerLayout)}
+          </div>
         </div>
-      ) : null}
-      <div className="relative min-h-0 flex-1">
+      )}
+      <div
+        className="relative min-h-0 flex-1"
+        // Where no view is drawn (a folder that is empty, unreadable or still
+        // being read, or a search that found nothing) the whole of it is
+        // empty space, as the views' own empty space is; what is pressable
+        // in it keeps its press.
+        onPointerDown={
+          isViewShown || !onEmptyPress
+            ? undefined
+            : (event) => {
+                if (
+                  event.button === 0 &&
+                  !(
+                    event.target instanceof Element &&
+                    event.target.closest("a, button, input")
+                  )
+                ) {
+                  onEmptyPress();
+                }
+              }
+        }
+      >
         {currentUnreadable !== null ? (
           currentUnreadable
         ) : isLoadingCurrentFolder && currentEntries.length === 0 ? (
@@ -3178,10 +3137,7 @@ export function FileSystem({
           >
             <Spinner className="size-5 text-muted-foreground" delay={1000} />
           </div>
-        ) : currentEntries.length === 0 &&
-          emptyState &&
-          !isSearching &&
-          !hasActiveFilters ? (
+        ) : currentEntries.length === 0 && emptyState && !isSearching ? (
           <div className="flex size-full flex-col items-center justify-center gap-1 px-6 text-center">
             <p className="text-sm font-medium text-foreground">
               {emptyState.title}
@@ -3191,14 +3147,23 @@ export function FileSystem({
             </p>
           </div>
         ) : currentEntries.length === 0 &&
-          (view !== "columns" || isSearching || hasActiveFilters) ? (
+          (view !== "columns" || isSearching) ? (
           <FileSystemEmptyState
+            action={
+              isSearching
+                ? {
+                    label: "Clear search",
+                    onPress: () => {
+                      changeSearch("");
+                      setIsSearchExpanded(false);
+                    },
+                  }
+                : undefined
+            }
             label={
               isSearching
-                ? `No results for “${searchInput.trim()}”`
-                : hasActiveFilters
-                  ? "No items match the active filters"
-                  : "This folder is empty"
+                ? `Nothing here matches “${searchInput.trim()}”.`
+                : "This folder is empty"
             }
           />
         ) : view === "icons" ? (
@@ -3275,16 +3240,6 @@ export function FileSystem({
           );
         })}
       </Dialog>
-      {dateRangeDialog ? (
-        <FileSystemDateRangeDialog
-          initialRange={dateRangeDialog.initialRange}
-          onApply={(from, to) => {
-            applyCustomDateRange(dateRangeDialog.type, from, to);
-            setDateRangeDialog(null);
-          }}
-          onClose={() => setDateRangeDialog(null)}
-        />
-      ) : null}
     </div>
   );
 }
@@ -3313,183 +3268,13 @@ export const TOOLBAR_CONTROL_CLASSNAME =
 // the icon reads as the control and the caret as the note that it opens.
 const TOOLBAR_SELECT_TRIGGER_CLASSNAME = cn(
   TOOLBAR_CONTROL_CLASSNAME,
-  "min-h-8 w-auto min-w-0 shrink-0 gap-1 bg-none px-2 dark:border-0 [&>svg:last-child]:size-2.5",
+  "min-h-8 w-auto min-w-0 shrink-0 gap-1 bg-none px-1.5 has-[>svg]:px-1.5 dark:border-0 [&>svg:last-child]:size-2.5",
 );
 // The square, icon-only member of that family.
 export const TOOLBAR_ICON_BUTTON_CLASSNAME = cn(
   TOOLBAR_CONTROL_CLASSNAME,
   "flex size-8 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
 );
-// Searchable file-type list (cmdk) rendered inside a menu popup, so the
-// long list of kinds can be filtered by typing. Selection toggles stay open for
-// multi-select; ArrowUp/Down and Enter come from cmdk's combobox semantics.
-function FileSystemFileTypeCommand({
-  checkedKinds,
-  onToggle,
-  options,
-}: {
-  checkedKinds: string[];
-  onToggle: (kind: string, checked: boolean) => void;
-  options: FileTypeFilterOption[];
-}) {
-  const inputRef = React.useRef<HTMLInputElement | null>(null);
-  // The menu focuses its popup when it opens; pull focus into the search
-  // field so typing filters immediately.
-  React.useEffect(() => {
-    const frame = requestAnimationFrame(() => inputRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  return (
-    <Command
-      // -m-1 spans the menu viewport's built-in padding so the search
-      // field's bottom border runs edge to edge.
-      className="-m-1 w-[calc(100%+--spacing(2))] bg-transparent"
-      // cmdk owns the keyboard while focus is in the list; only Escape
-      // (close the menu) and Tab continue outward.
-      onKeyDown={(event) => {
-        if (event.key !== "Escape" && event.key !== "Tab") {
-          event.stopPropagation();
-        }
-      }}
-    >
-      <CommandInput
-        className="h-9"
-        placeholder="Search file types…"
-        ref={inputRef}
-      />
-      <CommandList className="max-h-none">
-        <CommandEmpty>No file types found.</CommandEmpty>
-        <InlineScrollArea2 className="h-auto max-h-64" orientation="vertical">
-          {FILE_TYPE_FILTER_GROUPS.map((group) => {
-            const groupOptions = options.filter(
-              (option) => option.group === group,
-            );
-            if (groupOptions.length === 0) return null;
-            return (
-              <CommandGroup heading={group} key={group}>
-                {groupOptions.map((option) => {
-                  const isChecked = checkedKinds.includes(option.label);
-                  return (
-                    <CommandItem
-                      key={option.label}
-                      onSelect={() => onToggle(option.label, !isChecked)}
-                      value={option.label}
-                    >
-                      <Check
-                        className={cn(
-                          "size-4 text-foreground",
-                          !isChecked && "opacity-0",
-                        )}
-                      />
-                      <FileTypeIcon
-                        className="size-4"
-                        fileName={option.iconFileName}
-                      />
-                      {option.label}
-                    </CommandItem>
-                  );
-                })}
-              </CommandGroup>
-            );
-          })}
-        </InlineScrollArea2>
-      </CommandList>
-    </Command>
-  );
-}
-// Toolbar filter menu: file types as a searchable checklist, dates as
-// single-select presets plus a custom range, mirroring Extend's table
-// filters.
-function FileSystemFilterMenu({
-  fileTypeOptions,
-  filters,
-  onOpenCustomRange,
-  onSelectDatePreset,
-  onShowHiddenFilesChange,
-  onToggleFileType,
-  showHiddenFiles,
-}: {
-  fileTypeOptions: FileTypeFilterOption[];
-  filters: FileSystemFilter[];
-  onOpenCustomRange: (type: FileSystemDateFilterType) => void;
-  onSelectDatePreset: (type: FileSystemDateFilterType, preset: string) => void;
-  onShowHiddenFilesChange: (showHiddenFiles: boolean) => void;
-  onToggleFileType: (kind: string, checked: boolean) => void;
-  showHiddenFiles: boolean;
-}) {
-  const fileTypeFilter = filters.find((filter) => filter.type === "fileType");
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          aria-label="Filter"
-          className={cn(TOOLBAR_ICON_BUTTON_CLASSNAME, "relative sm:size-8")}
-          size="icon-sm"
-          title="Filter"
-          type="button"
-          variant="outline"
-        >
-          <Filter className="size-4" />
-          {filters.length > 0 ? (
-            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-44">
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <FileArchiveIcon className="size-4 text-muted-foreground" />
-            File type
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="w-60">
-            <FileSystemFileTypeCommand
-              checkedKinds={fileTypeFilter?.value ?? []}
-              onToggle={onToggleFileType}
-              options={fileTypeOptions}
-            />
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        {(["dateModified", "dateCreated"] as const).map((type) => (
-          <DropdownMenuSub key={type}>
-            <DropdownMenuSubTrigger>
-              <Calendar className="size-4 text-muted-foreground" />
-              {FILTER_TYPE_LABELS[type]}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <InlineScrollArea2
-                className="h-auto max-h-72"
-                orientation="vertical"
-              >
-                {DATE_FILTER_PRESETS.map((preset) => (
-                  <DropdownMenuItem
-                    key={preset}
-                    onClick={() => onSelectDatePreset(type, preset)}
-                  >
-                    {preset}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuItem onClick={() => onOpenCustomRange(type)}>
-                  Custom date range…
-                </DropdownMenuItem>
-              </InlineScrollArea2>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        ))}
-        <DropdownMenuSeparator />
-        {/* The menu stays open on a toggle: watching the dotfiles arrive or
-            leave is the whole point of the item, and a menu that closes to
-            show it makes the second thought a second trip. */}
-        <DropdownMenuCheckboxItem
-          checked={showHiddenFiles}
-          onCheckedChange={onShowHiddenFilesChange}
-          onSelect={(event) => event.preventDefault()}
-        >
-          Show hidden files
-        </DropdownMenuCheckboxItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 // macOS Finder-style toolbar search. At the full layout it sits inline in
 // the header's right column; at compact widths it collapses into a ghost
 // icon button that opens the input in a popover (a dot marks the button
@@ -3600,17 +3385,31 @@ function FileSystemSearchField({
   return (
     <Popover onOpenChange={onExpandedChange} open={isExpanded}>
       <PopoverTrigger asChild>
-        <button
-          aria-label="Search"
-          className={cn(TOOLBAR_ICON_BUTTON_CLASSNAME, "relative")}
-          title="Search"
-          type="button"
-        >
-          <Search className="size-4" />
-          {value ? (
-            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
-          ) : null}
-        </button>
+        {/* Searched, the button says for what, so a folder showing less than
+            it has says why at a glance. */}
+        {value ? (
+          <button
+            aria-label={`Search: ${value}`}
+            className={cn(
+              TOOLBAR_CONTROL_CLASSNAME,
+              "flex max-w-32 min-w-0 shrink items-center gap-1.5 bg-primary/10 px-2 text-sm text-primary outline-none not-disabled:hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary/15 dark:not-disabled:hover:bg-primary/20",
+            )}
+            title={`Search: ${value}`}
+            type="button"
+          >
+            <Search className="size-3.5 shrink-0" />
+            <span className="truncate">{value}</span>
+          </button>
+        ) : (
+          <button
+            aria-label="Search"
+            className={TOOLBAR_ICON_BUTTON_CLASSNAME}
+            title="Search"
+            type="button"
+          >
+            <Search className="size-4" />
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-1" sideOffset={6}>
         {input}
@@ -3618,240 +3417,104 @@ function FileSystemSearchField({
     </Popover>
   );
 }
-// Toolbar "sort by" select, as the sort glyph alone: the order in force is
-// one press away in the menu, and the folder itself shows it.
-function FileSystemSortSelect({
+// The toolbar's sort menu, as the sort glyph alone: the order in force is one
+// press away, and the folder itself shows it. It also holds what changes
+// which rows the folder lists, as the Finder's view options do.
+function FileSystemSortMenu({
+  group,
+  onGroupChange,
   onKeyChange,
+  onShowHiddenFilesChange,
+  options,
+  showHiddenFiles,
   sort,
 }: {
+  group: FileSystemGroupKey | null;
+  onGroupChange: (group: FileSystemGroupKey | null) => void;
   onKeyChange: (key: FileSystemSortKey) => void;
+  onShowHiddenFilesChange: (showHiddenFiles: boolean) => void;
+  /** The orders it offers. */
+  options: readonly { key: FileSystemSortKey; label: string }[];
+  showHiddenFiles: boolean;
   sort: FileSystemSortState;
 }) {
   return (
-    <Select
-      onValueChange={(value) => onKeyChange(value as FileSystemSortKey)}
-      value={sort.key}
-    >
-      <SelectTrigger
-        aria-label="Sort by"
-        className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
-        size="sm"
-        title="Sort by"
-      >
-        <SelectValue>
-          <ArrowUpDown className="size-4" />
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent align="end" position="popper">
-        {SORT_OPTIONS.map((option) => (
-          <SelectItem key={option.key} value={option.key}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-const FILTER_PILL_SEGMENT_CLASSNAME =
-  "flex h-5 items-center gap-1 border border-l-0 bg-background px-1.5 whitespace-nowrap text-foreground";
-const FILTER_PILL_BUTTON_CLASSNAME = cn(
-  FILTER_PILL_SEGMENT_CLASSNAME,
-  "outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
-);
-// One applied filter, rendered as a segmented pill in the status bar:
-// type · operator · value · remove, each segment interactive like Extend's
-// table filter pills.
-function FileSystemFilterPill({
-  fileTypeOptions,
-  filter,
-  onOpenCustomRange,
-  onOperatorChange,
-  onRemove,
-  onSelectDatePreset,
-  onToggleFileType,
-}: {
-  fileTypeOptions: FileTypeFilterOption[];
-  filter: FileSystemFilter;
-  onOpenCustomRange?: () => void;
-  onOperatorChange: (operator: FileSystemFilterOperator) => void;
-  onRemove: () => void;
-  onSelectDatePreset: (preset: string) => void;
-  onToggleFileType: (kind: string, checked: boolean) => void;
-}) {
-  const isCustomRange =
-    filter.type !== "fileType" && isCustomDateRangeValue(filter.value);
-  return (
-    <div className="flex items-center text-xs">
-      <span
-        className={cn(
-          FILTER_PILL_SEGMENT_CLASSNAME,
-          "rounded-l-md border-l text-primary",
-        )}
-      >
-        {filter.type === "fileType" ? (
-          <File01Glyph className="size-3" />
-        ) : (
-          <Calendar03Glyph className="size-3" />
-        )}
-        {FILTER_TYPE_LABELS[filter.type]}
-      </span>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            className={cn(FILTER_PILL_BUTTON_CLASSNAME, "text-primary")}
-            type="button"
-          >
-            {FILTER_OPERATOR_LABELS[filter.operator]}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-28">
-          {filterOperatorChoices(filter).map((operator) => (
-            <DropdownMenuItem
-              key={operator}
-              onClick={() => onOperatorChange(operator)}
-            >
-              {FILTER_OPERATOR_LABELS[operator]}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {filter.type === "fileType" ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className={FILTER_PILL_BUTTON_CLASSNAME}
-              title={filter.value.join(", ")}
-              type="button"
-            >
-              {filter.value.length === 1
-                ? filter.value[0]
-                : `${filter.value.length} selected`}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-60">
-            <FileSystemFileTypeCommand
-              checkedKinds={filter.value}
-              onToggle={onToggleFileType}
-              options={fileTypeOptions}
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : isCustomRange ? (
-        <button
-          className={FILTER_PILL_BUTTON_CLASSNAME}
-          onClick={onOpenCustomRange}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          aria-label={group === null ? "Sort by" : "Group by"}
+          className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
+          size="sm"
+          title={group === null ? "Sort by" : "Group by"}
           type="button"
+          variant="outline"
         >
-          {filter.value
-            .map((value) => new Date(value).toLocaleDateString("en-US"))
-            .join(" – ")}
-        </button>
-      ) : (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className={FILTER_PILL_BUTTON_CLASSNAME} type="button">
-              {filter.value[0]}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <InlineScrollArea2
-              className="h-auto max-h-72"
-              orientation="vertical"
+          <ArrowUpDown className="size-4" />
+          <ChevronDown className="opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-44">
+        {/* Grouped, the groups are the order, so Sort by goes the way the
+            Finder's does; List's column headers still order the rows within
+            each group. */}
+        {group === null ? (
+          <>
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+              Sort by
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              onValueChange={(value) => {
+                const option = options.find((each) => each.key === value);
+                if (option) onKeyChange(option.key);
+              }}
+              value={sort.key}
             >
-              {DATE_FILTER_PRESETS.map((preset) => (
-                <DropdownMenuItem
-                  key={preset}
-                  onClick={() => onSelectDatePreset(preset)}
-                >
-                  {preset}
-                </DropdownMenuItem>
+              {options.map((option) => (
+                <DropdownMenuRadioItem key={option.key} value={option.key}>
+                  {option.label}
+                </DropdownMenuRadioItem>
               ))}
-              <DropdownMenuItem onClick={onOpenCustomRange}>
-                Custom date range…
-              </DropdownMenuItem>
-            </InlineScrollArea2>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-      <button
-        aria-label={`Remove ${FILTER_TYPE_LABELS[filter.type]} filter`}
-        className={cn(
-          FILTER_PILL_BUTTON_CLASSNAME,
-          "rounded-r-md px-1 text-muted-foreground hover:text-foreground",
-        )}
-        onClick={onRemove}
-        type="button"
-      >
-        <X className="size-3" />
-      </button>
-    </div>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Group by
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          onValueChange={(value) => {
+            onGroupChange(
+              GROUP_OPTIONS.find((each) => each.key === value)?.key ?? null,
+            );
+          }}
+          value={group ?? "none"}
+        >
+          <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
+          {GROUP_OPTIONS.map((option) => (
+            <DropdownMenuRadioItem key={option.key} value={option.key}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        {/* The menu stays open on a toggle: watching the dotfiles arrive or
+            leave is the whole point of the item, and a menu that closes to
+            show it makes the second thought a second trip. */}
+        <DropdownMenuCheckboxItem
+          checked={showHiddenFiles}
+          onCheckedChange={onShowHiddenFilesChange}
+          onSelect={(event) => event.preventDefault()}
+        >
+          Show hidden files
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
-function formatDateInputValue(date: Date | undefined) {
-  if (!date) return "";
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-function parseDateInputValue(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return;
-  const isoMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(trimmed);
-  if (isoMatch) {
-    const date = new Date(
-      Number(isoMatch[1]),
-      Number(isoMatch[2]) - 1,
-      Number(isoMatch[3]),
-    );
-    return Number.isNaN(date.getTime()) ? undefined : date;
-  }
-  const parsed = Date.parse(trimmed);
-  return Number.isNaN(parsed) ? undefined : new Date(parsed);
-}
-const DATE_RANGE_DIALOG_PRESETS = [
-  "Last 7 days",
-  "This month",
-  "Last 1 month",
-  "Last 3 months",
-  "This year",
-  "Last 12 months",
-];
-function dateRangePresetRange(preset: string) {
-  const from = new Date();
-  const to = new Date();
-  from.setHours(0, 0, 0, 0);
-  to.setHours(23, 59, 59, 999);
-  switch (preset) {
-    case "Last 1 month": {
-      from.setMonth(from.getMonth() - 1);
-      break;
-    }
-    case "Last 3 months": {
-      from.setMonth(from.getMonth() - 3);
-      break;
-    }
-    case "Last 7 days": {
-      from.setDate(from.getDate() - 6);
-      break;
-    }
-    case "Last 12 months": {
-      from.setFullYear(from.getFullYear() - 1);
-      break;
-    }
-    case "This month": {
-      from.setDate(1);
-      break;
-    }
-    case "This year": {
-      from.setMonth(0, 1);
-      break;
-    }
-  }
-  return { from, to };
-}
-const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 type FileSystemViewProps = {
   /** Pooled paths currently attached to the DOM (reveal instantly). */
   attachedStagePaths: string[];
+  besideWidth: number | undefined;
   columnWidth?: number;
   currentPath: string;
   /**
@@ -3862,8 +3525,9 @@ type FileSystemViewProps = {
   draggable: boolean;
   enabledListColumns: FileSystemListColumn[];
   entries: FileSystemEntry[];
-  fileFilter: ((file: FileEntry) => boolean) | null;
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
+  /** Each row's group, where the rows are grouped: headings go between groups. */
+  grouping: Grouping | null;
   index: FileSystemIndex;
   listColumnWidths: Partial<Record<FileSystemListColumn, number>>;
   loadingFolders: Set<string>;
@@ -3875,6 +3539,7 @@ type FileSystemViewProps = {
   menuTargetPath: null | string;
   moveFocusWithSelection: boolean;
   onColumnWidthChange?: (columnWidth: number) => void;
+  onEmptyPress?: () => void;
   /** A folder opened in place in the list, whose contents are needed now. */
   onExpandFolder: (folderPath: string) => void;
   /** A folder the pointer rests on, whose contents may be wanted next. */
@@ -3907,6 +3572,8 @@ type FileSystemViewProps = {
   renderNameField: RenderNameField;
   renderTrailing?: (folderPath: string) => React.ReactNode;
   renderUnreadable?: FileSystemProps["renderUnreadable"];
+  /** The label of the folder the browser opened at. */
+  rootTitle: string;
   /** What every row's press, click and double-click go through. */
   rowGestures: RowGestures;
   searchQuery: string;
@@ -3918,6 +3585,9 @@ type FileSystemViewProps = {
   sort: FileSystemSortState;
   /** The list's open folders per folder on screen, surviving view switches. */
   treeExpansionRef: React.RefObject<Map<string, readonly string[]>>;
+  /** The caller's open folders, which take the place of `treeExpansionRef`'s. */
+  openFolders?: ReadonlySet<string>;
+  onOpenFolderChange?: (path: string, open: boolean) => void;
 };
 /** How a view's rows are walked by the keys the browser reads (`listingCommandOf`). */
 type ListingNav = {
@@ -4020,119 +3690,6 @@ function useFocusWhenDrawn<T extends HTMLElement>(
 function calendarDayKey(date: Date) {
   return date.getFullYear() * 10_000 + date.getMonth() * 100 + date.getDate();
 }
-// Custom date range dialog mirroring Extend's table filters: From/To inputs,
-// a two-month range calendar, and quick presets. Applied ranges span from
-// the start of the first day to the end of the last.
-function FileSystemDateRangeDialog({
-  initialRange,
-  onApply,
-  onClose,
-}: {
-  initialRange?: {
-    from: Date;
-    to: Date;
-  };
-  onApply: (from: Date, to: Date) => void;
-  onClose: () => void;
-}) {
-  const [range, setRange] = React.useState<{
-    from?: Date;
-    to?: Date;
-  }>(() => initialRange ?? {});
-  const [fromInput, setFromInput] = React.useState(() =>
-    formatDateInputValue(initialRange?.from),
-  );
-  const [toInput, setToInput] = React.useState(() =>
-    formatDateInputValue(initialRange?.to),
-  );
-  const selectRange = (next: { from?: Date; to?: Date }) => {
-    setRange(next);
-    if (next.from) setFromInput(formatDateInputValue(next.from));
-    if (next.to) setToInput(formatDateInputValue(next.to));
-  };
-  const dateField = (
-    label: string,
-    value: string,
-    onChange: (value: string) => void,
-  ) => (
-    <div className="flex flex-1 flex-col gap-1.5">
-      <span className="text-xs font-medium">{label}</span>
-      <div className="relative flex items-center">
-        <Calendar className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground" />
-        <Input
-          aria-label={`${label} date`}
-          className="h-8 pl-8 sm:h-8"
-          onChange={(event) => onChange(event.target.value)}
-          placeholder="YYYY-MM-DD"
-          type="text"
-          value={value}
-        />
-      </div>
-    </div>
-  );
-  return (
-    <Dialog
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-      open
-    >
-      <DialogContent className="w-[30rem] max-w-[calc(100vw-2rem)]">
-        <DialogHeader>
-          <DialogTitle>Custom date range</DialogTitle>
-        </DialogHeader>
-        <InlineDialogPanel className="flex flex-col gap-4">
-          <div className="flex gap-3">
-            {dateField("From", fromInput, (value) => {
-              setFromInput(value);
-              const parsed = parseDateInputValue(value);
-              if (parsed)
-                setRange((previous) => ({ ...previous, from: parsed }));
-            })}
-            {dateField("To", toInput, (value) => {
-              setToInput(value);
-              const parsed = parseDateInputValue(value);
-              if (parsed) setRange((previous) => ({ ...previous, to: parsed }));
-            })}
-          </div>
-          <FileSystemRangeCalendar onSelect={selectRange} range={range} />
-          <div className="grid grid-cols-3 gap-2">
-            {DATE_RANGE_DIALOG_PRESETS.map((preset) => (
-              <Button
-                key={preset}
-                onClick={() => selectRange(dateRangePresetRange(preset))}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                {preset}
-              </Button>
-            ))}
-          </div>
-        </InlineDialogPanel>
-        <DialogFooter>
-          <Button onClick={onClose} type="button" variant="outline">
-            Cancel
-          </Button>
-          <Button
-            disabled={!range.from || !range.to}
-            onClick={() => {
-              if (!range.from || !range.to) return;
-              const from = new Date(range.from);
-              const to = new Date(range.to);
-              from.setHours(0, 0, 0, 0);
-              to.setHours(23, 59, 59, 999);
-              onApply(from, to);
-            }}
-            type="button"
-          >
-            Apply
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 /**
  * The folders among `loading` that have been loading for a moment: a read
  * that ends sooner never shows as one.
@@ -4153,149 +3710,21 @@ function useSlowLoads(loading: ReadonlySet<string>, ms = LOADER_DELAY_MS) {
     [loading, slow],
   );
 }
-function FileSystemEmptyState({ label }: { label: string }) {
-  return (
-    <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
-      {label}
-    </div>
-  );
-}
-// Two-month range calendar for the custom date range dialog (one month at
-// phone widths). Clicking sets the start, then the end; clicking before the
-// start swaps the ends, and a third click restarts the range.
-function FileSystemRangeCalendar({
-  onSelect,
-  range,
+function FileSystemEmptyState({
+  action,
+  label,
 }: {
-  onSelect: (range: { from?: Date; to?: Date }) => void;
-  range: {
-    from?: Date;
-    to?: Date;
-  };
+  action?: { label: string; onPress: () => void };
+  label: string;
 }) {
-  const [viewMonth, setViewMonth] = React.useState(() => {
-    const base = range.from ?? new Date();
-    return new Date(base.getFullYear(), base.getMonth(), 1);
-  });
-  const months = [
-    viewMonth,
-    new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1),
-  ];
-  const fromKey = range.from ? calendarDayKey(range.from) : null;
-  const toKey = range.to ? calendarDayKey(range.to) : null;
-  const todayKey = calendarDayKey(new Date());
-  const handleDayClick = (day: Date) => {
-    if (!range.from || range.to) {
-      onSelect({ from: day });
-    } else if (calendarDayKey(day) < calendarDayKey(range.from)) {
-      onSelect({ from: day, to: range.from });
-    } else {
-      onSelect({ from: range.from, to: day });
-    }
-  };
   return (
-    <div className="relative">
-      <button
-        aria-label="Previous month"
-        className="absolute top-0 left-0 flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        onClick={() =>
-          setViewMonth(
-            (previous) =>
-              new Date(previous.getFullYear(), previous.getMonth() - 1, 1),
-          )
-        }
-        type="button"
-      >
-        <ChevronLeft className="size-4" />
-      </button>
-      <button
-        aria-label="Next month"
-        className="absolute top-0 right-0 flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        onClick={() =>
-          setViewMonth(
-            (previous) =>
-              new Date(previous.getFullYear(), previous.getMonth() + 1, 1),
-          )
-        }
-        type="button"
-      >
-        <ArrowRight className="size-4" />
-      </button>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {months.map((month, monthIndex) => {
-          const firstWeekday = month.getDay();
-          const dayCount = new Date(
-            month.getFullYear(),
-            month.getMonth() + 1,
-            0,
-          ).getDate();
-          const cells = [
-            ...Array.from({ length: firstWeekday }, () => null),
-            ...Array.from(
-              { length: dayCount },
-              (_, index) =>
-                new Date(month.getFullYear(), month.getMonth(), index + 1),
-            ),
-          ];
-          return (
-            <div
-              className={cn(monthIndex === 1 && "max-sm:hidden")}
-              key={`${month.getFullYear()}-${month.getMonth()}`}
-            >
-              <div className="text-center text-sm leading-6 font-medium">
-                {month.toLocaleDateString("en-US", {
-                  month: "long",
-                  year: "numeric",
-                })}
-              </div>
-              <div className="mt-1 grid grid-cols-7 text-center text-xs text-muted-foreground">
-                {WEEKDAY_LABELS.map((weekday) => (
-                  <span className="h-6 leading-6" key={weekday}>
-                    {weekday}
-                  </span>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-y-px">
-                {cells.map((day, cellIndex) => {
-                  if (!day) return <span key={cellIndex} />;
-                  const dayKey = calendarDayKey(day);
-                  const isFrom = dayKey === fromKey;
-                  const isTo = dayKey === toKey;
-                  const isWithinRange =
-                    fromKey !== null &&
-                    toKey !== null &&
-                    dayKey > fromKey &&
-                    dayKey < toKey;
-                  return (
-                    <button
-                      className={cn(
-                        "flex h-7 items-center justify-center rounded-md text-xs tabular-nums outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
-                        isWithinRange && "rounded-none bg-accent",
-                        (isFrom || isTo) &&
-                          "bg-primary text-primary-foreground hover:bg-primary",
-                        isFrom &&
-                          toKey !== null &&
-                          fromKey !== toKey &&
-                          "rounded-r-none",
-                        isTo && fromKey !== toKey && "rounded-l-none",
-                        dayKey === todayKey &&
-                          !isFrom &&
-                          !isTo &&
-                          "font-semibold text-primary",
-                      )}
-                      key={cellIndex}
-                      onClick={() => handleDayClick(day)}
-                      type="button"
-                    >
-                      {day.getDate()}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+    <div className="flex size-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
+      <p className="max-w-80 break-words">{label}</p>
+      {action ? (
+        <Button onClick={action.onPress} size="sm" variant="outline">
+          {action.label}
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -4496,13 +3925,19 @@ const ICON_TILE_GAP_X = 4; // gap-x-1
 const ICON_TILE_HEIGHT = 102; // h-16 glyph box + gap-1.5 + two text-xs lines
 const ICON_ROW_GAP = 12; // gap-y-3
 const ICON_ROW_STRIDE = ICON_TILE_HEIGHT + ICON_ROW_GAP;
+// Grouped, the grid steps in thirds of a row: a heading takes one, a row of
+// tiles three.
+const ICON_ROW_UNITS = 3;
+const ICON_UNIT = ICON_ROW_STRIDE / ICON_ROW_UNITS;
 function FileSystemIconsView({
   draggable,
   entries,
+  grouping,
   listingNavRef,
   menuTargetPath,
   moveFocusWithSelection,
   onItemContextMenu,
+  onEmptyPress,
   onOpen,
   onSelect,
   renamingPath,
@@ -4565,17 +4000,57 @@ function FileSystemIconsView({
   }, []);
   const resolvedColumnCount = columnCount ?? 1;
   const rowCount = Math.ceil(entries.length / resolvedColumnCount);
+  // Grouped, each group stands under a heading with a rule over it, its
+  // tiles wrapping onto as many rows as they take, where the Finder's sit in
+  // one row that scrolls sideways until Show All. The grid is laid out in
+  // thirds of a row of tiles, a heading taking one and a row three, so the
+  // windowing still steps evenly. A folder of one group has no heading.
+  const groupedLines = (() => {
+    if (!grouping) return null;
+    const sections: Array<{ entries: FileSystemEntry[]; label: string }> = [];
+    for (const entry of entries) {
+      const label = grouping(entry).label;
+      const section = sections.at(-1);
+      if (section?.label === label) {
+        section.entries.push(entry);
+      } else {
+        sections.push({ entries: [entry], label });
+      }
+    }
+    if (sections.length < 2) return null;
+    const lines: Array<
+      | { heading: string; isFirst: boolean; unit: number }
+      | { row: FileSystemEntry[]; unit: number }
+    > = [];
+    let unit = 0;
+    for (const [sectionIndex, section] of sections.entries()) {
+      lines.push({ heading: section.label, isFirst: sectionIndex === 0, unit });
+      unit += 1;
+      for (let at = 0; at < section.entries.length; at += resolvedColumnCount) {
+        lines.push({
+          row: section.entries.slice(at, at + resolvedColumnCount),
+          unit,
+        });
+        unit += ICON_ROW_UNITS;
+      }
+    }
+    return { lines, unitCount: unit };
+  })();
   const { end, start } = useVirtualWindow({
-    count: rowCount,
-    itemStride: ICON_ROW_STRIDE,
+    count: groupedLines ? groupedLines.unitCount : rowCount,
+    itemStride: groupedLines ? ICON_UNIT : ICON_ROW_STRIDE,
     leadingPx: ICON_GRID_PADDING,
-    overscan: 4,
+    overscan: groupedLines ? ICON_ROW_UNITS * 4 : 4,
     viewportRef,
   });
-  const visibleEntries = entries.slice(
-    start * resolvedColumnCount,
-    end * resolvedColumnCount,
+  const visibleLines = groupedLines?.lines.filter(
+    (line) =>
+      line.unit + ("row" in line ? ICON_ROW_UNITS : 1) > start &&
+      line.unit < end,
   );
+  const visibleEntries = visibleLines
+    ? visibleLines.flatMap((line) => ("row" in line ? line.row : []))
+    : entries.slice(start * resolvedColumnCount, end * resolvedColumnCount);
   // Selection can land outside the window (view switches, shrinking results);
   // bring its row back into the viewport so the tile mounts and is focusable.
   React.useLayoutEffect(() => {
@@ -4584,14 +4059,20 @@ function FileSystemIconsView({
       (entry) => entry.path === selectedPath,
     );
     if (entryIndex === -1) return;
+    const groupedRow = groupedLines?.lines.find(
+      (line) =>
+        "row" in line && line.row.some((entry) => entry.path === selectedPath),
+    );
     scrollIndexIntoView({
-      index: Math.floor(entryIndex / resolvedColumnCount),
+      index: groupedRow
+        ? groupedRow.unit
+        : Math.floor(entryIndex / resolvedColumnCount),
       itemSize: ICON_TILE_HEIGHT,
-      itemStride: ICON_ROW_STRIDE,
+      itemStride: groupedRow ? ICON_UNIT : ICON_ROW_STRIDE,
       leadingPx: ICON_GRID_PADDING,
       viewport: viewportRef.current,
     });
-  }, [entries, resolvedColumnCount, selectedPath]);
+  }, [entries, groupedLines, resolvedColumnCount, selectedPath]);
   // Roving tabindex: the grid is a single tab stop (the selected tile when
   // rendered, else the first rendered one), so Shift+Tab returns to the
   // toolbar like in the list view.
@@ -4600,6 +4081,101 @@ function FileSystemIconsView({
   )
     ? selectedPath
     : (visibleEntries[0]?.path ?? null);
+  const renderTile = (entry: FileSystemEntry) => {
+    const isSelected = selection.has(entry.path);
+    const tileClassName =
+      "group flex h-[6.375rem] flex-col items-center gap-1.5 outline-none";
+    const glyph = (
+      <span
+        className={cn(
+          "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 group-focus-visible:ring-2 group-focus-visible:ring-ring",
+          isSelected && "bg-accent",
+          entry.path === menuTargetPath && "ring-2 ring-brand-500",
+        )}
+      >
+        {entry.kind === "folder" ? (
+          <FileSystemFolderGlyph
+            className="h-13 w-auto drop-shadow-sm"
+            src={entry.glyphSrc}
+          />
+        ) : (
+          <FittedFileVisual
+            // The glyph box: as tall as it is, and as wide as a
+            // landscape thumbnail is let fill it.
+            box={{ height: 4, width: 4.75 }}
+            className="rounded-sm shadow-xs"
+            file={entry}
+            pageClassName="w-12"
+            renderFilePreview={renderFilePreview}
+          />
+        )}
+      </span>
+    );
+    if (entry.path === renamingPath) {
+      // The tile keeps its place in the grid while its name is typed
+      // over, so nothing around it moves.
+      return (
+        <div className={tileClassName} key={entry.path}>
+          {glyph}
+          {/* In the selected name's own pill, so the field sits where
+                      the name did. */}
+          <span
+            className={cn(
+              "flex max-w-full justify-center rounded-sm px-1.5 py-px text-xs leading-tight",
+              SELECTED_ROW_CLASSNAME,
+            )}
+          >
+            {renderNameField(entry, "-mx-0.5 text-center")}
+          </span>
+        </div>
+      );
+    }
+    return (
+      <button
+        aria-selected={isSelected}
+        className={tileClassName}
+        data-file-system-item={entry.path}
+        draggable={draggable}
+        key={entry.path}
+        onClick={(event) => {
+          rowGestures.click(entry, event, () => entries);
+        }}
+        // Right-clicking marks what the menu acts on without moving
+        // the selection, the way the Finder does.
+        onContextMenu={(event) => {
+          onItemContextMenu?.(entry, event);
+        }}
+        onDoubleClick={() => {
+          rowGestures.doubleClick();
+          onOpen(entry);
+        }}
+        onPointerDown={(event) => {
+          rowGestures.press(entry, event, () => entries);
+        }}
+        ref={(element) => {
+          if (element) {
+            itemRefs.current.set(entry.path, element);
+          } else {
+            itemRefs.current.delete(entry.path);
+          }
+        }}
+        role="option"
+        tabIndex={entry.path === tabStopPath ? 0 : -1}
+        type="button"
+      >
+        {glyph}
+        <span
+          className={cn(
+            "max-w-full rounded-sm px-1.5 py-px text-center text-xs leading-tight break-words",
+            isSelected ? SELECTED_ROW_CLASSNAME : "text-foreground",
+          )}
+          data-file-system-name=""
+        >
+          <span className="line-clamp-2">{shownName(entry)}</span>
+        </span>
+      </button>
+    );
+  };
   return (
     <InlineScrollArea2
       orientation="vertical"
@@ -4614,136 +4190,87 @@ function FileSystemIconsView({
             !event.target.closest("[data-file-system-item], input")
           ) {
             onSelect(null);
+            onEmptyPress?.();
           }
         },
       }}
       viewportRef={viewportRef}
     >
-      <div
-        className="relative"
-        // The scroll-height spacer needs the measured column count; until
-        // then the absolutely positioned grid alone defines the scrollable
-        // overflow, so the server-rendered frame doesn't flash an
-        // oversized scroll range.
-        style={{
-          height:
-            columnCount !== null && rowCount
-              ? rowCount * ICON_ROW_STRIDE - ICON_ROW_GAP
-              : undefined,
-        }}
-      >
+      {groupedLines && visibleLines ? (
         <div
-          aria-label="Files"
-          className="absolute inset-x-0 grid gap-x-1 gap-y-3"
-          data-file-system-listing=""
-          role="listbox"
-          // The auto-fill expression produces the same column count the
-          // ResizeObserver measures (the measurement exists only for the
-          // windowing math), so the server-rendered first paint is already
-          // a grid instead of flashing a single stacked column until the
-          // first client measure.
+          className="relative"
           style={{
-            gridTemplateColumns: "repeat(auto-fill, minmax(6.5rem, 1fr))",
-            top: start * ICON_ROW_STRIDE,
+            height: groupedLines.unitCount * ICON_UNIT - ICON_ROW_GAP,
           }}
         >
-          {visibleEntries.map((entry) => {
-            const isSelected = selection.has(entry.path);
-            const tileClassName =
-              "group flex h-[6.375rem] flex-col items-center gap-1.5 outline-none";
-            const glyph = (
-              <span
-                className={cn(
-                  "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 group-focus-visible:ring-2 group-focus-visible:ring-ring",
-                  isSelected && "bg-accent",
-                  entry.path === menuTargetPath && "ring-2 ring-brand-500",
-                )}
-              >
-                {entry.kind === "folder" ? (
-                  <FileSystemFolderGlyph
-                    className="h-13 w-auto drop-shadow-sm"
-                    src={entry.glyphSrc}
-                  />
-                ) : (
-                  <FittedFileVisual
-                    // The glyph box: as tall as it is, and as wide as a
-                    // landscape thumbnail is let fill it.
-                    box={{ height: 4, width: 4.75 }}
-                    className="rounded-sm shadow-xs"
-                    file={entry}
-                    pageClassName="w-12"
-                    renderFilePreview={renderFilePreview}
-                  />
-                )}
-              </span>
-            );
-            if (entry.path === renamingPath) {
-              // The tile keeps its place in the grid while its name is typed
-              // over, so nothing around it moves.
-              return (
-                <div className={tileClassName} key={entry.path}>
-                  {glyph}
-                  {/* In the selected name's own pill, so the field sits where
-                      the name did. */}
-                  <span
-                    className={cn(
-                      "flex max-w-full justify-center rounded-sm px-1.5 py-px text-xs leading-tight",
-                      SELECTED_ROW_CLASSNAME,
-                    )}
-                  >
-                    {renderNameField(entry, "-mx-0.5 text-center")}
-                  </span>
-                </div>
-              );
-            }
-            return (
-              <button
-                aria-selected={isSelected}
-                className={tileClassName}
-                data-file-system-item={entry.path}
-                draggable={draggable}
-                key={entry.path}
-                onClick={(event) => {
-                  rowGestures.click(entry, event, () => entries);
-                }}
-                // Right-clicking marks what the menu acts on without moving
-                // the selection, the way the Finder does.
-                onContextMenu={(event) => {
-                  onItemContextMenu?.(entry, event);
-                }}
-                onDoubleClick={() => {
-                  rowGestures.doubleClick();
-                  onOpen(entry);
-                }}
-                onPointerDown={(event) => {
-                  rowGestures.press(entry, event, () => entries);
-                }}
-                ref={(element) => {
-                  if (element) {
-                    itemRefs.current.set(entry.path, element);
-                  } else {
-                    itemRefs.current.delete(entry.path);
-                  }
-                }}
-                role="option"
-                tabIndex={entry.path === tabStopPath ? 0 : -1}
-                type="button"
-              >
-                {glyph}
-                <span
+          <div
+            aria-label="Files"
+            className="absolute inset-0"
+            data-file-system-listing=""
+            role="listbox"
+          >
+            {visibleLines.map((line) =>
+              "heading" in line ? (
+                <div
+                  aria-hidden
                   className={cn(
-                    "max-w-full rounded-sm px-1.5 py-px text-center text-xs leading-tight break-words",
-                    isSelected ? SELECTED_ROW_CLASSNAME : "text-foreground",
+                    "absolute inset-x-0 flex items-end px-1 pb-2 text-sm font-semibold text-muted-foreground",
+                    !line.isFirst && "border-t border-border/60",
                   )}
-                  data-file-system-name=""
+                  key={`heading:${line.heading}`}
+                  style={{ height: ICON_UNIT, top: line.unit * ICON_UNIT }}
                 >
-                  <span className="line-clamp-2">{shownName(entry)}</span>
-                </span>
-              </button>
-            );
-          })}
+                  <span className="truncate">{line.heading}</span>
+                </div>
+              ) : (
+                <div
+                  className="absolute inset-x-0 grid gap-x-1"
+                  key={`row:${line.row[0]?.path ?? line.unit}`}
+                  style={{
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(6.5rem, 1fr))",
+                    top: line.unit * ICON_UNIT,
+                  }}
+                >
+                  {line.row.map(renderTile)}
+                </div>
+              ),
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div
+          className="relative"
+          // The scroll-height spacer needs the measured column count; until
+          // then the absolutely positioned grid alone defines the scrollable
+          // overflow, so the server-rendered frame doesn't flash an
+          // oversized scroll range.
+          style={{
+            height:
+              columnCount !== null && rowCount
+                ? rowCount * ICON_ROW_STRIDE - ICON_ROW_GAP
+                : undefined,
+          }}
+        >
+          <div
+            aria-label="Files"
+            className="absolute inset-x-0 grid gap-x-1 gap-y-3"
+            data-file-system-listing=""
+            role="listbox"
+            // The auto-fill expression produces the same column count the
+            // ResizeObserver measures (the measurement exists only for the
+            // windowing math), so the server-rendered first paint is already
+            // a grid instead of flashing a single stacked column until the
+            // first client measure.
+            style={{
+              gridTemplateColumns: "repeat(auto-fill, minmax(6.5rem, 1fr))",
+              top: start * ICON_ROW_STRIDE,
+            }}
+          >
+            {visibleEntries.map(renderTile)}
+          </div>
+        </div>
+      )}
     </InlineScrollArea2>
   );
 }
@@ -4769,15 +4296,47 @@ const SELECTED_ROW_SECONDARY_CLASSNAME = "text-white/80";
 export const MENU_TARGET_CLASSNAME = "ring-2 ring-brand-500 ring-inset";
 const LIST_COLUMNS: Array<{
   align: "end" | "start";
+  /** Cut to fit beside a file: its short label and short dates, as wide as `shortWidth`, with no edge to drag. */
+  compact?: boolean;
   key: FileSystemListColumn;
   label: string;
+  shortLabel: string;
+  shortWidth: number;
   /** In px, as the Name column's floor is. */
   width: number;
 }> = [
-  { align: "start", key: "updatedAt", label: "Date Modified", width: 176 },
-  { align: "start", key: "createdAt", label: "Date Created", width: 176 },
-  { align: "end", key: "size", label: "Size", width: 88 },
-  { align: "start", key: "kind", label: "Kind", width: 136 },
+  {
+    align: "start",
+    key: "updatedAt",
+    label: "Date Modified",
+    shortLabel: "Modified",
+    shortWidth: 88,
+    width: 176,
+  },
+  {
+    align: "start",
+    key: "createdAt",
+    label: "Date Created",
+    shortLabel: "Created",
+    shortWidth: 88,
+    width: 176,
+  },
+  {
+    align: "end",
+    key: "size",
+    label: "Size",
+    shortLabel: "Size",
+    shortWidth: 72,
+    width: 88,
+  },
+  {
+    align: "start",
+    key: "kind",
+    label: "Kind",
+    shortLabel: "Kind",
+    shortWidth: 96,
+    width: 136,
+  },
 ];
 const DEFAULT_LIST_COLUMNS: FileSystemListColumn[] = [
   "updatedAt",
@@ -4808,10 +4367,44 @@ function formatListDate(value: string | undefined) {
   if (!day) return formatTimestamp(value) ?? "--";
   return `${day} at ${TIME_FORMAT.format(date)}`;
 }
-function listCellText(entry: FileSystemEntry, column: FileSystemListColumn) {
+// A date short enough for the narrow column beside a file, the way the
+// Finder shortens one as its column narrows: today by its time, yesterday by
+// name, this year by its month and day, and earlier years in figures.
+const SHORT_DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+});
+const FIGURES_DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "numeric",
+  year: "2-digit",
+});
+function formatShortListDate(value: string | undefined) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (calendarDayKey(date) === calendarDayKey(today)) {
+    return TIME_FORMAT.format(date);
+  }
+  if (calendarDayKey(date) === calendarDayKey(yesterday)) {
+    return "Yesterday";
+  }
+  return date.getFullYear() === today.getFullYear()
+    ? SHORT_DAY_FORMAT.format(date)
+    : FIGURES_DAY_FORMAT.format(date);
+}
+function listCellText(
+  entry: FileSystemEntry,
+  column: FileSystemListColumn,
+  { short = false } = {},
+) {
+  const formatDate = short ? formatShortListDate : formatListDate;
   switch (column) {
     case "createdAt": {
-      return formatListDate(entry.createdAt);
+      return formatDate(entry.createdAt);
     }
     case "kind": {
       return entryKindLabel(entry);
@@ -4824,7 +4417,7 @@ function listCellText(entry: FileSystemEntry, column: FileSystemListColumn) {
         : "--";
     }
     case "updatedAt": {
-      return formatListDate(entry.updatedAt);
+      return formatDate(entry.updatedAt);
     }
   }
 }
@@ -4878,6 +4471,7 @@ function FileSystemListColumnHeader({
 function FileSystemListHeader({
   columns,
   enabledColumns,
+  nameLabel = "Name",
   onColumnsChange,
   onColumnWidthsChange,
   onSortColumnClick,
@@ -4885,6 +4479,8 @@ function FileSystemListHeader({
 }: {
   columns: typeof LIST_COLUMNS;
   enabledColumns: readonly FileSystemListColumn[];
+  /** What the Name column's header says: the group scrolled to, as the Finder's does, where the rows are grouped. */
+  nameLabel?: string;
   onColumnsChange: (columns: FileSystemListColumn[]) => void;
   onColumnWidthsChange: (
     widths: Partial<Record<FileSystemListColumn, number>>,
@@ -4902,7 +4498,7 @@ function FileSystemListHeader({
         <div className="flex h-7 shrink-0 items-stretch border-b px-3 text-xs font-medium text-muted-foreground select-none">
           <FileSystemListColumnHeader
             className="flex-1 pl-5.5"
-            label="Name"
+            label={nameLabel}
             onClick={onSortColumnClick}
             sort={sort}
             sortKey="name"
@@ -4918,7 +4514,7 @@ function FileSystemListHeader({
                 <FileSystemListColumnHeader
                   align={column.align}
                   className="w-full px-2"
-                  label={column.label}
+                  label={column.compact ? column.shortLabel : column.label}
                   onClick={onSortColumnClick}
                   sort={sort}
                   sortKey={column.key}
@@ -4929,41 +4525,43 @@ function FileSystemListHeader({
                     separates and the rest stay put: dragged left, the
                     column before it narrows and truncates, the way the
                     Finder's does. Next to Name, only this column moves. */}
-                <ResizeHandle
-                  className="left-0 -translate-x-1/2"
-                  getWidth={() => column.width}
-                  grows="left"
-                  // Back to their defaults, which an unset width reads as.
-                  onReset={() => {
-                    onColumnWidthsChange({
-                      [column.key]: undefined,
-                      ...(previous && { [previous.key]: undefined }),
-                    });
-                  }}
-                  onResize={(width) => {
-                    if (!previous) {
+                {column.compact ? null : (
+                  <ResizeHandle
+                    className="left-0 -translate-x-1/2"
+                    getWidth={() => column.width}
+                    grows="left"
+                    // Back to their defaults, which an unset width reads as.
+                    onReset={() => {
                       onColumnWidthsChange({
-                        [column.key]: clampColumnWidth(width),
+                        [column.key]: undefined,
+                        ...(previous && { [previous.key]: undefined }),
                       });
-                      return;
-                    }
-                    // Both held within the bounds, so the pair's total
-                    // never changes and the divider stops where either
-                    // one would.
-                    const total = column.width + previous.width;
-                    const own = Math.min(
-                      total - LIST_COLUMN_WIDTH_MIN,
-                      Math.max(
-                        total - LIST_COLUMN_WIDTH_MAX,
-                        clampColumnWidth(width),
-                      ),
-                    );
-                    onColumnWidthsChange({
-                      [column.key]: own,
-                      [previous.key]: total - own,
-                    });
-                  }}
-                />
+                    }}
+                    onResize={(width) => {
+                      if (!previous) {
+                        onColumnWidthsChange({
+                          [column.key]: clampColumnWidth(width),
+                        });
+                        return;
+                      }
+                      // Both held within the bounds, so the pair's total
+                      // never changes and the divider stops where either
+                      // one would.
+                      const total = column.width + previous.width;
+                      const own = Math.min(
+                        total - LIST_COLUMN_WIDTH_MIN,
+                        Math.max(
+                          total - LIST_COLUMN_WIDTH_MAX,
+                          clampColumnWidth(width),
+                        ),
+                      );
+                      onColumnWidthsChange({
+                        [column.key]: own,
+                        [previous.key]: total - own,
+                      });
+                    }}
+                  />
+                )}
               </div>
             );
           })}
@@ -4998,10 +4596,11 @@ function FileSystemListHeader({
  * them, and only those in view are drawn.
  */
 function FileSystemListView({
+  besideWidth,
   currentPath,
   draggable,
   enabledListColumns,
-  fileFilter,
+  grouping,
   index,
   listColumnWidths,
   loadingFolders,
@@ -5013,6 +4612,7 @@ function FileSystemListView({
   onListColumnsChange,
   listingNavRef,
   onListColumnWidthsChange,
+  onEmptyPress,
   onOpen,
   onSelect,
   onSelectEntries,
@@ -5026,6 +4626,8 @@ function FileSystemListView({
   selection,
   sort,
   treeExpansionRef,
+  openFolders,
+  onOpenFolderChange,
 }: FileSystemViewProps) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const rowRefs = React.useRef(new Map<string, HTMLDivElement>());
@@ -5035,30 +4637,55 @@ function FileSystemListView({
   });
   // The folders left open here, kept by the browser per folder so walking
   // away and back, or to another layout and back, finds them open again.
-  const [expanded, setExpanded] = React.useState<ReadonlySet<string>>(
+  const [ownExpanded, setExpanded] = React.useState<ReadonlySet<string>>(
     () => new Set(treeExpansionRef.current.get(currentPath) ?? []),
   );
+  const expanded = openFolders ?? ownExpanded;
   const setExpandedFolders = (next: ReadonlySet<string>) => {
     setExpanded(next);
     treeExpansionRef.current.set(currentPath, [...next]);
   };
-  // A search or a filter shows every match wherever it is, so every folder
-  // with one in it stands open while they are on.
-  const isRevealing = searchQuery !== "" || fileFilter !== null;
+  // A search shows every match wherever it is, so every folder with one in
+  // it stands open while it is on.
+  const isRevealing = searchQuery !== "";
   // The rows on screen, in order. A folder opened whose contents are still
   // being read shows nothing under it at first, as the Finder's does, so a
   // quick read (or an empty folder) moves no row; only a read slow enough to
   // be seen waiting holds a placeholder row for them.
   const slowFolders = useSlowLoads(loadingFolders);
+  // Grouped, the folder's own rows stand under a heading for each group
+  // after the first, two rows tall with the name in the lower one, the way
+  // the Finder spaces them; the first group's name is in the header. A
+  // folder of one group has no headings at all. What a folder opened in
+  // place holds goes with the folder, in its group.
+  const topGroups = grouping
+    ? new Set(
+        (index.children.get(currentPath) ?? []).map(
+          (entry) => grouping(entry).label,
+        ),
+      )
+    : null;
+  const isGrouped = topGroups !== null && topGroups.size > 1;
   const rows = React.useMemo(() => {
     const visibleRows: Array<
-      | { depth: number; entry: FileSystemEntry }
+      | { depth: number; entry: FileSystemEntry; group?: string }
+      | { depth: number; entry: null; group: string; heading: "gap" | "name" }
       | { depth: number; entry: null; loadingPath: string }
       | { depth: number; entry: null; note: React.ReactNode; notePath: string }
     > = [];
+    let lastGroup: null | string = null;
     const walk = (folderPath: string, depth: number) => {
       for (const entry of index.children.get(folderPath) ?? []) {
-        visibleRows.push({ depth, entry });
+        const group =
+          depth === 0 && grouping ? grouping(entry).label : undefined;
+        if (group !== undefined) {
+          if (isGrouped && lastGroup !== null && group !== lastGroup) {
+            visibleRows.push({ depth, entry: null, group, heading: "gap" });
+            visibleRows.push({ depth, entry: null, group, heading: "name" });
+          }
+          lastGroup = group;
+        }
+        visibleRows.push({ depth, entry, ...(group ? { group } : {}) });
         if (
           entry.kind === "folder" &&
           (isRevealing || expanded.has(entry.path))
@@ -5095,20 +4722,50 @@ function FileSystemListView({
   }, [
     currentPath,
     expanded,
+    grouping,
     index,
+    isGrouped,
     isRevealing,
     renderUnreadable,
     slowFolders,
   ]);
+  // The row at the top of the list, whose group the Name column's header
+  // names while the rows are grouped.
+  const [topRow, setTopRow] = React.useState(0);
+  const groupAtTop = (() => {
+    if (!grouping) return undefined;
+    for (let at = Math.min(topRow, rows.length - 1); at >= 0; at -= 1) {
+      const row = rows[at];
+      if (row && "group" in row && row.group !== undefined) return row.group;
+    }
+    return undefined;
+  })();
   // The rows that are items, which is what the keyboard walks.
   const entryRows = rows.filter(
     (row): row is { depth: number; entry: FileSystemEntry } =>
       row.entry !== null,
   );
   const rowEntries = entryRows.map((row) => row.entry);
+  // A folder drawn open that was opened somewhere else (another window,
+  // another folder walked through) has its contents read as it is drawn.
+  const unreadOpen = rowEntries
+    .filter(
+      (entry) =>
+        entry.kind === "folder" &&
+        expanded.has(entry.path) &&
+        !index.children.get(entry.path)?.length,
+    )
+    .map((entry) => entry.path)
+    .join("\n");
+  React.useEffect(() => {
+    for (const path of unreadOpen.split("\n").filter(Boolean)) {
+      onExpandFolder(path);
+    }
+  }, [onExpandFolder, unreadOpen]);
   const toggleFolder = (folder: FolderEntry, open: boolean) => {
     if (open === expanded.has(folder.path)) return;
     const next = new Set(expanded);
+    onOpenFolderChange?.(folder.path, open);
     if (open) {
       next.add(folder.path);
       onExpandFolder(folder.path);
@@ -5142,6 +4799,28 @@ function FileSystemListView({
     observer.observe(root);
     return () => observer.disconnect();
   }, []);
+  // Beside a file the list never scrolls sideways: it keeps the name and
+  // the column it is sorted by (Date Modified for the name), cut short to
+  // fit, and more of the others as the folder is dragged wider. While the
+  // folder narrows or widens it keeps the layout of its full width, drawn at
+  // that width and cut off at the folder's edge, so the columns go under the
+  // file and come back out from under it, and the cut layout takes over
+  // once the folder stands at its width beside the file.
+  const [wideWidth, setWideWidth] = React.useState<null | number>(null);
+  if (besideWidth === undefined && width !== null && width !== wideWidth) {
+    setWideWidth(width);
+  }
+  const isBesideNarrow =
+    besideWidth !== undefined && width !== null && width <= besideWidth + 2;
+  const heldWidth =
+    besideWidth !== undefined &&
+    !isBesideNarrow &&
+    width !== null &&
+    wideWidth !== null &&
+    wideWidth > width
+      ? wideWidth
+      : null;
+  const layoutWidth = heldWidth ?? width;
   const columns = (() => {
     const shown = LIST_COLUMNS.filter((column) =>
       enabledListColumns.includes(column.key),
@@ -5149,12 +4828,25 @@ function FileSystemListView({
       ...column,
       width: listColumnWidths[column.key] ?? column.width,
     }));
-    if (width === null) return shown;
-    let room = width - LIST_EDGE_PADDING - LIST_NAME_MIN_WIDTH;
-    return shown.filter((column) => {
+    if (layoutWidth === null) return shown;
+    const keptKey =
+      sort.key === "name" || sort.key === "openedAt" ? "updatedAt" : sort.key;
+    const kept = LIST_COLUMNS.find((column) => column.key === keptKey);
+    const ordered =
+      isBesideNarrow && kept
+        ? [
+            { ...kept, width: listColumnWidths[kept.key] ?? kept.width },
+            ...shown.filter((column) => column.key !== kept.key),
+          ]
+        : shown;
+    let room = layoutWidth - LIST_EDGE_PADDING - LIST_NAME_MIN_WIDTH;
+    const fitted = ordered.filter((column) => {
       room -= column.width;
       return room >= 0;
     });
+    return isBesideNarrow && kept && fitted.length === 0
+      ? [{ ...kept, compact: true, width: kept.shortWidth }]
+      : fitted;
   })();
   const { end, start } = useVirtualWindow({
     count: rows.length,
@@ -5227,199 +4919,227 @@ function FileSystemListView({
       ? selectedPath
       : (rows.slice(start, end).find((row) => row.entry)?.entry?.path ?? null);
   return (
-    <div className="flex size-full flex-col" ref={rootRef}>
-      <FileSystemListHeader
-        columns={columns}
-        enabledColumns={enabledListColumns}
-        onColumnsChange={onListColumnsChange}
-        onColumnWidthsChange={(widths) => {
-          onListColumnWidthsChange({ ...listColumnWidths, ...widths });
-        }}
-        onSortColumnClick={onSortColumnClick}
-        sort={sort}
-      />
-      {rows.length === 0 ? (
-        <FileSystemEmptyState
-          label={
-            fileFilter
-              ? "No items match the active filters"
-              : "This folder is empty"
-          }
-        />
-      ) : (
-        <InlineScrollArea2
-          className="min-h-0 flex-1"
-          orientation="vertical"
-          viewportProps={{
-            "aria-label": "Files",
-            // A press past the last row lets go of the selection, as in the
-            // Finder; one with ⌘ or Shift held keeps it.
-            onPointerDown: (event) => {
-              if (
-                event.button === 0 &&
-                selectionModeOf(event) === null &&
-                event.target instanceof HTMLElement &&
-                !event.target.closest('[role="option"]')
-              ) {
-                onSelect(null);
-              }
-            },
-            role: "listbox",
+    <div
+      className={cn("size-full", heldWidth !== null && "overflow-hidden")}
+      ref={rootRef}
+    >
+      <div
+        className="flex h-full flex-col"
+        style={heldWidth === null ? {} : { width: heldWidth }}
+      >
+        <FileSystemListHeader
+          columns={columns}
+          enabledColumns={enabledListColumns}
+          onColumnsChange={onListColumnsChange}
+          onColumnWidthsChange={(widths) => {
+            onListColumnWidthsChange({ ...listColumnWidths, ...widths });
           }}
-          viewportRef={viewportRef}
-        >
-          <div
-            className="relative min-h-full"
-            style={{ ...LIST_STRIPES, height: rows.length * LIST_ROW_HEIGHT }}
+          {...(groupAtTop === undefined ? {} : { nameLabel: groupAtTop })}
+          onSortColumnClick={onSortColumnClick}
+          sort={sort}
+        />
+        {rows.length === 0 ? (
+          <FileSystemEmptyState label="This folder is empty" />
+        ) : (
+          <InlineScrollArea2
+            className="min-h-0 flex-1"
+            orientation="vertical"
+            viewportProps={{
+              "aria-label": "Files",
+              // A press past the last row lets go of the selection, as in the
+              // Finder; one with ⌘ or Shift held keeps it.
+              onPointerDown: (event) => {
+                if (
+                  event.button === 0 &&
+                  selectionModeOf(event) === null &&
+                  event.target instanceof HTMLElement &&
+                  !event.target.closest('[role="option"]')
+                ) {
+                  onSelect(null);
+                  onEmptyPress?.();
+                }
+              },
+              onScroll: (event) => {
+                setTopRow(
+                  Math.floor(event.currentTarget.scrollTop / LIST_ROW_HEIGHT),
+                );
+              },
+              role: "listbox",
+            }}
+            viewportRef={viewportRef}
           >
             <div
-              className="absolute inset-x-0 flex flex-col"
-              data-file-system-listing=""
-              style={{ top: start * LIST_ROW_HEIGHT }}
+              className="relative min-h-full"
+              style={{ ...LIST_STRIPES, height: rows.length * LIST_ROW_HEIGHT }}
             >
-              {rows.slice(start, end).map((row) => {
-                const { depth, entry } = row;
-                if (entry === null && "note" in row) {
-                  return (
-                    <div
-                      className="mx-1.5 flex h-6 shrink-0 items-center px-1.5 text-xs text-muted-foreground"
-                      key={`note:${row.notePath}`}
-                      style={{ paddingLeft: depth * LIST_INDENT + 6 }}
-                    >
-                      <span className="ml-5.5 truncate">{row.note}</span>
-                    </div>
-                  );
-                }
-                if (entry === null) {
-                  return (
-                    <div
-                      aria-hidden
-                      className="mx-1.5 flex h-6 shrink-0 items-center px-1.5"
-                      key={`loading:${"loadingPath" in row ? row.loadingPath : ""}`}
-                      style={{ paddingLeft: depth * LIST_INDENT + 6 }}
-                    >
-                      <span className="ml-5.5 h-2.5 w-32 animate-pulse rounded-full bg-foreground/10 motion-reduce:animate-none" />
-                    </div>
-                  );
-                }
-                const isSelected = selection.has(entry.path);
-                const isExpanded =
-                  entry.kind === "folder" &&
-                  (isRevealing || expanded.has(entry.path));
-                const isRenaming = entry.path === renamingPath;
-                return (
-                  <div
-                    aria-expanded={
-                      entry.kind === "folder" ? isExpanded : undefined
-                    }
-                    aria-selected={isSelected}
-                    className={cn(
-                      "mx-1.5 flex h-6 shrink-0 items-center rounded-md px-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                      isSelected && SELECTED_ROW_CLASSNAME,
-                      entry.path === menuTargetPath && MENU_TARGET_CLASSNAME,
-                    )}
-                    data-file-system-item={entry.path}
-                    draggable={draggable && !isRenaming}
-                    key={entry.path}
-                    onClick={(event) => {
-                      rowGestures.click(entry, event, () => rowEntries);
-                    }}
-                    onContextMenu={(event) => {
-                      onItemContextMenu?.(entry, event);
-                    }}
-                    onDoubleClick={() => {
-                      rowGestures.doubleClick();
-                      onOpen(entry);
-                    }}
-                    onPointerEnter={() => {
-                      if (entry.kind === "folder") onFolderHover?.(entry.path);
-                    }}
-                    onPointerDown={(event) => {
-                      rowGestures.press(entry, event, () => rowEntries);
-                    }}
-                    ref={(element) => {
-                      if (element) {
-                        rowRefs.current.set(entry.path, element);
-                      } else {
-                        rowRefs.current.delete(entry.path);
-                      }
-                    }}
-                    role="option"
-                    tabIndex={entry.path === tabStopPath ? 0 : -1}
-                  >
-                    <div
-                      className="flex min-w-0 flex-1 items-center"
-                      style={{ paddingLeft: depth * LIST_INDENT }}
-                    >
-                      <span
+              <div
+                className="absolute inset-x-0 flex flex-col"
+                data-file-system-listing=""
+                style={{ top: start * LIST_ROW_HEIGHT }}
+              >
+                {rows.slice(start, end).map((row) => {
+                  const { depth, entry } = row;
+                  if (entry === null && "heading" in row) {
+                    // Over the stripes, and the name in line with the rows'
+                    // names rather than their icons.
+                    return (
+                      <div
                         aria-hidden
-                        className="flex h-6 w-4 shrink-0 items-center justify-center"
-                        // The chevron opens and closes the folder and does
-                        // nothing else: the press never reaches the row, so
-                        // the selection stays where it was.
-                        onClick={(event) => {
-                          if (entry.kind !== "folder") return;
-                          event.stopPropagation();
-                          toggleFolder(entry, !isExpanded);
-                        }}
-                        onDoubleClick={(event) => {
-                          if (entry.kind === "folder") event.stopPropagation();
-                        }}
-                        onPointerDown={(event) => {
-                          if (entry.kind !== "folder") return;
-                          event.stopPropagation();
-                          event.preventDefault();
-                        }}
+                        className="flex h-6 shrink-0 items-end bg-background pr-3 pb-0.5 pl-14 text-xs font-semibold text-muted-foreground"
+                        key={`heading:${row.heading}:${row.group}`}
                       >
-                        {entry.kind === "folder" ? (
-                          <ChevronRight
-                            className={cn(
-                              "size-3.5 transition-transform duration-100 motion-reduce:transition-none",
-                              isExpanded && "rotate-90",
-                              isSelected
-                                ? SELECTED_ROW_SECONDARY_CLASSNAME
-                                : "text-muted-foreground",
-                            )}
-                            strokeWidth={2.5}
-                          />
+                        {row.heading === "name" ? (
+                          <span className="truncate">{row.group}</span>
                         ) : null}
-                      </span>
-                      <span className="ml-1.5 flex size-4 shrink-0 items-center justify-center">
-                        <FileSystemRowGlyph entry={entry} />
-                      </span>
-                      {isRenaming ? (
-                        renderNameField(entry, "-mr-0.5 ml-1 h-5")
-                      ) : (
-                        <span
-                          className="ml-1.5 min-w-0 flex-1 truncate"
-                          data-file-system-name=""
-                        >
-                          {shownName(entry)}
-                        </span>
-                      )}
-                    </div>
-                    {columns.map((column) => (
-                      <span
-                        className={cn(
-                          "shrink-0 truncate px-2 text-xs tabular-nums",
-                          column.align === "end" && "text-right",
-                          isSelected
-                            ? SELECTED_ROW_SECONDARY_CLASSNAME
-                            : "text-muted-foreground",
-                        )}
-                        key={column.key}
-                        style={{ width: column.width }}
+                      </div>
+                    );
+                  }
+                  if (entry === null && "note" in row) {
+                    return (
+                      <div
+                        className="mx-1.5 flex h-6 shrink-0 items-center px-1.5 text-xs text-muted-foreground"
+                        key={`note:${row.notePath}`}
+                        style={{ paddingLeft: depth * LIST_INDENT + 6 }}
                       >
-                        {listCellText(entry, column.key)}
-                      </span>
-                    ))}
-                  </div>
-                );
-              })}
+                        <span className="ml-5.5 truncate">{row.note}</span>
+                      </div>
+                    );
+                  }
+                  if (entry === null) {
+                    return (
+                      <div
+                        aria-hidden
+                        className="mx-1.5 flex h-6 shrink-0 items-center px-1.5"
+                        key={`loading:${"loadingPath" in row ? row.loadingPath : ""}`}
+                        style={{ paddingLeft: depth * LIST_INDENT + 6 }}
+                      >
+                        <span className="ml-5.5 h-2.5 w-32 animate-pulse rounded-full bg-foreground/10 motion-reduce:animate-none" />
+                      </div>
+                    );
+                  }
+                  const isSelected = selection.has(entry.path);
+                  const isExpanded =
+                    entry.kind === "folder" &&
+                    (isRevealing || expanded.has(entry.path));
+                  const isRenaming = entry.path === renamingPath;
+                  return (
+                    <div
+                      aria-expanded={
+                        entry.kind === "folder" ? isExpanded : undefined
+                      }
+                      aria-selected={isSelected}
+                      className={cn(
+                        "mx-1.5 flex h-6 shrink-0 items-center rounded-md px-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                        isSelected && SELECTED_ROW_CLASSNAME,
+                        entry.path === menuTargetPath && MENU_TARGET_CLASSNAME,
+                      )}
+                      data-file-system-item={entry.path}
+                      draggable={draggable && !isRenaming}
+                      key={entry.path}
+                      onClick={(event) => {
+                        rowGestures.click(entry, event, () => rowEntries);
+                      }}
+                      onContextMenu={(event) => {
+                        onItemContextMenu?.(entry, event);
+                      }}
+                      onDoubleClick={() => {
+                        rowGestures.doubleClick();
+                        onOpen(entry);
+                      }}
+                      onPointerEnter={() => {
+                        if (entry.kind === "folder")
+                          onFolderHover?.(entry.path);
+                      }}
+                      onPointerDown={(event) => {
+                        rowGestures.press(entry, event, () => rowEntries);
+                      }}
+                      ref={(element) => {
+                        if (element) {
+                          rowRefs.current.set(entry.path, element);
+                        } else {
+                          rowRefs.current.delete(entry.path);
+                        }
+                      }}
+                      role="option"
+                      tabIndex={entry.path === tabStopPath ? 0 : -1}
+                    >
+                      <div
+                        className="flex min-w-0 flex-1 items-center"
+                        style={{ paddingLeft: depth * LIST_INDENT }}
+                      >
+                        <span
+                          aria-hidden
+                          className="flex h-6 w-4 shrink-0 items-center justify-center"
+                          // The chevron opens and closes the folder and does
+                          // nothing else: the press never reaches the row, so
+                          // the selection stays where it was.
+                          onClick={(event) => {
+                            if (entry.kind !== "folder") return;
+                            event.stopPropagation();
+                            toggleFolder(entry, !isExpanded);
+                          }}
+                          onDoubleClick={(event) => {
+                            if (entry.kind === "folder")
+                              event.stopPropagation();
+                          }}
+                          onPointerDown={(event) => {
+                            if (entry.kind !== "folder") return;
+                            event.stopPropagation();
+                            event.preventDefault();
+                          }}
+                        >
+                          {entry.kind === "folder" ? (
+                            <ChevronRight
+                              className={cn(
+                                "size-3.5 transition-transform duration-100 motion-reduce:transition-none",
+                                isExpanded && "rotate-90",
+                                isSelected
+                                  ? SELECTED_ROW_SECONDARY_CLASSNAME
+                                  : "text-muted-foreground",
+                              )}
+                              strokeWidth={2.5}
+                            />
+                          ) : null}
+                        </span>
+                        <span className="ml-1.5 flex size-4 shrink-0 items-center justify-center">
+                          <FileSystemRowGlyph entry={entry} />
+                        </span>
+                        {isRenaming ? (
+                          renderNameField(entry, "-mr-0.5 ml-1 h-5")
+                        ) : (
+                          <span
+                            className="ml-1.5 min-w-0 flex-1 truncate"
+                            data-file-system-name=""
+                          >
+                            {shownName(entry)}
+                          </span>
+                        )}
+                      </div>
+                      {columns.map((column) => (
+                        <span
+                          className={cn(
+                            "shrink-0 truncate px-2 text-xs tabular-nums",
+                            column.align === "end" && "text-right",
+                            isSelected
+                              ? SELECTED_ROW_SECONDARY_CLASSNAME
+                              : "text-muted-foreground",
+                          )}
+                          key={column.key}
+                          style={{ width: column.width }}
+                        >
+                          {listCellText(entry, column.key, {
+                            short: column.compact,
+                          })}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </InlineScrollArea2>
-      )}
+          </InlineScrollArea2>
+        )}
+      </div>
     </div>
   );
 }
@@ -5492,15 +5212,18 @@ export function FileSystemRowGlyph({
 }
 function FileSystemColumnsView(props: FileSystemViewProps) {
   const {
+    besideWidth,
     columnWidth: columnWidthProp,
     currentPath,
     draggable,
+    grouping,
     index,
     loadingFolders,
     loadPreviewImageUrl,
     menuTargetPath,
     moveFocusWithSelection,
     onColumnWidthChange,
+    onEmptyPress,
     onFolderHover,
     onItemContextMenu,
     listingNavRef,
@@ -5514,6 +5237,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     renderNameField,
     renderTrailing,
     renderUnreadable,
+    rootTitle,
     rowGestures,
     selectedEntry,
     selectedPath,
@@ -5652,83 +5376,131 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     const container = scrollContainerRef.current;
     if (container) container.scrollLeft = container.scrollWidth;
   }, [columnPaths.length, deferredSelectedPath]);
+  // Beside a file only the last column stands, filling the folder's width:
+  // the file is open beside it, so there is no preview to make room for,
+  // and the columns before it are a step back (left, or the folder's menu).
+  const isBeside = besideWidth !== undefined;
   return (
     <InlineScrollArea2
       orientation="horizontal"
-      // The viewport's own content wrapper is `display: table` inline, and a
-      // percentage height inside a table box is a minimum rather than a
-      // bound: each column grew to its rows and the outer viewport, which
-      // only scrolls sideways, clipped them, so nothing answered the wheel.
-      // A block wrapper holds the columns to the viewport's height, and the
-      // trail still overflows it sideways for the horizontal scroll.
-      viewportClassName="overscroll-x-contain [&>div]:block!"
+      viewportClassName="overscroll-x-contain"
+      viewportProps={{ disableImplicitContentElement: true }}
       viewportRef={scrollContainerRef}
     >
       {/* The Content part's ResizeObserver tells the scroll area when the
             trail shrinks (deselect, shallower selection) so the horizontal
-            scrollbar hides; the viewport alone only observes its own box. Its
-            built-in inline min-width (fit-content) would beat a min-w-full
-            class, so the full-width floor is inline too. */}
+            scrollbar hides; the viewport alone only observes its own box.
+            Content's built-in inline style is `display: table`, and a
+            percentage height inside a table box is a minimum rather than a
+            bound: each column would grow to its rows and the viewport, which
+            only scrolls sideways, would clip them so nothing answered the
+            wheel. The inline flex display holds the columns to the viewport's
+            height; the inline min-width keeps the full-width floor. */}
       <InlineScrollAreaContent
-        className="flex h-full w-max"
+        className={cn("flex h-full", isBeside ? "w-full" : "w-max")}
         data-file-system-listing=""
-        style={{ minWidth: "100%" }}
+        style={{ display: "flex", minWidth: "100%" }}
       >
-        {listedColumnPaths.map((columnPath, columnIndex) => (
-          <FileSystemColumn
-            draggable={draggable}
-            entries={index.children.get(columnPath) ?? []}
-            index={index}
-            isLoading={loadingFolders.has(columnPath)}
-            key={columnPath || "(root)"}
-            menuTargetChildPath={
-              menuTargetPath && pathParent(menuTargetPath) === columnPath
-                ? menuTargetPath
-                : null
-            }
-            onFolderHover={onFolderHover}
-            onItemContextMenu={onItemContextMenu}
-            onOpen={onOpen}
-            onResize={setColumnWidth}
-            onSelect={onSelect}
-            ownFolder={
-              columnIndex === 0 ? null : (index.folders.get(columnPath) ?? null)
-            }
-            // Scalar per-column props so the memoized column only
-            // re-renders when its own rows change — a selection deeper in
-            // the trail leaves ancestor columns untouched.
-            renamingChildPath={
-              renamingPath && pathParent(renamingPath) === columnPath
-                ? renamingPath
-                : null
-            }
-            renderNameField={renderNameField}
-            rowGestures={rowGestures}
-            rowRefs={rowRefs}
-            selectedChildPath={
-              selectedPath && pathParent(selectedPath) === columnPath
-                ? selectedPath
-                : null
-            }
-            selection={
-              selectedPath && pathParent(selectedPath) === columnPath
-                ? selection
-                : null
-            }
-            tabStopChildPath={
-              tabStopPath && pathParent(tabStopPath) === columnPath
-                ? tabStopPath
-                : null
-            }
-            trailChildPath={columnPaths[columnIndex + 1] ?? null}
-            width={columnWidth}
-          />
-        ))}
+        {listedColumnPaths.map((columnPath, columnIndex) => {
+          if (
+            isBeside &&
+            (unreadableColumnPath !== undefined ||
+              columnIndex < listedColumnPaths.length - 1)
+          ) {
+            return null;
+          }
+          const column = (
+            <FileSystemColumn
+              draggable={draggable}
+              fills={isBeside}
+              grouping={grouping}
+              entries={index.children.get(columnPath) ?? []}
+              index={index}
+              isLoading={loadingFolders.has(columnPath)}
+              key={columnPath || "(root)"}
+              menuTargetChildPath={
+                menuTargetPath && pathParent(menuTargetPath) === columnPath
+                  ? menuTargetPath
+                  : null
+              }
+              onFolderHover={onFolderHover}
+              onEmptyPress={onEmptyPress}
+              onItemContextMenu={onItemContextMenu}
+              onOpen={onOpen}
+              onResize={setColumnWidth}
+              onSelect={onSelect}
+              ownFolder={
+                columnIndex === 0
+                  ? null
+                  : (index.folders.get(columnPath) ?? null)
+              }
+              // Scalar per-column props so the memoized column only
+              // re-renders when its own rows change — a selection deeper in
+              // the trail leaves ancestor columns untouched.
+              renamingChildPath={
+                renamingPath && pathParent(renamingPath) === columnPath
+                  ? renamingPath
+                  : null
+              }
+              renderNameField={renderNameField}
+              rowGestures={rowGestures}
+              rowRefs={rowRefs}
+              selectedChildPath={
+                selectedPath && pathParent(selectedPath) === columnPath
+                  ? selectedPath
+                  : null
+              }
+              selection={
+                selectedPath && pathParent(selectedPath) === columnPath
+                  ? selection
+                  : null
+              }
+              tabStopChildPath={
+                tabStopPath && pathParent(tabStopPath) === columnPath
+                  ? tabStopPath
+                  : null
+              }
+              trailChildPath={columnPaths[columnIndex + 1] ?? null}
+              width={columnWidth}
+            />
+          );
+          if (!isBeside || columnIndex === 0) {
+            return column;
+          }
+          // The way back to the column before, named for where it goes, as
+          // a phone names its back button: the folder's own name is in its
+          // section of the row.
+          const backPath = listedColumnPaths[columnIndex - 1] ?? currentPath;
+          const backFolder =
+            columnIndex === 1 ? null : (index.folders.get(backPath) ?? null);
+          return (
+            <div
+              className="flex min-w-0 flex-1 flex-col"
+              key={columnPath || "(root)"}
+            >
+              <button
+                className="flex h-8 shrink-0 items-center gap-1 border-b px-2 text-left text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                onClick={() => {
+                  onSelect(backFolder);
+                }}
+                type="button"
+              >
+                <ChevronLeft className="size-4 shrink-0" />
+                <span className="truncate">
+                  {backFolder?.name ??
+                    index.folders.get(backPath)?.name ??
+                    rootTitle}
+                </span>
+              </button>
+              {column}
+            </div>
+          );
+        })}
         {unreadableColumnPath !== undefined ? (
           <div className="min-w-72 flex-1 contain-inline-size">
             {renderUnreadable?.(unreadableColumnPath, "pane")}
           </div>
-        ) : selectedFile ? (
+        ) : isBeside ? null : selectedFile ? (
           <InlineScrollArea2
             className="min-w-60 flex-1 contain-inline-size"
             orientation="vertical"
@@ -5807,9 +5579,12 @@ const COLUMN_WIDTH_MAX = 640;
 const FileSystemColumn = React.memo(function FileSystemColumn({
   draggable,
   entries,
+  fills,
+  grouping,
   index,
   isLoading,
   menuTargetChildPath,
+  onEmptyPress,
   onFolderHover,
   onItemContextMenu,
   onOpen,
@@ -5828,9 +5603,13 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
 }: {
   draggable: boolean;
   entries: FileSystemEntry[];
+  /** The only column, beside a file: as wide as the folder, with no edge to drag. */
+  fills: boolean;
+  grouping: Grouping | null;
   index: FileSystemIndex;
   isLoading: boolean;
   menuTargetChildPath: null | string;
+  onEmptyPress?: () => void;
   onFolderHover?: (folderPath: string) => void;
   onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   onOpen: (entry: FileSystemEntry) => void;
@@ -5851,8 +5630,21 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   width: number;
 }) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
+  // Grouped, each group stands under its heading, the first at the top of
+  // the column, as the Finder's columns do; a column of one group has none.
+  const lines = React.useMemo(() => {
+    if (!grouping) return entries;
+    const labels = entries.map((entry) => grouping(entry).label);
+    if (new Set(labels).size < 2) return entries;
+    return entries.flatMap(
+      (entry, at): Array<FileSystemEntry | { heading: string }> =>
+        at === 0 || labels[at] !== labels[at - 1]
+          ? [{ heading: labels[at] ?? "" }, entry]
+          : [entry],
+    );
+  }, [entries, grouping]);
   const { end, start } = useVirtualWindow({
-    count: entries.length,
+    count: lines.length,
     itemStride: COLUMN_ROW_STRIDE,
     leadingPx: COLUMN_PADDING,
     overscan: 10,
@@ -5863,15 +5655,23 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   React.useLayoutEffect(() => {
     if (!selectedChildPath) return;
     scrollIndexIntoView({
-      index: entries.findIndex((entry) => entry.path === selectedChildPath),
+      index: lines.findIndex(
+        (line) => !("heading" in line) && line.path === selectedChildPath,
+      ),
       itemSize: COLUMN_ROW_HEIGHT,
       itemStride: COLUMN_ROW_STRIDE,
       leadingPx: COLUMN_PADDING,
       viewport: viewportRef.current,
     });
-  }, [entries, selectedChildPath]);
+  }, [lines, selectedChildPath]);
   return (
-    <div className="relative shrink-0 border-r" style={{ width }}>
+    <div
+      className={cn(
+        "relative",
+        fills ? "min-h-0 min-w-0 flex-1" : "shrink-0 border-r",
+      )}
+      style={fills ? {} : { width }}
+    >
       <InlineScrollArea2
         className="h-full w-full"
         orientation="vertical"
@@ -5889,6 +5689,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
               !event.target.closest("[data-file-system-item], input")
             ) {
               onSelect(ownFolder);
+              onEmptyPress?.();
             }
           },
           role: "listbox",
@@ -5906,8 +5707,8 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
             className="relative"
             style={{
               height:
-                entries.length > 0
-                  ? entries.length * COLUMN_ROW_STRIDE - COLUMN_ROW_GAP
+                lines.length > 0
+                  ? lines.length * COLUMN_ROW_STRIDE - COLUMN_ROW_GAP
                   : undefined,
             }}
           >
@@ -5915,7 +5716,20 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
               className="absolute inset-x-0 flex flex-col gap-px"
               style={{ top: start * COLUMN_ROW_STRIDE }}
             >
-              {entries.slice(start, end).map((entry) => {
+              {lines.slice(start, end).map((line) => {
+                if ("heading" in line) {
+                  // In line with the rows' names rather than their icons.
+                  return (
+                    <div
+                      aria-hidden
+                      className="flex h-7 shrink-0 items-end pr-2 pb-1 pl-8 text-xs font-semibold text-muted-foreground"
+                      key={`heading:${line.heading}`}
+                    >
+                      <span className="truncate">{line.heading}</span>
+                    </div>
+                  );
+                }
+                const entry = line;
                 const isSelected = selection?.has(entry.path) ?? false;
                 const isOnTrail =
                   entry.kind === "folder" && entry.path === trailChildPath;
@@ -6014,21 +5828,23 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
         )}
       </InlineScrollArea2>
       {/* The edge that drags: every column follows, since the width is one. */}
-      <ResizeHandle
-        className="right-0 translate-x-1/2"
-        getWidth={() => width}
-        grows="right"
-        onReset={() => {
-          onResize(COLUMN_WIDTH_DEFAULT);
-        }}
-        onResize={(next) => {
-          onResize(
-            Math.round(
-              Math.min(COLUMN_WIDTH_MAX, Math.max(COLUMN_WIDTH_MIN, next)),
-            ),
-          );
-        }}
-      />
+      {fills ? null : (
+        <ResizeHandle
+          className="right-0 translate-x-1/2"
+          getWidth={() => width}
+          grows="right"
+          onReset={() => {
+            onResize(COLUMN_WIDTH_DEFAULT);
+          }}
+          onResize={(next) => {
+            onResize(
+              Math.round(
+                Math.min(COLUMN_WIDTH_MAX, Math.max(COLUMN_WIDTH_MIN, next)),
+              ),
+            );
+          }}
+        />
+      )}
     </div>
   );
 });
@@ -6570,23 +6386,6 @@ function InlineComposeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
     }
   };
 }
-function InlineDialogPanel({
-  children,
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
-  return (
-    <InlineScrollArea className="min-h-0">
-      <div
-        className={cn("min-h-0", className)}
-        data-slot="dialog-panel"
-        {...props}
-      >
-        {children}
-      </div>
-    </InlineScrollArea>
-  );
-}
 function InlineScrollArea2({
   children,
   className,
@@ -6671,8 +6470,10 @@ function InlineScrollArea2({
     </ScrollAreaPrimitive.Root>
   );
 }
-function InlineScrollAreaContent(props: React.ComponentProps<"div">) {
-  return <div {...props} />;
+function InlineScrollAreaContent(
+  props: React.ComponentProps<typeof ScrollAreaPrimitive.Content>,
+) {
+  return <ScrollAreaPrimitive.Content {...props} />;
 }
 function InlineSpinner({ className, ...props }: InlineRegistryIconProps) {
   return (

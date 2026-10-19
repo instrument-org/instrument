@@ -3,13 +3,14 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
 import { MountedFolder } from "../schemas/mounted-folder";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { getWorkspaceConfig } from "./workspace-config";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * `du` walks the real directories behind the mounts in a worker thread rather
@@ -71,31 +72,31 @@ beforeAll(async () => {
 
   await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
   await fs.writeFile(path.join(chatRoot, "work", "small.txt"), "s".repeat(10));
-  await fs.mkdir(path.join(chatRoot, CHAT_FOLDER_NAMES.private), {
-    recursive: true,
-  });
-  await fs.writeFile(
-    path.join(chatRoot, CHAT_FOLDER_NAMES.private, "chat.db"),
-    Buffer.alloc(5_000_000),
-  );
 
   await fs.mkdir(wideDir, { recursive: true });
-  await Promise.all(
-    Array.from({ length: WIDE_FILES }, (_, i) =>
-      fs.writeFile(path.join(wideDir, `f${i}`), ""),
-    ),
-  );
+  // In batches: Windows runs out of file handles opening them all at once.
+  for (let start = 0; start < WIDE_FILES; start += 1000) {
+    await Promise.all(
+      Array.from({ length: Math.min(1000, WIDE_FILES - start) }, (_, i) =>
+        fs.writeFile(path.join(wideDir, `f${start + i}`), ""),
+      ),
+    );
+  }
 
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
-});
+  // Windows takes most of a minute to write the wide folder.
+}, 120_000);
 
 afterAll(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
 describe("du", () => {
+  // The folders as the shell spells them.
+  const home = () => shellPath(homeDir);
+
   it("prints a file's size in bytes and in GNU's rounded-up human form", async () => {
-    const file = `${homeDir}/notes/one.txt`;
+    const file = `${home()}/notes/one.txt`;
     const bytes = await run(`du -b '${file}'`);
     const human = await run(`du --apparent-size -h '${file}'`);
 
@@ -104,7 +105,7 @@ describe("du", () => {
   });
 
   it("lists children before their parent, down to the depth asked", async () => {
-    const result = await run(`du -b -d 1 '${homeDir}'`);
+    const result = await run(`du -b -d 1 '${home()}'`);
     const lines = result.stdout.trim().split("\n");
     const paths = lines.map((line) => line.split("\t")[1]);
     const size = (target: string) =>
@@ -113,55 +114,46 @@ describe("du", () => {
       );
 
     expect(result.exitCode).toBe(0);
-    expect(paths).toEqual([`${homeDir}/notes`, `${homeDir}/photos`, homeDir]);
-    expect(size(`${homeDir}/notes`)).toBeGreaterThanOrEqual(4500);
-    expect(size(homeDir)).toBeGreaterThanOrEqual(
-      size(`${homeDir}/notes`) + size(`${homeDir}/photos`),
+    expect(paths).toEqual([`${home()}/notes`, `${home()}/photos`, home()]);
+    expect(size(`${home()}/notes`)).toBeGreaterThanOrEqual(4500);
+    expect(size(home())).toBeGreaterThanOrEqual(
+      size(`${home()}/notes`) + size(`${home()}/photos`),
     );
   });
 
   it("prints paths as they were typed, relative ones included", async () => {
-    const result = await run(`cd '${homeDir}' && du -ab notes`);
+    const result = await run(`cd '${home()}' && du -ab notes`);
 
     expect(result.stdout.trim().split("\n").at(-1)).toMatch(/^\d+\tnotes$/);
     expect(result.stdout).toContain("\tnotes/deep/two.txt\n");
-    expect(result.stdout).not.toContain(tmpDir);
+    expect(result.stdout).not.toContain(shellPath(tmpDir));
   });
 
   it("adds a grand total with -c", async () => {
     const result = await run(
-      `du -cb '${homeDir}/notes/one.txt' '${homeDir}/notes/deep/two.txt'`,
+      `du -cb '${home()}/notes/one.txt' '${home()}/notes/deep/two.txt'`,
     );
 
     expect(result.stdout.trim().split("\n").at(-1)).toBe("4500\ttotal");
   });
 
-  it("neither lists nor counts the task's private dir", async () => {
-    const listing = await run(`du -ab '${chatRoot}'`);
-    const total = await run(`du -sb '${chatRoot}'`);
+  it("lists and counts the work folder whole, hidden entries included", async () => {
+    await fs.writeFile(path.join(chatRoot, ".hidden"), "h".repeat(20));
+    const chat = shellPath(chatRoot);
+    const listing = await run(`du -ab '${chat}'`);
+    const total = await run(`du -sb '${chat}'`);
 
-    expect(listing.stdout).not.toMatch(/\.instrument/i);
-    expect(Number(total.stdout.split("\t")[0])).toBeLessThan(1_000_000);
-  });
-
-  it.each([
-    [CHAT_FOLDER_NAMES.private],
-    [CHAT_FOLDER_NAMES.private.toUpperCase()],
-  ])("reports the task's %s as absent", async (name) => {
-    const target = `${chatRoot}/${name}`;
-    const result = await run(`du -sb '${target}'`);
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stdout).toBe("");
-    expect(result.stderr).toBe(
-      `du: cannot access '${target}': No such file or directory\n`,
-    );
+    expect(listing.stdout).toContain(`\t${chat}/work/small.txt\n`);
+    expect(listing.stdout).toContain(`\t${chat}/.hidden\n`);
+    expect(Number(total.stdout.split("\t")[0])).toBe(30);
   });
 
   it("answers past the chat's traversal budget", async () => {
     // The walk is not the virtual filesystem's, so the budget that stops
     // find and ls over this folder does not apply to it.
-    const result = await run(`du -a '${wideDir}' | wc -l`, { chat: true });
+    const result = await run(`du -a '${shellPath(wideDir)}' | wc -l`, {
+      chat: true,
+    });
 
     expect(result.exitCode).toBe(0);
     expect(Number(result.stdout.trim())).toBe(WIDE_FILES + 1);
@@ -190,8 +182,23 @@ describe("du", () => {
     },
   );
 
+  it("refuses the app's own data as ls does, with the same note", async () => {
+    const { userDataDir } = getWorkspaceConfig();
+    await fs.mkdir(userDataDir, { recursive: true });
+    const machine = shellPath(userDataDir);
+    const du = await run(`du -s '${machine}'`);
+    const ls = await run(`ls '${machine}'`);
+
+    expect(du.exitCode).toBe(1);
+    expect(du.stdout).toBe("");
+    const [denied, note] = du.stderr.split("\n");
+    expect(denied).toBe(`du: cannot access '${machine}': Permission denied`);
+    expect(note).toMatch(/is Instrument's own data/);
+    expect(ls.stderr).toContain(note);
+  });
+
   it("leaves a flag it does not implement to just-bash", async () => {
-    const result = await run(`du --time '${homeDir}'`);
+    const result = await run(`du --time '${home()}'`);
 
     expect(result.stderr).toContain("--time");
   });

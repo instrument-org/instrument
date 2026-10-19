@@ -12,6 +12,7 @@ Grouped by area; status is the short form of each file's own line.
 
 | Finding | Status |
 | --- | --- |
+| [Where the in-app agent fails](where-the-in-app-agent-fails.md): failure sources in real chats and eval runs | open, paths and layout-shift clicks fixed |
 | [Agent prompt surface](agent-prompt-surface-review.md) — what we measured across the system prompt and tool descriptions | open items |
 | [Agent tool surface](agent-tool-surface-review.md) — gaps against three reference harnesses | partly overtaken |
 | [Token cost per task](token-cost-per-task-baseline.md) — where price-weighted tokens go by source and billing type, and what would move them | open, baseline measured |
@@ -41,6 +42,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Electron reads an app's archive as a folder](electron-reads-asar-archives-as-folders.md) — `du` counted every Electron app's `app.asar` twice; `ls`, `find` and This Mac still see a folder | `du` fixed, rest open |
 | [The macOS folder ask holds a listing, not a write](macos-folder-ask-holds-listings-not-writes.md) | worked around in `task folder --add` |
 | [EPERM on a symlink reads as a macOS denial](eperm-on-a-symlink-reads-as-a-macos-denial.md) | resolved |
+| [GNU text commands on bundled uutils](gnu-text-commands-on-bundled-uutils.md): compatibility, speed, start cost and size of running `sort`, `find`, `grep` and the rest natively on every platform | resolved, shipped as a fixed table |
 
 ### The agent browser and the in-app browser
 
@@ -51,6 +53,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md) — fingerprint mismatch plus an upstream shutdown deadlock | partly fixed |
 | [`download` never restores download behavior](agent-browser-download-behavior-not-reset.md) | open upstream, contained |
 | [Snapshot refs die on the idle timeout](agent-browser-ref-map-idle-ttl.md) | fixed |
+| [Network-idle wait reports success when it times out](agent-browser-network-idle-reports-done-on-timeout.md) | worked around |
 | [Agent clicks land where the element was](agent-clicks-land-where-the-element-was.md) | worked around, open upstream |
 | [`open` returned before the page had loaded](open-returns-before-the-page-loads.md) — the bridge answered `Page.navigate` on commit, so `open` returned onto a document still parsing | fixed, measured |
 | [App reload destroys every in-app browser page](app-reload-destroys-the-in-app-browser.md) | contained |
@@ -99,6 +102,8 @@ Grouped by area; status is the short form of each file's own line.
 | [The file-open cache is sized for a vanished cost](file-open-cache-is-sized-for-a-vanished-cost.md) | open, deliberate |
 | [The task list ordered itself by file mtime](task-list-order-followed-file-mtimes.md) — so reading a task counted as changing it | fixed |
 | [Connector authentication notes](connector-authentication-technical-notes.md) | reference, partly overtaken by apps |
+| [Syncing a data folder through file sync](syncing-a-data-folder-through-file-sync.md): what iCloud Drive, Dropbox, Google Drive, OneDrive and Syncthing do to files two devices share, and the format rules that survive them | research, nothing built |
+| [One permission decision, expressed four times](one-permission-decision-expressed-four-times.md) — the rules, then Seatbelt, bubblewrap and MXC, with the native path inferring its answer from a program's stderr | open, storage deliberately unchanged |
 
 ### Model and context
 
@@ -119,8 +124,12 @@ Grouped by area; status is the short form of each file's own line.
 
 | Finding | Status |
 | --- | --- |
+| [Root causes of three weeks of fixes](root-causes-of-three-weeks-of-fixes.md): 595 fixes sorted by the mechanism that caused them | open, measured 10-12 |
+| [Where coding agents lose time in this repo](where-coding-agents-lose-time-in-this-repo.md): 753 agent transcripts read for friction | open, two findings addressed |
 | [Test suites re-evaluate module graphs](test-suite-module-evaluation-cost.md) — where the time actually goes | all four fixes landed |
-| [TypeScript 7 (tsgo) dual package](typescript-7-native-preview-dual-package.md) | open, ESLint consumers gone |
+| [The full gate flakes on a busy machine](the-full-gate-flakes-on-a-busy-machine.md) — a different test each run | open, not worth fixing in the suites |
+| [A converted message is the read, not the row](a-converted-message-is-the-read-not-the-row.md) — what the verification cannot see | open, measured as free on this install |
+| [TypeScript 7 (tsgo) dual package](typescript-7-native-preview-dual-package.md) | resolved |
 | [Why the spell checker is `typos`](spelling-check-cost-versus-signal.md) — and not cspell | resolved |
 | [A dev rebuild wipes the live main bundle](dev-rebuild-wipes-live-main-bundle.md) | fixed |
 | [Driving Studio over CDP: what makes it flaky](driving-studio-for-ui-capture.md) | partly addressed |

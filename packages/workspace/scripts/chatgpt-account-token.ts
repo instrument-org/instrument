@@ -17,7 +17,11 @@
  * the refresh token out from under the app and sign it out, so an expired
  * token is reported rather than renewed.
  */
-import { APP_NAME } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  PRIVATE_FOLDER_NAME,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import { execFileSync } from "node:child_process";
 import { createDecipheriv, pbkdf2Sync } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -52,10 +56,13 @@ const userData = path.join(
   values.dev ? `${APP_NAME} (Dev)` : APP_NAME,
 );
 
-// The default workspace's settings hold the plan; the userData root held it
-// before workspaces, and an install not yet migrated still does.
+// The default workspace's keys hold the plan, in its machine folder
+// (`machine/default/`, wherever the workspace itself is). Its
+// settings folder held it before that folder existed, and the userData root
+// before workspaces; an install not yet migrated still keeps it there.
 const storeDir = [
-  path.join(userData, "workspace", ".instrument", "settings"),
+  path.join(userData, "machine", "default", WORKSPACE_MACHINE_ENTRIES.keys),
+  path.join(userData, "workspace", PRIVATE_FOLDER_NAME, "settings"),
   userData,
 ].find((dir) =>
   existsSync(

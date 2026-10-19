@@ -9,16 +9,15 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
-import { cardLine, openAsksOf } from "../permissions/asks";
-import { Store } from "../store";
-import { type Derived, indexedByStore, kept, unkept } from "../workspace-index";
+import { cardLine, openAsksOf } from "./asks";
+import { ChatReads } from "../chat-reads";
 import {
-  askIn,
-  latestStep,
-  ownMessages,
-  runningLines,
-  type SessionRef,
-} from "./activity";
+  type Derived,
+  indexedByRecords,
+  kept,
+  unkept,
+} from "../workspace-index";
+import { latestStep, ownMessages, type SessionRef } from "./activity";
 import { lastAssistantTextIn } from "./latest-session";
 
 /** How much of the agent's own words the list shows on a task's second line. */
@@ -29,7 +28,7 @@ const LINE_MAX = 90;
  * holds until something writes there. The list asks for every task it shows
  * each time it is read, and this is a whole transcript or more per task.
  */
-const settledStanding = indexedByStore<TaskStanding>("task_standings");
+const settledStanding = indexedByRecords<TaskStanding>("task_standings");
 
 /**
  * How a turn ended when it ended without words: whether a model error ended
@@ -137,11 +136,9 @@ export function excerptOf(text: string, maxLength: number): string {
  * words, a task that stopped to ask says what it is asking for, and one whose
  * turn ended without words says how it ended.
  *
- * A running task can be waiting too: its agent stays alive while an ask of
- * its own sits unanswered, and the list says what it is waiting for rather
- * than showing a step that is not moving. So is one whose turn ended with a
- * card it ran into still up, whatever it last said: the person's answer
- * wakes it, and until they answer or stop it, it is waiting on them.
+ * A task whose turn ended with a card it ran into still up is waiting,
+ * whatever it last said: the person's answer wakes it, and until they answer
+ * or stop it, it is waiting on them.
  */
 export async function taskStanding({
   isRunning,
@@ -150,10 +147,7 @@ export async function taskStanding({
 }: SessionRef & { isRunning: boolean }): Promise<TaskStanding> {
   const ref = { sessionId, chatId };
   if (isRunning) {
-    const { step, waiting } = await runningLines(ref);
-    return waiting
-      ? { kind: "waiting", line: waiting }
-      : { kind: "running", line: step ?? "Working" };
+    return { kind: "running", line: (await latestStep(ref)) ?? "Working" };
   }
   // Read apart from the rest, which holds until the task's store is written:
   // a card is in the chat's state, and goes without a write to the store.
@@ -190,6 +184,11 @@ async function endingIn(
     }
     return { failed: false, line: "Stopped at its step limit" };
   }
+  // Not a failure either: the model wrote until it ran out of room, as many
+  // times as it was given, and what it wrote is in the transcript.
+  if (last?.metadata.finishReason === "length") {
+    return { failed: false, line: "Cut off at the output limit" };
+  }
   const error = last?.metadata.error;
   if (error && error.kind !== "aborted") {
     return { failed: true, line: describeMessageError(error).summary };
@@ -214,12 +213,9 @@ async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
   // One read answers all three: what it is asking, what it last said, and
   // how it ended when it said nothing. Its own messages alone, since what it
   // carries on from is the chat's.
-  const messages = await Store.getMessagesWithParts({
-    ...ref,
-    inherited: false,
-  });
+  const messages = await ChatReads.transcript({ ...ref, inherited: false });
   const transcript = messages.isOk() ? messages.value : [];
-  const session = await Store.getSession(ref.sessionId, ref.chatId);
+  const session = await ChatReads.session(ref);
   const settle = messages.isOk() && session.isOk() ? kept : unkept;
   // Ahead of the rest: a turn the app's quitting cut off may have said words
   // or asked something on an earlier step, and neither is where it ended.
@@ -231,11 +227,6 @@ async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
       kind: "failed",
       line: appClosedLine(await latestStep(ref)),
     });
-  }
-  // A turn that ended on an ask rather than on words is waiting on the user.
-  const waiting = askIn(transcript);
-  if (waiting) {
-    return settle({ kind: "waiting", line: waiting });
   }
   // Read whole and cut after: the line is chosen from the reply's shape, and a
   // fence cut off mid-way is a fence the excerpt cannot read.

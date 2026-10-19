@@ -41,8 +41,8 @@ export function agentPathOfFileUrl(
 
 /**
  * The agent's path for a file on this computer, or null when the agent could
- * not read that file with its own tools: outside every folder it reaches, inside a
- * folder's private directory, or reached through a symlink that leaves its
+ * not read that file with its own tools: outside every folder it reaches,
+ * kept from it by the rules, or reached through a symlink that leaves its
  * folder.
  */
 function agentPathOfHostFile(
@@ -51,7 +51,6 @@ function agentPathOfHostFile(
 ): null | string {
   const found = classifyHostPath(layout, hostPath);
   return found === null ||
-    found.masked !== undefined ||
     found.escapes ||
     reachOf(layout.rules, hostPath, "read").level !== "allow"
     ? null

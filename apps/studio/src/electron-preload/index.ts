@@ -1,4 +1,5 @@
 import {
+  CAPTURE_EXCEPTION_CHANNEL,
   CODE_EDITOR_FOCUS_CHANNEL,
   RESOLVE_THEME_CHANNEL,
   START_FILE_DRAG_CHANNEL,
@@ -84,6 +85,13 @@ function loadKeptState(): KeptSnapshot {
 }
 
 const api: Window["api"] = {
+  captureException: async (payload) => {
+    const answer: unknown = await ipcRenderer.invoke(
+      CAPTURE_EXCEPTION_CHANNEL,
+      payload,
+    );
+    return isCaptured(answer) ? answer : null;
+  },
   // Sent, not invoked: the main process only keeps the latest word, and
   // reads it as each key press arrives.
   codeEditorFocus: (focused) => {
@@ -124,6 +132,19 @@ const api: Window["api"] = {
     ipcRenderer.send(START_FILE_DRAG_CHANNEL, { files });
   },
 };
+
+function isCaptured(
+  value: unknown,
+): value is { fingerprint: string; id: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "fingerprint" in value &&
+    "id" in value &&
+    typeof value.fingerprint === "string" &&
+    typeof value.id === "string"
+  );
+}
 
 const windowType = process.argv
   .find((arg) => arg.startsWith("--windowType="))

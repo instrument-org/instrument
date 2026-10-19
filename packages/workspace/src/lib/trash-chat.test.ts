@@ -6,11 +6,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { chatFor } from "../test/helpers/chat-record";
 import { chatTaskFor } from "../test/helpers/chat-task";
+import { updateChatRecord } from "./chat-record";
+import { ChatReads } from "./chat-reads";
 import { forgetChatFolders, resolveChat, chatDir } from "./record-folders";
-import { Store } from "./store";
 import { trashChat } from "./trash-chat";
+import { workDir } from "./work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { ChatIdSchema } from "../schemas/chat-id";
+import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 let rootDir: string;
 let trashed: string[];
@@ -27,7 +30,6 @@ beforeEach(async () => {
   trashed = [];
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    chatTemplateDir: AbsolutePathSchema.parse(path.join(rootDir, "template")),
     chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
     rootDir: WorkspaceDirSchema.parse(rootDir),
     legacyTasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
@@ -35,6 +37,12 @@ beforeEach(async () => {
       trashed.push(path.relative(rootDir, item));
       await fs.rm(item, { force: true, recursive: true });
     },
+    workFoldersDir: AbsolutePathSchema.parse(
+      path.join(rootDir, "machine", "work"),
+    ),
+    workspaceMachineDir: AbsolutePathSchema.parse(
+      path.join(rootDir, "machine"),
+    ),
   });
   await fs.mkdir(path.join(rootDir, "template"));
   forgetChatFolders();
@@ -42,15 +50,15 @@ beforeEach(async () => {
 
 afterEach(async () => {
   forgetChatFolders();
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 describe("trashChat", () => {
-  it("trashes the chat's folder once, with the tasks in its store", async () => {
-    const chat = chatFor();
+  it("trashes the chat's record folder once, with the tasks in its store", async () => {
+    const chat = await chatFor();
     await chatTaskFor(chat, { title: "First task" });
     await chatTaskFor(chat, { title: "Second task" });
-    const otherChat = chatFor(
+    const otherChat = await chatFor(
       undefined,
       ChatIdSchema.parse("2026-09-24-other"),
     );
@@ -63,14 +71,134 @@ describe("trashChat", () => {
     });
 
     expect(result.isOk()).toBe(true);
-    expect(trashed).toEqual([`chats/${chat}`]);
+    // Its agent never ran a command, so it has no work folder to trash.
+    expect(trashed).toEqual([path.join("chats", chat)]);
     expect(resolveChat(chat)).toBeUndefined();
     await expect(fs.access(chatDir(otherChat))).resolves.toBeUndefined();
-    expect((await Store.getSession(other, otherChat)).isOk()).toBe(true);
+    expect(
+      (await ChatReads.session({ chatId: otherChat, sessionId: other })).isOk(),
+    ).toBe(true);
+  });
+
+  it("leaves the chat's own folder alone unless the person asked for it", async () => {
+    const chat = await chatFor();
+    const own = path.join(rootDir, "Chats", "A chat");
+    await fs.mkdir(own, { recursive: true });
+    await updateChatRecord(chatDir(chat), (current) => ({
+      ...current.raw,
+      folder: "A chat",
+    }));
+
+    await trashChat({
+      id: chat,
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef,
+    });
+
+    // Their transcript and whatever the agent finished are theirs to keep.
+    expect(trashed).toEqual([path.join("chats", chat)]);
+    await expect(fs.access(own)).resolves.toBeUndefined();
+  });
+
+  it("takes the chat's own folder when the person asked for it", async () => {
+    const chat = await chatFor();
+    const own = path.join(rootDir, "Chats", "A chat");
+    await fs.mkdir(own, { recursive: true });
+    await updateChatRecord(chatDir(chat), (current) => ({
+      ...current.raw,
+      folder: "A chat",
+    }));
+
+    await trashChat({
+      id: chat,
+      itsFolder: true,
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef,
+    });
+
+    // Last, so a failure there leaves files rather than losing them.
+    expect(trashed).toEqual([
+      path.join("chats", chat),
+      path.join("Chats", "A chat"),
+    ]);
+  });
+
+  it("trashes the chat's work folder too, without the packages it can rebuild", async () => {
+    const chat = await chatFor();
+    const work = workDir(chat);
+    await fs.mkdir(path.join(work, "work"), { recursive: true });
+    await fs.writeFile(path.join(work, "work", "report.md"), "made");
+    await fs.mkdir(path.join(work, "node_modules", "left-pad"), {
+      recursive: true,
+    });
+    const otherChat = await chatFor(
+      undefined,
+      ChatIdSchema.parse("2026-09-24-other"),
+    );
+    await fs.mkdir(workDir(otherChat), { recursive: true });
+    const trashedWithPackages: boolean[] = [];
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      trashItem: async (item: string) => {
+        trashedWithPackages.push(
+          await fs.access(path.join(item, "node_modules")).then(
+            () => true,
+            () => false,
+          ),
+        );
+        trashed.push(path.relative(rootDir, item));
+        await fs.rm(item, { force: true, recursive: true });
+      },
+    });
+
+    const result = await trashChat({
+      id: chat,
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef,
+    });
+
+    expect(result.isOk()).toBe(true);
+    expect(trashed).toEqual([
+      path.join("chats", chat),
+      path.join("machine", "work", chat),
+    ]);
+    expect(trashedWithPackages).toEqual([false, false]);
+    await expect(fs.access(workDir(otherChat))).resolves.toBeUndefined();
+  });
+
+  it("removes the chat when its work folder will not go, and reports it", async () => {
+    const chat = await chatFor();
+    const work = workDir(chat);
+    await fs.mkdir(path.join(work, "work"), { recursive: true });
+    const reported: unknown[] = [];
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      captureException: (error: unknown) => {
+        reported.push(error);
+      },
+      trashItem: async (item: string) => {
+        if (item === work) {
+          throw new Error("A file in it is open");
+        }
+        trashed.push(path.relative(rootDir, item));
+        await fs.rm(item, { force: true, recursive: true });
+      },
+    });
+
+    const result = await trashChat({
+      id: chat,
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef,
+    });
+
+    expect(result.isOk()).toBe(true);
+    expect(trashed).toEqual([path.join("chats", chat)]);
+    expect(resolveChat(chat)).toBeUndefined();
+    expect(reported).toEqual([new Error("A file in it is open")]);
   });
 
   it("lets the chat start sessions again when trashing it fails", async () => {
-    const chat = chatFor();
+    const chat = await chatFor();
     const sent: string[] = [];
     setWorkspaceConfig({
       ...getWorkspaceConfig(),

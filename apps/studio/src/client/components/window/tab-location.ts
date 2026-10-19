@@ -21,6 +21,8 @@ export interface LocationCrumb {
   label: string;
   /** Where a press on it goes; absent on the last, which is where the tab is. */
   to?: OpenTarget;
+  /** The folder it names, for a part of a path on the computer. */
+  path?: string;
 }
 
 /** A disk or a cloud service's folder, by the name the sidebar lists it under. */
@@ -80,6 +82,8 @@ export type TabLocation =
       hostPath?: string;
       kind: "folder";
       path: string;
+      /** How many are picked in it, when that is several and they stand in for a file open beside it: the place is then them. A path of "" is the recents, which are in no one folder. */
+      picked?: number;
     }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
@@ -120,9 +124,21 @@ export function locationCrumbs(
     // A path reads the same whichever screen said it: the folder browser
     // hands over a path with the home folder as `~`, and a file arrives as it
     // sits on the disk.
-    case "file":
-    case "folder": {
+    case "file": {
       return pathCrumbs(location.path, { home, volumes });
+    }
+    // Several picked are the place, under the folder they are in.
+    case "folder": {
+      if (location.picked === undefined) {
+        return pathCrumbs(location.path, { home, volumes });
+      }
+      const count = { label: `${location.picked} items` };
+      return location.path === ""
+        ? [count]
+        : [
+            ...pathCrumbs(location.path, { home, linksLast: true, volumes }),
+            count,
+          ];
     }
     case "newTab":
     case "page": {
@@ -182,22 +198,6 @@ export function skillOfHref(href: string): string | undefined {
   return screen.kind === "skill" ? screen.name : undefined;
 }
 
-/**
- * The setting an address names: a row's id, a page's name, or what an older
- * link named that Settings no longer has, which Settings searches for.
- * Nothing for any other address.
- */
-export function settingOfHref(href: string): string | undefined {
-  const screen = matchScreen(href);
-  return screen.kind === "setting" ? screen.name : undefined;
-}
-
-/** The screen an address names, by its name, known or not. Nothing for any other address. */
-export function screenOfHref(href: string): string | undefined {
-  const screen = matchScreen(href);
-  return screen.kind === "namedScreen" ? screen.name : undefined;
-}
-
 /** A name that is a whole volume on Windows, which is where a path there starts. */
 function isDrive(name: string) {
   return /^[a-z]:$/i.test(name);
@@ -223,7 +223,16 @@ function join(base: string, name: string, separator: string) {
  */
 function pathCrumbs(
   path: string,
-  { home, volumes }: { home: string; volumes: Volume[] },
+  {
+    home,
+    linksLast = false,
+    volumes,
+  }: {
+    home: string;
+    /** Whether the last name is somewhere to go too, for a place inside it. */
+    linksLast?: boolean;
+    volumes: Volume[];
+  },
 ): LocationCrumb[] {
   const hostPath = expandHomePath(path, home);
   // A place kept inside the home folder, iCloud Drive or a cloud service's
@@ -260,9 +269,9 @@ function pathCrumbs(
           ? home
           : (volume?.path ?? startOf(name, separator))
         : join(at, name, separator);
-    return !rooted || index === names.length - 1
+    return !rooted || (index === names.length - 1 && !linksLast)
       ? { label: name }
-      : { label: name, to: { href: folderHref(at), kind: "screen" } };
+      : { label: name, path: at, to: { href: folderHref(at), kind: "screen" } };
   });
 }
 

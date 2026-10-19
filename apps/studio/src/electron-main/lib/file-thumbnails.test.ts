@@ -26,7 +26,7 @@ vi.mock("electron", () => ({
 
 vi.mock("./rendered-pictures", () => ({ renderPicture }));
 
-const { fileThumbnail } = await import("./file-thumbnails");
+const { fileThumbnail, pruneThumbnails } = await import("./file-thumbnails");
 
 interface Picture {
   getSize: () => { height: number; width: number };
@@ -176,5 +176,70 @@ describe("fileThumbnail", () => {
     createThumbnailFromPath.mockResolvedValue(picture("system"));
     const drawn = await fileThumbnail(code, 512, { dir });
     expect(drawn?.png.toString()).toBe("system");
+  });
+});
+
+describe("pruneThumbnails", () => {
+  const KEEP = { bytes: 1000, count: 10, ms: 60_000 };
+
+  /** A thumbnail of `bytes`, drawn `agoMs` ago. */
+  async function drawn(name: string, bytes: number, agoMs = 0) {
+    const at = new Date(Date.now() - agoMs);
+    await fs.writeFile(path.join(dir, name), Buffer.alloc(bytes, 0));
+    await fs.utimes(path.join(dir, name), at, at);
+  }
+
+  async function left() {
+    return (await fs.readdir(dir)).sort();
+  }
+
+  beforeEach(async () => {
+    await fs.mkdir(dir, { recursive: true });
+  });
+
+  it("keeps what is inside the keep", async () => {
+    await drawn("a.png", 100, 1000);
+    await drawn("b.png", 100);
+    await pruneThumbnails(dir, KEEP);
+    expect(await left()).toEqual(["a.png", "b.png"]);
+  });
+
+  it("lets go of one drawn longer ago than the age", async () => {
+    await drawn("old.png", 10, 90_000);
+    await drawn("new.png", 10, 1000);
+    await pruneThumbnails(dir, KEEP);
+    expect(await left()).toEqual(["new.png"]);
+  });
+
+  it("lets the oldest go past the count", async () => {
+    for (let index = 0; index < 12; index += 1) {
+      await drawn(`${index}.png`, 10, (12 - index) * 1000);
+    }
+    await pruneThumbnails(dir, KEEP);
+    expect(await left()).toEqual([
+      "10.png",
+      "11.png",
+      "2.png",
+      "3.png",
+      "4.png",
+      "5.png",
+      "6.png",
+      "7.png",
+      "8.png",
+      "9.png",
+    ]);
+  });
+
+  it("lets the oldest go past the size, with room still inside the count", async () => {
+    await drawn("big-old.png", 600, 3000);
+    await drawn("big-new.png", 600, 1000);
+    await pruneThumbnails(dir, KEEP);
+    expect(await left()).toEqual(["big-new.png"]);
+  });
+
+  it("says so rather than throwing when it cannot read the folder", async () => {
+    await expect(
+      pruneThumbnails(path.join(root, "never-drawn"), KEEP),
+    ).resolves.toBeUndefined();
   });
 });

@@ -1,0 +1,660 @@
+diff --git a/packages/just-bash/src/Bash.ts b/packages/just-bash/src/Bash.ts
+index 723b5cb..f555308 100644
+--- a/packages/just-bash/src/Bash.ts
++++ b/packages/just-bash/src/Bash.ts
+@@ -604,6 +604,7 @@ export class Bash {
+       trusted,
+       internalIsExtension: isExtension,
+       internalOriginalCommand: originalCommand,
++      acceptsPipeHandoff: command.acceptsPipeHandoff,
+       execute: (args, context) => command.execute(args, context),
+     };
+     this.commands.set(command.name, runtimeCommand);
+diff --git a/packages/just-bash/src/index.ts b/packages/just-bash/src/index.ts
+index fb5ac40..c250b0f 100644
+--- a/packages/just-bash/src/index.ts
++++ b/packages/just-bash/src/index.ts
+@@ -141,6 +141,7 @@ export type {
+   ExecResult,
+   ExternalCommand,
+   ExternalCommandResolver,
++  PipeHandoff,
+   IFileSystem,
+   RegisteredCommandPath,
+   ResolvedCommandContext,
+diff --git a/packages/just-bash/src/interpreter/builtin-dispatch.ts b/packages/just-bash/src/interpreter/builtin-dispatch.ts
+index 037ab74..c814ae6 100644
+--- a/packages/just-bash/src/interpreter/builtin-dispatch.ts
++++ b/packages/just-bash/src/interpreter/builtin-dispatch.ts
+@@ -66,6 +66,7 @@ import {
+   ExitError,
+ } from "./errors.js";
+ import { callFunction } from "./functions.js";
++import { settleHandoffAsStdin } from "./pipeline-execution.js";
+ import { setArrayElement } from "./helpers/array.js";
+ import { getErrorMessage } from "./helpers/errors.js";
+ import { resolveNamerefForAssignment } from "./helpers/nameref.js";
+@@ -811,6 +812,8 @@ export async function executeExternalCommand(
+   stdinConnected = false,
+ ): Promise<ExecResult> {
+   const { ctx, buildExportedEnv, executeUserScript } = dispatchCtx;
++  const dispatchPipe = ctx.state.dispatchPipe;
++  ctx.state.dispatchPipe = undefined;
+ 
+   // External commands - resolve via PATH
+   // For command -p, use default PATH /usr/bin:/bin instead of $PATH
+@@ -839,6 +842,24 @@ export async function executeExternalCommand(
+     // not_found error
+     return failure(`bash: ${commandName}: No such file or directory\n`, 127);
+   }
++  // A command that takes handoffs gets the previous stage's stream; anything
++  // else gets its bytes, as it would have without the handoff.
++  let stdinHandoff: string | undefined;
++  if (dispatchPipe?.handoff) {
++    const accepts =
++      "script" in resolved ? undefined : resolved.cmd.acceptsPipeHandoff;
++    const accepted =
++      typeof accepts === "function"
++        ? !("script" in resolved) && resolved.cmd.trusted
++          ? DefenseInDepthBox.runTrusted(() => accepts(args))
++          : accepts(args)
++        : accepts === true;
++    if (accepted) {
++      stdinHandoff = dispatchPipe.handoff.token;
++    } else {
++      stdin = await settleHandoffAsStdin(ctx, dispatchPipe.handoff);
++    }
++  }
+   // Handle user scripts (executable files without registered command handlers)
+   if ("script" in resolved) {
+     // Add to hash table for PATH caching (only for non-path commands)
+@@ -951,6 +972,8 @@ export async function executeExternalCommand(
+     // arrive as no bytes, and a command that reads stdin only when it has one
+     // (ripgrep, which otherwise walks the directory) needs the distinction.
+     stdinConnected,
++    offerPipeHandoff: dispatchPipe?.offer === true,
++    stdinHandoff,
+     limits: ctx.limits,
+     executionScope: cmd.internalIsExtension
+       ? createCommandExecutionBudget(ctx.executionScope)
+@@ -1047,6 +1070,16 @@ export async function executeExternalCommand(
+       ? // Trusted host-extension commands may opt in to unrestricted globals.
+         await DefenseInDepthBox.runTrustedAsync(runBoundedCommand)
+       : await runBoundedCommand();
++    // A handoff is settled from the pipeline, after the command returned, so
++    // a trusted command's settle runs trusted as its execute did.
++    const handoff = commandResult.pipeHandoff;
++    if (handoff && cmd.trusted) {
++      commandResult.pipeHandoff = {
++        token: handoff.token,
++        settle: (options) =>
++          DefenseInDepthBox.runTrustedAsync(() => handoff.settle(options)),
++      };
++    }
+     return {
+       ...commandResult,
+       internalStdinConsumed:
+diff --git a/packages/just-bash/src/interpreter/command-resolution.ts b/packages/just-bash/src/interpreter/command-resolution.ts
+index 7008371..f942c42 100644
+--- a/packages/just-bash/src/interpreter/command-resolution.ts
++++ b/packages/just-bash/src/interpreter/command-resolution.ts
+@@ -51,6 +51,7 @@ export async function resolveExternalCommand(
+       name: command.name,
+       trusted: command.trusted ?? true,
+       internalIsExtension: true,
++      acceptsPipeHandoff: command.acceptsPipeHandoff,
+       execute: (args, context) => command.execute(args, context),
+     },
+     path,
+diff --git a/packages/just-bash/src/interpreter/interpreter.ts b/packages/just-bash/src/interpreter/interpreter.ts
+index 157f0cc..8dee7d8 100644
+--- a/packages/just-bash/src/interpreter/interpreter.ts
++++ b/packages/just-bash/src/interpreter/interpreter.ts
+@@ -16,6 +16,7 @@ import type {
+   ConditionalCommandNode,
+   GroupNode,
+   PipelineNode,
++  RedirectionNode,
+   ScriptNode,
+   SimpleCommandNode,
+   StatementNode,
+@@ -89,7 +90,45 @@ import { isPosixSpecialBuiltin } from "./helpers/shell-constants.js";
+ import { nullCommandExitStatus } from "./helpers/substitution-status.js";
+ import { isWordLiteralMatch } from "./helpers/word-matching.js";
+ import { traceSimpleCommand } from "./helpers/xtrace.js";
+-import { executePipeline as executePipelineHelper } from "./pipeline-execution.js";
++import {
++  executePipeline as executePipelineHelper,
++  settleHandoffAsStdin,
++} from "./pipeline-execution.js";
++
++/** `2>/dev/null`, which leaves stdout where it was. */
++function discardsOnlyStderr(redirection: RedirectionNode): boolean {
++  const target = redirection.target;
++  return (
++    redirection.fd === 2 &&
++    (redirection.operator === ">" || redirection.operator === ">>") &&
++    target.type === "Word" &&
++    target.parts.length === 1 &&
++    target.parts[0]?.type === "Literal" &&
++    target.parts[0].value === "/dev/null"
++  );
++}
++
++/** A redirection that gives fd 0 something other than the pipe. */
++function redirectsStdin(redirection: RedirectionNode): boolean {
++  const input =
++    redirection.operator === "<" ||
++    redirection.operator === "<&" ||
++    redirection.operator === "<>" ||
++    redirection.operator === "<<" ||
++    redirection.operator === "<<-" ||
++    redirection.operator === "<<<";
++  return input ? (redirection.fd ?? 0) === 0 : redirection.fd === 0;
++}
++
++/** Names `dispatchBuiltin` answers itself, whatever is registered. */
++const SHELL_DISPATCHED = new Set([
++  "__just_bash_tee_restore", ":", ".", "[", "break", "builtin", "cd",
++  "command", "compgen", "complete", "compopt", "continue", "declare", "dirs",
++  "eval", "exec", "exit", "export", "false", "getopts", "hash", "help", "let",
++  "local", "mapfile", "popd", "pushd", "read", "readarray", "readonly",
++  "return", "set", "shift", "shopt", "source", "test", "true", "type",
++  "typeset", "unset", "wait",
++]);
+ import {
+   markProcessSubstitutions,
+   releaseProcessSubstitutions,
+@@ -667,6 +706,24 @@ export class Interpreter {
+     stdinClosed: boolean,
+     onTransaction: (transaction: RedirectionTransaction) => void,
+   ): Promise<ExecResult> {
++    // What the pipeline offered this stage. Taken here so no command this
++    // one runs in expanding its words sees it.
++    // A stage whose stdout is the pipe may hand it on; one that discards its
++    // stderr (`2>/dev/null`) still does, and anything else on fd 1 or 2
++    // needs the bytes.
++    const discardsStderr = node.redirections.length > 0;
++    const pipeOutputOffer =
++      this.ctx.state.pipeOutputOffer === true &&
++      node.redirections.every(discardsOnlyStderr);
++    let stdinHandoff = this.ctx.state.pendingStdinHandoff;
++    this.ctx.state.pipeOutputOffer = false;
++    this.ctx.state.pendingStdinHandoff = undefined;
++    // A redirection of fd 0 replaces the pipe, from bytes.
++    if (stdinHandoff && node.redirections.some(redirectsStdin)) {
++      stdin = await settleHandoffAsStdin(this.ctx, stdinHandoff);
++      stdinHandoff = undefined;
++    }
++
+     // Update currentLine for $LINENO
+     if (node.line !== undefined) {
+       this.ctx.state.currentLine = node.line;
+@@ -1003,6 +1060,10 @@ export class Interpreter {
+     let controlFlowError: BreakError | ContinueError | null = null;
+ 
+     try {
++      this.ctx.state.dispatchPipe = {
++        offer: pipeOutputOffer,
++        handoff: stdinHandoff,
++      };
+       cmdResult = await this.runCommand(
+         commandName,
+         args,
+@@ -1053,6 +1114,21 @@ export class Interpreter {
+       cmdResult.internalProducerOmitsShellPrefix,
+     );
+     transaction.finish();
++    // What a handoff writes to stderr once settled goes where `2>/dev/null`
++    // sent the rest of it.
++    const handedOn = cmdResult.pipeHandoff;
++    if (handedOn && discardsStderr) {
++      cmdResult = {
++        ...cmdResult,
++        pipeHandoff: {
++          token: handedOn.token,
++          settle: async (options) => ({
++            ...(await handedOn.settle(options)),
++            stderr: "",
++          }),
++        },
++      };
++    }
+ 
+     // If we caught a break/continue error, re-throw it after applying redirections
+     if (controlFlowError) {
+@@ -1142,6 +1218,21 @@ export class Interpreter {
+     stdinRedirected = false,
+     stdinConnected = false,
+   ): Promise<ExecResult> {
++    // A builtin or function reads stdin as bytes and writes stdout as bytes;
++    // only a command dispatched past them takes a handoff or offers one.
++    const dispatchPipe = this.ctx.state.dispatchPipe;
++    this.ctx.state.dispatchPipe = undefined;
++    if (
++      dispatchPipe &&
++      (this.ctx.state.functions.has(commandName) ||
++        SHELL_DISPATCHED.has(commandName))
++    ) {
++      if (dispatchPipe.handoff) {
++        stdin = await settleHandoffAsStdin(this.ctx, dispatchPipe.handoff);
++      }
++    } else if (dispatchPipe) {
++      this.ctx.state.dispatchPipe = dispatchPipe;
++    }
+     const dispatchCtx: BuiltinDispatchContext = {
+       ctx: this.ctx,
+       runCommand: (name, a, qa, s, sf, udp, ssf, sr, sc) =>
+diff --git a/packages/just-bash/src/interpreter/pipeline-execution.ts b/packages/just-bash/src/interpreter/pipeline-execution.ts
+index 61df695..1734bab 100644
+--- a/packages/just-bash/src/interpreter/pipeline-execution.ts
++++ b/packages/just-bash/src/interpreter/pipeline-execution.ts
+@@ -12,7 +12,7 @@ import {
+ } from "../encoding.js";
+ import { relinquishPipelineOutput } from "../execution-scope.js";
+ import { _performanceNow } from "../security/trusted-globals.js";
+-import type { ExecResult } from "../types.js";
++import type { ExecResult, PipeHandoff } from "../types.js";
+ import { BadSubstitutionError, ErrexitError, ExitError } from "./errors.js";
+ import { clearArray, cloneArrays, setArrayElement } from "./helpers/array.js";
+ import { OK } from "./helpers/result.js";
+@@ -27,6 +27,26 @@ export type ExecuteCommandFn = (
+   stdinOwned?: boolean,
+ ) => Promise<ExecResult>;
+ 
++/**
++ * The bytes of a handoff no stage took, as the stdin a stage reads. They are
++ * charged while retained and released at once, as a buffered stage's are.
++ */
++export async function settleHandoffAsStdin(
++  ctx: InterpreterContext,
++  handoff: PipeHandoff,
++): Promise<string> {
++  const settled = ctx.executionScope.accountResult(
++    { ...(await handoff.settle({ signal: ctx.state.signal })), stderr: "" },
++    "pipeline",
++  );
++  relinquishPipelineOutput(
++    ctx.executionScope,
++    settled.internalOutputAccounting?.stdout ?? 0,
++    "pipeline",
++  );
++  return latin1FromBytes(stdoutAsBytes(settled));
++}
++
+ /**
+  * Execute a pipeline node (command or sequence of piped commands).
+  */
+@@ -61,10 +81,23 @@ export async function executePipeline(
+   let sharedStdin = ctx.state.groupStdin;
+   let sharedStdinSourceFd = ctx.state.groupStdinSourceFd;
+ 
++  // Stages that returned while still writing, by index. Each is settled once
++  // the last stage has finished, for its exit status and stderr.
++  const handoffs = new Map<number, PipeHandoff>();
++  let pendingHandoff: PipeHandoff | undefined;
++  const stageStderr: string[] = [];
++  try {
+   for (let i = 0; i < node.commands.length; i++) {
+     const command = node.commands[i];
+     const isLast = i === node.commands.length - 1;
+     const isFirst = i === 0;
++    // A simple command whose stdout feeds a simple command may hand its
++    // stdout over while still writing; `|&` and compound stages keep bytes.
++    const offersHandoff =
++      !isLast &&
++      command.type === "SimpleCommand" &&
++      node.commands[i + 1].type === "SimpleCommand" &&
++      !(node.pipeStderr?.[i] ?? false);
+ 
+     // In a multi-command pipeline, each command runs in a subshell context
+     // where $_ starts empty (subshells don't inherit $_ from parent in same way)
+@@ -95,6 +128,9 @@ export async function executePipeline(
+     const outputCheckpoint = ctx.executionScope.outputBytesUsed;
+     try {
+       ctx.state.commandCount = ctx.executionScope.chargeCommand();
++      ctx.state.pipeOutputOffer = offersHandoff;
++      ctx.state.pendingStdinHandoff = pendingHandoff;
++      pendingHandoff = undefined;
+       // Every stage after the first owns its fd 0: the previous stage's
+       // stdout is its stdin even when that output is empty, the same way a
+       // redirection from an empty file is. Passing the bytes alone loses
+@@ -135,6 +171,8 @@ export async function executePipeline(
+         throw error;
+       }
+     } finally {
++      ctx.state.pipeOutputOffer = false;
++      ctx.state.pendingStdinHandoff = undefined;
+       if (isMultiCommandPipeline) {
+         // The first stage held the shell's stdin, so whatever it consumed
+         // (a `read` builtin advances the position, `true` does not) is now
+@@ -191,15 +229,25 @@ export async function executePipeline(
+       };
+     }
+ 
++    if (result.pipeHandoff) {
++      const { pipeHandoff, ...rest } = result;
++      result = rest;
++      handoffs.set(i, pipeHandoff);
++      if (offersHandoff) {
++        pendingHandoff = pipeHandoff;
++      }
++    }
++
+     // Track exit code for PIPESTATUS
+     pipestatusExitCodes.push(result.exitCode);
+ 
+-    // Track the exit code of failing commands for pipefail
+-    if (result.exitCode !== 0) {
+-      pipefailExitCode = result.exitCode;
+-    }
+-
+-    if (!isLast) {
++    if (handoffs.has(i)) {
++      stdin = pendingHandoff
++        ? ""
++        : await settleHandoffAsStdin(ctx, handoffs.get(i) as PipeHandoff);
++      stageStderr.push(result.stderr);
++      lastResult = { stdout: "", stderr: "", exitCode: result.exitCode };
++    } else if (!isLast) {
+       // Pipeline contract: the next command's stdin is a byte buffer.
+       // `stdoutAsBytes` consults the upstream's explicit `stdoutKind`
+       // (or legacy `stdoutEncoding === "binary"`) and converts text →
+@@ -214,10 +262,11 @@ export async function executePipeline(
+         stdin =
+           latin1FromBytes(encodeUtf8ToBytes(result.stderr)) +
+           latin1FromBytes(stdoutAsBytes(result));
++        stageStderr.push("");
+       } else {
+         // Regular | only pipes stdout; stderr goes to the parent
+         stdin = latin1FromBytes(stdoutAsBytes(result));
+-        accumulatedStderr += result.stderr;
++        stageStderr.push(result.stderr);
+         accumulatedStderrBytes += result.internalOutputAccounting?.stderr ?? 0;
+       }
+       lastResult = {
+@@ -229,6 +278,29 @@ export async function executePipeline(
+       lastResult = result;
+     }
+   }
++  } finally {
++    // Every handoff is settled, whether or not a stage took it: one no stage
++    // took is closed unread, so its producer sees a closed pipe as it would
++    // under bash. The statuses and stderr fill in what each stage left open.
++    for (const [index, handoff] of handoffs) {
++      const settled = await handoff.settle({
++        discard: true,
++        signal: ctx.state.signal,
++      });
++      if (index < pipestatusExitCodes.length) {
++        pipestatusExitCodes[index] = settled.exitCode;
++      }
++      if (index < stageStderr.length) {
++        stageStderr[index] += settled.stderr;
++      }
++    }
++  }
++  accumulatedStderr = stageStderr.join("");
++  for (const code of pipestatusExitCodes) {
++    if (code !== 0) {
++      pipefailExitCode = code;
++    }
++  }
+ 
+   // Merge stderr from all non-last pipeline commands into the final result.
+   // In bash, stderr from each pipeline command goes to the terminal (parent),
+diff --git a/b/packages/just-bash/src/interpreter/pipeline-handoff.test.ts b/packages/just-bash/src/interpreter/pipeline-handoff.test.ts
+new file mode 100644
+index 0000000..d5e8cf9
+--- /dev/null
++++ b/packages/just-bash/src/interpreter/pipeline-handoff.test.ts
+@@ -0,0 +1,127 @@
++import { describe, expect, it } from "vitest";
++import { Bash } from "../Bash.js";
++import type { Command, ExecResult } from "../types.js";
++
++/**
++ * A producer that hands its stdout over when offered, and a consumer that
++ * takes it, standing in for two native programs joined by an OS pipe.
++ */
++function commands(log: string[]) {
++  const producer: Command = {
++    name: "produce",
++    trusted: true,
++    async execute(args, ctx) {
++      const text = `${args.join(" ")}\n`;
++      const exitCode = Number(ctx.env.get("PRODUCE_STATUS") ?? "0");
++      if (!ctx.offerPipeHandoff) {
++        return { stdout: text, stderr: "", exitCode };
++      }
++      let settled: Promise<ExecResult> | undefined;
++      return {
++        stdout: "",
++        stderr: "",
++        exitCode: 0,
++        pipeHandoff: {
++          token: `t:${text}`,
++          settle(options) {
++            log.push(`settle discard=${options?.discard === true}`);
++            settled ??= Promise.resolve({
++              stdout: options?.discard ? "" : text,
++              stderr: "produce: note\n",
++              exitCode,
++            });
++            return settled;
++          },
++        },
++      };
++    },
++  };
++  const consumer: Command = {
++    name: "consume",
++    trusted: true,
++    acceptsPipeHandoff: (args) => args[0] !== "--bytes",
++    async execute(_args, ctx) {
++      return {
++        stdout: `token=${ctx.stdinHandoff ?? "-"} stdin=${JSON.stringify(
++          ctx.stdin,
++        )}\n`,
++        stderr: "",
++        exitCode: 0,
++      };
++    },
++  };
++  return [producer, consumer];
++}
++
++describe("pipeline handoffs", () => {
++  it("hands the stream to a consumer that takes it", async () => {
++    const log: string[] = [];
++    const bash = new Bash({ customCommands: commands(log) });
++    const result = await bash.exec("produce a | consume; echo ${PIPESTATUS[@]}");
++    expect(result.stdout).toBe('token=t:a\n stdin=""\n0 0\n');
++    expect(result.stderr).toBe("produce: note\n");
++    expect(log).toEqual(["settle discard=true"]);
++  });
++
++  it("gives a builtin the bytes", async () => {
++    const log: string[] = [];
++    const bash = new Bash({ customCommands: commands(log) });
++    const result = await bash.exec("produce b c | cat");
++    expect(result.stdout).toBe("b c\n");
++    expect(log[0]).toBe("settle discard=false");
++  });
++
++  it("gives the bytes to a consumer declining these arguments", async () => {
++    const bash = new Bash({ customCommands: commands([]) });
++    const result = await bash.exec("produce d | consume --bytes");
++    expect(result.stdout).toBe('token=- stdin="d\\n"\n');
++  });
++
++  it("gives the bytes to a redirected, compound, or function stage", async () => {
++    const bash = new Bash({ customCommands: commands([]) });
++    const result = await bash.exec(
++      [
++        "produce e | consume < /dev/null",
++        "produce f | while read x; do echo got $x; done",
++        "f() { cat; }; produce g | f",
++      ].join("\n"),
++    );
++    expect(result.stdout).toBe("token=- stdin=\"\"\ngot f\ng\n");
++  });
++
++  it("reports the producer's status for PIPESTATUS and pipefail", async () => {
++    const bash = new Bash({ customCommands: commands([]) });
++    const result = await bash.exec(
++      "export PRODUCE_STATUS=3; set -o pipefail; produce h | consume >/dev/null; echo $? ${PIPESTATUS[@]}",
++    );
++    expect(result.stdout).toBe("3 3 0\n");
++  });
++
++  it("settles a handoff no stage read", async () => {
++    const log: string[] = [];
++    const bash = new Bash({ customCommands: commands(log) });
++    const result = await bash.exec("produce i | x=1; echo ${PIPESTATUS[@]}");
++    expect(result.stdout).toBe("0 0\n");
++    expect(log).toEqual(["settle discard=true"]);
++  });
++
++  it("hands on the stdout of a stage discarding its stderr, and drops that stderr", async () => {
++    const log: string[] = [];
++    const bash = new Bash({ customCommands: commands(log) });
++    const result = await bash.exec("produce l 2>/dev/null | consume");
++    expect(result.stdout).toBe('token=t:l\n stdin=""\n');
++    expect(result.stderr).toBe("");
++  });
++
++  it("hands the stream to a consumer that redirects its stdout", async () => {
++    const bash = new Bash({ customCommands: commands([]) });
++    const result = await bash.exec("produce m | consume > /tmp/m; cat /tmp/m");
++    expect(result.stdout).toBe('token=t:m\n stdin=""\n');
++  });
++
++  it("offers nothing to a last stage or a redirected one", async () => {
++    const bash = new Bash({ customCommands: commands([]) });
++    const result = await bash.exec("produce j; produce k > /tmp/k | cat; cat /tmp/k");
++    expect(result.stdout).toBe("j\nk\n");
++  });
++});
+diff --git a/packages/just-bash/src/interpreter/redirections.ts b/packages/just-bash/src/interpreter/redirections.ts
+index 455fab0..95390c8 100644
+--- a/packages/just-bash/src/interpreter/redirections.ts
++++ b/packages/just-bash/src/interpreter/redirections.ts
+@@ -1452,6 +1452,10 @@ export async function applyRedirections(
+   if (result.internalPipeStatusOverride) {
+     finalResult.internalPipeStatusOverride = result.internalPipeStatusOverride;
+   }
++  // Offered only to a command whose stdout is the pipe (`2>/dev/null` at most).
++  if (result.pipeHandoff) {
++    finalResult.pipeHandoff = result.pipeHandoff;
++  }
+   const hasOutputRedirection =
+     redirections.length > 0 ||
+     ctx.state.fileDescriptors?.has(1) === true ||
+diff --git a/packages/just-bash/src/interpreter/types.ts b/packages/just-bash/src/interpreter/types.ts
+index 01af56a..fa19ab2 100644
+--- a/packages/just-bash/src/interpreter/types.ts
++++ b/packages/just-bash/src/interpreter/types.ts
+@@ -18,6 +18,7 @@ import type {
+   ExecResult,
+   ExternalCommandResolver,
+   FeatureCoverageWriter,
++  PipeHandoff,
+   RegisteredCommandPath,
+   TraceCallback,
+ } from "../types.js";
+@@ -327,6 +328,15 @@ export interface IOState {
+    * whether fd 0 is connected gets the difference.
+    */
+   groupStdinClosed?: boolean;
++  /**
++   * Pipeline plumbing for handoffs, each set just before the step that takes
++   * it and cleared by that step: the pipeline offers a stage's stdout and
++   * passes the previous stage's handoff to the simple command, which passes
++   * both to the command it dispatches.
++   */
++  pipeOutputOffer?: boolean;
++  pendingStdinHandoff?: PipeHandoff;
++  dispatchPipe?: { offer: boolean; handoff?: PipeHandoff };
+   /** File descriptors for process substitution and here-docs */
+   fileDescriptors?: Map<number, string>;
+   /**
+diff --git a/packages/just-bash/src/types.ts b/packages/just-bash/src/types.ts
+index e0e5cb4..bbccf13 100644
+--- a/packages/just-bash/src/types.ts
++++ b/packages/just-bash/src/types.ts
+@@ -12,6 +12,28 @@ export interface FeatureCoverageWriter {
+   hit(feature: string): void;
+ }
+ 
++/**
++ * A pipeline stage's stdout, still being written, offered to the next stage.
++ * The shell never reads it: it hands `token` to a next stage that accepts
++ * handoffs (`Command.acceptsPipeHandoff`), and otherwise settles it and passes
++ * the bytes on as that stage's stdin, as it would have without the handoff.
++ */
++export interface PipeHandoff {
++  /** Names the stream to the command that takes it; opaque to the shell. */
++  readonly token: string;
++  /**
++   * Waits for the producer and returns its result. `stdout` holds what it
++   * wrote unless the next stage took the stream, or `discard` is set, in
++   * which case the stream is closed unread and `stdout` is empty. Calls after
++   * the first return the same result. The producer's own command context is
++   * revoked once it returns, so `signal` is what stops it from then on.
++   */
++  settle(options?: {
++    discard?: boolean;
++    signal?: AbortSignal;
++  }): Promise<ExecResult>;
++}
++
+ export interface ExecResult {
+   stdout: string;
+   stderr: string;
+@@ -48,6 +70,12 @@ export interface ExecResult {
+   internalProducerOmitsShellPrefix?: boolean;
+   /** @internal Bytes consumed from a descriptor-backed stdin stream. */
+   internalStdinConsumed?: number;
++  /**
++   * Set by a command that was offered `offerPipeHandoff` and returned while
++   * still writing: its stdout goes to the next pipeline stage as it is
++   * written, and `stdout` here is empty.
++   */
++  pipeHandoff?: PipeHandoff;
+   /**
+    * Bytes in the current result that have already been charged to the shared
+    * execution output budget. Interpreter plumbing must preserve this when it
+@@ -192,6 +220,18 @@ export interface RuntimeCommandContext {
+    * reads this rather than the byte count.
+    */
+   stdinConnected?: boolean;
++  /**
++   * True when this command's stdout is the next pipeline stage's stdin and
++   * nothing redirects it, so it may return a `pipeHandoff` instead of its
++   * whole output.
++   */
++  offerPipeHandoff?: boolean;
++  /**
++   * The token of the previous stage's `pipeHandoff`, for a command that sets
++   * `acceptsPipeHandoff`. When set, `stdin` is empty: the bytes are behind
++   * the token.
++   */
++  stdinHandoff?: string;
+   /**
+    * Execution limits configuration.
+    * Fully resolved by Bash before a command is invoked.
+@@ -316,6 +356,13 @@ export interface Command {
+   trusted?: boolean;
+   /** @internal Marks host extensions that receive a least-authority budget. */
+   internalIsExtension?: boolean;
++  /**
++   * Takes the previous stage's `pipeHandoff` as `ctx.stdinHandoff` rather
++   * than as bytes in `ctx.stdin`. A function decides per invocation, for a
++   * command that hands some argument lists to the command it shadows
++   * (`ctx.origCommand`), which reads `ctx.stdin`.
++   */
++  acceptsPipeHandoff?: boolean | ((args: string[]) => boolean);
+   execute(args: string[], ctx: ResolvedCommandContext): Promise<ExecResult>;
+ }
+ 

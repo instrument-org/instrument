@@ -30,9 +30,7 @@ const DEBOUNCE_MS = 600;
  * never takes a topic a chat already has or adds a second one to it.
  */
 export function backfillCandidates(chats: Chat[]): BackfillCandidate[] {
-  return byActivity(
-    chats.filter((chat) => chat.topics.length === 0 && !chat.archived),
-  )
+  return byActivity(chats.filter((chat) => !chat.topic && !chat.archived))
     .slice(0, MOST_READ)
     .map((chat) => ({
       asked: askOf(chat).slice(0, ASK_MAX),
@@ -97,7 +95,7 @@ export function useTopicBackfill({
       typeof previousName === "string" &&
       previousName !== "" &&
       (settled.startsWith(previousName) || previousName.startsWith(settled)),
-    usage: { purpose: "topic-backfill", surface: "topics" },
+    activity: { purpose: "topic-backfill", surface: "topics" },
     key: [
       "topic-backfill",
       settled,

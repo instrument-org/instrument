@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { pathIsWithin } from "./path-is-within";
 import {
   beginTurn,
   endTurn,
@@ -128,8 +127,8 @@ export async function readWorkspaceSkillIndex(): Promise<WorkspaceSkillIndex> {
   try {
     entries = await fs.readdir(skillsDir, { withFileTypes: true });
   } catch {
-    // A workspace with no skills yet has no directory; it is created lazily
-    // when the bash filesystem mounts.
+    // A workspace with no skills yet has no directory; making the first
+    // skill makes it.
     return index;
   }
 
@@ -184,19 +183,6 @@ export function recordWorkspaceSkillMutation(skillPath: string): void {
     return;
   }
   tracker.touched.add(name);
-}
-
-/** Records a host write when it lands inside the workspace skills directory. */
-export function recordWorkspaceSkillWrite(filePath: string): void {
-  if (!getTurnContext()) {
-    return;
-  }
-  const skillsDir = getWorkspaceSkillsDir();
-  if (!pathIsWithin(filePath, skillsDir)) {
-    return;
-  }
-  const relative = path.relative(skillsDir, filePath);
-  recordWorkspaceSkillMutation(relative || "/");
 }
 
 export function setSkillMutationForwarder(

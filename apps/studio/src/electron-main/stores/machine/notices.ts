@@ -25,11 +25,50 @@ const NoticeMarksSchema = z.object({
  * and what was done with each notice.
  */
 const NoticesStoreSchema = z.object({
+  /**
+   * How many chats of the workspace open now are still on a database the
+   * conversion would not replace, so they read as empty. One slot, like
+   * `missingFolders` below, and a different count is a different notice.
+   */
+  chatsLeftBehind: z
+    .object({ at: z.number(), count: z.number().min(1) })
+    .optional()
+    .catch(undefined),
   etag: z.string().optional(),
   fetchedAt: z.number().default(0),
   marks: z.record(z.string(), NoticeMarksSchema).default({}),
+  /**
+   * The folders of the six that have gone from the workspace open now. One
+   * slot, like `updated` below: a workspace is open at a time, and a
+   * different set of folders is a different notice.
+   */
+  missingFolders: z
+    .object({
+      at: z.number(),
+      names: z.array(z.string()).min(1),
+      root: z.string(),
+    })
+    .optional()
+    .catch(undefined),
   notices: z.array(NoticeSchema).default([]),
   pollAfter: z.number().default(DEFAULT_POLL_SECONDS),
+  /**
+   * The Claude and ChatGPT accounts of the workspace open now that were
+   * signed out without the person asking, by connection id. Each keeps when
+   * it was first seen, so a launch that finds it still signed out does not
+   * remake a notice the person dismissed.
+   */
+  signedOut: z
+    .record(
+      z.string(),
+      z.object({
+        at: z.number(),
+        label: z.string().optional(),
+        type: z.enum(["chatgpt-account", "claude-account"]),
+      }),
+    )
+    .default({})
+    .catch({}),
   /**
    * The last update this computer launched into. One slot, so a newer update
    * takes the place of one whose notice was never read.

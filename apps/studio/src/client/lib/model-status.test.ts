@@ -22,6 +22,17 @@ describe("readModelStatus and noticeFor", () => {
     );
     expect(read).toMatchInlineSnapshot(`
       {
+        "Claude account signed out": {
+          "notice": "[problem] You're signed out of Claude → Sign in again",
+          "status": "gone",
+        },
+        "another computer's connection, one of the kind here": {
+          "status": "ready",
+        },
+        "another computer's connection, only another kind here": {
+          "notice": "[problem] Anthropic isn't connected anymore, so Claude Haiku 4.5 isn't available → Switch to openrouter-key",
+          "status": "gone",
+        },
         "fine": {
           "status": "ready",
         },
@@ -53,6 +64,10 @@ describe("readModelStatus and noticeFor", () => {
         },
         "provider removed, same model through OpenRouter and Instrument": {
           "notice": "[problem] Claude Haiku 4.5 isn't available anymore → Switch to instrument",
+          "status": "gone",
+        },
+        "provider turned off, same model elsewhere": {
+          "notice": "[problem] Anthropic is turned off, so Claude Haiku 4.5 isn't available → Switch to openrouter-key",
           "status": "gone",
         },
         "restricted, with Auto to fall back on": {

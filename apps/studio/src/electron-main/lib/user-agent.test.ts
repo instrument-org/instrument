@@ -103,7 +103,7 @@ describe("secChUaBrands", () => {
   // re-checks the live browser; these cases keep the generation honest without
   // booting one.
   it("generates the engine's own brand list for a major version", () => {
-    expect(secChUaBrands(148)).toMatchInlineSnapshot(`
+    expect(secChUaBrands(148, { product: null })).toMatchInlineSnapshot(`
       [
         {
           "brand": "Not/A)Brand",
@@ -118,7 +118,7 @@ describe("secChUaBrands", () => {
   });
 
   it("puts the Chromium brand first for an odd major version", () => {
-    expect(secChUaBrands(147)).toMatchInlineSnapshot(`
+    expect(secChUaBrands(147, { product: null })).toMatchInlineSnapshot(`
       [
         {
           "brand": "Chromium",
@@ -137,7 +137,9 @@ describe("secChUaBrands", () => {
   it("cycles the GREASE punctuation and version with the major", () => {
     expect(
       [120, 128, 131].map((major) =>
-        secChUaBrands(major).find(({ brand }) => brand !== "Chromium"),
+        secChUaBrands(major, { product: null }).find(
+          ({ brand }) => brand !== "Chromium",
+        ),
       ),
     ).toMatchInlineSnapshot(`
       [
@@ -206,7 +208,7 @@ describe("secChUaBrands", () => {
   });
 
   it("keeps the same GREASE entry whether or not the build is branded", () => {
-    const unbranded = secChUaBrands(148).find(({ brand }) =>
+    const unbranded = secChUaBrands(148, { product: null }).find(({ brand }) =>
       brand.startsWith("Not"),
     );
     const branded = secChUaBrands(148, {
@@ -303,17 +305,21 @@ describe("userAgentMetadata", () => {
 
 describe("secChUaHeader", () => {
   it("serializes the brand list from the Chrome major version", () => {
-    expect(secChUaHeader(ELECTRON_UA)).toMatchInlineSnapshot(
+    expect(secChUaHeader(ELECTRON_UA, { product: null })).toMatchInlineSnapshot(
       `""Not;A=Brand";v="24", "Chromium";v="128""`,
     );
   });
 
   it("names no brand the page's navigator.userAgentData cannot report", () => {
-    expect(secChUaHeader(ELECTRON_UA)).not.toContain("Google Chrome");
+    expect(secChUaHeader(ELECTRON_UA, { product: null })).not.toContain(
+      "Google Chrome",
+    );
   });
 
   it("returns null when no Chrome/Chromium version is present", () => {
-    expect(secChUaHeader("Mozilla/5.0 Safari/537.36")).toBeNull();
+    expect(
+      secChUaHeader("Mozilla/5.0 Safari/537.36", { product: null }),
+    ).toBeNull();
   });
 });
 

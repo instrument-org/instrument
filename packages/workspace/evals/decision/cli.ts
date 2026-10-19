@@ -5,7 +5,7 @@
  * model, built the way that code builds it, against labeled cases in
  * `corpus/`: chat search over the real history size and over the most the
  * product asks about, app search, emoji, filing a draft under a topic,
- * backfilling a new topic, and the retitle check. Each case is one decision
+ * and backfilling a new topic. Each case is one decision
  * as a person waits for it, split into as many parallel requests as the
  * model's cap needs, so latency and cost are per decision, not per request.
  *

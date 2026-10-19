@@ -4,13 +4,13 @@
  *
  * Each case is a job typed the way a person types it, never naming a tool:
  * research long enough for a background task with a quick question while it
- * runs, a price on a website, a printable code a skill covers, earlier work
- * to pick up, a folder the chat does not reach, a small build in parts, two
- * short jobs at once, a folder of many files, and a read across 200 files
+ * runs, a printable code a skill covers, earlier work to pick up, a folder the
+ * chat does not reach, a small build in parts, two short jobs at once, a
+ * folder of many files, and a read across 200 files
  * long enough to outlast a quick question asked partway through. This is a
  * measurement, not a target: each case scores the outcome, and `toolsChosen`
- * records which of the tools it used (tasks, the browser, skills, `chat
- * search`/`chat read`, `request_folder`) as evidence without scoring it, so a
+ * records which of the tools it used (tasks, the browser, skills, reading
+ * other chats' records, `ask_permission`) as evidence without scoring it, so a
  * run that does the job without them passes.
  */
 import fs from "node:fs";
@@ -18,8 +18,9 @@ import path from "node:path";
 import { z } from "zod";
 
 import { ensureChat } from "../../src/lib/chat/chat-records";
-import { chatDir } from "../../src/lib/record-folders";
-import { Store } from "../../src/lib/store";
+import { chatOutputFolder } from "../../src/lib/chat/output-folder";
+import { workDir } from "../../src/lib/work-dir";
+import { ChatWrites } from "../../src/lib/chat-writes";
 import { shellPath } from "../../src/lib/workspace-fs-layout";
 import { type Session } from "../../src/schemas/session";
 import { StoreId } from "../../src/schemas/store-id";
@@ -86,21 +87,25 @@ const toolsChosen: Assertion = {
         : [],
     );
     const tally = {
-      "task new": count(commands, /(?:^|[\n;&|])\s*task new\b/g),
-      "task send": count(commands, /(?:^|[\n;&|])\s*task send\b/g),
-      "task stop": count(commands, /(?:^|[\n;&|])\s*task stop\b/g),
-      "task list/log": count(commands, /(?:^|[\n;&|])\s*task (?:list|log)\b/g),
+      "task new": count(commands, /(?:^|[\n;&|])\s*instrument task new\b/g),
+      "task send": count(commands, /(?:^|[\n;&|])\s*instrument task send\b/g),
+      "task stop": count(commands, /(?:^|[\n;&|])\s*instrument task stop\b/g),
+      "task list/log": count(
+        commands,
+        /(?:^|[\n;&|])\s*instrument task (?:list|log)\b/g,
+      ),
       browser: count(commands, /\bagent-browser\b/g),
-      tab: count(commands, /(?:^|[\n;&|])\s*tab (?:open|show|replace)\b/g),
+      tab: count(
+        commands,
+        /(?:^|[\n;&|])\s*instrument tab (?:open|show|replace)\b/g,
+      ),
       web_fetch: parts.filter((part) => part.type === "tool-web_fetch").length,
-      "chat search": count(commands, /(?:^|[\n;&|])\s*chat search\b/g),
-      "chat read": count(commands, /(?:^|[\n;&|])\s*chat read\b/g),
+      "chat records": count(
+        commands,
+        /\bINSTRUMENT_CHATS\b|\.instrument\/chats\b/g,
+      ),
       "permission asks": parts.filter(
-        (part) =>
-          "output" in part &&
-          JSON.stringify(part.output).includes(
-            "Waiting on the person to allow",
-          ),
+        (part) => part.type === "tool-ask_permission",
       ).length,
     };
     const used = Object.entries(tally)
@@ -145,8 +150,8 @@ async function filesWritten(
         ),
     ) + 2000;
   const files = new Set(
-    [HOME, chatDir(ctx.chatId), ...extra].flatMap((dir) =>
-      recentFilesUnder(dir, since),
+    [HOME, workDir(ctx.chatId), chatOutputFolder(ctx.chatId), ...extra].flatMap(
+      (dir) => recentFilesUnder(dir, since),
     ),
   );
   return [...files].filter((file) => fs.statSync(file).mtimeMs <= until);
@@ -224,40 +229,6 @@ const comparedFiveGenerators: Assertion = {
         );
   },
   text: "compared at least five generators, in a file or the reply",
-};
-
-// ---------------------------------------------------------------------------
-// website-price: a price on a named site
-// ---------------------------------------------------------------------------
-
-const lookedUpThePrice: Assertion = {
-  check: async (ctx) => {
-    const text = "looked at frame.work and gave a current dollar price";
-    const tree = await treeSessions(ctx);
-    const looked =
-      commandsIn(tree).some((command) => /frame\.work/.test(command)) ||
-      tree
-        .flatMap((session) => session.messages)
-        .flatMap((message) => message.parts)
-        .some(
-          (part) =>
-            part.type === "tool-web_fetch" &&
-            /frame\.work/.test(JSON.stringify(part.input ?? {})),
-        );
-    const last = said(ctx.sessions).at(-1)?.text ?? "";
-    const price = /\$\s?\d[\d,]{2,}/.exec(last)?.[0];
-    // A price it says it could not get or confirm is a stale one.
-    const hedged = /\bcould(?:n'?t| not) (?:get|confirm|verify|load)\b/i.test(
-      last,
-    );
-    return looked && price && !hedged
-      ? pass(text, `said ${price}`)
-      : fail(
-          text,
-          `${looked ? "looked" : "never opened frame.work"}; ${price ? `said ${price}` : "no price said"}${hedged ? ", hedged as unconfirmed" : ""}`,
-        );
-  },
-  text: "looked at frame.work and gave a current dollar price",
 };
 
 // ---------------------------------------------------------------------------
@@ -361,7 +332,7 @@ async function saveSeeded(
           parts,
           role: "assistant" as const,
         };
-  (await Store.saveMessageWithParts(message, chatId))._unsafeUnwrap();
+  (await ChatWrites.saveMessageWithParts(message, chatId))._unsafeUnwrap();
 }
 
 /** The lease, the summary so far, and yesterday's chat that made it. */
@@ -784,13 +755,6 @@ export const UNPROMPTED_TOOL_EVALS = [
       "We're picking a static site generator for our docs. Can you compare the five most popular ones for me? GitHub stars, language, latest release, and what each is best at.",
   }),
   defineEval({
-    assertions: [lookedUpThePrice, toolsChosen],
-    kind: "chat",
-    name: "unprompted-website-price",
-    prompt:
-      "What's the cheapest Framework Laptop 13 on frame.work going for right now?",
-  }),
-  defineEval({
     assertions: [madeAnImage, toolsChosen],
     kind: "chat",
     name: "unprompted-wifi-qr",
@@ -806,7 +770,7 @@ export const UNPROMPTED_TOOL_EVALS = [
   }),
   defineEval({
     assertions: [totaledEachClient, toolsChosen],
-    folderPicks: [INVOICES_DIR()],
+    allowsFolders: 1,
     kind: "chat",
     name: "unprompted-outside-folder",
     get prompt() {

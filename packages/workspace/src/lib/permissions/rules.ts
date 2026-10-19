@@ -1,22 +1,28 @@
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
 
-import { type ChatGrant } from "../../schemas/chat-settings";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
+import { recordChanged } from "../record-changes";
 import {
-  canonicalizeThroughMissing,
   hostPathWithin,
+  namesStream,
+  realHostPath,
+  windowsOpenedPath,
   withoutDataVolume,
+  withoutShellEscapes,
+  withoutTrailingDots,
 } from "../host-path";
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
-import { type Asker } from "./asks";
-import { getWorkspaceConfig } from "../workspace-config";
+import { type Asker } from "../chat/asks";
+import { workspaceMachineDir } from "../workspace-machine-dir";
 import {
+  appFolderParents,
   type Level,
   LevelSchema,
   PLACE_DEFAULTS,
-  DANGEROUS_NAMES,
   type PlaceId,
   PlaceIdSchema,
   placePaths,
@@ -28,6 +34,45 @@ import {
  * rule per folder they or an "Always allow" added, and the switch that turns
  * every Ask first into a yes. A place nobody changed keeps its default.
  */
+
+/**
+ * A folder or a file the person opened to one chat. `kind: "file"` is a file
+ * sent with a message, opened alone: the rules allow it, and nothing mounts
+ * it.
+ */
+const ChatGrantSchema = z.object({
+  grantedAt: z.coerce.date(),
+  kind: z.literal("file").optional(),
+  path: AbsolutePathSchema,
+  source: z.enum(["attached", "card"]),
+});
+
+/** A Mac app the agent may control in one chat, by the name a script tells it by. */
+const ChatAppGrantSchema = z.object({
+  app: z.string().min(1),
+  /** Its bundle id where it could be found, so a route that knows the app by its id meets the same grant. */
+  bundleId: z.string().optional(),
+  grantedAt: z.coerce.date(),
+});
+
+/** A folder or an app the person said not now to in one chat. */
+const ChatDenialSchema = z.object({
+  deniedAt: z.coerce.date(),
+  kind: z.enum(["app", "folder"]),
+  target: z.string().min(1),
+});
+
+export const ChatPermissionsSchema = z.object({
+  appGrants: z.array(ChatAppGrantSchema).catch([]).default([]),
+  denials: z.array(ChatDenialSchema).catch([]).default([]),
+  grants: z.array(ChatGrantSchema).catch([]).default([]),
+});
+
+export type ChatPermissions = z.output<typeof ChatPermissionsSchema>;
+export type ChatGrant = z.output<typeof ChatGrantSchema>;
+export type ChatAppGrant = z.output<typeof ChatAppGrantSchema>;
+export type ChatDenial = z.output<typeof ChatDenialSchema>;
+
 const PermissionSettingsSchema = z.object({
   /**
    * Apps on this computer, by the name a script tells them by, that the
@@ -58,13 +103,48 @@ const PermissionSettingsSchema = z.object({
     .partialRecord(PlaceIdSchema.exclude(["output"]), LevelSchema)
     .catch({})
     .default({}),
-  withoutAsking: z.boolean().catch(false).default(false),
+  /**
+   * What the person allowed inside one chat, by its id: a folder or a file
+   * from a card, and the Mac apps allowed there, with what they said not now
+   * to. Kept here rather than in the chat, because every one of them names
+   * something on this computer. The chat's own folder travels with the
+   * workspace, and a path written on a Mac resolves to a different folder of
+   * the same name on Windows, which opened it without anyone being asked.
+   *
+   * One chat that will not parse costs that chat its grants rather than
+   * everyone's.
+   */
+  chats: z
+    .record(
+      z.string(),
+      ChatPermissionsSchema.catch(() => ({
+        appGrants: [],
+        denials: [],
+        grants: [],
+      })),
+    )
+    .catch({})
+    .default({}),
+  /**
+   * "Use folders without asking", under the name it deserves on disk: every
+   * folder rule that would ask says yes instead. The passwords place still
+   * asks, and a path no rule holds still asks before a change, so the name
+   * claims more than the switch does, which is the right way round for a
+   * line someone reads while deciding whether to turn it on.
+   */
+  dangerouslyAllowEveryFolder: z.boolean().catch(false).default(false),
 });
 export type PermissionSettings = z.output<typeof PermissionSettingsSchema>;
 
-/** Where the workspace keeps Settings › Permissions. */
+/**
+ * Where Settings › Permissions is kept: on this computer's side of the
+ * workspace, since its folder rules name this computer's paths.
+ */
 function permissionsFile(): string {
-  return path.join(getWorkspaceConfig().rootDir, "permissions.json");
+  return path.join(
+    workspaceMachineDir(),
+    WORKSPACE_MACHINE_ENTRIES.permissions,
+  );
 }
 
 export async function readPermissionSettings(): Promise<PermissionSettings> {
@@ -84,18 +164,100 @@ export async function updatePermissionSettings(
 }
 
 /**
- * What a rule makes of its folder: a person's level, or one of the two the
- * app sets for its own folders. "hidden" is its internals, which the agent
- * meets as missing; "readOnly" is what it may read and never change, such
- * as the skills the app ships.
+ * Every rule as a new install has it: the places at their defaults, none of
+ * the person's own folders or apps, asking switched back on, and nothing
+ * allowed or refused in any chat, so each chat asks again.
  */
-export type Access = "hidden" | "readOnly" | Level;
+export async function resetPermissionSettings(): Promise<PermissionSettings> {
+  let chats: string[] = [];
+  const reset = await updatePermissionSettings((settings) => {
+    chats = Object.keys(settings.chats);
+    return PermissionSettingsSchema.parse({});
+  });
+  for (const chatId of chats) {
+    const chat = ChatIdSchema.safeParse(chatId);
+    if (chat.success) {
+      recordChanged(chat.data, "settings");
+    }
+  }
+  return reset;
+}
+
+/** What one chat holds, or nothing held yet. */
+export async function readChatPermissions(
+  chatId: string,
+): Promise<ChatPermissions> {
+  const settings = await readPermissionSettings();
+  return settings.chats[chatId] ?? EMPTY_CHAT_PERMISSIONS;
+}
+
+/**
+ * Changes what one chat holds. A chat with nothing left in it is taken out
+ * rather than left as an empty object, so the file does not grow a row per
+ * chat that was only ever asked about.
+ */
+export async function updateChatPermissions(
+  chatId: string,
+  change: (held: ChatPermissions) => ChatPermissions,
+): Promise<ChatPermissions> {
+  let next = EMPTY_CHAT_PERMISSIONS;
+  await updatePermissionSettings((settings) => {
+    next = change(settings.chats[chatId] ?? EMPTY_CHAT_PERMISSIONS);
+    const empty =
+      next.appGrants.length === 0 &&
+      next.denials.length === 0 &&
+      next.grants.length === 0;
+    const { [chatId]: _taken, ...rest } = settings.chats;
+    return { ...settings, chats: empty ? rest : { ...rest, [chatId]: next } };
+  });
+  // Said as a change to the chat's settings, which is what these were until
+  // they moved here: everything watching a chat's folders, its apps or its
+  // open cards wakes on that and needs to know nothing about where they are
+  // kept.
+  const chat = ChatIdSchema.safeParse(chatId);
+  if (chat.success) {
+    recordChanged(chat.data, "settings");
+  }
+  return next;
+}
+
+/** Forgets everything one chat held, for a chat that has been deleted. */
+export async function forgetChatPermissions(chatId: string): Promise<void> {
+  await updateChatPermissions(chatId, () => EMPTY_CHAT_PERMISSIONS);
+}
+
+const EMPTY_CHAT_PERMISSIONS: ChatPermissions = {
+  appGrants: [],
+  denials: [],
+  grants: [],
+};
+
+/**
+ * What a rule makes of its folder: a person's level, or "readOnly", which
+ * the app sets for its own folders the agent may read and never change,
+ * such as the skills it ships.
+ */
+export type Access = "readOnly" | Level;
 
 /** One rule at one path, and where it came from. */
 export interface Rule {
+  /**
+   * Set for the app's own data (this computer's folder, the workspace's
+   * records), closed to every command whatever the person's rules say: no
+   * card asks for it, and only the app's own rules open anything in it.
+   */
+  appData?: true;
   /** Every hidden entry directly in `path`, rather than `path` itself. */
   dotEntries?: true;
+  /** Set for a file the user sent, which the rule opens alone. */
+  file?: true;
   level: Access;
+  /**
+   * Set for a place that asks first whose names, sizes and dates programs
+   * and the shell see without a card (App files on macOS and Windows):
+   * listing a folder in it is allowed, and opening or changing a file asks.
+   */
+  listed?: true;
   path: string;
   /** Set for a folder the person said not now to in this chat. */
   denied?: true;
@@ -111,23 +273,24 @@ export interface Rule {
 /** Everything that decides one chat's reach, resolved once and checked often. */
 export interface Rules {
   /**
-   * The session these rules hold, which a refusal that asks first raises
-   * its card for. Absent, a refusal says what is needed and raises nothing.
+   * The session these rules hold, which a refusal that asks first tells
+   * what to ask for. Absent, a refusal says only what is needed.
    */
   asker?: Asker;
   home: string;
   rules: Rule[];
-  withoutAsking: boolean;
+  dangerouslyAllowEveryFolder: boolean;
 }
 
 /**
  * The rules for a chat: the places with the person's changes, their folder
  * rules, and the chat's grants, which are allows. `extraAllows` are folders
- * the chat holds without a grant (its own folder, its topics' folders).
+ * the chat holds without a grant (its own folder, its topic's folders).
  */
 export function rulesFor({
   denials = [],
   extraAllows = [],
+  extraReadOnly = [],
   grants = [],
   home = os.homedir(),
   settings,
@@ -135,6 +298,14 @@ export function rulesFor({
   /** Folders the person said not now to in this chat. */
   denials?: readonly string[];
   extraAllows?: readonly string[];
+  /**
+   * Folders the chat reads without a grant and never changes: the skill
+   * sources its shell mounts read-only. The app's own are hidden folders in
+   * the home folder, which the app-files place holds and asks about, so
+   * without these a loaded skill is a question the person has to answer
+   * about the app's own files.
+   */
+  extraReadOnly?: readonly string[];
   grants?: readonly ChatGrant[];
   home?: string;
   settings: PermissionSettings;
@@ -155,11 +326,19 @@ export function rulesFor({
   for (const folder of settings.folders) {
     rules.push({ level: folder.level, path: folder.path, source: "folder" });
   }
-  for (const allowed of [
-    ...grants.map((grant) => grant.path),
-    ...extraAllows,
-  ]) {
+  for (const grant of grants) {
+    rules.push({
+      ...(grant.kind === "file" && { file: true }),
+      level: "allow",
+      path: grant.path,
+      source: "grant",
+    });
+  }
+  for (const allowed of extraAllows) {
     rules.push({ level: "allow", path: allowed, source: "grant" });
+  }
+  for (const readable of extraReadOnly) {
+    rules.push({ level: "readOnly", path: readable, source: "system" });
   }
   // An Always allow for the folder or one holding it, given in Settings or
   // from any chat's card, outranks a chat's earlier "Not now". A card's
@@ -175,7 +354,11 @@ export function rulesFor({
     }
     rules.push({ denied: true, level: "never", path: denied, source: "grant" });
   }
-  return { home, rules, withoutAsking: settings.withoutAsking };
+  return {
+    home,
+    rules,
+    dangerouslyAllowEveryFolder: settings.dangerouslyAllowEveryFolder,
+  };
 }
 
 /**
@@ -202,7 +385,18 @@ function placeRules(home: string, settings: PermissionSettings): Rule[] {
       place.id === "output"
         ? PLACE_DEFAULTS.output
         : (settings.places[place.id] ?? PLACE_DEFAULTS[place.id]);
+    const listed = place.listed && level === "ask";
     for (const placePath of place.paths) {
+      rules.push({
+        level,
+        ...(listed && { listed: true }),
+        path: placePath,
+        place: place.id,
+        source: "place",
+      });
+    }
+    // Asking as the place does, without the listing.
+    for (const placePath of listed ? (place.unlisted ?? []) : []) {
       rules.push({ level, path: placePath, place: place.id, source: "place" });
     }
     for (const placePath of place.closedUnlessAllowed ?? []) {
@@ -213,11 +407,10 @@ function placeRules(home: string, settings: PermissionSettings): Rule[] {
         source: "place",
       });
     }
-    if (place.homeDotEntries) {
+    for (const placePath of place.openUnlessClosed ?? []) {
       rules.push({
-        dotEntries: true,
-        level,
-        path: home,
+        level: level === "never" ? "never" : "allow",
+        path: placePath,
         place: place.id,
         source: "place",
       });
@@ -228,9 +421,11 @@ function placeRules(home: string, settings: PermissionSettings): Rule[] {
 
 /** What the rules make of one path. */
 export interface Reach {
-  level: "allow" | "ask" | "hidden" | "never";
+  level: "allow" | "ask" | "never";
   /** The rule that decided, absent where nothing but the defaults did. */
   rule?: Rule;
+  /** Set for a path through an NTFS stream, which no rule opens. */
+  stream?: true;
 }
 
 const SOURCE_RANK = {
@@ -245,11 +440,18 @@ const SOURCE_RANK = {
  * own over a chat's grant over a folder rule over a place. A rule for every
  * hidden entry in a folder stands for each of them only as a fallback, so a
  * rule naming one of them at that depth (~/.ssh in the passwords place
- * against the hidden entries of other apps' files) outranks it. `reachOf`
- * and both native profiles order rules by it.
+ * against the hidden entries of other apps' files) outranks it. The rule
+ * closing the app's own data outranks every other, such as the temp
+ * folder's own by its real path, which lands at the same depth when that
+ * data sits in a temp folder (`/var/folders/...` is `/private/var/folders/...`
+ * on a Mac). `reachOf` and both native profiles order rules by it.
  */
 export function ruleRank(rule: Rule): number {
-  return SOURCE_RANK[rule.source] - (rule.dotEntries ? 0.5 : 0);
+  return (
+    SOURCE_RANK[rule.source] -
+    (rule.dotEntries ? 0.5 : 0) +
+    (rule.appData ? 0.5 : 0)
+  );
 }
 
 /**
@@ -259,13 +461,13 @@ export function ruleRank(rule: Rule): number {
  * the switch is for the person's folders, and the native profiles keep
  * such a path closed to changes whatever it says.
  */
-export function levelWithoutAsking<L extends Access>(
+export function levelAllowingEveryFolder<L extends Access>(
   level: L,
   rule: Rule | undefined,
-  withoutAsking: boolean,
+  dangerouslyAllowEveryFolder: boolean,
 ): "allow" | L {
   return level === "ask" &&
-    withoutAsking &&
+    dangerouslyAllowEveryFolder &&
     rule !== undefined &&
     rule.place !== "passwords"
     ? "allow"
@@ -282,13 +484,31 @@ export function levelWithoutAsking<L extends Access>(
  * "Use folders without asking" turns an ask into an allow, but for the
  * passwords place's. Nothing turns a never into anything else. A path on
  * macOS's Data volume meets the rules as the rest of the system spells it.
+ * On Windows a path meets them as the system opens it, its short names
+ * read as the long ones and a name ending in dots or spaces as the name
+ * without them, and a path through an NTFS stream, which is a second name
+ * for a file or folder, is closed. A spelling of the app's own data with a
+ * shell's escapes left in is the app's own data too, closed rather than
+ * asked for.
  */
 export function reachOf(
   rules: Rules,
   hostPath: string,
-  op: "read" | "write",
+  /** `list` is reading a folder's names, which a listed place allows. */
+  op: "list" | "read" | "write",
 ): Reach {
-  const resolved = withoutDataVolume(path.resolve(hostPath));
+  if (namesStream(hostPath)) {
+    return { level: "never", stream: true };
+  }
+  const unescaped = withoutShellEscapes(hostPath);
+  const appData =
+    unescaped === hostPath ? undefined : appDataHolding(rules, unescaped);
+  if (appData) {
+    return { level: "never", rule: appData };
+  }
+  const resolved = withoutTrailingDots(
+    withoutDataVolume(windowsOpenedPath(path.resolve(hostPath))),
+  );
   const target = fold(resolved);
   let best: undefined | { depth: number; rule: Rule };
   for (const { depth, prefix, root, rule } of compiled(rules)) {
@@ -324,39 +544,38 @@ export function reachOf(
   ) {
     best = undefined;
   }
-  // A name that runs code when its folder is used is closed to changes
-  // anywhere but the app's own folders.
-  if (
-    op === "write" &&
-    !(best?.rule.source === "system" && best.rule.level === "allow") &&
-    namesDangerous(target)
-  ) {
-    return { level: "never", rule: best?.rule };
-  }
-  const access = best ? best.rule.level : op === "read" ? "allow" : "ask";
+  const access = !best
+    ? op === "write"
+      ? "ask"
+      : "allow"
+    : op === "list" && best.rule.listed && best.rule.level === "ask"
+      ? "allow"
+      : best.rule.level;
   const level =
-    access === "readOnly" ? (op === "read" ? "allow" : "never") : access;
+    access === "readOnly" ? (op === "write" ? "never" : "allow") : access;
   return {
-    level: levelWithoutAsking(level, best?.rule, rules.withoutAsking),
+    level: levelAllowingEveryFolder(
+      level,
+      best?.rule,
+      rules.dangerouslyAllowEveryFolder,
+    ),
     rule: best?.rule,
   };
 }
 
-function homeDepth(rules: Rules): number {
-  return path.resolve(rules.home).split(path.sep).filter(Boolean).length;
+/** The rule closing the app's own data that holds `hostPath`, if one does. */
+function appDataHolding(rules: Rules, hostPath: string): Rule | undefined {
+  const target = fold(
+    withoutTrailingDots(withoutDataVolume(path.resolve(hostPath))),
+  );
+  return compiled(rules).find(
+    ({ prefix, root, rule }) =>
+      rule.appData && (target === root || target.startsWith(prefix)),
+  )?.rule;
 }
 
-function namesDangerous(foldedPath: string): boolean {
-  const slashed = foldedPath.replaceAll(path.sep, "/");
-  // A repository's .git folder itself: moved or replaced, its hooks would
-  // sit outside the name that closes them.
-  if (slashed.endsWith("/.git")) {
-    return true;
-  }
-  return DANGEROUS_NAMES.some((name) => {
-    const folded = fold(name);
-    return slashed.endsWith(`/${folded}`) || slashed.includes(`/${folded}/`);
-  });
+function homeDepth(rules: Rules): number {
+  return path.resolve(rules.home).split(path.sep).filter(Boolean).length;
 }
 
 /**
@@ -383,14 +602,23 @@ function compiled(rules: Rules) {
   let known = compiledRules.get(rules);
   if (!known) {
     // A rule holds its folder by the path it names and by where that path
-    // really is, at the depth it names: a path read through a link (`/tmp`
-    // on macOS is `/private/tmp`) meets the same rule either way.
+    // really is: a path read through a link (`/tmp` on macOS is
+    // `/private/tmp`) meets the same rule either way. Each at its own depth,
+    // so a rule named deep through a link that leads somewhere shallow (into
+    // or above the app's own data) holds what it leads to only as deep as it
+    // really is, and a deeper rule there still decides.
     known = rules.rules.flatMap((rule) => {
-      const spelled = path.resolve(rule.path);
-      const depth = spelled.split(path.sep).filter(Boolean).length;
-      const real = canonicalizeThroughMissing(spelled) ?? spelled;
-      return [...new Set([fold(spelled), fold(real)])].map((root) => ({
-        depth,
+      const spelled = withoutTrailingDots(
+        withoutDataVolume(path.resolve(rule.path)),
+      );
+      return [
+        ...new Set([
+          fold(spelled),
+          fold(realHostPath(spelled)),
+          fold(windowsOpenedPath(spelled)),
+        ]),
+      ].map((root) => ({
+        depth: root.split(path.sep).filter(Boolean).length,
         prefix: root.endsWith(path.sep) ? root : `${root}${path.sep}`,
         root,
         rule,
@@ -406,30 +634,63 @@ function compiled(rules: Rules) {
  * place or folder rule that asks, so the person sees a name they made rather
  * than the whole of Documents or a folder five levels down. The rule's own
  * folder when the path is that folder or a file directly in it, and always
- * for a sign-in folder, which is answered for whole.
+ * for a sign-in folder, which is answered for whole. A folder holding the
+ * app's own data gives way to the one below it on the way to the path
+ * (`~/Library/Application Support/Other App` rather than Application
+ * Support), so a card never names it; one with nothing below it is left as
+ * it is, for `ruleRefusal` to name nothing to ask for. In the app-files place a
+ * folder holding a folder per app gives way the same way, so the card names
+ * one app's folder (`AppData\Roaming\Discord`).
  */
 export function folderToAskFor({
-  home,
   hostPath,
   isDirectory,
   rule,
+  rules,
 }: {
-  home: string;
   hostPath: string;
   isDirectory: boolean;
   rule: Rule | undefined;
+  rules: Rules;
 }): string {
   if (rule?.place === "passwords") {
     return rule.path;
   }
-  const root = rule && !rule.dotEntries ? rule.path : home;
+  const root = rule && !rule.dotEntries ? rule.path : rules.home;
   const within = hostPathWithin(root, hostPath);
   if (within === null) {
     return isDirectory ? hostPath : path.dirname(hostPath);
   }
   const parts = within.split("/").filter(Boolean);
-  if (parts.length === 0 || (parts.length === 1 && !isDirectory)) {
-    return root;
+  // The folders the path is in, below the rule's own: all of it for a
+  // folder, all but the file's name for a file.
+  const folders = isDirectory ? parts : parts.slice(0, -1);
+  let depth = folders.length === 0 ? 0 : 1;
+  const parents =
+    rule?.place === "appFiles" ? appFolderParents(rules.home) : [];
+  const passedOver = (folder: string) =>
+    holdsAppData(rules, folder) ||
+    parents.some((parent) => hostPathWithin(parent, folder) === "/");
+  while (
+    depth < folders.length &&
+    passedOver(path.join(root, ...folders.slice(0, depth)))
+  ) {
+    depth++;
   }
-  return path.join(root, parts[0] ?? "");
+  return path.join(root, ...folders.slice(0, depth));
+}
+
+/**
+ * Whether `folder` is or holds any of the app's own data, which a yes to it
+ * would seem to open, spelled as it is or with a shell's escapes taken out.
+ */
+export function holdsAppData(rules: Rules, folder: string): boolean {
+  const spellings = new Set([folder, withoutShellEscapes(folder)]);
+  return rules.rules.some(
+    (rule) =>
+      rule.appData &&
+      [...spellings].some(
+        (spelling) => hostPathWithin(spelling, rule.path) !== null,
+      ),
+  );
 }

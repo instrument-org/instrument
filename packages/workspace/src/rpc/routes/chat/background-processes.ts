@@ -15,6 +15,8 @@ const RunningProcessSchema = z.object({
   /** The agent's label for the call that started it; absent when it wrote none. */
   explanation: z.string().optional(),
   id: z.string(),
+  /** The session that started it: the chat's own, or one of its tasks'. */
+  sessionId: StoreId.SessionSchema,
   startedAt: z.date(),
 });
 
@@ -57,6 +59,7 @@ const list = base
         command: process.command,
         explanation: process.explanation,
         id: process.id,
+        sessionId: process.sessionId,
         startedAt: process.startedAt,
       })),
   );

@@ -1,4 +1,8 @@
-import { instrumentUrlOf } from "@/shared/instrument-link";
+import {
+  filePathOfInstrumentLink,
+  instrumentLinkOf,
+  instrumentUrlOf,
+} from "@/shared/instrument-link";
 
 /**
  * Something in the app that a click can open, named the way the surface
@@ -46,4 +50,60 @@ export function copyableOf(target: OpenTarget):
 /** Whether a page is one the app can show, as opposed to one the OS resolves to some other program. */
 export function isWebPage(url: string): boolean {
   return /^https?:\/\//i.test(url);
+}
+
+/**
+ * What a link written in a document names, read from its `href` as written:
+ * a screen for an address into the app, a path for a file (an `instrument://file/`
+ * address, a `file:` URL, or, given the document's `folder`, a path relative
+ * to it), and a page for anything else. Undefined for no address and for a
+ * place in the document itself, which the surface showing it scrolls to.
+ */
+export function openTargetOfHref(
+  href: string,
+  folder?: string,
+): OpenTarget | undefined {
+  if (!href || href.startsWith("#")) {
+    return undefined;
+  }
+  const link = instrumentLinkOf(href);
+  if (link) {
+    return { href: link.href, kind: "screen" };
+  }
+  const filePath = filePathOfInstrumentLink(href);
+  if (filePath !== undefined) {
+    return { kind: "path", path: filePath };
+  }
+  const path = hostPathOfHref(href, folder);
+  return path === undefined
+    ? { kind: "page", url: href }
+    : { kind: "path", path };
+}
+
+/**
+ * The path on this computer a `file:` URL names, or, given a folder, a link
+ * relative to it, as any Markdown app reads one.
+ */
+function hostPathOfHref(href: string, folder?: string): string | undefined {
+  if (href.startsWith("//")) {
+    return undefined;
+  }
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(href)?.[1]?.toLowerCase();
+  // A Windows path's drive letter reads as a scheme of one letter.
+  const relative = !scheme || scheme.length === 1;
+  if (scheme !== "file" && !(relative && folder !== undefined)) {
+    return undefined;
+  }
+  try {
+    const url =
+      scheme === "file"
+        ? new URL(href)
+        : new URL(
+            href,
+            `file://${encodeURI((folder ?? "").replaceAll("\\", "/"))}`,
+          );
+    return decodeURIComponent(url.pathname);
+  } catch {
+    return undefined;
+  }
 }

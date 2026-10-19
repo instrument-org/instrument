@@ -1,9 +1,9 @@
 /**
  * How a task works a connected MCP app when a question takes many calls.
  *
- * `app call` runs one tool per command, so a question across a tracker (the
+ * `instrument app call` runs one tool per command, so a question across a tracker (the
  * open bugs, then each one's comments) is a turn per call, or a bash loop over
- * `app call`, or `--out` files read back with jq. A `node` script can call
+ * `instrument app call`, or `--out` files read back with jq. A `node` script can call
  * the same tools as values through `tools.<slug>.<tool>()` and do the whole
  * fan-out in one command. These cases score the answer, and record which of
  * those the model reached for: the fan-out and the cross-tool join should get
@@ -271,6 +271,8 @@ export const APP_SCRIPTING_EVALS = [
   defineEval({
     apps: [BEACON],
     assertions: [linksTheFiledIssue],
+    // A task's shell has no `instrument task`, so only the chat can fork.
+    kind: "chat",
     name: "app-links-what-a-fork-changed",
     prompt:
       "In the background, go through these and file each as a bug in Beacon, on Aiko: the export button does nothing in Safari; dark mode loses the sidebar icons; CSV import drops the last row.",

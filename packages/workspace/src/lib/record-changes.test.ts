@@ -77,7 +77,7 @@ describe("the record writer on the feed", () => {
     expect((await changes.next()).value).toEqual([
       { id: chatId, kind: "settings" },
     ]);
-    await setChatState(chatDir(chatId), { appGuidesRead: [] });
+    await setChatState(chatDir(chatId), { appGuidesShown: [] });
     expect((await changes.next()).value).toEqual([
       { id: chatId, kind: "state" },
     ]);

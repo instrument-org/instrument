@@ -1,7 +1,6 @@
+import { type Draft, draftGroupOf } from "@/client/atoms/drafts";
 import {
   CHATS_HREF,
-  type Draft,
-  draftGroupOf,
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";

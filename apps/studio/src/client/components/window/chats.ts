@@ -47,7 +47,8 @@ export interface Filterable {
   starred: boolean;
   state: "failed" | "idle" | "limited" | "stopped" | "waiting" | "working";
   title: string;
-  topics: string[];
+  /** The id of the topic it is filed under, when it is filed under one. */
+  topic?: string;
   /** Whether it carries the unread mark: something in it not yet looked at. */
   unread: boolean;
 }
@@ -153,7 +154,7 @@ export function matchesFilters(
 ) {
   return (
     matchesPlace(chat, filters) &&
-    anyOf(filters.topics, chat.topics) &&
+    anyOf(filters.topics, chat.topic ? [chat.topic] : []) &&
     anyOf(filters.apps, chat.holds.apps) &&
     matchesSearch(chat, filters.search, topicNames)
   );
@@ -237,7 +238,7 @@ function matchesSearch(
     chat.title,
     askOf(chat),
     chat.latest?.text ?? "",
-    ...chat.topics.map((id) => topicNames.get(id) ?? ""),
+    chat.topic ? (topicNames.get(chat.topic) ?? "") : "",
     ...chat.holds.files.map(nameOf),
     ...chat.holds.sites,
     ...chat.holds.apps,
@@ -286,6 +287,33 @@ export function draftTitle(words: string): string {
       .map((line) => line.trim())
       .find(Boolean) ?? "New chat",
   );
+}
+
+/** The dot the rail's Chat entry wears while the window stands elsewhere. */
+export type RailChatMark = "unread" | "waiting" | "working";
+
+/**
+ * Which dot the rail's Chat entry wears for these chats: amber while any
+ * waits on the user, since a question outranks work, the working pulse
+ * while any works, and green while any has something not yet seen. A chat
+ * put away counts for none of it, as it is out of the inbox.
+ */
+export function railMarkOf(
+  chats: readonly {
+    archived: boolean;
+    state: Filterable["state"];
+    unread: boolean;
+    working: boolean;
+  }[],
+): RailChatMark | undefined {
+  const inbox = chats.filter((chat) => !chat.archived);
+  if (inbox.some((chat) => chat.state === "waiting")) {
+    return "waiting";
+  }
+  if (inbox.some((chat) => chat.working)) {
+    return "working";
+  }
+  return inbox.some((chat) => chat.unread) ? "unread" : undefined;
 }
 
 /** Chats by when the user last messaged them, newest first. */

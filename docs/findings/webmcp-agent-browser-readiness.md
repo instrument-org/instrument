@@ -1,6 +1,6 @@
 # WebMCP: what it would take for the agent's browser to call a site's own tools
 
-**Status:** open, researched and probed, nothing implemented. Blocked on an Electron major upgrade. Still open, checked 2026-10-02: Studio still pins Electron 42 and nothing WebMCP-related is in the code.
+**Status:** working as of 2026-10-15. The blocker was the Electron upgrade and that has landed (44.4.5, Chromium 152), so all this took in the end was one switch. Driven end to end in the app against a local page and against a third-party site; see "What it took" below. What is left is a judgment call about the context the announcements cost, not a platform gap.
 
 ## Why this is here
 
@@ -66,14 +66,28 @@ page DOM mutated as the tool's execute() specified
 
 Nothing in the domain is missing for a CDP-driven agent, and nothing about our bridge stands in the way. There is no CDP domain allowlist in `dispatch-command.ts`, so `WebMCP.*` commands pass through untouched, and guest debugger events are already forwarded to the bridge by [`manager.ts`](../../apps/studio/src/electron-main/browser-view/manager.ts), so `toolsAdded` and `toolResponded` would arrive without new plumbing.
 
-## What is actually missing
+## What it took
 
-The platform is the blocker; our own wiring is nearly there.
+One switch, `--enable-blink-features=WebMCP`, appended in [`setup-environment.ts`](../../apps/studio/src/electron-main/setup-environment.ts). Everything else on the list below had already gone away:
 
-- **The Electron upgrade.** 42 to 44 is two majors and is the entire cost of this feature. Nothing else on the list is more than a day.
-- **A `--enable-blink-features=WebMCP` switch.** The CDP domain ships unflagged on 152, but a site that feature-detects will not register anything unless the page-facing API exists, so the flag is load-bearing even though we only consume over CDP. Chrome gates the page API behind an origin trial; an origin trial token is signed per origin and will not validate in Electron, so the command-line switch is how it gets turned on for every site rather than something we can rely on sites to carry.
-- **Subcommands.** `agent-browser` has no notion of tools. Upstream v0.33.2 has zero WebMCP references, so `tools list` and `tools call` would be ours to add in [`agent-browser.ts`](../../packages/workspace/src/lib/shell-commands/agent-browser.ts) alongside the existing rewrites, plus the help text and the skill.
-- **Untrusted-output handling.** The protocol itself annotates `toolResponded.output` as untrusted and a prompt-injection risk. It gets what page content gets: printed as returned, after any line of ours and never before one ([decision record](../decisions/2026-10-09-outside-content-arrives-last-and-unmarked.md)).
+- **The Electron upgrade** landed as part of the dependency sweep. 44.4.5 is Chromium 152.
+- **The CDP domain needs no switch**, as this finding's table said. Measured by elimination on 2026-10-15: with the blink switch alone, the page registers and `webmcp list` returns its schema; with `--enable-features=DevToolsWebMCPSupport` alone and no blink switch, `document.modelContext` is undefined and there is nothing to read. `WebMCPTesting` and `DevToolsWebMCPSupport`, the two feature names the agent-browser binary carries, are both unnecessary here.
+- **Subcommands are upstream now.** 0.38.1 ships `webmcp list`, `invoke`, `result` and `cancel`, and announces a page's tools in its own browser responses on first discovery and whenever the catalog changes, capped at 16 tools and 4 KiB. Nothing was needed in our wrapper: the argv policy is a blocklist and `webmcp` is not on it.
+- **Untrusted-output handling is upstream's too**, and stricter than ours: it marks summaries `untrusted: true` in JSON and wraps page metadata in nonce-bearing content boundaries in its text output, the same marker lines we stopped asking for in `82bd8bbea` because piping them into `jq` or `head` read them as data. They are back on this one path, and the `origin=` on the marker line reads `unknown`; the tool's real origin is a field inside the JSON.
+
+Two behaviors worth knowing before building on it:
+
+- **Discovery is asynchronous.** A tool registered by an inline script is not there the instant `open` returns; it arrives on the next browser response. An `invoke` issued immediately after `open` fails with `webmcp_tool_not_found`, and the same call a second later succeeds.
+- **The announcement is unconditional.** It rides on the browser response whenever the catalog changes, so a chat that browses a tool-bearing site pays for it whether or not it was ever going to call a page tool.
+
+### Driven end to end, 2026-10-15
+
+In the app, dev build against a disposable workspace, through the agent's own shell:
+
+- A local page over `http://127.0.0.1` that registers one tool inside `if (document.modelContext)`: announced on `open`, full schema from `webmcp list --json`, `webmcp invoke add-todo --params '{"text":"buy milk"}'` ran the page's own `execute()` and the DOM gained the item.
+- `webmcp.com`, a third party: 9 tools announced with their origins, `search_directory` invoked with `{"query":"travel"}` and answered with 535 matching sites.
+
+The adopter count has grown rather than stalled, which this finding named as the number to re-check: the directory listed 115 sites when this was written and 139 on its own page on 2026-10-15, and its search reports many more than either figure.
 
 ## The surface is real but small
 

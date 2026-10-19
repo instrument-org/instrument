@@ -2,19 +2,23 @@ export const REGISTRY_FOLDER_NAMES = {
   skills: "skills",
 } as const;
 
-import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+/**
+ * What the browsers keep in the workspace's machine folder, under `browser/`:
+ * one of each for the workspace rather than one per chat, since neither holds
+ * anything a chat put there.
+ */
+export const BROWSER_FOLDER_NAMES = {
+  // agent-browser's `$HOME`: its managed config and the provider plugin
+  // (getAgentBrowserHomeDir).
+  agentHome: "agent-browser-home",
+  // The in-app browser's Chromium profile (getBrowserSessionDir).
+  session: "browser-session",
+} as const;
 
 export const CHAT_FOLDER_NAMES = {
   attachments: "attachments",
-  browserSession: "browser-session",
   downloads: "downloads",
-  // agent-browser's temp dir for external-browser invocations. Lives at the
-  // workspace root rather than in a task (see getExternalBrowserTmpDir): what
-  // lands there is a copy of the host's browser state, not task content.
-  externalBrowserTmp: "external-browser-tmp",
-  private: PRIVATE_FOLDER_NAME,
   screenshots: "screenshots",
-  skills: "skills",
   // Subprocess temp dir (TMPDIR/TEMP/TMP), inside the chat's folder so tempfile spill
   // and mktemp scratch land here instead of the host temp dir. Dot-prefixed
   // because what accumulates is interpreter caches rather than anything the
@@ -24,29 +28,124 @@ export const CHAT_FOLDER_NAMES = {
   // read them, but the logs are noise for the user so they stay out of the
   // browsable file index.
   toolOutput: ".tool-output",
-  work: "work",
+} as const;
+
+/**
+ * The variables the agent's shell sets, naming the folders it works with:
+ * the workspace's apps; its chat's work folder, where every command starts;
+ * the output folder, where finished work goes; the folder of the skill it
+ * loaded last, where that skill's scripts run from; and the workspace's own
+ * writable skills; and every chat's records, read-only. Every program the shell starts sees them too. The system
+ * prompt names folders by these, never by path, so it reads the same on
+ * every computer. A file the person sent is read where they keep it, so no
+ * variable names a folder of copies.
+ */
+export const FOLDER_VARIABLES = {
+  apps: "INSTRUMENT_APPS",
+  chats: "INSTRUMENT_CHATS",
+  output: "INSTRUMENT_OUTPUT",
+  skill: "INSTRUMENT_SKILL_DIR",
+  work: "INSTRUMENT_WORK",
+  workspaceSkills: "INSTRUMENT_WORKSPACE_SKILLS",
 } as const;
 export const TASKS_DIR_NAME = "tasks";
-// One folder per chat at the workspace root, its tasks included: a task is a
-// session in the chat's database, with no folder of its own.
-export const CHATS_DIR_NAME = "chats";
-// One folder per app at the workspace root, mounted for the
-// chat. Secrets never live here; the app's stores hold them.
-export const APPS_DIR_NAME = "apps";
-// One Markdown file per memory at the workspace root: what the conversation's
-// agent keeps about the user across every chat, readable and editable in a
-// file manager.
-export const MEMORY_DIR_NAME = "memory";
-// One folder per topic at the workspace root, named for the topic: its
-// settings in `.instrument/settings.json` and its instructions in
-// `instructions.md`.
-export const TOPICS_DIR_NAME = "topics";
-// A chat's SQLite store, every session in it, in its `.instrument/` private dir.
+// A chat's SQLite store, every session in it, in its record folder.
 export const CHAT_DB_FILE_NAME = "chat.db";
+// The notes the agent keeps for whoever carries a chat on after its context
+// runs out, in the chat's record folder (handoffNotesPath).
+export const HANDOFF_NOTES_FILE_NAME = "handoff-notes.md";
 // What the store was named in a 1.x task and in a chat before the layout
 // sweep renamed it: read by the migrations alone.
 export const LEGACY_TASK_DB_FILE_NAME = "task.db";
 export const TASK_STATE_FILE_NAME = "state.json";
+
+/**
+ * Where every chat's own folder is, at the workspace's top level: the one
+ * folder of the six a person opens that the app writes rather than reads,
+ * holding a folder per chat named for what the chat is about.
+ */
+export const CHATS_FOLDER_NAME = "Chats";
+/**
+ * A chat's transcript in its folder, written from its records at the end of
+ * each turn. Capitalized like the one file that says what a folder is in each
+ * of the six: a folder in `Chats/` without it is not a chat's.
+ */
+export const CHAT_FILE_NAME = "CHAT.md";
+
+/**
+ * Where the person's drafts are, at the workspace's top level: a folder per
+ * draft, named for the day the draft was started, holding what was pasted
+ * into it beside the draft itself.
+ */
+export const DRAFTS_FOLDER_NAME = "Drafts";
+/**
+ * A draft in its folder: its front matter says which draft it is and, for a
+ * reply, which chat it goes into, and the body is the person's own words.
+ * Capitalized like the one file that says what a folder is in each of the
+ * six. A folder may hold more than one, since two devices can each write a
+ * draft on the same day offline, so the name is matched as a prefix
+ * (`DRAFT 2.md`, a sync engine's conflict copy) rather than exactly.
+ */
+export const DRAFT_FILE_NAME = "DRAFT.md";
+
+/**
+ * Where the person's topics are, at the workspace's top level: a folder per
+ * topic named for it, each with the `TOPIC.md` that says what it is. One of
+ * the six folders a person opens. Here rather than beside the file's own
+ * reader (`lib/chat/topic-file.ts`, which re-exports it) because the note
+ * naming the file to the model is drawn in the app too, and depends on
+ * nothing else.
+ */
+export const TOPICS_FOLDER_NAME = "Topics";
+/**
+ * A topic in its folder, its front matter over the standing instructions
+ * every chat under it is read with. Capitalized like the one file that says
+ * what a folder is in each of the six: a folder in `Topics/` without it is
+ * not a topic's.
+ */
+export const TOPIC_FILE_NAME = "TOPIC.md";
+
+/**
+ * Where the person's memories are, at the workspace's top level: one
+ * Markdown file per memory, which they read and edit in a file manager like
+ * any other file. One of the six folders a person opens, and the one with no
+ * file saying what it is: a memory is a file rather than a folder.
+ */
+export const MEMORY_FOLDER_NAME = "Memory";
+
+/**
+ * The workspace's own skills, at its top level: a folder per skill, each
+ * with the `SKILL.md` that says what it is. One of the six folders a person
+ * opens, and the only one the agent writes into as part of its work, since
+ * a chat can leave a skill behind for the chats after it.
+ */
+export const SKILLS_FOLDER_NAME = "Skills";
+
+/**
+ * Where the person's apps are, at the workspace's top level: a folder per
+ * app named for it, each with the `APP.md` that says what it is and what it
+ * is for. One of the six folders a person opens. Here rather than beside the
+ * file's own reader (`lib/apps/app-file.ts`, which re-exports it) because
+ * the workspace's layout names the folder and depends on nothing else.
+ */
+export const APPS_FOLDER_NAME = "Apps";
+
+/**
+ * The six folders a person opens, at the workspace's top level, in the order
+ * they are listed to a reader. Collected so that something which has to treat
+ * them as a set -- the notice for one the person deleted, say -- cannot miss
+ * one that is added later.
+ */
+export const KEY_FOLDER_NAMES = [
+  CHATS_FOLDER_NAME,
+  DRAFTS_FOLDER_NAME,
+  TOPICS_FOLDER_NAME,
+  MEMORY_FOLDER_NAME,
+  SKILLS_FOLDER_NAME,
+  APPS_FOLDER_NAME,
+] as const;
+
+export type KeyFolderName = (typeof KEY_FOLDER_NAMES)[number];
 
 /**
  * Info string of the fenced block an agent writes to show the user a set of
@@ -85,7 +184,16 @@ export const INTERRUPTED_TOOL_CALL_ERROR_TEXT =
   "This action was interrupted when the app closed.";
 
 /**
- * What a tool call reads when the user's Stop, or the chat's `task stop` on
+ * What a tool call reads when the reply it belonged to ended before its
+ * input had finished arriving: an error, an abort, or the person's Stop
+ * caught it mid-word, so it never ran. The app was there throughout, which
+ * is the whole difference from the line above.
+ */
+export const CUT_OFF_TOOL_CALL_ERROR_TEXT =
+  "This action was cut off before it could run.";
+
+/**
+ * What a tool call reads when the user's Stop, or the chat's `instrument task stop` on
  * a task, ended it. Matched by what reads the chat's turn as stopped by the
  * user rather than finished. The person reads it; the model reads words of
  * its own in its place (`SessionMessage.toUIMessages`).

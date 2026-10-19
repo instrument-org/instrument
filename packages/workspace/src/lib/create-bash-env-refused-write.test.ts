@@ -14,6 +14,7 @@ import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 import { updatePermissionSettings } from "./permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * Guards the local patch to just-bash's redirections: a redirect into a place
@@ -25,6 +26,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
+// Both as the shell names them.
 let outside: string;
 let closed: string;
 let chatRoot: string;
@@ -37,7 +39,7 @@ async function run(command: string) {
   });
   return {
     exitCode: result.exitCode,
-    stderr: result.stderr.replaceAll(tmpDir, "<tmp>"),
+    stderr: result.stderr.replaceAll(shellPath(tmpDir), "<tmp>"),
     stdout: result.stdout,
   };
 }
@@ -47,11 +49,11 @@ beforeAll(async () => {
     await fs.mkdtemp(path.join(os.tmpdir(), "refused-write-")),
   );
   // Not mounted: outside every folder the chat reaches, so read-only.
-  outside = path.join(tmpDir, "outside");
-  closed = path.join(tmpDir, "closed");
+  outside = shellPath(path.join(tmpDir, "outside"));
+  closed = shellPath(path.join(tmpDir, "closed"));
   chatRoot = path.join(tmpDir, "chats", "test");
-  await fs.mkdir(outside, { recursive: true });
-  await fs.mkdir(closed, { recursive: true });
+  await fs.mkdir(path.join(tmpDir, "outside"), { recursive: true });
+  await fs.mkdir(path.join(tmpDir, "closed"), { recursive: true });
   await fs.mkdir(chatRoot, { recursive: true });
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   // Settings live in the workspace's root, which the mock chats share across
@@ -66,7 +68,7 @@ beforeAll(async () => {
       {
         addedAt: new Date(),
         level: "never",
-        path: AbsolutePathSchema.parse(closed),
+        path: AbsolutePathSchema.parse(path.join(tmpDir, "closed")),
       },
     ],
   }));
@@ -85,7 +87,7 @@ it("keeps the output before a redirect outside every folder, and runs what follo
     {
       "exitCode": 0,
       "stderr": "bash: <tmp>/outside/file: Read-only file system
-    Waiting on the person to allow <tmp>/outside. If the rest of the job needs it, end your turn here; you'll be woken with their answer.
+    "<tmp>/outside/file" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
     ",
       "stdout": "before
     after rc=1
@@ -98,51 +100,88 @@ it("keeps the output before a redirect outside every folder, and runs what follo
 });
 
 it("fails a redirect into a closed folder with its refusal note", async () => {
-  expect(await run(`echo before; echo x > ${closed}/file; echo after rc=$?`))
-    .toMatchInlineSnapshot(`
-    {
-      "exitCode": 0,
-      "stderr": "bash: <tmp>/closed/file: Read-only file system
-    <tmp>/closed/file is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
-    ",
-      "stdout": "before
-    after rc=1
-    ",
-    }
-  `);
+  const result = await run(
+    `echo before; echo x > ${closed}/file; echo after rc=$?`,
+  );
+  // Windows reads nothing outside the folders the shell mounts, so there the
+  // look at the folder ahead of the write is refused too, with its own note.
+  if (process.platform === "win32") {
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "exitCode": 0,
+        "stderr": "bash: <tmp>/closed/file: Read-only file system
+      "<tmp>/closed" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      "<tmp>/closed/file" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      ",
+        "stdout": "before
+      after rc=1
+      ",
+      }
+    `);
+  } else {
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "exitCode": 0,
+        "stderr": "bash: <tmp>/closed/file: Read-only file system
+      "<tmp>/closed/file" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      ",
+        "stdout": "before
+      after rc=1
+      ",
+      }
+    `);
+  }
 });
 
 it("stops on the failed redirect under set -e", async () => {
   expect(await run(`set -e; echo before; echo x > ${outside}/file; echo never`))
     .toMatchInlineSnapshot(`
-    {
-      "exitCode": 1,
-      "stderr": "bash: <tmp>/outside/file: Read-only file system
-    Waiting on the person to allow <tmp>/outside. If the rest of the job needs it, end your turn here; you'll be woken with their answer.
-    ",
-      "stdout": "before
-    ",
-    }
-  `);
+      {
+        "exitCode": 1,
+        "stderr": "bash: <tmp>/outside/file: Read-only file system
+      "<tmp>/outside/file" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
+      ",
+        "stdout": "before
+      ",
+      }
+    `);
 });
 
 it("reports tee and cp into a refused place and goes on", async () => {
-  expect(
-    await run(
-      `echo x | tee ${outside}/tee.txt; echo rc=$?; echo hi > copy.txt; cp copy.txt ${closed}/; echo rc=$?`,
-    ),
-  ).toMatchInlineSnapshot(`
-    {
-      "exitCode": 0,
-      "stderr": "tee: <tmp>/outside/tee.txt: Read-only file system
-    cp: cannot copy 'copy.txt': EROFS: read-only file system, writeFile '<tmp>/closed/copy.txt'
-    Waiting on the person to allow <tmp>/outside. If the rest of the job needs it, end your turn here; you'll be woken with their answer.
-    <tmp>/closed/copy.txt is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
-    ",
-      "stdout": "x
-    rc=1
-    rc=1
-    ",
-    }
-  `);
+  const result = await run(
+    `echo x | tee ${outside}/tee.txt; echo rc=$?; echo hi > copy.txt; cp copy.txt ${closed}/; echo rc=$?`,
+  );
+  // On Windows cp's look at the closed folder is refused before it copies,
+  // as the folder note above says.
+  if (process.platform === "win32") {
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "exitCode": 0,
+        "stderr": "tee: <tmp>/outside/tee.txt: Read-only file system
+      cp: cannot safely determine whether 'copy.txt' and '<tmp>/closed' are the same file
+      "<tmp>/outside/tee.txt" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
+      "<tmp>/closed" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      ",
+        "stdout": "x
+      rc=1
+      rc=1
+      ",
+      }
+    `);
+  } else {
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "exitCode": 0,
+        "stderr": "tee: <tmp>/outside/tee.txt: Read-only file system
+      cp: cannot copy 'copy.txt': EROFS: read-only file system, writeFile '<tmp>/closed/copy.txt'
+      "<tmp>/outside/tee.txt" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
+      "<tmp>/closed/copy.txt" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      ",
+        "stdout": "x
+      rc=1
+      rc=1
+      ",
+      }
+    `);
+  }
 });

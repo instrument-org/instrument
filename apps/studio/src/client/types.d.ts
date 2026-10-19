@@ -1,5 +1,7 @@
 import type { KeptFile, KeptSnapshot } from "@/shared/kept-state";
 import type { ElectronAPI } from "@electron-toolkit/preload";
+import type { CaptureContext } from "@instrument-org/shared";
+import type { SerializedError } from "@instrument-org/shared/exceptions";
 
 declare module "*.md" {
   const content: string;
@@ -9,6 +11,12 @@ declare module "*.md" {
 declare global {
   interface Window {
     api: {
+      // Hands a captured exception to the main process, which keeps it as an
+      // event and answers how a report names it. Absent outside Electron.
+      captureException?: (payload: {
+        context?: CaptureContext;
+        error: SerializedError;
+      }) => Promise<{ fingerprint: string; id: string } | null>;
       // Tells the main process whether a code editor holds the keyboard, so
       // the window's chords that are also the editor's keys reach it first.
       // Absent outside Electron.

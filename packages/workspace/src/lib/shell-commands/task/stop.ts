@@ -6,7 +6,7 @@ import { isWorking, leftRunning } from "../../chat/activity";
 import { type ChatTask } from "../../chat/children";
 import { describeLeftRunning } from "../../chat/left-running";
 import { noteTaskStoppedOnCard } from "../../chat/wake";
-import { closeAsksOf, openAsksOf } from "../../permissions/asks";
+import { closeAsksOf, openAsksOf } from "../../chat/asks";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { type SubcommandInput, subcommand } from "../subcommands";
 import { TASK_COMMAND } from "../task-command";
@@ -151,7 +151,7 @@ async function stopWaiting(task: ChatTask) {
     getWorkspaceActorRef(),
     "chat",
   );
-  return `Stopped ${task.handle}, which was waiting on the person's answer to a card; an answer no longer wakes it. \`task send\` gives it the next thing to do.\n`;
+  return `Stopped ${task.handle}, which was waiting on the person's answer to a card; an answer no longer wakes it. \`instrument task send\` gives it the next thing to do.\n`;
 }
 
 /** Ends a working task's turn, and says whether it went idle in time. */
@@ -174,8 +174,8 @@ async function stopTurn(task: ChatTask, context: TaskCommandContext) {
   );
   const stopped = await waitForIdle(task, timeoutMs);
   return stopped
-    ? `Stopped ${task.handle}. Its turn ended where it was; \`task send\` gives it the next thing to do.\n`
-    : `Told ${task.handle} to stop, and it is still ending; \`task list\` will say when it has.\n`;
+    ? `Stopped ${task.handle}. Its turn ended where it was; \`instrument task send\` gives it the next thing to do.\n`
+    : `Told ${task.handle} to stop, and it is still ending; \`instrument task list\` will say when it has.\n`;
 }
 
 /**

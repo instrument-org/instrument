@@ -79,7 +79,7 @@ export function taskEventModelNote(
       event.needs && event.needs.length > 0
         ? `\n  It cannot go on without:\n${event.needs.map((need) => `      ${need}`).join("\n")}`
         : "";
-    // Where a result that lives on a page is: the tab, by the id `tab show`
+    // Where a result that lives on a page is: the tab, by the id `instrument tab show`
     // takes, since the task's transcript holds only its account of the page.
     const tabs =
       event.tabs && event.tabs.length > 0

@@ -1,7 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { DownloadItem, Session } from "electron";
 
-import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
@@ -33,8 +32,9 @@ export function applyDownloadBehavior(
 // filename (what agent-browser's `download` command expects from
 // "allowAndName"), with a fresh GUID when no downloadWillBegin captured one.
 // Without one, the download is the person's own, from a click in the browser
-// panel, and lands in their Downloads folder under its own name. Only a
-// download from a contents no tab's entry owns is canceled.
+// panel, and lands in their Downloads folder under its own name, or wherever
+// they say when that folder takes no file. Only a download from a contents no
+// tab's entry owns is canceled.
 export function routeGuestDownloads(
   session: Session,
   registry: Pick<GuestRegistry, "documentOf" | "entryOf">,
@@ -104,26 +104,19 @@ function availableFilename(dir: string, filename: string): string {
 // app may touch Downloads and remembers a refusal, and a platform can have no
 // Downloads folder at all. Proving it by writing and removing a file is also
 // what raises the system's question at the moment it makes sense, on the
-// click. The workspace's own downloads folder stands in when Downloads does
-// not take a file; null when nothing does.
+// click. Null when it takes no file, and then the person is asked where to
+// put it.
 function personDownloadsDir(): null | string {
-  const candidates = [
-    () => app.getPath("downloads"),
-    () => path.join(getWorkspaceFolder(), "downloads"),
-  ];
-  for (const candidate of candidates) {
-    try {
-      const dir = candidate();
-      fs.mkdirSync(dir, { recursive: true });
-      const probe = path.join(dir, `.instrument-write-probe-${process.pid}`);
-      fs.writeFileSync(probe, "");
-      fs.unlinkSync(probe);
-      return dir;
-    } catch {
-      // On to the next.
-    }
+  try {
+    const dir = app.getPath("downloads");
+    fs.mkdirSync(dir, { recursive: true });
+    const probe = path.join(dir, `.instrument-write-probe-${process.pid}`);
+    fs.writeFileSync(probe, "");
+    fs.unlinkSync(probe);
+    return dir;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 // A download the agent asked for and the page may not make: told as begun and
@@ -206,11 +199,17 @@ function saveForAgent(
 // window shows. A name already taken gets the `-2`, `-3` suffix the rest of
 // the app gives a copy, rather than overwriting, which is what an explicit
 // save path otherwise does.
+//
+// When Downloads takes no file, the system asks where to put it, which is
+// what leaving the save path unset means. The file is the person's, so the
+// place is theirs to pick; what the app used to do instead was keep a
+// `downloads` folder of its own at the top of the Instrument folder, where
+// they had no reason to look.
 function saveForPerson(item: DownloadItem) {
   const dir = personDownloadsDir();
   if (!dir) {
-    item.cancel();
-    trackDownload(item, null);
+    item.setSaveDialogOptions({ defaultPath: item.getFilename() });
+    trackDownload(item, null, { asked: true });
     return;
   }
   const savePath = path.join(dir, availableFilename(dir, item.getFilename()));

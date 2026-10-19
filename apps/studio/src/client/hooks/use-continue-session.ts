@@ -6,30 +6,25 @@ import { useMutation } from "@tanstack/react-query";
 export function useContinueSession({
   id,
   modelURI,
-  onSuccess,
   sessionId,
 }: {
   id: ChatId;
   modelURI: AIGatewayModelURI.Type | undefined;
-  onSuccess?: () => void;
-  sessionId: StoreId.Session | undefined;
+  sessionId: StoreId.Session;
 }) {
   const createMessage = useMutation(createMessageOptions());
 
   const handleContinue = () => {
-    if (!sessionId || !modelURI) {
+    if (!modelURI) {
       return;
     }
 
-    createMessage.mutate(
-      {
-        id,
-        modelURI,
-        prompt: "Continue.",
-        sessionId,
-      },
-      { onSuccess },
-    );
+    createMessage.mutate({
+      id,
+      modelURI,
+      prompt: "Continue.",
+      sessionId,
+    });
   };
 
   return { handleContinue, isPending: createMessage.isPending };

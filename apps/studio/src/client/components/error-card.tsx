@@ -10,15 +10,7 @@ import { InternalLink } from "./internal-link";
 import { ReportErrorButton } from "./report-error-button";
 import { Button } from "./ui/button";
 
-export function ErrorCard({
-  description = "Something didn't work as expected. Try again, or go back if it keeps happening.",
-  error,
-  title,
-}: {
-  description?: string;
-  error: unknown;
-  title?: string;
-}) {
+export function ErrorCard({ error }: { error: unknown }) {
   const router = useRouter();
   const isRoot = useMatch({
     select: (state) => state.id === rootRouteId,
@@ -61,9 +53,8 @@ export function ErrorCard({
           <ReportErrorButton error={error} surface="route-error" />
         </div>
       }
-      description={description}
+      description="Something didn't work as expected. Try again, or go back if it keeps happening."
       error={error}
-      title={title}
     />
   );
 }

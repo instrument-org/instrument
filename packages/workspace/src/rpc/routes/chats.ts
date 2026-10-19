@@ -1,25 +1,32 @@
-import { eventIterator } from "@orpc/server";
+import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { ChatWrites } from "../../lib/chat-writes";
 import { isWorking, latestStep } from "../../lib/chat/activity";
 import { ensureChat } from "../../lib/chat/chat-records";
 import {
   archiveChat,
   chatById,
+  chatIsWorking,
   ChatSchema,
   markChatRead,
   markChatUnread,
   renameChat,
   setChatStarred,
-  setChatTopics,
+  setChatTopic,
   settleChatTitle,
   unarchiveChat,
 } from "../../lib/chat/chats";
+import { followTitle } from "../../lib/chat-folders/follow-title";
+import { cappedTitle } from "../../lib/chat-folders/folder-name";
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
-import { openAsksOf } from "../../lib/permissions/asks";
+import { closeQuestion, openAsks, openAsksOf } from "../../lib/chat/asks";
+import { wakeAskers } from "../../lib/chat/wake";
+import { AskSchema } from "../../schemas/chat-state";
+import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type RecordChanged, recordChanges } from "../../lib/record-changes";
 import {
   chatOfSession,
@@ -197,18 +204,28 @@ const retitleChatRoute = base
     return { title };
   });
 
-/** Names a chat as the user typed it. */
+/** Names a chat as the user typed it, and its folder with it. */
 const renameChatRoute = base
   .input(z.object({ id: ChatIdSchema, title: z.string().trim().min(1) }))
   .handler(async ({ input }) => {
-    await whenChat(input.id, (chatId) => renameChat(chatId, input.title));
+    await whenChat(input.id, async (chatId) => {
+      const renamed = await renameChat(chatId, input.title);
+      // The folder follows unless something of the chat's is running in it:
+      // a rename under a working agent takes its working directory out from
+      // under it, and Windows refuses it outright. The turn that is running
+      // ends by settling the title, which is where the folder catches up.
+      if (renamed && !(await chatIsWorking(chatId))) {
+        await followTitle(chatId, cappedTitle(input.title));
+      }
+      return renamed;
+    });
   });
 
-/** The topics a chat carries, replaced whole. */
-const setChatTopicsRoute = base
-  .input(z.object({ id: ChatIdSchema, topics: z.array(z.string()) }))
+/** Files a chat under a topic, or under none with `null`. */
+const setChatTopicRoute = base
+  .input(z.object({ id: ChatIdSchema, topic: z.string().nullable() }))
   .handler(async ({ input }) => {
-    await whenChat(input.id, (chatId) => setChatTopics(chatId, input.topics));
+    await whenChat(input.id, (chatId) => setChatTopic(chatId, input.topic));
   });
 
 /**
@@ -251,11 +268,22 @@ const chatOfSessionRoute = base
   .handler(({ input }) => ({ id: chatOfSession(input.sessionId) ?? null }));
 
 /**
- * Deletes a chat with every task it started: their work stops, and the chat's
- * folder, which holds theirs, goes to the trash.
+ * Deletes a chat with every task it started: their work stops, and the
+ * records and work folder, which hold theirs, go to the trash.
+ *
+ * The chat's own folder under `Chats/` goes only when asked. What is in it
+ * is the person's: a transcript they can read and whatever the agent
+ * finished for them, and deleting a chat to tidy a list is not a request to
+ * throw that away.
  */
 const trashChatRoute = base
-  .input(z.object({ id: ChatIdSchema }))
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      /** Whether the chat's own folder goes with it; off unless asked. */
+      itsFolder: z.boolean().optional(),
+    }),
+  )
   .handler(async ({ context, errors, input }) => {
     const id = resolveChat(input.id);
     if (!id) {
@@ -263,6 +291,7 @@ const trashChatRoute = base
     }
     const result = await trashChat({
       id,
+      itsFolder: input.itsFolder,
       workspaceConfig: context.workspaceConfig,
       workspaceRef: context.workspaceRef,
     });
@@ -271,13 +300,94 @@ const trashChatRoute = base
     }
   });
 
+/**
+ * The chat's open asks, as its cards draw them, oldest first, read again
+ * whenever the chat's state moves: what its agent's work ran into, and the
+ * questions it asked.
+ */
+const liveAsksRoute = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(eventIterator(AskSchema.array()))
+  .handler(async function* ({ input, signal }) {
+    yield* distinct(
+      liveRead({
+        changes: [
+          recordChanges(
+            signal,
+            (change) => change.id === input.id && change.kind === "state",
+          ),
+        ],
+        read: () => openAsks(input.id),
+      }),
+    );
+  });
+
+/**
+ * The person's answer to a question the chat asked with `choose`: a choice,
+ * their own words, or skipping it. Closes the question and wakes the chat
+ * with the answer, or joins its turn at the next step if it is still going.
+ */
+const answerQuestionRoute = base
+  .input(
+    z.object({
+      answer: SessionMessageDataPart.QuestionAnswerDataPartSchema.shape.answer,
+      askId: z.string(),
+      id: ChatIdSchema,
+    }),
+  )
+  .output(z.void())
+  .handler(async ({ context, input }) => {
+    const question = await closeQuestion(input.id, input.askId);
+    if (!question) {
+      throw new ORPCError("NOT_FOUND", {
+        message: "That question was already answered.",
+      });
+    }
+    await Promise.all(
+      question.askers.map(async ({ partId, sessionId }) => {
+        if (!partId) {
+          return;
+        }
+        // On the call too, so the card draws the answer from its own part.
+        const written = await ChatWrites.updatePart(
+          {
+            chatId: input.id,
+            messageId: question.messageId,
+            partId,
+            sessionId,
+          },
+          (part) =>
+            part.type === "tool-choose" &&
+            part.state === "output-available" &&
+            "asked" in part.output
+              ? { ...part, output: { ...part.output, answer: input.answer } }
+              : part,
+        );
+        if (written.isErr()) {
+          context.workspaceConfig.captureException(written.error);
+        }
+        await wakeAskers(
+          {
+            data: { answer: input.answer, partId, question: question.question },
+            type: "data-questionAnswer",
+          },
+          context.workspaceRef,
+          input.id,
+          [sessionId],
+        );
+      }),
+    );
+  });
+
 export const chats = {
   ...chatRoutes,
+  answerQuestion: answerQuestionRoute,
   archive: archiveChatRoute,
   byId: chatByIdRoute,
   ensure: ensureChatRoute,
   live: {
     ...chatRoutes.live,
+    asks: liveAsksRoute,
     list: liveListChatsRoute,
     tasks: liveChildTasksRoute,
   },
@@ -286,7 +396,7 @@ export const chats = {
   rename: renameChatRoute,
   retitle: retitleChatRoute,
   session: chatSessionRoute,
-  setTopics: setChatTopicsRoute,
+  setTopic: setChatTopicRoute,
   star: starChatRoute,
   tasks: childTasksRoute,
   trash: trashChatRoute,

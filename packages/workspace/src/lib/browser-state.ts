@@ -4,10 +4,8 @@ import { z } from "zod";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type BrowserTargetId } from "../types";
-import { getParsedStorageItem } from "./get-parsed-storage-item";
-import { getSessionsStoreStorage } from "./session-store-storage";
-import { setParsedStorageItem } from "./set-parsed-storage-item";
-import { StorageKey } from "./storage-key";
+import { ChatReads } from "./chat-reads";
+import { ChatWrites } from "./chat-writes";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -20,7 +18,9 @@ import { getWorkspaceConfig } from "./workspace-config";
 export const BLANK_PAGE_URL = "about:blank";
 
 const BrowserStateSchema = z.object({
-  lastUsedAt: z.date(),
+  // Read from the chat's records this is the ISO string JSON holds, and from
+  // a store written by an older build a Date; both are this instant.
+  lastUsedAt: z.coerce.date(),
   /**
    * The hosts this session's browser has been on, oldest first, each once,
    * the newest visit moving its host to the end. What a chat shows as the
@@ -31,6 +31,12 @@ const BrowserStateSchema = z.object({
 });
 
 type BrowserState = z.output<typeof BrowserStateSchema>;
+
+/** What a session's browser state reads back as, or none where it does not read. */
+export function browserStateOf(value: unknown): BrowserState | undefined {
+  const parsed = BrowserStateSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
 
 /** How many hosts a session remembers; a long crawl keeps its newest. */
 const VISITED_HOSTS_MAX = 40;
@@ -50,24 +56,13 @@ function withVisit(hosts: string[] | undefined, url: string): string[] {
   return [...rest, host].slice(-VISITED_HOSTS_MAX);
 }
 
-export function getBrowserState(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-  { signal }: { signal?: AbortSignal } = {},
-) {
-  return safeTry<BrowserState | undefined, Error>(async function* () {
-    const storage = yield* getSessionsStoreStorage(chatId);
-    const result = await getParsedStorageItem(
-      StorageKey.browserState(sessionId),
-      BrowserStateSchema,
-      storage,
-      { signal },
-    );
-    if (result.isErr()) {
-      return ok(undefined);
-    }
-    return ok(result.value);
-  });
+export function getBrowserState(chatId: ChatId, sessionId: StoreId.Session) {
+  return ChatReads.state({
+    chatId,
+    schema: z.unknown(),
+    sessionId,
+    what: "browser",
+  }).map((held) => (held === undefined ? undefined : browserStateOf(held)));
 }
 
 /**
@@ -105,17 +100,15 @@ export function navigateTarget({
  */
 export function recordVisitedHosts({
   sessionId,
-  signal,
   chatId,
   urls,
 }: {
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
   urls: string[];
 }) {
   return safeTry(async function* () {
-    const current = yield* getBrowserState(chatId, sessionId, { signal });
+    const current = yield* getBrowserState(chatId, sessionId);
     const known = new Set(current?.visitedHosts);
     // Every command runs through here with every tab it holds, so only a host
     // the session has not been on is worth a write; one it has been on stays
@@ -131,14 +124,12 @@ export function recordVisitedHosts({
     for (const url of fresh) {
       visitedHosts = withVisit(visitedHosts, url);
     }
-    const storage = yield* getSessionsStoreStorage(chatId);
-    yield* setParsedStorageItem(
-      StorageKey.browserState(sessionId),
-      { ...current, lastUsedAt: new Date(), visitedHosts },
-      BrowserStateSchema,
-      storage,
-      { signal },
-    );
+    const state = BrowserStateSchema.parse({
+      ...current,
+      lastUsedAt: new Date(),
+      visitedHosts,
+    });
+    yield* ChatWrites.state(chatId, sessionId, "browser", state);
     return ok(undefined);
   });
 }

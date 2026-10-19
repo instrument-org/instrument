@@ -4,7 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { CHAT_DB_FILE_NAME, CHAT_FOLDER_NAMES } from "../constants";
+import { CHAT_DB_FILE_NAME } from "../constants";
 import {
   queryChatDatabase,
   resolveChatDatabasePath,
@@ -16,10 +16,9 @@ let databasePath: string;
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "chat-database-query-"));
-  chatDir = path.join(rootDir, "task");
-  const privateDir = path.join(chatDir, CHAT_FOLDER_NAMES.private);
-  await fs.mkdir(privateDir, { recursive: true });
-  databasePath = path.join(privateDir, CHAT_DB_FILE_NAME);
+  chatDir = path.join(rootDir, "chat");
+  await fs.mkdir(chatDir, { recursive: true });
+  databasePath = path.join(chatDir, CHAT_DB_FILE_NAME);
 
   const database = new DatabaseSync(databasePath);
   database.exec(
@@ -54,6 +53,19 @@ describe("queryChatDatabase", () => {
         payload: '{"json":{"role":"user"}}',
       },
     ]);
+  });
+
+  it("finds the database in the .instrument/ of a folder from before records moved apart", async () => {
+    const older = path.join(rootDir, "older");
+    await fs.mkdir(path.join(older, ".instrument"), { recursive: true });
+    await fs.copyFile(
+      databasePath,
+      path.join(older, ".instrument", CHAT_DB_FILE_NAME),
+    );
+
+    expect(resolveChatDatabasePath(older)).toBe(
+      path.join(older, ".instrument", CHAT_DB_FILE_NAME),
+    );
   });
 
   it("rejects write statements", () => {

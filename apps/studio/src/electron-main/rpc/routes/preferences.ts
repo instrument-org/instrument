@@ -1,9 +1,13 @@
-import { liveRead } from "@instrument-org/workspace/electron";
+import {
+  allowProgramsWithoutSandbox,
+  liveRead,
+} from "@instrument-org/workspace/electron";
 import { showAgentCompletionTestNotification } from "@/electron-main/lib/agent-completion-notifications";
 import {
   notificationSettingsTarget,
   openNotificationSettings as openSystemNotificationSettings,
 } from "@/electron-main/lib/notification-settings";
+import { effectiveDefaultModelURI } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -16,7 +20,6 @@ import {
 } from "@/electron-main/stores/machine/state";
 import {
   AgentCompletionNotificationModeSchema,
-  getDefaultModelURI,
   getWorkspacePreferences,
   WorkspacePreferencesSchema,
 } from "@/electron-main/stores/workspace/preferences";
@@ -102,6 +105,18 @@ const restoreDefaultSidebarPlaces = base.handler(() => {
   changeSidebarPlaces(restoreDefaultPlaces);
 });
 
+/**
+ * Lets the programs the agent runs go ahead with no sandbox on this
+ * computer, where none holds them, or stops them again.
+ */
+const setRunProgramsWithoutSandbox = base
+  .input(z.object({ enabled: z.boolean() }))
+  .handler(({ input }) => {
+    getMachinePreferences().set("runProgramsWithoutSandbox", input.enabled);
+    allowProgramsWithoutSandbox(input.enabled);
+    publisher.publish("notices.updated", null);
+  });
+
 const setBlockAds = base
   .input(z.object({ enabled: z.boolean() }))
   .handler(({ input }) => {
@@ -128,17 +143,11 @@ const setReleaseChannel = base
     return context.appUpdater.checkForUpdates({ notify: true });
   });
 
-const checkForUpdates = base
-  .input(
-    z.object({
-      notify: z.boolean().optional().default(true),
-    }),
-  )
-  .handler(async ({ context, input }) => {
-    setLastUpdateCheck();
+const checkForUpdates = base.handler(async ({ context }) => {
+  setLastUpdateCheck();
 
-    return context.appUpdater.checkForUpdates({ notify: input.notify });
-  });
+  return context.appUpdater.checkForUpdates({ notify: true });
+});
 
 const quitAndInstall = base.handler(({ context }) => {
   return context.appUpdater.quitAndInstall();
@@ -164,8 +173,11 @@ const live = {
     .output(eventIterator(AIGatewayModelURI.Schema.optional()))
     .handler(async function* ({ signal }) {
       yield* liveRead({
-        changes: [publisher.subscribe("preferences.updated", { signal })],
-        read: getDefaultModelURI,
+        changes: [
+          publisher.subscribe("preferences.updated", { signal }),
+          publisher.subscribe("provider-config.updated", { signal }),
+        ],
+        read: effectiveDefaultModelURI,
       });
     }),
   get: base.handler(async function* ({ context, signal }) {
@@ -189,6 +201,7 @@ export const preferences = {
   sendTestNotification,
   setAgentCompletionNotifications,
   setBlockAds,
+  setRunProgramsWithoutSandbox,
   setDefaultModelURI,
   setDeveloperMode,
   setReleaseChannel,

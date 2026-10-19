@@ -1,20 +1,20 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
 
-import { MEMORY_DIR_NAME } from "../../constants";
 import { publisher } from "../../rpc/publisher";
 import { type AbsolutePath } from "../../schemas/paths";
-import { absolutePathJoin } from "../absolute-path-join";
+import { AbsolutePathSchema } from "../../schemas/paths";
+import { MEMORY_FOLDER_NAME } from "../../constants";
 import { isRecord, splitFrontmatter } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /**
  * What the conversation's agent keeps about the user across every chat: a
- * folder of Markdown files, one memory each, at the workspace root beside the
- * apps and skills folders.
+ * folder of Markdown files, one memory each, `Memory/` at the workspace's
+ * top level, beside the chats and the drafts.
  *
  * Files rather than rows so the user can open the folder and read, edit, or
  * delete a memory with nothing but a file manager, and so a memory the agent
@@ -62,11 +62,6 @@ export const MemorySchema = z.object({
 });
 
 export type Memory = z.output<typeof MemorySchema>;
-
-/** Makes the folder, so it can be opened before anything is in it. */
-export async function ensureMemoryDir(dir: AbsolutePath): Promise<void> {
-  await fs.mkdir(dir, { recursive: true });
-}
 
 /**
  * Deletes the named memories' files and hands back what they held. Names with
@@ -143,9 +138,11 @@ export function memoryDigests(memories: Memory[]): Record<string, string> {
   );
 }
 
-/** Where memory lives in this workspace. */
+/** Where memory lives in this workspace, `Memory/` at its top level. */
 export function memoryDir(): AbsolutePath {
-  return absolutePathJoin(getWorkspaceConfig().rootDir, MEMORY_DIR_NAME);
+  return AbsolutePathSchema.parse(
+    path.join(getWorkspaceConfig().rootDir, MEMORY_FOLDER_NAME),
+  );
 }
 
 /** The first line of a memory, which is the fact when the rest is detail. */
@@ -189,12 +186,17 @@ export async function saveMemory(
   }
   const at = Date.now();
   const filePath = path.join(dir, `${parsedName}${FILE_EXTENSION}`);
-  const replaced = await fs
-    .access(filePath)
-    .then(() => true)
-    .catch(() => false);
+  // Read rather than ask whether it is there: correcting a memory rewrites
+  // the file from these few fields, and anything else in its front matter,
+  // left by a newer build or by the person, would go with the old bytes.
+  const held = await fs.readFile(filePath, "utf8").catch(() => undefined);
+  const replaced = held !== undefined;
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(filePath, serialize({ at, body, from }), "utf8");
+  await fs.writeFile(
+    filePath,
+    serialize({ at, body, from, others: othersIn(held) }),
+    "utf8",
+  );
   publisher.publish("memory.changed", null);
   return {
     memory: {
@@ -266,10 +268,12 @@ function serialize({
   at,
   body,
   from,
+  others,
 }: {
   at: number;
   body: string;
   from: Memory["from"];
+  others?: Record<string, unknown>;
 }): string {
   const lines = ["---"];
   if (from) {
@@ -278,6 +282,39 @@ function serialize({
       lines.push(`chat: ${JSON.stringify(from.sessionId)}`);
     }
   }
-  lines.push(`at: ${new Date(at).toISOString()}`, "---", body, "");
+  lines.push(`at: ${new Date(at).toISOString()}`);
+  if (others && Object.keys(others).length > 0) {
+    lines.push(stringifyYaml(others, { sortMapEntries: true }).trimEnd());
+  }
+  lines.push("---", body, "");
   return lines.join("\n");
+}
+
+/** The keys this build writes, and so the ones that are nobody else's. */
+const OWN_KEYS = new Set(["at", "chat", "from"]);
+
+/**
+ * Front matter in what the file held that this build does not write, so a
+ * correction keeps it. A file with none, or one nobody can parse, has
+ * nothing to keep.
+ */
+function othersIn(held: string | undefined): Record<string, unknown> {
+  if (held === undefined) {
+    return {};
+  }
+  const split = splitFrontmatter(held);
+  if (!split.ok) {
+    return {};
+  }
+  let data: unknown;
+  try {
+    data = parseYaml(split.block) as unknown;
+  } catch {
+    return {};
+  }
+  return isRecord(data)
+    ? Object.fromEntries(
+        Object.entries(data).filter(([key]) => !OWN_KEYS.has(key)),
+      )
+    : {};
 }

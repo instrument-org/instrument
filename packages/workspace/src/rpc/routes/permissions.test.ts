@@ -3,14 +3,17 @@ import { call } from "@orpc/server";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { updateChatRecord } from "../../lib/chat-record";
 import { updateChatSettings } from "../../lib/chat-settings";
-import { openAsks, recordAsk } from "../../lib/permissions/asks";
+import { appRefusal } from "../../lib/permissions/apps";
+import { openAsks, recordAsk } from "../../lib/chat/asks";
 import { chatDenials } from "../../lib/permissions/denials";
-import { readPermissionSettings } from "../../lib/permissions/rules";
-import { chatDir, sessionOfChat } from "../../lib/record-folders";
+import {
+  readPermissionSettings,
+  updateChatPermissions,
+} from "../../lib/permissions/rules";
+import { sessionOfChat } from "../../lib/record-folders";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -26,6 +29,21 @@ import { permissions } from "./permissions";
 
 vi.mock(import("../../lib/session-store-storage"));
 
+// What macOS answers a look inside a folder, which a test sets.
+const macos = vi.hoisted(() => ({
+  look: undefined as
+    | undefined
+    | (() => Promise<"account" | "missing" | "open" | "system">),
+}));
+vi.mock(import("../../lib/chat/folder-look"), async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    listFolder: (folderPath: string) =>
+      macos.look ? macos.look() : original.listFolder(folderPath),
+  };
+});
+
 vi.mock(import("@instrument-org/ai-gateway"), async (importOriginal) => ({
   ...(await importOriginal()),
   fetchModel: () => Promise.resolve({ ok: true, value: {} } as never),
@@ -40,12 +58,14 @@ function createContext(): WorkspaceRPCContext {
   };
 }
 
+// A workspace of its own for each test, and this computer's folder for it,
+// where the folder rules are kept.
 beforeEach(() => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "permissions-route-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    rootDir: WorkspaceDirSchema.parse(
-      fs.mkdtempSync(path.join(os.tmpdir(), "permissions-route-")),
-    ),
+    rootDir: WorkspaceDirSchema.parse(rootDir),
+    workspaceMachineDir: AbsolutePathSchema.parse(`${rootDir}-machine`),
   });
 });
 
@@ -75,6 +95,43 @@ it("keeps a folder rule for a folder inside a place", async () => {
   const settings = await readPermissionSettings();
   expect(settings.places.documents).toBeUndefined();
   expect(settings.folders.map((f) => f.path)).toEqual([folder]);
+});
+
+it("resets every rule, and what every chat was allowed, to a new install's", async () => {
+  const context = { context: createContext() };
+  await call(
+    permissions.setFolder,
+    {
+      level: "allow",
+      path: AbsolutePathSchema.parse(
+        path.join(os.homedir(), "Documents", "Taxes"),
+      ),
+    },
+    context,
+  );
+  await call(permissions.setPlace, { id: "desktop", level: "allow" }, context);
+  await call(permissions.setApp, { level: "allow", name: "Notes" }, context);
+  await call(
+    permissions.setDangerouslyAllowEveryFolder,
+    { dangerouslyAllowEveryFolder: true },
+    context,
+  );
+  await updateChatPermissions("2026-10-19-pantry", (held) => ({
+    ...held,
+    denials: [
+      { deniedAt: new Date(), kind: "folder", target: "/Users/me/Pantry" },
+    ],
+  }));
+
+  await call(permissions.reset, undefined, context);
+
+  expect(await readPermissionSettings()).toEqual({
+    apps: [],
+    chats: {},
+    dangerouslyAllowEveryFolder: false,
+    folders: [],
+    places: {},
+  });
 });
 
 describe("permissions.answer", () => {
@@ -108,7 +165,7 @@ describe("permissions.answer", () => {
 
   /** A chat someone has written in, with one task. */
   async function chatWithTask() {
-    const chatId = chatFor(StoreId.newSessionId());
+    const chatId = await chatFor(StoreId.newSessionId());
     const written = await updateChatSettings(chatId, {
       modelURI: AIGatewayModelURI.Schema.parse(
         "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
@@ -182,48 +239,205 @@ describe("permissions.answer", () => {
     );
   });
 
-  // Installs carry cards written when a card named the one session that
-  // raised it.
-  it("reads a card written with a single asker, and wakes that session when answered", async () => {
-    const { chatId, task } = await chatWithTask();
-    const partId = StoreId.newPartId();
-    await updateChatRecord(chatDir(chatId), "state", (record) => ({
-      ...record.raw,
-      state: {
-        browserTabs: [],
-        permissionAsks: [
-          {
-            askedAt: "2026-10-12T15:00:00.000Z",
-            id: "old-ask",
-            kind: "folder",
-            partId,
-            sessionId: task,
-            target: "/Users/me/Pantry",
-          },
-        ],
-      },
-    }));
+  // No test for a card written in the old shape. The stored key is `asks`
+  // now and its entries carry `askers`, where a card used to carry one
+  // `partId` and `sessionId`; nothing reads the old shape, deliberately, so a
+  // card left unanswered across the update is asked again rather than
+  // migrated. Two installs have one, and asking twice costs less than a shim.
 
-    expect(await openAsks(chatId)).toEqual([
-      {
-        askedAt: new Date("2026-10-12T15:00:00.000Z"),
-        askers: [{ partId, sessionId: task }],
-        id: "old-ask",
-        kind: "folder",
-        target: "/Users/me/Pantry",
-      },
-    ]);
-    const sentBefore = sent.length;
+  // The card names an app as its command asked for it, and an Always allow
+  // keeps that name, which is how Settings › Permissions lists the app; it
+  // then holds in every chat, and "Allow in this chat" in this one only.
+  it.each([
+    ["Calendar", "com.apple.iCal"],
+    ["Reminders", "com.apple.reminders"],
+    ["Contacts", "com.apple.AddressBook"],
+    ["Mail", "com.apple.mail"],
+    ["Notes", "com.apple.Notes"],
+    ["Messages", "com.apple.MobileSMS"],
+  ])(
+    "lists %s in Settings by the card's name once allowed always",
+    async (name, bundleId) => {
+      const app = { bundleId, name };
+      const here = await chatWithTask();
+      const elsewhere = await chatWithTask();
+      await recordAsk(
+        { chatId: here.chatId, sessionId: here.own },
+        "app",
+        name,
+      );
+      const [card] = await openAsks(here.chatId);
+
+      await call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "always", id: here.chatId },
+        { context: context() },
+      );
+
+      expect((await readPermissionSettings()).apps).toEqual([
+        expect.objectContaining({ level: "allow", name }),
+      ]);
+      expect(await appRefusal(here.chatId, app, undefined)).toBeUndefined();
+      expect(
+        await appRefusal(elsewhere.chatId, app, undefined),
+      ).toBeUndefined();
+    },
+  );
+
+  it("allows an app in the asking chat only, without listing it in Settings", async () => {
+    const app = { bundleId: "com.apple.AddressBook", name: "Contacts" };
+    const here = await chatWithTask();
+    const elsewhere = await chatWithTask();
+    await recordAsk(
+      { chatId: here.chatId, sessionId: here.own },
+      "app",
+      "Contacts",
+    );
+    const [card] = await openAsks(here.chatId);
 
     await call(
       permissions.answer,
-      { askId: "old-ask", decision: "allowed", id: chatId },
+      { askId: card?.id ?? "", decision: "allowed", id: here.chatId },
       { context: context() },
     );
 
-    expect(wokenSince(sentBefore)).toEqual([
-      { answer: ["allowed"], sessionId: task },
-    ]);
+    expect((await readPermissionSettings()).apps).toEqual([]);
+    expect(await appRefusal(here.chatId, app, undefined)).toBeUndefined();
+    expect(await appRefusal(elsewhere.chatId, app, undefined)).toBe(
+      "using Contacts needs the person's yes first.",
+    );
+  });
+  it("says not now to every card at once", async () => {
+    const { chatId, own } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+    await recordAsk({ chatId, sessionId: own }, "app", "Contacts");
+
+    await call(permissions.declineAll, { id: chatId }, { context: context() });
+
     expect(await openAsks(chatId)).toEqual([]);
+    expect((await chatDenials(chatId)).map((denial) => denial.target)).toEqual(
+      expect.arrayContaining(["/Users/me/Pantry", "Contacts"]),
+    );
+  });
+
+  it("retries only a card macOS refused", async () => {
+    const { chatId, own } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+    const [card] = await openAsks(chatId);
+    await expect(
+      call(
+        permissions.retry,
+        { askId: card?.id ?? "", id: chatId },
+        { context: context() },
+      ),
+    ).rejects.toThrow("That request isn't waiting on macOS.");
+  });
+
+  describe.runIf(process.platform === "darwin")("on macOS", () => {
+    afterEach(() => {
+      macos.look = undefined;
+    });
+
+    it("keeps a folder macOS refuses open with the yes, and wakes the askers once a retry gets in", async () => {
+      const { chatId, own } = await chatWithTask();
+      await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+      const [card] = await openAsks(chatId);
+      const sentBefore = sent.length;
+      macos.look = () => Promise.resolve("system");
+
+      await call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "always", id: chatId },
+        { context: context() },
+      );
+
+      expect(await openAsks(chatId)).toEqual([
+        expect.objectContaining({ allowed: "always", status: "macos-refused" }),
+      ]);
+      expect(wokenSince(sentBefore)).toEqual([]);
+
+      macos.look = () => Promise.resolve("open");
+      await call(
+        permissions.retry,
+        { askId: card?.id ?? "", id: chatId },
+        { context: context() },
+      );
+
+      expect(await openAsks(chatId)).toEqual([]);
+      expect(wokenSince(sentBefore)).toEqual([
+        { answer: ["always"], sessionId: own },
+      ]);
+    });
+
+    it("joins an Allow from another window to the look already running", async () => {
+      const { chatId, own, task } = await chatWithTask();
+      await recordAsk(
+        { chatId, sessionId: task },
+        "folder",
+        "/Users/me/Pantry",
+      );
+      await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+      const [card] = await openAsks(chatId);
+      const sentBefore = sent.length;
+      let answerMacos: (look: "open") => void = () => {};
+      let looks = 0;
+      macos.look = () => {
+        looks++;
+        return new Promise((resolve) => {
+          answerMacos = resolve;
+        });
+      };
+      const allow = () =>
+        call(
+          permissions.answer,
+          { askId: card?.id ?? "", decision: "allowed", id: chatId },
+          { context: context() },
+        );
+
+      const first = allow();
+      const second = allow();
+      await vi.waitFor(() => {
+        expect(looks).toBe(1);
+      });
+      answerMacos("open");
+      await Promise.all([first, second]);
+
+      expect(wokenSince(sentBefore)).toHaveLength(2);
+      expect(await openAsks(chatId)).toEqual([]);
+    });
+
+    it("wakes with only the not now given while macOS was still asking", async () => {
+      const { chatId, own } = await chatWithTask();
+      await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+      const [card] = await openAsks(chatId);
+      const sentBefore = sent.length;
+      let answerMacos: (look: "open") => void = () => {};
+      let asking = false;
+      macos.look = () =>
+        new Promise((resolve) => {
+          asking = true;
+          answerMacos = resolve;
+        });
+
+      const allowed = call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "allowed", id: chatId },
+        { context: context() },
+      );
+      await vi.waitFor(() => {
+        expect(asking).toBe(true);
+      });
+      await call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "declined", id: chatId },
+        { context: context() },
+      );
+      answerMacos("open");
+      await allowed;
+
+      expect(wokenSince(sentBefore)).toEqual([
+        { answer: ["declined"], sessionId: own },
+      ]);
+    });
   });
 });

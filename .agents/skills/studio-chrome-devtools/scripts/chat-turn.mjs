@@ -29,6 +29,9 @@ export default async (app, args) => {
   }
   if (args.chat && args.answer) {
     for (const ask of await openAsks(app, args.chat)) {
+      if (ask.kind === "question") {
+        continue;
+      }
       await app.rpc("workspace.permissions.answer", {
         askId: ask.id,
         decision: args.answer,
@@ -95,14 +98,14 @@ async function firstModel(app) {
   return first.uri;
 }
 
-/** The chat's open cards, oldest first, as its cards draw them. */
+/** The chat's open cards, oldest first, as its cards draw them: permission asks and questions. */
 const openAsks = (app, chat) =>
-  app.rpcFirst("workspace.permissions.liveAsks", { id: chat });
+  app.rpcFirst("workspace.chats.live.asks", { id: chat });
 
 /**
  * Idle has to hold for two seconds once the chat has been seen working, and
  * eight when it never was, since a chat reads idle before its turn starts. A
- * card ends the wait at once: the turn is parked until someone answers it.
+ * card ends the wait at once: the chat stands on it until someone answers it.
  */
 async function waitForTurn(app, chat, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
@@ -114,7 +117,11 @@ async function waitForTurn(app, chat, timeoutMs) {
     if (asks.length > 0) {
       return {
         sawBusy,
-        waitingOn: asks.map(({ id, kind, target }) => ({ id, kind, target })),
+        waitingOn: asks.map(({ id, kind, question, target }) => ({
+          id,
+          kind,
+          target: target ?? question,
+        })),
       };
     }
     if (info?.state === "working") {

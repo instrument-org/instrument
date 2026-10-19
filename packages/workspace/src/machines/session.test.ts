@@ -39,11 +39,13 @@ import {
   killSessionBackgroundProcesses,
   listBackgroundProcesses,
 } from "../lib/background-processes";
+import { openAsks } from "../lib/chat/asks";
 import * as children from "../lib/chat/children";
 import * as bashEnv from "../lib/create-bash-env";
 import * as recordFolders from "../lib/record-folders";
-import { Store } from "../lib/store";
-import { getWorkspaceConfig } from "../lib/workspace-config";
+import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
+import { chatRecords } from "../lib/records/chat-records";
 import { publisher } from "../rpc/publisher";
 import { type RelativePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -93,8 +95,8 @@ describe("sessionMachine", () => {
   const chatFolder = "pj-test";
 
   /**
-   * Runs the session as a chat's, where a question waits on the user; a
-   * task's question has nobody to wait on, and answers at once.
+   * Runs the session as a chat's, where a question goes on a card; a task's
+   * question has nobody to see it, and fails.
    */
   function answersAsChat() {
     vi.spyOn(recordFolders, "resolveChat").mockImplementation((id) =>
@@ -234,7 +236,11 @@ describe("sessionMachine", () => {
     );
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // The chat's records stay folded in memory for as long as anything holds
+    // the chat, so letting go of it is what keeps one case's messages out of
+    // the next, which all of them write into the same session.
+    await chatRecords().close(ChatIdSchema.parse(chatFolder));
     mockFs.restore();
     vi.restoreAllMocks();
   });
@@ -325,7 +331,7 @@ describe("sessionMachine", () => {
       },
     );
 
-    await Store.saveSession(
+    await ChatWrites.saveSession(
       {
         createdAt: mockDate,
         id: sessionId,
@@ -353,6 +359,7 @@ describe("sessionMachine", () => {
         } as unknown as AnyActorRef,
         queuedMessages,
         runRequested,
+        savedMessageIds: [],
         sessionId,
         chatId: testTaskConfig,
       },
@@ -413,7 +420,7 @@ describe("sessionMachine", () => {
   }) {
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
-    return Store.getSessionWithMessagesAndParts(sessionId, chatId);
+    return ChatReads.sessionWithMessages({ chatId, sessionId });
   }
 
   async function createAndRunTestMachine(
@@ -425,10 +432,8 @@ describe("sessionMachine", () => {
 
   beforeEach(() => {
     mockFs({
-      [MOCK_WORKSPACE_DIRS.chatTemplate]: {
-        "package.json": "{}",
-      },
-      [MOCK_WORKSPACE_DIRS.chats]: {
+      [MOCK_WORKSPACE_DIRS.chats]: { [chatFolder]: {} },
+      [MOCK_WORKSPACE_DIRS.work]: {
         [chatFolder]: {
           "image.png": mockFs.load(
             path.resolve(
@@ -436,7 +441,6 @@ describe("sessionMachine", () => {
               "../../fixtures/assets/image.png",
             ),
           ),
-          "package.json": "{}",
           "test.txt": "Hello, world!",
         },
       },
@@ -542,14 +546,14 @@ describe("sessionMachine", () => {
             </input>
             <output>
               {
-                "base64Data": "iVBORw0KGgoAAAANSUhEUgAAAGQAAABLAQMAAAC81rD0AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEUAAP7////DYP5JAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAALEgAACxIB0t1+/AAAAAd0SU1FB+QIGBcKN7/nP/UAAAASSURBVDjLY2AYBaNgFIwCdAAABBoAAaNglfsAAAAZdEVYdGNvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVDnr0DLAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIwLTA4LTI0VDIzOjEwOjU1KzAzOjAwkHdeuQAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMC0wOC0yNFQyMzoxMDo1NSswMzowMOEq5gUAAAAASUVORK5CYII=",
                 "filePath": "./image.png",
                 "mimeType": "image/png",
                 "state": "image",
                 "height": 75,
                 "viewHeight": 75,
                 "viewWidth": 100,
-                "width": 100
+                "width": 100,
+                "base64Data": "iVBORw0KGgoAAAANSUhEUgAAAGQAAABLAQMAAAC81rD0AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEUAAP7////DYP5JAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAALEgAACxIB0t1+/AAAAAd0SU1FB+QIGBcKN7/nP/UAAAASSURBVDjLY2AYBaNgFIwCdAAABBoAAaNglfsAAAAZdEVYdGNvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVDnr0DLAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIwLTA4LTI0VDIzOjEwOjU1KzAzOjAwkHdeuQAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMC0wOC0yNFQyMzoxMDo1NSswMzowMOEq5gUAAAAASUVORK5CYII="
               }
             </output>
           </tool>
@@ -853,13 +857,13 @@ describe("sessionMachine", () => {
         </user>
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
-          <tool tool="read_file" state="output-error" callId="test-call-1">
+          <tool tool="unavailable" state="output-error" callId="test-call-1">
             <input>
               {
                 "filePath": "test.txt"
               }
             </input>
-            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, web_fetch, web_search, write_file.</error>
+            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, web_fetch, web_search, write_file.</error>
           </tool>
         </assistant>
         <session-context instrument realRole="system" />
@@ -1076,7 +1080,10 @@ describe("sessionMachine", () => {
     });
     await runTestMachine(result);
     stop();
-    expect([...kinds].toSorted()).toEqual(["agent", "messages", "session"]);
+    // Its messages and its agent, and nothing of the session itself: a
+    // session's own records are its header, where its context was reset, who
+    // stopped it and what it was told, and a turn writes none of those.
+    expect([...kinds].toSorted()).toEqual(["agent", "messages"]);
   });
 
   it("should stop agents during llm request", async () => {
@@ -1199,7 +1206,7 @@ describe("sessionMachine", () => {
     finishOnFinish?.();
   });
 
-  it("should handle interactive tool calls with choose tool", async () => {
+  it("ends the turn on a chat's choose and leaves the question open", async () => {
     answersAsChat();
     const result = await createActorAndTask({
       agent: setupAgent({
@@ -1214,27 +1221,6 @@ describe("sessionMachine", () => {
       })),
       chunkSets: [chooseChunks, finishChunks],
     });
-
-    result.actor.start();
-
-    // Wait for the agent to reach the WaitingForPendingToolCalls state
-    await waitFor(result.actor, (state) => state.matches({ Agent: "Paused" }));
-
-    // Send the tool call update to simulate user selection
-    result.actor.send({
-      type: "updateInteractiveToolCall",
-      value: {
-        toolCallId: chooseToolCallId,
-        type: "success",
-        value: {
-          output: { selectedChoice: "Continue" },
-          toolName: "choose",
-        },
-      },
-    });
-
-    // Wait for the actor to complete
-    await waitFor(result.actor, (state) => state.status === "done");
 
     const session = await runTestMachine(result);
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
@@ -1257,7 +1243,7 @@ describe("sessionMachine", () => {
             </input>
             <output>
               {
-                "selectedChoice": "Continue"
+                "asked": true
               }
             </output>
           </tool>
@@ -1270,98 +1256,16 @@ describe("sessionMachine", () => {
         </assistant>
       </session>"
     `);
-  });
-
-  // The card is answerable once the call has streamed, and the step that
-  // made it can still be running: an answer that quick has to wait for the
-  // step to end rather than find nothing pending and vanish.
-  it("keeps an answer that arrives before the step ends", async () => {
-    answersAsChat();
-    const result = await createActorAndTask({
-      agent: setupAgent({
-        agentTools: pick(TOOLS, ["Choose"]),
-        name: "instrument",
-      }).create(() => ({
-        getMessages: instrumentAgent.getMessages,
-        onFinish: instrumentAgent.onFinish,
-        onStart: instrumentAgent.onStart,
-        shouldContinue: instrumentAgent.shouldContinue,
-        systemPrompt: instrumentAgent.systemPrompt,
-      })),
-      chunkDelayMs: 100,
-      chunkSets: [chooseChunks, finishChunks],
-    });
-
-    const abort = new AbortController();
-    void (async () => {
-      for await (const { part } of publisher.subscribe("part.updated", {
-        signal: abort.signal,
-      })) {
-        if (part.type === "tool-choose" && part.state === "input-available") {
-          expect(result.actor.getSnapshot().matches({ Agent: "Paused" })).toBe(
-            false,
-          );
-          result.actor.send({
-            type: "updateInteractiveToolCall",
-            value: {
-              toolCallId: chooseToolCallId,
-              type: "success",
-              value: {
-                output: { declined: true },
-                toolName: "choose",
-              },
-            },
-          });
-          return;
-        }
-      }
-    })().catch(noop);
-
-    const stored = await runTestMachine(result);
-    const session = stored._unsafeUnwrap();
-    abort.abort();
-
-    const choose = session.messages
-      .flatMap((message) => message.parts)
-      .find((part) => part.type === "tool-choose");
-    expect(choose).toMatchObject({
-      output: { declined: true },
-      state: "output-available",
-    });
-  });
-
-  it("stops while a choose is pending without an unhandled event", async () => {
-    answersAsChat();
-    const result = await createActorAndTask({
-      agent: setupAgent({
-        agentTools: pick(TOOLS, ["Choose"]),
-        name: "instrument",
-      }).create(() => ({
-        getMessages: instrumentAgent.getMessages,
-        onFinish: instrumentAgent.onFinish,
-        onStart: instrumentAgent.onStart,
-        shouldContinue: instrumentAgent.shouldContinue,
-        systemPrompt: instrumentAgent.systemPrompt,
-      })),
-      chunkSets: [chooseChunks],
-    });
-    const captureException = vi.spyOn(getWorkspaceConfig(), "captureException");
-
-    result.actor.start();
-    await waitFor(result.actor, (state) => state.matches({ Agent: "Paused" }));
-    result.actor.send({ type: "stop" });
-    await waitFor(result.actor, (state) => state.status === "done");
-
-    const unhandled = captureException.mock.calls.filter(
-      ([error]) =>
-        error instanceof Error && error.message.startsWith("Unhandled event"),
-    );
-    expect(unhandled).toEqual([]);
+    expect(
+      (await openAsks(ChatIdSchema.parse(chatFolder))).map((ask) =>
+        ask.kind === "question" ? ask.question : ask.target,
+      ),
+    ).toEqual(["What would you like to do next?"]);
   });
 
   /** Why each reply a session's turn cut off was cut off, oldest first. */
   function abortReasons(
-    session: Awaited<ReturnType<typeof Store.getSessionWithMessagesAndParts>>,
+    session: Awaited<ReturnType<typeof ChatReads.sessionWithMessages>>,
   ) {
     return session
       ._unsafeUnwrap()
@@ -1381,10 +1285,10 @@ describe("sessionMachine", () => {
     result.actor.start();
     // The reply is stored as its request goes out, before any of it arrives.
     await vi.waitFor(async () => {
-      const session = await Store.getSessionWithMessagesAndParts(
-        result.sessionId,
-        result.chatId,
-      );
+      const session = await ChatReads.sessionWithMessages({
+        chatId: result.chatId,
+        sessionId: result.sessionId,
+      });
       expect(
         session
           ._unsafeUnwrap()
@@ -1397,10 +1301,10 @@ describe("sessionMachine", () => {
     await vi.waitFor(async () => {
       expect(
         abortReasons(
-          await Store.getSessionWithMessagesAndParts(
-            result.sessionId,
-            result.chatId,
-          ),
+          await ChatReads.sessionWithMessages({
+            chatId: result.chatId,
+            sessionId: result.sessionId,
+          }),
         ),
       ).toEqual(["manual"]);
     });
@@ -1528,8 +1432,8 @@ describe("sessionMachine", () => {
     result.actor.start();
 
     // First attempt: one chunk and then silence, so the deadline expires and
-    // the agent retries. The clock waits for the streamed tool call to be
-    // stored, since the aborted message is expected to carry it.
+    // the agent retries. The clock waits for the turn to be holding the
+    // streamed tool call, since the aborted message is expected to carry it.
     const stalled = await waitForAttempt(0);
     const agentRef = result.actor.getSnapshot().context.agentRef;
     if (!agentRef) {
@@ -1539,13 +1443,15 @@ describe("sessionMachine", () => {
     stalled.push(readFileChunks[0]);
     await vi.waitFor(
       async () => {
-        const session = await Store.getSessionWithMessagesAndParts(
-          result.sessionId,
-          result.chatId,
-        );
-        expect(sessionToShorthand(session)).toContain(
-          'state="input-streaming"',
-        );
+        // The transcript, since a call still arriving is the turn's own
+        // memory rather than anything the session's messages hold.
+        const transcript = await ChatReads.transcript({
+          chatId: result.chatId,
+          sessionId: result.sessionId,
+        });
+        expect(
+          transcript._unsafeUnwrap().flatMap((message) => message.parts),
+        ).toContainEqual(expect.objectContaining({ state: "input-streaming" }));
       },
       { interval: 5, timeout: 10_000 },
     );
@@ -1587,7 +1493,7 @@ describe("sessionMachine", () => {
             <input>
               "none"
             </input>
-            <error>This action was stopped.</error>
+            <error>This action was cut off before it could run.</error>
           </tool>
         </assistant>
         <session-context instrument realRole="system" />
@@ -1952,7 +1858,7 @@ describe("sessionMachine", () => {
           role: "user",
         };
         if (saved) {
-          await Store.saveMessageWithParts(steer, result.chatId);
+          await ChatWrites.saveMessageWithParts(steer, result.chatId);
         }
         result.actor.send({
           model: createMockAIGatewayModel(),
@@ -2043,7 +1949,7 @@ describe("sessionMachine", () => {
       it("joins the turn at its next step, marked as sent mid-turn", async () => {
         const result = await startChatTurn();
         const message = typed("b/c it's for the release notes");
-        await Store.saveMessageWithParts(message, result.chatId);
+        await ChatWrites.saveMessageWithParts(message, result.chatId);
         result.actor.send({
           model: createMockAIGatewayModel(),
           saved: true,
@@ -2156,9 +2062,9 @@ describe("sessionMachine", () => {
         }
       }, 30_000);
 
-      // A message that calls the work off stops it where it is, and runs
-      // next as a turn of its own, with no note.
-      it("stops the turn when it calls the work off", async () => {
+      // A typed "stop" is a message like any other: it joins the turn, and
+      // the agent decides what it means.
+      it("joins the turn when it says stop, which only the Stop button cuts off", async () => {
         const result = await startChatTurn();
         result.actor.send({
           model: createMockAIGatewayModel(),
@@ -2168,10 +2074,10 @@ describe("sessionMachine", () => {
 
         const session = await runTestMachine(result);
         const shorthand = sessionToShorthand(session);
-        expect(shorthand).toContain(
+        expect(shorthand).not.toContain(
           "<error>This action was interrupted by a newer message from the user, and may not have finished.</error>",
         );
-        expect(shorthand).not.toContain("<data-intent>");
+        expect(shorthand).toContain("<data-intent>");
       });
     });
   });
@@ -2217,8 +2123,11 @@ describe("sessionMachine", () => {
         queuedMessages: [],
         runRequested: true,
       });
-      await Store.saveMessageWithParts(defaultQueuedMessage, result.chatId);
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
+        defaultQueuedMessage,
+        result.chatId,
+      );
+      await ChatWrites.saveMessageWithParts(
         createFailedAssistantMessage(),
         result.chatId,
       );
@@ -2259,8 +2168,11 @@ describe("sessionMachine", () => {
         queuedMessages: [],
         runRequested: true,
       });
-      await Store.saveMessageWithParts(defaultQueuedMessage, result.chatId);
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
+        defaultQueuedMessage,
+        result.chatId,
+      );
+      await ChatWrites.saveMessageWithParts(
         createFailedAssistantMessage(),
         result.chatId,
       );

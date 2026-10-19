@@ -4,11 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-import {
-  identityOf,
-  type JournalEntry,
-} from "@/electron-main/lib/file-journal";
-import { getFileJournal } from "@/electron-main/stores/machine/file-journal";
+import { fileJournal, identityOf } from "@/electron-main/lib/file-journal";
 
 import { type InitialRPCContext } from "../context";
 import { files } from "./files";
@@ -22,19 +18,17 @@ vi.mock("@/electron-main/lib/mac-native", () => ({
   resolveAlias: (filePath: string) =>
     Promise.resolve(aliasTargets.get(filePath)),
 }));
-// The journal kept in memory rather than in the machine's store.
-vi.mock("@/electron-main/stores/machine/file-journal", async () => {
-  const { createFileJournal } =
-    await import("@/electron-main/lib/file-journal");
-  let entries: JournalEntry[] = [];
-  const journal = createFileJournal({
-    read: () => entries,
-    write: (next) => {
-      entries = next;
-    },
-  });
-  return { getFileJournal: () => journal };
-});
+// The app's own data, which `refused-files.ts` rules on, stood in for by
+// whatever folders `closedFolders` names.
+const closedFolders: string[] = [];
+const isClosed = (filePath: string) =>
+  closedFolders.some(
+    (folder) => filePath === folder || filePath.startsWith(`${folder}/`),
+  );
+vi.mock("@/electron-main/lib/refused-files", () => ({
+  isRefusedByName: (filePath: string) => isClosed(filePath),
+  isRefusedFile: (filePath: string) => Promise.resolve(isClosed(filePath)),
+}));
 
 // Neither route reads its context, and the base it is built on is mocked
 // out, so an empty one stands in for the window's.
@@ -45,7 +39,24 @@ beforeEach(async () => {
   dir = await fs.mkdtemp(path.join(tmpdir(), "files-route-"));
 });
 afterEach(async () => {
+  closedFolders.length = 0;
   await fs.rm(dir, { force: true, recursive: true });
+});
+
+it("neither reads nor writes the app's own data", async () => {
+  const keys = path.join(dir, "keys");
+  const file = path.join(keys, "session.json");
+  await fs.mkdir(keys);
+  await fs.writeFile(file, "secret");
+  closedFolders.push(keys);
+
+  await expect(call(files.read, { path: file }, options)).rejects.toMatchObject(
+    { code: "FORBIDDEN" },
+  );
+  await expect(
+    call(files.write, { content: "replaced", path: file }, options),
+  ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  expect(await fs.readFile(file, "utf8")).toBe("secret");
 });
 
 it("lets only one of two writers holding the same version write", async () => {
@@ -160,7 +171,7 @@ async function journalTrash(
   await fs.writeFile(notes, "notes");
   const identity = await identityOf(notes);
   if (!identity) throw new Error("notes.txt is not there");
-  getFileJournal().record({
+  fileJournal.record({
     from: notes,
     identity,
     kind: "trash",
@@ -180,7 +191,7 @@ it("drops a move to the Trash it can never put back once it has said why", async
   });
 
   await expect(call(files.undo, undefined, options)).rejects.toThrow(
-    "Put “notes.txt” back from the",
+    "Instrument couldn't find “notes.txt” in the",
   );
   expect(await call(files.undo, undefined, options)).toMatchObject({
     kind: "new-folder",
@@ -225,4 +236,28 @@ it("keeps a move to the Trash whose name is taken until the way is clear", async
     path: notes,
   });
   expect(await fs.readFile(notes, "utf8")).toBe("notes");
+});
+
+it("links a picture below the folder in place and copies one from elsewhere beside it", async () => {
+  const folder = path.join(dir, "notes");
+  await fs.mkdir(path.join(folder, "shots"), { recursive: true });
+  const inside = path.join(folder, "shots", "a.png");
+  const outside = path.join(dir, "a.png");
+  await fs.writeFile(inside, "inside");
+  await fs.writeFile(outside, "outside");
+  await fs.writeFile(path.join(folder, "a.png"), "taken");
+
+  const linked = await call(files.addFile, { folder, from: inside }, options);
+  const copied = await call(files.addFile, { folder, from: outside }, options);
+  const pasted = await call(
+    files.addFile,
+    { content: Buffer.from("bytes").toString("base64"), folder, name: "a.png" },
+    options,
+  );
+
+  expect(
+    [linked, copied, pasted].map((result) => path.relative(dir, result.path)),
+  ).toEqual(["notes/shots/a.png", "notes/a 2.png", "notes/a 3.png"]);
+  expect(await fs.readFile(copied.path, "utf8")).toBe("outside");
+  expect(await fs.readFile(pasted.path, "utf8")).toBe("bytes");
 });

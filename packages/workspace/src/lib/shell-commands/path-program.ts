@@ -4,22 +4,29 @@ import {
   type ExternalCommandResolver,
 } from "just-bash";
 import { constants } from "node:fs";
-import { access, open, stat } from "node:fs/promises";
+import { access, open, realpath, stat } from "node:fs/promises";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
+import { type Asker } from "../chat/asks";
+import { appRefusal, type MacApp, REACHABLE_APPS } from "../permissions/apps";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { nodeToolsEnv } from "../tool-isolation";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
-import { hostPathOf, shellPath } from "../workspace-fs-layout";
 import {
+  hostPathOf,
+  noteFoundProgram,
+  shellPath,
+} from "../workspace-fs-layout";
+import {
+  binaryStdout,
   collapseProgress,
-  execShim,
   mapStreams,
   shimOutput,
 } from "./exec-shim";
+import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 type PathLookup = {
@@ -140,12 +147,12 @@ async function runsNatively(hostPath: string): Promise<boolean> {
 }
 
 /**
- * The PATH a program is looked up on: the app's own, with this chat's
- * virtualenv and the bundled uv ahead of it, the same PATH a native command
- * and the scripts it starts run with.
+ * The PATH a program is looked up on from `cwd` (a shell path): the app's
+ * own, with the virtualenv nearest it and the bundled uv ahead of it, the
+ * same PATH a native command and the scripts it starts run with.
  */
-function programPath(chatId: ChatId) {
-  return uvSubprocessEnv({ chatId }).PATH;
+function programPath(chatId: ChatId, cwd: string) {
+  return uvSubprocessEnv({ chatId, cwd: hostPathOf(cwd) }).PATH;
 }
 
 /**
@@ -156,49 +163,91 @@ function programPath(chatId: ChatId) {
  */
 export function createPathProgramResolver(
   chatId: ChatId,
+  /** The session a program's refusal for one of the person's apps tells what to ask for. */
+  asker?: Asker,
 ): ExternalCommandResolver {
   return async (name, { cwd }) => {
     if (name.includes("/")) {
       const hostPath = hostPathOf(nodePath.posix.resolve(cwd, name));
       return (await runsNatively(hostPath))
         ? {
-            command: createPathProgramCommand(chatId, name, hostPath),
+            command: createPathProgramCommand(chatId, name, hostPath, asker),
             path: shellPath(hostPath),
           }
         : undefined;
     }
     const [hostPath] = await programsOnPath(name, {
-      path: programPath(chatId),
+      path: programPath(chatId, cwd),
       pathExt: hostEnv("PATHEXT"),
     });
-    return hostPath === undefined
-      ? undefined
-      : {
-          command: createPathProgramCommand(chatId, name, hostPath),
-          path: shellPath(hostPath),
-        };
+    if (hostPath === undefined) {
+      return undefined;
+    }
+    const programShellPath = shellPath(hostPath);
+    noteFoundProgram(programShellPath);
+    return {
+      command: createPathProgramCommand(chatId, name, hostPath, asker),
+      path: programShellPath,
+    };
   };
 }
 
-/** Every program a name names on the PATH programs are looked up on. */
-export async function pathProgramsNamed(chatId: ChatId, name: string) {
+/**
+ * Every program a name names on the PATH programs are looked up on from
+ * `cwd` (a shell path).
+ */
+export async function pathProgramsNamed(
+  chatId: ChatId,
+  name: string,
+  cwd: string,
+) {
   const found = await programsOnPath(name, {
-    path: programPath(chatId),
+    path: programPath(chatId, cwd),
     pathExt: hostEnv("PATHEXT"),
   });
   return found.map((hostPath) => shellPath(hostPath));
 }
 
 /**
+ * The app a program acts through (`REACHABLE_APPS`), by where it is or where
+ * a link to it leads, if it is one.
+ */
+async function programApp(hostPath: string): Promise<MacApp | undefined> {
+  if (process.platform !== "darwin") {
+    return undefined;
+  }
+  let resolved = hostPath;
+  try {
+    resolved = await realpath(hostPath);
+  } catch {
+    // Left to fail as itself.
+  }
+  return REACHABLE_APPS.find(({ programs }) => programs.includes(resolved))
+    ?.app;
+}
+
+/**
  * The program at `hostPath` as a native command: in the shell's working
  * directory, with the environment and sandbox every native command gets.
+ * One that acts through one of the person's apps first asks for the app,
+ * as the commands made for an app do.
  */
 function createPathProgramCommand(
   chatId: ChatId,
   name: string,
   hostPath: string,
+  asker: Asker | undefined,
 ): Command {
-  return defineCommand(name, async (args, ctx) => {
+  const command = defineCommand(name, async (args, ctx) => {
+    const app = await programApp(hostPath);
+    const refused = app && (await appRefusal(chatId, app, asker));
+    if (refused) {
+      return {
+        exitCode: 1,
+        stderr: `${name}: refused: ${refused}\n`,
+        stdout: "",
+      };
+    }
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
     // cmd.exe runs a batch file; CreateProcess cannot.
@@ -208,25 +257,33 @@ function createPathProgramCommand(
           ["/d", "/s", "/c", hostPath, ...hostPathArgs(args)],
         ]
       : [hostPath, hostPathArgs(args)];
-    const result = await execShim(file, fileArgs, {
-      cancelSignal: ctx.signal,
-      cwd: hostCwd,
-      env: {
-        ...getWorkspaceConfig().nodeExecEnv,
-        ...env,
-        // A program that builds or installs packages uses the app's own npm
-        // config, store and node-gyp headers, never the person's.
-        ...nodeToolsEnv(),
-        // After ...env so the bundled ffmpeg dirs win over the shell's PATH.
-        ...ffmpegSubprocessEnv(env.PATH),
-      },
-      ...(stdin ? { input: stdin } : { stdin: "ignore" }),
-    });
-    return {
-      exitCode: result.exitCode ?? 1,
-      ...mapStreams(shimOutput(result, name), (text) =>
-        filterShellOutput(collapseProgress(text)),
-      ),
+    const programEnv = {
+      ...getWorkspaceConfig().nodeExecEnv,
+      ...env,
+      // A program that builds or installs packages uses the app's own npm
+      // config, store and node-gyp headers, never the person's.
+      ...nodeToolsEnv(),
+      // After ...env so the bundled ffmpeg dirs win over the shell's PATH.
+      ...ffmpegSubprocessEnv(env.PATH),
     };
+    return runNative(
+      ctx,
+      file,
+      fileArgs,
+      {
+        cancelSignal: ctx.signal,
+        cwd: hostCwd,
+        env: programEnv,
+        ...(stdin ? { input: stdin } : { stdin: "ignore" as const }),
+      },
+      (result) => ({
+        exitCode: result.exitCode ?? 1,
+        ...mapStreams(shimOutput(result, name), (text) =>
+          filterShellOutput(collapseProgress(text)),
+        ),
+        ...binaryStdout(result),
+      }),
+    );
   });
+  return { ...command, acceptsPipeHandoff: true };
 }

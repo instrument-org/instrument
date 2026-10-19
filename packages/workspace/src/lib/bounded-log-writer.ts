@@ -31,14 +31,15 @@ export class BoundedLogWriter {
   private writeError?: Error;
 
   constructor({
+    fd,
     maxContentBytes,
-    path,
   }: {
+    /** The log, opened to write; closed with the stream. */
+    fd: number;
     maxContentBytes: number;
-    path: string;
   }) {
     this.maxContentBytes = maxContentBytes;
-    this.stream = fs.createWriteStream(path, { flags: "w" });
+    this.stream = fs.createWriteStream("", { fd });
     this.closedPromise = new Promise((resolve) => {
       this.stream.once("close", resolve);
     });

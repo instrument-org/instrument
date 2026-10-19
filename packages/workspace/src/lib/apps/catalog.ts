@@ -73,7 +73,7 @@ const AppCatalogEntrySchema = z.object({
    */
   accountHome: z.string().optional(),
   /**
-   * The ways in, tried in the order `app catalog` describes: a hosted MCP
+   * The ways in, tried in the order `instrument app catalog` describes: a hosted MCP
    * server, one that runs here, an API a key opens, the Mac's own app, and
    * last the web app at `home`.
    */
@@ -461,11 +461,11 @@ export async function searchAppCatalogByMeaning(
   {
     configs,
     signal,
-    usage,
+    activity,
   }: {
     configs: Parameters<typeof askDecisionModel>[0]["configs"];
     signal?: AbortSignal;
-    usage: Parameters<typeof askDecisionModel>[0]["usage"];
+    activity: Parameters<typeof askDecisionModel>[0]["activity"];
   },
 ): Promise<AppCatalogEntry[]> {
   const browsed = getAppCatalog().filter((entry) => entry.tier !== "hidden");
@@ -475,7 +475,7 @@ export async function searchAppCatalogByMeaning(
       body: appMeaningRequest(query, browsed),
       configs,
       signal,
-      usage,
+      activity,
     });
     return pickMeant(asked?.response.answers ?? {}).flatMap((slug) => {
       const entry = bySlug.get(slug);

@@ -6,16 +6,29 @@ import { noopModelCache } from "@instrument-org/ai-gateway/model-cache";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { afterAll, beforeAll } from "vitest";
 
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
+import {
+  mxcTestConfig,
+  mxcTestDataDir,
+  mxcTestWorkFoldersDir,
+} from "./helpers/mxc-test-config";
 import { setWorkspaceConfig } from "../lib/workspace-config";
+import { workspaceLayout } from "../lib/workspace-layout";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { unavailableWebSearchClient } from "../schemas/web-search";
+import { newDeviceId } from "../lib/records/device-id";
 
 const rootDir = fs.mkdtempSync(
   path.join(os.tmpdir(), "instrument-workspace-test-"),
 );
 const tasksDir = path.join(rootDir, "tasks");
+const layout = workspaceLayout(rootDir);
+// Outside the workspace, as this computer's folder for it is.
+const machineDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "instrument-workspace-machine-test-"),
+);
 const noop = () => {
   return;
 };
@@ -34,7 +47,7 @@ const rejectBrowserTarget = () => {
 // `vi.mock(import("ulid"))` runs in snapshot tests.
 setWorkspaceConfig({
   apps: createMemoryAppsConfig(),
-  appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
+  appsDir: AbsolutePathSchema.parse(layout.appsDir),
   appVersion: "0.0.0-test",
   browser: {
     closeTarget: () => Promise.resolve(),
@@ -55,28 +68,74 @@ setWorkspaceConfig({
     subscribeEvents: noopCleanup,
   },
   captureException: noop,
-  chatTemplateDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "chat-template"),
-  ),
+  deviceId: newDeviceId(),
   getAIProviderConfigs: () => [],
   modelCache: noopModelCache,
   nodeExecEnv: {},
   pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
-  preparedSkillsDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "prepared-skills"),
-  ),
   registryDir: AbsolutePathSchema.parse(path.join(rootDir, "registry")),
   rootDir: WorkspaceDirSchema.parse(rootDir),
+  runtimeDir: AbsolutePathSchema.parse(path.join(rootDir, "runtime")),
   systemSkillsDir: AbsolutePathSchema.parse(
     path.join(rootDir, "system-skills"),
   ),
-  chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
+  chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
   legacyTasksDir: WorkspaceDirSchema.parse(tasksDir),
   tempFolders: [],
   trashItem: () => Promise.resolve(),
   uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
-  uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
   webSearch: unavailableWebSearchClient,
+  workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
+  userDataDir: AbsolutePathSchema.parse(machineDir),
+  workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
+  ...mxcTestConfig(),
+});
+
+// A chat is written through its records, so every test has them, in its own
+// temporary chats folder, the way the workspace puts them in place as it
+// opens. `chatDir` is read per write, so a test that points the config at
+// another folder is followed there. Nothing is synced: nothing here has to
+// survive a power cut.
+// Imported in a hook rather than at the top of this file: the records reach
+// `store-id` for the ids they read, and anything this setup imports is loaded
+// before a test file's `vi.mock(import("ulid"))` is registered, which would
+// leave every snapshot of an id unmocked.
+let testRecords: import("../lib/records/chat-records").ChatRecords | undefined;
+
+beforeAll(async () => {
+  const [{ ChatRecords, installChatRecords }, { chatDir }] = await Promise.all([
+    import("../lib/records/chat-records"),
+    import("../lib/record-folders"),
+  ]);
+  testRecords = new ChatRecords({
+    app: "0.0.0-test",
+    device: newDeviceId(),
+    dirOf: chatDir,
+    fsync: false,
+  });
+  installChatRecords(testRecords);
+});
+
+afterAll(async () => {
+  const { installChatRecords } = await import("../lib/records/chat-records");
+  installChatRecords(undefined);
+  await testRecords?.dispose();
+  testRecords = undefined;
+  // The folders this file made, which are a test file's each: left
+  // behind, a run of the suite adds a few hundred to the machine's temporary
+  // folder, and enough runs fill it to the point where nothing on the
+  // machine can make another one.
+  for (const dir of [
+    rootDir,
+    machineDir,
+    mxcTestDataDir(),
+    mxcTestWorkFoldersDir(),
+  ]) {
+    if (dir === undefined) {
+      continue;
+    }
+    fs.rmSync(dir, { force: true, recursive: true });
+  }
 });
 
 // Shells run on the test's own thread, where `vi.mock` reaches them, unless

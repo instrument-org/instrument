@@ -8,7 +8,6 @@ import { DatabaseSync } from "node:sqlite";
 import { ulid } from "ulid";
 
 import {
-  CHATS_DIR_NAME,
   CHAT_DB_FILE_NAME,
   LEGACY_TASK_DB_FILE_NAME,
   CHAT_FOLDER_NAMES,
@@ -23,6 +22,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { chatFolderName } from "./chat-folder-name";
+import { toTheSecond } from "./chat/topic-file";
 import {
   newTopicId,
   readTopicsSync,
@@ -36,16 +36,18 @@ import { forgetChatFolders } from "./record-folders";
 import { isRecord } from "./skills";
 import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
 import { StorageKey } from "./storage-key";
+import { workspaceLayout } from "./workspace-layout";
 
-// Where what the move leaves behind is kept, so a migration that went wrong
-// can be undone by hand: the projects, once their topics are written, the
-// tasks with nothing the user said in them, and each chat's 1.x settings and
-// database as the task had them.
-const BACKUP_DIR_NAME = ".pre-chats";
+// What the move leaves behind is kept in the workspace's set-aside folder, so a
+// migration that went wrong can be undone by hand: the projects, once their
+// topics are written, the tasks with nothing the user said in them, each
+// chat's 1.x settings and database as the task had them, and anything found
+// holding the name a chat is staged under.
 const LEGACY_PROJECTS_DIR_NAME = "projects";
 const PROJECT_INSTRUCTIONS_FILE_NAME = "AGENTS.md";
 const EMPTY_TASKS_DIR_NAME = "empty-tasks";
 const TASK_RECORDS_DIR_NAME = "task-records";
+const STAGED_CHATS_DIR_NAME = "staged-chats";
 
 // What a task carries while it is staged as a chat: the chat's database and
 // settings, written beside the task's own and put in their place once the
@@ -76,6 +78,12 @@ export interface LegacyTasksMigration {
   leftOver: number;
   /** Topics written for projects that matched none. */
   topicCount: number;
+  /**
+   * Tasks left where they are, named, because the database holding their
+   * conversation could not be read: a person can look at one, and no later
+   * boot reads it any better, so they are not counted as left over.
+   */
+  unreadable: string[];
 }
 
 interface ConversationMessage {
@@ -133,9 +141,10 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     emptyCount: 0,
     leftOver: 0,
     topicCount: 0,
+    unreadable: [],
   };
   const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
-  const chatsDir = path.join(rootDir, CHATS_DIR_NAME);
+  const { chatsDir } = workspaceLayout(rootDir);
   const staged = finishStagedChats(chatsDir, rootDir);
   const legacy = readDirs(tasksDir).filter((name) =>
     isLegacyTask(path.join(tasksDir, name)),
@@ -163,10 +172,12 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     }
   }
 
-  // Every name in use, so a chat's name is unique across the chats, the tasks
-  // inside them, and the tasks no chat owns.
+  // Every name in use, so a chat's name is unique across the chats, the
+  // chats an earlier boot staged and could not name yet, the tasks inside
+  // them, and the tasks no chat owns.
   const taken = new Set([
     ...readDirs(chatsDir),
+    ...readDirs(chatsDir).flatMap((name) => stagedChatName(name) ?? []),
     ...readDirs(chatsDir).flatMap((chat) =>
       readDirs(path.join(chatsDir, chat, TASKS_DIR_NAME)),
     ),
@@ -185,6 +196,8 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
       });
       if (adopted.kind === "empty") {
         migration.emptyCount += 1;
+      } else if (adopted.kind === "unreadable") {
+        migration.unreadable.push(path.join(tasksDir, name));
       } else {
         migration.adoptedCount += 1;
         stagedDirs.push(adopted.stagingDir);
@@ -215,14 +228,18 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     try {
       moveAside(
         project.source,
-        path.join(rootDir, BACKUP_DIR_NAME, LEGACY_PROJECTS_DIR_NAME, name),
+        path.join(
+          workspaceLayout(rootDir).setAsideDir,
+          LEGACY_PROJECTS_DIR_NAME,
+          name,
+        ),
       );
     } catch {
       migration.leftOver += 1;
     }
   }
-  // Only an empty folder goes: a file the user left beside the projects is
-  // theirs, and keeps the folder where it was.
+  // Only an empty folder goes: what else is in it, a file beside the
+  // projects, the layout sweep sets aside after this.
   if (fs.existsSync(projectsDir) && fs.readdirSync(projectsDir).length === 0) {
     fs.rmdirSync(projectsDir);
   }
@@ -234,8 +251,9 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
 /**
  * One task made into a staged chat, which the caller names once every task
  * has been staged; or set aside, for the tutorial and a task the user
- * never said anything in. Throws when anything fails, leaving the task where
- * it was and no chat staged.
+ * never said anything in; or left where it is, for one whose database could
+ * not be read. Throws when anything fails, leaving the task where it was and
+ * no chat staged.
  */
 function adoptTask({
   chatsDir,
@@ -256,20 +274,30 @@ function adoptTask({
       kind: "adopted";
       stagingDir: string;
     }
-  | { kind: "empty" } {
+  | { kind: "empty" }
+  | { kind: "unreadable" } {
   const taskName = path.basename(chatDir);
   const privateDir = path.join(chatDir, PRIVATE_FOLDER_NAME);
   const settings = readJson(path.join(privateDir, SETTINGS_FILE_NAME)) ?? {};
   const conversation = readConversation(
     path.join(privateDir, LEGACY_TASK_DB_FILE_NAME),
   );
+  // A database nobody can read may hold the whole conversation, so the task
+  // stays where it is rather than being set aside as one holding nothing.
+  if (conversation.unreadable) {
+    return { kind: "unreadable" };
+  }
   if (
     conversation.tutorial ||
     !conversation.messages.some((message) => message.role === "user")
   ) {
     moveAside(
       chatDir,
-      path.join(rootDir, BACKUP_DIR_NAME, EMPTY_TASKS_DIR_NAME, taskName),
+      path.join(
+        workspaceLayout(rootDir).setAsideDir,
+        EMPTY_TASKS_DIR_NAME,
+        taskName,
+      ),
     );
     return { kind: "empty" };
   }
@@ -318,14 +346,24 @@ function adoptTask({
       : {}),
     title,
     titleSettledAt: createdAt,
-    ...(topicId ? { topics: [topicId] } : {}),
+    ...(topicId ? { topic: topicId } : {}),
     updatedAt: lastActivityAt,
   };
 
   const chatDb = path.join(privateDir, STAGED_CHAT_DB_FILE_NAME);
   const chatSettings = path.join(privateDir, STAGED_CHAT_SETTINGS_FILE_NAME);
   const stagingDir = path.join(chatsDir, stagingName(chatName));
-  fs.rmSync(stagingDir, { force: true, recursive: true });
+  // Whatever holds the name is kept, as a chat's files may be in it.
+  if (present(stagingDir)) {
+    moveAside(
+      stagingDir,
+      path.join(
+        workspaceLayout(rootDir).setAsideDir,
+        STAGED_CHATS_DIR_NAME,
+        chatName,
+      ),
+    );
+  }
   try {
     removeDb(chatDb);
     writeChatRows({ dbPath: chatDb, messages: conversation.messages, session });
@@ -368,26 +406,33 @@ function adoptTask({
 
 /**
  * Gives a staged chat its name once its database and settings are in place:
- * the task's own set aside under `.pre-chats/task-records/<chat>`, and the
+ * the task's own set aside under `.pre-chats/task-records/<chat>` in the
+ * workspace's `.instrument/`, and the
  * chat's written in that staging put where they were. Each step is skipped
  * once done, so a boot cut short part way picks up where it stopped.
+ *
+ * Nothing in the staging is written over: anything already under the name
+ * the chat's own database or settings take is set aside with the task's own
+ * first, since a rename over it would leave no copy of whatever it held.
  */
 function finishStagedChat(stagingDir: string, rootDir: string) {
-  const chatName = path.basename(stagingDir).slice(1, -".partial".length);
+  const chatName =
+    stagedChatName(path.basename(stagingDir)) ?? path.basename(stagingDir);
   const privateDir = path.join(stagingDir, PRIVATE_FOLDER_NAME);
   const backup = path.join(
-    rootDir,
-    BACKUP_DIR_NAME,
+    workspaceLayout(rootDir).setAsideDir,
     TASK_RECORDS_DIR_NAME,
     chatName,
   );
   const chatDb = path.join(privateDir, STAGED_CHAT_DB_FILE_NAME);
   if (present(chatDb)) {
     for (const suffix of DB_FILE_SUFFIXES) {
-      setAside(
-        path.join(privateDir, `${LEGACY_TASK_DB_FILE_NAME}${suffix}`),
-        path.join(backup, `${LEGACY_TASK_DB_FILE_NAME}${suffix}`),
-      );
+      for (const name of [LEGACY_TASK_DB_FILE_NAME, CHAT_DB_FILE_NAME]) {
+        setAside(
+          path.join(privateDir, `${name}${suffix}`),
+          path.join(backup, `${name}${suffix}`),
+        );
+      }
     }
     fs.renameSync(chatDb, path.join(privateDir, CHAT_DB_FILE_NAME));
   }
@@ -405,7 +450,7 @@ function finishStagedChat(stagingDir: string, rootDir: string) {
 /** Finishes the chats an earlier boot staged. Returns whether there were any. */
 function finishStagedChats(chatsDir: string, rootDir: string): boolean {
   const staged = readDirs(chatsDir).filter(
-    (name) => name.startsWith(".") && name.endsWith(".partial"),
+    (name) => stagedChatName(name) !== undefined,
   );
   for (const name of staged) {
     try {
@@ -461,7 +506,10 @@ function isProjectFolder(folder: string): boolean {
   return ProjectIdSchema.safeParse(settings?.id).success;
 }
 
-/** Moves a folder into the backup, beside any earlier one of the same name. */
+/**
+ * Moves a file or folder into the backup, beside any earlier one of the same
+ * name.
+ */
 function moveAside(source: string, to: string) {
   let target = to;
   for (let suffix = 2; present(target); suffix += 1) {
@@ -478,13 +526,18 @@ function removeDb(dbPath: string) {
   }
 }
 
-/** Moves a file into the backup, unless it is already there or was never made. */
+/**
+ * Moves a file into the backup, unless it was never made. One already there
+ * under that name is from an earlier chat staged under this one's name, and
+ * keeps its place: this one goes beside it rather than staying in the folder
+ * the chat's own file is about to take, where nothing would read it and the
+ * chat would open beside a 1.x record of someone else's conversation.
+ */
 function setAside(source: string, to: string) {
-  if (!present(source) || present(to)) {
+  if (!present(source)) {
     return;
   }
-  fs.mkdirSync(path.dirname(to), { recursive: true });
-  fs.renameSync(source, to);
+  moveAside(source, to);
 }
 
 /** A name without its leading emoji, as a topic's name is compared. */
@@ -522,29 +575,40 @@ function projectFolders(raw: unknown): TopicFolder[] {
  * What the user saw of a task: every top-level session in the order they
  * began, each message in order, the user's words and files and the replies'
  * words, and nothing else.
+ *
+ * A database SQLite cannot read, or one with no store table in it, is
+ * answered as itself rather than as a task nobody said anything in: what it
+ * holds is unknown, so the task it belongs to is left where it is instead of
+ * being set aside for holding nothing.
  */
 function readConversation(dbPath: string): {
   messages: ConversationMessage[];
   title?: string;
   /** Whether it is the tutorial's replay, which a chat is not made for. */
   tutorial: boolean;
+  /** Whether the database is there and could not be read. */
+  unreadable: boolean;
 } {
   const messages: ConversationMessage[] = [];
   if (!fs.existsSync(dbPath)) {
-    return { messages, tutorial: false };
+    return { messages, tutorial: false, unreadable: false };
   }
-  const db = new DatabaseSync(dbPath, { readOnly: true });
   let rows: StoreRow[];
   try {
-    // node:sqlite types a row as a record of any column value; these are two
-    // of the store's own columns.
-    rows = db
-      .prepare(
-        `select key, blob from ${STORE_TABLE} where key like 'sessions:%' or key like 'messages:%' or key like 'parts:%'`,
-      )
-      .all() as unknown as StoreRow[];
-  } finally {
-    db.close();
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      // node:sqlite types a row as a record of any column value; these are
+      // two of the store's own columns.
+      rows = db
+        .prepare(
+          `select key, blob from ${STORE_TABLE} where key like 'sessions:%' or key like 'messages:%' or key like 'parts:%'`,
+        )
+        .all() as unknown as StoreRow[];
+    } finally {
+      db.close();
+    }
+  } catch {
+    return { messages, tutorial: false, unreadable: true };
   }
 
   const sessions: { createdAt: string; id: string; title?: string }[] = [];
@@ -670,6 +734,7 @@ function readConversation(dbPath: string): {
     messages,
     ...(title ? { title } : {}),
     tutorial,
+    unreadable: false,
   };
 }
 
@@ -700,7 +765,7 @@ function readJson(file: string): Record<string, unknown> | undefined {
 function readProjects(rootDir: string): LegacyProject[] {
   const dirs = [
     path.join(rootDir, LEGACY_PROJECTS_DIR_NAME),
-    path.join(rootDir, BACKUP_DIR_NAME, LEGACY_PROJECTS_DIR_NAME),
+    path.join(workspaceLayout(rootDir).setAsideDir, LEGACY_PROJECTS_DIR_NAME),
   ];
   return dirs.flatMap((dir) =>
     readDirs(dir).flatMap((name): LegacyProject[] => {
@@ -745,6 +810,13 @@ function readProjects(rootDir: string): LegacyProject[] {
 /** The hidden name a chat is moved in under until it is finished. */
 function stagingName(chatName: string): string {
   return `.${chatName}.partial`;
+}
+
+/** The chat a staging folder's name stands for, or undefined for any other name. */
+function stagedChatName(name: string): string | undefined {
+  return name.startsWith(".") && name.endsWith(".partial")
+    ? name.slice(1, -".partial".length)
+    : undefined;
 }
 
 function storedValue(blob: null | Uint8Array): unknown {
@@ -811,7 +883,7 @@ function topicForProject(
     return { id: existing.id, made: false };
   }
   const topic: Topic = {
-    createdAt: project.createdAt,
+    created: toTheSecond(new Date(project.createdAt)),
     ...(project.emoji ? { emoji: project.emoji } : {}),
     ...(project.folders.length > 0 ? { folders: project.folders } : {}),
     id: newTopicId(project.createdAt),

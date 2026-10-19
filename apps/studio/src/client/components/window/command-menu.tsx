@@ -75,7 +75,7 @@ import {
   WINDOW_SHORTCUTS,
   type WindowShortcutId,
 } from "@/shared/window-shortcuts";
-import uFuzzy from "@leeoniya/ufuzzy";
+import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -99,7 +99,7 @@ import { type ReactNode, useDeferredValue, useRef, useState } from "react";
 import { displayHostPath } from "@instrument-org/shared";
 import { toast } from "@/client/lib/toast";
 
-const fuzzy = new uFuzzy({ intraMode: 1 });
+const fuzzy = boundedFuzzy({ intraMode: 1 });
 
 /** Rows per kind past which a search stops listing: enough to choose from, few enough to read. */
 const APPS_SHOWN = 6;
@@ -294,7 +294,7 @@ export function useCommandMenuRows({
         if (import.meta.env.DEV) {
           simulateNoUpdate.mutate(undefined);
         } else {
-          checkForUpdates.mutate({ notify: true });
+          checkForUpdates.mutate();
         }
       },
     },

@@ -28,7 +28,7 @@ export function createWhichCommand(chatId: ChatId) {
       const found = [
         ...(runs ? [runs] : []),
         ...(all && !name.includes("/")
-          ? (await pathProgramsNamed(chatId, name)).filter(
+          ? (await pathProgramsNamed(chatId, name, ctx.cwd)).filter(
               (program) => program !== runs,
             )
           : []),

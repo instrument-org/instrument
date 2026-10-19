@@ -64,7 +64,6 @@ const CASES: Record<string, string> = {
   weather: "research",
   research: "research",
   "long-work": "context",
-  "interrupt-foreground": "background",
   "parallel-scratch": "background",
   // Whole-design scenarios (`cases/scenarios.ts`): run only when named.
   fleet: "scenario",
@@ -75,12 +74,12 @@ const CASES: Record<string, string> = {
   injection: "scenario",
   "injection-fork": "scenario",
   "slow-wake": "scenario",
+  "carry-facts": "scenario",
   // Messages typed mid-work (`cases/interruptions.ts`): run only when named.
   "interrupt-fragments": "interruption",
   "interrupt-correction": "interruption",
   "interrupt-added-step": "interruption",
   "interrupt-later-wish": "interruption",
-  "interrupt-stop": "interruption",
   "holdout-unrelated": "interruption",
   "holdout-issue": "interruption",
   "holdout-month": "interruption",
@@ -905,7 +904,7 @@ function summarize(outDir: string) {
         ),
     );
   const firstLines = firstLineReport(records.filter(isScorable));
-  const report = `${table}\n\nMedians per cell. Pass is runs where every assertion passed, out of runs where no model request failed. Tasks is the median number of forks the run started, then how many runs ran \`task new\`. Refusals are shell calls a refusal or an unknown flag answered, summed over the cell: the ones running a \`task\` command, then all. Quick answer is each run's wait for the answer to the mid-job question, in seconds.\n\n## Per model\n\n${bar}\n\n## Per kind\n\n${kinds}\n\n## Failed assertions\n\n${failures.join("\n") || "none"}\n\n## First lines\n\n${firstLines}\n`;
+  const report = `${table}\n\nMedians per cell. Pass is runs where every assertion passed, out of runs where no model request failed. Tasks is the median number of forks the run started, then how many runs ran \`instrument task new\`. Refusals are shell calls a refusal or an unknown flag answered, summed over the cell: the ones running a \`task\` command, then all. Quick answer is each run's wait for the answer to the mid-job question, in seconds.\n\n## Per model\n\n${bar}\n\n## Per kind\n\n${kinds}\n\n## Failed assertions\n\n${failures.join("\n") || "none"}\n\n## First lines\n\n${firstLines}\n`;
   fs.writeFileSync(path.join(outDir, "report.md"), report);
   fs.writeFileSync(
     path.join(outDir, "matrix.json"),

@@ -8,10 +8,10 @@ Supersedes the workspace-server exception in [2026-10-06-curl-and-web-fetch-reac
 
 The 2026-10-06 decision kept one refusal: Instrument's own workspace server, on the grounds that its routes were unaudited for a caller the agent controls. Refusing one host and port is something just-bash's `NetworkConfig` cannot express, so the shell got a fetch of our own (`sandbox-fetch.ts`) that followed redirects by hand to check every hop. That fetch re-sent `Authorization`, `Cookie`, and the request body on every hop whatever its origin, where just-bash's own fetch drops the credentials on a cross-origin hop. An agent's `curl -H "Authorization: Bearer …"` answered with a redirect handed the token to the next host.
 
-The premise did not hold. Everything the workspace server answers already requires a secret the agent never holds:
+The premise did not hold. Everything the workspace server answers already requires a secret the app does not hand to the agent's sandbox:
 
 - The model proxy requires the per-launch internal key (`ai-gateway/src/lib/auth-middleware.ts`, `key-for-provider.ts`); the sandbox environment carries only `NO_COLOR`, `TZ`, and `PATH`.
-- The CDP bridge requires a per-launch secret in its path (`logic/server/cdp-bridge-path.ts`) and refuses any upgrade carrying an `Origin` header.
+- The CDP bridge requires a per-launch secret in its path (`logic/server/cdp-bridge-path.ts`) and refuses any upgrade carrying an `Origin` header. The secret is not handed to the sandbox, though a program in it could read it from another process of the same user, such as the `agent-browser` daemon it is given to. What that buys is driving the in-app browser, which the agent already does.
 - Nothing else is mounted.
 
 The refusal was also never a boundary: `node` and `python-native` reach the port directly, which the 2026-10-06 record said itself.

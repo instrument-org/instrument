@@ -23,7 +23,7 @@ import { err, ok, ResultAsync } from "neverthrow";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
-import { recordAIUsage } from "./ai-usage/record";
+import { recordActivity } from "./activity/record";
 import { TypedError } from "./errors";
 
 // Loose agent-supplied image parameters. Validated and routed per selected
@@ -244,7 +244,7 @@ type ImageStreamArgs = {
   signal: AbortSignal;
   sourceImages?: Buffer[];
   /** The chat asking, which its record of model requests files the image under. */
-  chatId?: ChatId;
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 };
@@ -270,7 +270,7 @@ export async function* generateImageStream(args: ImageStreamArgs) {
       yield chunk;
     }
   } finally {
-    recordAIUsage(
+    recordActivity(
       {
         connection: final?.config,
         kind: "image",

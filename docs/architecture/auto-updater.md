@@ -91,11 +91,11 @@ electron-updater returns the auto-download promise on the check result and attac
 
 ## Channels
 
-The feed URL is re-applied before every check, so a release-channel change in preferences takes effect without a restart. The channel is passed through `setFeedURL` options rather than `autoUpdater.channel`; the latter's setter flips `allowDowngrade` to `true` as a side effect, which would let the feed hand back an older build. macOS on Intel is pinned to `latest-x64` because electron-builder does not support beta/alpha channels there.
+The feed URL is re-applied before every check, so a release-channel change in preferences takes effect without a restart. The channel is passed through `setFeedURL` options rather than `autoUpdater.channel`; the latter's setter flips `allowDowngrade` to `true` as a side effect, which would let the feed hand back an older build. macOS on Intel is pinned to `latest-x64`, the channel its release leg publishes to so its manifest does not overwrite the arm64 one; that is why Intel gets no betas. electron-updater itself can serve both from one manifest ([intel-mac-update-feed.md](../plans/active/intel-mac-update-feed.md)).
 
 ## Linux install path
 
-Linux publishes four targets (`AppImage`, `deb`, `rpm`, `tar.gz`) and every one of them is fed by the same update feed, so the install path is chosen by the package that produced the running installation rather than by the platform. electron-builder records that as a `package-type` file beside the app resources, holding `deb`, `rpm` or `pacman`; an AppImage build ships no such file. `isDebInstall` reads it, which is the same marker electron-updater consults to pick between its `DebUpdater`, `RpmUpdater`, `PacmanUpdater` and `AppImageUpdater`, so the two never disagree about which package is being replaced.
+Linux releases publish three targets (`AppImage`, `deb`, `rpm`), each fed by the same update feed, so the install path is chosen by the package that produced the running installation rather than by the platform. A preview also builds a `tar.gz` for the test hosts, which nothing updates. electron-builder records that as a `package-type` file beside the app resources, holding `deb`, `rpm` or `pacman`; an AppImage build ships no such file. `isDebInstall` reads it, which is the same marker electron-updater consults to pick between its `DebUpdater`, `RpmUpdater`, `PacmanUpdater` and `AppImageUpdater`, so the two never disagree about which package is being replaced.
 
 Everything but the Debian package installs through `autoUpdater.quitAndInstall()`, which reaches whichever of those installers matches, and leaves `autoInstallOnAppQuit` at its default so an ordinary quit applies a staged build too.
 
@@ -104,6 +104,8 @@ The Debian package is the exception, and two constraints shape it. `app.relaunch
 So the deb, and only the deb, turns `autoInstallOnAppQuit` off and writes a shell script into `userData` instead. The script re-runs itself inside a transient systemd scope to get out of the app's cgroup, waits for the app's pid to exit, runs `dpkg -i … || apt-get install -f -y` under `pkexec`, and relaunches unless an instance came back on its own while it worked. Its output is the only account there will ever be of an install that finishes after the process that asked for it is gone, so it goes to a log file the next start reads and then deletes.
 
 That authentication prompt is also why the `installing` status carries a notice on this path and no other: declining the prompt is the one way an update quietly does not happen.
+
+Every Linux install first reads the staged artifact whole and checks its sha512 against the entry the feed published for it this session (`stagedArtifactProblem` in `update.ts`), whether the install is the deb handoff, an explicit `quitAndInstall()`, or electron-updater's own install on quit, which a `quit` handler registered ahead of electron-updater's checks first. electron-updater hashes an artifact it finds from an earlier launch, but of one it downloaded in the same run it checks only that the file exists, and the cache folder is in the home folder, where the agent can write when the person allows it. A package installs as root, and an AppImage replaces the app, so a file replaced there would otherwise run outside every sandbox. An artifact that fails is removed and the install refused with `StagedUpdateRejectedError`; the updater then forgets the staged build, so the next check downloads it again. macOS and Windows check the signature of what they install instead.
 
 ## Upstream
 

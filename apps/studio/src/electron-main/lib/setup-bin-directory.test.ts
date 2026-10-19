@@ -13,7 +13,7 @@ vi.mock("./capture-server-exception", () => ({ captureServerException }));
 
 // A real directory, because the link juggling under test is real `fs` work.
 let userDataDir = "";
-const binDir = () => path.join(userDataDir, "bin");
+const binDir = () => path.join(userDataDir, "runtime", "bin");
 
 vi.mock("electron", () => ({
   app: {
@@ -67,8 +67,6 @@ describe.runIf(process.platform !== "win32")("setupBinDirectory", () => {
     await expect(setupBinDirectory()).resolves.toBe(binDir());
 
     expect(process.env.PATH?.split(path.delimiter)[0]).toBe(binDir());
-    expect(captureServerException).toHaveBeenCalledWith(failure, {
-      scopes: ["studio"],
-    });
+    expect(captureServerException).toHaveBeenCalledWith(failure);
   });
 });

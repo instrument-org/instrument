@@ -120,7 +120,7 @@ const setDevToken = localDev
   .input(z.object({ token: z.string().min(1) }))
   .handler(async ({ input }) => {
     getSessionStore().set("apiBearerToken", input.token.trim());
-    await setDefaultModel();
+    await setDefaultModel({ replacing: "anything" });
   });
 
 /**

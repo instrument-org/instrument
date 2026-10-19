@@ -9,7 +9,7 @@ import ms from "ms";
 import { z } from "zod";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
-import { type AIUsageCall, recordAIUsage } from "./ai-usage/record";
+import { type ActivityCall, recordActivity } from "./activity/record";
 
 const AnswerSchema = z.object({
   choice: z.string().optional(),
@@ -70,7 +70,7 @@ export async function askDecisionModel({
   body,
   configs,
   signal,
-  usage,
+  activity,
 }: {
   body: {
     questions: Record<string, z.output<typeof DecisionQuestionSchema>>;
@@ -79,7 +79,7 @@ export async function askDecisionModel({
   configs: AIGatewayProviderConfig.Type[];
   signal?: AbortSignal;
   /** Why the app is asking and for what, which the record of model requests files each attempt under. */
-  usage: Omit<AIUsageCall, "connection" | "kind">;
+  activity: Omit<ActivityCall, "connection" | "kind">;
 }): Promise<
   | undefined
   | {
@@ -99,8 +99,8 @@ export async function askDecisionModel({
     const startedAt = Date.now();
     // The decision API is a plain fetch rather than an AI SDK call, so each
     // attempt is recorded here.
-    const call: AIUsageCall = {
-      ...usage,
+    const call: ActivityCall = {
+      ...activity,
       connection: config,
       kind: "decision",
     };
@@ -116,7 +116,7 @@ export async function askDecisionModel({
       );
       unreachableUntil = 0;
       const elapsed = Math.round(performance.now() - started);
-      recordAIUsage(call, {
+      recordActivity(call, {
         durationMs: elapsed,
         inputTokens: response.usage?.input_tokens ?? null,
         modelRequested,
@@ -130,7 +130,7 @@ export async function askDecisionModel({
         response,
       };
     } catch (error) {
-      recordAIUsage(call, {
+      recordActivity(call, {
         durationMs: performance.now() - started,
         error: error instanceof Error ? error.message : String(error),
         modelRequested,

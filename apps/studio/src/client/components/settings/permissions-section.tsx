@@ -1,12 +1,36 @@
-import { WINDOWS_SANDBOX_URL } from "@instrument-org/shared";
+import { SANDBOX_OFF_URL, WINDOWS_SANDBOX_URL } from "@instrument-org/shared";
+import { SendReportButton } from "@/client/components/report-error-button";
+import { conditionReport } from "@/client/lib/problem-reports";
+import { FolderRow } from "@/client/components/folder-row";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/client/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/client/components/ui/alert-dialog";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Button } from "@/client/components/ui/button";
-import { Card } from "@/client/components/ui/card";
+import { Switch } from "@/client/components/ui/switch";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/client/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -15,36 +39,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/client/components/ui/select";
-import { Switch } from "@/client/components/ui/switch";
-import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useComputerVolumes } from "@/client/components/window/computer-volumes";
-import { FolderMark } from "@/client/components/window/folder-mark";
-import {
-  isInside,
-  nameOf,
-  segmentsOf,
-} from "@/client/components/window/host-path";
+import { FoldersMark } from "@/client/components/window/folder-mark";
+import { isInside, nameOf } from "@/client/components/window/host-path";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { isWindows } from "@/client/lib/utils";
+import { displayPath } from "@/client/lib/path-utils";
+import { isLinux, isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
+import { SANDBOX_OFF_COPY, SANDBOX_OFF_REASONS } from "@/shared/sandbox-off";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
+import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { HouseIcon } from "@phosphor-icons/react/House";
+import { ImagesIcon } from "@phosphor-icons/react/Images";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { KeyIcon } from "@phosphor-icons/react/Key";
+import { MinusCircleIcon } from "@phosphor-icons/react/MinusCircle";
+import { MusicNotesIcon } from "@phosphor-icons/react/MusicNotes";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 type View = RPCOutput["workspace"]["permissions"]["get"];
 type Level = View["folders"][number]["level"];
 type Place = View["places"][number];
-
-const SEPARATOR = " › ";
+type Folder = View["folders"][number];
 
 const LEVEL_LABELS = {
   allow: "Allowed",
@@ -54,17 +78,50 @@ const LEVEL_LABELS = {
 
 const LEVELS = ["allow", "ask", "never"] satisfies Level[];
 
-/** A path from the home folder down, with the folder's own name left off when it is home. */
-function fromHome(path: string, home: string) {
-  const names = segmentsOf(path);
-  return (
-    isInside(path, home) ? names.slice(segmentsOf(home).length) : names
-  ).join(SEPARATOR);
+/** The places the list always draws, in its order; the Instrument folder is with the folders every chat can use. */
+const PLACE_ORDER = [
+  "desktop",
+  "documents",
+  "downloads",
+  "icloud",
+  "drives",
+  "appFiles",
+  "photos",
+  "mediaLibraries",
+  "passwords",
+] as const;
+
+/**
+ * The folders the person answered for, each under the place it is in: the
+ * deepest place holding it, where places sit one inside another (iCloud
+ * Drive in the apps' Library). A folder in no place is the list's to put at
+ * its end.
+ */
+function nestFolders(places: Place[], folders: Folder[]) {
+  const under = new Map<Place["id"], Folder[]>();
+  const elsewhere: Folder[] = [];
+  for (const folder of folders) {
+    const holder = places
+      .flatMap((place) =>
+        place.paths
+          .filter((placePath) => isInside(folder.path, placePath))
+          .map((placePath) => ({ length: placePath.length, place })),
+      )
+      .toSorted((a, b) => b.length - a.length)[0]?.place;
+    if (holder) {
+      under.set(holder.id, [...(under.get(holder.id) ?? []), folder]);
+    } else {
+      elsewhere.push(folder);
+    }
+  }
+  return { elsewhere, under };
 }
 
 export function PermissionsSection() {
   const queryClient = useQueryClient();
   const openLink = useOpenExternalLink();
+  const [confirmingWithoutAsking, setConfirmingWithoutAsking] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
   const { data: view } = useQuery(
     rpcClient.workspace.permissions.get.queryOptions(),
   );
@@ -106,8 +163,17 @@ export function PermissionsSection() {
       onSuccess: refresh,
     }),
   );
-  const setWithoutAsking = useMutation(
-    rpcClient.workspace.permissions.setWithoutAsking.mutationOptions({
+  const setDangerouslyAllowEveryFolder = useMutation(
+    rpcClient.workspace.permissions.setDangerouslyAllowEveryFolder.mutationOptions(
+      {
+        onError,
+        onSuccess: refresh,
+      },
+    ),
+  );
+
+  const reset = useMutation(
+    rpcClient.workspace.permissions.reset.mutationOptions({
       onError,
       onSuccess: refresh,
     }),
@@ -127,223 +193,379 @@ export function PermissionsSection() {
     setFolder.mutate({ level: "allow", path: picked.path });
   };
 
+  const withoutAsking = view.dangerouslyAllowEveryFolder;
   const placeById = new Map(view.places.map((place) => [place.id, place]));
-  const passwordsAsk = placeById.get("passwords")?.level === "ask";
-  const placeRows = (
-    [
-      "output",
-      "desktop",
-      "documents",
-      "downloads",
-      "icloud",
-      "drives",
-      "appFiles",
-      "passwords",
-    ] as const
-  ).flatMap((id) => {
+  const places = PLACE_ORDER.flatMap((id) => {
     const place = placeById.get(id);
     return place ? [place] : [];
   });
+  const { elsewhere, under } = nestFolders(places, view.folders);
+  const folderRow = (folder: Folder, { indent }: { indent: boolean }) => {
+    const isHome = folder.path === view.home;
+    const remove = () => {
+      removeFolder.mutate({ path: folder.path });
+    };
+    return (
+      <FolderRow
+        end={
+          <LevelSelect
+            label={nameOf(folder.path)}
+            level={folder.level}
+            onRemove={remove}
+            onSelect={(level) => {
+              setFolder.mutate({ level, path: folder.path });
+            }}
+          />
+        }
+        indent={indent}
+        key={folder.path}
+        menu={[
+          {
+            icon: <MinusCircleIcon className="size-4" />,
+            label: "Remove",
+            onSelect: remove,
+          },
+        ]}
+        {...(isHome
+          ? { mark: <HouseIcon className="size-6 text-muted-foreground" /> }
+          : {})}
+        path={folder.path}
+      />
+    );
+  };
 
   return (
     <div className="space-y-6">
-      <h3 className="text-base font-semibold" {...settingAnchor("permissions")}>
-        Permissions
-      </h3>
-      {view.enforced ? null : (
+      <div className="space-y-1.5">
+        <h3
+          className="text-base font-semibold"
+          {...settingAnchor("permissions")}
+        >
+          Permissions
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Instrument asks you in a chat the first time it needs a folder or an
+          app. You can change your answer here anytime.
+        </p>
+      </div>
+      {view.sandboxOff === "windows" ? (
         <div className="flex items-start gap-2 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
           <InfoIcon className="mt-0.5 size-4 shrink-0" />
-          {isWindows() ? (
-            <p>
-              On Windows, Instrument's own tools follow this list, but programs
-              the agent runs, including its Python and Node scripts, can reach
-              any file you can. That changes once Instrument can use Windows'
-              own sandbox.{" "}
-              <button
-                className="underline underline-offset-2 hover:text-foreground"
-                onClick={() => {
-                  openLink(WINDOWS_SANDBOX_URL, { addReferral: false });
-                }}
-                type="button"
-              >
-                Learn more
-              </button>
-            </p>
-          ) : (
-            <p>
-              On Linux, Instrument follows this list as closely as it can. Its
-              own tools stay inside it and the agent is told to, but a program
-              the agent runs, like Python, could still reach other folders.
-            </p>
-          )}
+          <p>
+            On Windows, Instrument's own tools follow this list, but programs
+            the agent runs, including its Python and Node scripts, can reach any
+            file you can. That changes once Instrument can use Windows' own
+            sandbox.{" "}
+            <button
+              className="underline underline-offset-2 hover:text-foreground"
+              onClick={() => {
+                openLink(WINDOWS_SANDBOX_URL, { addReferral: false });
+              }}
+              type="button"
+            >
+              Learn more
+            </button>
+          </p>
         </div>
-      )}
-      <Card className="p-0" {...settingAnchor("use-folders-without-asking")}>
-        <label className="flex items-center justify-between gap-4 p-4">
-          <span className="space-y-1">
-            <span className="block text-sm font-medium">
-              Use folders without asking
-            </span>
-            <span className="block text-xs text-muted-foreground">
-              {view.withoutAsking
-                ? passwordsAsk
-                  ? "Instrument uses any folder that isn't marked Not allowed, but still asks before using your passwords and keys."
-                  : "Instrument uses any folder that isn't marked Not allowed."
-                : "When a chat needs a folder marked Ask first, Instrument asks you in that chat."}
-            </span>
-          </span>
-          <Switch
-            checked={view.withoutAsking}
-            onCheckedChange={(withoutAsking) => {
-              setWithoutAsking.mutate({ withoutAsking });
-            }}
-          />
-        </label>
-      </Card>
-      <div className={cn("space-y-6", view.withoutAsking && "opacity-45")}>
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">
-            Your folders
-          </h4>
-          <div className="divide-y overflow-hidden rounded-lg border">
-            {view.folders.length === 0 ? (
-              <p className="p-4 text-center text-sm text-muted-foreground">
-                Instrument hasn't asked to use any other folders yet.
-              </p>
-            ) : (
-              view.folders.map((folder) => {
-                const isHome = folder.path === view.home;
-                const where = fromHome(folder.path, view.home);
-                return (
-                  <PermissionRow
-                    control={
-                      <LevelSelect
-                        label={nameOf(folder.path)}
-                        level={folder.level}
-                        onRemove={() => {
-                          removeFolder.mutate({ path: folder.path });
-                        }}
-                        onSelect={(level) => {
-                          setFolder.mutate({ level, path: folder.path });
-                        }}
-                      />
-                    }
-                    key={folder.path}
-                    // A folder directly in the home folder has no more to say
-                    // than its name.
-                    line={
-                      isHome || where === nameOf(folder.path)
-                        ? undefined
-                        : where
-                    }
-                    mark={
-                      isHome ? (
-                        <HouseIcon className="size-4 text-muted-foreground" />
-                      ) : (
-                        <FolderMark large path={folder.path} />
-                      )
-                    }
-                    name={nameOf(folder.path)}
-                  />
-                );
-              })
-            )}
+      ) : view.sandboxOff ? (
+        <SandboxOffWarning off={view.sandboxOff} openLink={openLink} />
+      ) : null}
+      <section className="space-y-2">
+        <div
+          className="flex items-center justify-between gap-2"
+          {...settingAnchor("use-folders-without-asking")}
+        >
+          <h4 className="text-sm font-medium text-muted-foreground">Folders</h4>
+          <div className="flex shrink-0 gap-2">
+            <Button
+              onClick={() => {
+                void addFolder();
+              }}
+              size="sm"
+              variant="outline"
+            >
+              <PlusIcon className="size-4" />
+              Add folder…
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button aria-label="More" size="icon-sm" variant="outline">
+                  <DotsThreeIcon className="size-4" weight="bold" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {withoutAsking ? (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setDangerouslyAllowEveryFolder.mutate({
+                        dangerouslyAllowEveryFolder: false,
+                      });
+                    }}
+                  >
+                    <ShieldWarningIcon className="size-4" />
+                    <span>Ask before using folders</span>
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setConfirmingWithoutAsking(true);
+                    }}
+                    variant="destructive"
+                  >
+                    <ShieldWarningIcon className="size-4" />
+                    <span>Use folders without asking…</span>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <Button
-            onClick={() => {
-              void addFolder();
-            }}
-            size="sm"
-            variant="outline"
+        </div>
+        {withoutAsking ? (
+          <div
+            className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/8 p-3"
+            role="status"
           >
-            <PlusIcon className="size-4" />
-            Add folder…
-          </Button>
-        </div>
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">
-            Your apps
-          </h4>
-          <div className="divide-y overflow-hidden rounded-lg border">
-            {view.apps.length === 0 ? (
-              <p className="p-4 text-center text-sm text-muted-foreground">
-                Instrument hasn't asked to control any apps yet.
+            <ShieldWarningIcon className="mt-0.5 size-4.5 shrink-0 text-destructive" />
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p className="text-sm font-medium text-destructive">
+                Instrument uses folders without asking
               </p>
-            ) : (
-              view.apps.map((app) => (
-                <PermissionRow
-                  control={
-                    <LevelSelect
-                      label={app.name}
-                      level={app.level}
-                      onRemove={() => {
-                        removeApp.mutate({ name: app.name });
-                      }}
-                      onSelect={(level) => {
-                        setApp.mutate({ level, name: app.name });
-                      }}
-                    />
-                  }
-                  key={app.name}
-                  line={undefined}
-                  mark={
-                    <AppWindowIcon className="size-4 text-muted-foreground" />
-                  }
-                  name={app.name}
-                />
-              ))
-            )}
-          </div>
-        </div>
-        <Collapsible className="space-y-2">
-          <CollapsibleTrigger className="group flex items-center gap-1 text-sm font-medium text-muted-foreground">
-            <CaretRightIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
-            {`Places on your ${osConventions().computerKind}`}
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="divide-y overflow-hidden rounded-lg border">
-              {placeRows.map((place) => (
-                <PlaceRow
-                  home={view.home}
-                  key={place.id}
-                  onSelect={(level) => {
-                    if (place.id !== "output") {
-                      setPlace.mutate({ id: place.id, level });
-                    }
-                  }}
-                  place={place}
-                />
-              ))}
+              <p className="text-xs text-muted-foreground">
+                It reads and changes any folder that isn’t marked Not allowed.
+                It still asks before using your passwords and keys.
+              </p>
             </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
+            <Button
+              onClick={() => {
+                setDangerouslyAllowEveryFolder.mutate({
+                  dangerouslyAllowEveryFolder: false,
+                });
+              }}
+              size="sm"
+              variant="outline"
+            >
+              Turn off
+            </Button>
+          </div>
+        ) : null}
+        <div
+          className={cn(
+            "divide-y overflow-hidden rounded-lg border",
+            withoutAsking && "opacity-45",
+          )}
+        >
+          {places.map((place) => [
+            <PlaceRow
+              home={view.home}
+              key={place.id}
+              onSelect={(level) => {
+                if (place.id !== "output") {
+                  setPlace.mutate({ id: place.id, level });
+                }
+              }}
+              place={place}
+            />,
+            ...(under.get(place.id) ?? []).map((folder) =>
+              folderRow(folder, { indent: true }),
+            ),
+          ])}
+          {elsewhere.map((folder) => folderRow(folder, { indent: false }))}
+        </div>
+      </section>
+      <section className={cn("space-y-2", withoutAsking && "opacity-45")}>
+        <h4 className="text-sm font-medium text-muted-foreground">Apps</h4>
+        {view.apps.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Instrument hasn’t asked to control any apps yet.
+          </p>
+        ) : (
+          <div className="divide-y overflow-hidden rounded-lg border">
+            {view.apps.map((app) => (
+              <div className="flex items-center gap-3 p-3" key={app.name}>
+                <span className="flex w-7 shrink-0 justify-center">
+                  <AppWindowIcon className="size-6 text-muted-foreground" />
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {app.name}
+                </span>
+                <LevelSelect
+                  label={app.name}
+                  level={app.level}
+                  onRemove={() => {
+                    removeApp.mutate({ name: app.name });
+                  }}
+                  onSelect={(level) => {
+                    setApp.mutate({ level, name: app.name });
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+      <EveryChatCanUse
+        appFiles={placeById.get("appFiles")?.level}
+        output={placeById.get("output")?.paths[0]}
+        places={view.alwaysOpen}
+      />
+      <button
+        className="w-full rounded-lg border bg-card p-4 text-left text-sm text-destructive hover:bg-muted/50"
+        onClick={() => {
+          setConfirmingReset(true);
+        }}
+        type="button"
+        {...settingAnchor("reset-permissions")}
+      >
+        Reset permissions
+      </button>
+      <AlertDialog onOpenChange={setConfirmingReset} open={confirmingReset}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset permissions?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Every folder and app goes back to how it was when you installed
+              Instrument, and chats will ask again before using anything you
+              allowed in them.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                reset.mutate(undefined);
+              }}
+              variant="destructive"
+            >
+              Reset
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        onOpenChange={setConfirmingWithoutAsking}
+        open={confirmingWithoutAsking}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Use folders without asking?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Instrument will read and change any folder that isn’t marked Not
+              allowed, without checking with you first. It still asks before
+              using your passwords and keys.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setDangerouslyAllowEveryFolder.mutate({
+                  dangerouslyAllowEveryFolder: true,
+                });
+              }}
+              variant="destructive"
+            >
+              Use Without Asking
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
-function PermissionRow({
-  control,
-  line,
-  mark,
-  name,
+/**
+ * The folders every chat reaches whatever the list above says, because the
+ * app needs them, folded away since nothing in them is the person's to set,
+ * and what programs can see without asking.
+ */
+function EveryChatCanUse({
+  appFiles,
+  output,
+  places,
 }: {
-  control: ReactNode;
-  line: string | undefined;
-  mark: ReactNode;
-  name: string;
+  appFiles: Level | undefined;
+  output: string | undefined;
+  places: View["alwaysOpen"];
 }) {
+  const rows: {
+    line?: string;
+    mark?: ReactNode;
+    name: string;
+    path: string;
+    status: string;
+  }[] = [
+    ...(output
+      ? [{ name: "Instrument folder", path: output, status: "Always allowed" }]
+      : []),
+    {
+      name: "Each chat’s files",
+      path: places.workFolders,
+      status: "Always allowed",
+    },
+    { name: "Past chats", path: places.chats, status: "Read only" },
+    ...(places.caches.length > 0
+      ? [
+          {
+            line: places.caches.map((each) => displayPath(each)).join(", "),
+            mark: <FoldersMark />,
+            name: "Caches",
+            path: places.caches[0] ?? "",
+            status: appFiles === "never" ? "Not allowed" : "Always allowed",
+          },
+        ]
+      : []),
+    ...places.programs.map((path) => ({
+      name: "Installed programs",
+      path,
+      status: "Read only",
+    })),
+  ];
+  const listed = appFiles === "ask" && !isLinux();
   return (
-    <div className="flex items-center gap-3 p-3">
-      <span className="flex w-5 shrink-0 justify-center">{mark}</span>
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="truncate text-sm">{name}</div>
-        {line ? (
-          <p className="truncate text-xs text-muted-foreground">{line}</p>
-        ) : null}
-      </div>
-      {control}
-    </div>
+    <Collapsible className="space-y-2" {...settingAnchor("always-open")}>
+      <CollapsibleTrigger className="group flex items-center gap-1 text-sm font-medium text-muted-foreground">
+        <CaretRightIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
+        Folders every chat can use
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Every chat can use these, since Instrument needs them to work. A chat
+          can read your past chats but can’t change them, and your browsers’
+          caches stay closed.
+        </p>
+        <div className="divide-y overflow-hidden rounded-lg border">
+          {rows.map((row) => (
+            <FolderRow
+              end={
+                <span className="shrink-0 px-3 text-sm text-muted-foreground">
+                  {row.status}
+                </span>
+              }
+              key={`${row.name}:${row.path}`}
+              {...(row.line === undefined ? {} : { line: row.line })}
+              {...(row.mark === undefined ? {} : { mark: row.mark })}
+              name={row.name}
+              path={row.path}
+            />
+          ))}
+        </div>
+        <div className="space-y-1 text-xs text-muted-foreground">
+          {isWindows() ? (
+            <p>
+              {listed
+                ? "Programs the agent runs can see the names of what's in Other apps' files, and in a folder set to Ask first when you've allowed a folder inside it. Instrument still asks you before a program opens anything there."
+                : "Programs the agent runs can see the names of what's in a folder set to Ask first when you've allowed a folder inside it. Instrument still asks you before a program opens anything there."}
+            </p>
+          ) : listed ? (
+            <p>
+              Programs the agent runs can see the names, sizes and dates of
+              what's in Other apps' files, but Instrument asks you before a
+              program opens anything there.
+            </p>
+          ) : null}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -356,23 +578,22 @@ function PlaceRow({
   onSelect: (level: Level) => void;
   place: Place;
 }) {
-  const className = "size-4 text-muted-foreground";
+  const className = "size-6 text-muted-foreground";
   const volumes = useComputerVolumes();
-  const details = (() => {
+  const paths = place.paths.map((each) => displayPath(each)).join(", ");
+  const details = ((): {
+    line?: null | string;
+    mark?: ReactNode;
+    name: string;
+  } => {
     switch (place.id) {
       case "output": {
-        return {
-          line: fromHome(place.paths[0] ?? "", home),
-          mark: <FolderMark large path={place.paths[0] ?? ""} />,
-          name: "Output folder",
-        };
+        return { name: "Instrument folder" };
       }
       case "desktop":
       case "documents":
       case "downloads": {
         return {
-          line: undefined,
-          mark: <FolderMark large path={place.paths[0] ?? ""} />,
           name: {
             desktop: "Desktop",
             documents: "Documents",
@@ -382,7 +603,7 @@ function PlaceRow({
       }
       case "icloud": {
         return {
-          line: undefined,
+          line: null,
           mark: <CloudIcon className={className} />,
           name: "iCloud Drive",
         };
@@ -399,21 +620,35 @@ function PlaceRow({
                       volumes?.find((volume) => volume.path === root)?.name ??
                       root.replace(/\\$/, ""),
                   )
-                  .join(", ") || undefined,
+                  .join(", ") || null,
               mark: <HardDriveIcon className={className} />,
               name: "Other drives",
             }
           : {
-              line: undefined,
+              line: paths || null,
               mark: <HardDriveIcon className={className} />,
               name: "Drives you plug in",
             };
       }
       case "appFiles": {
         return {
-          line: osConventions().appFiles,
-          mark: <PlaceIcon className={className} place="apps" />,
-          name: "Other apps' files",
+          line: paths || null,
+          mark: <FoldersMark />,
+          name: "Other apps’ files",
+        };
+      }
+      case "photos": {
+        return {
+          line: paths || null,
+          mark: <ImagesIcon className={className} />,
+          name: "Photos library",
+        };
+      }
+      case "mediaLibraries": {
+        return {
+          line: paths || null,
+          mark: <MusicNotesIcon className={className} />,
+          name: "Music and TV libraries",
         };
       }
       case "passwords": {
@@ -425,8 +660,8 @@ function PlaceRow({
           line:
             place.level === "ask"
               ? passwordStore
-                ? `Folders like .ssh ask first; your browsers and ${passwordStore} stay closed`
-                : "Folders like .ssh ask first; your browsers stay closed"
+                ? `Folders like .ssh ask first. Your browsers and ${passwordStore} stay closed.`
+                : "Folders like .ssh ask first. Your browsers stay closed."
               : "Keys, sign-ins and browser cookies",
           mark: <KeyIcon className={className} />,
           name: "Passwords and keys",
@@ -434,28 +669,26 @@ function PlaceRow({
       }
       default: {
         place.id satisfies never;
-        return { line: undefined, mark: null, name: "" };
+        return { name: "" };
       }
     }
   })();
+  // A place with no folder of its own here (iCloud Drive signed out, say)
+  // has nothing to open or copy.
+  const path = place.paths[0] ?? home;
   return (
-    <PermissionRow
-      control={
-        place.id === "output" ? (
-          <span className="px-3 text-sm text-muted-foreground">
-            Always allowed
-          </span>
-        ) : (
-          <LevelSelect
-            label={details.name}
-            level={place.level}
-            onSelect={onSelect}
-          />
-        )
+    <FolderRow
+      end={
+        <LevelSelect
+          label={details.name}
+          level={place.level}
+          onSelect={onSelect}
+        />
       }
-      line={details.line}
-      mark={details.mark}
+      {...(details.line === undefined ? {} : { line: details.line })}
+      {...(details.mark === undefined ? {} : { mark: details.mark })}
       name={details.name}
+      path={path}
     />
   );
 }
@@ -506,5 +739,81 @@ function LevelSelect({
         ) : null}
       </SelectContent>
     </Select>
+  );
+}
+
+/**
+ * Where no sandbox can hold the programs the agent runs: why, and the
+ * person's choice to run them anyway, which stays here while it is on.
+ */
+function SandboxOffWarning({
+  off,
+  openLink,
+}: {
+  off: Exclude<View["sandboxOff"], "windows" | undefined>;
+  openLink: ReturnType<typeof useOpenExternalLink>;
+}) {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setRunAnyway = useMutation(
+    rpcClient.preferences.setRunProgramsWithoutSandbox.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't change that setting", { cause: error });
+      },
+    }),
+  );
+  const allowed = preferences?.runProgramsWithoutSandbox === true;
+  const copy = SANDBOX_OFF_COPY[allowed ? "allowed" : "refused"];
+  return (
+    <Alert variant="warning">
+      <ShieldWarningIcon />
+      <AlertTitle className="line-clamp-none">{copy.title}</AlertTitle>
+      <AlertDescription>
+        <p>{SANDBOX_OFF_REASONS[off]}</p>
+        <p>
+          {copy.settings} Once you've changed something, quit and reopen
+          Instrument so it checks again.
+        </p>
+        <label className="mt-1 flex w-full items-center justify-between gap-4 rounded-lg border border-border bg-card p-3">
+          <span className="space-y-0.5">
+            <span className="block text-sm font-medium text-foreground">
+              Run programs without a sandbox
+            </span>
+            <span className="block text-xs">
+              They'll be able to reach any file you can on this computer.
+            </span>
+          </span>
+          <Switch
+            checked={allowed}
+            disabled={preferences === undefined || setRunAnyway.isPending}
+            onCheckedChange={(enabled) => {
+              setRunAnyway.mutate({ enabled });
+            }}
+          />
+        </label>
+        <div className="mt-1 flex flex-wrap gap-2">
+          <Button
+            onClick={() => {
+              openLink(SANDBOX_OFF_URL, { addReferral: false });
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Learn more
+          </Button>
+          <SendReportButton
+            request={(onSent) =>
+              conditionReport({
+                condition: "sandbox-off",
+                onSent,
+                title: copy.title,
+              })
+            }
+            size="sm"
+          />
+        </div>
+      </AlertDescription>
+    </Alert>
   );
 }

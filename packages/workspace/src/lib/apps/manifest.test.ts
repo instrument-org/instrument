@@ -4,7 +4,6 @@ import { AppManifestSchema, isMcpManifest } from "./manifest";
 
 const local = {
   auth: { kind: "none" },
-  name: "Drafts",
   package: "@agiletortoise/drafts-mcp-server",
   runtime: "node",
   type: "mcp-local",
@@ -29,6 +28,18 @@ describe("a local MCP app's manifest", () => {
       args: ["--vault", "notes"],
       auth: { envVar: "API_TOKEN", kind: "env" },
     });
+  });
+
+  // A local server runs outside the sandbox, so its environment is the
+  // app's to set and never the manifest's; one written with `env` still
+  // loads, without it.
+  it("reads a manifest written with env as one without it", () => {
+    expect(
+      AppManifestSchema.parse({
+        ...local,
+        env: { NODE_OPTIONS: "--require ./preload.js" },
+      }),
+    ).toEqual(AppManifestSchema.parse(local));
   });
 
   it("takes a PyPI package with extras for the python runtime", () => {
@@ -89,13 +100,11 @@ describe("a local MCP app's manifest", () => {
 describe("a web app's manifest", () => {
   it("takes a site and an optional sign-in page, and is not an MCP app", () => {
     const parsed = AppManifestSchema.parse({
-      name: "Zoom",
       signIn: "https://zoom.us/signin",
       type: "web",
       url: "https://zoom.us",
     });
     expect(parsed).toEqual({
-      name: "Zoom",
       signIn: "https://zoom.us/signin",
       type: "web",
       url: "https://zoom.us",
@@ -113,8 +122,7 @@ describe("a web app's manifest", () => {
     ],
   ])("refuses %s", (_what, fields) => {
     expect(
-      AppManifestSchema.safeParse({ name: "Zoom", type: "web", ...fields })
-        .success,
+      AppManifestSchema.safeParse({ type: "web", ...fields }).success,
     ).toBe(false);
   });
 });

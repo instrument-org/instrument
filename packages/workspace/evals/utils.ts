@@ -12,6 +12,7 @@ import {
   CHATGPT_ACCOUNT_PROVIDER_CONFIG,
   CLAUDE_ACCOUNT_PROVIDER_CONFIG,
   OUR_PROVIDER_CONFIG,
+  WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
 import { writeFileSync } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
@@ -19,13 +20,16 @@ import path from "node:path";
 import { z } from "zod";
 
 import { env } from "../scripts/lib/env";
-import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
+import { TASKS_DIR_NAME } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { workspaceLayout } from "../src/lib/workspace-layout";
 import { type UsageSummary } from "../src/lib/usage-summary-compute";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type WorkspaceConfig } from "../src/types";
+import { EVAL_MACHINE_DIR_NAME } from "./lib/run-record";
+import { newDeviceId } from "../src/lib/records/device-id";
 
 /**
  * Color is off unless a terminal is going to read it. Every consumer of this
@@ -53,41 +57,54 @@ let humanStream: NodeJS.WritableStream = process.stdout;
 export function buildReportWorkspaceConfig(
   absoluteWorkspaceDir: string,
 ): WorkspaceConfig {
+  const layout = workspaceLayout(absoluteWorkspaceDir);
   return {
     apps: createMemoryAppsConfig(),
-    appsDir: AbsolutePathSchema.parse(path.join(absoluteWorkspaceDir, "apps")),
+    appsDir: AbsolutePathSchema.parse(layout.appsDir),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureException: () => {
       return;
     },
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, "chat-template"),
-    ),
+    deviceId: newDeviceId(),
     getAIProviderConfigs: () => [],
     modelCache: noopModelCache,
     nodeExecEnv: {},
+    // A workspace the person picked, which is what makes its top level
+    // theirs: each chat's own folder under `Chats/` is then where its
+    // finished work goes, as it is for anyone who picked where their
+    // Instrument folder is kept. Without this a run measures the fallback,
+    // and nothing measures what the prompt actually tells the agent.
+    outputDir: AbsolutePathSchema.parse(absoluteWorkspaceDir),
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
-    preparedSkillsDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, "prepared-skills"),
-    ),
     registryDir: WorkspaceDirSchema.parse(resolveRegistryDir()),
     rootDir: WorkspaceDirSchema.parse(absoluteWorkspaceDir),
+    runtimeDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, "runtime"),
+    ),
     systemSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, "system-skills"),
     ),
-    chatsDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, CHATS_DIR_NAME),
-    ),
+    chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
     legacyTasksDir: WorkspaceDirSchema.parse(
       path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),
     ),
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
-    uvDataDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, "uv-data"),
-    ),
     webSearch: unavailableWebSearchClient,
+    workFoldersDir: AbsolutePathSchema.parse(
+      path.join(
+        absoluteWorkspaceDir,
+        EVAL_MACHINE_DIR_NAME,
+        WORKSPACE_MACHINE_ENTRIES.work,
+      ),
+    ),
+    userDataDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, EVAL_MACHINE_DIR_NAME),
+    ),
+    workspaceMachineDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, EVAL_MACHINE_DIR_NAME),
+    ),
   };
 }
 

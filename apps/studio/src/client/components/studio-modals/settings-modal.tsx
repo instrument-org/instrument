@@ -60,6 +60,7 @@ import {
   type CSSProperties,
   type RefObject,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -82,7 +83,9 @@ interface NavItem {
  * `settingsModalAtom` (opened via `openSettings`). The visible section is the
  * atom's `tab`, so a second `openSettings({ tab })` while open retargets the
  * modal instead of no-oping. Providers can deep-link straight to the
- * add-provider dialog. Traps tab navigation while open.
+ * add-provider dialog. Traps tab navigation while open. Back and forward step
+ * through the pages visited since it opened, apart from the tab's own history,
+ * and back past the first page closes it.
  */
 export function SettingsModal() {
   const [state, setState] = useAtom(settingsModalAtom);
@@ -91,10 +94,46 @@ export function SettingsModal() {
   // play) for a moment after `state` clears to null, instead of unmounting
   // the instant the dialog starts closing.
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
+  const activeTab =
+    content === null
+      ? undefined
+      : (content.tab ?? tabOfSetting(content.setting) ?? "General");
+  // The pages back and forward of this one, nearest last, which each open
+  // starts without. Choosing a page drops those ahead, as a browser does.
+  const [visited, setVisited] = useState<{
+    ahead: SettingsTab[];
+    behind: SettingsTab[];
+  }>({ ahead: [], behind: [] });
+  if (!isOpen && (visited.ahead.length > 0 || visited.behind.length > 0)) {
+    setVisited({ ahead: [], behind: [] });
+  }
 
-  useModalBack(() => {
-    setState(null);
-  }, isOpen);
+  useModalBack(
+    () => {
+      const previous = visited.behind.at(-1);
+      if (previous === undefined || activeTab === undefined) {
+        setState(null);
+        return;
+      }
+      setVisited({
+        ahead: [...visited.ahead, activeTab],
+        behind: visited.behind.slice(0, -1),
+      });
+      setState({ tab: previous });
+    },
+    isOpen,
+    () => {
+      const next = visited.ahead.at(-1);
+      if (next === undefined || activeTab === undefined) {
+        return;
+      }
+      setVisited({
+        ahead: visited.ahead.slice(0, -1),
+        behind: [...visited.behind, activeTab],
+      });
+      setState({ tab: next });
+    },
+  );
 
   return (
     <Dialog
@@ -105,9 +144,9 @@ export function SettingsModal() {
       }}
       open={isOpen}
     >
-      {content !== null && (
+      {content !== null && activeTab !== undefined && (
         <SettingsModalContent
-          activeTab={content.tab ?? tabOfSetting(content.setting) ?? "General"}
+          activeTab={activeTab}
           // One-shot: honored only for the initial Providers section. Switching
           // sections drops it (onSelectTab sets `{ tab }` alone), so revisiting
           // Providers doesn't reopen add-provider.
@@ -115,6 +154,12 @@ export function SettingsModal() {
           key={openKey}
           onExitComplete={onExitComplete}
           onSelectTab={(tab) => {
+            if (tab !== activeTab) {
+              setVisited(({ behind }) => ({
+                ahead: [],
+                behind: [...behind, activeTab],
+              }));
+            }
             setState({ tab });
           }}
           setting={content.setting}
@@ -175,6 +220,13 @@ function SettingsModalContent({
       : null,
   );
   const contentRef = useRef<HTMLElement>(null);
+  // Every page shares this scroller, so each one opens at its top. A jump to a
+  // row scrolls after this, in `useFlashSetting`.
+  useLayoutEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
   useFlashSetting(contentRef, jump);
   // ⌘F anywhere in Settings is its search, over any list's own inside it.
   const searchRef = useRef<HTMLInputElement>(null);

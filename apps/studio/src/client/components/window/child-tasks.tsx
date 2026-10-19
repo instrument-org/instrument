@@ -12,7 +12,9 @@ import {
 import { StoppedLine } from "@/client/components/stopped-line";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
-import { folderLabel, isOutputFolder } from "@/client/lib/path-utils";
+import { reachModel } from "@/client/lib/model-status";
+import { useOutputFolder } from "@/client/lib/output-folder";
+import { folderLabel } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { catalogEffort } from "@instrument-org/ai-gateway/client";
@@ -166,9 +168,7 @@ function EffortChip({ chatInfo }: { chatInfo: ChatInfo }) {
   const models = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
-  const model = models.data?.models.find(
-    (entry) => entry.uri === chatInfo.modelURI,
-  );
+  const { model } = reachModel(models.data, chatInfo.modelURI);
   const fromModel = model ? catalogEffort(model) : undefined;
   const effort = chatInfo.reasoningEffort ?? fromModel;
   if (!effort) {
@@ -239,10 +239,11 @@ function TaskBrief({
   const state = useQuery(
     rpcClient.workspace.chats.state.queryOptions({ input: { id: chatId } }),
   );
-  // The workspace folder is every task's, so only the ones its chat was
-  // handed besides are worth a chip.
+  const outputFolder = useOutputFolder();
+  // The output folder is every task's, so only the ones its chat was handed
+  // besides are worth a chip.
   const folders = Object.values(reach.data ?? {}).filter(
-    (folder) => !isOutputFolder(folder.path),
+    (folder) => folder.path !== outputFolder,
   );
   // The chat's tabs this task drives.
   const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) =>

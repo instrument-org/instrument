@@ -33,70 +33,85 @@ const HeldTabSchema = z.object({
 
 export type HeldTab = z.output<typeof HeldTabSchema>;
 
-/** A session that ran into what a card asks about, the chat's own or one of its tasks'. */
+/** A session that asked what a card asks, the chat's own or one of its tasks'. */
 const AskerSchema = z.object({
-  /**
-   * The tool call whose command or file operation raised it before running,
-   * by its part's id, so the card draws under that call; absent for one a
-   * running command ran into.
-   */
+  /** The call that asked, by its part's id. */
   partId: StoreId.PartSchema.optional(),
+  /** What the session said it needs the folder or app for, for the card. */
+  reason: z.string().optional(),
   sessionId: StoreId.SessionSchema,
 });
 
 /**
- * A place or app the agent ran into that the person has not answered for
- * yet: a folder that asks first, or an app it may not use. Shown as a card at
- * the foot of the chat until the person answers, which wakes every session
- * that asked.
+ * A folder or app the agent asked for with `ask_permission` that the person
+ * has not answered for yet. Shown as a card until the person answers, which
+ * wakes every session that asked.
  */
-export const PermissionAskSchema = z.object({
+const PermissionAskSchema = z.object({
+  /**
+   * The yes the person gave a folder macOS then refused, kept while the
+   * card offers the system's own ways in, so the retry that gets in wakes
+   * the askers with it.
+   */
+  allowed: z.enum(["allowed", "always"]).optional(),
   askedAt: z.coerce.date(),
   /**
    * Every session waiting on the answer, the first to ask first. A session
-   * that runs into the same thing while the card is up joins it, and one the
+   * that asks for the same thing while the card is up joins it, and one the
    * person stops leaves it; the card goes when none is left.
    */
   askers: z.array(AskerSchema),
   id: z.string(),
   kind: z.enum(["app", "folder"]),
-  /** The folder's path, or the app's name as the agent named it. */
+  /**
+   * `macos-refused` once the person allowed a folder and macOS kept the app
+   * out of it: the card offers the Mac's folder panel and System Settings
+   * until a retry gets in or the person declines.
+   */
+  status: z.enum(["macos-refused", "open"]).default("open"),
+  /** The folder's absolute path, or the app's name. */
   target: z.string(),
 });
 
 export type PermissionAsk = z.output<typeof PermissionAskSchema>;
 
 /**
- * An ask as stored, which may still name its one asker at the top level the
- * way cards were written before a card held every session that asked.
+ * A question the chat's agent put to the person with `choose`, drawn as the
+ * card under that call until they answer it, which wakes the chat with the
+ * answer. Its one asker is the chat's own session, by the call's part.
  */
-const StoredPermissionAskSchema = z.union([
+const QuestionAskSchema = z.object({
+  askedAt: z.coerce.date(),
+  askers: z.array(AskerSchema),
+  id: z.string(),
+  kind: z.literal("question"),
+  /** The message holding the call, where its answer is written too. */
+  messageId: StoreId.MessageSchema,
+  /** The question as the agent asked it. */
+  question: z.string(),
+});
+
+export type QuestionAsk = z.output<typeof QuestionAskSchema>;
+
+/** Anything a chat is waiting on the person to answer on a card. */
+export const AskSchema = z.discriminatedUnion("kind", [
   PermissionAskSchema,
-  PermissionAskSchema.omit({ askers: true })
-    .extend(AskerSchema.shape)
-    .transform(({ partId, sessionId, ...ask }) => ({
-      ...ask,
-      askers: [{ ...(partId && { partId }), sessionId }],
-    })),
+  QuestionAskSchema,
 ]);
 
-// Where the user left off in a chat. Read on open, and across chats only by
-// the chat list for its open asks, through `openAsks` -- which is what
-// separates it from the settings around it, and why it is one nested key
-// rather than a flat spread.
-export const StoredChatStateSchema = z
-  .object({
-    // The apps whose guide this chat has read, so `app request` hands the
-    // guide over once and then gets out of the way.
-    appGuidesRead: z.array(z.string()).optional(),
-    browserTabs: z.array(HeldTabSchema).default([]),
-    // What the agent is waiting on the person to allow, oldest first. One
-    // that will not parse costs the chat its open asks alone.
-    permissionAsks: z
-      .array(StoredPermissionAskSchema)
-      .optional()
-      .catch(undefined),
-  })
-  .default(() => ({ browserTabs: [] }));
+export type Ask = z.output<typeof AskSchema>;
+
+// Where this device left off in a chat, in its own `state.<device>.json`.
+// Read on open, and across chats only by the chat list for its open cards,
+// through `openAsks`.
+export const StoredChatStateSchema = z.object({
+  // The apps whose guide this chat was handed, so `instrument app request`
+  // hands the guide over once and then gets out of the way.
+  appGuidesShown: z.array(z.string()).catch([]).default([]),
+  browserTabs: z.array(HeldTabSchema).default([]),
+  // What the agent is waiting on the person to answer, oldest first. One
+  // that will not parse costs the chat its open cards alone.
+  waitingOn: z.array(AskSchema).catch([]).default([]),
+});
 
 export type ChatState = z.output<typeof StoredChatStateSchema>;

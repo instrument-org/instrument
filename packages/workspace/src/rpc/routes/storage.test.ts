@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ChatWrites } from "../../lib/chat-writes";
 import { listChats } from "../../lib/chat/chats";
 import {
   forgetChatFolders,
@@ -11,7 +12,6 @@ import {
   sessionOfChat,
 } from "../../lib/record-folders";
 import { disposeSessionsStoreStorage } from "../../lib/session-store-storage";
-import { Store } from "../../lib/store";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -50,11 +50,14 @@ beforeEach(() => {
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
-    legacyTasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
     trashItem: (target) => {
       fs.rmSync(target, { force: true, recursive: true });
       return Promise.resolve();
     },
+    workFoldersDir: AbsolutePathSchema.parse(
+      path.join(root, "machine", "work"),
+    ),
+    workspaceMachineDir: AbsolutePathSchema.parse(path.join(root, "machine")),
   });
   forgetChatFolders();
 });
@@ -78,15 +81,15 @@ function createContext(): WorkspaceRPCContext {
 /** A chat with its session saved and one message from the user. */
 async function readableChat(named: string): Promise<ChatId> {
   const sessionId = StoreId.newSessionId();
-  const id = chatFor(sessionId, ChatIdSchema.parse(named));
+  const id = await chatFor(sessionId, ChatIdSchema.parse(named));
   opened.push(id);
-  const saved = await Store.saveSession(
+  const saved = await ChatWrites.saveSession(
     { createdAt: new Date(), id: sessionId, title: named },
     id,
   );
   expect(saved.isOk()).toBe(true);
   const messageId = StoreId.newMessageId();
-  const said = await Store.saveMessageWithParts(
+  const said = await ChatWrites.saveMessageWithParts(
     {
       id: messageId,
       metadata: { createdAt: new Date(), sessionId },
@@ -110,21 +113,20 @@ async function readableChat(named: string): Promise<ChatId> {
   return id;
 }
 
-function privateFile(chatId: string, file: string) {
-  return path.join(root, "chats", chatId, ".instrument", file);
+function recordFile(chatId: string, file: string) {
+  return path.join(root, "chats", chatId, file);
 }
 
 async function seedBrokenChats() {
   await readableChat("2026-10-01-fine");
   await readableChat("2026-10-01-bad-settings");
+  fs.writeFileSync(recordFile("2026-10-01-bad-settings", "settings.json"), "{");
+  // A chat whose settings name a session no record of its folder holds.
+  const lost = ChatIdSchema.parse("2026-10-01-no-record");
+  fs.mkdirSync(path.join(root, "chats", lost), { recursive: true });
   fs.writeFileSync(
-    privateFile("2026-10-01-bad-settings", "settings.json"),
-    "{",
-  );
-  chatFor(StoreId.newSessionId(), ChatIdSchema.parse("2026-10-01-bad-db"));
-  fs.writeFileSync(
-    privateFile("2026-10-01-bad-db", "chat.db"),
-    "not a database, just bytes long enough to be read as a header",
+    recordFile(lost, "settings.json"),
+    JSON.stringify({ chatSessionId: StoreId.newSessionId() }),
   );
   fs.mkdirSync(path.join(root, "chats", "Not A Chat"));
   fs.mkdirSync(
@@ -148,9 +150,8 @@ describe("storage.invalidFolders", () => {
     expect(chats.map((chat) => chat.id)).toEqual(["2026-10-01-fine"]);
     expect(
       invalid
-        .map(({ kind, name, path: at, reason }) => ({
-          at: path.relative(root, at),
-          kind,
+        .map(({ name, path: at, reason }) => ({
+          at: path.relative(root, at).replaceAll(path.sep, "/"),
           name,
           reason,
         }))
@@ -158,35 +159,34 @@ describe("storage.invalidFolders", () => {
     ).toMatchInlineSnapshot(`
       [
         {
-          "at": "chats/2026-10-01-bad-db",
-          "kind": "chat",
-          "name": "2026-10-01-bad-db",
-          "reason": "Unreadable chat session (.instrument/chat.db)",
+          "at": "chats/2026-10-01-bad-settings",
+          "name": "2026-10-01-bad-settings",
+          "reason": "Its settings file is missing or damaged.",
         },
         {
-          "at": "chats/2026-10-01-bad-settings",
-          "kind": "chat",
-          "name": "2026-10-01-bad-settings",
-          "reason": "Missing or unreadable settings (.instrument/settings.json)",
+          "at": "chats/2026-10-01-no-record",
+          "name": "2026-10-01-no-record",
+          "reason": "Its conversation can’t be read.",
         },
         {
           "at": "chats/Not A Chat",
-          "kind": "chat",
           "name": "Not A Chat",
-          "reason": "Folder name can only contain lowercase letters, numbers, and hyphens",
+          "reason": "Its folder name isn’t one a chat can use.",
         },
       ]
     `);
   });
 
-  it("trashes an unreadable chat and forgets it", async () => {
+  it("trashes an unreadable chat with its work folder, and forgets it", async () => {
     await seedBrokenChats();
-    const badDb = ChatIdSchema.parse("2026-10-01-bad-db");
+    const badDb = ChatIdSchema.parse("2026-10-01-no-record");
     expect(resolveChat(badDb) !== undefined).toBe(true);
+    const work = path.join(root, "machine", "work", badDb);
+    fs.mkdirSync(path.join(work, "work"), { recursive: true });
 
     await call(
       storage.invalidFolders.trash,
-      { kind: "chat", name: badDb },
+      { name: badDb },
       { context: createContext() },
     );
     const invalid = await call(storage.invalidFolders.list, undefined, {
@@ -194,6 +194,7 @@ describe("storage.invalidFolders", () => {
     });
 
     expect(fs.existsSync(path.join(root, "chats", badDb))).toBe(false);
+    expect(fs.existsSync(work)).toBe(false);
     expect(invalid.map((folder) => folder.name)).not.toContain(badDb);
     expect(resolveChat(badDb) !== undefined).toBe(false);
     expect(sessionOfChat(badDb)).toBeUndefined();
@@ -206,7 +207,7 @@ describe("storage.invalidFolders", () => {
       await expect(
         call(
           storage.invalidFolders.trash,
-          { kind: "chat", name },
+          { name },
           { context: createContext() },
         ),
       ).rejects.toThrow();

@@ -9,10 +9,11 @@ import ms from "ms";
 
 export type DecisionAsk = Omit<
   RPCInput["workspace"]["decision"]["ask"],
-  "usage"
+  "activity"
 >;
 /** Why an ask is made and for what, which the record of model requests files it under. */
-export type DecisionUsage = RPCInput["workspace"]["decision"]["ask"]["usage"];
+export type DecisionActivity =
+  RPCInput["workspace"]["decision"]["ask"]["activity"];
 export type DecisionAnswer = RPCOutput["workspace"]["decision"]["ask"];
 
 /**
@@ -54,7 +55,7 @@ export function useDecision({
   checkAvailable = ask !== undefined,
   keepPrevious,
   key,
-  usage,
+  activity,
 }: {
   ask: DecisionAsk | DecisionAsk[] | undefined;
   checkAvailable?: boolean;
@@ -65,7 +66,7 @@ export function useDecision({
    */
   keepPrevious?: (previousKey: QueryKey) => boolean;
   key: QueryKey;
-  usage: DecisionUsage;
+  activity: DecisionActivity;
 }) {
   const available = useDecisionModelAvailable(checkAvailable);
   const queryClient = useQueryClient();
@@ -85,7 +86,7 @@ export function useDecision({
                 .flat()
                 .map((one) =>
                   rpcClient.workspace.decision.ask.call(
-                    { ...one, usage },
+                    { ...one, activity },
                     { signal },
                   ),
                 ),

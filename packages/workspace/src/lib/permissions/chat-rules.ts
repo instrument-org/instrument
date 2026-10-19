@@ -10,15 +10,15 @@ import { folderReach } from "../chat/folder-reach";
 import { chatGrants } from "../chat/grants";
 import { chatDenials } from "./denials";
 import { type NativeReach } from "../native-sandbox";
-import { nodeToolsDir } from "../tool-isolation";
-import { uvPythonInstallDir } from "../tool-isolation-env";
+import { runtimeLayout } from "../runtime-dir";
+import { skillSourceRoots } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { readPermissionSettings, type Rules, rulesFor } from "./rules";
 
 /**
  * The rules one chat's shell is held to: Settings › Permissions, the chat's
- * grants, and the folders it holds without one (its topics' folders). The
+ * grants, and the folders it holds without one (its topic's folders). The
  * home folder is not one of those: it is reached so the agent can look, and
  * the rules decide what in it may change.
  */
@@ -30,9 +30,9 @@ export async function chatRules({
 }: {
   chatId: ChatId;
   folders?: Record<string, MountedFolder.Type>;
-  /** The tool call they hold, whose card draws under it. */
+  /** The tool call they hold. */
   partId?: StoreId.Part;
-  /** The session that holds to them, whose refusals raise the card. */
+  /** The session that holds to them, whose refusals say what to ask for. */
   sessionId?: StoreId.Session;
 }): Promise<Rules> {
   const home = os.homedir();
@@ -40,6 +40,11 @@ export async function chatRules({
     extraAllows: Object.values(folders)
       .map((folder) => folder.path)
       .filter((folderPath) => path.resolve(folderPath) !== path.resolve(home)),
+    // The same folders the shell mounts read-only, so the file tools and the
+    // commands agree about a skill the agent was told to read where it is.
+    extraReadOnly: skillSourceRoots(getWorkspaceConfig())
+      .filter((root) => root.readOnly)
+      .map((root) => root.dir),
     denials: (await chatDenials(chatId))
       .filter((denial) => denial.kind === "folder")
       .map((denial) => denial.target),
@@ -105,20 +110,30 @@ export function nativeReachFor(
   rules: Rules,
   layout: WorkspaceFsLayout,
 ): NativeReach {
-  const { toolBinDir, uvDataDir } = getWorkspaceConfig();
+  const runtime = runtimeLayout(getWorkspaceConfig().runtimeDir);
   return {
     readOnly: [
       ...layout.skills.map((mount) => mount.hostRoot),
-      ...(toolBinDir ? toolBinFolders(toolBinDir) : []),
+      ...toolBinFolders(runtime.bin),
       // The managed Pythons every chat's virtualenv runs on, which the app
-      // installs (installManagedPython): a file one chat put there would run
-      // in every other. The rest of uv's folder, its caches, stays open.
-      uvPythonInstallDir(uvDataDir),
+      // installs (installManagedPython), the skill environments it builds,
+      // which every chat runs, and the preload every chat's `node` imports:
+      // a file one chat put there would run in every other.
+      runtime.python,
+      runtime.environments,
+      runtime.preload,
+      // The packages every chat's virtualenv imports (python-base.ts), and
+      // the cache they were installed from, for the same reason.
+      runtime.pythonBase,
+      // The store the install step outside the sandbox fills, which a
+      // project's build in the sandbox reads: a link one chat planted there
+      // would lead that unsandboxed install anywhere.
+      runtime.installCaches,
     ],
     readWrite: [
       layout.chat.hostRoot,
-      uvDataDir,
-      nodeToolsDir(),
+      runtime.caches,
+      runtime.config,
       ...(layout.apps ? [layout.apps.hostRoot] : []),
     ],
     rules,

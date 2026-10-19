@@ -14,6 +14,7 @@ import {
   matchesFilters,
   NO_FILTERS,
   outsideFilters,
+  railMarkOf,
   topicSearch,
   widenToSearch,
   wordRanges,
@@ -32,7 +33,6 @@ function chat({
     starred: false,
     state: "idle",
     title: "",
-    topics: [],
     unread: false,
     ...overrides,
   };
@@ -51,7 +51,7 @@ function wordyChat(): Filterable {
       parts: [{ text: "Find the best RTD protein drink", type: "text" }],
     },
     title: "Best priced protein drink",
-    topics: ["shopping"],
+    topic: "shopping",
   });
 }
 
@@ -61,7 +61,7 @@ describe("outsideFilters", () => {
   const chats = [
     wordyChat(),
     chat({ archived: true, title: "Protein powder returns" }),
-    chat({ title: "Protein bars", topics: ["house"] }),
+    chat({ title: "Protein bars", topic: "house" }),
     chat({ title: "Roof repair" }),
   ];
 
@@ -129,8 +129,8 @@ describe("matchesFilters", () => {
     [
       "a topic",
       { topics: ["house"] },
-      chat({ topics: ["house", "money"] }),
-      chat({ topics: ["money"] }),
+      chat({ topic: "house" }),
+      chat({ topic: "money" }),
     ],
     [
       "an app",
@@ -185,10 +185,10 @@ describe("matchesFilters", () => {
   it("keeps a chat put away in a topic it is filed under, as a label does", () => {
     const filters: ChatFilters = { ...NO_FILTERS, topics: ["house"] };
     expect(
-      matchesFilters(chat({ archived: true, topics: ["house"] }), filters),
+      matchesFilters(chat({ archived: true, topic: "house" }), filters),
     ).toBe(true);
     expect(
-      matchesFilters(chat({ archived: true, topics: ["garden"] }), filters),
+      matchesFilters(chat({ archived: true, topic: "garden" }), filters),
     ).toBe(false);
   });
 
@@ -267,18 +267,18 @@ describe("matchesFilters", () => {
     };
     expect(
       matchesFilters(
-        chat({ holds: { apps: ["gmail"] }, topics: ["errands"] }),
+        chat({ holds: { apps: ["gmail"] }, topic: "errands" }),
         filters,
       ),
     ).toBe(true);
     expect(
       matchesFilters(
-        chat({ holds: { apps: ["gmail"] }, topics: ["money"] }),
+        chat({ holds: { apps: ["gmail"] }, topic: "money" }),
         filters,
       ),
     ).toBe(false);
     expect(
-      matchesFilters(chat({ holds: { apps: [] }, topics: ["house"] }), filters),
+      matchesFilters(chat({ holds: { apps: [] }, topic: "house" }), filters),
     ).toBe(false);
   });
 
@@ -525,5 +525,47 @@ describe("a command menu search's ask of the topics", () => {
     ["topic topic", true, "topic"],
   ])("%j asks: %j, by the name %j", (words, isAsked, name) => {
     expect(topicSearch(words)).toEqual({ isAsked, name });
+  });
+});
+
+describe("the rail's Chat dot", () => {
+  const at = (
+    overrides: Partial<{
+      archived: boolean;
+      state: Filterable["state"];
+      unread: boolean;
+      working: boolean;
+    }> = {},
+  ) => ({
+    archived: false,
+    state: "idle" as const,
+    unread: false,
+    working: false,
+    ...overrides,
+  });
+
+  it.each<[string, ReturnType<typeof at>[], ReturnType<typeof railMarkOf>]>([
+    ["no chats", [], undefined],
+    ["every chat seen and at rest", [at(), at()], undefined],
+    ["one unread", [at(), at({ unread: true })], "unread"],
+    [
+      "one working",
+      [at({ unread: true }), at({ state: "working", working: true })],
+      "working",
+    ],
+    // A card can wait on the user while a task of the chat works.
+    ["a task working under a settled chat", [at({ working: true })], "working"],
+    [
+      "one waiting beside one working",
+      [at({ state: "working", working: true }), at({ state: "waiting" })],
+      "waiting",
+    ],
+    [
+      "only put away chats",
+      [at({ archived: true, state: "waiting", unread: true, working: true })],
+      undefined,
+    ],
+  ])("%s: %j", (_label, chats, mark) => {
+    expect(railMarkOf(chats)).toBe(mark);
   });
 });

@@ -16,14 +16,33 @@ const record = {
   seen: ["a", "b"],
 };
 
-async function withTranscript(configDir: string) {
+/** A user turn and a reply, as Claude Code writes its entries. */
+const CONVERSATION = [
+  {
+    message: { content: [{ text: "hi", type: "text" }], role: "user" },
+    type: "user",
+  },
+  {
+    message: { content: [{ text: "hello", type: "text" }], role: "assistant" },
+    type: "assistant",
+  },
+  { type: "last-prompt" },
+];
+
+async function withTranscript(
+  configDir: string,
+  entries: object[] = CONVERSATION,
+) {
   const project = join(
     configDir,
     "projects",
     SESSION_CWD.replaceAll(/[^a-zA-Z0-9]/g, "-"),
   );
   await mkdir(project, { recursive: true });
-  await writeFile(join(project, `${record.claudeSessionId}.jsonl`), "");
+  await writeFile(
+    join(project, `${record.claudeSessionId}.jsonl`),
+    entries.map((entry) => `${JSON.stringify(entry)}\n`).join(""),
+  );
 }
 
 describe("resume records", () => {
@@ -38,6 +57,18 @@ describe("resume records", () => {
 
   it("has nothing to resume once Claude Code's transcript is gone", async () => {
     const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
+    await writeResumeRecord(configDir, "ses_1:shape", record);
+
+    expect(await readResumeRecord(configDir, "ses_1:shape")).toBeUndefined();
+  });
+
+  it("refuses a transcript whose messages it cannot read", async () => {
+    const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
+    // As a Claude Code that renamed a field would write it.
+    await withTranscript(
+      configDir,
+      CONVERSATION.map(({ message, ...entry }) => ({ ...entry, msg: message })),
+    );
     await writeResumeRecord(configDir, "ses_1:shape", record);
 
     expect(await readResumeRecord(configDir, "ses_1:shape")).toBeUndefined();

@@ -17,6 +17,7 @@ import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model"
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { BashTool } from "./bash";
+import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 const model = createMockAIGatewayModel();
 
@@ -44,7 +45,7 @@ describe("bash background processes, end to end", () => {
 
   afterEach(async () => {
     await killSessionBackgroundProcesses(sessionId);
-    await fs.rm(path.dirname(chatRoot), { force: true, recursive: true });
+    await removeChatsDir(path.dirname(chatRoot));
   });
 
   function toolOptions<TInput>(input: TInput) {
@@ -127,31 +128,36 @@ describe("bash background processes, end to end", () => {
     await kill(processId);
   }, 30_000);
 
-  it("captures output a killed process writes while shutting down", async () => {
-    await fs.writeFile(
-      path.join(chatRoot, "work", "graceful.js"),
-      [
-        'process.on("SIGTERM", () => {',
-        '  console.log("shutting down");',
-        "  process.exit(0);",
-        "});",
-        'setInterval(() => console.log("beat"), 100);',
-        "",
-      ].join("\n"),
-      "utf8",
-    );
+  // Windows has no SIGTERM: a kill there ends the process before any handler runs.
+  it.skipIf(process.platform === "win32")(
+    "captures output a killed process writes while shutting down",
+    async () => {
+      await fs.writeFile(
+        path.join(chatRoot, "work", "graceful.js"),
+        [
+          'process.on("SIGTERM", () => {',
+          '  console.log("shutting down");',
+          "  process.exit(0);",
+          "});",
+          'setInterval(() => console.log("beat"), 100);',
+          "",
+        ].join("\n"),
+        "utf8",
+      );
 
-    const started = await bash("node work/graceful.js", 500);
-    const processId = started.processId ?? "";
+      const started = await bash("node work/graceful.js", 500);
+      const processId = started.processId ?? "";
 
-    await kill(processId);
+      await kill(processId);
 
-    // The kill waits for the child to actually exit, so its shutdown output is
-    // still readable rather than cut off when the log closed.
-    const readOutput = await read(processId, 0);
-    expect(readOutput.output).not.toContain("is still running");
-    expect(readOutput.output).toContain("shutting down");
-  }, 30_000);
+      // The kill waits for the child to actually exit, so its shutdown output is
+      // still readable rather than cut off when the log closed.
+      const readOutput = await read(processId, 0);
+      expect(readOutput.output).not.toContain("is still running");
+      expect(readOutput.output).toContain("shutting down");
+    },
+    30_000,
+  );
 
   it.runIf(process.platform !== "win32")(
     "does not return from a kill until descendants are gone",
@@ -311,7 +317,9 @@ describe("bash background processes, end to end", () => {
     expect(result.output).toContain("quick");
   }, 30_000);
 
-  it("appends final shell output when a pipeline transforms live output", async () => {
+  // Between two programs the bytes go through an OS pipe, so the live view
+  // carries what the pipeline prints and never what one stage hands the next.
+  it("streams what a promoted pipeline prints, not what its stages pass along", async () => {
     await fs.writeFile(
       path.join(chatRoot, "work", "producer.js"),
       'setTimeout(() => process.stdout.write("lower\\n"), 700);\n',
@@ -331,9 +339,55 @@ describe("bash background processes, end to end", () => {
     const readOutput = await read(processId, 10_000);
 
     expect(readOutput.output).not.toContain("is still running");
-    expect(readOutput.output).toContain("[final shell output]");
+    expect(readOutput.output).not.toContain("[final shell output]");
+    expect(readOutput.output).not.toContain("lower");
     expect(readOutput.output).toContain("LOWER");
   }, 30_000);
+
+  it.each([
+    [
+      "a pipeline",
+      "node work/linger.js a | node work/linger.js b | wc -l",
+      ["a", "b"],
+    ],
+    [
+      "xargs -P",
+      "printf 'c\\nd\\n' | xargs -P 2 -I {} node work/linger.js {}",
+      ["c", "d"],
+    ],
+  ])(
+    "kills every program of %s promoted to the background",
+    async (_, command, names) => {
+      await fs.writeFile(
+        path.join(chatRoot, "work", "linger.js"),
+        'require("fs").writeFileSync(`work/${process.argv[2]}.pid`, String(process.pid));\nsetInterval(() => console.log("tick"), 100);\n',
+        "utf8",
+      );
+
+      const started = await bash(command, 700);
+      const processId = started.processId ?? "";
+      expect(processId).not.toBe("");
+      const pids = await Promise.all(
+        names.map(async (name) =>
+          Number(
+            await fs.readFile(
+              path.join(chatRoot, "work", `${name}.pid`),
+              "utf8",
+            ),
+          ),
+        ),
+      );
+      expect(pids.every(processExists)).toBe(true);
+
+      const killed = await kill(processId);
+      expect(killed.output).toContain(`Stopped ${processId}`);
+      // Windows can report a process for a moment after taskkill ended it.
+      await expect
+        .poll(() => pids.filter(processExists), { timeout: 3000 })
+        .toEqual([]);
+    },
+    30_000,
+  );
 });
 
 function processExists(pid: number) {

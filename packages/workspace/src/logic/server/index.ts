@@ -26,43 +26,38 @@ import { setWorkspaceServerPort } from "./url";
 export const workspaceServerLogic = fromCallback<
   AnyEventObject,
   {
-    aiGatewayApp?: AIGatewayApp;
+    aiGatewayApp: AIGatewayApp;
     parentRef: WorkspaceServerParentRef;
     workspaceConfig: WorkspaceConfig;
   }
 >(({ input }) => {
   const app = new Hono();
 
-  if (input.aiGatewayApp) {
-    app.use<string, AIGatewayEnv>(
-      `${AI_GATEWAY_API_PATH}/*`,
-      async (c, next) => {
-        if (input.workspaceConfig.refreshExpiredCredentials) {
-          c.set(
-            "refreshExpiredCredentials",
-            input.workspaceConfig.refreshExpiredCredentials,
-          );
-        }
-        c.set(
-          "getAIProviderConfigs",
-          input.workspaceConfig.getAIProviderConfigs,
-        );
-        c.set("captureException", input.workspaceConfig.captureException);
-        c.set(
-          "reportPlatformRefusal",
-          input.workspaceConfig.reportPlatformRefusal,
-        );
-        c.set("clientInfo", {
-          clientArch: process.arch,
-          clientName: APP_CLIENT_NAME_STUDIO,
-          clientPlatform: process.platform,
-          clientVersion: input.workspaceConfig.appVersion,
-        });
-        await next();
-      },
-    );
-    app.route("/", input.aiGatewayApp);
-  }
+  app.use<string, AIGatewayEnv>(`${AI_GATEWAY_API_PATH}/*`, async (c, next) => {
+    if (input.workspaceConfig.refreshExpiredCredentials) {
+      c.set(
+        "refreshExpiredCredentials",
+        input.workspaceConfig.refreshExpiredCredentials,
+      );
+    }
+    c.set("getAIProviderConfigs", input.workspaceConfig.getAIProviderConfigs);
+    // What the gateway captures is the gateway's, wherever it is mounted.
+    c.set("captureException", (error, context) => {
+      input.workspaceConfig.captureException(error, {
+        area: "ai-gateway",
+        ...context,
+      });
+    });
+    c.set("reportPlatformRefusal", input.workspaceConfig.reportPlatformRefusal);
+    c.set("clientInfo", {
+      clientArch: process.arch,
+      clientName: APP_CLIENT_NAME_STUDIO,
+      clientPlatform: process.platform,
+      clientVersion: input.workspaceConfig.appVersion,
+    });
+    await next();
+  });
+  app.route("/", input.aiGatewayApp);
 
   let server: null | ServerType = null;
 

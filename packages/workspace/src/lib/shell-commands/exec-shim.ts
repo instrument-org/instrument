@@ -1,19 +1,27 @@
 import { execa, type Options } from "execa";
-import { type Serializable } from "node:child_process";
+import { bytesOutput, unsafeBytesFromLatin1 } from "just-bash";
+import { isUtf8 } from "node:buffer";
+import { statSync } from "node:fs";
 import path from "node:path";
 
 import { commandLineToolsNote } from "../command-line-tools-env";
 import { inheritedEnv } from "../native-env";
+import { type ToolsChannel } from "../node-tools-preload";
 
 import {
+  launchNative,
+  type NativeReach,
   NativeSandboxUnavailableError,
-  refusalNote,
-  refusedPathIn,
+  packageScopeNote,
   wrapNativeCommand,
 } from "../native-sandbox";
 
 import { watchSubprocessTree } from "../subprocess-tree";
-import { collectAndForward, currentShellOutputSink } from "./output-sink";
+import {
+  collectAndForward,
+  currentShellOutputSink,
+  decodeForDisplay,
+} from "./output-sink";
 
 /** A finished subprocess's two output streams, kept apart. */
 export interface ShimStreams {
@@ -24,8 +32,8 @@ export interface ShimStreams {
 /**
  * Options a shim may set. The output-shaping ones are fixed by `execShim`, so
  * they are excluded rather than merely overridden: leaving them settable would
- * let a caller ask for buffers or line arrays, and the merged output this
- * returns is a string by construction.
+ * let a caller ask for line arrays or a different decoding, and this returns
+ * stdout as its exact bytes and as UTF-8 text by construction.
  *
  * `detached` is fixed for a different reason: `watchSubprocessTree` signals the
  * process group named by the child's own pid, which is a group only because the
@@ -54,6 +62,11 @@ type ShimOptions = Omit<
  * actually reported.
  */
 export function collapseProgress(output: string) {
+  // The pattern tries a match at every character, a second per 35 MB, so
+  // output with no carriage return at all skips it.
+  if (!output.includes("\r")) {
+    return output;
+  }
   // The lookahead spares \r\n, so Windows line endings are left intact.
   return output.replaceAll(/[^\n]*\r(?!\n)/g, "");
 }
@@ -85,29 +98,28 @@ export async function execShim(
   file: string,
   args: string[],
   options: ShimOptions & {
-    /**
-     * Opens an IPC channel to a Node subprocess and hears each message it
-     * sends; `reply` sends one back while the channel is open.
-     */
-    onMessage?: (
-      message: unknown,
-      reply: (message: Serializable) => void,
-    ) => void;
+    /** Where the program calls tools, closed once it exits. */
+    toolsChannel?: ToolsChannel;
     /**
      * Run outside the native sandbox: only for a command the person allowed
      * to act on its own, such as a script to an app they allowed.
      */
     unsandboxed?: true;
     /**
-     * A walk, whose paths were checked before it ran: a folder the sandbox
-     * refuses on the way is skipped quietly, with no card and no note.
+     * The environment is `env` alone, with nothing of the app's own: for a
+     * program run outside the sandbox on an environment built for it.
      */
-    walks?: true;
+    ownEnvOnly?: true;
   },
 ) {
   const sink = currentShellOutputSink();
-  const { cancelSignal, onMessage, unsandboxed, walks, ...subprocessOptions } =
-    options;
+  const {
+    cancelSignal,
+    toolsChannel,
+    ownEnvOnly,
+    unsandboxed,
+    ...subprocessOptions
+  } = options;
   let spawned: ReturnType<typeof wrapNativeCommand>;
   try {
     spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
@@ -115,6 +127,7 @@ export async function execShim(
     if (!(error instanceof NativeSandboxUnavailableError)) {
       throw error;
     }
+    toolsChannel?.close();
     // 126, the shell's "found but could not run".
     return {
       exitCode: 126,
@@ -123,34 +136,41 @@ export async function execShim(
       shortMessage: undefined,
       stderr: `${error.message}\n`,
       stdout: "",
+      stdoutBytes: Buffer.alloc(0),
     };
   }
-  const subprocess = execa(spawned.file, spawned.args, {
+  // Only what a program needs of the app's own environment, so a key or
+  // token set for the app never reaches a script the agent runs.
+  const env = {
+    ...(ownEnvOnly ? {} : inheritedEnv(process.env, spawned)),
+    ...subprocessOptions.env,
+  };
+  const launch = launchNative(spawned, {
+    cwd:
+      typeof subprocessOptions.cwd === "string"
+        ? subprocessOptions.cwd
+        : undefined,
+    env,
+    windowsVerbatimArguments: subprocessOptions.windowsVerbatimArguments,
+  });
+  const subprocess = execa(launch.file, launch.args, {
     ...subprocessOptions,
-    ...(onMessage ? { ipc: true } : {}),
-    // Only what a program needs of the app's own environment, so a key or
-    // token set for the app never reaches a script the agent runs.
-    env: {
-      ...inheritedEnv(process.env, spawned.reach),
-      ...subprocessOptions.env,
-    },
+    env,
+    // Under MXC the program's command line is in the launcher's request,
+    // and the launcher's own arguments take Node's quoting.
+    ...(spawned.kind === "mxc" ? { windowsVerbatimArguments: false } : {}),
     extendEnv: false,
     all: true,
     cancelSignal: sink ? undefined : cancelSignal,
     detached: sink !== undefined && process.platform !== "win32",
+    // Bytes, so stdout reaches the shell as the program wrote it; decoding
+    // it is up to whoever reads it as text.
+    encoding: "buffer",
     reject: false,
     stripFinalNewline: false,
   });
-  if (onMessage) {
-    subprocess.on("message", (message) =>
-      onMessage(message, (reply) => {
-        if (subprocess.connected) {
-          // A subprocess that exits while the reply is on its way has
-          // nothing left to hear it.
-          subprocess.send(reply, () => {});
-        }
-      }),
-    );
+  if (cancelSignal) {
+    toolsChannel?.attach(cancelSignal);
   }
   const finishTreeTermination = sink
     ? watchSubprocessTree({ pid: subprocess.pid, signal: cancelSignal })
@@ -159,38 +179,21 @@ export async function execShim(
     ? collectAndForward(subprocess.readable({ from: "all" }), sink)
     : undefined;
   const result = await subprocess;
+  toolsChannel?.close();
   await streamed;
   await finishTreeTermination?.();
-  const stderr = typeof result.stderr === "string" ? result.stderr : "";
-  const stdout = typeof result.stdout === "string" ? result.stdout : "";
-  const refused =
-    spawned.reach && !walks && result.exitCode !== 0
-      ? refusedPathIn(
-          `${stderr}\n${stdout}`,
-          spawned.reach,
-          typeof subprocessOptions.cwd === "string"
-            ? subprocessOptions.cwd
-            : undefined,
-        )
-      : undefined;
-  const refusal = refused && refusalNote(refused);
-  // A program that reached a developer tool stub on a Mac without the tools
-  // fails with the stub's own error, which does not say what to do.
-  // `xcode-select --install` reports a request the sandbox refused and still
-  // exits 0, so its own output is read whatever the exit code, and it fails.
-  const installRefused =
-    path.basename(file) === "xcode-select" &&
-    `${stderr}\n${stdout}`.includes("no install could be requested");
-  const missingTools =
-    result.exitCode !== 0 || installRefused
-      ? commandLineToolsNote(`${stderr}\n${stdout}`)
-      : undefined;
-  const notes = [
-    ...(refusal ? [`${refusal}\n`] : []),
-    ...(missingTools ? [missingTools] : []),
-  ].join("");
+  const stderr = decodeForDisplay(asBuffer(result.stderr));
+  const stdoutBytes = asBuffer(result.stdout);
+  const stdout = stdoutBytes.toString("utf8");
+  const noted = withShimNotes({
+    exitCode: result.exitCode,
+    file,
+    reach: spawned.reach,
+    stderr,
+    stdout,
+  });
   return {
-    exitCode: installRefused && result.exitCode === 0 ? 1 : result.exitCode,
+    exitCode: noted.exitCode,
     // The binary that was launched, kept so a diagnostic can name the command
     // the way the agent spells it rather than by its path on this machine.
     file,
@@ -200,15 +203,168 @@ export async function execShim(
     // Set when the subprocess failed without producing output of its own, which
     // is the only diagnostic a shim can report in that case.
     shortMessage: result.shortMessage,
-    // execa types these as possibly an array (when `lines` is on) or a buffer
-    // (when `encoding` is set). Neither is settable here, so the string branch
-    // is the only reachable one; narrowing rather than asserting keeps that
-    // guarantee checked.
+    stderr: noted.stderr,
+    stdout,
+    stdoutBytes,
+  };
+}
+
+/**
+ * One of execa's buffered outputs as a Buffer over the same memory. With
+ * `encoding: "buffer"` and `lines` unsettable, a Uint8Array is the only shape
+ * it can take; narrowing rather than asserting keeps that checked.
+ */
+function asBuffer(output: unknown): Buffer {
+  return output instanceof Uint8Array
+    ? Buffer.from(output.buffer, output.byteOffset, output.byteLength)
+    : Buffer.alloc(0);
+}
+
+/**
+ * A native program's stdout for the shell when it is not UTF-8 text: its
+ * exact bytes, marked as bytes, so a redirect writes them and the next
+ * command reads them unchanged. Only the shell's final output decodes them,
+ * for display. Text gives nothing here and keeps the string the command
+ * rendered from it (redacted, progress collapsed), which the shell encodes
+ * as UTF-8; the rendering's line handling would corrupt bytes. A program
+ * that writes `data` (an archive) gets its bytes passed on even where they
+ * happen to decode as UTF-8, as an uncompressed tar of text files does.
+ */
+export function binaryStdout(
+  result: { stdoutBytes: Buffer },
+  { data = false }: { data?: boolean } = {},
+) {
+  const bytes = result.stdoutBytes;
+  return bytes.length === 0 || (!data && isUtf8(bytes))
+    ? {}
+    : bytesOutput(unsafeBytesFromLatin1(bytes.toString("latin1")));
+}
+
+/**
+ * A finished program's exit code and stderr with what the app adds to them:
+ * the notes for a package.json, a setuid program or a signal the sandbox
+ * refused, and the note for a developer tool stub on a Mac without the tools.
+ */
+export function withShimNotes({
+  exitCode,
+  file,
+  reach,
+  stderr,
+  stdout,
+}: {
+  exitCode: number | undefined;
+  file: string;
+  reach: NativeReach | undefined;
+  stderr: string;
+  stdout: string;
+}): { exitCode: number | undefined; stderr: string } {
+  // Node stopped by a package.json the sandbox refused it is told how to get
+  // past that, rather than asked about a folder that holds no work.
+  const packageScope =
+    exitCode === 0 ? undefined : packageScopeNote(`${stderr}\n${stdout}`);
+  // A program that runs as another user is refused whole, and the path the
+  // refusal names is the program's, which no card or administrator opens.
+  const setuid =
+    reach && exitCode !== 0 ? setuidRefusalNote(file, stderr) : undefined;
+  const signals =
+    exitCode === 0
+      ? undefined
+      : signalRefusalNote(file, `${stderr}\n${stdout}`);
+  // A program that reached a developer tool stub on a Mac without the tools
+  // fails with the stub's own error, which does not say what to do.
+  // `xcode-select --install` reports a request the sandbox refused and still
+  // exits 0, so its own output is read whatever the exit code, and it fails.
+  const installRefused =
+    path.basename(file) === "xcode-select" &&
+    `${stderr}\n${stdout}`.includes("no install could be requested");
+  const missingTools =
+    exitCode !== 0 || installRefused
+      ? commandLineToolsNote(`${stderr}\n${stdout}`)
+      : undefined;
+  const notes = [
+    ...(packageScope ? [`${packageScope}\n`] : []),
+    ...(setuid ? [`${setuid}\n`] : []),
+    ...(signals ? [`${signals}\n`] : []),
+    ...(missingTools ? [missingTools] : []),
+  ].join("");
+  return {
+    exitCode: installRefused && exitCode === 0 ? 1 : exitCode,
     stderr: notes
       ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${notes}`
       : stderr,
-    stdout,
   };
+}
+
+/** Programs that signal processes by pid or name. */
+const SIGNALING_PROGRAMS: ReadonlySet<string> = new Set([
+  "kill",
+  "killall",
+  "pkill",
+]);
+
+/**
+ * What the agent reads when `kill`, `pkill` or `killall` ran as a program and
+ * the sandbox kept it from a process: each command runs in a sandbox of its
+ * own, which reaches only what that command started. On macOS the signal is
+ * refused; on Linux the process is not there to be found.
+ */
+export function signalRefusalNote(
+  file: string,
+  output: string,
+): string | undefined {
+  const name = path.basename(file);
+  if (!SIGNALING_PROGRAMS.has(name)) {
+    return undefined;
+  }
+  const refused =
+    output.includes("Operation not permitted") ||
+    (process.platform === "linux" &&
+      /No such process|no process found/.test(output));
+  return refused
+    ? `${name} reaches only processes started in this same command. Stop one you started earlier with the shell's \`kill <pid>\` or \`kill bg_1\`; any other process belongs to the person.`
+    : undefined;
+}
+
+/**
+ * How to run a process lister that a program or script tried to start: the
+ * shell runs it by name outside the sandbox (unsandboxed-process-list.ts).
+ */
+const PROCESS_LISTERS: Record<string, string> = {
+  ps: "Run `ps` as a shell command of its own (`ps aux | grep node`), where it lists every process; a program or script can't start it.",
+  top: "Run `top -l 1` as a shell command of its own, where it lists every process; a program or script can't start it.",
+};
+
+/**
+ * The note for a program macOS kept from starting inside the sandbox because
+ * it runs as another user (`ps`, `top`, `sudo`), in place of the note for a
+ * refused path, which would send the agent to an administrator for its own
+ * binary.
+ */
+export function setuidRefusalNote(
+  file: string,
+  stderr: string,
+): string | undefined {
+  if (process.platform !== "darwin" || !stderr.includes(file)) {
+    return undefined;
+  }
+  if (!/Operation not permitted/.test(stderr) || !runsAsOwner(file)) {
+    return undefined;
+  }
+  const name = path.basename(file);
+  const instead = PROCESS_LISTERS[name];
+  return `\`${name}\` can't run here: it runs as another user, which the sandbox refuses.${instead ? ` ${instead}` : ""}`;
+}
+
+/** The set-user-id bit of a file's mode, which Node's constants leave out. */
+const SET_USER_ID = 0o4000;
+
+/** Whether a program runs as its file's owner (setuid) rather than its caller. */
+function runsAsOwner(file: string): boolean {
+  try {
+    return (statSync(file).mode & SET_USER_ID) !== 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Apply a text transform to both streams of a finished shim. */

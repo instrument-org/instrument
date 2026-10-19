@@ -3,6 +3,7 @@ import { APP_COMMAND } from "./shell-commands/app-command";
 import { systemNote } from "./system-note";
 
 type ViewContext = SessionMessageDataPart.ViewContextDataPart;
+type ShellPath = (hostPath: string) => string;
 
 /** How many tabs a note names before it says how many more there are. */
 const TABS_NAMED_MAX = 8;
@@ -15,8 +16,11 @@ const TABS_NAMED_MAX = 8;
  * at the screen needs no address, path, or id typed out. Only what is on
  * screen is named; a folder the user left a screen ago is not.
  */
-export function viewContextModelNote(data: ViewContext) {
-  return `${screenNote(data)}${otherChatNote(data)}${chosenNote(data)}${tabsNote(data)}`;
+export function viewContextModelNote(
+  data: ViewContext,
+  shellPath: ShellPath = (hostPath) => hostPath,
+) {
+  return `${screenNote(data, shellPath)}${otherChatNote(data)}${chosenNote(data, shellPath)}${tabsNote(data)}`;
 }
 
 /** Another chat named beside what was on screen; on its own, the screen note says it. */
@@ -35,16 +39,13 @@ function chatNamed(chat: NonNullable<ViewContext["chat"]>) {
 }
 
 /** What the person picked to send with the message, which "this" and "these" take in alongside the screen. */
-function chosenNote(data: ViewContext) {
+function chosenNote(data: ViewContext, shellPath: ShellPath) {
   const chosen = data.chosen ?? [];
   if (chosen.length === 0) {
     return "";
   }
   const named = chosen
-    .map(
-      (entry) =>
-        `the ${entry.kind} \`${entry.path}\` (${entry.mount ? `you reach it at \`${entry.mount}\`` : "no folder you can reach covers it yet: reading it asks the person first"})`,
-    )
+    .map((entry) => `the ${entry.kind} \`${shellPath(entry.path)}\``)
     .join("; ");
   return systemNote`
     They chose to send ${chosen.length === 1 ? "this" : "these"} with the message: ${named}. "This", "these" and "it" refer to ${chosen.length === 1 ? "it" : "them"} first, then to what was on screen.
@@ -81,35 +82,19 @@ function describeStanding(standing: string) {
   }
 }
 
-function fileNote(data: ViewContext) {
+function fileNote(data: ViewContext, shellPath: ShellPath) {
   const { file } = data;
   if (!file) {
     return systemNote`
       When the user sent this, a file was open in the folder view. "This file" and "this" refer to it.
     `;
   }
-  const reach = file.mount
-    ? `You reach it at \`${file.mount}\`${data.folder?.access === "read-only" ? ", read-only" : ", read and write"}.`
-    : "No folder you can reach covers it yet: reading it asks the person first.";
   const folder = data.folder
     ? ` It sits in \`${data.folder.display}\`, which "this folder" means.`
     : "";
   return systemNote`
-    When the user sent this, the folder view showed the file \`${file.path}\` open. "This file", "this" and "it" refer to it. ${reach}${folder}
+    When the user sent this, the folder view showed the file \`${shellPath(file.path)}\` open. "This file", "this" and "it" refer to it.${folder}
   `;
-}
-
-/** Whether the agent can get at that folder, and how. */
-function folderReach(data: ViewContext) {
-  const { folder } = data;
-  if (!folder?.mount) {
-    return "No folder you can reach covers it yet: reading it asks the person first, and a task reaches it once they allow it.";
-  }
-  const access =
-    folder.access === "read-only"
-      ? "read-only for you, so ask before promising to change anything in it"
-      : "read and write for you";
-  return `You reach it at \`${folder.mount}\`, ${access}.`;
 }
 
 function folderShown(data: ViewContext) {
@@ -133,7 +118,7 @@ function pageNote(data: ViewContext) {
   const { page } = data;
   if (!page) {
     return systemNote`
-      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to hand a task until one is opened: \`tab open <url>\` opens one.
+      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to hand a task until one is opened: \`instrument tab open <url>\` opens one.
     `;
   }
   const title = page.title ? ` "${page.title}"` : "";
@@ -152,7 +137,7 @@ function pageNote(data: ViewContext) {
   `;
 }
 
-function screenNote(data: ViewContext) {
+function screenNote(data: ViewContext, shellPath: ShellPath) {
   switch (data.screen) {
     case "apps": {
       if (data.app) {
@@ -183,11 +168,11 @@ function screenNote(data: ViewContext) {
     }
     case "computer": {
       return systemNote`
-        When the user sent this, the folder view showed ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that. ${folderReach(data)}
+        When the user sent this, the folder view showed ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that.
       `;
     }
     case "file": {
-      return fileNote(data);
+      return fileNote(data, shellPath);
     }
     case "home": {
       return systemNote`
@@ -241,7 +226,7 @@ function taskNote(data: ViewContext) {
         : "which is working now"
       : "which has finished";
   return systemNote`
-    When the user sent this, the Tasks screen showed your task "${task.title}" (id ${task.id}), ${standing}. "This task", "this", "it" and "the task" refer to it: steer it with \`task send ${task.id}\`, stop it with \`task stop ${task.id}\`, read it with \`task log ${task.id}\`.
+    When the user sent this, the Tasks screen showed your task "${task.title}" (id ${task.id}), ${standing}. "This task", "this", "it" and "the task" refer to it: steer it with \`instrument task send ${task.id}\`, stop it with \`instrument task stop ${task.id}\`, read it with \`instrument task log ${task.id}\`.
   `;
 }
 

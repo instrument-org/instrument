@@ -2,13 +2,17 @@ import ms from "ms";
 import { ok } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 import { z } from "zod";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
+import { ampersandUse } from "../lib/background-ampersand";
 import {
   type BackgroundProcessInfo,
+  type BackgroundRunHandle,
   promoteBackgroundProcess,
+  rememberForegroundPrograms,
   startBackgroundRun,
 } from "../lib/background-processes";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
@@ -19,6 +23,7 @@ import {
 } from "../lib/browser-skill-delivery";
 import { executeError } from "../lib/execute-error";
 import { ignoredBuildsNote } from "../lib/ignored-builds-note";
+import { lastLoadedSkillDir } from "../lib/loaded-skill";
 import { sessionRole } from "../lib/chat/children";
 import { folderReach } from "../lib/chat/folder-reach";
 import {
@@ -141,6 +146,39 @@ async function raceYield<T>(
   }
 }
 
+/** The longest a trailing `&` waits for its command to start a program. */
+const AMPERSAND_START_MS = 1000;
+/**
+ * How long a started program gets to fail on the spot (a missing script, a
+ * port in use) before the call returns, so that failure is answered here.
+ */
+const AMPERSAND_SETTLE_MS = 300;
+
+/** What a call using `&` other than at its very end is told. Nothing ran. */
+const AMPERSAND_REFUSAL = `Nothing ran: \`&\` sends a command to the background only at the very end of a call, as in \`pnpm dev &\` or \`cd app && pnpm dev &\`. Start each background command in a call of its own ending in \`&\`, then run the rest; \`${JOBS_COMMAND.name} -l\` lists them and \`wait\` waits for them.`;
+
+/**
+ * Resolves with the run's outcome if it ends soon after starting, and with
+ * `"still-running"` once its first program has had a moment, or the shell
+ * has run that long without starting one.
+ */
+async function startedOrDone(handle: BackgroundRunHandle) {
+  const done = new AbortController();
+  const after = (delay: number) =>
+    setTimeoutPromise(delay, "still-running" as const, {
+      signal: done.signal,
+    }).catch(() => "still-running" as const);
+  try {
+    return await Promise.race([
+      handle.completion,
+      handle.started.then(() => after(AMPERSAND_SETTLE_MS)),
+      after(AMPERSAND_START_MS),
+    ]);
+  } finally {
+    done.abort();
+  }
+}
+
 export const BashTool = setupTool({
   inputSchema: BaseInputSchema.extend({
     command: z.string().meta({ description: "The bash command to run" }),
@@ -162,6 +200,8 @@ export const BashTool = setupTool({
   }),
   name: "bash",
   outputSchema: z.object({
+    /** Set when a trailing `&` sent the command to the background. */
+    backgrounded: z.boolean().optional(),
     /**
      * The `agent-browser` skill's instructions, set on the first result in the
      * model's view of the session that ran the command.
@@ -191,6 +231,8 @@ export const BashTool = setupTool({
     /** Output dropped because a promoted command outpaced the pending buffer. */
     omittedBytes: z.number().default(0),
     output: z.string(),
+    /** The real pids of what a promoted command was running when it moved. */
+    pids: z.array(z.number()).optional(),
     /** Set when the command outlived `yieldMs` and is still running. */
     processId: z.string().optional(),
     spillFilePath: RelativePathSchema.optional(),
@@ -200,6 +242,17 @@ export const BashTool = setupTool({
   // feature flag can turn on and off while the app is running.
   description: () => createBashDescription(),
   async execute({ input, partId, sessionId, signal, chatId }) {
+    const ampersand = ampersandUse(input.command);
+    if (ampersand === "refused") {
+      return ok({
+        command: input.command,
+        commands: [],
+        durationMs: 0,
+        exitCode: 2,
+        omittedBytes: 0,
+        output: AMPERSAND_REFUSAL,
+      });
+    }
     const folders = await folderReach(chatId);
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
@@ -209,6 +262,7 @@ export const BashTool = setupTool({
     const bash = await createBashEnv({
       folders,
       callPartId: partId,
+      loadedSkillDir: await lastLoadedSkillDir({ chatId, sessionId }),
       role,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only
@@ -265,6 +319,7 @@ export const BashTool = setupTool({
     ) => {
       const { omittedBytes, text } = handle.buffer.drain();
       return ok({
+        ...(ampersand === "trailing" ? { backgrounded: true } : {}),
         command: input.command,
         commands: [],
         durationMs: Math.round(performance.now() - startedAt),
@@ -274,9 +329,28 @@ export const BashTool = setupTool({
         ...(movedForMessageFrom ? { movedForMessageFrom } : {}),
         omittedBytes,
         output: text,
+        pids: info.pids,
         processId: info.id,
       });
     };
+
+    // A trailing `&` asks for the background now: the call returns once the
+    // command has started its program, or failed before it could.
+    if (ampersand === "trailing") {
+      const early = await startedOrDone(handle);
+      if (early === "still-running") {
+        const promoted = promoteBackgroundProcess({
+          handle,
+          sessionId,
+          chatId,
+        });
+        if ("error" in promoted) {
+          handle.abort();
+          return executeError(promoted.error);
+        }
+        return promotedResult(promoted.info);
+      }
+    }
 
     // A message for the session is heard at the agent's next step, which a
     // foreground command would hold back for the rest of its window. It never
@@ -313,6 +387,10 @@ export const BashTool = setupTool({
       }
     }
     const durationMs = Math.round(performance.now() - startedAt);
+    if (outcome !== "still-running") {
+      // What its programs left running in their groups is still the agent's.
+      rememberForegroundPrograms(sessionId, handle);
+    }
 
     if (outcome === "still-running") {
       const promoted = promoteBackgroundProcess({ handle, sessionId, chatId });
@@ -346,7 +424,7 @@ export const BashTool = setupTool({
 
     const pageAfter = await browserFollowUp.take(signal);
     const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
-      ? await browserSkillToDeliver({ sessionId, signal, chatId })
+      ? await browserSkillToDeliver({ sessionId, chatId })
       : undefined;
 
     return ok({
@@ -400,8 +478,10 @@ export const BashTool = setupTool({
           ? `[The bounded process log omitted ${formatBytes(output.logOmittedBytes ?? 0)}.]\n`
           : "";
       const after = ms(output.durationMs, { long: true });
-      const why =
-        output.movedForMessageFrom === "user"
+      // A shell's own announcement of a job: its number, then its pids.
+      const why = output.backgrounded
+        ? `[${output.processId.replace("bg_", "")}] ${[output.processId, ...(output.pids ?? [])].join(" ")}`
+        : output.movedForMessageFrom === "user"
           ? `The user sent you a message while this was running, so it moved to the background after ${after} for you to read the message. It was not stopped and is still running.`
           : output.movedForMessageFrom === "other"
             ? `A message arrived for you while this was running, so it moved to the background after ${after} for you to read the message. It was not stopped and is still running.`
@@ -410,7 +490,11 @@ export const BashTool = setupTool({
         type: "text",
         value: [
           why,
-          `Process id: ${output.processId}`,
+          ...(output.backgrounded
+            ? []
+            : [
+                `Process id: ${output.processId}${output.pids?.length ? ` (pid ${output.pids.join(", ")})` : ""}`,
+              ]),
           "",
           displayOutput
             ? `Live subprocess output so far:\n\n${(dropNotice + logNotice + truncationNotice + displayOutput).replace(/\n+$/, "")}`

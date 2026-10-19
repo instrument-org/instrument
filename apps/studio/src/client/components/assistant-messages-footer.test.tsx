@@ -69,3 +69,39 @@ test("copies a turn's text parts as the separate blocks they are drawn as", asyn
     );
   });
 });
+
+// A call the app's quit cut off is stamped when the app closed, after the
+// step's own finish, and the clock time runs to it.
+test("times a turn to the last part that ended, past its message's finish", () => {
+  const message = assistantMessage();
+  renderWithProviders(
+    <AssistantMessagesFooter
+      alwaysVisible
+      messages={[
+        {
+          ...message,
+          metadata: {
+            ...message.metadata,
+            finishedAt: new Date(5000),
+            msToFinish: 5000,
+          },
+          parts: [
+            {
+              metadata: {
+                createdAt: new Date(0),
+                endedAt: new Date(20_000),
+                id: StoreId.newPartId(),
+                messageId: message.id,
+                sessionId,
+              },
+              text: "Done.",
+              type: "text",
+            },
+          ],
+        },
+      ]}
+    />,
+  );
+
+  expect(screen.getByText("20s")).toBeTruthy();
+});

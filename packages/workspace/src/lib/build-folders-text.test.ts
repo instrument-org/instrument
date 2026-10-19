@@ -18,7 +18,6 @@ describe("buildFoldersText", () => {
     const text = buildFoldersText({
       folders: [
         {
-          access: "read-write",
           path: "/Users/sam/Documents/test",
         },
       ],
@@ -27,14 +26,14 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" -> \`/Users/sam/Documents/test\` (read and write)",
+        "- "test" -> \`/Users/sam/Documents/test\`",
       ]
     `);
   });
 
   it("tells the model to speak the name and address the path", () => {
     const text = buildFoldersText({
-      folders: [{ access: "read-only", path: "/tmp/notes" }],
+      folders: [{ path: "/tmp/notes" }],
       intro: INTRO,
     });
 
@@ -45,9 +44,8 @@ describe("buildFoldersText", () => {
   it("leaves a name unqualified when nothing else shares it", () => {
     const text = buildFoldersText({
       folders: [
-        { access: "read-only", path: "/tmp/a/test" },
+        { path: "/tmp/a/test" },
         {
-          access: "read-only",
           path: "/tmp/b/notes",
         },
       ],
@@ -56,8 +54,8 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" -> \`/tmp/a/test\` (read-only)",
-        "- "notes" -> \`/tmp/b/notes\` (read-only)",
+        "- "test" -> \`/tmp/a/test\`",
+        "- "notes" -> \`/tmp/b/notes\`",
       ]
     `);
   });
@@ -68,11 +66,9 @@ describe("buildFoldersText", () => {
     const text = buildFoldersText({
       folders: [
         {
-          access: "read-write",
           path: "/Users/sam/Downloads/test",
         },
         {
-          access: "read-only",
           path: "/Users/sam/Documents/test",
         },
       ],
@@ -81,8 +77,8 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" (in Downloads) -> \`/Users/sam/Downloads/test\` (read and write)",
-        "- "test" (in Documents) -> \`/Users/sam/Documents/test\` (read-only)",
+        "- "test" (in Downloads) -> \`/Users/sam/Downloads/test\`",
+        "- "test" (in Documents) -> \`/Users/sam/Documents/test\`",
       ]
     `);
   });
@@ -91,11 +87,9 @@ describe("buildFoldersText", () => {
     const text = buildFoldersText({
       folders: [
         {
-          access: "read-only",
           path: path.join(os.homedir(), "test"),
         },
         {
-          access: "read-only",
           path: path.join(os.homedir(), "Documents", "test"),
         },
       ],
@@ -106,36 +100,30 @@ describe("buildFoldersText", () => {
     expect(hints).toEqual(["Home", "Documents"]);
   });
 
-  // The chat has no file tools and a shell that refuses to write, so
-  // its copy names the task as the writer rather than tools it has not got.
-  it("labels the home folder as one to look through and ask inside", () => {
+  // The list is written once for the life of a session, so it says nothing
+  // about what the agent may do in a folder: the permission rules answer that
+  // when it tries, as they stand then.
+  it("lists the home folder by name and path alone", () => {
     const text = buildFoldersText({
-      folders: [
-        {
-          access: "read-only",
-          path: "/Users/sam",
-          writableInside: true,
-        },
-      ],
+      folders: [{ path: "/Users/sam" }],
       intro: INTRO,
     });
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "sam" -> \`/Users/sam\` (look through it; changing anything in it asks the person first)",
+        "- "sam" -> \`/Users/sam\`",
       ]
     `);
   });
 
-  it("says a folder that asks shows the person a card", () => {
+  it("says a folder that asks is asked for with ask_permission", () => {
     const folders = [
       {
-        access: "read-write" as const,
         path: "/Users/sam/Desktop",
       },
     ];
     expect(buildFoldersText({ folders, intro: INTRO })).toContain(
-      "shows the person a card",
+      "Ask for one that needs a yes with `ask_permission`",
     );
   });
 
@@ -143,7 +131,6 @@ describe("buildFoldersText", () => {
     const text = buildFoldersText({
       folders: [
         {
-          access: "read-write",
           missing: true,
           path: "/tmp/gone/test",
         },
@@ -153,7 +140,7 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" -> \`/tmp/gone/test\` (read and write, no longer exists)",
+        "- "test" -> \`/tmp/gone/test\` (no longer exists)",
       ]
     `);
   });

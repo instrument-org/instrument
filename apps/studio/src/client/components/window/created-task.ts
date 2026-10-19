@@ -1,7 +1,7 @@
 import { type StoreId } from "@instrument-org/workspace/client";
 
 /**
- * The task a bash call's `task new` started, by its session, read off the
+ * The task a bash call's `instrument task new` started, by its session, read off the
  * hand-offs the call recorded.
  */
 export function createdTaskSession(part: {

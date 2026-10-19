@@ -37,6 +37,29 @@ describe("locationCrumbs", () => {
       `);
   });
 
+  it("names several picked as a count under their folder, which is somewhere to go", () => {
+    expect(
+      readable({
+        kind: "folder",
+        path: "/Users/casey/Documents/Lisbon trip",
+        picked: 3,
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "casey -> /files?path=&root=%2FUsers%2Fcasey",
+        "Documents -> /files?path=&root=%2FUsers%2Fcasey%2FDocuments",
+        "Lisbon trip -> /files?path=&root=%2FUsers%2Fcasey%2FDocuments%2FLisbon+trip",
+        "3 items",
+      ]
+    `);
+  });
+
+  it("names several picked from the recents as a count alone", () => {
+    expect(readable({ kind: "folder", path: "", picked: 4 })).toEqual([
+      "4 items",
+    ]);
+  });
+
   it("walks a Windows folder up from the home folder", () => {
     expect(
       readable(

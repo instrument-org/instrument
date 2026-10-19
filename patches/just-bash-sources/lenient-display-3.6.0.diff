@@ -1,0 +1,148 @@
+diff --git a/packages/just-bash/src/encoding.ts b/packages/just-bash/src/encoding.ts
+--- a/packages/just-bash/src/encoding.ts
++++ b/packages/just-bash/src/encoding.ts
+@@ -116,7 +116,65 @@
+     return strictUtf8Decoder.decode(bytes);
+   } catch {
+     return s;
++  }
++}
++
++/** The length of the valid UTF-8 sequence at `i`, or 0 where none starts. */
++function utf8SequenceLength(bytes: Uint8Array, i: number): number {
++  const b0 = bytes[i];
++  if (b0 < 0x80) return 1;
++  const length = b0 >= 0xf0 ? 4 : b0 >= 0xe0 ? 3 : 2;
++  if (b0 < 0xc2 || b0 > 0xf4 || i + length > bytes.length) return 0;
++  for (let k = 1; k < length; k++) {
++    if ((bytes[i + k] & 0xc0) !== 0x80) return 0;
++  }
++  const b1 = bytes[i + 1];
++  // Overlong forms, UTF-16 surrogates, and code points past U+10FFFF.
++  if (
++    (b0 === 0xe0 && b1 < 0xa0) ||
++    (b0 === 0xed && b1 > 0x9f) ||
++    (b0 === 0xf0 && b1 < 0x90) ||
++    (b0 === 0xf4 && b1 > 0x8f)
++  ) {
++    return 0;
++  }
++  return length;
++}
++
++/**
++ * Decode a `ByteString` as UTF-8 for output a person or a model reads: as
++ * `decodeBytesToUtf8`, except that bytes that are not all UTF-8 fall back to
++ * the latin1 view one stray byte at a time rather than as a whole, so
++ * `héllo` followed by a lone 0x89 reads `héllo\u0089`, not `hÃ©llo\u0089`.
++ */
++export function decodeBytesToUtf8Leniently(
++  b: ByteString,
++  maxBytes: number = DEFAULT_MAX_CONVERSION_BYTES,
++): string {
++  const s = b as unknown as string;
++  const strict = decodeBytesToUtf8(b, maxBytes);
++  if (strict !== s) return strict;
++  let out = "";
++  let start = 0;
++  let i = 0;
++  const bytes = new Uint8Array(s.length);
++  for (let k = 0; k < s.length; k++) {
++    const code = s.charCodeAt(k);
++    // Already Unicode text rather than bytes; nothing to decode.
++    if (code > 0xff) return s;
++    bytes[k] = code;
+   }
++  while (i < bytes.length) {
++    const length = utf8SequenceLength(bytes, i);
++    if (length > 0) {
++      i += length;
++      continue;
++    }
++    out += strictUtf8Decoder.decode(bytes.subarray(start, i)) + s[i];
++    i += 1;
++    start = i;
++  }
++  return out + strictUtf8Decoder.decode(bytes.subarray(start));
+ }
+ 
+ /**
+@@ -220,7 +278,7 @@
+  * Normalize a command's stdout to decoded UTF-8 text, consulting its explicit
+  * `stdoutKind` (or legacy `stdoutEncoding`) rather than guessing from string
+  * contents. Byte-shaped output is UTF-8 decoded once (falling back to the raw
+- * latin1 view for non-UTF-8 bytes); text-shaped output is returned unchanged so
++ * latin1 view for each byte outside a UTF-8 sequence); text-shaped output is returned unchanged so
+  * it is never re-decoded. Used at the statement/script concatenation and
+  * command-substitution boundaries so interleaved text and byte producers
+  * combine into a single, consistently-decoded string.
+@@ -231,7 +289,7 @@
+   stdoutEncoding?: "binary";
+ }): string {
+   return stdoutKind(result) === "bytes"
+-    ? decodeBytesToUtf8(unsafeBytesFromLatin1(result.stdout))
++    ? decodeBytesToUtf8Leniently(unsafeBytesFromLatin1(result.stdout))
+     : result.stdout;
+ }
+ 
+diff --git a/packages/just-bash/src/index.ts b/packages/just-bash/src/index.ts
+--- a/packages/just-bash/src/index.ts
++++ b/packages/just-bash/src/index.ts
+@@ -43,6 +43,7 @@
+ export {
+   bytesOutput,
+   decodeBytesToUtf8,
++  decodeBytesToUtf8Leniently,
+   EMPTY_BYTES,
+   encodeUtf8ToBytes,
+   latin1FromBytes,
+diff --git a/packages/just-bash/src/encoding.lenient-display.test.ts b/packages/just-bash/src/encoding.lenient-display.test.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/just-bash/src/encoding.lenient-display.test.ts
+@@ -0,0 +1,45 @@
++import { describe, expect, it } from "vitest";
++import { Bash } from "./Bash.js";
++import {
++  decodeBytesToUtf8Leniently,
++  unsafeBytesFromLatin1,
++} from "./encoding.js";
++
++const decode = (bytes: number[]) =>
++  decodeBytesToUtf8Leniently(
++    unsafeBytesFromLatin1(Buffer.from(bytes).toString("latin1")),
++  );
++
++/** Each byte as the latin1 char of the same value. */
++const latin1 = (...bytes: number[]) => String.fromCharCode(...bytes);
++
++describe("decodeBytesToUtf8Leniently", () => {
++  it.each<[string, number[], string]>([
++    ["UTF-8", [...Buffer.from("héllo ✓")], "héllo ✓"],
++    ["a stray byte", [...Buffer.from("héllo "), 0x89], `héllo ${latin1(0x89)}`],
++    ["a cut sequence", [0xe6, 0x97, 0xa5, 0xe6], `日${latin1(0xe6)}`],
++    ["an overlong form", [0xe0, 0x80, 0x80], latin1(0xe0, 0x80, 0x80)],
++    ["a surrogate", [0xed, 0xa0, 0x80], latin1(0xed, 0xa0, 0x80)],
++    ["no high byte", [...Buffer.from("plain")], "plain"],
++  ])("decodes %s", (_, bytes, expected) => {
++    expect(decode(bytes)).toBe(expected);
++  });
++
++  it("leaves Unicode text alone", () => {
++    expect(decodeBytesToUtf8Leniently(unsafeBytesFromLatin1("日"))).toBe(
++      "日",
++    );
++  });
++});
++
++describe("a statement's byte output in the shell's output", () => {
++  it("decodes the UTF-8 around a stray byte", async () => {
++    const env = new Bash();
++    await env.fs.writeFile(
++      "/mixed.bin",
++      new Uint8Array([...Buffer.from("héllo "), 0x89, 0x0a]),
++    );
++    const result = await env.exec("cat /mixed.bin");
++    expect(result.stdout).toBe(`héllo ${latin1(0x89)}\n`);
++  });
++});

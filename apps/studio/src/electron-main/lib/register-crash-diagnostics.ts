@@ -1,18 +1,25 @@
 import { isExpectedNetworkError } from "@instrument-org/shared";
+import {
+  type ExceptionEvent,
+  ExceptionEventSchema,
+  formatExceptionEvent,
+} from "@instrument-org/shared/exceptions";
 import { crashReporter } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
-import { captureServerException } from "./capture-server-exception";
-import { describeError } from "./describe-error";
+import {
+  buildMainExceptionEvent,
+  recordExceptionEvent,
+} from "./capture-server-exception";
 import { createScopedLogger } from "./electron-logger";
+import { storeExceptionEvent } from "./exception-store";
 import { recordEndedSession } from "./problem-reports";
 
 const log = createScopedLogger("CrashDiagnostics");
 
-// Bounded on the way back in, because what it holds is a stack trace of no
-// contracted size.
-const MAX_CRASH_RECORD_BYTES = 8000;
+// Bounded on the way back in: an event's data has no contracted size.
+const MAX_CRASH_RECORD_BYTES = 2_000_000;
 
 // Latched while the record below is being written, because writing it can
 // itself throw and Node would promote that into another uncaught exception,
@@ -40,19 +47,13 @@ let isWritingCrashRecord = false;
  * torn down mid-flight -- and Node's default is to promote it to an uncaught
  * exception.
  *
- * Both are reported through `captureServerException` like every other
- * exception, except the network drops `isExpectedNetworkError` recognizes. Those are a property of
- * the user's connection: a dependency that downloads without an error listener
- * turns a network change into an uncaught throw, and nothing about it is a bug
- * here.
- *
- * The two process-gone records are content-free -- a process type, a name, a
- * reason, an exit code -- so either can be read, exported, or attached to a
- * report the user chooses to send with nothing to redact first. The
- * uncaught-exception and unhandled-rejection records are not: they carry the
- * throw's message and stack, and a message is whatever the throw put in it. A
- * rejected chat-file read names a host path and a chat folder whose name
- * came from the user's own prompt.
+ * Both are captured as unhandled exception events like every other
+ * exception, except the network drops `isExpectedNetworkError` recognizes.
+ * Those are a property of the user's connection: a dependency that downloads
+ * without an error listener turns a network change into an uncaught throw,
+ * and nothing about it is a bug here. A renderer or child process that ends
+ * abnormally is an event too, at level `fatal` with the `process-gone`
+ * mechanism, carrying its type, name, reason and exit code.
  *
  * Two records cover what no JavaScript handler can see. Crashpad writes a
  * minidump for any process that dies natively, kept in `crashDumps` and never
@@ -78,18 +79,29 @@ export function registerCrashDiagnostics(app: Electron.App) {
 
   // Written synchronously, ahead of the listeners below, so the record exists
   // whatever reporting does. See `writeCrashRecord`. A network drop is left
-  // out, since the listener below already logs it and it is not a bug.
+  // out, since the listener below already logs it and it is not a bug. The
+  // event is the one the listener then records, so the crash record and the
+  // exception store hold the same event under one id.
   process.on("uncaughtExceptionMonitor", (error, origin) => {
     if (isExpectedNetworkError(error)) {
       return;
     }
-    // The stack where there is one, since this record is all anyone gets.
-    const { details, message } = describeError(error);
-    writeCrashRecord(app, `${origin}: ${details ?? message}`);
+    try {
+      const event = buildMainExceptionEvent(error, {
+        handled: false,
+        mechanism: origin,
+      });
+      monitored = { error, event };
+      writeCrashRecord(app, event);
+    } catch {
+      // An `uncaughtException` listener that throws ends the process.
+    }
   });
 
   process.on("uncaughtException", (error) => {
-    reportProcessError(error, "uncaughtException");
+    const event = monitored?.error === error ? monitored.event : undefined;
+    monitored = undefined;
+    reportProcessError(error, "uncaughtException", event);
   });
 
   process.on("unhandledRejection", (error) => {
@@ -103,6 +115,15 @@ export function registerCrashDiagnostics(app: Electron.App) {
     logProcessGone(
       details,
       `render-process-gone ${identifyWebContents(webContents)} reason=${details.reason} exitCode=${details.exitCode}`,
+      {
+        data: {
+          exitCode: details.exitCode,
+          reason: details.reason,
+          webContents: identifyWebContents(webContents),
+        },
+        type: "RenderProcessGone",
+        value: `A renderer ended: ${details.reason}`,
+      },
     );
   });
 
@@ -114,9 +135,22 @@ export function registerCrashDiagnostics(app: Electron.App) {
     logProcessGone(
       details,
       `child-process-gone type=${details.type} name=${name} reason=${details.reason} exitCode=${details.exitCode}`,
+      {
+        data: {
+          exitCode: details.exitCode,
+          name,
+          reason: details.reason,
+          type: details.type,
+        },
+        type: "ChildProcessGone",
+        value: `The ${name} ${details.type} process ended: ${details.reason}`,
+      },
     );
   });
 }
+
+/** The event the monitor built for the throw the listener is about to get. */
+let monitored: { error: unknown; event: ExceptionEvent } | undefined;
 
 // SIGTERM is how a quit, and a dev relaunch, ends every child process, so a
 // process killed by it is ordinary teardown rather than something that went
@@ -126,12 +160,29 @@ const SIGTERM_EXIT_CODE = 15;
 function logProcessGone(
   details: { exitCode: number; reason: string },
   line: string,
+  gone: { data: Record<string, unknown>; type: string; value: string },
 ) {
   if (details.reason === "killed" && details.exitCode === SIGTERM_EXIT_CODE) {
     log.info(line);
     return;
   }
   log.error(line);
+  try {
+    // No stack to show: the process took its own with it. The error is made
+    // here only to carry the type and the words, so its stack is dropped.
+    const error = Object.assign(new Error(gone.value), { name: gone.type });
+    error.stack = `${gone.type}: ${gone.value}`;
+    recordExceptionEvent(
+      buildMainExceptionEvent(error, {
+        data: gone.data,
+        handled: false,
+        level: "fatal",
+        mechanism: "process-gone",
+      }),
+    );
+  } catch {
+    // The log line above is the record either way.
+  }
 }
 
 function getSessionMarkerPath(app: Electron.App) {
@@ -294,7 +345,7 @@ function reportNewCrashDumps(app: Electron.App): number {
 }
 
 function getCrashRecordPath(app: Electron.App) {
-  return path.join(app.getPath("userData"), "last-crash.log");
+  return path.join(app.getPath("userData"), "last-crash.json");
 }
 
 function identifyWebContents(webContents: Electron.WebContents): string {
@@ -307,25 +358,34 @@ function identifyWebContents(webContents: Electron.WebContents): string {
 }
 
 /**
- * Fold the previous session's dying words into this session's log.
+ * Fold the previous session's dying words into this session: the event its
+ * last uncaught throw wrote, logged, and kept in the exception store unless
+ * that session got to store it itself.
  *
  * Removed once read, so a later boot does not report the same crash again.
  */
-function reportPreviousCrash(app: Electron.App): string | undefined {
+function reportPreviousCrash(app: Electron.App): ExceptionEvent | undefined {
   const recordPath = getCrashRecordPath(app);
   try {
     if (!fs.existsSync(recordPath)) {
       return undefined;
     }
-    const contents = fs
-      .readFileSync(recordPath, "utf8")
-      .trim()
-      .slice(-MAX_CRASH_RECORD_BYTES);
+    const contents = fs.readFileSync(recordPath, "utf8");
     fs.rmSync(recordPath, { force: true });
-    if (contents) {
-      log.error(`Previous session hit an uncaught exception:\n${contents}`);
+    if (contents.length > MAX_CRASH_RECORD_BYTES) {
+      log.warn("Previous session's crash record was too large to read");
+      return undefined;
     }
-    return contents || undefined;
+    const parsed = ExceptionEventSchema.safeParse(JSON.parse(contents));
+    if (!parsed.success) {
+      log.warn("Previous session's crash record was unreadable", parsed.error);
+      return undefined;
+    }
+    log.error(
+      `Previous session hit an uncaught exception:\n${formatExceptionEvent(parsed.data, { breadcrumbs: 0 })}`,
+    );
+    storeExceptionEvent(parsed.data, { once: true });
+    return parsed.data;
   } catch (error) {
     log.warn(
       new Error("Could not read the previous crash record", { cause: error }),
@@ -337,13 +397,17 @@ function reportPreviousCrash(app: Electron.App): string | undefined {
 function reportProcessError(
   error: unknown,
   origin: "uncaughtException" | "unhandledRejection",
+  event?: ExceptionEvent,
 ) {
   try {
     if (isExpectedNetworkError(error)) {
       log.warn(`${origin} from a network failure`, error);
       return;
     }
-    captureServerException(error, { origin, scopes: ["studio"] });
+    recordExceptionEvent(
+      event ??
+        buildMainExceptionEvent(error, { handled: false, mechanism: origin }),
+    );
   } catch {
     // A throw from an `uncaughtException` listener ends the process, which is
     // worse than losing one report.
@@ -351,21 +415,21 @@ function reportProcessError(
 }
 
 /**
- * Put an uncaught throw's stack somewhere it will still be there.
+ * Put an uncaught throw's event somewhere it will still be there.
  *
- * Written with a synchronous append rather than through the logger.
- * `electron-log`'s file transport is in async mode here: it queues a line and
- * drains it through `fs.writeFile`, with no flush API and no drain on exit, so
- * a line queued just before the process ends is a line nobody ever reads. A
- * main-process throw leaves the app running, but it is the throw most likely
- * to be followed by a quit or a force-quit, and this record has to outlive
- * either.
+ * Written synchronously rather than through the logger or the exception
+ * store. `electron-log`'s file transport is in async mode here: it queues a
+ * line and drains it through `fs.writeFile`, with no flush API and no drain
+ * on exit, and the store waits a moment to write a burst at once, so
+ * anything queued just before the process ends is never read. A main-process
+ * throw leaves the app running, but it is the throw most likely to be
+ * followed by a quit or a force-quit, and this record has to outlive either.
+ * It holds the session's last uncaught throw; the store has the rest.
  *
- * The next start reads it back into the log, so the record still reaches the
- * one file a user can export. In development the file transport is off
- * entirely, so this is for the packaged build.
+ * The next start reads it back into the log and the store, so the record
+ * still reaches the one file a user can export and the reports they send.
  */
-function writeCrashRecord(app: Electron.App, record: string) {
+function writeCrashRecord(app: Electron.App, event: ExceptionEvent) {
   // VS Code's own crash diagnostics carry the same latch, after a CI run
   // looped into a 386 MB log without one.
   if (isWritingCrashRecord) {
@@ -373,10 +437,7 @@ function writeCrashRecord(app: Electron.App, record: string) {
   }
   isWritingCrashRecord = true;
   try {
-    fs.appendFileSync(
-      getCrashRecordPath(app),
-      `${new Date().toISOString()} ${record}\n`,
-    );
+    fs.writeFileSync(getCrashRecordPath(app), JSON.stringify(event));
   } catch {
     // The process is ending either way, and there is nowhere left to say so.
   } finally {

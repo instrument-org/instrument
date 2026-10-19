@@ -25,6 +25,19 @@ const PASSES = [
       "pnpm --silent --filter @instrument-org/studio exec vitest run src/client/lib/product-guide.test.ts -u",
     label: "generated files",
   },
+  // The chat-history skill's records.md, from records-guide.ts.
+  {
+    command:
+      "pnpm --silent --filter @instrument-org/workspace exec vitest run src/lib/records/records-guide.test.ts -u",
+    label: "generated chat records reference",
+  },
+  // The table of native text commands in
+  // docs/architecture/native-and-builtin-commands.md, from native-text.ts.
+  {
+    command:
+      "pnpm --silent --filter @instrument-org/workspace exec vitest run src/lib/shell-commands/native-text-doc.test.ts -u",
+    label: "generated command table",
+  },
   // Spelling before format, so every pass below sees corrected text.
   { command: "pnpm fix:spelling", label: "spelling" },
   FORMAT,

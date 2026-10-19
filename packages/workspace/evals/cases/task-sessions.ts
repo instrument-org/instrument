@@ -7,11 +7,11 @@
  * outright, so a run that does the work in the chat says nothing about them,
  * and score what the store holds as well as what the user got:
  *
- * - **It starts one task, as t1.** One `task new`, one session of the chat's
+ * - **It starts one task, as t1.** One `instrument task new`, one session of the chat's
  *   with a parent and a fork point, and the work done there.
  * - **It steers that task by its handle.** A change of plan reaches t1
- *   through `task send t1` or `task stop t1`, rather than a second task.
- * - **It hands the task the user's tab.** `task new --tab` makes the task
+ *   through `instrument task send t1` or `instrument task stop t1`, rather than a second task.
+ * - **It hands the task the user's tab.** `instrument task new --tab` makes the task
  *   the tab's one driver, and the tab goes back to the chat when the task
  *   finishes.
  * - **It leaves a task the user stopped alone.** Stop on t1 writes the chat
@@ -36,15 +36,13 @@ import path from "node:path";
 import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../../src/constants";
 import { getChatState } from "../../src/lib/chat-record";
 import { listChildTasks } from "../../src/lib/chat/children";
-import { openAsks } from "../../src/lib/permissions/asks";
-import { outputFolderPath } from "../../src/lib/chat/output-folder";
+import { openAsks } from "../../src/lib/chat/asks";
 import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
+import { deliveredFile } from "../lib/delivered-file";
 
 type Context = Parameters<Assertion["check"]>[0];
-
-const WORKSPACE = outputFolderPath();
 
 function pass(text: string, evidence: string): AssertionResult {
   return { evidence, passed: true, text };
@@ -73,7 +71,8 @@ function commandsIn(sessions: Session.WithMessagesAndParts[]): string[] {
 function starts(commands: string[]): number {
   return commands.reduce(
     (count, command) =>
-      count + [...command.matchAll(/(?:^|[\n;&|])\s*task new\b/g)].length,
+      count +
+      [...command.matchAll(/(?:^|[\n;&|])\s*instrument task new\b/g)].length,
     0,
   );
 }
@@ -107,10 +106,10 @@ const startedOneTaskAsT1: Assertion = {
 function wrote(name: string, holds: RegExp): Assertion {
   const text = `wrote ${name} holding ${String(holds)}`;
   return {
-    check: () => {
-      const file = path.join(WORKSPACE, name);
-      if (!fs.existsSync(file)) {
-        return fail(text, `no ${file}`);
+    check: ({ chatId }) => {
+      const file = deliveredFile(chatId, name);
+      if (!file) {
+        return fail(text, `no ${name} in the chat's folder or the workspace's`);
       }
       const body = fs.readFileSync(file, "utf8");
       return (holds.test(body) ? pass : fail)(text, body.slice(0, 200));
@@ -144,7 +143,7 @@ const steeredT1: Assertion = {
     const text = "steered t1 by its handle, starting no second task";
     const commands = commandsIn(ctx.sessions);
     const steered = commands.filter((command) =>
-      /(?:^|[\n;&|])\s*task (?:send|stop) t1\b/.test(command),
+      /(?:^|[\n;&|])\s*instrument task (?:send|stop) t1\b/.test(command),
     );
     const children = await ctx.childSessions();
     return (steered.length > 0 && children.length === 1 ? pass : fail)(
@@ -168,7 +167,7 @@ const handedTheTab: Assertion = {
     const text = `handed the task tab ${PAGE_TAB}`;
     const handed = commandsIn(ctx.sessions).filter(
       (command) =>
-        /(?:^|[\n;&|])\s*task new\b/.test(command) &&
+        /(?:^|[\n;&|])\s*instrument task new\b/.test(command) &&
         new RegExp(`--tab[ =]['"]?${PAGE_TAB}`).test(command),
     );
     return (handed.length > 0 ? pass : fail)(
@@ -193,81 +192,6 @@ const tabCameBack: Assertion = {
     );
   },
   text: "the tab went back to the chat when the task finished",
-};
-
-/**
- * The chat's turn the user's stop woke: its reply, and the commands it ran,
- * from the note on.
- */
-function afterTheStop(sessions: Session.WithMessagesAndParts[]) {
-  const messages = sessions.flatMap((session) => session.messages);
-  const woke = messages.findIndex((message) =>
-    message.parts.some(
-      (part) =>
-        part.type === "data-taskEvent" &&
-        part.data.events.some((event) => event.stoppedBy === "user"),
-    ),
-  );
-  if (woke === -1) {
-    return undefined;
-  }
-  const after = messages.slice(woke + 1);
-  return {
-    commands: commandsIn(
-      sessions.map((session) => ({
-        ...session,
-        messages: session.messages.filter((message) => after.includes(message)),
-      })),
-    ),
-    reply: after
-      .filter((message) => message.role === "assistant")
-      .flatMap((message) =>
-        message.parts.flatMap((part) =>
-          part.type === "text" ? [part.text] : [],
-        ),
-      )
-      .join("\n"),
-  };
-}
-
-/**
- * The user's stop left a note in the chat and woke nothing: the person
- * stopped it on purpose, and the chat learns of it with their next message
- * (task-session-stopped-then-asked covers that turn).
- */
-const notedTheStopQuietly: Assertion = {
-  check: async (ctx: Context) => {
-    const text = "noted the user's stop without starting a turn";
-    const after = afterTheStop(ctx.sessions);
-    const [task] = await listChildTasks(ctx.chatId);
-    if (!after) {
-      return fail(
-        text,
-        `no stop note; t1 stopped by ${task?.stoppedBy ?? "nobody"}`,
-      );
-    }
-    return (after.reply === "" && task?.stoppedBy === "user" ? pass : fail)(
-      text,
-      `t1 stopped by ${task?.stoppedBy ?? "nobody"}; reply after the note: ${after.reply.slice(0, 200) || "(none)"}`,
-    );
-  },
-  text: "noted the user's stop without starting a turn",
-};
-
-/** Nothing the user stopped was started again. */
-const leftItStopped: Assertion = {
-  check: (ctx: Context) => {
-    const text = "started nothing again after the stop";
-    const after = afterTheStop(ctx.sessions);
-    const restarted = (after?.commands ?? []).filter((command) =>
-      /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(command),
-    );
-    return (restarted.length === 0 ? pass : fail)(
-      text,
-      restarted.join(" | ") || "no task new or send",
-    );
-  },
-  text: "started nothing again after the stop",
 };
 
 /** The question asked once the chat's turn and its task are both stopped. */
@@ -353,7 +277,7 @@ const restartedNothing: Assertion = {
     const after = afterTheQuestion(ctx.sessions);
     const restarted = (after?.commands ?? []).filter(
       (command) =>
-        /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(command) ||
+        /(?:^|[\n;&|])\s*instrument task (?:new|send)\b/.test(command) ||
         /\bsleep\s+\d/.test(command),
     );
     const children = await ctx.childSessions();
@@ -440,7 +364,7 @@ const retriedOrOfferedTo: Assertion = {
       return fail(text, "no timeout note");
     }
     const retried = after.commands.some((command) =>
-      /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(command),
+      /(?:^|[\n;&|])\s*instrument task (?:new|send)\b/.test(command),
     );
     const offered =
       /\b(?:try(?:ing)? (?:it )?again|retry|re-?run|restart|resume|pick (?:it |that )?(?:back )?up|send it (?:back|again)|start (?:it )?(?:over|again))\b/i.test(
@@ -505,7 +429,7 @@ const t1WaitsOnTheCard: Assertion = {
       (child) => child.handle === "t1",
     );
     const card = (await openAsks(ctx.chatId)).find(
-      (ask) =>
+      (ask): ask is Exclude<typeof ask, { kind: "question" }> =>
         ask.kind === "folder" &&
         // By its end: a report read later runs under another home.
         /[/\\]Documents(?:[/\\]Pantry)?$/.test(ask.target) &&
@@ -620,14 +544,6 @@ export const TASK_SESSION_EVALS = [
       screen: "browser",
       url: PAGE,
     },
-  }),
-  defineEval({
-    assertions: [startedOneTaskAsT1, notedTheStopQuietly, leftItStopped],
-    followUps: [{ afterMs: 20_000, stopTask: "t1" }],
-    kind: "chat",
-    name: "task-session-user-stop",
-    prompt:
-      "Start a background task for this, please: write twenty haiku about tea, one at a time, checking each one's syllable counts before the next, and save them as tea-haiku.md in the workspace folder.",
   }),
   defineEval({
     assertions: [notedTheTimeout, retriedOrOfferedTo],

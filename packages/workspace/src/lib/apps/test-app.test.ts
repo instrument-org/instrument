@@ -152,11 +152,12 @@ function useApps(apps: WorkspaceAppsConfig) {
   setWorkspaceConfig({ ...getWorkspaceConfig(), apps });
 }
 
-async function writeApp(slug: string, manifest: AppManifest) {
+async function writeApp(slug: string, name: string, manifest: AppManifest) {
   await writeAppFolder({
     appsDir: getWorkspaceConfig().appsDir,
-    guide: "# Service\n\nGET /me answers who the key belongs to.\n",
+    guide: "GET /me answers who the key belongs to.\n",
     manifest,
+    name,
     slug: AppSlugSchema.parse(slug),
   });
 }
@@ -184,16 +185,15 @@ describe("an API app's key", () => {
     );
   });
 
-  const manifestAt = (baseUrl: string): AppManifest => ({
+  const manifestAt = (url: string): AppManifest => ({
     auth: { kind: "bearer" },
-    baseUrl,
-    name: "Keyed",
     test: { path: "/me" },
     type: "api",
+    url,
   });
 
   it("is sent to the origin it was saved for", async () => {
-    await writeApp(slug, manifestAt(approved.origin));
+    await writeApp(slug, "Keyed", manifestAt(approved.origin));
 
     const report = await testApp(slug);
 
@@ -202,7 +202,7 @@ describe("an API app's key", () => {
   });
 
   it("is not sent once the manifest points at another origin", async () => {
-    await writeApp(slug, manifestAt(elsewhere.origin));
+    await writeApp(slug, "Keyed", manifestAt(elsewhere.origin));
 
     const report = await testApp(slug);
 
@@ -246,13 +246,12 @@ describe("an MCP app's sign-in", () => {
 
   const manifestAt = (origin: string): AppManifest => ({
     auth: { kind: "oauth" },
-    name: "Signed in",
     type: "mcp",
     url: `${origin}/mcp`,
   });
 
   it("connects to the server it was obtained from", async () => {
-    await writeApp(slug, manifestAt(approved.origin));
+    await writeApp(slug, "Signed in", manifestAt(approved.origin));
 
     const report = await testApp(slug);
     const begun = await beginMcpOAuth({
@@ -270,7 +269,7 @@ describe("an MCP app's sign-in", () => {
   });
 
   it("is not sent once the manifest points at another server", async () => {
-    await writeApp(slug, manifestAt(elsewhere.origin));
+    await writeApp(slug, "Signed in", manifestAt(elsewhere.origin));
 
     const report = await testApp(slug);
     const begun = await beginMcpOAuth({
@@ -298,7 +297,6 @@ describe("an MCP app's sign-in", () => {
 describe("a web app", () => {
   const slug = "drive-web";
   const manifest: AppManifest = {
-    name: "Google Drive",
     type: "web",
     url: "https://drive.google.com",
   };
@@ -308,7 +306,7 @@ describe("a web app", () => {
   });
 
   it("fails until the user says they are signed in, and says how to ask", async () => {
-    await writeApp(slug, manifest);
+    await writeApp(slug, "Google Drive", manifest);
 
     const report = await testApp(slug);
 
@@ -326,7 +324,7 @@ describe("a web app", () => {
 
   it("passes once the sign-in is recorded, saying it cannot check the session and how to work the site", async () => {
     const { apps } = getWorkspaceConfig();
-    await writeApp(slug, manifest);
+    await writeApp(slug, "Google Drive", manifest);
     const { manifestHash } = (
       await loadApp(getWorkspaceConfig().appsDir, slug)
     )._unsafeUnwrap();
@@ -343,7 +341,7 @@ describe("a web app", () => {
     expect(report.checks.find((check) => check.name === "canary"))
       .toMatchInlineSnapshot(`
         {
-          "detail": "This test cannot check the session itself: whether the user is still signed in shows only when a page of the site loads. Work it in the browser: open https://drive.google.com in a tab, where the sign-in holds, or use a tab already open there. \`app call\` and \`app request\` do not reach a web app.",
+          "detail": "This test cannot check the session itself: whether the user is still signed in shows only when a page of the site loads. Work it in the browser: open https://drive.google.com in a tab, where the sign-in holds, or use a tab already open there. \`instrument app call\` and \`instrument app request\` do not reach a web app.",
           "name": "canary",
           "status": "skip",
         }
@@ -356,7 +354,7 @@ describe("a web app", () => {
 
   it("asks again once the manifest moves to another site", async () => {
     const { apps } = getWorkspaceConfig();
-    await writeApp(slug, manifest);
+    await writeApp(slug, "Google Drive", manifest);
     await apps.connections.set(slug, {
       manifestHash: "an-older-manifest",
       status: "connected",

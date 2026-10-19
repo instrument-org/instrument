@@ -5,10 +5,8 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { listBackgroundProcesses } from "./background-processes";
 import { getCurrentDate } from "./get-current-date";
-import { getParsedStorageItem } from "./get-parsed-storage-item";
-import { getSessionsStoreStorage } from "./session-store-storage";
-import { setParsedStorageItem } from "./set-parsed-storage-item";
-import { StorageKey } from "./storage-key";
+import { ChatReads } from "./chat-reads";
+import { ChatWrites } from "./chat-writes";
 import { getWorkspaceConfig } from "./workspace-config";
 
 const ReportedProcessesSchema = z.array(
@@ -45,19 +43,15 @@ export async function createBackgroundProcessesPart({
   chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
-    const storage = await getSessionsStoreStorage(chatId);
-    if (storage.isErr()) {
-      return undefined;
-    }
-
-    const reported = await getParsedStorageItem(
-      StorageKey.backgroundProcessesReported(sessionId),
-      ReportedProcessesSchema,
-      storage.value,
-    );
+    const reported = await ChatReads.state({
+      chatId,
+      schema: ReportedProcessesSchema,
+      sessionId,
+      what: "processes",
+    });
     // An error here is "nothing recorded yet" as often as a real failure, and
     // both mean this session has been told nothing.
-    const previous = reported.isOk() ? reported.value : [];
+    const previous = reported.isOk() ? (reported.value ?? []) : [];
 
     const now = getCurrentDate().getTime();
     const processes = listBackgroundProcesses(sessionId);
@@ -101,12 +95,7 @@ export async function createBackgroundProcessesPart({
       return undefined;
     }
 
-    await setParsedStorageItem(
-      StorageKey.backgroundProcessesReported(sessionId),
-      stillThere,
-      ReportedProcessesSchema,
-      storage.value,
-    );
+    await ChatWrites.state(chatId, sessionId, "processes", stillThere);
 
     return {
       data: { ended, running },

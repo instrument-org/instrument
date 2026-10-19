@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { StoreId } from "../schemas/store-id";
-import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   killSessionBackgroundProcesses,
@@ -13,11 +13,12 @@ import {
   startBackgroundRun,
 } from "./background-processes";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
-import { disposeSessionsStoreStorage } from "./session-store-storage";
-import { chatDir } from "./record-folders";
+import { chatFor } from "../test/helpers/chat-record";
 
-const id = ChatIdSchema.parse("background-processes-part-test");
-
+// A chat of its own per test: the records hold an open chat by its id, so a
+// second chat under one name would still be writing into the folder the test
+// before it took away.
+let chats = 0;
 let root: string;
 let sessionId: StoreId.Session;
 let chatId: ChatId;
@@ -59,14 +60,17 @@ function startRunning(command: string) {
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "bg-part-test-"));
-  chatId = createMockChatConfigForDir(path.join(root, TASKS_DIR_NAME, id));
-  await fs.mkdir(chatDir(chatId), { recursive: true });
+  chatId = createMockChatConfigForDir(
+    path.join(root, TASKS_DIR_NAME, `background-processes-part-${++chats}`),
+  );
   sessionId = StoreId.newSessionId();
+  // What a session was last told is written into its own log, so the chat
+  // holds the session before any of it is recorded.
+  await chatFor(sessionId, chatId);
 });
 
 afterEach(async () => {
   await killSessionBackgroundProcesses(sessionId);
-  await disposeSessionsStoreStorage(id);
   await fs.rm(root, { force: true, recursive: true });
 });
 

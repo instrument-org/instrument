@@ -3,26 +3,66 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { type CaptureContext } from "@instrument-org/shared";
+import {
+  buildExceptionEvent,
+  type ExceptionEvent,
+} from "@instrument-org/shared/exceptions";
+
 import { registerCrashDiagnostics } from "./register-crash-diagnostics";
 
-const { captureServerException, crashReporter, log, recordEndedSession } =
-  vi.hoisted(() => ({
-    captureServerException: vi.fn(),
-    crashReporter: { start: vi.fn() },
-    recordEndedSession: vi.fn(),
-    log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
-  }));
+const CONTEXTS = {
+  app: {
+    channel: "latest",
+    flavor: "release",
+    packaged: true,
+    version: "2.0.0",
+  },
+  culture: { locale: "en-US", timeZone: "UTC" },
+  os: { arch: "arm64", platform: "darwin", version: "26.1" },
+  process: { rssMb: 400, uptimeMs: 1000 },
+  runtime: { chrome: "1", electron: "1", node: "1" },
+};
+
+const {
+  buildMainExceptionEvent,
+  crashReporter,
+  log,
+  recordEndedSession,
+  recordExceptionEvent,
+  storeExceptionEvent,
+} = vi.hoisted(() => ({
+  buildMainExceptionEvent: vi.fn(),
+  crashReporter: { start: vi.fn() },
+  log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+  recordEndedSession: vi.fn(),
+  recordExceptionEvent: vi.fn(),
+  storeExceptionEvent: vi.fn(),
+}));
 
 vi.mock("electron", () => ({ crashReporter }));
 vi.mock("./problem-reports", () => ({ recordEndedSession }));
 
 vi.mock("./electron-logger", () => ({ createScopedLogger: () => log }));
-vi.mock("./capture-server-exception", () => ({ captureServerException }));
+vi.mock("./capture-server-exception", () => ({
+  buildMainExceptionEvent,
+  recordExceptionEvent,
+}));
+vi.mock("./exception-store", () => ({ storeExceptionEvent }));
+
+const eventFor = (error: unknown, context?: CaptureContext): ExceptionEvent =>
+  buildExceptionEvent(error, {
+    breadcrumbs: [],
+    context,
+    contexts: CONTEXTS,
+    defaultArea: "studio",
+    paths: {},
+  });
 
 // A real directory, because the crash record is written with real `fs`: the
 // point of the record is that it survives a process the logger does not.
 let crashDir = "";
-const crashRecordPath = () => path.join(crashDir, "last-crash.log");
+const crashRecordPath = () => path.join(crashDir, "last-crash.json");
 const sessionMarkerPath = () => path.join(crashDir, "app.lock");
 const crashDumpsDir = () => path.join(crashDir, "Crashpad");
 
@@ -79,6 +119,7 @@ describe("registerCrashDiagnostics", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    buildMainExceptionEvent.mockImplementation(eventFor);
     crashDir = fs.mkdtempSync(path.join(os.tmpdir(), "crash-diagnostics-"));
     inheritedMonitor = process.listeners("uncaughtExceptionMonitor");
     inheritedUncaught = process.listeners("uncaughtException");
@@ -116,6 +157,20 @@ describe("registerCrashDiagnostics", () => {
     expect(log.error).toHaveBeenCalledWith(
       "render-process-gone type=webview id=7 reason=crashed exitCode=133",
     );
+    expect(buildMainExceptionEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "RenderProcessGone" }),
+      {
+        data: {
+          exitCode: 133,
+          reason: "crashed",
+          webContents: "type=webview id=7",
+        },
+        handled: false,
+        level: "fatal",
+        mechanism: "process-gone",
+      },
+    );
+    expect(recordExceptionEvent).toHaveBeenCalledOnce();
   });
 
   it("says so when a renderer that already went away crashed", () => {
@@ -248,16 +303,31 @@ describe("registerCrashDiagnostics", () => {
     // runner's own handler and fail the run.
     addedUncaughtListeners()[0]?.(error, "uncaughtException");
 
-    expect(captureServerException).toHaveBeenCalledWith(error, {
-      origin: "uncaughtException",
-      scopes: ["studio"],
+    expect(buildMainExceptionEvent).toHaveBeenCalledWith(error, {
+      handled: false,
+      mechanism: "uncaughtException",
     });
+    expect(recordExceptionEvent).toHaveBeenCalledOnce();
+  });
+
+  it("records the same event the crash record holds", () => {
+    registerCrashDiagnostics(createFakeApp().app);
+    const error = new Error("boom");
+
+    addedMonitorListeners()[0]?.(error, "uncaughtException");
+    addedUncaughtListeners()[0]?.(error, "uncaughtException");
+
+    const record: unknown = JSON.parse(
+      fs.readFileSync(crashRecordPath(), "utf8"),
+    );
+    expect(buildMainExceptionEvent).toHaveBeenCalledOnce();
+    expect(recordExceptionEvent).toHaveBeenCalledWith(record);
   });
 
   // A throw from an `uncaughtException` listener ends the process.
   it("survives a report that throws", () => {
     registerCrashDiagnostics(createFakeApp().app);
-    captureServerException.mockImplementationOnce(() => {
+    recordExceptionEvent.mockImplementationOnce(() => {
       throw new Error("reporting is down");
     });
 
@@ -285,7 +355,7 @@ describe("registerCrashDiagnostics", () => {
         addedRejectionListeners()[0]?.(error, Promise.resolve());
       }
 
-      expect(captureServerException).not.toHaveBeenCalled();
+      expect(recordExceptionEvent).not.toHaveBeenCalled();
       expect(log.warn).toHaveBeenCalledWith(
         `${origin} from a network failure`,
         error,
@@ -302,9 +372,9 @@ describe("registerCrashDiagnostics", () => {
 
     addedUncaughtListeners()[0]?.(error, "uncaughtException");
 
-    expect(captureServerException).toHaveBeenCalledWith(
+    expect(buildMainExceptionEvent).toHaveBeenCalledWith(
       error,
-      expect.objectContaining({ origin: "uncaughtException" }),
+      expect.objectContaining({ mechanism: "uncaughtException" }),
     );
   });
 
@@ -317,9 +387,13 @@ describe("registerCrashDiagnostics", () => {
     // Not through the logger, whose file transport queues and never drains on
     // the way out.
     expect(log.error).not.toHaveBeenCalled();
-    const record = fs.readFileSync(crashRecordPath(), "utf8");
-    expect(record).toContain("uncaughtException:");
-    expect(record).toContain("boom");
+    expect(
+      JSON.parse(fs.readFileSync(crashRecordPath(), "utf8")),
+    ).toMatchObject({
+      exceptions: [{ type: "Error", value: "boom" }],
+      handled: false,
+      mechanism: "uncaughtException",
+    });
   });
 
   it("keeps a network drop out of the crash record", () => {
@@ -334,13 +408,20 @@ describe("registerCrashDiagnostics", () => {
   });
 
   it("folds the previous session's crash into this session's log, once", () => {
-    fs.writeFileSync(crashRecordPath(), "uncaughtException: from last time\n");
+    const event = eventFor(new Error("from last time"), {
+      handled: false,
+      mechanism: "uncaughtException",
+    });
+    fs.writeFileSync(crashRecordPath(), JSON.stringify(event));
 
     registerCrashDiagnostics(createFakeApp().app);
 
     expect(log.error).toHaveBeenCalledWith(
-      "Previous session hit an uncaught exception:\nuncaughtException: from last time",
+      expect.stringMatching(
+        /^Previous session hit an uncaught exception:\n.*\nError: from last time\n/,
+      ),
     );
+    expect(storeExceptionEvent).toHaveBeenCalledWith(event, { once: true });
     expect(fs.existsSync(crashRecordPath())).toBe(false);
 
     vi.clearAllMocks();
@@ -356,9 +437,9 @@ describe("registerCrashDiagnostics", () => {
 
     addedRejectionListeners()[0]?.(error, Promise.resolve());
 
-    expect(captureServerException).toHaveBeenCalledWith(error, {
-      origin: "unhandledRejection",
-      scopes: ["studio"],
+    expect(buildMainExceptionEvent).toHaveBeenCalledWith(error, {
+      handled: false,
+      mechanism: "unhandledRejection",
     });
     expect(fs.existsSync(crashRecordPath())).toBe(false);
   });
@@ -452,13 +533,14 @@ describe("registerCrashDiagnostics", () => {
         version: "2.0.4",
       }),
     );
-    fs.writeFileSync(crashRecordPath(), "uncaughtException: boom\n");
+    const event = eventFor(new Error("boom"));
+    fs.writeFileSync(crashRecordPath(), JSON.stringify(event));
 
     registerCrashDiagnostics(createFakeApp().app);
 
     expect(recordEndedSession).toHaveBeenCalledWith(
       expect.objectContaining({
-        crashRecord: "uncaughtException: boom",
+        crashRecord: event,
         dumps: 0,
         previousVersion: "2.0.4",
         unclean: true,

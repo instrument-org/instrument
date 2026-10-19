@@ -70,7 +70,7 @@ export function useEmojiSuggestions(
       typeof previousText === "string" &&
       previousText !== "" &&
       (settled.startsWith(previousText) || previousText.startsWith(settled)),
-    usage: { purpose: "emoji-suggestion", surface: "topics" },
+    activity: { purpose: "emoji-suggestion", surface: "topics" },
     key: ["emoji-suggestions", settled],
   });
 

@@ -18,17 +18,6 @@ export function folderLabel(folderPath: string): string {
 }
 
 /**
- * The output folder, Documents/Instrument in the home folder: where a
- * task's results go when nobody said where. Every task holds it, so it is
- * never news on a task.
- */
-export function isOutputFolder(folderPath: string): boolean {
-  const home = window.api.homeDir;
-  const separator = home.includes("\\") ? "\\" : "/";
-  return folderPath === [home, "Documents", "Instrument"].join(separator);
-}
-
-/**
  * A folder the agent named, as this computer spells it. The agent's shell
  * writes a Windows drive as `/c/Users/x`; everywhere else the path is already
  * the computer's own.

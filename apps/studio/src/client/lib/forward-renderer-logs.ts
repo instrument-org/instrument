@@ -1,9 +1,10 @@
 /**
- * Dev-only: forward renderer errors to the main-process dev log
+ * Dev-only: forward renderer log calls to the main-process dev log
  * (`apps/studio/.logs/`), where they're tagged with source "renderer".
- * Renderer processes can't write that file, so uncaught errors, unhandled
- * rejections, and explicit `logger.error` calls are otherwise invisible on
- * disk, only in the DevTools console.
+ * Renderer processes can't write that file, so explicit `logger.error` calls
+ * are otherwise invisible on disk, only in the DevTools console. Uncaught
+ * errors and unhandled rejections reach it as captured exceptions
+ * (`capture-exception.ts`), which the main process logs.
  */
 
 type RendererLogLevel = "error" | "warn";
@@ -13,21 +14,6 @@ export function forwardRendererLog(level: RendererLogLevel, args: unknown[]) {
     return;
   }
   window.api.rendererLog?.({ args: args.map(serializeForIpc), level });
-}
-
-export function initRendererLogForwarding() {
-  if (!import.meta.env.DEV) {
-    return;
-  }
-  window.addEventListener("error", (event) => {
-    forwardRendererLog("error", [
-      "Uncaught error:",
-      event.error ?? event.message,
-    ]);
-  });
-  window.addEventListener("unhandledrejection", (event) => {
-    forwardRendererLog("error", ["Unhandled promise rejection:", event.reason]);
-  });
 }
 
 // IPC uses structured clone, which throws on functions/DOM nodes/bigints and

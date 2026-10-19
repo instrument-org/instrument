@@ -199,7 +199,7 @@ function RouteComponent() {
             </div>
           </Surface>
           <Surface label="Slash menu rows" source="app-mention.tsx">
-            <div className="w-64 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
+            <div className="w-64 rounded-lg border bg-popover p-1 text-popover-foreground shadow-float-md">
               {chosen.map((app, index) => (
                 <div
                   className={cn(
@@ -217,7 +217,7 @@ function RouteComponent() {
             label="Menu rows: add menu, omnibar, command menu, hold marks"
             source="composer-add-menu.tsx, omnibar.tsx, command-menu.tsx, hold-marks.tsx"
           >
-            <div className="w-64 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
+            <div className="w-64 rounded-lg border bg-popover p-1 text-popover-foreground shadow-float-md">
               {chosen.map((app, index) => (
                 <div
                   className={cn(

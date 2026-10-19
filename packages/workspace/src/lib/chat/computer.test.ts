@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
@@ -112,51 +112,60 @@ describe("listComputerFolder", () => {
     expect(listing.entries.at(-1)?.name).toBe("file 1999");
   });
 
-  it("answers a folder its account cannot read with who refused", async () => {
-    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
-    const shut = path.join(folder, "shut");
-    await fs.mkdir(shut, { mode: 0o000 });
+  // Windows ignores a folder's POSIX mode bits, so 0o000 shuts nothing there.
+  it.skipIf(process.platform === "win32")(
+    "answers a folder its account cannot read with who refused",
+    async () => {
+      folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
+      const shut = path.join(folder, "shut");
+      await fs.mkdir(shut, { mode: 0o000 });
 
-    try {
-      const refusal = await listComputerFolder({ path: shut, chatId });
-      expect(refusal).toMatchObject({
-        kind: "refused",
-        path: shut,
-        reason: "account",
-      });
-      expect(refusal).not.toHaveProperty("refusedBy");
-    } finally {
-      await fs.chmod(shut, 0o700);
-    }
-  });
+      try {
+        const refusal = await listComputerFolder({ path: shut, chatId });
+        expect(refusal).toMatchObject({
+          kind: "refused",
+          path: shut,
+          reason: "account",
+        });
+        expect(refusal).not.toHaveProperty("refusedBy");
+      } finally {
+        await fs.chmod(shut, 0o700);
+      }
+    },
+  );
 
   // A folder the account cannot pass through refuses everything under it,
   // there or not, so the refusal names that folder rather than the name
   // asked for.
-  it("names the folder above that kept the account out", async () => {
-    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
-    const shut = path.join(folder, "shut");
-    await fs.mkdir(path.join(shut, "inner"), { recursive: true });
-    await fs.chmod(shut, 0o000);
+  // Windows has no mode to take away: chmod there only sets the read-only
+  // flag, so the folder stays open and there is nothing to refuse.
+  it.skipIf(process.platform === "win32")(
+    "names the folder above that kept the account out",
+    async () => {
+      folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
+      const shut = path.join(folder, "shut");
+      await fs.mkdir(path.join(shut, "inner"), { recursive: true });
+      await fs.chmod(shut, 0o000);
 
-    try {
-      for (const asked of [
-        path.join(shut, "inner"),
-        path.join(shut, "nothing", "here"),
-      ]) {
-        expect(await listComputerFolder({ path: asked, chatId })).toMatchObject(
-          {
+      try {
+        for (const asked of [
+          path.join(shut, "inner"),
+          path.join(shut, "nothing", "here"),
+        ]) {
+          expect(
+            await listComputerFolder({ path: asked, chatId }),
+          ).toMatchObject({
             kind: "refused",
             path: asked,
             reason: "account",
             refusedBy: shut,
-          },
-        );
+          });
+        }
+      } finally {
+        await fs.chmod(shut, 0o700);
       }
-    } finally {
-      await fs.chmod(shut, 0o700);
-    }
-  });
+    },
+  );
 
   // The app folders iCloud Drive shows live in each app's own container; the
   // Mac helper is what names them, stood in for here by a script.
@@ -245,6 +254,83 @@ describe("listComputerFolder", () => {
       }
     },
   );
+});
+
+// The app's own data, which Studio rules on (`refused-files.ts`), stood in
+// for by one folder and one file beside it.
+describe("the app's own data", () => {
+  const chatId = createMockChatConfig(ChatIdSchema.parse("computer-closed"));
+  let folder = "";
+  const at = (...names: string[]) => path.join(folder, ...names);
+
+  beforeEach(async () => {
+    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-closed-"));
+    await fs.mkdir(at("machine", "keys"), { recursive: true });
+    await fs.mkdir(at("machine", "work"));
+    await fs.writeFile(at("machine", "keys", "session.json"), "secret");
+    await fs.writeFile(at("machine", "state.json"), "{}");
+    await fs.writeFile(at("machine", "work", "notes.md"), "notes");
+    const closed = [at("machine", "keys"), at("machine", "state.json")];
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      isRefusedFile: (hostPath) =>
+        Promise.resolve(
+          closed.some(
+            (entry) =>
+              hostPath === entry || hostPath.startsWith(`${entry}${path.sep}`),
+          ),
+        ),
+    });
+  });
+
+  afterEach(async () => {
+    const { isRefusedFile: _, ...config } = getWorkspaceConfig();
+    setWorkspaceConfig(config);
+    await fs.rm(folder, { force: true, recursive: true });
+  });
+
+  it.each([
+    {
+      expected: () => ({ kind: "listing", names: ["work"] }),
+      label: "lists a folder holding it without it",
+      listed: () => at("machine"),
+    },
+    {
+      expected: () => ({
+        kind: "refused",
+        path: at("machine", "keys"),
+        reason: "app",
+      }),
+      label: "refuses a folder of it as the app's",
+      listed: () => at("machine", "keys"),
+    },
+    {
+      expected: () => ({ kind: "listing", names: ["notes.md"] }),
+      label: "lists a folder beside it as it is",
+      listed: () => at("machine", "work"),
+    },
+  ])("$label", async ({ expected, listed }) => {
+    const listing = await listComputerFolder({ path: listed(), chatId });
+    expect(
+      listing.kind === "listing"
+        ? {
+            kind: listing.kind,
+            names: listing.entries.map((entry) => entry.name),
+          }
+        : { kind: listing.kind, path: listing.path, reason: listing.reason },
+    ).toEqual(expected());
+  });
+
+  it("leaves it out of the files named by path", async () => {
+    const files = await describeComputerFiles({
+      chatId,
+      paths: [
+        at("machine", "keys", "session.json"),
+        at("machine", "work", "notes.md"),
+      ],
+    });
+    expect(files.map((file) => file.name)).toEqual(["notes.md"]);
+  });
 });
 
 describe("describeComputerFiles", () => {

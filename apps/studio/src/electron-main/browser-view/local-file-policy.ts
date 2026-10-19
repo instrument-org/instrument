@@ -1,4 +1,3 @@
-import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import {
   type CallbackResponse,
   type OnBeforeRequestListenerDetails,
@@ -8,6 +7,7 @@ import {
 import fs, { realpathSync } from "node:fs";
 import path from "node:path";
 
+import { isRefusedByName, isRefusedFile } from "../lib/refused-files";
 import { type GuestRole, guests } from "./guest-registry";
 
 /**
@@ -27,9 +27,12 @@ import { type GuestRole, guests } from "./guest-registry";
  * own act (a link they clicked, a file they opened) and is left alone here;
  * the agent opens and reads only the files its own tools reach, which the CDP
  * bridge enforces. That holds only in a guest: a window a page opened never
- * shows a file (see `isAllowedGuestRequest`). The task's private directory is
- * refused as a segment anywhere, the way every other road to a file refuses
- * it.
+ * shows a file (see `isAllowedGuestRequest`). A workspace's records are
+ * refused under a `.instrument` segment anywhere but in the folders there
+ * that hold the person's own files, the way every other road to a file
+ * refuses them, and so is this computer's folder but the workspaces kept in it
+ * (`refused-files.ts`), by name and by where the name really leads, a page's
+ * own navigation included.
  *
  * The page is the document its frame loaded, never the address the frame
  * shows now, which the page's own script can rewrite (see `GuestRecord`'s
@@ -73,7 +76,10 @@ export async function localFileResponse(
     return { cancel: true };
   }
   if (details.resourceType === "mainFrame") {
-    return {};
+    const requested = hostPathOf(details.url);
+    return requested !== undefined && (await isRefusedFile(requested))
+      ? { cancel: true }
+      : {};
   }
   const allowed = await leadsBesidePage(
     details.url,
@@ -81,11 +87,6 @@ export async function localFileResponse(
   );
   return allowed ? {} : { cancel: true };
 }
-
-const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
-  `(?:^|[/\\\\])${PRIVATE_FOLDER_NAME.replace(".", "\\.")}(?:[/\\\\]|$)`,
-  "i",
-);
 
 /**
  * `isAllowedLocalRequest` for a browser session, which also holds the windows
@@ -125,7 +126,7 @@ export function isAllowedLocalDownload(
   const requested = hostPathOf(url);
   return (
     requested !== undefined &&
-    !PRIVATE_DIR_SEGMENT_REGEX.test(requested) &&
+    !isRefusedByName(requested) &&
     sitsBesidePage(requested, hostPathOf(pageUrl))
   );
 }
@@ -140,7 +141,7 @@ export function isAllowedLocalRequest(
     Pick<OnBeforeRequestListenerDetails, "frame" | "resourceType" | "url">,
 ): boolean {
   const requested = hostPathOf(details.url);
-  if (requested === undefined || PRIVATE_DIR_SEGMENT_REGEX.test(requested)) {
+  if (requested === undefined || isRefusedByName(requested)) {
     return false;
   }
   if (details.resourceType === "mainFrame") {
@@ -208,7 +209,7 @@ export async function leadsBesidePage(
   return (
     resolvedFolder !== undefined &&
     realRequested.startsWith(`${resolvedFolder}${path.sep}`) &&
-    !PRIVATE_DIR_SEGMENT_REGEX.test(realRequested)
+    !isRefusedByName(realRequested)
   );
 }
 
@@ -326,6 +327,6 @@ function sitsBesidePage(requested: string, page: string | undefined) {
   }
   return (
     realRequested.startsWith(`${realFolder}${path.sep}`) &&
-    !PRIVATE_DIR_SEGMENT_REGEX.test(realRequested)
+    !isRefusedByName(realRequested)
   );
 }

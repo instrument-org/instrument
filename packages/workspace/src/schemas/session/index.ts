@@ -69,7 +69,7 @@ export namespace Session {
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
     /**
      * Who ended a task's last turn with a stop: the user, from the task or
-     * the chat's Stop, the chat's agent with `task stop`, or the app, which
+     * the chat's Stop, the chat's agent with `instrument task stop`, or the app, which
      * quit while the task worked. Absent when the turn ended on its own, and
      * on the chat's own session.
      */
@@ -90,11 +90,11 @@ export namespace Session {
      */
     titleSettledAt: z.date().optional(),
     /**
-     * The topics this chat is tagged with, by topic id. On the chat's own
+     * The topic this chat is filed under, by topic id. On the chat's own
      * record so the chat list is one read and a filter is a predicate over
-     * it; a task's ordinary sessions never carry any.
+     * it; a task's session never carries one.
      */
-    topics: z.array(z.string()).optional(),
+    topic: z.string().optional(),
     updatedAt: z.date().optional(),
   });
 

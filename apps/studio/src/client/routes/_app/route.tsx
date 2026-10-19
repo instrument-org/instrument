@@ -41,7 +41,11 @@ import { RightPane } from "@/client/components/window/right-pane";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatContext } from "@/client/components/window/use-chat-context";
-import { taskHref, tasksHref } from "@/client/components/window/tab-location";
+import {
+  type TabLocation,
+  taskHref,
+  tasksHref,
+} from "@/client/components/window/tab-location";
 import {
   tabSurfaceAtom,
   useTabSurface,
@@ -52,7 +56,7 @@ import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { outputFolderHref } from "@/shared/computer-href";
+import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";
 import {
   type ChatId,
   browserTargetOf,
@@ -129,6 +133,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
   const { appTabs, chats, chatTitles, rowWidth, setPaneOpen } = shell;
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
+  const outputFolder = useOutputFolder();
   const setInboxOpen = useSetAtom(inboxOpenAtom);
   const sidebarWidth = useAtomValue(inboxWidthAtom);
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
@@ -194,7 +199,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       chosenId={showsPane ? up.id : undefined}
       isChatWorking={chatRecord?.working === true}
       onAddComputer={() => {
-        windowTabs.openScreen(outputFolderHref(), {
+        windowTabs.openScreen(outputFolderHref(outputFolder), {
           group: chat,
           select: true,
         });
@@ -298,8 +303,8 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                             show: true,
                           });
                         }}
-                        onSetTopics={(next) => {
-                          shell.setChatTopics(chat, next);
+                        onSetTopic={(next) => {
+                          shell.setChatTopic(chat, next);
                         }}
                         onViewTasks={() => {
                           appWindow.openScreen(tasksHref(chat), {
@@ -454,29 +459,42 @@ function RouteScreen({ href }: { href: string }) {
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
   const tabId = useTabId();
-  const { view: screenView, walked: walkedFolder } =
-    useAtomValue(tabSurfaceAtom)[tabId] ?? {};
+  const {
+    picked,
+    view: screenView,
+    walked: walkedFolder,
+  } = useAtomValue(tabSurfaceAtom)[tabId] ?? {};
   usePageSlot(null, undefined, false);
-  // The row's head and tail, where a file's viewer puts a toggle for its
-  // panel and its actions.
+  // The row's head and tail: where a folder puts its sidebar's toggle,
+  // its views, sort and filter, and its Ask and search, and a file's viewer a
+  // toggle for its panel and its actions.
   const [rowLead, setRowLead] = useState<HTMLElement | null>(null);
   const [rowTail, setRowTail] = useState<HTMLElement | null>(null);
   const computerTab = computerTabOf(href);
-  const isFileScreen = computerTab?.file !== undefined;
   const fromHref = screenLocation(href, {
     appsBySlug,
     chatTitles: shell.chatTitles,
     taskTitles: shell.childTitles,
   });
-  const location =
-    fromHref.kind === "folder" && screenView?.folder
-      ? {
-          ...fromHref,
-          ...(walkedFolder
-            ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
-            : { path: screenView.folder.display }),
-        }
-      : fromHref;
+  const location: TabLocation =
+    // Several picked beside a file stand where it stood.
+    fromHref.kind === "file" && picked !== undefined
+      ? picked.folder
+        ? {
+            hostPath: picked.folder.hostPath,
+            kind: "folder",
+            path: picked.folder.walked,
+            picked: picked.count,
+          }
+        : { kind: "folder", path: "", picked: picked.count }
+      : fromHref.kind === "folder" && screenView?.folder
+        ? {
+            ...fromHref,
+            ...(walkedFolder
+              ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
+              : { path: screenView.folder.display }),
+          }
+        : fromHref;
   // The apps' catalog is a place you arrive at from the rail, with nothing
   // above it to walk back up to and nothing to type an address for: a row
   // there would only offer to leave for the web. A new tab's own menu takes
@@ -499,7 +517,7 @@ function RouteScreen({ href }: { href: string }) {
                 ),
               }
             : {})}
-          {...(isFileScreen
+          {...(computerTab
             ? {
                 trailing: (
                   <div
@@ -513,7 +531,14 @@ function RouteScreen({ href }: { href: string }) {
           location={location}
         />
       )}
-      <WindowContext value={{ ...appWindow, rowLead, rowTail }}>
+      <WindowContext
+        value={{
+          ...appWindow,
+          rowHoldsTools: computerTab !== undefined,
+          rowLead,
+          rowTail,
+        }}
+      >
         <FileOpenContext
           value={(path, options) => {
             appWindow.openPath(path, options);

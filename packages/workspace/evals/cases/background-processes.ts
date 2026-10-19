@@ -22,8 +22,10 @@ import { type Session } from "../../src/schemas/session";
 import { type SessionMessagePart } from "../../src/schemas/session/message-part";
 import { type Assertion, defineEval } from "../harness";
 
-interface BashCall {
+export interface BashCall {
   command: string;
+  /** Absent for a call still running when it returned, or one that errored. */
+  exitCode: number | undefined;
   output: string;
   processId: string | undefined;
 }
@@ -34,7 +36,7 @@ type Sessions = Session.WithMessagesAndParts[];
  * Every completed `bash` call, flattened to the three things these assertions
  * ask about. A promoted call is the one that carries a `processId`.
  */
-function bashCalls(sessions: Sessions): BashCall[] {
+export function bashCalls(sessions: Sessions): BashCall[] {
   return sessions
     .flatMap((session) => session.messages)
     .flatMap((message) => message.parts)
@@ -48,6 +50,8 @@ function bashCalls(sessions: Sessions): BashCall[] {
       return [
         {
           command,
+          exitCode:
+            typeof output?.exitCode === "number" ? output.exitCode : undefined,
           output: typeof output?.output === "string" ? output.output : "",
           processId:
             typeof output?.processId === "string"
@@ -58,7 +62,7 @@ function bashCalls(sessions: Sessions): BashCall[] {
     });
 }
 
-function describeCommands(calls: BashCall[]): string {
+export function describeCommands(calls: BashCall[]): string {
   return calls.length === 0
     ? "(no bash calls)"
     : calls.map((call) => `\`${call.command}\``).join(", ");
@@ -70,14 +74,24 @@ function isBashCall(
   return part.type === "tool-bash";
 }
 
-/** Ran the named command, as a command rather than as part of a word. */
-function makeAssertUsedCommand(name: string, why: string): Assertion {
+/**
+ * Ran the named command, or a name the shell rewrites to it, as a command
+ * rather than as part of a word.
+ */
+function makeAssertUsedCommand(
+  name: string,
+  why: string,
+  aliases: string[] = [],
+): Assertion {
   const text = `Used \`${name}\` ${why}`;
+  const names = [name, ...aliases].join("|");
   return {
     check: ({ sessions }) => {
       const calls = bashCalls(sessions);
       const used = calls.filter((call) =>
-        new RegExp(String.raw`(^|[\n;|&(])\s*${name}\b`).test(call.command),
+        new RegExp(String.raw`(^|[\n;|&(])\s*(?:${names})\b`).test(
+          call.command,
+        ),
       );
       return {
         evidence:
@@ -92,7 +106,9 @@ function makeAssertUsedCommand(name: string, why: string): Assertion {
   };
 }
 
-function promoted(sessions: Sessions): (BashCall & { processId: string })[] {
+export function promoted(
+  sessions: Sessions,
+): (BashCall & { processId: string })[] {
   return bashCalls(sessions).flatMap((call) =>
     call.processId === undefined
       ? []
@@ -100,7 +116,7 @@ function promoted(sessions: Sessions): (BashCall & { processId: string })[] {
   );
 }
 
-function replyText(sessions: Sessions): string {
+export function replyText(sessions: Sessions): string {
   return sessions
     .flatMap((session) => session.messages)
     .filter((message) => message.role === "assistant")
@@ -185,12 +201,18 @@ const assertStoppedWhatItStarted: Assertion = {
           command,
         ),
       );
+    // `kill` takes the job's id, `%N`, or a pid, and a pid's stop names the
+    // job it was in (`Stopped 4242 (bg_1)`), so `lsof -ti :3000 | xargs kill`
+    // counts by what it printed.
     const unstopped = ids.filter(
       (id) =>
         !killCommands.some(
           (command) =>
             command.includes(id) ||
             command.includes(`%${id.replace("bg_", "")}`),
+        ) &&
+        !calls.some((call) =>
+          new RegExp(String.raw`\bStopped [^\n]*\b${id}\b`).test(call.output),
         ),
     );
     return {
@@ -307,7 +329,9 @@ const assertFoundTheError: Assertion = {
 const assertTheWaitDidNotGetPromoted: Assertion = {
   check: ({ sessions }) => {
     const promotedWaits = promoted(sessions).filter((call) =>
-      new RegExp(String.raw`^\s*${FG_COMMAND.name}\b`).test(call.command),
+      new RegExp(String.raw`^\s*(?:${FG_COMMAND.name}|wait)\b`).test(
+        call.command,
+      ),
     );
     return {
       evidence:
@@ -361,7 +385,7 @@ function afterTheWake(
  * The turn ended while the command was still running, and its ending woke
  * the session. A model that held the call open until the command finished
  * never needed waking, and one that handed the process to a task with
- * `task new --job` was woken by the task instead, which the reply below
+ * `instrument task new --job` was woken by the task instead, which the reply below
  * still credits.
  */
 const assertWokenWhenItEnded: Assertion = {
@@ -558,7 +582,7 @@ const assertDidNotRunItAgain: Assertion = {
     const again = after.filter(
       (call) =>
         /\bsleep\s+\d/.test(call.command) ||
-        /(?:^|[\n;&|])\s*task new\b/.test(call.command),
+        /(?:^|[\n;&|])\s*instrument task new\b/.test(call.command),
     );
     return {
       evidence:
@@ -600,7 +624,10 @@ export const BACKGROUND_PROCESS_EVALS = [
   defineEval({
     assertions: [
       assertPromotedAProcess,
-      makeAssertUsedCommand(FG_COMMAND.name, "to wait the command out"),
+      // The shell rewrites `wait` to `fg`, and the `&` refusal suggests it.
+      makeAssertUsedCommand(FG_COMMAND.name, "to wait the command out", [
+        "wait",
+      ]),
       assertFgReportedTheExitCode,
       assertReportedExitCodeSeven,
     ],

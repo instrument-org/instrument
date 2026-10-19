@@ -21,10 +21,14 @@ import {
   refuseLocalFilesIn,
 } from "./local-file-policy";
 
-const { liveFrames } = vi.hoisted(() => ({ liveFrames: new Set<string>() }));
+const { liveFrames, userData } = vi.hoisted(() => ({
+  liveFrames: new Set<string>(),
+  /** Electron's userData, this computer's folder. */
+  userData: { dir: "/mock/user/data" },
+}));
 
 vi.mock("electron", () => ({
-  app: { on: vi.fn() },
+  app: { getPath: () => userData.dir, on: vi.fn() },
   webFrameMain: {
     fromId: (processId: number, routingId: number) =>
       liveFrames.has(`${processId}:${routingId}`) ? {} : undefined,
@@ -457,6 +461,89 @@ describe("a symlink beside the page", () => {
     expect(
       isAllowedLocalDownload(at("site/data.json"), "https://example.com/"),
     ).toBe(false);
+  });
+});
+
+// This computer's folder carries no private segment in its names, so it is
+// refused as a place: each workspace's keys and browser profiles are in it.
+describe("this computer's folder", () => {
+  let computerDir: string;
+  const at = (...segments: string[]) =>
+    pathToFileURL(path.join(computerDir, ...segments)).href;
+  const keys = () => at("machine/default/keys/providers.json");
+  const cookies = () => at("machine/default/browser/app-session/Cookies");
+  const chat = "workspace/chats/2026-10-01-chat";
+
+  beforeAll(async () => {
+    computerDir = path.join(
+      await fs.realpath(
+        await fs.mkdtemp(path.join(os.tmpdir(), "local-file-user-data-")),
+      ),
+      "user-data",
+    );
+    userData.dir = computerDir;
+    for (const file of [
+      "machine/default/keys/providers.json",
+      "machine/default/browser/app-session/Cookies",
+      "machine/default/page.html",
+      `${chat}/index.html`,
+      `${chat}/style.css`,
+    ]) {
+      await fs.mkdir(path.dirname(path.join(computerDir, file)), {
+        recursive: true,
+      });
+      await fs.writeFile(path.join(computerDir, file), "");
+    }
+    await fs.symlink(
+      path.join(computerDir, "machine/default/keys/providers.json"),
+      path.join(computerDir, chat, "keys.json"),
+    );
+  });
+
+  afterAll(async () => {
+    userData.dir = "/mock/user/data";
+    await fs.rm(path.dirname(computerDir), { force: true, recursive: true });
+  });
+
+  const response = (
+    url: string,
+    from?: { contents: { id: number }; main: unknown },
+  ) =>
+    localFileResponse({
+      frame: (from?.main ?? null) as WebFrameMain,
+      resourceType: from ? "xhr" : "mainFrame",
+      url,
+      webContentsId: from?.contents.id,
+    });
+
+  /** A guest whose main frame has loaded the page at `page`. */
+  const showing = (page: string) => {
+    const g = guest();
+    const main = g.frame();
+    g.load(main, at(page));
+    return { ...g, main };
+  };
+
+  it("refuses a page beside a workspace's keys and cookies both", async () => {
+    const beside = showing("machine/default/page.html");
+    expect(await response(keys(), beside)).toEqual({ cancel: true });
+    expect(await response(cookies(), beside)).toEqual({ cancel: true });
+    expect(
+      isAllowedLocalDownload(keys(), at("machine/default/page.html")),
+    ).toBe(false);
+  });
+
+  it("refuses a navigation to them, by name or through a symlink", async () => {
+    expect(await response(keys())).toEqual({ cancel: true });
+    expect(await response(cookies())).toEqual({ cancel: true });
+    expect(await response(at(chat, "keys.json"))).toEqual({ cancel: true });
+  });
+
+  it("serves a page in a workspace kept there, and what is beside it", async () => {
+    expect(await response(at(chat, "index.html"))).toEqual({});
+    expect(
+      await response(at(chat, "style.css"), showing(`${chat}/index.html`)),
+    ).toEqual({});
   });
 });
 

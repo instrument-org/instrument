@@ -3,9 +3,9 @@
  * answering the conversation's `tab` commands the way the app's window does.
  *
  * What it stands in for is the window's bookkeeping, not its pages. A tab id
- * the conversation reads in the note resolves here, `tab open` makes a new id,
+ * the conversation reads in the note resolves here, `instrument tab open` makes a new id,
  * `close` and `replace` act on the list, and a page tab reads as a live target
- * so `task new --tab` accepts it. A task handed one still browses in a Chrome
+ * so `instrument task new --tab` accepts it. A task handed one still browses in a Chrome
  * of its own (the run has no guests), so a case scores what the conversation
  * decided, not what a task saw in the tab.
  */

@@ -6,6 +6,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AppRail } from "./app-rail";
+import { type RailChatMark } from "./chats";
 
 const openSettings = vi.fn<(options: { tab: string }) => void>();
 vi.mock("@/client/atoms/settings-modal", () => ({
@@ -19,11 +20,16 @@ vi.mock("@/client/hooks/use-live-user", () => ({
   useLiveUser: () => ({ data: user() }),
 }));
 
-function renderRail(place: AppPlace = "chat") {
+function renderRail(place: AppPlace = "chat", chatMark?: RailChatMark) {
   const onChoose = vi.fn();
   const onNew = vi.fn();
   renderWithProviders(
-    <AppRail onChoose={onChoose} onNew={onNew} place={place} />,
+    <AppRail
+      {...(chatMark ? { chatMark } : {})}
+      onChoose={onChoose}
+      onNew={onNew}
+      place={place}
+    />,
   );
   return {
     onChoose,
@@ -88,5 +94,21 @@ describe("AppRail", () => {
     expect(rail.getByRole("button", { name: /Settings/ }).textContent).toBe(
       "AL",
     );
+  });
+
+  it.each<[AppPlace, RailChatMark, null | string]>([
+    ["files", "working", "working"],
+    ["browser", "waiting", "waiting"],
+    ["apps", "unread", "unread"],
+    // Chat shows where its chats stand itself.
+    ["chat", "waiting", null],
+  ])("in %s, wears the %s dot on Chat: %s", (place, mark, shown) => {
+    const { rail } = renderRail(place, mark);
+    expect(
+      rail
+        .getByRole("button", { name: "Chat" })
+        .querySelector("[data-chat-mark]")
+        ?.getAttribute("data-chat-mark") ?? null,
+    ).toBe(shown);
   });
 });

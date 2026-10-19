@@ -26,10 +26,9 @@ export function AddTopicChip(props: ComponentProps<"button">) {
 
 /**
  * The one way a chat, a draft or a row is filed: a find field that also
- * makes a topic of what was typed, every topic with a check on each that is
- * on, and New topic at the foot, opening under whatever the caller hands in
- * as its trigger. A pick keeps the list open where several topics can be on
- * and closes it where only one can.
+ * makes a topic of what was typed, every topic with a check on the one that
+ * is on, and New topic at the foot, opening under whatever the caller hands
+ * in as its trigger. A pick closes it, since a chat is filed under one.
  */
 export function TopicPicker({
   align = "start",
@@ -39,7 +38,6 @@ export function TopicPicker({
   onNew,
   onOpenChange,
   onToggle,
-  single = false,
   topics,
 }: {
   align?: "center" | "end" | "start";
@@ -52,8 +50,6 @@ export function TopicPicker({
   onNew: (name: string) => void;
   onOpenChange?: (open: boolean) => void;
   onToggle: (id: string) => void;
-  /** Whether only one topic can be on, as on a draft. */
-  single?: boolean;
   topics: Topic[];
 }) {
   const [ownOpen, setOwnOpen] = useState(false);
@@ -83,16 +79,13 @@ export function TopicPicker({
       >
         <TopicPickList
           chosen={chosen}
-          files
           onNew={(name) => {
             setOpen(false);
             onNew(name);
           }}
           onToggle={(id) => {
             onToggle(id);
-            if (single) {
-              setOpen(false);
-            }
+            setOpen(false);
           }}
           topics={topics}
         />

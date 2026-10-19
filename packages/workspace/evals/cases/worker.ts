@@ -30,7 +30,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 
-import { chatDir } from "../../src/lib/record-folders";
+import { chatOutputFolder } from "../../src/lib/chat/output-folder";
+import { workDir } from "../../src/lib/work-dir";
 import { type ChatId } from "../../src/schemas/chat-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
@@ -50,16 +51,14 @@ const SHOPPING_FIXTURE = path.resolve(
 const MIN_DOCUMENT_BYTES = 4000;
 
 /**
- * Every file this task could have written: its own folder, and the workspace
- * folder, since a prompt naming one is answered in the other about as often.
+ * Every file this task could have written: its work folder, and the chat's
+ * own folder where finished work goes, since a prompt naming one is answered
+ * in the other about as often.
  */
 async function deliverables(chatId: ChatId): Promise<string[]> {
-  const home = process.env.HOME ?? "";
   return [
-    ...(await filesUnder(chatDir(chatId))),
-    ...(home
-      ? await filesUnder(path.join(home, "Documents", "Instrument"))
-      : []),
+    ...(await filesUnder(workDir(chatId))),
+    ...(await filesUnder(chatOutputFolder(chatId))),
   ];
 }
 
@@ -272,8 +271,14 @@ const checkedItsOwnWork: Assertion = {
             }
           }
           // A file made by a script rather than a file tool still counts as
-          // made, so a later read of it is still a check of its own work.
-          if (part.type === "tool-bash") {
+          // made, so a later read of it is still a check of its own work. Only
+          // a command that succeeded made it: the retry of one that failed is
+          // the making, not a look at what was made.
+          if (
+            part.type === "tool-bash" &&
+            part.state === "output-available" &&
+            part.output.exitCode === 0
+          ) {
             for (const [, name] of (part.input?.command ?? "").matchAll(
               /([\w-]+\.(?:docx|xlsx|pptx|png|pdf|csv|md))/g,
             )) {

@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { SKILL_NAMES } from "../../src/lib/skill-names";
-import { chatDir } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { type Session } from "../../src/schemas/session";
 import { type ChatId } from "../../src/schemas/chat-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
@@ -41,9 +41,9 @@ function pass(text: string, evidence: string): AssertionResult {
   return { evidence, passed: true, text };
 }
 
-/** The newest PDF under the task's work folder, the skills it copied aside. */
+/** The newest PDF under the chat's work folder. */
 async function newestPdf(chatId: ChatId) {
-  const work = path.join(chatDir(chatId), "work");
+  const work = workDir(chatId);
   const found: { file: string; mtime: number }[] = [];
   const walk = async (at: string, depth: number) => {
     const entries = await fs.promises
@@ -52,7 +52,7 @@ async function newestPdf(chatId: ChatId) {
     for (const entry of entries) {
       const full = path.join(at, entry.name);
       if (entry.isDirectory()) {
-        if (depth < 3 && entry.name !== "skills") {
+        if (depth < 3) {
           await walk(full, depth + 1);
         }
       } else if (entry.name.toLowerCase().endsWith(".pdf")) {
@@ -81,7 +81,7 @@ const wrotePrintedPdf: Assertion = {
     const text = "wrote a PDF printed by the browser";
     const pdf = await newestPdf(chatId);
     if (!pdf) {
-      return fail(text, "no PDF under work/");
+      return fail(text, "no PDF in the work folder");
     }
     const evidence = `${pdf.file}: ${pdf.pages} page(s), producer ${pdf.producer}`;
     return pdf.producer.includes("Skia/PDF")
@@ -97,7 +97,7 @@ function cameBackAs(pages: number): Assertion {
     check: async ({ chatId }) => {
       const pdf = await newestPdf(chatId);
       if (!pdf) {
-        return fail(text, "no PDF under work/");
+        return fail(text, "no PDF in the work folder");
       }
       return pdf.pages === pages
         ? pass(text, `${pdf.pages} page(s)`)
@@ -174,19 +174,19 @@ const ranThePreview: Assertion = {
 const wroteADeck: Assertion = {
   check: async ({ chatId }) => {
     const text = "wrote a .pptx";
-    const work = path.join(chatDir(chatId), "work");
+    const work = workDir(chatId);
     const decks = (
       await fs.promises.readdir(work, { recursive: true }).catch(() => [])
     ).filter((name) => String(name).toLowerCase().endsWith(".pptx"));
     return decks.length > 0
       ? pass(text, decks.join(", "))
-      : fail(text, "no .pptx under work/");
+      : fail(text, "no .pptx in the work folder");
   },
   text: "wrote a .pptx",
 };
 
 const proposalBrief =
-  "Make a new one-page PDF proposal for Dana Hollis of Hollis Garden Co., for a website redesign, from the previous version attached (hollis-proposal-v1.pdf). The user wants it minimal and type-driven, neutral colors, nothing flashy and no fancy columns; it should feel like a careful design studio made it. Keep the same scope, timeline and pricing: $12,000 with a 50% friends-and-family discount, so $6,000, paid in three $2,000 parts, plus the optional $100/month care plan. Use the pdf skill. Put the PDF in work/ and name it in your receipt. Take the time to get the design right.";
+  "Make a new one-page PDF proposal for Dana Hollis of Hollis Garden Co., for a website redesign, from the previous version attached (hollis-proposal-v1.pdf). The user wants it minimal and type-driven, neutral colors, nothing flashy and no fancy columns; it should feel like a careful design studio made it. Keep the same scope, timeline and pricing: $12,000 with a 50% friends-and-family discount, so $6,000, paid in three $2,000 parts, plus the optional $100/month care plan. Use the pdf skill. Put the PDF in your work folder and name it in your receipt. Take the time to get the design right.";
 
 const proposalFiles = [fixture("hollis-proposal-v1.pdf")];
 
@@ -214,14 +214,14 @@ export const DOCUMENT_DESIGN_EVALS = [
     files: [fixture("resume-notes.md")],
     name: "document-design-resume",
     prompt:
-      "Turn the attached notes (resume-notes.md) into a one-page resume PDF for Priya Raman, aimed at senior product designer roles at B2B SaaS companies. Recruiters have told her the current one is a wall of text, so it should scan fast. Use the pdf skill. Put the PDF in work/ and name it in your receipt.",
+      "Turn the attached notes (resume-notes.md) into a one-page resume PDF for Priya Raman, aimed at senior product designer roles at B2B SaaS companies. Recruiters have told her the current one is a wall of text, so it should scan fast. Use the pdf skill. Put the PDF in your work folder and name it in your receipt.",
   }),
   defineEval({
     assertions: [loadsPdfSkill, wrotePrintedPdf, ranTheCheck, lookedAtARender],
     files: [fixture("q3-sales.csv")],
     name: "document-design-report",
     prompt:
-      "Make a short PDF report for the board on Q3 sales from the attached q3-sales.csv: the headline numbers, how each region did against target, a chart and a table. Two or three pages. Use the pdf skill. Put the PDF in work/ and name it in your receipt.",
+      "Make a short PDF report for the board on Q3 sales from the attached q3-sales.csv: the headline numbers, how each region did against target, a chart and a table. Two or three pages. Use the pdf skill. Put the PDF in your work folder and name it in your receipt.",
   }),
   defineEval({
     assertions: [wrotePrintedPdf, cameBackAs(1), ranTheCheck],
@@ -237,6 +237,6 @@ export const DOCUMENT_DESIGN_EVALS = [
     files: [fixture("q3-sales.csv")],
     name: "document-design-deck",
     prompt:
-      "Make a short slide deck (6 to 8 slides) for Thursday's board meeting on Q3 sales from the attached q3-sales.csv: the headline, how each region did against target, and what to watch in Q4. The user will present it from PowerPoint. Use the powerpoint skill. Put the .pptx in work/ and name it in your receipt.",
+      "Make a short slide deck (6 to 8 slides) for Thursday's board meeting on Q3 sales from the attached q3-sales.csv: the headline, how each region did against target, and what to watch in Q4. The user will present it from PowerPoint. Use the powerpoint skill. Put the .pptx in your work folder and name it in your receipt.",
   }),
 ];

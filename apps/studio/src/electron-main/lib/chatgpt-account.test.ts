@@ -14,13 +14,15 @@ vi.mock("electron", () => ({
 vi.mock("@electron-toolkit/utils", () => ({ is: { dev: true } }));
 
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
-  workspaceSettingsDir: () => "/workspace/.instrument/settings",
+  workspaceKeysDir: () => "/user-data/machine/default/keys",
 }));
 
 vi.mock("@/electron-main/lib/electron-logger", () => {
   const scoped = { error: vi.fn(), info: vi.fn(), warn: vi.fn() };
   return { logger: { scope: () => scoped } };
 });
+
+vi.mock("@/electron-main/lib/notices", () => ({ noteSignedOut: vi.fn() }));
 
 vi.mock("@/electron-main/platform-api/headers", () => ({
   getAnonymousPlatformApiHeaders: () => ({ "user-agent": "Instrument/test" }),

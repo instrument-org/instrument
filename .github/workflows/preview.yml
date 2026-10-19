@@ -159,7 +159,6 @@ jobs:
         run: pnpm turbo run build:vite --filter=@instrument-org/studio
         env:
           MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
-          MAIN_VITE_REPORTS_BASE_URL: ${{ vars.MAIN_VITE_REPORTS_BASE_URL }}
 
       # Retried for the same reason as the release job's Package Mac step: the
       # notary service drops the connection now and then.
@@ -223,8 +222,8 @@ jobs:
           path: apps/studio/dist/*.exe
           retention-days: 30
           if-no-files-found: error
-      # The archive runs anywhere; the AppImage needs FUSE, which a fresh
-      # Ubuntu does not have.
+      # The archive runs anywhere but needs a root-owned chrome-sandbox; the
+      # AppImage runs as downloaded where fusermount is installed.
       - if: matrix.os == 'linux'
         name: Upload Linux archive
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

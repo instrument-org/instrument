@@ -8,18 +8,18 @@ import {
   assign,
   enqueueActions,
   fromPromise,
-  log,
   setup,
   stopChild,
 } from "xstate";
 
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
-import { callsItOff, MID_TURN_NOTE } from "../lib/chat/mid-turn";
+import { ChatReads } from "../lib/chat-reads";
+import { ChatWrites } from "../lib/chat-writes";
+import { MID_TURN_NOTE } from "../lib/chat/mid-turn";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
 import { sessionRole } from "../lib/chat/children";
 import { recordChanged } from "../lib/record-changes";
-import { Store } from "../lib/store";
 import { isTypedByUser } from "../lib/typed-by-user";
 import { interruptWaits } from "../lib/wait-interrupts";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -32,10 +32,17 @@ import {
   agentMachine,
   type AgentMachineActorRef,
   type AgentParentEvent,
-  type ToolCallUpdate,
 } from "./agent";
 import { type StopNotice } from "../schemas/stop-notice";
 import { type StopReason } from "./execute-tool-call";
+
+/**
+ * How many steps a session takes in one run before it stops and offers to
+ * carry on. A backstop against a run that never ends rather than a budget
+ * for work: a run that goes this far has nothing left to finish on its own,
+ * and the person's yes is cheaper than another thousand steps.
+ */
+const UNATTENDED_STEPS = 500;
 
 export type SessionMachineParentEvent = {
   type: "session.done";
@@ -65,11 +72,7 @@ type SessionMachineEvent =
   | { notice?: StopNotice; reason?: StopReason; type: "stop" }
   | { type: "done" }
   | { type: "error"; value: { message: string } }
-  | { type: "runTurn" }
-  | {
-      type: "updateInteractiveToolCall";
-      value: ToolCallUpdate;
-    };
+  | { type: "runTurn" };
 
 export const sessionMachine = setup({
   actions: {
@@ -78,7 +81,7 @@ export const sessionMachine = setup({
     clearAgentRef: assign({ agentRef: undefined }),
 
     // The person's Stop outranks one that lands after it, such as the chat's
-    // own `task stop` on the same task a moment later: theirs is the one the
+    // own `instrument task stop` on the same task a moment later: theirs is the one the
     // chat is told of.
     rememberStopNotice: assign({
       stopNotice: ({ context, event }) =>
@@ -143,15 +146,15 @@ export const sessionMachine = setup({
     getLastMessageId: fromPromise<
       StoreId.Message | undefined,
       { sessionId: StoreId.Session; chatId: ChatId }
-    >(async ({ input, signal }) => {
-      const result = await Store.getMessageIds(input.sessionId, input.chatId, {
-        signal,
+    >(async ({ input }) => {
+      const result = await ChatReads.messageIds({
+        chatId: input.chatId,
+        sessionId: input.sessionId,
       });
       if (result.isErr()) {
         throw new Error(result.error.message);
       }
-      // ulid sorts oldest to newest
-      return alphabetical(result.value, (id) => id).at(-1);
+      return result.value.at(-1);
     }),
 
     saveQueuedMessage: fromPromise<
@@ -162,7 +165,7 @@ export const sessionMachine = setup({
         sessionId: StoreId.Session;
         chatId: ChatId;
       }
-    >(async ({ input, signal }) => {
+    >(async ({ input }) => {
       const hasMismatchedSessionId = input.message.parts.some(
         (part) => part.metadata.sessionId !== input.sessionId,
       );
@@ -174,10 +177,9 @@ export const sessionMachine = setup({
       if (input.saved) {
         return input.message;
       }
-      const result = await Store.saveMessageWithParts(
+      const result = await ChatWrites.saveMessageWithParts(
         input.message,
         input.chatId,
-        { signal },
       );
       if (result.isErr()) {
         throw new Error(result.error.message);
@@ -191,9 +193,10 @@ export const sessionMachine = setup({
         sessionId: StoreId.Session;
         chatId: ChatId;
       }
-    >(async ({ input: { sessionId, chatId }, signal }) => {
-      const existingSession = await Store.getSession(sessionId, chatId, {
-        signal,
+    >(async ({ input: { sessionId, chatId } }) => {
+      const existingSession = await ChatReads.session({
+        chatId,
+        sessionId,
       });
       // Every session is written before its first message: a chat's with
       // the chat, a task's when the chat starts it.
@@ -202,13 +205,12 @@ export const sessionMachine = setup({
           `Failed to get session: ${existingSession.error.message}`,
         );
       } else {
-        const result = await Store.saveSession(
+        const result = await ChatWrites.saveSession(
           {
             ...existingSession.value,
             updatedAt: new Date(),
           },
           chatId,
-          { signal },
         );
         if (result.isErr()) {
           throw new Error(`Failed to update session: ${result.error.message}`);
@@ -253,7 +255,7 @@ export const sessionMachine = setup({
       queuedMessages: SessionMessage.UserWithParts[];
       runRequested?: boolean;
       /** Those of `queuedMessages` the sender wrote to the store on arrival. */
-      savedMessageIds?: StoreId.Message[];
+      savedMessageIds: StoreId.Message[];
       sessionId: StoreId.Session;
       chatId: ChatId;
     },
@@ -279,12 +281,12 @@ export const sessionMachine = setup({
       baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
       heldMessageIds: [],
       llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
-      maxStepCount: input.maxStepCount ?? 200,
+      maxStepCount: input.maxStepCount ?? UNATTENDED_STEPS,
       model: input.model,
       parentRef: input.parentRef,
       queuedMessages: input.queuedMessages,
       runRequested: input.runRequested ?? false,
-      savedMessageIds: input.savedMessageIds ?? [],
+      savedMessageIds: input.savedMessageIds,
       sessionId: input.sessionId,
       subscription,
       chatId: input.chatId,
@@ -323,10 +325,8 @@ export const sessionMachine = setup({
         // stays queued, so a turn that ends first runs it as a turn of its own.
         // A message the user typed into a chat's working turn joins it the
         // same way, with a note that it arrived mid-turn, and the turn decides
-        // what it is (lib/chat/mid-turn.ts). It supersedes the turn instead
-        // when it calls the work off, or when the turn is waiting on the user
-        // to answer a question, which typing answers. A sender that asks to
-        // interrupt supersedes any agent's step the same way.
+        // what it is (lib/chat/mid-turn.ts). A sender that asks to interrupt,
+        // as the Stop button does, supersedes the turn.
         enqueueActions(({ context, enqueue, event }) => {
           const agentRef = context.agentRef;
           if (agentRef?.getSnapshot().status !== "active") {
@@ -335,12 +335,7 @@ export const sessionMachine = setup({
           const typedIntoChat =
             sessionRole(context.chatId, context.sessionId) === "chat" &&
             isTypedByUser(event.value);
-          if (
-            event.interrupt ||
-            (typedIntoChat &&
-              (callsItOff(event.value) ||
-                agentRef.getSnapshot().matches("WaitingForPendingToolCalls")))
-          ) {
+          if (event.interrupt) {
             enqueue.raise({ reason: "superseded", type: "stop" });
             return;
           }
@@ -385,24 +380,6 @@ export const sessionMachine = setup({
     stop: {
       actions: ["rememberStopNotice", "holdQueued"],
     },
-    updateInteractiveToolCall: [
-      {
-        actions: ({ context, event }) => {
-          invariant(
-            context.agentRef,
-            "Agent ref does not exist when finishing tool call",
-          );
-          context.agentRef.send({
-            type: "updateInteractiveToolCall",
-            value: event.value,
-          });
-        },
-        guard: ({ context }) => !!context.agentRef,
-      },
-      {
-        actions: log("Agent ref does not exist when finishing tool call"),
-      },
-    ],
   },
   states: {
     Agent: {
@@ -412,9 +389,7 @@ export const sessionMachine = setup({
         "agent.done": {
           actions: ({ event }) => {
             if (event.value.error) {
-              getWorkspaceConfig().captureException(event.value.error, {
-                scopes: ["workspace"],
-              });
+              getWorkspaceConfig().captureException(event.value.error);
             }
           },
           target: ".AgentDone",
@@ -463,19 +438,10 @@ export const sessionMachine = setup({
               actions: "clearAgentRef",
               target: "AgentDone",
             },
-            // A stop that lands while the agent waits on an interactive tool
-            // makes it leave that wait on the way out, which reports a resume.
-            // The session is already stopping, so neither changes anything.
-            "agent.paused": {},
-            "agent.resumed": {},
           },
         },
 
-        Paused: {
-          on: { "agent.resumed": "Running" },
-        },
         Running: {
-          on: { "agent.paused": "Paused" },
           tags: ["agent.running"],
         },
       },

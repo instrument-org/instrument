@@ -14,6 +14,7 @@ import {
 import { Textarea } from "@/client/components/ui/textarea";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useModalBack } from "@/client/hooks/use-modal-back";
+import { describeReport } from "@/client/lib/problem-reports";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
@@ -92,20 +93,23 @@ function ReportDialogContent({
   const noteId = useId();
   const [note, setNote] = useState("");
   const [showDetails, setShowDetails] = useState(false);
+  const [showData, setShowData] = useState(false);
   const [alwaysSend, setAlwaysSend] = useState(false);
 
-  // What Show details shows is exactly what Send sends, so details the main
-  // process writes are fetched once and kept for both.
+  // What Show details shows is exactly what Send sends, so what the main
+  // process describes is fetched once and kept for both.
   const { data: described } = useQuery({
-    ...rpcClient.problems.describe.queryOptions({
-      input: { error: request.error, surface: request.surface },
-    }),
-    enabled: request.details === undefined,
     gcTime: 0,
+    queryFn: () => describeReport(request),
+    queryKey: [
+      "report-dialog",
+      "describe",
+      request.surface,
+      request.reportTitle,
+    ],
     staleTime: Infinity,
   });
-  const details = request.details ?? described?.details;
-  const fingerprint = request.fingerprint ?? described?.fingerprint;
+  const details = described?.details;
 
   const send = useMutation({
     mutationFn: async () => {
@@ -118,7 +122,8 @@ function ReportDialogContent({
         report: {
           automatic: false,
           details,
-          fingerprint,
+          events: described?.events,
+          fingerprint: described?.fingerprint,
           kind: request.kind,
           note: note.trim() || undefined,
           surface: request.surface,
@@ -198,9 +203,33 @@ function ReportDialogContent({
           {showDetails ? "Hide details" : "Show details"}
         </button>
         {showDetails && (
-          <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] whitespace-pre-wrap select-text">
+          <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
             {details ?? "Gathering the details…"}
           </pre>
+        )}
+        {showDetails && described && described.events.length > 0 && (
+          <>
+            <button
+              aria-expanded={showData}
+              className="flex w-fit items-center gap-1 text-xs font-medium"
+              onClick={() => {
+                setShowData((shown) => !shown);
+              }}
+              type="button"
+            >
+              {showData ? (
+                <CaretDownIcon className="size-3" />
+              ) : (
+                <CaretRightIcon className="size-3" />
+              )}
+              {showData ? "Hide the error data" : "Show the error data"}
+            </button>
+            {showData && (
+              <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
+                {JSON.stringify(described.events, null, 2)}
+              </pre>
+            )}
+          </>
         )}
       </div>
 

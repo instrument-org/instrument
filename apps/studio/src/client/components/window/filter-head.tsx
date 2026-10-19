@@ -314,7 +314,7 @@ function useFilterModel({
       choose: () => {
         onFiltersChange(choose(filters, { group: "topics", id: topic.id }));
       },
-      count: chats.filter((chat) => chat.topics.includes(topic.id)).length,
+      count: chats.filter((chat) => chat.topic === topic.id).length,
       isOn: chosenTopic?.id === topic.id,
       topic,
     })),

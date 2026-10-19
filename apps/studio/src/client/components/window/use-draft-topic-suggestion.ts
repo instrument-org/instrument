@@ -1,4 +1,4 @@
-import { type Draft } from "@/client/atoms/window";
+import { type Draft } from "@/client/atoms/drafts";
 import { useDecision } from "@/client/hooks/use-decision";
 import { useEffect, useState } from "react";
 
@@ -74,7 +74,7 @@ export function useDraftTopicSuggestion({
           state: {},
         }
       : undefined,
-    usage: { purpose: "topic-suggestion", surface: "draft" },
+    activity: { purpose: "topic-suggestion", surface: "draft" },
     key: ["draft-topic", settled, criteria],
   });
 

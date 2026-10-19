@@ -20,12 +20,12 @@ import {
 import {
   describeConnection,
   isConnected,
+  nameAppAccount,
   readConnection,
 } from "../apps/connection";
+import { APP_FILE_NAME } from "../apps/app-file";
 import {
-  APP_GUIDE_FILE_NAME,
   APP_MANIFEST_EXAMPLE,
-  APP_MANIFEST_FILE_NAME,
   type AppManifest,
   AppManifestSchema,
   type AppSlug,
@@ -48,7 +48,6 @@ import {
   listApps,
   loadApp,
   readAppGuide,
-  setAppAccount,
   writeAppFolder,
   writeAppGuide,
 } from "../apps/store";
@@ -62,6 +61,10 @@ import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
 import { APP_COMMAND } from "./app-command";
+import { CALENDAR_COMMAND, CONTACTS_COMMAND } from "./mac-helper";
+import { MAIL_COMMAND } from "./mail";
+import { MESSAGES_COMMAND } from "./messages";
+import { NOTES_COMMAND } from "./notes";
 import {
   defineSubcommands,
   type SubcommandInput,
@@ -103,8 +106,11 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       filter by name, domain, or category, the services they name first. With
       no words, the whole directory one line each; add a word for the detail.
   ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package> | --web <url>) [--sign-in <url>] [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--mac-app <bundle-id>] [--test <path>] [--force]
-      Write <slug>/${APP_MANIFEST_FILE_NAME} in the apps folder, and a ${APP_GUIDE_FILE_NAME} when there is
-      none, from the directory's entry for the service when it has one. An
+      Write the app's ${APP_FILE_NAME} in the apps folder, from the directory's entry
+      for the service when it has one: the setup as front matter over the
+      guide. <slug> is the \`id\` in it, which every ${APP_COMMAND.name} subcommand names the
+      app by; --name names its folder, which is what the user sees and is
+      theirs to rename. An
       MCP app's guide is done as written; an API app's may leave prompts to
       answer with \`${APP_COMMAND.name} guide\`. An MCP app defaults to oauth (a one-click sign-in, no key);
       an API app to bearer, and needs --test, a cheap GET that proves the key.
@@ -117,13 +123,14 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       no key, takes env:<VAR> when the server reads one from its environment,
       and the user has to allow it to run before it does. When it drives an
       app on this Mac, --mac-app takes that app's bundle identifier
-      (\`osascript -e 'id of app "Drafts"'\` prints it), and the app is drawn
+      (\`plutil -extract CFBundleIdentifier raw /Applications/Drafts.app/Contents/Info.plist\`
+      prints it), and the app is drawn
       with that app's icon. --web names a service worked on its own site in
       ${APP_NAME}'s browser, for one with no sign-in the card can open: the
       user signs in there (at --sign-in, when the login page is not the
       url), and a task works the site in a tab. Refuses to overwrite
-      an existing manifest without --force. You can also write the two files
-      yourself with your file tools.
+      an app that is already there without --force. You can also write the
+      file yourself with your file tools.
   ${APP_COMMAND.name} test <slug>
       The red/green loop: manifest, guide, key or sign-in, a scan for secrets in
       the folder, then the service for real. A pass connects the app; a failure
@@ -150,8 +157,9 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       request in a task hands back the app's guide instead; read it, then
       repeat. The body can come on stdin.
   ${APP_COMMAND.name} guide <slug> [<<'EOF' ... EOF]
-      The app's ${APP_GUIDE_FILE_NAME}. With the whole file on stdin through a
-      quoted heredoc, write it instead: how an API app's prompts get answered.
+      The app's guide, the body of its ${APP_FILE_NAME}. With the whole guide on stdin
+      through a quoted heredoc, write it instead, leaving the setup above it
+      alone: how an API app's prompts get answered.
   ${APP_COMMAND.name} icon <slug> <file>
       Draw the app with this icon: a square SVG, or a square PNG of at least
       128px, in place of its site's or its Mac app's. For a service whose site
@@ -160,9 +168,11 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
   ${APP_COMMAND.name} account <slug> ['<account>'] [--clear]
       Name the account the app is signed in as, the way the user would know
       it ("jeremy@example.com", "Acme workspace"), so two apps for one service
-      can be told apart; it shows wherever the app does. Once you have seen
-      which account it is, from what the service answered or the page a task
-      worked on, name it. The user can rename it. With no name, prints it.
+      can be told apart; it shows wherever the app does. Name it when it is
+      plain (the service answered it, the page shows it, or the user said
+      it); don't hunt for it. A web app whose site serves several accounts
+      (Gmail) moves to that account's address. The user can rename it. With
+      no name, prints it.
   ${APP_COMMAND.name} disconnect <slug>
       Take the app's key or sign-in away. Its folder stays.
 
@@ -233,7 +243,7 @@ const runApp = defineSubcommands<AppCommandContext>({
       run: ({ positional }, _context, { signal }) =>
         runTest(positional, signal),
     }),
-    // `app tools linear save_comment` is how the singular gets reached for,
+    // `instrument app tools linear save_comment` is how the singular gets reached for,
     // so the two mean the same thing.
     tool: subcommand({
       positional: 2,
@@ -250,17 +260,29 @@ const runApp = defineSubcommands<AppCommandContext>({
 });
 
 /** Mac apps the bundled helper answers for, by bundle id, with the task command that reaches each. */
-const NATIVE_COMMANDS: Record<string, string> = {
-  "com.apple.AddressBook": "contacts",
-  "com.apple.iCal": "calendar",
-  "com.apple.reminders": "calendar",
+const HELPER_COMMANDS: Record<string, string> = {
+  "com.apple.AddressBook": CONTACTS_COMMAND.name,
+  "com.apple.iCal": CALENDAR_COMMAND.name,
+  "com.apple.reminders": CALENDAR_COMMAND.name,
 };
 
-/** The task command that reaches a Mac app through the helper, where this build carries it. */
+/** Mac apps the app's own scripts drive, by bundle id, with the task command that reaches each. */
+const SCRIPTED_COMMANDS: Record<string, string> = {
+  "com.apple.MobileSMS": MESSAGES_COMMAND.name,
+  "com.apple.Notes": NOTES_COMMAND.name,
+  "com.apple.mail": MAIL_COMMAND.name,
+};
+
+/** The task command that reaches a Mac app, where this build has one: a script's on macOS, the helper's where the build carries it. */
 function nativeCommandFor(bundleId: string): string | undefined {
-  return getWorkspaceConfig().macHelperBinPath === undefined
-    ? undefined
-    : NATIVE_COMMANDS[bundleId];
+  const scripted =
+    process.platform === "darwin" ? SCRIPTED_COMMANDS[bundleId] : undefined;
+  return (
+    scripted ??
+    (getWorkspaceConfig().macHelperBinPath === undefined
+      ? undefined
+      : HELPER_COMMANDS[bundleId])
+  );
 }
 
 /** The catalog, as lines: what each service is and how it is reached. */
@@ -296,7 +318,11 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
         : way.kind === "api"
           ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
           : way.kind === "mac-app"
-            ? `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, do it ${native === undefined ? `with osascript on this Mac, and macOS asks the user once to let ${APP_NAME} control it` : `with the \`${native}\` command, ${APP_NAME}'s own way into ${way.name} (fast, and it reads every account added there; never osascript for it), and macOS asks the user once for access`}. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
+            ? native === undefined
+              ? entry.family === "apple"
+                ? `none: ${APP_NAME} has no way into ${way.name} in this build, so tell the user that rather than looking for another way in.`
+                : `${start} --web ${entry.home ?? `https://${entry.domain}`}  (${APP_NAME} has no way into ${way.name} in this build, so ${entry.name} is worked on its site)`
+              : `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, do it with the \`${native}\` command, ${APP_NAME}'s own way into ${way.name}, which reads every account added there. The first time a chat uses ${way.name} the person is asked to allow it. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
             : `${start} --web ${way.url}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and it is worked in a tab)`;
   const keySurface =
     way.kind === "mcp" || way.kind === "api"
@@ -362,9 +388,9 @@ function jsonFrom(
 async function markGuideRead(chatId: ChatId, slug: string) {
   const dir = chatDir(chatId);
   const state = await getChatState(dir);
-  const read = state.appGuidesRead ?? [];
+  const read = state.appGuidesShown;
   if (!read.includes(slug)) {
-    await setChatState(dir, { appGuidesRead: [...read, slug] });
+    await setChatState(dir, { appGuidesShown: [...read, slug] });
   }
 }
 
@@ -462,8 +488,12 @@ async function callAppTool({
     slug: app.slug,
   });
   if (result.isErr()) {
+    const next: Partial<Record<typeof result.error.reason, string>> = {
+      forbidden: ` A 403 usually means the account lacks a permission, scope or plan on the service's side, which signing in again does not change; tell the user what the server said. Some servers send it for a bad key too: \`${APP_COMMAND.name} test ${app.slug}\` checks the key.`,
+      unauthorized: ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with connect_app.`,
+    };
     throw new Error(
-      `${redact(result.error.message)}${result.error.reason === "unauthorized" ? ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with connect_app.` : ""}`,
+      `${redact(result.error.message)}${next[result.error.reason] ?? ""}`,
     );
   }
   return { ...result.value, app, redact, tool };
@@ -620,7 +650,7 @@ async function runCatalog(args: string[], signal: AbortSignal | undefined) {
     const meant = await searchAppCatalogByMeaning(query, {
       configs: getWorkspaceConfig().getAIProviderConfigs(),
       signal,
-      usage: { purpose: "app-search", surface: "agent" },
+      activity: { purpose: "app-search", surface: "agent" },
     });
     if (meant.length > 0) {
       return ok(
@@ -628,7 +658,7 @@ async function runCatalog(args: string[], signal: AbortSignal | undefined) {
       );
     }
     return ok(
-      `Nothing in the directory matches "${query}". Set it up by hand. For a service you do not know, look up what this command can actually take, not a manifest shape of your own: the service's MCP endpoint if it has one, otherwise its API base URL, one cheap GET that proves a key, and which of oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, or none the key rides in -- those words, not a scheme of its own. Then \`${APP_COMMAND.name} new\`, or write ${APP_MANIFEST_FILE_NAME} and ${APP_GUIDE_FILE_NAME} yourself.\n`,
+      `Nothing in the directory matches "${query}". Set it up by hand. For a service you do not know, look up what this command can actually take, not a manifest shape of your own: the service's MCP endpoint if it has one, otherwise its API base URL, one cheap GET that proves a key, and which of oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, or none the key rides in -- those words, not a scheme of its own. Then \`${APP_COMMAND.name} new\`, or write the app's ${APP_FILE_NAME} yourself.\n`,
     );
   }
   // Every entry in full runs past what a command's output keeps, and what gets
@@ -662,7 +692,7 @@ async function runDisconnect(args: string[]) {
   const app = await requireApp(args[0], { connected: false });
   await getWorkspaceConfig().apps.disconnect(app.slug);
   return ok(
-    `Disconnected ${app.slug}. Its folder at ${appsFolder()}/${app.slug}/ stays; connect_app asks the user again.\n`,
+    `Disconnected ${app.slug}. Its folder at ${appsFolder()}/${app.name}/ stays; connect_app asks the user again.\n`,
   );
 }
 
@@ -674,18 +704,18 @@ async function runGuide(
   const app = await requireApp(args[0], { connected: false });
   const written = subprocessStdin(stdin)?.toString("utf8").trim();
   if (written) {
-    await writeAppGuide(app.dir, written);
+    writeAppGuide(app.dir, written);
     const left = guidePlaceholdersLeft(app.manifest, written);
     return ok(
       left.length > 0
-        ? `Wrote ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}, but these prompts are still in it: ${left.map((prompt) => `"${prompt}"`).join(" ")} Replace each with its answer and write it again.\n`
-        : `Wrote ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}. Run \`${APP_COMMAND.name} test ${app.slug}\`, or ask with connect_app.\n`,
+        ? `Wrote the guide in ${appsFolder()}/${app.name}/${APP_FILE_NAME}, but these prompts are still in it: ${left.map((prompt) => `"${prompt}"`).join(" ")} Replace each with its answer and write it again.\n`
+        : `Wrote the guide in ${appsFolder()}/${app.name}/${APP_FILE_NAME}. Run \`${APP_COMMAND.name} test ${app.slug}\`, or ask with connect_app.\n`,
     );
   }
   const guide = await readAppGuide(app.dir);
   if (guide === null) {
     throw new Error(
-      `"${app.slug}" has no ${APP_GUIDE_FILE_NAME}. Write one at ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}.`,
+      `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}.`,
     );
   }
   await markGuideRead(context.chatId, app.slug);
@@ -713,7 +743,7 @@ async function runIcon(args: string[], ctx: SubcommandShell) {
   await writeAppIcon(app.dir, bytes, checked.fileName);
   await appChanged(app.slug);
   return ok(
-    `${app.slug} is drawn with ${appsFolder()}/${app.slug}/${checked.fileName} now, everywhere it appears.\n`,
+    `${app.slug} is drawn with ${appsFolder()}/${app.name}/${checked.fileName} now, everywhere it appears.\n`,
   );
 }
 
@@ -722,7 +752,7 @@ async function runAccount(input: SubcommandInput) {
   const app = await requireApp(slug, { connected: false });
   const named = words.join(" ").trim();
   if (input.has("clear")) {
-    await setAppAccount(getWorkspaceConfig().appsDir, app.slug, undefined);
+    await nameAppAccount(getWorkspaceConfig().appsDir, app.slug, undefined);
     await appChanged(app.slug);
     return ok(`${app.slug} no longer names an account.\n`);
   }
@@ -733,14 +763,20 @@ async function runAccount(input: SubcommandInput) {
         : `${app.slug} names no account yet. Name it with \`${APP_COMMAND.name} account ${app.slug} '<account>'\` once you have seen which one it is.\n`,
     );
   }
-  const manifest = await setAppAccount(
+  const manifest = await nameAppAccount(
     getWorkspaceConfig().appsDir,
     app.slug,
     named,
   );
   await appChanged(app.slug);
+  const moved =
+    manifest.type === "web" &&
+    app.manifest.type === "web" &&
+    manifest.url !== app.manifest.url
+      ? ` It opens at ${manifest.url}, that account's own address.`
+      : "";
   return ok(
-    `${app.slug} is ${manifest.name} (${named}) wherever it appears now.\n`,
+    `${app.slug} is ${app.name} (${named}) wherever it appears now.${moved}\n`,
   );
 }
 
@@ -757,7 +793,7 @@ async function runList() {
   }
   const lines = apps.map(
     (app) =>
-      `${app.slug}  ${app.manifest.name}${app.manifest.account ? ` (${app.manifest.account})` : ""}  ${app.manifest.type}  ${describeConnection(connections[app.slug], app.manifestHash)}`,
+      `${app.slug}  ${app.name}${app.manifest.account ? ` (${app.manifest.account})` : ""}  ${app.manifest.type}  ${describeConnection(connections[app.slug], app.manifestHash)}`,
   );
   for (const entry of invalid) {
     lines.push(`${entry.slug}  broken manifest: ${entry.message}`);
@@ -804,7 +840,7 @@ async function runNew(input: SubcommandInput) {
     input.value("mac-app") !== undefined
   ) {
     throw new Error(
-      `a Mac app a task drives with osascript needs no app folder and no \`${APP_COMMAND.name} new\`: do what the user asked in it with osascript.`,
+      `a Mac app needs no app folder and no \`${APP_COMMAND.name} new\`: \`${APP_COMMAND.name} catalog <name>\` says which command reaches it, when one does.`,
     );
   }
   if ([mcp, api, local, web].filter(Boolean).length !== 1) {
@@ -862,28 +898,26 @@ async function runNew(input: SubcommandInput) {
   }
   const service = entry ? { service: entry.slug } : {};
   const candidate: unknown = web
-    ? { name, ...service, ...(signIn ? { signIn } : {}), type: "web", url: web }
+    ? { ...service, ...(signIn ? { signIn } : {}), type: "web", url: web }
     : local
       ? {
           ...(serverArgs.length > 0 ? { args: serverArgs } : {}),
           auth,
           ...(macApp ? { macApp } : {}),
-          name,
           package: local,
           runtime,
           ...service,
           type: "mcp-local",
         }
       : mcp
-        ? { auth, name, ...service, type: "mcp", url: mcp }
+        ? { auth, ...service, type: "mcp", url: mcp }
         : {
             auth,
-            baseUrl: api,
             ...(Object.keys(headers).length > 0 ? { headers } : {}),
-            name,
             ...service,
             test: { path: test ?? "" },
             type: "api",
+            url: api,
           };
   if (api && !test) {
     throw new Error(
@@ -900,7 +934,7 @@ async function runNew(input: SubcommandInput) {
   const existing = await loadApp(appsDir, slug);
   if (existing.isOk() && !force) {
     throw new Error(
-      `${appsFolder()}/${slug}/${APP_MANIFEST_FILE_NAME} already exists. Edit it with your file tools, or pass --force to replace it.`,
+      `${appsFolder()}/${existing.value.name}/${APP_FILE_NAME} is already "${slug}". Edit it with your file tools, or pass --force to replace it.`,
     );
   }
   await refuseWhatCannotConnect(slug, name, manifest);
@@ -908,10 +942,11 @@ async function runNew(input: SubcommandInput) {
   // A guide written for another way in describes tools this one does not have.
   const reachChanged =
     existing.isOk() && existing.value.manifest.type !== manifest.type;
-  await writeAppFolder({
+  const dir = await writeAppFolder({
     appsDir,
     guide,
     manifest,
+    name,
     replacesGuide: reachChanged,
     slug,
   });
@@ -945,7 +980,7 @@ async function runNew(input: SubcommandInput) {
       ? ` It is another ${name} account beside ${siblings.map((app) => (app.manifest.account ? `${app.slug} (${app.manifest.account})` : app.slug)).join(", ")}, so it keeps the name ${name}${givenName === name ? "" : ` rather than "${givenName}"`}: its account is what tells them apart, named when the user has signed in.`
       : "";
   return ok(
-    `Wrote ${appsFolder()}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() && !reachChanged ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${another}${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
+    `Wrote ${shellPath(dir)}/${APP_FILE_NAME}, the setup over ${existing.isOk() && !reachChanged ? "the guide that was there" : "its guide"}.${another}${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole guide back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
   );
 }
 
@@ -1044,11 +1079,11 @@ async function runRequest(
   // The guide is the app's only documentation, so it enters the context
   // before the first real request in this task.
   const state = await getChatState(chatDir(context.chatId));
-  if (!(state.appGuidesRead ?? []).includes(app.slug)) {
+  if (!state.appGuidesShown.includes(app.slug)) {
     const guide = await readAppGuide(app.dir);
     if (guide === null) {
       throw new Error(
-        `"${app.slug}" has no ${APP_GUIDE_FILE_NAME}. Write one at ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}: the endpoints and conventions a request needs.`,
+        `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}: the endpoints and conventions a request needs.`,
       );
     }
     await markGuideRead(context.chatId, app.slug);
@@ -1147,7 +1182,7 @@ async function runTools(
     );
   }
   // A line each: a big app lists dozens, and the schemas would make the
-  // listing longer than a turn should read. `app tool` has the whole of one.
+  // listing longer than a turn should read. `instrument app tool` has the whole of one.
   const lines = result.value.map(
     (tool) => `- ${tool.name}: ${firstSentence(redact(tool.description))}`,
   );

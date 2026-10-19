@@ -1,20 +1,23 @@
+import {
+  type ChosenItem,
+  draftGroupOf,
+  draftOfGroup,
+} from "@/client/atoms/drafts";
 import { PANE_DEFAULT_SHARE } from "@/client/atoms/right-pane";
 import {
   type FileSystemListColumn,
+  type FileSystemGroupKey,
   type FileSystemSortState,
 } from "@/client/components/extend/file-system";
-import { type PromptInputDraft } from "@/client/components/prompt-input";
 import { type ChatFilters, NO_FILTERS } from "@/client/components/window/chats";
-import { type TabHistory as ScreenHistory, type TabId } from "@/shared/tabs";
+import { type TabHistory as ScreenHistory } from "@/shared/tabs";
 import {
   type ChatId,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
-import { atom, type SetStateAction } from "jotai";
-import { atomFamily } from "jotai/utils";
+import { atom } from "jotai";
 
 import { keptAtom } from "@/client/lib/kept-state";
-import { DRAFTS_KEY } from "@/shared/kept-state";
 
 /**
  * What the chat column is narrowed to.
@@ -36,144 +39,11 @@ export type ScreenView = Omit<
   "page" | "url"
 >;
 
-/** A file or folder on this computer picked to go with a draft, by its path. */
-export interface ChosenItem {
-  kind: "file" | "folder";
-  path: string;
-}
-
 /** A Finder's folder and what is selected in it, by host path. */
 export interface FinderShown {
   folder: string;
   selected: ChosenItem[];
 }
-
-/**
- * A file or folder given to a draft's composer, by its path on disk: what of
- * the composer outlasts the app. Bytes pasted in with no file behind them
- * are written to the draft's own folder first, and kept by that path.
- */
-export type DraftAttachment =
-  | { kind: "file"; mimeType: string; name: string; path: string; size: number }
-  | { kind: "folder"; path: string };
-
-/**
- * A chat not yet started: its words and the topic it will be filed under.
- * What it has gathered (sites, files, folders) is its tab group, kept with
- * the window's tabs under the draft's group key; what its composer holds
- * besides the words is kept in memory beside it, and the part of that with
- * a place on disk in `attached`.
- */
-export interface Draft {
-  /** What the composer was given that has a place on disk, so it comes back after a relaunch. */
-  attached?: DraftAttachment[];
-  /**
-   * Files and folders the person opened the draft on by name, from a menu or
-   * a button over them: held for the chat whatever the window moves on to,
-   * until the person leaves one out.
-   */
-  chosen?: ChosenItem[];
-  createdAt: number;
-  id: string;
-  /**
-   * The thing the draft was opened over, when the window stood in a place
-   * with a tab up: that tab, by its group and id. A pointer rather than a
-   * copy or a tab of the draft's own, so the draft says what the screen
-   * already gives it and the chat is told about it as it starts. A folder,
-   * file, or app's front on one of the window's own tabs is that tab, by its
-   * id. A chat on screen is the chat, whether or not its pane is open: what
-   * is in it is the chat's, so the draft names the chat and nothing in it.
-   */
-  included?:
-    | { appTabId: TabId }
-    | { chat: ChatId }
-    | { group: string; tabId: string };
-  /** The chips the person left out of the draft, by their keys (see `ContextItem`). */
-  leftOut?: string[];
-  topicId?: string;
-  /**
-   * Who settled the topic: the person, by picking or clearing one, or the
-   * decision model, from what the draft says. Absent while neither has, which
-   * is the only time a draft is filed on its own.
-   */
-  topicSource?: "chosen" | "suggested";
-  updatedAt: number;
-  words: string;
-}
-
-/** The group key a draft's tabs are kept under. */
-export function draftGroupOf(draftId: string): string {
-  return `draft:${draftId}`;
-}
-
-/** The draft a group key names, if it names one. */
-export function draftOfGroup(group: string | undefined): string | undefined {
-  return group?.startsWith("draft:") ? group.slice("draft:".length) : undefined;
-}
-
-/**
- * Every draft not yet started, newest last, kept across launches as a folder
- * each in the workspace's `drafts/`: a draft put away is still in Drafts, and
- * one whose folder is deleted is gone.
- */
-export const draftsAtom = keptAtom<Draft[]>("drafts", DRAFTS_KEY, []);
-
-/** How long a draft's words are left alone before its record is written. */
-const DRAFT_WORDS_SETTLE_MS = 300;
-
-/** Each draft's pending write of its words to its record. */
-const draftWordsWrites = new Map<string, ReturnType<typeof setTimeout>>();
-
-/**
- * A draft's words: the one place they are typed into and read from, by the
- * composer, its bar, the Drafts list and the send alike. They start as the
- * record's (a draft made with words in it, or one kept past a launch), and
- * what is typed is written back to the record a beat later rather than on
- * every key: writing the record lays the whole window out again, transcripts
- * and all, and that on each keystroke is felt in the keys.
- */
-export const draftWordsAtom = atomFamily((draftId: string) => {
-  const typed = atom<null | string>(null);
-  const words = atom(
-    (get) =>
-      get(typed) ??
-      get(draftsAtom).find((draft) => draft.id === draftId)?.words ??
-      "",
-    (get, set, update: SetStateAction<string>) => {
-      const next = typeof update === "function" ? update(get(words)) : update;
-      set(typed, next);
-      clearTimeout(draftWordsWrites.get(draftId));
-      draftWordsWrites.set(
-        draftId,
-        setTimeout(() => {
-          draftWordsWrites.delete(draftId);
-          set(draftsAtom, (current) =>
-            current.map((draft) =>
-              draft.id === draftId && draft.words !== next
-                ? { ...draft, updatedAt: Date.now(), words: next }
-                : draft,
-            ),
-          );
-        }, DRAFT_WORDS_SETTLE_MS),
-      );
-    },
-  );
-  return words;
-});
-
-/** Lets go of a draft's words, for a draft sent or thrown away. */
-export function forgetDraftWords(draftId: string) {
-  clearTimeout(draftWordsWrites.get(draftId));
-  draftWordsWrites.delete(draftId);
-  draftWordsAtom.remove(draftId);
-}
-
-/**
- * What each draft's composer held besides its words when it was last put
- * away, by draft id: the files and folders it was given, restored when the
- * draft comes back up. In memory only, since bytes do not belong in storage.
- */
-export const draftSnapshotsAtom = atom<Record<string, PromptInputDraft>>({});
 
 /**
  * One window along the foot: a draft being written, or a chat floating in
@@ -390,18 +260,32 @@ export const computerHiddenFilesAtom = keptAtom<boolean>(
 );
 
 /**
- * The layout and order each folder was last set to by hand, by where it is
- * on the computer, the way the Finder keeps them with the folder. The order
- * holds however the folder is reached; the layout only when it is arrived at
- * directly, since walking keeps the tab's own. Both are kept whenever either
- * is set, and walking into a folder sets neither. The recents are kept under
- * their root.
+ * The layout, order and grouping each folder was last set to by hand, by
+ * where it is on the computer, the way the Finder keeps them with the
+ * folder. The order and grouping hold however the folder is reached; the
+ * layout only when it is arrived at directly, since walking keeps the tab's
+ * own. All are kept whenever any is set, and walking into a folder sets
+ * none. The recents are kept under their root.
  */
 export const computerFolderViewsAtom = keptAtom<
   Record<string, ComputerFolderView>
 >("view", "computer-folder-views.v1", {});
 
+/**
+ * The folders opened in place in the list, by where each is on the
+ * computer, newest last. One set for every Finder, the way the Finder keeps
+ * them: a folder stands open wherever a list shows it, in any tab or window,
+ * reached any way, until it is closed.
+ */
+export const computerOpenFoldersAtom = keptAtom<string[]>(
+  "view",
+  "computer-open-folders.v1",
+  [],
+);
+
 export interface ComputerFolderView {
+  /** Absent for a folder last set before grouping, which is ungrouped. */
+  group?: FileSystemGroupKey | null;
   sort: FileSystemSortState;
   view: "columns" | "gallery" | "icons" | "list";
 }
@@ -440,6 +324,13 @@ export const fileTreeWidthAtom = keptAtom<number>(
   "view",
   "file-tree-width.v1",
   240,
+);
+
+/** How wide a folder is beside a file open in it, in CSS px, dragged at its right edge. One width for every view. */
+export const finderBesideWidthAtom = keptAtom<number>(
+  "view",
+  "finder-beside-width.v1",
+  300,
 );
 
 /**

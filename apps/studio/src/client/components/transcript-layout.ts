@@ -10,7 +10,6 @@ import {
 import { summarizeToolRun } from "../lib/tool-display";
 import { dataPartVisibility, isDataPart } from "./chat-stream-data-parts";
 import {
-  isAwaitingUser,
   isToolCallVisible,
   isToolPartRunning,
 } from "./message-part/tool-call-utils";
@@ -327,14 +326,12 @@ export function buildTranscriptLayout({
       push(id, kind);
       if (isToolPart(part)) {
         open.toolCalls.push({ name: getToolNameByType(part.type), rowId: id });
-        // A call waiting on the user opens itself whatever the session is
-        // doing: the buttons on it are how the turn goes on, and a reader who
-        // has to find and open the row first reads a pause as a stall. The
-        // card asking to connect an app is the same kind of thing, though the
-        // call itself returned at once: the answer comes from the card.
+        // A card that asks the user something opens itself whatever the
+        // session is doing: the answer comes from the card, and a reader who
+        // has to find and open the row first never sees the question.
         if (
           (isRunning && opensOnSight(part)) ||
-          isAwaitingUser(part) ||
+          part.type === "tool-choose" ||
           part.type === "tool-connect_app"
         ) {
           selfOpeningRowIds.push(id);

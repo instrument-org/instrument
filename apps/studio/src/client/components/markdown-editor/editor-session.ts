@@ -14,18 +14,24 @@ import {
   flushOnLeave,
   type SaveStatus,
 } from "@/client/lib/live-file";
+import { codeHighlighting } from "@/client/components/code-editor/theme";
+import { type OpenTarget } from "@/client/lib/open-target";
 import { rpcClient } from "@/client/rpc/client";
 import { splitFrontMatter } from "@/shared/front-matter";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { tags as t } from "@lezer/highlight";
 import { Crepe } from "@milkdown/crepe";
 import {
+  commandsCtx,
   editorViewCtx,
   parserCtx,
   remarkStringifyOptionsCtx,
   serializerCtx,
 } from "@milkdown/kit/core";
-import { htmlSchema, imageSchema } from "@milkdown/kit/preset/commonmark";
+import { uploadConfig } from "@milkdown/kit/plugin/upload";
+import {
+  clearTextInCurrentBlockCommand,
+  wrapInBlockquoteCommand,
+  htmlSchema,
+} from "@milkdown/kit/preset/commonmark";
 import { type Node as PMNode } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
 import {
@@ -37,6 +43,11 @@ import {
 import { $prose, $remark, $view } from "@milkdown/kit/utils";
 
 import { installBlockHandle } from "./block-handle";
+import {
+  calloutsPlugin,
+  keepCalloutMarkers,
+  NEW_CALLOUT_MARKER,
+} from "./callouts";
 import { installBlockMenu } from "./block-menu";
 import {
   codeBlockInfo,
@@ -54,7 +65,15 @@ import {
 } from "./doc-sync";
 import { createHtmlView, htmlStructurePlugin } from "./html-render";
 import { icon, instrumentMark } from "./icons";
-import { fitSelectionToolbar } from "./toolbar-fit";
+import {
+  fileUploader,
+  imageTags,
+  imageView,
+  imageWidth,
+  insertFiles,
+} from "./images";
+import { linksPlugin } from "./links";
+import { fitSelectionToolbar, fitSlashMenu } from "./toolbar-fit";
 
 export type EditorSession = Awaited<ReturnType<typeof createEditorSession>>;
 
@@ -65,6 +84,8 @@ export interface EditorSessionOptions {
   onAsk: (selection: AskSelection) => void;
   onExternalChange: (change: ExternalChange) => void;
   onFrontMatter: (fm: string) => void;
+  /** Opens what a followed link names; `newTab` asks for a tab of its own. */
+  onOpenLink: (target: OpenTarget, newTab: boolean) => void;
   onStatus: (status: SaveStatus, detail?: string) => void;
   /** Draws a fence Studio shows as something other than code; the element is filled in by the caller. */
   renderFence: (language: string, content: string) => null | string;
@@ -106,40 +127,6 @@ const BLOCK_NAMES: Record<string, string> = {
   paragraph: "Paragraph",
   table: "Table",
 };
-
-// Token colors come from CSS variables, so code blocks follow the theme.
-const codeColors = syntaxHighlighting(
-  HighlightStyle.define([
-    {
-      color: "var(--hl-keyword)",
-      tag: [t.keyword, t.modifier, t.operatorKeyword, t.controlKeyword],
-    },
-    {
-      color: "var(--hl-string)",
-      tag: [t.string, t.special(t.string), t.regexp],
-    },
-    { color: "var(--hl-number)", tag: [t.number, t.bool, t.null, t.atom] },
-    {
-      color: "var(--hl-comment)",
-      fontStyle: "italic",
-      tag: [t.comment, t.lineComment, t.blockComment],
-    },
-    {
-      color: "var(--hl-function)",
-      tag: [t.function(t.variableName), t.function(t.propertyName)],
-    },
-    { color: "var(--hl-type)", tag: [t.typeName, t.className, t.namespace] },
-    { color: "var(--hl-tag)", tag: [t.tagName, t.angleBracket] },
-    { color: "var(--hl-attr)", tag: [t.attributeName, t.propertyName] },
-    {
-      color: "var(--hl-variable)",
-      tag: [t.variableName, t.definition(t.variableName)],
-    },
-    { color: "var(--hl-punct)", tag: [t.punctuation, t.operator] },
-    { color: "var(--hl-keyword)", fontWeight: "bold", tag: t.heading },
-    { color: "var(--hl-string)", tag: t.link, textDecoration: "underline" },
-  ]),
-);
 
 const ASK_ICON = `<span class="md-ask">${instrumentMark(14)}<span>Ask</span></span>`;
 
@@ -417,32 +404,25 @@ export async function createEditorSession(options: EditorSessionOptions) {
       }),
   );
 
-  /** An image in the file: its own picture, resolved against the file's folder. */
-  const renderImage: NodeViewConstructor = (node) => {
-    const img = document.createElement("img");
-    img.className = "md-image";
-    const render = (n: PMNode) => {
-      const src = options.resolveSrc(String(n.attrs.src ?? ""));
-      if (img.getAttribute("src") !== src) {
-        img.src = src;
+  const images = imageView(options.resolveSrc);
+
+  /** The folder a file given to the file is put in and linked from: the file's own. */
+  const folder = options.hostPath.replace(/[^/\\]*$/, "");
+
+  /** The slash menu's Image and File: the system's picker, then the files go in as a drop would put them. */
+  const pickFiles = (accept: string) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = accept;
+    input.multiple = true;
+    input.addEventListener("change", () => {
+      const files = [...(input.files ?? [])];
+      if (files.length > 0) {
+        void insertFiles(view(), folder, files);
       }
-      img.alt = String(n.attrs.alt ?? "");
-      img.title = String(n.attrs.title ?? "");
-    };
-    render(node);
-    return {
-      dom: img,
-      ignoreMutation: () => true,
-      update(n) {
-        if (n.type !== node.type) {
-          return false;
-        }
-        render(n);
-        return true;
-      },
-    };
+    });
+    input.click();
   };
-  const imageView = $view(imageSchema.node, () => renderImage);
 
   /**
    * Raw HTML, rendered as Studio's viewer renders it: sanitized to GitHub's
@@ -460,6 +440,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
     });
   const htmlView = $view(htmlSchema.node, () => renderHtml);
   const htmlContainerPlugin = $prose(() => htmlStructurePlugin());
+  const links = linksPlugin({ folder, open: options.onOpenLink, root });
 
   /**
    * The places staged asks point at, tinted, each with its number at its
@@ -611,12 +592,47 @@ export async function createEditorSession(options: EditorSessionOptions) {
       [Crepe.Feature.BlockEdit]: {
         advancedGroup: {
           codeBlock: { icon: icon("code", 16) },
-          image: { icon: icon("image", 16) },
           math: { icon: icon("sigma", 16) },
           table: { icon: icon("table", 16) },
         },
         // Close to the text, so the handle fits in the document's gutter.
         blockHandle: { getOffset: () => 4 },
+        buildMenu: (builder) => {
+          const advanced = builder.getGroup("advanced");
+          advanced.addItem("image", {
+            icon: icon("image", 16),
+            label: "Image",
+            onRun: (ctx) => {
+              ctx.get(commandsCtx).call(clearTextInCurrentBlockCommand.key);
+              pickFiles("image/*");
+            },
+          });
+          builder.getGroup("text").addItem("callout", {
+            icon: icon("info", 16),
+            label: "Callout",
+            onRun: (ctx) => {
+              const commands = ctx.get(commandsCtx);
+              commands.call(clearTextInCurrentBlockCommand.key);
+              commands.call(wrapInBlockquoteCommand.key);
+              const v = view();
+              const { hardbreak } = v.state.schema.nodes;
+              v.dispatch(
+                v.state.tr.insert(v.state.selection.from, [
+                  v.state.schema.text(NEW_CALLOUT_MARKER),
+                  ...(hardbreak ? [hardbreak.create({ isInline: true })] : []),
+                ]),
+              );
+            },
+          });
+          advanced.addItem("file", {
+            icon: icon("paperclip", 16),
+            label: "File",
+            onRun: (ctx) => {
+              ctx.get(commandsCtx).call(clearTextInCurrentBlockCommand.key);
+              pickFiles("");
+            },
+          });
+        },
         handleAddIcon: icon("plus", 14),
         handleDragIcon: icon("dotsSixVertical", 14),
         listGroup: {
@@ -649,7 +665,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
           icon(previewOnly ? "pencilSimple" : "check", 12),
         previewToggleText: (previewOnly) => (previewOnly ? "Edit" : "Done"),
         renderPreview: renderPreview(options.renderFence),
-        theme: codeColors,
+        theme: codeHighlighting,
       },
       [Crepe.Feature.LinkTooltip]: {
         confirmButton: icon("check", 14),
@@ -698,6 +714,18 @@ export async function createEditorSession(options: EditorSessionOptions) {
   editor.editor.config((ctx) => {
     ctx.set("remarkMath", { singleDollarTextMath: false });
   });
+  // A file pasted or dropped in is put beside the file and linked by its
+  // relative path; Crepe's own uploader links a picture as a `blob:` address,
+  // which is gone once the page reloads, and drops anything else.
+  editor.editor.config((ctx) => {
+    ctx.update(uploadConfig.key, (prev) => ({
+      ...prev,
+      uploader: fileUploader(folder),
+      uploadWidgetFactory: (pos, spec) =>
+        Decoration.widget(pos, document.createElement("span"), spec),
+    }));
+  });
+  editor.editor.config(keepCalloutMarkers);
   // Serialized lists and rules use `-`, the marker most Markdown in the wild (and the agent) writes.
   editor.editor.config((ctx) => {
     ctx.update(remarkStringifyOptionsCtx, (prev) => ({
@@ -710,10 +738,14 @@ export async function createEditorSession(options: EditorSessionOptions) {
     .use(imageTitleFix)
     .use(codeBlockInfo)
     .use(sessionPlugin)
-    .use(imageView)
+    .use(imageTags)
+    .use(imageWidth)
+    .use(images)
     .use(htmlView)
     .use(htmlContainerPlugin)
     .use(nearCaretPlugin)
+    .use(links)
+    .use(calloutsPlugin)
     .use(askMarksPlugin);
   await editor.create();
   editor.editor.action((ctx) => {
@@ -743,6 +775,11 @@ export async function createEditorSession(options: EditorSessionOptions) {
       bottom: pmView.coordsAtPos(to).bottom,
       top: pmView.coordsAtPos(from).top,
     };
+  });
+  const stopFittingSlashMenu = fitSlashMenu(root, () => {
+    const { from } = pmView.state.selection;
+    const at = pmView.coordsAtPos(from);
+    return { bottom: at.bottom, top: at.top };
   });
   const removeBlockHandle = editor.editor.action((ctx) =>
     installBlockHandle(ctx, root),
@@ -790,6 +827,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
       code.destroy();
       removeBlockMenu();
       stopFittingToolbar();
+      stopFittingSlashMenu();
       removeBlockHandle();
       await crepe?.destroy();
       crepe = null;

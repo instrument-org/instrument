@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { parse as parseYaml, YAMLParseError } from "yaml";
 
-import { REGISTRY_FOLDER_NAMES } from "../constants";
+import { REGISTRY_FOLDER_NAMES, SKILLS_FOLDER_NAME } from "../constants";
 import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
@@ -13,6 +13,7 @@ import { pathExists } from "./path-exists";
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
 import { AGENT_BROWSER_GUIDE_NAME } from "./agent-browser-guide";
 import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
+import { runtimeLayout } from "./runtime-dir";
 
 export const FILE_LIST_LIMIT = 50;
 
@@ -23,8 +24,8 @@ export const FILE_LIST_LIMIT = 50;
  * never touched. It exists for the ones that were not: a body discovered in
  * another agent's directory is arbitrary text nothing here reviewed, and
  * inlining it whole is the one place a single file can spend the context window
- * before the task starts. Past this the agent is pointed at the copy in its
- * task, which it can read the way it reads any other file.
+ * before the task starts. Past this the agent is pointed at the file in the
+ * skill's folder, which it can read the way it reads any other file.
  *
  * Roughly 8,500 tokens of Markdown.
  */
@@ -311,11 +312,42 @@ export function getSkillSources(
     fromHome("opencode", "opencode", ".config", "opencode", "skills"),
     fromHome("windsurf", "windsurf", ".codeium", "windsurf", "skills"),
     {
-      dir: absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills),
+      dir: AbsolutePathSchema.parse(path.join(rootDir, SKILLS_FOLDER_NAME)),
       id: "workspace",
       source: "workspace",
     },
   ];
+}
+
+/**
+ * The folder each skill source is read from, and whether the agent may only
+ * read it. One entry per folder: the two bundled sources collapse onto the
+ * prepared directory, since neither can run from the signed app bundle.
+ *
+ * The shell mounts these (`buildSkillMounts`) and the chat's rules allow
+ * them (`permissions/chat-rules.ts`), from here, so that the tool that reads
+ * a file and the command that reads the same file agree about it. They did
+ * not: the mounts were built from this list and the rules were not, so
+ * `read_file` on a loaded skill asked the person for a folder the shell was
+ * already reading.
+ */
+export function skillSourceRoots(
+  config: Pick<
+    WorkspaceConfig,
+    "registryDir" | "rootDir" | "runtimeDir" | "systemSkillsDir"
+  >,
+): { dir: AbsolutePath; readOnly: boolean }[] {
+  const roots = new Map<string, { dir: AbsolutePath; readOnly: boolean }>();
+  for (const { dir, id } of getSkillSources(config)) {
+    const root = BUNDLED_SOURCE_IDS.has(id)
+      ? AbsolutePathSchema.parse(runtimeLayout(config.runtimeDir).skills)
+      : dir;
+    if (roots.has(root)) {
+      continue;
+    }
+    roots.set(root, { dir: root, readOnly: id !== "workspace" });
+  }
+  return [...roots.values()];
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -683,8 +715,8 @@ function mergeSkillAliases(
 /**
  * How two skill names are compared for sameness. Case-folded, because macOS and
  * Windows are: `pdf` and `PDF` from different sources are one name as far as
- * the folder a task copies them into is concerned, so they have to be one name
- * here too or the second load would land on top of the first.
+ * the runtime folder the app's own skills are prepared in is concerned, so
+ * they have to be one name here too or one would land on top of the other.
  */
 function nameKey(name: string): string {
   return name.toLowerCase();

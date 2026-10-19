@@ -1,11 +1,15 @@
-import { type CaptureExceptionFunction } from "@instrument-org/shared";
+import { type CaptureContext } from "@instrument-org/shared";
+import {
+  type SerializedError,
+  serializeError,
+} from "@instrument-org/shared/exceptions";
 import { type BashExecResult, type ExecOptions } from "just-bash";
 
-import { type ChatDir } from "../../schemas/paths";
+import { type AbsolutePath, type ChatDir } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { type BashEnvOptions } from "../create-bash-env";
-import { type ChatVenvError } from "../ensure-chat-venv";
+import { type VenvError } from "../venv";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 
 /**
@@ -17,23 +21,32 @@ export const WORKER_CONFIG_KEYS = [
   "appsDir",
   "appVersion",
   "chatsDir",
-  "chatTemplateDir",
+  // Where this computer's folder is, which the rules close.
+  "userDataDir",
+  // Where the folder rules are read from, live, for each command.
+  "workspaceMachineDir",
   "macHelperBinPath",
+  "seatbeltHelperPath",
+  "mxcExecPath",
   "nativeSandbox",
   "nodeExecEnv",
+  // The person's choice to run programs where no sandbox holds them.
+  "programsWithoutSandbox",
+  // Where finished work goes, which the shell names `INSTRUMENT_OUTPUT`.
+  "outputDir",
   "pnpmBinPath",
-  "preparedSkillsDir",
   "registryDir",
   "rootDir",
+  "runtimeDir",
   "systemSkillsDir",
   "legacyTasksDir",
   "tempFolders",
-  "toolBinDir",
+  "uutilsDir",
+  "uutilsOutsideSandbox",
   "uvBinPath",
-  "uvDataDir",
+  // Where each chat's work folder is, which the shell starts in.
+  "workFoldersDir",
 ] as const satisfies readonly (keyof WorkspaceConfig)[];
-
-export type ExceptionProperties = Parameters<CaptureExceptionFunction>[1];
 
 export type FromWorker =
   | {
@@ -50,24 +63,32 @@ export type FromWorker =
   | { callId: number; type: "call-abort" }
   | { error: WireError; id: number; type: "error" }
   | {
-      error: WireError;
-      properties?: ExceptionProperties;
+      context?: CaptureContext;
+      error: SerializedError;
       type: "capture-exception";
     }
   | { id: number; skillPath: string; type: "skill-mutation" }
-  /** A permission ask, raised on main where the app hears the chat's record change. */
-  | {
-      asker: { chatId: string; partId?: string; sessionId: string };
-      kind: "app" | "folder";
-      target: string;
-      type: "ask";
-    }
   | { id: number; result: WireResult; type: "result" }
   | { id: number; seq: number; text: string; type: "chunk" }
-  | { pid: number; state: "settled" | "started"; type: "tree" }
+  | {
+      /** The exec that started it, whose run on main is told its pid. */
+      id: number | undefined;
+      pid: number;
+      state: "settled" | "started";
+      type: "tree";
+    }
   /** A `node` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
   | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
-  | { requestId: number; chatId: ChatId; type: "venv" };
+  | { chatId: ChatId; requestId: number; type: "venv"; venv: AbsolutePath }
+  /** A skill's Python environment, built on main, which builds each one once. */
+  | {
+      chatId: ChatId;
+      requestId: number;
+      skillDir: AbsolutePath;
+      type: "python-environment";
+    }
+  /** A due check of the base Python packages, which main runs. */
+  | { type: "python-base-refresh" };
 
 export type ToWorker =
   | {
@@ -94,22 +115,24 @@ export type ToWorker =
   | { callId: number; type: "tool-result"; value: string }
   | {
       requestId: number;
-      result: ChatVenvError | undefined;
+      result: undefined | VenvError;
       type: "venv-result";
+    }
+  | {
+      requestId: number;
+      result: { error: VenvError } | { venv: AbsolutePath };
+      type: "python-environment-result";
     }
   | { seq: number; type: "chunk-ack" };
 
 /**
- * An error as it crosses the thread boundary. Structured clone keeps a custom
- * error's message but not its class or name, and callers tell some apart with
- * `instanceof`.
+ * An error as it crosses the thread boundary: the shape a captured
+ * exception is built from, so its own properties, its cause and an
+ * AggregateError's errors survive. Structured clone keeps a custom error's
+ * message but not its class, name or own properties, and callers tell some
+ * apart with `instanceof`.
  */
-export interface WireError {
-  cause?: WireError;
-  message: string;
-  name: string;
-  stack?: string;
-}
+export type WireError = SerializedError;
 
 /** A command's result as it crosses the thread boundary, internal fields dropped. */
 export type WireResult = Pick<
@@ -122,39 +145,36 @@ export type WorkerConfig = Pick<
   (typeof WORKER_CONFIG_KEYS)[number]
 >;
 
-const MAX_CAUSE_DEPTH = 5;
-
+/** The error a `WireError` was made from, as near as one can be rebuilt. */
 export function fromWireError({
-  cause,
-  message,
-  name,
+  data,
+  links = [],
   stack,
+  type,
+  value,
 }: WireError): Error {
+  const cause = links.find((link) => link.source === "cause");
+  const errors = links.filter((link) => link.source.startsWith("errors["));
   const error = new Error(
-    message,
-    cause ? { cause: fromWireError(cause) } : undefined,
+    value,
+    cause ? { cause: fromWireError(cause.error) } : undefined,
   );
-  if (name === SubprocessTreeTerminationError.name) {
+  if (type === SubprocessTreeTerminationError.name) {
     Object.setPrototypeOf(error, SubprocessTreeTerminationError.prototype);
   }
-  error.name = name;
+  Object.assign(error, data);
+  if (errors.length > 0) {
+    Object.assign(error, {
+      errors: errors.map((link) => fromWireError(link.error)),
+    });
+  }
+  error.name = type;
   error.stack = stack;
   return error;
 }
 
-export function toWireError(error: unknown, depth = 0): WireError {
-  if (!(error instanceof Error)) {
-    return { message: String(error), name: "Error" };
-  }
-  return {
-    ...(error.cause !== undefined &&
-      depth < MAX_CAUSE_DEPTH && {
-        cause: toWireError(error.cause, depth + 1),
-      }),
-    message: error.message,
-    name: error.name,
-    stack: error.stack,
-  };
+export function toWireError(error: unknown): WireError {
+  return serializeError(error);
 }
 
 export function toWireResult(result: BashExecResult): WireResult {

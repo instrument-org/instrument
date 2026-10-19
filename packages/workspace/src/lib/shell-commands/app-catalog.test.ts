@@ -1,5 +1,5 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { getAppCatalog, searchAppCatalog } from "../apps/catalog";
@@ -23,13 +23,29 @@ async function catalog(...words: string[]) {
   return result.stdout;
 }
 
+/**
+ * The catalog as a Mac reads it. The scripted commands run only on macOS, so
+ * the lines that name one are there and nowhere else.
+ */
+async function catalogOnMac(...words: string[]) {
+  const platform = process.platform;
+  Object.defineProperty(process, "platform", { value: "darwin" });
+  try {
+    return await catalog(...words);
+  } finally {
+    Object.defineProperty(process, "platform", { value: platform });
+  }
+}
+
 describe("app catalog", () => {
-  // A task told to use osascript for Reminders walked every reminder for
-  // minutes; the helper answers in a query, so where the build carries it
-  // the set-up line names it.
+  // The helper is the only way into Reminders, so a build without it says
+  // there is none rather than naming a command it lacks.
   it.each([
-    [undefined, "do it with osascript on this Mac"],
-    ["/app/bin/instrument-mac", "do it with the `calendar` command"],
+    [
+      undefined,
+      "set up: none: Instrument has no way into Reminders in this build",
+    ],
+    ["/app/bin/instrument-mac", "do it with the `instrument calendar` command"],
   ])("sends Reminders through the helper when it is %s", async (bin, line) => {
     const config = getWorkspaceConfig();
     const { macHelperBinPath: _absent, ...without } = config;
@@ -45,10 +61,25 @@ describe("app catalog", () => {
     }
   });
 
+  it.each([
+    ["apple-mail", "instrument mail"],
+    ["apple-notes", "instrument notes"],
+    ["apple-messages", "instrument messages"],
+  ])("sends %s through the `%s` command on a Mac", async (slug, command) => {
+    vi.stubGlobal("process", { ...process, platform: "darwin" });
+    try {
+      expect(await catalog(slug)).toContain(
+        `do it with the \`${command}\` command`,
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("names the MCP server as the way in when a service has one", async () => {
     const text = await catalog("linear");
     expect(text).toContain(
-      "set up: app new linear --name 'Linear' --mcp https://mcp.linear.app/mcp",
+      "set up: instrument app new linear --name 'Linear' --mcp https://mcp.linear.app/mcp",
     );
   });
 
@@ -59,7 +90,7 @@ describe("app catalog", () => {
   it("sets a keyed API up at its own base", async () => {
     const text = await catalog("github");
     expect(text).toContain(
-      "set up: app new github --name 'GitHub' --api https://api.github.com --auth bearer --test",
+      "set up: instrument app new github --name 'GitHub' --api https://api.github.com --auth bearer --test",
     );
     expect(text).not.toContain("<base-url>");
   });
@@ -71,7 +102,7 @@ describe("app catalog", () => {
   it("carries a keyed API's own auth placement into the set-up line", async () => {
     const text = await catalog("wakatime");
     expect(text).toContain(
-      "set up: app new wakatime --name 'WakaTime' --api https://api.wakatime.com/api/v1 --auth basic --test",
+      "set up: instrument app new wakatime --name 'WakaTime' --api https://api.wakatime.com/api/v1 --auth basic --test",
     );
   });
 
@@ -81,7 +112,7 @@ describe("app catalog", () => {
   it("puts --auth none on a keyless MCP server's line", async () => {
     const text = await catalog("figma");
     expect(text).toContain(
-      "set up: app new figma --name 'Figma' --mcp http://127.0.0.1:3845/mcp --auth none",
+      "set up: instrument app new figma --name 'Figma' --mcp http://127.0.0.1:3845/mcp --auth none",
     );
   });
 
@@ -90,9 +121,9 @@ describe("app catalog", () => {
   it.each([
     [
       "google-drive",
-      "app new google-drive --name 'Google Drive' --web https://drive.google.com",
+      "instrument app new google-drive --name 'Google Drive' --web https://drive.google.com",
     ],
-    ["zoom", "app new zoom --name 'Zoom' --web https://zoom.us"],
+    ["zoom", "instrument app new zoom --name 'Zoom' --web https://zoom.us"],
   ])(
     "sets %s up as a web app when every way in needs a client the card cannot make",
     async (slug, line) => {
@@ -152,15 +183,15 @@ describe("app catalog", () => {
   });
 
   it("works the Mac's own apps with nothing to connect", async () => {
-    const text = await catalog("apple notes");
+    const text = await catalogOnMac("apple notes");
     expect(text).toContain("set up: nothing to connect");
     expect(text).not.toContain("account is added");
   });
 
   it("reaches Gmail through Mail until its sign-in client clears", async () => {
-    const text = await catalog("gmail");
+    const text = await catalogOnMac("gmail");
     expect(text).toContain(
-      "set up: nothing to connect, and no `app new`: when the user asks for something in Mail",
+      "set up: nothing to connect, and no `instrument app new`: when the user asks for something in Mail",
     );
     expect(text).toContain("only when its account is added to Mail");
   });

@@ -4,16 +4,29 @@ import {
   encodeUtf8ToBytes,
   InMemoryFs,
 } from "just-bash";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { AbsolutePathSchema } from "../../schemas/paths";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { createPythonCommand } from "./python";
+import { venvPython } from "../uv";
+import { shellPath } from "../workspace-fs-layout";
+import { createPythonCommand, pythonScript } from "./python";
 import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock("execa");
-vi.mock("./uv", () => ({
-  ensureVenvForCommand: vi.fn(),
+vi.mock(import("../venv"), () => ({ pythonToRun: vi.fn() }));
+vi.mock(import("../python-base"), () => ({ pythonBaseDir: vi.fn() }));
+vi.mock(import("../skill-environments"), () => ({
+  environmentBinDir: (venv: string) => path.join(venv, "bin"),
+  pythonLayerEnv: (layer: string, pythonPath: string | undefined) => ({
+    INSTRUMENT_EXTRA_SITE_PACKAGES: path.join(layer, "site-packages"),
+    PYTHONPATH: ["/runtime/environments/site", pythonPath]
+      .filter(Boolean)
+      .join(path.delimiter),
+  }),
+  skillPythonToRun: vi.fn(),
 }));
 
 const realFs = new InMemoryFs();
@@ -30,8 +43,201 @@ describe("python", () => {
     stdin: EMPTY_BYTES,
   });
 
+  beforeEach(async () => {
+    const { pythonToRun } = await import("../venv");
+    const { skillPythonToRun } = await import("../skill-environments");
+    const { pythonBaseDir } = await import("../python-base");
+    vi.mocked(pythonBaseDir).mockReturnValue(undefined);
+    vi.mocked(skillPythonToRun).mockResolvedValue({});
+    vi.mocked(pythonToRun).mockResolvedValue({
+      python: "/work/.venv/bin/python",
+      venv: AbsolutePathSchema.parse("/work/.venv"),
+    });
+  });
+
   afterEach(() => {
     vi.resetAllMocks();
+  });
+
+  it("runs the managed Python bare, reading no user site-packages, where no venv is near", async () => {
+    const { execa } = await import("execa");
+    const { pythonToRun } = await import("../venv");
+    vi.mocked(pythonToRun).mockResolvedValueOnce({
+      python: "/runtime/python/bin/python3.12",
+      venv: undefined,
+    });
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-c", "print(1)"], mockCtx);
+
+    expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+      expect.stringContaining("python3.12"),
+      ["-c", "print(1)"],
+      expect.objectContaining({
+        env: expect.objectContaining({ PYTHONNOUSERSITE: "1" }),
+      }),
+    );
+  });
+
+  it("points the bare interpreter at the base packages, which no venv holds the link to", async () => {
+    const { execa } = await import("execa");
+    const { pythonToRun } = await import("../venv");
+    const { pythonBaseDir } = await import("../python-base");
+    // A fresh chat: nothing has run `pip`, so there is no virtualenv for
+    // `linkPythonBase` to have written a `.pth` into.
+    vi.mocked(pythonBaseDir).mockReturnValue("/runtime/python-base/abc");
+    vi.mocked(pythonToRun).mockResolvedValueOnce({
+      python: "/runtime/python/bin/python3.12",
+      venv: undefined,
+    });
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-c", "import matplotlib"], mockCtx);
+
+    expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        env: expect.objectContaining({
+          PYTHONNOUSERSITE: "1",
+          PYTHONPATH: "/runtime/python-base/abc",
+        }),
+      }),
+    );
+  });
+
+  it("leaves the base packages to the venv's own link when there is one", async () => {
+    const { execa } = await import("execa");
+    const { pythonBaseDir } = await import("../python-base");
+    vi.mocked(pythonBaseDir).mockReturnValue("/runtime/python-base/abc");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-c", "import matplotlib"], mockCtx);
+
+    expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        env: expect.not.objectContaining({ PYTHONPATH: expect.anything() }),
+      }),
+    );
+  });
+
+  // The folders as this computer spells them, with a drive on Windows, where
+  // the shell names them differently and an environment keeps its Python in
+  // Scripts rather than bin.
+  const skillEnv = AbsolutePathSchema.parse(
+    path.resolve("/runtime/environments/0123"),
+  );
+  const workVenv = AbsolutePathSchema.parse(path.resolve("/work/.venv"));
+  const skillDir = path.resolve("/runtime/skills/pdf");
+  const skillScript = path.join(skillDir, "scripts", "x.py");
+  const skillEnvBin = new RegExp(
+    `^${path.join(skillEnv, "bin").replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`)}`,
+  );
+
+  it.each([
+    {
+      absent: ["INSTRUMENT_EXTRA_SITE_PACKAGES"],
+      env: {
+        PATH: expect.stringMatching(skillEnvBin),
+        PYTHONPATH: "/mine",
+        VIRTUAL_ENV: skillEnv,
+      },
+      interpreter: venvPython(skillEnv),
+      name: "a skill's script in the skill's environment, which what it starts finds too",
+      skill: { venv: skillEnv },
+    },
+    {
+      absent: [],
+      env: {
+        INSTRUMENT_EXTRA_SITE_PACKAGES: path.join(workVenv, "site-packages"),
+        PATH: expect.stringMatching(skillEnvBin),
+        PYTHONPATH: ["/runtime/environments/site", "/mine"].join(
+          path.delimiter,
+        ),
+        VIRTUAL_ENV: skillEnv,
+      },
+      interpreter: venvPython(skillEnv),
+      name: "a skill's script with the .venv layered behind its environment",
+      skill: { layer: workVenv, venv: skillEnv },
+    },
+    {
+      absent: ["PYTHONNOUSERSITE", "VIRTUAL_ENV"],
+      env: {
+        INSTRUMENT_EXTRA_SITE_PACKAGES: path.join(skillEnv, "site-packages"),
+        PYTHONPATH: ["/runtime/environments/site", "/mine"].join(
+          path.delimiter,
+        ),
+      },
+      interpreter: "/work/.venv/bin/python",
+      name: "the agent's own code in its .venv with the skill's environment layered behind it",
+      skill: { layer: skillEnv },
+    },
+  ])("runs $name", async ({ absent, env, interpreter, skill }) => {
+    const { execa } = await import("execa");
+    const { skillPythonToRun } = await import("../skill-environments");
+    vi.mocked(skillPythonToRun).mockResolvedValueOnce(skill);
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-u", `${shellPath(skillDir)}/scripts/x.py`], {
+      ...mockCtx,
+      env: new Map([
+        ["INSTRUMENT_SKILL_DIR", shellPath(skillDir)],
+        ["PYTHONPATH", "/mine"],
+      ]),
+    });
+
+    expect(vi.mocked(skillPythonToRun)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        loadedSkillDir: skillDir,
+        script: skillScript,
+      }),
+    );
+    expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+      interpreter,
+      ["-u", skillScript],
+      expect.objectContaining({
+        env: expect.objectContaining(env),
+      }),
+    );
+    for (const name of absent) {
+      expect(vi.mocked(execa)).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          env: expect.not.objectContaining({ [name]: expect.anything() }),
+        }),
+      );
+    }
+  });
+
+  it.each([
+    [["script.py", "--flag"], "script.py"],
+    [["-u", "-B", "job/run.py"], "job/run.py"],
+    [["-W", "ignore", "run.py"], "run.py"],
+    [["-Wignore", "run.py"], "run.py"],
+    [["-uW", "ignore", "run.py"], "run.py"],
+    [["--", "-odd.py"], "-odd.py"],
+    [["-c", "print(1)"], undefined],
+    [["-uc", "print(1)"], undefined],
+    [["-m", "http.server"], undefined],
+    [["-"], undefined],
+    [[], undefined],
+  ])("finds the script in %j", (args, script) => {
+    expect(pythonScript(args)).toBe(script);
   });
 
   it("passes -c code with a real path through unchanged", async () => {

@@ -7,7 +7,6 @@ import {
   outputFolderPath,
 } from "../../lib/chat/output-folder";
 import { resolveChat } from "../../lib/record-folders";
-import { ensureWindowDir } from "../../lib/window-paths";
 import { MountedFolder } from "../../schemas/mounted-folder";
 import { WINDOW_ID } from "../../schemas/window-id";
 import {
@@ -18,9 +17,9 @@ import { base } from "../base";
 import { publisher } from "../publisher";
 
 /**
- * Makes what the window opens on, its own folder and the workspace folder
- * every chat reaches, and answers with the folders the window reaches, by the
- * name each is mounted under.
+ * Makes what the window opens on, the workspace folder every chat reaches,
+ * and answers with the folders the window reaches, by the name each is
+ * mounted under.
  */
 const ensure = base
   .output(
@@ -29,16 +28,20 @@ const ensure = base
     }),
   )
   .handler(async ({ context }) => {
-    await ensureWindowDir();
-    await ensureOutputFolder();
-    // Folder decoration must not prevent a conversation from opening.
-    void context.workspaceConfig
-      .ensureOutputFolderIcon?.(outputFolderPath())
-      .catch((error: unknown) => {
-        context.workspaceConfig.captureException(
-          error instanceof Error ? error : new Error(String(error)),
-        );
-      });
+    const made = await ensureOutputFolder();
+    // Decorating the folder reads it, which macOS answers for a folder in
+    // Documents with its own prompt, so only a folder the app already has
+    // in hand is decorated: one it made just now, or the one the person
+    // picked for their workspace, whose pick carries access with it. Any
+    // other is left alone rather than asked about at startup.
+    if (made || context.workspaceConfig.outputDir !== undefined) {
+      // Folder decoration must not prevent a conversation from opening.
+      void context.workspaceConfig
+        .ensureOutputFolderIcon?.(outputFolderPath())
+        .catch((error: unknown) => {
+          context.workspaceConfig.captureException(error);
+        });
+    }
     return { folders: await folderReach(WINDOW_ID) };
   });
 

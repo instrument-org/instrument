@@ -2,12 +2,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { type AbsolutePath } from "../../schemas/paths";
+import { ownFolder, readOwnFile, writeOwnFile } from "../own-file";
 
 /**
  * An app's own icon: a file in its folder, drawn in place of its Mac app's
  * icon and its site's. The agent authors it (a mark drawn for a service whose
  * site has none worth showing, a local server with no Mac app, or one the
- * user asked for) and `app icon` puts it there after checking it draws well.
+ * user asked for) and `instrument app icon` puts it there after checking it draws well.
  * SVG first, since it is sharp at every size.
  */
 const APP_ICON_FILE_NAMES = ["icon.svg", "icon.png"] as const;
@@ -78,7 +79,10 @@ export async function findAppIcon(
   for (const fileName of APP_ICON_FILE_NAMES) {
     try {
       return {
-        bytes: await fs.readFile(path.join(appDir, fileName)),
+        bytes: readOwnFile({
+          file: path.join(appDir, fileName),
+          folder: path.dirname(appDir),
+        }),
         fileName,
       };
     } catch {
@@ -94,10 +98,17 @@ export async function writeAppIcon(
   bytes: Uint8Array,
   fileName: IconFileName,
 ) {
+  // The apps folder is the agent's, so a removal through a link it put in
+  // place of the app's folder would land wherever that leads.
+  ownFolder({ dir: appDir, folder: path.dirname(appDir) });
   await Promise.all(
     APP_ICON_FILE_NAMES.filter((name) => name !== fileName).map((name) =>
       fs.rm(path.join(appDir, name), { force: true }),
     ),
   );
-  await fs.writeFile(path.join(appDir, fileName), bytes);
+  writeOwnFile({
+    data: bytes,
+    file: path.join(appDir, fileName),
+    folder: path.dirname(appDir),
+  });
 }

@@ -1,0 +1,181 @@
+import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, expect, it, vi } from "vitest";
+
+import { openAsks } from "../lib/chat/asks";
+import { grantFolder } from "../lib/chat/grants";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { StoreId } from "../schemas/store-id";
+import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { runTool } from "../test/helpers/run-tool";
+import { AskPermission } from "./ask-permission";
+
+const model = createMockAIGatewayModel();
+// A home of its own, with the folders a Mac's has, so every computer the
+// suite runs on decides the same.
+const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "ask-home-")));
+for (const folder of ["Desktop", "Music"]) {
+  mkdirSync(path.join(home, folder));
+}
+vi.spyOn(os, "homedir").mockReturnValue(home);
+
+async function ask(
+  chatId: ReturnType<typeof createMockChatConfig>,
+  kind: "app" | "folder",
+  target: string,
+  partId = StoreId.newPartId(),
+  sessionId = StoreId.newSessionId(),
+) {
+  const result = await runTool(AskPermission, {
+    chatId,
+    input: { kind, reason: "So I can put the copy there.", target },
+    model,
+    partId,
+    sessionId,
+    signal: AbortSignal.timeout(10_000),
+  });
+  return result._unsafeUnwrap();
+}
+
+describe("ask_permission", () => {
+  it("decides what to ask for", async () => {
+    const chatId = createMockChatConfig(
+      ChatIdSchema.parse("ask-permission-decides"),
+      { model },
+    );
+    const decided: Record<string, unknown> = {};
+    for (const target of [
+      "~/Desktop/copy.md",
+      "~/Desktop/Trips/2026",
+      "~/Music/Loops",
+      "~",
+      "~/notes.md",
+      "Desktop",
+    ]) {
+      decided[target] = await ask(chatId, "folder", target);
+    }
+    expect(JSON.parse(JSON.stringify(decided).replaceAll(home, "~")))
+      .toMatchInlineSnapshot(`
+      {
+        "Desktop": {
+          "message": ""Desktop" is not a full path. Ask for the folder by its full path.",
+          "state": "refused",
+        },
+        "~": {
+          "message": ""~" is directly in "~", which can't be asked for whole. Work in this conversation's folder, or a folder the person names.",
+          "state": "refused",
+        },
+        "~/Desktop/Trips/2026": {
+          "kind": "folder",
+          "state": "asked",
+          "target": "~/Desktop",
+        },
+        "~/Desktop/copy.md": {
+          "kind": "folder",
+          "state": "asked",
+          "target": "~/Desktop",
+        },
+        "~/Music/Loops": {
+          "kind": "folder",
+          "state": "asked",
+          "target": "~/Music",
+        },
+        "~/notes.md": {
+          "message": ""~/notes.md" is directly in "~", which can't be asked for whole. Work in this conversation's folder, or a folder the person names.",
+          "state": "refused",
+        },
+      }
+    `);
+  });
+
+  it("puts the card up once, with the reason and the call that asked", async () => {
+    const chatId = createMockChatConfig(
+      ChatIdSchema.parse("ask-permission-card"),
+      {
+        model,
+      },
+    );
+    const partId = StoreId.newPartId();
+    const sessionId = StoreId.newSessionId();
+    await ask(chatId, "folder", "~/Desktop/a.md", partId, sessionId);
+    await ask(chatId, "folder", "~/Desktop/b.md", undefined, sessionId);
+    expect(await openAsks(chatId)).toEqual([
+      expect.objectContaining({
+        askers: [
+          expect.objectContaining({
+            partId,
+            reason: "So I can put the copy there.",
+          }),
+        ],
+        kind: "folder",
+        status: "open",
+        target: path.join(home, "Desktop"),
+      }),
+    ]);
+  });
+
+  it("raises no card for a folder the chat already has", async () => {
+    const chatId = createMockChatConfig(
+      ChatIdSchema.parse("ask-permission-granted"),
+      { model },
+    );
+    await grantFolder({
+      chatId,
+      path: path.join(home, "Desktop"),
+      source: "card",
+    });
+    expect((await ask(chatId, "folder", "~/Desktop/a.md")).state).toBe(
+      "allowed",
+    );
+    expect(await openAsks(chatId)).toEqual([]);
+  });
+
+  it("refuses an app this computer does not have", async () => {
+    const chatId = createMockChatConfig(
+      ChatIdSchema.parse("ask-permission-app"),
+      {
+        model,
+      },
+    );
+    expect(await ask(chatId, "app", "No Such App Here")).toEqual({
+      message: 'No app called "No Such App Here" is on this computer.',
+      state: "refused",
+    });
+  });
+
+  it.runIf(process.platform === "darwin")(
+    "asks for a Mac app by its name",
+    async () => {
+      const chatId = createMockChatConfig(
+        ChatIdSchema.parse("ask-permission-messages"),
+        { model },
+      );
+      expect(await ask(chatId, "app", "Messages")).toEqual({
+        kind: "app",
+        state: "asked",
+        target: "Messages",
+      });
+    },
+  );
+
+  it("ends the turn with the model told the card is up", () => {
+    expect(
+      AskPermission.toModelOutput({
+        input: { kind: "folder", reason: "To copy it.", target: "~/Desktop" },
+        output: {
+          kind: "folder",
+          state: "asked",
+          target: "/Users/sam/Desktop",
+        },
+        toolCallId: "test",
+      }),
+    ).toMatchInlineSnapshot(`
+      {
+        "type": "text",
+        "value": "The user now sees a card asking for "/Users/sam/Desktop". Their answer reaches you as a message of its own.",
+      }
+    `);
+  });
+});

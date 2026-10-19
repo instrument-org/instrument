@@ -1,6 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
-import { workspacePrivateDir } from "@/electron-main/lib/workspaces";
+import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { EventPublisher } from "@orpc/server";
 import fs from "node:fs";
 import path from "node:path";
@@ -309,8 +308,9 @@ export function createHistoryStore(file: string) {
      * Something the app moved or renamed from `from` to `to`: the file there,
      * or every file under the folder there, keeps its history at its new path.
      * A row already at the new path gives way to the one that moved there.
+     * Answers how many rows moved.
      */
-    moveFiles(from: string, to: string) {
+    moveFiles(from: string, to: string): number {
       const moved = database
         .prepare(
           "SELECT id, path FROM files WHERE path = ? OR substr(path, 1, length(?) + 1) = ? || ?",
@@ -321,7 +321,7 @@ export function createHistoryStore(file: string) {
           path: `${to}${String(row.path).slice(from.length)}`,
         }));
       if (moved.length === 0) {
-        return;
+        return 0;
       }
       const evict = database.prepare(
         "DELETE FROM file_opens WHERE file_id IN (SELECT id FROM files WHERE path = ?)",
@@ -341,6 +341,7 @@ export function createHistoryStore(file: string) {
         throw error;
       }
       changed();
+      return moved.length;
     },
 
     /** The files the person opened, most recently opened first. */
@@ -453,14 +454,54 @@ export function createHistoryStore(file: string) {
   };
 }
 
+/** What the history of one workspace is called in its browser folder. */
+const HISTORY_FILE_NAME = "history.db";
+
 let opened: HistoryStore | undefined;
 
 /** The history of the workspace this process runs, opened on first use. */
 export function getHistoryStore(): HistoryStore {
   opened ??= createHistoryStore(
-    path.join(workspacePrivateDir(getWorkspaceFolder()), "history.db"),
+    path.join(workspaceBrowserDir(), HISTORY_FILE_NAME),
   );
   return opened;
+}
+
+/**
+ * The person's recent files where a move the app made took them: a row under
+ * a move's old folder keeps its history at the same place under the new one,
+ * so a file opened lately still opens after its folder moves.
+ *
+ * Reaches the history by its file rather than through `getHistoryStore`,
+ * because a workspace moves before any store opens and the workspace being
+ * settled may not be the one this process runs. For the same reason it must
+ * run before the history is open: a write made behind an open store does not
+ * reach what that store is already showing. A workspace with no history is
+ * left without one; a failure is reported and never thrown.
+ */
+export function rewriteRecentFiles(
+  browserDir: string,
+  moves: readonly { from: string; to: string }[],
+): string[] {
+  const file = path.join(browserDir, HISTORY_FILE_NAME);
+  if (!fs.existsSync(file)) {
+    return [];
+  }
+  let store: HistoryStore | undefined;
+  try {
+    store = createHistoryStore(file);
+    let moved = 0;
+    for (const move of moves) {
+      moved += store.moveFiles(move.from, move.to);
+    }
+    return moved === 0
+      ? []
+      : [`wrote ${moved.toString()} recent file(s) where they went in ${file}`];
+  } catch (error) {
+    return [`left ${file} as it is (${String(error)})`];
+  } finally {
+    store?.close();
+  }
 }
 
 /**

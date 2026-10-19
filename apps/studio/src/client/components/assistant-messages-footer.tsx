@@ -102,8 +102,8 @@ export function AssistantMessagesFooter({
         lastMessage?.metadata.endedAt ?? lastMessage?.metadata.finishedAt,
         ...messages.flatMap((message) =>
           message.parts.flatMap((part) =>
-            "endedAt" in part && part.endedAt instanceof Date
-              ? [part.endedAt]
+            part.metadata.endedAt instanceof Date
+              ? [part.metadata.endedAt]
               : [],
           ),
         ),

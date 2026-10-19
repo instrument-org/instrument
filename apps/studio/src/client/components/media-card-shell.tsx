@@ -31,8 +31,6 @@ export function MediaCardShell({
   className,
   disabled = false,
   file,
-  hideActionsMenu,
-  isSelected,
   onClick,
   onMouseEnter,
   onMouseLeave,
@@ -50,8 +48,6 @@ export function MediaCardShell({
    */
   disabled?: boolean;
   file: ViewerFile;
-  hideActionsMenu?: boolean;
-  isSelected?: boolean;
   onClick: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -97,8 +93,6 @@ export function MediaCardShell({
         // row arrived. The media letterboxes into the box instead.
         "group/media relative isolate w-full overflow-hidden rounded-2xl bg-card shadow-sm dark:bg-muted",
         MEDIA_CARD_ASPECT[shape],
-        isSelected &&
-          "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
         className,
       )}
       onMouseEnter={handleMouseEnter}
@@ -125,7 +119,7 @@ export function MediaCardShell({
         type="button"
       />
 
-      {!hideActionsMenu && !disabled && (
+      {!disabled && (
         <button
           // Same `onClick` as the card: this is the affordance that says the
           // card opens, not a second thing to do. Exposing it would put two

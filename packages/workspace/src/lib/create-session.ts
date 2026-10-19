@@ -2,26 +2,24 @@ import { err } from "neverthrow";
 
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { ChatWrites } from "./chat-writes";
 import { TypedError } from "./errors";
 import { generateSessionTitle } from "./generate-session-title";
 import { sessionOfChat } from "./record-folders";
-import { Store } from "./store";
+import { ChatReads } from "./chat-reads";
 
 export async function createSession({
   sessionId,
-  signal,
   chatId,
 }: {
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }) {
   const title = await generateSessionTitle({
-    signal,
     chatId,
   });
   const now = new Date();
-  const result = await Store.saveSession(
+  const result = await ChatWrites.saveSession(
     {
       createdAt: now,
       id: sessionId,
@@ -29,7 +27,6 @@ export async function createSession({
       updatedAt: now,
     },
     chatId,
-    { signal },
   );
 
   return result;
@@ -44,7 +41,7 @@ export async function ensureChatSession(chatId: ChatId) {
   if (!sessionId) {
     return err(new TypedError.NotFound(`${chatId} is not a chat.`));
   }
-  const existing = await Store.getSession(sessionId, chatId);
+  const existing = await ChatReads.session({ chatId, sessionId });
   if (existing.isOk() || existing.error.type !== "workspace-not-found-error") {
     return existing;
   }

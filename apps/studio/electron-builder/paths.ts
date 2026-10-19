@@ -95,6 +95,35 @@ export function resolvePackagedUv(
 }
 
 /**
+ * Resolve the packaged app's resources directory, which the running app reads
+ * as `process.resourcesPath`: `Contents/Resources` in the macOS bundle,
+ * `resources/` beside the executable elsewhere.
+ */
+export function resolveResourcesDir(
+  appOutDir: string,
+  platformName: ElectronPlatform,
+) {
+  return platformName === "darwin"
+    ? path.join(appOutDir, `${APP_PRODUCT_NAME}.app`, "Contents", "Resources")
+    : path.join(appOutDir, "resources");
+}
+
+/**
+ * The packaged uutils folder within the unpacked tree, vendored into
+ * `resources/uutils/` by scripts/download-uutils.ts.
+ */
+export function resolvePackagedUutilsDir(
+  appOutDir: string,
+  platformName: ElectronPlatform,
+) {
+  return path.join(
+    resolveUnpackedDir(appOutDir, platformName),
+    "resources",
+    "uutils",
+  );
+}
+
+/**
  * Resolve the packaged `app.asar.unpacked` directory for a given build. macOS
  * nests it inside the `.app` bundle; Windows/Linux place it under `resources/`.
  */

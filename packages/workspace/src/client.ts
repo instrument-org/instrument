@@ -4,22 +4,25 @@ export {
   AGENT_MESSAGE_LANGUAGE,
   CHAT_FOLDER_NAMES,
   INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+  KEY_FOLDER_NAMES,
+  type KeyFolderName,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
 export { appEventModelNote } from "./lib/app-event-model-text";
+export { isChatTranscript } from "./lib/chat-folders/chat-transcript";
 export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
-export { browserStatusModelNote } from "./lib/browser-status-model-text";
-export { chatTopicsModelNote } from "./lib/chat-topics-model-text";
+export { topicModelNote } from "./lib/topic-model-text";
 export { dateChangeModelNote } from "./lib/date-change-model-text";
+export { environmentChangeModelNote } from "./lib/environment-model-text";
 export { describeMessageError } from "./lib/describe-message-error";
 export { formatBytes } from "./lib/format-bytes";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";
-export { isInteractiveTool } from "./lib/is-interactive-tool";
 export * from "./lib/is-chat-id";
 export { isToolPart } from "./lib/is-tool-part";
 export { askTargetName } from "./lib/permissions/ask-target";
 export { jobEventModelNote } from "./lib/job-event-model-text";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
+export { outputLimitModelNote } from "./lib/output-limit-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { modelChangeSincePreviousTurn } from "./lib/model-change";
 export { normalizeChatFilePath } from "./lib/normalize-chat-file-path";
@@ -42,6 +45,8 @@ export {
 } from "./lib/parse-message";
 export { pathsNamedInMessage } from "./lib/paths-named-in-message";
 export { replyExcerpt, replyModelNote } from "./lib/reply-model-text";
+export { shellPath } from "./lib/shell-path";
+export { stateNotes } from "./lib/state-notes";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";
 export { isChatFileHref, chatFilePathFromHref } from "./lib/chat-file-href";
@@ -54,7 +59,6 @@ export {
   getUsageSummaryFromMessages,
   type UsageSummary,
 } from "./lib/usage-summary-compute";
-export { viewContextModelNote } from "./lib/view-context-model-text";
 export { readWebSearchResults } from "./lib/web-search-results";
 export { FileUpload } from "./schemas/file-upload";
 export { MountedFolder } from "./schemas/mounted-folder";

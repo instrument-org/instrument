@@ -9,12 +9,14 @@ import {
   getCommandNames,
   getNetworkCommandNames,
   type ScriptNode,
+  type SimpleCommandNode,
   type StatementNode,
   type TransformPlugin,
 } from "just-bash";
 import ms from "ms";
 import { dedent } from "radashi";
 
+import { FOLDER_VARIABLES } from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type StoreId } from "../schemas/store-id";
 import { TOOL_NAMES } from "../tools/name";
@@ -35,8 +37,13 @@ import {
   JOBS_COMMAND,
   KILL_COMMAND,
   type SessionCommandContext,
+  WAIT_MARKER,
 } from "./shell-commands/background-jobs";
-import { CHAT_COMMAND, createChatCommand } from "./shell-commands/chat";
+import {
+  createInstrumentCommand,
+  type InstrumentSubcommand,
+} from "./shell-commands/instrument";
+import { INSTRUMENT_COMMAND } from "./shell-commands/instrument-command";
 import { createDuCommand } from "./shell-commands/du";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
@@ -44,29 +51,30 @@ import {
   FFPROBE_COMMAND,
 } from "./shell-commands/ffprobe";
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
+import { createMailCommand, MAIL_COMMAND } from "./shell-commands/mail";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
+import {
+  createMessagesCommand,
+  MESSAGES_COMMAND,
+} from "./shell-commands/messages";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
+import { createNotesCommand, NOTES_COMMAND } from "./shell-commands/notes";
+import {
+  createNativeTextCommand,
+  nativeTextRoutes,
+  routeProgram,
+} from "./shell-commands/native-text";
 import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
-import { asksWritten } from "./permissions/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
-import { type Listings } from "./permissions/rules-fs";
+import { closedAppServices } from "./permissions/apps";
 import { getWorkspaceConfig } from "./workspace-config";
+import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 import {
   CALENDAR_COMMAND,
   CONTACTS_COMMAND,
   createMacHelperCommand,
 } from "./shell-commands/mac-helper";
-import {
-  createShortcutsCommand,
-  SHORTCUTS_COMMAND,
-  SHORTCUTS_PATH,
-} from "./shell-commands/shortcuts";
-import {
-  createOsascriptCommand,
-  OSASCRIPT_COMMAND,
-  OSASCRIPT_PATH,
-} from "./shell-commands/osascript";
 import {
   createPip3Command,
   createPipCommand,
@@ -94,7 +102,12 @@ import { createTabCommand } from "./shell-commands/tab";
 import { TAB_COMMAND } from "./shell-commands/tab-command";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { createTaskCommand } from "./shell-commands/task/command";
-import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
+import {
+  createUvCommand,
+  createUvxCommand,
+  UV_COMMAND,
+  UVX_COMMAND,
+} from "./shell-commands/uv";
 import {
   createValidateSkillCommand,
   VALIDATE_SKILL_COMMAND,
@@ -105,20 +118,15 @@ import { AGENT_BROWSER_PATH } from "./agent-browser";
 import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
 import { gitBinaryPath } from "./git";
 import { RG_DISK_PATH } from "./ripgrep";
-import { chatVenvPython, getUvBinPath } from "./uv";
-import { buildBashFs, type WorkspaceFsLayout } from "./workspace-fs-layout";
+import { finishedWorkFolder } from "./chat/output-folder";
+import { foundManagedPython } from "./run-uv";
+import { getUvBinPath, nearestVenv, venvPython } from "./uv";
+import { workDir } from "./work-dir";
+import { type WorkspaceFsLayout } from "./workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
-import { createWalkBudget, type WalkBudget } from "./walk-budget";
+import { type WalkBudget } from "./walk-budget";
 import { roleLayout } from "./session-layout";
-
-/**
- * FS reads, HTTP bodies, maxStringLength, and what one pipeline may carry
- * (`maxOutputSize`); maxHeredocSize unchanged (64 MiB). Pipelines buffer
- * rather than stream, so a file passes through `cat big.csv | wc -l` whole, and
- * an output bound below the read bound fails a file the agent may read. The
- * shell runs in a worker thread, so carrying it costs the window nothing.
- */
-const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
+import { SANDBOX_MAX_BYTES, shellFs } from "./shell-fs";
 
 /**
  * Lines, records, and JSON values one command may hold, against just-bash's
@@ -143,23 +151,13 @@ const SANDBOX_MAX_COMMANDS = 10_000_000;
 /**
  * Operations and entries one traversal may spend, both 1,000,000 by default.
  * A home folder reaches that after about twenty seconds and returns nothing to
- * show for it, since a pipeline stage buffers rather than streams. This is the
+ * show for it, since a builtin pipeline stage buffers rather than streams. This is the
  * backstop rather than the fix, so it is set to give up while the user is still
  * watching without failing work a task legitimately does: a whole monorepo
  * checkout with its `node_modules`, the heaviest tree a task holds, is about
  * 107,000 files, and traversal charges upwards of one unit each.
  */
 const SANDBOX_MAX_TRAVERSAL = 300_000;
-
-/**
- * The same budget for walks over a folder that holds the workspace (the
- * user's whole home folder), counted on their own (`WalkBudget`). A stray
- * `find` over the home folder is the likeliest runaway walk there is, and the
- * budget counts entries rather than time: 300,000 of them costs a few
- * seconds of `find` on macOS and over half a minute on Windows, all on the
- * thread that paints the window.
- */
-const HOME_MAX_TRAVERSAL = 20_000;
 
 function stubCommand(
   name: string,
@@ -188,6 +186,18 @@ const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
   "which", // searches only the shell's own PATH; replaced below
 ]);
 
+/**
+ * What the agent hears for `osascript`: the commands that reach the apps it
+ * would have scripted, the helper's where this build carries it.
+ */
+function osascriptRefusal(): string {
+  const helper =
+    getWorkspaceConfig().macHelperBinPath === undefined
+      ? ""
+      : ` Calendar and Reminders have the \`${CALENDAR_COMMAND.name}\` command, and Contacts the \`${CONTACTS_COMMAND.name}\` command.`;
+  return `AppleScript you write doesn't run here. Mail, Notes and Messages have the \`${MAIL_COMMAND.name}\`, \`${NOTES_COMMAND.name}\` and \`${MESSAGES_COMMAND.name}\` commands.${helper} Any other app has no way in from here, so tell the person what you couldn't do in it.`;
+}
+
 const STATIC_STUB_COMMANDS = [
   stubCommand(
     "npm",
@@ -205,7 +215,10 @@ const STATIC_STUB_COMMANDS = [
  */
 function forEachCommandName(
   ast: ScriptNode,
-  visit: (name: { type: "Literal"; value: string }) => void,
+  visit: (
+    name: { type: "Literal"; value: string },
+    command: SimpleCommandNode,
+  ) => void,
 ) {
   walkScript(ast);
 
@@ -257,7 +270,7 @@ function forEachCommandName(
       case "SimpleCommand": {
         const part = node.name?.parts[0];
         if (part?.type === "Literal") {
-          visit(part);
+          visit(part, node);
         }
         for (const arg of node.args) {
           for (const p of arg.parts) {
@@ -273,13 +286,14 @@ function forEachCommandName(
 }
 
 /**
- * Rewrites `wait` to the `fg` command.
+ * Rewrites `wait` to the `fg` command, marked so it answers as `wait`.
  *
  * `wait` is an interpreter builtin, so a custom command cannot shadow it the way
  * `jobs` and `kill` are shadowed. Left alone it exits 0 with no output, which
  * reads as "the process finished and wrote nothing" -- the one wrong answer here
- * that looks right. Nothing can legitimately reach the builtin either, since `&`
- * is unsupported and there are never shell jobs to wait for.
+ * that looks right. Nothing can legitimately reach the builtin either, since a
+ * trailing `&` makes a background process rather than a shell job, and any
+ * other `&` is refused, so there are never shell jobs to wait for.
  *
  * Its own plugin rather than a line inside `command-order`, because this decides
  * what runs. A rewrite that rides along inside a plugin registered to collect
@@ -289,9 +303,13 @@ function forEachCommandName(
 const waitAliasPlugin: TransformPlugin<Record<string, never>> = {
   name: "wait-alias",
   transform(context: { ast: ScriptNode; metadata: Record<string, unknown> }) {
-    forEachCommandName(context.ast, (name) => {
+    forEachCommandName(context.ast, (name, command) => {
       if (name.value === "wait") {
         name.value = FG_COMMAND.name;
+        command.args.unshift({
+          parts: [{ type: "Literal", value: WAIT_MARKER }],
+          type: "Word",
+        });
       }
     });
     return { ast: context.ast };
@@ -417,33 +435,13 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     name: NODE_COMMAND.name,
   },
   {
-    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
-    description: CALENDAR_COMMAND.description,
-    factory: ({ chatId }) => createMacHelperCommand(CALENDAR_COMMAND, chatId),
-    listInDescription: true,
-    name: CALENDAR_COMMAND.name,
-    platforms: ["darwin"],
-  },
-  {
-    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
-    description: CONTACTS_COMMAND.description,
-    factory: ({ chatId }) => createMacHelperCommand(CONTACTS_COMMAND, chatId),
-    listInDescription: true,
-    name: CONTACTS_COMMAND.name,
-    platforms: ["darwin"],
-  },
-  {
-    description: SHORTCUTS_COMMAND.description,
-    factory: ({ layout, chatId }) => createShortcutsCommand(chatId, layout),
-    listInDescription: true,
-    name: SHORTCUTS_COMMAND.name,
-    platforms: ["darwin"],
-  },
-  {
-    description: OSASCRIPT_COMMAND.description,
-    factory: ({ layout, chatId }) => createOsascriptCommand(chatId, layout),
-    listInDescription: true,
-    name: OSASCRIPT_COMMAND.name,
+    description: "Refuses AppleScript the agent writes.",
+    // AppleScript the agent writes would have to run outside the sandbox to
+    // reach an app, which no check of its text can make safe. By its path,
+    // osascript runs inside the sandbox, where no app takes its Apple Events.
+    factory: () => stubCommand("osascript", osascriptRefusal()),
+    listInDescription: false,
+    name: "osascript",
     platforms: ["darwin"],
   },
   {
@@ -475,6 +473,13 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     factory: ({ layout, chatId }) => createUvCommand(chatId, layout),
     listInDescription: true,
     name: UV_COMMAND.name,
+  },
+  {
+    description: UVX_COMMAND.description,
+    factory: ({ chatId }) => createUvxCommand(chatId),
+    // `uv tool run`; omitted from the description, as `npx` is.
+    listInDescription: false,
+    name: UVX_COMMAND.name,
   },
   {
     description: PYTHON_COMMAND.description,
@@ -511,6 +516,50 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
 ];
 
 /**
+ * `instrument`'s commands for the Mac's own apps, in every shell on macOS:
+ * Mail, Notes and Messages through the app's scripts, and Calendar,
+ * Reminders and Contacts through the Mac helper where this build carries it.
+ */
+const MAC_APP_SUBCOMMANDS: (Omit<InstrumentSubcommand, "command"> & {
+  available?: () => boolean;
+  description: string;
+  factory: (context: CustomCommandContext) => Command;
+  name: string;
+})[] = [
+  {
+    ...CALENDAR_COMMAND,
+    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
+    factory: ({ chatId, layout }) =>
+      createMacHelperCommand(CALENDAR_COMMAND, chatId, layout),
+  },
+  {
+    ...CONTACTS_COMMAND,
+    available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
+    factory: ({ chatId, layout }) =>
+      createMacHelperCommand(CONTACTS_COMMAND, chatId, layout),
+  },
+  {
+    ...MAIL_COMMAND,
+    factory: ({ chatId, layout }) => createMailCommand(chatId, layout),
+  },
+  {
+    ...MESSAGES_COMMAND,
+    factory: ({ chatId, layout }) => createMessagesCommand(chatId, layout),
+  },
+  {
+    ...NOTES_COMMAND,
+    factory: ({ chatId, layout }) => createNotesCommand(chatId, layout),
+  },
+];
+
+/** The Mac app commands this platform and build offer, read per call so a test can pin one. */
+function macAppSubcommands() {
+  return process.platform === "darwin"
+    ? MAC_APP_SUBCOMMANDS.filter((each) => each.available?.() ?? true)
+    : [];
+}
+
+/**
  * The program each of our commands runs, which `type`, `command -v`, `hash`
  * and `which` name it by. A command not listed runs inside the shell, or
  * runs a program only as part of what it does (`pip` is `uv pip`, `npx` is
@@ -519,25 +568,33 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
 const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
   {
     [AGENT_BROWSER_COMMAND.name]: () => AGENT_BROWSER_PATH,
-    [CALENDAR_COMMAND.name]: () => getWorkspaceConfig().macHelperBinPath,
     [FFMPEG_COMMAND.name]: () => FFMPEG_PATH,
     [FFPROBE_COMMAND.name]: () => FFPROBE_PATH,
     [GIT_COMMAND.name]: () => gitBinaryPath(),
     [NODE_COMMAND.name]: () => process.execPath,
-    [OSASCRIPT_COMMAND.name]: () => OSASCRIPT_PATH,
     [PNPM_COMMAND.name]: () => getWorkspaceConfig().pnpmBinPath,
-    [PYTHON_COMMAND.name]: chatVenvPython,
-    [PYTHON3_COMMAND.name]: chatVenvPython,
+    [PYTHON_COMMAND.name]: pythonProgram,
+    [PYTHON3_COMMAND.name]: pythonProgram,
     [RG_COMMAND.name]: () => RG_DISK_PATH,
-    [SHORTCUTS_COMMAND.name]: () => SHORTCUTS_PATH,
     [UV_COMMAND.name]: () => getUvBinPath(),
   };
+
+/**
+ * The interpreter `python` runs in the work folder: its virtualenv's, or the
+ * managed Python's own.
+ */
+function pythonProgram(chatId: ChatId): string | undefined {
+  const venv = nearestVenv(chatId, workDir(chatId));
+  return venv ? venvPython(venv) : foundManagedPython();
+}
 
 /** The program one of our commands runs, in the shell's spelling. */
 function commandProgram(chatId: ChatId, name: string): string | undefined {
   let program: string | undefined;
+  // A text command uutils or the system answers is described by that program.
+  const route = nativeTextRoutes().find((each) => each.name === name);
   try {
-    program = COMMAND_PROGRAMS[name]?.(chatId);
+    program = route ? routeProgram(route) : COMMAND_PROGRAMS[name]?.(chatId);
   } catch {
     // A program this platform cannot carry (dugite's git elsewhere) runs
     // nothing, so there is nothing to name.
@@ -573,6 +630,11 @@ export interface BashEnvOptions {
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
   chatId: ChatId;
+  /**
+   * The folder of the skill the session loaded last, on the host, which the
+   * shell names `INSTRUMENT_SKILL_DIR` (`lastLoadedSkillDir`).
+   */
+  loadedSkillDir?: string;
 }
 
 /** What callers of `createBashEnv` get, wherever the interpreter runs. */
@@ -586,15 +648,18 @@ export type BashRunner = Pick<Bash, "exec">;
  */
 const CHAT_COMMAND_LINES = [
   `  ${TASK_COMMAND.name} - ${TASK_COMMAND.description}`,
-  `  ${CHAT_COMMAND.name} - ${CHAT_COMMAND.description}`,
   `  ${MEMORY_COMMAND.name} - ${MEMORY_COMMAND.description}`,
   `  ${TAB_COMMAND.name} - ${TAB_COMMAND.description}`,
 ];
 
 export function createBashDescription() {
-  const allowedCommandNames = getCommandNames().filter(
-    (name) => !BROKEN_COMMANDS.has(name),
-  );
+  const allowedCommandNames = [
+    ...new Set([
+      ...getCommandNames(),
+      // The GNU text commands the bundled uutils add beside the builtins.
+      ...nativeTextRoutes().map((route) => route.name),
+    ]),
+  ].filter((name) => !BROKEN_COMMANDS.has(name));
 
   const namedOnly = allowedCommandNames
     .filter((name) => !(name in DESCRIBED_COMMANDS))
@@ -609,6 +674,7 @@ export function createBashDescription() {
     ...customCommandDefs()
       .filter((cmd) => cmd.listInDescription)
       .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+    ...macAppSubcommands().map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...CHAT_COMMAND_LINES,
   ];
@@ -620,12 +686,12 @@ export function createBashDescription() {
 
     IMPORTANT: Files are at their real paths on the user's computer, and your working directory is this conversation's folder. The folders list in your context says which of the user's folders you reach; every command reads and writes them where they sit, native ones included. A change there lands on the user's real files immediately, so treat \`rm\` there as permanent. "Operation not permitted" means the person keeps that place closed or wants to be asked first; the message says which and what to do.
 
-    IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the real interpreter in this conversation's virtualenv, and \`${NODE_COMMAND.name}\` is a real Node with this conversation's packages. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
+    IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) and \`${NODE_COMMAND.name}\` are real programs: \`${PYTHON_COMMAND.name}\` runs a skill's script with that skill's packages and anything else in the nearest \`.venv\` up to this conversation's folder, which the first \`${PIP_COMMAND.name} install\` makes, and \`${NODE_COMMAND.name}\` finds the packages \`${PNPM_COMMAND.name} add\` installed beside the script or above it. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory, so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`) inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory (\`$${FOLDER_VARIABLES.work}\`), so \`cd .\` is always a no-op. Prefer relative paths inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
-    A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
+    A command goes to the background when it outlives \`yieldMs\`, or at once when the call ends with \`&\` (\`pnpm dev &\`); \`&\` anywhere else is refused. A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` (or \`wait\`) and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a trailing \`&\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
     Those three are ordinary commands, so they compose: \`${FG_COMMAND.name} bg_1 | rg -i error\` filters before you pay for the output, \`${FG_COMMAND.name} bg_1 && ${PNPM_COMMAND.name} test\` runs only on success, and \`${KILL_COMMAND.name} bg_1 bg_2; ${JOBS_COMMAND.name}\` cleans up and confirms in one call.
     A background process is stopped once it has run for ${ms(MAX_RUNNING_AGE_MS, { long: true })}, whatever it is doing. \`${JOBS_COMMAND.name}\` reports that as \`stopped (${ms(MAX_RUNNING_AGE_MS)} cap)\` rather than as a failure or a kill; start it again if the work still needs it.
     Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${PYTHON_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins reports its output only when it finishes.
@@ -636,7 +702,7 @@ export function createBashDescription() {
       - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
       - Use the \`${TOOL_NAMES.editFile}\`/\`${TOOL_NAMES.writeFile}\` tools instead of \`sed\`/\`awk\`/redirects for editing.
       - Use \`rg\` for all searching -- there is no separate search tool. File contents: \`rg -n 'pattern'\`, \`-C 3\` for surrounding lines, \`-l\` for filenames only. Files by name: \`rg --files -g '*.ts'\`, or \`--iglob '*report*'\` to ignore case. It composes, so \`rg -l TODO | head\` works.
-      - Filter file names inside \`rg\` with \`-g\`/\`--iglob\`, never by piping \`rg --files\` into another command: a pipe stage only starts once the whole listing has been collected, so over a large folder that is seconds of the app frozen, where the same filter inside \`rg\` takes milliseconds.
+      - Filter file names inside \`rg\` with \`-g\`/\`--iglob\` rather than by piping \`rg --files\` into another command. A shell builtin such as \`awk\`, \`sed\` or a \`while read\` loop only starts once the whole listing has been collected, so over a large folder that is seconds of the app frozen, where the same filter inside \`rg\` takes milliseconds.
       - Prefer \`rg\` over \`grep\`/\`egrep\`/\`fgrep\`: \`rg\` is the real ripgrep binary and far faster.
       - For audio, video, or image inspection, prefer \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json <path>\` over \`file\`.
 
@@ -658,6 +724,35 @@ export function createBashDescription() {
 }
 
 /**
+ * The folders the agent works with, by the names the shell gives them: the
+ * workspace's apps, every chat's records (none for the window), its work
+ * folder, the output folder, the folder of the skill it loaded last,
+ * where it has loaded one, and the workspace's own skills, in the shell's
+ * spelling.
+ */
+function folderVariables(
+  layout: WorkspaceFsLayout,
+  loadedSkillDir: string | undefined,
+): Record<string, string> {
+  return {
+    [FOLDER_VARIABLES.apps]: shellPath(getWorkspaceConfig().appsDir),
+    ...(layout.chats && { [FOLDER_VARIABLES.chats]: layout.chats.shellRoot }),
+    // The chat's own folder, so finished work lands beside the transcript
+    // the person reads. A chat with no folder yet, the window, which never
+    // has one, and a workspace whose folders the person does not open fall
+    // back to the Instrument folder (see `finishedWorkFolder`).
+    [FOLDER_VARIABLES.output]: shellPath(
+      finishedWorkFolder(layout.folder?.hostRoot),
+    ),
+    ...(loadedSkillDir !== undefined && {
+      [FOLDER_VARIABLES.skill]: shellPath(loadedSkillDir),
+    }),
+    [FOLDER_VARIABLES.work]: layout.chat.shellRoot,
+    [FOLDER_VARIABLES.workspaceSkills]: shellPath(getWorkspaceSkillsDir()),
+  };
+}
+
+/**
  * Commands that act on state only the main thread holds: the background
  * process registry, the task store and its events, the browser, and app
  * credentials. When the interpreter runs in the bash worker, these are
@@ -666,15 +761,22 @@ export function createBashDescription() {
  */
 const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
   AGENT_BROWSER_COMMAND.name,
-  APP_COMMAND.name,
-  CHAT_COMMAND.name,
   FG_COMMAND.name,
+  INSTRUMENT_COMMAND.name,
   JOBS_COMMAND.name,
   KILL_COMMAND.name,
-  MEMORY_COMMAND.name,
-  TAB_COMMAND.name,
-  TASK_COMMAND.name,
 ]);
+
+/**
+ * What a task's `instrument` says of the chat's own subcommands: the task
+ * reports to the chat, which has them.
+ */
+const CHAT_ONLY_SUBCOMMANDS: Record<string, string> = Object.fromEntries(
+  [MEMORY_COMMAND, TAB_COMMAND, TASK_COMMAND].map((command) => [
+    command.word,
+    "only the chat has this. Say in your report what the chat should do with it.",
+  ]),
+);
 
 /**
  * The agent's shell: in the bash worker when the host set one up (see
@@ -691,6 +793,7 @@ export async function createBashEnv(
 export async function createLocalBashEnv({
   folders,
   callPartId,
+  loadedSkillDir,
   role = "task",
   // Defaulted so the callers that never wait -- skill validation, tests, the
   // sandbox script -- do not have to describe a yield window they do not have.
@@ -718,49 +821,55 @@ export async function createLocalBashEnv({
   // What the shell mounts, held to the chat's rules. rg, du, agent-browser
   // and the output a promoted command streams all take it from here.
   const layout = roleLayout({ chatId, folders, role, rules });
-  // The working folder walks at the sandbox's budget, and the home folder at
-  // its own, smaller one.
-  const homeWalkBudget = createWalkBudget(HOME_MAX_TRAVERSAL);
-  // Refusals heard during one exec, told to the agent after its output with
-  // the host path spelled out, which an error from a script worker loses.
-  const refusals = new Set<string>();
-  const listings: Listings = { count: 0 };
-  const fs = await buildBashFs(layout, {
-    homeWalkBudget,
-    listings,
-    maxFileReadSize: SANDBOX_MAX_BYTES,
-    onRefusal: (refusal) => refusals.add(refusal),
-  });
+  // Refusals heard during one exec are told to the agent after its output.
+  const { fs, homeWalkBudget, listings, refusals } = await shellFs(layout);
 
   const allowedCommands = [
     ...getCommandNames(),
     ...getNetworkCommandNames(),
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
-  // What sets the chat's shell apart from a task's: it gets `task`, `chat`,
-  // `memory` and `tab` beside the native hatches every shell has. Putting a
-  // thing on the user's screen is the chat's `tab`: a task's reply is read
-  // by the chat, and a pane of the task's own has nobody looking.
+  // What sets the chat's shell apart from a task's: its `instrument` has
+  // `task`, `memory` and `tab` beside the `app` every shell has, and the
+  // Mac app commands every shell on macOS has. Putting a thing on the user's
+  // screen is the chat's `tab`: a task's reply is read by the chat, and a pane
+  // of the task's own has nobody looking.
   const nativeCommands = customCommandDefs().map((cmd) =>
     cmd.factory({ chatId, invokeTool, layout }),
   );
-  const specializedCommands = [
-    ...(role === "chat"
-      ? [
-          createTaskCommand({
-            callPartId,
-            chatId,
-            remainingYieldMs,
-            sessionId,
-          }),
-          createChatCommand(),
-          createMemoryCommand({ chatId, sessionId }),
-          createTabCommand({ chatId, layout }),
-        ]
-      : []),
-    createAppCommand({ chatId }),
-    ...nativeCommands,
-  ];
+  const instrumentCommand = createInstrumentCommand({
+    missing: role === "chat" ? {} : CHAT_ONLY_SUBCOMMANDS,
+    subcommands: [
+      { ...APP_COMMAND, command: createAppCommand({ chatId }) },
+      ...(role === "chat"
+        ? [
+            {
+              ...MEMORY_COMMAND,
+              command: createMemoryCommand({ chatId, sessionId }),
+            },
+            {
+              ...TAB_COMMAND,
+              command: createTabCommand({ chatId, layout }),
+            },
+            {
+              ...TASK_COMMAND,
+              command: createTaskCommand({
+                callPartId,
+                chatId,
+                remainingYieldMs,
+                sessionId,
+              }),
+            },
+          ]
+        : []),
+      ...macAppSubcommands().map(({ factory, summary, word }) => ({
+        command: factory({ chatId, invokeTool, layout }),
+        summary,
+        word,
+      })),
+    ].toSorted((a, b) => a.word.localeCompare(b.word)),
+  });
+  const specializedCommands = [instrumentCommand, ...nativeCommands];
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [
@@ -773,6 +882,11 @@ export async function createLocalBashEnv({
       // not carry its `(?i)` and root-level-glob bugs.
       createRgCommand({ layout, chatId }),
       createDuCommand({ layout }),
+      // After the bundled commands, so the uutils programs shadow the
+      // builtins they answer for.
+      ...nativeTextRoutes().map((route) =>
+        createNativeTextCommand(route, { chatId, layout }),
+      ),
       ...specializedCommands,
       // After the bundled commands so these shadow just-bash's own `kill` and
       // `wait`, which act on host pids this sandbox deliberately cannot name.
@@ -816,6 +930,7 @@ export async function createLocalBashEnv({
       // The home the rules hold, so `~` in the shell is the folder its
       // native commands call home, rather than just-bash's default of `/`.
       HOME: shellPath(rules.home),
+      ...folderVariables(layout, loadedSkillDir),
       NO_COLOR: "1",
       PATH: SHELL_PATH,
       // The system's temp folder, which every program it runs gets too.
@@ -836,7 +951,13 @@ export async function createLocalBashEnv({
     },
     // A name no builtin or command of ours answers runs the program by that
     // name on the computer's PATH, as a native command.
-    resolveExternalCommand: createPathProgramResolver(chatId),
+    resolveExternalCommand: createPathProgramResolver(
+      chatId,
+      layout.rules.asker,
+    ),
+    // A redirect into a folder that does not exist fails, as in bash, rather
+    // than making the folder on the disk.
+    redirectCreatesDirectories: false,
   });
 
   // Order matters: the alias runs first so the recorded command list names
@@ -845,8 +966,15 @@ export async function createLocalBashEnv({
   bash.registerTransformPlugin(commandOrderPlugin);
   bash.registerTransformPlugin(resetEachCommand(homeWalkBudget));
 
-  // Every native command this shell spawns is held to the same rules.
-  const reach = nativeReachFor(layout.rules, layout);
+  // Every native command this shell spawns is held to the same rules, and
+  // reaches the services an app's work runs in only once the app is allowed.
+  const reach = {
+    ...nativeReachFor(layout.rules, layout),
+    closedServices:
+      process.platform === "darwin"
+        ? await closedAppServices(chatId)
+        : undefined,
+  };
   const exec = bash.exec.bind(bash);
   bash.exec = async (...execArgs) => {
     refusals.clear();
@@ -856,13 +984,11 @@ export async function createLocalBashEnv({
     } catch (error) {
       // An error that escapes the shell ends the whole call; what the rules
       // said still goes with it.
-      await asksWritten();
       if (refusals.size > 0 && error instanceof Error) {
         error.message = `${error.message}\n${[...refusals].join("\n")}`;
       }
       throw error;
     }
-    await asksWritten();
     if (refusals.size === 0) {
       return result;
     }

@@ -19,10 +19,10 @@ import {
 } from "./downloads";
 import { type BrowserEntry, createEntry } from "./entry";
 
-// A person's download lands in their Downloads folder, or the workspace's
-// when that one takes no file. A temp home stands in for both, laid out as
-// `home/Downloads` and `home/workspace/downloads`; a test that wants a folder
-// to refuse the file points its path at a file instead.
+// A person's download lands in their Downloads folder, and otherwise
+// wherever they say. A temp home stands in for it, laid out as
+// `home/Downloads`; a test that wants the folder to refuse the file points
+// its path at a file instead.
 const home = vi.hoisted(() => ({
   dir: "",
   downloads: "",
@@ -43,6 +43,8 @@ vi.mock("electron", () => ({
 }));
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
   getWorkspaceFolder: () => home.workspace,
+  // Beside the folders a download lands in, so it refuses none of them.
+  getUserDataDir: () => `${home.dir}/user-data`,
 }));
 // The download list's saved copy, in memory.
 const saved = vi.hoisted(() => ({ downloads: [] as unknown[] }));
@@ -74,8 +76,12 @@ interface FakeItem extends EventEmitter {
   cancel: ReturnType<typeof vi.fn>;
   getFilename: () => string;
   getReceivedBytes: () => number;
+  getSavePath: () => string;
   getTotalBytes: () => number;
   getURL: () => string;
+  /** Where the transfer is writing, which the person's own pick also sets. */
+  savePath: string;
+  setSaveDialogOptions: ReturnType<typeof vi.fn>;
   setSavePath: ReturnType<typeof vi.fn>;
 }
 
@@ -105,15 +111,21 @@ function makeFakeItem({
   url = "https://example.com/report.pdf",
 }: { filename?: string; url?: string } = {}): FakeItem {
   const emitter = new EventEmitter();
-  return Object.assign(emitter, {
+  const item: FakeItem = Object.assign(emitter, {
     cancel: vi.fn(),
     getFilename: () => filename,
     getReceivedBytes: () => 1024,
+    getSavePath: () => item.savePath,
     getTotalBytes: () => 1024,
     getURL: () => url,
     on: emitter.on.bind(emitter),
-    setSavePath: vi.fn(),
+    savePath: "",
+    setSaveDialogOptions: vi.fn(),
+    setSavePath: vi.fn((to: string) => {
+      item.savePath = to;
+    }),
   });
+  return item;
 }
 
 describe("applyDownloadBehavior", () => {
@@ -244,7 +256,7 @@ describe("routeGuestDownloads", () => {
       );
     });
 
-    it("falls back to the workspace's downloads folder when Downloads takes no file", () => {
+    it("asks where to put it when Downloads takes no file", () => {
       home.downloads = unwritableDir();
       const entries = new Map<BrowserTargetId, BrowserEntry>();
       const entry = makeEntry();
@@ -255,30 +267,35 @@ describe("routeGuestDownloads", () => {
       const item = makeFakeItem();
       trigger(item, entry);
 
+      // No save path and no cancel is what puts the system's question up.
       expect(item.cancel).not.toHaveBeenCalled();
-      expect(item.setSavePath).toHaveBeenCalledWith(
-        path.join(home.workspace, "downloads", "report.pdf"),
-      );
-    });
-
-    it("cancels and lists it as failed when no folder takes the file", () => {
-      home.downloads = unwritableDir();
-      home.workspace = home.downloads;
-      const entries = new Map<BrowserTargetId, BrowserEntry>();
-      const entry = makeEntry();
-      entries.set(TARGET_ID, entry);
-      const { session, trigger } = makeSession();
-      routeGuestDownloads(session, lookupIn(entries));
-
-      const item = makeFakeItem();
-      trigger(item, entry);
-
-      expect(item.cancel).toHaveBeenCalledOnce();
       expect(item.setSavePath).not.toHaveBeenCalled();
+      expect(item.setSaveDialogOptions).toHaveBeenCalledWith({
+        defaultPath: "report.pdf",
+      });
       expect(listDownloads()[0]).toMatchObject({
         filename: "report.pdf",
-        path: null,
-        state: "failed",
+        state: "progressing",
+      });
+    });
+
+    it("lists the place the person picked once the file is there", () => {
+      home.downloads = unwritableDir();
+      const picked = path.join(home.dir, "Desktop", "report.pdf");
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      routeGuestDownloads(session, lookupIn(entries));
+
+      const item = makeFakeItem();
+      trigger(item, entry);
+      item.savePath = picked;
+      item.emit("done", {}, "completed");
+
+      expect(listDownloads()[0]).toMatchObject({
+        path: picked,
+        state: "completed",
       });
     });
 

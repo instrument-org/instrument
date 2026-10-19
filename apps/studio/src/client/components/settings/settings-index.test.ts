@@ -59,7 +59,7 @@ describe("matchSettings", () => {
   });
 
   it("finds a button by its label", () => {
-    expect(titles("release")).toEqual(["Release notes"]);
+    expect(titles("release notes")).toEqual(["Release notes"]);
   });
 
   it("finds the rows on a page by the page name under them, after title matches", () => {

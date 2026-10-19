@@ -1,9 +1,6 @@
-import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import { statusLine } from "./chat-status-line";
-
-const chatId = StoreId.newSessionId();
 
 const title = "Lisbon trip";
 type ChatAt = Parameters<typeof statusLine>[0]["chat"];
@@ -63,18 +60,6 @@ describe("statusLine", () => {
       "nothing in a chat that has only talked",
       { chat: idle, listed: [] },
       undefined,
-    ],
-    [
-      "what a stalled task needs",
-      {
-        chat: at("waiting", {
-          runningTasks: [
-            { id: chatId, title: "Itinerary", waiting: "Needs your dates" },
-          ],
-        }),
-        listed: [],
-      },
-      { text: "Needs your dates", tone: "wait" },
     ],
     [
       "that the chat waits on the user",
@@ -179,38 +164,38 @@ describe("statusLine", () => {
       { text: "Lisbon fares and hotels", tone: "done" },
     ],
     [
-      "the task the user stopped last beside a stop mark, not a check",
+      "nothing for the task the user stopped last, not a check",
       {
         chat: at("idle", { lastStep: lastStep("Starting a task") }),
         listed: [{ ...done(5), stoppedBy: "user" }],
       },
-      { text: "Lisbon fares and hotels", tone: "halted" },
+      undefined,
     ],
     [
-      "the task the chat stopped last beside a stop mark, not a check",
+      "nothing for the task the chat stopped last, not a check",
       {
         chat: at("idle", { lastStep: lastStep("Stopping the waiting task") }),
         listed: [{ ...done(5), stoppedBy: "chat" }],
       },
-      { text: "Lisbon fares and hotels", tone: "halted" },
+      undefined,
     ],
     [
-      "that the chat stopped a task named like the chat, rather than that it is done",
+      "nothing for a task named like the chat that the chat stopped",
       {
         chat: at("idle", { lastStep: lastStep("Stopping the waiting task") }),
         listed: [{ ...done(5, title), stoppedBy: "chat" }],
       },
-      { text: "The chat stopped its task", tone: "halted" },
+      undefined,
     ],
     [
-      "that the user stopped it, rather than that it is done",
+      "nothing once the user stopped it, rather than that it is done",
       {
         chat: at("stopped", {
           lastStep: lastStep("Listing the Documents folder"),
         }),
         listed: [done(1)],
       },
-      { text: "You stopped Instrument", tone: "halted" },
+      undefined,
     ],
   ])("says %s", (_, input, expected) => {
     expect(statusLine(input)).toEqual(expected);

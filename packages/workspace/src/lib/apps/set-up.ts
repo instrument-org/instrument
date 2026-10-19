@@ -17,7 +17,7 @@ const OPEN_TEST_TIMEOUT_MS = 30_000;
 /**
  * Sets a service the directory lists up as an app, from the way in the
  * directory has for it, with no agent: what the agent would otherwise copy
- * out of `app catalog` and could get wrong. Writes the folder and leaves
+ * out of `instrument app catalog` and could get wrong. Writes the folder and leaves
  * the app waiting on the one thing only the user gives (a sign-in, a key,
  * the go-ahead to run a server, signing in on the site); a server that
  * wants none of those is tested and connected on the spot.
@@ -47,14 +47,12 @@ export async function setUpFromDirectory({
     way.kind === "mcp"
       ? {
           auth: parseAuth(way.auth, "mcp"),
-          name,
           type: "mcp",
           url: way.endpoint,
         }
       : way.kind === "local"
         ? {
             auth: { kind: "none" },
-            name,
             package: way.package,
             runtime: way.runtime,
             type: "mcp-local",
@@ -62,14 +60,12 @@ export async function setUpFromDirectory({
         : way.kind === "api" && way.test !== undefined
           ? {
               auth: parseAuth(way.auth, "api"),
-              baseUrl: way.endpoint,
-              name,
               test: { path: way.test },
               type: "api",
+              url: way.endpoint,
             }
           : way.kind === "web"
             ? {
-                name,
                 ...(way.signIn ? { signIn: way.signIn } : {}),
                 type: "web",
                 url: way.url,
@@ -89,7 +85,7 @@ export async function setUpFromDirectory({
     (await listApps(appsDir)).apps.map((app) => String(app.slug)),
   );
   const slug = AppSlugSchema.parse(nextFreeSlug(entry.slug, taken));
-  await writeAppFolder({ appsDir, guide, manifest, slug });
+  await writeAppFolder({ appsDir, guide, manifest, name, slug });
 
   if (manifest.type === "mcp" && manifest.auth.kind === "none") {
     // Nothing for the user to give: the test is the whole of connecting.

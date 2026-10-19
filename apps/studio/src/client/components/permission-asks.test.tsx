@@ -5,60 +5,63 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../tests/render";
 import { installWindowStubs } from "../../tests/window-stubs";
-import { PermissionAsksForPart } from "./permission-asks";
+import { PermissionAsksFoot } from "./permission-asks";
 
 const chatId = ChatIdSchema.parse("test-chat");
-const partId = StoreId.newPartId();
 
-function showAsk(target: string) {
+function showAsks(
+  asks: {
+    kind?: "app" | "folder";
+    reason?: string;
+    status?: "macos-refused" | "open";
+    target: string;
+  }[],
+) {
   const { queryClient } = renderWithProviders(
-    <PermissionAsksForPart
-      chatId={chatId}
-      explanation={undefined}
-      partId={partId}
-    />,
+    <PermissionAsksFoot chatId={chatId} />,
   );
   queryClient.setQueryData(
-    rpcClient.workspace.permissions.liveAsks.experimental_liveOptions({
+    rpcClient.workspace.chats.live.asks.experimental_liveOptions({
       input: { id: chatId },
     }).queryKey,
-    [
-      {
-        askedAt: new Date(0),
-        askers: [{ partId, sessionId: StoreId.newSessionId() }],
-        id: "ask-1",
-        kind: "folder",
-        target,
-      },
-    ],
+    asks.map(({ kind = "folder", reason, status = "open", target }, index) => ({
+      askedAt: new Date(index),
+      askers: [
+        { sessionId: StoreId.newSessionId(), ...(reason && { reason }) },
+      ],
+      id: `ask-${index}`,
+      kind,
+      status,
+      target,
+    })),
   );
 }
 
 afterEach(installWindowStubs);
 
-describe("PermissionAsksForPart", () => {
-  // The home folder is /Users/sam (`tests/window-stubs.ts`).
+describe("PermissionAsksFoot", () => {
   it.each([
-    ["/Users/sam/Documents/Clients", "Documents › Clients"],
-    ["/Users/sam", "sam"],
+    ["/Users/sam/Desktop", "Desktop", "sam/Desktop"],
     // A backslash is a character a name can hold on a Mac or Linux.
-    ["/Users/sam/Documents/a\\b", "Documents › a\\b"],
-    ["D:\\Projects\\Clients", "D: › Projects › Clients"],
-  ])("says where %s is as %s", async (target, where) => {
-    showAsk(target);
+    ["/Users/sam/Documents/a\\b", "a\\b", "sam/Documents/a\\b"],
+    ["D:\\Projects\\Clients", "Clients", "D:\\Projects\\Clients"],
+  ])(
+    "names %s as %s over its path from the home folder's name",
+    async (target, name, shown) => {
+      showAsks([{ target }]);
 
-    expect(await screen.findByText(where)).toBeDefined();
-  });
+      expect(await screen.findByText(name)).toBeDefined();
+      expect(screen.getByTitle(shown)).toBeDefined();
+    },
+  );
 
-  it.each([
-    ["/Users/sam/Documents/a\\b", "a\\b"],
-    ["D:\\Projects\\Clients", "Clients"],
-  ])("asks about %s by its name, %s", async (target, name) => {
-    showAsk(target);
+  it("asks about an app by its name, with no path", async () => {
+    showAsks([{ kind: "app", target: "Calendar" }]);
 
     expect(
-      await screen.findByText(`Let Instrument use “${name}”?`),
+      await screen.findByText("Can Instrument use this app?"),
     ).toBeDefined();
+    expect(screen.getByText("Calendar")).toBeDefined();
   });
 
   it.each([
@@ -72,13 +75,84 @@ describe("PermissionAsksForPart", () => {
     "with home at %s, says %s holds sign-ins: %s",
     async (home, target, holds) => {
       window.api.homeDir = home;
-      showAsk(target);
+      showAsks([{ target }]);
 
-      await screen.findByText(/^Let Instrument use/);
+      await screen.findByText("Can Instrument use this folder?");
       expect(
-        screen.queryByText("This folder holds your sign-in to GitHub.") !==
-          null,
+        screen.queryByText("This folder has your sign-in to GitHub.") !== null,
       ).toBe(holds);
     },
   );
+
+  it("draws the oldest of several asks, with how many are waiting", async () => {
+    showAsks([
+      { target: "/Users/sam/Desktop" },
+      { target: "/Users/sam/Downloads" },
+      { kind: "app", target: "Calendar" },
+    ]);
+
+    expect(await screen.findByText("1 of 3")).toBeDefined();
+    expect(screen.getByText("Desktop")).toBeDefined();
+    expect(screen.queryByText("Downloads")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Don’t allow any of these" }),
+    ).toBeDefined();
+  });
+
+  it("offers no answer to all for one ask alone", async () => {
+    showAsks([{ target: "/Users/sam/Desktop" }]);
+
+    await screen.findByText("Desktop");
+    expect(screen.queryByText(/ of /)).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Don’t allow any of these" }),
+    ).toBeNull();
+  });
+
+  it("says what the agent needs it for", async () => {
+    showAsks([
+      {
+        reason: "Saving a copy of the comparison on your Desktop",
+        target: "/Users/sam/Desktop",
+      },
+    ]);
+
+    expect(
+      await screen.findByText(
+        "Saving a copy of the comparison on your Desktop",
+      ),
+    ).toBeDefined();
+  });
+
+  it("offers the ways past macOS, not the yes again, once macOS refused", async () => {
+    showAsks([{ status: "macos-refused", target: "/Users/sam/Desktop" }]);
+
+    expect(
+      await screen.findByText(
+        "Your Mac prevented Instrument from accessing “Desktop”",
+      ),
+    ).toBeDefined();
+    // An ask with no reason says why in general terms.
+    expect(
+      screen.getByText(
+        "Instrument needs access to “Desktop” to finish your task.",
+      ),
+    ).toBeDefined();
+    // The test window has no Files view, so the folder's own button names
+    // the Finder, as the onboarding window's would.
+    expect(
+      screen
+        .getAllByRole("button")
+        .map(
+          (button) => button.getAttribute("aria-label") ?? button.textContent,
+        ),
+    ).toMatchInlineSnapshot(`
+      [
+        "Show in Finder: Desktop",
+        "Allow",
+        "Open System Settings",
+        "Don’t allow",
+      ]
+    `);
+  });
 });

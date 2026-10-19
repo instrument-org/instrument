@@ -17,13 +17,15 @@ Which half a capability belongs in is decided by whose identity macOS checks:
 - **What is asked too often for a process** also goes in the module, when it reads nothing privacy-guarded: the browser lists a folder every few seconds while it is open, and starting a process per listing would cost more than the answer. Work like this runs on a background queue, since Electron's JS thread is AppKit's main thread.
 - **Privacy-guarded data** goes in the helper. macOS attributes a child's request to the app that launched it, so the prompt names Instrument and the grant covers every later call, from a task or from onboarding. A crash there costs one command, not the app.
 
+Mail, Notes and Messages are in neither half: Apple offers no framework for their data, so the agent's `instrument mail`, `notes` and `messages` commands drive them through AppleScript the app ships, with what the agent passes reaching the script only as its `argv` ([agent-sandbox.md](agent-sandbox.md), the user's other apps).
+
 ## Adding a capability
 
 1. **Native side.**
    - In the module: add a block to `FUNCTIONS` in `addon.m`. It receives `done` and calls it once with a dictionary (or `@{@"error": …}`). `answer` runs it off the JS thread and resolves a Promise with the JSON.
    - In the helper: add a `case` to `main.swift` that `emit`s JSON or `fail`s with a sentence.
 2. **A typed wrapper in `mac-native.ts`** that parses the JSON with a Zod schema before trusting it.
-3. **A route in [`rpc/routes/mac.ts`](../../apps/studio/src/electron-main/rpc/routes/mac.ts)** when a page needs it. For the agent, a command in `packages/workspace` that runs the helper (see `createMacHelperCommand`).
+3. **A route in [`rpc/routes/mac.ts`](../../apps/studio/src/electron-main/rpc/routes/mac.ts)** when a page needs it. For the agent, a command in `packages/workspace` that runs the helper (see `createMacHelperCommand`), behind the per-app permission the person answers (`appRefusal`), named for the app whose data it reads.
 
 Two Objective-C traps are worth knowing before the first change:
 

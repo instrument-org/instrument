@@ -4,8 +4,8 @@ import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { ChatWrites } from "./chat-writes";
 import { detectMessageGap } from "./message-gap";
-import { Store } from "./store";
 
 vi.mock(import("./session-store-storage"));
 
@@ -16,7 +16,7 @@ describe("detectMessageGap", () => {
     const chatId = createMockChatConfig(ChatIdSchema.parse("mock"));
     const sessionId = StoreId.newSessionId();
 
-    await Store.saveSession(
+    await ChatWrites.saveSession(
       { createdAt: new Date(0), id: sessionId, title: "Test session" },
       chatId,
     );
@@ -24,7 +24,7 @@ describe("detectMessageGap", () => {
     /** A message the user typed. */
     async function typed(at: Date) {
       const messageId = StoreId.newMessageId();
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
         {
           id: messageId,
           metadata: { createdAt: at, sessionId },
@@ -49,7 +49,7 @@ describe("detectMessageGap", () => {
     /** A task finishing, which wakes the chat on the same role. */
     async function wake(at: Date) {
       const messageId = StoreId.newMessageId();
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
         {
           id: messageId,
           metadata: { createdAt: at, sessionId },

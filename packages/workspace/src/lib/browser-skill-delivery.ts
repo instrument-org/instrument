@@ -9,9 +9,9 @@ import {
   agentBrowserGuide,
 } from "./agent-browser-guide";
 import { applyContextRollover } from "./apply-context-rollover";
+import { ChatReads } from "./chat-reads";
 import { SKILL_ORIGINS } from "./skill-provenance";
 import { truncateSkillContent } from "./skills";
-import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -42,17 +42,15 @@ export type BrowserSkill = z.output<typeof BrowserSkillSchema>;
  */
 export async function browserSkillToDeliver({
   sessionId,
-  signal,
   chatId,
 }: {
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }): Promise<BrowserSkill | undefined> {
   try {
     const [messages, session] = await Promise.all([
-      Store.getMessagesWithParts({ sessionId, chatId }, { signal }),
-      Store.getSession(sessionId, chatId, { signal }),
+      ChatReads.modelHistory({ chatId, sessionId }),
+      ChatReads.session({ chatId, sessionId }),
     ]);
     if (messages.isErr()) {
       return undefined;

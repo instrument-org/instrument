@@ -54,7 +54,7 @@ function RouteComponent() {
   );
 
   const handleCheckForUpdates = () => {
-    checkForUpdatesMutation.mutate({});
+    checkForUpdatesMutation.mutate();
   };
 
   const releases = releasesQuery.data?.releases ?? [];

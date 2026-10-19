@@ -1,6 +1,7 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { dismissedModelOffersAtom } from "@/client/atoms/dismissed-model-offers";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { openLogin } from "@/client/atoms/login-modal";
 import { type ComposerApp } from "@/client/components/app-mention";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
@@ -26,6 +27,7 @@ import { appMentionToken } from "@/client/lib/app-mention";
 import {
   type ModelAction,
   noticeFor,
+  reachModel,
   readModelStatus,
 } from "@/client/lib/model-status";
 import { ITEM_IN } from "@/client/lib/motion";
@@ -123,7 +125,21 @@ export interface PromptInputRef {
   /** Opens the folder chooser, the way the plus menu's "Work in a local folder" does. */
   pickFolder: () => void;
   restore: (draft: PromptInputDraft) => void;
+  /**
+   * Draws back what a draft holds besides its words, for a box whose words
+   * come from somewhere of their own: a chat's, which reads its reply from
+   * the draft. Only into a box holding none, so nothing the user has given
+   * it since is replaced.
+   */
+  restoreItems: (items: AttachedItem[]) => void;
   snapshot: () => PromptInputDraft;
+  /**
+   * Puts another draft in the box, words and attachments both, over whatever
+   * is in it: for a chat with several replies waiting, where picking one is
+   * itself the ask to replace what is there. {@link restore}, which keeps the
+   * user's own words, is the other half of that pair.
+   */
+  swapIn: (draft: PromptInputDraft) => void;
 }
 
 interface PromptInputProps {
@@ -146,10 +162,7 @@ interface PromptInputProps {
   autoFocus?: boolean;
   /** Where the box stops growing and the draft starts scrolling. Defaults by variant; null leaves the cap to the host's layout. */
   autoResizeMaxHeight?: null | number;
-  /** Drawn just ahead of a pill's Send: a control for the turn the conversation is running, such as its Stop. */
-  beforeSend?: React.ReactNode;
   className?: string;
-  disabled?: boolean;
   draftKey: PromptDraftKey;
   /** Whether `attachmentsLead` holds anything, which is enough to send with no words. */
   hasAttachmentsLead?: boolean;
@@ -175,8 +188,8 @@ interface PromptInputProps {
   places?: Omit<ComposerPlaces, "apps" | "onNameApp">;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
-  /** A pill is one row, the height of a text field, that grows with the draft; bare is the block with no box drawn around it, for a host that draws its own. */
-  variant?: "bare" | "block" | "pill";
+  /** A pill is one row, the height of a text field, that grows with the draft; bare is the editor above its button row with no box drawn around them, for a host that draws its own. */
+  variant: "bare" | "pill";
 }
 
 export const PromptInput = ({
@@ -186,9 +199,7 @@ export const PromptInput = ({
   attachmentsLead,
   autoFocus = false,
   autoResizeMaxHeight,
-  beforeSend,
   className,
-  disabled = false,
   draftKey,
   hasAttachmentsLead = false,
   id,
@@ -202,7 +213,7 @@ export const PromptInput = ({
   places,
   ref,
   selectedSessionId,
-  variant = "block",
+  variant,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
@@ -267,7 +278,10 @@ export const PromptInput = ({
     slug: app.slug,
   }));
 
-  const selectedModel = models?.find((model) => model.uri === modelURI);
+  // The chosen model as this computer reaches it. The send still names the
+  // URI as stored, and the main process routes it the same way.
+  const reached = reachModel(modelsData, modelURI);
+  const selectedModel = reached.model;
   const [dismissedOffers, setDismissedOffers] = useAtom(
     dismissedModelOffersAtom,
   );
@@ -275,7 +289,15 @@ export const PromptInput = ({
   // policy change, a withdrawn model or a newer release can change underneath
   // the user without anything here being touched.
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
+  const { data: disabledProviders } = useQuery(
+    rpcClient.providerConfig.live.disabled.experimental_liveOptions(),
+  );
+  const { data: signedOutAccounts } = useQuery(
+    rpcClient.notices.live.signedOut.experimental_liveOptions(),
+  );
   const modelStatus = readModelStatus({
+    connections: modelsData?.connections,
+    disabled: new Set(disabledProviders),
     dismissedOffers: new Set(dismissedOffers),
     errors: modelsErrors,
     isError: modelsIsError,
@@ -285,6 +307,8 @@ export const PromptInput = ({
     providerNames: new Map(
       [...providerMetadataMap].map(([type, metadata]) => [type, metadata.name]),
     ),
+    routes: modelsData?.routes,
+    signedOut: new Set(signedOutAccounts?.map((account) => account.id)),
   });
   const modelNotice = noticeFor(modelStatus);
   // Counts the sends the notice refused, for the row to flash at each one.
@@ -304,6 +328,10 @@ export const PromptInput = ({
       }
       case "retry": {
         void modelsRefetch();
+        break;
+      }
+      case "sign-in": {
+        openSettings({ setting: action.account });
         break;
       }
       case "switch": {
@@ -433,17 +461,13 @@ export const PromptInput = ({
 
     if (duplicates.length > 0) {
       const names = duplicates.join(", ");
-      toast.info(
-        duplicates.length === 1
-          ? `“${names}” is already added`
-          : `Some folders are already added`,
-        {
-          description:
-            duplicates.length === 1
-              ? "That folder is already attached."
-              : `${names} are already attached.`,
-        },
-      );
+      if (duplicates.length === 1) {
+        toast.info(`“${names}” is already added`);
+      } else {
+        toast.info("Some folders are already added", {
+          description: `${names} are already attached.`,
+        });
+      }
     }
 
     if (newFolders.length === 0) {
@@ -506,9 +530,7 @@ export const PromptInput = ({
     if (
       attachedItems.some((i) => i.type === "folder" && i.path === folderPath)
     ) {
-      toast.info(`“${folderLabel(folderPath)}” is already added`, {
-        description: "That folder is already attached.",
-      });
+      toast.info(`“${folderLabel(folderPath)}” is already added`);
       return;
     }
 
@@ -555,10 +577,20 @@ export const PromptInput = ({
       promptEditorRef.current?.setValue(draft.prompt);
       setAttachedItems(draft.items);
     },
+    restoreItems: (items) => {
+      if (attachedItems.length > 0) {
+        return;
+      }
+      setAttachedItems(items);
+    },
     snapshot: () => ({
       items: attachedItems,
       prompt: promptEditorRef.current?.getValue() ?? "",
     }),
+    swapIn: (draft) => {
+      promptEditorRef.current?.setValue(draft.prompt);
+      setAttachedItems(draft.items);
+    },
   }));
 
   const attachedFiles = attachedItems.filter((i) => i.type === "file");
@@ -641,7 +673,6 @@ export const PromptInput = ({
   };
 
   const canSubmit =
-    !disabled &&
     !isLoading &&
     (value.trim() || attachedItems.length > 0 || hasAttachmentsLead) &&
     modelURI &&
@@ -812,7 +843,7 @@ export const PromptInput = ({
                 <ComposerAddMenu
                   actions={actions}
                   bounds={composerBounds}
-                  disabled={disabled || isLoading}
+                  disabled={isLoading}
                   onReturnFocus={() => {
                     promptEditorRef.current?.focus();
                   }}
@@ -841,12 +872,12 @@ export const PromptInput = ({
               <ModelPicker
                 align="end"
                 className="min-w-0"
-                disabled={disabled || isLoading}
+                disabled={isLoading}
                 errors={modelsErrors}
                 isError={modelsIsError}
                 isLoading={modelsIsLoading}
                 models={models}
-                modelURI={modelURI}
+                modelURI={reached.uri}
                 notice={modelNotice}
                 onAction={handleModelAction}
                 onAddProvider={addProvider}
@@ -944,7 +975,7 @@ export const PromptInput = ({
         extras={pillOpen ? lead : undefined}
         layout={variant}
         // A pill shows it only while open, with the rest of its second row;
-        // a block or a draft always has room over its words.
+        // a draft always has room over its words.
         notice={variant === "pill" && !pillOpen ? undefined : noticeRow}
         leading={
           variant === "pill" ? (
@@ -955,7 +986,7 @@ export const PromptInput = ({
               <ComposerAddMenu
                 actions={actions}
                 bounds={composerBounds}
-                disabled={disabled || isLoading}
+                disabled={isLoading}
                 onReturnFocus={() => {
                   promptEditorRef.current?.focus();
                 }}
@@ -974,12 +1005,12 @@ export const PromptInput = ({
                 anchorOnly
                 bounds={composerBounds}
                 className="pointer-events-none absolute inset-0"
-                disabled={disabled || isLoading}
+                disabled={isLoading}
                 errors={modelsErrors}
                 isError={modelsIsError}
                 isLoading={modelsIsLoading}
                 models={models}
-                modelURI={modelURI}
+                modelURI={reached.uri}
                 notice={modelNotice}
                 onAction={handleModelAction}
                 onAddProvider={addProvider}
@@ -1034,7 +1065,6 @@ export const PromptInput = ({
                   selectedSessionId={selectedSessionId}
                 />
               )}
-              {beforeSend}
               <Button
                 aria-label="Send"
                 className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
@@ -1061,7 +1091,7 @@ export const PromptInput = ({
           autoFocus={autoFocus}
           bounds={composerBounds}
           defaultValue={value}
-          disabled={disabled || isLoading}
+          disabled={isLoading}
           key={draftKeyString(draftKey)}
           onChange={setValue}
           onPaste={handlePaste}

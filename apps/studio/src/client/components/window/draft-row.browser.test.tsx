@@ -1,4 +1,4 @@
-import { type Draft } from "@/client/atoms/window";
+import { type Draft } from "@/client/atoms/drafts";
 import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -29,7 +29,7 @@ const WORDS =
 
 const HOUSE: Topic = {
   color: "#0f9d6e",
-  createdAt: 1,
+  created: new Date(1),
   emoji: "🏠",
   id: "house",
   name: "House",
@@ -212,7 +212,7 @@ describe("the list of drafts", () => {
             onNewTopic={vi.fn()}
             onOpen={vi.fn()}
             onOpenDraft={onOpenDraft}
-            onSetTopics={vi.fn()}
+            onSetTopic={vi.fn()}
             openId={undefined}
             scrollSignal={0}
             topics={[]}

@@ -631,7 +631,9 @@ const theirs = {
     ".local/share/pnpm",
     ".local/bin",
     ".pnpm-home",
-    ...(mac ? ["Library/Caches/uv", "Library/Caches/pnpm", "Library/pnpm"] : []),
+    ...(mac
+      ? ["Library/Caches/uv", "Library/Caches/pnpm", "Library/pnpm"]
+      : []),
   ),
 };
 let theirListing = "";
@@ -662,17 +664,22 @@ function plantTheirSetup(cwd: string) {
     writeFileSync(file, text, mode === undefined ? {} : { mode });
   };
   rmSync(RAN, { force: true });
-  write(path.join(home, ".npmrc"), `registry=${BOGUS}/\nignore-scripts=false\n`);
+  // `~/.npmrc` is left out: a chat's pnpm reads it on purpose.
   write(path.join(home, ".config/pnpm/rc"), `registry=${BOGUS}/\n`);
   write(
     path.join(home, ".config/uv/uv.toml"),
     `index-url = "${BOGUS}/simple"\n`,
   );
-  write(path.join(path.dirname(cwd), "uv.toml"), `index-url = "${BOGUS}/simple"\n`);
+  write(
+    path.join(path.dirname(cwd), "uv.toml"),
+    `index-url = "${BOGUS}/simple"\n`,
+  );
   for (const pipConf of [
     path.join(home, ".config/pip/pip.conf"),
     path.join(home, ".pip/pip.conf"),
-    ...(mac ? [path.join(home, "Library/Application Support/pip/pip.conf")] : []),
+    ...(mac
+      ? [path.join(home, "Library/Application Support/pip/pip.conf")]
+      : []),
   ]) {
     write(pipConf, `[global]\nindex-url = ${BOGUS}/simple\n`);
   }
@@ -703,7 +710,10 @@ function theirSetupUntouched(run: ExecResult): string | undefined {
   if (now !== theirListing) {
     const before = new Set(theirListing.split("\n"));
     const added = now.split("\n").filter((line) => line && !before.has(line));
-    return `wrote into their folders: ${added.slice(0, 3).map((line) => line.replace(home, "~")).join(", ")}`;
+    return `wrote into their folders: ${added
+      .slice(0, 3)
+      .map((line) => line.replace(home, "~"))
+      .join(", ")}`;
   }
   return undefined;
 }
@@ -766,8 +776,9 @@ async function median(
  */
 const which = (name: string) =>
   path.dirname(
-    spawnSync("sh", ["-c", `command -v ${name}`], { encoding: "utf8" })
-      .stdout.trim() || `/usr/bin/${name}`,
+    spawnSync("sh", ["-c", `command -v ${name}`], {
+      encoding: "utf8",
+    }).stdout.trim() || `/usr/bin/${name}`,
   );
 const theirEnv: NodeJS.ProcessEnv = {
   ...process.env,
@@ -788,8 +799,8 @@ const env: NodeJS.ProcessEnv = {
     path.dirname(process.execPath),
     theirEnv.PATH,
   ].join(":"),
-  ...nodeToolsEnvFor(path.join(appData, "node-tools")),
-  ...uvToolsEnvFor(path.join(appData, "uv")),
+  ...nodeToolsEnvFor(appData, home),
+  ...uvToolsEnvFor(appData),
   pnpm_config_update_notifier: "false",
 };
 

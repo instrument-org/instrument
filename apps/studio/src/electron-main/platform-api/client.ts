@@ -33,7 +33,7 @@ const RPC_LINK = new RPCLink({
       response.status === 401 &&
       forgetRefusedToken(request.headers.get("authorization"))
     ) {
-      void setDefaultModel({ onlyIfOurModel: true });
+      void setDefaultModel({ replacing: "ours" });
     }
     return response;
   },

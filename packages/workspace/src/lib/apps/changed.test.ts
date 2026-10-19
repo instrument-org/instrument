@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { publisher } from "../../rpc/publisher";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { APP_FILE_NAME } from "./app-file";
 import { appChanged } from "./changed";
 
 let appsDir: string;
@@ -16,16 +17,20 @@ beforeEach(async () => {
     ...getWorkspaceConfig(),
     appsDir: AbsolutePathSchema.parse(appsDir),
   });
-  await fs.mkdir(path.join(appsDir, "drafts"));
+  await fs.mkdir(path.join(appsDir, "Drafts"));
   await fs.writeFile(
-    path.join(appsDir, "drafts", "app.json"),
-    JSON.stringify({
-      auth: { kind: "none" },
-      name: "Drafts",
-      package: "@agiletortoise/drafts-mcp-server",
-      runtime: "node",
-      type: "mcp-local",
-    }),
+    path.join(appsDir, "Drafts", APP_FILE_NAME),
+    [
+      "---",
+      "id: drafts",
+      "type: mcp-local",
+      "package: '@agiletortoise/drafts-mcp-server'",
+      "runtime: node",
+      "auth:",
+      "  kind: none",
+      "---",
+      "",
+    ].join("\n"),
   );
 });
 
@@ -69,14 +74,17 @@ describe("appChanged", () => {
   });
 
   it("tells the chat the site a web app is worked on", async () => {
-    await fs.mkdir(path.join(appsDir, "drive"));
+    await fs.mkdir(path.join(appsDir, "Google Drive"));
     await fs.writeFile(
-      path.join(appsDir, "drive", "app.json"),
-      JSON.stringify({
-        name: "Google Drive",
-        type: "web",
-        url: "https://drive.google.com",
-      }),
+      path.join(appsDir, "Google Drive", APP_FILE_NAME),
+      [
+        "---",
+        "id: drive",
+        "type: web",
+        "url: https://drive.google.com",
+        "---",
+        "",
+      ].join("\n"),
     );
     expect(
       await heard(() => appChanged("drive", { event: "connected" })),

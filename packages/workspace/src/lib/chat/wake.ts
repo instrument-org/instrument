@@ -5,8 +5,9 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
+import { ChatWrites } from "../chat-writes";
 import { recordChanged } from "../record-changes";
-import { type PermissionAsk } from "../../schemas/chat-state";
+import { type Ask } from "../../schemas/chat-state";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -20,11 +21,11 @@ import {
 } from "../local-page-address";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
-import { openAsksOf } from "../permissions/asks";
+import { openAsksOf } from "./asks";
 import { resolveChat, sessionOfChat } from "../record-folders";
 import { shellPath } from "../workspace-fs-layout";
 import { sessionLayout } from "../session-layout";
-import { Store } from "../store";
+import { ChatReads } from "../chat-reads";
 import { chatModelURI, recordChatActivity } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
 import { getCurrentDate } from "../get-current-date";
@@ -61,6 +62,10 @@ export type WakePart =
   | {
       data: SessionMessageDataPart.PermissionAnswerDataPart;
       type: "data-permissionAnswer";
+    }
+  | {
+      data: SessionMessageDataPart.QuestionAnswerDataPart;
+      type: "data-questionAnswer";
     }
   | { data: SessionMessageDataPart.JobEventDataPart; type: "data-jobEvent" }
   | { data: SessionMessageDataPart.TaskEventDataPart; type: "data-taskEvent" };
@@ -103,7 +108,7 @@ const overdueReportedAt = new Map<StoreId.Session, number>();
 
 /**
  * Who stopped a task's working turn, and whether the chat hears of it.
- * The chat's own `task stop` is a step it took, and the user's Stop on the
+ * The chat's own `instrument task stop` is a step it took, and the user's Stop on the
  * whole chat stops the chat too, so the chat hears of neither. The user
  * stopping one task while the chat carries on is written into the chat as a
  * note, so its agent knows the task did not finish and leaves it stopped,
@@ -234,14 +239,17 @@ export async function wakeChatForApp(
 }
 
 /**
- * Wakes every session that ran into a folder or an app with the person's
- * answer to its card, or joins each one's turn at its next step when it is
- * still going: a task's own session for each task that asked, the chat's
- * when the chat did. The wakes run side by side, so one that fails does not
- * hold back the others.
+ * Wakes every session that asked on a card with the person's answer to it,
+ * or joins each one's turn at its next step when it is still going: a task's
+ * own session for each task that ran into a folder or an app, the chat's when
+ * the chat did or asked a question. The wakes run side by side, so one that
+ * fails does not hold back the others.
  */
-export async function wakeSessionForPermission(
-  part: Extract<WakePart, { type: "data-permissionAnswer" }>,
+export async function wakeAskers(
+  part: Extract<
+    WakePart,
+    { type: "data-permissionAnswer" | "data-questionAnswer" }
+  >,
   workspaceRef: WorkspaceActorRef,
   chatId: ChatId,
   askingSessionIds: StoreId.Session[],
@@ -365,8 +373,9 @@ async function settleCutOffCalls(task: ChatTask, closedAt: Date) {
     if (!isOpenCall(part)) {
       continue;
     }
-    const written = await Store.updatePart(
+    const written = await ChatWrites.updatePart(
       {
+        chatId: task.chatId,
         messageId: part.metadata.messageId,
         partId: part.metadata.id,
         sessionId: part.metadata.sessionId,
@@ -383,7 +392,6 @@ async function settleCutOffCalls(task: ChatTask, closedAt: Date) {
               state: "output-error",
             } as SessionMessagePart.Type)
           : current,
-      task.chatId,
     );
     if (written.isErr()) {
       getWorkspaceConfig().captureException(written.error);
@@ -504,7 +512,7 @@ async function onSessionDone(
   const said = await lastAssistantText(ref);
   // A turn with no words ended on a stop, the step limit, or a model error,
   // and the note has to say which: the chat continues one of those
-  // with `task send`, and leaves one the user stopped alone.
+  // with `instrument task send`, and leaves one the user stopped alone.
   const ending = said === undefined ? await endedWithoutWords(ref) : undefined;
   // What the task cannot go on without, read the same way and listed apart
   // from its words, so a turn that ended blocked reads as waiting rather than
@@ -515,13 +523,13 @@ async function onSessionDone(
     ...(said === undefined ? [] : needsNamedIn(said)),
     ...(stop ? [] : (await openAsksOf(chatId, sessionId)).map(cardNeed)),
   ];
-  await touchTask(chatId, sessionId, { stoppedBy: stop?.by });
+  await touchTask(chatId, sessionId, stop ? { stoppedBy: stop.by } : {});
   // The pages it leaves open, read while it still drives them, then given
   // back: a tab has one driver, and a finished task drives nothing.
   const tabs = await openTabsOf(ref);
   await returnTabsToChat(chatId, sessionId);
   // Its agent-browser daemons, which would otherwise idle out on their own
-  // clock; a later `task send` starts them again.
+  // clock; a later `instrument task send` starts them again.
   void closeAgentBrowserSessionsForSessions([sessionId]).catch(
     getWorkspaceConfig().captureException,
   );
@@ -529,8 +537,9 @@ async function onSessionDone(
     return;
   }
   // A chat nobody has written in has no conversation to report to: the eval
-  // harness runs a task case in one (`evals/lib/start-run.ts`).
-  if (!(await chatModelURI(chatId))) {
+  // harness runs a task case in one (`evals/lib/start-run.ts`), with the
+  // model its task runs on and nothing said.
+  if (!(await hasConversation(chatId))) {
     return;
   }
 
@@ -579,11 +588,27 @@ async function onSessionDone(
 }
 
 /**
+ * Whether anything has been said in a chat's own session. A store that
+ * cannot be read counts as said, so a hiccup does not swallow a task's news.
+ */
+async function hasConversation(chatId: ChatId): Promise<boolean> {
+  const sessionId = sessionOfChat(chatId);
+  if (sessionId === undefined) {
+    return false;
+  }
+  const ids = await ChatReads.messageIds({ chatId, sessionId });
+  return ids.isErr() || ids.value.length > 0;
+}
+
+/**
  * A card a task's turn ended on, as the note lists what the task cannot go
  * on without: the kind and what it names, in the chat's spelling of a folder,
  * and that the person's answer wakes the task, so the chat need not.
  */
-function cardNeed(card: PermissionAsk): string {
+function cardNeed(card: Ask): string {
+  if (card.kind === "question") {
+    return `question: ${card.question}, on the card in this chat waiting for the person's answer, which wakes it`;
+  }
   const what = card.kind === "folder" ? shellPath(card.target) : card.target;
   return `${card.kind}: ${what}, on the card in this chat waiting for the person's answer, which wakes it`;
 }
@@ -592,7 +617,7 @@ function cardNeed(card: PermissionAsk): string {
  * Says a task that was waiting on a card was stopped, as the end of a turn
  * stopped the same way does: its row keeps who stopped it, and when the
  * person did, its chat gets the note, which starts no turn. The chat's own
- * `task stop` says so in its output instead. Such a task has no turn for the
+ * `instrument task stop` says so in its output instead. Such a task has no turn for the
  * stop to end, so no session's end says it.
  */
 export async function noteTaskStoppedOnCard(
@@ -788,7 +813,7 @@ async function saveNote(
 
   // Written now, so the note shows in the conversation the moment it fires,
   // whatever the chat is in the middle of.
-  const written = await Store.saveMessageWithParts(message, chatId);
+  const written = await ChatWrites.saveMessageWithParts(message, chatId);
   if (written.isErr()) {
     throw new Error(written.error.message);
   }
@@ -807,6 +832,7 @@ async function wakeModel(modelURI: AIGatewayModelURI.Type) {
       captureException: workspaceConfig.captureException,
       configs: workspaceConfig.getAIProviderConfigs(),
       modelCache: workspaceConfig.modelCache,
+      modelRoutes: workspaceConfig.modelRoutes,
       modelURI,
     });
   let result = await lookUp();

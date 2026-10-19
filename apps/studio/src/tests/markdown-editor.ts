@@ -5,6 +5,7 @@ import "@/client/components/markdown-editor/markdown-editor.css";
 import {
   createEditorSession,
   type EditorSession,
+  type EditorSessionOptions,
 } from "@/client/components/markdown-editor/editor-session";
 import { vi } from "vitest";
 
@@ -20,7 +21,12 @@ const open: EditorSession[] = [];
  * declares it); nothing here saves, so the mock is never reached. Pair it with
  * `afterEach(closeMarkdownEditors)`.
  */
-export async function openMarkdownEditor(markdown: string) {
+export async function openMarkdownEditor(
+  markdown: string,
+  {
+    onOpenLink = vi.fn(),
+  }: Partial<Pick<EditorSessionOptions, "onOpenLink">> = {},
+) {
   const frame = document.createElement("div");
   frame.className = "md-editor";
   frame.style.width = "640px";
@@ -34,6 +40,7 @@ export async function openMarkdownEditor(markdown: string) {
     onAsk: vi.fn(),
     onExternalChange: vi.fn(),
     onFrontMatter: vi.fn(),
+    onOpenLink,
     onStatus: vi.fn(),
     renderFence: () => null,
     resolveSrc: (src) => src,

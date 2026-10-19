@@ -1,15 +1,24 @@
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
+import { BashCommandPreview } from "@/client/components/message-part/bash-command-section";
 import { StopProcessButton } from "@/client/components/task/stop-process-button";
+import { Button } from "@/client/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
+import { useNow as useElapsedNow } from "@/client/hooks/use-now";
+import { useStopBackgroundProcess } from "@/client/hooks/use-stop-background-process";
+import {
+  type RunningBackgroundProcess,
+  useTaskBackgroundProcesses,
+} from "@/client/hooks/use-task-background-processes";
+import { formatElapsed } from "@/client/lib/format-elapsed";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation } from "@tanstack/react-query";
@@ -21,80 +30,15 @@ import { taskStoppedLine } from "./task-stopped-line";
 import { taskTimeLabel } from "./task-time";
 import { useNow } from "./use-now";
 
+/** A job's elapsed time shows seconds, so its clock ticks every second while the list is open. */
+const ELAPSED_TICK_MS = 1000;
+
 type RunningTask = Chat["runningTasks"][number];
 type ChatTask = NonNullable<ReturnType<typeof useChatTasks>["data"]>[number];
 
 /**
- * What a chat has in flight, at its head's right: while any task filed from
- * it is at work, the breathing dot and the step the newest is on in the live
- * shimmer; on a head with no room for the step, the dot alone. While none
- * runs, a quiet checklist mark. Pressed, it lists the chat's tasks, the running
- * ones first with each one's step and the finished ones under them with when
- * they ended, and a task pressed opens beside the chat. Nothing at all for a
- * chat that has filed no task.
- */
-export function ChatActivity({
-  chatId,
-  isCompact = false,
-  onOpen,
-  tasks,
-}: {
-  chatId: ChatId;
-  /** Whether it stands as the spinner and the count whatever the room, for a head as narrow as the floating chat's. */
-  isCompact?: boolean;
-  /** Opens a task's page, as a tab of the chat's. */
-  onOpen: (sessionId: StoreId.Session) => void;
-  tasks: RunningTask[];
-}) {
-  const listed = useChatTasks(chatId).data;
-  // The one whose step the head shows: a task held for the user first,
-  // since that is the one the user can do something about.
-  const lead = tasks.find((task) => task.waiting) ?? tasks[0];
-  const filed = listed?.length ?? 0;
-  if (!lead && filed === 0) {
-    return null;
-  }
-  return (
-    <ChatTasksPopover
-      chatId={chatId}
-      onOpen={onOpen}
-      tasks={tasks}
-      trigger={
-        lead ? (
-          <button
-            aria-label={`${tasks.length} ${tasks.length === 1 ? "task" : "tasks"} working`}
-            className="flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-xs hover:bg-accent data-[state=open]:bg-accent"
-            type="button"
-          >
-            <PlanningDotIcon />
-            {/* The step needs the head's room: under it, the dot alone. */}
-            <span
-              className={cn(
-                "hidden min-w-0 items-center",
-                !isCompact && "@lg/head:flex",
-              )}
-            >
-              <WorkLine task={lead} />
-            </span>
-          </button>
-        ) : (
-          <button
-            aria-label={`${filed} ${filed === 1 ? "task" : "tasks"}`}
-            className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
-            type="button"
-          >
-            <ListChecksIcon className="size-4 shrink-0" />
-          </button>
-        )
-      }
-    />
-  );
-}
-
-/**
- * The chat's tasks, running ones first, hanging from whatever opens them: the
- * activity at the head's right, or the line under the chat's title. A task
- * pressed opens beside the chat.
+ * The chat's tasks, running ones first, hanging from the line under the
+ * chat's title. A task pressed opens beside the chat.
  */
 export function ChatTasksPopover({
   align = "end",
@@ -113,12 +57,14 @@ export function ChatTasksPopover({
 }) {
   const [isOpen, setOpen] = useState(false);
   const listed = useChatTasks(chatId).data;
+  const jobs = useTaskBackgroundProcesses(chatId);
   return (
     <Popover onOpenChange={setOpen} open={isOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent align={align} className="w-80 p-1">
         <TaskRows
           chatId={chatId}
+          jobs={jobs}
           listed={listed}
           onOpen={(id) => {
             setOpen(false);
@@ -132,17 +78,21 @@ export function ChatTasksPopover({
 }
 
 /**
- * The chat's tasks under the head's activity: running, then finished, newest
- * first in each. A task at work or waiting on a card has a stop at its row's
- * end, once the list says whether it has anything to stop.
+ * The chat's tasks under the line under its title: running, then the jobs
+ * the chat and its tasks left running, then finished, newest first in each.
+ * A task at work or waiting on a card has a stop at its row's end, once the
+ * list says whether it has anything to stop.
  */
 function TaskRows({
   chatId,
+  jobs,
   listed,
   onOpen,
   running,
 }: {
   chatId: ChatId;
+  /** What the chat and its tasks started and left running. */
+  jobs: RunningBackgroundProcess[];
   /** The chat's tasks, once read. */
   listed: ChatTask[] | undefined;
   onOpen: (sessionId: StoreId.Session) => void;
@@ -204,9 +154,17 @@ function TaskRows({
           <WorkLine task={task} />
         </Row>
       ))}
-      {finished.length > 0 && (
+      {jobs.length > 0 && (
         <>
           {atWork.length > 0 && <div className="my-1 h-px bg-border" />}
+          <JobRows chatId={chatId} jobs={jobs} listed={listed} />
+        </>
+      )}
+      {finished.length > 0 && (
+        <>
+          {(atWork.length > 0 || jobs.length > 0) && (
+            <div className="my-1 h-px bg-border" />
+          )}
           <Heading>Finished</Heading>
           {finished.map((task) => {
             const stopped = taskStoppedLine(task.stoppedBy);
@@ -245,6 +203,87 @@ function TaskRows({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * The jobs the chat and its tasks left running, newest first: each by the
+ * agent's label for it over its command, the task that started it, how long
+ * it has run, and a stop. Nothing here moves: a job running is not the agent
+ * at work. Split from the list so its clock ticks only while it is shown.
+ */
+function JobRows({
+  chatId,
+  jobs,
+  listed,
+}: {
+  chatId: ChatId;
+  jobs: RunningBackgroundProcess[];
+  listed: ChatTask[] | undefined;
+}) {
+  const now = useElapsedNow(ELAPSED_TICK_MS);
+  const { busy, stop, stopAll } = useStopBackgroundProcess(chatId);
+  const taskTitles = new Map(listed?.map((task) => [task.id, task.title]));
+  return (
+    <>
+      <div className="flex items-center gap-2 pr-1 pl-2.5">
+        <span className="flex-1 pt-1.5 pb-1 text-[11px] font-medium text-muted-foreground">
+          Jobs
+        </span>
+        <Button disabled={busy} onClick={stopAll} size="xs" variant="ghost">
+          {jobs.length > 1 ? "Stop all" : "Stop"}
+        </Button>
+      </div>
+      {jobs.toReversed().map((job) => {
+        const task = taskTitles.get(job.sessionId);
+        return (
+          <div
+            className="flex items-start gap-2 rounded-md py-1.5 pr-1 pl-2.5"
+            key={job.id}
+          >
+            <span className="min-w-0 flex-1">
+              {job.explanation ? (
+                <>
+                  <span className="block truncate text-[13px]">
+                    {job.explanation}
+                  </span>
+                  <BashCommandPreview
+                    className="text-[11px] text-muted-foreground"
+                    command={job.command}
+                    singleLine
+                  />
+                </>
+              ) : (
+                <BashCommandPreview
+                  className="text-[13px]"
+                  command={job.command}
+                  singleLine
+                />
+              )}
+              {task && (
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  {task}
+                </span>
+              )}
+            </span>
+            <span className="shrink-0 py-0.5 text-[11px] text-muted-foreground tabular-nums">
+              {formatElapsed(job.startedAt, now)}
+            </span>
+            <StopProcessButton
+              className="size-6"
+              disabled={busy}
+              label="Stop this job"
+              onClick={() => {
+                stop(job.id);
+              }}
+            />
+          </div>
+        );
+      })}
+      <p className="px-2.5 pt-0.5 pb-1.5 text-[11px] text-muted-foreground">
+        They stop when you quit {APP_NAME}, or after two hours.
+      </p>
+    </>
   );
 }
 

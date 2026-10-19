@@ -9,8 +9,8 @@ import {
   credentialMovedMessage,
   lookupAppCredential,
 } from "./credential-origin";
+import { APP_FILE_NAME } from "./app-file";
 import {
-  APP_GUIDE_FILE_NAME,
   APP_MANIFEST_EXAMPLE,
   isMcpManifest,
   type WebAppManifest,
@@ -55,7 +55,7 @@ export function formatAppTestReport(report: AppTestReport): string {
   );
   const summary = report.passed
     ? `App "${report.slug}" passed every check and is connected.`
-    : `App "${report.slug}" failed. Fix what failed and run \`app test ${report.slug}\` again.`;
+    : `App "${report.slug}" failed. Fix what failed and run \`instrument app test ${report.slug}\` again.`;
   return [summary, "", ...lines].join("\n");
 }
 
@@ -109,7 +109,7 @@ export async function runAppTest({
   }
   const app = loaded.value;
   checks.push({
-    detail: `app.json parses: a ${app.manifest.type} app named "${app.manifest.name}".`,
+    detail: `${APP_FILE_NAME} parses: a ${app.manifest.type} app named "${app.name}".`,
     name: "manifest",
     status: "pass",
   });
@@ -136,18 +136,18 @@ export async function runAppTest({
         ? {
             name: "guide",
             ...failure(
-              `${APP_GUIDE_FILE_NAME} is missing or empty. An API app needs one before connecting: what the service is for, the endpoints a request needs, and its conventions. ${write}`,
+              `The guide is missing: there is nothing under the front matter in ${APP_FILE_NAME}. An API app needs one before connecting: what the service is for, the endpoints a request needs, and its conventions. ${write}`,
             ),
           }
         : unanswered.length > 0
           ? {
               name: "guide",
               ...failure(
-                `${shellPath(getWorkspaceConfig().appsDir)}/${slug}/${APP_GUIDE_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left: ${unanswered.length} unanswered. Answer them from what you know about the service before connecting, since this file is what the first request in a task is handed instead of its answer. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+                `The guide in ${shellPath(app.dir)}/${APP_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left: ${unanswered.length} unanswered. Answer them from what you know about the service before connecting, since the guide is what the first request in a task is handed instead of its answer. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
               ),
             }
           : {
-              detail: `${APP_GUIDE_FILE_NAME} is present.`,
+              detail: "The guide is written.",
               name: "guide",
               status: "pass",
             }
@@ -155,7 +155,7 @@ export async function runAppTest({
           detail:
             guide === null
               ? "No guide; an MCP app's tools describe themselves."
-              : `${APP_GUIDE_FILE_NAME} is present.`,
+              : "The guide is written.",
           name: "guide",
           status: "pass",
         },
@@ -406,13 +406,13 @@ async function testWebApp({
   app: AppInfo & { manifest: WebAppManifest };
   checks: AppTestCheck[];
 }): Promise<AppTestReport> {
-  const { manifest, manifestHash, slug } = app;
+  const { manifest, manifestHash, name, slug } = app;
   const guide = await readAppGuide(app.dir);
   checks.push({
     detail:
       guide === null
         ? "No guide; a web app is worked on its own pages."
-        : `${APP_GUIDE_FILE_NAME} is present.`,
+        : "The guide is written.",
     name: "guide",
     status: "pass",
   });
@@ -421,7 +421,7 @@ async function testWebApp({
   checks.push(
     recorded
       ? {
-          detail: `The user said they are signed in to ${manifest.name} in ${APP_NAME}'s browser.`,
+          detail: `The user said they are signed in to ${name} in ${APP_NAME}'s browser.`,
           name: "credential",
           status: "pass",
         }
@@ -430,7 +430,7 @@ async function testWebApp({
           ...failure(
             connection?.status === "connected"
               ? `The manifest changed since the user said they were signed in, so the sign-in may be for another site. Ask them again with connect_app.`
-              : `The user has not said they are signed in to ${manifest.name}. Ask them with connect_app: the card opens ${manifest.signIn ?? manifest.url} in ${APP_NAME}'s browser, and the app connects when they say they are signed in.`,
+              : `The user has not said they are signed in to ${name}. Ask them with connect_app: the card opens ${manifest.signIn ?? manifest.url} in ${APP_NAME}'s browser, and the app connects when they say they are signed in.`,
           ),
         },
   );

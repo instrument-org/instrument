@@ -31,12 +31,12 @@ type Chat = NonNullable<
 type Messages = InferRouterOutputs<typeof workspaceRouter>["message"]["list"];
 
 export function shouldShowAgentCompletionNotification({
-  appWindowAvailable,
+  canRevealChat,
   isAppWindowFocused,
   isSupported,
   mode,
 }: {
-  appWindowAvailable: boolean;
+  canRevealChat: boolean;
   isAppWindowFocused: boolean;
   isSupported: boolean;
   mode: AgentCompletionNotificationMode;
@@ -44,7 +44,7 @@ export function shouldShowAgentCompletionNotification({
   if (mode === "never") {
     return false;
   }
-  if (!isSupported || !appWindowAvailable) {
+  if (!isSupported || !canRevealChat) {
     return false;
   }
   return mode === "always" || !isAppWindowFocused;
@@ -80,13 +80,13 @@ export function showAgentCompletionTestNotification() {
 }
 
 export function startAgentCompletionNotifications({
-  hasAppWindow,
+  canRevealChat,
   revealChat,
   workspaceConfig,
   workspaceRef,
 }: {
-  /** Whether there is a window for a click to bring forward. */
-  hasAppWindow: () => boolean;
+  /** Whether a click can bring the chat up: a window to bring forward, or one it opens. */
+  canRevealChat: () => boolean;
   /**
    * What a click on a notification does. Supplied by the caller: which window
    * a chat is shown in is the app's business, and reaching the modules that
@@ -103,7 +103,7 @@ export function startAgentCompletionNotifications({
     id: ChatId;
     sessionId: StoreId.Session;
   }) {
-    if (!canShowAgentCompletionNotification({ hasAppWindow })) {
+    if (!canShowAgentCompletionNotification({ canRevealChat })) {
       return;
     }
 
@@ -134,7 +134,7 @@ export function startAgentCompletionNotifications({
 
     // Reading the chat is asynchronous, so the window may have regained
     // focus while it was in flight.
-    if (!canShowAgentCompletionNotification({ hasAppWindow })) {
+    if (!canShowAgentCompletionNotification({ canRevealChat })) {
       return;
     }
 
@@ -219,12 +219,12 @@ function bodyOf(messages: Messages): string | undefined {
 }
 
 function canShowAgentCompletionNotification({
-  hasAppWindow,
+  canRevealChat,
 }: {
-  hasAppWindow: () => boolean;
+  canRevealChat: () => boolean;
 }) {
   return shouldShowAgentCompletionNotification({
-    appWindowAvailable: hasAppWindow(),
+    canRevealChat: canRevealChat(),
     isAppWindowFocused: BrowserWindow.getFocusedWindow() !== null,
     isSupported: Notification.isSupported(),
     mode: getWorkspacePreferences().get("agentCompletionNotifications"),

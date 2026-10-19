@@ -4,7 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { rememberLoadedSkill } from "../../lib/loaded-skill";
+import { disposeSessionsStoreStorage } from "../../lib/session-store-storage";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
+import { shellPath } from "../../lib/workspace-fs-layout";
 import { ChatDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
@@ -25,6 +28,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Windows deletes no file a process holds open, so the chat's database is
+  // closed first.
+  await disposeSessionsStoreStorage(chatId);
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
@@ -48,6 +54,18 @@ describe("workspace.debug.runBash", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("out\n");
     expect(result.stderr).toBe("err\n");
+  });
+
+  it("names the skill the session loaded last, as the agent's shell does", async () => {
+    const skillDir = path.join(tmpDir, "skills", "pdf");
+    rememberLoadedSkill(sessionId, skillDir);
+    const result = await call(
+      debug.runBash,
+      { command: 'printf %s "$INSTRUMENT_SKILL_DIR"', sessionId, chatId },
+      { context: createContext() },
+    );
+
+    expect(result.stdout).toBe(shellPath(skillDir));
   });
 
   // The real callers never abort the oRPC signal, so the route's own timeout

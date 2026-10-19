@@ -1,12 +1,13 @@
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
-  browserStatusModelNote,
   isToolPart,
   type SessionMessage,
   type SessionMessageDataPart,
   type SessionMessagePart,
   type StoreId,
   type ChatInfo,
+  shellPath,
+  stateNotes,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useEffect, useMemo, useState } from "react";
@@ -25,6 +26,7 @@ import { FollowedBubblesContext } from "./bubble-run-context";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
 import { ChatSeparatorRow } from "./chat-separator";
+import { isDataPart } from "./chat-stream-data-parts";
 import {
   renderChatPart,
   type RenderPartContext,
@@ -449,9 +451,9 @@ export function ChatStream({
       return null;
     }
     const node = renderChatPart({
-      browserStatusContextAdded: false,
       ctx: renderCtx,
       isStandIn: true,
+      stateNote: undefined,
       message: found.message,
       part: found.part,
       partIndex: found.partIndex,
@@ -491,7 +493,12 @@ export function ChatStream({
   function buildChatElements() {
     const elements: React.ReactNode[] = [];
     let lastFooterIndex = 0;
-    let previousBrowserStatusNote: string | undefined;
+    // What the model heard of each `state` part, read in the same order
+    // request assembly reads them.
+    const stateNote = stateNotes({
+      shellPath: (hostPath) =>
+        shellPath(hostPath, window.electron.process.platform),
+    });
     let visibleAssistantContentCount = 0;
 
     // The turn being built. A turn is one message per step, so its rows arrive
@@ -592,12 +599,10 @@ export function ChatStream({
             lastSaidInTurn = said;
           }
         }
-        let browserStatusContextAdded = false;
-        if (part.type === "data-browserStatus") {
-          const note = browserStatusModelNote(part.data);
-          browserStatusContextAdded = note !== previousBrowserStatusNote;
-          previousBrowserStatusNote = note;
-        }
+        const partStateNote =
+          message.role === "user" && isDataPart(part)
+            ? stateNote(part)
+            : undefined;
 
         if (part.type === "source-document" || part.type === "source-url") {
           if (seenSourceIds.has(part.sourceId)) {
@@ -648,11 +653,11 @@ export function ChatStream({
         }
 
         const node = renderChatPart({
-          browserStatusContextAdded,
           ctx: renderCtx,
           message,
           part,
           partIndex,
+          stateNote: partStateNote,
         });
         if (!node) {
           // A step the group holds without drawing still takes its place in
@@ -970,11 +975,10 @@ export function ChatStream({
       <WarningIcon />
       <AlertDescription className="flex flex-col gap-3">
         <div className="text-xs">
-          Instrument paused after working on its own for a while. Continue to
-          let it keep going.
+          Instrument paused after working on its own for a while.
         </div>
         <Button onClick={onContinue} size="sm" variant="secondary">
-          Resume the agent
+          Keep going
         </Button>
       </AlertDescription>
     </Alert>

@@ -10,14 +10,14 @@ type MemoryRow = SessionMessageDataPart.MemoryDataPart["memories"][number];
  * Tells the agent what it remembers about the user: the whole of memory the
  * first time, and after that what was saved, corrected, or forgotten since
  * it was last told. Each memory is its name and first line; the name is what
- * `memory show` and `memory save` take and what a link to the memory
+ * `instrument memory show` and `instrument memory save` take and what a link to the memory
  * carries, so the note names each one rather than leaving the agent to list
  * them again to find it.
  *
  * Rows are grouped under the chat they came from and the day, so a chat
  * that saved thirty memories in a sitting names itself once rather than on
- * every row. Rendered only when it differs from the last note, so a chat
- * is told once and again only on a change.
+ * every row. The part is written only on a change, so a chat is told once
+ * and again only when memory changed.
  */
 export function memoryModelNote(data: SessionMessageDataPart.MemoryDataPart) {
   if (data.tells === "whole" && data.memories.length === 0) {

@@ -33,11 +33,9 @@ import {
   listApps,
   listMcpTools,
   loadApp,
-  readAppGuide,
+  nameAppAccount,
   removeLocalServer,
-  setAppAccount,
   setUpFromDirectory,
-  setWebAppAccount,
   requireAppCredential,
   runAppTest,
   searchAppCatalogByMeaning,
@@ -47,7 +45,7 @@ import {
   findAppIcon,
   type AppManifest,
 } from "@instrument-org/workspace/electron";
-import { call, eventIterator } from "@orpc/server";
+import { call, eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import {
@@ -61,7 +59,6 @@ import {
   settleConnection,
   standingOf,
 } from "../../lib/app-connection";
-import { accountSignedInOn } from "../../lib/web-sign-in-account";
 import {
   expectSignIn,
   settleSignIn,
@@ -81,7 +78,6 @@ const AppListItemBaseSchema = z.object({
   /** API base URL, MCP server URL, or the package a local server runs from. */
   endpoint: z.string(),
   hasCredential: z.boolean(),
-  hasGuide: z.boolean(),
   /** The signed-in web app, for the page's primary action. */
   home: z.string().optional(),
   /** The app's own icon from its folder, else its Mac app's for a local server that drives one, else the directory's; drawn in place of the site's. */
@@ -181,11 +177,7 @@ function keyHelpFor(
   }
   const keyHelp = catalogKeyHelp(
     slug,
-    manifest.type === "api"
-      ? manifest.baseUrl
-      : manifest.type === "mcp"
-        ? manifest.url
-        : manifest.package,
+    manifest.type === "mcp-local" ? manifest.package : manifest.url,
   );
   return keyHelp ? { keyHelp } : {};
 }
@@ -212,10 +204,9 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           credentialOrigin: credentialOrigin(app.manifest),
           dir: app.dir,
           hasCredential: hasAppCredential(app.slug),
-          hasGuide: (await readAppGuide(app.dir)) !== null,
           home: appHomeFor(app.slug, app.manifest),
           ...(await iconFor(app)),
-          name: app.manifest.name,
+          name: app.name,
           ...withService(catalogEntryForApp(app.slug, app.manifest)?.slug),
           site: appSiteFor(app.slug, app.manifest),
           slug: app.slug,
@@ -227,7 +218,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
             return {
               ...listed,
               authKind: manifest.auth.kind,
-              endpoint: manifest.baseUrl,
+              endpoint: manifest.url,
               ...keyHelpFor(app.slug, manifest),
               type: manifest.type,
             };
@@ -296,7 +287,7 @@ const catalogByMeaning = base
     const meant = await searchAppCatalogByMeaning(input.query, {
       configs: context.workspaceConfig.getAIProviderConfigs(),
       signal,
-      usage: { purpose: "app-search", surface: "apps" },
+      activity: { purpose: "app-search", surface: "apps" },
     });
     return Promise.all(meant.map(withIcon));
   });
@@ -527,6 +518,15 @@ async function withInspectorClient<T>({
       });
       throw errors.UNAUTHORIZED({ message: result.error.message });
     }
+    // A server that knows who is asking and refuses anyway (HTTP 403) is
+    // missing a permission on its side: the sign-in or key stands, so the app
+    // stays as it is and the page shows what the server said.
+    if (result.error.reason === "forbidden") {
+      throw new ORPCError("FORBIDDEN", {
+        cause: result.error.cause,
+        message: result.error.message,
+      });
+    }
     // Carried as the cause so a server that is not there (a desktop app's
     // local server while the app is closed, a service that is down) is
     // known as a network failure: the page offers a retry, and nothing is
@@ -748,39 +748,8 @@ const markWebSignedIn = base
         message: `${input.slug} is not a web app.`,
       });
     }
-    // The account it signed in as, when a page open on its site names one
-    // no other app of the service holds; naming it can move the app to that
-    // account's own address, so the connection pins the manifest after.
-    if (manifest.account === undefined) {
-      const service = catalogEntryForApp(input.slug, manifest)?.slug;
-      const others = (
-        await listApps(context.workspaceConfig.appsDir)
-      ).apps.filter(
-        (app) =>
-          app.slug !== input.slug &&
-          service !== undefined &&
-          catalogEntryForApp(app.slug, app.manifest)?.slug === service,
-      );
-      const claimed = new Set(
-        others.flatMap((app) =>
-          app.manifest.account ? [app.manifest.account.toLowerCase()] : [],
-        ),
-      );
-      const account = accountSignedInOn(manifest.url, claimed);
-      if (account !== undefined) {
-        await setWebAppAccount(
-          context.workspaceConfig.appsDir,
-          input.slug,
-          account,
-        );
-      }
-    }
-    const signedIn = await loadApp(context.workspaceConfig.appsDir, input.slug);
-    if (signedIn.isErr()) {
-      throw errors.NOT_FOUND({ message: signedIn.error.message });
-    }
     await settleConnection(input.slug, {
-      manifestHash: signedIn.value.manifestHash,
+      manifestHash: loaded.value.manifestHash,
       status: "connected",
     });
   });
@@ -813,7 +782,7 @@ const setAccount = base
     }),
   )
   .handler(async ({ context, input }) => {
-    await setAppAccount(
+    await nameAppAccount(
       context.workspaceConfig.appsDir,
       input.slug,
       input.account === "" ? undefined : input.account,

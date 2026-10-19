@@ -21,7 +21,7 @@ async function launch() {
   return import("./download-list");
 }
 
-function makeItem(filename = "report.pdf") {
+function makeItem(filename = "report.pdf", savePath = "") {
   let received = 0;
   const emitter = new EventEmitter();
   const cancel = vi.fn(() => {
@@ -31,6 +31,7 @@ function makeItem(filename = "report.pdf") {
     cancel,
     getFilename: () => filename,
     getReceivedBytes: () => received,
+    getSavePath: () => savePath,
     getTotalBytes: () => 2048,
     getURL: () => `https://example.com/${filename}`,
   });

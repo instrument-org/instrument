@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import {
   isToolPart,
   pathsNamedInMessage,
@@ -10,8 +9,6 @@ import {
 import { AssistantMessage } from "./assistant-message";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
 import { ChatDevOnly } from "./dev-mode-card";
-import { getToolExplanation } from "../lib/get-tool-explanation";
-import { PermissionAsksForPart } from "./permission-asks";
 import { ToolCall, ToolCallBody } from "./message-part/tool-call";
 import {
   isToolCallVisible,
@@ -62,14 +59,13 @@ function isCardReady(part: SessionMessagePart.ToolPart): boolean {
 // Returns null for parts that don't render inline. Data-part visibility comes
 // from `dataPartVisibility`, so this stays consistent with the utils.
 export function renderChatPart({
-  browserStatusContextAdded,
   ctx,
   isStandIn = false,
   message,
   part,
   partIndex,
+  stateNote,
 }: {
-  browserStatusContextAdded: boolean;
   ctx: RenderPartContext;
   /**
    * This is the copy a working group draws in its own slot rather than the row
@@ -81,6 +77,8 @@ export function renderChatPart({
   message: SessionMessage.WithParts;
   part: SessionMessagePart.Type;
   partIndex: number;
+  /** What the model heard of this part, when it is a `state` part; see `stateNotes`. */
+  stateNote: string | undefined;
 }): React.ReactNode {
   if (part.type === "text") {
     if (part.state === "done" && part.text.trim() === "") {
@@ -130,7 +128,6 @@ export function renderChatPart({
 
   if (isDataPart(part)) {
     return renderDataPart({
-      browserStatusContextAdded,
       ctx,
       part,
       // Only the retired file-changes grid needs this, and almost no message
@@ -139,6 +136,7 @@ export function renderChatPart({
         part.type === "data-fileChanges"
           ? pathsNamedInMessage(message)
           : undefined,
+      stateNote,
     });
   }
 
@@ -155,16 +153,8 @@ export function renderChatPart({
         (part.type === "tool-connect_app" &&
           part.state === "output-available" &&
           part.output.state === "failure"));
-    const asked = (
-      <PermissionAsksForPart
-        chatId={ctx.chatInfo.id}
-        explanation={getToolExplanation(part)}
-        key={`asks-${part.metadata.id}`}
-        partId={part.metadata.id}
-      />
-    );
     if (isDevOnly && !ctx.isDeveloperMode) {
-      return asked;
+      return null;
     }
     // The chat draws a card that asks the user as the card alone, with no
     // row above it to open or shut it, and only once it has something to
@@ -172,17 +162,13 @@ export function renderChatPart({
     // broken.
     if (ctx.presentation === "chat" && !isDevOnly) {
       return isCardReady(part) ? (
-        <Fragment key={part.metadata.id}>
-          <ToolCallBody
-            onRetry={ctx.onRetry}
-            part={part}
-            chatInfo={ctx.chatInfo}
-          />
-          {asked}
-        </Fragment>
-      ) : (
-        asked
-      );
+        <ToolCallBody
+          chatInfo={ctx.chatInfo}
+          key={part.metadata.id}
+          onRetry={ctx.onRetry}
+          part={part}
+        />
+      ) : null;
     }
     const streaming = ctx.isToolStreaming(part, message);
     // A part can carry a start with no end long after the run that wrote it
@@ -212,11 +198,10 @@ export function renderChatPart({
         chatInfo={ctx.chatInfo}
       />
     );
-    return (
-      <Fragment key={part.metadata.id}>
-        {isDevOnly ? <ChatDevOnly>{row}</ChatDevOnly> : row}
-        {asked}
-      </Fragment>
+    return isDevOnly ? (
+      <ChatDevOnly key={part.metadata.id}>{row}</ChatDevOnly>
+    ) : (
+      row
     );
   }
 

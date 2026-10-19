@@ -1,11 +1,9 @@
 import {
   type AIGatewayApp,
   type AIGatewayModel,
-  type GetProviderConfigs,
-  type ModelCache,
 } from "@instrument-org/ai-gateway";
-import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import ms from "ms";
+import { omit } from "radashi";
 import {
   type ActorRefFrom,
   assign,
@@ -17,13 +15,18 @@ import {
 } from "xstate";
 
 import { instrumentAgent } from "../../agents/instrument";
-import { APPS_DIR_NAME, CHATS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import { TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
-import { registerAIUsageTelemetry } from "../../lib/ai-usage/record";
-import { sessionOfChat } from "../../lib/record-folders";
+import { registerActivityTelemetry } from "../../lib/activity/record";
+import { chatDir } from "../../lib/record-folders";
+import {
+  ChatRecords,
+  installChatRecords,
+} from "../../lib/records/chat-records";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
+import { workspaceLayout } from "../../lib/workspace-layout";
 import { workspaceServerLogic } from "../../logic/server";
 import { type WorkspaceServerParentEvent } from "../../logic/server/types";
 import {
@@ -35,14 +38,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type StopNotice } from "../../schemas/stop-notice";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
-import { type WebSearchClient } from "../../schemas/web-search";
-import {
-  type BrowserConfig,
-  type BrowserTargetId,
-  type WorkspaceAppsConfig,
-  type WorkspaceConfig,
-} from "../../types";
-import { type ToolCallUpdate } from "../agent";
+import { type BrowserTargetId, type WorkspaceConfig } from "../../types";
 import { type StopReason } from "../execute-tool-call";
 import {
   type SessionActorRef,
@@ -121,16 +117,9 @@ export type WorkspaceEvent =
       /** Every session of the record, or the one named, with whose stop it is and why. */
       value: {
         id: ChatId;
-        notice?: StopNotice;
+        notice: StopNotice;
         reason?: StopReason;
         sessionId?: StoreId.Session;
-      };
-    }
-  | {
-      type: "updateInteractiveToolCall";
-      value: {
-        id: ChatId;
-        update: ToolCallUpdate;
       };
     };
 
@@ -150,15 +139,47 @@ function findLiveSessionRef(
     );
 }
 
+/** The config's paths, which a caller passes as plain strings. */
+type WorkspaceInputPath =
+  | "macHelperBinPath"
+  | "mxcExecPath"
+  | "outputDir"
+  | "pnpmBinPath"
+  | "registryDir"
+  | "runtimeDir"
+  | "seatbeltHelperPath"
+  | "systemSkillsDir"
+  | "userDataDir"
+  | "uutilsDir"
+  | "uvBinPath"
+  | "workFoldersDir"
+  | "workspaceDbFile"
+  | "workspaceMachineDir";
+
 /**
- * The running session of a chat's own conversation, the one its settings
- * name, or none while it has no turn to run.
+ * The workspace config as a caller gives it: its paths as strings, and
+ * without the folders the workspace's layout derives from its root.
  */
-export function chatSessionRef(context: WorkspaceContext, id: ChatId) {
-  const sessionId = sessionOfChat(id);
-  return sessionId === undefined
-    ? undefined
-    : findLiveSessionRef(context, { id, sessionId });
+type WorkspaceInput = Omit<
+  WorkspaceConfig,
+  "appsDir" | "chatsDir" | "legacyTasksDir" | "rootDir" | WorkspaceInputPath
+> & {
+  [K in keyof Pick<
+    WorkspaceConfig,
+    WorkspaceInputPath
+  >]: WorkspaceConfig[K] extends AbsolutePath ? string : string | undefined;
+} & {
+  aiGatewayApp: AIGatewayApp;
+  /**
+   * Whether 1.x may have left tasks at the workspace's top level, which it
+   * did only in the app's own data: then `legacyTasksDir` is its `tasks/`.
+   */
+  legacyTasks?: boolean;
+  rootDir: string;
+};
+
+function optionalPath(path: string | undefined) {
+  return path === undefined ? undefined : AbsolutePathSchema.parse(path);
 }
 
 export const workspaceMachine = setup({
@@ -261,101 +282,51 @@ export const workspaceMachine = setup({
   types: {
     context: {} as WorkspaceContext,
     events: {} as WorkspaceEvent,
-    input: {} as {
-      aiGatewayApp: AIGatewayApp;
-      aiUsageFile?: string;
-      apps: WorkspaceAppsConfig;
-      appVersion: string;
-      browser: BrowserConfig;
-      captureException: CaptureExceptionFunction;
-      chatTemplateDir: string;
-      driveNames?: WorkspaceConfig["driveNames"];
-      ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
-      finderEntries?: WorkspaceConfig["finderEntries"];
-      resolveAlias?: WorkspaceConfig["resolveAlias"];
-      getAIProviderConfigs: GetProviderConfigs;
-      getUser?: WorkspaceConfig["getUser"];
-      indexesDir?: string;
-      modelCache: ModelCache;
-      nativeSandbox?: WorkspaceConfig["nativeSandbox"];
-      nodeExecEnv: Record<string, string>;
-      pnpmBinPath: string;
-      preparedSkillsDir: string;
-      refreshExpiredCredentials?: WorkspaceConfig["refreshExpiredCredentials"];
-      registryDir: string;
-      reportPlatformRefusal?: WorkspaceConfig["reportPlatformRefusal"];
-      rootDir: string;
-      systemSkillsDir: string;
-      trashItem: (path: AbsolutePath) => Promise<void>;
-      toolBinDir?: string;
-      uvBinPath: string;
-      uvDataDir: string;
-      macHelperBinPath?: string;
-      knownFolders?: WorkspaceConfig["knownFolders"];
-      webSearch: WebSearchClient;
-    },
+    input: {} as WorkspaceInput,
     output: {},
   },
 }).createMachine({
   context: ({ input, self, spawn }) => {
     const rootDir = WorkspaceDirSchema.parse(input.rootDir);
+    const layout = workspaceLayout(rootDir);
     const workspaceConfig: WorkspaceConfig = {
-      ...(input.aiUsageFile && {
-        aiUsageFile: AbsolutePathSchema.parse(input.aiUsageFile),
+      ...omit(input, ["aiGatewayApp", "legacyTasks"]),
+      appsDir: AbsolutePathSchema.parse(layout.appsDir),
+      chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
+      ...(input.legacyTasks && {
+        legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       }),
-      apps: input.apps,
-      appsDir: absolutePathJoin(rootDir, APPS_DIR_NAME),
-      appVersion: input.appVersion,
-      browser: input.browser,
-      captureException: input.captureException,
-      chatTemplateDir: AbsolutePathSchema.parse(input.chatTemplateDir),
-      getAIProviderConfigs: input.getAIProviderConfigs,
-      ...(input.ensureOutputFolderIcon
-        ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
-        : {}),
-      ...(input.driveNames ? { driveNames: input.driveNames } : {}),
-      ...(input.finderEntries ? { finderEntries: input.finderEntries } : {}),
-      ...(input.resolveAlias ? { resolveAlias: input.resolveAlias } : {}),
-      ...(input.getUser ? { getUser: input.getUser } : {}),
-      ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
-      ...(input.indexesDir && {
-        indexesDir: AbsolutePathSchema.parse(input.indexesDir),
-      }),
-      modelCache: input.modelCache,
-      ...(input.nativeSandbox && {
-        nativeSandbox: input.nativeSandbox,
-      }),
-      nodeExecEnv: input.nodeExecEnv,
+      macHelperBinPath: optionalPath(input.macHelperBinPath),
+      mxcExecPath: optionalPath(input.mxcExecPath),
+      outputDir: optionalPath(input.outputDir),
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
-      preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),
-      ...(input.refreshExpiredCredentials
-        ? { refreshExpiredCredentials: input.refreshExpiredCredentials }
-        : {}),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
-      ...(input.reportPlatformRefusal && {
-        reportPlatformRefusal: input.reportPlatformRefusal,
-      }),
       rootDir,
+      runtimeDir: AbsolutePathSchema.parse(input.runtimeDir),
+      seatbeltHelperPath: optionalPath(input.seatbeltHelperPath),
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
-      ...(input.toolBinDir && {
-        toolBinDir: AbsolutePathSchema.parse(input.toolBinDir),
-      }),
-      chatsDir: absolutePathJoin(rootDir, CHATS_DIR_NAME),
-      legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
-      trashItem: input.trashItem,
+      userDataDir: AbsolutePathSchema.parse(input.userDataDir),
+      uutilsDir: optionalPath(input.uutilsDir),
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
-      ...(input.macHelperBinPath === undefined
-        ? {}
-        : {
-            macHelperBinPath: AbsolutePathSchema.parse(input.macHelperBinPath),
-          }),
-      uvDataDir: AbsolutePathSchema.parse(input.uvDataDir),
-      webSearch: input.webSearch,
+      workFoldersDir: AbsolutePathSchema.parse(input.workFoldersDir),
+      workspaceDbFile: optionalPath(input.workspaceDbFile),
+      workspaceMachineDir: AbsolutePathSchema.parse(input.workspaceMachineDir),
     };
     // Publish the single per-process config so code can read it via
     // getWorkspaceConfig() instead of threading it through every ChatId.
     setWorkspaceConfig(workspaceConfig);
-    registerAIUsageTelemetry();
+    // The one writer of this device's logs and marks files while the
+    // workspace is open, and what every read and write of a chat goes
+    // through (`lib/chat-reads.ts`, `lib/chat-writes.ts`).
+    installChatRecords(
+      new ChatRecords({
+        app: workspaceConfig.appVersion,
+        device: workspaceConfig.deviceId,
+        dirOf: chatDir,
+        onError: workspaceConfig.captureException,
+      }),
+    );
+    registerActivityTelemetry();
     return {
       config: workspaceConfig,
       sessionRefsByChatId: new Map(),
@@ -564,7 +535,7 @@ export const workspaceMachine = setup({
             sessionActorRef.getSnapshot().context.sessionId === sessionId
           ) {
             sessionActorRef.send({
-              ...(notice ? { notice } : {}),
+              notice,
               ...(reason ? { reason } : {}),
               type: "stop",
             });
@@ -572,26 +543,6 @@ export const workspaceMachine = setup({
         }
       },
     },
-
-    // Only the chat's own conversation asks the user anything, so the
-    // answer goes to its session and no task's.
-    updateInteractiveToolCall: [
-      {
-        actions: ({ context, event }) => {
-          chatSessionRef(context, event.value.id)?.send({
-            type: "updateInteractiveToolCall",
-            value: event.value.update,
-          });
-        },
-        guard: ({ context, event }) =>
-          chatSessionRef(context, event.value.id) !== undefined,
-      },
-      {
-        actions: log(({ event }) => {
-          return `No running session of ${event.value.id} to answer`;
-        }),
-      },
-    ],
 
     "workspaceServer.error": {
       actions: log(({ event }) => {

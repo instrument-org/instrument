@@ -62,7 +62,7 @@ export async function appName(
   slug: string,
 ): Promise<string> {
   const loaded = await loadApp(appsDir, slug);
-  return loaded.isOk() ? loaded.value.manifest.name : slug;
+  return loaded.isOk() ? loaded.value.name : slug;
 }
 
 /**

@@ -7,16 +7,16 @@ import { FileSystemIconSpriteSheet } from "./components/extend/file-system";
 import { AppWindow } from "./components/window/app-window";
 import { initBrowserNavigationNotices } from "./lib/browser-navigation-notices";
 import { initBrowserPool } from "./lib/browser-pool";
+import { initExceptionCapture } from "./lib/capture-exception";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
-import { initRendererLogForwarding } from "./lib/forward-renderer-logs";
 import { initStudioDrive } from "./lib/studio-drive";
 
 declare global {
   var __studioRoot: Root | undefined;
 }
 
+initExceptionCapture();
 initDebugRpcBridge();
-initRendererLogForwarding();
 
 function start() {
   const rootElement = document.querySelector("#root");

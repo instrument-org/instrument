@@ -14,7 +14,7 @@ How Instrument looks, notifications, updates, and the diagnostic log.
 - **Zoom** (`zoom`): Make everything in the app larger or smaller.
 - **Notify when tasks finish** (`notifications`): Show a desktop notification when a task finishes. On it: Send a test notification (`test-notification`).
 - **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: Release notes (`release-notes`), Check for updates (`check-for-updates`).
-- **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Report a bug (`report-bug`).
+- **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Report a bug (`report-bug`), Third-party licenses (`third-party-licenses`).
 - **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
 
 ### Account (`account`)
@@ -47,6 +47,8 @@ Which folders and places on this computer Instrument may use.
 
 - **Permissions** (`permissions`): Which folders and places on this computer the agent may use.
 - **Use folders without asking** (`use-folders-without-asking`): Use any folder that isn't marked Not allowed, without asking.
+- **Folders every chat can use** (`always-open`): Your Instrument folder, each chat's files, past chats and caches, which every chat can use because Instrument needs them.
+- **Reset permissions** (`reset-permissions`): Put every folder and app back the way they were when you installed Instrument.
 
 ### Skills (`skills`)
 
@@ -56,12 +58,10 @@ The skills Instrument's tasks can use, and making a new one.
 
 ### Storage (`storage`)
 
-Where your chats and tasks live, and fixing ones whose folders have problems.
+Where your Instrument folder is, and chats in it that can’t be opened.
 
-The sidebar lists this page only when some chats or tasks have problems in their folders, though a link opens it either way.
-
-- **Workspace location** (`workspace-location`): Where your chats and tasks live on this computer.
-- **Broken chats and tasks** (`broken-folders`): Chats and tasks with problems in their folders.
+- **Instrument folder** (`instrument-folder`): Where your chats, topics, and memories are kept, and moving them.
+- **Chats that can’t be opened** (`broken-folders`): Chats in your Instrument folder that can’t be opened.
 
 ### Activity (`activity`)
 

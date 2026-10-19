@@ -8,8 +8,6 @@ import {
   findInTrash,
   identityOf,
   JOURNAL_LIMIT,
-  JournalEntrySchema,
-  type JournalEntry,
   type NewJournalEntry,
   undoEntry,
   UndoRefusedError,
@@ -168,9 +166,18 @@ describe("undoing a move to the Trash", () => {
   });
 
   it.each([
-    ["darwin", "Put “notes.txt” back from the Trash in the Finder."],
-    ["win32", "Put “notes.txt” back from the Recycle Bin."],
-    ["linux", "Put “notes.txt” back from the Trash."],
+    [
+      "darwin",
+      "Instrument couldn't find “notes.txt” in the Trash. You can put it back from there in Finder.",
+    ],
+    [
+      "win32",
+      "Instrument couldn't find “notes.txt” in the Recycle Bin. You can put it back from there in File Explorer.",
+    ],
+    [
+      "linux",
+      "Instrument couldn't find “notes.txt” in the Trash. You can put it back from there in your file manager.",
+    ],
   ] as const)(
     "on %s says where to look when the Trash could not be read",
     async (platform, reason) => {
@@ -306,6 +313,23 @@ describe("undoing a move to the Trash", () => {
       [at("home/.Trash/notes 12.00.00.txt")],
     ]);
   });
+
+  it("looks in iCloud Drive's own Trash", async () => {
+    const icloudTrash = "home/Library/Mobile Documents/.Trash";
+    await fs.mkdir(at(icloudTrash), { recursive: true });
+    await fs.writeFile(at("notes.txt"), "trashed");
+    const before = await identity("notes.txt");
+    await fs.rename(at("notes.txt"), at(`${icloudTrash}/notes.txt`));
+
+    expect(
+      await findInTrash(before, {
+        from: at("notes.txt"),
+        home: at("home"),
+        platform: "darwin",
+        uid: 501,
+      }),
+    ).toBe(at(`${icloudTrash}/notes.txt`));
+  });
 });
 
 describe("an identity", () => {
@@ -314,18 +338,6 @@ describe("an identity", () => {
     const { ino } = await fs.lstat(at("notes.txt"), { bigint: true });
 
     expect((await identity("notes.txt")).ino).toBe(String(ino));
-  });
-
-  it("reads an inode the journal kept as a number", () => {
-    expect(
-      JournalEntrySchema.parse({
-        at: 0,
-        id: "entry",
-        identity: { dev: 1, ino: 42 },
-        kind: "new-folder",
-        made: "/untitled folder",
-      }).identity,
-    ).toEqual({ dev: 1, ino: "42" });
   });
 });
 
@@ -557,17 +569,11 @@ describe("undoing a move to the Recycle Bin", () => {
 
 describe("the journal", () => {
   it("keeps the newest entries, newest last", () => {
-    let entries: JournalEntry[] = [];
     let id = 0;
-    const journal = createFileJournal(
-      {
-        read: () => entries,
-        write: (next) => {
-          entries = next;
-        },
-      },
-      { makeId: () => String((id += 1)), now: () => id },
-    );
+    const journal = createFileJournal({
+      makeId: () => String((id += 1)),
+      now: () => id,
+    });
 
     for (let n = 0; n < JOURNAL_LIMIT + 5; n += 1) {
       journal.record({
@@ -576,13 +582,13 @@ describe("the journal", () => {
         made: `/folder ${n}`,
       });
     }
-    expect(entries).toHaveLength(JOURNAL_LIMIT);
+    expect(journal.entries()).toHaveLength(JOURNAL_LIMIT);
     expect(journal.latest()).toMatchObject({
       made: `/folder ${JOURNAL_LIMIT + 4}`,
     });
 
     // An older entry is found by its id, as a toast's Undo asks for one.
-    const older = entries[0];
+    const older = journal.entries()[0];
     expect(journal.byId(older?.id ?? "")).toBe(older);
 
     journal.remove(journal.latest()?.id ?? "");

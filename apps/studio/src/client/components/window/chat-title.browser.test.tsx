@@ -74,7 +74,6 @@ function chat(): Chat {
     state: "idle",
     title: TITLE,
     titled: true,
-    topics: [],
     unread: false,
     unreadByUser: false,
     updatedAt: at.getTime(),

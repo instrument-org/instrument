@@ -90,34 +90,24 @@ export function TopicContextMenu({
 }
 
 /**
- * Every topic, a check on each that is on, and a new one at the foot: the
- * list behind the inbox head's topic picker, a row's tag control, a draft's
- * topic and a chat's head alike, so filing and filtering are learned once.
- * Where it files, it opens on a find field whose words the foot offers to
- * make into a topic. A topic's own menu, by
- * right click or the dots at its edge, opens the topic's details, which is
- * where its name, its mark, and its deletion live.
+ * Every topic, a check on the one that is on, and a new one at the foot: the
+ * list behind a row's tag control, a draft's topic and a chat's head alike,
+ * so filing is learned once. It opens on a find field whose words the foot
+ * offers to make into a topic.
  */
 export function TopicPickList({
   chosen,
-  files = false,
-  onDetails,
   onNew,
   onToggle,
   topics,
 }: {
   chosen: ReadonlySet<string>;
-  /** Whether the list files something under a topic, rather than filtering by one. */
-  files?: boolean;
-  /** Absent where a topic is only being applied, not kept. */
-  onDetails?: (topic: Topic) => void;
   /** Makes a topic, named for what was typed in the find field when anything was. */
   onNew: (name: string) => void;
   onToggle: (id: string) => void;
   topics: Topic[];
 }) {
   const live = topics.filter((topic) => !topic.retired);
-  const byId = new Map(live.map((topic) => [topic.id, topic]));
   return (
     <PickList
       chosen={chosen}
@@ -126,8 +116,7 @@ export function TopicPickList({
         id: topic.id,
         label: topic.name,
       }))}
-      findPlaceholder={files ? "Find or make a topic" : "Find a topic"}
-      findsAlways={files}
+      findPlaceholder="Find or make a topic"
       foot={(find) => (
         <PickListAction
           onSelect={() => {
@@ -141,30 +130,6 @@ export function TopicPickList({
         </PickListAction>
       )}
       onToggle={onToggle}
-      {...(onDetails
-        ? {
-            rowTrailing: (entry) => {
-              const topic = byId.get(entry.id);
-              return topic ? (
-                <TopicActionsButton
-                  className="group-hover/pick:opacity-100"
-                  onDetails={onDetails}
-                  topic={topic}
-                />
-              ) : null;
-            },
-            wrapRow: (entry, row) => {
-              const topic = byId.get(entry.id);
-              return topic ? (
-                <TopicContextMenu onDetails={onDetails} topic={topic}>
-                  {row}
-                </TopicContextMenu>
-              ) : (
-                row
-              );
-            },
-          }
-        : {})}
     />
   );
 }

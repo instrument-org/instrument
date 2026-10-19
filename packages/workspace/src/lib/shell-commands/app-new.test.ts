@@ -11,11 +11,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { serveRegisteredClient } from "../../test/helpers/serve-registered-client";
 import { resetServedAppCatalog } from "../apps/catalog";
-import { AppManifestSchema } from "../apps/manifest";
 import { createMemoryAppsConfig } from "../apps/memory-config";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
-import { loadApp } from "../apps/store";
+import { APP_FILE_NAME } from "../apps/app-file";
+import { loadApp, readAppGuide } from "../apps/store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
 import { createAppCommand } from "./app";
 import { knowChat } from "../../test/helpers/mock-chat-config";
 
@@ -54,17 +55,20 @@ async function appWithStdin(stdin: string | undefined, ...args: string[]) {
   );
 }
 
-async function guideOf(slug: string) {
-  return fs.readFile(
-    path.join(getWorkspaceConfig().appsDir, slug, "guide.md"),
-    "utf8",
-  );
+/** The app `instrument app new` just wrote, as everything that reads one reads it. */
+async function appOf(slug: string) {
+  const loaded = await loadApp(getWorkspaceConfig().appsDir, slug);
+  return loaded._unsafeUnwrap();
 }
 
-/** The manifest `app new` just wrote, parsed the way the app loader parses it. */
+/** The guide in the app's file: the body under the front matter. */
+async function guideOf(slug: string) {
+  return (await readAppGuide((await appOf(slug)).dir)) ?? "";
+}
+
+/** The manifest in the app's file, as the app loader reads it. */
 async function manifestOf(slug: string) {
-  const file = path.join(getWorkspaceConfig().appsDir, slug, "app.json");
-  return AppManifestSchema.parse(JSON.parse(await fs.readFile(file, "utf8")));
+  return (await appOf(slug)).manifest;
 }
 
 async function newApiApp(slug: string, ...extra: string[]) {
@@ -155,7 +159,7 @@ describe("app new --mac-app", () => {
 });
 
 describe("app test and the guide skeleton", () => {
-  // `app new` writes the guide as a form, and the check that gated connecting
+  // `instrument app new` writes the guide as a form, and the check that gated connecting
   // only asked whether the file was non-empty, so the form passed. The cost
   // landed one turn later: the first request in a task is answered with the
   // guide, and an unanswered one teaches the agent nothing about the service.
@@ -198,7 +202,7 @@ describe("app test and the guide skeleton", () => {
       "real-guide",
     );
     expect(written.stdout).toContain(
-      `Wrote ${path.join(getWorkspaceConfig().appsDir, "real-guide", "guide.md")}.`,
+      `Wrote the guide in ${shellPath((await appOf("real-guide")).dir)}/${APP_FILE_NAME}.`,
     );
     expect(await guideOf("real-guide")).toContain("GET /things");
 
@@ -267,9 +271,7 @@ describe("app test and the guide skeleton", () => {
     );
 
     expect(await guideOf("unknown-mcp")).toMatchInlineSnapshot(`
-      "# Unknown
-
-      Reached through its MCP server at https://mcp.unknown.invalid/mcp: \`app tools <slug>\` lists what it can do, \`app call <slug> <tool> '<json>'\` runs one.
+      "Reached through its MCP server at https://mcp.unknown.invalid/mcp: \`instrument app tools <slug>\` lists what it can do, \`instrument app call <slug> <tool> '<json>'\` runs one.
       "
     `);
 
@@ -356,7 +358,7 @@ describe("app new with a key already stored", () => {
     const result = await newApiApp("stored-key", "--auth", "basic", "--force");
 
     expect(result.stdout).toContain(
-      "A key for this app is already stored for https://api.wakatime.com: run `app test stored-key`",
+      "A key for this app is already stored for https://api.wakatime.com: run `instrument app test stored-key`",
     );
     expect(result.stdout).not.toContain(
       "Ask the user for the key with connect_app",
@@ -426,7 +428,7 @@ describe("app icon", () => {
       "--local",
       "@agiletortoise/drafts-mcp-server",
     );
-    const appDir = path.join(getWorkspaceConfig().appsDir, "drafts-icon");
+    const appDir = (await appOf("drafts-icon")).dir;
     await fs.writeFile(path.join(appDir, "icon.png"), "old");
 
     const result = await setIcon(
@@ -471,7 +473,6 @@ describe("app new --web", () => {
       "Ask the user to sign in with connect_app: the card opens https://zoom.us/signin in Instrument's browser",
     );
     expect(await manifestOf("zoom-web")).toEqual({
-      name: "Zoom",
       service: "zoom",
       signIn: "https://zoom.us/signin",
       type: "web",
@@ -516,7 +517,7 @@ describe("app new --web", () => {
     const result = await app("call", "zoom-call", "list_meetings");
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatchInlineSnapshot(`
-      "app: "zoom-call" is a web app: the user is signed in to it in Instrument's browser, and no \`app\` call reaches it. Work it in a tab: open https://zoom.us, where the sign-in holds, or use a tab already open there.
+      "instrument app: "zoom-call" is a web app: the user is signed in to it in Instrument's browser, and no \`instrument app\` call reaches it. Work it in a tab: open https://zoom.us, where the sign-in holds, or use a tab already open there.
       "
     `);
   });
@@ -562,7 +563,6 @@ describe("app new refuses what cannot connect", () => {
 
     expect(result.exitCode).toBe(0);
     expect(await manifestOf("gmail-personal")).toEqual({
-      name: "Gmail",
       service: "gmail",
       signIn:
         "https://accounts.google.com/AddSession?service=mail&continue=https://mail.google.com/mail/",
@@ -574,10 +574,7 @@ describe("app new refuses what cannot connect", () => {
     );
     // The next case sets Gmail up as the first of its kind.
     for (const slug of ["gmail", "gmail-personal"]) {
-      await fs.rm(path.join(getWorkspaceConfig().appsDir, slug), {
-        force: true,
-        recursive: true,
-      });
+      await fs.rm((await appOf(slug)).dir, { force: true, recursive: true });
     }
   });
 
@@ -700,9 +697,9 @@ describe("app account", () => {
       "new",
       "inbox-two",
       "--name",
-      "Gmail",
+      "Inbox at work",
       "--web",
-      "https://mail.google.com",
+      "https://inbox.example",
     );
     const before = await loadApp(getWorkspaceConfig().appsDir, "inbox-two");
 
@@ -710,7 +707,7 @@ describe("app account", () => {
     const after = await loadApp(getWorkspaceConfig().appsDir, "inbox-two");
 
     expect(named.stdout).toBe(
-      "inbox-two is Gmail (jeremy@example.com) wherever it appears now.\n",
+      "inbox-two is Inbox at work (jeremy@example.com) wherever it appears now.\n",
     );
     expect(after._unsafeUnwrap().manifest.account).toBe("jeremy@example.com");
     // Outside the hash, so the connection record still matches.
@@ -718,7 +715,7 @@ describe("app account", () => {
       before._unsafeUnwrap().manifestHash,
     );
     expect((await app("list")).stdout).toContain(
-      "inbox-two  Gmail (jeremy@example.com)  web",
+      "inbox-two  Inbox at work (jeremy@example.com)  web",
     );
 
     await app("account", "inbox-two", "--clear");
@@ -726,5 +723,32 @@ describe("app account", () => {
       (await loadApp(getWorkspaceConfig().appsDir, "inbox-two"))._unsafeUnwrap()
         .manifest.account,
     ).toBeUndefined();
+  });
+
+  it("moves a connected Gmail app to the account's address and keeps it connected", async () => {
+    await app(
+      "new",
+      "gmail-work",
+      "--name",
+      "Gmail",
+      "--web",
+      "https://mail.google.com/mail/u/1/",
+    );
+    await getWorkspaceConfig().apps.connections.set("gmail-work", {
+      manifestHash: (await appOf("gmail-work")).manifestHash,
+      status: "connected",
+      updatedAt: 1,
+    });
+
+    const named = await app("account", "gmail-work", "jeremy@example.com");
+    const after = await appOf("gmail-work");
+
+    expect(named.stdout).toMatchInlineSnapshot(`
+      "gmail-work is Gmail 2 (jeremy@example.com) wherever it appears now. It opens at https://mail.google.com/mail/?authuser=jeremy%40example.com, that account's own address.
+      "
+    `);
+    expect(
+      await getWorkspaceConfig().apps.connections.get("gmail-work"),
+    ).toMatchObject({ manifestHash: after.manifestHash, status: "connected" });
   });
 });

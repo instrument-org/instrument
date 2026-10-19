@@ -1,28 +1,36 @@
-import { APP_NAME_SLUG, placeholderTitle } from "@instrument-org/shared";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { parallel, unique } from "radashi";
 import { z } from "zod";
 
 import { publisher } from "../../rpc/publisher";
-import { type PermissionAsk } from "../../schemas/chat-state";
+import { type Ask } from "../../schemas/chat-state";
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { ChatReads } from "../chat-reads";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
+import { ChatWrites } from "../chat-writes";
+import { cappedTitle } from "../chat-folders/folder-name";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
-import { cardLine, openAsks } from "../permissions/asks";
+import { cardLine, openAsks } from "./asks";
 import { sessionOfChat } from "../record-folders";
-import { Store } from "../store";
 import { getWorkspaceConfig } from "../workspace-config";
-import { indexedByStore, kept, unkept } from "../workspace-index";
-import { askIn, type ChatActivity, chatActivity, isWorking } from "./activity";
+import { indexedByRecords, kept, unkept } from "../workspace-index";
+import {
+  type ChatActivity,
+  chatActivity,
+  isWorking,
+  liveMessages,
+} from "./activity";
 import { listChatIds } from "./chat-records";
 import { listChildTasks, sessionRole } from "./children";
 import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
+import { shownTitle } from "./shown-title";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasPendingJobWake } from "./job-wake";
@@ -101,8 +109,6 @@ export const ChatSchema = z.object({
       id: StoreId.SessionSchema,
       step: z.string().optional(),
       title: z.string(),
-      /** What it has stopped to ask the user for; present while it is stalled on that rather than moving. */
-      waiting: z.string().optional(),
     }),
   ),
   /** The chat's session, which its transcript is read and its messages are sent through. */
@@ -115,8 +121,8 @@ export const ChatSchema = z.object({
    * ask's own first words, which a row need not repeat under the ask.
    */
   titled: z.boolean(),
-  /** Topic ids, from the session record. */
-  topics: z.array(z.string()),
+  /** The topic's id, from the session record; absent when it is filed under none. */
+  topic: z.string().optional(),
   /** Whether something in the chat has not been looked at: the mark on its session record. */
   unread: z.boolean(),
   /** Whether the user set that mark themselves, which holds until they come back to the chat. */
@@ -230,7 +236,7 @@ export async function chatReadProblem(
   if (await chatDigest(chatId, sessionId)) {
     return undefined;
   }
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   return session.isErr() ? "unreadable-session" : "unreadable-messages";
 }
 
@@ -298,7 +304,7 @@ export async function renameChat(
 ): Promise<boolean> {
   return saveMark(chatId, (session) => ({
     ...session,
-    title,
+    title: cappedTitle(title),
     titleSettledAt: new Date(),
   }));
 }
@@ -315,19 +321,19 @@ export async function setChatStarred(
 }
 
 /**
- * Tags a chat with topics, by id. Ids the conversation has no topic for
- * are dropped rather than written, so the record never names a topic that
- * was never made.
+ * Files a chat under a topic, by id, or under none with `null`. An id the
+ * workspace has no topic for files it under none, so the record never
+ * names a topic that was never made.
  */
-export async function setChatTopics(
+export async function setChatTopic(
   chatId: ChatId,
-  topics: string[],
+  topicId: null | string,
 ): Promise<boolean> {
-  const known = new Set((await listTopics()).map((topic) => topic.id));
-  return saveMark(chatId, (session) => ({
-    ...session,
-    topics: unique(topics.filter((id) => known.has(id))),
-  }));
+  const known = (await listTopics()).some((topic) => topic.id === topicId);
+  return saveMark(chatId, (session) => {
+    const { topic: _was, ...rest } = session;
+    return { ...rest, ...(known && topicId ? { topic: topicId } : {}) };
+  });
 }
 
 /**
@@ -358,7 +364,7 @@ export async function unarchiveChat(chatId: ChatId): Promise<boolean> {
  * The hosts a task's session has visited, held until its session is
  * written: the browser records a visit there and announces nothing.
  */
-const filedHosts = indexedByStore<string[]>("task_hosts");
+const filedHosts = indexedByRecords<string[]>("task_hosts");
 
 /**
  * What a chat's row is made from that its own store holds: its session
@@ -367,11 +373,9 @@ const filedHosts = indexedByStore<string[]>("task_hosts");
  * last launch draws its row without its transcript being read.
  */
 interface ChatDigest {
-  /** Commands' `app call` and `app request` slugs. */
+  /** Commands' `instrument app call` and `instrument app request` slugs. */
   calledApps: string[];
   lastAsk: string;
-  /** When the last assistant message started, which an ask of its own is dated by. */
-  lastAssistantAt?: number;
   lastMessageAt?: number;
   lastReplyAt?: number;
   lastUserMessageAt?: number;
@@ -381,8 +385,6 @@ interface ChatDigest {
   /** Whether that error was a usage limit, which `failed` then leaves out. */
   limited: boolean;
   openedHosts: string[];
-  /** What the chat's own last turn asked the user, if it ended on an ask. */
-  ownAsk?: string;
   root?: SessionMessage.UserWithParts;
   sent: ReturnType<typeof sentHeld>;
   session: Session.Type;
@@ -397,15 +399,15 @@ interface ChatDigest {
 }
 
 /**
- * The app slugs a shell command calls or asks the user to connect: `app call`
- * or `app request` where a command begins, followed by a slug's own letters.
+ * The app slugs a shell command calls or asks the user to connect: `instrument app call`
+ * or `instrument app request` where a command begins, followed by a slug's own letters.
  * Anchored to the command's start and to a slug's shape so the same words
  * inside a brief's prose ("keep the app request intact.") name nothing.
  */
 function appSlugsIn(command: string): string[] {
   return [
     ...command.matchAll(
-      /(?:^|[\n;&|]|\$\()\s*app\s+(?:call|request)\s+([a-z0-9][a-z0-9_-]*)\b/g,
+      /(?:^|[\n;&|]|\$\()\s*instrument\s+app\s+(?:call|request)\s+([a-z0-9][a-z0-9_-]*)\b/g,
     ),
   ].flatMap((match) => (match[1] ? [match[1]] : []));
 }
@@ -429,27 +431,13 @@ function asFolder(path: string): string {
 
 /**
  * Everything the chat waits on the user for, each with when it was asked,
- * in the order its line names them: an open card first, since the chat and
- * whatever raised it are stopped on it, then a task filed from it that is
- * paused on an ask, then the chat's own last turn ending on one.
+ * oldest first: its open cards and questions.
  */
-function asksOf(
-  digest: ChatDigest,
-  filed: ChatActivity["running"],
-  cards: PermissionAsk[],
-): { at: number; text: string }[] {
-  return [
-    ...cards.map((card) => ({
-      at: card.askedAt.getTime(),
-      text: cardLine(card),
-    })),
-    ...filed.flatMap((task) =>
-      task.waiting ? [{ at: task.updatedAt, text: task.waiting }] : [],
-    ),
-    ...(digest.ownAsk && digest.lastAssistantAt !== undefined
-      ? [{ at: digest.lastAssistantAt, text: digest.ownAsk }]
-      : []),
-  ];
+function asksOf(cards: Ask[]): { at: number; text: string }[] {
+  return cards.map((card) => ({
+    at: card.askedAt.getTime(),
+    text: cardLine(card),
+  }));
 }
 
 /** The command a shell call ran, once its input has arrived whole. */
@@ -498,7 +486,6 @@ async function chatFor(
     id: task.sessionId,
     ...(task.step ? { step: task.step } : {}),
     title: task.title,
-    ...(task.waiting ? { waiting: task.waiting } : {}),
   }));
 
   const {
@@ -509,14 +496,20 @@ async function chatFor(
   } = stateOf(chatId, digest, filed, await openAsks(chatId));
   const ask = state === "working" ? undefined : anyAsk;
 
-  const lead = runningTasks.find((task) => !task.waiting);
+  const [lead] = runningTasks;
+  // A turn under way names its step from what it holds in memory, where a
+  // call whose input is still arriving is; the written step stands for it
+  // otherwise, and a turn that has ended names none.
+  const ownStep = ownWorking
+    ? (latestStepIn(await liveMessages({ chatId, sessionId: session.id })) ??
+      digest.stepInTurn)
+    : undefined;
   const latest = latestFor({
     ask,
     digest,
     // The chat's own turn names its step first, as the line under its title
     // does; a task at work, its step or else its name.
-    step:
-      (ownWorking ? digest.stepInTurn : undefined) ?? lead?.step ?? lead?.title,
+    step: ownStep ?? lead?.step ?? lead?.title,
     state,
   });
 
@@ -554,13 +547,9 @@ async function chatFor(
     runningTasks,
     sessionId: session.id,
     state,
-    // Until the agent names the chat, the ask's own first words stand for it
-    // rather than the placeholder a session is born with.
-    title: isUntitledChatSessionTitle(session.title)
-      ? placeholderTitle(firstLine(root ? textOf(root) : "")) || session.title
-      : session.title,
+    title: shownTitle(session.title, root),
     titled: !isUntitledChatSessionTitle(session.title),
-    topics: session.topics ?? [],
+    ...(session.topic ? { topic: session.topic } : {}),
     unread: session.unreadAt !== undefined,
     unreadByUser: session.unreadByUser === true,
     // When anything last happened: the session's own stamp moves when a turn
@@ -575,7 +564,7 @@ async function chatFor(
 }
 
 /** Each chat's digest, kept until its own session changes. */
-const chatDigests = indexedByStore<ChatDigest | undefined>("chat_digests");
+const chatDigests = indexedByRecords<ChatDigest | undefined>("chat_digests");
 
 /** A chat's digest, or none when its record or its messages cannot be read. */
 function chatDigest(
@@ -583,11 +572,11 @@ function chatDigest(
   sessionId: StoreId.Session,
 ): Promise<ChatDigest | undefined> {
   return chatDigests(chatId, sessionId, async () => {
-    const session = await Store.getSession(sessionId, chatId);
+    const session = await ChatReads.session({ chatId, sessionId });
     if (session.isErr()) {
       return unkept(undefined);
     }
-    const messages = await Store.getMessagesWithParts({ sessionId, chatId });
+    const messages = await ChatReads.transcript({ chatId, sessionId });
     return messages.isOk()
       ? kept(digestOf(session.value, messages.value))
       : unkept(undefined);
@@ -634,7 +623,6 @@ function digestOf(
       hasWords(message),
   );
   const commands = bashCommandsIn(messages);
-  const ownAsk = askIn(messages);
   // Only this turn's calls, so a new turn never names the last one's step.
   const stepInTurn = latestStepIn(
     messages.slice(lastOpener ? messages.lastIndexOf(lastOpener) + 1 : 0),
@@ -675,9 +663,6 @@ function digestOf(
     (lastOpener === undefined || stoppedAt >= lastOpener.metadata.createdAt);
   return {
     calledApps: commands.flatMap(appSlugsIn),
-    ...(lastAssistant && {
-      lastAssistantAt: lastAssistant.metadata.createdAt.getTime(),
-    }),
     failed,
     lastAsk: lastUser ? firstLine(textOf(lastUser)) : "",
     ...(lastMessageAt !== undefined && { lastMessageAt }),
@@ -688,7 +673,6 @@ function digestOf(
     limited,
     madeFiles: filesHeld(messages),
     openedHosts: commands.flatMap(openedHostsIn),
-    ...(ownAsk !== undefined && { ownAsk }),
     ...(root && { root }),
     sent: sentHeld(messages),
     session,
@@ -816,11 +800,11 @@ function newestLast(items: string[]): string[] {
   return [...seen];
 }
 
-/** The hostnames a shell command opens for the user with `tab open <url>`. */
+/** The hostnames a shell command opens for the user with `instrument tab open <url>`. */
 function openedHostsIn(command: string): string[] {
   const hosts: string[] = [];
   for (const match of command.matchAll(
-    /(?:^|[\n;&|])\s*tab\s+(?:open|replace\s+\S+)\s+['"]?(https?:\/\/[^\s'"]+)/g,
+    /(?:^|[\n;&|])\s*instrument\s+tab\s+(?:open|replace\s+\S+)\s+['"]?(https?:\/\/[^\s'"]+)/g,
   )) {
     try {
       hosts.push(new URL(match[1] ?? "").hostname);
@@ -860,11 +844,11 @@ function saveMark(
     if (!sessionId) {
       return false;
     }
-    const session = await Store.getSession(sessionId, chatId);
+    const session = await ChatReads.session({ chatId, sessionId });
     if (session.isErr()) {
       return false;
     }
-    const saved = await Store.saveSession(mark(session.value), chatId);
+    const saved = await ChatWrites.saveSession(mark(session.value), chatId);
     return saved.isOk();
   });
 }
@@ -944,7 +928,7 @@ function sentHeld(messages: SessionMessage.WithParts[]) {
 
 /**
  * The hostnames the chat's work touched: what its agent opened for the user
- * with `tab open <url>`, then every host the browsers of the tasks it started
+ * with `instrument tab open <url>`, then every host the browsers of the tasks it started
  * have been on, each task's newest last. A task's hosts come from its browser
  * state, one small read per task, rather than from its transcript.
  */
@@ -987,9 +971,9 @@ function stateOf(
   chatId: ChatId,
   digest: ChatDigest,
   running: ChatActivity["running"],
-  cards: PermissionAsk[],
+  cards: Ask[],
 ) {
-  const asks = asksOf(digest, running, cards);
+  const asks = asksOf(cards);
   const askedAt = asks.length
     ? Math.max(...asks.map((ask) => ask.at))
     : undefined;
@@ -999,12 +983,10 @@ function stateOf(
       askedAt,
       failed: digest.failed,
       limited: digest.limited,
-      ownAskedAt:
-        digest.ownAsk === undefined ? undefined : digest.lastAssistantAt,
       ownTurn: hasOwnTurn(chatId),
       spokeAt: digest.lastUserMessageAt ?? 0,
       stopped: digest.stopped,
-      tasks: running,
+      tasksAtWork: running.length > 0,
       wakeOnItsWay: hasPendingWake(chatId) || hasPendingJobWake(chatId),
     }),
   };

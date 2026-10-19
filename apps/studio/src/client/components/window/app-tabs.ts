@@ -23,10 +23,11 @@ import {
   type TabsModel,
 } from "@/client/lib/tabs-model";
 import { rpcClient } from "@/client/rpc/client";
-import { outputFolderHref } from "@/shared/computer-href";
+import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";
 import { type TabId } from "@/shared/tabs";
 import { atom, useAtom, useAtomValue } from "jotai";
 
+import { openLinkAddress } from "./open-link-address";
 import {
   chatHref,
   chatOfGroup,
@@ -154,16 +155,28 @@ export function placeOfHref(href: string): AppPlace | undefined {
 export function useAppTabs() {
   const [model, setModel] = useAtom(appTabsAtom);
   const lastChat = useAtomValue(chatGroupAtom);
+  const outputFolder = useOutputFolder();
   const activeRouter = getTabRouter(model.selectedId);
 
-  /** A tab of its own at an address, up at once unless asked to wait behind. */
+  /**
+   * A tab of its own at an address, up at once unless asked to wait behind.
+   * A link address opens where it lives instead (`openLinkAddress`).
+   */
   const open = (href: string, { select = true }: { select?: boolean } = {}) => {
+    const at = openLinkAddress(href);
+    if (at === undefined) {
+      return;
+    }
     setModel((current) =>
-      addTab(current, { id: freshTabId(), pathname: href, select }),
+      addTab(current, { id: freshTabId(), pathname: at, select }),
     );
   };
-  /** The tab up goes to an address, one step on in its history. */
-  const navigate = (href: string, { replace = false } = {}) => {
+  /** The tab up goes to an address, one step on in its history; a link address opens where it lives instead. */
+  const navigate = (to: string, { replace = false } = {}) => {
+    const href = openLinkAddress(to);
+    if (href === undefined) {
+      return;
+    }
     if (!activeRouter) {
       open(href);
       return;
@@ -198,10 +211,11 @@ export function useAppTabs() {
       closeInModel(id);
       return;
     }
-    // The last tab closing quits the app on every platform, once the person
-    // has said yes about running agents. Only then does the tab go, leaving
-    // the inbox for next launch; a canceled quit leaves the window as it was.
-    void rpcClient.utils.approveQuit.call().then(({ approved }) => {
+    // The last tab closing closes the window, which quits the app outside
+    // macOS once the person has said yes about running work. Only then does
+    // the tab go, leaving the inbox for the next window; a canceled quit
+    // leaves the window as it was.
+    void rpcClient.utils.approveWindowClose.call().then(({ approved }) => {
       if (approved) {
         closeInModel(id);
         void rpcClient.utils.closeWindow.call();
@@ -229,7 +243,7 @@ export function useAppTabs() {
     },
     go,
     goToPlace: (place: AppPlace, { behind = false, newTab = false } = {}) => {
-      go(placeHrefOf(place, lastChat), { behind, newTab });
+      go(placeHrefOf(place, lastChat, outputFolder), { behind, newTab });
     },
     model,
     navigate,
@@ -266,7 +280,11 @@ export function useAppTabs() {
  * open, the computer at the Instrument folder, the browser's start, and the
  * apps. With no chat named, the chat is the inbox.
  */
-function placeHrefOf(place: AppPlace, lastChat: null | string): string {
+function placeHrefOf(
+  place: AppPlace,
+  lastChat: null | string,
+  outputFolder: string | undefined,
+): string {
   switch (place) {
     case "apps": {
       return APPS_HREF;
@@ -279,7 +297,7 @@ function placeHrefOf(place: AppPlace, lastChat: null | string): string {
       return chat ? chatHref(chat) : INBOX_HREF;
     }
     case "files": {
-      return outputFolderHref();
+      return outputFolderHref(outputFolder);
     }
   }
 }

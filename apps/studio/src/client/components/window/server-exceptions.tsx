@@ -19,10 +19,13 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { rpcClient } from "@/client/rpc/client";
+import {
+  type ExceptionEvent,
+  formatExceptionEvent,
+} from "@instrument-org/shared/exceptions";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { isEqual } from "radashi";
 import { useState } from "react";
 
 interface GroupedException {
@@ -34,29 +37,22 @@ interface GroupedException {
   rpcPath?: string;
 }
 
-interface ServerException {
-  code?: string;
-  details?: string;
-  id: string;
-  message: string;
-  rpcPath?: string;
-}
-
 /**
- * What the main process has thrown since it started or was last cleared, as a
- * count in the window's corner beside the developer panel. Absent while there
- * is nothing to report. Opens onto the exceptions themselves, grouped where
- * they repeat, each expandable to its stack and copyable, with the diagnostic
- * log a click further for what happened around them.
+ * What the app has captured since it started or was last cleared, from any
+ * process, as a count in the window's corner beside the developer panel.
+ * Absent while there is nothing to report. Opens onto the exceptions
+ * themselves, one per fingerprint with how often it was seen, each
+ * expandable to its whole event and copyable, with the diagnostic log a
+ * click further for what happened around them.
  */
 export function ServerExceptionsIndicator() {
   const { data: exceptions } = useQuery(
-    rpcClient.utils.live.serverExceptions.experimental_liveOptions({}),
+    rpcClient.utils.live.exceptions.experimental_liveOptions({}),
   );
   const [open, setOpen] = useState(false);
 
   const grouped = groupExceptions(exceptions ?? []);
-  const total = exceptions?.length ?? 0;
+  const total = grouped.reduce((sum, exception) => sum + exception.count, 0);
 
   if (total === 0) {
     return null;
@@ -111,43 +107,25 @@ function formatExceptionsForCopy(exceptions: GroupedException[]) {
   return exceptions.map(formatExceptionForCopy).join("\n\n");
 }
 
-/** One entry per distinct exception, counting how often each was thrown. */
-function groupExceptions(exceptions: ServerException[]): GroupedException[] {
-  const groups: GroupedException[] = [];
-
-  for (const exception of exceptions) {
-    const content = exception.details || exception.message;
-    const firstLine = (content.split("\n")[0] || content).replace(
-      /^Error:\s*/i,
-      "",
-    );
-    const key = {
-      code: exception.code,
-      content,
-      firstLine,
-      rpcPath: exception.rpcPath,
+/** One entry per fingerprint, which the main process already counted. */
+function groupExceptions(
+  events: readonly ExceptionEvent[],
+): GroupedException[] {
+  return events.toReversed().map((event) => {
+    const captured = event.exceptions.at(-1);
+    const code: unknown = captured?.data?.code;
+    return {
+      code:
+        typeof code === "string" || typeof code === "number"
+          ? String(code)
+          : undefined,
+      content: formatExceptionEvent(event),
+      count: event.count,
+      firstLine: captured ? `${captured.type}: ${captured.value}` : "",
+      id: event.fingerprint,
+      rpcPath: event.context.rpcPath,
     };
-
-    const existing = groups.find((group) =>
-      isEqual(
-        {
-          code: group.code,
-          content: group.content,
-          firstLine: group.firstLine,
-          rpcPath: group.rpcPath,
-        },
-        key,
-      ),
-    );
-
-    if (existing) {
-      existing.count++;
-    } else {
-      groups.push({ ...key, count: 1, id: exception.id });
-    }
-  }
-
-  return groups;
+  });
 }
 
 function ServerExceptionsList({

@@ -71,7 +71,11 @@ const connection = (
 const instrument = connection("instrument", "instrument", "Instrument");
 const anthropic = connection("anthropic-key", "anthropic", "Anthropic");
 
-const autoModel = instrument({ canonicalId: "auto", name: "Auto" });
+const autoModel = instrument({
+  canonicalId: "auto",
+  name: "Auto",
+  tags: ["recommended"],
+});
 const sonnet = anthropic({
   canonicalId: "claude-sonnet-5.5",
   name: "Claude Sonnet 5.5",
@@ -180,6 +184,43 @@ describe("ModelPicker in a browser", () => {
         - img
         - text: Auto Recommended Included with your subscription
         - option "Auto (chosen)" [selected]: In use"
+    `);
+  });
+
+  it("lists Instrument's lineup by brand, each over its family, as the gateway describes it", async () => {
+    const lineup = [
+      { ...autoModel, note: "Picks a model for each turn." },
+      {
+        ...instrument({
+          canonicalId: "claude",
+          name: "Claude",
+          tags: ["recommended"],
+        }),
+        family: "Claude Haiku",
+        maker: "anthropic",
+        note: "Fast on short edits.",
+      },
+      {
+        ...instrument({ canonicalId: "grok", name: "Grok" }),
+        family: "Latest Grok",
+        maker: "xai",
+      },
+    ];
+    const tree = await openPicker(autoModel, { models: lineup });
+    expect(await tree()).toMatchInlineSnapshot(`
+      "- text: Search models
+      - combobox "Search models" [expanded]
+      - navigation "Providers":
+        - button "Instrument models (has the chosen model)":
+          - img
+          - text: Instrument models (has the chosen model)
+        - button "Add a provider"
+      - listbox "Suggestions":
+        - option "Auto Recommended Picks a model for each turn. (chosen)" [selected]:
+          - img
+          - text: Auto Recommended Picks a model for each turn. (chosen)
+        - option "Claude Recommended Fast on short edits. Claude Haiku"
+        - option "Grok Latest Grok""
     `);
   });
 

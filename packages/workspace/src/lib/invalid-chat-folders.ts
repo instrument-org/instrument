@@ -7,7 +7,7 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { chatReadProblem } from "./chat/chats";
-import { UNREADABLE_SETTINGS_REASON } from "./invalid-legacy-task-folders";
+import { pathExists } from "./path-exists";
 import {
   chatsDir,
   forgetChat,
@@ -22,11 +22,13 @@ interface InvalidChatFolder {
   reason: string;
 }
 
+/** Why a folder is listed, said to the person in Settings > Storage. */
 const REASONS = {
-  "no-session": "No chat session in its settings (.instrument/settings.json)",
-  "unreadable-messages": "Unreadable messages (.instrument/chat.db)",
-  "unreadable-session": "Unreadable chat session (.instrument/chat.db)",
-  "unreadable-settings": UNREADABLE_SETTINGS_REASON,
+  "bad-name": "Its folder name isn’t one a chat can use.",
+  "no-session": "Its settings don’t say which conversation is its own.",
+  "unreadable-messages": "Its messages can’t be read.",
+  "unreadable-session": "Its conversation can’t be read.",
+  "unreadable-settings": "Its settings file is missing or damaged.",
 } as const;
 
 /**
@@ -41,10 +43,7 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
   for (const name of listDirs(root)) {
     const id = ChatIdSchema.safeParse(name);
     if (!id.success) {
-      invalid.push({
-        name,
-        reason: id.error.issues[0]?.message ?? "Not a recognized chat folder",
-      });
+      invalid.push({ name, reason: REASONS["bad-name"] });
       continue;
     }
     const stored = storedChatSession(path.join(root, name));
@@ -52,8 +51,8 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
       invalid.push({ name, reason: REASONS[stored.problem] });
       continue;
     }
-    // The store is reached through the index, which knows the chat by this
-    // session once it has read the folder.
+    // The records are reached through the index, which knows the chat by
+    // this session once it has read the folder.
     if (sessionOfChat(id.data) === stored.sessionId) {
       const problem = await chatReadProblem(id.data, stored.sessionId);
       if (problem) {
@@ -65,10 +64,11 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
 }
 
 /**
- * Sends one folder the scan reports to the OS trash. Only a name the scan
- * reports right now is taken, which keeps a chat the list can show, and any
- * path out of `chats/`, out of reach. A chat whose store was opened has it
- * closed first, and leaves the index once its folder is gone.
+ * Sends one folder the scan reports to the OS trash, with the work folder of
+ * the same name where there is one. Only a name the scan reports right now is
+ * taken, which keeps a chat the list can show, and any path out of `chats/`,
+ * out of reach. A chat whose store was opened has it closed first, and leaves
+ * the index once its folder is gone.
  */
 export async function trashInvalidChatFolder(
   name: string,
@@ -88,6 +88,12 @@ export async function trashInvalidChatFolder(
         if (disposed.isErr()) {
           throw disposed.error;
         }
+      }
+      const work = AbsolutePathSchema.parse(
+        path.join(workspaceConfig.workFoldersDir, name),
+      );
+      if (await pathExists(work)) {
+        await workspaceConfig.trashItem(work);
       }
       await workspaceConfig.trashItem(
         AbsolutePathSchema.parse(path.join(chatsDir(), name)),

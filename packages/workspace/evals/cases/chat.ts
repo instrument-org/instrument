@@ -2,7 +2,7 @@
  * Does the agent the user talks to answer in proportion to the ask?
  *
  * The chat is one agent: it does quick work itself and forks what is slow
- * (`task new`), and either way the user reads one conversation. Whether it
+ * (`instrument task new`), and either way the user reads one conversation. Whether it
  * answers in a line, puts a result where the user said, and keeps one job
  * one job when the user changes it midway is a property of a prompt and a
  * model rather than of code, so none of it can be read off the source, and
@@ -24,13 +24,18 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import {
+  chatOutputFolder,
+  outputFolderPath,
+} from "../../src/lib/chat/output-folder";
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
 import { filesNamedIn } from "../../src/lib/parse-files-block";
-import { chatDir } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { WorkspaceFilePathSchema } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
+import { deliveredFile } from "../lib/delivered-file";
 
 type Context = Parameters<Assertion["check"]>[0];
 
@@ -84,7 +89,7 @@ function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
  * word. Anchored the way the turn-ending rule anchors it, so both agree on
  * what a fork is.
  */
-const STARTS_A_TASK = /(?:^|[\n;&|])\s*task new\b/g;
+const STARTS_A_TASK = /(?:^|[\n;&|])\s*instrument task new\b/g;
 
 // Counted per start rather than per command: a conversation that forks
 // three tasks in one call, one heredoc after another, started three.
@@ -169,10 +174,13 @@ function startedAtMost(count: number): Assertion {
       const started = taskNewCount(sessions);
       const commands = bashCommands(sessions);
       return started <= count
-        ? pass(text, `${started} \`task new\` in ${commands.length} commands`)
+        ? pass(
+            text,
+            `${started} \`instrument task new\` in ${commands.length} commands`,
+          )
         : fail(
             text,
-            `${started} \`task new\`: ${commands
+            `${started} \`instrument task new\`: ${commands
               .map((command) => command.split("\n")[0])
               .join(" | ")}`,
           );
@@ -206,11 +214,13 @@ function loadedSkill(name: string): Assertion {
   };
 }
 
-function landedInAppFolder(slug: string, file: string): Assertion {
-  const text = `${file} is in ${slug}'s app folder`;
+function landedInAppFolder(name: string, file: string): Assertion {
+  const text = `${file} is in ${name}'s app folder`;
   return {
     check: () => {
-      const target = path.join(getWorkspaceConfig().appsDir, slug, file);
+      // The folder is the app's name, so that is what the file is looked for
+      // in rather than the slug its `id` carries.
+      const target = path.join(getWorkspaceConfig().appsDir, name, file);
       return fs.existsSync(target)
         ? pass(text, `${fs.statSync(target).size} bytes`)
         : fail(text, `nothing at ${target}`);
@@ -264,6 +274,26 @@ function repliedWith(phrase: string): Assertion {
   };
 }
 
+/**
+ * A file landed in the user's Instrument folder: in the chat's own folder
+ * there, where `$INSTRUMENT_OUTPUT` points, or at its top level. Deeper is
+ * another chat's folder.
+ */
+const wroteIntoTheInstrumentFolder: Assertion = {
+  check: ({ chatId }) => {
+    const text = "a file landed in the user's Instrument folder";
+    const top = outputFolderPath();
+    const written = [
+      ...recentFilesUnder(chatOutputFolder(chatId)),
+      ...recentFilesUnder(top).filter((file) => path.dirname(file) === top),
+    ];
+    return written.length > 0
+      ? pass(text, written.join(", "))
+      : fail(text, `nothing this run wrote is in ${top}`);
+  },
+  text: "a file landed in the user's Instrument folder",
+};
+
 function wroteInto(folder: string): Assertion {
   const text = `a file landed in the user's ${folder} folder`;
   return {
@@ -284,9 +314,11 @@ function madeDocuments(extensions: string[]): Assertion {
   return {
     check: async ({ chatId }) => {
       // The chat's tasks work in its folder.
-      const written = [os.homedir(), chatDir(chatId)].flatMap((dir) =>
-        recentFilesUnder(dir),
-      );
+      const written = [
+        os.homedir(),
+        workDir(chatId),
+        chatOutputFolder(chatId),
+      ].flatMap((dir) => recentFilesUnder(dir));
       const missing = extensions.filter(
         (extension) => !written.some((file) => file.endsWith(extension)),
       );
@@ -302,9 +334,9 @@ function madeDocuments(extensions: string[]): Assertion {
 function essayAtMost(file: string, words: number): Assertion {
   const text = `${file} is at most ${words} words`;
   return {
-    check: () => {
-      const target = path.join(os.homedir(), "Documents", "Instrument", file);
-      if (!fs.existsSync(target)) {
+    check: ({ chatId }) => {
+      const target = deliveredFile(chatId, file);
+      if (!target) {
         return fail(text, `no ${file} in the Instrument folder`);
       }
       const count = fs
@@ -325,7 +357,7 @@ function essayAtMost(file: string, words: number): Assertion {
 
 export const CHAT_EVALS = [
   defineEval({
-    assertions: [wroteInto("Documents/Instrument"), linkedAFileThatExists],
+    assertions: [wroteIntoTheInstrumentFolder, linkedAFileThatExists],
     kind: "chat",
     name: "chat-one-file",
     prompt:
@@ -364,7 +396,8 @@ export const CHAT_EVALS = [
 
   defineEval({
     // A folder other than the workspace one, which the chat reaches only once
-    // it is added (`task folder --add`, or the user's pick).
+    // the user allows the card it asks with.
+    allowsFolders: 1,
     assertions: [wroteInto("Downloads"), linkedAFileThatExists],
     kind: "chat",
     name: "chat-writes-into-downloads",
@@ -385,9 +418,10 @@ export const CHAT_EVALS = [
 
   defineEval({
     // A follow-up that widens the work to a folder nobody has added yet. The
-    // folder is added where the work stands (`task folder --add` reaches a
-    // running fork too); a second fork for the copies pays for the first
-    // one's context again.
+    // user allows it once, and a fork reaches exactly the chat's folders, so
+    // a running one can make the copies; a second fork for them pays for the
+    // first one's context again.
+    allowsFolders: 1,
     assertions: [startedAtMost(1), wroteInto("Downloads")],
     followUps: ["Put copies of those in my Downloads folder as well."],
     kind: "chat",
@@ -399,7 +433,7 @@ export const CHAT_EVALS = [
   defineEval({
     // A file bound for an app's folder, which the agent writes like any other.
     apps: [{ name: "Beacon", slug: "beacon" }],
-    assertions: [landedInAppFolder("beacon", "icon.png")],
+    assertions: [landedInAppFolder("Beacon", "icon.png")],
     kind: "chat",
     name: "chat-places-a-file-in-an-app-folder",
     prompt:

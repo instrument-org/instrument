@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   type LanguageModelV4FilePart,
   type LanguageModelV4Message,
@@ -5,7 +6,11 @@ import {
   type LanguageModelV4TextPart,
   type LanguageModelV4ToolResultOutput,
 } from "@ai-sdk/provider";
-import { type ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
+import {
+  type ContentBlockParam,
+  type ImageBlockParam,
+  type TextBlockParam,
+} from "@anthropic-ai/sdk/resources/messages";
 import { type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 type UserContentPart = LanguageModelV4FilePart | LanguageModelV4TextPart;
@@ -86,6 +91,201 @@ export function coldStartContent(
   }
   blocks.push(...turnContent(tail));
   return blocks;
+}
+
+/**
+ * One message of history as Claude Code takes it on its input: a user-side
+ * message (text, files, tool results) or an assistant message of ours.
+ */
+export type ReplayFrame =
+  | { content: ContentBlockParam[]; role: "user" }
+  | {
+      content: ContentBlockParam[];
+      model: string | undefined;
+      role: "assistant";
+    };
+
+/** What a reasoning part of ours carries back to Claude, written by `pumpStep`. */
+interface ClaudeReasoningMetadata {
+  /** The model that thought it; Claude Code drops a signed block from another. */
+  model?: string;
+  /** A redacted block's opaque data, in place of its text. */
+  redactedData?: string;
+  signature?: string;
+}
+
+function reasoningMetadataOf(
+  providerOptions: Record<string, unknown> | undefined,
+): ClaudeReasoningMetadata {
+  const value = providerOptions?.[CLAUDE_ACCOUNT_KEY];
+  if (typeof value !== "object" || value === null) {
+    return {};
+  }
+  const read = (name: string) => {
+    const field: unknown = Reflect.get(value, name);
+    return typeof field === "string" ? field : undefined;
+  };
+  return {
+    model: read("model"),
+    redactedData: read("redactedData"),
+    signature: read("signature"),
+  };
+}
+
+const CLAUDE_ACCOUNT_KEY = "claude-account";
+
+/** The ids Claude takes for a tool call. */
+const CLAUDE_TOOL_ID = /^[a-zA-Z0-9_-]{1,64}$/;
+
+/**
+ * A tool call's id as Claude takes it: unchanged when it can, else one made
+ * from it, the same for the call and its result. Another provider's ids can
+ * hold characters Claude refuses (`functions.bash:0`).
+ */
+function claudeToolId(id: string) {
+  return CLAUDE_TOOL_ID.test(id)
+    ? id
+    : `toolu_${createHash("sha256").update(id).digest("hex").slice(0, 40)}`;
+}
+
+/**
+ * A prompt the CLI never saw, as Claude Code's own history: user messages,
+ * our assistant messages with their tool calls, and tool results, files and
+ * images intact, ending on the user-side message that starts the step.
+ * Reasoning is kept when Claude signed it; reasoning from anyone else is
+ * left out. Throws when the history cannot be told this way (it does not
+ * end on the user's side), so the caller can fall back to `coldStartContent`.
+ */
+export function replayFrames(
+  messages: LanguageModelV4Message[],
+  toolPrefix: string,
+): ReplayFrame[] {
+  const frames: ReplayFrame[] = [];
+  const userSide = (blocks: ContentBlockParam[]) => {
+    if (blocks.length === 0) {
+      return;
+    }
+    const last = frames.at(-1);
+    if (last?.role === "user") {
+      last.content.push(...blocks);
+    } else {
+      frames.push({ content: blocks, role: "user" });
+    }
+  };
+  // Calls a replayed assistant message made, until a result answers each.
+  let unanswered: string[] = [];
+  const answerUnanswered = () => {
+    // An interrupted call has no result, which Claude refuses to read past.
+    userSide(
+      unanswered.map((id) => ({
+        content: "The call did not finish.",
+        is_error: true,
+        tool_use_id: claudeToolId(id),
+        type: "tool_result" as const,
+      })),
+    );
+    unanswered = [];
+  };
+
+  for (const message of messages) {
+    switch (message.role) {
+      case "system": {
+        answerUnanswered();
+        userSide([{ text: message.content, type: "text" }]);
+        break;
+      }
+      case "user": {
+        answerUnanswered();
+        userSide(message.content.flatMap(userPartToBlock));
+        break;
+      }
+      case "assistant": {
+        answerUnanswered();
+        const content: ContentBlockParam[] = [];
+        let model: string | undefined;
+        for (const part of message.content) {
+          if (part.type === "text" && part.text.length > 0) {
+            content.push({ text: part.text, type: "text" });
+          } else if (part.type === "reasoning") {
+            const metadata = reasoningMetadataOf(part.providerOptions);
+            if (metadata.redactedData !== undefined) {
+              content.push({
+                data: metadata.redactedData,
+                type: "redacted_thinking",
+              });
+              model ??= metadata.model;
+            } else if (metadata.signature !== undefined) {
+              content.push({
+                signature: metadata.signature,
+                thinking: part.text,
+                type: "thinking",
+              });
+              model ??= metadata.model;
+            }
+          } else if (part.type === "tool-call" && !part.providerExecuted) {
+            content.push({
+              id: claudeToolId(part.toolCallId),
+              input: part.input,
+              name: `${toolPrefix}${part.toolName}`,
+              type: "tool_use",
+            });
+            unanswered.push(part.toolCallId);
+          }
+        }
+        if (content.length > 0) {
+          frames.push({ content, model, role: "assistant" });
+        }
+        break;
+      }
+      case "tool": {
+        const results = message.content.flatMap((part) => {
+          if (
+            part.type !== "tool-result" ||
+            !unanswered.includes(part.toolCallId)
+          ) {
+            return [];
+          }
+          unanswered = unanswered.filter((id) => id !== part.toolCallId);
+          const result = toolResultToMCP(part.output);
+          return [
+            {
+              content: result.content.flatMap(mcpContentToBlock),
+              ...(result.isError && { is_error: true }),
+              tool_use_id: claudeToolId(part.toolCallId),
+              type: "tool_result" as const,
+            },
+          ];
+        });
+        userSide(results);
+        break;
+      }
+    }
+  }
+  answerUnanswered();
+  if (frames.at(-1)?.role !== "user" || frames[0]?.role !== "user") {
+    throw new Error("The history neither starts nor ends on the user's side.");
+  }
+  return frames;
+}
+
+function mcpContentToBlock(
+  item: CallToolResult["content"][number],
+): (ImageBlockParam | TextBlockParam)[] {
+  if (item.type === "text") {
+    return [{ text: item.text, type: "text" }];
+  }
+  if (item.type === "image") {
+    const media_type = IMAGE_MEDIA_TYPES.find((type) => type === item.mimeType);
+    return media_type
+      ? [
+          {
+            source: { data: item.data, media_type, type: "base64" },
+            type: "image",
+          },
+        ]
+      : [{ text: `[${item.mimeType}]`, type: "text" }];
+  }
+  return [];
 }
 
 function renderHistoryMessage(message: LanguageModelV4Message): string {

@@ -6,6 +6,7 @@ import {
   connectOpenRouter,
   type OpenRouterConnectResult,
 } from "@/electron-main/lib/openrouter-connect";
+import { getAllAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
@@ -19,14 +20,22 @@ import {
   ProviderMetadataSchema,
   verifyAPIKey,
 } from "@instrument-org/ai-gateway";
-import { AIProviderConfigIdSchema, APP_DOMAIN } from "@instrument-org/shared";
+import {
+  AIProviderConfigIdSchema,
+  APP_DOMAIN,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { call, eventIterator } from "@orpc/server";
 import { safeStorage } from "electron";
 import ms from "ms";
 import { ulid } from "ulid";
 import { z } from "zod";
 
-import { getProviderConfigsStore } from "../../stores/workspace/provider-configs";
+import {
+  getDisabledProviderConfigIds,
+  getProviderConfigsStore,
+  setProviderConfigEnabled,
+} from "../../stores/workspace/provider-configs";
 import { cacheMiddleware } from "../middleware/cache";
 import { publisher } from "../publisher";
 
@@ -57,7 +66,29 @@ const remove = base
       "providers",
       providersStore.get("providers").filter((p) => p.id !== input.id),
     );
+    setProviderConfigEnabled(input.id, true);
   });
+
+/**
+ * Turns a connection off without removing it, or back on. Instrument's own
+ * has no switch: signing out is how it stops.
+ */
+const setEnabled = base
+  .input(z.object({ enabled: z.boolean(), id: AIProviderConfigIdSchema }))
+  .handler(({ errors, input }) => {
+    if (
+      input.id === OUR_PROVIDER_CONFIG.id ||
+      (!input.enabled &&
+        !getAllAIProviderConfigs().some((config) => config.id === input.id))
+    ) {
+      throw errors.NOT_FOUND({ message: "Provider not found" });
+    }
+    setProviderConfigEnabled(input.id, input.enabled);
+  });
+
+const disabled = base
+  .output(z.array(AIProviderConfigIdSchema))
+  .handler(() => [...getDisabledProviderConfigIds()]);
 
 const update = base
   .input(
@@ -163,7 +194,7 @@ const create = base
 
     getWorkspaceState().set("hasCompletedProviderSetup", true);
 
-    void setDefaultModel({ onlyIfUnset: true });
+    void setDefaultModel({ replacing: "nothing" });
   });
 
 /**
@@ -222,7 +253,7 @@ const connectOpenRouterProvider = base
       } catch (error) {
         captureServerException(
           new Error("Connecting OpenRouter failed", { cause: error }),
-          { scopes: ["auth"] },
+          { area: "auth" },
         );
         return {
           error:
@@ -276,6 +307,14 @@ const credits = base
   });
 
 const live = {
+  disabled: base
+    .output(eventIterator(z.array(AIProviderConfigIdSchema)))
+    .handler(async function* ({ context, signal }) {
+      yield* liveRead({
+        changes: [publisher.subscribe("provider-config.updated", { signal })],
+        read: () => call(disabled, {}, { context, signal }),
+      });
+    }),
   list: base
     .output(eventIterator(z.array(ClientAIProviderConfigSchema)))
     .handler(async function* ({ context, signal }) {
@@ -317,6 +356,7 @@ export const providerConfig = {
   connectOpenRouter: connectOpenRouterProvider,
   create,
   credits,
+  disabled,
   list,
   live,
   metadata: {
@@ -324,5 +364,6 @@ export const providerConfig = {
   },
   remove,
   safeStorageInfo,
+  setEnabled,
   update,
 };

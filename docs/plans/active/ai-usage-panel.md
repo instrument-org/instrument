@@ -43,7 +43,7 @@ Chat replies already store their usage (`metadata.usage` on the assistant messag
 
 Four kinds of call, each recorded where it already has the facts:
 
-- **Language models, through AI SDK telemetry** (`lib/ai-usage/record.ts`). Each call site passes `telemetry: aiUsageTelemetry({ purpose, chatId, sessionId, connection })`, a per-call integration that carries what the call site knows; the SDK lets a per-call integration replace the global ones, so nothing is counted twice. One more integration, registered globally with `registerTelemetry` when the workspace starts, records every call that passes none as "Other", so a forgotten tag shows up as a gap rather than a missing request. A row is written per model call: `onLanguageModelCallStart` stamps the start, `onStepEnd` gives usage, the served model, the response id and the finish reason, and `onAbort` and `onError` give stopped and failed requests. The integration reads none of the prompt or output. This covers chat and task steps, titles and the provider-model web search on every connection, the Claude account included, since `createClaudeAccountLanguageModel` is an AI SDK language model like the rest.
+- **Language models, through AI SDK telemetry** (`lib/activity/record.ts`). Each call site passes `telemetry: activityTelemetry({ purpose, chatId, sessionId, connection })`, a per-call integration that carries what the call site knows; the SDK lets a per-call integration replace the global ones, so nothing is counted twice. One more integration, registered globally with `registerTelemetry` when the workspace starts, records every call that passes none as "Other", so a forgotten tag shows up as a gap rather than a missing request. A row is written per model call: `onLanguageModelCallStart` stamps the start, `onStepEnd` gives usage, the served model, the response id and the finish reason, and `onAbort` and `onError` give stopped and failed requests. The integration reads none of the prompt or output. This covers chat and task steps, titles and the provider-model web search on every connection, the Claude account included, since `createClaudeAccountLanguageModel` is an AI SDK language model like the rest.
 - **Decision requests** record in `askDecisionModel` (`workspace/src/lib/decision-model.ts`), once per provider attempt. Every caller names its purpose: `decision.ask` takes a `usage` field, which Studio's `useDecision` fills from its own `usage` argument.
 - **Image generation** records once per `generateImageStream`, whichever path made the image, since neither `generateImage` nor `streamOpenRouterImage` emits telemetry. The language-model path turns the SDK's own recording off so it is not counted twice.
 - **Instrument web search** records in `requestPlatformSearch` (`lib/web-search.ts`), since the request itself is a `fetch` from the Electron main process that never reaches the gateway. The keyless fallback is not a model request and is not recorded.
@@ -52,7 +52,7 @@ The gateway's provider proxy is untouched: no body wrapping, no stream parsing, 
 
 ### Storage
 
-One SQLite table at `<workspace>/.instrument/ai-usage.db`, opened with `node:sqlite` in WAL mode so two Studio instances on one workspace can both write. It belongs to the workspace, so it lives in the workspace's own `.instrument` folder beside the browser's `history.db`, moves with the workspace, and goes when the workspace does. The app's data folder is for what belongs to the machine or can be rebuilt, such as the search index; this record is the only copy of what it holds.
+Each device appends the requests it made to its own files in the workspace, `.instrument/devices/<device>/activity/<YYYY-MM>.jsonl`, one JSON line per request (the connection's kind and name but never its id, which names a provider set up on one computer), so the log travels with the workspace and a sync engine never has two writers of one file. The `activity` table in `workspace.db` on this computer (`<userData>/machine/<local id>/`) is an index of every device's files, read incrementally by byte offset (`activity_files`) and rebuilt from them when it is lost, so the panel's filters, sort and counts stay single SQLite queries and span devices. Rows a build kept in the workspace's `.instrument/ai-usage.db` move into the table once at launch, and rows an earlier build kept only in the table are written into this device's files the first time it opens.
 
 Indexes on `started_at` and on each filterable column paired with `started_at` keep the totals line a single indexed aggregate. At a heavy thousand requests a day that is under 400,000 rows a year, a few hundred bytes each, so there is no rotation.
 
@@ -61,7 +61,7 @@ Indexes on `started_at` and on each filterable column paired with `started_at` k
 | Package | Existing code touched | New code |
 |---|---|---|
 | `workspace` | `logic/server/index.ts` registers the telemetry integration and opens the store. Call sites pass a purpose: `logic/llm-request.ts`, `lib/generate-title-from-user-message.ts`, `lib/web-search.ts`, `lib/generate-images.ts`, `lib/decision-model.ts` and the decision RPC route | The store (schema, insert, filtered page, totals, CSV), the telemetry integration, and an RPC route over the store |
-| `ai-gateway` | `lib/providers/claude-account/language-model.ts` passes `thinking_tokens` through as reasoning | |
+| `ai-gateway` | `lib/providers/claude-account/step-stream.ts` passes `thinking_tokens` through as reasoning | |
 | `studio` | `atoms/settings-modal.ts` gains `"AI usage"` in `SettingsTab`; the modal's nav and the settings search index gain the entry; decision callers pass their purpose | The section: virtualized table, filter chips, detail page |
 
 Untouched: the provider proxy, `chat.db` and its schema, how messages are saved, the agent machines, model list fetches (not model requests).
@@ -82,7 +82,7 @@ Untouched: the provider proxy, `chat.db` and its schema, how messages are saved,
 ## Known gaps
 
 - **Escape in the filter menu closes Settings** rather than the menu.
-- **The Claude account's reasoning tokens** are present in its stream (`output_tokens_details.thinking_tokens`) but `language-model.ts` passes reasoning as undefined, so its rows show none.
+- **The Claude account's reasoning tokens** are present in its stream (`output_tokens_details.thinking_tokens`) but `step-stream.ts` passes reasoning as undefined, so its rows show none.
 - **Export names chats by id**, since the CSV is written without the chat titles the page looks up.
 - **Paging is by offset.** Fine at the sizes above; keyset paging is the change if a deep scroll ever measures slow.
 

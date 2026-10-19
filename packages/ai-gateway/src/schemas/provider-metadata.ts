@@ -9,7 +9,7 @@ const ProviderTagsSchema = z.enum([
 
 const ProviderQuirksSchema = z
   .object({
-    supportsMultipartToolResults: z.boolean().optional().default(false),
+    supportsMultipartToolResults: z.boolean().default(false),
   })
   .prefault({});
 
@@ -22,15 +22,15 @@ export const ProviderMetadataSchema = z.object({
     keyFormat: z.string().optional(),
     keyURL: z.string().optional(),
   }),
-  canAddManually: z.boolean().optional().default(true).meta({
+  canAddManually: z.boolean().default(true).meta({
     description:
       "Whether the provider can be added manually (usually via API key) by the user",
   }),
   description: z.string(),
   name: z.string(),
   quirks: ProviderQuirksSchema,
-  requiresAPIKey: z.boolean().optional().default(true),
-  tags: z.array(ProviderTagsSchema).optional().default([]),
+  requiresAPIKey: z.boolean().default(true),
+  tags: z.array(ProviderTagsSchema).default([]),
   type: AIProviderTypeSchema,
   url: z.string(),
 });

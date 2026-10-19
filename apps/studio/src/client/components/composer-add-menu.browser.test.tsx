@@ -255,7 +255,9 @@ describe("a chat's plus", () => {
     );
     await open();
     await userEvent.click(page.getByRole("menuitem", { name: "Apps" }));
-    await userEvent.click(page.getByRole("menuitem", { name: "Gmail" }));
+    await userEvent.click(
+      page.getByRole("menuitem", { exact: false, name: "Gmail" }),
+    );
     expect(onNameApp).toHaveBeenCalledWith("gmail");
     await open();
     await userEvent.click(page.getByRole("menuitem", { name: "Apps" }));

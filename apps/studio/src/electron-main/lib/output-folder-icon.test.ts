@@ -67,12 +67,15 @@ describe.skipIf(process.platform !== "darwin")("output folder icon", () => {
     expect(after).toEqual(before);
   }, 30_000);
 
-  it("leaves other folders alone, including Instrument outside Documents", async () => {
+  // The two folders the app names itself are decorated, in the home folder
+  // and the older one in Documents; a folder of the person's own is not,
+  // whatever it is called.
+  it("leaves a folder the app did not name alone, whatever it is called", async () => {
     for (const other of [
-      path.join(home, "Instrument"),
+      path.join(home, "Projects", "Instrument"),
       path.join(home, "Documents", "Other"),
     ]) {
-      await fs.mkdir(other);
+      await fs.mkdir(other, { recursive: true });
       await ensureOutputFolderIcon(other);
       expect(await fs.readdir(other)).toEqual([]);
     }

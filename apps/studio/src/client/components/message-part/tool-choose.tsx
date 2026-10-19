@@ -1,11 +1,12 @@
 import { rpcClient } from "@/client/rpc/client";
 import {
-  type SessionMessagePart,
   type ChatId,
+  type SessionMessageDataPart,
+  type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -13,12 +14,10 @@ import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
-import { useHasLiveSession } from "./use-live-session";
 
-export type ChooseOutput = Extract<
-  ChoosePart,
-  { state: "output-available" }
->["output"];
+/** An answer to a question: a choice, the person's own words, or a skip. */
+export type ChooseOutput =
+  SessionMessageDataPart.QuestionAnswerDataPart["answer"];
 
 type ChoosePart = Extract<SessionMessagePart.ToolPart, { type: "tool-choose" }>;
 
@@ -256,17 +255,29 @@ export function ToolChoose({
   chatId: ChatId;
 }) {
   const answer = useMutation(
-    rpcClient.workspace.session.answerToolCall.mutationOptions({
+    rpcClient.workspace.chats.answerQuestion.mutationOptions({
       onError: (error) => {
         toast.error("Couldn't send your answer", { cause: error });
       },
     }),
   );
 
-  const isWaitedOn = useHasLiveSession(part.metadata.sessionId);
-  // Held from the click until the output lands in the part, not just while the
-  // call is pending: the call settles before the session's update brings the
-  // output, and the card falling back to unpicked in between reads as the
+  // The question stays open on the chat until it is answered, skipped, or
+  // the person writes in the chat instead, whatever has happened to the turn
+  // that asked it.
+  const asks = useQuery(
+    rpcClient.workspace.chats.live.asks.experimental_liveOptions({
+      input: { id: chatId },
+    }),
+  ).data;
+  const ask = asks?.find(
+    (open) =>
+      open.kind === "question" &&
+      open.askers.some((asker) => asker.partId === part.metadata.id),
+  );
+  // Held from the click until the answer lands in the part, not just while
+  // the call is pending: the call settles before the part's update brings the
+  // answer, and the card falling back to unpicked in between reads as the
   // click not taking. A failure clears it so the choices come back.
   const [sending, setSending] = useState<ChooseOutput>();
 
@@ -274,24 +285,33 @@ export function ToolChoose({
     return <ToolCardEmpty message="The question has not arrived yet." />;
   }
 
-  // The call waits on the user until it has an output, and the card is how
-  // they answer it -- for as long as anything is still listening for one.
-  const isUnanswered = part.state === "input-available";
+  // An answer is on the call once it is given. Calls from when the turn
+  // waited on the card hold it as the call's output itself.
+  const output =
+    part.state !== "output-available"
+      ? undefined
+      : "asked" in part.output
+        ? part.output.answer
+        : part.output;
+  // Answerable once the call has returned, which is what the answer is
+  // written onto.
+  const isOpen =
+    ask !== undefined &&
+    output === undefined &&
+    part.state === "output-available";
   // Typed for the input as it streams in, when any choice can be missing.
   const choices: (string | undefined)[] = part.input.choices ?? [];
 
   return (
     <QuestionCard
       choices={choices.filter((choice) => choice !== undefined)}
-      onAnswer={(output) => {
-        setSending(output);
+      onAnswer={(answered) => {
+        if (!ask) {
+          return;
+        }
+        setSending(answered);
         answer.mutate(
-          {
-            id: chatId,
-            output,
-            toolCallId: part.toolCallId,
-            toolName: "choose",
-          },
+          { answer: answered, askId: ask.id, id: chatId },
           {
             onError: () => {
               setSending(undefined);
@@ -299,10 +319,18 @@ export function ToolChoose({
           },
         );
       }}
-      output={part.state === "output-available" ? part.output : undefined}
+      output={output}
       question={part.input.question ?? ""}
-      sending={isUnanswered ? sending : undefined}
-      status={isUnanswered ? (isWaitedOn ? "open" : "ended") : "closed"}
+      sending={output === undefined ? sending : undefined}
+      status={
+        // Closed with no answer drawn while the chat's asks load, so the card
+        // neither offers buttons nor says it ended before it knows.
+        output !== undefined || asks === undefined
+          ? "closed"
+          : isOpen || sending !== undefined
+            ? "open"
+            : "ended"
+      }
     />
   );
 }

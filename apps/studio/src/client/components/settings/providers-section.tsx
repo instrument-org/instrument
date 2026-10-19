@@ -6,6 +6,7 @@ import { ProviderConfigListItem } from "@/client/components/provider-config-list
 import { ChatGPTAccountCard } from "@/client/components/settings/chatgpt-account-card";
 import { ClaudeAccountCard } from "@/client/components/settings/claude-account-card";
 import { InstrumentAccountCard } from "@/client/components/settings/instrument-account-card";
+import { useProviderSwitch } from "@/client/components/settings/provider-switch";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
@@ -23,13 +24,14 @@ export function ProvidersSection({
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
+  const providerSwitch = useProviderSwitch();
 
   const [showAddProvider, setShowAddProvider] = useState(autoOpenAddProvider);
   const [selectedConfig, setSelectedConfig] =
     useState<ClientAIProviderConfig | null>(null);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div
         className="flex shrink-0 items-center justify-between"
         {...settingAnchor("add-provider")}
@@ -47,18 +49,21 @@ export function ProvidersSection({
         </Button>
       </div>
 
-      <InstrumentAccountCard />
-      <ChatGPTAccountCard />
-      <ClaudeAccountCard />
-
-      <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex flex-col gap-3">
+        <InstrumentAccountCard />
+        <ChatGPTAccountCard />
+        <ClaudeAccountCard />
         {providerConfigs?.map((config) => (
           <ProviderConfigListItem
             config={config}
             key={config.id}
             metadata={providerMetadataMap.get(config.type)}
+            off={providerSwitch.isOff(config.id)}
             onConfigure={() => {
               setSelectedConfig(config);
+            }}
+            onSetEnabled={(enabled) => {
+              providerSwitch.setEnabled(config.id, enabled);
             }}
           />
         ))}

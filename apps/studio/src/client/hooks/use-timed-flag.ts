@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
-export function useTimedFlag(duration = 2000) {
+const DURATION_MS = 2000;
+
+export function useTimedFlag() {
   const [active, setActive] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -15,7 +17,7 @@ export function useTimedFlag(duration = 2000) {
     setActive(true);
     timerRef.current = setTimeout(() => {
       setActive(false);
-    }, duration);
+    }, DURATION_MS);
   };
 
   return { active, trigger };

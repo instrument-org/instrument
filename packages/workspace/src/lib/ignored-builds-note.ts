@@ -20,17 +20,6 @@ export function ignoredBuildsNote(output: string): string | undefined {
 
   return systemNote`
     Some packages were not built during installation.
-    If you encounter "Cannot find module" errors or the package doesn't work:
-
-    1. Read pnpm-workspace.yaml from the workspace root.
-    2. Add the package names from the warning to the \`allowBuilds\` mapping.
-    \`\`\`yaml
-    allowBuilds:
-      esbuild: true
-      sharp: true
-    \`\`\`
-    3. Run \`${PNPM_COMMAND.name} rebuild <package-name>\` for each package you added.
-
-    All three steps are required. Running rebuild without first modifying pnpm-workspace.yaml will not fix the issue.
+    If you encounter "Cannot find module" errors or the package doesn't work, run \`${PNPM_COMMAND.name} approve-builds <package-name>...\` with the package names from the warning, in the folder you installed them in. It allows their install scripts in that folder's pnpm-workspace.yaml and runs them.
   `;
 }

@@ -46,20 +46,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ulid } from "ulid";
 
-import { CHAT_FOLDER_NAMES } from "../src/constants";
 import { COMMAND_LINE_TOOLS_INSTALLER } from "../src/lib/command-line-tools-env";
-import { copySkill } from "../src/lib/copy-skill";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { seatbeltAvailable } from "../src/lib/native-sandbox";
-import { installPythonSkill } from "../src/lib/install-python-skill";
-import { runPnpmCommand } from "../src/lib/run-pnpm";
+import {
+  ensureNodeEnvironment,
+  ensurePythonEnvironment,
+} from "../src/lib/skill-environments";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
 import { placeChat } from "../src/lib/record-folders";
-import { chatVenvPython } from "../src/lib/uv";
-import {
-  getWorkspaceConfig,
-  setWorkspaceConfig,
-} from "../src/lib/workspace-config";
+import { venvPython } from "../src/lib/uv";
+import { workDir } from "../src/lib/work-dir";
+import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { AbsolutePathSchema } from "../src/schemas/paths";
 import { StoreId } from "../src/schemas/store-id";
 import { ChatIdSchema } from "../src/schemas/chat-id";
@@ -107,26 +105,14 @@ function indent(text: string) {
     .join("\n");
 }
 
-/** A chat folder from the template, as initializeTask lays one down. */
+/** A chat and its work folder, empty, as the chat's first command finds it. */
 async function placeAuditChat() {
   const chatId = ChatIdSchema.parse(ulid().toLowerCase());
   // Put in the chat index, so every later lookup of the id finds its folder.
   const sessionId = StoreId.newSessionId();
-  const dir = placeChat(chatId, sessionId);
+  await fs.mkdir(placeChat(chatId, sessionId), { recursive: true });
+  const dir = workDir(chatId);
   await fs.mkdir(dir, { recursive: true });
-  // `work/` has to arrive from the template: its package.json and
-  // pnpm-workspace.yaml are what make the skill's own `pnpm install` a nested
-  // workspace install rather than an error.
-  await fs.cp(getWorkspaceConfig().chatTemplateDir, dir, {
-    force: false,
-    recursive: true,
-  });
-  for (const folder of [
-    CHAT_FOLDER_NAMES.attachments,
-    CHAT_FOLDER_NAMES.work,
-  ]) {
-    await fs.mkdir(path.join(dir, folder), { recursive: true });
-  }
   return { chatId, dir, sessionId };
 }
 
@@ -216,7 +202,10 @@ async function probeBoundary(installerReachable: boolean) {
   return failed;
 }
 
-/** Runs the two installs `load_skill` runs, against a throwaway chat folder. */
+/**
+ * Builds the environments `load_skill` builds for the skill, in the pass's
+ * runtime folder, for a throwaway chat.
+ */
 async function installSkill({
   registrySkillsDir,
   skillName,
@@ -232,49 +221,35 @@ async function installSkill({
     throw new Error(runtime.error);
   }
 
-  const { chatId, dir } = await placeAuditChat();
+  const { chatId } = await placeAuditChat();
 
   const signal = AbortSignal.timeout(INSTALL_TIMEOUT_MS);
-  const { destDir } = await copySkill({
-    dir,
-    signal,
-    skillDir,
-    skillName,
-    skillSource: "system",
-  });
-
   const result: SkillResult = { skill: skillName };
 
   if (runtime.node) {
-    const { exitCode, stderr, stdout } = await runPnpmCommand({
-      args: ["install"],
-      cwd: dir,
-      signal,
-      chatId,
-    });
-    result.node = { exitCode, output: stdout + stderr };
+    const built = await ensureNodeEnvironment({ chatId, signal, skillDir });
+    result.node =
+      "dir" in built
+        ? { exitCode: 0, output: "" }
+        : { exitCode: built.error.exitCode, output: built.error.output };
   }
 
   if (runtime.python) {
-    const installed = await installPythonSkill({
-      signal,
-      skillDir: destDir,
-      chatId,
-    });
+    const built = await ensurePythonEnvironment({ chatId, signal, skillDir });
     result.python =
-      installed.state === "success"
+      "venv" in built
         ? { state: "success" }
         : {
-            output: installed.output,
-            state: `failure (${installed.exitCode})`,
+            output: built.error.output,
+            state: `failure (${built.error.exitCode})`,
           };
 
-    if (installed.state === "success") {
+    if ("venv" in built) {
       // uv patches the managed interpreter's dylib install name with
       // install_name_tool, which is one of the stubs. Running the interpreter is
       // what proves the install survives that step being unavailable.
       const probe = await execa(
-        chatVenvPython(chatId),
+        venvPython(built.venv),
         ["-c", "import sys; print(sys.version.split()[0])"],
         { all: true, reject: false },
       );
@@ -351,7 +326,7 @@ function reportInstall(result: SkillResult) {
   const lines: string[] = [];
   if (result.node) {
     lines.push(
-      `  pnpm install: ${result.node.exitCode === 0 ? "ok" : `FAILED (exit ${result.node.exitCode})`}`,
+      `  node build:   ${result.node.exitCode === 0 ? "ok" : `FAILED (exit ${result.node.exitCode})`}`,
     );
     if (result.node.exitCode !== 0) {
       lines.push(indent(result.node.output));
@@ -514,9 +489,6 @@ for (const mode of args.modes) {
 
   setWorkspaceConfig({
     ...createStubWorkspaceConfig({ tasksDir: path.join(root, "tasks") }),
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.join(repoRoot, "packages/workspace/templates/default"),
-    ),
     pnpmBinPath,
     uvBinPath,
   });

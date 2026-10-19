@@ -22,6 +22,12 @@ import { repairWorkersAiStream } from "./workers-ai-stream-repair";
 export async function aiSDKForProviderConfig(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
+  {
+    sourceModelIdOf,
+  }: {
+    /** The model an alias resolves to right now, by its provider id. */
+    sourceModelIdOf?: (modelId: string) => string | undefined;
+  } = {},
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
@@ -113,6 +119,7 @@ export async function aiSDKForProviderConfig(
       return createOpenRouterLanguageModel({
         chat: await createOpenRouterSDK(config, workspaceServerURL),
         config,
+        sourceModelIdOf,
         workspaceServerURL,
       });
     }

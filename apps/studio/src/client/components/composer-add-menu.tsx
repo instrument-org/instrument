@@ -21,7 +21,6 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useRef } from "react";
 
@@ -95,7 +94,6 @@ export function ComposerAddMenu({
   actions,
   bounds,
   disabled,
-  label,
   onReturnFocus,
   onSelectSkill,
   onViewChange,
@@ -108,8 +106,6 @@ export function ComposerAddMenu({
   /** The composer box this hangs off, rather than overlays. */
   bounds: HTMLElement | null;
   disabled?: boolean;
-  /** A word on the trigger beside its mark, where a bare plus would not say what it is for. */
-  label?: string;
   /** Puts the caret back in the prompt, once something has been chosen here. */
   onReturnFocus: () => void;
   onSelectSkill: (skill: ComposerSkill) => void;
@@ -160,13 +156,13 @@ export function ComposerAddMenu({
     >
       <DropdownMenuTrigger asChild>
         <Button
-          aria-label={label ?? "Add to this prompt"}
+          aria-label="Add to this prompt"
           // A filled rest state rather than a ghost one, so the way in is
           // visible before it is pointed at. Its hover has to darken in one
           // theme and lighten in the other, which no single token does.
           className={cn(
             "bg-muted text-foreground/60 not-disabled:hover:bg-black/10 dark:not-disabled:hover:bg-white/15",
-            label === undefined ? "size-8 p-0" : "h-7 gap-1 px-2 text-xs",
+            "size-8 p-0",
             triggerClassName,
           )}
           disabled={disabled}
@@ -174,14 +170,7 @@ export function ComposerAddMenu({
           size="sm"
           variant="ghost"
         >
-          {label === undefined ? (
-            <PlusIcon className="size-5" weight="regular" />
-          ) : (
-            <>
-              <PaperclipIcon className="size-4" />
-              {label}
-            </>
-          )}
+          <PlusIcon className="size-5" weight="regular" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

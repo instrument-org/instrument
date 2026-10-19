@@ -3,7 +3,7 @@ import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { ChatActivity } from "./chat-activity";
+import { ChatTasksPopover } from "./chat-activity";
 
 const CHAT_ID = ChatIdSchema.parse("2026-10-05-lisbon-trip");
 const tram = StoreId.newSessionId();
@@ -29,6 +29,10 @@ const listed = vi.hoisted(() => ({ tasks: [] as unknown[] }));
 
 vi.mock("./child-tasks-query", () => ({
   useChatTasks: () => ({ data: listed.tasks }),
+}));
+
+vi.mock("@/client/hooks/use-task-background-processes", () => ({
+  useTaskBackgroundProcesses: () => [],
 }));
 
 const { stopSessions } = vi.hoisted(() => ({
@@ -61,39 +65,29 @@ beforeEach(() => {
   ];
 });
 
-/** The activity in a head of the given width, the container its step is shown by. */
-function inHead(width: number, onOpen = vi.fn()) {
+/** The chat's task list, hanging from a plain trigger as the line under its title hangs it. */
+function tasksList({
+  onOpen = vi.fn(),
+  running = RUNNING,
+}: { onOpen?: () => void; running?: typeof RUNNING } = {}) {
   return renderInBrowser(
-    <div className="@container/head flex justify-end" style={{ width }}>
-      <ChatActivity chatId={CHAT_ID} onOpen={onOpen} tasks={RUNNING} />
-    </div>,
+    <ChatTasksPopover
+      chatId={CHAT_ID}
+      onOpen={onOpen}
+      tasks={running}
+      trigger={<button type="button">Tasks</button>}
+    />,
   );
 }
 
-describe("ChatActivity", () => {
-  it("shows the newest step in a wide head", async () => {
-    await inHead(800);
-    await expect
-      .element(page.getByText("Reading about tram 28's route"))
-      .toBeVisible();
-  });
+const openList = () =>
+  userEvent.click(page.getByRole("button", { name: "Tasks" }));
 
-  it("folds to the dot alone in a narrow head", async () => {
-    await inHead(300);
-    await expect
-      .element(page.getByText("Reading about tram 28's route"))
-      .not.toBeVisible();
-    await expect
-      .element(page.getByRole("button", { name: "3 tasks working" }))
-      .toBeVisible();
-  });
-
+describe("ChatTasksPopover", () => {
   it("lists running tasks, then finished ones, and opens the one pressed", async () => {
     const onOpen = vi.fn();
-    await inHead(800, onOpen);
-    await userEvent.click(
-      page.getByRole("button", { name: "3 tasks working" }),
-    );
+    await tasksList({ onOpen });
+    await openList();
     await expect.element(page.getByText("Running")).toBeVisible();
     await expect.element(page.getByText("Finished")).toBeVisible();
     await expect.element(page.getByText("Pastel de nata shops")).toBeVisible();
@@ -103,10 +97,8 @@ describe("ChatActivity", () => {
 
   it("stops one working task from its row, and offers no stop on a finished one", async () => {
     const onOpen = vi.fn();
-    await inHead(800, onOpen);
-    await userEvent.click(
-      page.getByRole("button", { name: "3 tasks working" }),
-    );
+    await tasksList({ onOpen });
+    await openList();
     await expect
       .element(page.getByRole("button", { name: "Stop this task" }).nth(2))
       .toBeVisible();
@@ -124,10 +116,8 @@ describe("ChatActivity", () => {
 
   it("keeps every other task's stop while one task's stop is on its way", async () => {
     stopSessions.mockReturnValue(new Promise(() => {}));
-    await inHead(800);
-    await userEvent.click(
-      page.getByRole("button", { name: "3 tasks working" }),
-    );
+    await tasksList();
+    await openList();
     const stops = page.getByRole("button", { name: "Stop this task" });
     await userEvent.click(stops.first());
     await expect.element(stops.first()).toBeDisabled();
@@ -148,10 +138,8 @@ describe("ChatActivity", () => {
         working: false,
       },
     ];
-    await renderInBrowser(
-      <ChatActivity chatId={CHAT_ID} onOpen={vi.fn()} tasks={[]} />,
-    );
-    await userEvent.click(page.getByRole("button", { name: "1 task" }));
+    await tasksList({ running: [] });
+    await openList();
     await expect.element(page.getByText("Running")).toBeVisible();
     await expect.element(page.getByText("Finished")).not.toBeInTheDocument();
     await expect
@@ -176,10 +164,8 @@ describe("ChatActivity", () => {
           stoppedBy,
         },
       ];
-      await renderInBrowser(
-        <ChatActivity chatId={CHAT_ID} onOpen={vi.fn()} tasks={[]} />,
-      );
-      await userEvent.click(page.getByRole("button", { name: "1 task" }));
+      await tasksList({ running: [] });
+      await openList();
       await expect.element(page.getByText(said)).toBeVisible();
     },
   );
@@ -187,10 +173,8 @@ describe("ChatActivity", () => {
   it("offers the finished tasks while nothing runs", async () => {
     listed.tasks = [PACKING];
     const onOpen = vi.fn();
-    await renderInBrowser(
-      <ChatActivity chatId={CHAT_ID} onOpen={onOpen} tasks={[]} />,
-    );
-    await userEvent.click(page.getByRole("button", { name: "1 task" }));
+    await tasksList({ onOpen, running: [] });
+    await openList();
     await expect.element(page.getByText("Running")).not.toBeInTheDocument();
     await userEvent.click(page.getByRole("button", { name: /Packing list/ }));
     expect(onOpen).toHaveBeenCalledWith(packing);
@@ -209,23 +193,13 @@ describe("ChatActivity", () => {
         updatedAt: new Date(2026, 9, 5, 14, 30),
       },
     ];
-    await renderInBrowser(
-      <ChatActivity chatId={CHAT_ID} onOpen={vi.fn()} tasks={[]} />,
-    );
-    await userEvent.click(page.getByRole("button", { name: "2 tasks" }));
+    await tasksList({ running: [] });
+    await openList();
     await expect
       .element(page.getByText("The app closed while counting the stops"))
       .toBeVisible();
     await expect
       .element(page.getByText("Made packing-list.md"))
       .not.toBeInTheDocument();
-  });
-
-  it("draws nothing for a chat that filed no task", async () => {
-    listed.tasks = [];
-    const { container } = await renderInBrowser(
-      <ChatActivity chatId={CHAT_ID} onOpen={vi.fn()} tasks={[]} />,
-    );
-    expect(container.textContent).toBe("");
   });
 });

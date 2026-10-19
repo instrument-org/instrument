@@ -3,7 +3,7 @@
  * and leave them alone when it is one?
  *
  * The agent-browser skill describes `tab new`, `tab <id>`, `tab list` and
- * `tab close`. What it cannot show is whether a model reaches for them when
+ * `instrument tab close`. What it cannot show is whether a model reaches for them when
  * two pages are one job, whether it snapshots again after a switch instead of
  * clicking refs from the other tab, and whether a one-page question stays one
  * page. A run has no window, so each task browses in a Chrome of its own,
@@ -11,6 +11,37 @@
  */
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";
+import { serveLoopbackSite } from "../lib/loopback-site";
+
+/** An article with `sections` headings, as a page the task opens. */
+function article(title: string, sections: string[]): string {
+  return `<!doctype html><html><head><title>${title}</title></head><body><h1>${title}</h1>${sections
+    .map(
+      (section) =>
+        `<h2>${section}</h2><p>What there is to say about the ${title.toLowerCase()} and its ${section.toLowerCase()}.</p>`,
+    )
+    .join("")}</body></html>`;
+}
+
+/** Two articles served locally; Bottle has more section headings. */
+const PAGES = {
+  "/wiki/Bottle": {
+    body: article("Bottle", [
+      "History",
+      "Materials",
+      "Closures",
+      "Sizes",
+      "Recycling",
+      "See also",
+    ]),
+    type: "text/html",
+  },
+  "/wiki/Jar": {
+    body: article("Jar", ["History", "Uses", "Sealing"]),
+    type: "text/html",
+  },
+};
+let site = "";
 
 /** Every agent-browser command the task ran, in order. */
 function browserCommands(sessions: Session.WithMessagesAndParts[]): string[] {
@@ -94,8 +125,12 @@ export const TASK_TABS_EVALS = [
       answered(/bottle/i, "Named the Bottle article"),
     ],
     name: "task-tabs-compare",
-    prompt:
-      "Open https://en.wikipedia.org/wiki/Jar and https://en.wikipedia.org/wiki/Bottle side by side in two tabs, leave both open, and tell me which of the two articles has more section headings.",
+    get prompt() {
+      return `Open ${site}/wiki/Jar and ${site}/wiki/Bottle side by side in two tabs, leave both open, and tell me which of the two articles has more section headings.`;
+    },
+    setup: async () => {
+      site = await serveLoopbackSite(PAGES);
+    },
   }),
 
   defineEval({

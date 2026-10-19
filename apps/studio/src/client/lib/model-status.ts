@@ -2,9 +2,16 @@ import {
   type AIGatewayModel,
   type AIGatewayModelURI,
   findReplacement,
+  type ModelConnection,
   modelNameFromURI,
+  type ModelRouteTable,
   readModelURI,
+  routeModel,
 } from "@instrument-org/ai-gateway/client";
+import {
+  SIGN_IN_ACCOUNT_NAMES,
+  type SignInAccountType,
+} from "@/shared/notices";
 import { type AIProviderType, OUR_MODELS } from "@instrument-org/shared";
 
 /**
@@ -37,6 +44,8 @@ export type ModelStatus =
     }
   /** Chosen once, and no connected provider lists it any more. */
   | {
+      /** The account it was chosen through, when that account was signed out without the person asking. */
+      account?: SignInAccountType;
       fix?: AIGatewayModel.Type;
       /** The fix is this model through another connection, so the offer names the connection. */
       fixIsSameModel?: boolean;
@@ -46,10 +55,11 @@ export type ModelStatus =
       provider?: string;
       /**
        * Why it is gone, as far as the list can tell: the connection it came
-       * through lists nothing at all any more (removed, or signed out of), or
-       * still lists models and this one is not among them.
+       * through lists nothing at all any more (removed, or signed out of), is
+       * an account signed out without the person asking, is turned off in
+       * Settings, or still lists models and this one is not among them.
        */
-      reason: "disconnected" | "dropped";
+      reason: "disconnected" | "dropped" | "off" | "signed-out";
     }
   /** Chosen through a provider whose list failed to load, so whether it is still offered is unknown. */
   | { kind: "provider-failed"; message: string; name: string; provider: string }
@@ -71,7 +81,38 @@ export const offerKeyOf = (
   newer: AIGatewayModel.Type,
 ) => `${model.uri}>${newer.canonicalId}`;
 
+/** What the models list says this computer has: its models, its connections in the order added, and its routes. */
+export interface ModelsHere {
+  connections?: readonly ModelConnection[];
+  models?: readonly AIGatewayModel.Type[];
+  routes?: ModelRouteTable;
+}
+
+/**
+ * A stored model URI as this computer reaches it (`routeModel`): the URI it
+ * sends as, and the listed model at it, if any. A URI nothing here reaches is
+ * answered as it is, for the status to call gone. Every place that shows or
+ * checks a chosen model reads it through this, so none of them can differ
+ * from the send, which routes in the main process the same way.
+ */
+export function reachModel(
+  { connections = [], models = [], routes = {} }: ModelsHere = {},
+  uri: AIGatewayModelURI.Type | undefined,
+): { model?: AIGatewayModel.Type; uri?: AIGatewayModelURI.Type } {
+  if (!uri) {
+    return {};
+  }
+  const route = routeModel({ connections, models, routes, uri });
+  const reached = route.kind === "none" ? uri : route.uri;
+  return {
+    model: models.find((entry) => entry.uri === reached),
+    uri: reached,
+  };
+}
+
 export function readModelStatus({
+  connections,
+  disabled,
   dismissedOffers,
   errors = [],
   isError = false,
@@ -79,7 +120,13 @@ export function readModelStatus({
   models = [],
   modelURI,
   providerNames,
+  routes,
+  signedOut,
 }: {
+  /** This computer's connections and routes, from the list, for `reachModel`. */
+  connections?: readonly ModelConnection[];
+  /** The connections turned off in Settings, by id. */
+  disabled?: ReadonlySet<string>;
   dismissedOffers: ReadonlySet<string>;
   errors?: ModelListError[];
   isError?: boolean;
@@ -88,13 +135,16 @@ export function readModelStatus({
   modelURI?: AIGatewayModelURI.Type;
   /** What each kind of provider is called, for naming a connection that is no longer there. */
   providerNames?: ReadonlyMap<AIProviderType, string>;
+  routes?: ModelRouteTable;
+  /** The accounts signed out without the person asking, by connection id. */
+  signedOut?: ReadonlySet<string>;
 }): ModelStatus {
   if (isLoading) {
     return { kind: "loading" };
   }
 
   const auto = models.find((model) => model.providerId === OUR_MODELS.text.id);
-  const model = modelURI && models.find((entry) => entry.uri === modelURI);
+  const { model } = reachModel({ connections, models, routes }, modelURI);
 
   if (model) {
     if (model.restricted) {
@@ -154,6 +204,13 @@ export function readModelStatus({
       models.find(
         (entry) => entry.params.providerConfigId === source.providerConfigId,
       );
+    const account =
+      !stillListed &&
+      source &&
+      signedOut?.has(source.providerConfigId) &&
+      isSignInAccount(source.provider)
+        ? source.provider
+        : undefined;
     const provider =
       stillListed?.providerName.trim() ??
       (source && source.provider !== "openai-compatible"
@@ -162,7 +219,14 @@ export function readModelStatus({
     return {
       kind: "gone",
       name,
-      reason: stillListed ? "dropped" : "disconnected",
+      reason: stillListed
+        ? "dropped"
+        : source && disabled?.has(source.providerConfigId)
+          ? "off"
+          : account
+            ? "signed-out"
+            : "disconnected",
+      ...(account && { account }),
       ...(provider && { provider }),
       ...withFix(fix),
       ...(fix &&
@@ -216,11 +280,16 @@ function oursFirst(models: AIGatewayModel.Type[]) {
 
 const withFix = (fix: AIGatewayModel.Type | undefined) => (fix ? { fix } : {});
 
+const isSignInAccount = (type: AIProviderType): type is SignInAccountType =>
+  type in SIGN_IN_ACCOUNT_NAMES;
+
 /** What the user does about a status. */
 export type ModelAction =
   | { kind: "add-provider"; label: string }
   | { kind: "choose"; label: string }
   | { kind: "retry"; label: string }
+  /** Open Settings at the account's row, where signing in again is. */
+  | { account: SignInAccountType; kind: "sign-in"; label: string }
   | { kind: "switch"; label: string; model: AIGatewayModel.Type };
 
 /** How a status reads wherever it is shown: one sentence, one action, and whether it can be set aside. */
@@ -259,6 +328,18 @@ export function noticeFor(status: ModelStatus): ModelNotice | null {
       };
     }
     case "gone": {
+      if (status.account) {
+        return {
+          action: {
+            account: status.account,
+            kind: "sign-in",
+            label: "Sign in again",
+          },
+          dismissible: false,
+          text: goneText(status),
+          tone: "problem",
+        };
+      }
       return {
         ...(status.fix && status.fixIsSameModel
           ? {
@@ -331,10 +412,19 @@ const switchTo = (fix: AIGatewayModel.Type | undefined) =>
  * what changed under them.
  */
 function goneText({
+  account,
   name,
   provider,
   reason,
 }: Extract<ModelStatus, { kind: "gone" }>) {
+  if (account) {
+    return `You're signed out of ${SIGN_IN_ACCOUNT_NAMES[account]}`;
+  }
+  if (reason === "off") {
+    return provider
+      ? `${provider} is turned off, so ${name} isn't available`
+      : `${name} isn't available while its provider is turned off`;
+  }
   if (!provider) {
     return `${name} isn't available anymore`;
   }

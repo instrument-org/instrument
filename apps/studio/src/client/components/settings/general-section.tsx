@@ -10,6 +10,7 @@ import { ExternalLink } from "@/client/components/external-link";
 import { ThemeToggle } from "@/client/components/theme-toggle";
 import { Button } from "@/client/components/ui/button";
 import { Switch } from "@/client/components/ui/switch";
+import { DeveloperModeBadge } from "@/client/components/tool-part/developer-mode-badge";
 import { Card } from "@/client/components/ui/card";
 import {
   Dialog,
@@ -54,14 +55,24 @@ import { toast } from "@/client/lib/toast";
 
 export function SettingsSection({
   children,
+  developerOnly,
   title,
 }: {
   children: ReactNode;
+  developerOnly?: boolean;
   title: string;
 }) {
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+      <h3
+        className={cn(
+          "flex items-center gap-2 text-sm font-medium text-muted-foreground",
+          developerOnly && "text-dev-700 dark:text-dev-300",
+        )}
+      >
+        {title}
+        {developerOnly && <DeveloperModeBadge />}
+      </h3>
       {children}
     </div>
   );
@@ -123,10 +134,16 @@ function About() {
     rpcClient.debug.trigger.testDownloadNotification.mutationOptions(),
   );
 
+  const openLicensesMutation = useMutation(
+    rpcClient.utils.openThirdPartyLicenses.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't open the licenses", { cause: error });
+      },
+    }),
+  );
+
   const handleCheckForUpdates = () => {
-    checkForUpdatesMutation.mutate({
-      notify: true,
-    });
+    checkForUpdatesMutation.mutate();
   };
 
   const formatLastChecked = (date: Date) => {
@@ -286,6 +303,7 @@ function About() {
         if (developerMode && isUnpacked) {
           return (
             <Button
+              className="text-dev-700 dark:text-dev-300"
               disabled={testDownloadNotification.isPending}
               onClick={() => {
                 testDownloadNotification.mutate(undefined);
@@ -339,7 +357,9 @@ function About() {
               <div className="text-sm font-medium">Open source</div>
               <p className="text-xs text-muted-foreground">
                 {APP_NAME} is open source and free to use. View the source on
-                GitHub, or tell us about something that isn&apos;t working.
+                GitHub, or tell us about something that isn&apos;t working. It
+                also comes with programs from other projects, and you can read
+                their licenses here.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -354,6 +374,16 @@ function About() {
                   Report a bug
                   <ArrowSquareOutIcon className="size-3.5" />
                 </ExternalLink>
+              </Button>
+              <Button
+                disabled={openLicensesMutation.isPending}
+                onClick={() => {
+                  openLicensesMutation.mutate(undefined);
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Third-party licenses
               </Button>
             </div>
           </div>
@@ -387,8 +417,7 @@ function InterfaceAndTheme() {
             <div className="space-y-0.5">
               <Label>Zoom</Label>
               <p className="text-xs text-muted-foreground">
-                You can make everything in the app larger or smaller. Web pages
-                keep their own zoom.
+                Scale the interface. Independent of web view zoom.
               </p>
             </div>
             <ZoomStepper />
@@ -431,18 +460,17 @@ function ReleaseChannel() {
     channel;
 
   return (
-    <SettingsSection title="Release channel">
-      <Card className="p-4">
+    <SettingsSection developerOnly title="Release channel">
+      <Card className="border-dashed border-dev-700/40 bg-dev-500/5 p-4 dark:border-dev-300/30">
         <div
           className="flex items-start justify-between gap-4"
           {...settingAnchor("release-channel")}
         >
           <div className="space-y-1">
-            <Label htmlFor="release-channel">Update from</Label>
+            <Label htmlFor="release-channel">Channel</Label>
             <p className="text-xs text-muted-foreground">
-              Beta gets new versions as soon as they’re released. If you switch
-              back to Stable, you’ll stay on this version until a newer stable
-              one comes out.
+              Beta gets each new version as soon as it’s out. Switching back to
+              Stable keeps this version until a newer stable one ships.
             </p>
           </div>
           <Select

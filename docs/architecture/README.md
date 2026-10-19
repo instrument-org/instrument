@@ -7,11 +7,15 @@ Nothing here carries a status or a date. If a statement stops being true, correc
 ## Index
 
 - [system-overview.md](system-overview.md) — the top-level map: packages and layering, chats, tasks, and the app window, main-vs-renderer topology, on-disk layout, and how an agent turn flows end to end. **Start here.**
+- [chat-records.md](chat-records.md) — a chat as a folder of append-only logs: the files and who writes them, the one door in and the one door out, what a part still arriving is, the index over them, and the way in from a `chat.db`.
 - [ai-gateway.md](ai-gateway.md) — model access: the mounted provider-proxy Hono app, plus the model discovery and identity library that workspace and studio consume.
 - [auth-callback-server.md](auth-callback-server.md) — loopback callback ownership, canonical paths, and assembled-router tests.
 - [agent-sandbox.md](agent-sandbox.md) — how agent tools are held to the Permissions rules: path-scoped file I/O, the just-bash filesystem, the agent-browser allowlist, and the real-binary escape hatches under Seatbelt on macOS and bubblewrap on Linux.
 - [bash-sandbox-mounts-and-native-binaries.md](bash-sandbox-mounts-and-native-binaries.md) — how the folders a chat reaches are mounted at their real paths, why a folder inside another is reached through the outer one, and the just-bash quirks that follow.
-- [windows-sandbox.md](windows-sandbox.md): why native commands on Windows run with the person's own access rather than under an OS sandbox, what Settings says about it, and what would let MXC hold them.
+- [threat-model.md](threat-model.md): what the agent's limits protect, what they deliberately do not, and how to decide whether a security finding needs a fix. Read before reviewing or changing containment.
+- [native-sandbox-off.md](native-sandbox-off.md): what it means when the agent's programs run without a sandbox on macOS or Linux, why it happens, and how the app decides and warns. Settings › Permissions links to it.
+- [windows-sandbox.md](windows-sandbox.md): how MXC holds native commands on Windows, the canary that decides whether it can on a machine, what Settings says where it cannot, and what it leaves open.
+- [native-and-builtin-commands.md](native-and-builtin-commands.md): which shell commands run as real programs and which as just-bash builtins, per platform, with the table of GNU text commands on uutils generated from the code, how a name is routed, and what the launcher and the OS sandbox do.
 - [just-bash-upstream.md](just-bash-upstream.md) — which build we consume, every patch and agent-facing workaround we carry because of an upstream gap, and the removal trigger for each. Read before adding a prompt line that steers the agent around sandbox behavior.
 - [in-app-browser.md](in-app-browser.md) — the in-app browser the user, a chat, and its tasks share: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, what the panel may do that the agent may not, and how a file on the computer opens at one `file://` address for the person and the agent.
 - [responsive-layout.md](responsive-layout.md) — why viewport breakpoints are the wrong proxy for layout width under UI zoom and a resizable sidebar, the `@container/app-content` shell container, and the unit rules for portalled content.

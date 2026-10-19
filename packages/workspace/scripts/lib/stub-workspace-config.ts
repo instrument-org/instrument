@@ -2,6 +2,7 @@ import { noopModelCache } from "@instrument-org/ai-gateway";
 import path from "node:path";
 
 import { createMemoryAppsConfig } from "../../src/lib/apps/memory-config";
+import { workspaceLayout } from "../../src/lib/workspace-layout";
 import {
   AbsolutePathSchema,
   WorkspaceDirSchema,
@@ -9,6 +10,7 @@ import {
 import { unavailableWebSearchClient } from "../../src/schemas/web-search";
 import { createStubBrowserConfig } from "../../src/test/helpers/mock-chat-config";
 import { type WorkspaceConfig } from "../../src/types";
+import { newDeviceId } from "../../src/lib/records/device-id";
 
 export function createStubWorkspaceConfig({
   overrides,
@@ -16,48 +18,52 @@ export function createStubWorkspaceConfig({
   rootDir = path.dirname(tasksDir),
 }: {
   // For the parts a script actually exercises. The defaults below point at
-  // paths that need only be well-formed, not real; a script that creates tasks
-  // has to supply a real `chatTemplateDir`, for one.
+  // paths that need only be well-formed, not real.
   overrides?: Partial<WorkspaceConfig>;
   rootDir?: string;
   tasksDir: string;
 }): WorkspaceConfig {
   const absoluteRootDir = path.resolve(rootDir);
   const absoluteTasksDir = path.resolve(tasksDir);
+  const layout = workspaceLayout(absoluteRootDir);
 
   return {
     apps: createMemoryAppsConfig(),
-    appsDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "apps")),
+    appsDir: AbsolutePathSchema.parse(layout.appsDir),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureException: () => {
       return;
     },
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.join(absoluteRootDir, "chat-template"),
-    ),
+    deviceId: newDeviceId(),
     getAIProviderConfigs: () => [],
     // On for the dev harnesses, which exist to exercise the real thing. The
     // app ships with it off until the macOS permission prompt is handled.
     modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
-    preparedSkillsDir: AbsolutePathSchema.parse(
-      path.join(absoluteRootDir, "prepared-skills"),
-    ),
     registryDir: WorkspaceDirSchema.parse(
       path.join(absoluteRootDir, "registry"),
     ),
     rootDir: WorkspaceDirSchema.parse(absoluteRootDir),
+    runtimeDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "runtime")),
     systemSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteRootDir, "system-skills"),
     ),
-    chatsDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "chats")),
+    chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
     legacyTasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
-    uvDataDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "uv-data")),
     webSearch: unavailableWebSearchClient,
+    workFoldersDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "machine", "work"),
+    ),
+    userDataDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "machine"),
+    ),
+    workspaceMachineDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "machine"),
+    ),
     ...overrides,
   };
 }

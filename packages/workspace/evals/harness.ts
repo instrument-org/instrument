@@ -5,7 +5,10 @@ import {
   noopModelCache,
   type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
-import { APP_NAME_SLUG } from "@instrument-org/shared";
+import {
+  APP_NAME_SLUG,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import { execa } from "execa";
 import fs from "node:fs";
@@ -15,17 +18,18 @@ import path from "node:path";
 import * as _ from "radashi";
 import { ulid } from "ulid";
 import { createActor } from "xstate";
-import { type z } from "zod";
 
 import type { Session } from "../src/schemas/session";
 
 import {
   attachChats,
+  ensurePythonBase,
   prepareBundledSkills,
   workspaceMachine,
 } from "../src/electron";
 import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { workspaceLayout } from "../src/lib/workspace-layout";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { listChatBackgroundProcesses } from "../src/lib/background-processes";
@@ -34,13 +38,14 @@ import { isTypedByUser } from "../src/lib/typed-by-user";
 import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
-import { openAsks } from "../src/lib/permissions/asks";
-import { Store } from "../src/lib/store";
+import { openAsks } from "../src/lib/chat/asks";
+import { ChatReads } from "../src/lib/chat-reads";
 import { updateChatSettings } from "../src/lib/chat-settings";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
+import { chats as chatsRoute } from "../src/rpc/routes/chats";
 import { permissions as permissionsRoute } from "../src/rpc/routes/permissions";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
@@ -49,10 +54,10 @@ import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 import { type ChatId } from "../src/schemas/chat-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
-import { type Choose } from "../src/tools/choose";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
-import { startRun } from "./lib/start-run";
+import { EVAL_MACHINE_DIR_NAME, recordRun } from "./lib/run-record";
+import { grantCaseFolders, startRun } from "./lib/start-run";
 import { timeOutTaskTurn } from "./lib/time-out-task";
 import {
   buildProviderConfigs,
@@ -69,12 +74,23 @@ import { ensureChat } from "../src/lib/chat/chat-records";
 import { createTopic, updateTopic } from "../src/lib/chat/topics";
 import { StoreId } from "../src/schemas/store-id";
 import { type WorkspaceConfig } from "../src/types";
-import { toolBinDirIn } from "../scripts/lib/tool-bin-dir";
+import { makeToolBinIn } from "../scripts/lib/tool-bin-dir";
+import { newDeviceId } from "../src/lib/records/device-id";
 
 /** The Mac helper a checkout builds, when it has; see the harness input. */
+/** The Seatbelt launcher the same build makes, which native commands start through. */
+const SEATBELT_LAUNCHER = path.resolve(
+  import.meta.dirname,
+  "../../../apps/studio/native/mac-helper/.build/bridge/instrument-seatbelt",
+);
 const MAC_HELPER_BIN = path.resolve(
   import.meta.dirname,
   "../../../apps/studio/native/mac-helper/.build/bridge/instrument-mac",
+);
+/** The uutils binaries `pnpm --filter @instrument-org/studio uutils:download` vendors. */
+const UUTILS_DIR = path.resolve(
+  import.meta.dirname,
+  "../../../apps/studio/resources/uutils",
 );
 
 // The pnpm the app ships, as its JS entry: the workspace runs pnpm with node,
@@ -121,8 +137,16 @@ function evalPrefix(name: string): string {
  * in the error a bare `run` produces so the cheapest reasonable choice is one
  * copy away. Nothing reads it otherwise, so it going stale costs a sentence in
  * an error message rather than a run against a model nobody chose.
+ *
+ * It is metered, which the free Workers AI models it replaced were not, and
+ * that is the price of a floor that passes the behavior the prompts are
+ * written to produce. Measured 2026-10-15 across ten models on five cases:
+ * every Workers AI and lite model, our own floor among them, left finished
+ * work in the chat's folder instead of the person's output folder, and this
+ * one did not. A floor that fails the product's own central rule reports a
+ * prompt change as working when it is not. Five cases cost about two cents.
  */
-export const HOUSE_FLOOR = "zai-org/glm-5.3-flash";
+export const HOUSE_FLOOR = "anthropic/claude-haiku-5.5";
 
 export interface CompletedRun {
   /** Every task this run's chat started, by its session. Empty unless it forked. */
@@ -186,7 +210,7 @@ export interface RunMetrics {
    * counts the ones that ran a `task` command, the hand-off calls.
    */
   refusals: { all: number; task: number };
-  /** `task new` commands the run's own agent ran. */
+  /** `instrument task new` commands the run's own agent ran. */
   taskCommands: { new: number };
   /** Tasks the run started, however deep. */
   tasksCreated: number;
@@ -311,9 +335,8 @@ export interface EvalCase {
    * What the user answers to each `choose` the agent puts to them, in the
    * order it asks, sent through the same route the card answers with. A
    * function gets the question as asked, for an answer that picks one of the
-   * choices the model wrote. A question asked past the end of the list stops
-   * the run, since nothing else would answer it and the turn would wait out
-   * the clock.
+   * choices the model wrote. A question asked past the end of the list is
+   * left open, as one the person has not answered.
    */
   answers?: (
     | ((
@@ -352,13 +375,14 @@ export interface EvalCase {
   allowsApps?: boolean;
   files?: FileUpload.Type[];
   /**
-   * The folders the user picks for each folder card the agent's work raises,
-   * in the order they come up, answered the way the card does once a folder
-   * is chosen in the picker. A card past the end of the list goes
-   * unanswered, as one nobody clicks.
+   * How many folder cards the user allows in this chat, in the order they
+   * come up. A card past that goes unanswered, as one nobody clicks.
    */
-  folderPicks?: string[];
+  allowsFolders?: number;
   /**
+   * Folders sent with the prompt, each already granted to the chat
+   * (`grantCaseFolders`), as an earlier Allow in it would leave them.
+   *
    * `inPlace` attaches the folder where it is rather than a per-run copy:
    * for a folder under the run's home, which `setup` made and which a
    * process with a home of its own (`INSTRUMENT_EVAL_HOME`) does not share.
@@ -413,6 +437,13 @@ export interface EvalCase {
   marks?: { after?: string; match: RegExp; name: string }[];
   name: string;
   /**
+   * Native commands run under Seatbelt on macOS, as Studio runs them, for
+   * every case in the run once any case asks: for a case whose agent may
+   * reach for processes it did not start, which unwrapped could reach the
+   * rest of this computer's.
+   */
+  nativeSandbox?: boolean;
+  /**
    * The run is not over while a command the agent left running in the
    * background is still going: for a case scored on what the agent does
    * when one ends after its turn and wakes it. A process that never exits
@@ -427,16 +458,23 @@ export interface EvalCase {
    * files whose modification times matter, or a memory already kept.
    */
   setup?: () => Promise<void> | void;
+  /**
+   * Run once the run has settled, before anything is scored: to record what
+   * an assertion reads about the computer at the end (whether a fixture is
+   * still running) and to stop what `setup` started and what the run's chat
+   * left running.
+   */
+  teardown?: (run: { chatId: ChatId }) => Promise<void> | void;
   shouldStop?: (
     part: SessionMessagePart.Type,
     chatId: ChatId,
   ) => boolean | Promise<boolean>;
   /**
-   * Topics the chat is filed under from its first message, made before the
-   * run with these instructions, the way a chat started from a topic in the
-   * window is. Chat cases only.
+   * The topic the chat is filed under from its first message, made before
+   * the run with these instructions, the way a chat started from a topic in
+   * the window is. Chat cases only.
    */
-  topics?: { instructions: string; name: string }[];
+  topic?: { instructions: string; name: string };
   /**
    * What the window showed as the case's message was sent, as the note on it:
    * the tabs open, by their ids, and the page or screen up. The tabs it names
@@ -466,7 +504,7 @@ interface ChildTaskSessions {
   title: string;
 }
 
-type ChooseAnswer = z.output<typeof Choose.outputSchema>;
+type ChooseAnswer = SessionMessageDataPart.QuestionAnswerDataPart["answer"];
 
 type FollowUp = FollowUpTiming &
   (
@@ -572,11 +610,11 @@ export async function runEvals(
     return { runs: [], workspaceRootDir };
   }
 
-  // Shells run in the bash worker, as they do in Studio. On this thread,
-  // just-bash's defenses wrap the whole process's environment while a script
-  // runs, which breaks anything else here that writes it, the Claude Agent
-  // SDK among them.
+  // Shells run in the bash worker, as they do in Studio.
   setBashWorkerFactory(createTsxBashWorker);
+
+  const runtimeDir = path.join(workspaceRootDir, "runtime");
+  makeToolBinIn(runtimeDir);
 
   const appsConfig = createMemoryAppsConfig();
   const standInWindow = createStandInWindow();
@@ -595,31 +633,52 @@ export async function runEvals(
       captureException: (...args: unknown[]) => {
         console.error("captureException", ...args);
       },
-      chatTemplateDir: path.resolve(
-        import.meta.dirname,
-        "../templates/default",
-      ),
+      deviceId: newDeviceId(),
       getAIProviderConfigs: () => providerConfigs,
       // The Mac helper as a checkout builds it (`pnpm --filter
       // @instrument-org/studio build:mac-helper`), so a run reaches
       // Calendar, Reminders, and Contacts the way the app does; without
-      // it the agent falls back to osascript, as a build without it would.
+      // it the agent has no way into them, as a build without it has none.
+      ...(process.platform === "darwin" && fs.existsSync(SEATBELT_LAUNCHER)
+        ? { seatbeltHelperPath: SEATBELT_LAUNCHER }
+        : {}),
       ...(process.platform === "darwin" && fs.existsSync(MAC_HELPER_BIN)
         ? { macHelperBinPath: MAC_HELPER_BIN }
         : {}),
       modelCache: noopModelCache,
+      ...(evals.some((evalCase) => evalCase.nativeSandbox)
+        ? { nativeSandbox: true }
+        : {}),
       nodeExecEnv: {},
+      // A workspace the person picked, which is what makes its top level
+      // theirs: each chat's own folder under `Chats/` is then where its
+      // finished work goes, as it is for anyone who picked where their
+      // Instrument folder is kept. Without this a run measures the
+      // fallback, and nothing measures what the prompt tells the agent.
+      outputDir: workspaceRootDir,
       pnpmBinPath: PNPM_BIN,
-      preparedSkillsDir: path.join(workspaceRootDir, "prepared-skills"),
       registryDir,
       rootDir: workspaceRootDir,
+      runtimeDir,
+      // Inside the run's own folder, so a saved run keeps the chats' work
+      // folders beside their records (`buildReportWorkspaceConfig`).
+      userDataDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
+      workspaceMachineDir: path.join(workspaceRootDir, EVAL_MACHINE_DIR_NAME),
+      workFoldersDir: path.join(
+        workspaceRootDir,
+        EVAL_MACHINE_DIR_NAME,
+        WORKSPACE_MACHINE_ENTRIES.work,
+      ),
       systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
       trashItem: () => Promise.reject(new Error("Not implemented")),
       uvBinPath: await execa({ reject: false })`which uv`.then(
         (result) => result.stdout.trim() || "uv",
       ),
-      toolBinDir: toolBinDirIn(workspaceRootDir),
-      uvDataDir: path.join(workspaceRootDir, "uv-data"),
+      // The uutils Studio vendors, so the shell's GNU text commands are the
+      // app's; EVAL_BUILTINS_ONLY=1 leaves them the shell's own, to compare.
+      ...(process.env.EVAL_BUILTINS_ONLY === "1" || !fs.existsSync(UUTILS_DIR)
+        ? {}
+        : { uutilsDir: UUTILS_DIR, uutilsOutsideSandbox: true }),
       webSearch: unavailableWebSearchClient,
     },
   });
@@ -628,6 +687,14 @@ export async function runEvals(
   actor.start();
   // Awaited, unlike the app's: a case's first command may read them.
   await prepareBundledSkills(actor.getSnapshot().context.config);
+  // Awaited too, so every case starts as a launch that has finished it, and
+  // its context says what `python` already has.
+  const pythonBase = await ensurePythonBase();
+  if (pythonBase) {
+    write(
+      `${c.dim}Python    :${c.reset} base packages not installed: ${pythonBase.output.trim()}\n`,
+    );
+  }
 
   const runs = models
     .flatMap((uri) => {
@@ -656,7 +723,7 @@ export async function runEvals(
   );
   const appFixtures = await seedConnectedApps(declaredApps, {
     apps: appsConfig,
-    appsDir: path.join(workspaceRootDir, "apps"),
+    appsDir: workspaceLayout(workspaceRootDir).appsDir,
   });
   for (const app of declaredApps) {
     write(
@@ -692,8 +759,8 @@ export async function runEvals(
         }
         await evalCase.setup?.();
         const folders = privateFoldersFor(evalCase, index) ?? [];
-        if (evalCase.topics && evalCase.kind === "chat") {
-          return openChatUnderTopics(evalCase, evalCase.topics, {
+        if (evalCase.topic && evalCase.kind === "chat") {
+          return openChatUnderTopic(evalCase, evalCase.topic, {
             context,
             folders,
             uri,
@@ -722,6 +789,14 @@ export async function runEvals(
       // every run behind it.
       creating = created.then(_.noop, _.noop);
       const { id, sessionId } = await created;
+      await recordRun(workspaceRootDir, {
+        chatId: id,
+        home: os.homedir(),
+        modelLabel,
+        name: evalCase.name,
+        sessionId,
+        trial,
+      });
 
       // Written straight onto the task rather than passed through `create`,
       // which has no input for it: every turn of this run then reads it, the
@@ -739,10 +814,18 @@ export async function runEvals(
       let firstTextAt: number | undefined;
       let stoppedBy: RunStop | undefined;
       let overBudget: number | undefined;
-      // Each question once: a part is published again on every update.
-      const askedIds = new Set<string>();
+      // What each question was asked with, by its call's part, for an answer
+      // that picks one of the choices the model wrote.
+      const chooseInputs = new Map<
+        StoreId.Part,
+        Extract<
+          SessionMessagePart.ToolPartInputAvailable,
+          { type: "tool-choose" }
+        >["input"]
+      >();
+      let questionsAnswered = 0;
       const handledAskIds = new Set<string>();
-      let folderPicksUsed = 0;
+      let foldersAllowed = 0;
       // See `FollowUp.duringWork`: the run's own finished tool calls, and
       // who is waiting for one to be in flight after enough of them.
       const ownToolsDone = new Set<string>();
@@ -786,10 +869,10 @@ export async function runEvals(
         if (known) {
           return known;
         }
-        const stored = await Store.getMessages({
-          messageIds: [messageId],
-          sessionId: partSessionId,
+        const stored = await ChatReads.transcript({
           chatId: id,
+          only: new Set([messageId]),
+          sessionId: partSessionId,
         });
         const role = stored.isOk() ? stored.value[0]?.role : undefined;
         if (role) {
@@ -836,6 +919,100 @@ export async function runEvals(
         }, _.noop);
       }, ENFORCEMENT_INTERVAL_MS);
 
+      // A question the agent asked, or a folder or app it asked for, shows
+      // the person a card, which the case answers the way they would: a
+      // scripted pick, a yes, a no, or nothing, leaving the agent to carry on
+      // without it. Read on every part and on a timer, since a turn ends on
+      // the call that asked and may publish nothing after it.
+      let answeringAsks = Promise.resolve();
+      const answerAsks = () => {
+        answeringAsks = answeringAsks
+          .then(async () => {
+            for (const ask of await openAsks(id)) {
+              if (handledAskIds.has(ask.id)) {
+                continue;
+              }
+              handledAskIds.add(ask.id);
+              let answer: () => Promise<unknown>;
+              if (ask.kind === "question") {
+                const partId = ask.askers[0]?.partId;
+                const input = partId ? chooseInputs.get(partId) : undefined;
+                const scripted = evalCase.answers?.[questionsAnswered++];
+                const picked =
+                  typeof scripted === "function"
+                    ? input && scripted(input)
+                    : scripted;
+                write(
+                  `${evalPrefix(label)}${c.cyan}choose${c.reset}${c.dim} asked: ${ask.question}${picked ? `; answering ${JSON.stringify(picked)}` : "; leaving it open"}${c.reset}\n`,
+                );
+                if (!picked) {
+                  continue;
+                }
+                answer = () =>
+                  call(
+                    chatsRoute.answerQuestion,
+                    { answer: picked, askId: ask.id, id },
+                    { context },
+                  );
+              } else {
+                const declines =
+                  ask.kind === "folder"
+                    ? evalCase.declinesFolders
+                    : evalCase.declinesApps;
+                const allows =
+                  ask.kind === "folder"
+                    ? !declines &&
+                      foldersAllowed++ < (evalCase.allowsFolders ?? 0)
+                    : evalCase.allowsApps;
+                write(
+                  `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : allows ? "; allowing" : ""}${c.reset}\n`,
+                );
+                if (!(declines || allows)) {
+                  continue;
+                }
+                answer = () =>
+                  call(
+                    permissionsRoute.answer,
+                    {
+                      askId: ask.id,
+                      decision: declines ? "declined" : "allowed",
+                      id,
+                    },
+                    { context },
+                  );
+              }
+              // Answered once the asking sessions' turns are over, as a
+              // person reading the card would, so the answer arrives as a
+              // wake rather than mid-turn.
+              void (async () => {
+                const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
+                while (
+                  ask.askers.some((asker) => isWorking(id, asker.sessionId)) &&
+                  Date.now() < until
+                ) {
+                  await new Promise((resolve) =>
+                    setTimeout(resolve, TREE_POLL_MS),
+                  );
+                }
+                await answer();
+              })().catch((error: unknown) => {
+                process.stderr.write(
+                  `${evalPrefix(label)}${c.red}answering the ${ask.kind} ask failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
+                );
+              });
+            }
+          })
+          .catch((error: unknown) => {
+            process.stderr.write(
+              `${evalPrefix(label)}${c.red}reading the chat's cards failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
+            );
+          });
+        return answeringAsks;
+      };
+      const askTimer = setInterval(() => {
+        void answerAsks();
+      }, TREE_POLL_MS);
+
       void (async () => {
         try {
           for await (const event of partUpdates) {
@@ -861,10 +1038,10 @@ export async function runEvals(
               part.text.trim() !== ""
             ) {
               const seenAt = Date.now();
-              const stored = await Store.getMessages({
-                messageIds: [part.metadata.messageId],
-                sessionId: part.metadata.sessionId,
+              const stored = await ChatReads.transcript({
                 chatId: id,
+                only: new Set([part.metadata.messageId]),
+                sessionId: part.metadata.sessionId,
               });
               const role = stored.isOk() ? stored.value[0]?.role : undefined;
               if (role === undefined || role === "assistant") {
@@ -911,96 +1088,14 @@ export async function runEvals(
               }
             }
 
-            // A boundary the agent ran into shows the person a card, which
-            // the case answers the way they would: a scripted pick, a no, or
-            // nothing, leaving the agent to carry on without it.
-            for (const ask of await openAsks(id)) {
-              if (handledAskIds.has(ask.id)) {
-                continue;
-              }
-              handledAskIds.add(ask.id);
-              const declines =
-                ask.kind === "folder"
-                  ? evalCase.declinesFolders
-                  : evalCase.declinesApps;
-              const picked =
-                ask.kind === "folder" && !declines
-                  ? evalCase.folderPicks?.[folderPicksUsed++]
-                  : undefined;
-              const allows = ask.kind === "app" && evalCase.allowsApps;
-              write(
-                `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : picked ? `; picking ${picked}` : allows ? "; allowing" : ""}${c.reset}\n`,
-              );
-              if (declines || picked || allows) {
-                // Answered once the asking sessions' turns are over, as a
-                // person reading the card would, so the answer arrives as a
-                // wake rather than mid-turn.
-                void (async () => {
-                  const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
-                  while (
-                    ask.askers.some((asker) =>
-                      isWorking(id, asker.sessionId),
-                    ) &&
-                    Date.now() < until
-                  ) {
-                    await new Promise((resolve) =>
-                      setTimeout(resolve, TREE_POLL_MS),
-                    );
-                  }
-                  await call(
-                    permissionsRoute.answer,
-                    {
-                      askId: ask.id,
-                      decision: declines ? "declined" : "allowed",
-                      id,
-                      ...(picked && { path: picked }),
-                    },
-                    { context },
-                  );
-                })().catch((error: unknown) => {
-                  process.stderr.write(
-                    `${evalPrefix(label)}${c.red}answering the ${ask.kind} ask failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
-                  );
-                });
-              }
-            }
-
             if (
               part.type === "tool-choose" &&
-              part.state === "input-available" &&
-              !askedIds.has(part.toolCallId)
+              part.state === "input-available"
             ) {
-              askedIds.add(part.toolCallId);
-              const scripted = evalCase.answers?.[askedIds.size - 1];
-              const answer =
-                typeof scripted === "function"
-                  ? scripted(part.input)
-                  : scripted;
-              write(
-                `${evalPrefix(label)}${c.cyan}choose${c.reset}${c.dim} asked: ${part.input.question}${c.reset}\n`,
-              );
-              if (answer) {
-                write(
-                  `${evalPrefix(label)}${c.dim}Answering: ${JSON.stringify(answer)}${c.reset}\n`,
-                );
-                void call(
-                  sessionRoute.answerToolCall,
-                  {
-                    id,
-                    output: answer,
-                    toolCallId: part.toolCallId,
-                    toolName: "choose",
-                  },
-                  { context },
-                );
-              } else {
-                stoppedBy ??= "case";
-                write(
-                  `${evalPrefix(label)}${c.yellow}No scripted answer for question ${askedIds.size}, stopping session...${c.reset}\n`,
-                );
-                void call(sessionRoute.stop, { id }, { context });
-              }
+              chooseInputs.set(part.metadata.id, part.input);
             }
+
+            await answerAsks();
 
             if (
               isToolPart(part) &&
@@ -1092,7 +1187,7 @@ export async function runEvals(
         if (stoppedBy || outcome === "timeout") {
           break;
         }
-        // A slow model can still be writing `task new` when `afterMs` has
+        // A slow model can still be writing `instrument task new` when `afterMs` has
         // passed since the message that asked for it.
         const taskToStop =
           "stopTask" in followUp
@@ -1242,7 +1337,9 @@ export async function runEvals(
       }
 
       clearInterval(enforcementTimer);
+      clearInterval(askTimer);
       abortController.abort();
+      await evalCase.teardown?.({ chatId: id });
 
       if (outcome === "timeout") {
         stoppedBy = "timeout";
@@ -1374,7 +1471,7 @@ export async function sessionsFor(
 ): Promise<Session.WithMessagesAndParts[]> {
   const ids = sessionId
     ? [sessionId]
-    : (await Store.getSessions(chatId)).map((list) =>
+    : (await ChatReads.sessions({ chatId })).map((list) =>
         list.map((session) => session.id),
       );
   if (!Array.isArray(ids) && ids.isErr()) {
@@ -1382,11 +1479,12 @@ export async function sessionsFor(
   }
   const sessions: Session.WithMessagesAndParts[] = [];
   for (const id of Array.isArray(ids) ? ids : ids.value) {
-    const session = await Store.getSession(id, chatId);
-    const messages = await Store.getMessagesWithParts({
+    const session = await ChatReads.session({ chatId, sessionId: id });
+    const messages = await ChatReads.transcript({
+      bytes: true,
+      chatId,
       inherited: false,
       sessionId: id,
-      chatId,
     });
     if (session.isOk() && messages.isOk()) {
       sessions.push({ ...session.value, messages: messages.value });
@@ -1477,14 +1575,14 @@ function privateFoldersFor(evalCase: EvalCase, index: number) {
 }
 
 /**
- * Opens a chat filed under `topics` the way the window's first send from a
- * topic does: the chat's record, then its first message with the topic ids,
- * which tag the chat before that message is written, so its note carries
- * their instructions.
+ * Opens a chat filed under `topic` the way the window's first send from a
+ * topic does: the chat's record, then its first message with the topic id,
+ * which files the chat before that message is written, so its note carries
+ * the topic's instructions.
  */
-async function openChatUnderTopics(
+async function openChatUnderTopic(
   evalCase: EvalCase,
-  topics: NonNullable<EvalCase["topics"]>,
+  { instructions, name }: NonNullable<EvalCase["topic"]>,
   {
     context,
     folders,
@@ -1498,14 +1596,11 @@ async function openChatUnderTopics(
     uri: string;
   },
 ): Promise<{ id: ChatId; sessionId: StoreId.Session }> {
-  const topicIds: string[] = [];
-  for (const { instructions, name } of topics) {
-    const topic = await createTopic({ name });
-    await updateTopic(topic.id, { instructions });
-    topicIds.push(topic.id);
-  }
+  const topic = await createTopic({ name });
+  await updateTopic(topic.id, { instructions });
   const newSessionId = StoreId.newSessionId();
   const id = await ensureChat(newSessionId, evalCase.prompt);
+  await grantCaseFolders(id, folders);
   const { sessionId } = await call(
     messageRoute.create,
     {
@@ -1514,7 +1609,7 @@ async function openChatUnderTopics(
       id,
       modelURI: uri,
       prompt: evalCase.prompt,
-      topics: topicIds,
+      topic: topic.id,
       viewing: evalCase.viewing,
     },
     { context },
@@ -1558,7 +1653,7 @@ async function metricsFor(
         if (part.type === "tool-bash" && part.input?.command) {
           const command: string = part.input.command;
           taskCommands.new += [
-            ...command.matchAll(/(?:^|[\n;&|])\s*task new\b/g),
+            ...command.matchAll(/(?:^|[\n;&|])\s*instrument task new\b/g),
           ].length;
         }
       }
@@ -1583,7 +1678,9 @@ async function metricsFor(
           if (REFUSED.test(said)) {
             refusals.all += 1;
             if (
-              /(?:^|[\n;&|(])\s*task\s+[a-z]/.test(part.input?.command ?? "")
+              /(?:^|[\n;&|(])\s*instrument\s+task\s+[a-z]/.test(
+                part.input?.command ?? "",
+              )
             ) {
               refusals.task += 1;
             }

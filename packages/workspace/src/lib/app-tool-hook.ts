@@ -13,7 +13,7 @@ export type AppToolInvoker = (
 
 /**
  * The hook for the agent's shell: `tools.<slug>.<tool>(args)` calls that
- * app's MCP tool through the same checks `app call` makes.
+ * app's MCP tool through the same checks `instrument app call` makes.
  */
 export const appToolHook: AppToolInvoker = (path, argsJson, signal) =>
   invokeAppTool(path, argsJson, signal);

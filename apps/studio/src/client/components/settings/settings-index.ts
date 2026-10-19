@@ -1,7 +1,7 @@
 import { type SettingsTab } from "@/client/atoms/settings-modal";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { APP_NAME } from "@instrument-org/shared";
-import uFuzzy from "@leeoniya/ufuzzy";
+import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 
 /**
  * One thing Settings search can find: a page, a row of one, or something a
@@ -76,11 +76,11 @@ export const SETTINGS_INDEX = [
     title: "Open source",
   },
   {
-    detail: "Which builds this computer updates to.",
+    detail: "Get beta versions before they ship.",
     developerOnly: true,
     id: "release-channel",
     tab: "General",
-    title: "Update from",
+    title: "Release channel",
   },
   {
     detail: "A local record to send with a problem report",
@@ -160,22 +160,34 @@ export const SETTINGS_INDEX = [
     title: "Use folders without asking",
   },
   {
+    detail: `Your Instrument folder, each chat's files, past chats and caches, which every chat can use because ${APP_NAME} needs them.`,
+    id: "always-open",
+    tab: "Permissions",
+    title: "Folders every chat can use",
+  },
+  {
+    detail: `Put every folder and app back the way they were when you installed ${APP_NAME}.`,
+    id: "reset-permissions",
+    tab: "Permissions",
+    title: "Reset permissions",
+  },
+  {
     detail: "Ask for a skill that teaches a new way of working.",
     id: "new-skill",
     tab: "Skills",
     title: "New skill",
   },
   {
-    detail: "Where your chats and tasks live on this computer",
-    id: "workspace-location",
+    detail: "Where your chats, topics, and memories are kept, and moving them",
+    id: "instrument-folder",
     tab: "Storage",
-    title: "Workspace location",
+    title: "Instrument folder",
   },
   {
-    detail: "Chats and tasks with problems in their folders",
+    detail: "Chats in your Instrument folder that can’t be opened",
     id: "broken-folders",
     tab: "Storage",
-    title: "Broken chats and tasks",
+    title: "Chats that can’t be opened",
   },
   {
     detail: "Whether this computer can encrypt saved keys",
@@ -206,6 +218,12 @@ export const SETTINGS_INDEX = [
     mark: "open-source",
     tab: "General",
     title: "Report a bug",
+  },
+  {
+    id: "third-party-licenses",
+    mark: "open-source",
+    tab: "General",
+    title: "Third-party licenses",
   },
   {
     id: "test-notification",
@@ -265,8 +283,7 @@ export const SETTINGS_PAGES: Record<
   },
   Storage: {
     detail:
-      "Where your chats and tasks live, and fixing ones whose folders have problems.",
-    shownWhen: "some chats or tasks have problems in their folders",
+      "Where your Instrument folder is, and chats in it that can’t be opened.",
   },
   Activity: {
     detail: `Everything ${APP_NAME} asked an AI model to do, which you can filter, sort, and export.`,
@@ -344,7 +361,7 @@ export type SettingsMatch = {
  * Each word of a search has to appear as written, starting a word of what the
  * result shows: "pro" finds "Add provider" but not "Import".
  */
-const fuzzy = new uFuzzy({ interLft: 1, intraIns: 0 });
+const fuzzy = boundedFuzzy({ interLft: 1, intraIns: 0 });
 
 /**
  * Ranks entries against `query` by the text each result shows, its title and,

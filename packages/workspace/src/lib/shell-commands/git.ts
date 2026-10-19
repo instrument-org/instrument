@@ -9,15 +9,17 @@ import {
   hostPathOf,
   otherFolders,
   shellPath,
+  shellPathOfHostSpelling,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import {
+  binaryStdout,
   collapseProgress,
-  execShim,
   mapStreams,
   shimOutput,
 } from "./exec-shim";
-import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
+import { runNative, stdinFor } from "./pipe-stage";
+import { hostPathArgs, resolveCommandContext } from "./utils";
 
 // Git config keys, spelled as git spells them.
 
@@ -196,7 +198,7 @@ export function createGitCommand({
   layout: WorkspaceFsLayout;
   chatId: ChatId;
 }) {
-  return defineCommand(GIT_COMMAND.name, async (args, ctx) => {
+  const command = defineCommand(GIT_COMMAND.name, async (args, ctx) => {
     const rejection = rejectUnsafeArgs(args);
     if (rejection) {
       return fail(rejection);
@@ -216,11 +218,14 @@ export function createGitCommand({
         subcommand !== undefined &&
         (subcommand.name === "init" || subcommand.name === "clone");
       for (const [index, target] of [".", ...args.map(pathValueOf)].entries()) {
-        if (!target.startsWith("/") && target !== ".") {
+        // A path spelled the way this computer spells one is the path git
+        // writes to, so it meets the rules its shell spelling meets.
+        const spelled = shellPathOfHostSpelling(target, { hostCwd }) ?? target;
+        if (!spelled.startsWith("/") && spelled !== ".") {
           continue;
         }
         refusal ??= ruleRefusal({
-          hostPath: hostPathOf(ctx.fs.resolvePath(ctx.cwd, target)),
+          hostPath: hostPathOf(ctx.fs.resolvePath(ctx.cwd, spelled)),
           // Index 0 is the working folder, so an argument sits one later.
           isDirectory: makesFolder && index - 1 > subcommand.index,
           op: "write",
@@ -243,7 +248,8 @@ export function createGitCommand({
       );
     }
 
-    const result = await execShim(
+    return runNative(
+      ctx,
       gitBinaryPath(),
       [
         ...FORCED_CONFIG.flatMap((entry) => ["-c", entry]),
@@ -256,18 +262,28 @@ export function createGitCommand({
         // Isolation from the user's git config and credentials comes from
         // gitSubprocessEnv, which resolveCommandContext applies to every hatch.
         env,
-        input: subprocessStdin(ctx.stdin),
+        ...stdinFor(ctx.stdin),
       },
+      (result) => ({
+        exitCode: result.exitCode ?? 1,
+        ...mapStreams(shimOutput(result, GIT_COMMAND.name), (text) =>
+          filterShellOutput(withoutStatPadding(collapseProgress(text))),
+        ),
+        ...binaryStdout(result),
+      }),
     );
-
-    const streams = mapStreams(shimOutput(result, GIT_COMMAND.name), (text) =>
-      filterShellOutput(collapseProgress(text)),
-    );
-    return {
-      exitCode: result.exitCode ?? 1,
-      ...streams,
-    };
   });
+  return { ...command, acceptsPipeHandoff: true };
+}
+
+/**
+ * git's `failed to stat '<path>'` without the spaces git puts before the
+ * path: its message pads the path to the length of a prefix it leaves out
+ * (`%*s` where `%.*s` was meant), so the path reads as one starting with
+ * two dozen spaces.
+ */
+export function withoutStatPadding(text: string): string {
+  return text.replaceAll(/(failed to stat ')[ \t]+/g, "$1");
 }
 
 /** The path an argument names: the value of a `--flag=value` path flag, else the argument. */

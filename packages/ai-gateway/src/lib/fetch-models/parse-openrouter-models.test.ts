@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
+
 import { AIGatewayProviderConfig } from "../../schemas/provider-config";
 import { parseOpenRouterModelsList } from "./parse-openrouter-models";
 
@@ -149,5 +151,122 @@ describe("parseOpenRouterModelsList", () => {
         }),
       ).restricted?.reason,
     ).toBe("some-future-criterion");
+  });
+
+  const ourConfig = AIGatewayProviderConfig.Schema.parse({
+    ...OUR_PROVIDER_CONFIG,
+    apiKey: "test-key",
+  });
+
+  function ourModel(id: string, instrument: Record<string, unknown>) {
+    return openRouterModel({
+      id: `instrument/${id}`,
+      instrument,
+      name: `Instrument: ${id}`,
+    });
+  }
+
+  function displayDetails(data: Record<string, unknown>[]) {
+    return parseOpenRouterModelsList({ config: ourConfig, data: { data } })
+      .getOrThrow()
+      .map(({ family, maker, name, note, providerId, restricted, tags }) => ({
+        family,
+        maker,
+        name,
+        note,
+        providerId,
+        restricted,
+        tags,
+      }));
+  }
+
+  // One snapshot over both shapes, since an inline snapshot cannot sit inside
+  // `it.each`: the gateway that curates the lineup, and the one production
+  // runs until it does.
+  it("reads display details from a curating gateway and leaves an older one to the heuristics", () => {
+    expect({
+      curated: displayDetails([
+        ourModel("auto", {
+          name: "Auto",
+          recommended: true,
+          sourceModelId: "openai/gpt-6-luna",
+        }),
+        ourModel("claude", {
+          family: "Claude Haiku",
+          maker: "anthropic",
+          name: "Claude",
+          note: "Fast on short edits.",
+          recommended: false,
+          sourceModelId: "anthropic/claude-haiku-5.5",
+        }),
+      ]),
+      older: displayDetails([
+        ourModel("auto", { sourceModelId: "openai/gpt-6-luna" }),
+        openRouterModel({
+          instrument: {
+            restricted: {
+              message: "Grok 4.3 is available with a paid Instrument plan.",
+              reason: "paid-plan-required",
+            },
+          },
+        }),
+      ]),
+    }).toMatchInlineSnapshot(`
+      {
+        "curated": [
+          {
+            "family": undefined,
+            "maker": undefined,
+            "name": "Auto",
+            "note": undefined,
+            "providerId": "instrument/auto",
+            "restricted": undefined,
+            "tags": [
+              "coding",
+              "default",
+              "recommended",
+            ],
+          },
+          {
+            "family": "Claude Haiku",
+            "maker": "anthropic",
+            "name": "Claude",
+            "note": "Fast on short edits.",
+            "providerId": "instrument/claude",
+            "restricted": undefined,
+            "tags": [
+              "coding",
+            ],
+          },
+        ],
+        "older": [
+          {
+            "family": undefined,
+            "maker": undefined,
+            "name": "auto",
+            "note": undefined,
+            "providerId": "instrument/auto",
+            "restricted": undefined,
+            "tags": [
+              "recommended",
+              "coding",
+              "default",
+            ],
+          },
+          {
+            "family": undefined,
+            "maker": undefined,
+            "name": "Grok 4.3",
+            "note": undefined,
+            "providerId": "x-ai/grok-4.3",
+            "restricted": {
+              "message": "Grok 4.3 is available with a paid Instrument plan.",
+              "reason": "paid-plan-required",
+            },
+            "tags": [],
+          },
+        ],
+      }
+    `);
   });
 });

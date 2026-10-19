@@ -1,3 +1,4 @@
+import { ForwardedException } from "@instrument-org/shared/exceptions";
 import { type ExecOptions } from "just-bash";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { type Worker, type WorkerOptions } from "node:worker_threads";
@@ -5,16 +6,19 @@ import { omit, pick } from "radashi";
 
 import { type AppToolInvoker, appToolHook } from "../app-tool-hook";
 import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
-import { ensureChatVenv } from "../ensure-chat-venv";
+import { ensureVenv } from "../venv";
+import { ensurePythonEnvironmentHere } from "../skill-environments";
+import { refreshPythonBaseIfDue } from "../python-base";
 import {
   currentShellOutputSink,
   type ShellOutputSink,
 } from "../shell-commands/output-sink";
-import { terminateSubprocessTree } from "../subprocess-tree";
+import {
+  currentSubprocessTreeListener,
+  type SubprocessTreeObserver,
+  terminateSubprocessTree,
+} from "../subprocess-tree";
 import { getWorkspaceConfig } from "../workspace-config";
-import { ChatIdSchema } from "../../schemas/chat-id";
-import { StoreId } from "../../schemas/store-id";
-import { recordAsk } from "../permissions/asks";
 import { recordWorkspaceSkillMutation } from "../workspace-skill-index";
 import {
   fromWireError,
@@ -53,6 +57,8 @@ interface PendingExec {
   sink?: ShellOutputSink;
   /** Chunks delivered to the sink so far, in order. Never rejects. */
   sinkDone: Promise<void>;
+  /** Told the pid of each process tree the worker starts for this exec. */
+  trees?: SubprocessTreeObserver;
 }
 
 /**
@@ -124,6 +130,7 @@ export function createRemoteBash(
           signal,
           sink,
           sinkDone: Promise.resolve(),
+          trees: currentSubprocessTreeListener(),
         };
         instance.pending.set(id, entry);
         // A worker with nothing in flight must not hold the process open, and
@@ -221,8 +228,8 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
     }
     case "capture-exception": {
       getWorkspaceConfig().captureException(
-        fromWireError(message.error),
-        message.properties,
+        new ForwardedException(message.error, "bash-worker"),
+        message.context,
       );
       return;
     }
@@ -260,25 +267,6 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       }
       return;
     }
-    case "ask": {
-      const chatId = ChatIdSchema.safeParse(message.asker.chatId);
-      const sessionId = StoreId.SessionSchema.safeParse(
-        message.asker.sessionId,
-      );
-      const partId = StoreId.PartSchema.safeParse(message.asker.partId);
-      if (chatId.success && sessionId.success) {
-        await recordAsk(
-          {
-            chatId: chatId.data,
-            ...(partId.success && { partId: partId.data }),
-            sessionId: sessionId.data,
-          },
-          message.kind,
-          message.target,
-        );
-      }
-      return;
-    }
     case "skill-mutation": {
       instance.pending.get(message.id)?.inContext(() => {
         recordWorkspaceSkillMutation(message.skillPath);
@@ -290,19 +278,44 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       return;
     }
     case "tree": {
+      const listener =
+        message.id === undefined
+          ? undefined
+          : instance.pending.get(message.id)?.trees;
       if (message.state === "started") {
         instance.trees.add(message.pid);
+        listener?.started(message.pid);
       } else {
         instance.trees.delete(message.pid);
+        listener?.settled(message.pid);
       }
       return;
     }
+    case "python-base-refresh": {
+      refreshPythonBaseIfDue();
+      return;
+    }
     case "venv": {
-      const result = await ensureChatVenv({ chatId: message.chatId });
+      const result = await ensureVenv({
+        chatId: message.chatId,
+        venv: message.venv,
+      });
       instance.post({
         requestId: message.requestId,
         result,
         type: "venv-result",
+      });
+      return;
+    }
+    case "python-environment": {
+      const result = await ensurePythonEnvironmentHere({
+        chatId: message.chatId,
+        skillDir: message.skillDir,
+      });
+      instance.post({
+        requestId: message.requestId,
+        result,
+        type: "python-environment-result",
       });
       return;
     }

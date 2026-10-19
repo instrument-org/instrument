@@ -9,6 +9,7 @@ import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * The agent's shell keeps scratch files where any program does: the system's
@@ -20,7 +21,12 @@ const sessionId = StoreId.newSessionId();
 let root: string;
 let systemTemp: string;
 let chatId: ChatId;
-let savedTmpdir: string | undefined;
+/**
+ * The variables the system's temp folder is read from: TMPDIR on macOS and
+ * Linux, TEMP or TMP on Windows.
+ */
+const TEMP_VARIABLES = ["TMPDIR", "TEMP", "TMP"] as const;
+const savedTemp = new Map<string, string | undefined>();
 
 async function run(command: string, { chat = false } = {}) {
   const bash = await createBashEnv({
@@ -42,8 +48,10 @@ beforeAll(async () => {
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   // Stands for the system's temp folder, which the tests otherwise leave
   // unmounted.
-  savedTmpdir = process.env.TMPDIR;
-  process.env.TMPDIR = systemTemp;
+  for (const name of TEMP_VARIABLES) {
+    savedTemp.set(name, process.env[name]);
+    process.env[name] = systemTemp;
+  }
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     tempFolders: [AbsolutePathSchema.parse(systemTemp)],
@@ -51,10 +59,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedTmpdir === undefined) {
-    delete process.env.TMPDIR;
-  } else {
-    process.env.TMPDIR = savedTmpdir;
+  for (const [name, value] of savedTemp) {
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
   }
   await fs.rm(root, { force: true, recursive: true });
 });
@@ -67,9 +77,9 @@ describe("temp files in the agent's shells", () => {
         chat,
       });
       expect(result).toMatchObject({ exitCode: 0, stderr: "" });
-      expect(result.stdout.trim()).toMatch(
-        new RegExp(`^${systemTemp}/tmp\\.\\w{10}$`),
-      );
+      const made = result.stdout.trim();
+      expect(path.posix.dirname(made)).toBe(shellPath(systemTemp));
+      expect(path.posix.basename(made)).toMatch(/^tmp\.\w{10}$/);
     },
   );
 
@@ -77,10 +87,11 @@ describe("temp files in the agent's shells", () => {
     const result = await run(
       'echo hi > "$TMPDIR/x" && cat "$TMPDIR/x" && echo "$TMPDIR $TMP $TEMP"',
     );
+    const shown = shellPath(systemTemp);
     expect(result).toMatchObject({
       exitCode: 0,
       stderr: "",
-      stdout: `hi\n${systemTemp} ${systemTemp} ${systemTemp}\n`,
+      stdout: `hi\n${shown} ${shown} ${shown}\n`,
     });
   });
 });

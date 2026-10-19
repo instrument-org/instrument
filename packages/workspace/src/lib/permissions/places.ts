@@ -1,3 +1,7 @@
+import {
+  APP_BUNDLE_ID,
+  APP_UPDATER_CACHE_DIR_NAME,
+} from "@instrument-org/shared";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -27,6 +31,8 @@ export const PlaceIdSchema = z.enum([
   "icloud",
   "drives",
   "appFiles",
+  "photos",
+  "mediaLibraries",
   "passwords",
 ]);
 export type PlaceId = z.output<typeof PlaceIdSchema>;
@@ -38,8 +44,10 @@ export const PLACE_DEFAULTS = {
   downloads: "ask",
   drives: "ask",
   icloud: "ask",
+  mediaLibraries: "ask",
   output: "allow",
   passwords: "ask",
+  photos: "ask",
 } as const satisfies Record<PlaceId, Level>;
 
 /**
@@ -49,6 +57,12 @@ export const PLACE_DEFAULTS = {
  * lets `ssh` or `aws` work in a chat. Each asks for itself, whatever folder
  * in it the agent ran into, and "Use folders without asking" leaves them
  * asking: the switch is for folders of work.
+ *
+ * This is the list that asks, rather than a list of what may be read: every
+ * other hidden folder in the home folder is read without a card, since a
+ * person cannot say whether a chat should reach `.cache` or `.claude` and
+ * being asked teaches them to say yes to everything. So a folder belongs
+ * here when a program keeps a sign-in in it under a name people know.
  *
  * `~/.npmrc` and `~/.gitconfig` are left out: pnpm and uv read them for
  * registry and proxy settings, and git's own env already ignores the config.
@@ -66,6 +80,15 @@ const SIGN_IN_PLACES = [
   ".config/gh",
   ".config/op",
   ".password-store",
+  // The same thing under a build tool's or a registry's own name.
+  ".m2/settings.xml",
+  ".gradle/gradle.properties",
+  ".pypirc",
+  ".cargo/credentials.toml",
+  ".gem/credentials",
+  ".terraform.d/credentials.tfrc.json",
+  ".cache/huggingface/token",
+  ".cache/huggingface/stored_tokens",
 ];
 
 /**
@@ -88,6 +111,18 @@ const PASSWORD_PLACES = [
   "Library/Safari",
   "Library/Containers/com.apple.Safari",
   "Library/Group Containers/2BUA8C4S2C.com.1password",
+  // The browsers' caches, which hold the pages the person visited, so they
+  // stay closed with the profiles while the rest of the caches are open.
+  "Library/Caches/Google/Chrome",
+  "Library/Caches/com.apple.Safari",
+  "Library/Caches/Firefox",
+  "Library/Caches/BraveSoftware",
+  "Library/Caches/Microsoft Edge",
+  "Library/Caches/Arc",
+  "Library/Caches/company.thebrowser.Browser",
+  "Library/Caches/Chromium",
+  "Library/Caches/Vivaldi",
+  "Library/Caches/com.operasoftware.Opera",
   // Linux browsers keep their profiles under ~/.config and ~/.mozilla.
   ".config/google-chrome",
   ".config/chromium",
@@ -95,6 +130,12 @@ const PASSWORD_PLACES = [
   ".config/microsoft-edge",
   ".config/vivaldi",
   ".mozilla",
+  ".cache/google-chrome",
+  ".cache/chromium",
+  ".cache/BraveSoftware",
+  ".cache/microsoft-edge",
+  ".cache/vivaldi",
+  ".cache/mozilla",
   // The same browsers installed as a snap (Ubuntu's Firefox) or a Flatpak.
   "snap/firefox",
   "snap/chromium",
@@ -114,6 +155,31 @@ const PASSWORD_PLACES = [
   "AppData/Roaming/Mozilla/Firefox",
   "AppData/Local/Vivaldi/User Data",
   "AppData/Roaming/Opera Software",
+  // Windows' own stores of saved sign-ins and the keys that unlock them.
+  "AppData/Local/Microsoft/Credentials",
+  "AppData/Roaming/Microsoft/Credentials",
+  "AppData/Roaming/Microsoft/Protect",
+  "AppData/Local/Microsoft/Vault",
+  "AppData/Roaming/Microsoft/Vault",
+];
+
+/**
+ * Folders under `AppData` on Windows whose names alone say what the person
+ * has been doing: the files they opened lately (and each app's jump list in
+ * there), Office's recent files, their PowerShell history, the web cache and
+ * history, and Windows' activity history. No job needs them, and while the
+ * app-files place asks first the sandbox can show the names in `AppData`
+ * (`windows-sandbox.md`), so they stay Not allowed until the place is
+ * Allowed.
+ */
+const WINDOWS_ACTIVITY_PLACES = [
+  "AppData/Roaming/Microsoft/Windows/Recent",
+  "AppData/Roaming/Microsoft/Office/Recent",
+  "AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine",
+  "AppData/Local/Microsoft/Windows/History",
+  "AppData/Local/Microsoft/Windows/INetCache",
+  "AppData/Local/Microsoft/Windows/WebCache",
+  "AppData/Local/ConnectedDevicesPlatform",
 ];
 
 /**
@@ -141,7 +207,53 @@ const STARTUP_PLACES = [
   ".config/systemd/user",
   ".config/environment.d",
   "AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup",
+  // What PowerShell reads when a session starts, which is Windows' answer to
+  // `.zshrc` and sits under Documents, a place a card can open: without these
+  // a person who allows Documents has allowed a file that runs at their next
+  // prompt. Both editions, since a machine can have either.
+  "Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
+  "Documents/PowerShell/profile.ps1",
+  "Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1",
+  "Documents/WindowsPowerShell/profile.ps1",
+  // OneDrive moves Documents under it, so the same files live here too.
+  "OneDrive/Documents/PowerShell",
+  "OneDrive/Documents/WindowsPowerShell",
 ];
+
+/**
+ * Folders under `AppData` on Windows that programs keep for themselves, and
+ * people keep no files in, readable by every chat so the app-files place
+ * does not ask about them: `Programs`, where per-user installs go (Python
+ * from python.org, VS Code, Cursor), which a program on the PATH reads to
+ * run. A rule deeper in it still decides there.
+ */
+export function windowsProgramFolders(home = os.homedir()): string[] {
+  return [path.join(home, "AppData", "Local", "Programs")];
+}
+
+/**
+ * Where the app's updater keeps a download before installing it, in the
+ * caches the app-files place opens: electron-updater's folder, and on a Mac
+ * the folder ShipIt stages the new build in and the app's own web cache.
+ * An install runs outside every sandbox (on Linux as root, through dpkg), so
+ * these are the app's own data, closed to every chat.
+ */
+export function appUpdateCaches(
+  home = os.homedir(),
+  platform: NodeJS.Platform = process.platform,
+): string[] {
+  if (platform === "darwin") {
+    const caches = path.join(home, "Library", "Caches");
+    return [
+      path.join(caches, APP_UPDATER_CACHE_DIR_NAME),
+      path.join(caches, `${APP_BUNDLE_ID}.ShipIt`),
+      path.join(caches, APP_BUNDLE_ID),
+    ];
+  }
+  return platform === "linux"
+    ? [path.join(home, ".cache", APP_UPDATER_CACHE_DIR_NAME)]
+    : [];
+}
 
 /** The startup places as paths in `home`. */
 export function startupPaths(home = os.homedir()): string[] {
@@ -149,48 +261,60 @@ export function startupPaths(home = os.homedir()): string[] {
 }
 
 /**
- * Names that make a folder run code when it is opened or used: a repository's
- * hooks and submodules, a git config, an editor's tasks, a folder's shell
- * setup (direnv), and the settings, commands and servers another coding agent
- * loads from it. Changing one inside a folder the person allowed would run
- * code the next time they work in it, so they are kept from changes anywhere
- * but the chat's own folder.
+ * Folders in the app-files place that hold a folder per app, so a card for
+ * a file in one names that app's folder ("Code" in `Application Support`)
+ * rather than the folder every app shares.
  */
-export const DANGEROUS_NAMES = [
-  ".git/hooks",
-  ".gitconfig",
-  // Git's other global config (`core.fsmonitor`, `core.hooksPath`).
-  ".config/git/config",
-  ".gitmodules",
-  ".vscode",
-  ".idea",
-  ".envrc",
-  ".mcp.json",
-  ".claude/settings.json",
-  ".claude/settings.local.json",
-  ".claude/commands",
-  ".claude/agents",
-  ".codex",
-];
+const APP_FOLDER_PARENTS: Partial<Record<NodeJS.Platform, string[]>> = {
+  darwin: [
+    "Library/Application Support",
+    "Library/Containers",
+    "Library/Group Containers",
+    "Library/Logs",
+  ],
+  win32: [
+    "AppData/Roaming",
+    "AppData/Local",
+    "AppData/LocalLow",
+    "AppData/Local/Packages",
+  ],
+};
+
+/** The folders of {@link APP_FOLDER_PARENTS} as paths in `home`. */
+export function appFolderParents(
+  home = os.homedir(),
+  platform: NodeJS.Platform = process.platform,
+): string[] {
+  return (APP_FOLDER_PARENTS[platform] ?? []).map((parent) =>
+    path.join(home, parent),
+  );
+}
 
 /**
- * A place as paths on this computer. `homeDotEntries` stands for every
- * hidden entry directly in the home folder, which no single path covers.
- * `closedUnlessAllowed` are paths in the place that stay Not allowed while
- * the place asks first.
+ * A place as paths on this computer. `closedUnlessAllowed` are paths in the
+ * place that stay Not allowed while the place asks first, and
+ * `openUnlessClosed` paths open while it asks first and closed only when it
+ * is Not allowed. A `listed` place shows programs and the shell the names,
+ * sizes and dates in it while it asks first, but in its `unlisted` folders;
+ * opening or changing a file in it still asks.
  */
 export interface PlacePaths {
   closedUnlessAllowed?: string[];
-  homeDotEntries?: true;
   id: PlaceId;
+  listed?: true;
+  openUnlessClosed?: string[];
   paths: string[];
+  unlisted?: string[];
 }
 
 /** Every built-in place this platform has, as paths in `home`. */
-export function placePaths(home = os.homedir()): PlacePaths[] {
+export function placePaths(
+  home = os.homedir(),
+  platform: NodeJS.Platform = process.platform,
+): PlacePaths[] {
   const inHome = (...names: string[]) =>
     names.map((name) => path.join(home, name));
-  const mac = process.platform === "darwin";
+  const mac = platform === "darwin";
   // The fixed places are spelled from this account's home; carried over to
   // `home` so a check against another home folder lines up.
   const inOwnHome = (placePath: string) =>
@@ -210,18 +334,54 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
     places.push(
       { id: "icloud", paths: [inOwnHome(iCloudDrivePath())] },
       { id: "drives", paths: ["/Volumes"] },
-      { homeDotEntries: true, id: "appFiles", paths: inHome("Library") },
+      // Listed, so a program sees what is in it without opening a file. But
+      // not the apps' containers: macOS asks the person before a program
+      // looks into another app's container, in a dialog the program waits
+      // on. Caches is open, since what is in it is made again from
+      // something else, but for the browsers', closed with their profiles,
+      // and so is `~/.cache`, where command-line tools keep theirs on a Mac
+      // too (Hugging Face's downloads, Whisper's models).
+      {
+        id: "appFiles",
+        listed: true,
+        openUnlessClosed: inHome("Library/Caches", ".cache"),
+        paths: inHome("Library"),
+        unlisted: inHome("Library/Containers", "Library/Group Containers"),
+      },
+      // The Photos, Music and TV libraries are folders macOS asks the
+      // person about before any program reads them, in a dialog the program
+      // waits on. Closed here, the sandbox refuses a native walk over the
+      // home folder before it reaches macOS's question. Two places, so a
+      // person who keeps their own photos in the library can open just that.
+      { id: "photos", paths: inHome("Pictures/Photos Library.photoslibrary") },
+      {
+        id: "mediaLibraries",
+        paths: inHome("Music/Music", "Music/iTunes", "Movies/TV"),
+      },
     );
-  } else if (process.platform === "linux") {
+  } else if (platform === "linux") {
     places.push(
       // The system's own /mnt, where Linux mounts a drive by hand.
       { id: "drives", paths: ["/media", "/run/media", "/mnt"] },
-      { homeDotEntries: true, id: "appFiles", paths: [] },
+      // Where a Linux program keeps its settings and its data, which is what
+      // `Library` is on a Mac and `AppData` on Windows. Not listed, since
+      // bubblewrap cannot show a folder's names without what is in it.
+      // `.cache` is open, as `Library/Caches` is on a Mac.
+      {
+        id: "appFiles",
+        openUnlessClosed: inHome(".cache"),
+        paths: inHome(".config", ".local/share"),
+      },
     );
   } else {
     places.push(
       { id: "drives", paths: windowsDrives() },
-      { id: "appFiles", paths: inHome("AppData") },
+      {
+        closedUnlessAllowed: inHome(...WINDOWS_ACTIVITY_PLACES),
+        id: "appFiles",
+        listed: true,
+        paths: inHome("AppData"),
+      },
     );
   }
   return places;

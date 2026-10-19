@@ -2,7 +2,7 @@ import { BROWSER_HREF } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
-import { outputFolderHref } from "@/shared/computer-href";
+import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";
 import {
   type ChatId,
   browserTargetOf,
@@ -130,7 +130,7 @@ export function ChatWindow({
   onNewTopic,
   onOpenInChats,
   onPlacementChange,
-  onSetTopics,
+  onSetTopic,
   placement,
   right,
   sendContext,
@@ -151,7 +151,7 @@ export function ChatWindow({
   /** Takes the window to its chat in Chats: the window goes and the chat is selected. */
   onOpenInChats: () => void;
   onPlacementChange: (placement: "docked" | "expanded") => void;
-  onSetTopics: (topics: string[]) => void;
+  onSetTopic: (topic: null | string) => void;
   placement: "docked" | "expanded";
   /** Where the window stands along the foot, in layout px from the right edge. */
   right: number;
@@ -170,6 +170,7 @@ export function ChatWindow({
   const appWindow = useWindow();
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
+  const outputFolder = useOutputFolder();
   const tabs = windowTabs.allTabs.filter((tab) => tab.group === chatId);
   const up = windowTabs.selectedTabIn(chatId);
   const isExpanded = placement === "expanded";
@@ -321,7 +322,7 @@ export function ChatWindow({
         chosenId={isExpanded ? (showsItem ? up.id : undefined) : peekTab?.id}
         isChatWorking={isWorking}
         onAddComputer={() => {
-          openHere(outputFolderHref(), { isOpened: false });
+          openHere(outputFolderHref(outputFolder), { isOpened: false });
         }}
         onAddWeb={() => {
           openHere(BROWSER_HREF, { isOpened: false });
@@ -395,7 +396,7 @@ export function ChatWindow({
         onOpenTask={(id) => {
           openTasksHere(taskHref(id, chatId));
         }}
-        onSetTopics={onSetTopics}
+        onSetTopic={onSetTopic}
         onViewTasks={() => {
           openTasksHere(tasksHref(chatId));
         }}

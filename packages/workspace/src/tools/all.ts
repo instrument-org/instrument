@@ -1,8 +1,8 @@
 import { type InferUITools } from "ai";
-import { type z } from "zod";
 
 import type { AnyAgentTool, ToolName } from "./types";
 
+import { AskPermission } from "./ask-permission";
 import { BashTool } from "./bash";
 import { Choose } from "./choose";
 import { ConnectApp } from "./connect-app";
@@ -16,6 +16,7 @@ import { WebSearch } from "./web-search";
 import { WriteFile } from "./write-file";
 
 export const TOOLS = {
+  AskPermission,
   BashTool,
   Choose,
   ConnectApp,
@@ -32,6 +33,7 @@ export const TOOLS = {
 export type InternalToolName = keyof typeof TOOLS;
 
 export const TOOLS_BY_NAME = {
+  [TOOLS.AskPermission.name]: TOOLS.AskPermission,
   [TOOLS.BashTool.name]: TOOLS.BashTool,
   [TOOLS.Choose.name]: TOOLS.Choose,
   [TOOLS.ConnectApp.name]: TOOLS.ConnectApp,
@@ -58,13 +60,6 @@ export type AISDKTools = InferUITools<{
     (typeof TOOLS_BY_NAME)[K]["staticAISDKTool"]
   >;
 }>;
-
-export type ToolOutputByName = {
-  [K in ToolName]: {
-    output: z.output<(typeof TOOLS_BY_NAME)[K]["outputSchema"]>;
-    toolName: K;
-  };
-}[ToolName];
 
 export function getToolByType<T extends ToolName>(
   type: `tool-${T}`,

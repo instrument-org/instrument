@@ -1,5 +1,6 @@
 import { getHistoryStore } from "@/electron-main/browser-view/history-store";
 import {
+  fileJournal,
   findInTrash,
   type Identity,
   identityOf,
@@ -9,10 +10,13 @@ import {
 } from "@/electron-main/lib/file-journal";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { resolveAlias } from "@/electron-main/lib/mac-native";
+import {
+  isRefusedByName,
+  isRefusedFile,
+} from "@/electron-main/lib/refused-files";
 import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
-import { getFileJournal } from "@/electron-main/stores/machine/file-journal";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { copyName, newFolderName, osOf } from "@/shared/os-conventions";
 import { moveSidebarPlaces } from "@/shared/sidebar-places";
@@ -171,6 +175,67 @@ const duplicate = base
     }
   });
 
+/**
+ * Puts a file an editor was given (a picture, a PDF) into the folder of the
+ * file it is editing, so the file can name it by a relative path: a file
+ * already in that folder or below it is answered as it is, one from anywhere
+ * else is copied in, and bytes with no file behind them (a pasted screenshot)
+ * are written. A name already taken is numbered beside it, as a second paste
+ * of a screenshot is.
+ */
+const addFile = base
+  .errors({ CANNOT_WRITE: { message: "That folder cannot be written to" } })
+  .input(
+    z.union([
+      z.object({ folder: HostPathSchema, from: HostPathSchema }),
+      z.object({
+        /** The bytes, base64. */
+        content: z.string(),
+        folder: HostPathSchema,
+        name: z.string().refine(isUsableName),
+      }),
+    ]),
+  )
+  .output(z.object({ path: z.string() }))
+  .handler(async ({ errors, input }) => {
+    const folder = path.resolve(input.folder);
+    if ("from" in input) {
+      const inside = path.relative(folder, input.from);
+      if (!inside.startsWith("..") && !path.isAbsolute(inside)) {
+        return { path: input.from };
+      }
+    }
+    const name = "from" in input ? path.basename(input.from) : input.name;
+    const extension = path.extname(name);
+    const stem = path.basename(name, extension);
+    try {
+      const made = await freePath(
+        folder,
+        (n) => (n === 1 ? stem : `${stem} ${n.toString()}`),
+        extension,
+      );
+      await ("from" in input
+        ? fs.copyFile(input.from, made, fs.constants.COPYFILE_EXCL)
+        : fs.writeFile(made, Buffer.from(input.content, "base64"), {
+            flag: "wx",
+          }));
+      return { path: made };
+    } catch (error) {
+      throw errors.CANNOT_WRITE({
+        message: error instanceof Error ? error.message : undefined,
+      });
+    }
+  });
+
+/** Which of `paths` name nothing on this computer, for an editor to mark the links to them. */
+const missing = base
+  .input(z.object({ paths: z.array(HostPathSchema).max(1000) }))
+  .output(z.object({ missing: z.array(z.string()) }))
+  .handler(async ({ input }) => {
+    const there = await Promise.all(input.paths.map((at) => exists(at)));
+    return { missing: input.paths.filter((_, index) => !there[index]) };
+  });
+
 const trash = base
   .errors({ CANNOT_TRASH: { message: "That could not be moved to the trash" } })
   .input(z.object({ path: HostPathSchema }))
@@ -195,7 +260,7 @@ const trash = base
       return { journalId: null };
     }
     const trashed = await findInTrash(identity, { from: input.path });
-    const entry = getFileJournal().record({
+    const entry = fileJournal.record({
       from: input.path,
       identity,
       kind: "trash",
@@ -227,7 +292,7 @@ async function record(
 ) {
   const identity = await identityOf(at);
   if (identity) {
-    getFileJournal().record(entry(identity));
+    fileJournal.record(entry(identity));
   }
 }
 
@@ -263,13 +328,12 @@ const undo = base
     }),
   )
   .handler(async ({ errors, input }) => {
-    const journal = getFileJournal();
     // Each pass drops an entry, so this ends when the journal does.
     for (;;) {
       const entry =
         input?.journalId === undefined
-          ? journal.latest()
-          : journal.byId(input.journalId);
+          ? fileJournal.latest()
+          : fileJournal.byId(input.journalId);
       if (!entry) {
         throw errors.NOTHING_TO_UNDO();
       }
@@ -277,7 +341,7 @@ const undo = base
         const undone = await undoEntry(entry, {
           trash: (at) => shell.trashItem(at),
         });
-        journal.remove(entry.id);
+        fileJournal.remove(entry.id);
         if (undone.already && input?.journalId === undefined) {
           continue;
         }
@@ -301,9 +365,9 @@ const undo = base
         // other failure is a fault worth seeing, though the person is told
         // the same thing either way.
         if (!(error instanceof UndoRefusedError)) {
-          captureServerException(error, { scopes: ["studio"] });
+          captureServerException(error);
         } else if (error.permanent) {
-          journal.remove(entry.id);
+          fileJournal.remove(entry.id);
         }
         throw errors.CANNOT_UNDO({
           message:
@@ -374,11 +438,13 @@ async function oneWriterAt<T>(filePath: string, work: () => Promise<T>) {
  * The person's own edit to a text file they have open, written only when the
  * file on disk is still the version the editor started from. When the agent
  * (or anything else) wrote in between, nothing is written and the current text
- * comes back, so the editor can merge it and try again.
+ * comes back, so the editor can merge it and try again. The app's own data is
+ * not written (`isClosed`).
  */
 const write = base
   .errors({
     CANNOT_WRITE: { message: "That file cannot be written to" },
+    FORBIDDEN: { message: "That file is Instrument’s own data" },
     NOT_UTF8: {
       message: "This file is not UTF-8 text, so it is not saved here",
     },
@@ -401,8 +467,11 @@ const write = base
     ]),
   )
   .handler(async ({ errors, input }) => {
+    const filePath = await followAliases(input.path);
+    if (await isClosed(input.path, filePath)) {
+      throw errors.FORBIDDEN();
+    }
     try {
-      const filePath = await followAliases(input.path);
       return await oneWriterAt(filePath, async () => {
         // A write with no version to check creates the file when it is not
         // there; one with a version needs the file it edited.
@@ -438,19 +507,35 @@ const write = base
 /**
  * A text file's contents and version, for an editor that will write it back.
  * A file that is not UTF-8 still reads, its unreadable bytes replaced, with
- * `utf8` false so the editor opens it read only: `write` refuses it.
+ * `utf8` false so the editor opens it read only: `write` refuses it. The
+ * app's own data is not read (`isClosed`).
  */
 const read = base
+  .errors({ FORBIDDEN: { message: "That file is Instrument’s own data" } })
   .input(z.object({ path: HostPathSchema }))
   .output(
     z.object({ content: z.string(), utf8: z.boolean(), version: z.string() }),
   )
-  .handler(async ({ input }) => {
-    const bytes = await fs.readFile(await followAliases(input.path));
+  .handler(async ({ errors, input }) => {
+    const filePath = await followAliases(input.path);
+    if (await isClosed(input.path, filePath)) {
+      throw errors.FORBIDDEN();
+    }
+    const bytes = await fs.readFile(filePath);
     const strict = utf8Text(bytes);
     const content = strict ?? bytes.toString("utf8");
     return { content, utf8: strict !== null, version: versionOf(content) };
   });
+
+/**
+ * Whether a file is the app's own data, which the person's views keep closed:
+ * the editors read and write through here what the viewers read through the
+ * file channel, which refuses it by the same rule (`refused-files.ts`), by
+ * the path asked for and by where its aliases lead.
+ */
+async function isClosed(asked: string, filePath: string): Promise<boolean> {
+  return isRefusedByName(asked) || (await isRefusedFile(filePath));
+}
 
 /**
  * A text file's path with every Finder alias on it followed, so an editor
@@ -484,8 +569,10 @@ const live = {
 };
 
 export const files = {
+  addFile,
   duplicate,
   live,
+  missing,
   newFolder,
   read,
   rename,

@@ -1,6 +1,7 @@
 import { type MountedFolder } from "../../schemas/mounted-folder";
 import { type ChatId } from "../../schemas/chat-id";
 import { chatDir } from "../../lib/record-folders";
+import { workDir } from "../../lib/work-dir";
 import { buildWorkspaceFsLayout } from "../../lib/workspace-fs-layout";
 
 /** The layout a task's shell has, with the folders given mounted beside it. */
@@ -10,6 +11,7 @@ export function chatLayout(
 ) {
   return buildWorkspaceFsLayout({
     ...(folders ? { folders } : {}),
-    chatHostRoot: chatDir(chatId),
+    chatHostRoot: workDir(chatId),
+    recordHostRoot: chatDir(chatId),
   });
 }

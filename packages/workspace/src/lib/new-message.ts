@@ -14,28 +14,28 @@ import { detectChatAppChanges } from "./chat-app-changes";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
+import { readWorkspaceInstructions } from "./workspace-instructions";
 import { detectDateChange } from "./date-change";
-
+import { detectEnvironmentChange } from "./environment";
+import { ChatReads } from "./chat-reads";
 import { detectMessageGap } from "./message-gap";
 import { folderReach } from "./chat/folder-reach";
 import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
-import { Store } from "./store";
-import { resolveChat } from "./record-folders";
+import { chatDir, resolveChat } from "./record-folders";
 import { updateChatSettings } from "./chat-settings";
-import { grantFolder } from "./chat/grants";
+import { grantFile } from "./chat/grants";
 import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
-import { workDir } from "./work-dir";
 
 export async function newMessage({
   asks,
   files,
   folders,
   fromChat,
-  intent,
+  fromDraft,
   modelURI,
   prompt,
   replyTo,
@@ -45,6 +45,7 @@ export async function newMessage({
 }: {
   /** Places in files the user marked, with what to change at each; see the asks part. */
   asks?: SessionMessageDataPart.AsksDataPart;
+  /** Files the user sent with the message, each from the disk granted to the chat where it is. */
   files?: FileUpload.Type[];
   /** Folders the user sent with the message, each granted to the chat. */
   folders?: { path: string }[];
@@ -53,7 +54,8 @@ export async function newMessage({
    * from-chat part.
    */
   fromChat?: SessionMessageDataPart.FromChatDataPart;
-  intent?: string;
+  /** The draft this was sent from, by its id; see the message's metadata. */
+  fromDraft?: string;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
   /** The earlier message this one answers; see the reply part. */
@@ -66,6 +68,19 @@ export async function newMessage({
   const messageId = StoreId.newMessageId();
   const createdAt = new Date();
   const parts: SessionMessagePart.Type[] = [];
+  const workspaceInstructions = await readWorkspaceInstructions();
+  if (workspaceInstructions) {
+    parts.push({
+      data: workspaceInstructions,
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-workspaceInstructions",
+    });
+  }
   if (prompt.trim()) {
     parts.push({
       metadata: {
@@ -103,19 +118,6 @@ export async function newMessage({
         sessionId,
       },
       type: "data-skillMentions",
-    });
-  }
-
-  if (intent?.trim()) {
-    parts.push({
-      data: { text: intent.trim() },
-      metadata: {
-        createdAt,
-        id: StoreId.newPartId(),
-        messageId,
-        sessionId,
-      },
-      type: "data-intent",
     });
   }
 
@@ -158,20 +160,22 @@ export async function newMessage({
     });
   }
 
-  for (const folder of folders ?? []) {
-    await grantFolder({ chatId, path: folder.path, source: "attached" });
-  }
-
   if ((files && files.length > 0) || (folders && folders.length > 0)) {
     const uploadResult = await writeUploadedAttachments({
-      dir: workDir(chatId),
       files,
       messageId,
+      recordDir: chatDir(chatId),
       sessionId,
     });
 
     if (uploadResult.isErr()) {
       return uploadResult;
+    }
+
+    for (const file of files ?? []) {
+      if ("path" in file) {
+        await grantFile({ chatId, path: file.path });
+      }
     }
 
     const { part } = uploadResult.value;
@@ -226,12 +230,27 @@ export async function newMessage({
     parts.push(dateChange.value);
   }
 
+  // The session context names the computer it started on and is never
+  // rewritten, so a chat that moved to another computer, or whose computer
+  // changed under it, is told here instead.
+  const environmentChange = await detectEnvironmentChange({
+    chatId,
+    messageId,
+    sessionId,
+  });
+  if (environmentChange.isErr()) {
+    // Awareness of the computer is best-effort; never block sending.
+    getWorkspaceConfig().captureException(environmentChange.error);
+  } else if (environmentChange.value) {
+    parts.push(environmentChange.value);
+  }
+
   // Nothing in the context says what time it is, so a message sent a day after
   // the one before it is otherwise indistinguishable from one sent a moment
   // later.
   //
   // Only where a person is the one who went quiet. A task's messages come from
-  // the chat by way of `task send`, so the same gap there measures how
+  // the chat by way of `instrument task send`, so the same gap there measures how
   // long the app took to say something back, which is neither the task's to
   // reason about nor what its instructions tell it to do with the answer.
   if (isChat) {
@@ -248,16 +267,16 @@ export async function newMessage({
       parts.push(messageGap.value);
     }
 
-    // The chat's topics ride on every message sent in it, and the model
-    // note is rendered only when they changed since the last one.
-    const chatTopicsPart = await createChatTopicsPart({
+    // The chat's topic, or none, rides on every message sent in it; see the
+    // `state` cadence for what the model hears of it.
+    const topicPart = await createTopicPart({
       createdAt,
       messageId,
       sessionId,
       chatId,
     });
-    if (chatTopicsPart) {
-      parts.push(chatTopicsPart);
+    if (topicPart) {
+      parts.push(topicPart);
     }
 
     // What the agent remembers about the user, told once and again only when
@@ -305,7 +324,11 @@ export async function newMessage({
 
   const message: SessionMessage.UserWithParts = {
     id: messageId,
-    metadata: { createdAt, sessionId },
+    metadata: {
+      createdAt,
+      ...(fromDraft ? { fromDraft } : {}),
+      sessionId,
+    },
     parts,
     role: "user",
   };
@@ -322,12 +345,8 @@ export async function newMessage({
   return ok(message);
 }
 
-/**
- * The topics the chat carries, named for the model. None when it carries
- * none and never has: a chat untagged since its last message gets an empty
- * part, so the note can say the topics are gone.
- */
-async function createChatTopicsPart({
+/** The topic the chat is filed under, named for the model, or null for none. */
+async function createTopicPart({
   createdAt,
   messageId,
   sessionId,
@@ -338,43 +357,29 @@ async function createChatTopicsPart({
   sessionId: StoreId.Session;
   chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
-  const session = await Store.getSession(sessionId, chatId);
+  const session = await ChatReads.session({ chatId, sessionId });
   if (session.isErr()) {
     return undefined;
   }
-  const tagged = session.value.topics ?? [];
-  if (tagged.length === 0) {
-    const messages = await Store.getMessagesWithParts({ sessionId, chatId });
-    const toldBefore =
-      messages.isOk() &&
-      messages.value.some((message) =>
-        message.parts.some((part) => part.type === "data-chatTopics"),
-      );
-    if (!toldBefore) {
-      return undefined;
-    }
-  }
   const known = await listTopics();
-  const reach = await folderReach(chatId);
-  const topics = [];
-  for (const id of tagged) {
-    const topic = known.find((entry) => entry.id === id);
-    if (!topic) {
-      continue;
-    }
-    const folders = topicFolderPaths(reach, topic.folders ?? []);
-    topics.push({
-      ...(topic.about ? { about: topic.about } : {}),
-      ...(topic.emoji ? { emoji: topic.emoji } : {}),
-      ...(folders.length > 0 ? { folders } : {}),
-      ...(topic.instructions ? { instructions: topic.instructions } : {}),
-      name: topic.name,
-    });
-  }
+  const filed = known.find((entry) => entry.id === session.value.topic);
+  const folders = filed
+    ? topicFolderPaths(await folderReach(chatId), filed.folders ?? [])
+    : [];
   return {
-    data: { topics },
+    data: {
+      topic: filed
+        ? {
+            ...(filed.about ? { about: filed.about } : {}),
+            ...(filed.emoji ? { emoji: filed.emoji } : {}),
+            ...(folders.length > 0 ? { folders } : {}),
+            ...(filed.instructions ? { instructions: filed.instructions } : {}),
+            name: filed.name,
+          }
+        : null,
+    },
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
-    type: "data-chatTopics",
+    type: "data-topic",
   };
 }
 

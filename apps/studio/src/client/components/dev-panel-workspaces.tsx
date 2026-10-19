@@ -99,7 +99,8 @@ export function ManageWorkspacesDialog({
         <DialogHeader>
           <DialogTitle>Workspaces</DialogTitle>
           <DialogDescription>
-            Delete moves the folder to the {osConventions().trash}.
+            Delete moves a workspace&apos;s .instrument folder to the{" "}
+            {osConventions().trash} and leaves the rest of its folder.
           </DialogDescription>
         </DialogHeader>
         {/* `min-w-0` because the dialog is a grid: without it a long path sets
@@ -115,6 +116,11 @@ export function ManageWorkspacesDialog({
                   {row.isResolved && (
                     <span className="shrink-0 text-xs text-muted-foreground">
                       open
+                    </span>
+                  )}
+                  {!row.isReachable && (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      folder not found
                     </span>
                   )}
                   {row.identity.createdBy.kind === "agent" && (

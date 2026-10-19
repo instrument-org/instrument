@@ -99,7 +99,7 @@ describe("ensureManagedPython", () => {
     expect(options?.env).toMatchObject({
       UV_PYTHON_DOWNLOADS: "automatic",
       UV_PYTHON_INSTALL_DIR: path.join(
-        getWorkspaceConfig().uvDataDir,
+        getWorkspaceConfig().runtimeDir,
         "python",
       ),
     });

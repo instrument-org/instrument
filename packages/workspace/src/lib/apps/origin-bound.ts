@@ -23,7 +23,7 @@ export type StoredAppCredential = OriginBound<string>;
 export function credentialOrigin(manifest: AppManifest): string {
   switch (manifest.type) {
     case "api": {
-      return new URL(manifest.baseUrl).origin;
+      return new URL(manifest.url).origin;
     }
     case "mcp": {
       return new URL(manifest.url).origin;

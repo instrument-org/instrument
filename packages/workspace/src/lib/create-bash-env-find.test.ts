@@ -10,6 +10,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { shellPath } from "./workspace-fs-layout";
 
 /**
  * Guards the local patch to just-bash's `find`, carried until the upstream
@@ -22,6 +23,8 @@ import { createBashEnv } from "./create-bash-env";
  * regardless, so it is skipped there rather than failing for the wrong reason.
  */
 const asRoot = process.getuid?.() === 0;
+// Windows keeps no mode bits to clear.
+const noMode = asRoot || process.platform === "win32";
 
 const model = createMockAIGatewayModel();
 const sessionId = StoreId.newSessionId();
@@ -68,7 +71,7 @@ afterEach(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
-describe.skipIf(asRoot)("find over an unreadable directory in a mount", () => {
+describe.skipIf(noMode)("find over an unreadable directory in a mount", () => {
   it("reports the directory and keeps going", async () => {
     const result = await run(`find ${attachedDir} -name '*.md'`);
 
@@ -100,14 +103,13 @@ describe.skipIf(asRoot)("find's time predicates", () => {
     await fs.utimes(old, new Date(2026, 0, 1), new Date(2026, 0, 1));
     await fs.utimes(notes, new Date(), new Date());
 
+    const documents = `${shellPath(attachedDir)}/Documents`;
     const since = await run(
-      `find ${attachedDir}/Documents -name '*.md' -newermt 2026-06-01`,
+      `find ${documents} -name '*.md' -newermt 2026-06-01`,
     );
-    const recent = await run(
-      `find ${attachedDir}/Documents -name '*.md' -mmin -5`,
-    );
+    const recent = await run(`find ${documents} -name '*.md' -mmin -5`);
 
-    expect(since.stdout).toBe(`${attachedDir}/Documents/notes.md\n`);
-    expect(recent.stdout).toBe(`${attachedDir}/Documents/notes.md\n`);
+    expect(since.stdout).toBe(`${documents}/notes.md\n`);
+    expect(recent.stdout).toBe(`${documents}/notes.md\n`);
   });
 });

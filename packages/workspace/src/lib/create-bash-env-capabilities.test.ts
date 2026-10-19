@@ -72,7 +72,8 @@ describe("bash sandbox capabilities", () => {
 
     expect(probe.stdout.trim()).toBe("64,64");
     expect(probe.exitCode).toBe(0);
-  });
+    // Two programs, which a loaded machine takes past the default.
+  }, 20_000);
 
   it("runs git", async () => {
     const result = await run("git --version");

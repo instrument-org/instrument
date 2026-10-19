@@ -15,7 +15,14 @@ import {
   type CallToolResult,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import {
+  endTurnOnResults,
+  historyFrameTaken,
+  type MessageSource,
+} from "./cli-messages";
+import { type Continuation } from "./continuation";
 import { claudeCodeEnvironment } from "./environment";
+import { type ReplayFrame, toolResultToMCP, turnContent } from "./prompt";
 import { SESSION_CWD } from "./resume-record";
 
 /** The MCP server name our tools are served under, and so their prefix. */
@@ -24,6 +31,13 @@ export const TOOL_PREFIX = `mcp__${SERVER_NAME}__`;
 
 /** The meta key the CLI stamps each MCP call with, naming its tool_use block. */
 const TOOL_USE_ID_META = "claudecode/toolUseId";
+
+/**
+ * What the model reads where a turn ends on tool results, as Claude Code
+ * notes it inside each result: `hook stopped continuation: <this>`. The
+ * message it promises comes right after the results, in the same user turn.
+ */
+const END_TURN_REASON = "A new message follows these results.";
 
 /** A session nobody has asked for in this long is closed, ending its process. */
 const IDLE_MS = 30 * 60 * 1000;
@@ -54,7 +68,7 @@ export interface SessionShape {
  * step. Our loop still runs every tool: a call the model makes is answered
  * over MCP only when our next request arrives carrying its result.
  */
-export class ClaudeCodeSession {
+export class ClaudeCodeSession implements MessageSource {
   /** Tool calls from the last step, waiting on our loop to run them. */
   awaitingToolCallIds: string[] = [];
   busy = false;
@@ -70,8 +84,14 @@ export class ClaudeCodeSession {
    */
   seen: string[] = [];
   private closed = false;
+  /**
+   * Whether Claude Code ends its turn once the tool calls it waits on are
+   * answered, instead of asking the model about their results. Set while a
+   * message that came in after those results waits to go in as the next turn.
+   */
+  private endTurnAfterTools = false;
   private idleTimer: NodeJS.Timeout | undefined;
-  private readonly input = new Pushable<SDKUserMessage>();
+  private readonly input = new Pushable<SDKUserMessage | AssistantFrame>();
   private readonly query: Query;
   private readonly results = new Map<string, Deferred<CallToolResult>>();
   private readonly stderrTail: string[] = [];
@@ -106,6 +126,20 @@ export class ClaudeCodeSession {
         cwd: SESSION_CWD,
         effort: shape.effort,
         env,
+        hooks: {
+          PostToolUse: [
+            {
+              hooks: [
+                () =>
+                  Promise.resolve(
+                    this.endTurnAfterTools
+                      ? { continue: false, stopReason: END_TURN_REASON }
+                      : {},
+                  ),
+              ],
+            },
+          ],
+        },
         includePartialMessages: true,
         mcpServers: {
           [SERVER_NAME]: {
@@ -116,6 +150,11 @@ export class ClaudeCodeSession {
         },
         model: shape.modelId,
         pathToClaudeCodeExecutable: shape.executablePath,
+        // Every tool the session may call is in `allowedTools`, and nothing
+        // answers a permission prompt, so anything else is refused outright.
+        // Left out, the CLI picks its own default, which can be `auto`: a
+        // classifier model judging each call on the user's account.
+        permissionMode: "dontAsk",
         // Ours is the record, but the CLI's own transcript, kept in the
         // config folder Instrument signs it in through, is what lets a later
         // request resume this session with its tool calls and images intact
@@ -139,7 +178,11 @@ export class ClaudeCodeSession {
         systemPrompt: shape.systemPrompt,
         tools: shape.builtInTools,
       },
-      prompt: this.input,
+      // Assistant messages of history go in on the same input as the user's.
+      // The SDK types that input as user messages only, but writes each one
+      // to Claude Code as it is, and Claude Code reads an assistant message
+      // there as one of its own.
+      prompt: this.input as AsyncIterable<SDKUserMessage>,
     });
     this.messages = this.query[Symbol.asyncIterator]();
     this.touch();
@@ -167,26 +210,113 @@ export class ClaudeCodeSession {
     this.onClose();
   }
 
+  /**
+   * Starts a step on `seen`, our messages it answers. Until `endStep`, a
+   * request for this session gets a process of its own instead.
+   */
+  beginStep(seen: string[]) {
+    this.busy = true;
+    this.awaitingToolCallIds = [];
+    this.forkPoint = undefined;
+    this.seen = seen;
+    this.touch();
+  }
+
+  endStep() {
+    this.busy = false;
+    this.touch();
+  }
+
+  /** Switches the process to `modelId`, before a step that asks for it. */
+  async useModel(modelId: string) {
+    if (this.modelId !== modelId) {
+      await this.query.setModel(modelId);
+      this.modelId = modelId;
+    }
+  }
+
+  /** Carries this process on from what it saw, with what the request adds. */
+  async continueWith(continuation: Continuation) {
+    if (continuation.kind === "turn") {
+      this.send(turnContent(continuation.messages));
+      return;
+    }
+    // A message sent while Claude Code waits on our tools would be folded
+    // into the last result's own text, where a model can take it for
+    // something the tool returned. So the turn ends on the results, and the
+    // message goes in after them as a turn of its own, which reaches the
+    // model beside them, as the user's.
+    const { followedBy, results } = continuation;
+    this.endTurnAfterTools = followedBy.length > 0;
+    try {
+      for (const part of results) {
+        this.resolveToolCall(part.toolCallId, toolResultToMCP(part.output));
+      }
+      if (followedBy.length > 0) {
+        await endTurnOnResults(this);
+        this.send(turnContent(followedBy));
+      }
+    } finally {
+      this.endTurnAfterTools = false;
+    }
+  }
+
   /** Answer a tool call the CLI made, whether or not its MCP call has arrived yet. */
   resolveToolCall(toolCallId: string, result: CallToolResult) {
     this.deferred(toolCallId).resolve(result);
   }
 
-  /**
-   * @param priority `next` for a message sent while the process waits on our
-   * tools: Claude Code reads it once those calls are answered, in the same
-   * turn, rather than as a turn of its own after this one ends.
-   */
-  send(content: ContentBlockParam[], priority?: "next") {
+  send(content: ContentBlockParam[]) {
     const uuid = randomUUID();
     this.input.push({
+      // Our words go to the model as written: no `@path` reading a file
+      // past our permissions, no `/name` running a command or skill of
+      // Claude Code's own, and none of its turn-start attachments.
+      client_composed: true,
       message: { content, role: "user" },
       parent_tool_use_id: null,
-      ...(priority && { priority }),
       type: "user",
       uuid,
     });
     this.forkPoint = uuid;
+  }
+
+  /**
+   * Gives a process that has seen nothing our history as its own, then sends
+   * the last frame, which starts the step. Each earlier user-side frame is
+   * appended without a turn, and Claude Code acknowledges it with a result of
+   * no turns before the next goes in: sent together, a user frame would be
+   * merged into the next one that asks for a turn, out of order.
+   */
+  async replay(frames: ReplayFrame[]) {
+    for (const [index, frame] of frames.entries()) {
+      const last = index === frames.length - 1;
+      if (frame.role === "assistant") {
+        this.input.push({
+          message: {
+            content: frame.content,
+            role: "assistant",
+            ...(frame.model && { model: frame.model }),
+          },
+          parent_tool_use_id: null,
+          type: "assistant",
+        });
+        continue;
+      }
+      if (last) {
+        this.send(frame.content);
+        return;
+      }
+      this.input.push({
+        client_composed: true,
+        message: { content: frame.content, role: "user" },
+        parent_tool_use_id: null,
+        shouldQuery: false,
+        type: "user",
+        uuid: randomUUID(),
+      });
+      await historyFrameTaken(this);
+    }
   }
 
   /**
@@ -210,10 +340,6 @@ export class ClaudeCodeSession {
 
   supportedModels() {
     return this.query.supportedModels();
-  }
-
-  setModel(modelId: string) {
-    return this.query.setModel(modelId);
   }
 
   touch() {
@@ -315,6 +441,17 @@ class Deferred<T> {
       this.resolve = resolve;
     });
   }
+}
+
+/** An assistant message of history, written to Claude Code's input as is. */
+interface AssistantFrame {
+  message: {
+    content: ContentBlockParam[];
+    model?: string;
+    role: "assistant";
+  };
+  parent_tool_use_id: null;
+  type: "assistant";
 }
 
 /** An async iterable fed by `push`, which the CLI reads its turns from. */

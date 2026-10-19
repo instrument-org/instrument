@@ -1,12 +1,14 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DatabaseSync } from "node:sqlite";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { publisher } from "../rpc/publisher";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { sessionStorePath } from "./chat-dir-utils";
 import {
   disposeSessionsStoreStorage,
   getSessionsStoreStorage,
@@ -30,10 +32,16 @@ afterEach(async () => {
   unmarkStorageAsDisposing(chatId);
   await disposeSessionsStoreStorage(chatId);
   await fs.rm(root, { force: true, recursive: true });
+  vi.restoreAllMocks();
 });
 
 async function storage() {
   return (await getSessionsStoreStorage(chatId))._unsafeUnwrap();
+}
+
+/** Counts every SQLite handle this process closes, whichever database it is. */
+function closes() {
+  return vi.spyOn(DatabaseSync.prototype, "close");
 }
 
 describe("session store storage", () => {
@@ -144,6 +152,36 @@ describe("session store storage", () => {
     expect((await getSessionsStoreStorage(chatId)).isErr()).toBe(true);
     unmarkStorageAsDisposing(chatId);
     expect((await getSessionsStoreStorage(chatId)).isOk()).toBe(true);
+  });
+
+  it("closes the database a first read failed on, and reports why it failed", async () => {
+    await fs.writeFile(
+      sessionStorePath(chatDir(chatId)),
+      "not a database, just bytes long enough to be read as a header",
+    );
+    const closed = closes();
+
+    const opened = await getSessionsStoreStorage(chatId);
+
+    expect(opened._unsafeUnwrapErr().message).toContain(
+      "Failed to read session database",
+    );
+    expect(closed).toHaveBeenCalledTimes(1);
+    // The dispose that comes before trashing such a chat has nothing left to
+    // close, so the handle is closed once.
+    expect((await disposeSessionsStoreStorage(chatId)).isOk()).toBe(true);
+    expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the database open once it opens, and closes it once on a dispose", async () => {
+    const closed = closes();
+
+    const handle = await storage();
+    expect((await handle.setItemRaw("key", "value")).isOk()).toBe(true);
+    expect(closed).not.toHaveBeenCalled();
+
+    expect((await disposeSessionsStoreStorage(chatId)).isOk()).toBe(true);
+    expect(closed).toHaveBeenCalledTimes(1);
   });
 
   it("reopens through a handle held across a dispose", async () => {

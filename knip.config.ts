@@ -16,7 +16,6 @@ const config: KnipConfig = {
   ignore: [
     "registry/**/*",
     ".agents/skills/**/*",
-    ".claude/skills/**/*",
     ".agents/wireframe-kit/*.js",
   ],
   // Namespace members are exported for organization (see AGENTS.md), not always
@@ -31,7 +30,7 @@ const config: KnipConfig = {
         "scripts/sandbox-bakeoff/*.ts!",
         ".agents/wireframe-kit/*.{ts,mjs}!",
       ],
-      ignoreBinaries: ["actionlint", "electron", "powershell.exe"],
+      ignoreBinaries: ["actionlint", "electron"],
       ignoreDependencies: [
         "@instrument-org/agent-hooks", // Used in .codex/hooks.json and .claude/settings.json hook commands
         "tailwindcss", // Runtime dependency of oxlint-tailwindcss
@@ -60,13 +59,11 @@ const config: KnipConfig = {
         "swift", // Xcode toolchain that builds the Mac helper (scripts/build-mac-helper.ts)
         "clang", // Xcode toolchain that links the Mac helper's native module
         "plutil", // macOS tool that names the dev Electron clone (scripts/dev-supervisor.ts)
-        "codesign", // macOS tool that re-signs the dev Electron clone (scripts/dev-supervisor.ts)
         "tail",
         "op",
-        "gh",
-        "powershell.exe",
-        "which",
         "xdg-open",
+        "attrib", // Windows tool that shows a workspace's .instrument again (lib/machine-cleanups.ts)
+        "dbus-send", // Linux session bus tool (src/electron-main/lib/setup-dbus-env.ts)
       ],
       ignoreDependencies: [
         "ffmpeg-ffprobe-static", // Imported in Vite build to fix import issues
@@ -104,12 +101,10 @@ const config: KnipConfig = {
       ],
       ignore: ["fixtures/**/*"],
       ignoreBinaries: [
-        "which",
         "ldd",
-        "ps",
-        "security",
-        "taskkill",
         "xcode-select",
+        "reg.exe", // Windows' registry tool, for the build the MXC canary's verdict is kept per (src/lib/mxc-canary.ts)
+        "mkfifo", // Makes the FIFO a tier B uutils file must not be (unsandboxed-uutils-operand.test.ts)
       ],
       ignoreDependencies: [
         "@types/json-schema", // Types the ai package's JSONSchema7 re-export, never imported by name

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 
@@ -28,8 +29,21 @@ export type ResumeRecord = z.output<typeof ResumeRecordSchema>;
  */
 export const SESSION_CWD = homedir();
 
+function realCwd() {
+  try {
+    return realpathSync(SESSION_CWD);
+  } catch {
+    return SESSION_CWD;
+  }
+}
+
+/**
+ * Claude Code's config folder: the one named, or its default under the
+ * user's real home, which is where it looks even when this process runs
+ * with another `HOME` (as an eval's sandbox does).
+ */
 function configRoot(configDir: string | undefined) {
-  return configDir ?? join(homedir(), ".claude");
+  return configDir ?? join(userInfo().homedir, ".claude");
 }
 
 function recordPath(configDir: string | undefined, slot: string) {
@@ -43,27 +57,77 @@ function recordPath(configDir: string | undefined, slot: string) {
  * digits turned to `-`. Names past 200 characters are hashed in a way the
  * docs do not spell out, so those are not checked.
  */
-async function transcriptExists(
+function transcriptPath(
   configDir: string | undefined,
   claudeSessionId: string,
 ) {
-  const project = SESSION_CWD.replaceAll(/[^a-zA-Z0-9]/g, "-");
-  if (project.length > 200) {
-    return true;
-  }
-  const file = join(
-    configRoot(configDir),
-    "projects",
-    project,
-    `${claudeSessionId}.jsonl`,
-  );
-  return access(file).then(
-    () => true,
-    () => false,
-  );
+  // Claude Code names the folder by the working folder's real path, which
+  // differs where it runs through a symlink (macOS's /var is /private/var).
+  const project = realCwd().replaceAll(/[^a-zA-Z0-9]/g, "-");
+  return project.length > 200
+    ? undefined
+    : join(
+        configRoot(configDir),
+        "projects",
+        project,
+        `${claudeSessionId}.jsonl`,
+      );
 }
 
-/** The slot's record, when it has one whose transcript is still there. */
+/** What a user or assistant entry of Claude Code's transcript must carry. */
+const MessageEntrySchema = z.object({
+  message: z.object({
+    content: z.union([z.string(), z.array(z.object({ type: z.string() }))]),
+    role: z.enum(["assistant", "user"]),
+  }),
+  type: z.enum(["assistant", "user"]),
+});
+
+/**
+ * Whether a Claude Code transcript reads as a conversation this build
+ * understands: every line JSON, every user and assistant entry a message
+ * with content, and at least one of them. A reply is not required: a task
+ * forks its chat's transcript at the input of a step still running. A
+ * transcript in a shape it does not know (a newer Claude Code's, or a
+ * damaged one) can resume as an empty conversation without a word from
+ * Claude Code, so it is refused here and the session starts over from our
+ * own records instead.
+ */
+async function transcriptLooksResumable(file: string) {
+  const text = await readFile(file, "utf8").catch(() => undefined);
+  if (text === undefined) {
+    return false;
+  }
+  let messages = 0;
+  for (const line of text.split("\n")) {
+    if (line.length === 0) {
+      continue;
+    }
+    let entry: unknown;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      return false;
+    }
+    const type: unknown =
+      typeof entry === "object" && entry !== null
+        ? Reflect.get(entry, "type")
+        : undefined;
+    if (type !== "user" && type !== "assistant") {
+      continue;
+    }
+    if (!MessageEntrySchema.safeParse(entry).success) {
+      return false;
+    }
+    messages += 1;
+  }
+  return messages > 0;
+}
+
+/**
+ * The slot's record, when it has one whose transcript is still there and
+ * still reads as the conversation it was.
+ */
 export async function readResumeRecord(
   configDir: string | undefined,
   slot: string,
@@ -84,9 +148,14 @@ export async function readResumeRecord(
   if (!parsed.success) {
     return undefined;
   }
-  return (await transcriptExists(configDir, parsed.data.claudeSessionId))
-    ? parsed.data
-    : undefined;
+  const file = transcriptPath(configDir, parsed.data.claudeSessionId);
+  if (file !== undefined && !(await transcriptLooksResumable(file))) {
+    console.warn(
+      `[claude-account] transcript ${parsed.data.claudeSessionId} refused: missing or not a conversation this build reads`,
+    );
+    return undefined;
+  }
+  return parsed.data;
 }
 
 export async function writeResumeRecord(

@@ -104,15 +104,13 @@ export async function sendCommand({
   targetId,
 }: {
   // Whether the user could see the guest: its window's state and whether its
-  // tab is shown or parked. Absent in tests; the press log then omits it.
-  describeHost?: (targetId: BrowserTargetId) => Promise<string>;
+  // tab is shown or parked.
+  describeHost: (targetId: BrowserTargetId) => Promise<string>;
   ensureDebuggerAttached: (entry: BrowserEntry) => void;
   entries: Map<BrowserTargetId, BrowserEntry>;
   method: string;
   params: unknown;
-  // Absent only in tests that do not exercise the repair; without it a guest
-  // that has lost focus can only be refused, which is the safe direction.
-  requestGuestFocus?: (targetId: BrowserTargetId) => void;
+  requestGuestFocus: (targetId: BrowserTargetId) => void;
   targetId: BrowserTargetId;
 }): Promise<unknown> {
   const entry = entries.get(targetId);
@@ -314,11 +312,11 @@ async function forwardToDebugger({
   requestGuestFocus,
   targetId,
 }: {
-  describeHost?: (targetId: BrowserTargetId) => Promise<string>;
+  describeHost: (targetId: BrowserTargetId) => Promise<string>;
   entry: BrowserEntry;
   method: string;
   params: unknown;
-  requestGuestFocus?: (targetId: BrowserTargetId) => void;
+  requestGuestFocus: (targetId: BrowserTargetId) => void;
   targetId: BrowserTargetId;
 }): Promise<unknown> {
   // A guest that is not rendering never acknowledges a press, so the command
@@ -332,7 +330,7 @@ async function forwardToDebugger({
     !(await guestRendersOnceEmbedderDraws(entry, method))
   ) {
     log.warn(
-      `refused ${method} targetId=${targetId}: page is not rendering ${(await describeHost?.(targetId)) ?? ""}`,
+      `refused ${method} targetId=${targetId}: page is not rendering ${await describeHost(targetId)}`,
     );
     throw new Error(
       "Input was not delivered: this page is not rendering, so it cannot receive clicks, taps, or key presses. The Instrument window is most likely hidden, minimized, or covered by other windows and could not be made to draw. Reading it (snapshot, get text, eval) still works. Ask the user to bring the Instrument window into view, then retry.",
@@ -721,7 +719,7 @@ const describeHitScript = (x: number, y: number) => `(() => {
 async function describePress(
   entry: BrowserEntry,
   params: unknown,
-  describeHost?: (targetId: BrowserTargetId) => Promise<string>,
+  describeHost: (targetId: BrowserTargetId) => Promise<string>,
 ): Promise<string> {
   const { x, y } = params as { x?: number; y?: number };
   if (typeof x !== "number" || typeof y !== "number") {
@@ -736,7 +734,7 @@ async function describePress(
     : Promise.resolve(undefined);
   const [what, host] = await Promise.all([
     hit.then(String, () => "hit=unknown"),
-    describeHost?.(entry.targetId).catch(() => "host=unknown"),
+    describeHost(entry.targetId).catch(() => "host=unknown"),
   ]);
   return [`at=${x},${y}`, what, host].filter(Boolean).join(" ");
 }
@@ -879,15 +877,12 @@ async function guestRendersOnceEmbedderDraws(
 }
 
 // Ask the renderer to focus the guest, then wait for the guest to agree that
-// it holds focus. Returns false when no repair channel was supplied or the
-// guest never took focus, which keeps the caller failing closed.
+// it holds focus. Returns false when the guest never took focus, which keeps
+// the caller failing closed.
 async function repairGuestKeyboardFocus(
   entry: BrowserEntry,
-  requestGuestFocus?: (targetId: BrowserTargetId) => void,
+  requestGuestFocus: (targetId: BrowserTargetId) => void,
 ): Promise<boolean> {
-  if (!requestGuestFocus) {
-    return false;
-  }
   requestGuestFocus(entry.targetId);
   const deadline = Date.now() + FOCUS_REPAIR_TIMEOUT_MS;
   do {

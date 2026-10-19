@@ -76,20 +76,30 @@ afterEach(async () => {
   await fs.rm(appsDir, { force: true, recursive: true });
 });
 
-/** An app folder as the agent leaves it: its manifest and a guide. */
-async function writeApp(slug: string, manifest: Record<string, unknown>) {
-  const dir = path.join(appsDir, slug);
+/** An app folder as the agent leaves it: the manifest over a guide. */
+async function writeApp(
+  name: string,
+  slug: string,
+  manifest: Record<string, unknown>,
+) {
+  const dir = path.join(appsDir, name);
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, "app.json"), JSON.stringify(manifest));
-  await fs.writeFile(path.join(dir, "guide.md"), "# Service\n");
+  // JSON is YAML, so each value goes in as it stands rather than through a
+  // serializer this test would have to keep in step with the real one.
+  const front = Object.entries({ id: slug, ...manifest })
+    .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+    .join("\n");
+  await fs.writeFile(
+    path.join(dir, "APP.md"),
+    `---\n${front}\n---\n\nWhat the service is for.\n`,
+  );
 }
 
 describe("setCredential", () => {
   beforeEach(async () => {
-    await writeApp("keyed", {
+    await writeApp("Keyed", "keyed", {
       auth: { kind: "bearer" },
-      baseUrl: "https://api.example.com/v1",
-      name: "Keyed",
+      url: "https://api.example.com/v1",
       test: { path: "/me" },
       type: "api",
     });
@@ -127,9 +137,8 @@ describe("setCredential", () => {
 
 describe("startOAuth", () => {
   beforeEach(async () => {
-    await writeApp("signed-in", {
+    await writeApp("Signed in", "signed-in", {
       auth: { kind: "oauth" },
-      name: "Signed in",
       type: "mcp",
       url: "https://mcp.example.com/mcp",
     });
@@ -159,15 +168,13 @@ describe("startOAuth", () => {
 
 describe("inspect", () => {
   beforeEach(async () => {
-    await writeApp("signed-in", {
+    await writeApp("Signed in", "signed-in", {
       auth: { kind: "oauth" },
-      name: "Signed in",
       type: "mcp",
       url: "https://mcp.example.com/mcp",
     });
-    await writeApp("keyed-mcp", {
+    await writeApp("Keyed MCP", "keyed-mcp", {
       auth: { kind: "bearer" },
-      name: "Keyed MCP",
       type: "mcp",
       url: "https://mcp.example.com/mcp",
     });
@@ -201,6 +208,21 @@ describe("inspect", () => {
     expect(mocks.withAppMcpClient).not.toHaveBeenCalled();
   });
 
+  it("keeps the sign-in when the server refuses a permission", async () => {
+    mocks.withAppMcpClient.mockResolvedValue({
+      error: { message: "HTTP 403: no API access", reason: "forbidden" },
+      isErr: () => true,
+    });
+
+    await expect(
+      call(apps.inspect, { slug: "signed-in" }, options),
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: "HTTP 403: no API access",
+    });
+    expect(mocks.recordConnection).not.toHaveBeenCalled();
+  });
+
   it("leaves a server that cannot be reached connected", async () => {
     mocks.withAppMcpClient.mockResolvedValue({
       error: { message: "down", reason: "connect" },
@@ -216,8 +238,7 @@ describe("inspect", () => {
 
 describe("markWebSignedIn", () => {
   it("records a web app as connected on its manifest and wakes the chat", async () => {
-    await writeApp("drive", {
-      name: "Google Drive",
+    await writeApp("Google Drive", "drive", {
       type: "web",
       url: "https://drive.google.com",
     });
@@ -237,10 +258,9 @@ describe("markWebSignedIn", () => {
   });
 
   it("refuses an app that is not a web app", async () => {
-    await writeApp("keyed", {
+    await writeApp("Keyed", "keyed", {
       auth: { kind: "bearer" },
-      baseUrl: "https://api.example.com/v1",
-      name: "Keyed",
+      url: "https://api.example.com/v1",
       test: { path: "/me" },
       type: "api",
     });

@@ -61,8 +61,7 @@ export function TaskMenu({
             Save transcript
           </DropdownMenuItem>
         )}
-        {/* The task's own folder, which is where its deliverables land and the
-          only way to see what it wrote that it never mentioned. */}
+        {/* The chat's output folder, where the task's deliverables land. */}
         <DropdownMenuItem
           onSelect={() => {
             void showChatFolder(chatId);

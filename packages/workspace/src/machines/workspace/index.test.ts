@@ -1,10 +1,9 @@
 import { aiGatewayApp, noopModelCache } from "@instrument-org/ai-gateway";
 import { noop } from "radashi";
-import { describe, expect, it, vi } from "vitest";
-import { type AnyActorLogic, createActor, fromCallback, setup } from "xstate";
+import { describe, expect, it } from "vitest";
+import { type AnyActorLogic, createActor, fromCallback } from "xstate";
 
 import { createMemoryAppsConfig } from "../../lib/apps/memory-config";
-import * as recordFolders from "../../lib/record-folders";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
@@ -15,6 +14,8 @@ import {
   MOCK_WORKSPACE_DIRS,
 } from "../../test/helpers/mock-chat-config";
 import { workspaceMachine } from "./index";
+import { newDeviceId } from "../../lib/records/device-id";
+import { getWorkspaceConfig } from "../../lib/workspace-config";
 
 // Long-running no-op actor used to stand in for every spawned child machine.
 // It stays "active" until the parent stops it, so we can assert which children
@@ -35,6 +36,7 @@ const testMachine = workspaceMachine.provide({ actors: stubActors });
 function createWorkspaceActor(
   rootDir = "/tmp/workspace",
   machine = testMachine,
+  deviceId = newDeviceId(),
 ) {
   return createActor(machine, {
     input: {
@@ -43,19 +45,21 @@ function createWorkspaceActor(
       appVersion: "0.0.0-test",
       browser: createStubBrowserConfig(),
       captureException: noop,
-      chatTemplateDir: MOCK_WORKSPACE_DIRS.chatTemplate,
+      deviceId,
       getAIProviderConfigs: () => [],
       modelCache: noopModelCache,
       nodeExecEnv: {},
       pnpmBinPath: "/tmp/pnpm",
-      preparedSkillsDir: "/tmp/prepared-skills",
       registryDir: MOCK_WORKSPACE_DIRS.registry,
       rootDir,
+      runtimeDir: "/tmp/workspace/runtime",
       systemSkillsDir: MOCK_WORKSPACE_DIRS.systemSkills,
       trashItem: () => Promise.resolve(),
       uvBinPath: "/tmp/uv",
-      uvDataDir: "/tmp/workspace/uv-data",
       webSearch: unavailableWebSearchClient,
+      userDataDir: MOCK_WORKSPACE_DIRS.machine,
+      workspaceMachineDir: MOCK_WORKSPACE_DIRS.machine,
+      workFoldersDir: MOCK_WORKSPACE_DIRS.work,
     },
   });
 }
@@ -96,6 +100,18 @@ const spawnSession = (
     },
   });
 };
+
+describe("workspaceMachine config", () => {
+  it("writes records as the device it was started as", () => {
+    const deviceId = newDeviceId();
+    const actor = createWorkspaceActor(undefined, testMachine, deviceId);
+    actor.start();
+
+    expect(actor.getSnapshot().context.config.deviceId).toBe(deviceId);
+    expect(getWorkspaceConfig().deviceId).toBe(deviceId);
+    actor.stop();
+  });
+});
 
 describe("workspaceMachine task trashing", () => {
   // Trashing a chat is the user's doing, which wakes nothing: a task's turn
@@ -232,68 +248,6 @@ describe("workspaceMachine session ref lifecycle", () => {
     expect(remaining).toHaveLength(1);
     expect(remaining?.[0]?.id).toBe(second?.id);
 
-    actor.stop();
-  });
-});
-
-describe("workspaceMachine answers", () => {
-  it("gives an answer to the chat's own session and to none of its tasks", () => {
-    const chatId = ChatIdSchema.parse("answer-routing");
-    const chatSession = StoreId.newSessionId();
-    const taskSession = StoreId.newSessionId();
-    vi.spyOn(recordFolders, "sessionOfChat").mockReturnValue(chatSession);
-    const answered: StoreId.Session[] = [];
-    // A session that only knows its id and notes the answers it hears.
-    const listeningSession: AnyActorLogic = setup({
-      types: {
-        context: {} as { sessionId: StoreId.Session },
-        input: {} as { sessionId: StoreId.Session },
-      },
-    }).createMachine({
-      context: ({ input }) => ({ sessionId: input.sessionId }),
-      on: {
-        updateInteractiveToolCall: {
-          actions: ({ context }) => {
-            answered.push(context.sessionId);
-          },
-        },
-      },
-    });
-    const actor = createActor(
-      workspaceMachine.provide({
-        actors: {
-          ...stubActors,
-          sessionMachine: listeningSession,
-        } as Parameters<typeof workspaceMachine.provide>[0]["actors"],
-      }),
-      { input: createWorkspaceActor().options.input },
-    );
-    actor.start();
-    for (const sessionId of [taskSession, chatSession]) {
-      actor.send({
-        type: "internal.spawnSession",
-        value: {
-          chatId,
-          message: buildUserMessage(),
-          model: createMockAIGatewayModel(),
-          sessionId,
-        },
-      });
-    }
-
-    actor.send({
-      type: "updateInteractiveToolCall",
-      value: {
-        id: chatId,
-        update: {
-          toolCallId: "call",
-          type: "success",
-          value: { output: { selectedChoice: "Yes" }, toolName: "choose" },
-        },
-      },
-    });
-
-    expect(answered).toEqual([chatSession]);
     actor.stop();
   });
 });

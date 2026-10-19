@@ -1,12 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
-import {
-  act,
-  fireEvent,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import {
   afterEach,
@@ -156,65 +150,243 @@ describe("FileSystem", () => {
     `);
   });
 
-  // The file type filter offers the kinds the Kind column shows, one each,
-  // and a kind picked there takes every file of that kind.
-  it("filters by the kinds the list names", () => {
-    // The type list keeps its highlighted row in view, and jsdom has no
-    // scrolling.
-    Element.prototype.scrollIntoView = () => {};
-    onTestFinished(() => {
-      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
-    });
+  // Show hidden files sits at the foot of the sort menu, and the menu stays
+  // open on it so the dotfiles can be watched arriving.
+  it("lists dotfiles once the sort menu shows hidden files", () => {
     renderWithProviders(
       <FileSystem
         defaultView="list"
         items={[
-          { contentType: "text/plain", kind: "file", path: "task.txt" },
-          { contentType: "text/plain", kind: "file", path: "2024" },
-          { contentType: "text/html", kind: "file", path: "page.html" },
-          { contentType: "audio/mpeg", kind: "file", path: "song.mp3" },
-          { contentType: "audio/wav", kind: "file", path: "voice.wav" },
+          { kind: "file", path: ".env" },
+          { kind: "file", path: "notes.md" },
+        ]}
+      />,
+    );
+    const names = () =>
+      [...document.querySelectorAll("[data-file-system-name]")].map(
+        (name) => name.textContent,
+      );
+    expect(names()).toMatchInlineSnapshot(`
+      [
+        "notes.md",
+      ]
+    `);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Sort by" }), {
+      button: 0,
+      pointerType: "mouse",
+    });
+    fireEvent.click(
+      screen.getByRole("menuitemcheckbox", { name: "Show hidden files" }),
+    );
+
+    expect(
+      screen
+        .getByRole("menuitemcheckbox", { name: "Show hidden files" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    // jsdom has no height, so the list draws only the rows it first drew.
+    expect(names()).toContain(".env");
+  });
+
+  it("offers the order files were opened in for a list of them, the recents", () => {
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={[
           {
-            contentType: "application/octet-stream",
             kind: "file",
-            path: "blob",
+            openedAt: "2026-10-15T09:00:00Z",
+            path: "notes.md",
           },
         ]}
       />,
     );
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Filter" }), {
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Sort by" }), {
       button: 0,
       pointerType: "mouse",
     });
-    fireEvent.click(screen.getByRole("menuitem", { name: "File type" }));
-    const kinds = screen.getByRole("listbox", { name: "Suggestions" });
+    expect(screen.getAllByRole("menuitemradio")[0]?.textContent).toBe(
+      "Date last opened",
+    );
+  });
 
-    expect(
-      within(kinds)
-        .getAllByRole("option")
-        .map((option) => option.textContent),
-    ).toMatchInlineSnapshot(`
+  describe("grouped, as the Finder groups a folder", () => {
+    it("offers no sort in the menu, since the groups are the order", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="kind"
+          items={[{ kind: "file", path: "notes.md" }]}
+        />,
+      );
+      fireEvent.pointerDown(screen.getByRole("button", { name: "Group by" }), {
+        button: 0,
+        pointerType: "mouse",
+      });
+      expect(
+        screen.getAllByRole("menuitemradio").map((item) => item.textContent),
+      ).toMatchInlineSnapshot(`
+        [
+          "None",
+          "Kind",
+          "Date modified",
+          "Date created",
+          "Size",
+        ]
+      `);
+    });
+
+    // Headings and names in the order the grid draws them, which has no
+    // header to hold the first group's name.
+    const drawn = () =>
       [
-        "Plain Text",
-        "Audio",
-        "Document",
-        "HTML Document",
+        ...document.querySelectorAll(
+          "[data-file-system-listing] [aria-hidden], [data-file-system-name]",
+        ),
       ]
-    `);
+        .map((part) => part.textContent)
+        .filter(Boolean);
 
-    fireEvent.click(within(kinds).getByRole("option", { name: "Audio" }));
+    it("puts kinds in the Finder's order, sorted by name within each", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="kind"
+          items={[
+            { kind: "file", path: "zeta.png" },
+            { kind: "file", path: "notes.md" },
+            { kind: "folder", path: "photos/" },
+            { kind: "file", path: "app.ts" },
+            { kind: "file", path: "data.json" },
+            { kind: "file", path: "alpha.png" },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "Folders",
+          "photos",
+          "Documents",
+          "notes.md",
+          "Images",
+          "alpha.png",
+          "zeta.png",
+          "Developer",
+          "app.ts",
+          "Other",
+          "data.json",
+        ]
+      `);
+    });
 
-    // Read off the page, since the open menu hides the list from roles.
-    expect(
-      [...document.querySelectorAll("[data-file-system-name]")].map(
-        (name) => name.textContent,
-      ),
-    ).toMatchInlineSnapshot(`
-      [
-        "song.mp3",
-        "voice.wav",
-      ]
-    `);
+    it("steps sizes by powers of ten, largest first and folders last", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="size"
+          items={[
+            { kind: "file", path: "tiny.txt", size: 99 },
+            { kind: "file", path: "hundred.txt", size: 100 },
+            { kind: "file", path: "thousand.txt", size: 1000 },
+            { kind: "file", path: "movie.mp4", size: 1_260_000_000 },
+            { kind: "folder", path: "photos/" },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "From 1 GB to 10 GB",
+          "movie.mp4",
+          "From 1 KB to 10 KB",
+          "thousand.txt",
+          "From 100 bytes to 1 KB",
+          "hundred.txt",
+          "Under 100 bytes",
+          "tiny.txt",
+          "--",
+          "photos",
+        ]
+      `);
+    });
+
+    it("ladders dates by calendar day, then months and years", () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 15, 12));
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const at = (month: number, day: number, year = 2026) =>
+        new Date(year, month, day, 9).toISOString();
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="updatedAt"
+          items={[
+            { kind: "file", path: "today.md", updatedAt: at(9, 15) },
+            { kind: "file", path: "yesterday.md", updatedAt: at(9, 14) },
+            { kind: "file", path: "week.md", updatedAt: at(9, 7) },
+            { kind: "file", path: "month.md", updatedAt: at(8, 7) },
+            { kind: "file", path: "september.md", updatedAt: at(8, 6) },
+            { kind: "file", path: "last-year.md", updatedAt: at(11, 31, 2025) },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "Today",
+          "today.md",
+          "Yesterday",
+          "yesterday.md",
+          "Previous 7 Days",
+          "week.md",
+          "Previous 30 Days",
+          "month.md",
+          "September",
+          "september.md",
+          "2025",
+          "last-year.md",
+        ]
+      `);
+    });
+
+    // jsdom has no height, so the grid draws only its first few rows, and a
+    // folder of three groups is all of it.
+    it("puts no date, and a date still to come, last", () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 15, 12));
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      renderWithProviders(
+        <FileSystem
+          defaultView="icons"
+          group="updatedAt"
+          items={[
+            { kind: "file", path: "undated.md" },
+            {
+              kind: "file",
+              path: "next-week.md",
+              updatedAt: new Date(2026, 9, 22).toISOString(),
+            },
+            {
+              kind: "file",
+              path: "today.md",
+              updatedAt: new Date(2026, 9, 15, 9).toISOString(),
+            },
+          ]}
+        />,
+      );
+      expect(drawn()).toMatchInlineSnapshot(`
+        [
+          "Today",
+          "today.md",
+          "No Date",
+          "next-week.md",
+          "undated.md",
+        ]
+      `);
+    });
   });
 
   describe("a folder the caller cannot list", () => {
@@ -503,6 +675,94 @@ describe("FileSystem", () => {
       fireEvent.click(row("c"), { metaKey: true });
       expect(screen.getByText("3 items")).toBeTruthy();
       expect(screen.getByText(/^1 folder, 2 documents/)).toBeTruthy();
+    });
+  });
+
+  it("opens in the list the folders it is told are open, and says when one closes", () => {
+    const onOpenFolderChange = vi.fn();
+    const items: FileSystemItem[] = [
+      { kind: "folder", path: "drafts/" },
+      { kind: "file", path: "drafts/report.txt" },
+      { kind: "file", path: "notes.txt" },
+    ];
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={items}
+        onOpenFolderChange={onOpenFolderChange}
+        openFolders={new Set(["drafts/"])}
+      />,
+    );
+    const names = () =>
+      screen
+        .getAllByRole("option")
+        .map((option) => option.textContent?.split("--")[0] ?? "");
+
+    expect(names()).toEqual(["drafts", "report.txt", "notes.txt"]);
+    const drafts = screen.getByRole("option", { name: /^drafts/ });
+    fireEvent.click(drafts);
+    fireEvent.keyDown(drafts, { key: "ArrowLeft" });
+
+    expect(onOpenFolderChange.mock.calls).toEqual([["drafts/", false]]);
+  });
+
+  describe("searching", () => {
+    const FOLDERS: FileSystemItem[] = [
+      { kind: "folder", path: "drafts/" },
+      { kind: "file", path: "drafts/report.txt" },
+      { kind: "file", path: "notes.txt" },
+    ];
+    const names = () =>
+      screen
+        .queryAllByRole("option")
+        .map((option) => option.textContent?.split("--")[0] ?? "");
+
+    it("opens searched for what it was handed", () => {
+      renderWithProviders(
+        <FileSystem defaultSearch="notes" defaultView="list" items={FOLDERS} />,
+      );
+
+      expect(names()).toEqual(["notes.txt"]);
+      // Folded into the toolbar, the button says what is searched for.
+      expect(
+        screen.getByRole("button", { name: "Search: notes" }),
+      ).toBeTruthy();
+    });
+
+    it("offers to clear a search that matches nothing", () => {
+      const onSearchChange = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultView="list"
+          items={FOLDERS}
+          onSearchChange={onSearchChange}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Search" }));
+      fireEvent.change(screen.getByRole("searchbox"), {
+        target: { value: "zebra" },
+      });
+
+      expect(screen.getByText("Nothing here matches “zebra”.")).toBeTruthy();
+      fireEvent.click(screen.getByText("Clear search"));
+
+      expect(onSearchChange.mock.calls).toEqual([["zebra"], [""]]);
+      expect(names()).toEqual(["drafts", "notes.txt"]);
+    });
+
+    it("says the search is emptied by walking into a folder", () => {
+      const onSearchChange = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultSearch="draft"
+          defaultView="icons"
+          items={FOLDERS}
+          onSearchChange={onSearchChange}
+        />,
+      );
+      fireEvent.doubleClick(screen.getByRole("option", { name: /^drafts/ }));
+
+      expect(onSearchChange.mock.calls).toEqual([[""]]);
     });
   });
 });

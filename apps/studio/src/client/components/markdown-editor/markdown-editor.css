@@ -1,3 +1,5 @@
+@import "../code-editor/code-colors.css";
+
 /* The Markdown editor (Milkdown's Crepe) drawn in Studio's tokens and set as a
    page to read and write on: a size above the interface's, open leading, and
    a measure its host caps (markdown-editor.tsx). Scoped under `.md-editor`;
@@ -23,16 +25,6 @@
   --html-bg: color-mix(in srgb, var(--yellow-50) 70%, var(--card));
   --html-line: var(--yellow-100);
   --html-tag: var(--yellow-700);
-  --hl-keyword: #a626a4;
-  --hl-string: #50a14f;
-  --hl-number: #986801;
-  --hl-comment: #8e908c;
-  --hl-function: #4078f2;
-  --hl-type: #c18401;
-  --hl-tag: #e45649;
-  --hl-attr: #986801;
-  --hl-variable: #383a42;
-  --hl-punct: #5c5f66;
 }
 
 .dark .md-editor,
@@ -53,16 +45,6 @@
   --html-bg: rgb(241 204 142 / 6%);
   --html-line: rgb(241 204 142 / 16%);
   --html-tag: var(--yellow-300);
-  --hl-keyword: #c678dd;
-  --hl-string: #98c379;
-  --hl-number: #d19a66;
-  --hl-comment: #7f848e;
-  --hl-function: #61afef;
-  --hl-type: #e5c07b;
-  --hl-tag: #e06c75;
-  --hl-attr: #d19a66;
-  --hl-variable: #d7dae0;
-  --hl-punct: #abb2bf;
 }
 
 .md-editor {
@@ -82,10 +64,56 @@
 
 /* Images: the file's own pictures, the column's width at most. */
 .md-editor .md-image {
+  position: relative;
   display: inline-block;
   max-width: 100%;
-  border-radius: 6px;
   vertical-align: bottom;
+}
+.md-editor .md-image > img {
+  display: block;
+  max-width: 100%;
+  border-radius: 6px;
+}
+/* The corner a picture is resized from (images.ts), shown while the
+   pointer is over the picture or it is selected. */
+.md-editor .md-image-handle {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--background);
+  border-radius: 999px;
+  background: var(--foreground);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 25%, transparent);
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.md-editor
+  .md-image:is(:hover, .ProseMirror-selectednode, .md-image-resizing)
+  > .md-image-handle {
+  opacity: 1;
+}
+.md-editor .md-image.ProseMirror-selectednode > img,
+.md-editor .md-image.md-image-resizing > img {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* A picture that did not load: which file it was looking for, in place of the picture. */
+.md-editor .md-image-missing {
+  display: none;
+}
+.md-editor .md-image.md-image-broken > :is(img, .md-image-handle) {
+  display: none;
+}
+.md-editor .md-image.md-image-broken > .md-image-missing {
+  display: inline-block;
+  padding: 0.5em 0.85em;
+  border: 1px dashed color-mix(in srgb, var(--destructive) 60%, transparent);
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  font-size: 0.875em;
 }
 .md-editor .ProseMirror p:has(> .md-image:only-child) {
   margin-block: 1.25em;
@@ -368,42 +396,9 @@ textarea.md-input {
 .md-editor .milkdown .milkdown-slash-menu .menu-groups {
   padding: 0;
 }
-/* The slash menu's tabs as the app's segmented control (`TabsList`). */
+/* The slash menu's tabs only repeat the section headings below them. */
 .md-editor .milkdown .milkdown-slash-menu .tab-group {
-  padding: 4px 4px 8px;
-  border-bottom: 1px solid var(--border);
-}
-.md-editor .milkdown .milkdown-slash-menu .tab-group ul {
-  display: inline-flex;
-  gap: 0;
-  padding: 3px;
-  background: var(--muted);
-  border-radius: var(--radius);
-}
-.md-editor .milkdown .milkdown-slash-menu .tab-group ul li {
-  height: 26px;
-  box-sizing: border-box;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: calc(var(--radius) - 2px);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 24px;
-  color: var(--muted-foreground);
-}
-.md-editor .milkdown .milkdown-slash-menu .tab-group ul li:hover {
-  background: none;
-  color: var(--foreground);
-}
-.md-editor .milkdown .milkdown-slash-menu .tab-group ul li.selected {
-  background: var(--background);
-  color: var(--foreground);
-  box-shadow: var(--elevation-sm);
-}
-.dark .md-editor .milkdown .milkdown-slash-menu .tab-group ul li.selected {
-  border-color: var(--input);
-  background: color-mix(in srgb, var(--input) 30%, transparent);
-  box-shadow: none;
+  display: none;
 }
 .md-editor .milkdown .milkdown-slash-menu .menu-groups .menu-group li {
   gap: 8px;
@@ -595,6 +590,57 @@ textarea.md-input {
   text-underline-offset: 2px;
   font-weight: 500;
 }
+/* A link to a file that is not there (links.ts): a wavy red underline, as a misspelling gets. */
+.md-editor .milkdown .ProseMirror a:has(> .md-link-broken) {
+  text-decoration: none;
+}
+.md-editor .milkdown .ProseMirror .md-link-broken {
+  text-decoration: underline wavy;
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--destructive) 70%,
+    transparent
+  );
+  text-underline-offset: 3px;
+}
+/* A link into the app (links.ts) as the chip Studio's Markdown draws it as:
+   a muted box around the kind's glyph and the words, with no underline. */
+.md-editor .milkdown .ProseMirror a:has(> .md-app-chip) {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
+  padding: 1px 6px 1px 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  color: var(--foreground);
+  font-size: 0.875em;
+  text-decoration: none;
+}
+.md-editor .milkdown .ProseMirror .md-app-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  vertical-align: -1px;
+  color: var(--muted-foreground);
+}
+.md-editor .milkdown .ProseMirror .md-app-chip-icon.is-task {
+  color: var(--brand-600);
+}
+/* A web link's site icon (links.ts), as the app's other Markdown draws it. */
+.md-editor .milkdown .ProseMirror .md-site-icon:not([hidden]) {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin: 0 4px 0 0;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.dark .md-editor .milkdown .ProseMirror .md-site-icon {
+  background: rgb(255 255 255 / 0.1);
+}
 /* Inline code as Typography draws it in Studio: weight and backticks. */
 .md-editor .milkdown .ProseMirror :not(pre) > code {
   font-family: var(--font-mono);
@@ -708,6 +754,68 @@ textarea.md-input {
 }
 .md-editor .milkdown .ProseMirror blockquote > * + * {
   margin-top: 0.75em;
+}
+
+/* GitHub's callouts (callouts.ts): a quote tinted in its kind's color, the
+   kind's icon and name in place of its `[!NOTE]` marker. */
+.md-editor {
+  --callout-note: #0969da;
+  --callout-tip: #1a7f37;
+  --callout-important: #8250df;
+  --callout-warning: #9a6700;
+  --callout-caution: #cf222e;
+}
+.dark .md-editor {
+  --callout-note: #4493f8;
+  --callout-tip: #3fb950;
+  --callout-important: #ab7df8;
+  --callout-warning: #d29922;
+  --callout-caution: #f85149;
+}
+.md-editor .milkdown .ProseMirror blockquote.md-callout {
+  --callout: var(--callout-note);
+  padding: 0.6em 1em 0.6em 1.1em;
+  border-left-color: var(--callout);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--callout) 7%, transparent);
+  color: var(--prose-body);
+  font-weight: 400;
+}
+.md-editor .milkdown .ProseMirror blockquote.md-callout[data-callout="tip"] {
+  --callout: var(--callout-tip);
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  blockquote.md-callout[data-callout="important"] {
+  --callout: var(--callout-important);
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  blockquote.md-callout[data-callout="warning"] {
+  --callout: var(--callout-warning);
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  blockquote.md-callout[data-callout="caution"] {
+  --callout: var(--callout-caution);
+}
+.md-editor .md-callout-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  color: var(--callout);
+  font-weight: 600;
+  user-select: none;
+}
+.md-editor .md-callout-hidden {
+  display: none;
+}
+.md-editor .md-callout-marker {
+  color: var(--callout);
+  font-weight: 600;
 }
 
 /* Divider: a break between parts, with the same room on both sides whatever
@@ -1225,6 +1333,9 @@ textarea.md-input {
 }
 .md-html-rendered {
   cursor: pointer;
+  /* HTML's own whitespace, not the editor's pre-wrap: the newlines between
+     tags (`<summary>`, then `<pre>`) are a blank line each otherwise. */
+  white-space: normal;
 }
 .md-html-block.md-html-rendered {
   outline: 1px dashed transparent;
@@ -1357,6 +1468,40 @@ textarea.md-input {
 }
 .md-editor .ProseMirror > .md-html-inner:has(+ .md-html-inner) {
   padding-bottom: 0.55em;
+}
+/* A quote in a body: the quote's own rules would take the indent and the
+   spacing above, which are padding here, and draw its bar at the left edge,
+   ahead of the body's rule. Its bar is drawn as a background instead, after
+   the indent and clear of the spacing. */
+.md-editor .milkdown .ProseMirror > blockquote.md-html-inner:not(.md-callout) {
+  --quote-top: 0.55em;
+  --quote-bottom: 0px;
+  border-left: 0;
+  padding: var(--quote-top) 0 var(--quote-bottom)
+    calc(var(--html-indent) + 3px + 1.25em);
+  background:
+    repeating-linear-gradient(
+        to right,
+        var(--html-line) 0 1px,
+        transparent 1px 16px
+      )
+      5px 0 / var(--html-indent) 100% no-repeat,
+    linear-gradient(var(--border), var(--border)) var(--html-indent)
+      var(--quote-top) / 3px calc(100% - var(--quote-top) - var(--quote-bottom))
+      no-repeat;
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  > blockquote.md-html-inner:not(.md-callout):has(+ .md-html-inner) {
+  --quote-bottom: 0.55em;
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  > .md-html-open:has(.md-html-details)
+  + blockquote.md-html-inner:not(.md-callout) {
+  --quote-top: 0.35em;
 }
 .md-editor .ProseMirror > .md-html-hidden {
   display: none !important;

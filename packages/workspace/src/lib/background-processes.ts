@@ -1,4 +1,5 @@
 import ms from "ms";
+import { noop } from "radashi";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -14,12 +15,17 @@ import { BoundedLogWriter } from "./bounded-log-writer";
 import { BoundedText } from "./bounded-text";
 import { filterShellOutput } from "./filter-shell-output";
 import { getCurrentDate } from "./get-current-date";
+import { openOwnFile } from "./own-file";
+import { type JobPrograms } from "./own-processes";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import {
   type ShellOutputSink,
   withShellOutputSink,
 } from "./shell-commands/output-sink";
-import { SubprocessTreeTerminationError } from "./subprocess-tree";
+import {
+  SubprocessTreeTerminationError,
+  withSubprocessTreeListener,
+} from "./subprocess-tree";
 import { workDir } from "./work-dir";
 
 /**
@@ -79,6 +85,12 @@ export interface BackgroundProcessInfo {
   logOmittedBytes: number;
   /** Set when the log could not be written. */
   logWriteError?: string;
+  /**
+   * The real process ids of the programs it is running now, this computer's
+   * own (on Linux, the sandbox's launcher, which the program runs under).
+   * Empty once it ends, and while only the shell's own commands are running.
+   */
+  pids: number[];
   startedAt: Date;
   status: BackgroundProcessStatus;
   /** Who asked for the stop, for a process that was stopped rather than ended. */
@@ -124,6 +136,10 @@ export interface BackgroundRunHandle {
   hasStreamedOutput: () => boolean;
   /** Compares final shell output with all live subprocess output by content. */
   matchesStreamedOutput: (output: string) => boolean;
+  /** The programs the run started, by pid: those running, and those ended. */
+  pids: () => Omit<JobPrograms, "id">;
+  /** Resolves when the run starts its first program. */
+  readonly started: Promise<void>;
   /** Set at promotion so later chunks reach the log file and wake readers. */
   setChunkListener: (listener: ShellOutputSink) => void;
   readonly startedAt: Date;
@@ -132,7 +148,7 @@ export interface BackgroundRunHandle {
 /**
  * Who asked a process to stop. The agent reads each differently: its own
  * `kill` is a step it took, the user's stop button is a decision it must not
- * undo by starting the process again, and the conversation's `task stop` is
+ * undo by starting the process again, and the conversation's `instrument task stop` is
  * the chat stepping in on a task's command.
  */
 export type StoppedBy = "agent" | "conversation" | "user";
@@ -271,7 +287,7 @@ const stopsUnderWay = new Map<StoreId.Session, Promise<void>>();
 /**
  * Stops what a session has running in the background, every process or the
  * one named, keeping each record so `jobs` says who stopped it: the chat's
- * agent through `task stop`, or the person stopping a task, which ends what
+ * agent through `instrument task stop`, or the person stopping a task, which ends what
  * the task runs with its turn. A stop somebody asked for wakes nothing.
  * Counted under way from the call, for `processStopsSettled`.
  */
@@ -335,6 +351,7 @@ export function killSessionBackgroundProcesses(
 
   const cleanup = Promise.resolve().then(async () => {
     try {
+      foregroundPrograms.delete(sessionId);
       const records = recordsBySession.get(sessionId);
       if (!records) {
         return;
@@ -384,7 +401,7 @@ export async function killChatBackgroundProcesses(
 
 /**
  * Moves processes to another session, for work a chat hands to a task
- * partway (`task new --job`): the task carries the work on, so what the chat
+ * partway (`instrument task new --job`): the task carries the work on, so what the chat
  * left running is the task's to read, wait on and stop, under the same ids.
  * A task works in its chat's folder, so the logs stay where they are.
  */
@@ -436,6 +453,54 @@ export function listBackgroundProcesses(
 }
 
 /**
+ * Programs a session's calls started that finished without becoming a job,
+ * the latest kept, since what one left running in its group is the agent's
+ * to stop too.
+ */
+const foregroundPrograms = new Map<StoreId.Session, Set<number>>();
+const FOREGROUND_PROGRAMS_KEPT = 256;
+
+/** Remembers what a call that finished in the foreground started. */
+export function rememberForegroundPrograms(
+  sessionId: StoreId.Session,
+  handle: BackgroundRunHandle,
+): void {
+  const { ended } = handle.pids();
+  if (ended.size === 0) {
+    return;
+  }
+  const kept = foregroundPrograms.get(sessionId) ?? new Set<number>();
+  for (const pid of ended) {
+    kept.delete(pid);
+    kept.add(pid);
+  }
+  for (const pid of kept) {
+    if (kept.size <= FOREGROUND_PROGRAMS_KEPT) {
+      break;
+    }
+    kept.delete(pid);
+  }
+  foregroundPrograms.set(sessionId, kept);
+}
+
+/**
+ * Every program a session's calls started, by the job each belongs to, for
+ * `kill` to tell the agent's own pids from the rest of the computer's.
+ */
+export function sessionPrograms(sessionId: StoreId.Session): JobPrograms[] {
+  return [
+    ...[...(recordsBySession.get(sessionId)?.values() ?? [])].map((record) => ({
+      id: record.id,
+      ...record.handle.pids(),
+    })),
+    {
+      ended: foregroundPrograms.get(sessionId) ?? new Set<number>(),
+      running: new Set<number>(),
+    },
+  ];
+}
+
+/**
  * Everything running in one task, across every session in it.
  *
  * Ownership stays per-session -- a session may only read and kill its own -- but
@@ -452,6 +517,18 @@ export function listChatBackgroundProcesses(
         .filter((record) => record.chatId === chatId)
         .map((record) => ({ ...toInfo(record), sessionId })),
     )
+    .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+}
+
+/**
+ * Every process still running in any chat, oldest first: what quitting would
+ * stop, for the prompt that asks first.
+ */
+export function listRunningBackgroundProcesses(): BackgroundProcessInfo[] {
+  return [...recordsBySession.values()]
+    .flatMap((records) => [...records.values()])
+    .filter((record) => record.status === "running")
+    .map((record) => toInfo(record))
     .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
 }
 
@@ -557,11 +634,11 @@ export function promoteBackgroundProcess({
   if ("error" in log) {
     return { error: log.error };
   }
-  const { logFileAbsolutePath, logFilePath } = log;
+  const { fd, logFilePath } = log;
 
   const logWriter = new BoundedLogWriter({
     maxContentBytes: LOG_CONTENT_CAP_BYTES,
-    path: logFileAbsolutePath,
+    fd,
   });
   const record: BackgroundProcessRecord = {
     buffer: handle.buffer,
@@ -754,8 +831,27 @@ export function startBackgroundRun({
     await chunkListener?.(text);
   };
 
+  const running = new Set<number>();
+  const ended = new Set<number>();
+  let markStarted: () => void = noop;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const trees = {
+    settled: (pid: number) => {
+      running.delete(pid);
+      ended.add(pid);
+    },
+    started: (pid: number) => {
+      running.add(pid);
+      markStarted();
+    },
+  };
+
   const completion = withShellOutputSink(sink, () =>
-    run({ signal: abortController.signal }),
+    withSubprocessTreeListener(trees, () =>
+      run({ signal: abortController.signal }),
+    ),
   ).then(
     (result): BackgroundRunOutcome => result,
     (error: unknown): BackgroundRunOutcome => ({
@@ -802,9 +898,11 @@ export function startBackgroundRun({
         createHash("sha256").update(normalizedOutput).digest("hex")
       );
     },
+    pids: () => ({ ended, running }),
     setChunkListener: (listener) => {
       chunkListener = listener;
     },
+    started,
     startedAt: getCurrentDate(),
   };
 }
@@ -979,16 +1077,24 @@ function notify(record: BackgroundProcessRecord) {
 function openLogFile({ id, chatId }: { id: string; chatId: ChatId }):
   | { error: string }
   | {
-      logFileAbsolutePath: ReturnType<typeof absolutePathJoin>;
+      fd: number;
       logFilePath: ReturnType<typeof RelativePathSchema.parse>;
     } {
   try {
     const logFilePath = RelativePathSchema.parse(
       path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${id}.log`),
     );
-    const logFileAbsolutePath = absolutePathJoin(workDir(chatId), logFilePath);
-    fs.mkdirSync(path.dirname(logFileAbsolutePath), { recursive: true });
-    return { logFileAbsolutePath, logFilePath };
+    // The work folder is the agent's, so a program it ran may have put a
+    // link where the log goes, which this process, outside every sandbox,
+    // would write through.
+    const fd = openOwnFile({
+      file: absolutePathJoin(workDir(chatId), logFilePath),
+      flags:
+        fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
+      folder: workDir(chatId),
+      make: true,
+    });
+    return { fd, logFilePath };
   } catch (error) {
     return {
       error: `Could not open a log file for the background process: ${error instanceof Error ? error.message : String(error)}`,
@@ -1117,6 +1223,7 @@ function toInfo(record: BackgroundProcessRecord): BackgroundProcessInfo {
     ...(record.logWriter.errorMessage
       ? { logWriteError: record.logWriter.errorMessage }
       : {}),
+    pids: record.status === "running" ? [...record.handle.pids().running] : [],
     startedAt: record.startedAt,
     status: record.status,
     ...(record.stoppedBy === undefined ? {} : { stoppedBy: record.stoppedBy }),

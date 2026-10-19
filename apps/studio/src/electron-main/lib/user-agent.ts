@@ -216,7 +216,7 @@ export function productBrand(
 // module exists to prevent -- so it travels with the override, never on its own.
 export function secChUaBrands(
   major: number,
-  { product }: { product?: null | { brand: string; version: string } } = {},
+  { product }: { product: null | { brand: string; version: string } },
 ): { brand: string; version: string }[] {
   const grease = {
     brand: `Not${cycle(GREASE_CHARS, major)}A${cycle(GREASE_CHARS, major + 1)}Brand`,
@@ -233,7 +233,7 @@ export function secChUaBrands(
 // null when no Chrome/Chromium version is present to derive from.
 export function secChUaHeader(
   userAgent: string,
-  options?: { product?: null | { brand: string; version: string } },
+  options: { product: null | { brand: string; version: string } },
 ): null | string {
   const major = CHROME_VERSION.exec(userAgent)?.[1];
   return major == null

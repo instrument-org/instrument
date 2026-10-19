@@ -82,7 +82,7 @@ gh run list --workflow=release.yml --limit 3
 gh run watch <id> --exit-status
 ```
 
-Five platform legs and three smoke tests, about fifteen minutes. **Publishing is gated on `build` and `smoke_test` both succeeding**, so a build that cannot start never reaches the update feed. The smoke test boots the packaged app, runs a bash command from inside the archive, and exercises the vendored binaries the sandbox shells out to.
+Five platform legs, about fifteen minutes. Each leg smoke tests the app it just signed, and **publishing is gated on every leg succeeding**, so a build that cannot start never reaches the update feed. The smoke test boots the packaged app, runs a bash command from inside the archive, and exercises the vendored binaries the sandbox shells out to.
 
 `fail-fast: false`, so one leg's flake does not discard the other legs' artifacts. Re-run the failed jobs rather than the whole workflow.
 

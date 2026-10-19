@@ -10,10 +10,10 @@ const STEP_MAX_LENGTH = 80;
  * because it changes once every few calls and says why the work is
  * happening, where the explanation changes on every call.
  *
- * A call still streaming in is saved as its input arrives, and the activity
- * is written first, so a new phase would show a word at a time. Its activity
- * counts once another field has started after it; until then the line stays
- * on the call before.
+ * A call still streaming in is read from the turn's own memory as its input
+ * arrives, and the activity comes first, so a new phase would show a word at
+ * a time. Its activity counts once another field has started after it; until
+ * then the line stays on the call before.
  */
 export function latestStepIn(
   messages: SessionMessage.WithParts[],

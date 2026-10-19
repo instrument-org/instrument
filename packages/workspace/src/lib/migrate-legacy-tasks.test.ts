@@ -39,7 +39,7 @@ const JUNE_23 = Date.parse("2026-06-23T21:47:33.119Z");
 /** The conversation a chat holds, one line per part, as the chat's agent will read it. */
 function conversationIn(chat: string): string[] {
   const db = new DatabaseSync(
-    path.join(root, "chats", chat, ".instrument", "chat.db"),
+    path.join(root, ".instrument", "chats", chat, ".instrument", "chat.db"),
     {
       readOnly: true,
     },
@@ -150,7 +150,7 @@ function readJson(...segments: string[]): Record<string, unknown> {
 
 function sessionOf(chat: string): Record<string, unknown> {
   const db = new DatabaseSync(
-    path.join(root, "chats", chat, ".instrument", "chat.db"),
+    path.join(root, ".instrument", "chats", chat, ".instrument", "chat.db"),
     {
       readOnly: true,
     },
@@ -259,31 +259,48 @@ describe("migrateLegacyTasks", () => {
       emptyCount: 0,
       leftOver: 0,
       topicCount: 0,
+      unreadable: [],
     });
 
     const chat = "2026-06-23-rotating-red-square";
-    expect(fs.readdirSync(path.join(root, "chats"))).toEqual([chat]);
+    expect(fs.readdirSync(path.join(root, ".instrument", "chats"))).toEqual([
+      chat,
+    ]);
     expect(fs.readdirSync(path.join(root, "tasks"))).toEqual([]);
     // The task's folder is the chat's: its files where its replies named them,
     // and no task inside it.
     expect(
       fs.readFileSync(
-        path.join(root, "chats", chat, "output", "square.mp4"),
+        path.join(root, ".instrument", "chats", chat, "output", "square.mp4"),
         "utf8",
       ),
     ).toBe("video");
-    expect(fs.existsSync(path.join(root, "chats", chat, "tasks"))).toBe(false);
     expect(
-      fs.readdirSync(path.join(root, "chats", chat, ".instrument")).toSorted(),
+      fs.existsSync(path.join(root, ".instrument", "chats", chat, "tasks")),
+    ).toBe(false);
+    expect(
+      fs
+        .readdirSync(
+          path.join(root, ".instrument", "chats", chat, ".instrument"),
+        )
+        .toSorted(),
     ).toEqual(["chat.db", "settings.json"]);
     // The task's own record, set aside.
     expect(
       fs
-        .readdirSync(path.join(root, ".pre-chats", "task-records", chat))
+        .readdirSync(
+          path.join(root, ".instrument", ".pre-chats", "task-records", chat),
+        )
         .toSorted(),
     ).toEqual(["settings.json", "task.db"]);
 
-    const settings = readJson("chats", chat, ".instrument", "settings.json");
+    const settings = readJson(
+      ".instrument",
+      "chats",
+      chat,
+      ".instrument",
+      "settings.json",
+    );
     expect(settings).toMatchObject({
       createdAt: "2026-06-23T21:47:33.119Z",
       createdWithAppVersion: "1.2.0",
@@ -300,7 +317,7 @@ describe("migrateLegacyTasks", () => {
 
     // Text, not bytes, which the store refuses to read.
     const db = new DatabaseSync(
-      path.join(root, "chats", chat, ".instrument", "chat.db"),
+      path.join(root, ".instrument", "chats", chat, ".instrument", "chat.db"),
       { readOnly: true },
     );
     expect(
@@ -394,7 +411,8 @@ describe("migrateLegacyTasks", () => {
 
     const chat = "2026-06-23-bike";
     expect(
-      readJson("chats", chat, ".instrument", "settings.json").grants,
+      readJson(".instrument", "chats", chat, ".instrument", "settings.json")
+        .grants,
     ).toEqual([
       {
         grantedAt: new Date(2).toISOString(),
@@ -491,7 +509,7 @@ describe("migrateLegacyTasks", () => {
     const chat = "2026-06-23-rotating-red-square";
     expect(
       fs.readFileSync(
-        path.join(root, "chats", chat, "attachments", "cat.png"),
+        path.join(root, ".instrument", "chats", chat, "attachments", "cat.png"),
         "utf8",
       ),
     ).toBe("cat");
@@ -502,7 +520,7 @@ describe("migrateLegacyTasks", () => {
 
   it("makes projects into topics, joining one of the same name, and files their tasks' chats under them", () => {
     writeTopicSync(root, {
-      createdAt: Date.parse("2026-09-17T17:07:55.921Z"),
+      created: new Date("2026-09-17T17:07:55.000Z"),
       emoji: "🛒",
       folders: [{ path: "/Users/someone/Lists" }],
       id: "top_01M2R5DNCH9PJ09F2CV1VEMM77",
@@ -562,17 +580,24 @@ describe("migrateLegacyTasks", () => {
       },
     ]);
     const made = topics.find((topic) => topic.name === "Bug tasks")?.id;
-    expect(sessionOf("2026-06-23-buy-socks").topics).toEqual([
+    expect(sessionOf("2026-06-23-buy-socks").topic).toBe(
       "top_01M2R5DNCH9PJ09F2CV1VEMM77",
-    ]);
-    expect(sessionOf("2026-06-23-a-bug").topics).toEqual([made]);
+    );
+    expect(sessionOf("2026-06-23-a-bug").topic).toBe(made);
     expect(
-      readJson("chats", "2026-06-23-a-bug", ".instrument", "settings.json")
-        .projectId,
+      readJson(
+        ".instrument",
+        "chats",
+        "2026-06-23-a-bug",
+        ".instrument",
+        "settings.json",
+      ).projectId,
     ).toBeUndefined();
     expect(fs.existsSync(path.join(root, "projects"))).toBe(false);
     expect(
-      fs.readdirSync(path.join(root, ".pre-chats", "projects")).toSorted(),
+      fs
+        .readdirSync(path.join(root, ".instrument", ".pre-chats", "projects"))
+        .toSorted(),
     ).toEqual(["Shopping", "🐛 Bug tasks"]);
   });
 
@@ -659,9 +684,13 @@ describe("migrateLegacyTasks", () => {
       adoptedCount: 0,
       emptyCount: 2,
     });
-    expect(fs.existsSync(path.join(root, "chats"))).toBe(false);
+    expect(fs.existsSync(path.join(root, ".instrument", "chats"))).toBe(false);
     expect(
-      fs.readdirSync(path.join(root, ".pre-chats", "empty-tasks")).toSorted(),
+      fs
+        .readdirSync(
+          path.join(root, ".instrument", ".pre-chats", "empty-tasks"),
+        )
+        .toSorted(),
     ).toEqual(["2026-06-23-empty", "2026-06-23-tutorial"]);
   });
 
@@ -675,6 +704,47 @@ describe("migrateLegacyTasks", () => {
       emptyCount: 0,
       leftOver: 0,
       topicCount: 0,
+      unreadable: [],
+    });
+    expect(fs.readdirSync(root, { recursive: true }).toSorted()).toEqual(
+      before,
+    );
+  });
+
+  // A database with no store table in it holds nothing this can read, which
+  // is not the same as a task nobody said anything in: setting the task aside
+  // would file a conversation that may be in there under the empty ones, and
+  // counting it as left over would sweep every boot forever over a state no
+  // boot settles. It stays where it is and is named.
+  it("names a task whose database cannot be read and leaves it where it is", () => {
+    legacyTask("2026-06-23-use-ffmpeg", { sessions: ONE_ASK });
+    const unreadable = path.join(root, "tasks", "2026-06-24-unreadable");
+    writeJson(path.join(unreadable, ".instrument", "settings.json"), {
+      name: "Half a task",
+    });
+    new DatabaseSync(path.join(unreadable, ".instrument", "task.db")).close();
+
+    const result = migrateLegacyTasks(root);
+
+    expect(result).toMatchObject({
+      adoptedCount: 1,
+      emptyCount: 0,
+      leftOver: 0,
+      unreadable: [unreadable],
+    });
+    expect(
+      fs.readdirSync(path.join(unreadable, ".instrument")).toSorted(),
+    ).toEqual(["settings.json", "task.db"]);
+    expect(
+      fs.readdirSync(path.join(root, ".instrument", ".pre-chats")).toSorted(),
+    ).toEqual(["task-records"]);
+
+    const before = fs.readdirSync(root, { recursive: true }).toSorted();
+    expect(migrateLegacyTasks(root)).toMatchObject({
+      adoptedCount: 0,
+      emptyCount: 0,
+      leftOver: 0,
+      unreadable: [unreadable],
     });
     expect(fs.readdirSync(root, { recursive: true }).toSorted()).toEqual(
       before,
@@ -713,7 +783,7 @@ describe("migrateLegacyTasks", () => {
       adoptedCount: 0,
       leftOver: 1,
     });
-    expect(fs.readdirSync(path.join(root, "chats"))).toEqual([]);
+    expect(fs.readdirSync(path.join(root, ".instrument", "chats"))).toEqual([]);
     expect(
       fs.readdirSync(path.join(chatDir, ".instrument")).toSorted(),
     ).toEqual(["settings.json", "task.db"]);
@@ -723,6 +793,136 @@ describe("migrateLegacyTasks", () => {
       adoptedCount: 1,
       leftOver: 0,
     });
+  });
+
+  // A boot that staged a chat and could not name it (a folder held open, as
+  // on a crashed boot) leaves `.<name>.partial` among the chats, holding the
+  // task's files. A later boot that adopts a second task of the same day and
+  // title must not take that name, or the staging of one would take the
+  // other's place.
+  it("keeps a chat an earlier boot staged apart from a later task of the same day and title", () => {
+    const first = legacyTask("2026-06-23-first", { sessions: ONE_ASK });
+    const second = legacyTask("2026-06-23-second", { sessions: ONE_ASK });
+    fs.mkdirSync(path.join(first, "work"));
+    fs.writeFileSync(path.join(first, "work", "first.txt"), "first");
+    fs.mkdirSync(path.join(second, "work"));
+    fs.writeFileSync(path.join(second, "work", "second.txt"), "second");
+    const rename = fs.renameSync.bind(fs);
+    const busy = (failing: (from: string) => boolean) =>
+      vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
+        if (failing(String(from))) {
+          throw Object.assign(new Error("EBUSY"), { code: "EBUSY" });
+        }
+        rename(from, to);
+      });
+
+    // The first boot stages the first task and cannot name it, and cannot
+    // move the second at all.
+    const firstBoot = busy(
+      (from) => from === second || from.endsWith(".partial"),
+    );
+    migrateLegacyTasks(root);
+    firstBoot.mockRestore();
+    // The next one adopts the second, with the first still unnamed.
+    const secondBoot = busy((from) => from.endsWith(".partial"));
+    migrateLegacyTasks(root);
+    secondBoot.mockRestore();
+    migrateLegacyTasks(root);
+
+    const chats = path.join(root, ".instrument", "chats");
+    expect(
+      fs
+        .readdirSync(chats)
+        .toSorted()
+        .map((chat) => [chat, fs.readdirSync(path.join(chats, chat, "work"))]),
+    ).toEqual([
+      ["2026-06-23-rotating-red-square", ["first.txt"]],
+      ["2026-06-23-rotating-red-square-2", ["second.txt"]],
+    ]);
+  });
+
+  // A database or settings file already under the name the chat's own take is
+  // nothing this wrote, and a rename over it would leave no copy of it. It
+  // goes to the backup, beside the task's own record and beside anything an
+  // earlier chat of this name left there.
+  it("writes over nothing in a staged chat, backup name taken or not", () => {
+    const chatDir = legacyTask("2026-06-23-use-ffmpeg", { sessions: ONE_ASK });
+    fs.writeFileSync(
+      path.join(chatDir, ".instrument", "chat.db"),
+      "somebody else's",
+    );
+    const chat = "2026-06-23-rotating-red-square";
+    const backup = path.join(
+      root,
+      ".instrument",
+      ".pre-chats",
+      "task-records",
+      chat,
+    );
+    // What an earlier chat of this name left in the backup.
+    writeJson(path.join(backup, "settings.json"), { name: "An earlier one" });
+    fs.writeFileSync(path.join(backup, "task.db"), "an earlier one's");
+
+    expect(migrateLegacyTasks(root)).toMatchObject({
+      adoptedCount: 1,
+      leftOver: 0,
+    });
+
+    // The chat's own database and settings, and nothing of the task's left
+    // beside them under a name nothing reads.
+    const records = path.join(
+      root,
+      ".instrument",
+      "chats",
+      chat,
+      ".instrument",
+    );
+    expect(fs.readdirSync(records).toSorted()).toEqual([
+      "chat.db",
+      "settings.json",
+    ]);
+    expect(sessionOf(chat).title).toBe("Rotating red square video");
+    // Everything the staging held, kept beside what was already there.
+    expect(fs.readdirSync(backup).toSorted()).toEqual([
+      "chat.db",
+      "settings.json",
+      "settings.json-2",
+      "task.db",
+      "task.db-2",
+    ]);
+    expect(fs.readFileSync(path.join(backup, "chat.db"), "utf8")).toBe(
+      "somebody else's",
+    );
+    expect(fs.readFileSync(path.join(backup, "task.db"), "utf8")).toBe(
+      "an earlier one's",
+    );
+    expect(
+      readJson(
+        ".instrument",
+        ".pre-chats",
+        "task-records",
+        chat,
+        "settings.json",
+      ).name,
+    ).toBe("An earlier one");
+    expect(
+      readJson(
+        ".instrument",
+        ".pre-chats",
+        "task-records",
+        chat,
+        "settings.json-2",
+      ).name,
+    ).toBe("Rotating red square video");
+
+    const before = fs.readdirSync(root, { recursive: true }).toSorted();
+    expect(migrateLegacyTasks(root)).toMatchObject({
+      adoptedCount: 0,
+      leftOver: 0,
+    });
+    expect(fs.readdirSync(root, { recursive: true }).toSorted()).toEqual(
+      before,
+    );
   });
 
   it.each([
@@ -746,14 +946,32 @@ describe("migrateLegacyTasks", () => {
     migrateLegacyTasks(root);
 
     const chat = "2026-06-23-rotating-red-square";
-    expect(fs.readdirSync(path.join(root, "chats"))).toEqual([chat]);
-    const settings = readJson("chats", chat, ".instrument", "settings.json");
+    expect(fs.readdirSync(path.join(root, ".instrument", "chats"))).toEqual([
+      chat,
+    ]);
+    const settings = readJson(
+      ".instrument",
+      "chats",
+      chat,
+      ".instrument",
+      "settings.json",
+    );
     expect(settings.chatSessionId).toBe(sessionOf(chat).id);
     expect(
-      fs.readdirSync(path.join(root, "chats", chat, ".instrument")).toSorted(),
+      fs
+        .readdirSync(
+          path.join(root, ".instrument", "chats", chat, ".instrument"),
+        )
+        .toSorted(),
     ).toEqual(["chat.db", "settings.json"]);
     expect(
-      readJson(".pre-chats", "task-records", chat, "settings.json").name,
+      readJson(
+        ".instrument",
+        ".pre-chats",
+        "task-records",
+        chat,
+        "settings.json",
+      ).name,
     ).toBe("Rotating red square video");
   });
 });

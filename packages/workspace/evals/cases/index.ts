@@ -1,8 +1,11 @@
+import { WORKSPACE_INSTRUCTIONS_EVALS } from "./workspace-instructions";
 import { APP_ACCOUNTS_EVALS } from "./app-accounts";
 import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
 import { APP_SCRIPTING_EVALS } from "./app-scripting";
 import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
+import { PROCESS_CONTROL_EVALS } from "./process-control";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
+import { CHAT_HISTORY_EVALS } from "./chat-history";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
 import { CREATE_PAGE_SKILL_EVALS } from "./create-page-skill";
 import { DEVELOPER_TOOLS_EVALS } from "./developer-tools";
@@ -12,10 +15,10 @@ import { HANDOFF_EVALS } from "./handoff";
 import { IMAGE_REGION_EVALS } from "./image-region";
 import { INTERRUPTION_EVALS } from "./interruptions";
 import { INSTRUMENT_GUIDE_EVALS } from "./instrument-guide";
-import { LARGE_FOLDER_SEARCH_EVALS } from "./large-folder-search";
 import { MEMORY_EVALS } from "./memory";
 import { MESSAGE_BLOCK_EVALS } from "./message-blocks";
 import { CHAT_EVALS } from "./chat";
+import { DISCRETION_EVALS } from "./discretion";
 import { OUTBOUND_EVALS } from "./outbound";
 import { PDF_SKILL_EVALS } from "./pdf-skill";
 import { PERMISSIONS_EVALS } from "./permissions";
@@ -23,6 +26,8 @@ import { QUESTIONS_EVALS } from "./questions";
 import { REACH_EVALS } from "./reach";
 import { SANDBOXED_PYTHON_EVALS } from "./sandboxed-python";
 import { SCENARIO_EVALS } from "./scenarios";
+import { SKILLS_IN_PLACE_EVALS } from "./skills-in-place";
+import { TEXT_TOOLS_EVALS } from "./text-tools";
 import { SOURCE_LINKS_EVALS } from "./source-links";
 import { TASK_SESSION_EVALS } from "./task-sessions";
 import { TASK_TABS_EVALS } from "./task-tabs";
@@ -31,23 +36,27 @@ import { UNREADABLE_MEDIA_EVALS } from "./unreadable-media";
 import { WEB_SEARCH_EVALS } from "./web-search";
 import { WINDOW_TABS_EVALS } from "./window-tabs";
 import { WORKER_EVALS } from "./worker";
+import { WORK_FOLDER_EVALS } from "./work-folder";
 
 export const EVALS = [
+  ...WORKSPACE_INSTRUCTIONS_EVALS,
   ...APP_ACCOUNTS_EVALS,
   ...APP_IMPORT_FILE_EVALS,
   ...APP_SCRIPTING_EVALS,
   ...BACKGROUND_PROCESS_EVALS,
+  ...PROCESS_CONTROL_EVALS,
   ...BROWSER_SELECTION_EVALS,
+  ...CHAT_HISTORY_EVALS,
   ...CONTEXT_ROLLOVER_EVALS,
   ...CREATE_PAGE_SKILL_EVALS,
   ...DEVELOPER_TOOLS_EVALS,
+  ...DISCRETION_EVALS,
   ...DOCUMENT_DESIGN_EVALS,
   ...FILES_FENCE_EVALS,
   ...HANDOFF_EVALS,
   ...IMAGE_REGION_EVALS,
   ...INTERRUPTION_EVALS,
   ...INSTRUMENT_GUIDE_EVALS,
-  ...LARGE_FOLDER_SEARCH_EVALS,
   ...MEMORY_EVALS,
   ...MESSAGE_BLOCK_EVALS,
   ...CHAT_EVALS,
@@ -58,6 +67,8 @@ export const EVALS = [
   ...REACH_EVALS,
   ...SANDBOXED_PYTHON_EVALS,
   ...SCENARIO_EVALS,
+  ...SKILLS_IN_PLACE_EVALS,
+  ...TEXT_TOOLS_EVALS,
   ...SOURCE_LINKS_EVALS,
   ...TASK_SESSION_EVALS,
   ...TASK_TABS_EVALS,
@@ -66,4 +77,5 @@ export const EVALS = [
   ...WEB_SEARCH_EVALS,
   ...WINDOW_TABS_EVALS,
   ...WORKER_EVALS,
+  ...WORK_FOLDER_EVALS,
 ];

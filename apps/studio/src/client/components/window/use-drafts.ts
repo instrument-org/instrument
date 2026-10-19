@@ -1,11 +1,13 @@
 import {
-  chatFiltersAtom,
   type ChosenItem,
   type Draft,
   draftGroupOf,
   draftsAtom,
   forgetDraftWords,
   draftSnapshotsAtom,
+} from "@/client/atoms/drafts";
+import {
+  chatFiltersAtom,
   NEW_TAB_HREF,
   paneOpenByGroupAtom,
 } from "@/client/atoms/window";
@@ -363,6 +365,14 @@ export function useDrafts({
         toast.error("Couldn't start the chat", { cause: error });
         return;
       }
+      // The draft is pointed at its chat before anything is written to the
+      // chat: the message naming the draft is what says it was sent, so
+      // until the draft names the chat, a launch after a crash has nowhere
+      // to look for that message. A draft whose file cannot be pointed is
+      // still sent; what is lost is the chance to finish the send later.
+      await rpcClient.drafts.claim
+        .call({ chatId, draftId: id })
+        .catch(() => undefined);
       setSentWords((current) => new Map(current).set(chatId, send.prompt));
       if (opensWhole) {
         compose.remove(draftGroupOf(id));
@@ -378,10 +388,11 @@ export function useDrafts({
           ...(asks ? { asks } : {}),
           files: send.files,
           folders: send.folders,
+          fromDraft: id,
           id: chatId,
           modelURI: send.modelURI,
           prompt: send.prompt,
-          ...(draft.topicId ? { topics: [draft.topicId] } : {}),
+          ...(draft.topicId ? { topic: draft.topicId } : {}),
           // A context that cannot be gathered is a chat told less, not a
           // chat that never starts: the send goes on without it.
           viewing: await viewing,
@@ -399,8 +410,10 @@ export function useDrafts({
         opened();
         setStartingIds((current) => withoutId(current, id));
       }
-      // The chat has its own copies of what was attached by now, so the
-      // draft's folder can go with it.
+      // The message naming this draft is written by now, and the chat has
+      // its own copies of what was attached, so the draft's folder can go
+      // with it. A launch that finds the folder still there finds that
+      // message too, and takes the folder away then.
       setDrafts((current) => current.filter((entry) => entry.id !== id));
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });

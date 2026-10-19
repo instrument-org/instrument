@@ -1,9 +1,11 @@
 import { type ChatId } from "../schemas/chat-id";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type StoreId } from "../schemas/store-id";
+import { WINDOW_ID } from "../schemas/window-id";
 import { sessionRole } from "./chat/children";
 import { chatReach } from "./permissions/chat-rules";
 import { type Rules } from "./permissions/rules";
+import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
 import {
   buildWorkspaceFsLayout,
@@ -12,8 +14,9 @@ import {
 
 /**
  * What a session of this role reaches, from folders and rules already read:
- * the chat's own folder (the working directory), the folders the chat
- * reaches, the skills, the temp folders, and for the chat its apps. The
+ * the chat's work folder (the working directory), its record folder's
+ * attachments and handoff notes, the folders the chat reaches, the skills,
+ * the temp folders, and for the chat its apps. The
  * chat authors apps, so it gets their folder; a task reaches the apps it was
  * handed through the `app` command alone.
  *
@@ -37,13 +40,14 @@ export function roleLayout({
     folders,
     rules,
     chatHostRoot: workDir(chatId),
+    // The window keeps no attachments or notes of a chat's.
+    ...(chatId !== WINDOW_ID && { recordHostRoot: chatDir(chatId) }),
   });
 }
 
 /**
  * What a session reaches as it stands now, held to its chat's rules. A
- * session's refusals that ask first raise their card in it, under `partId`
- * when given. Without a session it is what the chat reaches, which is what a
+ * session's refusals that ask first tell it what to ask for. Without a session it is what the chat reaches, which is what a
  * surface the person looks at resolves against.
  */
 export async function sessionLayout({

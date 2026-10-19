@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   coldStartContent,
+  replayFrames,
   splitSystemPrompt,
   toolResultToMCP,
   turnContent,
@@ -163,5 +164,204 @@ describe("toolResultToMCP", () => {
       { text: "shot", type: "text" },
       { data: "aGk=", mimeType: "image/png", type: "image" },
     ]);
+  });
+});
+
+describe("replayFrames", () => {
+  it("tells our history as Claude's own, with tool calls, results and images intact", () => {
+    expect(
+      replayFrames(
+        [
+          { content: [{ text: "look at it", type: "text" }], role: "user" },
+          {
+            content: [
+              {
+                providerOptions: {
+                  "claude-account": {
+                    model: "claude-sonnet-5-5",
+                    signature: "sig",
+                  },
+                },
+                text: "I should look.",
+                type: "reasoning",
+              },
+              { text: "Looking.", type: "text" },
+              {
+                input: { view: "a" },
+                toolCallId: "toolu_1",
+                toolName: "screenshot",
+                type: "tool-call",
+              },
+            ],
+            role: "assistant",
+          },
+          {
+            content: [
+              {
+                output: {
+                  type: "content",
+                  value: [
+                    { text: "view a", type: "text" },
+                    {
+                      data: { data: "aGk=", type: "data" },
+                      mediaType: "image/png",
+                      type: "file",
+                    },
+                  ],
+                },
+                toolCallId: "toolu_1",
+                toolName: "screenshot",
+                type: "tool-result",
+              },
+            ],
+            role: "tool",
+          },
+          { content: "date changed", role: "system" },
+          { content: [{ text: "what color?", type: "text" }], role: "user" },
+        ],
+        "mcp__instrument__",
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "look at it",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+        {
+          "content": [
+            {
+              "signature": "sig",
+              "thinking": "I should look.",
+              "type": "thinking",
+            },
+            {
+              "text": "Looking.",
+              "type": "text",
+            },
+            {
+              "id": "toolu_1",
+              "input": {
+                "view": "a",
+              },
+              "name": "mcp__instrument__screenshot",
+              "type": "tool_use",
+            },
+          ],
+          "model": "claude-sonnet-5-5",
+          "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "view a",
+                  "type": "text",
+                },
+                {
+                  "source": {
+                    "data": "aGk=",
+                    "media_type": "image/png",
+                    "type": "base64",
+                  },
+                  "type": "image",
+                },
+              ],
+              "tool_use_id": "toolu_1",
+              "type": "tool_result",
+            },
+            {
+              "text": "date changed",
+              "type": "text",
+            },
+            {
+              "text": "what color?",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
+  it("leaves out reasoning Claude did not sign, and answers a call that never finished", () => {
+    expect(
+      replayFrames(
+        [
+          { content: [{ text: "go", type: "text" }], role: "user" },
+          {
+            content: [
+              { text: "from another model", type: "reasoning" },
+              {
+                input: {},
+                toolCallId: "functions.bash:0",
+                toolName: "bash",
+                type: "tool-call",
+              },
+            ],
+            role: "assistant",
+          },
+          { content: [{ text: "never mind", type: "text" }], role: "user" },
+        ],
+        "mcp__instrument__",
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "go",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+        {
+          "content": [
+            {
+              "id": "toolu_8497fe9cce69aff0aa7025efd9339081215bcf45",
+              "input": {},
+              "name": "mcp__instrument__bash",
+              "type": "tool_use",
+            },
+          ],
+          "model": undefined,
+          "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "content": "The call did not finish.",
+              "is_error": true,
+              "tool_use_id": "toolu_8497fe9cce69aff0aa7025efd9339081215bcf45",
+              "type": "tool_result",
+            },
+            {
+              "text": "never mind",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
+  it("refuses history that ends on the assistant's side", () => {
+    expect(() =>
+      replayFrames(
+        [
+          { content: [{ text: "hi", type: "text" }], role: "user" },
+          { content: [{ text: "hello", type: "text" }], role: "assistant" },
+        ],
+        "mcp__instrument__",
+      ),
+    ).toThrow("neither starts nor ends");
   });
 });

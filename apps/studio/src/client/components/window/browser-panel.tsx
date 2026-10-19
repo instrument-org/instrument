@@ -118,13 +118,11 @@ export function BrowserPanel({
   focusAddress = true,
   insideOverlay = false,
   layer,
-  menuItems,
   onEditSource,
   pageControls,
   relayoutKey,
   restoreUrl,
   sessionId,
-  sliding,
 }: {
   active: boolean;
   /**
@@ -159,8 +157,6 @@ export function BrowserPanel({
    * guest's own black default over the surface.
    */
   layer?: number;
-  /** More of the page's menu, for a page that has more to offer than a site. */
-  menuItems?: ReactNode;
   /** Opens the page's text for editing, when the page is a file; the menu offers it. */
   onEditSource?: () => void;
   /** Drawn ahead of the menu in the row the bar is drawn into, for a page with a mode of its own. */
@@ -174,9 +170,6 @@ export function BrowserPanel({
    */
   restoreUrl?: string | undefined;
   sessionId: StoreId.Session;
-  // The pane is sliding open or shut, so the slot is moving under a guest that
-  // only follows it while something is watching. See useBrowserSlot.
-  sliding?: boolean;
 }) {
   const targetId = browserTargetOf(sessionId);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -258,7 +251,6 @@ export function BrowserPanel({
     isVisible,
     layer,
     relayoutKey,
-    sliding,
     targetId,
   });
 
@@ -285,17 +277,9 @@ export function BrowserPanel({
   // the user re-opens it with the "Reopen browser" button. A guest discarded
   // while the page was off screen comes back by itself, since leaving the
   // screen forgets the open.
-  //
-  // Held until the pane has finished sliding. Opening a target ends in the
-  // renderer mounting a `<webview>`, which costs a WebContents and a compositor
-  // surface -- work in the browser and GPU processes that the host cannot yield
-  // around, so it drops whatever frames are left in the slide. It is a
-  // once-per-target cost, which is why only the open that creates the guest ever
-  // stutters. Nothing is lost by waiting: this panel shows the same "Opening
-  // browser..." state for the round trip either way.
   const autoOpenedRef = useRef<Set<BrowserTargetId>>(new Set());
   useEffect(() => {
-    if (sliding || active || autoOpenedRef.current.has(targetId)) {
+    if (active || autoOpenedRef.current.has(targetId)) {
       return;
     }
     autoOpenedRef.current.add(targetId);
@@ -305,7 +289,7 @@ export function BrowserPanel({
     });
     // Once per target: the address is only where a blank guest goes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, openBrowser, sliding, targetId]);
+  }, [active, openBrowser, targetId]);
   useEffect(() => {
     if (!isVisible) {
       autoOpenedRef.current.delete(targetId);
@@ -635,7 +619,6 @@ export function BrowserPanel({
                 <ShieldCheckIcon className="size-4" />
                 Block ads
               </DropdownMenuCheckboxItem>
-              {menuItems}
               {onEditSource && (
                 <DropdownMenuItem onSelect={onEditSource}>
                   <CodeIcon className="size-4" />

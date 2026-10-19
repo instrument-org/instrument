@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { AGENT_FILES_LANGUAGE } from "../../src/constants";
+import { chatGrants } from "../../src/lib/chat/grants";
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
 import { type WorkspaceFilePath } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
@@ -251,14 +252,18 @@ function namesEditedNote(text: string): string[] {
  * assertions could pass on a note nobody changed.
  */
 const assertNoteEdited: Assertion = {
-  check: () => {
+  check: async ({ chatId }) => {
     const text = "Added the items at the bottom of the first section";
     // Read where the folder is, whatever the conversation said, so the edit
-    // is scored apart from whether anyone handed it over.
-    const note = fs.readFileSync(
-      path.join(FIXTURES, "Journal", EDITED_NOTE),
-      "utf8",
+    // is scored apart from whether anyone handed it over. The run edits its
+    // own copy of the fixture, which the chat was granted.
+    const journal = (await chatGrants(chatId)).find(
+      (grant) => path.basename(grant.path) === "Journal",
     );
+    if (!journal) {
+      return { evidence: "no Journal folder was granted", passed: false, text };
+    }
+    const note = fs.readFileSync(path.join(journal.path, EDITED_NOTE), "utf8");
     const [first = "", second = ""] = note.split(/^## Reading$/mu);
     const firstLines = first.trim().split("\n");
     const tail = firstLines.slice(-ADDED_ITEMS.length).join("\n").toLowerCase();

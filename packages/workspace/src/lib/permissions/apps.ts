@@ -1,14 +1,18 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { type ChatId } from "../../schemas/chat-id";
-import { type ChatAppGrant } from "../../schemas/chat-settings";
 import { WINDOW_ID } from "../../schemas/window-id";
-import { readChatRecord, updateChatRecord } from "../chat-record";
 import { getCurrentDate } from "../get-current-date";
-import { chatDir } from "../record-folders";
 import { type Level } from "./places";
+import { type Asker, askFirstNote } from "../chat/asks";
 import { chatDenials } from "./denials";
+import {
+  type ChatAppGrant,
+  readChatPermissions,
+  updateChatPermissions,
+} from "./rules";
 import { readPermissionSettings } from "./rules";
 
 const execFileAsync = promisify(execFile);
@@ -30,7 +34,7 @@ function isFor(
 }
 
 /** Whether the person said not now to `app` in this chat. */
-export async function appDenied(chatId: ChatId, app: string): Promise<boolean> {
+async function appDenied(chatId: ChatId, app: string): Promise<boolean> {
   return (await chatDenials(chatId)).some(
     (denial) => denial.kind === "app" && sameApp(denial.target, app),
   );
@@ -43,11 +47,11 @@ export async function appDenied(chatId: ChatId, app: string): Promise<boolean> {
  * from a card, which a closed app never shows, so a grant wins over the rule
  * as a folder's does.
  *
- * An app's grant covers every route to it: a script's Apple Events, and any
- * other way the agent acts on the app, which asks here by the app's bundle
- * id.
+ * An app's grant covers every route to it: the command that drives it, and
+ * any other way the agent acts on the app, which asks here by the app's
+ * bundle id.
  */
-export async function appReach(chatId: ChatId, app: string): Promise<Level> {
+async function appReach(chatId: ChatId, app: string): Promise<Level> {
   const rule = (await readPermissionSettings()).apps.find((known) =>
     isFor(known, app),
   );
@@ -65,23 +69,120 @@ export async function appReach(chatId: ChatId, app: string): Promise<Level> {
   return rule?.level ?? "ask";
 }
 
+/** A Mac app as its card names it, and as macOS knows it. */
+export interface MacApp {
+  bundleId: string;
+  name: string;
+}
+
+/** A service macOS runs an app's work in, as Seatbelt names it. */
+export interface AppService {
+  kind: "global-name" | "xpc-service-name";
+  name: string;
+}
+
+/**
+ * The person's apps that something other than our commands can reach: each
+ * with the programs, by their path, that act through it and so ask for it
+ * first (`path-program.ts`), and the services its work runs in, outside
+ * every sandbox, which the Seatbelt profile closes until the chat may use it.
+ */
+export const REACHABLE_APPS: readonly {
+  app: MacApp;
+  programs: readonly string[];
+  services: readonly AppService[];
+}[] = [
+  {
+    app: { bundleId: "com.apple.shortcuts", name: "Shortcuts" },
+    programs: ["/usr/bin/shortcuts"],
+    // `shortcuts list` asks siriactionsd over VoiceShortcuts' service, and
+    // without it fails with "Couldn't communicate with a helper application".
+    // The daemon's own service, its runner, and the runner process
+    // WorkflowKit starts are closed with it, so a program has no other way to
+    // have a shortcut run.
+    services: [
+      { kind: "global-name", name: "com.apple.siri.VoiceShortcuts.xpc" },
+      { kind: "global-name", name: "com.apple.siriactionsd.xpc" },
+      {
+        kind: "global-name",
+        name: "com.apple.shortcuts.systemshortcutservice.runner",
+      },
+      {
+        kind: "xpc-service-name",
+        name: "com.apple.WorkflowKit.BackgroundShortcutRunner",
+      },
+    ],
+  },
+];
+
+/** The services of every app in `REACHABLE_APPS` that `chatId` may not use. */
+export async function closedAppServices(chatId: ChatId): Promise<AppService[]> {
+  const closed: AppService[] = [];
+  for (const { app, services } of REACHABLE_APPS) {
+    if (!(await appAllowed(chatId, app))) {
+      closed.push(...services);
+    }
+  }
+  return closed;
+}
+
+/** How far the agent may use `app` in this chat, by its name, or its bundle id where the name asks. */
+export async function appLevel(chatId: ChatId, app: MacApp): Promise<Level> {
+  const byName = await appReach(chatId, app.name);
+  return byName === "ask" ? appReach(chatId, app.bundleId) : byName;
+}
+
+/** Whether the agent may use `app` in this chat without asking. */
+async function appAllowed(chatId: ChatId, app: MacApp): Promise<boolean> {
+  return (await appLevel(chatId, app)) === "allow";
+}
+
+/**
+ * Why the agent may not use `app` in this chat yet, or undefined when it
+ * may: the person said not now to it here, Settings › Permissions marks it
+ * Not allowed, or nobody has answered for it yet, which the note tells
+ * `asker` to ask for. A rule, a grant or a "not now" holds
+ * whether it names the app or its bundle id. The card names the app, and so
+ * does the rule an Always allow on it writes, which is how Settings lists it.
+ */
+export async function appRefusal(
+  chatId: ChatId,
+  app: MacApp,
+  asker: Asker | undefined,
+): Promise<string | undefined> {
+  const level = await appLevel(chatId, app);
+  if (level === "allow") {
+    return undefined;
+  }
+  if (level === "never") {
+    return (await appDenied(chatId, app.name)) ||
+      (await appDenied(chatId, app.bundleId))
+      ? `the person said not now to ${app.name} in this chat. Don't look for another way to use it; say what you skipped without it.`
+      : `${app.name} is marked Not allowed in Settings › Permissions, so ${APP_NAME} won't use it. Tell the person what you skipped.`;
+  }
+  if (!asker) {
+    return `using ${app.name} needs the person's yes first.`;
+  }
+  return askFirstNote(`using ${app.name}`, app.name);
+}
+
 async function chatAppGrants(chatId: ChatId): Promise<ChatAppGrant[]> {
-  const record = await readChatRecord(chatDir(chatId));
-  return record.settings?.appGrants ?? [];
+  return (await readChatPermissions(chatId)).appGrants;
 }
 
 /** Lets this chat use `app`. A grant already held stays as it was. */
 export async function grantApp(chatId: ChatId, app: string): Promise<void> {
   const bundleId = await appBundleId(app);
-  await updateChatRecord(chatDir(chatId), "settings", (record) => {
-    const grants = record.settings?.appGrants ?? [];
-    if (grants.some((grant) => isFor({ ...grant, name: grant.app }, app))) {
-      return record.raw;
+  await updateChatPermissions(chatId, (held) => {
+    if (
+      held.appGrants.some((grant) => isFor({ ...grant, name: grant.app }, app))
+    ) {
+      return held;
     }
     return {
-      ...record.raw,
+      ...held,
       appGrants: [
-        ...grants,
+        ...held.appGrants,
         { app: app.trim(), bundleId, grantedAt: getCurrentDate() },
       ],
     };
@@ -91,7 +192,7 @@ export async function grantApp(chatId: ChatId, app: string): Promise<void> {
 const bundleIds = new Map<string, Promise<string | undefined>>();
 
 /**
- * An app's bundle id, from its name as a script tells it: the app Spotlight
+ * An app's bundle id, from its name as its card names it: the app Spotlight
  * finds by that name, read from its own Info.plist. A name that already is
  * a bundle id answers itself; off macOS, or where no app goes by the name,
  * there is none.
@@ -132,117 +233,4 @@ export function appBundleId(app: string): Promise<string | undefined> {
     bundleIds.set(name.toLowerCase(), known);
   }
   return known;
-}
-
-/**
- * The apps a script sends Apple Events to, by the names it tells them by:
- * AppleScript's `tell application "X"` (or `app "X"`, or `application id
- * "x.y.z"`), and JavaScript for Automation's `Application("X")`. A script
- * that names none tells no app anything it can be held to.
- */
-export function scriptTargets(source: string): string[] {
-  const names = [
-    ...source.matchAll(/\bapp(?:lication)?\s+(?:id\s+)?"([^"]+)"/gi),
-    ...source.matchAll(/\bApplication\(\s*(["'])([^"']+)\1\s*\)/g),
-  ].map((match) => (match[2] ?? match[1] ?? "").trim());
-  const unique: string[] = [];
-  for (const name of names) {
-    if (name && !unique.some((known) => sameApp(known, name))) {
-      unique.push(name);
-    }
-  }
-  return unique;
-}
-
-/**
- * Apps that reach every file on the computer, or run any command, once they
- * may be controlled.
- */
-const REACHES_EVERY_FILE = [
-  "Finder",
-  "System Events",
-  "Terminal",
-  "iTerm",
-  "iTerm2",
-  "com.apple.finder",
-  "com.apple.systemevents",
-  "com.apple.Terminal",
-  "com.googlecode.iterm2",
-];
-
-export function reachesEveryFile(app: string): boolean {
-  return REACHES_EVERY_FILE.some((known) => sameApp(known, app));
-}
-
-/**
- * Ways a script reaches past the app it tells: a shell, another script, the
- * Objective-C bridge, Standard Additions' own file reading and writing, or an
- * app named by a value the check cannot read. An allowed script runs outside
- * the native sandbox (an app refuses Apple Events from a sandboxed sender),
- * so one carrying any of these is refused rather than run with the reach of a
- * shell. Read off the script's text, so a script that hides one in a built
- * string gets past it; the card says so for the apps that reach every file.
- */
-const RUNS_CODE_OUTSIDE = [
-  /\bdo\s+shell\s+script\b/i,
-  /\bdoShellScript\b/,
-  /\b(?:run|load|store)\s+script\b/i,
-  /\buse\s+framework\b/i,
-  /\bcurrent\s+application['’]s\b/i,
-  /\bsystem\s+attribute\b/i,
-  /\bObjC\s*\./,
-  /(?:^|[^\w$])\$\s*[.(]/m,
-  /\beval\s*\(/,
-  /\bFunction\s*\(/,
-];
-
-/**
- * The same, matched with the script's string literals blanked, since these
- * are words a note or a message may well hold. Each takes in what the
- * command acts on, a string, a name or a bracketed expression, so the
- * refusal quotes the construct whole.
- */
-const REACHES_OUTSIDE_IN_CODE = [
-  /\bopen\s+for\s+access\b/i,
-  /\bwrite\b[^\n]*\bto\b/i,
-  // Mail's `read status` is a property, not Standard Additions' `read`.
-  /\bread\s+(?!status\b)(?:(?:POSIX\s+file|file|alias)\s+)?(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)?|\w+|\S)/i,
-  /\bincludeStandardAdditions\b/,
-  // An app named by a variable or an expression, which scriptTargets cannot
-  // hold to the allowed apps.
-  /(?<!current\s)\bapp(?:lication)?\s+(?!id\s*["']|["'])(?:id\s+)?(?:\([^)\n]*\)?|\w+)/i,
-  /\bApplication\s*\(\s*(?!["'])[^)\s][^)\n]*\)?/,
-];
-
-/**
- * A script with every string literal's contents blanked to spaces, its
- * quotes and line breaks left in place, so a match in it is at the same
- * place in the script.
- */
-function withoutStrings(source: string): string {
-  return source.replaceAll(
-    /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g,
-    (literal) =>
-      literal.charAt(0) +
-      literal.slice(1, -1).replaceAll(/[^\n]/g, " ") +
-      literal.charAt(0),
-  );
-}
-
-/** The first way a script runs code outside its app, as written in it. */
-export function runsCodeOutside(source: string): string | undefined {
-  for (const pattern of RUNS_CODE_OUTSIDE) {
-    const found = pattern.exec(source)?.[0];
-    if (found) {
-      return found.trim();
-    }
-  }
-  const code = withoutStrings(source);
-  for (const pattern of REACHES_OUTSIDE_IN_CODE) {
-    const found = pattern.exec(code);
-    if (found) {
-      return source.slice(found.index, found.index + found[0].length).trim();
-    }
-  }
-  return undefined;
 }

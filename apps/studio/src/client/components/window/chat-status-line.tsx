@@ -1,12 +1,20 @@
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
+import { useTaskBackgroundProcesses } from "@/client/hooks/use-task-background-processes";
 import { cn } from "@/client/lib/utils";
-import { type StoreId } from "@instrument-org/workspace/client";
+import { rpcClient } from "@/client/rpc/client";
+import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { HourglassIcon } from "@phosphor-icons/react/Hourglass";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
-import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
+import { StopIcon } from "@phosphor-icons/react/Stop";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
+import { useMutation } from "@tanstack/react-query";
 
 import { ChatTasksPopover } from "./chat-activity";
 import { useChatTasks } from "./child-tasks-query";
@@ -14,13 +22,11 @@ import { type Chat } from "./chats";
 
 /**
  * What the line under a chat's title says, and in which voice. `stopped` is
- * a task that failed, beside its X; `halted` is a turn the user stopped, the
- * chat's own or a task's, or a task's turn the chat stopped, beside a stop
- * mark.
+ * a task that failed, beside its X.
  */
 type StatusLine = {
   text: string;
-  tone: "done" | "failed" | "halted" | "limited" | "run" | "stopped" | "wait";
+  tone: "done" | "failed" | "limited" | "run" | "stopped" | "wait";
 };
 
 /** Said while the chat works and nothing has named the step yet. */
@@ -28,15 +34,9 @@ const WORKING = "Instrument is working";
 
 /**
  * Said once a usage limit stopped the chat's last turn, which is not an error:
- * the notice over its reply box says what to do.
+ * the note over its reply box says what to do.
  */
 export const LIMITED = "Stopped at a usage limit";
-
-/** Said once the user stopped the chat's turn, until the next one starts, or a task named like the chat. */
-const HALTED = "You stopped Instrument";
-
-/** Said for a task named like the chat once the chat stopped it. */
-const HALTED_BY_CHAT = "The chat stopped its task";
 
 /**
  * Said with the check once the chat's own work is done. A step's label is
@@ -52,70 +52,138 @@ const DONE = "Done";
  * this is the chat's only loading state; while a card or a question waits on
  * the user, that it does, behind the amber question, whatever else still
  * runs; and at rest, a check beside the task that finished last or that the
- * chat's own work is done, so the line stays once work is done, or a stop
- * mark when the user stopped the chat's turn, or the user or the chat
- * stopped that task. Only labels
- * of work and task names are said here, never the agent's own words.
- * Pressed, it lists the chat's tasks, the same list the activity at the
- * head's right opens; with no task filed it is only a line. Nothing at all in
- * a chat that has only talked.
+ * chat's own work is done, so the line stays once work is done. Nothing
+ * once the user stopped the chat's turn, or the user or the chat stopped
+ * that task. Only labels of work and task names are said here, never the
+ * agent's own words. Once nothing is at work or waiting, it adds how many
+ * jobs the chat and its tasks left running after a middle dot, still and in
+ * muted gray, since a job running is not the agent at work. While anything
+ * runs, its dot turns into a Stop when pointed at, which ends the chat's turn
+ * and every task's. Pressed anywhere else, it lists the chat's tasks and
+ * jobs; with neither it is only a line. Nothing at all in a chat that has
+ * only talked and left nothing running.
  */
 export function ChatStatusLine({
   chat,
   onOpenTask,
 }: {
-  chat: Chat;
+  chat: Parameters<typeof statusLine>[0]["chat"] & Pick<Chat, "id">;
   /** Opens one of the chat's tasks beside it. */
   onOpenTask: (sessionId: StoreId.Session) => void;
 }) {
   const listed = useChatTasks(chat.id).data;
+  const jobs = useTaskBackgroundProcesses(chat.id).length;
   const line = statusLine({ chat, listed });
-  if (!line) {
+  // What the chat left running is said once nothing is at work or waiting
+  // on the user, whose step or question has the line until then.
+  const jobsLine =
+    jobs > 0 && line?.tone !== "run" && line?.tone !== "wait"
+      ? jobsRunning(jobs)
+      : undefined;
+  if (!line && !jobsLine) {
     return null;
   }
-  const content = (
-    <span className="flex max-w-full min-w-0 items-center gap-1.5 text-[12px] leading-5">
-      <StatusMark tone={line.tone} />
-      <span
-        className={cn(
-          "min-w-0 truncate",
-          line.tone === "run" && "brand-shiny-text",
-          line.tone === "wait" && "text-foreground/80",
-          line.tone === "failed" && "text-error-700 dark:text-error-300",
-          (line.tone === "done" ||
-            line.tone === "halted" ||
-            line.tone === "limited" ||
-            line.tone === "stopped") &&
-            "text-muted-foreground",
-        )}
-      >
-        {line.text}
-      </span>
-    </span>
+  const text = (
+    <>
+      {line && (
+        <span
+          className={cn(
+            "min-w-0 truncate",
+            line.tone === "run" && "brand-shiny-text",
+            line.tone === "wait" && "text-foreground/80",
+            line.tone === "failed" && "text-error-700 dark:text-error-300",
+            (line.tone === "done" ||
+              line.tone === "limited" ||
+              line.tone === "stopped") &&
+              "text-muted-foreground",
+          )}
+        >
+          {line.text}
+        </span>
+      )}
+      {line && jobsLine && (
+        <span aria-hidden className="shrink-0 text-muted-foreground/60">
+          ·
+        </span>
+      )}
+      {jobsLine && (
+        <span className="shrink-0 text-muted-foreground">{jobsLine}</span>
+      )}
+    </>
   );
-  if (!listed?.length) {
-    return (
-      <div aria-live="polite" className="flex max-w-full min-w-0">
-        {content}
-      </div>
-    );
-  }
+  // While anything runs, the mark is also the chat's Stop: pointing at the
+  // line puts a stop in the dot's place, and the rest of the line still
+  // lists the tasks.
+  const mark = !line ? null : line.tone === "run" ? (
+    <StopChatButton chatId={chat.id} />
+  ) : (
+    <StatusMark tone={line.tone} />
+  );
+  const opens = Boolean(listed?.length) || jobs > 0;
   return (
-    <ChatTasksPopover
-      align="center"
-      chatId={chat.id}
-      onOpen={onOpenTask}
-      tasks={chat.runningTasks}
-      trigger={
+    <div
+      aria-live="polite"
+      className={cn(
+        "group/line flex max-w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[12px] leading-5",
+        (opens || line?.tone === "run") &&
+          "hover:bg-accent has-data-[state=open]:bg-accent",
+      )}
+    >
+      {mark}
+      {opens ? (
+        <ChatTasksPopover
+          align="center"
+          chatId={chat.id}
+          onOpen={onOpenTask}
+          tasks={chat.runningTasks}
+          trigger={
+            <button className="flex min-w-0 items-center gap-1.5" type="button">
+              {text}
+            </button>
+          }
+        />
+      ) : (
+        text
+      )}
+    </div>
+  );
+}
+
+/** How many jobs the chat and its tasks left running, said after the line's state. */
+function jobsRunning(count: number) {
+  return `${count} ${count === 1 ? "job" : "jobs"} running`;
+}
+
+/**
+ * The planning dot, which turns into a stop while the line is pointed at
+ * or the button has focus. Pressed, it stops the chat's own turn and every
+ * task of the chat's.
+ */
+function StopChatButton({ chatId }: { chatId: ChatId }) {
+  const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
         <button
-          aria-live="polite"
-          className="flex max-w-full min-w-0 rounded-md px-1.5 hover:bg-accent data-[state=open]:bg-accent"
+          aria-label="Stop"
+          className="group/stop grid size-5 shrink-0 place-items-center rounded-full disabled:opacity-50"
+          disabled={stop.isPending}
+          onClick={() => {
+            stop.mutate({ id: chatId });
+          }}
           type="button"
         >
-          {content}
+          <span className="contents group-hover/line:hidden group-focus-visible/stop:hidden">
+            <PlanningDotIcon />
+          </span>
+          <StopIcon
+            className="hidden size-3.5 text-foreground/75 group-hover/line:block group-focus-visible/stop:block"
+            weight="fill"
+          />
         </button>
-      }
-    />
+      </TooltipTrigger>
+      <TooltipContent>Stop</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -149,11 +217,6 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
     case "done": {
       return <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />;
     }
-    case "halted": {
-      return (
-        <StopCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      );
-    }
     case "limited": {
       return (
         <HourglassIcon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -167,13 +230,13 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
  * task names. Running: the step the chat's record names (the chat's own turn
  * first, then a task at work), or the plain line. Stalled, which the record
  * says over anything still running: what the user is waited on for. Stopped
- * by the user: that they stopped it, until the next turn starts. At
- * rest, the task that finished last, while it ended after both the chat's
- * own last step and the user's newest message: its name beside a check, or
- * a stop mark when the user or the chat stopped it. Otherwise that the chat's work is
- * done, with a check. Nothing in a chat that has done no work. Never the chat's own title
- * again, right under it: a task named like the chat says it is done, who
- * stopped it, or the step it stopped on when it failed.
+ * by the user: nothing, until the next turn starts. At rest, the task that
+ * finished last, while it ended after both the chat's own last step and the
+ * user's newest message: its name beside a check, or nothing when the user
+ * or the chat stopped it. Otherwise that the chat's work is done, with a
+ * check. Nothing in a chat that has done no work. Never the chat's own title
+ * again, right under it: a task named like the chat says it is done, or the
+ * step it stopped on when it failed.
  */
 export function statusLine({
   chat,
@@ -204,10 +267,6 @@ export function statusLine({
       tone: "run",
     };
   }
-  const waiting = chat.runningTasks.find((task) => task.waiting);
-  if (waiting?.waiting) {
-    return { text: waiting.waiting, tone: "wait" };
-  }
   if (chat.state === "waiting") {
     return { text: "Waiting on you", tone: "wait" };
   }
@@ -215,7 +274,7 @@ export function statusLine({
     return { text: "Stopped on an error", tone: "failed" };
   }
   if (chat.state === "stopped") {
-    return { text: HALTED, tone: "halted" };
+    return undefined;
   }
   if (chat.state === "limited") {
     return { text: LIMITED, tone: "limited" };
@@ -236,20 +295,13 @@ export function statusLine({
   const since = Math.max(own?.at ?? 0, chat.lastUserMessageAt);
   if (task && task.updatedAt.getTime() >= since) {
     const failed = task.standing.kind === "failed";
-    // A task the user or the chat stopped ended no more on its own than a
-    // failed one did.
-    const halted = failed
-      ? undefined
-      : task.stoppedBy === "user"
-        ? HALTED
-        : task.stoppedBy === "chat"
-          ? HALTED_BY_CHAT
-          : undefined;
-    const text =
-      differs(task.title) ?? (failed ? differs(task.step) : (halted ?? DONE));
-    return text
-      ? { text, tone: failed ? "stopped" : halted ? "halted" : "done" }
-      : undefined;
+    // A task the user or the chat stopped is not done, and saying so is
+    // not news to whoever stopped it.
+    if (!failed && task.stoppedBy) {
+      return undefined;
+    }
+    const text = differs(task.title) ?? (failed ? differs(task.step) : DONE);
+    return text ? { text, tone: failed ? "stopped" : "done" } : undefined;
   }
   return own || task ? { text: DONE, tone: "done" } : undefined;
 }

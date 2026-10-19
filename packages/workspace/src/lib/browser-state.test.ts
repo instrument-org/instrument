@@ -5,58 +5,75 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { StoreId } from "../schemas/store-id";
-import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { type BrowserTarget, browserTargetOf } from "../types";
 import {
   BLANK_PAGE_URL,
+  browserStateOf,
   getBrowserState,
   recordVisitedHosts,
   restoreLastPage,
 } from "./browser-state";
-import { disposeSessionsStoreStorage } from "./session-store-storage";
-import { chatDir } from "./record-folders";
+import { chatFor } from "../test/helpers/chat-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
-const id = ChatIdSchema.parse("browser-state-test");
 const sessionId = StoreId.newSessionId();
 
+// A chat of its own per test: the records hold an open chat by its id, so a
+// second chat under one name would still be writing into the folder the test
+// before it took away.
+let chats = 0;
 let chatId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "browser-state-test-"));
   const tasksDir = path.join(root, TASKS_DIR_NAME);
-  chatId = createMockChatConfigForDir(path.join(tasksDir, id));
-  await fs.mkdir(chatDir(chatId), { recursive: true });
+  chatId = createMockChatConfigForDir(
+    path.join(tasksDir, `browser-state-${++chats}`),
+  );
+  // What a chat was last told is written into its session's log, so the chat
+  // holds the session before anything is recorded for it.
+  await chatFor(sessionId, chatId);
 });
 
 afterEach(async () => {
-  await disposeSessionsStoreStorage(id);
   await fs.rm(root, { force: true, recursive: true });
 });
 
 describe("browser state", () => {
+  // The records hold JSON, so what was a Date in the store is an ISO string
+  // in a told value, and this reader is the one that has to read both.
+  it("reads the instant whether it comes back a date or its ISO string", () => {
+    const at = new Date(70_000);
+    for (const lastUsedAt of [at, at.toISOString()]) {
+      expect(
+        browserStateOf({ lastUsedAt, visitedHosts: ["example.com"] }),
+      ).toEqual({ lastUsedAt: at, visitedHosts: ["example.com"] });
+    }
+  });
+
   it("adds the hosts of a chat task's tabs, once each, newest last", async () => {
+    /** The visit a command reports, with whatever refused the write raised. */
+    async function visited(urls: string[]) {
+      const recorded = await recordVisitedHosts({ sessionId, chatId, urls });
+      if (recorded.isErr()) {
+        throw recorded.error;
+      }
+    }
+
     expect((await getBrowserState(chatId, sessionId))._unsafeUnwrap()).toBe(
       undefined,
     );
-    await recordVisitedHosts({
-      sessionId,
-      chatId,
-      urls: ["https://example.com/a"],
-    });
-    await recordVisitedHosts({
-      sessionId,
-      chatId,
-      urls: [
-        "https://example.org/a",
-        BLANK_PAGE_URL,
-        "file:///tmp/page.html",
-        "https://example.com/b",
-        "https://example.org/b",
-      ],
-    });
+    await visited(["https://example.com/a"]);
+    await visited([
+      "https://example.org/a",
+      BLANK_PAGE_URL,
+      "file:///tmp/page.html",
+      "https://example.com/b",
+      "https://example.org/b",
+    ]);
 
     expect(await getBrowserState(chatId, sessionId)).toMatchObject({
       value: {

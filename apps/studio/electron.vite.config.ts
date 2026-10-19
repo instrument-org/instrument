@@ -14,6 +14,7 @@ import { readPackage } from "read-pkg";
 import { build as viteBuild } from "vite";
 import { analyzer } from "vite-bundle-analyzer";
 
+import { recordBundledPackages } from "./electron-builder/bundled-packages";
 import { contentSecurityPolicyMeta } from "./src/content-security-policy";
 
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
@@ -52,7 +53,10 @@ const monorepoPackages = ["workspace", "shared", "ai-gateway"];
 
 async function getMonorepoDeps(packageName: string) {
   const pkg = await readPackage({
-    cwd: path.join(process.cwd(), `../../packages/${packageName}`),
+    cwd: path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      `../../packages/${packageName}`,
+    ),
   });
   return Object.keys(pkg.dependencies ?? {}).filter(
     (dep) => !dep.startsWith(monorepoNamespace),
@@ -95,7 +99,13 @@ let stagingCounter = 0;
  * it arrives as text over IPC). Registered on the main build, which every
  * dev and build invocation runs; main reads both from `out/page-editor`.
  */
-function buildPageEditorGuest({ minify }: { minify: boolean }): Plugin {
+function buildPageEditorGuest({
+  minify,
+  record,
+}: {
+  minify: boolean;
+  record: boolean;
+}): Plugin {
   const root = path.dirname(fileURLToPath(import.meta.url));
   const outDir = path.join(root, "out/page-editor");
   const guestDir = path.join(root, "src/page-editor-guest");
@@ -125,6 +135,7 @@ function buildPageEditorGuest({ minify }: { minify: boolean }): Plugin {
           outDir,
           rollupOptions: { external: ["electron"] },
         },
+        plugins: record ? [recordBundledPackages("page-editor-preload")] : [],
       });
       await viteBuild({
         ...common,
@@ -139,6 +150,7 @@ function buildPageEditorGuest({ minify }: { minify: boolean }): Plugin {
           minify,
           outDir,
         },
+        plugins: record ? [recordBundledPackages("page-editor-guest")] : [],
       });
     },
     name: "page-editor-guest",
@@ -394,7 +406,8 @@ const require = __cjs_mod__.createRequire(import.meta.url);
       plugins: [
         ...(command === "serve" ? [externalizeJustBashInDev()] : []),
         copyVendorAssets(),
-        buildPageEditorGuest({ minify: isProduction }),
+        buildPageEditorGuest({ minify: isProduction, record: isProduction }),
+        ...(isProduction ? [recordBundledPackages("main")] : []),
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("main"),
         ValidateEnv({ configFile: "./validate-env" }),
@@ -415,6 +428,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
       plugins: [
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("preload"),
+        ...(isProduction ? [recordBundledPackages("preload")] : []),
       ],
       define: previewDefine,
       resolve,
@@ -450,6 +464,17 @@ const require = __cjs_mod__.createRequire(import.meta.url);
           "@extend-ai/react-xlsx > regl",
           "react-dom/server",
         ],
+        rolldownOptions: {
+          // Dependencies like TanStack Router open their files with "use
+          // client", which only means something to React Server Components.
+          // The optimizer only bundles dependencies, so dropping it is safe.
+          onwarn(warning, warn) {
+            if (warning.code === "MODULE_LEVEL_DIRECTIVE") {
+              return;
+            }
+            warn(warning);
+          },
+        },
       },
       plugins: [
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
@@ -467,6 +492,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         react(),
         reactCompilerBabel,
         tailwindcss(),
+        ...(isProduction ? [recordBundledPackages("renderer")] : []),
       ],
       resolve,
       root: path.resolve("src"),

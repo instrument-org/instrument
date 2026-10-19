@@ -5,9 +5,20 @@ import {
 } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  StreamableHTTPClientTransport,
+  StreamableHTTPError,
+} from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  InvalidGrantError,
+  InvalidTokenError,
+  OAuthError,
+} from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { type ContentBlock } from "@modelcontextprotocol/sdk/types.js";
+import {
+  type ContentBlock,
+  McpError,
+} from "@modelcontextprotocol/sdk/types.js";
 import { err, ok, type Result } from "neverthrow";
 import { isPlainObject, noop } from "radashi";
 
@@ -33,7 +44,12 @@ export interface McpConnectionError {
   /** What the connection threw, when it threw, so a caller can tell a server that is not there from a fault. */
   cause?: unknown;
   message: string;
-  reason: "connect" | "protocol" | "unapproved" | "unauthorized";
+  /**
+   * `unauthorized`: the key or sign-in was refused, and a new one may fix it.
+   * `forbidden`: the server refused anyway (HTTP 403), which a new sign-in
+   * does not change.
+   */
+  reason: "connect" | "forbidden" | "protocol" | "unapproved" | "unauthorized";
 }
 
 interface McpCallResult {
@@ -213,29 +229,88 @@ async function runWithTransport<T>(
     await client.connect(transport);
   } catch (error) {
     await transport.close().catch(noop);
-    const message = error instanceof Error ? error.message : String(error);
-    // cspell:ignore unauthor
-    const unauthorized =
-      error instanceof UnauthorizedError || /401|unauthor/i.test(message);
-    const said = detail?.();
-    return err({
-      cause: error,
-      message: unauthorized
-        ? `The MCP server rejected the credential (unauthorized): ${message}`
-        : `Could not connect to the MCP server: ${message}${said ? `\n${said}` : ""}`,
-      reason: unauthorized ? "unauthorized" : "connect",
-    });
+    return err(connectionError(error, "connect", detail?.()));
   }
 
   try {
     const value = await run(client);
     return ok(value);
   } catch (error) {
-    return err({
-      message: error instanceof Error ? error.message : String(error),
-      reason: "protocol",
-    });
+    return err(connectionError(error, "protocol", detail?.()));
   } finally {
     await client.close().catch(noop);
   }
+}
+
+/**
+ * What the SDK threw, as the agent should read it: the HTTP status, the OAuth
+ * error code, or the JSON-RPC error's data beside the message, since the SDK
+ * keeps those out of `message` and a badly written server is only debuggable
+ * from what it actually said.
+ */
+export function describeMcpFailure(error: unknown): string {
+  if (error instanceof StreamableHTTPError) {
+    // -1 is the SDK's own code for a response it could not read (an
+    // unexpected content type), not a status.
+    return error.code === undefined || error.code < 0
+      ? error.message
+      : `HTTP ${error.code}: ${error.message}`;
+  }
+  if (error instanceof OAuthError) {
+    // `message` is only the server's `error_description`, which may be empty.
+    return error.message === ""
+      ? `OAuth ${error.errorCode}`
+      : `OAuth ${error.errorCode}: ${error.message}`;
+  }
+  if (error instanceof McpError && error.data !== undefined) {
+    return `${error.message} ${JSON.stringify(error.data).slice(0, 800)}`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Whether the server refused who is asking, from the SDK's own error types.
+ * The token endpoint's `invalid_grant` (a refresh token revoked or expired)
+ * reaches here only after the SDK has cleared the tokens and retried, so a new
+ * sign-in is what fixes it. `invalid_client` and `unauthorized_client` reach
+ * here only after the SDK has cleared the client registration and retried as
+ * well: the server refuses this client outright, a new sign-in would meet the
+ * same refusal, so they stay plain failures with their code shown.
+ */
+function authFailure(error: unknown): "forbidden" | "unauthorized" | undefined {
+  if (
+    error instanceof UnauthorizedError ||
+    error instanceof InvalidGrantError ||
+    error instanceof InvalidTokenError
+  ) {
+    return "unauthorized";
+  }
+  if (error instanceof StreamableHTTPError) {
+    if (error.code === 401) {
+      return "unauthorized";
+    }
+    if (error.code === 403) {
+      return "forbidden";
+    }
+  }
+  return undefined;
+}
+
+function connectionError(
+  error: unknown,
+  phase: "connect" | "protocol",
+  said: string | undefined,
+): McpConnectionError {
+  const reason = authFailure(error) ?? phase;
+  const lead = {
+    connect: "Could not connect to the MCP server: ",
+    forbidden: "The MCP server refused access (forbidden): ",
+    protocol: "",
+    unauthorized: "The MCP server rejected the credential (unauthorized): ",
+  }[reason];
+  return {
+    cause: error,
+    message: `${lead}${describeMcpFailure(error)}${said ? `\n${said}` : ""}`,
+    reason,
+  };
 }

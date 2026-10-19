@@ -51,9 +51,9 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
-type Filter = RPCInput["workspace"]["aiUsage"]["list"]["filter"];
-type Sort = RPCInput["workspace"]["aiUsage"]["list"]["sort"];
-type Row = RPCOutput["workspace"]["aiUsage"]["list"][number];
+type Filter = RPCInput["workspace"]["activity"]["list"]["filter"];
+type Sort = RPCInput["workspace"]["activity"]["list"]["sort"];
+type Row = RPCOutput["workspace"]["activity"]["list"][number];
 type FacetField =
   | "connection"
   | "kind"
@@ -146,7 +146,7 @@ type ColumnPrefs = {
 /** The columns a person hid and the widths they dragged, kept per viewer. */
 const columnPrefsAtom = keptAtom<ColumnPrefs>(
   "view",
-  "usage.columns.v1",
+  "activity.columns.v1",
   { hidden: [], widths: {} },
   (value, initial) => {
     if (typeof value !== "object" || value === null) {
@@ -532,18 +532,18 @@ function ActivityLog({
   sort: Sort;
 }) {
   const { data: summary } = useQuery(
-    rpcClient.workspace.aiUsage.summary.queryOptions({ input: { filter } }),
+    rpcClient.workspace.activity.summary.queryOptions({ input: { filter } }),
   );
   const pages = useInfiniteQuery({
     getNextPageParam: (last: Row[], all: Row[][]) =>
       last.length < PAGE_SIZE ? undefined : all.length * PAGE_SIZE,
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) =>
-      rpcClient.workspace.aiUsage.list.call(
+      rpcClient.workspace.activity.list.call(
         { filter, limit: PAGE_SIZE, offset: pageParam, sort },
         { signal },
       ),
-    queryKey: ["ai-usage", "list", filter, sort],
+    queryKey: ["activity", "list", filter, sort],
   });
   const rows = pages.data?.pages.flat() ?? [];
   const modelName = useModelName();
@@ -609,13 +609,13 @@ function ActivityLog({
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold">Activity</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {`Everything ${APP_NAME} asked an AI model to do, with the model that answered and the tokens it used. It's kept on this computer, and what was said isn't.`}
+            {`Everything ${APP_NAME} asked an AI model to do, with the model that answered and the tokens it used. It's kept in your Instrument folder, and what was said isn't.`}
           </p>
         </div>
         <Button
           disabled={!summary || summary.requests === 0}
           onClick={() => {
-            void rpcClient.aiUsage.saveCsv
+            void rpcClient.activity.saveCsv
               .call({ filter })
               .then(({ status }) => {
                 if (status === "failed") {
@@ -1215,7 +1215,7 @@ function HeaderCell({
 /** Everything recorded about one entry, with a way back to the log. */
 function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const { data: row } = useQuery(
-    rpcClient.workspace.aiUsage.byId.queryOptions({ input: { id } }),
+    rpcClient.workspace.activity.byId.queryOptions({ input: { id } }),
   );
 
   return (

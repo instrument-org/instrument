@@ -41,8 +41,8 @@ import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
 import {
-  app,
   BrowserWindow,
+  app,
   dialog,
   nativeImage,
   nativeTheme,
@@ -53,6 +53,7 @@ import {
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
 import { serveKeptState } from "./stores/workspace/kept-state";
+import { serveRendererExceptions } from "./lib/renderer-exceptions";
 import {
   configureAppSession,
   waitForPreviousDevInstance,
@@ -60,6 +61,7 @@ import {
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
+import { chooseLaunchDeviceId } from "./lib/launch-device-id";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
@@ -69,7 +71,14 @@ import { startAppCatalog } from "./lib/app-catalog";
 import { startNotices } from "./lib/notices";
 import { sendPendingAutomatically } from "./lib/problem-reports";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
-import { requestQuitApproval, withdrawQuitApproval } from "./lib/quit";
+import {
+  quitsWithLastWindow,
+  requestQuitApproval,
+  withdrawQuitApproval,
+} from "./lib/quit";
+import { getWorkspaceRefusal } from "./lib/workspace-refusal";
+import { showWorkspaceRefusal } from "./lib/workspace-refusal-window";
+import { getUserDataDir } from "./lib/get-workspace-folder";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
   serveResolvedTheme,
@@ -108,6 +117,11 @@ if (gotTheLock) {
   registerCrashDiagnostics(app);
 
   app.on("second-instance", (_event, commandLine) => {
+    // A refused workspace's window is the only one, and takes nothing else.
+    if (getWorkspaceRefusal()) {
+      BrowserWindow.getAllWindows()[0]?.focus();
+      return;
+    }
     focusForegroundWindow();
 
     const url = commandLine.find((arg) => arg.startsWith(`${APP_PROTOCOL}://`));
@@ -126,13 +140,15 @@ if (gotTheLock) {
   // launches the app arrives before it is; the screen waits for the window.
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
-    openAppFile(filePath);
+    if (!getWorkspaceRefusal()) {
+      openAppFile(filePath);
+    }
   });
 
   // The same hand-over on Windows and Linux, for a launch that starts the app.
-  for (const filePath of filesInArgv(process.argv, {
-    defaultApp: process.defaultApp,
-  })) {
+  for (const filePath of getWorkspaceRefusal()
+    ? []
+    : filesInArgv(process.argv, { defaultApp: process.defaultApp })) {
     openAppFile(filePath);
   }
 
@@ -144,6 +160,14 @@ if (gotTheLock) {
 }
 
 async function bootstrapPrimaryInstance() {
+  // A workspace this build will not open is said in a window of its own, and
+  // nothing else starts: no stores, no workspace, no other window.
+  const refusal = getWorkspaceRefusal();
+  if (refusal) {
+    await showWorkspaceRefusal({ refusal, userDataDir: getUserDataDir() });
+    return;
+  }
+
   const canContinueLaunch = await warnIfRunningX64BuildUnderARM64Translation();
   if (!canContinueLaunch) {
     app.quit();
@@ -233,6 +257,7 @@ async function bootstrapPrimaryInstance() {
   // Registered before any window exists, so no preload can ask before it answers.
   serveResolvedTheme();
   serveKeptState();
+  serveRendererExceptions();
   servePageEditorBoot();
 
   // Early, so the first requests to a local API server that is not running
@@ -248,9 +273,12 @@ async function bootstrapPrimaryInstance() {
   // say so.
   await timeBootStep("checkRecentVersionBump", checkRecentVersionBump);
 
+  // Chosen before the workspace starts, which writes every chat record
+  // under it.
+  const deviceId = await timeBootStep("chooseDeviceId", chooseLaunchDeviceId);
   const { actor: workspaceRef, workspaceConfig } = await timeBootStep(
     "createWorkspaceActor",
-    createWorkspaceActor,
+    () => createWorkspaceActor(deviceId),
   );
 
   // A signed-in ChatGPT account's access token lasts an hour.
@@ -271,7 +299,9 @@ async function bootstrapPrimaryInstance() {
   });
 
   startAgentCompletionNotifications({
-    hasAppWindow: () => getAppWindow() !== null,
+    // With no window, a notification's click opens one where the app stays
+    // running; elsewhere no window means the app is quitting.
+    canRevealChat: () => !quitsWithLastWindow || getAppWindow() !== null,
     revealChat,
     workspaceConfig,
     workspaceRef,
@@ -334,9 +364,9 @@ async function bootstrapPrimaryInstance() {
     if (showHeldWindows()) {
       return;
     }
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) {
+    // The Dock icon brings a window back once every window is closed. A
+    // hidden window drawing a file's picture is not one to come back to.
+    if (!getForegroundWindow()) {
       if (shouldShowOnboarding()) {
         openOnboarding();
       } else {
@@ -404,13 +434,13 @@ function shouldShowOnboarding(): boolean {
   return !getWorkspaceState().get("hasCompletedProviderSetup");
 }
 
-// Closing the last window quits, on macOS too. Staying resident is the macOS
-// convention, but nothing here is meant to outlive its window: agents would
-// keep running with no window to watch or stop them from, which reads as work
-// the user already ended. The window's own close handler asks about running
-// agents first, so this only ever runs once that is settled.
+// Closing the last window quits outside macOS, where the window's own close
+// handler has already asked about running work. On macOS the app stays in the
+// Dock with its work going, and Cmd+Q asks.
 app.on("window-all-closed", () => {
-  app.quit();
+  if (quitsWithLastWindow) {
+    app.quit();
+  }
 });
 
 function applyThemeToWindows() {

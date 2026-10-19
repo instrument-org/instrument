@@ -1,5 +1,8 @@
 import { liveRead } from "@instrument-org/workspace/electron";
-import { getFeaturesStore } from "@/electron-main/stores/workspace/features";
+import {
+  getWorkspaceFeatures,
+  setWorkspaceFeature,
+} from "@/electron-main/stores/workspace/preferences";
 import { FeatureNameSchema, FeaturesSchema } from "@/shared/features";
 import { eventIterator } from "@orpc/server";
 import { shell } from "electron";
@@ -11,8 +14,7 @@ import { publisher } from "../publisher";
 const setEnabled = base
   .input(z.object({ enabled: z.boolean(), feature: FeatureNameSchema }))
   .handler(({ input }) => {
-    const store = getFeaturesStore();
-    store.set(input.feature, input.enabled);
+    setWorkspaceFeature(input.feature, input.enabled);
   });
 
 /**
@@ -38,8 +40,8 @@ const live = {
     signal,
   }) {
     yield* liveRead({
-      changes: [publisher.subscribe("features.updated", { signal })],
-      read: () => getFeaturesStore().store,
+      changes: [publisher.subscribe("preferences.updated", { signal })],
+      read: getWorkspaceFeatures,
     });
   }),
 };

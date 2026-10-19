@@ -194,9 +194,9 @@ const WORKSPACE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 // Names the checkout a cache root belongs to, since the root's own name is only
 // a hash of its path.
 const CHECKOUT_MARKER = "checkout";
-// Installed dependencies inside a task are the only part that grows -- to
-// hundreds of megabytes once an agent has run an install in one -- and the only
-// part deleting does not invalidate. So they go sooner than the workspace does.
+// Installed dependencies in a chat's work folder are the only part that grows --
+// to hundreds of megabytes once an agent has run an install in one -- and the
+// only part deleting does not invalidate. So they go sooner than the workspace does.
 const WORK_ARTIFACT_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 const WORK_ARTIFACT_NAMES = new Set([".venv", "node_modules"]);
 
@@ -262,22 +262,17 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
   // seeder had nothing to do and the app writes nothing before it is killed.
   utimesSync(userDataDir, new Date(), new Date());
 
-  reapWorkArtifacts(path.join(userDataDir, "workspace"));
+  reapWorkArtifacts(userDataDir);
 
-  // The window's tabs, panes and chat groups live in the workspace's
-  // layout.json, which the seeder never writes, so without this every tab a
-  // run opens comes back on every later boot of the fixture.
-  if (!keepTabs) {
-    rmSync(
-      path.join(
-        userDataDir,
-        "workspace",
-        ".instrument",
-        "settings",
-        "layout.json",
-      ),
-      { force: true },
-    );
+  // The window's tabs, panes and chat groups live in the layout.json of the
+  // workspace's machine folder, which the seeder never writes, so without this
+  // every tab a run opens comes back on every later boot of the fixture.
+  const machineDir = workspaceMachineDir(
+    userDataDir,
+    path.join(userDataDir, "workspace"),
+  );
+  if (!keepTabs && machineDir) {
+    rmSync(path.join(machineDir, "window", "layout.json"), { force: true });
   }
 
   return { tasks: result.tasks, userDataDir };
@@ -288,11 +283,67 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
 const CLEAN_ROOMS_ROOT = path.join(WORKSPACE_CACHE_ROOT, "clean-rooms");
 
 // The sign-in stores a clean room can start from, as the app names them in a
-// workspace's settings folder (workspace-management.ts in Studio). Not the
+// workspace's keys folder (workspace-management.ts in Studio). Not the
 // ChatGPT account: its refresh token rotates on every use, so a clean room holding
 // a copy would sign the developer's own instance out the first time either
 // refreshed.
 const SIGN_IN_FILES = ["session-dev.json", "providers.json"];
+
+/**
+ * The app's folder on this computer for the workspace at `workspaceDir`, where
+ * its keys, browser profiles and window state are: `workspaces-data/<local
+ * id>/` in the application data, by the id the registry there gives it
+ * (workspaceMachineDirOf in Studio). Undefined while it is not registered.
+ */
+function workspaceMachineDir(userDataDir, workspaceDir) {
+  let registry;
+  try {
+    registry = JSON.parse(
+      readFileSync(path.join(userDataDir, "workspaces.json"), "utf8"),
+    );
+  } catch {
+    registry = { workspaces: [] };
+  }
+  const entry = (registry.workspaces ?? []).find(
+    (candidate) =>
+      typeof candidate?.path === "string" &&
+      path.resolve(userDataDir, candidate.path) === path.resolve(workspaceDir),
+  );
+  return typeof entry?.id === "string"
+    ? path.join(userDataDir, "workspaces-data", entry.id)
+    : undefined;
+}
+
+function readIdentity(workspaceDir) {
+  try {
+    return JSON.parse(
+      readFileSync(
+        path.join(workspaceDir, ".instrument", "workspace.json"),
+        "utf8",
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Where a workspace's sign-ins are: in its machine folder once the app moved
+ * them there (format 1), and in its settings folder before.
+ */
+function keysDirOf(userDataDir, workspaceDir) {
+  const machineDir = movedMachineDir(userDataDir, workspaceDir);
+  return machineDir
+    ? path.join(machineDir, "keys")
+    : path.join(workspaceDir, ".instrument", "settings");
+}
+
+/** The workspace's machine folder, once the app has moved its data there. */
+function movedMachineDir(userDataDir, workspaceDir) {
+  return readIdentity(workspaceDir).formatVersion >= 1
+    ? workspaceMachineDir(userDataDir, workspaceDir)
+    : undefined;
+}
 
 /**
  * The shared dev application-data directory, where the app keeps the
@@ -330,7 +381,7 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
   const dir = path.join(CLEAN_ROOMS_ROOT, name);
   const privateDir = path.join(dir, ".instrument");
   const identity = path.join(privateDir, "workspace.json");
-  mkdirSync(path.join(privateDir, "settings"), { recursive: true });
+  mkdirSync(privateDir, { recursive: true });
   if (!existsSync(identity)) {
     writeFileSync(
       identity,
@@ -347,21 +398,26 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
     );
     // Developer mode on from the start, so the dev panel and `rpc` work.
     writeFileSync(
-      path.join(privateDir, "settings", "preferences.json"),
+      path.join(privateDir, "preferences.json"),
       `${JSON.stringify({ developerMode: true })}\n`,
     );
   }
 
   if (withSignIns) {
-    const from = path.join(
+    // Into the settings folder until the app has opened the clean room once,
+    // and moves them on into its machine folder itself.
+    const from = keysDirOf(
       devUserDataDir(),
-      "workspace",
-      ".instrument",
-      "settings",
+      path.join(devUserDataDir(), "workspace"),
     );
+    const machineDir = movedMachineDir(devUserDataDir(), dir);
+    const keysDir = keysDirOf(devUserDataDir(), dir);
+    // Beside the keys in the settings folder, above them in a machine folder.
+    const stateFile = path.join(machineDir ?? keysDir, "state.json");
+    mkdirSync(keysDir, { recursive: true });
     let copied = 0;
     for (const file of SIGN_IN_FILES) {
-      const target = path.join(privateDir, "settings", file);
+      const target = path.join(keysDir, file);
       if (existsSync(path.join(from, file)) && !existsSync(target)) {
         copyFileSync(path.join(from, file), target);
         copied++;
@@ -369,7 +425,7 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
     }
     if (copied > 0) {
       writeFileSync(
-        path.join(privateDir, "settings", "state.json"),
+        stateFile,
         `${JSON.stringify({ hasCompletedProviderSetup: true })}\n`,
       );
     }
@@ -382,7 +438,16 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
 
 function reapStaleCleanRooms() {
   reapGoneCheckouts();
-  reapOlderThan(CLEAN_ROOMS_ROOT, WORKSPACE_MAX_AGE_MS);
+  reapOlderThan(CLEAN_ROOMS_ROOT, WORKSPACE_MAX_AGE_MS, {
+    // Its machine folder in the shared application data, whose sign-ins would
+    // otherwise outlive it there.
+    beforeRemove: (dir) => {
+      const machineDir = workspaceMachineDir(devUserDataDir(), dir);
+      if (machineDir) {
+        rmSync(machineDir, { force: true, recursive: true });
+      }
+    },
+  });
 }
 
 function reapStaleWorkspaces() {
@@ -420,7 +485,11 @@ function reapGoneCheckouts() {
   }
 }
 
-function reapOlderThan(root, maxAgeMs, { keep = new Set() } = {}) {
+function reapOlderThan(
+  root,
+  maxAgeMs,
+  { beforeRemove = () => {}, keep = new Set() } = {},
+) {
   let entries;
   try {
     entries = readdirSync(root, { withFileTypes: true });
@@ -435,6 +504,7 @@ function reapOlderThan(root, maxAgeMs, { keep = new Set() } = {}) {
     const dir = path.join(root, entry.name);
     try {
       if (Date.now() - statSync(dir).mtimeMs > maxAgeMs) {
+        beforeRemove(dir);
         rmSync(dir, { force: true, recursive: true });
       }
     } catch {
@@ -445,14 +515,15 @@ function reapOlderThan(root, maxAgeMs, { keep = new Set() } = {}) {
 }
 
 /**
- * Drops installed dependencies left inside chat folders by a live agent run. A seeded
- * transcript never creates these, so a workspace only used for driving stays in the low
- * megabytes and this finds nothing.
+ * Drops installed dependencies a live agent run left at the top of a chat's
+ * work folder, where its first `pip install` and `pnpm add` put them. A seeded
+ * transcript never creates these, so a workspace only used for driving stays in
+ * the low megabytes and this finds nothing.
  */
-function reapWorkArtifacts(workspaceDir) {
-  for (const recordDir of recordDirs(workspaceDir)) {
+function reapWorkArtifacts(userDataDir) {
+  for (const workDir of workDirs(userDataDir)) {
     for (const name of WORK_ARTIFACT_NAMES) {
-      const dir = path.join(recordDir, "work", name);
+      const dir = path.join(workDir, name);
       try {
         if (Date.now() - statSync(dir).mtimeMs > WORK_ARTIFACT_MAX_AGE_MS) {
           rmSync(dir, { force: true, recursive: true });
@@ -465,11 +536,11 @@ function reapWorkArtifacts(workspaceDir) {
 }
 
 /**
- * Every record folder of a workspace: the chats under `chats/`, plus any task
- * folder a 1.x build left under `tasks/` that the boot migration has not yet
- * moved. A chat's tasks are sessions in its store and work in its folder.
+ * Every chat's work folder in the application data: `work/<chat id>/` in each
+ * workspace's machine folder, `workspaces-data/<local id>/` (WORKSPACE_MACHINE_ENTRIES
+ * in the shared package). A chat's tasks work in its folder.
  */
-function recordDirs(workspaceDir) {
+function workDirs(userDataDir) {
   const children = (dir) => {
     try {
       return readdirSync(dir, { withFileTypes: true })
@@ -479,8 +550,9 @@ function recordDirs(workspaceDir) {
       return [];
     }
   };
-  const chats = children(path.join(workspaceDir, "chats"));
-  return [...children(path.join(workspaceDir, "tasks")), ...chats];
+  return children(path.join(userDataDir, "workspaces-data")).flatMap(
+    (machineDir) => children(path.join(machineDir, "work")),
+  );
 }
 
 // --- lifecycle ---------------------------------------------------------
@@ -685,7 +757,17 @@ async function cmdBoot(
           cdp.close();
         }
       } catch {
-        // Renderer not serving a target yet; keep waiting.
+        // Renderer not serving a target yet; keep waiting. A launch that
+        // refused its workspace never serves one, only its own window, which
+        // is drivable as it is.
+        try {
+          (
+            await openCdp(`http://127.0.0.1:${port}`, { page: "refusal" })
+          ).close();
+          return { ...session, refusal: true, reused: false };
+        } catch {
+          // Not that either.
+        }
       }
     }
     if (Date.now() > deadline) {

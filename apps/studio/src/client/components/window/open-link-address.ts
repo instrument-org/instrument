@@ -1,0 +1,76 @@
+import { openSettings } from "@/client/atoms/settings-modal";
+import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
+import { toast } from "@/client/lib/toast";
+import { isScreenName, SCREENS } from "@/shared/instrument-screens";
+import { APP_NAME } from "@instrument-org/shared";
+
+import { type LINK_ADDRESSES, matchScreen } from "./window-href";
+
+/**
+ * Where each kind of link address opens, by the name it carries: somewhere
+ * outside the tabs (Settings, a dialog), answering nothing, or the route a
+ * tab stands at for it. Keyed by every link address, so one added there is
+ * a type error here until it says where it goes.
+ */
+const OPEN_LINK = {
+  // A memory is shown where all of them are, in Settings, brought to the
+  // one named; a screen of its own would be one memory with nothing to do
+  // to it.
+  memory: (memory) => {
+    openSettings({ memory, tab: "Memory" });
+    return undefined;
+  },
+  // A screen a reply named opens where it lives: a place at its own
+  // address, or a dialog over the window.
+  namedScreen: (name) => {
+    if (!isScreenName(name)) {
+      toast(`This version of ${APP_NAME} doesn't have that screen`);
+      return undefined;
+    }
+    const screen = SCREENS[name];
+    if ("href" in screen) {
+      return screen.href;
+    }
+    openShortcutGuide();
+    return undefined;
+  },
+  // A setting is shown in Settings, on its page and lit; a name Settings has
+  // no row or page for is searched for there instead.
+  setting: (setting) => {
+    openSettings({ setting });
+    return undefined;
+  },
+  // A skill is shown in Settings, open on the one named.
+  skill: (skill) => {
+    openSettings({ skill, tab: "Skills" });
+    return undefined;
+  },
+} satisfies Record<
+  keyof typeof LINK_ADDRESSES,
+  (name: string) => string | undefined
+>;
+
+/**
+ * Opens a link address (`LINK_ADDRESSES`) where the thing it names lives,
+ * and answers the address a tab should stand at instead: the address itself
+ * for any screen of the window's, a named screen's own route, or nothing
+ * when what it named opened outside the tabs.
+ *
+ * No route draws a link address, so a tab standing at one is a blank screen.
+ * Every way of putting an address in a tab (the openers, and under them the
+ * window's and a group's tabs) asks this first.
+ */
+export function openLinkAddress(href: string): string | undefined {
+  const screen = matchScreen(href);
+  switch (screen.kind) {
+    case "memory":
+    case "namedScreen":
+    case "setting":
+    case "skill": {
+      return OPEN_LINK[screen.kind](screen.name);
+    }
+    default: {
+      return href;
+    }
+  }
+}

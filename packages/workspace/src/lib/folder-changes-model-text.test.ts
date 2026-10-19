@@ -10,18 +10,15 @@ describe("folderChangesModelNote", () => {
   it("describes folders handed over since the last turn", () => {
     expect(
       folderChangesModelNote({
-        added: [
-          { access: "read-write", path: "/base/Downloads" },
-          { access: "read-only", path: "/base/Photos" },
-        ],
+        added: [{ path: "/base/Downloads" }, { path: "/base/Photos" }],
         removed: [],
       }),
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
       You have been given these folders since your last activity. They are ready to read now, alongside the ones your folders context lists:
-      - "Downloads" at /base/Downloads (read and write)
-      - "Photos" at /base/Photos (read-only)
+      - "Downloads" at /base/Downloads
+      - "Photos" at /base/Photos
       </instrument-system-note>"
     `);
   });
@@ -44,14 +41,14 @@ describe("folderChangesModelNote", () => {
   it("describes both in one note", () => {
     expect(
       folderChangesModelNote({
-        added: [{ access: "read-only", path: "/base/Photos" }],
+        added: [{ path: "/base/Photos" }],
         removed: [{ path: "/base/Old" }],
       }),
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
       You have been given these folders since your last activity. They are ready to read now, alongside the ones your folders context lists:
-      - "Photos" at /base/Photos (read-only)
+      - "Photos" at /base/Photos
 
       These folders were taken back from this chat since your last activity, so do not attempt to read or search them:
       - "Old" at /base/Old

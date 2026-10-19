@@ -1,11 +1,12 @@
+import { type ChosenItem } from "@/client/atoms/drafts";
 import {
-  type ChosenItem,
   computerColumnWidthAtom,
   type ComputerFolderView,
   computerFolderViewsAtom,
   computerHiddenFilesAtom,
   computerListColumnsAtom,
   computerListColumnWidthsAtom,
+  computerOpenFoldersAtom,
   computerViewAtom,
   type FileTab,
   finderPlacesOpenAtom,
@@ -17,6 +18,7 @@ import {
   FileSystemFolderGlyph,
   type FileSystemHandle,
   type FileSystemItem,
+  type FileSystemGroupKey,
   type FileSystemSortKey,
   type FileSystemSortState,
   type FileSystemView,
@@ -110,13 +112,14 @@ import {
 } from "@tanstack/react-query";
 import { ORPCError } from "@orpc/client";
 import { useNavigate } from "@tanstack/react-router";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -127,6 +130,7 @@ import { spokenMessage, toast } from "@/client/lib/toast";
 import { useWindow } from "./context";
 import { FileThumbnail } from "./file-thumbnail";
 import { FolderMark } from "./folder-mark";
+import { FolderNameMenu } from "./folder-name-menu";
 import { GlyphButton } from "./glyph-button";
 import {
   folderOf,
@@ -143,6 +147,7 @@ import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
  * back to opening the way a folder never set does.
  */
 const FOLDER_VIEWS_KEPT = 500;
+const OPEN_FOLDERS_KEPT = 500;
 
 /** Below this width, in CSS px (Tailwind's `@xl`), the places stand over the folder rather than beside it. */
 const NARROW_FINDER_PX = 576;
@@ -158,6 +163,13 @@ const PLACES_BOUNDS: RailBounds = {
   max: 360,
   min: 140,
 };
+
+/**
+ * How the row's section over the folder moves as a file opens beside it and
+ * closes, in step with the folder narrowing under it.
+ */
+export const BESIDE_MOTION_CLASSNAME =
+  "duration-[380ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none";
 
 /** A page's width over its height, the shape a document's picture is drawn in. */
 const PAGE_ASPECT = 0.78;
@@ -207,8 +219,6 @@ const SORT_BY: {
 
 /** The folder the user is looking at, for the conversation. */
 export interface FolderOnScreen {
-  /** Whether the agent may write there, when it can reach it at all. */
-  access?: "read-only" | "read-write";
   /** As the person writes it: `~/Documents`. */
   display: string;
   hostPath: string;
@@ -225,6 +235,14 @@ export interface FolderOnScreen {
    */
   walked: string;
 }
+
+/**
+ * The column edge where the row crosses it: a divider as tall as the
+ * controls rather than a line through the row, so the controls line up with
+ * the column they act on without the row being cut into cells.
+ */
+const EDGE_DIVIDER_CLASSNAME =
+  "relative after:absolute after:top-1/2 after:right-0 after:h-5 after:w-px after:-translate-y-1/2 after:bg-border after:transition-opacity";
 
 /**
  * This Mac, browsed the way the Finder browses it: a sidebar of the places a
@@ -244,17 +262,40 @@ export interface FolderOnScreen {
  * itself, so walking the folders leaves the tab where it is.
  */
 export function ComputerPage({
+  beside,
   onFolderChange,
   onOpenFile,
   onQuickLook,
   onQuickLookFollow,
   path,
+  query,
   quickLookOpen = false,
   refreshInterval = REFRESH_MS,
   root,
   select,
+  toolsInRow = false,
   view: viewInHistory,
 }: {
+  /**
+   * A file open beside the folder, which narrows to `width` with its places
+   * put away and its controls in the row's section over it, behind `toggle`.
+   * `isClosing` while the file slides away: the places and the row are the
+   * folder's again, and the views keep their narrowed layout until the
+   * folder has its width back.
+   */
+  beside?: {
+    isClosing: boolean;
+    isFolderShown: boolean;
+    isResizing: boolean;
+    /** A press on empty space in the folder, which puts the file away. */
+    onEmpty: () => void;
+    /** Everything picked, a folder the columns stand in included, whenever it changes. */
+    onPick: (picked: ChosenItem[]) => void;
+    /** Where Ask and the menu for several picked go, in the file's section of the row. */
+    pickedInto: HTMLElement | null;
+    toggle: ReactNode;
+    width: number;
+  };
   /** Told the folder on screen whenever it changes; null when nothing on screen is a folder. */
   onFolderChange?: (folder: FolderOnScreen | null) => void;
   /** A file the user opened, when a granted folder covers it. */
@@ -264,6 +305,8 @@ export function ComputerPage({
   /** The file the selection moved to while Quick Look is up, for it to show. */
   onQuickLookFollow?: (file: FileTab) => void;
   path: string;
+  /** What the folder opens searched for: this step's search, from the address. */
+  query?: string;
   /** Whether Quick Look is up: the arrows then move the selection under it. */
   quickLookOpen?: boolean;
   /** How often every folder on screen is re-read; false to read each once. */
@@ -271,10 +314,15 @@ export function ComputerPage({
   root: string;
   /** What the folder opens with selected, as a path under the root: a file shown in its folder. */
   select?: string;
+  /** Whether the folder's controls go in the tab's row, in a tab of the window's own, rather than a header of their own. */
+  toolsInRow?: boolean;
   /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
   view?: FileSystemView;
 }) {
-  const { askAbout, openScreen, rowLead } = useWindow();
+  const { askAbout, openScreen, rowLead, rowTail } = useWindow();
+  const isBesideOpen = beside !== undefined && !beside.isClosing;
+  const [rowTools, setRowTools] = useState<HTMLElement | null>(null);
+  const placesWidth = useAtomValue(finderPlacesWidthAtom);
   const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -284,6 +332,9 @@ export function ComputerPage({
   // of no layout of its own opens in when arrived at directly.
   const [defaultView, setDefaultView] = useAtom(computerViewAtom);
   const [folderViews, setFolderViews] = useAtom(computerFolderViewsAtom);
+  const [openFolderPaths, setOpenFolderPaths] = useAtom(
+    computerOpenFoldersAtom,
+  );
   const [columnWidth, setColumnWidth] = useAtom(computerColumnWidthAtom);
   const [listColumns, setListColumns] = useAtom(computerListColumnsAtom);
   const [listColumnWidths, setListColumnWidths] = useAtom(
@@ -345,6 +396,8 @@ export function ComputerPage({
   // while it holds `selectedPath`, the one the keyboard is on: the page moving
   // the selection itself, onto a thing just made or renamed, moves it to one.
   const [selectedPaths, setSelectedPaths] = useState<readonly string[]>([]);
+  // What the browser's search field says, which walking to a folder empties.
+  const [searchText, setSearchText] = useState(query ?? "");
   const allSelectedPaths =
     selectedPath === null
       ? []
@@ -377,6 +430,7 @@ export function ComputerPage({
     arrived.current = true;
     setCurrent(path);
     setSelectedPath(select ?? null);
+    setSearchText(query ?? "");
     setLoaded((previous) => ({
       prefixes: rootChanged
         ? prefixesOf(path)
@@ -384,7 +438,7 @@ export function ComputerPage({
       root,
     }));
     setOpenings((count) => count + 1);
-  }, [path, root, select]);
+  }, [path, query, root, select]);
 
   // `~` names the home folder, which the workspace expands for a folder it is
   // being asked to read. Nothing else does: a path this hands to an action
@@ -540,6 +594,29 @@ export function ComputerPage({
     ),
   );
   const itemsByPath = new Map(items.map((item) => [item.path, item]));
+  // The folders the list shows opened in place: every one listed here that
+  // was left open anywhere. The recents open nothing.
+  const openFolderSet = new Set(openFolderPaths);
+  const openFolders = new Set(
+    items.flatMap((item) =>
+      item.kind === "folder" && openFolderSet.has(hostPathOfItem(item))
+        ? [item.path]
+        : [],
+    ),
+  );
+  const changeOpenFolder = (folderPath: string, open: boolean) => {
+    const hostPath = hostPathOfItem(itemsByPath.get(folderPath));
+    if (!hostPath) {
+      return;
+    }
+    // Newest last, so the oldest are the ones let go of past the cap.
+    setOpenFolderPaths((previous) =>
+      [
+        ...previous.filter((kept) => kept !== hostPath),
+        ...(open ? [hostPath] : []),
+      ].slice(-OPEN_FOLDERS_KEPT),
+    );
+  };
   const selectedItem =
     selectedPath === null ? undefined : itemsByPath.get(selectedPath);
   const selectedItems = allSelectedPaths.flatMap((selected) => {
@@ -770,8 +847,7 @@ export function ComputerPage({
   // written to history for the back button to return to.
   const settled = loaded.root === root;
   // The recents are rooted nowhere, so no place in the list is the one open.
-  // A root under `~` (the Instrument folder a fresh Finder opens at) is the
-  // same folder spelled out below the home folder.
+  // A root under `~` is the same folder spelled out below the home folder.
   const rootHostPath = isRecents
     ? undefined
     : root === "~"
@@ -807,15 +883,21 @@ export function ComputerPage({
   }, [navigate, view, viewInHistory]);
   const sortOf = (key: string) =>
     folderViews[key]?.sort ?? (isRecents ? RECENTS_SORT : NAME_SORT);
+  const groupOf = (key: string) => folderViews[key]?.group ?? null;
   const [shown, setShown] = useState(() => ({
     at: currentKey,
+    group: groupOf(currentKey),
     sort: sortOf(currentKey),
   }));
   // Set during render rather than in an effect, so the folder is drawn in its
   // own order from its first frame. A new root arrives a render ahead of the
   // folder under it, so nothing is taken until the two agree.
   if (settled && shown.at !== currentKey) {
-    setShown({ at: currentKey, sort: sortOf(currentKey) });
+    setShown({
+      at: currentKey,
+      group: groupOf(currentKey),
+      sort: sortOf(currentKey),
+    });
   }
 
   // The folder on screen. In the columns a selected folder shows its contents
@@ -861,7 +943,11 @@ export function ComputerPage({
   // A change is kept for the folder the window is showing. In the columns that
   // is the last column's folder, which is where leaving the columns goes.
   const keepLook = (look: ComputerFolderView) => {
-    setShown((previous) => ({ ...previous, sort: look.sort }));
+    setShown((previous) => ({
+      ...previous,
+      group: look.group ?? null,
+      sort: look.sort,
+    }));
     const key = folderKeyOf(view === "columns" ? onScreen : current);
     // Newest last, so the oldest are the ones let go of past the cap.
     setFolderViews((previous) => {
@@ -873,7 +959,10 @@ export function ComputerPage({
     });
   };
   const sortBy = (sort: FileSystemSortState) => {
-    keepLook({ sort, view });
+    keepLook({ group: shown.group, sort, view });
+  };
+  const groupBy = (group: FileSystemGroupKey | null) => {
+    keepLook({ group, sort: shown.sort, view });
   };
   // The folder on screen as the address last had it. An address arriving
   // from outside (back, forward, the sidebar) changes `path` a render before
@@ -910,6 +999,7 @@ export function ComputerPage({
         search: (previous) => ({
           ...previous,
           path: onScreen,
+          query: searchText || undefined,
           root,
           select: undefined,
           view,
@@ -920,7 +1010,60 @@ export function ComputerPage({
     return () => {
       clearTimeout(timer);
     };
-  }, [navigate, onScreen, path, root, settled, view]);
+  }, [navigate, onScreen, path, root, searchText, settled, view]);
+
+  // The search and the selection are kept in the step on screen as they
+  // change, so back to it, after a file took the tab or a folder was walked
+  // into, finds the folder the way it was left. Only while the folder on
+  // screen is the step's: walking to a folder empties the search and the
+  // selection a render before the step moves, and that is no change to the
+  // step being left. A file open beside the folder has the selection, so
+  // only the search is kept there.
+  const parentOfSelected =
+    selectedPath === null
+      ? null
+      : selectedPath.slice(
+          0,
+          selectedPath.lastIndexOf("/", selectedPath.length - 2) + 1,
+        );
+  const stepSelect =
+    selectedPath !== null && parentOfSelected === path
+      ? selectedPath
+      : undefined;
+  useEffect(() => {
+    if (!settled || onScreen !== path) {
+      return;
+    }
+    const nextQuery = searchText || undefined;
+    const nextSelect = isBesideOpen ? select : stepSelect;
+    if (nextQuery === query && nextSelect === select) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      void navigate({
+        replace: true,
+        search: (previous) => ({
+          ...previous,
+          query: nextQuery,
+          ...(isBesideOpen ? {} : { select: nextSelect }),
+        }),
+        to: "/files",
+      });
+    });
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [
+    isBesideOpen,
+    navigate,
+    onScreen,
+    path,
+    query,
+    searchText,
+    select,
+    settled,
+    stepSelect,
+  ]);
 
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
@@ -928,17 +1071,24 @@ export function ComputerPage({
   // Only the Finder in the window's tab that is up: every tab stays mounted,
   // and one behind another is not where the keyboard is.
   const isActiveTab = useIsActiveTab();
+  // Beside a file, the file has the keyboard: the folder takes it only for an
+  // address opened in it, never as the tab comes up or the file opens.
+  const focusedOpening = useRef(isBesideOpen ? openings : null);
   useEffect(() => {
     if (!hasRows || !isActiveTab || isTypingTarget(document.activeElement)) {
       return;
     }
+    if (isBesideOpen && focusedOpening.current === openings) {
+      return;
+    }
+    focusedOpening.current = openings;
     const row = browserRef.current?.querySelector<HTMLElement>(
       '[role="option"][tabindex="0"]',
     );
     row?.focus({ preventScroll: true });
     // Once per opening, when its rows are first there, or when its tab comes
     // up.
-  }, [openings, hasRows, isActiveTab]);
+  }, [openings, hasRows, isActiveTab, isBesideOpen]);
 
   // A folder the system refused has no listing to say where it is, so where
   // it is comes from the root and the prefix instead: the tab row and the
@@ -969,9 +1119,6 @@ export function ComputerPage({
   const mount = isRecents
     ? selectedRecent?.access && folderOf(selectedRecent.access.shellPath)
     : currentListing?.access?.shellPath;
-  const access = isRecents
-    ? selectedRecent?.access?.access
-    : currentListing?.access?.access;
   // Named from the folder on screen: a file in a folder opened in place in
   // the list is that folder's name and its own. The folder the columns are
   // showing is the folder itself rather than something selected in it.
@@ -1004,7 +1151,6 @@ export function ComputerPage({
       return;
     }
     onFolderChange?.({
-      ...(access === undefined ? {} : { access }),
       display,
       hostPath,
       ...(mount === undefined ? {} : { mount }),
@@ -1014,7 +1160,34 @@ export function ComputerPage({
     });
     // The selection by its key: the rows are rebuilt on every re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [access, display, hostPath, mount, onFolderChange, selectedKey, walked]);
+  }, [display, hostPath, mount, onFolderChange, selectedKey, walked]);
+  // Beside a file, everything picked by where it is: the folder on screen
+  // leaves out the folder the columns stand in, which is still a pick.
+  const pickedBeside = selectedItems.flatMap((item): ChosenItem[] => {
+    const itemHostPath = hostPathOfItem(item);
+    return itemHostPath ? [{ kind: item.kind, path: itemHostPath }] : [];
+  });
+  const pickedKey = JSON.stringify(pickedBeside);
+  // Told as a file opens beside the folder and as the picks change, and
+  // only then: the file beside moving on is not a pick.
+  const tellPicked = useEffectEvent((next: ChosenItem[]) => {
+    beside?.onPick(next);
+  });
+  useEffect(() => {
+    tellPicked(pickedBeside);
+    // The selection by its key: the rows are rebuilt on every re-read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBesideOpen, pickedKey]);
+  // The file beside moved on from somewhere other than the folder, a link
+  // in it or the page it is going to another file: picked here too when
+  // it is listed, so the folder and the file agree.
+  const isSelectListed = select !== undefined && itemsByPath.has(select);
+  useEffect(() => {
+    if (isBesideOpen && isSelectListed) {
+      setSelectedPath(select);
+      setSelectedPaths([select]);
+    }
+  }, [isBesideOpen, isSelectListed, select]);
 
   // A type with no viewer here goes to the app the computer would use, the way
   // a double-click in the system's file manager does: a disk image mounts and
@@ -1099,18 +1272,26 @@ export function ComputerPage({
   // ⌘Z takes back the newest thing the Finder did to the computer's files (a
   // rename, a duplicate, a new folder, a move to the Trash), the way the
   // Finder's own Edit > Undo does. What was put back is selected; what cannot
-  // be taken back safely says why.
+  // be taken back safely says why. Only while the keyboard is in the folder,
+  // or nowhere with no file open beside it: a ⌘Z over a file is the file's.
+  const frameRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!isActiveTab || isRecents) {
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
+      const inFolder =
+        event.target instanceof Node &&
+        frameRef.current?.contains(event.target) === true;
+      const nowhere = event.target === document.body && !isBesideOpen;
       if (
         event.key.toLowerCase() !== "z" ||
         event.shiftKey ||
         event.altKey ||
         !commandKeyHeld(event) ||
-        isTypingTarget(event.target)
+        event.defaultPrevented ||
+        isTypingTarget(event.target) ||
+        !(inFolder || nowhere)
       ) {
         return;
       }
@@ -1133,7 +1314,7 @@ export function ComputerPage({
     // `reread` and `selectUndone` are rebuilt each render and read nothing
     // that changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActiveTab, isRecents]);
+  }, [isActiveTab, isRecents, isBesideOpen]);
 
   // Quick Look stays up while the arrows walk the folder, and shows whatever
   // the selection lands on. The panel holds the keyboard, so the keys are
@@ -1183,7 +1364,14 @@ export function ComputerPage({
   const [isPlacesOpen, setPlacesOpen] = useState(false);
   const [isPlacesShown, setPlacesShown] = useAtom(finderPlacesOpenAtom);
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
-  const isNarrow = useIsNarrow(frame);
+  // Narrowed beside a file the folder is as wide as it was before it, so
+  // the places slide away and back rather than standing over it.
+  const isFrameNarrow = useIsNarrow(frame);
+  const [wasNarrow, setWasNarrow] = useState(isFrameNarrow);
+  if (beside === undefined && wasNarrow !== isFrameNarrow) {
+    setWasNarrow(isFrameNarrow);
+  }
+  const isNarrow = beside === undefined ? isFrameNarrow : wasNarrow;
   const placesVisible = isNarrow ? isPlacesOpen : isPlacesShown;
   const placesToggle = (
     <PlacesToggle
@@ -1208,7 +1396,15 @@ export function ComputerPage({
   const leaveRoot = () => {
     const search = rootParentSearch(rootHostPath, view);
     if (search) {
-      void navigate({ search, to: "/files" });
+      // A file open beside the folder stays open while it goes up.
+      void navigate({
+        search: (previous) => ({
+          ...search,
+          file: previous.file,
+          tree: previous.tree,
+        }),
+        to: "/files",
+      });
     }
   };
 
@@ -1249,6 +1445,27 @@ export function ComputerPage({
   const afterMenuClosed = () => {
     afterMenu.current?.();
     afterMenu.current = null;
+  };
+  /** Ask about what is selected, or the folder on screen where nothing is. */
+  const askButton = () => {
+    const about =
+      selectedItems.length > 1
+        ? `${selectedItems.length} items`
+        : (segmentsOf(
+            hostPathOfItem(selectedItem) || (folderOnScreenPath ?? ""),
+          ).at(-1) ?? "this folder");
+    return (
+      <GlyphButton
+        className={TOOLBAR_CONTROL_CLASSNAME}
+        onClick={() => {
+          draftAbout(selectedItems.length > 0 ? selectedItems : [selectedItem]);
+        }}
+        size="sm"
+        title={`Ask about “${about}”`}
+      >
+        <span className="@max-lg/finder:sr-only">Ask</span>
+      </GlyphButton>
+    );
   };
   /** What the folder's menus do to a row, or to the folder where there is none. */
   const menuActionsFor = (item: FileSystemItem | undefined) => {
@@ -1425,6 +1642,63 @@ export function ComputerPage({
     event.preventDefault();
     enterListing();
   };
+  // Beside a file the folder's section of the row names it, as a menu of
+  // the folders above it and the places. Going to one keeps the file open,
+  // as walking there does, and the tab's layout with it: a file open beside
+  // a folder with no layout of its own is one just arrived from elsewhere.
+  const besideTo = (folder: string) => {
+    void navigate({
+      search: (previous) => ({
+        ...previous,
+        path: "",
+        root: folder === "" ? RECENTS_ROOT : folder === homePath ? "~" : folder,
+        select: undefined,
+      }),
+      to: "/files",
+    });
+  };
+  const volumeNames = new Map(
+    places.data.volumes.map((volume) => [volume.path, volume.name]),
+  );
+  const folderNameOf = (folder: string) =>
+    volumeNames.get(folder) ?? segmentsOf(folder).at(-1) ?? folder;
+  const besideFolder =
+    folderOnScreenPath === undefined
+      ? { name: "Recents", path: "" }
+      : { name: folderNameOf(folderOnScreenPath), path: folderOnScreenPath };
+  const besideAncestors: { name: string; path: string }[] = [];
+  let above =
+    folderOnScreenPath === undefined || volumeNames.has(folderOnScreenPath)
+      ? null
+      : parentFolderOf(folderOnScreenPath);
+  while (above !== null) {
+    besideAncestors.push({ name: folderNameOf(above), path: above });
+    above = volumeNames.has(above) ? null : parentFolderOf(above);
+  }
+  const besidePlaces = [
+    {
+      places: [
+        { name: "Recents", path: "" },
+        ...(instrumentPlace
+          ? [{ name: instrumentPlace.name, path: instrumentPlace.path }]
+          : []),
+      ],
+    },
+    {
+      label: "Pinned",
+      places: pinned.map(({ name, path: pinnedPath }) => ({
+        name,
+        path: pinnedPath,
+      })),
+    },
+    {
+      label: "Locations",
+      places: places.data.volumes.map(({ name, path: volumePath }) => ({
+        name,
+        path: volumePath,
+      })),
+    },
+  ];
   const placeLists = (
     <>
       {/* The app's own places, which nobody unpins: what the person opened,
@@ -1449,7 +1723,7 @@ export function ComputerPage({
           ...(instrumentPlace
             ? [
                 {
-                  icon: <FolderMark large path={instrumentPlace.path} />,
+                  icon: <FolderMark size="large" path={instrumentPlace.path} />,
                   isActive: folderHostPath === instrumentPlace.path,
                   name: instrumentPlace.name,
                   path: instrumentPlace.path,
@@ -1483,7 +1757,7 @@ export function ComputerPage({
         places={pinned.map((place) => ({
           // The home folder wears the house it wears in the Finder, which
           // is what says the account-named folder is home.
-          icon: <FolderMark large path={place.path} />,
+          icon: <FolderMark size="large" path={place.path} />,
           isActive: folderHostPath === place.path,
           name: place.name,
           path: place.path,
@@ -1497,7 +1771,7 @@ export function ComputerPage({
           rootTo(folder);
         }}
         places={places.data.volumes.map((volume) => ({
-          icon: <FolderMark large path={volume.path} />,
+          icon: <FolderMark size="large" path={volume.path} />,
           isActive: folderHostPath === volume.path,
           name: volume.name,
           path: volume.path,
@@ -1511,11 +1785,103 @@ export function ComputerPage({
     // head of the tab's row.
     <div
       className="@container/finder relative flex h-full min-h-0"
-      ref={setFrame}
+      ref={(element) => {
+        frameRef.current = element;
+        setFrame(element);
+      }}
     >
       {/* At the row's far left where the tab has one, the way a file's tree
-          toggle is; at the head of the toolbar where it does not. */}
-      {rowLead && createPortal(placesToggle, rowLead)}
+          toggle is, and as wide as the places beside the folder so the
+          folder's own controls start where the folder does; at the head of
+          the toolbar where it does not. In a tab of the window's own the
+          folder's controls follow it in a section of the row's own, which
+          with a file open beside the folder is as wide as the folder and
+          holds them all. The toggle that folds the folder away stands past
+          that section's edge, at the head of the file's own part of the
+          row, so it belongs to the file and the folder's name keeps the
+          room. */}
+      {rowLead &&
+        (toolsInRow
+          ? createPortal(
+              <>
+                <div
+                  className={cn(
+                    "-ml-2 flex h-10 shrink-0 items-center gap-1 pl-2 transition-[width] [interpolate-size:allow-keywords]",
+                    EDGE_DIVIDER_CLASSNAME,
+                    BESIDE_MOTION_CLASSNAME,
+                    beside?.isResizing && "transition-none",
+                    isBesideOpen && beside.isFolderShown
+                      ? "pr-2 after:opacity-100"
+                      : "after:opacity-0",
+                  )}
+                  style={{
+                    width:
+                      isBesideOpen && beside.isFolderShown
+                        ? beside.width
+                        : "auto",
+                  }}
+                >
+                  {isBesideOpen ? null : (
+                    <div
+                      className={cn(
+                        "flex h-10 shrink-0 items-center transition-[width] [interpolate-size:allow-keywords]",
+                        EDGE_DIVIDER_CLASSNAME,
+                        BESIDE_MOTION_CLASSNAME,
+                        placesVisible && !isNarrow
+                          ? "after:opacity-100"
+                          : "after:opacity-0",
+                      )}
+                      style={{
+                        // Less the section's own inset, so its edge is the places'.
+                        width:
+                          placesVisible && !isNarrow ? placesWidth - 8 : "auto",
+                      }}
+                    >
+                      {placesToggle}
+                    </div>
+                  )}
+                  {isBesideOpen && beside.isFolderShown ? (
+                    <FolderNameMenu
+                      ancestors={besideAncestors}
+                      folder={besideFolder}
+                      onGo={besideTo}
+                      places={besidePlaces}
+                    />
+                  ) : null}
+                  <div
+                    className={cn(
+                      "flex min-w-0 items-center",
+                      isBesideOpen && "shrink-0",
+                      isBesideOpen && !beside.isFolderShown && "hidden",
+                    )}
+                    ref={setRowTools}
+                  />
+                </div>
+                {isBesideOpen ? (
+                  <div className="flex h-10 shrink-0 items-center pl-1">
+                    {beside.toggle}
+                  </div>
+                ) : null}
+              </>,
+              rowLead,
+            )
+          : createPortal(placesToggle, rowLead))}
+      {/* Several picked beside a file stand in the file's place, so what acts
+          on them goes where the file's own actions were. */}
+      {isBesideOpen &&
+        beside.pickedInto &&
+        selectedItems.length > 1 &&
+        createPortal(
+          <>
+            {askAbout ? askButton() : null}
+            <FolderOverflowMenu
+              {...menuActionsFor(selectedItem)}
+              item={selectedItem}
+              onClosed={afterMenuClosed}
+            />
+          </>,
+          beside.pickedInto,
+        )}
       {isNarrow && isPlacesOpen && (
         <button
           aria-label="Hide the sidebar"
@@ -1528,21 +1894,24 @@ export function ComputerPage({
         />
       )}
       {isNarrow ? (
-        <nav
-          className={cn(
-            "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft",
-            !isPlacesOpen && "hidden",
-          )}
-          onKeyDown={onPlacesKeyDown}
-        >
-          {placeLists}
-        </nav>
+        isBesideOpen ? null : (
+          <nav
+            className={cn(
+              "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft",
+              !isPlacesOpen && "hidden",
+            )}
+            onKeyDown={onPlacesKeyDown}
+          >
+            {placeLists}
+          </nav>
+        )
       ) : (
         // Beside the folder the way the window's own rail is: its edge
-        // drags, an over-drag puts it away, and it slides at its width.
+        // drags, an over-drag puts it away, and it slides at its width,
+        // away while a file is open beside the folder.
         <StudioSidebarRail
           bounds={PLACES_BOUNDS}
-          isOpen={isPlacesShown}
+          isOpen={isPlacesShown && !isBesideOpen}
           label="Resize the sidebar"
           onCollapse={() => {
             setPlacesShown(false);
@@ -1592,6 +1961,7 @@ export function ComputerPage({
                 columnWidth={columnWidth}
                 contextMenuPath={isMenuOpen ? (menuItem?.path ?? null) : null}
                 defaultPath={path}
+                defaultSearch={query}
                 defaultSelectedPath={select}
                 // Every row here is a thing on this computer, and drags out of
                 // the window as one: to the desktop, a Finder window, another
@@ -1653,11 +2023,14 @@ export function ComputerPage({
                 onListColumnsChange={setListColumns}
                 onListColumnWidthsChange={setListColumnWidths}
                 onPathChange={setCurrent}
+                onOpenFolderChange={isRecents ? undefined : changeOpenFolder}
                 onRenameCommit={rename}
+                onSearchChange={setSearchText}
                 onSelectionChange={(item, all) => {
                   setSelectedPath(item?.path ?? null);
                   setSelectedPaths(all.map((each) => each.path));
                 }}
+                onGroupChange={groupBy}
                 onShowHiddenFilesChange={setShowHiddenFiles}
                 onSortChange={sortBy}
                 onLeaveRoot={isRecents ? undefined : leaveRoot}
@@ -1674,9 +2047,14 @@ export function ComputerPage({
                 onCopyPath={(picked) => void copyPaths(picked)}
                 onDuplicate={(picked) => void duplicate(picked)}
                 onTrash={(picked) => void trash(picked)}
+                openFolders={isRecents ? undefined : openFolders}
                 onViewChange={(next) => {
                   setDefaultView(next);
-                  keepLook({ sort: shown.sort, view: next });
+                  keepLook({
+                    group: shown.group,
+                    sort: shown.sort,
+                    view: next,
+                  });
                   // The step on screen takes the new layout rather than a
                   // new step being made for it, the way the Finder's does.
                   void navigate({
@@ -1777,31 +2155,7 @@ export function ComputerPage({
                 )}
                 renderHeaderPrimary={
                   askAbout && (selectedItem || folderOnScreenPath !== undefined)
-                    ? () => {
-                        const about =
-                          selectedItems.length > 1
-                            ? `${selectedItems.length} items`
-                            : (segmentsOf(
-                                hostPathOfItem(selectedItem) ||
-                                  (folderOnScreenPath ?? ""),
-                              ).at(-1) ?? "this folder");
-                        return (
-                          <GlyphButton
-                            className={TOOLBAR_CONTROL_CLASSNAME}
-                            onClick={() => {
-                              draftAbout(
-                                selectedItems.length > 0
-                                  ? selectedItems
-                                  : [selectedItem],
-                              );
-                            }}
-                            size="sm"
-                            title={`Ask about “${about}”`}
-                          >
-                            <span className="@max-lg/finder:sr-only">Ask</span>
-                          </GlyphButton>
-                        );
-                      }
+                    ? askButton
                     : undefined
                 }
                 // Where the folder's contents would be: the whole browser for
@@ -1830,8 +2184,23 @@ export function ComputerPage({
                 }}
                 selectedPath={selectedPath}
                 showHiddenFiles={showHiddenFiles}
+                group={shown.group}
                 sort={shown.sort}
                 title={rootName}
+                {...(beside === undefined
+                  ? {}
+                  : {
+                      besideWidth: beside.width,
+                      onEmptyPress: beside.onEmpty,
+                    })}
+                {...(toolsInRow
+                  ? {
+                      toolbarInto: {
+                        lead: rowTools,
+                        ...(isBesideOpen ? {} : { tail: rowTail ?? null }),
+                      },
+                    }
+                  : {})}
                 view={view}
               />
             </div>
@@ -1853,7 +2222,8 @@ export function ComputerPage({
                     },
               );
             }}
-            sort={shown.sort}
+            // Grouped, the groups are the order, as in the toolbar's menu.
+            {...(shown.group === null ? { sort: shown.sort } : {})}
           />
         </ContextMenu>
         {currentListing?.appFoldersLocked && <ICloudAccessBanner />}
@@ -2352,9 +2722,14 @@ function hostPathOfItem(item: FileSystemItem | undefined) {
 
 /** A refusal in a line, under a folder opened in place in the list. */
 export function refusalLine(reason: ComputerRefusal["reason"]) {
-  return reason === "system"
-    ? "macOS hasn’t let Instrument read this folder"
-    : "Your account can’t read this folder";
+  switch (reason) {
+    case "account":
+      return "Your account can’t read this folder";
+    case "app":
+      return "Instrument keeps this folder private";
+    case "system":
+      return "macOS hasn’t let Instrument read this folder";
+  }
 }
 
 /**
@@ -2367,7 +2742,7 @@ export function refusalLine(reason: ComputerRefusal["reason"]) {
  * folder's own permissions has neither, so it only says whose they are. A
  * package (a Photos library) has neither either: the panel will not pick one,
  * and what guards it is the app's own permission, so the way in is to open it
- * in its app.
+ * in its app. The app's own data has no way in from here at all.
  */
 function NotPermitted({
   onGranted,
@@ -2399,6 +2774,23 @@ function NotPermitted({
   );
   const openInApp = useMutation(rpcClient.utils.openPath.mutationOptions());
   const isSystem = refusal.reason === "system";
+  if (refusal.reason === "app") {
+    return (
+      <div className="flex size-full items-center justify-center p-8">
+        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
+          <div>
+            <p className="text-sm font-medium">
+              {`Instrument keeps “${name}” private`}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              It holds Instrument’s own data, so you can’t open it here.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (isSystem && refusal.package) {
     return (
       <div className="flex size-full items-center justify-center p-8">

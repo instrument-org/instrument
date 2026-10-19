@@ -1,3 +1,4 @@
+import os from "node:os";
 import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../schemas/session/message";
@@ -72,24 +73,27 @@ const bash =
     type: "tool-bash",
   });
 
-const wake = (messageId: StoreId.Message): SessionMessagePart.Type => ({
-  data: {
-    events: [
-      {
-        status: "done",
-        sessionId: StoreId.SessionSchema.parse(
-          "ses_01K4M8C2B5N7R0T3V6X9Z1D4F7",
-        ),
-        title: "Lisbon hotel",
-      },
-    ],
-  },
-  metadata: partMetadata(messageId),
-  type: "data-taskEvent",
-});
+const askPermission =
+  (state: "allowed" | "asked") =>
+  (messageId: StoreId.Message): SessionMessagePart.Type => ({
+    input: {
+      explanation: "Asking for Desktop",
+      kind: "folder",
+      reason: "So I can put the copy there.",
+      target: "/Users/sam/Desktop",
+    },
+    metadata: { ...partMetadata(messageId), endedAt: createdAt },
+    output:
+      state === "asked"
+        ? { kind: "folder", state, target: "/Users/sam/Desktop" }
+        : { state, target: "/Users/sam/Desktop" },
+    state: "output-available",
+    toolCallId: `call-${messageId}`,
+    type: "tool-ask_permission",
+  });
 
 const taskNew = bash(
-  "task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
+  "instrument task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
   'Created lisbon-hotel ("Lisbon"). It is running now.\n',
   [
     {
@@ -111,6 +115,28 @@ describe("shouldContinueAfterHandingOff", () => {
     ).resolves.toBe(false);
   });
 
+  it("ends the turn on a permission card, with no step after it for a line", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("put a copy on my desktop")),
+          assistant(askPermission("asked")),
+        ],
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it("carries on when the folder asked for was already allowed", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("put a copy on my desktop")),
+          assistant(askPermission("allowed")),
+        ],
+      }),
+    ).resolves.toBe(true);
+  });
+
   it("gives a hand-off that said nothing one more step, for the line", async () => {
     await expect(
       shouldContinueAfterHandingOff({
@@ -127,7 +153,7 @@ describe("shouldContinueAfterHandingOff", () => {
           assistant(
             text("Making it now."),
             bash(
-              "task new --name 'cat.md' --folder /Users/sam/Desktop <<'EOF'\nWrite cat.md.\nEOF",
+              "instrument task new --name 'cat.md' --folder /Users/sam/Desktop <<'EOF'\nWrite cat.md.\nEOF",
               'Created cat-md ("cat.md"). macOS is asking the user whether Instrument may use "/Users/sam/Desktop", and the task starts once they answer: tell them to answer the system\'s dialog.\n',
             ),
           ),
@@ -144,7 +170,7 @@ describe("shouldContinueAfterHandingOff", () => {
           assistant(
             text("Steering it."),
             bash(
-              "task send lisbon-hotel <<'EOF'\nA submarine.\nEOF",
+              "instrument task send lisbon-hotel <<'EOF'\nA submarine.\nEOF",
               "Sent to lisbon-hotel. It is busy and will hear this at its next step.\n",
               [
                 {
@@ -154,77 +180,6 @@ describe("shouldContinueAfterHandingOff", () => {
                   ),
                 },
               ],
-            ),
-          ),
-        ],
-      }),
-    ).resolves.toBe(false);
-  });
-
-  it("gives a first step that only promised a task one more step, so the task gets made", async () => {
-    await expect(
-      shouldContinueAfterHandingOff({
-        messages: [
-          user(text("find me a hotel in lisbon")),
-          assistant(text("I'll hand this to a task.")),
-        ],
-      }),
-    ).resolves.toBe(true);
-  });
-
-  it("does not read a mention of tasks as a promise", async () => {
-    await expect(
-      shouldContinueAfterHandingOff({
-        messages: [
-          user(text("what are you working on?")),
-          assistant(text("One task is looking for a hotel; nothing else.")),
-        ],
-      }),
-    ).resolves.toBe(false);
-  });
-
-  // Asked what happened after a stop, the reply tells of the task started
-  // before it, and a second step read as a promise would start it again.
-  it("does not read an account of a task already started as a promise", async () => {
-    await expect(
-      shouldContinueAfterHandingOff({
-        messages: [
-          user(text("what happened?")),
-          assistant(
-            text(
-              "I started the background task (t1), and you stopped it before it finished. I can restart the task if you want.",
-            ),
-          ),
-        ],
-      }),
-    ).resolves.toBe(false);
-  });
-
-  it("does not give a reply that ends asking the user a second step", async () => {
-    await expect(
-      shouldContinueAfterHandingOff({
-        messages: [
-          user(text("what happened?")),
-          assistant(
-            text(
-              "You stopped the task before it finished. Want me to start the task again?",
-            ),
-          ),
-        ],
-      }),
-    ).resolves.toBe(false);
-  });
-
-  it("does not give a wake's one-line reply a second step for naming the task", async () => {
-    await expect(
-      shouldContinueAfterHandingOff({
-        messages: [
-          user(text("find me a hotel in lisbon")),
-          assistant(text("Looking for one."), taskNew),
-          user(wake),
-          assistant(
-            text(
-              "The task found the Hotel Avenida; I'll send a task for the booking next.",
             ),
           ),
         ],
@@ -276,7 +231,7 @@ describe("shouldContinueAfterHandingOff", () => {
           user(text("find me a hotel in lisbon")),
           assistant(
             text("On it."),
-            bash("task new", "task: new: a brief is required"),
+            bash("instrument task new", "task: new: a brief is required"),
           ),
         ],
       }),
@@ -287,6 +242,21 @@ describe("shouldContinueAfterHandingOff", () => {
 describe("instrumentAgent", () => {
   const prompt = instrumentAgent.systemPrompt();
 
+  it("writes the same system prompt on every computer", () => {
+    // A synced chat keeps the prompt it started with, so one naming this
+    // computer's folders or platform would be wrong everywhere else.
+    expect(prompt).not.toContain(os.homedir());
+    const platform = process.platform;
+    try {
+      for (const other of ["darwin", "linux", "win32"] as const) {
+        Object.defineProperty(process, "platform", { value: other });
+        expect(instrumentAgent.systemPrompt()).toBe(prompt);
+      }
+    } finally {
+      Object.defineProperty(process, "platform", { value: platform });
+    }
+  });
+
   it("does the work with every tool, the chat's and a worker's alike", () => {
     expect(
       Object.values(instrumentAgent.agentTools)
@@ -294,6 +264,7 @@ describe("instrumentAgent", () => {
         .toSorted(),
     ).toEqual(
       [
+        TOOL_NAMES.askPermission,
         TOOL_NAMES.bash,
         TOOL_NAMES.choose,
         TOOL_NAMES.connectApp,
@@ -312,10 +283,34 @@ describe("instrumentAgent", () => {
     expect(prompt).toContain(
       "A task is you, continuing in the background with this conversation in hand",
     );
-    expect(prompt).toContain("task new --name '<title>' [--tab <id>]");
+    expect(prompt).toContain(
+      "instrument task new --name '<title>' [--tab <id>]",
+    );
     expect(prompt).toContain(
       "this same folder, and the same folders and apps at the same paths",
     );
+  });
+
+  it("names its folders by the variables the shell sets", () => {
+    for (const named of [
+      "Every command starts in your work folder, `$INSTRUMENT_WORK`",
+      "`$INSTRUMENT_OUTPUT`",
+      "Throwaway files go in `$TMPDIR`",
+      "`$INSTRUMENT_SKILL_DIR` is its folder",
+    ]) {
+      expect(prompt).toContain(named);
+    }
+    // A sent file is read where the person keeps it, so the prompt must not
+    // send the agent to a folder of copies that no longer holds one.
+    for (const gone of [
+      "package root",
+      "virtualenv",
+      "`work/",
+      "`skills/`",
+      "INSTRUMENT_ATTACHMENTS",
+    ]) {
+      expect(prompt).not.toContain(gone);
+    }
   });
 
   it("names no flag or mount the task command does not have", () => {
@@ -335,11 +330,11 @@ describe("instrumentAgent", () => {
   it("keeps the rules the chat and the worker each had", () => {
     for (const kept of [
       "One line, then act, in the same reply",
-      "memory save <name> <<'EOF'",
+      "instrument memory save <name> <<'EOF'",
       "the save and the start go in one command, the save first",
       "name scratch files and folders after the job",
       "Nothing of theirs is deleted or overwritten unless they said so",
-      "in a subfolder named for the job",
+      "put the finished thing in it by its own name rather than in a subfolder",
       "IMPORTANT: Never fabricate a URL.",
       "links it the first time",
       "Every call carries an `activity`",

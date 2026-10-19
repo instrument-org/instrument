@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TASKS_DIR_NAME } from "../constants";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { getChatPrivateDir } from "./chat-dir-utils";
 import { chatDir } from "./record-folders";
 import { getChatState, setChatState } from "./chat-record";
 import { getChatSettings, updateChatSettings } from "./chat-settings";
@@ -57,23 +56,23 @@ describe("updateChatSettings", () => {
     expect(settings?.createdWithAppVersion).toBe("2.0.2");
   });
 
-  // The two views share one file, so each has to leave the other's half alone.
+  // A settings write never touches the state, which is a file of its own.
   it("leaves the state alone", async () => {
-    await setChatState(chatDir(chatId), { appGuidesRead: ["half typed"] });
+    await setChatState(chatDir(chatId), { appGuidesShown: ["half typed"] });
 
     await updateChatSettings(chatId, { createdWithAppVersion: "2.0.1" });
 
     const state = await getChatState(chatDir(chatId));
     const settings = await getChatSettings(chatDir(chatId));
 
-    expect(state.appGuidesRead).toEqual(["half typed"]);
+    expect(state.appGuidesShown).toEqual(["half typed"]);
     expect(settings?.createdWithAppVersion).toBe("2.0.1");
   });
 
   it("survives a state half the schema cannot read", async () => {
     await updateChatSettings(chatId, { createdWithAppVersion: "2.0.0" });
     await fs.writeFile(
-      path.join(getChatPrivateDir(chatDir(chatId)), "settings.json"),
+      path.join(chatDir(chatId), "settings.json"),
       JSON.stringify({
         createdWithAppVersion: "2.0.0",
         state: { browserTabs: "broken" },
@@ -98,11 +97,8 @@ describe("updateChatSettings", () => {
   // a write that fills the gap with what it parsed erases the settings of any
   // chat a newer build -- or a hand edit -- left one bad field in.
   it("keeps the fields a malformed sibling makes unreadable", async () => {
-    const recordPath = path.join(
-      getChatPrivateDir(chatDir(chatId)),
-      "settings.json",
-    );
-    await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+    const recordPath = path.join(chatDir(chatId), "settings.json");
+    await fs.mkdir(chatDir(chatId), { recursive: true });
     await fs.writeFile(
       recordPath,
       JSON.stringify({

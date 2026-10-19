@@ -90,7 +90,12 @@ async function resolveExecutablePath(distPath: string): Promise<string> {
     return path.join(distPath, `win-unpacked/${APP_NAME}.exe`);
   }
   if (platform !== "darwin") {
-    return path.join(distPath, `linux-unpacked/${APP_EXECUTABLE}`);
+    // electron-builder names the folder by arch everywhere but x64.
+    const dir =
+      process.arch === "x64"
+        ? "linux-unpacked"
+        : `linux-${process.arch}-unpacked`;
+    return path.join(distPath, `${dir}/${APP_EXECUTABLE}`);
   }
 
   // Fall back to the last spelling so the caller's own access check reports
@@ -138,15 +143,23 @@ function runAsNode(
 describe("Studio Smoke Test", () => {
   let distPath: string;
   let tempUserDataDir: string;
+  // The release job packages the app itself and hands its output folder over,
+  // so the bytes tested are the signed ones that ship; that folder is the
+  // job's, and stays.
+  const packagedDist = process.env.SMOKE_TEST_DIST_DIR;
 
   beforeAll(async () => {
     await fs.mkdir(SCREENSHOTS_DIR, { recursive: true });
+    tempUserDataDir = await fs.mkdtemp(
+      path.join(tmpdir(), `${APP_EXECUTABLE}-smoke-test-`),
+    );
+    if (packagedDist) {
+      distPath = packagedDist;
+      return;
+    }
     // Must run the app outside of the monorepo to avoid inheriting node modules
     distPath = await fs.mkdtemp(
       path.join(tmpdir(), `${APP_EXECUTABLE}-smoke-app-`),
-    );
-    tempUserDataDir = await fs.mkdtemp(
-      path.join(tmpdir(), `${APP_EXECUTABLE}-smoke-test-`),
     );
 
     await runPnpmScript("build:env:unsigned", {
@@ -162,7 +175,9 @@ describe("Studio Smoke Test", () => {
     // Windows keeps a handle on the packaged executable for a moment after the
     // app exits, so the unlink needs retries -- and cleanup of a temp directory
     // must never turn a passing suite red.
-    for (const dir of [distPath, tempUserDataDir]) {
+    for (const dir of packagedDist
+      ? [tempUserDataDir]
+      : [distPath, tempUserDataDir]) {
       try {
         await fs.rm(dir, {
           force: true,
@@ -465,16 +480,18 @@ describe("Studio Smoke Test", () => {
     childProcess.kill();
     await exited;
 
+    const workspaceDataDir = path.join(
+      tempUserDataDir,
+      "workspace",
+      ".instrument",
+    );
     const requiredPaths = [
-      path.join(tempUserDataDir, "bin"),
+      path.join(tempUserDataDir, "runtime", "bin"),
       path.join(tempUserDataDir, "machine-state.json"),
-      path.join(
-        tempUserDataDir,
-        "workspace",
-        ".instrument",
-        "settings",
-        "preferences.json",
-      ),
+      path.join(workspaceDataDir, "preferences.json"),
+      path.join(workspaceDataDir, "workspace.json"),
+      // The default workspace's machine folder, named by its local id.
+      path.join(tempUserDataDir, "machine", "default", "owner.json"),
     ];
 
     for (const filePath of requiredPaths) {
@@ -486,6 +503,24 @@ describe("Studio Smoke Test", () => {
       }
       expect(exists, `File exists: ${filePath}`).toBe(true);
     }
+
+    // What the app keeps in the workspace is in its `.instrument/`, leaving
+    // the top level to the person's own work.
+    const topLevel = await fs.readdir(path.join(tempUserDataDir, "workspace"));
+    expect(
+      topLevel.filter((name) =>
+        [
+          "apps",
+          "chats",
+          "drafts",
+          "memory",
+          "skills",
+          "tasks",
+          "topics",
+        ].includes(name),
+      ),
+      "workspace: no app folder at the top level",
+    ).toEqual([]);
 
     // Validate machine-state.json was written at boot: a packaged launch
     // records the version it ran. It holds no identifier for this computer.
@@ -502,5 +537,16 @@ describe("Studio Smoke Test", () => {
       Object.keys(appState),
       "machine-state.json: no install identifier",
     ).not.toContain("telemetryId");
+
+    // The machine data move ran on the first launch and recorded the format
+    // it left the workspace in.
+    const identity = JSON.parse(
+      await fs.readFile(path.join(workspaceDataDir, "workspace.json"), "utf8"),
+    ) as Record<string, unknown>;
+    expect(
+      identity.formatVersion,
+      "workspace.json: formatVersion is recorded on first launch",
+    ).toEqual(expect.any(Number));
+    expect(identity.formatVersion).toBeGreaterThan(0);
   });
 });

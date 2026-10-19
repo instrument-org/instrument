@@ -1,8 +1,12 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { is } from "@electron-toolkit/utils";
 import { AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
+import {
+  type AIProviderConfigId,
+  AIProviderConfigIdSchema,
+} from "@instrument-org/shared";
 import { safeStorage } from "electron";
 import Store from "electron-store";
 import { z } from "zod";
@@ -31,8 +35,11 @@ const ProviderConfigsStoreSchema = z
           return [];
         }),
       ),
+    // The connections turned off without being removed, by id: saved keys and
+    // signed-in accounts alike, so the accounts' own stores need no field.
+    disabled: z.array(AIProviderConfigIdSchema).default([]).catch([]),
   })
-  .default({ providers: [] });
+  .default({ disabled: [], providers: [] });
 
 type ProviderConfigsStore = z.output<typeof ProviderConfigsStoreSchema>;
 
@@ -41,11 +48,12 @@ let PROVIDER_CONFIGS_STORE: null | Store<ProviderConfigsStore> = null;
 export const getProviderConfigsStore = (): Store<ProviderConfigsStore> => {
   if (!PROVIDER_CONFIGS_STORE) {
     const defaultStore: ProviderConfigsStore = {
+      disabled: [],
       providers: [],
     };
 
     PROVIDER_CONFIGS_STORE = new Store<ProviderConfigsStore>({
-      cwd: workspaceSettingsDir(),
+      cwd: workspaceKeysDir(),
       defaults: defaultStore,
       deserialize: (value) => {
         if (is.dev) {
@@ -110,3 +118,17 @@ export const getProviderConfigsStore = (): Store<ProviderConfigsStore> => {
 
   return PROVIDER_CONFIGS_STORE;
 };
+
+/** The connections turned off, which `getAIProviderConfigs` leaves out. */
+export function getDisabledProviderConfigIds(): ReadonlySet<AIProviderConfigId> {
+  return new Set(getProviderConfigsStore().get("disabled"));
+}
+
+export function setProviderConfigEnabled(
+  id: AIProviderConfigId,
+  enabled: boolean,
+): void {
+  const store = getProviderConfigsStore();
+  const rest = store.get("disabled").filter((entry) => entry !== id);
+  store.set("disabled", enabled ? rest : [...rest, id]);
+}

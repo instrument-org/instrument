@@ -37,10 +37,45 @@ it("writes two pastes of the same name into the draft's folder, the second numbe
     options,
   );
 
-  expect(path.relative(workspace, first.path)).toBe("drafts/d1/image.png");
-  expect(path.relative(workspace, second.path)).toBe("drafts/d1/image 2.png");
+  // Both in the one folder the draft was given, which the paste makes
+  // before the draft itself has been saved.
+  expect(path.dirname(first.path)).toBe(path.dirname(second.path));
+  expect(path.basename(first.path)).toBe("image.png");
+  expect(path.basename(second.path)).toBe("image 2.png");
+  expect(path.relative(workspace, path.dirname(first.path))).toMatch(
+    /^Drafts\/\d{4}-\d{2}-\d{2}$/,
+  );
   expect(first.size).toBe(16);
   expect(await fs.readFile(second.path, "utf8")).toBe("not really a png");
+});
+
+it("points a draft at the chat it is being sent into", async () => {
+  const { path: staged } = await call(
+    drafts.stage,
+    { content: PNG, draftId: "d1", itemId: "a", name: "image.png" },
+    options,
+  );
+
+  const claimed = await call(
+    drafts.claim,
+    { chatId: "2026-10-14-a-chat" as never, draftId: "d1" },
+    options,
+  );
+
+  expect(claimed).toEqual({ claimed: true });
+  expect(
+    await fs.readFile(path.join(path.dirname(staged), "DRAFT.md"), "utf8"),
+  ).toContain('chat: "2026-10-14-a-chat"');
+});
+
+it("says nothing was pointed where the draft is not on disk", async () => {
+  expect(
+    await call(
+      drafts.claim,
+      { chatId: "2026-10-14-a-chat" as never, draftId: "gone" },
+      options,
+    ),
+  ).toEqual({ claimed: false });
 });
 
 it("rewrites an item handed over again rather than adding a copy", async () => {
@@ -54,7 +89,8 @@ it("rewrites an item handed over again rather than adding a copy", async () => {
   const again = await stage();
 
   expect(again.path).toBe(first.path);
-  expect(await fs.readdir(path.join(workspace, "drafts/d2"))).toEqual([
+  expect((await fs.readdir(path.dirname(first.path))).toSorted()).toEqual([
+    "DRAFT.md",
     "notes.txt",
   ]);
 });

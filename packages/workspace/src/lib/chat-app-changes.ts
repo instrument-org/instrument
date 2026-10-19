@@ -7,10 +7,8 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { isConnected } from "./apps/connection";
 import { listApps } from "./apps/store";
-import { getParsedStorageItem } from "./get-parsed-storage-item";
-import { getSessionsStoreStorage } from "./session-store-storage";
-import { setParsedStorageItem } from "./set-parsed-storage-item";
-import { StorageKey } from "./storage-key";
+import { ChatReads } from "./chat-reads";
+import { ChatWrites } from "./chat-writes";
 import { getWorkspaceConfig } from "./workspace-config";
 
 const ChatAppsBaselineSchema = z.record(
@@ -34,7 +32,7 @@ export async function currentChatApps(): Promise<ChatAppsBaseline> {
       app.slug,
       {
         connected: isConnected(connections[app.slug], app.manifestHash),
-        name: app.manifest.name,
+        name: app.name,
         ...(app.manifest.type === "web" ? { web: app.manifest.url } : {}),
       },
     ]),
@@ -46,19 +44,8 @@ export function setChatAppsBaseline(
   chatId: ChatId,
   sessionId: StoreId.Session,
   apps: ChatAppsBaseline,
-  { signal }: { signal?: AbortSignal } = {},
 ) {
-  return safeTry(async function* () {
-    const storage = yield* getSessionsStoreStorage(chatId);
-    yield* setParsedStorageItem(
-      StorageKey.chatAppsBaseline(sessionId),
-      apps,
-      ChatAppsBaselineSchema,
-      storage,
-      { signal },
-    );
-    return ok(undefined);
-  });
+  return ChatWrites.state(chatId, sessionId, "apps", apps);
 }
 
 /**
@@ -75,28 +62,25 @@ export function setChatAppsBaseline(
 export function detectChatAppChanges({
   messageId,
   sessionId,
-  signal,
   chatId,
 }: {
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  signal?: AbortSignal;
   chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const storage = yield* getSessionsStoreStorage(chatId);
-      const stored = await getParsedStorageItem(
-        StorageKey.chatAppsBaseline(sessionId),
-        ChatAppsBaselineSchema,
-        storage,
-        { signal },
-      );
+      const stored = await ChatReads.state({
+        chatId,
+        schema: ChatAppsBaselineSchema,
+        sessionId,
+        what: "apps",
+      });
       const current = await currentChatApps();
-      yield* setChatAppsBaseline(chatId, sessionId, current, { signal });
+      yield* setChatAppsBaseline(chatId, sessionId, current);
       // Missing on the first message of a session, whose context already
       // lists the apps as they stand.
-      if (stored.isErr()) {
+      if (stored.isErr() || stored.value === undefined) {
         return ok(undefined);
       }
       const events = appEventsBetween(stored.value, current);

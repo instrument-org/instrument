@@ -18,9 +18,9 @@ import path from "node:path";
 // entitlement check -- which is the part that fails. A refusal arrives as
 // SIGKILL with no output, so the exit signal is the whole diagnosis.
 //
-// This runs against the signed artifact in the release job, because the smoke
-// test builds its own unsigned copy: an unsigned app carries no entitlements,
-// so it cannot reproduce an entitlement being refused.
+// This runs against the signed artifact in the release job and in preview
+// builds, ahead of the smoke test where there is one, so a refusal is named
+// for what it is rather than surfacing as a smoke test that never connects.
 
 const MAC_DIST_DIRS = ["mac-arm64", "mac-x64", "mac"];
 
@@ -66,7 +66,13 @@ function resolveApp(explicit: string | undefined): string {
   if (explicit != null && explicit.length > 0) {
     return explicit;
   }
-  const dist = path.join(import.meta.dirname, "..", "dist");
+  // Where electron-builder wrote it, which resolves the same way: relative to
+  // the app's folder.
+  const dist = path.resolve(
+    import.meta.dirname,
+    "..",
+    process.env.ELECTRON_BUILDER_OUTPUT_DIR ?? "dist",
+  );
   for (const dir of MAC_DIST_DIRS) {
     const distDir = path.join(dist, dir);
     if (!fs.existsSync(distDir)) {

@@ -1,3 +1,4 @@
+import { execa } from "execa";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -15,6 +16,7 @@ import {
   listBackgroundProcesses,
 } from "../background-processes";
 import { interruptWaits } from "../wait-interrupts";
+import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
 const model = createMockAIGatewayModel();
 
@@ -42,7 +44,7 @@ describe("background job commands", () => {
 
   afterEach(async () => {
     await killSessionBackgroundProcesses(sessionId);
-    await fs.rm(path.dirname(chatRoot), { force: true, recursive: true });
+    await removeChatsDir(path.dirname(chatRoot));
   });
 
   async function bash(command: string, yieldMs = 30_000) {
@@ -133,10 +135,103 @@ describe("background job commands", () => {
     expect(killed.output).toContain(`Stopped ${processId}`);
   }, 30_000);
 
-  it("refuses a bare pid rather than reaching the machine's own processes", async () => {
-    const killed = await bash("kill 12345");
-    expect(killed.exitCode).not.toBe(0);
-    expect(killed.output).toContain("not a background process id");
+  // The line the sandbox draws: the agent stops what it started, and nothing
+  // else on the computer. Looking stays allowed.
+  it.skipIf(process.platform === "win32")(
+    "refuses a pid the conversation did not start, and leaves it running",
+    async () => {
+      const outside = execa("sleep", ["98731"], { reject: false });
+      try {
+        const pid = outside.pid ?? 0;
+        const killed = await bash(`kill ${pid}`);
+        expect(killed.exitCode).toBe(1);
+        expect(killed.output).toContain(
+          `kill: ${pid} is not a process this conversation started, so it can't be stopped from here. \`jobs -l\` lists the ones you can stop.`,
+        );
+        const piped = await bash(`echo ${pid} | xargs kill -9`);
+        expect(piped.output).toContain("is not a process this conversation");
+        const looked = await bash(`kill -0 ${pid}`);
+        expect(looked.exitCode).toBe(0);
+        expect(outside.exitCode).toBeNull();
+      } finally {
+        outside.kill();
+        await outside;
+      }
+      const gone = await bash(`kill -0 ${outside.pid ?? 0}`);
+      expect(gone.output).toContain("No such process");
+    },
+    30_000,
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "stops a program a job started by its pid",
+    async () => {
+      const processId = await startTicker();
+      const listed = await bash("jobs -l");
+      const pid = /\s(\d+)\s/.exec(listed.output)?.[1] ?? "";
+      expect(listed.output).toContain(processId);
+      expect(Number(pid)).toBeGreaterThan(0);
+      expect((await bash("jobs -p")).output.trim()).toBe(pid);
+
+      const killed = await bash(`echo ${pid} | xargs kill`);
+      expect(killed.exitCode).toBe(0);
+      expect(killed.output).toContain(`Stopped ${pid} (${processId})`);
+      expect((await bash("jobs")).output).toContain("stopped by your `kill`");
+    },
+    30_000,
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "sends any other signal straight to a program it started",
+    async () => {
+      await fs.writeFile(
+        path.join(chatRoot, "work", "reload.js"),
+        'process.on("SIGHUP", () => console.log("reloaded")); setInterval(() => {}, 1000); console.log("up");\n',
+        "utf8",
+      );
+      const started = await bash("node work/reload.js &");
+      const processId = started.processId ?? "";
+      expect(processId).toMatch(/^bg_\d+$/);
+      const pid = started.pids?.[0] ?? 0;
+      expect(pid).toBeGreaterThan(0);
+
+      const hup = await bash(`kill -HUP ${pid}`);
+      expect(hup.exitCode).toBe(0);
+      const read = await bash(`fg ${processId} --timeout 1000`);
+      expect(read.output).toContain("reloaded");
+      expect(read.output).toContain(`${processId} is still running`);
+      expect((await bash(`kill -0 ${processId}`)).exitCode).toBe(0);
+    },
+    30_000,
+  );
+
+  it("backgrounds a trailing `&` at once, and refuses any other", async () => {
+    const started = performance.now();
+    const backgrounded = await bash("node work/tick.js &");
+    expect(performance.now() - started).toBeLessThan(5000);
+    expect(backgrounded.backgrounded).toBe(true);
+    expect(backgrounded.processId).toMatch(/^bg_\d+$/);
+
+    const refused = await bash("node work/tick.js & echo $!");
+    expect(refused.exitCode).toBe(2);
+    expect(refused.output).toContain("Nothing ran");
+    expect(listBackgroundProcesses(sessionId)).toHaveLength(1);
+
+    // One that ends on the spot answers in the call that started it.
+    const failed = await bash("node work/missing.js &");
+    expect(failed.processId).toBeUndefined();
+    expect(failed.exitCode).not.toBe(0);
+  }, 30_000);
+
+  it("lists signals the way bash does", async () => {
+    const listed = await bash("kill -l");
+    expect(listed.output).toContain(" 1) SIGHUP");
+    expect(listed.output).toContain("15) SIGTERM");
+    expect((await bash("kill -l 9")).output.trim()).toBe("KILL");
+    expect((await bash("kill -l TERM")).output.trim()).toBe("15");
+    expect((await bash("kill -BOGUS bg_1")).output).toContain(
+      "BOGUS: invalid signal specification",
+    );
   }, 30_000);
 
   it("treats `wait` as `fg` rather than letting the builtin swallow it", async () => {
@@ -147,6 +242,9 @@ describe("background job commands", () => {
     // strongest prior from producing that answer.
     const waited = await bash(`wait ${processId} --timeout 0`);
     expect(waited.output).toContain(`${processId} is still running`);
+    // It answers as what was typed.
+    const missing = await bash("wait bg_99");
+    expect(missing.output).toContain('wait: no background process "bg_99".');
   }, 30_000);
 
   it("stops several processes in one call", async () => {

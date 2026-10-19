@@ -80,7 +80,12 @@ it.each(["cached", "fresh"])(
     if (stream) {
       expect(result).toEqual({
         done: false,
-        value: { errors: [], models: [cachedModel] },
+        value: {
+          connections: [{ id: "claude-account", type: "claude-account" }],
+          errors: [],
+          models: [cachedModel],
+          routes: {},
+        },
       });
       await stream.return?.();
     } else {

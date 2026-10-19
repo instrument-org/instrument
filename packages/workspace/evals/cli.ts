@@ -151,7 +151,7 @@ if (subcommand === "run" && models.length === 0) {
     `\`pnpm eval models\` lists what the configured providers can run right now, newest first.\nPick for the question being asked and say which you picked and why.\n\n`,
   );
   write(
-    `Workers AI runs without --paid, so it is where to start: pass one as\n\`--model cf:<id>\`, e.g. \`--model cf:${HOUSE_FLOOR}\`, the model this project is\nusually tested against. Everything else is metered and needs --paid.\n`,
+    `\`--model ${HOUSE_FLOOR} --paid\` is where to start: the model this project is\nusually tested against, about two cents for five cases. Workers AI (\`--model\ncf:<id>\`) runs without --paid and is free, but every model on it leaves finished\nwork in the chat's folder rather than the person's, so a run on one says\nnothing about where work goes.\n`,
   );
   process.exit(1);
 }
@@ -304,7 +304,7 @@ function printSummary({
         : []),
       ...(rollup.erroredTasks > 0
         ? [
-            `${c.dim}│${c.reset}  ${c.dim}Failed     :${c.reset} ${c.red}${rollup.erroredTasks}/${rollup.tasks} had failed model requests${c.reset}`,
+            `${c.dim}│${c.reset}  ${c.dim}Failed     :${c.reset} ${c.red}${rollup.erroredTasks}/${rollup.tasks} did not finish${c.reset}`,
           ]
         : []),
       ...(assertions.total > 0
@@ -587,9 +587,9 @@ switch (subcommand) {
  * the total.
  */
 async function runTrialsApart(): Promise<number> {
-  const baseHome =
-    process.env.INSTRUMENT_EVAL_HOME ??
-    path.join(os.tmpdir(), "instrument-eval-home");
+  // Always set by `lib/sandbox-home`, imported first, to the home this run
+  // was given or the one it made itself.
+  const baseHome = process.env.INSTRUMENT_EVAL_HOME ?? os.tmpdir();
   const script = process.argv[1] ?? "";
   const args = withoutOptions(process.argv.slice(2), [
     "--concurrency",

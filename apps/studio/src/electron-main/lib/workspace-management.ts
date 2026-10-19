@@ -1,6 +1,10 @@
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+import { WORKSPACE_LAYOUT_VERSION } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
+import { pathKey, pathWithin, samePath } from "./path-identity";
 import {
   CURRENT_SETTINGS_VERSION,
   workspaceSettingsDirOf,
@@ -10,13 +14,18 @@ import {
   DEFAULT_WORKSPACE_ID,
   defaultWorkspacePath,
   hasWorkspaceIdentity,
+  machineDirOwnedBy,
   openElsewhereBy,
+  readRegistry,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
+  LOCAL_ID_LENGTH,
+  settleWorkspace,
   updateRegistry,
   type WorkspaceIdentity,
   writeJsonAtomic,
   writeWorkspaceIdentity,
+  WORKSPACE_FORMAT_VERSION,
 } from "./workspaces";
 
 /**
@@ -32,11 +41,19 @@ export interface WorkspaceListing {
   /** Registered and in the list, or found on disk with nobody listing it. */
   isRegistered: boolean;
   isResolved: boolean;
+  /**
+   * Whether its folder is there to read: one on a disk not plugged in, or
+   * one macOS stopped the app reading, is listed all the same.
+   */
+  isReachable: boolean;
   lastOpenedAt: null | number;
   /** Another live process holding it open, from its advisory mark. */
   openElsewhereBy: null | number;
   path: string;
 }
+
+/** What a file manager leaves in a folder it showed, which is no one's work. */
+const FILE_MANAGER_RECORDS = new Set([".DS_Store", "desktop.ini", "Thumbs.db"]);
 
 /**
  * The credential stores a new workspace can start from: who you are signed in
@@ -67,7 +84,7 @@ export function createWorkspace({
   userDataDir,
 }: {
   color: WorkspaceIdentity["color"];
-  /** A workspace folder whose sign-ins to copy, or none to start signed out. */
+  /** A keys folder whose sign-ins to copy, or none to start signed out. */
   copySignInsFrom: null | string;
   developerMode: boolean;
   name: string;
@@ -90,20 +107,94 @@ export function createWorkspace({
     }
     dir = path.join(createdWorkspacesDir(userDataDir), id);
     fs.mkdirSync(dir, { recursive: true });
-    populateWorkspace({ color, copySignInsFrom, developerMode, dir, name });
+    populateWorkspace({ color, developerMode, dir, name });
     return {
       ...current,
       workspaces: [...current.workspaces, { id, path: dir }],
     };
   });
+  // Outside the registry's lock, which settling the id takes.
+  const machineDir = settleWorkspace({
+    userDataDir,
+    workspace: { id, path: dir },
+  });
+  if (copySignInsFrom) {
+    copySignIns(copySignInsFrom, machineDir);
+  }
   return { id, path: dir };
 }
 
 /**
+ * Give a registered workspace whose folder cannot be read a new, empty one
+ * in the app's own data, and make it the one opened next: under the same
+ * local id and the same workspace id, so this computer's data for it
+ * (sign-ins, keys, folder rules) carries on with it. The folder it could
+ * not read is left as it is. Answers the new folder.
+ */
+export function startWorkspaceAfresh({
+  id,
+  userDataDir,
+}: {
+  id: string;
+  userDataDir: string;
+}): string {
+  let dir = "";
+  updateRegistry(userDataDir, (current) => {
+    const entry = current.workspaces.find((other) => other.id === id);
+    dir =
+      id === DEFAULT_WORKSPACE_ID &&
+      !fs.existsSync(defaultWorkspacePath(userDataDir))
+        ? defaultWorkspacePath(userDataDir)
+        : freeFolderIn(createdWorkspacesDir(userDataDir), id);
+    populateWorkspace({
+      color: "gray",
+      dir,
+      ...(entry?.workspaceId === undefined ? {} : { id: entry.workspaceId }),
+      name: id === DEFAULT_WORKSPACE_ID ? "Default" : id,
+    });
+    return {
+      active: id,
+      workspaces: current.workspaces.map((other) => {
+        if (other.id !== id) {
+          return other;
+        }
+        const { pendingMove: _abandoned, ...rest } = other;
+        return { ...rest, path: dir };
+      }),
+    };
+  });
+  return dir;
+}
+
+/** A folder of this name in `parent` no one has, numbered past those that are taken. */
+function freeFolderIn(parent: string, name: string) {
+  let dir = path.join(parent, name);
+  for (let n = 2; fs.existsSync(dir); n++) {
+    dir = path.join(parent, `${name}-${n.toString()}`);
+  }
+  return dir;
+}
+
+/**
+ * Where a registered workspace's sign-ins are: in its machine folder, or for
+ * one no build that keeps machine data apart has opened yet, still in its
+ * settings folder.
+ */
+export function keysDirOf(
+  userDataDir: string,
+  workspace: { id: string; path: string },
+): string {
+  const machineDir = machineDirOwnedBy(userDataDir, workspace);
+  return machineDir === undefined
+    ? workspaceSettingsDirOf(workspace.path)
+    : path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.keys);
+}
+
+/**
  * Every workspace this machine knows plus any found on disk unregistered. A
- * registered workspace whose folder is gone is dropped from the registry as
- * it is listed: whoever removed the folder (Finder, studio-drive's reaping of
- * its clean rooms) meant it gone.
+ * registered workspace whose folder cannot be reached is listed as such and
+ * kept: a disk not plugged in, or a folder macOS stopped the app reading,
+ * comes back, and only the person removing it from the list forgets it.
  */
 export function listWorkspaces({
   resolved,
@@ -112,33 +203,27 @@ export function listWorkspaces({
   resolved: ResolvedWorkspace;
   userDataDir: string;
 }): WorkspaceListing[] {
-  const registry = updateRegistry(userDataDir, (current) => ({
-    ...current,
-    workspaces: current.workspaces.filter(
-      (entry) => entry.id === DEFAULT_WORKSPACE_ID || isDirectory(entry.path),
-    ),
-  }));
+  const registry = readRegistry(userDataDir);
 
-  // By folder rather than by id: the folder is what a delete would remove.
-  const defaultPath = path.resolve(defaultWorkspacePath(userDataDir));
-  const resolvedPath = path.resolve(resolved.path);
   const listed: WorkspaceListing[] = registry.workspaces.map((entry) => {
-    const entryPath = path.resolve(entry.path);
+    const isResolved = entry.id === resolved.id;
     return {
       id: entry.id,
       identity: readWorkspaceIdentity(entry.path),
-      isDefault: entryPath === defaultPath,
+      isDefault: entry.id === DEFAULT_WORKSPACE_ID,
+      isReachable: isDirectory(entry.path),
       isRegistered: true,
-      isResolved: entryPath === resolvedPath,
+      isResolved,
       lastOpenedAt: entry.lastOpenedAt ?? null,
-      openElsewhereBy:
-        entryPath === resolvedPath ? null : openElsewhereBy(entry.path),
+      openElsewhereBy: isResolved
+        ? null
+        : openElsewhereBy(openMarkDirOf(userDataDir, entry)),
       path: entry.path,
     };
   });
 
   const registeredPaths = new Set(
-    registry.workspaces.map((entry) => path.resolve(entry.path)),
+    registry.workspaces.map((entry) => pathKey(entry.path)),
   );
   let strays: string[] = [];
   try {
@@ -148,7 +233,7 @@ export function listWorkspaces({
       .map((entry) => path.join(createdWorkspacesDir(userDataDir), entry.name))
       .filter(
         (dir) =>
-          !registeredPaths.has(path.resolve(dir)) && hasWorkspaceIdentity(dir),
+          !registeredPaths.has(pathKey(dir)) && hasWorkspaceIdentity(dir),
       );
   } catch {
     // No workspaces folder yet.
@@ -160,10 +245,11 @@ export function listWorkspaces({
       id: path.basename(dir),
       identity: readWorkspaceIdentity(dir),
       isDefault: false,
+      isReachable: true,
       isRegistered: false,
       isResolved: false,
       lastOpenedAt: null,
-      openElsewhereBy: openElsewhereBy(dir),
+      openElsewhereBy: openElsewhereBy(workspaceLayout(dir).dataDir),
       path: dir,
     })),
   ];
@@ -185,8 +271,7 @@ export function registerStray({
   userDataDir: string;
 }): boolean {
   const stray = listWorkspaces({ resolved, userDataDir }).find(
-    (listing) =>
-      !listing.isRegistered && path.resolve(listing.path) === path.resolve(dir),
+    (listing) => !listing.isRegistered && samePath(listing.path, dir),
   );
   if (!stray) {
     return false;
@@ -205,6 +290,22 @@ export function registerStray({
   return true;
 }
 
+/**
+ * Remove a workspace's folder once deleting its `.instrument/` left nothing
+ * of the person's in it; a file manager's own record of how it shows the
+ * folder does not count. A folder holding anything else stays as it is.
+ */
+export function removeFolderIfEmpty(dir: string): void {
+  try {
+    const left = fs.readdirSync(dir);
+    if (left.every((name) => FILE_MANAGER_RECORDS.has(name))) {
+      fs.rmSync(dir, { force: true, recursive: true });
+    }
+  } catch {
+    // Not there, or not readable: either way it stays as it is.
+  }
+}
+
 export function unregisterWorkspace({
   dir,
   userDataDir,
@@ -214,13 +315,12 @@ export function unregisterWorkspace({
 }): void {
   updateRegistry(userDataDir, (current) => ({
     active:
-      current.workspaces.find(
-        (entry) => path.resolve(entry.path) === path.resolve(dir),
-      )?.id === current.active
+      current.workspaces.find((entry) => samePath(entry.path, dir))?.id ===
+      current.active
         ? DEFAULT_WORKSPACE_ID
         : current.active,
     workspaces: current.workspaces.filter(
-      (entry) => path.resolve(entry.path) !== path.resolve(dir),
+      (entry) => !samePath(entry.path, dir),
     ),
   }));
 }
@@ -230,8 +330,8 @@ export function unregisterWorkspace({
  * default workspace never can: it holds what predates workspaces, and the dev
  * panel offers no way to remove it. Nor can a folder that holds userData,
  * which a pinned `INSTRUMENT_WORKSPACE` such as the home folder registers:
- * deleting it would send the app's own data, and everything else in it, to
- * the Trash.
+ * a workspace there is never one made to be deleted, and the app's own data
+ * sits beside its `.instrument/`.
  */
 export function whyNotDeletable(
   listing: Pick<
@@ -243,11 +343,7 @@ export function whyNotDeletable(
   if (listing.isDefault) {
     return "The default workspace cannot be deleted";
   }
-  const toUserData = path.relative(
-    path.resolve(listing.path),
-    path.resolve(userDataDir),
-  );
-  if (!toUserData.startsWith("..") && !path.isAbsolute(toUserData)) {
+  if (pathWithin(userDataDir, listing.path)) {
     return "This folder holds the app's own data";
   }
   if (listing.isResolved) {
@@ -267,54 +363,86 @@ function isDirectory(dir: string) {
   }
 }
 
+/**
+ * Copy the sign-ins in a keys folder into a new workspace's machine folder,
+ * which then counts its providers as set up.
+ */
+function copySignIns(fromDir: string, machineDir: string) {
+  const keysDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.keys);
+  let copied = 0;
+  for (const file of SIGN_IN_FILES) {
+    if (fs.existsSync(path.join(fromDir, file))) {
+      fs.mkdirSync(keysDir, { recursive: true });
+      fs.copyFileSync(path.join(fromDir, file), path.join(keysDir, file));
+      copied++;
+    }
+  }
+  if (copied > 0) {
+    writeJsonAtomic(path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.state), {
+      hasCompletedProviderSetup: true,
+    });
+  }
+}
+
+/**
+ * Where a registered workspace's open mark is: its machine folder, or for one
+ * no build that keeps machine data apart has opened, the `.instrument/` an
+ * older build running on it marks.
+ */
+function openMarkDirOf(
+  userDataDir: string,
+  workspace: { id: string; path: string },
+): string {
+  return (
+    machineDirOwnedBy(userDataDir, workspace) ??
+    workspaceLayout(workspace.path).dataDir
+  );
+}
+
 function populateWorkspace({
   color,
-  copySignInsFrom,
   developerMode,
   dir,
+  id,
   name,
 }: {
   color: WorkspaceIdentity["color"];
-  copySignInsFrom: null | string;
-  developerMode: boolean;
+  /** Developer mode to start with; none leaves the preferences at their defaults. */
+  developerMode?: boolean;
   dir: string;
+  /** The workspace's own id, for one that carries on another's. */
+  id?: string;
   name: string;
 }) {
-  const settingsDir = workspaceSettingsDirOf(dir);
-  writeJsonAtomic(path.join(settingsDir, "preferences.json"), {
-    developerMode,
-  });
-  if (copySignInsFrom) {
-    const fromDir = workspaceSettingsDirOf(copySignInsFrom);
-    let copied = 0;
-    for (const file of SIGN_IN_FILES) {
-      if (fs.existsSync(path.join(fromDir, file))) {
-        fs.copyFileSync(path.join(fromDir, file), path.join(settingsDir, file));
-        copied++;
-      }
-    }
-    if (copied > 0) {
-      writeJsonAtomic(path.join(settingsDir, "state.json"), {
-        hasCompletedProviderSetup: true,
-      });
-    }
+  if (developerMode !== undefined) {
+    writeJsonAtomic(
+      path.join(workspaceLayout(dir).dataDir, "preferences.json"),
+      { developerMode },
+    );
   }
 
-  // Already at the current settings version: there is nothing legacy in a
-  // workspace made by this build.
+  // Already at the current settings version, format and layout: there is
+  // nothing legacy in a workspace made by this build, so no migration or
+  // layout sweep ever runs on it.
   writeWorkspaceIdentity(dir, {
     color,
     createdBy: { kind: "person" },
+    formatVersion: WORKSPACE_FORMAT_VERSION,
+    ...(id === undefined ? {} : { id }),
+    layoutVersion: WORKSPACE_LAYOUT_VERSION,
+    legacyProjectsMigrated: true,
     name,
     settingsVersion: CURRENT_SETTINGS_VERSION,
   });
 }
 
+/** A local id from a name, kept short since it names the machine folder. */
 function slugify(name: string) {
   return (
     name
       .toLowerCase()
       .replaceAll(/[^a-z0-9]+/g, "-")
+      .slice(0, LOCAL_ID_LENGTH)
       .replaceAll(/^-|-$/g, "") || "workspace"
   );
 }

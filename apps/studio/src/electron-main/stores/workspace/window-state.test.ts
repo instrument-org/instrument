@@ -34,8 +34,12 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
-  workspaceSettingsDir: () => "/workspace/.instrument/settings",
+  workspaceWindowDir: () => "/user-data/machine/default/window",
 }));
+
+// The zoom the kept state holds is not under test, and the real module
+// brings the whole workspace package with it, which each test imports again.
+vi.mock("./kept-state", () => ({ getKeptState: () => undefined }));
 
 vi.mock("electron-store", () => ({
   default: class {
@@ -81,11 +85,14 @@ const savedFor = (name: string, bounds: typeof almostMaximized) => ({
 });
 
 describe("getWindowState", () => {
+  const size = { height: 900, width: 1400 };
+
   it("restores a saved size that GNOME leaves alone", () => {
     stored = savedFor("app", { height: 576, width: 1085, x: 66, y: 95 });
     setPlatform("linux");
 
-    expect(windowState.getWindowState("app").bounds).toMatchInlineSnapshot(`
+    expect(windowState.getWindowState("app", size).bounds)
+      .toMatchInlineSnapshot(`
       {
         "height": 576,
         "width": 1085,
@@ -99,7 +106,8 @@ describe("getWindowState", () => {
     stored = savedFor("app", almostMaximized);
     setPlatform("linux");
 
-    expect(windowState.getWindowState("app").bounds).toMatchInlineSnapshot(`
+    expect(windowState.getWindowState("app", size).bounds)
+      .toMatchInlineSnapshot(`
       {
         "height": 688,
         "width": 1082,
@@ -114,7 +122,8 @@ describe("getWindowState", () => {
     currentDisplay = waylandDisplay;
     setPlatform("linux");
 
-    expect(windowState.getWindowState("app").bounds).toMatchInlineSnapshot(`
+    expect(windowState.getWindowState("app", size).bounds)
+      .toMatchInlineSnapshot(`
       {
         "height": 690,
         "width": 1085,
@@ -131,7 +140,8 @@ describe("getWindowState", () => {
 
     windowState.rememberWorkAreaFromMaximized(maximizedBounds);
 
-    expect(windowState.getWindowState("app").bounds).toMatchInlineSnapshot(`
+    expect(windowState.getWindowState("app", size).bounds)
+      .toMatchInlineSnapshot(`
       {
         "height": 688,
         "width": 1082,
@@ -145,7 +155,8 @@ describe("getWindowState", () => {
     stored = savedFor("app", almostMaximized);
     setPlatform("darwin");
 
-    expect(windowState.getWindowState("app").bounds).toMatchInlineSnapshot(`
+    expect(windowState.getWindowState("app", size).bounds)
+      .toMatchInlineSnapshot(`
       {
         "height": 690,
         "width": 1085,

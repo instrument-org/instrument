@@ -1,4 +1,5 @@
-import { type ChosenItem, type WindowTab } from "@/client/atoms/window";
+import { type ChosenItem } from "@/client/atoms/drafts";
+import { type WindowTab } from "@/client/atoms/window";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -10,6 +11,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
+import { displayPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -83,15 +85,12 @@ function IncludedChip({
   appsBySlug,
   items,
   onLeaveOut,
-  said = SENT_WITH_MESSAGE,
   tab,
 }: {
   appsBySlug: AppsBySlug;
   /** What the thing points at on this computer, which the chip names in place of the tab. */
   items: ChosenItem[] | undefined;
   onLeaveOut: () => void;
-  /** What the chip's tooltip says it is. */
-  said?: string;
   tab: WindowTab;
 }) {
   const volumes = useComputerVolumes();
@@ -103,7 +102,10 @@ function IncludedChip({
   return (
     <ContextChip
       label={
-        <ChipLabel paths={(items ?? []).map((item) => item.path)} said={said} />
+        <ChipLabel
+          paths={(items ?? []).map((item) => item.path)}
+          said={SENT_WITH_MESSAGE}
+        />
       }
       mark={
         items?.length === 1 && one !== undefined ? (
@@ -319,7 +321,7 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
       <span>{said}</span>
       {paths.map((path) => (
         <span className="break-all opacity-70" key={path}>
-          {path}
+          {displayPath(path)}
         </span>
       ))}
     </span>

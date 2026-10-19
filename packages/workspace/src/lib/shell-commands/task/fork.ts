@@ -2,6 +2,7 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 
 import { type ChatId } from "../../../schemas/chat-id";
 import { StoreId } from "../../../schemas/store-id";
+import { ChatReads } from "../../chat-reads";
 import { addChildTask, type ChatTask } from "../../chat/children";
 import { defaultTaskName } from "../../default-task-name";
 import {
@@ -10,7 +11,6 @@ import {
 } from "../../background-processes";
 import { updateHeldTabs } from "../../held-tabs";
 import { newMessage } from "../../new-message";
-import { Store } from "../../store";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import {
   type SubcommandInput,
@@ -44,7 +44,7 @@ const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--tab <id>]... [
 `;
 
 /**
- * `task new`: starts a task, which is always a fork of the chat. No flag
+ * `instrument task new`: starts a task, which is always a fork of the chat. No flag
  * hands it folders, files or apps, since it reaches exactly the chat's.
  */
 export const newSubcommand = subcommand<TaskCommandContext>({
@@ -132,7 +132,7 @@ function handedJobs(args: string[], sessionId: StoreId.Session): string[] {
 
 /**
  * The last of the chat's messages a task carries on from: the one before the
- * step whose call (`callPartId`, the `bash` part `task new` runs in) starts
+ * step whose call (`callPartId`, the `bash` part `instrument task new` runs in) starts
  * it, which is the last message the request that wrote that call was sent.
  * The task's first request then sends that same prefix, which the provider
  * has cached, and nothing of the step still under way, whose calls have no
@@ -148,9 +148,9 @@ async function forkPoint({
   chatId: ChatId;
   chatSessionId: StoreId.Session;
 }): Promise<StoreId.Message> {
-  const messages = await Store.getMessagesWithParts({
-    sessionId: chatSessionId,
+  const messages = await ChatReads.transcript({
     chatId,
+    sessionId: chatSessionId,
   });
   if (messages.isErr()) {
     throw messages.error;
@@ -197,7 +197,10 @@ async function startFork({
   /** Called with the task's session before its first turn starts. */
   onSession?: (sessionId: StoreId.Session) => void;
 }): Promise<ChatTask> {
-  const chatSession = await Store.getSession(chatSessionId, chatId);
+  const chatSession = await ChatReads.session({
+    chatId,
+    sessionId: chatSessionId,
+  });
   if (chatSession.isErr()) {
     throw chatSession.error;
   }

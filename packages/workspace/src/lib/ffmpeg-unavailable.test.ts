@@ -20,11 +20,14 @@ vi.mock("execa", async (importOriginal) => {
   return { ...actual, execa: vi.fn(actual.execa) };
 });
 
+const { execa: spawnForReal } =
+  await vi.importActual<typeof ExecaModule>("execa");
+
 const OVERSIZED_PNG = pngHeaderBytes({ height: 3000, width: 4000 });
 
 describe("when ffmpeg cannot run", () => {
   beforeEach(() => {
-    vi.mocked(execa).mockClear();
+    vi.mocked(execa).mockClear().mockImplementation(spawnForReal);
   });
 
   it("says so once instead of walking the whole shrink ladder", async () => {
@@ -39,6 +42,31 @@ describe("when ffmpeg cannot run", () => {
     expect(result).toEqual({ state: "unavailable" });
     // Six shrink steps of five encodings each would be thirty spawns, per image,
     // on every turn that replays the transcript.
+    expect(execa).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so for a spawn that failed with an exit code of its own", async () => {
+    // Windows is the platform this test exists for: a spawn that fails there
+    // comes back as an ordinary exit 1, which is also what ffmpeg returns for
+    // bytes it cannot decode, so the exit code alone settles nothing. Stood in
+    // for by a process that really does exit 1 while the bundled binary is not
+    // on disk.
+    const { renderImage } = await import("./render-image");
+    vi.mocked(execa).mockImplementation(() =>
+      spawnForReal(process.execPath, ["-e", "process.exit(1)"], {
+        encoding: "buffer",
+        reject: false,
+        stdin: "ignore",
+      }),
+    );
+
+    const result = await renderImage({
+      bytes: OVERSIZED_PNG,
+      maxBytes: 1024,
+      target: { height: 200, width: 400 },
+    });
+
+    expect(result).toEqual({ state: "unavailable" });
     expect(execa).toHaveBeenCalledTimes(1);
   });
 

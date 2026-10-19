@@ -25,7 +25,6 @@ import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
-import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -58,14 +57,14 @@ const PICKER_LEAVE_MS = 250;
  * which is the only mark unread wears,
  * the word Draft after it in red while a reply sits typed and unsent in the
  * chat's composer, the way mail marks a conversation with a draft in it,
- * the topics it is filed under as pills in the row's corner, the agent's
+ * the topic it is filed under as a pill in the row's corner, the agent's
  * latest line (the step it is on, the question it is waiting on, or its last
  * reply's first words), and the marks of what it holds. The title has the
- * first line with the topics at its end, the latest line gets one, and what it holds sits on a
+ * first line with the topic at its end, the latest line gets one, and what it holds sits on a
  * third line that never wraps: the files it made as chips with their names,
  * the apps and sites as marks beside them, fading out at the row's edge,
  * with the time in the row's bottom corner. A starred chat wears a filled
- * star past its topics. Where the chat
+ * star past its topic. Where the chat
  * stands is said by the latest line alone: shimmering while it works, behind
  * an amber glyph while it waits on the user. No avatar,
  * no name: every row here is the user's. The marks, the tag
@@ -74,7 +73,7 @@ const PICKER_LEAVE_MS = 250;
  * away or back, marking it read or unread, and starring it last, where the
  * star stands) are the row's own controls, and a
  * click on one stops short of the door. The menu offers the same, with the
- * way to open the chat and its topics.
+ * way to open the chat and its topic.
  */
 export function ChatRow({
   actions,
@@ -86,7 +85,7 @@ export function ChatRow({
   onDelete,
   onNewTopic,
   onOpen,
-  onSetTopics,
+  onSetTopic,
   search = "",
   topics,
 }: {
@@ -106,16 +105,12 @@ export function ChatRow({
   onNewTopic: (name?: string) => void;
   /** A plain click: the chat in place of whatever the window shows. */
   onOpen: () => void;
-  onSetTopics: (topics: string[]) => void;
+  onSetTopic: (topic: null | string) => void;
   /** The words the list is searched for, which the title and the latest line mark where they turn up. */
   search?: string;
   topics: Topic[];
 }) {
-  // Every topic the chat is filed under, in the order it was filed.
-  const filed = chat.topics.flatMap((id) => {
-    const topic = topics.find((entry) => entry.id === id);
-    return topic ? [topic] : [];
-  });
+  const filed = topics.find((entry) => entry.id === chat.topic);
   const appWindow = useWindow();
   // A Cmd-click or a middle click, and the menu's row, open the chat in a
   // tab of the window's own behind the one up, where a plain click opens
@@ -155,12 +150,9 @@ export function ChatRow({
     chat.holds.apps.length > 0 ||
     chat.holds.files.length > 0 ||
     chat.holds.sites.length > 0;
-  const toggleTopic = (id: string) => {
-    onSetTopics(
-      chat.topics.includes(id)
-        ? chat.topics.filter((entry) => entry !== id)
-        : [...chat.topics, id],
-    );
+  // Picking the topic the chat is under takes it off; any other moves it.
+  const pickTopic = (id: string) => {
+    onSetTopic(chat.topic === id ? null : id);
   };
   const tagControl = (
     <TagControl
@@ -168,15 +160,13 @@ export function ChatRow({
       isOpen={isPicking}
       onNewTopic={onNewTopic}
       onOpenChange={pickTopics}
-      onToggle={toggleTopic}
+      onToggle={pickTopic}
       topics={topics}
     />
   );
-  // The topics in the row's corner, each by name; filing is the control in
-  // the corner's bar.
-  const pills = filed.map((topic) => (
-    <TopicPill key={topic.id} quiet topic={topic} />
-  ));
+  // The topic in the row's corner, by name; filing is the control in the
+  // corner's bar.
+  const pill = filed && <TopicPill quiet topic={filed} />;
   // The title takes only its own width, so the draft's word stands right
   // after it and keeps its place as the title truncates before it.
   const title = rename.isEditing ? (
@@ -232,7 +222,7 @@ export function ChatRow({
       {activityLabel(new Date(chat.lastUserMessageAt), now)}
     </span>
   );
-  // A starred chat's star, past its topics in the row's corner and a mark
+  // A starred chat's star, past its topic in the row's corner and a mark
   // rather than a control: starring and unstarring end the corner's bar,
   // which stands over the same spot.
   const starMark = chat.starred && (
@@ -283,13 +273,13 @@ export function ChatRow({
           tabIndex={0}
         >
           <div className="min-w-0 flex-1">
-            {/* The topics at the line's end in the row's corner. */}
+            {/* The topic at the line's end in the row's corner. */}
             <div className="flex h-5 items-center gap-1.5">
               {title}
               {/* Stepping aside for the corner's bar while the pointer is
                   on the row. */}
               <span className="ml-auto flex shrink-0 items-center gap-1 group-hover/row:invisible">
-                {pills}
+                {pill}
                 {starMark}
               </span>
             </div>
@@ -357,7 +347,7 @@ export function ChatRow({
         <ContextMenuSub>
           <ContextMenuSubTrigger>
             <TagIcon className="size-4" />
-            Topics
+            Topic
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="flex w-56 flex-col p-0">
             <MenuScrollArea className="max-h-80">
@@ -365,13 +355,10 @@ export function ChatRow({
                 .filter((entry) => !entry.retired)
                 .map((entry) => (
                   <ContextMenuCheckboxItem
-                    checked={chat.topics.includes(entry.id)}
+                    checked={chat.topic === entry.id}
                     key={entry.id}
-                    // A chat can be under several topics, so a pick leaves
-                    // the list up for the next.
-                    onSelect={(event) => {
-                      event.preventDefault();
-                      toggleTopic(entry.id);
+                    onSelect={() => {
+                      pickTopic(entry.id);
                     }}
                   >
                     <TopicMark topic={entry} />
@@ -408,19 +395,16 @@ export function ChatRow({
 /**
  * A topic the chat is filed under, as a pill in its tint no taller than
  * the line it sits on: its emoji, or its mark's tile where it has none, then
- * its name, or the mark alone when the pill is compact and the name is its
- * tooltip. Clicking it opens the chat's topic list rather than the chat;
- * given nothing to open, it is the name alone and no control.
+ * its name, or the mark alone on a narrow chat head, where the name is its
+ * tooltip.
  */
 export function TopicPill({
-  compact = false,
-  onPick,
+  compact,
   quiet = false,
   topic,
 }: {
-  /** The mark alone, for a topic past the first on a row with a title to keep; `"narrow"` is the mark alone only on a narrow chat head. */
-  compact?: "narrow" | boolean;
-  onPick?: () => void;
+  /** The mark alone on a narrow chat head. */
+  compact?: "narrow";
   /** A faint wash with the name in the topic's ink, for a list where the pill is a label beside the words rather than a thing to look at. */
   quiet?: boolean;
   topic: Topic;
@@ -432,11 +416,7 @@ export function TopicPill({
     quiet
       ? "bg-(--topic-tint-surface)/40 font-medium text-(--topic-tint-ink)"
       : "bg-(--topic-tint-surface) text-foreground/90",
-    compact === true
-      ? "pr-1"
-      : compact === "narrow"
-        ? "pr-1.5 @max-sm/chathead:pr-1"
-        : "pr-1.5",
+    compact === "narrow" ? "pr-1.5 @max-sm/chathead:pr-1" : "pr-1.5",
   );
   const inside = (
     <>
@@ -445,46 +425,24 @@ export function TopicPill({
       ) : (
         <TopicMark className="size-3.5 text-[10px]" topic={topic} />
       )}
-      {compact !== true && (
-        <span
-          className={cn(
-            "truncate",
-            compact === "narrow" && "@max-sm/chathead:hidden",
-          )}
-        >
-          {topic.name}
-        </span>
-      )}
+      <span
+        className={cn(
+          "truncate",
+          compact === "narrow" && "@max-sm/chathead:hidden",
+        )}
+      >
+        {topic.name}
+      </span>
     </>
   );
-  if (!onPick) {
-    return (
-      <span
-        className={className}
-        style={topicTint(topicColor(topic))}
-        title={compact === false ? undefined : topic.name}
-      >
-        {inside}
-      </span>
-    );
-  }
   return (
-    <button
-      className={cn(
-        className,
-        "hover:bg-(--topic-tint-edge) hover:text-foreground",
-      )}
-      onAuxClick={stopHere}
-      onClick={(event) => {
-        stopHere(event);
-        onPick();
-      }}
+    <span
+      className={className}
       style={topicTint(topicColor(topic))}
-      title={compact === false ? "Topics" : topic.name}
-      type="button"
+      title={compact ? topic.name : undefined}
     >
       {inside}
-    </button>
+    </span>
   );
 }
 
@@ -555,17 +513,9 @@ function Peek({
 }) {
   const isFailed = chat.state === "failed";
   const isLimited = chat.state === "limited";
-  const isStopped = chat.state === "stopped";
   const isWaiting = chat.state === "waiting";
   const isWorking = chat.state === "working";
-  if (
-    !chat.latest &&
-    !isFailed &&
-    !isLimited &&
-    !isStopped &&
-    !isWaiting &&
-    !isWorking
-  ) {
+  if (!chat.latest && !isFailed && !isLimited && !isWaiting && !isWorking) {
     return null;
   }
   return (
@@ -594,13 +544,6 @@ function Peek({
           <HourglassIcon className="size-3.5 shrink-0 text-muted-foreground" />
           <span className="min-w-0 truncate text-muted-foreground">
             {LIMITED}
-          </span>
-        </>
-      ) : isStopped ? (
-        <>
-          <StopCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 truncate text-muted-foreground">
-            You stopped Instrument
           </span>
         </>
       ) : isWaiting ? (
@@ -659,7 +602,7 @@ function TagControl({
     <span className="flex shrink-0" onAuxClick={stopHere} onClick={stopHere}>
       <TopicPicker
         align="end"
-        chosen={new Set(chat.topics)}
+        chosen={new Set(chat.topic ? [chat.topic] : [])}
         isOpen={isOpen}
         onNew={onNewTopic}
         onOpenChange={onOpenChange}
@@ -667,9 +610,9 @@ function TagControl({
         topics={topics}
       >
         <button
-          aria-label="Topics"
+          aria-label="Topic"
           className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
-          title="Topics"
+          title="Topic"
           type="button"
         >
           <TagIcon className="size-3.5" />

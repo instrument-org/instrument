@@ -2,6 +2,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { ServerError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import { err, ok, type Result } from "neverthrow";
 import { noop } from "radashi";
 
@@ -9,7 +10,7 @@ import { type AbsolutePath } from "../../../schemas/paths";
 import { recordConnection } from "../connection";
 import { boundTo } from "../origin-bound";
 import { loadApp } from "../store";
-import { type McpConnectionError } from "./client";
+import { describeMcpFailure, type McpConnectionError } from "./client";
 import { fetchForMcp } from "./fetch";
 import {
   createMcpOAuthProvider,
@@ -278,7 +279,8 @@ export async function completeMcpOAuth({
     });
   } catch (error) {
     return err({
-      message: error instanceof Error ? error.message : String(error),
+      cause: error,
+      message: describeMcpFailure(error),
       reason: "unauthorized",
     });
   } finally {
@@ -299,25 +301,30 @@ export function pendingMcpOAuthSlug(state: string): string | undefined {
  * Why a sign-in could not begin, in words the conversation can pass on. A
  * server that answers the client registration with 403 is not misconfigured:
  * it only takes clients it has approved in advance (Figma's MCP server does
- * this), so the card cannot be one and asking again changes nothing.
+ * this), so the card cannot be one and asking again changes nothing. What the
+ * server said follows either way, for the agent to read.
  */
-function describeSignInFailure(failure: unknown): string {
+export function describeSignInFailure(failure: unknown): string {
   if (failure === undefined) {
     return "the server asked for no authorization";
   }
   // Anything that is neither an Error nor a string has no words of its own to
   // pass on, and stringifying it would put "[object Object]" in front of the
   // user.
-  const message =
-    failure instanceof Error
-      ? failure.message
-      : typeof failure === "string"
-        ? failure
-        : "the server refused the sign-in without saying why";
-  if (/^HTTP 403\b/.test(message)) {
-    return "the server refuses to register a client from here (HTTP 403). It only accepts clients it has approved in advance, so this sign-in cannot be one; a web app (the user signs in to the site in Instrument's browser), or a server the service ships for this machine, is the way in.";
+  if (!(failure instanceof Error) && typeof failure !== "string") {
+    return "the server refused the sign-in without saying why";
   }
-  return message;
+  const said = describeMcpFailure(failure);
+  // The SDK has no structured status here. A refusal whose body is an OAuth
+  // error object becomes its typed OAuthError with the status dropped; one
+  // whose body is not (Figma's 403 at registration) becomes a ServerError
+  // whose only record of the status is the "HTTP <status>: " its message
+  // starts with. A refresh's ServerError never gets this far (the SDK falls
+  // through to a new authorization), so that leaves the registration.
+  if (failure instanceof ServerError && /^HTTP 403\b/.test(failure.message)) {
+    return `the server refuses to register a client from here (HTTP 403). It only accepts clients it has approved in advance, so this sign-in cannot be one; a web app (the user signs in to the site in Instrument's browser), or a server the service ships for this machine, is the way in. The server said: ${said}`;
+  }
+  return said;
 }
 
 function dropPendingFlowsForSlug(slug: string): void {

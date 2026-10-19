@@ -1272,12 +1272,12 @@ done`,
                 size: 512_000,
               }),
               file({
-                filePath: `${CHAT_FOLDER_NAMES.work}/summary.pdf`,
+                filePath: "report/summary.pdf",
                 mimeType: "application/pdf",
                 size: 88_000,
               }),
               file({
-                filePath: `${CHAT_FOLDER_NAMES.work}/demo.mp4`,
+                filePath: "report/demo.mp4",
                 mimeType: "video/mp4",
                 size: 1_024_000,
               }),
@@ -1289,13 +1289,13 @@ done`,
                 size: 2048,
               }),
               // The supporting sections.
-              file({ filePath: `${CHAT_FOLDER_NAMES.work}/deploy.sh` }),
+              file({ filePath: "report/deploy.sh" }),
               file({
-                filePath: `${CHAT_FOLDER_NAMES.skills}/pdf/SKILL.md`,
+                filePath: "report/README.md",
                 mimeType: "text/markdown",
               }),
               file({
-                filePath: `${CHAT_FOLDER_NAMES.work}/draft.json`,
+                filePath: "report/draft.json",
                 mimeType: "application/json",
               }),
               file({ filePath: "docs/API.md", mimeType: "text/markdown" }),
@@ -1369,14 +1369,21 @@ done`,
         "Great, keep going and check it in the browser.",
         {
           data: {
-            status: "open",
-            target: { title: "Landing preview", url: "https://example.com" },
+            status: "tabs",
+            tabs: [
+              {
+                id: "t1",
+                openedBy: "task",
+                title: "Landing preview",
+                url: "https://example.com",
+              },
+            ],
           },
           type: "data-browserStatus",
         },
         {
           data: {
-            added: [{ access: "read-write", path: "/tmp/Exports" }],
+            added: [{ path: "/tmp/Exports" }],
             removed: [{ path: "/tmp/designs" }],
           },
           type: "data-folderChanges",

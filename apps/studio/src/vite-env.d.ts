@@ -23,6 +23,8 @@ declare namespace NodeJS {
     /** Ensures we don't accidentally use process.env for other variables */
     env: {
       ANALYZE_BUILD: string | undefined;
+      /** Linux only: the image an AppImage build runs from, set by its runtime. */
+      APPIMAGE: string | undefined;
       APPLE_NOTARIZATION_ENABLED: string | undefined;
       ARCH: string | undefined;
       /** scripts/billing-e2e.ts: the local API it drives Studio against. */
@@ -49,6 +51,8 @@ declare namespace NodeJS {
       INSTRUMENT_CONTEXT_LENGTH_OVERRIDE: string | undefined;
       /** Dev only: set by scripts/dev-supervisor.mjs, which restarts electron-vite on request. */
       INSTRUMENT_DEV_SUPERVISOR: string | undefined;
+      /** `0` keeps every pipeline stage on the buffered path, for comparing it with streaming between native commands. */
+      INSTRUMENT_NATIVE_PIPES: string | undefined;
       /**
        * Linux only: which display protocol Electron talks. `x11`, `wayland`, or
        * `auto`; anything else is ignored. See
@@ -70,11 +74,15 @@ declare namespace NodeJS {
       /** Windows only: the personal account's OneDrive folder. */
       OneDriveConsumer: string | undefined;
       PATH: string | undefined;
+      /** A workspace to rehearse the launch migrations on a clone of (migration-rehearsal.test.ts). */
+      REHEARSE_WORKSPACE: string | undefined;
       /** Dev only: the port electron-vite gives the Electron child for CDP. */
       REMOTE_DEBUGGING_PORT: string | undefined;
       SIGNTOOL_PATH: string | undefined;
       SKIP_MOVE_TO_APPLICATIONS: string | undefined;
       SKIP_ONBOARDING: string | undefined;
+      /** Smoke test only: a packaged app's output folder to test instead of building one. */
+      SMOKE_TEST_DIST_DIR: string | undefined;
       /** Dev only: the DEV_INSTANCE_COLORS name studio-drive marked this instance with. */
       STUDIO_DRIVE_COLOR: string | undefined;
       /** Dev only: why studio-drive launched this instance. */
@@ -87,6 +95,8 @@ declare namespace NodeJS {
       STUDIO_OWN_PRIVACY: string | undefined;
       /** Set by Windows: the drive it runs from, such as `C:`. */
       SystemDrive: string | undefined;
+      /** Set by Windows: its own folder, such as `C:\Windows`. */
+      SystemRoot: string | undefined;
       TARGET_PLATFORM: string | undefined;
       /** Set by a Wayland compositor. The signal Chromium reads for `auto`. */
       WAYLAND_DISPLAY: string | undefined;

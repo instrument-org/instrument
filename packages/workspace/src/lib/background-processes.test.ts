@@ -1,5 +1,7 @@
 import { rmSync } from "node:fs";
 import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
@@ -21,7 +23,7 @@ import {
 } from "./background-processes";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import { currentShellOutputSink } from "./shell-commands/output-sink";
-import { chatDir } from "./record-folders";
+import { workDir } from "./work-dir";
 
 const usedSessionIds: StoreId.Session[] = [];
 
@@ -98,7 +100,7 @@ function makeOwner(name: string) {
       .slice(0, 23)}`,
   );
   createMockChatConfig(chatId);
-  rmSync(chatDir(chatId), { force: true, recursive: true });
+  rmSync(workDir(chatId), { force: true, recursive: true });
   const sessionId = StoreId.newSessionId();
   usedSessionIds.push(sessionId);
   return { sessionId, chatId };
@@ -284,10 +286,10 @@ describe("background processes", () => {
     // A regular file where the log directory belongs, so creating it fails the
     // way a permission or layout problem on the real disk would.
     const toolOutput = absolutePathJoin(
-      chatDir(owner.chatId),
+      workDir(owner.chatId),
       CHAT_FOLDER_NAMES.toolOutput,
     );
-    await fs.mkdir(chatDir(owner.chatId), { recursive: true });
+    await fs.mkdir(workDir(owner.chatId), { recursive: true });
     await fs.writeFile(toolOutput, "not a directory", "utf8");
 
     const controllable = controllableRun();
@@ -309,6 +311,70 @@ describe("background processes", () => {
     // The caller still holds the run, so it is stoppable.
     handle.abort();
     expect(controllable.aborted).toBe(true);
+  });
+
+  // The work folder is the agent's, so a program it ran may have put a link
+  // where the next log goes, whose name a first command gave away. The log
+  // is written by the app, which no sandbox holds, so a link followed there
+  // overwrites whatever it leads to.
+  it.skipIf(process.platform === "win32").each([
+    {
+      label: "the log's own name",
+      plant: async (work: string, victims: string) => {
+        const victim = path.join(victims, "victim.txt");
+        await fs.symlink(
+          victim,
+          path.join(work, CHAT_FOLDER_NAMES.toolOutput, "bg_2.log"),
+        );
+        return victim;
+      },
+    },
+    {
+      label: "the log folder",
+      plant: async (work: string, victims: string) => {
+        const toolOutput = path.join(work, CHAT_FOLDER_NAMES.toolOutput);
+        await fs.rm(toolOutput, { recursive: true });
+        await fs.symlink(victims, toolOutput);
+        return path.join(victims, "bg_2.log");
+      },
+    },
+    {
+      label: "the work folder itself",
+      plant: async (work: string, victims: string) => {
+        await fs.rm(work, { recursive: true });
+        await fs.symlink(victims, work);
+        await fs.mkdir(path.join(victims, CHAT_FOLDER_NAMES.toolOutput));
+        return path.join(victims, CHAT_FOLDER_NAMES.toolOutput, "bg_2.log");
+      },
+    },
+  ])("writes no log through a link at $label", async ({ label, plant }) => {
+    const owner = makeOwner(`link ${label}`);
+    const first = promote(owner, "node first.js");
+    first.handle.abort();
+    const victims = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "log-victim-")),
+    );
+    const victim = await plant(workDir(owner.chatId), victims);
+    await fs.writeFile(victim, "keep me\n");
+
+    const controllable = controllableRun();
+    const handle = startBackgroundRun({
+      callerSignal: new AbortController().signal,
+      command: "node second.js",
+      run: controllable.run,
+    });
+    const promoted = promoteBackgroundProcess({ handle, ...owner });
+    if (!("error" in promoted)) {
+      await controllable.emit("overwritten\n");
+    }
+
+    expect("error" in promoted && promoted.error).toContain(
+      "Could not open a log file",
+    );
+    expect(await fs.readFile(victim, "utf8")).toBe("keep me\n");
+    handle.abort();
+    await fs.rm(workDir(owner.chatId), { force: true, recursive: true });
+    await fs.rm(victims, { force: true, recursive: true });
   });
 
   // The agent writes one for every call; a surface with a single line to spend
@@ -493,7 +559,7 @@ describe("background processes", () => {
     });
 
     const log = await fs.readFile(
-      absolutePathJoin(chatDir(owner.chatId), info.logFilePath),
+      absolutePathJoin(workDir(owner.chatId), info.logFilePath),
       "utf8",
     );
     expect(log).toMatchInlineSnapshot(`
@@ -771,7 +837,7 @@ describe("background processes", () => {
     // The counter lives in memory, so a task it has never seen is the state every
     // task is in right after the app restarts.
     const outputDir = absolutePathJoin(
-      chatDir(owner.chatId),
+      workDir(owner.chatId),
       CHAT_FOLDER_NAMES.toolOutput,
     );
     await fs.mkdir(outputDir, { recursive: true });

@@ -1,10 +1,8 @@
+import { type Draft, draftGroupOf, draftsAtom } from "@/client/atoms/drafts";
 import {
   type AppPlace,
   chatFiltersAtom,
   chatGroupAtom,
-  type Draft,
-  draftGroupOf,
-  draftsAtom,
   inboxOpenAtom,
   paneOpenByGroupAtom,
   chatsOutOf,
@@ -30,6 +28,7 @@ import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { getGuest } from "@/client/lib/browser-pool";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
+import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
@@ -80,7 +79,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
-import { NO_FILTERS } from "./chats";
+import { NO_FILTERS, railMarkOf } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
@@ -102,7 +101,7 @@ import { useOpeners } from "./use-openers";
 import { CommandMenu } from "./command-menu";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
 import { useWindowSteps } from "./use-tab-steps";
-import { useSetChatTopics } from "./use-set-chat-topics";
+import { useSetChatTopic } from "./use-set-chat-topic";
 import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
@@ -227,9 +226,13 @@ function focusField() {
   field?.select();
 }
 
-/** Whether a draft has anything written in it, which is what keeps it past its window. */
-function hasWords(draft: Draft): boolean {
-  return draft.words.trim() !== "";
+/**
+ * Whether a draft holds anything: words, or something pasted or attached
+ * into it. What keeps it past its window, and what a draft has to have to be
+ * one to come back to.
+ */
+function holdsSomething(draft: Draft): boolean {
+  return draft.words.trim() !== "" || (draft.attached ?? []).length > 0;
 }
 
 function WindowShell({
@@ -306,6 +309,9 @@ function WindowShell({
   }, [activeHref, isChat, setChatGroup]);
 
   const compose = useCompose(rowWidth);
+  // The chats floating on screen, which show where they stand themselves, so
+  // the rail's Chat dot leaves them out.
+  const floatingChats = chatsOutOf(compose.placed);
   // A draft is written over the screen, never on it, and a draft with no
   // words is not kept past its window, so one left over from a launch goes,
   // unless its window came back with it. A window whose draft is gone goes.
@@ -316,7 +322,12 @@ function WindowShell({
         entry.kind === "draft" ? [entry.draftId] : [],
       ),
     );
-    const isKept = (draft: Draft) => hasWords(draft) || floating.has(draft.id);
+    // A reply waiting in a chat's box is kept by the chat, not by a window
+    // of its own, so nothing here takes one away.
+    const isKept = (draft: Draft) =>
+      draft.chatId !== undefined ||
+      holdsSomething(draft) ||
+      floating.has(draft.id);
     for (const draft of drafts) {
       if (!isKept(draft)) {
         windowTabs.dropGroup(draftGroupOf(draft.id));
@@ -461,6 +472,7 @@ function WindowShell({
     void queryClient.prefetchQuery(
       rpcClient.workspace.computer.places.queryOptions(),
     );
+    void queryClient.prefetchQuery(storageLocationQueryOptions());
     void activeRouter?.loadRouteChunk(activeRouter.routesById["/_app/new-tab"]);
   }, [activeRouter, opened, queryClient]);
 
@@ -479,7 +491,7 @@ function WindowShell({
       onSuccess: () => void topicsQuery.refetch(),
     }),
   );
-  const setChatTopics = useSetChatTopics();
+  const setChatTopic = useSetChatTopic();
   // The new-topic dialog, asked for from a chat's head or a draft's, with
   // what was typed in the picker: the topic it makes files that chat or
   // that draft.
@@ -603,7 +615,7 @@ function WindowShell({
         appTabs.open(fileHref(hostPath));
       },
       openScreen: (href) => {
-        appTabs.open(href);
+        openScreen(href, { newTab: true });
       },
       reopenTab: appTabs.reopen,
       search: focusField,
@@ -723,14 +735,20 @@ function WindowShell({
     childTitles,
     compose,
     discardDraft,
-    // Only a draft with words is a draft to come back to; one being written
-    // with none yet is its window's alone, one being sent is already its
-    // chat, and one just discarded is gone unless its Undo brings it back.
+    // Only a draft holding something is a draft to come back to; one being
+    // written with nothing in it yet is its window's alone, one being sent is
+    // already its chat, and one just discarded is gone unless its Undo brings
+    // it back. A reply waiting in a chat's box belongs to that chat and is
+    // read there rather than listed here, until the chat is deleted: then it
+    // is listed, so its words can be sent as a chat of their own.
     chats: chats.data,
     chatTitles,
     drafts: drafts.filter(
       (draft) =>
-        hasWords(draft) &&
+        (draft.chatId === undefined ||
+          (chats.data !== undefined &&
+            !chats.data.some((chat) => chat.id === draft.chatId))) &&
+        holdsSomething(draft) &&
         !startingIds.has(draft.id) &&
         !discardingIds.has(draft.id),
     ),
@@ -755,7 +773,7 @@ function WindowShell({
     rowWidth,
     sendContext: (options) => sendContextRef.current(options),
     sentWords,
-    setChatTopics,
+    setChatTopic,
     setPaneOpen,
     showDraft,
     topics,
@@ -826,11 +844,8 @@ function WindowShell({
                   setNewTopic({ draftId, ...(name ? { name } : {}) });
                 }}
                 onOpenChat={landChat}
-                onSetChatTopics={setChatTopics}
+                onSetChatTopic={setChatTopic}
                 onStart={startChat}
-                openOutside={(href) => {
-                  appTabs.open(href);
-                }}
                 sendContext={(options) => sendContextRef.current(options)}
                 sentWords={sentWords}
                 topics={topics}
@@ -838,6 +853,11 @@ function WindowShell({
             }
             rail={
               <AppRail
+                chatMark={railMarkOf(
+                  (chats.data ?? []).filter(
+                    (chat) => !floatingChats.has(chat.id),
+                  ),
+                )}
                 onChoose={choosePlace}
                 onHoverChat={inboxPeek.onRailHover}
                 onNew={() => {
@@ -960,7 +980,7 @@ function WindowShell({
                 createTopic.mutate(topic, {
                   onSuccess: (created) => {
                     for (const id of alsoFile) {
-                      setChatTopics(id, [created.id]);
+                      setChatTopic(id, created.id);
                     }
                     if (forDraft !== undefined) {
                       setDrafts((current) =>
@@ -977,10 +997,7 @@ function WindowShell({
                       );
                     }
                     if (filedOn) {
-                      setChatTopics(filedOn.id, [
-                        ...filedOn.topics,
-                        created.id,
-                      ]);
+                      setChatTopic(filedOn.id, created.id);
                     }
                   },
                 });

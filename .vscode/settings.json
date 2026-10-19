@@ -51,7 +51,7 @@
   "typescript.preferences.autoImportSpecifierExcludeRegexes": [
     "^@phosphor-icons/react$"
   ],
-  "typescript.tsdk": "node_modules/typescript/lib",
+  "js/ts.tsdk.path": "node_modules/typescript",
   "vitest.configSearchPatternInclude": "**/vitest*.config*.{ts,js,mjs,cjs,cts,mts}",
   "yaml.schemas": {
     "https://json.schemastore.org/pnpm-workspace": ["pnpm-workspace.yaml"]

@@ -2,6 +2,10 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+// Not used here: importing the entry makes `vitest related` run this file for
+// an edit to anything the entry reaches, which the walk below reads only as text.
+import "./client";
+
 /**
  * Everything `client.ts` exports as a value is bundled into the renderer, where
  * `node:` builtins do not exist. Nothing here type-checks that: a module can
@@ -42,10 +46,12 @@ async function findNodeBuiltins(entry: string): Promise<string[]> {
     }
     seen.add(current.file);
 
-    const source = await readSource(current.file);
-    if (source === undefined) {
+    const read = await readSource(current.file);
+    if (read === undefined) {
       continue;
     }
+    // Edges are found after a newline, so a statement on the first line needs one.
+    const source = `\n${read}`;
 
     const chain = [...current.chain, path.basename(current.file)];
 

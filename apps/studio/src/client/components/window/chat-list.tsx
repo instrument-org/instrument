@@ -1,4 +1,4 @@
-import { type Draft } from "@/client/atoms/window";
+import { type Draft } from "@/client/atoms/drafts";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { cn } from "@/client/lib/utils";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
@@ -43,7 +43,7 @@ const ListedChat = memo(function ListedChat({
     onNewTopic: (chat: Chat, name?: string) => void;
     onOpen: (chat: Chat) => void;
     onPopOut: ((chat: Chat) => void) | undefined;
-    onSetTopics: (chat: Chat, topics: string[]) => void;
+    onSetTopic: (chat: Chat, topic: null | string) => void;
   }>;
   isArriving: boolean;
   isOpen: boolean;
@@ -93,8 +93,8 @@ const ListedChat = memo(function ListedChat({
       onOpen={() => {
         handlers.current.onOpen(chat);
       }}
-      onSetTopics={(next) => {
-        handlers.current.onSetTopics(chat, next);
+      onSetTopic={(next) => {
+        handlers.current.onSetTopic(chat, next);
       }}
     />
   );
@@ -143,7 +143,7 @@ export function ChatList({
   onOpen,
   onOpenDraft,
   onPopOut,
-  onSetTopics,
+  onSetTopic,
   onWiden,
   openId,
   outIds,
@@ -173,7 +173,7 @@ export function ChatList({
   onOpenDraft: (id: string) => void;
   /** Floats a chat in a window of its own over the row; a row offers it only when given. */
   onPopOut?: (chat: Chat) => void;
-  onSetTopics: (chat: Chat, topics: string[]) => void;
+  onSetTopic: (chat: Chat, topic: null | string) => void;
   /** Lifts the place, topic, and app filters so the search reads every chat. */
   onWiden?: () => void;
   /** The chat open beside the list, which its row is marked as. */
@@ -206,7 +206,7 @@ export function ChatList({
     onNewTopic,
     onOpen,
     onPopOut,
-    onSetTopics,
+    onSetTopic,
   });
   useLayoutEffect(() => {
     handlers.current = {
@@ -215,7 +215,7 @@ export function ChatList({
       onNewTopic,
       onOpen,
       onPopOut,
-      onSetTopics,
+      onSetTopic,
     };
   });
   useLayoutEffect(() => {

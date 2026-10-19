@@ -1,5 +1,5 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
-import { call, ORPCError } from "@orpc/server";
+import { call } from "@orpc/server";
 import { z } from "zod";
 
 import { stopRunningProcesses } from "../../lib/background-processes";
@@ -7,17 +7,14 @@ import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { isWorking } from "../../lib/chat/activity";
 import { markChatStopped } from "../../lib/chat/chats";
 import { noteTaskStoppedOnCard } from "../../lib/chat/wake";
-import { closeAsksOf, openAsksOf } from "../../lib/permissions/asks";
+import { closeAsksOf, openAsksOf } from "../../lib/chat/asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
-import { Store } from "../../lib/store";
+import { ChatReads } from "../../lib/chat-reads";
 import { recordChatActivity } from "../../lib/chat-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
-import { type ToolOutputByName, TOOLS_BY_NAME } from "../../tools/all";
-import { ToolNameSchema } from "../../tools/name";
-import { chatSessionRef } from "../../machines/workspace";
 import { base, toORPCError } from "../base";
 
 const byIdWithMessagesAndParts = base
@@ -31,40 +28,13 @@ const byIdWithMessagesAndParts = base
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
     const chatId = id;
-    const session = await Store.getSessionWithMessagesAndParts(
-      sessionId,
-      chatId,
-    );
+    const session = await ChatReads.sessionWithMessages({ chatId, sessionId });
 
     if (session.isErr()) {
       throw toORPCError(session.error, errors);
     }
 
     return session.value;
-  });
-
-const list = base
-  .input(
-    z.object({
-      id: ChatIdSchema,
-      includeChildSessions: z.boolean().default(false),
-    }),
-  )
-  .output(z.array(Session.Schema))
-  .handler(async ({ errors, input }) => {
-    const { id, includeChildSessions } = input;
-    const chatId = id;
-    const sessions = await Store.getSessions(chatId, {
-      includeChildSessions,
-    });
-    if (sessions.isErr()) {
-      throw toORPCError(sessions.error, errors);
-    }
-
-    const recency = (s: (typeof sessions.value)[number]) =>
-      (s.updatedAt ?? s.createdAt).getTime();
-
-    return [...sessions.value].sort((a, b) => recency(b) - recency(a));
   });
 
 // Run the agent over the session as it stands, with nothing added to it. What
@@ -88,6 +58,7 @@ const run = base
       captureException: context.workspaceConfig.captureException,
       configs: context.workspaceConfig.getAIProviderConfigs(),
       modelCache: context.workspaceConfig.modelCache,
+      modelRoutes: context.workspaceConfig.modelRoutes,
       modelURI,
     });
 
@@ -112,8 +83,8 @@ const run = base
  * Stops a record's agents: a chat's, which is its own conversation and every
  * task it started; or with `sessionId`, that one session alone, a task's
  * from its row or page, with everything it has running in the background,
- * or the chat's own turn from its composer, which leaves its tasks working
- * and its processes running.
+ * or the chat's own turn alone, which leaves its tasks working and its
+ * processes running.
  */
 const stop = base
   .input(
@@ -142,7 +113,7 @@ const stop = base
         ? input.sessionId
         : undefined;
     // A task the person stops ends what it runs in the background too, as
-    // the agent's `task stop --all` does. A job handed to the task is the
+    // the agent's `instrument task stop --all` does. A job handed to the task is the
     // task's, so this reaches it. A process can take seconds to go, so the
     // turn is not kept waiting on it; the note the stop leaves the chat waits
     // instead (`wake.ts`), so it names nothing as still running.
@@ -217,24 +188,12 @@ const contextTokens = base
     const { id, sessionId } = input;
     const chatId = id;
 
-    const messages = await Store.getMessages({ sessionId, chatId });
-    if (messages.isErr()) {
-      throw toORPCError(messages.error, errors);
+    const inputTokens = await ChatReads.contextTokens({ chatId, sessionId });
+    if (inputTokens.isErr()) {
+      throw toORPCError(inputTokens.error, errors);
     }
 
-    const lastWithTokens = messages.value.findLast(
-      (m) =>
-        m.role === "assistant" &&
-        Number.isFinite(m.metadata.usage?.inputTokens) &&
-        (m.metadata.usage?.inputTokens ?? 0) > 0,
-    );
-
-    const inputTokens =
-      lastWithTokens?.role === "assistant"
-        ? (lastWithTokens.metadata.usage?.inputTokens ?? 0)
-        : 0;
-
-    return { inputTokens };
+    return { inputTokens: inputTokens.value };
   });
 
 const live = {
@@ -261,57 +220,8 @@ const live = {
     }),
 };
 
-/**
- * Answer a tool call that is waiting on the user: a `choose`. The output is
- * checked against the tool's own schema, then
- * handed to the session holding the call, which records it and lets the agent
- * go on.
- */
-const answerToolCall = base
-  .input(
-    z.object({
-      id: ChatIdSchema,
-      output: z.unknown(),
-      toolCallId: z.string(),
-      toolName: ToolNameSchema,
-    }),
-  )
-  .output(z.void())
-  .handler(({ context, input }) => {
-    const tool = TOOLS_BY_NAME[input.toolName];
-    const parsed = tool.outputSchema.safeParse(input.output);
-    if (!parsed.success) {
-      throw new ORPCError("BAD_REQUEST", {
-        message: `Not an answer ${input.toolName} accepts: ${z.prettifyError(parsed.error)}`,
-      });
-    }
-    // Nothing is waiting for the answer once the session that asked has gone,
-    // which is what an app stopped mid-turn leaves behind: the call stays
-    // unanswered on disk and the card that draws it still has its buttons. The
-    // machine drops such an answer with a line in the log, so say it here
-    // instead, where the click can be told it went nowhere.
-    if (!chatSessionRef(context.workspaceRef.getSnapshot().context, input.id)) {
-      throw new ORPCError("CONFLICT", {
-        message: "That request ended before the answer reached it.",
-      });
-    }
-    // The name and the output were validated together above, which is the
-    // correlation the union type carries and a lookup by name cannot express.
-    const output: unknown = parsed.data;
-    const value = { output, toolName: input.toolName } as ToolOutputByName;
-    context.workspaceRef.send({
-      type: "updateInteractiveToolCall",
-      value: {
-        id: input.id,
-        update: { toolCallId: input.toolCallId, type: "success", value },
-      },
-    });
-  });
-
 export const session = {
-  answerToolCall,
   byIdWithMessagesAndParts,
-  list,
   live,
   run,
   stop,

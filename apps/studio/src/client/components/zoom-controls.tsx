@@ -346,7 +346,7 @@ export function ZoomToast() {
   return (
     <div
       className={cn(
-        "fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-popover py-1 pr-1 pl-3 text-xs font-medium text-popover-foreground shadow-md transition-opacity duration-200",
+        "fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-popover py-1 pr-1 pl-3 text-xs font-medium text-popover-foreground shadow-float-md transition-opacity duration-200",
         visible ? "opacity-100" : "pointer-events-none opacity-0",
       )}
       // On-screen px, outside the zoomed root: the bar is drawn at the zoom,

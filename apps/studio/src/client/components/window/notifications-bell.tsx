@@ -1,4 +1,5 @@
 import { openReportDialog } from "@/client/atoms/report-dialog";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { Button } from "@/client/components/ui/button";
 import {
   Popover,
@@ -19,6 +20,8 @@ import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
 import { NewspaperClippingIcon } from "@phosphor-icons/react/NewspaperClipping";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
+import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
+import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -42,6 +45,14 @@ export function NotificationsBell() {
   const markSeen = useMutation(rpcClient.notices.markSeen.mutationOptions());
   const appTabs = useAppTabs();
   const openAction = (notice: BellNotice) => {
+    if (notice.action && "settings" in notice.action) {
+      setOpen(false);
+      openSettings({
+        ...(notice.action.setting && { setting: notice.action.setting }),
+        tab: notice.action.settings,
+      });
+      return;
+    }
     if (notice.action && "href" in notice.action) {
       setOpen(false);
       appTabs.open(notice.action.href);
@@ -49,7 +60,11 @@ export function NotificationsBell() {
     }
     void openNoticeLink(notice);
   };
-  const hasProblems = problems.length > 0;
+  // A critical notice keeps the dot red until its cause is gone, seen or
+  // not, as a problem does: there is nothing to do but act on it.
+  const hasProblems =
+    problems.length > 0 ||
+    notices.some((notice) => notice.severity === "critical");
   const unseen = notices.filter((notice) => !notice.seen);
   const empty = problems.length === 0 && notices.length === 0;
 
@@ -80,7 +95,7 @@ export function NotificationsBell() {
           {(hasProblems || unseen.length > 0) && (
             <span
               className={cn(
-                "absolute top-1 right-1 size-2 rounded-full ring-2 ring-background",
+                "absolute top-1 right-1 size-2 rounded-full ring-2 ring-ground",
                 hasProblems ? "bg-destructive" : "bg-brand-600",
               )}
             />
@@ -145,7 +160,8 @@ function useToastLoudNotices(
           if (!granted) {
             return;
           }
-          toast.info(notice.title, {
+          const show = warns(notice) ? toast.warning : toast.info;
+          show(notice.title, {
             action: notice.action && {
               label: notice.action.label,
               onClick: () => {
@@ -174,7 +190,19 @@ function openNoticeLink(notice: BellNotice) {
     });
 }
 
+/**
+ * Whether a notice warns, drawn with the warning shield and toasted as a
+ * warning: a critical one, and a security one loud enough to toast.
+ */
+function warns(notice: BellNotice): boolean {
+  return (
+    notice.severity === "critical" ||
+    (notice.kind === "security" && notice.severity === "important")
+  );
+}
+
 const NOTICE_ICON = {
+  account: UserCircleIcon,
   announcement: MegaphoneSimpleIcon,
   fixed: CheckCircleIcon,
   security: ShieldCheckIcon,
@@ -195,14 +223,18 @@ function NoticeItem({
       toast.error("Couldn't dismiss it", { cause: error });
     },
   });
-  const Icon = NOTICE_ICON[notice.kind];
+  const Icon = warns(notice) ? ShieldWarningIcon : NOTICE_ICON[notice.kind];
 
   return (
     <div className="flex gap-3 px-4 py-3">
       <span
         className={cn(
           "mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted",
-          notice.kind === "fixed" ? "text-success-700" : "text-brand-600",
+          warns(notice)
+            ? "text-warning-700 dark:text-warning-300"
+            : notice.kind === "fixed"
+              ? "text-success-700"
+              : "text-brand-600",
         )}
       >
         <Icon className="size-4" />

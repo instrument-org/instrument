@@ -15,6 +15,7 @@ import { useAskMarks } from "@/client/components/window/ask-marks";
 import { WindowContext } from "@/client/components/window/context";
 import { linesLabel } from "@/client/components/window/staged-asks";
 import { useAskCard } from "@/client/components/window/use-ask-card";
+import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { registerFileFlush } from "@/client/lib/file-flush";
 import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
@@ -25,6 +26,7 @@ import { splitFrontMatter } from "@/shared/front-matter";
 import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
+  isChatTranscript,
   isMessageDocument,
   parseMessage,
   WINDOW_ID,
@@ -81,7 +83,11 @@ export function MarkdownEditor({
   readOnlyView,
 }: {
   hostPath: string;
-  /** What shows instead when the file is not UTF-8, which saving would corrupt. */
+  /**
+   * What shows instead when the file is not UTF-8, which saving would
+   * corrupt, or is a chat's `CHAT.md`, which the app rewrites after every
+   * reply and whose own head says so.
+   */
   readOnlyView: ReactNode;
 }) {
   const initial = useQuery({
@@ -113,6 +119,9 @@ export function MarkdownEditor({
         <div className="relative min-h-0 flex-1">{readOnlyView}</div>
       </div>
     );
+  }
+  if (isChatTranscript(hostPath, initial.data.content)) {
+    return readOnlyView;
   }
   return <LiveDocument hostPath={hostPath} initial={initial.data} />;
 }
@@ -216,7 +225,7 @@ function FenceView({
           <MermaidDiagram code={content} language={language} />
         )}
         <button
-          className="absolute top-2 right-2 rounded-md border border-border bg-popover px-2 py-0.5 text-xs text-muted-foreground opacity-0 shadow-xs group-hover/fence:opacity-100 hover:text-foreground"
+          className="absolute top-2 right-2 rounded-md border border-border bg-popover px-2 py-0.5 text-xs text-muted-foreground opacity-0 shadow-float-sm group-hover/fence:opacity-100 hover:text-foreground"
           onClick={(event) => {
             onEditSource(event.currentTarget);
           }}
@@ -256,6 +265,9 @@ function LiveDocument({
   const { mark } = useAskMarks(hostPath, session);
   const askRef = useRef({ begin, mark });
   askRef.current = { begin, mark };
+  const gesturesFor = useGesturesFor();
+  const gesturesRef = useRef(gesturesFor);
+  gesturesRef.current = gesturesFor;
 
   usePullOnDiskChange(hostPath, session);
 
@@ -306,6 +318,10 @@ function LiveDocument({
       },
       onExternalChange: (change) => {
         noteChange(change);
+      },
+      onOpenLink: (target, newTab) => {
+        const gestures = gesturesRef.current(target);
+        (newTab ? gestures.separate : gestures.primary)?.run();
       },
       onFrontMatter: (next) => {
         setFm(next);

@@ -24,7 +24,7 @@ export function ComposerFrame({
   attachments,
   children,
   extras,
-  layout = "block",
+  layout,
   leading,
   maxHeight,
   notice,
@@ -52,13 +52,12 @@ export function ComposerFrame({
    */
   extras?: React.ReactNode;
   /**
-   * A block is the box with the editor above its button row. A pill is one
-   * row, the height of a text field, with `leading` at its left and
-   * `trailing` at its right and the editor between; it grows with the draft
-   * up to `maxHeight`. Bare is the block's rows with no box drawn around
-   * them, for a host that is itself the box.
+   * A pill is one row, the height of a text field, with `leading` at its
+   * left and `trailing` at its right and the editor between; it grows with
+   * the draft up to `maxHeight`. Bare is the editor above its button row with
+   * no box drawn around them, for a host that is itself the box.
    */
-  layout?: "bare" | "block" | "pill";
+  layout: "bare" | "pill";
   /** The pill's left end: the add menu. */
   leading?: React.ReactNode;
   /** Layout px: inside the zoom root, so the cap scales with the rest of the UI. Null for no cap but the host's layout. */
@@ -195,14 +194,7 @@ export function ComposerFrame({
         "relative isolate grid w-full grid-rows-[auto_minmax(3rem,1fr)_auto]",
         // A bare box gives way to the host's layout: squeezed, its editor row
         // scrolls, since the host sets the floor and the room around it.
-        layout === "bare"
-          ? "min-h-0 px-5 pt-2 pb-3"
-          : [
-              "min-h-16",
-              "rounded-[20px] p-4",
-              "bg-white shadow-sm-soft transition-shadow dark:bg-gray-800",
-              "focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/5",
-            ],
+        "min-h-0 px-5 pt-2 pb-3",
       )}
       data-slot="composer-frame"
       ref={ref}

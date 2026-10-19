@@ -1,5 +1,6 @@
 import { useHoldWindow } from "@/client/hooks/use-hold-window";
-import { composeKeyOf, type Draft, draftGroupOf } from "@/client/atoms/window";
+import { type Draft, draftGroupOf } from "@/client/atoms/drafts";
+import { composeKeyOf } from "@/client/atoms/window";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type SessionMessageDataPart,
@@ -45,9 +46,8 @@ export function ComposeLayer({
   onNewChatTopic,
   onNewTopic,
   onOpenChat,
-  onSetChatTopics,
+  onSetChatTopic,
   onStart,
-  openOutside,
   sendContext,
   sentWords,
   topics,
@@ -73,9 +73,8 @@ export function ComposeLayer({
   onNewTopic: (draftId: string, name: string) => void;
   /** A popped-out chat asked to open in Chats, from its title: the window goes and the chat is selected. */
   onOpenChat: (chatId: ChatId) => void;
-  onSetChatTopics: (chatId: ChatId, topics: string[]) => void;
+  onSetChatTopic: (chatId: ChatId, topic: null | string) => void;
   onStart: (id: string, send: DraftSend) => void;
-  openOutside: (href: string) => void;
   /** What goes with a reply sent from a chat's small view: its own tab up while its view is open, what the window has up behind it otherwise. */
   sendContext: (options: {
     isViewOpen: boolean;
@@ -215,8 +214,8 @@ export function ComposeLayer({
                 onPlacementChange={(placement) => {
                   compose.setPlacement(chatId, placement);
                 }}
-                onSetTopics={(next) => {
-                  onSetChatTopics(chatId, next);
+                onSetTopic={(next) => {
+                  onSetChatTopic(chatId, next);
                 }}
                 placement={entry.placement}
                 right={entry.right}
@@ -275,7 +274,6 @@ export function ComposeLayer({
               onStart={(send) => {
                 onStart(draft.id, send);
               }}
-              openOutside={openOutside}
               placement={entry.placement}
               right={entry.right}
               topics={topics}

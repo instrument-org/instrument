@@ -29,7 +29,7 @@
  * **What it measured, 2026-09-19, GLM 5.3 Flash at high effort.** The
  * standing-fact case passes about one run in three; Qwen3.8 27B passed it
  * first try. The two failures are the model's, not the mechanism's: it
- * printed `memory save ...` as text inside its reply, or it reasoned "Save
+ * printed `instrument memory save ...` as text inside its reply, or it reasoned "Save
  * memory" and then called nothing. A third, rarer one is repaired in the
  * harness now: the command emitted as the tool's name rather than as a bash
  * call (`repair-shell-command-tool-call.ts`). All three end with the user
@@ -40,7 +40,7 @@ import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
 /** A command that keeps a memory, anchored the way the shell reads it. */
-const SAVES_A_MEMORY = /(?:^|[\n;&|])\s*memory save\b/;
+const SAVES_A_MEMORY = /(?:^|[\n;&|])\s*instrument memory save\b/;
 
 function bashParts(sessions: Session.WithMessagesAndParts[]) {
   return sessions.flatMap((session) =>
@@ -92,7 +92,7 @@ const withoutATask: Assertion = {
   check: ({ sessions }) => {
     const text = "kept it without starting a task";
     const started = bashParts(sessions).filter(({ command }) =>
-      /(?:^|[\n;&|])\s*task new\b/.test(command),
+      /(?:^|[\n;&|])\s*instrument task new\b/.test(command),
     );
     return started.length === 0
       ? pass(text, "no task")
@@ -137,7 +137,7 @@ const savedBeforeForking: Assertion = {
     const text = "saved the preference before starting any task";
     const commands = bashParts(sessions).map(({ command }) => command);
     const forkAt = commands.findIndex((command) =>
-      /(?:^|[\n;&|])\s*task new\b/.test(command),
+      /(?:^|[\n;&|])\s*instrument task new\b/.test(command),
     );
     if (forkAt === -1) {
       return commands.some((command) => SAVES_A_MEMORY.test(command))
@@ -151,7 +151,7 @@ const savedBeforeForking: Assertion = {
     const saveInFork = SAVES_A_MEMORY.exec(fork)?.index;
     const savedFirstInFork =
       saveInFork !== undefined &&
-      saveInFork < fork.search(/(?:^|[\n;&|])\s*task new\b/);
+      saveInFork < fork.search(/(?:^|[\n;&|])\s*instrument task new\b/);
     return savedEarlier || savedFirstInFork
       ? pass(
           text,

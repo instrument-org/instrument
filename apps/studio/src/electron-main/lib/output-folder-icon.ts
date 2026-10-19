@@ -1,7 +1,9 @@
+import {
+  instrumentFolderInDocuments,
+  instrumentFolderUnchosen,
+} from "@instrument-org/workspace/electron";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { promisify } from "node:util";
 
 import artwork from "../../../resources/instrument-folder.svg?raw";
@@ -23,13 +25,20 @@ function run(argv) {
 }
 `;
 
-/** Decorate only the app's default output folder, preserving custom icons. */
+/**
+ * Decorate the output folder only when it is the `Instrument` folder the app
+ * names itself, in the home folder or, for an install that has one, the
+ * older one in Documents. Custom icons are preserved: any other folder the
+ * person picked keeps the look it has.
+ */
 export async function ensureOutputFolderIcon(
   folderPath: string,
 ): Promise<void> {
   if (
     !["darwin", "linux", "win32"].includes(process.platform) ||
-    folderPath !== path.join(os.homedir(), "Documents", "Instrument")
+    ![instrumentFolderUnchosen(), instrumentFolderInDocuments()].includes(
+      folderPath,
+    )
   ) {
     return;
   }
@@ -61,10 +70,13 @@ async function applyIcon(folderPath: string): Promise<void> {
     finderInfo = Buffer.from(stdout.replaceAll(/\s/g, ""), "hex");
   } catch (error) {
     // Without Documents access the icon cannot be written either; decoration
-    // is cosmetic, so a refusal skips it rather than reporting.
+    // is cosmetic, so a refusal skips it rather than reporting. A read cut
+    // off by its timeout is one too: macOS holds it while its Documents
+    // prompt waits for an answer.
     if (
       error instanceof Error &&
-      /Operation not permitted|Permission denied/.test(error.message)
+      (/Operation not permitted|Permission denied/.test(error.message) ||
+        ("killed" in error && error.killed === true))
     ) {
       return;
     }

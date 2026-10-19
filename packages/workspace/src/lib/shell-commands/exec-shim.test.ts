@@ -4,7 +4,13 @@ import path from "node:path";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
 
-import { execShim, mapStreams, shimOutput } from "./exec-shim";
+import {
+  execShim,
+  mapStreams,
+  setuidRefusalNote,
+  shimOutput,
+  signalRefusalNote,
+} from "./exec-shim";
 import { withShellOutputSink } from "./output-sink";
 
 const runNode = (code: string) => execShim(process.execPath, ["-e", code], {});
@@ -122,6 +128,56 @@ describe("execShim", () => {
   );
 });
 
+describe("signalRefusalNote", () => {
+  it.each([
+    ["/bin/kill", "kill: 611: Operation not permitted", true],
+    [
+      "/usr/bin/pkill",
+      "pkill: signaling pid 611: Operation not permitted",
+      true,
+    ],
+    [
+      "/usr/bin/killall",
+      "killall: warning: kill -term 611: Operation not permitted",
+      true,
+    ],
+    ["/bin/kill", "kill: 611: bad argument", false],
+    ["/bin/cat", "cat: x: Operation not permitted", false],
+  ])("%s with %s", (file, stderr, noted) => {
+    expect(signalRefusalNote(file, stderr) !== undefined).toBe(noted);
+  });
+
+  it("says where the agent's own processes are stopped", () => {
+    expect(
+      signalRefusalNote("/usr/bin/pkill", "Operation not permitted"),
+    ).toMatchInlineSnapshot(
+      `"pkill reaches only processes started in this same command. Stop one you started earlier with the shell's \`kill <pid>\` or \`kill bg_1\`; any other process belongs to the person."`,
+    );
+  });
+});
+
+describe.runIf(process.platform === "darwin")("setuidRefusalNote", () => {
+  it("says a program can't start ps, and that the shell can", () => {
+    expect(
+      setuidRefusalNote(
+        "/bin/ps",
+        "instrument-seatbelt: /bin/ps: Operation not permitted",
+      ),
+    ).toMatchInlineSnapshot(
+      `"\`ps\` can't run here: it runs as another user, which the sandbox refuses. Run \`ps\` as a shell command of its own (\`ps aux | grep node\`), where it lists every process; a program or script can't start it."`,
+    );
+  });
+
+  it("leaves a program that runs as its caller to the path refusal", () => {
+    expect(
+      setuidRefusalNote(
+        "/bin/cat",
+        "instrument-seatbelt: /bin/cat: Operation not permitted",
+      ),
+    ).toBeUndefined();
+  });
+});
+
 describe("shimOutput", () => {
   it("substitutes a diagnostic when the cwd does not exist", async () => {
     const result = await execShim(process.execPath, ["-e", ""], {
@@ -134,7 +190,7 @@ describe("shimOutput", () => {
 
     const output = shimOutput(result, "node");
     expect(output.stderr).toContain("node could not start.");
-    expect(output.stderr).toContain("/no/such/directory");
+    expect(output.stderr).toContain(path.resolve("/no/such/directory"));
     expect(output.stdout).toBe("");
   });
 
@@ -154,7 +210,11 @@ describe("shimOutput", () => {
   it("substitutes a diagnostic when the binary is missing", async () => {
     const result = await execShim("instrument-no-such-binary", [], {});
 
-    expect(shimOutput(result, "nope").stderr).toContain("ENOENT");
+    // On Windows execa runs a command it finds nowhere through cmd.exe,
+    // which says so itself.
+    expect(shimOutput(result, "nope").stderr).toMatch(
+      process.platform === "win32" ? /is not recognized/ : /ENOENT/,
+    );
   });
 
   // rg reports no matches this way, and git diff --quiet reports a difference

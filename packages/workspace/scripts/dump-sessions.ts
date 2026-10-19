@@ -4,7 +4,7 @@ import readline from "node:readline/promises";
 
 import { TASKS_DIR_NAME } from "../src/constants";
 import { getChatInfos } from "../src/lib/chat-info";
-import { Store } from "../src/lib/store";
+import { ChatReads } from "../src/lib/chat-reads";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
@@ -23,7 +23,7 @@ setWorkspaceConfig(
   }),
 );
 
-const { chats: tasks } = await getChatInfos({
+const tasks = await getChatInfos({
   direction: "desc",
   sortBy: "updatedAt",
 });
@@ -71,7 +71,10 @@ process.stdout.write(`\nLoading sessions for ${selectedTask.title}...\n`);
 
 const chatId = selectedTask.id;
 
-const sessionIdsResult = await Store.getStoreId(chatId);
+const sessionIdsResult = await ChatReads.sessions({
+  chatId,
+  includeChildSessions: true,
+});
 
 if (sessionIdsResult.isErr()) {
   throw new Error(
@@ -79,17 +82,17 @@ if (sessionIdsResult.isErr()) {
   );
 }
 
-const sessionIds = sessionIdsResult.value;
+const sessionIds = sessionIdsResult.value.map((session) => session.id);
 
 process.stdout.write(`Found ${sessionIds.length} sessions. Loading...\n`);
 
 const sessions = [];
 
 for (const sessionId of sessionIds) {
-  const sessionResult = await Store.getSessionWithMessagesAndParts(
-    sessionId,
+  const sessionResult = await ChatReads.sessionWithMessages({
     chatId,
-  );
+    sessionId,
+  });
 
   if (sessionResult.isErr()) {
     throw new Error(

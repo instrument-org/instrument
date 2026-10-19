@@ -16,11 +16,10 @@ import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config"
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
 import { instrumentAgent } from "../../agents/instrument";
 import { createSession } from "../create-session";
-import {
-  prepareModelMessages,
-  SESSION_CONTEXT_VERSION,
-} from "../prepare-model-messages";
-import { Store } from "../store";
+import { prepareModelMessages } from "../prepare-model-messages";
+import { SESSION_CONTEXT_VERSION } from "../session-baseline";
+import { ChatReads } from "../chat-reads";
+import { ChatWrites } from "../chat-writes";
 import { chatDir } from "../record-folders";
 import { updateChatSettings } from "../chat-settings";
 import { chatGrants } from "../chat/grants";
@@ -28,6 +27,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { newSubcommand } from "./task/fork";
 import { type HandOff, withHandOffs } from "./task-hand-off";
+import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 
 const runNew = subcommandRunner(newSubcommand, "task new");
 
@@ -86,22 +86,19 @@ beforeEach(async () => {
   });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.resolve(import.meta.dirname, "../../../templates/default"),
-    ),
     chatsDir: AbsolutePathSchema.parse(
       path.join(path.join(rootDir, "workspace"), "chats"),
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatSessionId = StoreId.newSessionId();
-  const chatId = chatFor(
+  const chatId = await chatFor(
     chatSessionId,
     ChatIdSchema.parse(`2026-10-06-files-${counter}`),
   );
   chatMessages = conversation(chatSessionId);
   context = {
-    // The `bash` part `task new` runs in: the last call of the reply in
+    // The `bash` part `instrument task new` runs in: the last call of the reply in
     // flight.
     callPartId: callOf(chatMessages).metadata.id,
     chatId,
@@ -128,7 +125,7 @@ beforeEach(async () => {
     "a,b\n",
   );
   for (const message of chatMessages) {
-    const saved = await Store.saveMessageWithParts(message, chatId);
+    const saved = await ChatWrites.saveMessageWithParts(message, chatId);
     if (saved.isErr()) {
       throw saved.error;
     }
@@ -137,12 +134,12 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  await fs.rm(rootDir, { force: true, recursive: true });
+  await removeChatsDir(rootDir);
 });
 
 /**
  * A chat mid-turn: its baseline, the user's ask, a finished command, and the
- * reply in flight whose last call is the `task new` itself, still unanswered.
+ * reply in flight whose last call is the `instrument task new` itself, still unanswered.
  */
 function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
   const createdAt = new Date("2026-10-06T10:00:00.000Z");
@@ -235,7 +232,7 @@ function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
         },
         {
           input: {
-            command: "task new --name 'Rename photos'",
+            command: "instrument task new --name 'Rename photos'",
             explanation: "Forking",
             yieldMs: 1000,
           },
@@ -250,7 +247,7 @@ function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
   ];
 }
 
-/** The `task new` call of the reply in flight at the conversation's end. */
+/** The `instrument task new` call of the reply in flight at the conversation's end. */
 function callOf(messages: SessionMessage.WithParts[]) {
   const call = messages.at(-1)?.parts.find((part) => part.type === "tool-bash");
   if (!call) {
@@ -308,9 +305,9 @@ describe("task new", () => {
     const id = forkId(handOffs);
 
     const session = (
-      await Store.getSession(id, context.chatId)
+      await ChatReads.session({ chatId: context.chatId, sessionId: id })
     )._unsafeUnwrap();
-    // The last message the step that called `task new` was sent: the
+    // The last message the step that called `instrument task new` was sent: the
     // finished `ls`, not the reply still in flight.
     expect(session).toMatchObject({
       forkedAtMessageId: chatMessages[2]?.id,
@@ -319,7 +316,7 @@ describe("task new", () => {
     });
     // Not one of the chat's own sessions, and no record or folder of its own.
     expect(
-      (await Store.getSessions(context.chatId))
+      (await ChatReads.sessions({ chatId: context.chatId }))
         ._unsafeUnwrap()
         .map((one) => one.id),
     ).toEqual([chatSessionId]);
@@ -344,11 +341,11 @@ describe("task new", () => {
     const { handOffs } = await fork();
     const id = forkId(handOffs);
     (
-      await Store.saveMessageWithParts(started().message, context.chatId)
+      await ChatWrites.saveMessageWithParts(started().message, context.chatId)
     )._unsafeUnwrap();
 
     const history = (
-      await Store.getMessagesWithParts({
+      await ChatReads.transcript({
         sessionId: id,
         chatId: context.chatId,
       })
@@ -364,7 +361,7 @@ describe("task new", () => {
         .every((message) => message.metadata.sessionId === chatSessionId),
     ).toBe(true);
     const own = (
-      await Store.getMessagesWithParts({
+      await ChatReads.transcript({
         inherited: false,
         sessionId: id,
         chatId: context.chatId,
@@ -388,14 +385,14 @@ describe("task new", () => {
           part.type === "tool-bash"
             ? {
                 input: {
-                  command: "task new --name 'Rename photos'",
+                  command: "instrument task new --name 'Rename photos'",
                   explanation: "Forking",
                   yieldMs: 1000,
                 },
                 metadata: { ...part.metadata, endedAt: new Date() },
                 output: {
-                  command: "task new --name 'Rename photos'",
-                  commands: ["task new --name 'Rename photos'"],
+                  command: "instrument task new --name 'Rename photos'",
+                  commands: ["instrument task new --name 'Rename photos'"],
                   durationMs: 1000,
                   omittedBytes: 0,
                   output: "",
@@ -409,11 +406,11 @@ describe("task new", () => {
       ),
     };
     (
-      await Store.saveMessageWithParts(answered, context.chatId)
+      await ChatWrites.saveMessageWithParts(answered, context.chatId)
     )._unsafeUnwrap();
     const newerId = StoreId.newMessageId();
     (
-      await Store.saveMessageWithParts(
+      await ChatWrites.saveMessageWithParts(
         {
           ...answered,
           id: newerId,
@@ -434,8 +431,12 @@ describe("task new", () => {
 
     const { handOffs } = await fork();
     expect(
-      (await Store.getSession(forkId(handOffs), context.chatId))._unsafeUnwrap()
-        .forkedAtMessageId,
+      (
+        await ChatReads.session({
+          chatId: context.chatId,
+          sessionId: forkId(handOffs),
+        })
+      )._unsafeUnwrap().forkedAtMessageId,
     ).toBe(chatMessages[2]?.id);
   });
 
@@ -448,7 +449,10 @@ describe("task new", () => {
     expect(second.result.stdout).toContain("Started task t2");
     expect(
       (
-        await Store.getSession(forkId(first.handOffs), context.chatId)
+        await ChatReads.session({
+          chatId: context.chatId,
+          sessionId: forkId(first.handOffs),
+        })
       )._unsafeUnwrap().handle,
     ).toBe("t1");
   });
@@ -498,22 +502,24 @@ describe("task new", () => {
         // Where the cache breakpoints sit moves with the newest message, and
         // is a request option rather than bytes of the prefix.
         .map(({ providerOptions: _options, ...message }) => message);
-    // What the chat sent for the step that called `task new`: everything
+    // What the chat sent for the step that called `instrument task new`: everything
     // before the reply that step wrote.
     const reply = chatMessages.at(-1);
     if (!reply) {
       throw new Error("the conversation is empty");
     }
     (
-      await Store.removeMessage(reply.id, chatSessionId, context.chatId)
+      await ChatWrites.retract(context.chatId, chatSessionId, [reply.id])
     )._unsafeUnwrap();
     const chat = await request(chatSessionId);
-    (await Store.saveMessageWithParts(reply, context.chatId))._unsafeUnwrap();
+    (
+      await ChatWrites.saveMessageWithParts(reply, context.chatId)
+    )._unsafeUnwrap();
 
     const { handOffs } = await fork();
     // The session machine saves the assignment before the first request.
     (
-      await Store.saveMessageWithParts(started().message, context.chatId)
+      await ChatWrites.saveMessageWithParts(started().message, context.chatId)
     )._unsafeUnwrap();
     const forked = await request(forkId(handOffs));
 

@@ -6,7 +6,7 @@ import { type Assertion, defineEval } from "../harness";
 /**
  * Python over a folder the chat reaches.
  *
- * `python` is the chat's virtualenv interpreter, held to the native sandbox,
+ * `python` runs in the nearest `.venv`, held to the native sandbox,
  * and reads an attached folder in place, so a parse of a file there should
  * involve no copy into the chat's folder. A package goes in with `pip` and
  * the same `python` runs it. These check that a model takes the direct path,
@@ -109,22 +109,30 @@ const ranPythonOnTheMount: Assertion = {
   text: "ran python on the mounted file",
 };
 
-/** Where the package went in, or -1. */
-function pandasInstalledAt(commands: string[]): number {
+/** Where `name` went in, or -1. */
+function installedAt(commands: string[], name: string): number {
   return commands.findIndex((command) =>
-    /\b(?:pip3?|uv pip)\s+install\s[^|;&]*pandas/.test(command),
+    new RegExp(`\\b(?:pip3?|uv pip)\\s+install\\s[^|;&]*\\b${name}\\b`).test(
+      command,
+    ),
   );
 }
+
+/**
+ * polars, which `python` does not start with, so the case needs an install
+ * (pandas is one of the packages it starts with).
+ */
+const INSTALLED_PACKAGE = "polars";
 
 /** The package went in and a Python ran it, under either name. */
 const installedThePackageAndRanIt: Assertion = {
   check: ({ sessions }) => {
     const commands = bashCommands(sessions);
-    const installed = pandasInstalledAt(commands);
+    const installed = installedAt(commands, INSTALLED_PACKAGE);
     const ran = commands.findIndex(
       (command, index) =>
         // The same command counts when python comes after the install in it:
-        // `pip install pandas && python -c ...`.
+        // `pip install polars && python -c ...`.
         (index > installed ||
           (index === installed && /install[^\n]*python3?\s/.test(command))) &&
         /(?:^|[\s;&|(])python3?\s/.test(command),
@@ -139,6 +147,30 @@ const installedThePackageAndRanIt: Assertion = {
     };
   },
   text: "installed the package and ran it",
+};
+
+/**
+ * pandas, which `python` starts with, ran with no `pip install` of it first:
+ * the round trip the agent is told it can skip.
+ */
+const ranPandasWithoutInstallingIt: Assertion = {
+  check: ({ sessions }) => {
+    const commands = bashCommands(sessions);
+    const installed = installedAt(commands, "pandas");
+    const ran = commands.some(
+      (command) =>
+        /(?:^|[\s;&|(])python3?\s/.test(command) && /pandas/.test(command),
+    );
+    const passed = installed === -1 && ran;
+    return {
+      evidence: passed
+        ? `python ran pandas with no install, in ${commands.length} command(s)`
+        : `install ${installed === -1 ? "never happened" : `at command ${installed + 1}`}, pandas ${ran ? "ran" : "never ran"}. Commands: ${commands.join(" | ").slice(0, 500)}`,
+      passed,
+      text: "ran pandas without installing it",
+    };
+  },
+  text: "ran pandas without installing it",
 };
 
 /** The script the prompt asked for ran as a file. */
@@ -192,6 +224,16 @@ export const SANDBOXED_PYTHON_EVALS = [
     ],
     folders: [{ path: DATA_FIXTURE }],
     name: "python-runs-a-package-once-installed",
+    prompt:
+      "Use polars for this, not the csv module or pandas: load regional-sales.csv from my Data folder into a DataFrame, add a revenue column (units times unit_price), and tell me the total revenue for the year and the per-region totals, to the cent. Just the numbers in your reply; no files.",
+  }),
+  defineEval({
+    assertions: [
+      replyContains("the total revenue", TOTAL_REVENUE),
+      ranPandasWithoutInstallingIt,
+    ],
+    folders: [{ path: DATA_FIXTURE }],
+    name: "python-starts-with-pandas",
     prompt:
       "Use pandas for this, not the csv module: load regional-sales.csv from my Data folder into a DataFrame, add a revenue column (units times unit_price), and tell me the total revenue for the year and the per-region totals, to the cent. Just the numbers in your reply; no files.",
   }),

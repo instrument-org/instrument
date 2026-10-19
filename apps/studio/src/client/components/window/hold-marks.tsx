@@ -53,7 +53,6 @@ export function HoldMarks({
   className,
   holds,
   namedFiles = false,
-  shown = MARKS_SHOWN,
   wrap = true,
 }: {
   appsBySlug: AppsBySlug;
@@ -61,8 +60,6 @@ export function HoldMarks({
   holds: { apps: string[]; files: string[]; sites: string[] };
   /** Whether the files are chips with their names rather than bare marks. */
   namedFiles?: boolean;
-  /** How many marks are drawn before the rest fold into the count. */
-  shown?: number;
   /** Whether the marks may take a second line, or are clipped at the edge of the first with a fade. */
   wrap?: boolean;
 }) {
@@ -123,7 +120,7 @@ export function HoldMarks({
   if (items.length === 0) {
     return null;
   }
-  const marked = items.slice(0, shown);
+  const marked = items.slice(0, MARKS_SHOWN);
   const folded = items.length - marked.length;
   const openOf = (item: Hold) => {
     const gestures = gesturesFor(item.target);

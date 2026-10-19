@@ -1,12 +1,13 @@
+import { runtimeLayout } from "@instrument-org/workspace/electron";
 import { rgPath } from "@vscode/ripgrep";
 import { app } from "electron";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 import { captureServerException } from "./capture-server-exception";
 import { getAppUnpackedPath, getResourcePath } from "./resource-path";
-
-const BIN_DIR_NAME = "bin";
+import { getRuntimeDir } from "./runtime-dir";
 
 interface BinaryConfig {
   getTargetPath: () => string;
@@ -29,11 +30,27 @@ export function getUvBinPath(): string {
   return getResourcePath("uv", binaryName);
 }
 
+// The uutils binaries are vendored into `resources/uutils/` (see
+// scripts/download-uutils.ts) and deep-signed beside uv.
+export function getUutilsDir(): string {
+  return getResourcePath("uutils");
+}
+
+// MXC's launcher is vendored into `resources/mxc/` on Windows (see
+// scripts/download-mxc.ts); undefined elsewhere or where it is missing.
+export function getMxcExecPath(): string | undefined {
+  if (process.platform !== "win32") {
+    return undefined;
+  }
+  const exec = getResourcePath("mxc", "wxc-exec.exe");
+  return existsSync(exec) ? exec : undefined;
+}
+
 // Added to PATH so that child processes (the users's apps) can access the binaries
 // as if they were installed globally. We don't use these ourselves due to issues
 // with orphaned processes on Windows.
 export async function setupBinDirectory(): Promise<string> {
-  const binDir = getBinDirectoryPath();
+  const binDir = runtimeLayout(getRuntimeDir()).bin;
 
   await ensureDirectoryExists(binDir);
   await cleanBinDirectory(binDir);
@@ -54,9 +71,7 @@ export async function setupBinDirectory(): Promise<string> {
 
       await linkDirect(binDir, binary.name, targetPath);
     } catch (error) {
-      captureServerException(error, {
-        scopes: ["studio"],
-      });
+      captureServerException(error);
     }
   }
 
@@ -74,13 +89,11 @@ async function cleanBinDirectory(binDir: string): Promise<void> {
       try {
         await fs.rm(entryPath, { force: true, recursive: true });
       } catch (error) {
-        captureServerException(error, {
-          scopes: ["studio"],
-        });
+        captureServerException(error);
       }
     }
   } catch (error) {
-    captureServerException(error, { scopes: ["studio"] });
+    captureServerException(error);
   }
 }
 
@@ -102,9 +115,7 @@ async function ensureDirectoryExists(dirPath: string): Promise<void> {
   try {
     await fs.mkdir(dirPath, { recursive: true });
   } catch (error) {
-    captureServerException(error, {
-      scopes: ["studio"],
-    });
+    captureServerException(error);
     throw error;
   }
 }
@@ -132,11 +143,13 @@ function getBinaryConfigs(): BinaryConfig[] {
       getTargetPath: () => getRipgrepBinaryPath(),
       name: "rg",
     },
+    // A chat's own commands put the bundled uv on PATH themselves; this is
+    // for what runs without them, such as a package script `pnpm` runs.
+    {
+      getTargetPath: getUvBinPath,
+      name: "uv",
+    },
   ];
-}
-
-export function getBinDirectoryPath(): string {
-  return path.join(app.getPath("userData"), BIN_DIR_NAME);
 }
 
 function getNodeModulePath(...parts: string[]): string {
@@ -221,8 +234,6 @@ async function setupNodeLink(binDir: string): Promise<void> {
     // The node link is a PATH convenience for user-app child processes, the
     // same as the pnpm/git/rg links, so losing it degrades those processes
     // rather than the launch.
-    captureServerException(error, {
-      scopes: ["studio"],
-    });
+    captureServerException(error);
   }
 }

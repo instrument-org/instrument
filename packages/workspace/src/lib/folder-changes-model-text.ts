@@ -18,7 +18,7 @@ export function folderChangesModelNote(
     const added = data.added
       .map(
         (folder) =>
-          `- "${folderLabel(folder.path)}" at ${shellPath(folder.path)} (${folder.access === "read-write" ? "read and write" : "read-only"})`,
+          `- "${folderLabel(folder.path)}" at ${shellPath(folder.path)}`,
       )
       .join("\n");
     lines.push(

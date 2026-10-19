@@ -5,7 +5,12 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { MID_TURN_NOTE } from "./chat/mid-turn";
 import { systemNoteBody } from "./system-note";
-import { continuesOwnReply, opensTypedTurn, TURN_NOTE } from "./turn-note";
+import {
+  continuesOwnReply,
+  cutOffAtOutputLimit,
+  opensTypedTurn,
+  TURN_NOTE,
+} from "./turn-note";
 
 const sessionId = StoreId.newSessionId();
 const createdAt = new Date("2026-10-07T12:00:00Z");
@@ -13,7 +18,11 @@ const createdAt = new Date("2026-10-07T12:00:00Z");
 function message(
   role: "assistant" | "user",
   parts: ("midTurn" | "text" | "tool" | "wake")[],
-  extra: { error?: boolean } = {},
+  extra: {
+    error?: boolean;
+    finishReason?: "length" | "stop";
+    synthetic?: boolean;
+  } = {},
 ): SessionMessage.WithParts {
   const id = StoreId.newMessageId();
   const meta = () => ({
@@ -81,10 +90,11 @@ function message(
         id,
         metadata: {
           createdAt,
-          finishReason: "stop",
+          finishReason: extra.finishReason ?? "stop",
           modelId: "m",
           providerId: "p",
           sessionId,
+          ...(extra.synthetic ? { synthetic: true } : {}),
           ...(extra.error
             ? { error: { kind: "aborted" as const, message: "Aborted" } }
             : {}),
@@ -149,5 +159,52 @@ describe("continuesOwnReply", () => {
     ["the first step of a turn", [asked], false],
   ])("%s", (_, messages, expected) => {
     expect(continuesOwnReply(messages)).toBe(expected);
+  });
+});
+
+describe("cutOffAtOutputLimit", () => {
+  const asked = message("user", ["text"]);
+  const cutOff = message("assistant", ["text"], { finishReason: "length" });
+
+  it.each<[string, SessionMessage.WithParts[], boolean]>([
+    ["a step after a reply that ran out of room", [asked, cutOff], true],
+    [
+      "a step after a reply that finished",
+      [asked, message("assistant", ["text"])],
+      false,
+    ],
+    [
+      "a step after a call that ran out of room mid-input",
+      [
+        asked,
+        message("assistant", ["text", "tool"], { finishReason: "length" }),
+      ],
+      true,
+    ],
+    [
+      "the retry of a step that failed",
+      [
+        asked,
+        message("assistant", ["text"], { error: true, finishReason: "length" }),
+      ],
+      false,
+    ],
+    [
+      "the turn after the synthetic message that ends the run",
+      [
+        asked,
+        cutOff,
+        message("assistant", [], { finishReason: "length", synthetic: true }),
+      ],
+      false,
+    ],
+    ["the first step of a turn", [asked], false],
+  ])("%s", (_, messages, expected) => {
+    expect(cutOffAtOutputLimit(messages)).toBe(expected);
+  });
+
+  it("is asked before continuesOwnReply, which a cut-off reply also matches", () => {
+    expect(continuesOwnReply([asked, cutOff])).toBe(true);
+    expect(cutOffAtOutputLimit([asked, cutOff])).toBe(true);
   });
 });

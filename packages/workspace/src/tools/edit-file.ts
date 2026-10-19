@@ -4,23 +4,16 @@
 import { createTwoFilesPatch } from "diff";
 import ms from "ms";
 import { err, ok } from "neverthrow";
-import fs from "node:fs/promises";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { CHAT_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import {
   LINE_NUMBER_PAD_WIDTH,
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
-import { sessionLayout } from "../lib/session-layout";
-import { pathExists } from "../lib/path-exists";
-import {
-  applyUnicodeFallbacks,
-  resolveWritableToolPath,
-} from "../lib/resolve-agent-path";
-import { writeFileWithDir } from "../lib/write-file-with-dir";
+import { isMissing, sessionToolFs } from "../lib/tool-fs";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { TOOL_NAMES } from "./name";
@@ -220,12 +213,17 @@ const BlockAnchorReplacer: Replacer = function* (content, find) {
   const originalLines = content.split("\n");
   const searchLines = find.split("\n");
 
-  if (searchLines.length < 3) {
-    return;
-  }
-
   if (searchLines.at(-1) === "") {
     searchLines.pop();
+  }
+
+  // Counted after the trailing newline's empty line is dropped, so a search
+  // of two lines that ends in one is two lines here. Taken before, it passed
+  // as three, left no middle line to compare, and the pair of anchors then
+  // accepted whatever sat between them: `foo();\nbar();\n` replaced
+  // `foo();\n  const keep = 1;\nbar();\n` whole.
+  if (searchLines.length < 3) {
+    return;
   }
 
   const firstLineSearch = searchLines[0]?.trim();
@@ -302,14 +300,14 @@ const BlockAnchorReplacer: Replacer = function* (content, find) {
       let matchStartIndex = 0;
       for (let k = 0; k < startLine; k++) {
         const line = originalLines[k];
-        if (line) {
+        if (line !== undefined) {
           matchStartIndex += line.length + 1;
         }
       }
       let matchEndIndex = matchStartIndex;
       for (let k = startLine; k <= endLine; k++) {
         const line = originalLines[k];
-        if (line) {
+        if (line !== undefined) {
           matchEndIndex += line.length;
           if (k < endLine) {
             matchEndIndex += 1; // Add newline character except for the last line
@@ -361,14 +359,14 @@ const BlockAnchorReplacer: Replacer = function* (content, find) {
     let matchStartIndex = 0;
     for (let k = 0; k < startLine; k++) {
       const line = originalLines[k];
-      if (line) {
+      if (line !== undefined) {
         matchStartIndex += line.length + 1;
       }
     }
     let matchEndIndex = matchStartIndex;
     for (let k = startLine; k <= endLine; k++) {
       const line = originalLines[k];
-      if (line) {
+      if (line !== undefined) {
         matchEndIndex += line.length;
         if (k < endLine) {
           matchEndIndex += 1;
@@ -761,105 +759,100 @@ export const EditFile = setupTool({
     Performs exact string replacements in files. 
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter is a path relative to this conversation's folder (e.g. ./${CHAT_FOLDER_NAMES.work}/report.md), or the full path of a file in one of the user's folders you may change. The attached-folders list in your context says which folders those are.
+    - The ${INPUT_PARAMS.filePath} parameter is a path relative to this conversation's folder (e.g. ./sales/report.md), or the full path of a file in one of the user's folders you may change. The attached-folders list in your context says which folders those are.
     - Read the file with \`${ReadFile.name}\` before editing it, so \`${INPUT_PARAMS.oldString}\` matches what is actually on disk.
     - When editing text from \`${ReadFile.name}\` tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: the line number left-padded with spaces to ${LINE_NUMBER_PAD_WIDTH} characters, followed by the \`${LINE_NUMBER_SEPARATOR}\` separator character. Everything after that separator is the actual file content to match. Never include any part of the line number prefix in the \`${INPUT_PARAMS.oldString}\` or \`${INPUT_PARAMS.newString}\`.
     - The edit fails if \`${INPUT_PARAMS.oldString}\` is not unique in the file. Either provide a larger string with more surrounding context to make it unique, or use \`${INPUT_PARAMS.replaceAll}\` to change every instance. \`${INPUT_PARAMS.replaceAll}\` matches literal text, not symbols, so a rename also hits the name inside comments, strings, and longer identifiers -- check the returned diff.
     - Edits apply one at a time in the order you send them, so several edits to the same file in one response land cleanly.
   `,
-  execute: async ({ input, partId, sessionId, signal, chatId }) => {
+  execute: async ({ input, partId, sessionId, chatId }) => {
     if (input.oldString === input.newString) {
       return executeError("oldString and newString must be different");
     }
 
-    const layout = await sessionLayout({ chatId, partId, sessionId });
-    const pathResult = resolveWritableToolPath({
-      inputPath: input.filePath,
-      layout,
-    });
-    if (pathResult.isErr()) {
-      return err(pathResult.error);
+    const files = await sessionToolFs({ chatId, partId, sessionId });
+    const typed = files.resolve(input.filePath);
+    if (typed.isErr()) {
+      return err(typed.error);
     }
-    const { absolutePath: resolvedPath, displayPath: fixedPath } =
-      pathResult.value;
-
-    const absolutePath =
-      input.oldString === ""
-        ? resolvedPath
-        : applyUnicodeFallbacks(resolvedPath);
-    const exists = await pathExists(absolutePath);
+    const target =
+      input.oldString === "" ? typed.value : await files.existing(typed.value);
+    const fixedPath = files.shown(target);
 
     let contentOld = "";
-    let contentNew = "";
+    let contentNew = input.newString;
 
-    try {
-      if (input.oldString === "") {
-        // An empty oldString only creates a file. Models reach for it meaning
-        // "insert at the top", so treating it as a whole-file replacement
-        // destroys the file on a call that reads as additive.
-        if (exists) {
-          return executeError(
-            `oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use ${TOOL_NAMES.writeFile} for an intentional full-file replacement.`,
-          );
-        }
-        contentNew = input.newString;
-        await writeFileWithDir(absolutePath, input.newString, { signal });
-      } else {
-        if (!exists) {
-          return executeError(`File ${fixedPath} not found`);
-        }
-
-        // Check file size
-        const stats = await fs.stat(absolutePath);
-        if (stats.size > MAX_FILE_SIZE) {
-          return executeError(
-            `File is too large (${stats.size} bytes). Maximum size is ${MAX_FILE_SIZE} bytes`,
-          );
-        }
-
-        if (stats.isDirectory()) {
-          return executeError(`Path is a directory, not a file: ${fixedPath}`);
-        }
-
-        contentOld = await fs.readFile(absolutePath, "utf8");
-        const ending = detectLineEnding(contentOld);
-        const oldStringConverted = convertToLineEnding(
-          normalizeLineEndings(input.oldString),
-          ending,
+    if (input.oldString === "") {
+      // An empty oldString only creates a file. Models reach for it meaning
+      // "insert at the top", so treating it as a whole-file replacement
+      // destroys the file on a call that reads as additive.
+      if (await files.fs.exists(target)) {
+        return executeError(
+          `oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use ${TOOL_NAMES.writeFile} for an intentional full-file replacement.`,
         );
-        const newStringConverted = convertToLineEnding(
-          normalizeLineEndings(input.newString),
-          ending,
+      }
+    } else {
+      let bytes: Uint8Array;
+      try {
+        bytes = await files.fs.readFileBuffer(target);
+      } catch (error) {
+        return isMissing(error)
+          ? executeError(`File ${fixedPath} not found`)
+          : files.failure(error, target);
+      }
+      if (bytes.byteLength > MAX_FILE_SIZE) {
+        return executeError(
+          `File is too large (${bytes.byteLength} bytes). Maximum size is ${MAX_FILE_SIZE} bytes`,
         );
+      }
+
+      contentOld = Buffer.from(bytes).toString("utf8");
+      const ending = detectLineEnding(contentOld);
+      const oldStringConverted = convertToLineEnding(
+        normalizeLineEndings(input.oldString),
+        ending,
+      );
+      const newStringConverted = convertToLineEnding(
+        normalizeLineEndings(input.newString),
+        ending,
+      );
+      try {
         contentNew = replace(
           contentOld,
           oldStringConverted,
           newStringConverted,
           input.replaceAll,
         );
-        await writeFileWithDir(absolutePath, contentNew, { signal });
+      } catch (error) {
+        return executeError(
+          `Failed to edit file ${fixedPath}: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
       }
-
-      const diff = trimDiff(
-        createTwoFilesPatch(
-          fixedPath,
-          fixedPath,
-          normalizeLineEndings(contentOld),
-          normalizeLineEndings(contentNew),
-        ),
-      );
-      const stats = await fs.stat(absolutePath);
-
-      return ok({
-        diff,
-        filePath: fixedPath,
-        modifiedAt: stats.mtimeMs,
-      });
-    } catch (error) {
-      return executeError(
-        `Failed to edit file ${fixedPath}: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
     }
+
+    let modifiedAt: number;
+    try {
+      // Makes the folders a new file needs, as `tee` does.
+      await files.fs.writeFile(target, contentNew);
+      modifiedAt = (await files.fs.stat(target)).mtime.getTime();
+    } catch (error) {
+      return files.failure(error, target);
+    }
+
+    const diff = trimDiff(
+      createTwoFilesPatch(
+        fixedPath,
+        fixedPath,
+        normalizeLineEndings(contentOld),
+        normalizeLineEndings(contentNew),
+      ),
+    );
+
+    return ok({
+      diff,
+      filePath: fixedPath,
+      modifiedAt,
+    });
   },
   readOnly: false,
   timeoutMs: ms("30 seconds"),

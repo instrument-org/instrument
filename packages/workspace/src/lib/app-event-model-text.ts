@@ -53,12 +53,12 @@ export function appEventModelNote(
 }
 
 /**
- * Whose account the app is signed in as, when that is known, or what a
- * connection note asks of the agent once it can see it.
+ * Whose account the app is signed in as, when someone named it, or what a
+ * connection note asks of the agent when nobody has.
  */
 function nameIt({ account, slug }: { account?: string; slug: string }): string {
   if (account !== undefined) {
     return ` It is signed in as ${account}.`;
   }
-  return ` Once you see which account it is (an email address, a workspace), name it with \`${APP_COMMAND.name} account ${slug} '<account>'\`, so it can be told from another.`;
+  return ` If its account is plain (the page you are on shows it, or the user said it), name it: \`${APP_COMMAND.name} account ${slug} '<account>'\`. Don't hunt for it.`;
 }

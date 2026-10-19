@@ -85,6 +85,13 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-permissionAnswer": {
       return `<data-permissionAnswer ${part.data.kind}="${part.data.target}" answer="${part.data.answer}" />`;
     }
+    case "data-questionAnswer": {
+      const answer =
+        "declined" in part.data.answer
+          ? "skipped"
+          : part.data.answer.selectedChoice;
+      return `<data-questionAnswer question="${part.data.question}" answer="${answer}" />`;
+    }
     case "data-jobEvent": {
       return `<data-jobEvent events="${part.data.events.map((event) => `${event.id}:${event.status}`).join(",")}" />`;
     }
@@ -128,21 +135,16 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
       return `<data-backgroundProcesses>\n${indent(entries)}\n</data-backgroundProcesses>`;
     }
     case "data-browserStatus": {
-      const target =
-        part.data.status === "open"
-          ? `${part.data.target.title ? ` title="${part.data.target.title}"` : ""} url="${part.data.target.url}"`
-          : "";
-      const previousUrl =
-        part.data.status === "closed" && part.data.previousTarget
-          ? ` previousUrl="${part.data.previousTarget.url}"`
-          : "";
-      return `<data-browserStatus status="${part.data.status}"${target}${previousUrl} />`;
+      return `<data-browserStatus status="${part.data.status}" />`;
     }
     case "data-chatContext": {
       return `<data-chatContext>${part.data.chats.map((chat) => chat.title).join(",")}</data-chatContext>`;
     }
-    case "data-chatTopics": {
-      return `<data-chatTopics>${part.data.topics.map((topic) => topic.name).join(",")}</data-chatTopics>`;
+    case "data-workspaceInstructions": {
+      return `<data-workspaceInstructions>${part.data.instructions ?? ""}</data-workspaceInstructions>`;
+    }
+    case "data-topic": {
+      return `<data-topic>${part.data.topic?.name ?? ""}</data-topic>`;
     }
     case "data-contextRollover": {
       const retained = ` retainedUserMessages="${part.data.retainedUserMessages}"`;
@@ -151,6 +153,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     }
     case "data-dateChange": {
       return `<data-dateChange date="${part.data.date}" />`;
+    }
+    case "data-environmentChange": {
+      const facts = Object.entries(part.data)
+        .map(([fact, value]) => `${fact}="${value}"`)
+        .join(" ");
+      return `<data-environmentChange ${facts} />`;
     }
     case "data-fileChanges": {
       const files = part.data.files
@@ -175,6 +183,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     }
     case "data-modelChange": {
       return `<data-modelChange from="${part.data.from.modelId}" to="${part.data.to.modelId}" />`;
+    }
+    case "data-outputLimit": {
+      return `<data-outputLimit continuations="${part.data.continuations}" />`;
     }
     case "data-reply": {
       return `<data-reply>${part.data.text}</data-reply>`;

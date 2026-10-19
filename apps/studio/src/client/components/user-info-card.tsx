@@ -4,11 +4,10 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/client/components/ui/avatar";
-import { Button } from "@/client/components/ui/button";
+import { LogOutButton } from "@/client/components/log-out-button";
 import { Card } from "@/client/components/ui/card";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { getInitials } from "@/client/lib/get-initials";
-import { logOut } from "@/client/lib/log-out";
 
 export function UserInfoCard() {
   const { data: user } = useLiveUser();
@@ -37,14 +36,7 @@ export function UserInfoCard() {
             </p>
           </div>
         </div>
-        <Button
-          className="shrink-0"
-          onClick={() => {
-            void logOut();
-          }}
-        >
-          Log out
-        </Button>
+        <LogOutButton className="shrink-0" />
       </div>
     </Card>
   );

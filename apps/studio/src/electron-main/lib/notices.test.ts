@@ -1,11 +1,21 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {
+  AIGatewayModel,
+  AIGatewayModelURI,
+} from "@instrument-org/ai-gateway/schemas";
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { env, prefs, userData } = vi.hoisted(() => ({
+const { env, prefs, sandbox, userData, workspace } = vi.hoisted(() => ({
   env: { version: "2.0.0-beta.58" },
-  prefs: { releaseChannel: undefined as string | undefined },
+  workspace: { defaultModelURI: undefined as string | undefined },
+  sandbox: { browser: false, off: undefined as string | undefined },
+  prefs: {
+    releaseChannel: undefined as string | undefined,
+    runAnyway: false,
+  },
   userData: { dir: "" },
 }));
 
@@ -16,11 +26,26 @@ vi.mock("electron", () => ({
     on: vi.fn(),
   },
 }));
+// The real check probes this computer's sandbox, which differs by machine.
+vi.mock("@instrument-org/workspace/electron", () => ({
+  nativeSandboxOff: () => sandbox.off,
+}));
+vi.mock("./chromium-sandbox", () => ({
+  chromiumSandboxOff: () => sandbox.browser,
+}));
 vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));
 vi.mock("@/electron-main/stores/machine/preferences", () => ({
-  getMachinePreferences: () => ({ get: () => prefs.releaseChannel }),
+  getMachinePreferences: () => ({
+    get: (key: string) =>
+      key === "runProgramsWithoutSandbox"
+        ? prefs.runAnyway
+        : prefs.releaseChannel,
+  }),
+}));
+vi.mock("@/electron-main/stores/workspace/preferences", () => ({
+  getDefaultModelURI: () => workspace.defaultModelURI,
 }));
 vi.mock("@/electron-main/platform-api/headers", () => ({
   getPlatformApiHeaders: () => ({ "x-client-version": env.version }),
@@ -67,9 +92,13 @@ describe("notices", () => {
     userData.dir = fs.mkdtempSync(path.join(os.tmpdir(), "notices-"));
     env.version = "2.0.0-beta.58";
     prefs.releaseChannel = undefined;
+    workspace.defaultModelURI = undefined;
+    prefs.runAnyway = false;
+    sandbox.off = undefined;
+    sandbox.browser = false;
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
-    vi.stubEnv("MAIN_VITE_REPORTS_BASE_URL", "https://reports.example");
+    vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", "https://api.example");
     return () => {
       vi.unstubAllGlobals();
       vi.unstubAllEnvs();
@@ -167,23 +196,46 @@ describe("notices", () => {
     expect(notices.listNotices()[0]?.seen).toBe(true);
   });
 
-  it("lets an important notice toast once, and only one per launch", async () => {
+  it("lets an important notice toast once, one per launch, and a critical one always", async () => {
     let notices = await load();
     answer([
       notice({ id: "quiet" }),
       notice({ id: "loud", severity: "important" }),
+      notice({ id: "also-loud", severity: "important" }),
       notice({ id: "louder", severity: "critical" }),
     ]);
     await notices.fetchNotices();
 
     expect(notices.claimNoticeToast("quiet")).toBe(false);
     expect(notices.claimNoticeToast("loud")).toBe(true);
-    expect(notices.claimNoticeToast("louder")).toBe(false);
+    expect(notices.claimNoticeToast("also-loud")).toBe(false);
+    expect(notices.claimNoticeToast("louder")).toBe(true);
 
-    // The next launch gets one more, and never the one already toasted.
+    // The next launch gets one more, and never one already toasted.
     notices = await load();
     expect(notices.claimNoticeToast("loud")).toBe(false);
-    expect(notices.claimNoticeToast("louder")).toBe(true);
+    expect(notices.claimNoticeToast("louder")).toBe(false);
+    expect(notices.claimNoticeToast("also-loud")).toBe(true);
+  });
+
+  it("says where to get a build whose web pages are sandboxed", async () => {
+    const notices = await load();
+    sandbox.browser = true;
+    const [warning] = notices.listNotices();
+    expect(warning).toMatchObject({
+      action: { label: "Learn more" },
+      kind: "security",
+      severity: "important",
+      title: "Web pages in the browser aren't sandboxed",
+    });
+    expect(warning?.body).toContain(".deb package");
+  });
+
+  it("toasts a notice the app makes itself", async () => {
+    const notices = await load();
+    sandbox.off = "no-bubblewrap";
+    const [warning] = notices.listNotices();
+    expect(notices.claimNoticeToast(warning?.id ?? "")).toBe(true);
   });
   it("lists only the last update this computer launched into", async () => {
     const notices = await load();
@@ -207,6 +259,50 @@ describe("notices", () => {
     expect(notices.listNotices()).toEqual([]);
   });
 
+  it("warns loudly while the agent's programs have no sandbox, and comes back with the next build", async () => {
+    const notices = await load();
+    sandbox.off = "user-namespaces-closed";
+    const [warning] = notices.listNotices();
+    expect(warning).toMatchObject({
+      action: { label: "Open Settings", settings: "Permissions" },
+      kind: "security",
+      severity: "critical",
+      title: "The agent can't run programs right now",
+    });
+    notices.dismissNotice(warning?.id ?? "");
+    expect(notices.listNotices()).toEqual([]);
+
+    env.version = "2.0.0-beta.59";
+    expect(notices.listNotices()).toHaveLength(1);
+    // Windows says so in Settings alone, as it does on every Windows computer.
+    sandbox.off = "windows";
+    expect(notices.listNotices()).toEqual([]);
+  });
+
+  it("quiets the warning once the person chose to run programs anyway", async () => {
+    const notices = await load();
+    sandbox.off = "no-bubblewrap";
+    prefs.runAnyway = true;
+    expect(notices.listNotices()).toMatchObject([
+      {
+        severity: "info",
+        title: "Programs the agent runs can reach all your files",
+      },
+    ]);
+  });
+
+  it("describes what it found about the sandbox for a report, one problem per cause", async () => {
+    const notices = await load();
+    sandbox.off = "no-seatbelt";
+    expect(notices.describeCondition("sandbox-off")).toEqual({
+      fingerprint: "condition:sandbox-off:no-seatbelt",
+      found: expect.arrayContaining([
+        "sandboxOff: no-seatbelt",
+        "runProgramsWithoutSandbox: false",
+      ]),
+    });
+  });
+
   it("keeps an update dismissed, and never toasts it", async () => {
     const notices = await load();
     notices.noteUpdate({ from: "2.0.0-beta.57", to: "2.0.0-beta.58" });
@@ -216,5 +312,157 @@ describe("notices", () => {
     notices.dismissNotice(updated?.id ?? "");
 
     expect(notices.listNotices()).toEqual([]);
+  });
+
+  describe("chats the conversion left on their database", () => {
+    it("says how many are still to come over, and that they are safe", async () => {
+      const notices = await load();
+      notices.noteChatsLeftBehind(1);
+
+      expect(notices.listNotices()).toMatchObject([
+        {
+          body: "Instrument couldn't finish bringing one of your chats over, so it looks empty right now. The conversation is safe where it is, and Instrument tries again the next time it starts.",
+          severity: "important",
+          title: "One chat is still being brought over",
+        },
+      ]);
+
+      notices.noteChatsLeftBehind(3);
+
+      expect(notices.listNotices()).toMatchObject([
+        {
+          body: "Instrument couldn't finish bringing 3 of your chats over, so they look empty right now. Their conversations are safe where they are, and Instrument tries again the next time it starts.",
+          title: "Some chats are still being brought over",
+        },
+      ]);
+    });
+
+    it("goes once a launch brings them over", async () => {
+      const notices = await load();
+      notices.noteChatsLeftBehind(2);
+      notices.noteChatsLeftBehind(0);
+
+      expect(notices.listNotices()).toEqual([]);
+    });
+
+    // The conversion runs at every launch, so the same chats left behind
+    // must not raise the notice the person has already dismissed.
+    it("stays dismissed while the same chats are left behind", async () => {
+      const notices = await load();
+      notices.noteChatsLeftBehind(2);
+      notices.dismissNotice(notices.listNotices()[0]?.id ?? "");
+
+      notices.noteChatsLeftBehind(2);
+
+      expect(notices.listNotices()).toEqual([]);
+    });
+
+    // A chat that converts while another is left behind is news: the count
+    // is what the person reads, so a new count is a notice of its own.
+    it("comes back for a different number of them", async () => {
+      const notices = await load();
+      notices.noteChatsLeftBehind(2);
+      notices.dismissNotice(notices.listNotices()[0]?.id ?? "");
+
+      notices.noteChatsLeftBehind(1);
+
+      expect(notices.listNotices()).toMatchObject([
+        { title: "One chat is still being brought over" },
+      ]);
+    });
+  });
+  describe("accounts signed out without the person asking", () => {
+    const claudeOpus = AIGatewayModelURI.fromModel({
+      author: "anthropic",
+      canonicalId: AIGatewayModel.CanonicalIdSchema.parse("claude-opus-5.5"),
+      params: {
+        provider: "claude-account",
+        providerConfigId: AIProviderConfigIdSchema.parse("claude-account"),
+      },
+    });
+
+    it("asks loudly when new chats start on the account, and quietly otherwise", async () => {
+      const notices = await load();
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      notices.noteSignedOut("chatgpt-account", [
+        { id: "01J0000000000000000000000A", label: "me@example.com" },
+      ]);
+      workspace.defaultModelURI = claudeOpus;
+
+      expect(
+        notices.listNotices().map(({ action, body, severity, title }) => ({
+          action,
+          body,
+          severity,
+          title,
+        })),
+      ).toMatchInlineSnapshot(`
+        [
+          {
+            "action": {
+              "label": "Sign in again",
+              "setting": "chatgpt-account",
+              "settings": "Providers",
+            },
+            "body": "Sign in to me@example.com again to use its models, or dismiss this if you don't need them.",
+            "severity": "info",
+            "title": "You're signed out of ChatGPT",
+          },
+          {
+            "action": {
+              "label": "Sign in again",
+              "setting": "claude-account",
+              "settings": "Providers",
+            },
+            "body": "Sign in again to keep using Claude Opus 5.5 in new chats.",
+            "severity": "critical",
+            "title": "You're signed out of Claude",
+          },
+        ]
+      `);
+    });
+
+    it("toasts the loud one", async () => {
+      const notices = await load();
+      workspace.defaultModelURI = claudeOpus;
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+
+      expect(notices.claimNoticeToast(notices.listNotices()[0]?.id ?? "")).toBe(
+        true,
+      );
+    });
+
+    it("goes once the account is signed in again or removed", async () => {
+      const notices = await load();
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      notices.noteSignedOut("claude-account", []);
+
+      expect(notices.listNotices()).toEqual([]);
+    });
+
+    // Each launch reads the account again, so the same answer must not
+    // raise the notice the person has already dismissed.
+    it("stays dismissed while the account stays signed out, and comes back the next time", async () => {
+      const notices = await load();
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      notices.dismissNotice(notices.listNotices()[0]?.id ?? "");
+
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      expect(notices.listNotices()).toEqual([]);
+
+      notices.noteSignedOut("claude-account", []);
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      expect(notices.listNotices()).toHaveLength(1);
+    });
+
+    it("leaves the other type's accounts alone", async () => {
+      const notices = await load();
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      notices.noteSignedOut("chatgpt-account", []);
+
+      expect(notices.signedOutAccounts()).toMatchObject([
+        { id: "claude-account", type: "claude-account" },
+      ]);
+    });
   });
 });

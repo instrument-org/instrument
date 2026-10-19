@@ -35,8 +35,6 @@ describe("gatewayErrorHandler", () => {
         "type": "error",
       }
     `);
-    expect(captureException).toHaveBeenCalledWith(expect.any(TypeError), {
-      scopes: ["ai-gateway"],
-    });
+    expect(captureException).toHaveBeenCalledWith(expect.any(TypeError));
   });
 });

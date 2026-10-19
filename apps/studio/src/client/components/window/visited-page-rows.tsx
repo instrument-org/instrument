@@ -3,7 +3,6 @@ import {
   removeFromHistory,
 } from "@/client/hooks/use-browser-history";
 import { PageFavicon } from "@/client/components/favicon";
-import { cn } from "@/client/lib/utils";
 
 import { PageContextMenu, usePageClicks } from "./page-menu";
 import { PageTooltip } from "./page-tooltip";
@@ -18,7 +17,6 @@ import { PageTooltip } from "./page-tooltip";
  */
 export function VisitedPageRows({
   isCompact = false,
-  isOneRow = false,
   onOpen,
   visits,
 }: {
@@ -28,8 +26,6 @@ export function VisitedPageRows({
    * on hover.
    */
   isCompact?: boolean;
-  /** Only as many as fit on one row, for a strip under a page's head. */
-  isOneRow?: boolean;
   onOpen: (url: string) => void;
   visits: { page: HistoryPage }[];
 }) {
@@ -44,16 +40,7 @@ export function VisitedPageRows({
   });
   if (isCompact) {
     return (
-      <ul
-        className={cn(
-          "grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-x-2",
-          // Rows past the first take no height, and the list clips them;
-          // a gap between rows would still be counted under the one shown.
-          isOneRow
-            ? "auto-rows-[0] grid-rows-[auto] overflow-hidden"
-            : "gap-y-2",
-        )}
-      >
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-x-2 gap-y-2">
         {visits.map(({ page }) => (
           <li className="min-w-0" key={page.url}>
             <PageContextMenu {...menuFor(page.url)}>

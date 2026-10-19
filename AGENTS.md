@@ -11,11 +11,13 @@ pnpm monorepo for the Instrument desktop app platform. The public website is htt
 ## Product terminology
 
 - The user talks to one agent in a **chat**, the only record, named by its `ChatId` everywhere: code, routes, RPC, events, types, and on-disk layout. A chat holds **sessions**, each a thread of messages and tool calls (`SessionId`): the chat's own conversation is the session with no parent, and a **task** is a session the chat started in the background, with the chat's session as its parent. "Task" is the word for that child session in the agent's `task` command (which names it by a per-chat handle, `t1`) and in the UI, never in storage.
-- On disk, a chat lives under `chats/<id>/` with `.instrument/{chat.db,settings.json}`. Its folder is the work folder for every session in it, tasks included. `chat.db` holds its sessions and their messages and nothing else; a task's row carries `parentId` and `forkedAtMessageId`, and its history is read as the parent's messages up to that point, then its own, never copied. `tasks/<id>/` at the root is only where 1.x left tasks for the layout migration to turn into chats. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. A draft (a chat not yet started) lives under `drafts/<id>/`: its words in `draft.md`, what was pasted into it beside them, and the rest in `.instrument/settings.json`. One settings file per chat: what the app knows about it at the top level (the model and reasoning effort every session runs on, the folders granted in the chat), where the user left off under `state` (the tabs its sessions hold, each naming the task driving it, none meaning the chat). A chat's title, its own marks (starred, archived, unread) and its topics are on its session row in `chat.db`. An app's connection record holds the chat waiting on its sign-in (`askedIn`).
+- On disk, what the app keeps in a workspace is in its `.instrument/` (`workspaceLayout`), and the workspace's top level is the person's own. A chat's records live under `.instrument/chats/<id>/`: one append-only log per session per device (`<session>.<device>.jsonl`), a marks file per device, a state file per device (`state.<device>.json`), `blobs/`, `settings.json`, `attachments/` (what the person sent) and `handoff-notes.md`. Its work lives on this computer, in `~/.instrument/work/<workspace>/<id>/` (`workDir`), the folder every session in it works in, tasks included; `<workspace>` is a readable name the workspace's machine folder records, so renaming or moving the workspace keeps it. A task's session header names its `parent` and the `forkedAt` message it carries on from, and its history is read as the parent's messages up to that point, then its own, never copied. A `chat.db` there is a chat an earlier build wrote, which the converter turns into records at launch. `tasks/<id>/` at the top level is only where 1.x left tasks for the layout migration to turn into chats. A topic lives under `Topics/<Name>/`, at the workspace's top level, in a `TOPIC.md`: plain YAML front matter (its `id`, its `emoji`, `color` and `about`, when it was `created`, `retired` only when it is, and the folders granted under it) over the standing instructions every chat filed under it is read with. The folder is the topic's name, so renaming the folder renames the topic, and a key the build does not recognize is written back as it was found. A draft lives under `Drafts/<date>/`, at the workspace's top level, in a `DRAFT.md`: plain YAML front matter (its `id`, when it was `created` and last `updated`, the `chat` a reply goes into, the `topic` a new chat opens under, what was `attached`) over the person's own words, with what they pasted into it beside the file. A draft is its `id`, never its folder name, and one folder may hold more than one `DRAFT*.md`. A reply waiting in a chat's box is a draft like any other, naming its chat. An app lives under `Apps/<Name>/`, at the workspace's top level, in an `APP.md`: plain YAML front matter (its `id`, and how the service is reached) over the guide, what it is for and what the work needs from it. The folder is the app's name, and its `id` is what `app` calls it by, since the credential store and the connection record are keyed by that. The workspace's skills are in `Skills/` and the person's memories in `Memory/`, both at the workspace's top level, a folder per skill and one Markdown file per memory. One settings file per chat, `settings.json`, for what every device knows about it (the model and reasoning effort every session runs on, its folder), and one state file per device, `state.<device>.json`, written and read by that device alone, for where it left off (the tabs its sessions hold, each naming the task driving it, none meaning the chat, and the cards its agent is waiting on). The folders and apps granted in a chat, and what was refused there, are this computer's, in the workspace's machine folder's `permissions.json` under `chats`, since every one names something on this computer. Each device appends the model requests it makes, the activity log, to its own `.instrument/devices/<device>/activity/<YYYY-MM>.jsonl`, which this computer's `workspace.db` indexes. A chat's title, its own marks (starred, archived, unread) and its topic are marks. An app's connection record holds the chat waiting on its sign-in (`askedIn`).
 
 ## UI copy
 
 Words a person reads in the app (subheads, descriptions, empty states, toasts, dialogs) are written in conversational plain language: full sentences, said the way you would say them out loud to a friend. Keep it short, and keep the grammar. Read the line aloud, and if no one would say it that way, rewrite it.
+
+These rules cover prose a person reads in the app and nothing else. Buttons, labels and placeholders are a word or a few ("Send", not "Stop and send what you said"). Text written for the agent (system prompts, tool descriptions, skill and environment notes) is terse and direct, written the way an agent reads best. When a full sentence and a shorter matter-of-fact one both work, take the shorter.
 
 What to avoid:
 
@@ -25,8 +27,11 @@ What to avoid:
 - **Narrating the mechanism** instead of saying what the person gets: "Instrument reads it in a new chat and keeps what is worth keeping."
 - **Spelling out the obvious**: a clause describing what the person can already see or would assume anyway, which makes a short line long and a little condescending. "Drag a file here to add it to this folder you're looking at" is "Drag a file here to add it."
 - **Inventories** in a label, button or placeholder that list every kind of thing it covers: "Find tasks, files, people, and settings…" The results show the range; the label names the act in a few plain words. Labels, buttons and placeholders are the one place copy is not a full sentence.
+- **Odd verbs** in place of everyday ones: a chat "can hold" so much, a folder "holds" your keys, a task "carries on", an app "sends back" an answer. Say has, fits, continues, or shows. Agents reach for "hold" far more often than people do, so when it turns up in your own draft, rewrite the line.
 
 A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
+
+Warm words are welcome. "Create an account to enjoy free AI usage" says "enjoy" on purpose, so a cleanup pass leaves a word like that alone.
 
 ## Local references
 
@@ -47,7 +52,7 @@ Plans, pricing, and usage limits belong to the API, which enforces them and reco
 - Avoid casts. Prefer `satisfies`; use `as` only for genuinely different types (e.g. unknown payloads), and say why.
 - Reuse existing types/interfaces rather than redefining per file. Prefer short inline non-exported types.
 - Use `radashi` for common lodash-style functions.
-- Do not run `tsc`; use built-in diagnostics or `tsgo`.
+- `tsc` is TypeScript 7, the native compiler; run it through `check:types` (below) or lean on built-in diagnostics. `typescript` 7 has no compiler JS API, so a tool that needs one cannot use it.
 
 ## Tailwind
 
@@ -82,10 +87,10 @@ What the hook does not cover: type errors, tests in another package that import 
 
 `package.json` files show `"catalog:"` instead of version numbers. Real versions are in `pnpm-workspace.yaml` under `catalog:`. The ones where a stale assumption changes the code you write:
 
-- **React** 19.2 / **react-dom** 19.2
-- **TypeScript** 5.9 (also available as `@typescript/native-preview` 7.x via `tsgo`)
+- **React** 19.3 / **react-dom** 19.3
+- **TypeScript** 7.0 (the native compiler)
 - **Zod** 4.x
-- **Vite** 8.x (Rolldown/Oxc) / **Vitest** 4.x
+- **Vite** 8.x (Rolldown/Oxc) / **Vitest** 5.x (browser locators and `toHaveTextContent` match exactly; `toMatchTextContent` takes a substring or RegExp)
 - **AI SDK** 7.x
 - **better-auth** 1.7.x
 - **pnpm** 11.28.0 (`packageManager`) / **Node** >=24.21.0 (`engines`)
@@ -137,6 +142,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/system-overview.md` — Top-level map: packages/layering, main-vs-renderer runtime topology, on-disk layout, and how an agent turn flows. Start here.
 - `docs/architecture/ai-gateway.md` — Model access: the mounted provider-proxy Hono app plus the model-discovery/identity library consumed by workspace and studio.
 - `docs/architecture/agent-sandbox.md` — How agent tools are contained (the Permissions rules, path-scoped file I/O, the just-bash filesystem, agent-browser allowlist, real-binary escape hatches under Seatbelt on macOS and bubblewrap on Linux).
+- `docs/architecture/native-and-builtin-commands.md`: Which shell commands run as real programs (uutils, rg, git, the interpreters, the PATH) and which as just-bash builtins, per platform; the uutils table is generated from `shell-commands/native-text.ts`.
 - `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — How the folders a chat reaches are mounted at their real paths, the nested-mount collapse, and known just-bash quirks.
 - `docs/architecture/just-bash-upstream.md` — Which `just-bash` build we consume, every patch and agent-facing workaround we carry because of an upstream gap, what has to be true before each can go, and our open upstream PRs. Read before adding a prompt line that steers the agent around sandbox behavior.
 - `docs/architecture/in-app-browser.md` — The in-app browser the user, a chat, and its tasks share: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, files opening at their `file://` address, and what the panel may do that the agent may not.

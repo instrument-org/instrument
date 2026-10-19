@@ -121,6 +121,11 @@ export const RELEASE_NOTES_URL = `${APP_REPO_URL}/releases`;
 // runs are not yet held to the list. Kept to this one constant so the link
 // can move behind a redirect on the website.
 export const WINDOWS_SANDBOX_URL = `${APP_REPO_URL}/blob/main/docs/architecture/windows-sandbox.md`;
+// What the sandbox-off warning on macOS and Linux links to, written for the
+// person who sees it.
+export const SANDBOX_OFF_URL = `${APP_REPO_URL}/blob/main/docs/architecture/native-sandbox-off.md`;
+// What the notice for web pages running without Chromium's sandbox links to.
+export const BROWSER_SANDBOX_OFF_URL = `${SANDBOX_OFF_URL}#when-web-pages-have-no-sandbox`;
 export const SKILLS_MARKETPLACE_URL = "https://skills.sh";
 export const X_HANDLE = "@tryinstrument";
 export const X_URL = `https://x.com/${X_HANDLE}`;
@@ -135,6 +140,129 @@ export const GIT_AGENT_NAME = `${APP_NAME} Agent`;
 export const SETTINGS_FILE_NAME = `settings.json`;
 export const RELEASES_BUCKET_URL = `https://releases.${APP_DOMAIN}`;
 export const PRIVATE_FOLDER_NAME = `.instrument`;
+
+/**
+ * What this computer keeps for one workspace, in a folder of its own named by
+ * the workspace's local id and outside the workspace: what is secret, means
+ * something only on this computer, or is rebuilt here, so the workspace
+ * folder never carries it to another one. Named here because the app and the
+ * agent's package both reach into it.
+ */
+export const WORKSPACE_MACHINE_ENTRIES = {
+  /** The local servers of connected apps, as installed. */
+  appServers: "app-servers",
+  /** The Chromium profiles of the app and its browser, history, page pictures, downloads. */
+  browser: "browser",
+  /**
+   * The config folder our copy of Claude Code runs with, holding the Claude
+   * subscription it is signed in to. Beside `keys` because it is one, and
+   * per workspace for the same reason every other sign-in is.
+   */
+  claudeAccount: "claude-account",
+  /**
+   * `workspace.db`: the index of the workspace's chats and of every
+   * device's activity log, rebuilt from the workspace whenever it is missing.
+   */
+  database: "workspace.db",
+  /** Provider keys, the account sign-in, ChatGPT accounts, app credentials and connections. */
+  keys: "keys",
+  /**
+   * Where migrations moved this computer's paths from and to, which every
+   * read of a stored path went through. A migration writes the paths it
+   * moved into the files holding them now (`rewriteStoredPaths`), so this is
+   * only what the launch takes in and removes (`settleMovedPaths`).
+   */
+  movedPaths: "moved-paths.json",
+  /**
+   * The launch making the workspace's pending move, held until it has the
+   * workspace open, so a second launch at once waits for it rather than
+   * moving the same records.
+   */
+  moveLock: "move.lock",
+  /** The process that has the workspace open. */
+  openMark: "open.pid",
+  /**
+   * The id of the workspace this folder belongs to, so a local id another
+   * workspace had before never hands this one that one's data.
+   */
+  owner: "owner.json",
+  /** Settings › Permissions, whose folder rules name this computer's paths. */
+  permissions: "permissions.json",
+  /** What the app remembers about the workspace on this computer. */
+  state: "state.json",
+  /** The window's size and place, and where the person left off in it. */
+  window: "window",
+  /**
+   * Where builds before kept each chat's work folder, `work/<chat id>/`;
+   * the launch moves what is there to the workspace's folder in
+   * `~/.instrument/work/` (`HOME_DATA_ENTRIES.work`).
+   */
+  work: "work",
+  /**
+   * The name of the workspace's folder in `~/.instrument/work/`, settled the
+   * first time the workspace opens on this computer and kept here, so a
+   * workspace renamed or moved keeps its chats' work.
+   */
+  workFolders: "work-folders.json",
+} as const;
+
+/**
+ * What a flavor calls the two folders it keeps in the person's home folder:
+ * `instrument`, its Instrument folder (where finished work goes while the
+ * workspace is kept in the app's own data, and the folder offered when the
+ * person picks one), and `data`, its own data (`HOME_DATA_ENTRIES`). Each
+ * flavor has its own pair, so a development run or a preview never writes
+ * into the folders of the app people install, nor finds its workspace there
+ * to open. Every preview shares one pair, so a rebuild makes no new folders.
+ */
+export function homeFoldersOf(flavor: AppFlavor): {
+  data: string;
+  instrument: string;
+} {
+  switch (flavor.kind) {
+    case "development":
+      return {
+        data: `${PRIVATE_FOLDER_NAME}-dev`,
+        instrument: `${APP_NAME} Dev`,
+      };
+    case "preview":
+      return {
+        data: `${PRIVATE_FOLDER_NAME}-preview`,
+        instrument: `${APP_NAME} Preview`,
+      };
+    case "release":
+      return { data: PRIVATE_FOLDER_NAME, instrument: APP_NAME };
+  }
+}
+export const HOME_FOLDERS = homeFoldersOf(APP_FLAVOR);
+/**
+ * Every flavor's own data folder in the home folder, none of which can be or
+ * hold an Instrument folder, whichever flavor is asking.
+ */
+export const HOME_DATA_FOLDER_NAMES = (
+  [
+    { kind: "development" },
+    { kind: "preview", name: "" },
+    { kind: "release" },
+  ] satisfies AppFlavor[]
+).map((flavor) => homeFoldersOf(flavor).data);
+
+/**
+ * What the app keeps in the person's home folder, in its flavor's data
+ * folder (`HOME_FOLDERS.data`, `~/.instrument/` for the app people install):
+ * what the agent made for the person, in a folder they can find, apart from
+ * the app's own data.
+ */
+export const HOME_DATA_ENTRIES = {
+  /**
+   * Each chat's work folder, `work/<workspace>/<chat id>/`: where its
+   * agent's shell starts and what it makes lands. `<workspace>` is a
+   * readable name the workspace's machine folder records
+   * (`WORKSPACE_MACHINE_ENTRIES.workFolders`). Its records stay in the
+   * workspace.
+   */
+  work: "work",
+} as const;
 
 // 47xxx-48xxx range: above WSL2/Hyper-V exclusion bands (~4k-10k) and below
 // the OS ephemeral range (49152+). Env suffixes (prod/dev/test) allow all

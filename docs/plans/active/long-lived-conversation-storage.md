@@ -122,7 +122,7 @@ After phase 4 the remaining work is the parent plan's phases 4 through 6: the st
 - [conversation-storage.md](conversation-storage.md) is the long form and stays the plan of record for the migration. This plan takes its phase 1 and does it without the live write path, and it does not need its phase 0: the id split exists because one value is key, folder name, DNS label, and title, and the title job goes away when tasks stop being user-facing. That plan's option D is where this one lands.
 - [context-compaction.md](context-compaction.md) gains a retrievable archive, which lowers what its summarizing phase has to achieve. A summary only has to make the agent know a thing exists, not preserve it losslessly.
 - [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md) is independent. The record's virtual path does not move when `work/` moves on disk, because every consumer resolves through the mount table.
-- [skills-mount-instead-of-copy.md](skills-mount-instead-of-copy.md) step 3 gates the cross-task half. Today no task can see another task's directory at all; the parent reading a task's record needs a mount that does not exist, and a real binary writing there needs the native bridge to take the layout. Phase 1 here is single-task and needs neither.
+- [skills-mount-instead-of-copy.md](../completed/skills-mount-instead-of-copy.md) step 3 gates the cross-task half. Today no task can see another task's directory at all; the parent reading a task's record needs a mount that does not exist, and a real binary writing there needs the native bridge to take the layout. Phase 1 here is single-task and needs neither.
 
 ## Open questions
 

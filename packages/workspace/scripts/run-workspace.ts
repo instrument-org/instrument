@@ -26,6 +26,7 @@ import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { startRun } from "../evals/lib/start-run";
 import { env } from "./lib/env";
+import { newDeviceId } from "../src/lib/records/device-id";
 
 const PROVIDER_CONFIGS: AIGatewayProviderConfig.Type[] = [
   {
@@ -118,7 +119,7 @@ const actor = createActor(workspaceMachine, {
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },
-    chatTemplateDir: path.resolve(import.meta.dirname, "../templates/default"),
+    deviceId: newDeviceId(),
     getAIProviderConfigs: () => PROVIDER_CONFIGS,
     modelCache: noopModelCache,
     nodeExecEnv: {},
@@ -126,16 +127,18 @@ const actor = createActor(workspaceMachine, {
     pnpmBinPath: await execa({ reject: false })`which pnpm`.then(
       (result) => result.stdout.trim() || "pnpm",
     ),
-    preparedSkillsDir: path.resolve("../../../workspace.local/prepared-skills"),
     registryDir,
     // Sibling directory to monorepo to avoid using same pnpm and git
     rootDir: path.resolve("../../../workspace.local"),
+    runtimeDir: path.resolve("../../../workspace.local/runtime"),
+    userDataDir: path.resolve("../../../workspace.local/machine"),
+    workspaceMachineDir: path.resolve("../../../workspace.local/machine"),
+    workFoldersDir: path.resolve("../../../workspace.local/machine/work"),
     systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
     trashItem: () => Promise.reject(new Error("Not implemented")),
     uvBinPath: await execa({ reject: false })`which uv`.then(
       (result) => result.stdout.trim() || "uv",
     ),
-    uvDataDir: path.resolve("../../../workspace.local/uv-data"),
     webSearch: unavailableWebSearchClient,
   },
   inspect(event) {

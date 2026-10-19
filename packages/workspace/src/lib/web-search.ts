@@ -20,7 +20,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type WebSearchResult } from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
-import { aiUsageTelemetry, recordAIUsage } from "./ai-usage/record";
+import { activityTelemetry, recordActivity } from "./activity/record";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
 import { searchKeyless } from "./keyless-web-search";
@@ -107,7 +107,7 @@ export async function* webSearch({
   sessionId: StoreId.Session;
   signal: AbortSignal;
   /** The chat searching, which its record of model requests files the search under. */
-  chatId?: ChatId;
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
@@ -224,7 +224,7 @@ async function requestPlatformSearch({
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  chatId?: ChatId;
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
   const startedAt = Date.now();
@@ -234,7 +234,7 @@ async function requestPlatformSearch({
   });
   // Our endpoint is reached from the app's main process rather than through
   // the model proxy or the AI SDK, so it is recorded here.
-  recordAIUsage(
+  recordActivity(
     {
       connection: {
         id: OUR_MODELS.providerType,
@@ -298,7 +298,7 @@ async function searchWithPlatform(args: {
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  chatId?: ChatId;
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
   const first = await requestPlatformSearch(args);
@@ -353,7 +353,7 @@ async function* searchWithProviderModel({
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  chatId?: ChatId;
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
@@ -406,7 +406,7 @@ async function* searchWithProviderModel({
       model,
       prompt,
       providerOptions,
-      telemetry: aiUsageTelemetry({
+      telemetry: activityTelemetry({
         connection: config,
         kind: "search",
         purpose: "web-search",

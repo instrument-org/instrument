@@ -6,6 +6,7 @@ import log, {
 } from "electron-log";
 import path from "node:path";
 
+import { breadcrumbLogTransport } from "./breadcrumbs";
 import {
   getDevLogFilePath,
   openDevLog,
@@ -79,6 +80,13 @@ export function createScopedLogger(scope: string) {
 
 export function initializeElectronLogging() {
   Object.assign(console, log.functions);
+
+  // Every line at info or above is a breadcrumb the next captured exception
+  // carries. Cast for the reason the dev transport below gives.
+  log.transports.breadcrumbs = Object.assign(breadcrumbLogTransport, {
+    level: "info",
+    transforms: [],
+  }) as unknown as Transport;
 
   if (IS_DEV) {
     // Register a custom transport so every message flowing through electron-log

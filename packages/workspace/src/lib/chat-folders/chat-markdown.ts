@@ -139,6 +139,8 @@ export function renderChatMarkdown({
   const blocks: string[] = [
     frontMatter(own, timeZone, topicNames),
     `[Open this chat in ${APP_NAME}](${APP_NAME_SLUG}://chat/${id})`,
+    // The file is rewritten from the records at the end of every turn.
+    `*This is a copy of the chat that you can read and search anywhere. ${APP_NAME} updates it after each reply, so any changes you make here will be replaced.*`,
   ];
   const work = workLines(chat, own.id, rootDir);
   let taken = 0;

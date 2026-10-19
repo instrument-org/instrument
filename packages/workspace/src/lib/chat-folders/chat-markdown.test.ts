@@ -229,6 +229,8 @@ it("renders a chat whole", () => {
 
     [Open this chat in Instrument](instrument://chat/records-test)
 
+    *This is a copy of the chat that you can read and search anywhere. Instrument updates it after each reply, so any changes you make here will be replaced.*
+
     ## Wednesday, October 14, 2026
 
     ### You at 8:00 AM

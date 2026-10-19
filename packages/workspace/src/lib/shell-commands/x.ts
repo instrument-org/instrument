@@ -12,6 +12,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { getWorkspaceServerURL } from "../../logic/server/url";
 import { activityTelemetry } from "../activity/record";
+import { NO_ALLOWANCE_PATTERN } from "../classify-provider-error";
 import { getCurrentDate } from "../get-current-date";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -301,6 +302,9 @@ async function searchOnce({
       headers: { [CLIENT_SESSION_ID_HEADER]: sessionId },
       instructions: instructions(),
       model,
+      // A refusal xAI repeats on every try (no subscription, a spent
+      // allowance) reaches the agent at once; it can run the command again.
+      maxRetries: 0,
       output: firstObjectOutput(),
       prompt: prompt.filter(Boolean).join("\n"),
       telemetry: activityTelemetry({
@@ -389,6 +393,12 @@ function statusId(url: string): string | undefined {
 function refusal(error: unknown): string {
   if (APICallError.isInstance(error)) {
     const detail = error.responseBody?.trim() || error.message;
+    if (
+      error.statusCode === 429 &&
+      NO_ALLOWANCE_PATTERN.test(`${error.message}\n${detail}`)
+    ) {
+      return "the Grok account has no Grok subscription, so xAI allows it no requests. It needs SuperGrok, or X Premium with Grok; Settings › Providers shows each account's plan.";
+    }
     if (error.statusCode === 429) {
       return `the Grok account hit its usage limit; try again later. xAI said: ${detail}`;
     }

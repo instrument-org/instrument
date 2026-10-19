@@ -112,6 +112,12 @@ const CONTEXT_OVERFLOW_PATTERNS = [
 const NOT_CONTEXT_OVERFLOW_PATTERNS = [/rate limit/i, /too many requests/i];
 
 /**
+ * xAI's "Requests per Minute (actual/limit): 0/0": an allowance of nothing,
+ * which is how an account without a Grok subscription is refused.
+ */
+export const NO_ALLOWANCE_PATTERN = /\(actual\/limit\):\s*\d+\/0\b/i;
+
+/**
  * Say what a provider's rejection was about.
  *
  * Two of the shapes that arrive are provider verdicts. A failed request reaches
@@ -302,6 +308,12 @@ function weighEvidence({
   }
   if (statusCode === 401 || statusCode === 402 || statusCode === 403) {
     return { evidence: "status", kind: "auth" };
+  }
+  // xAI answers an account with no subscription behind it with a 429 whose
+  // limit is zero requests a minute: no wait ends it, so it is the account
+  // that cannot ask, not throttling.
+  if (statusCode === 429 && NO_ALLOWANCE_PATTERN.test(text)) {
+    return { evidence: "prose", kind: "auth" };
   }
   if (statusCode === 429) {
     return { evidence: "status", kind: "rate-limit" };

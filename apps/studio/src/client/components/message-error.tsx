@@ -279,7 +279,7 @@ function describeForProvider(
       // subscription with the same refusal, so this names both.
       return {
         detail:
-          "xAI turned this account away. It may be out of usage for now, or it may need a SuperGrok subscription, or X Premium that includes Grok. Settings shows which.",
+          "xAI turned this account away. Using Grok here takes a SuperGrok subscription, or X Premium with Grok, and Settings shows whether this account has one.",
         summary: "xAI refused your Grok account",
       };
     }

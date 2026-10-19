@@ -19,8 +19,11 @@ export const windowHoldsAtom = atom<
 /**
  * What back does while something is holding the window, innermost last: a
  * page inside a modal registers after the modal it sits in, so back leaves
- * the page first and the modal next (see `useModalBack`). Back never reaches
- * the tab behind while the window is held, whether or not anything is
+ * the page first and the modal next (see `useModalBack`). Forward runs the
+ * innermost entry's `forward`, and does nothing when it has none. Neither
+ * reaches the tab behind while the window is held, whether or not anything is
  * registered here.
  */
-export const modalBackStackAtom = atom<readonly { run: () => void }[]>([]);
+export const modalBackStackAtom = atom<
+  readonly { forward: () => void; run: () => void }[]
+>([]);

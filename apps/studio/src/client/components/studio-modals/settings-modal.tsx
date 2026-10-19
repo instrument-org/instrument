@@ -81,8 +81,9 @@ interface NavItem {
  * `settingsModalAtom` (opened via `openSettings`). The visible section is the
  * atom's `tab`, so a second `openSettings({ tab })` while open retargets the
  * modal instead of no-oping. Providers can deep-link straight to the
- * add-provider dialog. Traps tab navigation while open. Back steps through the
- * pages visited since it opened, then closes it.
+ * add-provider dialog. Traps tab navigation while open. Back and forward step
+ * through the pages visited since it opened, apart from the tab's own history,
+ * and back past the first page closes it.
  */
 export function SettingsModal() {
   const [state, setState] = useAtom(settingsModalAtom);
@@ -95,22 +96,42 @@ export function SettingsModal() {
     content === null
       ? undefined
       : (content.tab ?? tabOfSetting(content.setting) ?? "General");
-  // The pages left by choosing another, most recent last, which each open
-  // starts without.
-  const [visited, setVisited] = useState<SettingsTab[]>([]);
-  if (!isOpen && visited.length > 0) {
-    setVisited([]);
+  // The pages back and forward of this one, nearest last, which each open
+  // starts without. Choosing a page drops those ahead, as a browser does.
+  const [visited, setVisited] = useState<{
+    ahead: SettingsTab[];
+    behind: SettingsTab[];
+  }>({ ahead: [], behind: [] });
+  if (!isOpen && (visited.ahead.length > 0 || visited.behind.length > 0)) {
+    setVisited({ ahead: [], behind: [] });
   }
 
-  useModalBack(() => {
-    const previous = visited.at(-1);
-    if (previous === undefined) {
-      setState(null);
-      return;
-    }
-    setVisited(visited.slice(0, -1));
-    setState({ tab: previous });
-  }, isOpen);
+  useModalBack(
+    () => {
+      const previous = visited.behind.at(-1);
+      if (previous === undefined || activeTab === undefined) {
+        setState(null);
+        return;
+      }
+      setVisited({
+        ahead: [...visited.ahead, activeTab],
+        behind: visited.behind.slice(0, -1),
+      });
+      setState({ tab: previous });
+    },
+    isOpen,
+    () => {
+      const next = visited.ahead.at(-1);
+      if (next === undefined || activeTab === undefined) {
+        return;
+      }
+      setVisited({
+        ahead: visited.ahead.slice(0, -1),
+        behind: [...visited.behind, activeTab],
+      });
+      setState({ tab: next });
+    },
+  );
 
   return (
     <Dialog
@@ -132,7 +153,10 @@ export function SettingsModal() {
           onExitComplete={onExitComplete}
           onSelectTab={(tab) => {
             if (tab !== activeTab) {
-              setVisited((tabs) => [...tabs, activeTab]);
+              setVisited(({ behind }) => ({
+                ahead: [],
+                behind: [...behind, activeTab],
+              }));
             }
             setState({ tab });
           }}

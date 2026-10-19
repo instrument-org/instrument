@@ -411,8 +411,8 @@ function answer(
  * Whether something holds the window, answering back and forward itself when
  * it does: a page holding the keyboard (in a draft grown over the row) steps
  * first, then the view with a history of its own that the press was over or
- * the keyboard is in, and otherwise back runs the innermost registered back
- * and forward does nothing. Either way the tab behind stays where it is.
+ * the keyboard is in, and otherwise the innermost `useModalBack` answers,
+ * back or forward. Either way the tab behind stays where it is.
  */
 function heldByModal(
   direction: "back" | "forward",
@@ -426,8 +426,13 @@ function heldByModal(
   const stepped =
     runPageChord(direction) ||
     (pressed ? stepSurfaceAt(pressed, direction) : stepForKeyboard(direction));
-  if (!stepped && direction === "back") {
-    store.get(modalBackStackAtom).at(-1)?.run();
+  if (!stepped) {
+    const innermost = store.get(modalBackStackAtom).at(-1);
+    if (direction === "back") {
+      innermost?.run();
+    } else {
+      innermost?.forward();
+    }
   }
   return true;
 }

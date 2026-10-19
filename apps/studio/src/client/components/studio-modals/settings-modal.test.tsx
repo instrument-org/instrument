@@ -77,6 +77,11 @@ describe("Settings pages", () => {
       getDefaultStore().get(modalBackStackAtom).at(-1)?.run();
     });
   };
+  const forward = () => {
+    act(() => {
+      getDefaultStore().get(modalBackStackAtom).at(-1)?.forward();
+    });
+  };
 
   it("steps back through the pages visited, then closes", () => {
     setPlatform("darwin");
@@ -94,6 +99,33 @@ describe("Settings pages", () => {
     expect(activePage()).toBe("Features");
     back();
     expect(getDefaultStore().get(settingsModalAtom)).toBeNull();
+  });
+
+  it("steps forward again, until another page is chosen", () => {
+    setPlatform("darwin");
+    renderWithDefaultStore(<SettingsModal />);
+    act(() => {
+      openSettings({ tab: "Features" });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Storage" }));
+    fireEvent.click(screen.getByRole("button", { name: "Memory" }));
+    back();
+    back();
+    expect(activePage()).toBe("Features");
+
+    forward();
+    expect(activePage()).toBe("Storage");
+    forward();
+    expect(activePage()).toBe("Memory");
+    forward();
+    expect(activePage()).toBe("Memory");
+
+    back();
+    fireEvent.click(screen.getByRole("button", { name: "Skills" }));
+    forward();
+    expect(activePage()).toBe("Skills");
+    back();
+    expect(activePage()).toBe("Storage");
   });
 
   it("opens each page at its top", () => {

@@ -110,6 +110,8 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Back: ⌘[ / Alt+←
 - Edit Page: ⌘E / Ctrl+E
 - Find in Page: ⌘F / Ctrl+F
+- Find Next: ⌘G / Ctrl+G
+- Find Previous: ⇧⌘G / Ctrl+Shift+G
 - Forward: ⌘] / Alt+→
 - Reload Page: ⌘R / Ctrl+R
 

@@ -408,16 +408,18 @@ export function PermissionsSection() {
         output={placeById.get("output")?.paths[0]}
         places={view.alwaysOpen}
       />
-      <button
-        className="w-full rounded-lg border bg-card p-4 text-left text-sm text-destructive hover:bg-muted/50"
-        onClick={() => {
-          setConfirmingReset(true);
-        }}
-        type="button"
-        {...settingAnchor("reset-permissions")}
-      >
-        Reset permissions
-      </button>
+      {view.untouched ? null : (
+        <button
+          className="w-full rounded-lg border bg-card p-4 text-left text-sm text-destructive hover:bg-muted/50"
+          onClick={() => {
+            setConfirmingReset(true);
+          }}
+          type="button"
+          {...settingAnchor("reset-permissions")}
+        >
+          Reset permissions
+        </button>
+      )}
       <AlertDialog onOpenChange={setConfirmingReset} open={confirmingReset}>
         <AlertDialogContent>
           <AlertDialogHeader>

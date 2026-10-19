@@ -14,6 +14,7 @@ const NO_PLACES: View = {
   folders: [],
   home: "/Users/sam",
   places: [],
+  untouched: true,
 };
 
 function showView(view: View) {
@@ -25,6 +26,20 @@ function showView(view: View) {
 }
 
 describe("PermissionsSection", () => {
+  it.each([
+    [true, false],
+    [false, true],
+  ])(
+    "with the rules untouched %s, shows Reset permissions: %s",
+    async (untouched, shown) => {
+      showView({ ...NO_PLACES, untouched });
+      await screen.findByText("Folders");
+      expect(
+        screen.queryByRole("button", { name: "Reset permissions" }) !== null,
+      ).toBe(shown);
+    },
+  );
+
   it.each([
     // A backslash is a character a name can hold on a Mac or Linux.
     ["/Users/sam", "/Users/sam/Documents/a\\b", "a\\b", "sam/Documents/a\\b"],

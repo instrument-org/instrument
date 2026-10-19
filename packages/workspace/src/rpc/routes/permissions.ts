@@ -79,6 +79,11 @@ const PermissionsViewSchema = z.object({
     }),
   ),
   dangerouslyAllowEveryFolder: z.boolean(),
+  /**
+   * Whether every rule is still a new install's, in Settings and in every
+   * chat, so there is nothing for a reset to undo.
+   */
+  untouched: z.boolean(),
 });
 
 function view(
@@ -107,6 +112,14 @@ function view(
       paths: place.paths,
     })),
     dangerouslyAllowEveryFolder: settings.dangerouslyAllowEveryFolder,
+    untouched:
+      settings.apps.length === 0 &&
+      settings.folders.length === 0 &&
+      Object.keys(settings.chats).length === 0 &&
+      !settings.dangerouslyAllowEveryFolder &&
+      Object.entries(settings.places).every(
+        ([id, level]) => level === PLACE_DEFAULTS[PlaceIdSchema.parse(id)],
+      ),
   };
 }
 

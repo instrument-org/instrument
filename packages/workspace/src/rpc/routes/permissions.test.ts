@@ -134,6 +134,25 @@ it("resets every rule, and what every chat was allowed, to a new install's", asy
   });
 });
 
+it("says the rules are untouched until one differs from a new install's", async () => {
+  const context = { context: createContext() };
+  const untouched = async () =>
+    (await call(permissions.get, undefined, context)).untouched;
+
+  expect(await untouched()).toBe(true);
+  await call(permissions.setPlace, { id: "desktop", level: "allow" }, context);
+  expect(await untouched()).toBe(false);
+  await call(permissions.setPlace, { id: "desktop", level: "ask" }, context);
+  expect(await untouched()).toBe(true);
+  await updateChatPermissions("2026-10-19-pantry", (held) => ({
+    ...held,
+    denials: [
+      { deniedAt: new Date(), kind: "folder", target: "/Users/me/Pantry" },
+    ],
+  }));
+  expect(await untouched()).toBe(false);
+});
+
 describe("permissions.answer", () => {
   const sent: {
     type: string;

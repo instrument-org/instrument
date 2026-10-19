@@ -48,6 +48,7 @@ import {
   type EvalCase,
   defineEval,
 } from "../harness";
+import { serveLoopbackSite } from "../lib/loopback-site";
 
 // ---------------------------------------------------------------------------
 // Fixtures, built once when the cases load. Each attached folder is copied
@@ -113,8 +114,22 @@ const NOTES = writeFixture("Notes/plan.md", PLAN_ORIGINAL);
 const PAPERS = path.join(FIXTURES, "Papers");
 fs.mkdirSync(PAPERS, { recursive: true });
 fs.writeFileSync(path.join(PAPERS, "reading-list.md"), "- RFC 1149\n");
-const DOWNLOAD_URL = "https://www.rfc-editor.org/rfc/rfc2549.txt";
 const DOWNLOAD_SIGNATURE = /IP over Avian Carriers/i;
+/** RFC 2549's title over enough text to pass for the document, served locally. */
+const DOWNLOAD_BODY = [
+  "Network Working Group                                         D. Waitzman",
+  "Request for Comments: 2549                                    IronBridge Networks",
+  "",
+  "              IP over Avian Carriers with Quality of Service",
+  "",
+  ...Array.from(
+    { length: 30 },
+    (_, index) =>
+      `${index + 1}. Carriers are given priority by the colour of the leg band, and a lost carrier is retransmitted.`,
+  ),
+  "",
+].join("\n");
+let downloadUrl = "";
 
 const INVOICES = path.join(FIXTURES, "Invoices");
 for (const [name, total] of [
@@ -1463,7 +1478,15 @@ export const PERMISSIONS_EVALS = [
     ],
     folders: [{ path: PAPERS }],
     name: "perm-download",
-    prompt: `Download ${DOWNLOAD_URL} into my Papers folder.`,
+    get prompt() {
+      return `Download ${downloadUrl} into my Papers folder.`;
+    },
+    setup: async () => {
+      const site = await serveLoopbackSite({
+        "/rfc/rfc2549.txt": { body: DOWNLOAD_BODY, type: "text/plain" },
+      });
+      downloadUrl = `${site}/rfc/rfc2549.txt`;
+    },
   }),
   permCase({
     assertions: [

@@ -149,3 +149,65 @@ describe.runIf(process.platform !== "win32")("systemOwned", () => {
     expect(systemOwned(import.meta.filename)).toBe(false);
   });
 });
+
+describe("classifyProcessList for tasklist", () => {
+  const tasklist = (argv: string[], platform: NodeJS.Platform = "win32") =>
+    classifyProcessList("tasklist", argv, platform).allowed;
+
+  it.each([
+    [[]],
+    [["/fo", "csv", "/nh"]],
+    [["/V", "/FO", "LIST"]],
+    [["-v"]],
+    [["/fi", "IMAGENAME eq node.exe", "/fi", "STATUS eq running"]],
+    [["/svc"]],
+    [["/m"]],
+    [["/m", "ntdll.dll", "/fo", "table"]],
+    [["/m", "/nh"]],
+    [["/apps"]],
+    [["/?"]],
+  ])("tasklist %j runs", (argv) => {
+    expect(tasklist(argv)).toBe(true);
+  });
+
+  it.each([
+    [["/s", "x"]],
+    [["/S", "server", "/u", "me", "/p", "secret"]],
+    [["/u", "me"]],
+    [["/p"]],
+    [["/fo", "xml"]],
+    [["/fo"]],
+    [["/fi"]],
+    [["node.exe"]],
+    [["/fo:csv"]],
+  ])("tasklist %j is refused", (argv) => {
+    expect(tasklist(argv)).toBe(false);
+  });
+
+  it("is only on Windows", () => {
+    expect(tasklist([], "darwin")).toBe(false);
+  });
+
+  it("names what it refused and what it takes", () => {
+    expect(classifyProcessList("tasklist", ["/s", "x"], "win32"))
+      .toMatchInlineSnapshot(`
+      {
+        "allowed": false,
+        "reason": "tasklist: \`/s\` can't be used here. \`tasklist\` takes the options that list this computer's processes: /v, /svc, /m [module], /apps, /fi "<filter>", /fo table|list|csv, /nh; not /s, /u or /p.",
+      }
+    `);
+  });
+});
+
+describe("systemOwned on Windows", () => {
+  const owned = (file: string) =>
+    systemOwned(file, { platform: "win32", systemRoot: "C:\\Windows" });
+
+  it("takes a program in System32 and nothing else", () => {
+    expect(owned("C:\\Windows\\System32\\tasklist.exe")).toBe(true);
+    expect(owned("c:\\windows\\system32\\TASKLIST.EXE")).toBe(true);
+    expect(owned("C:\\Windows\\System32\\sub\\tasklist.exe")).toBe(false);
+    expect(owned("C:\\Users\\sam\\tasklist.exe")).toBe(false);
+    expect(owned("C:\\Windows\\System32\\..\\Temp\\tasklist.exe")).toBe(false);
+  });
+});

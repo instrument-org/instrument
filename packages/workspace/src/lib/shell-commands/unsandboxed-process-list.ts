@@ -1,8 +1,9 @@
 import { statSync } from "node:fs";
+import nodePath from "node:path";
 
 /**
- * Which calls of `ps` and `top` may run outside the OS sandbox, to read the
- * person's process list.
+ * Which calls of `ps` and `top`, and of `tasklist` on Windows, may run
+ * outside the OS sandbox, to read the person's process list.
  *
  * On macOS both are setuid root, which Seatbelt refuses to exec, and a
  * non-root copy is killed on exec, so sandboxed they cannot run at all. On
@@ -13,7 +14,10 @@ import { statSync } from "node:fs";
  * process's environment (macOS `-E`, procps `e` and the `environ` keyword),
  * an option that names a file (procps `-n`/`N`, the namelist), a tty name
  * that is a path, and `top` in its interactive mode, which needs a terminal
- * and takes keystrokes that renice and signal.
+ * and takes keystrokes that renice and signal. On Windows a program under
+ * MXC sees only the processes in its own container, so `tasklist` runs
+ * outside it, without `/s`, `/u` and `/p`, which reach another computer
+ * with an account and password.
  *
  * The lists are closed: an option not here refuses the call. Each program
  * runs from its fixed system path, root-owned and writable by no one else,
@@ -21,7 +25,7 @@ import { statSync } from "node:fs";
  * `PS_SYSMAP`, `HOME` for top's rc file, or `COLUMNS`).
  */
 
-type ProcessLister = "ps" | "top";
+export type ProcessLister = "ps" | "top" | "tasklist";
 
 /** How a short option letter is read: alone, or with a value. */
 type Letters = Readonly<Record<string, "flag" | "value">>;
@@ -117,6 +121,10 @@ const ALLOWED_HELP: Record<
       "`top` runs only in logging mode: `top -l <samples>` with -o/-O <key>, -n <count>, -s <delay>, -i, -c, -stats <keys>, -pid, -user, -U, -a/-d/-e, -F/-f, -R/-r, -S, -u, -ncols.",
     linux:
       "`top` runs only in batch mode: `top -b -n <iterations>` with -o <field>, -d <delay>, -p <pids>, -u/-U <user>, -w [cols], -c, -H, -i, -S, -s, -1, -E/-e <scale>.",
+  },
+  tasklist: {
+    win32:
+      '`tasklist` takes the options that list this computer\'s processes: /v, /svc, /m [module], /apps, /fi "<filter>", /fo table|list|csv, /nh; not /s, /u or /p.',
   },
 };
 
@@ -338,6 +346,56 @@ function classifyLinuxTop(argv: readonly string[]): ProcessListCall {
 }
 
 /**
+ * tasklist's options, which it reads after `/` or `-` in any case, and
+ * whether each takes a value; `/m` takes one only when the next argument is
+ * not an option. Not `/s`, `/u` or `/p`.
+ */
+const TASKLIST: Readonly<Record<string, "flag" | "value" | "optional">> = {
+  "?": "flag",
+  apps: "flag",
+  fi: "value",
+  fo: "value",
+  m: "optional",
+  nh: "flag",
+  svc: "flag",
+  v: "flag",
+};
+const TASKLIST_FORMATS = new Set(["csv", "list", "table"]);
+const TASKLIST_OPTION = /^[/-]/;
+
+function classifyTasklist(argv: readonly string[]): ProcessListCall {
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index] ?? "";
+    const next = argv[index + 1];
+    const name = TASKLIST_OPTION.test(arg)
+      ? arg.slice(1).toLowerCase()
+      : undefined;
+    const kind =
+      name !== undefined && Object.hasOwn(TASKLIST, name)
+        ? TASKLIST[name]
+        : undefined;
+    if (kind === undefined) {
+      return refuse("tasklist", `\`${arg}\``, "win32");
+    }
+    if (
+      kind === "flag" ||
+      (kind === "optional" &&
+        (next === undefined || TASKLIST_OPTION.test(next)))
+    ) {
+      continue;
+    }
+    if (next === undefined) {
+      return refuse("tasklist", `\`${arg}\` without its value`, "win32");
+    }
+    if (name === "fo" && !TASKLIST_FORMATS.has(next.toLowerCase())) {
+      return refuse("tasklist", `the format \`${next}\``, "win32");
+    }
+    index += 1;
+  }
+  return ALLOWED;
+}
+
+/**
  * Whether `name` with `argv` (its arguments, without the program name) may
  * run outside the sandbox on `platform`. Pure: it reads only its arguments.
  */
@@ -346,6 +404,11 @@ export function classifyProcessList(
   argv: readonly string[],
   platform: NodeJS.Platform = process.platform,
 ): ProcessListCall {
+  if (name === "tasklist") {
+    return platform === "win32"
+      ? classifyTasklist(argv)
+      : { allowed: false, reason: `${name}: not available here.` };
+  }
   switch (platform) {
     case "darwin":
       return name === "ps" ? classifyDarwinPs(argv) : classifyDarwinTop(argv);
@@ -362,8 +425,25 @@ const GROUP_OR_OTHER_WRITE = 0o022;
 /**
  * Whether a system program is the computer's own: owned by root and
  * writable by no one else, so nothing running as the person replaced it.
+ * On Windows the owner and mode `stat` reports say nothing about who may
+ * write, so the program must sit in `System32`, which only an administrator
+ * can change.
  */
-export function systemOwned(file: string): boolean {
+export function systemOwned(
+  file: string,
+  {
+    platform = process.platform,
+    systemRoot = process.env.SystemRoot,
+  }: { platform?: NodeJS.Platform; systemRoot?: string } = {},
+): boolean {
+  if (platform === "win32") {
+    const win = nodePath.win32;
+    return (
+      systemRoot !== undefined &&
+      win.dirname(win.resolve(file)).toLowerCase() ===
+        win.join(systemRoot, "System32").toLowerCase()
+    );
+  }
   try {
     const stat = statSync(file);
     return stat.uid === 0 && (stat.mode & GROUP_OR_OTHER_WRITE) === 0;

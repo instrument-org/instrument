@@ -29,7 +29,7 @@ export function platformGuidance(platform: string): string | undefined {
       return "The Mac's own apps (Reminders, Calendar, Notes) are among the places a reminder, an event, or a note can go.";
     }
     case "win32": {
-      return "The shell spells a Windows path the POSIX way (`C:\\Users\\sam` is `/c/Users/sam`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. `/tmp` in the shell is the temp folder (`%TEMP%`); a script gets it from its language (`tempfile.gettempdir()`, `os.tmpdir()`, `$env:TEMP`) rather than writing `/tmp`.";
+      return "The shell spells a Windows path the POSIX way (`C:\\Users\\sam` is `/c/Users/sam`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. `/tmp` in the shell is the temp folder (`%TEMP%`); a script gets it from its language (`tempfile.gettempdir()`, `os.tmpdir()`, `$env:TEMP`) rather than writing `/tmp`. `tasklist` lists every process on the computer; a program you start (PowerShell's `Get-Process` included) may see only its own.";
     }
     default: {
       return undefined;

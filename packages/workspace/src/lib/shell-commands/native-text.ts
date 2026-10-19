@@ -34,7 +34,11 @@ import {
 import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { tarProgramArgs, tarWrites, tarWritesStdout } from "./tar-args";
-import { classifyProcessList, systemOwned } from "./unsandboxed-process-list";
+import {
+  classifyProcessList,
+  type ProcessLister,
+  systemOwned,
+} from "./unsandboxed-process-list";
 import { classifyUnsandboxed, type TierBFixup } from "./unsandboxed-uutils";
 import { unsandboxedEnv } from "./unsandboxed-uutils-env";
 import { uutilsBinaryReviewed } from "./unsandboxed-uutils-integrity";
@@ -83,7 +87,7 @@ interface NativeTextRoute {
    * Lists the person's processes: runs outside the sandbox, with only the
    * options `unsandboxed-process-list.ts` allows, and is refused otherwise.
    */
-  listsProcesses?: "ps" | "top";
+  listsProcesses?: ProcessLister;
 }
 
 const UNIX: NodeJS.Platform[] = ["darwin", "linux"];
@@ -266,6 +270,24 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
     name: "top",
     platforms: UNIX,
     system: { darwin: () => ["/usr/bin/top"], linux: () => linuxBin("top") },
+  },
+  // Under MXC a program sees only the processes in its own container, so
+  // `tasklist` runs outside it too, with options that only read. `taskkill`
+  // stays a program on the PATH, held like any other.
+  {
+    binary: "system",
+    listsProcesses: "tasklist",
+    name: "tasklist",
+    platforms: ["win32"],
+    system: {
+      win32: () => [
+        nodePath.win32.join(
+          process.env.SystemRoot ?? "C:\\Windows",
+          "System32",
+          "tasklist.exe",
+        ),
+      ],
+    },
   },
   // The builtin tar builds the whole archive in memory, refuses a file over
   // the shell's 256 MB read cap, and has no xz without a native module, and

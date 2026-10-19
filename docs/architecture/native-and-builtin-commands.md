@@ -70,6 +70,7 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 | `stat` | uutils | uutils | builtin | uutils coreutils |  |
 | `tail` | uutils | uutils | uutils | uutils coreutils |  |
 | `tar` | system | system | system | system |  |
+| `tasklist` | PATH | PATH | system | system |  |
 | `top` | system | system | PATH | system |  |
 | `tsort` | uutils | uutils | uutils | uutils coreutils |  |
 | `uname` | uutils | uutils | uutils | uutils coreutils |  |
@@ -160,7 +161,9 @@ The workspace config's `uutilsOutsideSandbox` turns this on; Studio, `run-bash` 
 - **macOS `top`**: logging mode only, `-l <samples>` with at least one sample, plus `-a -d -e -F -f -h -R -r -S -u` and the values of `-c -i -l -n -O -o -s -U -ncols -pid -stats -user`.
 - **Linux `top`**: batch mode only, `-b` with `-n <iterations>` of at least one, plus `-1 -c -H -h -i -O -S -s -V` and the values of `-d -E -e -o -p -U -u`, and `-w` with or without its width.
 
-A call with anything else is refused before it runs, with a line naming what was refused and what the command takes; it never falls back to the sandbox, where on macOS it cannot start. A program or script that starts `ps` or `top` itself still runs under the profile and is refused, and `setuidRefusalNote` tells the agent to run the command in the shell instead. Windows has neither route: `ps` there is a program on the PATH, and under MXC `tasklist` and `Get-Process` see only the command's own processes.
+A call with anything else is refused before it runs, with a line naming what was refused and what the command takes; it never falls back to the sandbox, where on macOS it cannot start. A program or script that starts `ps` or `top` itself still runs under the profile and is refused, and `setuidRefusalNote` tells the agent to run the command in the shell instead. Windows has neither route: `ps` there is a program on the PATH.
+
+`tasklist` is Windows' route of the same kind, since under MXC a program sees only the processes in its own container, `Get-Process` and `tasklist` alike. It runs from `%SystemRoot%\System32\tasklist.exe`, refused unless it is in `System32` (the owner and mode `stat` reports there say nothing about who may write), with the same environment, and only with `/v`, `/svc`, `/m [module]`, `/apps`, `/fi <filter>`, `/fo table|list|csv`, `/nh` and `/?`, after `/` or `-` in any case. Not `/s`, `/u` or `/p`, which reach another computer with an account and password. `taskkill` stays a program on the PATH, held like any other, so it still cannot end a process outside its container.
 
 What it gives up: on Linux an unwrapped program loses bubblewrap's PID namespace and the step that closes the app's inherited descriptors, which is safe only because no call on the list names `/dev/fd/N` and tier B refuses paths outside the chat's folders. The CPU and memory a program may use are what they were, since the sandbox never limited them.
 

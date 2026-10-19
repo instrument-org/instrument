@@ -55,6 +55,7 @@ async function collect(callingModel: AIGatewayModel.Type) {
   const results = [];
   for await (const result of webSearch({
     callingModel,
+    chatId: ChatIdSchema.parse("search"),
     configs: workspaceConfig.getAIProviderConfigs(),
     prompt: "what changed recently",
     sessionId: StoreId.newSessionId(),

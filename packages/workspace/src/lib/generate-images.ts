@@ -244,7 +244,7 @@ type ImageStreamArgs = {
   signal: AbortSignal;
   sourceImages?: Buffer[];
   /** The chat asking, which its record of model requests files the image under. */
-  chatId?: ChatId;
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 };

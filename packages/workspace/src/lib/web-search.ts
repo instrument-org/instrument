@@ -108,7 +108,7 @@ export async function* webSearch({
   sessionId: StoreId.Session;
   signal: AbortSignal;
   /** The chat searching, which its record of model requests files the search under. */
-  chatId?: ChatId;
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
@@ -225,7 +225,7 @@ async function requestPlatformSearch({
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  chatId?: ChatId;
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
   const startedAt = Date.now();
@@ -300,7 +300,7 @@ async function searchWithPlatform(args: {
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  chatId?: ChatId;
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
   const first = await requestPlatformSearch(args);
@@ -355,7 +355,7 @@ async function* searchWithProviderModel({
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  chatId?: ChatId;
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {

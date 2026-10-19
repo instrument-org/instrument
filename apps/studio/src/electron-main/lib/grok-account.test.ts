@@ -26,6 +26,10 @@ vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));
 
+vi.mock("@/electron-main/windows/foreground", () => ({
+  focusAppWindow: vi.fn(),
+}));
+
 vi.mock("electron-store", () => ({
   default: class {
     delete(key: string) {

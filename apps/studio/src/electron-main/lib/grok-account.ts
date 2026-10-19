@@ -1,6 +1,7 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { focusAppWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
 import {
@@ -343,6 +344,8 @@ export async function signInWithGrok(): Promise<GrokSignInResult> {
         }
         getStore().set("account", account);
         grant().send({ type: "signedIn" });
+        // The person approved on xAI's page; bring them back to the app.
+        focusAppWindow();
         return { outcome: "signed-in" };
       } catch (error) {
         if (!(error instanceof TokenError)) {

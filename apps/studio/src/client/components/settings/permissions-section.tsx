@@ -17,6 +17,7 @@ import {
 } from "@/client/components/ui/alert-dialog";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Button } from "@/client/components/ui/button";
+import { Switch } from "@/client/components/ui/switch";
 import {
   Collapsible,
   CollapsibleContent,

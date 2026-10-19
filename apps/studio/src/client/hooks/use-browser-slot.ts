@@ -25,7 +25,6 @@ export function useBrowserSlot({
   isVisible,
   layer,
   relayoutKey,
-  sliding = false,
   targetId,
 }: {
   active: boolean;
@@ -53,10 +52,6 @@ export function useBrowserSlot({
   // nothing the resize observer or the settle check below can see, so the
   // slot is measured again whenever this does.
   relayoutKey?: string;
-  // The host panel is sliding in or out. Nothing about the slot's own box
-  // changes, so neither the resize observer nor the settle check below can see
-  // it -- the host has to say so, and says so for as long as it lasts.
-  sliding?: boolean;
   targetId: BrowserTargetId;
 }) {
   const slotRef = useRef<HTMLDivElement>(null);
@@ -141,8 +136,7 @@ export function useBrowserSlot({
     // getBoundingClientRect folds into `rect.x` (ResizeObserver can't catch it
     // -- the size is unchanged). Track the slot each frame so the guest follows
     // the panel, and stop once the position holds for two frames, i.e. the slot
-    // has settled. A declared slide holds the loop open regardless: a spring
-    // leaves and arrives slowly enough to read as settled at both ends.
+    // has settled.
     let raf = 0;
     let stableFrames = 0;
     let last = measure();
@@ -151,7 +145,7 @@ export function useBrowserSlot({
       stableFrames =
         rect.x === last.x && rect.y === last.y ? stableFrames + 1 : 0;
       last = rect;
-      if (sliding || stableFrames < 2) {
+      if (stableFrames < 2) {
         raf = requestAnimationFrame(track);
       }
     };
@@ -174,7 +168,6 @@ export function useBrowserSlot({
     hasLoadError,
     layer,
     relayoutKey,
-    sliding,
     slotOwner,
     targetId,
     emulatedDeviceWidth,

@@ -621,6 +621,32 @@ textarea.md-input {
   );
   text-underline-offset: 3px;
 }
+/* A link into the app (links.ts) as the chip Studio's Markdown draws it as:
+   a muted box around the kind's glyph and the words, with no underline. */
+.md-editor .milkdown .ProseMirror a:has(> .md-app-chip) {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
+  padding: 1px 6px 1px 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  color: var(--foreground);
+  font-size: 0.875em;
+  text-decoration: none;
+}
+.md-editor .milkdown .ProseMirror .md-app-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  vertical-align: -1px;
+  color: var(--muted-foreground);
+}
+.md-editor .milkdown .ProseMirror .md-app-chip-icon.is-task {
+  color: var(--brand-600);
+}
 /* Inline code as Typography draws it in Studio: weight and backticks. */
 .md-editor .milkdown .ProseMirror :not(pre) > code {
   font-family: var(--font-mono);

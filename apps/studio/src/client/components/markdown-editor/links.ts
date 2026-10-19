@@ -1,7 +1,11 @@
 import { rpcClient } from "@/client/rpc/client";
 import { type OpenTarget, openTargetOfHref } from "@/client/lib/open-target";
 import { commandKeyHeld } from "@/client/lib/utils";
-import { type Node as PMNode } from "@milkdown/kit/prose/model";
+import {
+  type InstrumentLink,
+  instrumentLinkOf,
+} from "@/shared/instrument-link";
+import { type Mark, type Node as PMNode } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
 import {
   Decoration,
@@ -10,11 +14,15 @@ import {
 } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 
+import { icon, type IconName, instrumentMark } from "./icons";
+
 // Links in the Markdown editor. A plain click edits, as it does anywhere in
 // the text; a Cmd-click (Ctrl off macOS) follows the link, and a middle click
 // opens it in a tab of its own. A link written relative to the file names a
 // file beside it and opens in the app's viewer; one that names nothing on
 // disk is marked, so a renamed or deleted file shows where it was linked.
+// A link into the app (`instrument://chat/…`) is drawn as the chip the
+// app's other Markdown draws it as, its kind's glyph in front of its words.
 
 /** The middle button, which asks for a place of its own wherever a link is drawn. */
 const MIDDLE_BUTTON = 1;
@@ -138,11 +146,22 @@ export function linksPlugin({
         key: brokenKey,
         props: {
           decorations(state) {
-            const decos = linkedPaths(state.doc, folder)
-              .filter(({ path }) => found.get(path) === false)
-              .map(({ from, to }) =>
-                Decoration.inline(from, to, { class: "md-link-broken" }),
-              );
+            const decos = [
+              ...linkedPaths(state.doc, folder)
+                .filter(({ path }) => found.get(path) === false)
+                .map(({ from, to }) =>
+                  Decoration.inline(from, to, { class: "md-link-broken" }),
+                ),
+              ...appLinks(state.doc).flatMap(({ from, link, mark, to }) => [
+                Decoration.inline(from, to, { class: "md-app-chip" }),
+                Decoration.widget(from, () => appChipIcon(link), {
+                  ignoreSelection: true,
+                  key: `app-chip-${link.kind}-${link.name}`,
+                  marks: [mark],
+                  side: -1,
+                }),
+              ]),
+            ];
             return decos.length > 0
               ? DecorationSet.create(state.doc, decos)
               : null;
@@ -239,4 +258,58 @@ function linkedPaths(doc: PMNode, folder: string) {
     }
   });
   return out;
+}
+
+/** Every link into the app in `doc`, by what it names and the stretch of text it covers. */
+function appLinks(doc: PMNode) {
+  const out: { from: number; link: InstrumentLink; mark: Mark; to: number }[] =
+    [];
+  doc.descendants((node, pos) => {
+    if (!node.isText) {
+      return;
+    }
+    const mark = node.marks.find((m) => m.type.name === "link");
+    const link = mark && instrumentLinkOf(String(mark.attrs.href ?? ""));
+    if (!mark || !link) {
+      return;
+    }
+    // A link whose words are partly bold is several text nodes under one mark.
+    const last = out.at(-1);
+    if (last?.to === pos && last.mark.eq(mark)) {
+      last.to = pos + node.nodeSize;
+      return;
+    }
+    out.push({ from: pos, link, mark, to: pos + node.nodeSize });
+  });
+  return out;
+}
+
+/** The glyph for each kind of thing a link into the app names, as the viewer's chips draw them. */
+const APP_CHIP_ICONS: Record<
+  Exclude<InstrumentLink["kind"], "task">,
+  IconName
+> = {
+  app: "appWindow",
+  chat: "chatTeardropText",
+  memory: "fingerprint",
+  screen: "appWindow",
+  settings: "fadersHorizontal",
+  skill: "cube",
+};
+
+/** The glyph at the front of a link into the app; a task wears the app's own mark. */
+function appChipIcon(link: InstrumentLink) {
+  const dom = document.createElement("span");
+  dom.className = `md-app-chip-icon${link.kind === "task" ? " is-task" : ""}`;
+  dom.contentEditable = "false";
+  dom.innerHTML =
+    link.kind === "task"
+      ? instrumentMark(12)
+      : icon(
+          link.kind === "screen" && link.name === "shortcuts"
+            ? "keyboard"
+            : APP_CHIP_ICONS[link.kind],
+          12,
+        );
+  return dom;
 }

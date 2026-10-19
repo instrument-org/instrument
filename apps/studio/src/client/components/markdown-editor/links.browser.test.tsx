@@ -78,3 +78,16 @@ it.each(CASES)(
     expect(onOpenLink).toHaveBeenCalledExactlyOnceWith(target, false);
   },
 );
+
+it("draws a link into the app as a chip with its kind's glyph, and a web link as text", async () => {
+  const view = await openMarkdownEditor(
+    "[the dog](instrument://chat/ascii-dog) and [a site](https://example.com)\n",
+  );
+  const [chat, site] = view.dom.querySelectorAll("a");
+
+  expect(chat?.querySelector(".md-app-chip-icon")).not.toBeNull();
+  expect(chat?.textContent).toBe("the dog");
+  expect(getComputedStyle(chat ?? view.dom).textDecorationLine).toBe("none");
+  expect(site?.querySelector(".md-app-chip-icon")).toBeNull();
+  expect(view.state.doc.textContent).toBe("the dog and a site");
+});

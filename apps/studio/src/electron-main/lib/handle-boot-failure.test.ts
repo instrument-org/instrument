@@ -28,9 +28,7 @@ describe("handleBootFailure", () => {
 
     handleBootFailure(error);
 
-    expect(captureServerException).toHaveBeenCalledWith(error, {
-      scopes: ["studio"],
-    });
+    expect(captureServerException).toHaveBeenCalledWith(error);
     expect(showErrorBox).toHaveBeenCalledWith(
       `${APP_NAME} could not start`,
       "Boot failed during createWorkspaceActor: db locked",

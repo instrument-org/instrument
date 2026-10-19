@@ -12,7 +12,7 @@ import {
 } from "@instrument-org/ai-gateway";
 import { OUR_MODELS } from "@instrument-org/shared";
 
-import { captureServerException } from "./capture-server-exception";
+import { captureFor } from "./capture-server-exception";
 import { getAIProviderConfigs } from "./get-ai-provider-configs";
 
 /**
@@ -34,7 +34,7 @@ export async function setChatGPTAccountDefaultModel({
     return undefined;
   }
   const [result] = await fetchModelResultsForProviders([config], {
-    captureException: captureServerException,
+    captureException: captureFor("ai-gateway"),
     modelCache: diskModelCache,
   });
   const chosen = result?.ok
@@ -62,7 +62,7 @@ export async function setClaudeAccountDefaultModel(): Promise<
     return undefined;
   }
   const [result] = await fetchModelResultsForProviders([config], {
-    captureException: captureServerException,
+    captureException: captureFor("ai-gateway"),
     modelCache: diskModelCache,
   });
   const models = result?.ok ? result.value : [];
@@ -134,7 +134,7 @@ async function listModels(): Promise<AIGatewayModel.Type[]> {
     return [];
   }
   const modelsForProviders = await fetchModelResultsForProviders(providers, {
-    captureException: captureServerException,
+    captureException: captureFor("ai-gateway"),
     modelCache: diskModelCache,
   });
   return modelsForProviders.flatMap((result) =>

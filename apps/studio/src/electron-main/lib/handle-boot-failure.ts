@@ -15,7 +15,7 @@ import { describeError } from "./describe-error";
  * user to have seen the message.
  */
 export function handleBootFailure(error: unknown): void {
-  captureServerException(error, { scopes: ["studio"] });
+  captureServerException(error);
 
   const { message } = describeError(error);
   const cause = error instanceof Error ? error.cause : undefined;

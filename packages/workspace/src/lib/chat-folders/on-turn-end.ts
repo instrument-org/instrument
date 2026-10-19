@@ -53,7 +53,8 @@ export async function rewriteChatFolder(id: ChatId): Promise<void> {
   });
   if (written.kind === "failed") {
     getWorkspaceConfig().captureException(
-      new Error(`Writing ${id}'s transcript: ${written.error}`),
+      new Error("Could not write a chat's transcript"),
+      { chatId: id, data: { error: written.error } },
     );
   }
 }

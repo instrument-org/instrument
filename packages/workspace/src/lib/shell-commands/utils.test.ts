@@ -57,9 +57,20 @@ describe("parseScriptRunnerArgs", () => {
     );
 
     expect(captureException).toHaveBeenCalledOnce();
-    expect(captureException.mock.calls[0]?.[0]).toMatchInlineSnapshot(
-      `[Error: [tsx] Unrecognized options ignored: --unknown-flag]`,
-    );
+    expect(captureException.mock.calls[0]).toMatchInlineSnapshot(
+    `
+      [
+        [Error: Unrecognized options ignored],
+        {
+          "data": {
+            "command": "tsx",
+            "options": [
+              "--unknown-flag",
+            ],
+          },
+        },
+      ]
+    `);
     captureException.mockRestore();
   });
 });

@@ -66,7 +66,7 @@ const send = base
       }
       return sent;
     } catch (error) {
-      captureServerException(error, { scopes: ["studio"] });
+      captureServerException(error);
       // Said in words the dialog can show: nowhere to send to, too many
       // reports at once, or the service refusing it.
       throw errors.API_ERROR({

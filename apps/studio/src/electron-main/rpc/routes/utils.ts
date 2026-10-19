@@ -27,9 +27,9 @@ import {
 } from "@/electron-main/lib/quit";
 import { getPlatformApiReachability } from "@/electron-main/platform-api/reachability";
 import {
-  clearServerExceptions,
-  getServerExceptions,
-} from "@/electron-main/lib/server-exceptions";
+  clearExceptionEvents,
+  listSessionExceptionEvents,
+} from "@/electron-main/lib/exception-store";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getAppWindow } from "@/electron-main/windows/app-window";
@@ -37,6 +37,7 @@ import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { osConventionsFor } from "@/shared/os-conventions";
 import { THIRD_PARTY_LICENSES_DIR_NAME } from "@/shared/third-party-licenses";
+import { ExceptionEventSchema } from "@instrument-org/shared/exceptions";
 import { eventIterator } from "@orpc/server";
 import {
   app,
@@ -459,7 +460,7 @@ const saveDiagnosticLog = base
   );
 
 const clearExceptions = base.input(z.void()).handler(() => {
-  clearServerExceptions();
+  clearExceptionEvents();
 });
 
 // The renderer owns the app zoom (CSS `zoom`); it reports the current level so
@@ -541,25 +542,15 @@ const live = {
         read: getPlatformApiReachability,
       });
     }),
-  serverExceptions: base
-    .output(
-      eventIterator(
-        z.array(
-          z.object({
-            code: z.string().optional(),
-            details: z.string().optional(),
-            id: z.string(),
-            message: z.string(),
-            rpcPath: z.string().optional(),
-            timestamp: z.number(),
-          }),
-        ),
-      ),
-    )
+  // The problems captured since this process started, each its last event
+  // counted with every capture of its fingerprint, for the developer
+  // indicator. The store also keeps earlier sessions', for reports.
+  exceptions: base
+    .output(eventIterator(z.array(ExceptionEventSchema)))
     .handler(async function* ({ signal }) {
       yield* liveRead({
-        changes: [publisher.subscribe("server-exceptions.updated", { signal })],
-        read: getServerExceptions,
+        changes: [publisher.subscribe("exceptions.updated", { signal })],
+        read: () => [...listSessionExceptionEvents()],
       });
     }),
   // What the renderer needs to draw window chrome for itself: the custom controls

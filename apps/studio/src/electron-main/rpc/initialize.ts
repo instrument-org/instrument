@@ -7,6 +7,7 @@ import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
 
+import { breadcrumbRPC } from "../lib/breadcrumbs";
 import { captureServerException } from "../lib/capture-server-exception";
 import { trackRPCForStalls } from "../lib/main-thread-stalls";
 import { type AppUpdaterHandle } from "../lib/create-app-updater";
@@ -23,12 +24,13 @@ EventEmitter.defaultMaxListeners = 100;
 const handler = new RPCHandler<InitialRPCContext>(router, {
   clientInterceptors: [
     trackRPCForStalls,
+    breadcrumbRPC,
     createErrorClientInterceptor({
       onAsyncIteratorError: (e, options) => {
         if (isReportableRPCError(e)) {
           captureServerException(e, {
-            rpc_path: options.path,
-            scopes: ["rpc"],
+            mechanism: "rpc",
+            rpcPath: options.path.join("."),
           });
         }
         throw e;
@@ -41,8 +43,8 @@ const handler = new RPCHandler<InitialRPCContext>(router, {
         }
         if (isReportableRPCError(e)) {
           captureServerException(e, {
-            rpc_path: options.path,
-            scopes: ["rpc"],
+            mechanism: "rpc",
+            rpcPath: options.path.join("."),
           });
         }
         throw e;

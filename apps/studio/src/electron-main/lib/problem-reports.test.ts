@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildExceptionEvent } from "@instrument-org/shared/exceptions";
+
 import { type EndedSession } from "./problem-reports";
 
 // Loaded fresh for each test, so its store opens in that test's folder.
@@ -45,6 +47,29 @@ const THROW = [
   "    at send (/Applications/Instrument.app/Contents/Resources/app.asar/out/main/mac-native-Bq3k9xZa.js:1:18234)",
 ].join("\n");
 
+const APP = "/Applications/Instrument.app/Contents/Resources/app.asar";
+
+/** The event an uncaught throw leaves in the crash record. */
+const crashEvent = (stack = THROW) =>
+  buildExceptionEvent(
+    Object.assign(new Error("EPIPE: broken pipe, write"), {
+      stack: stack.replace(/^\S+ uncaughtException: /, ""),
+    }),
+    {
+      breadcrumbs: [],
+      context: { handled: false, mechanism: "uncaughtException" },
+      contexts: {
+        app: { channel: "latest", flavor: "release", packaged: true, version: "2.0.4" },
+        culture: { locale: "en-US", timeZone: "UTC" },
+        os: { arch: "arm64", platform: "darwin", version: "26.1" },
+        process: { rssMb: 400, uptimeMs: 1000 },
+        runtime: { chrome: "1", electron: "1", node: "1" },
+      },
+      defaultArea: "studio",
+      paths: { appRoot: APP },
+    },
+  );
+
 const ended = (overrides: Partial<EndedSession>) =>
   reports.recordEndedSession({
     crashRecord: undefined,
@@ -67,13 +92,13 @@ describe("problem reports", () => {
   });
 
   it("leaves a session that exited normally out of the bell, whatever it survived", () => {
-    ended({ crashRecord: THROW, dumps: 2, unclean: false });
+    ended({ crashRecord: crashEvent(), dumps: 2, unclean: false });
 
     expect(reports.listPendingProblems()).toEqual([]);
   });
 
   it("calls a session that never exited with a throw on record a crash, titled by the throw", () => {
-    ended({ crashRecord: THROW });
+    ended({ crashRecord: crashEvent() });
 
     const [problem] = reports.listPendingProblems();
     expect(problem).toMatchObject({
@@ -114,11 +139,10 @@ describe("problem reports", () => {
   });
 
   it("counts the same crash again instead of listing it twice", () => {
-    ended({ crashRecord: THROW, endedAt: 1_000 });
+    ended({ crashRecord: crashEvent(), endedAt: 1_000 });
     ended({
-      crashRecord: THROW.replace("1:18234", "1:18990").replace(
-        "Bq3k9xZa",
-        "Lm22pQrT",
+      crashRecord: crashEvent(
+        THROW.replace("1:18234", "1:18990").replace("Bq3k9xZa", "Lm22pQrT"),
       ),
       endedAt: 2_000,
     });

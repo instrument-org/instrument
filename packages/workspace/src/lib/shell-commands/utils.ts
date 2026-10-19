@@ -67,11 +67,13 @@ export function parseScriptRunnerArgs<
 
   if (captureUnknown && unknownTokens.length > 0) {
     getWorkspaceConfig().captureException(
-      new Error(
-        `[${commandName}] Unrecognized options ignored: ${unknownTokens
-          .map((t) => (isOptionToken(t) ? t.rawName : ""))
-          .join(", ")}`,
-      ),
+      new Error("Unrecognized options ignored"),
+      {
+        data: {
+          command: commandName,
+          options: unknownTokens.map((t) => (isOptionToken(t) ? t.rawName : "")),
+        },
+      },
     );
   }
 

@@ -73,7 +73,10 @@ import { appConnectionStore } from "../stores/workspace/app-connections";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
-import { captureServerException } from "./capture-server-exception";
+import {
+  captureFor,
+  captureServerException,
+} from "./capture-server-exception";
 import { convertChatRecords } from "./convert-chat-records";
 import { logger } from "./electron-logger";
 import {
@@ -189,7 +192,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       apps: createAppsConfig(),
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
-      captureException: captureServerException,
+      captureException: captureFor("workspace"),
       deviceId,
       ...(process.platform === "win32"
         ? { driveNames: windowsDriveNames }
@@ -261,7 +264,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
     const error = new Error("Failed to create workspace actor", {
       cause: snapshot.error,
     });
-    captureServerException(error, { scopes: ["studio"] });
+    captureServerException(error);
     throw error;
   }
 
@@ -329,9 +332,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         { context: { workspaceConfig, workspaceRef: actor } },
       ));
     } catch (error) {
-      captureServerException(
-        error instanceof Error ? error : new Error(String(error)),
-        { scopes: ["studio"] },
+      captureServerException(error,
       );
       return true;
     }
@@ -380,7 +381,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         reportBrowserSessionsTimeout: () => {
           captureServerException(
             new Error("agent-browser close --all timed out on quit"),
-            { scopes: ["studio"] },
           );
         },
         reveal: ensureForegroundWindowVisible,
@@ -414,9 +414,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
             // can still be named.
             interruptTasksForQuit(actor)
               .catch((error: unknown) => {
-                captureServerException(
-                  error instanceof Error ? error : new Error(String(error)),
-                  { scopes: ["studio"] },
+                captureServerException(error,
                 );
               })
               .then(() => killAllBackgroundProcesses())
@@ -428,9 +426,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           await chatRecords()
             .dispose()
             .catch((error: unknown) => {
-              captureServerException(
-                error instanceof Error ? error : new Error(String(error)),
-                { scopes: ["studio"] },
+              captureServerException(error,
               );
             });
         }),
@@ -482,9 +478,7 @@ function takeInMovedPaths(rootDir: string) {
       logger.info(`Stored paths: ${step}`);
     }
   } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+    captureServerException(error,
     );
   }
 }
@@ -534,9 +528,7 @@ function settleDatabase(rootDir: string) {
       );
     }
   } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+    captureServerException(error,
     );
   }
 }
@@ -551,9 +543,7 @@ function nameChatDatabases(rootDir: string) {
   try {
     reportChatRecords(renameChatDatabases(rootDir));
   } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+    captureServerException(error,
     );
   }
 }
@@ -583,9 +573,7 @@ async function carryChatPermissions() {
       );
     }
   } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+    captureServerException(error,
     );
   }
 }
@@ -619,9 +607,7 @@ async function convertChatDatabases(deviceId: DeviceId, rootDir: string) {
     // leaving the person to wonder where it went.
     noteChatsLeftBehind(converted.left.length);
   } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+    captureServerException(error,
     );
   }
 }
@@ -647,9 +633,7 @@ async function writeChatFolders(rootDir: string) {
       }
     }
   } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+    captureServerException(error,
     );
   }
 }
@@ -676,9 +660,7 @@ async function settleWorkspaceDrafts(rootDir: string) {
       );
     }
   } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+    captureServerException(error,
     );
   }
 }
@@ -711,9 +693,7 @@ async function moveFolderOut(what: string, move: () => Promise<FolderMoved>) {
         break;
     }
   } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+    captureServerException(error,
     );
   }
 }
@@ -737,9 +717,7 @@ async function convertTopicFiles(rootDir: string) {
       );
     }
   } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+    captureServerException(error,
     );
   }
 }
@@ -765,9 +743,7 @@ async function convertAppFiles(rootDir: string) {
       );
     }
   } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+    captureServerException(error,
     );
   }
 }
@@ -832,9 +808,7 @@ function sweepWorkspaceLayout(rootDir: string) {
       );
     }
   } catch (error) {
-    captureServerException(
-      error instanceof Error ? error : new Error(String(error)),
-      { scopes: ["studio"] },
+    captureServerException(error,
     );
   }
 }

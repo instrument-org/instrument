@@ -173,8 +173,7 @@ function guarded<T>(operation: () => T): T | undefined {
   } catch (error) {
     if (!reported) {
       reported = true;
-      getWorkspaceConfig().captureException(
-        error instanceof Error ? error : new Error(String(error)),
+      getWorkspaceConfig().captureException(error,
       );
     }
     return undefined;

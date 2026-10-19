@@ -42,7 +42,7 @@ const serveAsset = async (
   } catch (error) {
     captureServerException(
       new Error("Failed to load asset", { cause: error }),
-      { scopes: ["auth"] },
+      { area: "auth" },
     );
     return c.body(null, 404);
   }
@@ -70,7 +70,7 @@ async function start() {
   }).catch((error: unknown) => {
     captureServerException(
       new Error("Failed to start the auth callback server", { cause: error }),
-      { scopes: ["auth"] },
+      { area: "auth" },
     );
     return null;
   });
@@ -89,7 +89,7 @@ async function start() {
     captureServerException(
       new Error("Auth callback server error", { cause: error }),
       {
-        scopes: ["auth"],
+        area: "auth",
       },
     );
   });
@@ -154,8 +154,8 @@ export function createAuthCallbackApp() {
   const failed = (error: Error, page: { connecting?: string } = {}) => {
     const reference = newAuthReference();
     captureServerException(error, {
-      auth_reference: reference,
-      scopes: ["auth"],
+      area: "auth",
+      data: { authReference: reference },
     });
     return renderAuthPage({ ...page, kind: "failed", reference });
   };
@@ -167,7 +167,7 @@ export function createAuthCallbackApp() {
     if (!finished) {
       captureServerException(
         new Error("Sign-in callback received with invalid state"),
-        { scopes: ["auth"] },
+        { area: "auth" },
       );
       focusAppWindow();
       return c.html(renderAuthPage({ kind: "expired" }), 400);

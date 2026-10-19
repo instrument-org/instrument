@@ -7,6 +7,10 @@ import {
 } from "@/shared/problem-reports";
 import { osConventionsFor } from "@/shared/os-conventions";
 import { app } from "electron";
+import {
+  type ExceptionEvent,
+  formatExceptionEvent,
+} from "@instrument-org/shared/exceptions";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -62,7 +66,7 @@ function addPendingProblem(problem: Omit<PendingProblem, "count" | "firstAt">) {
  * native crash dumps written since.
  */
 export type EndedSession = {
-  crashRecord: string | undefined;
+  crashRecord: ExceptionEvent | undefined;
   dumps: number;
   endedAt: number;
   previousVersion: string | undefined;
@@ -88,18 +92,16 @@ export function recordEndedSession(session: EndedSession) {
   if (!crashed && !app.isPackaged) {
     return;
   }
-  const firstLine = session.crashRecord
-    ?.split("\n")[0]
-    ?.replace(/^\S+ (uncaughtException|unhandledRejection): /, "")
-    .trim();
+  const thrown = session.crashRecord?.exceptions.at(-1);
   const problem = crashed
     ? {
-        fingerprint: fingerprintOf(
-          session.crashRecord ? stackSignature(session.crashRecord) : "native",
-          "crash",
-        ),
+        fingerprint: session.crashRecord
+          ? `crash:${session.crashRecord.fingerprint}`
+          : fingerprintOf("native", "crash"),
         kind: "crash" as const,
-        title: firstLine || "Instrument quit unexpectedly",
+        title: thrown
+          ? `${thrown.type}: ${thrown.value}`.slice(0, 300)
+          : "Instrument quit unexpectedly",
       }
     : {
         fingerprint: fingerprintOf("unclean-exit", "hang"),
@@ -112,7 +114,7 @@ export function recordEndedSession(session: EndedSession) {
         ? "crashed after an uncaught error"
         : `crashed (${session.dumps} crash dump${session.dumps === 1 ? "" : "s"} kept on ${osConventionsFor(process.platform).thisComputer})`
       : "ended without closing, with no crash on record",
-    error: session.crashRecord,
+    error: session.crashRecord && formatExceptionEvent(session.crashRecord),
     surface: problem.kind,
     version: session.previousVersion,
   });

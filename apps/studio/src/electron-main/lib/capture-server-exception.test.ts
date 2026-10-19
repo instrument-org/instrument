@@ -1,17 +1,38 @@
+import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { addServerException, logger } = vi.hoisted(() => ({
-  addServerException: vi.fn(),
+const { logger, storeExceptionEvent, unreachable } = vi.hoisted(() => ({
   logger: { error: vi.fn() },
+  storeExceptionEvent: vi.fn<(event: ExceptionEvent) => void>(),
+  unreachable: { value: false },
 }));
 
-vi.mock("@/electron-main/stores/workspace/preferences", () => ({
-  isDeveloperMode: () => true,
+vi.mock("electron", () => ({
+  app: {
+    getAppPath: () => "/Applications/Instrument.app/Contents/Resources/app.asar",
+  },
+}));
+vi.mock("@/electron-main/platform-api/reachability", () => ({
+  isPlatformApiUnreachable: () => unreachable.value,
 }));
 vi.mock("./electron-logger", () => ({ logger }));
-vi.mock("./server-exceptions", () => ({ addServerException }));
+vi.mock("./exception-store", () => ({ storeExceptionEvent }));
+vi.mock("./event-contexts", () => ({
+  eventContexts: () => ({
+    app: { channel: "latest", flavor: "release", packaged: true, version: "2.0.0" },
+    culture: { locale: "en-US", timeZone: "UTC" },
+    os: { arch: "arm64", platform: "darwin", version: "26.1" },
+    process: { rssMb: 400, uptimeMs: 1000 },
+    runtime: { chrome: "1", electron: "1", node: "1" },
+  }),
+}));
 
-const { captureServerException } = await import("./capture-server-exception");
+const { captureFor, captureServerException } = await import(
+  "./capture-server-exception"
+);
+const { ForwardedException, serializeError } = await import(
+  "@instrument-org/shared/exceptions"
+);
 
 // Recorded from a task that hit this: OpenRouter reports upstream throttling as
 // one chunk in an otherwise successful stream, and the chunk is thrown verbatim
@@ -22,42 +43,72 @@ const STREAMED_THROTTLE = {
   metadata: { error_type: "rate_limit_exceeded" },
 };
 
+const stored = () => storeExceptionEvent.mock.lastCall?.[0];
+
 describe("captureServerException", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    unreachable.value = false;
   });
 
-  it("gives the exception list a sentence when the throw is not an Error", () => {
-    captureServerException(STREAMED_THROTTLE, {
-      scopes: ["workspace"],
-    });
+  it("keeps a thrown non-Error whole, under a sentence that says what it was", () => {
+    captureServerException(STREAMED_THROTTLE);
 
-    expect(addServerException).toHaveBeenCalledWith({
-      code: "429",
-      details: `{
-  code: 429,
-  message: 'openai/gpt-5.6-luna is temporarily rate-limited upstream.',
-  metadata: { error_type: 'rate_limit_exceeded' }
-}`,
-      message: "openai/gpt-5.6-luna is temporarily rate-limited upstream.",
-      rpcPath: undefined,
+    expect(stored()).toMatchObject({
+      area: "studio",
+      exceptions: [
+        {
+          data: { __serialized__: STREAMED_THROTTLE },
+          mechanism: { synthetic: true },
+          value: "openai/gpt-5.6-luna is temporarily rate-limited upstream.",
+        },
+      ],
     });
   });
 
-  it("keeps an Error's own stack and message", () => {
+  it("records the caller's context and logs the readable event", () => {
     const error = new Error("plain failure");
 
-    captureServerException(error, { rpc_path: ["task", "create"] });
+    captureServerException(error, { mechanism: "rpc", rpcPath: "task.create" });
 
-    expect(addServerException).toHaveBeenCalledWith({
-      code: undefined,
-      details: error.stack,
-      message: "plain failure",
-      rpcPath: "task.create",
+    expect(stored()).toMatchObject({
+      context: { rpcPath: "task.create" },
+      handled: true,
+      mechanism: "rpc",
+      process: "main",
     });
     expect(logger.error).toHaveBeenCalledWith(
-      "[Exception] [task.create] plain failure",
-      error.stack,
+      expect.stringMatching(/^\[Exception\] \[studio, rpc, handled, error, main\].*\nError: plain failure\n {2}at /),
     );
+  });
+
+  it("names the binding's area unless the caller names another", () => {
+    const capture = captureFor("workspace");
+    capture(new Error("x"));
+    expect(stored()?.area).toBe("workspace");
+    capture(new Error("x"), { area: "llm-request" });
+    expect(stored()?.area).toBe("llm-request");
+  });
+
+  it("reads a forwarded error as the process that threw it", () => {
+    captureServerException(
+      new ForwardedException(serializeError(new Error("worker")), "bash-worker"),
+    );
+    expect(stored()?.process).toBe("bash-worker");
+  });
+
+  it("leaves out a network drop while the platform API is unreachable", () => {
+    unreachable.value = true;
+    captureServerException(new TypeError("fetch failed", { cause: { code: "ECONNREFUSED" } }));
+    expect(storeExceptionEvent).not.toHaveBeenCalled();
+  });
+
+  it("never throws for its caller", () => {
+    storeExceptionEvent.mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
+    expect(() => {
+      captureServerException(new Error("x"));
+    }).not.toThrow();
   });
 });

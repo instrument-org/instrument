@@ -3,6 +3,8 @@
  * command that only does host work, off the thread that paints the window. See
  * `client.ts` for the main-thread half.
  */
+import { type CaptureContext } from "@instrument-org/shared";
+import { STACK_FRAME_LIMIT } from "@instrument-org/shared/exceptions";
 import { defineCommand, latin1FromBytes } from "just-bash";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { parentPort } from "node:worker_threads";
@@ -18,7 +20,6 @@ import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
 import { setSkillMutationForwarder } from "../workspace-skill-index";
 import {
-  type ExceptionProperties,
   fromWireError,
   type FromWorker,
   toWireError,
@@ -28,6 +29,9 @@ import {
   WORKER_CONFIG_KEYS,
   type WorkerConfig,
 } from "./protocol";
+
+// As many frames as the event the main process builds keeps.
+Error.stackTraceLimit = STACK_FRAME_LIMIT;
 
 const port = parentPort;
 if (!port) {
@@ -75,10 +79,13 @@ const currentExec = new AsyncLocalStorage<number>();
 // task's shell, so one stray throw would fail all of their commands at once.
 // Report it the way the main process does and keep running.
 process.on("uncaughtException", (error) => {
-  captureException(error, { origin: "uncaughtException" });
+  captureException(error, { handled: false, mechanism: "uncaughtException" });
 });
 process.on("unhandledRejection", (reason) => {
-  captureException(reason, { origin: "unhandledRejection" });
+  captureException(reason, {
+    handled: false,
+    mechanism: "unhandledRejection",
+  });
 });
 
 // State the main thread owns: which turn a skill write belongs to, the process
@@ -167,8 +174,8 @@ port.on("message", (message: ToWorker) => {
   }
 });
 
-function captureException(error: unknown, properties?: ExceptionProperties) {
-  post({ error: toWireError(error), properties, type: "capture-exception" });
+function captureException(error: unknown, context?: CaptureContext) {
+  post({ context, error: toWireError(error), type: "capture-exception" });
 }
 
 function post(message: FromWorker) {

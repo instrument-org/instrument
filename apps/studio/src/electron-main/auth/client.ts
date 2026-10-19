@@ -149,7 +149,7 @@ export async function revokeSession(token: string) {
   if (response.error) {
     captureServerException(
       new Error("Logout failed", { cause: response.error }),
-      { scopes: ["auth"] },
+      { area: "auth" },
     );
   }
   return response;

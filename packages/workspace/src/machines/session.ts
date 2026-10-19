@@ -389,9 +389,7 @@ export const sessionMachine = setup({
         "agent.done": {
           actions: ({ event }) => {
             if (event.value.error) {
-              getWorkspaceConfig().captureException(event.value.error, {
-                scopes: ["workspace"],
-              });
+              getWorkspaceConfig().captureException(event.value.error);
             }
           },
           target: ".AgentDone",

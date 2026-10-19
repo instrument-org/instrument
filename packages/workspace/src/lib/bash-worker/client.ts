@@ -1,3 +1,4 @@
+import { ForwardedException } from "@instrument-org/shared/exceptions";
 import { type ExecOptions } from "just-bash";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { type Worker, type WorkerOptions } from "node:worker_threads";
@@ -227,8 +228,8 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
     }
     case "capture-exception": {
       getWorkspaceConfig().captureException(
-        fromWireError(message.error),
-        message.properties,
+        new ForwardedException(message.error, "bash-worker"),
+        message.context,
       );
       return;
     }

@@ -71,9 +71,7 @@ export async function setupBinDirectory(): Promise<string> {
 
       await linkDirect(binDir, binary.name, targetPath);
     } catch (error) {
-      captureServerException(error, {
-        scopes: ["studio"],
-      });
+      captureServerException(error);
     }
   }
 
@@ -91,13 +89,11 @@ async function cleanBinDirectory(binDir: string): Promise<void> {
       try {
         await fs.rm(entryPath, { force: true, recursive: true });
       } catch (error) {
-        captureServerException(error, {
-          scopes: ["studio"],
-        });
+        captureServerException(error);
       }
     }
   } catch (error) {
-    captureServerException(error, { scopes: ["studio"] });
+    captureServerException(error);
   }
 }
 
@@ -119,9 +115,7 @@ async function ensureDirectoryExists(dirPath: string): Promise<void> {
   try {
     await fs.mkdir(dirPath, { recursive: true });
   } catch (error) {
-    captureServerException(error, {
-      scopes: ["studio"],
-    });
+    captureServerException(error);
     throw error;
   }
 }
@@ -240,8 +234,6 @@ async function setupNodeLink(binDir: string): Promise<void> {
     // The node link is a PATH convenience for user-app child processes, the
     // same as the pnpm/git/rg links, so losing it degrades those processes
     // rather than the launch.
-    captureServerException(error, {
-      scopes: ["studio"],
-    });
+    captureServerException(error);
   }
 }

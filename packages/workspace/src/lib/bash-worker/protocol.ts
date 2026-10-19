@@ -1,4 +1,8 @@
-import { type CaptureExceptionFunction } from "@instrument-org/shared";
+import { type CaptureContext } from "@instrument-org/shared";
+import {
+  type SerializedError,
+  serializeError,
+} from "@instrument-org/shared/exceptions";
 import { type BashExecResult, type ExecOptions } from "just-bash";
 
 import { type AbsolutePath, type ChatDir } from "../../schemas/paths";
@@ -42,8 +46,6 @@ export const WORKER_CONFIG_KEYS = [
   "workFoldersDir",
 ] as const satisfies readonly (keyof WorkspaceConfig)[];
 
-export type ExceptionProperties = Parameters<CaptureExceptionFunction>[1];
-
 export type FromWorker =
   | {
       args: string[];
@@ -59,8 +61,8 @@ export type FromWorker =
   | { callId: number; type: "call-abort" }
   | { error: WireError; id: number; type: "error" }
   | {
-      error: WireError;
-      properties?: ExceptionProperties;
+      context?: CaptureContext;
+      error: SerializedError;
       type: "capture-exception";
     }
   | { id: number; skillPath: string; type: "skill-mutation" }
@@ -122,16 +124,13 @@ export type ToWorker =
   | { seq: number; type: "chunk-ack" };
 
 /**
- * An error as it crosses the thread boundary. Structured clone keeps a custom
- * error's message but not its class or name, and callers tell some apart with
- * `instanceof`.
+ * An error as it crosses the thread boundary: the shape a captured
+ * exception is built from, so its own properties, its cause and an
+ * AggregateError's errors survive. Structured clone keeps a custom error's
+ * message but not its class, name or own properties, and callers tell some
+ * apart with `instanceof`.
  */
-export interface WireError {
-  cause?: WireError;
-  message: string;
-  name: string;
-  stack?: string;
-}
+export type WireError = SerializedError;
 
 /** A command's result as it crosses the thread boundary, internal fields dropped. */
 export type WireResult = Pick<
@@ -144,39 +143,34 @@ export type WorkerConfig = Pick<
   (typeof WORKER_CONFIG_KEYS)[number]
 >;
 
-const MAX_CAUSE_DEPTH = 5;
-
+/** The error a `WireError` was made from, as near as one can be rebuilt. */
 export function fromWireError({
-  cause,
-  message,
-  name,
+  data,
+  links = [],
   stack,
+  type,
+  value,
 }: WireError): Error {
+  const cause = links.find((link) => link.source === "cause");
+  const errors = links.filter((link) => link.source.startsWith("errors["));
   const error = new Error(
-    message,
-    cause ? { cause: fromWireError(cause) } : undefined,
+    value,
+    cause ? { cause: fromWireError(cause.error) } : undefined,
   );
-  if (name === SubprocessTreeTerminationError.name) {
+  if (type === SubprocessTreeTerminationError.name) {
     Object.setPrototypeOf(error, SubprocessTreeTerminationError.prototype);
   }
-  error.name = name;
+  Object.assign(error, data);
+  if (errors.length > 0) {
+    Object.assign(error, { errors: errors.map((link) => fromWireError(link.error)) });
+  }
+  error.name = type;
   error.stack = stack;
   return error;
 }
 
-export function toWireError(error: unknown, depth = 0): WireError {
-  if (!(error instanceof Error)) {
-    return { message: String(error), name: "Error" };
-  }
-  return {
-    ...(error.cause !== undefined &&
-      depth < MAX_CAUSE_DEPTH && {
-        cause: toWireError(error.cause, depth + 1),
-      }),
-    message: error.message,
-    name: error.name,
-    stack: error.stack,
-  };
+export function toWireError(error: unknown): WireError {
+  return serializeError(error);
 }
 
 export function toWireResult(result: BashExecResult): WireResult {

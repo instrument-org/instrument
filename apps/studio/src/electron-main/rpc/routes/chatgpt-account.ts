@@ -56,7 +56,7 @@ const signIn = base
       } catch (error) {
         captureServerException(
           new Error("ChatGPT sign-in failed", { cause: error }),
-          { scopes: ["auth"] },
+          { area: "auth" },
         );
         return {
           error: error instanceof Error ? error.message : "Sign-in failed",

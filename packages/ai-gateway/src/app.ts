@@ -21,8 +21,8 @@ app.route(PROVIDERS_PATH, providerApp);
 
 // Ensure we don't proxy unknown routes
 app.all("*", (c) => {
-  c.var.captureException(new Error(`Unknown route: ${c.req.raw.url}`), {
-    scopes: ["ai-gateway"],
+  c.var.captureException(new Error("Unknown gateway route"), {
+    data: { url: c.req.raw.url },
   });
   return c.json({ error: "Not found" }, 404);
 });

@@ -11,7 +11,7 @@ import { type AIGatewayEnv } from "../types";
  * accept, and the exception reaches the host's reporter.
  */
 export const gatewayErrorHandler: ErrorHandler<AIGatewayEnv> = (error, c) => {
-  c.var.captureException(error, { scopes: ["ai-gateway"] });
+  c.var.captureException(error);
   return c.json(
     { error: { message: error.message, type: "gateway_error" }, type: "error" },
     500,

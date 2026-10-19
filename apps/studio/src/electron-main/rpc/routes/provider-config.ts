@@ -253,7 +253,7 @@ const connectOpenRouterProvider = base
       } catch (error) {
         captureServerException(
           new Error("Connecting OpenRouter failed", { cause: error }),
-          { scopes: ["auth"] },
+          { area: "auth" },
         );
         return {
           error:

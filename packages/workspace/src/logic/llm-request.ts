@@ -95,7 +95,9 @@ export const llmRequestLogic = fromPromise<
       storageFullError = error;
     }
     getWorkspaceConfig().captureException(error, {
-      scopes: ["workspace", "llm-request"],
+      area: "llm-request",
+      chatId: input.chatId,
+      sessionId: input.sessionId,
     });
   };
 
@@ -200,7 +202,9 @@ export const llmRequestLogic = fromPromise<
     });
     if (readBack.isErr()) {
       getWorkspaceConfig().captureException(readBack.error, {
-        scopes: ["workspace", "llm-request"],
+        area: "llm-request",
+        chatId: input.chatId,
+        sessionId: input.sessionId,
       });
     }
     return readBack.isOk()
@@ -661,9 +665,13 @@ export const llmRequestLogic = fromPromise<
         }
         case "tool-approval-response": {
           getWorkspaceConfig().captureException(
-            new Error(
-              `Unexpected tool approval response: ${JSON.stringify(part)}`,
-            ),
+            new Error("Unexpected tool approval response"),
+            {
+              area: "llm-request",
+              chatId: input.chatId,
+              data: { part },
+              sessionId: input.sessionId,
+            },
           );
           break;
         }
@@ -698,9 +706,11 @@ export const llmRequestLogic = fromPromise<
             getWorkspaceConfig().captureException(
               new Error("Unexpected tool call state"),
               {
-                existing_part_state: existingPart.state,
-                scopes: ["workspace", "llm-request"],
-                tool_name: part.toolName,
+                area: "llm-request",
+                chatId: input.chatId,
+                data: { existingPartState: existingPart.state },
+                toolCallId: part.toolCallId,
+                toolName: part.toolName,
               },
             );
           } else {
@@ -776,8 +786,9 @@ export const llmRequestLogic = fromPromise<
               getWorkspaceConfig().captureException(
                 new Error("Unexpected tool error state"),
                 {
-                  scopes: ["workspace", "llm-request"],
-                  tool_name: part.toolName,
+                  area: "llm-request",
+                  toolCallId: part.toolCallId,
+                  toolName: part.toolName,
                 },
               );
             }
@@ -849,7 +860,13 @@ export const llmRequestLogic = fromPromise<
         }
         case "tool-output-denied": {
           getWorkspaceConfig().captureException(
-            new Error(`Unexpected tool output denied: ${JSON.stringify(part)}`),
+            new Error("Unexpected tool output denied"),
+            {
+              area: "llm-request",
+              chatId: input.chatId,
+              data: { part },
+              sessionId: input.sessionId,
+            },
           );
           break;
         }
@@ -858,9 +875,13 @@ export const llmRequestLogic = fromPromise<
         }
         case "tool-approval-request": {
           getWorkspaceConfig().captureException(
-            new Error(
-              `Unexpected tool approval request: ${JSON.stringify(part)}`,
-            ),
+            new Error("Unexpected tool approval request"),
+            {
+              area: "llm-request",
+              chatId: input.chatId,
+              data: { part },
+              sessionId: input.sessionId,
+            },
           );
           break;
         }
@@ -957,7 +978,9 @@ export const llmRequestLogic = fromPromise<
         };
         if (classification.kind === "unknown") {
           getWorkspaceConfig().captureException(error, {
-            scopes: ["workspace", "llm-request"],
+            area: "llm-request",
+            chatId: input.chatId,
+            sessionId: input.sessionId,
           });
         }
       }
@@ -1025,18 +1048,20 @@ export const llmRequestLogic = fromPromise<
       getWorkspaceConfig().captureException(
         new Error("Unhandled tool input streaming part"),
         {
-          assistant_error_kind: assistantMessage.metadata.error?.kind,
-          input_stream_char_count: toolCallInputText[part.toolCallId]?.length,
-          message_id: assistantMessage.id,
+          area: "llm-request",
+          data: {
+            assistantErrorKind: assistantMessage.metadata.error?.kind,
+            inputStreamCharCount: toolCallInputText[part.toolCallId]?.length,
+            partHasInput: part.input !== undefined,
+            partId: part.metadata.id,
+            partType: part.type,
+            providerExecuted: part.providerExecuted,
+          },
+          messageId: assistantMessage.id,
           modelId,
-          part_has_input: part.input !== undefined,
-          part_id: part.metadata.id,
-          provider_executed: part.providerExecuted,
           providerId,
-          scopes: ["workspace", "llm-request"],
-          session_id: input.sessionId,
-          tool_call_id: part.toolCallId,
-          tool_type: part.type,
+          sessionId: input.sessionId,
+          toolCallId: part.toolCallId,
         },
       );
     }

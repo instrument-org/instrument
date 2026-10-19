@@ -46,7 +46,13 @@ export const workspaceServerLogic = fromCallback<
         "getAIProviderConfigs",
         input.workspaceConfig.getAIProviderConfigs,
       );
-      c.set("captureException", input.workspaceConfig.captureException);
+      // What the gateway captures is the gateway's, wherever it is mounted.
+      c.set("captureException", (error, context) => {
+        input.workspaceConfig.captureException(error, {
+          area: "ai-gateway",
+          ...context,
+        });
+      });
       c.set("clientInfo", {
         clientArch: process.arch,
         clientName: APP_CLIENT_NAME_STUDIO,

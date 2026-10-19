@@ -1,81 +1,94 @@
-import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { isPlatformApiUnreachable } from "@/electron-main/platform-api/reachability";
 import {
+  type CaptureContext,
   type CaptureExceptionFunction,
   isExpectedNetworkError,
 } from "@instrument-org/shared";
+import {
+  buildExceptionEvent,
+  type ExceptionEvent,
+  ForwardedException,
+  formatExceptionEvent,
+} from "@instrument-org/shared/exceptions";
+import { app } from "electron";
+import os from "node:os";
 
-import { describeError } from "./describe-error";
+import { recentBreadcrumbs } from "./breadcrumbs";
 import { logger } from "./electron-logger";
-import { addServerException } from "./server-exceptions";
+import { eventContexts } from "./event-contexts";
+import { storeExceptionEvent } from "./exception-store";
 
 /**
- * Record an exception on this computer: the main log, and in developer mode
- * the exception list the Debug tab shows. Nothing here leaves the device.
+ * The one way an exception is captured in Studio, for every process: the
+ * main process calls it directly, the workspace and the gateway through the
+ * function their config is given (`captureFor`), and the renderer and the
+ * bash worker by forwarding a serialized error (`ForwardedException`).
+ *
+ * It builds the complete event, keeps it in the exception store a report
+ * draws from, and writes its readable form to the log. Nothing here leaves
+ * the device: an event is sent only inside a report the person sees first.
  */
-export const captureServerException: CaptureExceptionFunction = function (
-  error,
-  additionalProperties,
-) {
-  // The window's corner already says the platform API is down, and every
-  // request through it (the gateway, titles, the account) fails the same way
-  // until it is back.
-  if (isPlatformApiUnreachable() && isExpectedNetworkError(error)) {
-    return;
-  }
-  const code: unknown =
-    error && typeof error === "object" && "code" in error
-      ? error.code
-      : undefined;
-  // ORPC names its own failures with a string code; a provider puts the
-  // upstream HTTP status here as a number. Both say what the failure was.
-  const errorCode =
-    typeof code === "string"
-      ? code
-      : typeof code === "number"
-        ? String(code)
-        : undefined;
+export const captureServerException: CaptureExceptionFunction =
+  captureFor("studio");
 
-  // Extract additional error data from ORPC (e.g., validation issues from BAD_REQUEST)
-  const errorData =
-    error &&
-    typeof error === "object" &&
-    "data" in error &&
-    error.data !== undefined
-      ? error.data
-      : undefined;
+/** The capture function for one part of the app, `area` its default. */
+export function captureFor(area: string): CaptureExceptionFunction {
+  return (error, context) => {
+    // The window's corner already says the platform API is down, and every
+    // request through it (the gateway, titles, the account) fails the same
+    // way until it is back.
+    if (
+      !(error instanceof ForwardedException) &&
+      isPlatformApiUnreachable() &&
+      isExpectedNetworkError(error)
+    ) {
+      return;
+    }
+    let event: ExceptionEvent;
+    try {
+      event = buildMainExceptionEvent(error, context, area);
+    } catch (buildError) {
+      // A capture that fails must not become another throw for its caller.
+      logger.error("Could not build an exception event", error, buildError);
+      return;
+    }
+    recordExceptionEvent(event);
+  };
+}
 
-  const { details, message } = describeError(error);
-  if (isDeveloperMode()) {
-    const pathPrefix = additionalProperties?.rpc_path
-      ? `[${additionalProperties.rpc_path.join(".")}] `
-      : "";
-    const displayMessage = errorCode
-      ? `${pathPrefix}[${errorCode}] ${message}`
-      : `${pathPrefix}${message}`;
+/** The event for one capture, with this process's contexts and breadcrumbs. */
+export function buildMainExceptionEvent(
+  error: unknown,
+  context?: CaptureContext,
+  area = "studio",
+): ExceptionEvent {
+  const rendererUrl = process.env.ELECTRON_RENDERER_URL;
+  return buildExceptionEvent(error, {
+    breadcrumbs: recentBreadcrumbs(),
+    context,
+    contexts: eventContexts(),
+    defaultArea: area,
+    paths: {
+      appRoot: app.getAppPath(),
+      home: os.homedir(),
+      urlRoots: rendererUrl ? [rendererUrl.replace(/\/?$/, "/")] : [],
+    },
+  });
+}
 
-    // One entry, so the dev log keeps the heading, cause, and data together.
-    const cause =
-      error instanceof Error && error.cause
-        ? describeError(error.cause)
-        : undefined;
+/** Keep an event and log it. Never throws. */
+export function recordExceptionEvent(event: ExceptionEvent) {
+  try {
+    storeExceptionEvent(event);
     logger.error(
-      `[Exception] ${displayMessage}`,
-      ...(details ? [details] : []),
-      ...(cause ? [`Cause: ${cause.details ?? cause.message}`] : []),
-      // e.g. validation issues
-      ...(errorData ? [errorData] : []),
+      `[Exception] ${formatExceptionEvent(event, { breadcrumbs: 0 })}`,
     );
-
-    addServerException({
-      code: errorCode,
-      details,
-      message,
-      rpcPath: additionalProperties?.rpc_path
-        ? additionalProperties.rpc_path.join(".")
-        : undefined,
-    });
-  } else {
-    logger.error(error);
+  } catch (error) {
+    // A capture that fails must not become another throw for its caller.
+    try {
+      logger.error("Could not record an exception", error);
+    } catch {
+      // Nowhere left to say so.
+    }
   }
-};
+}

@@ -1,5 +1,6 @@
 import { is, platform } from "@electron-toolkit/utils";
 import { APP_NAME } from "@instrument-org/shared";
+import { STACK_FRAME_LIMIT } from "@instrument-org/shared/exceptions";
 import { installAISDKWarningLogger } from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import fixPath from "fix-path";
@@ -36,6 +37,10 @@ import {
   resolveWorkspace,
   setResolvedWorkspace,
 } from "./lib/workspaces";
+
+// V8 keeps 10 frames by default, which an async call through the workspace
+// uses up before reaching the code that started it. As many as an event keeps.
+Error.stackTraceLimit = STACK_FRAME_LIMIT;
 
 /**
  * Configures the Electron app's userData directory.

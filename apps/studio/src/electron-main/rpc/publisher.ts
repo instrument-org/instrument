@@ -60,6 +60,7 @@ interface PublisherEvents {
   // What the Claude Code CLI on this computer says about its sign-in changed.
   "claude-account.updated": null;
   "debug.browser-view-manager.updated": null;
+  "exceptions.updated": null;
   // Whether the platform API answers changed (development builds only).
   "platform-api.reachability.updated": null;
   // This computer settled on a connection for a model another computer chose.
@@ -70,7 +71,6 @@ interface PublisherEvents {
     message: string;
     stack?: string;
   };
-  "server-exceptions.updated": null;
   "session.apiBearerToken.updated": null;
   "updates.status": { status: AppUpdaterStatus };
   "updates.trigger-check": null;

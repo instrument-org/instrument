@@ -39,8 +39,7 @@ const ensure = base
       void context.workspaceConfig
         .ensureOutputFolderIcon?.(outputFolderPath())
         .catch((error: unknown) => {
-          context.workspaceConfig.captureException(
-            error instanceof Error ? error : new Error(String(error)),
+          context.workspaceConfig.captureException(error,
           );
         });
     }

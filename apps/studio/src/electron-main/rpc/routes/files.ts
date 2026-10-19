@@ -366,7 +366,7 @@ const undo = base
         // other failure is a fault worth seeing, though the person is told
         // the same thing either way.
         if (!(error instanceof UndoRefusedError)) {
-          captureServerException(error, { scopes: ["studio"] });
+          captureServerException(error);
         } else if (error.permanent) {
           journal.remove(entry.id);
         }

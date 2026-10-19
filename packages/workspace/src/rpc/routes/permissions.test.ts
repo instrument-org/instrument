@@ -128,6 +128,7 @@ it("resets every rule, and what every chat was allowed, to a new install's", asy
   expect(await readPermissionSettings()).toEqual({
     apps: [],
     chats: {},
+    topics: {},
     dangerouslyAllowEveryFolder: false,
     folders: [],
     places: {},

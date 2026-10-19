@@ -57,6 +57,7 @@ function rulesWith(grants: Parameters<typeof rulesFor>[0]["grants"]): Rules {
     settings: {
       apps: [],
       chats: {},
+      topics: {},
       folders: [
         {
           addedAt: new Date(),

@@ -125,9 +125,9 @@ describe("convertTopicsToTopicFiles", () => {
       color: amber
       about: Kitchen plans and appliances
       created: <made>
+      projectId: prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1
       folders:
         - path: /Users/someone/Kitchen plans
-      projectId: prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1
       ---
 
       The standing instructions.
@@ -136,17 +136,19 @@ describe("convertTopicsToTopicFiles", () => {
     expect(await fs.readdir(path.join(folder(), "Kitchen"))).toEqual([
       TOPIC_FILE_NAME,
     ]);
-    // And the topic reads back as the one the two files held.
+    // And the topic reads back as the one the two files held, its folders a
+    // key this build carries for the launch that grants them on this
+    // computer (`moveTopicFolders`) and otherwise does not read.
     expect(readTopicsSync(root)).toEqual([
       {
         about: "Kitchen plans and appliances",
         color: "amber",
         created: new Date("2026-09-02T14:14:00.000Z"),
         emoji: "🍳",
-        folders: [{ path: "/Users/someone/Kitchen plans" }],
         id: "top_Kitchen",
         instructions: "The standing instructions.",
         name: "Kitchen",
+        others: { folders: [{ path: "/Users/someone/Kitchen plans" }] },
         projectId: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
       },
     ]);

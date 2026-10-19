@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   createTopic,
+  ListedTopicSchema,
   listTopics,
   retireTopic,
   TOPIC_NAME_MAX,
@@ -26,7 +27,7 @@ const TopicNameSchema = z
 
 /** The conversation's topics: in use first, in the order made, then retired. */
 const listTopicsRoute = base
-  .output(TopicSchema.array())
+  .output(ListedTopicSchema.array())
   .handler(() => listTopics());
 
 /** A name a topic's folder cannot take, said back as a bad request. */

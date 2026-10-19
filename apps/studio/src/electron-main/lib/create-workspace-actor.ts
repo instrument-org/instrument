@@ -52,6 +52,7 @@ import {
   settleDrafts,
   settleMovedPaths,
   moveChatPermissions,
+  moveTopicFolders,
   renameChatDatabases,
   setBashWorkerFactory,
   settleWorkspaceDb,
@@ -163,6 +164,10 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // file a person reads, which is its own step: the folder moves whatever is
   // inside it, and one already converted is left alone.
   await convertTopicFiles(rootDir);
+  // Once every topic is its `TOPIC.md`, the folders an earlier build granted
+  // in one come onto this computer's permission settings, before the moves
+  // below rewrite the paths those settings hold.
+  carryTopicFolders(rootDir);
   await convertAppFiles(rootDir);
   // Then every chat gets the folder a person opens, written from its
   // records. After the topics, because a transcript names the topic its chat
@@ -572,6 +577,27 @@ async function carryChatPermissions() {
     if (moved > 0) {
       logger.info(
         `Chat permissions: moved ${moved} chat${moved === 1 ? "" : "s"} onto this computer's settings`,
+      );
+    }
+  } catch (error) {
+    captureServerException(error);
+  }
+}
+
+/**
+ * Bring the folders granted under each topic out of its `TOPIC.md` and into
+ * this computer's permission settings, once per computer. A failure must not
+ * block boot; one before the settings are written is tried again next launch.
+ */
+function carryTopicFolders(rootDir: string) {
+  try {
+    const { moved } = moveTopicFolders({
+      machineDir: workspaceMachineDir(),
+      rootDir,
+    });
+    if (moved > 0) {
+      logger.info(
+        `Topic folders: moved ${moved} topic${moved === 1 ? "" : "s"}' folders onto this computer's settings`,
       );
     }
   } catch (error) {

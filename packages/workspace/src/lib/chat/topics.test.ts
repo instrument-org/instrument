@@ -28,6 +28,7 @@ beforeEach(async () => {
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
+    workspaceMachineDir: AbsolutePathSchema.parse(path.join(root, ".machine")),
   });
 });
 
@@ -114,8 +115,6 @@ describe("topic folders", () => {
       color: amber
       about: What to buy and where
       created: <created>
-      folders:
-        - path: /Users/someone/Deals
       ---
 
       I have the Prime card.

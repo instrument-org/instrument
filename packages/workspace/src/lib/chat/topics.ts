@@ -4,6 +4,10 @@ import { monotonicFactory } from "ulid";
 import { z } from "zod";
 
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
+import {
+  everyTopicsFolderPaths,
+  setTopicFolders,
+} from "../permissions/topic-folders";
 import { validateFolderName } from "../project-folder-name";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -11,7 +15,6 @@ import {
   renderTopicFile,
   TOPIC_FILE_NAME,
   TopicFileSchema,
-  type TopicFolder,
   TOPICS_FOLDER_NAME,
   toTheSecond,
 } from "./topic-file";
@@ -23,12 +26,7 @@ const TOPIC_ID_PREFIX = "top_";
 /** How long a topic's name may be. Short names keep the marks readable. */
 export const TOPIC_NAME_MAX = 24;
 
-export {
-  TOPIC_FILE_NAME,
-  type TopicFolder,
-  TopicFolderSchema,
-  TOPICS_FOLDER_NAME,
-} from "./topic-file";
+export { TOPIC_FILE_NAME, TOPICS_FOLDER_NAME } from "./topic-file";
 
 /**
  * A topic: a tag on chats, with a folder of its own in the workspace's
@@ -41,6 +39,22 @@ export const TopicSchema = TopicFileSchema.extend({
 });
 
 export type Topic = z.output<typeof TopicSchema>;
+
+/** A folder of the user's that work under a topic uses, by its path on disk. */
+export const TopicFolderSchema = z.object({ path: z.string() });
+
+export type TopicFolder = z.output<typeof TopicFolderSchema>;
+
+/**
+ * A topic as the app lists it: its file, and the folders granted under it on
+ * this computer, which are kept in its permission settings rather than in the
+ * file.
+ */
+export const ListedTopicSchema = TopicSchema.extend({
+  folders: z.array(TopicFolderSchema).optional(),
+});
+
+export type ListedTopic = z.output<typeof ListedTopicSchema>;
 
 /** What the user picks about a topic. Anything left out is left alone. */
 export interface TopicChange {
@@ -73,12 +87,18 @@ export function createTopic(topic: {
 /**
  * Every topic: the ones in use first, in the order they were made, then the
  * retired ones after, so a menu can stop at the first retired entry and a row
- * can still name a topic the chat was tagged with before it was retired.
+ * can still name a topic the chat was tagged with before it was retired. Each
+ * with the folders granted under it on this computer.
  */
-export function listTopics(): Promise<Topic[]> {
-  return Promise.resolve().then(() =>
-    readTopicsSync(getWorkspaceConfig().rootDir),
-  );
+export async function listTopics(): Promise<ListedTopic[]> {
+  const topics = readTopicsSync(getWorkspaceConfig().rootDir);
+  const granted = await everyTopicsFolderPaths();
+  return topics.map((topic) => {
+    const paths = granted.get(topic.id) ?? [];
+    return paths.length > 0
+      ? { ...topic, folders: paths.map((each) => ({ path: each })) }
+      : topic;
+  });
 }
 
 /** A new topic's id: stable across renames, which move its folder. */
@@ -170,15 +190,22 @@ export function unusedTopicName(raw: string, taken: readonly string[]): string {
 /**
  * Changes what the user chose about a topic. A new name moves the topic's
  * folder, and one another topic has, or one no folder can take, is refused
- * with a `TopicNameError`; anything left out is left alone.
+ * with a `TopicNameError`; anything left out is left alone. Its folders are
+ * granted on this computer, in its permission settings.
  */
-export function updateTopic(
+export async function updateTopic(
   topicId: string,
   change: TopicChange,
 ): Promise<void> {
-  return Promise.resolve().then(() => {
-    updateTopicNow(topicId, change);
-  });
+  const found = await Promise.resolve().then(() =>
+    updateTopicNow(topicId, change),
+  );
+  if (found && change.folders !== undefined) {
+    await setTopicFolders(
+      topicId,
+      change.folders.map((folder) => folder.path),
+    );
+  }
 }
 
 /**
@@ -311,12 +338,13 @@ function topicFolderName(raw: string): string {
   return validateFolderName(name, "Topic").isOk() ? name : "Topic";
 }
 
-function updateTopicNow(topicId: string, change: TopicChange): void {
+/** Writes the change to the topic's file; false for a topic not there. */
+function updateTopicNow(topicId: string, change: TopicChange): boolean {
   const rootDir = getWorkspaceConfig().rootDir;
   const topics = readTopicsSync(rootDir);
   const topic = topics.find((entry) => entry.id === topicId);
   if (!topic) {
-    return;
+    return false;
   }
   let name = topic.name;
   if (change.name !== undefined) {
@@ -344,8 +372,8 @@ function updateTopicNow(topicId: string, change: TopicChange): void {
     ...(change.about === undefined ? {} : { about: change.about }),
     ...(change.color === undefined ? {} : { color: change.color }),
     ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
-    ...(change.folders === undefined ? {} : { folders: change.folders }),
     ...(nextInstructions ? { instructions: nextInstructions } : {}),
     name,
   });
+  return true;
 }

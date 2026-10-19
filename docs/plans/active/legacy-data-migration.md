@@ -60,7 +60,7 @@ Best effort, from what 1.x recorded. None of it is required for the chat to work
 - **Name and mark.** A leading emoji in the project's folder name becomes the topic's emoji and comes off the name. Any other project gets no emoji: `TopicFace` already draws the first letter (`topic-mark.tsx`), and `topicColor` already derives a color from the name.
 - **Merge by name.** A project whose name matches an existing topic (ignoring case and the leading emoji) merges into that topic, and the topic keeps its emoji and color.
 - **Instructions.** A non-empty `AGENTS.md` becomes the topic's `instructions.md` (for a merged topic, it's added after the instructions the topic already has). They reach the chat's agent in the topic note on each message.
-- **Project folders become the topic's folders.** Each path in the project's `folders` (a bare path, or a path with its access) is a topic folder by path; access is dropped. A message sent in a chat carrying the topic attaches them to the chat. The `/project` mount is dropped.
+- **Project folders become the topic's folders.** Each path in the project's `folders` (a bare path, or a path with its access) is a folder granted under the topic by path, in this computer's `permissions.json`; access is dropped. A message sent in a chat carrying the topic attaches them to the chat. The `/project` mount is dropped.
 - **Membership.** Every task with `projectId` gives its adopted chat that topic. `projectId` is then cleared.
 - **`projects/`** moves to `.pre-chats/projects/`.
 

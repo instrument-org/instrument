@@ -14,7 +14,9 @@ import { isRecord, splitFrontmatter } from "../skills";
  * would have to decode.
  *
  * A topic's name is its folder's, so it is in no key here: renaming the
- * folder renames the topic. Its `id` is the one opaque value in the file, and
+ * folder renames the topic. Nor are the folders granted under it, which name
+ * paths on one computer and are kept in that computer's permission settings
+ * (`topics` there), so an edit to this file never opens a folder. Its `id` is the one opaque value in the file, and
  * it has to stay, because a chat's marks point at a topic by id; without it a
  * folder renamed in a file manager would empty the topic.
  */
@@ -22,18 +24,12 @@ import { isRecord, splitFrontmatter } from "../skills";
 /** Where the person's topics are, and the one file that says a folder is one. */
 export { TOPIC_FILE_NAME, TOPICS_FOLDER_NAME } from "../../constants";
 
-/** A folder of the user's that work under a topic uses, by its path on disk. */
-export const TopicFolderSchema = z.object({ path: z.string() });
-
-export type TopicFolder = z.output<typeof TopicFolderSchema>;
-
 /** The keys this build writes, and so the ones that are nobody else's. */
 const OWN_KEYS = new Set([
   "about",
   "color",
   "created",
   "emoji",
-  "folders",
   "id",
   "projectId",
   "retired",
@@ -49,12 +45,6 @@ export const TopicFileSchema = z.object({
   created: z.date(),
   /** What stands for it: one emoji, chosen when it was made. */
   emoji: z.string().optional(),
-  /**
-   * The user's folders the work under it uses, attached to each chat it is
-   * on. These belong in the workspace's `permissions.json` rather than in a
-   * document a person can widen by editing; they are here until that move.
-   */
-  folders: z.array(TopicFolderSchema).optional(),
   id: z.string(),
   /** The standing words for work under it; empty for most topics. */
   instructions: z.string().optional(),
@@ -136,7 +126,6 @@ export function topicFileOf(
   const about = words(front.about);
   const color = words(front.color);
   const emoji = words(front.emoji);
-  const folders = foldersOf(front.folders);
   const standing = instructions.trim();
   const projectId = words(front.projectId);
   return {
@@ -144,7 +133,6 @@ export function topicFileOf(
     ...(color ? { color } : {}),
     created: toTheSecond(dateOf(front.created) ?? at),
     ...(emoji ? { emoji } : {}),
-    ...(folders ? { folders } : {}),
     id,
     ...(standing ? { instructions: standing } : {}),
     ...(Object.keys(others).length > 0 ? { others } : {}),
@@ -178,9 +166,6 @@ export function renderTopicFile(topic: TopicFile): string {
   if (topic.retired === true) {
     front.retired = true;
   }
-  if (topic.folders && topic.folders.length > 0) {
-    front.folders = topic.folders.map((folder) => ({ path: folder.path }));
-  }
   if (topic.projectId !== undefined) {
     front.projectId = topic.projectId;
   }
@@ -210,18 +195,19 @@ function dateOf(value: unknown): Date | undefined {
 }
 
 /**
- * The folders under a `folders:` list, each by its path; nothing for none. A
- * path written on its own counts, since that is how a person would write one.
+ * The paths under a `folders:` list, which builds before this one wrote into
+ * the front matter for the folders granted under a topic, each by its path,
+ * or written on its own the way a person would. Read once per computer, by
+ * `moveTopicFolders`; nothing else reads the key.
  */
-function foldersOf(value: unknown): TopicFolder[] | undefined {
+export function listedFolderPaths(value: unknown): string[] {
   if (!Array.isArray(value)) {
-    return undefined;
+    return [];
   }
-  const folders = value.flatMap((entry: unknown) => {
+  return value.flatMap((entry: unknown) => {
     const folderPath = isRecord(entry) ? words(entry.path) : words(entry);
-    return folderPath ? [{ path: folderPath }] : [];
+    return folderPath ? [folderPath] : [];
   });
-  return folders.length > 0 ? folders : undefined;
 }
 
 /** A front-matter value as the text it names, or nothing where it names none. */

@@ -146,14 +146,10 @@ it.skipIf(process.platform === "win32")(
   async () => {
     const records = path.join(MOCK_WORKSPACE_DIRS.root, ".instrument");
     await fs.mkdir(records, { recursive: true });
-    const result = await run(
-      `ls '${records}'; touch '${records}/leak.txt'`,
-    );
+    const result = await run(`ls '${records}'; touch '${records}/leak.txt'`);
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Permission denied");
     expect(result.stderr).toContain("Instrument's own data");
-    await expect(
-      fs.stat(path.join(records, "leak.txt")),
-    ).rejects.toThrow();
+    await expect(fs.stat(path.join(records, "leak.txt"))).rejects.toThrow();
   },
 );

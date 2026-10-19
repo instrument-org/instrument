@@ -2,12 +2,8 @@ import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import {
-  type AppPlace,
-  APPS_HREF,
-  bookmarksAtom,
-  CHATS_HREF,
-} from "@/client/atoms/window";
+import { type AppPlace, APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
+import { bookmarksAtom } from "@/client/bookmarks/store";
 import { PageFavicon } from "@/client/components/favicon";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";

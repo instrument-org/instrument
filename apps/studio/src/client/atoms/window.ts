@@ -351,15 +351,4 @@ export const computerColumnWidthAtom = keptAtom<number>(
   240,
 );
 
-/** A page the user kept, shown on the browser's starting view. */
-export interface Bookmark {
-  id: string;
-  title: string;
-  url: string;
-}
 
-export const bookmarksAtom = keptAtom<Bookmark[]>(
-  "bookmarks",
-  "bookmarks.v1",
-  [],
-);

@@ -5,6 +5,11 @@ import {
   START_FILE_DRAG_CHANNEL,
 } from "@/shared/constants";
 import {
+  BOOKMARKS_CHANNEL,
+  type BookmarkOpBatch,
+  type BookmarksSnapshot,
+} from "@/shared/bookmarks";
+import {
   isKeptFile,
   KEPT_STATE_CHANNEL,
   type KeptFile,
@@ -116,7 +121,48 @@ function loadDrafts(): DraftsSnapshot {
   return { acks: {}, drafts: [] };
 }
 
+/**
+ * The bookmarks as main has them, read synchronously so the browser's
+ * starting view draws them in its first render. A failed read starts with
+ * none, and the window hears of them with the next change.
+ */
+function loadBookmarks(): BookmarksSnapshot {
+  try {
+    const value: unknown = ipcRenderer.sendSync(BOOKMARKS_CHANNEL.load);
+    if (
+      value !== null &&
+      typeof value === "object" &&
+      "bookmarks" in value &&
+      Array.isArray(value.bookmarks) &&
+      "acks" in value &&
+      value.acks !== null &&
+      typeof value.acks === "object"
+    ) {
+      // Main's own snapshot, made by the store this preload's window writes to.
+      return value as BookmarksSnapshot;
+    }
+  } catch {
+    // Starts with none, as below.
+  }
+  return { acks: {}, bookmarks: [] };
+}
+
 const api: Window["api"] = {
+  bookmarks: {
+    apply: async (batch: BookmarkOpBatch) => {
+      await ipcRenderer.invoke(BOOKMARKS_CHANNEL.apply, batch);
+    },
+    initial: loadBookmarks(),
+    onChange: (listener) => {
+      const forward = (_event: unknown, snapshot: BookmarksSnapshot) => {
+        listener(snapshot);
+      };
+      ipcRenderer.on(BOOKMARKS_CHANNEL.changed, forward);
+      return () => {
+        ipcRenderer.off(BOOKMARKS_CHANNEL.changed, forward);
+      };
+    },
+  },
   captureException: async (payload) => {
     const answer: unknown = await ipcRenderer.invoke(
       CAPTURE_EXCEPTION_CHANNEL,

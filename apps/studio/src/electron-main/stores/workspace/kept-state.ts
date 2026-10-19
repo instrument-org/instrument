@@ -1,7 +1,4 @@
-import {
-  workspaceDataDir,
-  workspaceWindowDir,
-} from "@/electron-main/lib/get-workspace-folder";
+import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
 import {
   isKeptFile,
   KEPT_FILES,
@@ -211,14 +208,11 @@ function readObject(file: string): Record<string, unknown> {
 let STORE: null | ReturnType<typeof createKeptStateStore> = null;
 
 /**
- * Bookmarks are things the person made, so they travel with the workspace;
- * where they left off and how they like things laid out are this computer's,
- * whose screens and paths they are measured against.
+ * Where the person left off and how they like things laid out are this
+ * computer's, whose screens and paths they are measured against.
  */
 function getStore() {
-  STORE ??= createKeptStateStore((file) =>
-    file === "bookmarks" ? workspaceDataDir() : workspaceWindowDir(),
-  );
+  STORE ??= createKeptStateStore(() => workspaceWindowDir());
   return STORE;
 }
 

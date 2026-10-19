@@ -34,46 +34,41 @@ it("writes each key to its file on flush, and reads them back in a new store", (
   `);
   expect(read("view.json")).toEqual({ "zoom.v1": 1.25 });
   expect(createKeptStateStore(() => dir).snapshot()).toEqual({
-    bookmarks: {},
     layout: { "app-tabs.v2": { tabs: [] } },
     view: { "zoom.v1": 1.25 },
   });
 });
 
 it("writes each file into the folder named for it, making the folder", () => {
-  const travels = path.join(dir, "workspace");
-  const stays = path.join(dir, "machine");
-  const dirOf = (file: string) => (file === "bookmarks" ? travels : stays);
+  const left = path.join(dir, "left");
+  const laidOut = path.join(dir, "laid-out");
+  const dirOf = (file: string) => (file === "layout" ? left : laidOut);
   const store = createKeptStateStore(dirOf);
-  store.set("bookmarks", "bookmarks.v1", [{ url: "https://example.com" }]);
   store.set("layout", "app-tabs.v2", { tabs: [] });
   store.set("view", "zoom.v1", 1.25);
 
   store.flush();
 
-  expect(fs.readdirSync(travels)).toEqual(["bookmarks.json"]);
-  expect(fs.readdirSync(stays).toSorted()).toEqual([
-    "layout.json",
-    "view.json",
-  ]);
+  expect(fs.readdirSync(left)).toEqual(["layout.json"]);
+  expect(fs.readdirSync(laidOut)).toEqual(["view.json"]);
   expect(createKeptStateStore(dirOf).snapshot()).toMatchObject({
-    bookmarks: { "bookmarks.v1": [{ url: "https://example.com" }] },
+    layout: { "app-tabs.v2": { tabs: [] } },
     view: { "zoom.v1": 1.25 },
   });
 });
 
 it("rewrites only the files that changed", () => {
   const store = createKeptStateStore(() => dir);
-  store.set("bookmarks", "bookmarks.v1", []);
+  store.set("layout", "app-tabs.v2", { tabs: [] });
   store.flush();
   store.set("view", "zoom.v1", 2);
   store.flush();
-  fs.rmSync(path.join(dir, "bookmarks.json"));
+  fs.rmSync(path.join(dir, "layout.json"));
 
   store.set("view", "zoom.v1", 1);
   store.flush();
 
-  expect(fs.existsSync(path.join(dir, "bookmarks.json"))).toBe(false);
+  expect(fs.existsSync(path.join(dir, "layout.json"))).toBe(false);
 });
 
 it("removes a key set to undefined", () => {
@@ -104,10 +99,10 @@ it.each([
 
 it("leaves no temporary file behind", () => {
   const store = createKeptStateStore(() => dir);
-  store.set("bookmarks", "bookmarks.v1", []);
+  store.set("view", "zoom.v1", 1);
   store.flush();
 
-  expect(fs.readdirSync(dir)).toEqual(["bookmarks.json"]);
+  expect(fs.readdirSync(dir)).toEqual(["view.json"]);
 });
 
 it("reads a file through its own reader as it loads", () => {

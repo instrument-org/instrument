@@ -1,4 +1,5 @@
-import { type Bookmark, bookmarksAtom } from "@/client/atoms/window";
+import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
+import { type Bookmark } from "@/shared/bookmarks";
 import {
   noteTypedPage,
   useRecentPages,
@@ -13,7 +14,7 @@ import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
-import { useAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -97,7 +98,8 @@ export function WebStart({
 }: {
   onOpenPage: (url: string) => void;
 }) {
-  const [bookmarks, setBookmarks] = useAtom(bookmarksAtom);
+  const bookmarks = useAtomValue(bookmarksAtom);
+  const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
   const visited = useRecentPages();
   const clicksFor = usePageClicks();
   // The bookmark whose name is being typed over, by id.
@@ -112,25 +114,16 @@ export function WebStart({
     if (named === bookmark.title || !named) {
       return;
     }
-    setBookmarks((current) =>
-      current.map((kept) =>
-        kept.id === bookmark.id ? { ...kept, title: named } : kept,
-      ),
-    );
+    void applyBookmarkOps([{ id: bookmark.id, title: named, type: "rename" }]);
   };
   const remove = (bookmark: Bookmark) => {
-    setBookmarks((current) =>
-      current.filter((kept) => kept.id !== bookmark.id),
-    );
+    void applyBookmarkOps([{ id: bookmark.id, type: "remove" }]);
     toast("Removed from Bookmarks", {
       action: {
         label: "Undo",
+        // Back where it was, by the order it had.
         onClick: () => {
-          setBookmarks((current) =>
-            current.some((kept) => kept.id === bookmark.id)
-              ? current
-              : [...current, bookmark],
-          );
+          void applyBookmarkOps([{ bookmark, type: "add" }]);
         },
       },
       description: bookmark.title || hostOf(bookmark.url),

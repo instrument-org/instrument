@@ -1,4 +1,5 @@
-import { bookmarksAtom } from "@/client/atoms/window";
+import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
+import { orderAfter } from "@/shared/bookmarks";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
 import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
 import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
@@ -96,7 +97,7 @@ import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "@/client/lib/toast";
@@ -463,24 +464,34 @@ export function BrowserPanel({
   // task's own browser has no such view to keep them on.
   const windowContext = useContext(WindowContext);
   const inWindow = windowContext !== null;
-  const [bookmarks, setBookmarks] = useAtom(bookmarksAtom);
+  const bookmarks = useAtomValue(bookmarksAtom);
+  const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
   const isBookmarked = bookmarks.some((bookmark) => bookmark.url === pageUrl);
   const toggleBookmark = () => {
     if (!pageUrl) {
       return;
     }
     if (isBookmarked) {
-      setBookmarks((current) =>
-        current.filter((bookmark) => bookmark.url !== pageUrl),
+      void applyBookmarkOps(
+        bookmarks
+          .filter((bookmark) => bookmark.url === pageUrl)
+          .map((bookmark) => ({ id: bookmark.id, type: "remove" })),
       );
       toast("Removed from Bookmarks");
       return;
     }
     // Untitled until the guest is ready; the start view names it by its site instead.
     const title = guestNow()?.title() ?? "";
-    setBookmarks((current) => [
-      ...current,
-      { id: crypto.randomUUID(), title, url: pageUrl },
+    void applyBookmarkOps([
+      {
+        bookmark: {
+          id: crypto.randomUUID(),
+          order: orderAfter(bookmarks),
+          title,
+          url: pageUrl,
+        },
+        type: "add",
+      },
     ]);
     // Said, since nothing on the page itself changes: it shows on the
     // browser's starting view, where it can be renamed.

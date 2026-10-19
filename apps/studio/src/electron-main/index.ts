@@ -56,6 +56,7 @@ import {
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
 import { serveDrafts } from "./drafts/serve-drafts";
 import { serveKeptState } from "./stores/workspace/kept-state";
+import { serveBookmarks } from "./bookmarks/serve-bookmarks";
 import { serveRendererExceptions } from "./lib/renderer-exceptions";
 import {
   configureAppSession,
@@ -287,6 +288,8 @@ async function bootstrapPrimaryInstance() {
     "createWorkspaceActor",
     () => createWorkspaceActor(deviceId),
   );
+  // Before any window, whose preload reads them as it loads.
+  await timeBootStep("serveBookmarks", () => serveBookmarks(deviceId));
 
   // A signed-in ChatGPT account's access token lasts an hour.
   scheduleChatGPTAccountRefresh();

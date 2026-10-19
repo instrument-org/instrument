@@ -3,7 +3,7 @@ import {
   noteTypedPage,
   useCompletionPages,
 } from "@/client/hooks/use-browser-history";
-import { bookmarksAtom } from "@/client/atoms/window";
+import { bookmarksAtom } from "@/client/bookmarks/store";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,

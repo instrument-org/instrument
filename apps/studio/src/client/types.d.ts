@@ -1,4 +1,5 @@
 import type { DraftsBridge } from "@/shared/drafts";
+import type { BookmarksBridge } from "@/shared/bookmarks";
 import type { KeptFile, KeptSnapshot } from "@/shared/kept-state";
 import type { ElectronAPI } from "@electron-toolkit/preload";
 import type { CaptureContext } from "@instrument-org/shared";
@@ -12,6 +13,10 @@ declare module "*.md" {
 declare global {
   interface Window {
     api: {
+      // Main's bookmarks (`client/bookmarks/store.ts`): every one as the
+      // window loaded, ops sent back, and every change from anywhere. Absent
+      // outside Electron.
+      bookmarks?: BookmarksBridge;
       // Hands a captured exception to the main process, which keeps it as an
       // event and answers how a report names it. Absent outside Electron.
       captureException?: (payload: {

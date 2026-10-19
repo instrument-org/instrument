@@ -1,19 +1,19 @@
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 
 /**
- * Selects an ordered list of up to `maxConfigs` provider configs to try,
+ * Selects an ordered list of up to `MAX_CONFIGS` provider configs to try,
  * given a preferred config and a priority-ordered list of supported provider types.
  */
+const MAX_CONFIGS = 2;
+
 export function selectProviderConfigs<
   T extends AIGatewayProviderConfig.Type = AIGatewayProviderConfig.Type,
 >({
   configs,
-  maxConfigs = 2,
   preferredProviderConfig,
   providerTypePriority,
 }: {
   configs: T[];
-  maxConfigs?: number;
   preferredProviderConfig: AIGatewayProviderConfig.Type;
   providerTypePriority: T["type"][];
 }): T[] {
@@ -39,12 +39,12 @@ export function selectProviderConfigs<
     }
   }
 
-  // 3. Add fallback(s) from ordered provider list to reach maxConfigs. Never a
+  // 3. Add fallback(s) from ordered provider list to reach MAX_CONFIGS. Never a
   // second ChatGPT account: falling over from one plan to another is the
   // account rotation OpenAI's Sign in with ChatGPT Terms forbid. Never the
   // Claude account either: it answers only for models picked on it.
   for (const providerType of providerTypePriority) {
-    if (result.length >= maxConfigs) {
+    if (result.length >= MAX_CONFIGS) {
       break;
     }
     if (

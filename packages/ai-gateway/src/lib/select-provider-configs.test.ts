@@ -133,7 +133,7 @@ describe("selectProviderConfigs", () => {
     expect(result[0]?.id).toBe("openrouter-2");
   });
 
-  it("returns up to maxConfigs configs", () => {
+  it("returns up to two configs", () => {
     const configs = [
       createConfig({
         id: OUR_PROVIDER_CONFIG.id,
@@ -204,7 +204,6 @@ describe("selectProviderConfigs", () => {
 
     const result = selectProviderConfigs({
       configs,
-      maxConfigs: 3,
       preferredProviderConfig: createConfig({
         id: OUR_PROVIDER_CONFIG.id,
         type: OUR_PROVIDER_CONFIG.type,
@@ -221,29 +220,6 @@ describe("selectProviderConfigs", () => {
     `);
   });
 
-  it("respects custom maxConfigs", () => {
-    const configs = [
-      createConfig({
-        id: OUR_PROVIDER_CONFIG.id,
-        type: OUR_PROVIDER_CONFIG.type,
-      }),
-      createConfig({ id: "openrouter-1", type: "openrouter" }),
-      createConfig({ id: "google-1", type: "google" }),
-    ];
-
-    const result = selectProviderConfigs({
-      configs,
-      maxConfigs: 1,
-      preferredProviderConfig: createConfig({
-        id: OUR_PROVIDER_CONFIG.id,
-        type: OUR_PROVIDER_CONFIG.type,
-      }),
-      providerTypePriority: [...priority],
-    });
-
-    expect(result).toHaveLength(1);
-  });
-
   it("never falls back from one ChatGPT account to another", () => {
     const configs = [
       createConfig({ id: "chatgpt-personal", type: "chatgpt-account" }),
@@ -253,7 +229,6 @@ describe("selectProviderConfigs", () => {
 
     const result = selectProviderConfigs({
       configs,
-      maxConfigs: 3,
       preferredProviderConfig: createConfig({
         id: "chatgpt-work",
         type: "chatgpt-account",

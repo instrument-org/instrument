@@ -285,7 +285,7 @@ function firstObjectOutput() {
 }
 
 /** The first complete top-level `{...}` in `text`, or the text as it is. */
-export function firstObject(text: string): string {
+function firstObject(text: string): string {
   const start = text.indexOf("{");
   if (start === -1) {
     return text;
@@ -316,7 +316,7 @@ export function firstObject(text: string): string {
  * returned rather than one the model wrote: a citation names the status by
  * id (`x.com/i/status/<id>`), which a post's own link ends with.
  */
-export function cited(posts: Post[], sources: string[]): Post[] {
+function cited(posts: Post[], sources: string[]): Post[] {
   const statusIds = new Set(sources.flatMap((url) => statusId(url) ?? []));
   return posts.flatMap((post) => {
     const id = statusId(post.url);

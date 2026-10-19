@@ -54,12 +54,6 @@ import {
   useWindowTabsChange,
 } from "./window-tabs";
 
-export interface BrowserPage {
-  favicon?: string;
-  title: string;
-  url: string;
-}
-
 export interface BrowserTabsHandle {
   /** Sends the guest on screen to an address, in the tab it is in. */
   navigate: (url: string) => void;
@@ -219,20 +213,17 @@ interface OpenOptions {
 export function BrowserTabs({
   chromeInto,
   fieldInto,
-  onPageChange,
   ref,
   reloadInto,
   rowWidth,
 }: {
   /** The element in the row above that the page's own bar is drawn into. */
-  chromeInto?: HTMLElement | null;
+  chromeInto: HTMLElement | null;
   /** The element inside the row's address field that the page's state is drawn into. */
-  fieldInto?: HTMLElement | null;
-  /** Told the page on screen whenever it changes, and undefined when none is. */
-  onPageChange?: (page: BrowserPage | undefined) => void;
+  fieldInto: HTMLElement | null;
   ref: Ref<BrowserTabsHandle>;
   /** The element beside the row's arrows that the page's reload is drawn into. */
-  reloadInto?: HTMLElement | null;
+  reloadInto: HTMLElement | null;
   /** The width of the window's row, which a page drawn somewhere inside it is placed again by. */
   rowWidth: number;
 }) {
@@ -413,18 +404,6 @@ export function BrowserTabs({
       }
     };
   }, [attached, change, tabIds]);
-
-  const activePage: BrowserPage | undefined = active?.url
-    ? {
-        ...(active.favicon ? { favicon: active.favicon } : {}),
-        title: active.title ?? "",
-        url: active.url,
-      }
-    : undefined;
-  useEffect(() => {
-    onPageChange?.(activePage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePage?.favicon, activePage?.title, activePage?.url]);
 
   const openTab = (
     url?: string,
@@ -719,9 +698,9 @@ export function BrowserTabs({
         <BrowserPanel
           active={attached.has(targetOf(active))}
           chrome={{
-            fieldInto: fieldInto ?? null,
-            into: chromeInto ?? null,
-            reloadInto: reloadInto ?? null,
+            fieldInto,
+            into: chromeInto,
+            reloadInto,
           }}
           // Square and flat, like the pane it fills: a page not drawn yet
           // shows the panel, and a card inset in the pane reads as a frame.

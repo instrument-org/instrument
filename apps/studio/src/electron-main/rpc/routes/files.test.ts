@@ -9,12 +9,39 @@ import { fileJournal, identityOf } from "@/electron-main/lib/file-journal";
 import { type InitialRPCContext } from "../context";
 import { files } from "./files";
 
-vi.mock("electron", () => ({ shell: {} }));
+// The system clipboard as what was last written to it and what it holds:
+// one item, by its formats. `pasteboard` is the Mac module's list of the
+// files on it, undefined where there is no module.
+const clipboardState = vi.hoisted(() => ({
+  holds: {} as Record<string, string>,
+  pasteboard: undefined as string[] | undefined,
+  written: [] as Record<string, string>[],
+}));
+vi.mock("electron", () => ({
+  ClipboardItem: class {
+    constructor(formats: Record<string, string>) {
+      clipboardState.written.push(formats);
+    }
+  },
+  clipboard: {
+    read: () =>
+      Promise.resolve([
+        {
+          getType: (type: string) =>
+            Promise.resolve(new Blob([clipboardState.holds[type] ?? ""])),
+          types: Object.keys(clipboardState.holds),
+        },
+      ]),
+    write: () => Promise.resolve(),
+  },
+  shell: {},
+}));
 vi.mock("@/electron-main/rpc/base", () => ({ base: os }));
 // A Finder alias resolves through the Mac module; here every alias leads to
 // whatever `aliasTargets` names for it.
 const aliasTargets = new Map<string, string>();
 vi.mock("@/electron-main/lib/mac-native", () => ({
+  pasteboardFiles: () => Promise.resolve(clipboardState.pasteboard),
   resolveAlias: (filePath: string) =>
     Promise.resolve(aliasTargets.get(filePath)),
 }));
@@ -340,3 +367,43 @@ it("takes back a whole copy with one undo, and none of it once a copy has change
   );
   expect(await fs.readdir(into)).toEqual(["b.txt", "renamed.txt"]);
 });
+
+it("copies files to the clipboard with their names as text beside them", async () => {
+  clipboardState.written.length = 0;
+  await call(
+    files.copyToClipboard,
+    { paths: ["/Users/sam/notes.txt", "/Users/sam/pics"] },
+    options,
+  );
+
+  const [formats] = clipboardState.written;
+  expect(formats?.["text/plain"]).toBe("notes.txt\npics");
+  expect(
+    Object.keys(formats ?? {}).filter((type) => type !== "text/plain"),
+  ).toEqual(
+    process.platform === "darwin"
+      ? ['electron application/osclipboard;format="NSFilenamesPboardType"']
+      : expect.arrayContaining(["text/uri-list"]),
+  );
+});
+
+it.each([
+  ["the Mac's files", ["/a.txt"], { "text/plain": "a.txt" }, true],
+  ["text alone, on the Mac", [], { "text/plain": "a.txt" }, false],
+  [
+    "a URI list beside text, elsewhere",
+    undefined,
+    { "text/plain": "a.txt", "text/uri-list": "file:///a.txt" },
+    true,
+  ],
+  ["text alone, elsewhere", undefined, { "text/plain": "a.txt" }, false],
+] as const)(
+  "offers Paste for %s",
+  async (_case, pasteboard, holds, hasFiles) => {
+    clipboardState.pasteboard = pasteboard ? [...pasteboard] : undefined;
+    clipboardState.holds = holds;
+    expect(await call(files.clipboardHasFiles, undefined, options)).toEqual({
+      hasFiles,
+    });
+  },
+);

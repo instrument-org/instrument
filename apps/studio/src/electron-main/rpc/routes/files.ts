@@ -286,6 +286,11 @@ const copyToClipboard = base
     if (process.platform === "linux") {
       formats[GNOME_COPIED_FILES] = ["copy", ...uris].join("\n");
     }
+    // Their names as text too, one to a line, as the Finder's Copy leaves
+    // them for a text field to paste. A paste in the Finder reads the files.
+    formats["text/plain"] = input.paths
+      .map((at) => path.basename(at))
+      .join("\n");
     await clipboard.write([new ClipboardItem(formats)]);
   });
 

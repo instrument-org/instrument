@@ -1287,15 +1287,7 @@ export function ComputerPage({
         .call()
         .catch(() => ({ files: [] }))
         .then(({ files }) =>
-          dropHandlers.current.copyInto(
-            files.length > 0
-              ? files.map((file) => ({
-                  hostPath: file.path,
-                  isFolder: file.isFolder,
-                }))
-              : pasted,
-            into,
-          ),
+          dropHandlers.current.copyInto(filesToPaste(files, pasted), into),
         );
     };
     browser.addEventListener("paste", paste);
@@ -3021,6 +3013,23 @@ export function fileActionFailed(title: string, error: unknown) {
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
   return typeof hostPath === "string" ? hostPath : "";
+}
+
+/**
+ * What a paste in the Finder copies: the computer's own list of the files
+ * on the clipboard where it has one, else the files the paste event carried.
+ * Only files: text on the clipboard beside them, or alone, is never pasted.
+ */
+export function filesToPaste(
+  fromComputer: readonly { isFolder: boolean; path: string }[],
+  fromEvent: readonly { hostPath: string; isFolder: boolean }[],
+) {
+  return fromComputer.length > 0
+    ? fromComputer.map((file) => ({
+        hostPath: file.path,
+        isFolder: file.isFolder,
+      }))
+    : [...fromEvent];
 }
 
 /** A refusal in a line, under a folder opened in place in the list. */

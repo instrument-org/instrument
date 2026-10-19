@@ -939,7 +939,6 @@ export class ChatRecords {
         .then(() => caughtUp(chat, existing))
         .catch(noop);
     const header = behind ? undefined : this.#header(chat, sessionId);
-    let opened: LogWriter | undefined;
     const file: FileState<LogWriter> = {
       end: 0,
       writer: Promise.resolve(behind)
@@ -952,23 +951,20 @@ export class ChatRecords {
             dir: chat.dir,
             header: header ?? this.#header(chat, sessionId),
             ...(last && { last }),
+            // Kept once the lines are on disk, so the row never says more
+            // than a crash leaves of the file.
+            onCommit: (cursor) => {
+              if (file.name !== undefined) {
+                keepOwnLogCursor(chat.id, sessionId, file.name, cursor);
+              }
+            },
             onWrite: (bytes, offset) => {
               wrote(chat, file, bytes, offset);
-              if (opened && file.name !== undefined) {
-                keepOwnLogCursor(
-                  chat.id,
-                  sessionId,
-                  file.name,
-                  opened.cursor(),
-                );
-              }
             },
           });
         })
         .then(async (writer) => {
           file.name = path.basename(writer.path);
-          opened = writer;
-          keepOwnLogCursor(chat.id, sessionId, file.name, writer.cursor());
           // A log this opened was started with its header before its name was known.
           await caughtUp(chat, file);
           return writer;

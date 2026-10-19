@@ -53,6 +53,8 @@ export interface OpenLogOptions {
   header: Header;
   /** Where this device last left its newest log of the session (`own-log-cursors.ts`). */
   last?: { cursor: LogCursor; name: string };
+  /** Told where the log stands each time its lines are synced to disk. */
+  onCommit?: (cursor: LogCursor) => void;
   /** Told of each write to the log, its header included when it starts one. */
   onWrite?: OnWrite;
 }
@@ -80,6 +82,7 @@ export async function openLog({
   dir,
   header,
   last,
+  onCommit,
   onWrite,
 }: OpenLogOptions): Promise<LogWriter> {
   await fs.mkdir(dir, { recursive: true });
@@ -94,7 +97,7 @@ export async function openLog({
         Math.max(highest, lastLog?.generation ?? 0) + 1,
       ),
       { ...header, continues: withSeen(header.continues, seen) },
-      onWrite,
+      { onCommit, onWrite },
     );
   if (last && lastLog && lastLog.generation > (newest?.generation ?? 0)) {
     // The log the index last saw is gone.
@@ -118,6 +121,7 @@ export async function openLog({
   }
   const file = path.join(dir, newest.name);
   return new RecordWriter(file, chatRecordFormat("log", file), current, {
+    onCommit,
     onWrite,
   });
 }
@@ -253,7 +257,7 @@ async function startLog(
   dir: string,
   name: string,
   { continues, ...header }: Header,
-  onWrite: OnWrite | undefined,
+  told: Pick<OpenLogOptions, "onCommit" | "onWrite">,
 ): Promise<LogWriter> {
   const file = path.join(dir, name);
   // Exclusive, so a log is only ever started, never written over.
@@ -263,7 +267,7 @@ async function startLog(
     file,
     chatRecordFormat("log", file),
     { bytes: new Uint8Array(), lastSeq: -1 },
-    { onWrite },
+    told,
   );
   await writer.append({
     t: "session",

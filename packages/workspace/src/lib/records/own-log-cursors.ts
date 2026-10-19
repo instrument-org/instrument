@@ -13,8 +13,10 @@ import { type LogCursor } from "./record-writer";
  * instead, and the copy that had more is left for the sync engine to bring
  * back.
  *
- * A row may lag the file (a crash after a write and before its row), which
- * `openLog` still recognizes, since the file only grows past it. Where there
+ * A row is kept each time the log is synced to disk, so it may lag the file
+ * (lines written since, or a crash before the row) but never run ahead of
+ * what a crash leaves of it; `openLog` recognizes a file that grew past its
+ * row. Where there
  * is no row, or no database, the device carries on in its newest log as it
  * finds it.
  */

@@ -9,6 +9,7 @@ import { closeWorkspaceDb } from "../workspace-db";
 import { ChatRecords } from "./chat-records";
 import { logFileName } from "./file-names";
 import {
+  assistantMessage,
   CHAT,
   DEVICE_A,
   messageId,
@@ -40,14 +41,19 @@ afterEach(async () => {
   await fs.rm(root, { force: true, recursive: true });
 });
 
-/** One launch of this device: the records open, `run`, then quit. */
-async function launch(run: (records: ChatRecords) => Promise<void>) {
-  const records = new ChatRecords({
+function openRecords() {
+  return new ChatRecords({
     app: "0.0.0-test",
     device: DEVICE_A,
     dirOf: () => path.join(root, "chats", CHAT),
-    fsync: false,
+    // Rows are kept as the log is synced.
+    fsync: true,
   });
+}
+
+/** One launch of this device: the records open, `run`, then quit. */
+async function launch(run: (records: ChatRecords) => Promise<void>) {
+  const records = openRecords();
   try {
     await run(records);
   } finally {
@@ -97,6 +103,27 @@ describe("this device's log cursors", () => {
       (await fs.readdir(path.join(root, "chats", CHAT))).toSorted(),
     ).toEqual([
       logFileName(session, DEVICE_A, 2),
+      logFileName(session, DEVICE_A),
+    ]);
+  });
+
+  it("carries on in its log when a crash took the lines written since its last sync", async () => {
+    const crashed = openRecords();
+    await crashed.startSession(CHAT, { createdAt: new Date(0), id: session });
+    await say(crashed, 1);
+    const synced = await fs.readFile(log());
+    // A reply still streaming, which is not synced yet.
+    await crashed.appendMessage(
+      CHAT,
+      assistantMessage(session, messageId(2), new Date(2000)),
+    );
+    // The power goes: the log is back to what was synced, and the records
+    // are never closed.
+    await fs.writeFile(log(), synced);
+
+    await launch((records) => say(records, 3));
+
+    expect(await fs.readdir(path.join(root, "chats", CHAT))).toEqual([
       logFileName(session, DEVICE_A),
     ]);
   });

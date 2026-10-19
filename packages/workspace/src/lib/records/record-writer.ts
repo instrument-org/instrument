@@ -129,6 +129,7 @@ export class RecordWriter<R = LogRecord | SettingRecord> {
   #draining = false;
   readonly #format: RecordFormat<R>;
   #lastSeq: number;
+  readonly #onCommit: ((cursor: LogCursor) => void) | undefined;
   readonly #onWrite: OnWrite | undefined;
   #pending: Op<R>[] = [];
   #size: number;
@@ -143,11 +144,19 @@ export class RecordWriter<R = LogRecord | SettingRecord> {
     path: string,
     format: RecordFormat<R>,
     file: { bytes: Uint8Array; lastSeq: number },
-    { onWrite }: { onWrite?: OnWrite } = {},
+    {
+      onCommit,
+      onWrite,
+    }: {
+      /** Told where the file stands each time its lines are synced to disk. */
+      onCommit?: (cursor: LogCursor) => void;
+      onWrite?: OnWrite;
+    } = {},
   ) {
     this.path = path;
     this.#format = format;
     this.#lastSeq = file.lastSeq;
+    this.#onCommit = onCommit;
     this.#onWrite = onWrite;
     this.#size = file.bytes.length;
     this.#tail = Buffer.from(file.bytes.subarray(-TAIL_BYTES));
@@ -245,6 +254,7 @@ export class RecordWriter<R = LogRecord | SettingRecord> {
     if (commits && this.#dirty) {
       await handle.sync();
       this.#dirty = false;
+      this.#onCommit?.(this.cursor());
     }
     for (const op of batch) {
       if (op.kind === "commit") {

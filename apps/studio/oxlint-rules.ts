@@ -142,6 +142,35 @@ const noTransitionColors = defineRule({
   },
 });
 
+// A class list that floats (`fixed`, or the popover surface) wearing the shared
+// ramp's ringed shadow, whose dark-mode hairline is translucent white.
+const floatingSurface = /(?:^|\s)(?:fixed|bg-popover)(?:\s|$)/;
+const sharedRingShadow = /(?:^|\s)shadow-(?:xs|sm|md|lg|xl|2xl|3xl)(?:\s|$)/;
+
+const noSharedShadowOnFloat = defineRule({
+  create(context) {
+    return {
+      Literal(node) {
+        if (
+          typeof node.value === "string" &&
+          floatingSurface.test(node.value) &&
+          sharedRingShadow.test(node.value)
+        ) {
+          context.report({ messageId: "sharedShadowOnFloat", node });
+        }
+      },
+    };
+  },
+  meta: {
+    messages: {
+      sharedShadowOnFloat:
+        "This surface floats over other content, and the shared shadow ramp's dark-mode hairline is translucent white outside its edge, so whatever passes beneath shows through it. Use shadow-float-{sm,md,lg}, whose hairline is opaque.",
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 const noShellOpenPath = defineRule({
   create(context) {
     return {
@@ -354,6 +383,7 @@ export default definePlugin({
     "no-raw-anchor": noRawAnchor,
     "no-raw-webview": noRawWebview,
     "no-router-link": noRouterLink,
+    "no-shared-shadow-on-float": noSharedShadowOnFloat,
     "no-shell-open-path": noShellOpenPath,
     "no-transition-colors": noTransitionColors,
     "one-tooltip-provider": oneTooltipProvider,

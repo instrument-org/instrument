@@ -96,7 +96,7 @@ import {
   gridTileSpan,
   overlaps,
   type Point,
-  stackHits,
+  runHits,
 } from "./file-system-marquee";
 import {
   RENAME_IDLE,
@@ -1666,22 +1666,26 @@ function useVirtualWindow({
 /** How far a press on empty space travels before it is a box being dragged rather than a click. */
 const MARQUEE_SLOP_PX = 4;
 /**
- * The box a press on empty space drags out, which selects what it touches as
- * it goes, the way the Finder's does. The view says what its box touches
- * (`hitTest`, in the coordinates of `containerRef`, the element its rows are
- * laid out in) and draws `overlay` over its scroll area; the press itself
- * keeps whatever the view did with it, and `onRelease` runs for one that
- * never moved, so a plain press on empty space behaves as it always has.
+ * A press on empty space dragged across the rows, which selects what it
+ * reaches as it goes, the way the Finder's does: a box drawn over the icons
+ * (`shape: "box"`), a run of rows in the list and the columns, with nothing
+ * drawn (`shape: "run"`). The view says what is reached (`hitTest`, given the
+ * box and both its ends in the coordinates of `containerRef`, the element its
+ * rows are laid out in) and draws `overlay` over its scroll area; the press
+ * itself keeps whatever the view did with it, and `onRelease` runs for one
+ * that never moved, so a plain press behaves as it always has.
  */
 function useMarquee({
   containerRef,
   hitTest,
   marquee,
+  shape,
   viewportRef,
 }: {
   containerRef: React.RefObject<HTMLElement | null>;
-  hitTest: (box: Box) => readonly string[];
+  hitTest: (box: Box, ends: { from: Point; to: Point }) => readonly string[];
   marquee: MarqueeControl;
+  shape: "box" | "run";
   viewportRef: React.RefObject<HTMLElement | null>;
 }) {
   const [drawn, setDrawn] = React.useState<Box | null>(null);
@@ -1747,8 +1751,10 @@ function useMarquee({
         x: Math.min(Math.max(pointer.x, bounds.left), bounds.right),
         y: Math.min(Math.max(pointer.y, bounds.top), bounds.bottom),
       };
-      const box = boxBetween(origin, toContent(held));
-      marquee.touch(hitTestRef.current(box));
+      const to = toContent(held);
+      const box = boxBetween(origin, to);
+      marquee.touch(hitTestRef.current(box, { from: origin, to }));
+      if (shape === "run") return;
       const scale = scaleOf();
       const containerBox = container.getBoundingClientRect();
       setDrawn({
@@ -4369,6 +4375,7 @@ function FileSystemIconsView({
       );
     },
     marquee,
+    shape: "box",
     viewportRef,
   });
   // Selection can land outside the window (view switches, shrinking results);
@@ -5194,23 +5201,28 @@ function FileSystemListView({
     overscan: 12,
     viewportRef,
   });
-  // A box dragged up or down the list takes every row it crosses.
+  // A drag up or down the list takes the run of rows it passes, those in
+  // folders opened in place included.
   const rowsRef = React.useRef<HTMLDivElement | null>(null);
   const marqueeDrag = useMarquee({
     containerRef: rowsRef,
-    hitTest: (box) =>
-      stackHits({
-        box,
+    hitTest: (_, { from, to }) =>
+      runHits({
         count: rows.length,
-        height: LIST_ROW_HEIGHT,
+        from: from.y,
         stride: LIST_ROW_HEIGHT,
+        to: to.y,
       }).flatMap((at) => {
         const entry = rows[at]?.entry;
         return entry ? [entry.path] : [];
       }),
     marquee,
+    shape: "run",
     viewportRef,
   });
+  // A press that began a run on a row's own blank space, which is the run's
+  // and not a drag of the row out of the window.
+  const runFromRowRef = React.useRef(false);
   const selectedRowIndex = rows.findIndex(
     (row) => row.entry?.path === selectedPath,
   );
@@ -5305,8 +5317,8 @@ function FileSystemListView({
             viewportProps={{
               "aria-label": "Files",
               // A press past the last row lets go of the selection, as in the
-              // Finder; one with ⌘ or Shift held keeps it. Dragged, it draws
-              // a box that selects the rows it crosses.
+              // Finder; one with ⌘ or Shift held keeps it. Dragged up, it
+              // selects the run of rows from the last to the pointer.
               onPointerDown: (event) => {
                 if (
                   event.button !== 0 ||
@@ -5401,6 +5413,7 @@ function FileSystemListView({
                       draggable={draggable && !isRenaming}
                       key={entry.path}
                       onClick={(event) => {
+                        if (marqueeDrag.claimClick()) return;
                         rowGestures.click(entry, event, () => rowEntries);
                       }}
                       onContextMenu={(event) => {
@@ -5414,7 +5427,36 @@ function FileSystemListView({
                         if (entry.kind === "folder")
                           onFolderHover?.(entry.path);
                       }}
+                      // Pulled by its blank space (past its name, in its
+                      // other columns), the row starts a run up or down the
+                      // list, as the Finder's does; by its icon or its name,
+                      // it drags out of the window.
+                      onDragStart={(event) => {
+                        if (runFromRowRef.current) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }
+                      }}
                       onPointerDown={(event) => {
+                        runFromRowRef.current =
+                          !isRenaming &&
+                          event.button === 0 &&
+                          event.pointerType === "mouse" &&
+                          !isMacContextClick(event) &&
+                          event.target instanceof Element &&
+                          !event.target.closest(
+                            "[data-file-system-name-text], [data-file-system-glyph], input",
+                          );
+                        if (runFromRowRef.current) {
+                          marqueeDrag.start(event, {
+                            onBegin: () => {
+                              if (selectionModeOf(event) === null) {
+                                onSelect(null);
+                              }
+                            },
+                          });
+                          return;
+                        }
                         rowGestures.press(entry, event, () => rowEntries);
                       }}
                       ref={(element) => {
@@ -5465,7 +5507,10 @@ function FileSystemListView({
                             />
                           ) : null}
                         </span>
-                        <span className="ml-1.5 flex size-4 shrink-0 items-center justify-center">
+                        <span
+                          className="ml-1.5 flex size-4 shrink-0 items-center justify-center"
+                          data-file-system-glyph=""
+                        >
                           <FileSystemRowGlyph entry={entry} />
                         </span>
                         {isRenaming ? (
@@ -5475,7 +5520,9 @@ function FileSystemListView({
                             className="ml-1.5 min-w-0 flex-1 truncate"
                             data-file-system-name=""
                           >
-                            {shownName(entry)}
+                            <span data-file-system-name-text="">
+                              {shownName(entry)}
+                            </span>
                           </span>
                         )}
                       </div>
@@ -6018,22 +6065,23 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
     overscan: 10,
     viewportRef,
   });
-  // A box dragged up or down the column takes the rows it crosses here, and
+  // A drag up or down the column takes the run of rows it passes here, and
   // only here, the way the Finder's columns pick several in one column.
   const rowsRef = React.useRef<HTMLDivElement | null>(null);
   const marqueeDrag = useMarquee({
     containerRef: rowsRef,
-    hitTest: (box) =>
-      stackHits({
-        box,
+    hitTest: (_, { from, to }) =>
+      runHits({
         count: lines.length,
-        height: COLUMN_ROW_HEIGHT,
+        from: from.y,
         stride: COLUMN_ROW_STRIDE,
+        to: to.y,
       }).flatMap((at) => {
         const line = lines[at];
         return line && !("heading" in line) ? [line.path] : [];
       }),
     marquee,
+    shape: "run",
     viewportRef,
   });
   // Keyboard navigation can select a row this column hasn't mounted; scroll
@@ -6067,8 +6115,8 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
           "aria-label": "Files",
           // A press past the rows goes back to the folder the column lists,
           // as in the Finder, and in the first column to nothing; one with
-          // ⌘ or Shift held keeps the selection. Dragged, it draws a box
-          // that selects the rows it crosses in this column.
+          // ⌘ or Shift held keeps the selection. Dragged up, it selects the
+          // run of rows from the last to the pointer, in this column.
           onPointerDown: (event) => {
             if (
               event.button !== 0 ||

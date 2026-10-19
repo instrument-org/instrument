@@ -41,6 +41,9 @@ function renderList() {
     />,
   );
   const row = (name: string) => screen.getByRole("option", { name });
+  // A press on a row's name, rather than its blank space, which drags a run.
+  const nameOf = (name: string) =>
+    row(name).querySelector("[data-file-system-name-text]") ?? row(name);
   const selected = () =>
     screen
       .getAllByRole("option")
@@ -60,11 +63,12 @@ function renderList() {
     );
   /** A real mouse click: the press, then the click with how many it is. */
   const mouseClick = (name: string, detail = 1) => {
-    fireEvent.pointerDown(row(name), { button: 0, pointerType: "mouse" });
+    fireEvent.pointerDown(nameOf(name), { button: 0, pointerType: "mouse" });
     fireEvent.click(row(name), { detail });
   };
   return {
     mouseClick,
+    nameOf,
     onFileOpen,
     onTrash,
     opened,
@@ -555,12 +559,12 @@ describe("FileSystem", () => {
     it("narrows before a ⌘-click that lands while the narrowing waits", () => {
       vi.useFakeTimers();
       try {
-        const { mouseClick, reported, row } = renderList();
+        const { mouseClick, nameOf, reported, row } = renderList();
 
         fireEvent.click(row("a.txt"));
         fireEvent.click(row("c.txt"), { shiftKey: true });
         mouseClick("b.txt");
-        fireEvent.pointerDown(row("d.txt"), {
+        fireEvent.pointerDown(nameOf("d.txt"), {
           button: 0,
           metaKey: true,
           pointerType: "mouse",
@@ -621,12 +625,16 @@ describe("FileSystem", () => {
 
       fireEvent.click(row("a.txt"));
       fireEvent.click(row("c.txt"), { metaKey: true });
-      fireEvent.pointerDown(row("c.txt"), {
-        button: 0,
-        clientX: 0,
-        clientY: 0,
-        pointerType: "mouse",
-      });
+      fireEvent.pointerDown(
+        row("c.txt").querySelector("[data-file-system-name-text]") ??
+          row("c.txt"),
+        {
+          button: 0,
+          clientX: 0,
+          clientY: 0,
+          pointerType: "mouse",
+        },
+      );
       fireEvent.dragStart(row("c.txt"));
       fireEvent.pointerMove(window, { clientX: 40, clientY: 0 });
 
@@ -704,6 +712,36 @@ describe("FileSystem", () => {
     fireEvent.keyDown(drafts, { key: "ArrowLeft" });
 
     expect(onOpenFolderChange.mock.calls).toEqual([["drafts/", false]]);
+  });
+
+  it("selects a run down the list from a row's blank space, and drags nothing out", () => {
+    const startFileDrag = vi.fn();
+    Object.defineProperty(window, "api", {
+      configurable: true,
+      value: { ...window.api, startFileDrag },
+    });
+    // jsdom lays nothing out: every box is the window's, from its corner.
+    const rect = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, 800, 600));
+    onTestFinished(() => {
+      rect.mockRestore();
+    });
+    const { reported, row } = renderList();
+
+    // The row itself, past its name: rows are 24 tall from the top.
+    fireEvent.pointerDown(row("a.txt"), {
+      button: 0,
+      clientX: 300,
+      clientY: 12,
+      pointerType: "mouse",
+    });
+    fireEvent.dragStart(row("a.txt"));
+    fireEvent.pointerMove(window, { clientX: 300, clientY: 60 });
+    fireEvent.pointerUp(window, { clientX: 300, clientY: 60 });
+
+    expect(reported()).toEqual(["a.txt", "b.txt", "c.txt"]);
+    expect(startFileDrag).not.toHaveBeenCalled();
   });
 
   it("says how many items the folder lists and how many are selected", () => {
@@ -1042,6 +1080,7 @@ describe("renaming in place", () => {
     try {
       const { field, row } = renderRenamable();
       const name = (file: string) =>
+        row(file).querySelector("[data-file-system-name-text]") ??
         row(file).querySelector("[data-file-system-name]") ??
         expect.unreachable(`no name in the row for ${file}`);
       const clickName = (file: string, detail = 1) => {

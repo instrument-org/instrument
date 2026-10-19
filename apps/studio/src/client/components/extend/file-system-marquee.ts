@@ -1,8 +1,9 @@
 /**
- * The box a press dragged across empty space draws, and what it touches, as
- * plain geometry. The views are windowed, so most of what a box reaches is
- * not in the DOM: each view says where its rows or tiles stand, and these
- * find the ones the box covers by arithmetic.
+ * What a press dragged across empty space selects, as plain geometry: a box
+ * over the icons, a run of rows in the list and the columns. The views are
+ * windowed, so most of what a drag reaches is not in the DOM: each view says
+ * where its rows or tiles stand, and these find the ones reached by
+ * arithmetic.
  */
 
 /** A rectangle in the coordinates of the view's own content. */
@@ -31,37 +32,31 @@ export function overlaps(left: Box, right: Box) {
 }
 
 /**
- * The rows of a stack (a list, a column) the box crosses, by index: rows
- * `stride` apart from `top`, each `height` tall, as wide as the stack. A row
- * is touched by the box reaching it from above or below, wherever across it.
+ * The rows a drag down or up a stack (a list, a column) runs over, by index:
+ * every row from the one the press was nearest (the last, for a press past
+ * the rows) to the one under the pointer, the way the Finder's list and
+ * columns select a run rather than drawing a box. Rows are `stride` apart
+ * from `top`; how far across the pointer is makes no difference.
  */
-export function stackHits({
-  box,
+export function runHits({
   count,
-  height,
+  from,
   stride,
+  to,
   top = 0,
 }: {
-  box: Box;
   count: number;
-  height: number;
+  from: number;
   stride: number;
+  to: number;
   top?: number;
 }): number[] {
   if (count === 0 || stride <= 0) return [];
-  const first = Math.max(0, Math.floor((box.y - top - height) / stride));
-  const last = Math.min(
-    count - 1,
-    Math.floor((box.y + box.height - top) / stride),
-  );
-  const hits: number[] = [];
-  for (let at = first; at <= last; at += 1) {
-    const rowTop = top + at * stride;
-    if (rowTop <= box.y + box.height && box.y <= rowTop + height) {
-      hits.push(at);
-    }
-  }
-  return hits;
+  const rowAt = (y: number) =>
+    Math.min(count - 1, Math.max(0, Math.floor((y - top) / stride)));
+  const first = Math.min(rowAt(from), rowAt(to));
+  const last = Math.max(rowAt(from), rowAt(to));
+  return Array.from({ length: last - first + 1 }, (_, at) => first + at);
 }
 
 /**

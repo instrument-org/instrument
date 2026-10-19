@@ -5,7 +5,7 @@ import {
   edgeScrollSpeed,
   gridTileSpan,
   overlaps,
-  stackHits,
+  runHits,
 } from "./file-system-marquee";
 
 describe("the box a drag draws", () => {
@@ -25,36 +25,22 @@ describe("the box a drag draws", () => {
   });
 });
 
-describe("what a box crosses in a stack of rows", () => {
+describe("the run of rows a drag up or down takes", () => {
   it.each([
-    // Rows 24 tall, flush: a box inside the third row takes it alone.
-    { from: 50, to: 60, hits: [2] },
-    // From the middle of the first to the middle of the fourth.
-    { from: 12, to: 84, hits: [0, 1, 2, 3] },
-    // Past the last row takes up to it.
-    { from: 100, to: 500, hits: [4, 5] },
-  ])("a box from $from to $to crosses $hits", ({ from, hits, to }) => {
-    expect(
-      stackHits({
-        box: { height: to - from, width: 10, x: 0, y: from },
-        count: 6,
-        height: 24,
-        stride: 24,
-      }),
-    ).toEqual(hits);
+    // Rows 24 apart: pressed in the third, dragged into the fifth.
+    { from: 50, to: 100, hits: [2, 3, 4] },
+    // Dragged up from the fifth to the second.
+    { from: 100, to: 30, hits: [1, 2, 3, 4] },
+    // Pressed past the last row, it runs from the last.
+    { from: 500, to: 80, hits: [3, 4, 5] },
+    // Held above the first, it runs to the first.
+    { from: 60, to: -40, hits: [0, 1, 2] },
+  ])("from $from to $to takes $hits", ({ from, hits, to }) => {
+    expect(runHits({ count: 6, from, stride: 24, to })).toEqual(hits);
   });
 
-  it("leaves the gap between rows set apart", () => {
-    // Rows 28 tall, 29 apart, below 6 of padding: the gap after row 0 is 34.
-    expect(
-      stackHits({
-        box: { height: 0, width: 10, x: 0, y: 34.5 },
-        count: 3,
-        height: 28,
-        stride: 29,
-        top: 6,
-      }),
-    ).toEqual([]);
+  it("takes nothing from an empty stack", () => {
+    expect(runHits({ count: 0, from: 10, stride: 24, to: 90 })).toEqual([]);
   });
 });
 

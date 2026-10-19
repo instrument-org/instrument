@@ -8,7 +8,6 @@ import { ChatReads } from "../../src/lib/chat-reads";
 import { writingChatRecords } from "../../src/lib/records/chat-records";
 import { chatDir, sessionOfChat } from "../../src/lib/record-folders";
 import { folderReach } from "../../src/lib/chat/folder-reach";
-import { getChatSettings } from "../../src/lib/chat-settings";
 import { ChatIdSchema, type ChatId } from "../../src/schemas/chat-id";
 import { StoreId } from "../../src/schemas/store-id";
 import { SubdomainPartSchema } from "../../src/schemas/subdomain-part";
@@ -147,9 +146,8 @@ describe("seedWorkspace", () => {
     ]);
 
     const chatId = ChatIdSchema.parse(at(seeded, 0).id);
-    const chatSettings = await getChatSettings(chatDir(chatId));
     const { session } = await readSeededSession(at(seeded, 0));
-    expect(chatSettings).toMatchObject({ chatSessionId: session.id });
+    expect(sessionOfChat(chatId)).toBe(session.id);
     expect(session.title).toBe(chat.chat.name);
     // Named by the manifest, so the app never renames it.
     expect(session.titleSettledAt).toBeDefined();

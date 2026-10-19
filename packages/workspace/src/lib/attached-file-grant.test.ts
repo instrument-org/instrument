@@ -83,7 +83,7 @@ describe("sending a file from the disk", () => {
       rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
       workspaceMachineDir: AbsolutePathSchema.parse(path.join(root, "machine")),
     });
-    await initializeTestChat({ chatId, initialSettings: {} });
+    await initializeTestChat({ chatId });
     const sessionId = sessionOfChat(chatId);
     if (!sessionId) {
       throw new Error("expected the chat's session");
@@ -136,7 +136,7 @@ describe("sending a file from the disk", () => {
       rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
       workspaceMachineDir: AbsolutePathSchema.parse(path.join(root, "machine")),
     });
-    await initializeTestChat({ chatId, initialSettings: {} });
+    await initializeTestChat({ chatId });
     const sessionId = sessionOfChat(chatId);
     if (!sessionId) {
       throw new Error("expected the chat's session");

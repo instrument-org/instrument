@@ -24,9 +24,6 @@ async function takeArrival(arrival: Arrival): Promise<void> {
   if (arrival.new || arrival.session) {
     recordChanged(chat, "session");
   }
-  if (arrival.settings) {
-    recordChanged(chat, "settings");
-  }
 }
 
 let running: RecordArrivals | undefined;

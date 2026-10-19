@@ -52,7 +52,6 @@ import {
   prepareBundledSkills,
   settleDrafts,
   settleMovedPaths,
-  moveChatPermissions,
   moveTopicFolders,
   renameChatDatabases,
   setBashWorkerFactory,
@@ -288,13 +287,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
 
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
-  // Here rather than beside the database converter: the chats are found
-  // through the workspace's own folders, so this is the first point at which
-  // there are any to read. Still after the converter, so a chat that failed
-  // to convert has its permissions carried anyway; the two are independent,
-  // and a chat left on its database is one the person is likely to open next.
-  // Nothing has opened a chat yet, so nothing reads a grant before this.
-  await carryChatPermissions();
   // What another device writes into the chats folder reaches the app while
   // it runs: the folder is watched, and looked at whenever the window comes
   // forward and every minute while it is in front.
@@ -569,23 +561,6 @@ function reportChatRecords(records: ChatRecordsSplit) {
     logger.warn(
       `Left ${records.failed} chat entr${records.failed === 1 ? "y" : "ies"} to move on the next boot`,
     );
-  }
-}
-
-/**
- * Bring what each chat allowed out of its own settings and into this
- * computer's permission settings. Idempotent; a failure must not block boot.
- */
-async function carryChatPermissions() {
-  try {
-    const { moved } = await moveChatPermissions();
-    if (moved > 0) {
-      logger.info(
-        `Chat permissions: moved ${moved} chat${moved === 1 ? "" : "s"} onto this computer's settings`,
-      );
-    }
-  } catch (error) {
-    captureServerException(error);
   }
 }
 

@@ -54,6 +54,8 @@ export type FoldedSettings = {
 };
 
 export interface FoldedSession {
+  /** The app version that began the session, from the header of its first log. */
+  app: string;
   chat: ChatId;
   createdAt: Date;
   /** Whether two devices each carried the session on past what the other had read; `messages` holds both. */
@@ -478,6 +480,7 @@ function folded(
   }
   const { messages, writtenBy } = messagesOf(session);
   return {
+    app: header.app,
     chat: header.chat,
     createdAt: header.createdAt,
     forked: isForked(

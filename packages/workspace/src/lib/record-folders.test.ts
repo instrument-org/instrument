@@ -5,14 +5,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { ChatIdSchema } from "../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { WINDOW_ID } from "../schemas/window-id";
 import { chatFolderName } from "./chat-folder-name";
 import { getChatInfos } from "./chat-info";
 import { initializeChat } from "./initialize-chat";
 import { newChatId } from "./new-chat-id";
+import { writingChatRecords } from "./records/chat-records";
+import { logFileName, parseRecordFileName } from "./records/file-names";
+import { recordLine } from "./records/record";
+import { DEVICE_A, DEVICE_B, header } from "./records/test-records";
 import {
   chatDir,
+  chatSessionIn,
   chatIdTaken,
   chatOfSession,
   forgetChat,
@@ -44,6 +49,11 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  // The records hold what each chat they opened read, and the next test
+  // makes chats of the same names in a fresh folder.
+  for (const chatId of opened.splice(0)) {
+    await writingChatRecords()?.close(chatId);
+  }
   forgetChatFolders();
   await fs.rm(rootDir, { force: true, recursive: true });
 });
@@ -62,13 +72,14 @@ async function leaveTaskFolder(chat: string, name: string) {
   return name;
 }
 
+const opened: ChatId[] = [];
+
 async function makeChat(name: string, sessionId = SESSION) {
   const chatId = ChatIdSchema.parse(name);
+  opened.push(chatId);
   const made = await initializeChat({
     chatId,
-    initialSettings: {},
     sessionId,
-    workspaceConfig: getWorkspaceConfig(),
   });
   expect(made.isOk()).toBe(true);
   return chatId;
@@ -149,7 +160,11 @@ describe("record folders", () => {
     await fs.writeFile(path.join(rootDir, "template", "package.json"), "{}");
     const chat = await makeChat("2026-09-24-transcribe-a-note");
 
-    expect(await fs.readdir(chatDir(chat))).toEqual(["settings.json"]);
+    expect(
+      (await fs.readdir(chatDir(chat))).map(
+        (name) => parseRecordFileName(name)?.kind,
+      ),
+    ).toEqual(["log"]);
     await expect(fs.access(workDir(chat))).rejects.toThrow(/ENOENT/);
   });
 });
@@ -184,9 +199,15 @@ describe("resolveChat", () => {
     await fs.mkdir(path.join(rootDir, "chats", "2026-09-25-other"), {
       recursive: true,
     });
+    const other = StoreId.newSessionId();
     await fs.writeFile(
-      path.join(rootDir, "chats", "2026-09-25-other", "settings.json"),
-      JSON.stringify({ chatSessionId: StoreId.newSessionId() }),
+      path.join(
+        rootDir,
+        "chats",
+        "2026-09-25-other",
+        logFileName(other, DEVICE_A),
+      ),
+      recordLine(header(0, { device: DEVICE_A, id: other })),
     );
 
     expect(resolveChat("made-elsewhere")).toBeUndefined();
@@ -200,5 +221,72 @@ describe("resolveChat", () => {
 
     expect(resolveChat(chat)).toBeUndefined();
     expect(chatOfSession(SESSION)).toBeUndefined();
+  });
+});
+
+describe("a chat's own session", () => {
+  /** A log of `id` from `device`, holding its header and nothing else. */
+  async function writeHeader(
+    dir: string,
+    id: StoreId.Session,
+    device: typeof DEVICE_A,
+    parent?: StoreId.Session,
+  ) {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, logFileName(id, device)),
+      recordLine(header(0, { device, id, ...(parent && { parent }) })),
+    );
+  }
+
+  const OWN = StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B");
+  // Older than the chat's own, which no task the app starts ever is, so the
+  // headers have to be read rather than the names sorted.
+  const TASK = StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0A");
+
+  it("is the session no other one was started from, whichever device wrote it", async () => {
+    const dir = path.join(rootDir, "chats", "2026-09-25-two-devices");
+    await writeHeader(dir, TASK, DEVICE_A, OWN);
+    await writeHeader(dir, OWN, DEVICE_B);
+
+    expect(chatSessionIn(dir)).toBe(OWN);
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["damaged", '{"chatSessionId": "ses_'],
+    ["naming another session", JSON.stringify({ chatSessionId: TASK })],
+  ])("lists a chat whose settings.json is %s", async (_what, settings) => {
+    const dir = path.join(rootDir, "chats", "2026-09-25-settings");
+    await writeHeader(dir, OWN, DEVICE_A);
+    if (settings !== undefined) {
+      await fs.writeFile(path.join(dir, "settings.json"), settings);
+    }
+
+    expect(sessionOfChat(ChatIdSchema.parse("2026-09-25-settings"))).toBe(OWN);
+    const chats = await getChatInfos({
+      direction: "desc",
+      sortBy: "updatedAt",
+    });
+    expect(chats.map((info) => info.id)).toEqual(["2026-09-25-settings"]);
+    opened.push(ChatIdSchema.parse("2026-09-25-settings"));
+  });
+
+  it("is what a chat still on its chat.db named in settings.json, until it has records", async () => {
+    const dir = path.join(rootDir, "chats", "2026-09-25-on-its-database");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, "settings.json"),
+      JSON.stringify({ chatSessionId: OWN }),
+    );
+
+    expect(chatSessionIn(dir)).toBe(OWN);
+  });
+
+  it("is none for a folder with neither", async () => {
+    const dir = path.join(rootDir, "chats", "2026-09-25-empty");
+    await fs.mkdir(dir, { recursive: true });
+
+    expect(chatSessionIn(dir)).toBeUndefined();
   });
 });

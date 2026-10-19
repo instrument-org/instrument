@@ -1,7 +1,4 @@
-import {
-  SETTINGS_FILE_NAME,
-  WORKSPACE_MACHINE_ENTRIES,
-} from "@instrument-org/shared";
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import fs from "node:fs";
 
 import {
@@ -88,11 +85,6 @@ export function chatAttachmentsDir(dir: ChatDir): AbsolutePath {
   }
   const inFolder = absolutePathJoin(own, CHAT_FOLDER_NAMES.attachments);
   return fs.existsSync(inFolder) ? inFolder : inRecordFolder(dir);
-}
-
-/** What every device knows about a chat, in its record folder. */
-export function chatSettingsPath(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(dir, SETTINGS_FILE_NAME);
 }
 
 /** Where one device left off in a chat, in its record folder; only that device writes it. */

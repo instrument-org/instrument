@@ -7,7 +7,7 @@ import { parseArgs } from "node:util";
 import { TASKS_DIR_NAME } from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { ChatReads } from "../src/lib/chat-reads";
-import { getChatSettings } from "../src/lib/chat-settings";
+import { chatStartedWithApp } from "../src/lib/chat-info";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { ChatDirSchema } from "../src/schemas/paths";
 import { ChatIdSchema } from "../src/schemas/chat-id";
@@ -42,7 +42,6 @@ const dir = ChatDirSchema.parse(path.resolve(inputPath));
 // Chats are found by scanning the workspace's `.instrument/chats/`.
 const rootDir = workspaceOfRecord(dir);
 
-const settings = await getChatSettings(dir);
 const folderName = path.basename(dir);
 const id = ChatIdSchema.parse(folderName);
 setWorkspaceConfig(
@@ -87,7 +86,7 @@ const markdown = await getSessionMarkdown({
   frontMatter: {
     source: dir,
     sourceType: "task-directory",
-    taskCreatedWithAppVersion: settings?.createdWithAppVersion ?? "unknown",
+    taskCreatedWithAppVersion: (await chatStartedWithApp(chatId)) ?? "unknown",
     taskName: rootSessions[0]?.title ?? folderName,
     transcriptGeneratedAt: new Date().toISOString(),
   },

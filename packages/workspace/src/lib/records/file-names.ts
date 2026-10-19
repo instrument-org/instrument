@@ -1,6 +1,5 @@
 import { StoreId } from "../../schemas/store-id";
 import { DEVICE_ID_PATTERN, type DeviceId, DeviceIdSchema } from "./device-id";
-import { GENERATION_PATTERN } from "./record";
 
 /**
  * The names of a chat's record files, and the copies of them a sync engine
@@ -17,6 +16,12 @@ import { GENERATION_PATTERN } from "./record";
  * copy holds the same records as its original, or fewer; a fold reads it as
  * another copy of that file.
  */
+
+/**
+ * The second of two or more logs one device wrote of a session is `.2`, then
+ * `.3`; the first has no number.
+ */
+export const GENERATION_PATTERN = "[2-9]|[1-9][0-9]+";
 
 /** Which log of a session one device wrote: its id, then `.2`, `.3`. */
 export function logStem(device: DeviceId, generation: number): string {

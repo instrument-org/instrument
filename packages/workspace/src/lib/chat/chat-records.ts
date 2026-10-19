@@ -49,9 +49,7 @@ export async function ensureChat(
   });
   const made = await initializeChat({
     chatId,
-    initialSettings: {},
     sessionId,
-    workspaceConfig: getWorkspaceConfig(),
   });
   if (made.isErr()) {
     // Two sends racing for the same new chat: the other one made it, and

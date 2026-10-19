@@ -35,7 +35,7 @@ import {
 
 /**
  * A sync engine for the records tests. Devices write their own logs and
- * marks the way the app does, and carry a session on from one another as
+ * settings files the way the app does, and carry a session on from one another as
  * far as they have received each other's files; the sync service between
  * them delivers files late, cut off mid-line, or not at all. Then
  * `planDeliveries` hands the finished files to one more device the way a
@@ -67,7 +67,8 @@ export interface SessionModel {
 export interface SimulatedChat {
   /** Every device's own files, finished. */
   files: Map<string, Uint8Array>;
-  marks: SettingRecord[];
+  /** Every setting any device wrote, as it reads back. */
+  settings: SettingRecord[];
   sessions: Map<StoreId.Session, SessionModel>;
 }
 
@@ -96,7 +97,7 @@ class Device {
    */
   readonly known = new Map<string, Set<string>>();
   readonly logs = new Map<string, OwnLog>();
-  marksSeq = -1;
+  settingsSeq = -1;
   readonly own = new Set<string>();
   readonly skew: number;
 
@@ -155,7 +156,7 @@ export function simulateChat(random: Random): SimulatedChat {
     }
   }
   const sessions = new Map<StoreId.Session, SessionModel>();
-  const marks: SettingRecord[] = [];
+  const settings: SettingRecord[] = [];
   /** Where each record's line ends in its file, to tell what a cut-off copy holds. */
   const lineEnds = new Map<
     string,
@@ -316,13 +317,13 @@ export function simulateChat(random: Random): SimulatedChat {
     } else if (action < 45 && target) {
       write(device, target.id, [change(device, target)]);
     } else if (action < 55 && target) {
-      const mark = markFor(device, target.id);
-      device.marksSeq += 1;
-      const line = recordLine({ ...mark, seq: device.marksSeq });
+      const setting = settingFor(device, target.id);
+      device.settingsSeq += 1;
+      const line = recordLine({ ...setting, seq: device.settingsSeq });
       device.append(settingsFileName(device.id), line);
       const parsed = parseSettingLine(line);
       if (parsed) {
-        marks.push(parsed);
+        settings.push(parsed);
       }
     } else if (action < 85) {
       const from = random.pick(devices.filter((other) => other !== device));
@@ -352,7 +353,7 @@ export function simulateChat(random: Random): SimulatedChat {
       files.set(name, device.files.get(name) ?? new Uint8Array());
     }
   }
-  return { files, marks, sessions };
+  return { files, sessions, settings };
 
   function turn(
     device: Device,
@@ -488,14 +489,14 @@ export function simulateChat(random: Random): SimulatedChat {
     };
   }
 
-  function markFor(
+  function settingFor(
     device: Device,
     session: StoreId.Session,
   ): Unsequenced<SettingRecord> {
-    // Some marks share one moment across devices, so ties are broken.
+    // Some settings share one moment across devices, so ties are broken.
     const when = random.chance(0.3) ? at(1000) : clock(device);
     const base = { t: "set", at: when, session, device: device.id } as const;
-    switch (random.int(0, 3)) {
+    switch (random.int(0, 4)) {
       case 0:
         return {
           ...base,
@@ -514,11 +515,20 @@ export function simulateChat(random: Random): SimulatedChat {
               ? "marked"
               : "new",
         };
-      default:
+      case 3:
         return {
           ...base,
           field: "topic",
           value: random.chance(0.5) ? null : "work",
+        };
+      default:
+        return {
+          ...base,
+          field: "model",
+          value: random.pick([
+            "openai/gpt-6.1-sol?provider=chatgpt-account&providerConfigId=a",
+            "anthropic/claude-opus-5.5?provider=openrouter&providerConfigId=b",
+          ]),
         };
     }
   }

@@ -1,4 +1,3 @@
-import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -10,7 +9,7 @@ import { readLog, readSettings } from "./read-records";
 /**
  * Noticing what another device's files bring to the workspace's chats while
  * the app runs: its logs and settings files growing, a log or a chat it
- * started, a chat's `settings.json` it wrote. A sync engine puts them in the
+ * started. A sync engine puts them in the
  * record folders behind the app's back, and nothing else here reads a chat's
  * folder again once it is folded.
  *
@@ -47,8 +46,6 @@ export interface Arrival {
   new: boolean;
   /** Records other than a message's arrived: a header, a stop, a setting, a file gone. */
   session: boolean;
-  /** Its `settings.json` changed. */
-  settings: boolean;
 }
 
 interface RecordArrivalsOptions {
@@ -238,7 +235,6 @@ export class RecordArrivals {
       messages: [],
       new: known === undefined,
       session: false,
-      settings: false,
     };
     const files = known ?? new Map<string, Seen>();
     this.#files.set(chat, files);
@@ -256,11 +252,6 @@ export class RecordArrivals {
         continue;
       }
       changed = true;
-      if (name === SETTINGS_FILE_NAME) {
-        arrival.settings = true;
-        files.set(name, { ...stat, offset: 0 });
-        continue;
-      }
       if (arrival.new) {
         // Folded whole when first read, so there is nothing to name.
         files.set(name, { ...stat, offset: stat.size });
@@ -347,11 +338,8 @@ export class RecordArrivals {
     return read.cursor.offset;
   }
 
-  /** Whether a look reads this file: another device's log or settings file, or `settings.json`. */
+  /** Whether a look reads this file: another device's log or settings file. */
   #looksAt(name: string): boolean {
-    if (name === SETTINGS_FILE_NAME) {
-      return true;
-    }
     const parsed = parseRecordFileName(name);
     return parsed !== undefined && parsed.device !== this.#device;
   }

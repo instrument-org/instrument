@@ -1,122 +1,62 @@
+import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { TASKS_DIR_NAME } from "../constants";
-import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
-import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { chatDir } from "./record-folders";
-import { getChatState, setChatState } from "./chat-record";
-import { getChatSettings, updateChatSettings } from "./chat-settings";
+import { chatFor } from "../test/helpers/chat-record";
+import { chatModelURI, setChatModel } from "./chat-settings";
+import { ChatWrites } from "./chat-writes";
+import { chatDir, sessionOfChat } from "./record-folders";
+import { parseRecordFileName } from "./records/file-names";
 
-const id = ChatIdSchema.parse("task-settings-test");
+const GLM = AIGatewayModelURI.Schema.parse(
+  "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
+);
+const OPUS = AIGatewayModelURI.Schema.parse(
+  "anthropic/claude-opus-5.5?provider=openrouter&providerConfigId=mock-provider-config-id",
+);
 
-let chatId: ChatId;
-let root: string;
+/** Every line of the chat's settings files. */
+async function settingsLines(chatId: Parameters<typeof chatDir>[0]) {
+  const names = (await fs.readdir(chatDir(chatId))).filter(
+    (name) => parseRecordFileName(name)?.kind === "settings",
+  );
+  const texts = await Promise.all(
+    names.map((name) => fs.readFile(path.join(chatDir(chatId), name), "utf8")),
+  );
+  return texts.flatMap((text) => text.trimEnd().split("\n"));
+}
 
-beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), "task-settings-test-"));
-  const tasksDir = path.join(root, TASKS_DIR_NAME);
-  chatId = createMockChatConfigForDir(path.join(tasksDir, id));
-  await fs.mkdir(chatDir(chatId), { recursive: true });
-});
-
-afterEach(async () => {
-  await fs.rm(root, { force: true, recursive: true });
-});
-
-describe("updateChatSettings", () => {
-  it("keeps both fields when two updates overlap", async () => {
-    await updateChatSettings(chatId, { createdWithAppVersion: "2.0.0" });
-
-    // Read-modify-write without a queue loses whichever wrote first.
-    const activityAt = new Date("2026-02-03T04:05:06.000Z");
-    await Promise.all([
-      updateChatSettings(chatId, { createdWithAppVersion: "2.0.1" }),
-      updateChatSettings(chatId, { lastActivityAt: activityAt }),
-    ]);
-
-    const settings = await getChatSettings(chatDir(chatId));
-
-    expect(settings?.createdWithAppVersion).toBe("2.0.1");
-    expect(settings?.lastActivityAt).toEqual(activityAt);
+describe("the chat's model", () => {
+  it("is none until the composer sends with one", async () => {
+    expect(await chatModelURI(await chatFor())).toBeUndefined();
   });
 
-  it("applies overlapping updates to the same field in call order", async () => {
-    const [first, second] = await Promise.all([
-      updateChatSettings(chatId, { createdWithAppVersion: "2.0.1" }),
-      updateChatSettings(chatId, { createdWithAppVersion: "2.0.2" }),
-    ]);
+  it("is the newest pick, and the same pick again writes nothing", async () => {
+    const chatId = await chatFor();
 
-    const settings = await getChatSettings(chatDir(chatId));
+    (await setChatModel(chatId, GLM))._unsafeUnwrap();
+    (await setChatModel(chatId, OPUS))._unsafeUnwrap();
+    (await setChatModel(chatId, OPUS))._unsafeUnwrap();
 
-    expect(first.isOk()).toBe(true);
-    expect(second.isOk()).toBe(true);
-    expect(settings?.createdWithAppVersion).toBe("2.0.2");
+    expect(await chatModelURI(chatId)).toBe(OPUS);
+    expect(await settingsLines(chatId)).toHaveLength(2);
   });
 
-  // A settings write never touches the state, which is a file of its own.
-  it("leaves the state alone", async () => {
-    await setChatState(chatDir(chatId), { appGuidesShown: ["half typed"] });
+  it("reads a model this build cannot parse as none", async () => {
+    const chatId = await chatFor();
+    const sessionId = sessionOfChat(chatId);
+    if (!sessionId) {
+      throw new Error("expected the chat's session");
+    }
 
-    await updateChatSettings(chatId, { createdWithAppVersion: "2.0.1" });
+    (
+      await ChatWrites.setting(chatId, sessionId, {
+        field: "model",
+        value: "retired/provider-model",
+      })
+    )._unsafeUnwrap();
 
-    const state = await getChatState(chatDir(chatId));
-    const settings = await getChatSettings(chatDir(chatId));
-
-    expect(state.appGuidesShown).toEqual(["half typed"]);
-    expect(settings?.createdWithAppVersion).toBe("2.0.1");
-  });
-
-  it("survives a state half the schema cannot read", async () => {
-    await updateChatSettings(chatId, { createdWithAppVersion: "2.0.0" });
-    await fs.writeFile(
-      path.join(chatDir(chatId), "settings.json"),
-      JSON.stringify({
-        createdWithAppVersion: "2.0.0",
-        state: { browserTabs: "broken" },
-      }),
-      "utf8",
-    );
-
-    const stamped = await updateChatSettings(chatId, {
-      lastActivityAt: new Date("2026-02-03T04:05:06.000Z"),
-    });
-    const settings = await getChatSettings(chatDir(chatId));
-
-    expect(stamped.isOk()).toBe(true);
-    expect(settings?.createdWithAppVersion).toBe("2.0.0");
-    expect(settings?.lastActivityAt).toEqual(
-      new Date("2026-02-03T04:05:06.000Z"),
-    );
-  });
-
-  // The settings view is parsed as one object, so a single unreadable field
-  // takes the whole view with it. Every activity stamp writes through this, so
-  // a write that fills the gap with what it parsed erases the settings of any
-  // chat a newer build -- or a hand edit -- left one bad field in.
-  it("keeps the fields a malformed sibling makes unreadable", async () => {
-    const recordPath = path.join(chatDir(chatId), "settings.json");
-    await fs.mkdir(chatDir(chatId), { recursive: true });
-    await fs.writeFile(
-      recordPath,
-      JSON.stringify({
-        createdWithAppVersion: "2.0.0",
-        reasoningEffort: "loud",
-      }),
-      "utf8",
-    );
-
-    const stamped = await updateChatSettings(chatId, {
-      lastActivityAt: new Date("2026-02-03T04:05:06.000Z"),
-    });
-
-    expect(stamped.isOk()).toBe(true);
-    expect(JSON.parse(await fs.readFile(recordPath, "utf8"))).toEqual({
-      lastActivityAt: "2026-02-03T04:05:06.000Z",
-      createdWithAppVersion: "2.0.0",
-      reasoningEffort: "loud",
-    });
+    expect(await chatModelURI(chatId)).toBeUndefined();
   });
 });

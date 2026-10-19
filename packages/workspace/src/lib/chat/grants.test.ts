@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
-import { readChatRecord } from "../chat-record";
 import { chatDir } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { readChatPermissions } from "../permissions/rules";
@@ -66,7 +65,5 @@ describe("grantFolder", () => {
     expect(held.grants.map(({ path: p, source }) => [p, source])).toEqual([
       [photos, "card"],
     ]);
-    const { raw } = await readChatRecord(chatDir(chatId));
-    expect(raw.grants).toBeUndefined();
   });
 });

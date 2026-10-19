@@ -156,7 +156,7 @@ interface Queued<T> {
 interface PendingSession {
   /** The newest `at` of its queued log records, in ms. */
   at: number;
-  header?: Queued<SessionStart & { at: Date }>;
+  header?: Queued<SessionStart & { app: string; at: Date }>;
   settings: Map<SettingField, Queued<Unsequenced<SettingRecord>>>;
   messages: Map<StoreId.Message, Queued<SessionMessage.Type>>;
   parts: Map<StoreId.Part, Queued<SessionMessagePart.Type>>;
@@ -374,7 +374,7 @@ export class ChatRecords {
       const at = this.#now();
       const pending = pendingOf(chat, start.id);
       pending.at = Math.max(pending.at, at.getTime());
-      pending.header = { ticket, value: { ...start, at } };
+      pending.header = { ticket, value: { ...start, app: this.#app, at } };
       recordChanged(chat.id, "session");
       const file = this.#logFile(chat, start.id);
       const started = file.writer
@@ -1718,6 +1718,7 @@ function withPending(
 function startedSession(
   chatId: ChatId,
   {
+    app,
     at,
     createdAt,
     forkedAt,
@@ -1726,10 +1727,12 @@ function startedSession(
     parent,
     title,
   }: SessionStart & {
+    app: string;
     at: Date;
   },
 ): FoldedSession {
   return {
+    app,
     chat: chatId,
     createdAt,
     forked: false,

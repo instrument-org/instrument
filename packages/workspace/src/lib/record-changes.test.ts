@@ -9,7 +9,6 @@ import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { recordChanged, recordChanges, recordRemoved } from "./record-changes";
 import { setChatState } from "./chat-record";
 import { chatDir } from "./record-folders";
-import { updateChatSettings } from "./chat-settings";
 
 const one = ChatIdSchema.parse("record-changes-one");
 const two = ChatIdSchema.parse("record-changes-two");
@@ -61,7 +60,7 @@ describe("recordChanges", () => {
 });
 
 describe("the record writer on the feed", () => {
-  it("says a settings write moved the settings and a state write the state", async () => {
+  it("says a state write moved the state", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "record-changes-"));
     const chatId = createMockChatConfigForDir(
       path.join(root, TASKS_DIR_NAME, "record-changes-task"),
@@ -69,14 +68,6 @@ describe("the record writer on the feed", () => {
     await fs.mkdir(chatDir(chatId), { recursive: true });
     const changes = recordChanges(undefined, (change) => change.id === chatId);
 
-    expect(
-      (
-        await updateChatSettings(chatId, { createdWithAppVersion: "2.0.0" })
-      ).isOk(),
-    ).toBe(true);
-    expect((await changes.next()).value).toEqual([
-      { id: chatId, kind: "settings" },
-    ]);
     await setChatState(chatDir(chatId), { appGuidesShown: [] });
     expect((await changes.next()).value).toEqual([
       { id: chatId, kind: "state" },

@@ -5,6 +5,7 @@ import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { DEVICE_ID_PATTERN, DeviceIdSchema } from "./device-id";
+import { GENERATION_PATTERN } from "./file-names";
 
 /**
  * The records of a chat as its files hold them: one JSON object per line,
@@ -20,12 +21,6 @@ import { DEVICE_ID_PATTERN, DeviceIdSchema } from "./device-id";
 
 /** The shape of records this build writes and reads, named in each header. */
 export const RECORD_FORMAT = 1;
-
-/**
- * The second of two or more logs one device wrote of a session is `.2`, then
- * `.3`; the first has no number.
- */
-export const GENERATION_PATTERN = "[2-9]|[1-9][0-9]+";
 
 /**
  * Which log of a session a `continues` entry names: the device that wrote it,

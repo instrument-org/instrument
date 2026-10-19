@@ -1,9 +1,9 @@
 import { devOnly } from "@/electron-main/rpc/base";
 import { APP_NAME } from "@instrument-org/shared";
 import {
+  chatStartedWithApp,
   chatTitle,
   findAvailableName,
-  getChatSettings,
   StoreId,
   chatDir,
   workDir,
@@ -41,7 +41,6 @@ async function buildSystemFrontMatter(chatId: ChatId) {
   const env = app.isPackaged ? "production" : "development";
 
   const dir = chatDir(chatId);
-  const settings = await getChatSettings(dir);
 
   return {
     appEnvironment: env,
@@ -52,9 +51,9 @@ async function buildSystemFrontMatter(chatId: ChatId) {
     runtimeLocale: app.getLocale(),
     runtimeNodeVersion: process.version,
     runtimeOs: `${osName} ${os.release()} / ${os.arch()}`,
-    taskCreatedWithAppVersion: settings?.createdWithAppVersion ?? "unknown",
+    taskCreatedWithAppVersion: (await chatStartedWithApp(chatId)) ?? "unknown",
     taskName: (await chatTitle(chatId)) ?? "unknown",
-    // Absolute paths to the chat's record folder (chat.db, settings.json,
+    // Absolute paths to the chat's record folder (logs, settings files,
     // attachments) and its work folder (screenshots, output) so an agent
     // reading this transcript can inspect its artifacts, which is most of why
     // a transcript gets handed to one. They name the user's own machine in a

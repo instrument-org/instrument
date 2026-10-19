@@ -11,7 +11,6 @@ import { closeAsksOf, openAsksOf } from "../../lib/chat/asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { ChatReads } from "../../lib/chat-reads";
-import { recordChatActivity } from "../../lib/chat-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -52,7 +51,6 @@ const run = base
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
     const { id, modelURI, sessionId } = input;
-    const chatId = id;
 
     const modelResult = await fetchModel({
       captureException: context.workspaceConfig.captureException,
@@ -74,9 +72,6 @@ const run = base
         sessionId,
       },
     });
-
-    // A settings write, which the record change feed reports: what moves the task in the list.
-    await recordChatActivity(chatId);
   });
 
 /**

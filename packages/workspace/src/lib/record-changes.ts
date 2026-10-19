@@ -10,12 +10,13 @@ import { StorageKey } from "./storage-key";
  * What moved in a record:
  *
  * - `messages`: a message or part of its transcript was written or removed.
- * - `session`: a session record, or something a session keeps beside its
- *   transcript (its browser state, the baselines a turn is diffed against).
- * - `settings`: the top level of its `settings.json`, what the app knows
- *   about it (title, apps, stamps).
- * - `state`: where the user left off in it (the `state` half of the same
- *   file, and its seen mark in the window's).
+ * - `session`: a session record, something a session keeps beside its
+ *   transcript (its browser state, the baselines a turn is diffed against),
+ *   or one of its settings (title, star, archive, unread, topic, model).
+ * - `settings`: what this computer allows in it, the folders and apps
+ *   granted or refused there (`permissions.json`).
+ * - `state`: where the user left off in it (this device's state file, and
+ *   its seen mark in the window's).
  * - `agent`: its agent started, moved between states, ended, or was held
  *   from starting or let go.
  * - `removed`: it is gone, with everything in it.

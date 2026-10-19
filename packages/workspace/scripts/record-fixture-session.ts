@@ -26,7 +26,6 @@
 
 import "./lib/define-globals-apply";
 
-import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -35,7 +34,12 @@ import superjson from "superjson";
 
 import { TASKS_DIR_NAME } from "../src/constants";
 import { listChildTasks } from "../src/lib/chat/children";
-import { placeChat, resolveChat } from "../src/lib/record-folders";
+import { readPermissionSettings } from "../src/lib/permissions/rules";
+import {
+  placeChat,
+  resolveChat,
+  sessionOfChat,
+} from "../src/lib/record-folders";
 import { ChatReads } from "../src/lib/chat-reads";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import {
@@ -245,10 +249,9 @@ async function recordChat({
     }),
   );
   const chatId = ChatIdSchema.parse(path.basename(chatDir));
-  const settings = JSON.parse(
-    await fs.readFile(path.join(chatDir, SETTINGS_FILE_NAME), "utf8"),
-  ) as { chatSessionId?: string; grants?: { path: string }[] };
-  const folderPaths = (settings.grants ?? []).map((grant) => grant.path);
+  const folderPaths = (
+    (await readPermissionSettings()).chats[chatId]?.grants ?? []
+  ).map((grant) => grant.path);
 
   const taskKeys = new Map<string, string>();
   for (const pair of values["task-key"] ?? []) {
@@ -267,9 +270,7 @@ async function recordChat({
     );
 
   const written: string[] = [];
-  const chatSession = renamed(
-    await readSession(chatId, settings.chatSessionId),
-  );
+  const chatSession = renamed(await readSession(chatId, sessionOfChat(chatId)));
   assertNoLocalPaths(chatSession, folderPaths);
   const chatPath = fixtureChatSessionPath(fixture, chatKey);
   for (const task of await listChildTasks(chatId)) {

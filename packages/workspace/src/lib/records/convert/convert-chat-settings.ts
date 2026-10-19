@@ -1,14 +1,20 @@
-import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
+import {
+  SETTINGS_FILE_NAME,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { parallel } from "radashi";
 
 import { ChatIdSchema } from "../../../schemas/chat-id";
+import { ChatDirSchema } from "../../../schemas/paths";
+import { chatStatePath } from "../../chat-dir-utils";
 import {
   chatFolderNames,
   recordChatFolderName,
 } from "../../chat-folders/own-folder";
-import { readJsonRecord } from "../../json-record-file";
+import { readJsonRecord, updateJsonRecord } from "../../json-record-file";
+import { ChatPermissionsSchema } from "../../permissions/rules";
 import { type DeviceId } from "../device-id";
 import { foldChatInFolder } from "../fold-folder";
 import { openSettingsFile } from "../open-log";
@@ -23,12 +29,23 @@ import { openSettingsFile } from "../open-log";
  *   session, in this device's settings file, unless a device already set one.
  * - The name of the chat's folder under `Chats/` (`folder`) is recorded in
  *   this computer's machine folder, unless it already has one for the chat.
+ * - What was allowed and refused in the chat (`grants`, `appGrants`,
+ *   `denials`) goes into this computer's `permissions.json`, unless it
+ *   already answers for the chat: each names something on this computer.
+ * - Where this device left off (`state`, from builds before it had a file of
+ *   its own) goes into `state.<device>.json`, unless that file holds
+ *   something already.
+ * - Then the file goes. `chatSessionId`, `createdAt`, `createdWithAppVersion`
+ *   and `lastActivityAt` are read from the records now, and
+ *   `reasoningEffort` was never set by anything.
  *
- * Safe to run on every launch: a value already carried writes nothing.
+ * Safe to run on every launch: a value already carried writes nothing, and
+ * the file is removed only once everything in it is carried. A chat still on
+ * its `chat.db` keeps its file, which names its session until its records do.
  */
 
-export interface ChatSettingsConverted {
-  /** One line per chat something was carried for, for the log. */
+interface ChatSettingsConverted {
+  /** One line per chat whose `settings.json` was converted, for the log. */
   done: string[];
   /** Chats whose `settings.json` could not be carried yet, each with why. */
   left: { reason: string; where: string }[];
@@ -64,8 +81,12 @@ export async function convertChatSettingsFiles({
   );
   for (const [index, result] of results.entries()) {
     const where = path.basename(dirs[index] ?? "");
-    if (result.kind === "carried") {
-      converted.done.push(`${where}: carried ${result.carried.join(", ")}`);
+    if (result.kind === "converted") {
+      converted.done.push(
+        result.carried.length === 0
+          ? `${where}: removed ${SETTINGS_FILE_NAME}`
+          : `${where}: carried ${result.carried.join(", ")}, removed ${SETTINGS_FILE_NAME}`,
+      );
     } else if (result.kind === "left") {
       converted.left.push({ reason: result.reason, where });
     }
@@ -74,8 +95,10 @@ export async function convertChatSettingsFiles({
 }
 
 type ChatSettingsConversion =
-  | { carried: string[]; kind: "carried" }
+  /** Carried what it held, which may be nothing, and removed the file. */
+  | { carried: string[]; kind: "converted" }
   | { kind: "left"; reason: string }
+  /** No `settings.json`. */
   | { kind: "nothing" };
 
 /** Carries one chat's `settings.json`, whose record folder is `dir`. */
@@ -127,9 +150,84 @@ export async function convertChatSettings(
     await recordChatFolderName(machineDir, id.data, settings.folder);
     carried.push("its folder's name");
   }
-  return carried.length > 0
-    ? { carried, kind: "carried" }
-    : { kind: "nothing" };
+  if (id.success && (await carryPermissions(machineDir, id.data, settings))) {
+    carried.push("what it allowed");
+  }
+  if (await carryState(dir, deviceId, settings.state)) {
+    carried.push("where this device left off");
+  }
+  await fs.rm(path.join(dir, SETTINGS_FILE_NAME), { force: true });
+  return { carried, kind: "converted" };
+}
+
+/**
+ * Puts what the chat allowed and refused into this computer's permission
+ * settings, where the rest of the folder and app rules are, unless they
+ * already answer for the chat: an answer given since is what the person
+ * meant last. Says whether anything was written.
+ */
+async function carryPermissions(
+  machineDir: string,
+  id: string,
+  settings: Record<string, unknown>,
+): Promise<boolean> {
+  const permissions = ChatPermissionsSchema.parse(settings);
+  if (
+    permissions.appGrants.length === 0 &&
+    permissions.denials.length === 0 &&
+    permissions.grants.length === 0
+  ) {
+    return false;
+  }
+  let wrote = false;
+  await updateJsonRecord(
+    path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.permissions),
+    (current) => {
+      const chats = isRecord(current.chats) ? current.chats : {};
+      if (chats[id] !== undefined) {
+        return undefined;
+      }
+      wrote = true;
+      return { chats: { ...chats, [id]: permissions } };
+    },
+  );
+  return wrote;
+}
+
+/**
+ * Puts the state an earlier build kept under `state` in `settings.json` into
+ * this device's state file, under the names it has now, when that file holds
+ * nothing yet. Says whether anything was written.
+ */
+async function carryState(
+  dir: string,
+  deviceId: DeviceId,
+  state: unknown,
+): Promise<boolean> {
+  if (!isRecord(state)) {
+    return false;
+  }
+  const { appGuidesRead, asks, ...rest } = state;
+  let wrote = false;
+  await updateJsonRecord(
+    chatStatePath(ChatDirSchema.parse(dir), deviceId),
+    (current) => {
+      if (Object.keys(current).length > 0) {
+        return undefined;
+      }
+      wrote = true;
+      return {
+        ...rest,
+        ...(asks !== undefined && { waitingOn: asks }),
+        ...(appGuidesRead !== undefined && { appGuidesShown: appGuidesRead }),
+      };
+    },
+  );
+  return wrote;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function dateIn(value: unknown): Date | undefined {

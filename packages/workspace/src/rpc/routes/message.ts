@@ -13,7 +13,6 @@ import { newMessage } from "../../lib/new-message";
 import { attendChatArrivals } from "../../lib/records/take-arrivals";
 import { setChatTopic } from "../../lib/chat/chats";
 
-import { recordChatActivity } from "../../lib/chat-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
 import { closeQuestions } from "../../lib/chat/asks";
@@ -200,10 +199,6 @@ const create = base
             sessionId: message.metadata.sessionId,
           },
         });
-
-        // A settings write, which the record change feed reports: what moves
-        // the chat in the list.
-        await recordChatActivity(chatId);
 
         return { sessionId: message.metadata.sessionId };
       }),

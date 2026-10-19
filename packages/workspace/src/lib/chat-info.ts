@@ -6,12 +6,11 @@ import { parallel, sort } from "radashi";
 import { type ChatDir } from "../schemas/paths";
 import { type ChatInfo } from "../schemas/chat-info";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
-import { type ChatSettings } from "../schemas/chat-settings";
 import { TypedError } from "./errors";
 import { getChatDirTimestamps } from "./chat-dir-timestamps";
 import { isChatId } from "./is-chat-id";
 import { chatDir, chatIds, resolveChat, sessionOfChat } from "./record-folders";
-import { chatModelURI, getChatSettings } from "./chat-settings";
+import { chatModelURI } from "./chat-settings";
 import { ChatReads } from "./chat-reads";
 
 export interface ChatInfoListOptions {
@@ -67,16 +66,30 @@ async function readChatInfo({ dir }: { dir: ChatDir }) {
     );
   }
 
-  const settings = await getChatSettings(dir);
   const title = await chatTitle(parsed.data);
   const modelURI = await chatModelURI(parsed.data);
   const info: ChatInfo = {
-    ...(await chatTimestamps(dir, settings)),
+    ...(await chatTimestamps(parsed.data, dir)),
     id: parsed.data,
     ...(modelURI ? { modelURI } : {}),
     title: title ?? rawFolderName,
   };
   return ok(info);
+}
+
+/**
+ * The app version the chat began on, from the first log of its own session,
+ * or nothing for a chat with no records to read.
+ */
+export async function chatStartedWithApp(
+  chatId: ChatId,
+): Promise<string | undefined> {
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return undefined;
+  }
+  const app = await ChatReads.startedWithApp({ chatId, sessionId });
+  return app.isOk() ? app.value : undefined;
 }
 
 /** A chat's title, from its own session's row, which is where a rename writes it. */
@@ -103,27 +116,35 @@ function sortChatInfos(
 }
 
 /**
- * When the chat was made and when something last happened in it.
+ * When the chat was made and when something last happened in it, from its
+ * records: its own session's start, and the newest record any of its
+ * sessions wrote. A setting (a star, a read mark, a model pick) is not
+ * something happening in the chat, and moves neither.
  *
- * Both are written to settings when the chat is created, so the usual answer
- * is the file already read above and the folder is never touched. It is
- * consulted only for a chat missing one of them: one restored by hand, or one
- * whose settings cannot be read.
+ * The folder's own timestamps answer only for a chat with no records to
+ * read, one still on its `chat.db`.
  */
 async function chatTimestamps(
+  id: ChatId,
   dir: ChatDir,
-  settings: ChatSettings | undefined,
 ): Promise<{ createdAt: Date; updatedAt: Date }> {
-  if (settings?.createdAt && settings.lastActivityAt) {
-    return {
-      createdAt: settings.createdAt,
-      updatedAt: settings.lastActivityAt,
-    };
+  const sessionId = sessionOfChat(id);
+  const sessions = await ChatReads.sessions({
+    chatId: id,
+    includeChildSessions: true,
+  });
+  const own = sessions.isOk()
+    ? sessions.value.find((session) => session.id === sessionId)
+    : undefined;
+  if (!sessions.isOk() || !own) {
+    return getChatDirTimestamps(dir);
   }
-
-  const observed = await getChatDirTimestamps(dir);
   return {
-    createdAt: settings?.createdAt ?? observed.createdAt,
-    updatedAt: settings?.lastActivityAt ?? observed.updatedAt,
+    createdAt: own.createdAt,
+    updatedAt: new Date(
+      Math.max(
+        ...sessions.value.map((session) => session.updatedAt?.getTime() ?? 0),
+      ),
+    ),
   };
 }

@@ -81,9 +81,7 @@ beforeEach(async () => {
   });
   const chat = await initializeChat({
     chatId: CHAT_ID,
-    initialSettings: {},
     sessionId: CHAT_SESSION,
-    workspaceConfig: getWorkspaceConfig(),
   });
   if (chat.isErr()) {
     throw chat.error;

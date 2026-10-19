@@ -224,6 +224,22 @@ export namespace ChatReads {
     });
   }
 
+  /** The app version that began the session, from the header of its first log. */
+  export function startedWithApp({
+    chatId,
+    sessionId,
+  }: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+  }): ResultAsync<string, Failure> {
+    return read(chatId).andThen((chat) => {
+      const found = chat.chat.sessions.find(({ id }) => id === sessionId);
+      return found
+        ? okAsync(found.app)
+        : errAsync(missingSession(chatId, sessionId));
+    });
+  }
+
   /**
    * The session as its callers have always read one: its title, the person's
    * marks, where its context window was reset and who stopped its turn.

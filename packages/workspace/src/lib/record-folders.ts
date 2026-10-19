@@ -13,13 +13,14 @@ import {
 import { StoreId } from "../schemas/store-id";
 import { WINDOW_ID } from "../schemas/window-id";
 import { chatFolderNames, folderLinkedTo } from "./chat-folders/own-folder";
+import { parseRecordFileName } from "./records/file-names";
 import { TypedError } from "./errors";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
  * Where every chat is, for the chats folder it was read from. A chat's folder
- * has a readable name of its own, so which session it holds is read from its
- * settings. The index is read from disk the first time a workspace asks, and
+ * has a readable name of its own, so which session is its own is read from
+ * its records (`chatSessionIn`). The index is read from disk the first time a workspace asks, and
  * kept current by whatever makes or trashes a chat. An id it does not know
  * is looked for on disk where a chat would be before it is called not found,
  * so a folder made behind its back is found; one moved behind its back (the
@@ -46,7 +47,7 @@ let index: Index | undefined;
 let handed: Map<ChatId, ChatDir> | undefined;
 
 /**
- * The folder a chat's records live in: its `chat.db`, `settings.json`,
+ * The folder a chat's records live in: its logs, settings files,
  * `attachments/` and handoff notes. An id no chat has, the window's among
  * them, throws `TypedError.NotFound` rather than naming a folder that is not
  * there; ask `resolveChat` where an unknown id is an answer rather than a
@@ -192,43 +193,116 @@ export function chatOwnFolder(chatFolder: string): AbsolutePath | undefined {
     : AbsolutePathSchema.parse(path.join(chats, own));
 }
 
-export function storedChatSession(
+/**
+ * The chat's own session, read from the records in its folder: the session
+ * that was not started from another one. A chat with one session needs no
+ * more than the names of its files; one with tasks has the first line of a
+ * log read per session, oldest first, until the one with no parent, and the
+ * chat's own is almost always the oldest. Nothing a device rewrites decides
+ * it, so a damaged file beside the logs cannot hide a chat.
+ *
+ * A folder with no logs yet is a chat still on its `chat.db`, which the
+ * database converter retries at each launch; its `settings.json`, which
+ * named the session before records did, is read for it, and nothing else
+ * reads that file.
+ */
+export function chatSessionIn(chatFolder: string): StoreId.Session | undefined {
+  const logs = new Map<StoreId.Session, string>();
+  for (const name of listFiles(chatFolder).toSorted()) {
+    const parsed = parseRecordFileName(name);
+    if (parsed?.kind === "log" && parsed.copy === undefined) {
+      if (!logs.has(parsed.session) || parsed.generation === 1) {
+        logs.set(parsed.session, name);
+      }
+    }
+  }
+  const sessions = [...logs.keys()].toSorted();
+  if (sessions.length <= 1) {
+    return sessions[0] ?? sessionInSettingsFile(chatFolder);
+  }
+  for (const session of sessions) {
+    const header = firstLineOf(path.join(chatFolder, logs.get(session) ?? ""));
+    if (isRootHeader(header)) {
+      return session;
+    }
+  }
+  return sessions[0];
+}
+
+/**
+ * Whether a log's first line is a session header that names no parent. Read
+ * without the record schemas, which reach most of the package.
+ */
+function isRootHeader(line: string | undefined): boolean {
+  if (line === undefined) {
+    return false;
+  }
+  try {
+    const value: unknown = JSON.parse(line);
+    return (
+      typeof value === "object" &&
+      value !== null &&
+      "t" in value &&
+      value.t === "session" &&
+      !("parent" in value)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** The first whole line of a file. */
+function firstLineOf(file: string): string | undefined {
+  let handle: number | undefined;
+  try {
+    handle = fs.openSync(file, "r");
+    const buffer = Buffer.alloc(HEADER_BYTES);
+    const bytesRead = fs.readSync(handle, buffer, 0, HEADER_BYTES, 0);
+    const text = buffer.toString("utf8", 0, bytesRead);
+    const end = text.indexOf("\n");
+    return end === -1 ? undefined : text.slice(0, end);
+  } catch {
+    return undefined;
+  } finally {
+    if (handle !== undefined) {
+      fs.closeSync(handle);
+    }
+  }
+}
+
+/** The session a chat's `settings.json` names, from builds before its records did. */
+function sessionInSettingsFile(
   chatFolder: string,
-):
-  | { problem: "no-session" | "unreadable-settings" }
-  | { sessionId: StoreId.Session } {
+): StoreId.Session | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(
       fs.readFileSync(path.join(chatFolder, SETTINGS_FILE_NAME), "utf8"),
     );
   } catch {
-    return { problem: "unreadable-settings" };
-  }
-  if (typeof parsed !== "object" || parsed === null) {
-    return { problem: "unreadable-settings" };
+    return undefined;
   }
   const session = StoreId.SessionSchema.safeParse(
-    "chatSessionId" in parsed ? parsed.chatSessionId : undefined,
+    typeof parsed === "object" && parsed !== null && "chatSessionId" in parsed
+      ? parsed.chatSessionId
+      : undefined,
   );
-  return session.success
-    ? { sessionId: session.data }
-    : { problem: "no-session" };
+  return session.success ? session.data : undefined;
 }
 
 /**
- * Adds a chat found in its folder to the index, or nothing when its settings
+ * Adds a chat found in its folder to the index, or nothing when its records
  * name no session: such a folder is unreachable as a chat until they do, and
  * listed in Settings > Storage meanwhile.
  */
 function addChatFrom(known: Index, folder: string): ChatId | undefined {
   const id = ChatIdSchema.safeParse(path.basename(folder));
-  const stored = id.success ? storedChatSession(folder) : undefined;
-  if (!id.success || !stored || !("sessionId" in stored)) {
+  const sessionId = id.success ? chatSessionIn(folder) : undefined;
+  if (!id.success || sessionId === undefined) {
     return undefined;
   }
-  known.chats.set(id.data, stored.sessionId);
-  known.sessions.set(stored.sessionId, id.data);
+  known.chats.set(id.data, sessionId);
+  known.sessions.set(sessionId, id.data);
   return id.data;
 }
 
@@ -250,6 +324,20 @@ function isDir(folder: string): boolean {
     return fs.statSync(folder).isDirectory();
   } catch {
     return false;
+  }
+}
+
+/** How much of a log is read for its header, which is one short line. */
+const HEADER_BYTES = 16 * 1024;
+
+function listFiles(dir: string): string[] {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name);
+  } catch {
+    return [];
   }
 }
 

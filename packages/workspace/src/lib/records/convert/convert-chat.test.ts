@@ -361,6 +361,7 @@ describe("convertChat", () => {
     ).toMatchInlineSnapshot(`
       [
         {
+          "app": "0.0.0-test",
           "chat": "every-kind",
           "createdAt": 2026-10-14T12:00:00.000Z,
           "forked": false,
@@ -480,6 +481,7 @@ describe("convertChat", () => {
           },
         },
         {
+          "app": "0.0.0-test",
           "chat": "every-kind",
           "createdAt": 2026-10-14T12:01:00.000Z,
           "forked": false,

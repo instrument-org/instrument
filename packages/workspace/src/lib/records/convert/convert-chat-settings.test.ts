@@ -1,4 +1,7 @@
-import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
+import {
+  SETTINGS_FILE_NAME,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -46,8 +49,15 @@ async function modelIn(dir: string) {
   return chat.sessions.find((session) => !session.parent)?.settings.model;
 }
 
+async function exists(file: string) {
+  return fs.access(file).then(
+    () => true,
+    () => false,
+  );
+}
+
 describe("convertChatSettings", () => {
-  it("carries the model onto the chat's own session, once", async () => {
+  it("carries the model onto the chat's own session and removes the file", async () => {
     const dir = await chatWith(
       JSON.stringify({
         lastActivityAt: at(5).toISOString(),
@@ -57,13 +67,14 @@ describe("convertChatSettings", () => {
 
     expect(await convertChatSettings(dir, OPTIONS)).toEqual({
       carried: ["its model"],
-      kind: "carried",
+      kind: "converted",
     });
     expect(await modelIn(dir)).toMatchObject({
       at: at(5),
       device: DEVICE_A,
       value: MODEL,
     });
+    expect(await exists(path.join(dir, SETTINGS_FILE_NAME))).toBe(false);
     expect(await convertChatSettings(dir, OPTIONS)).toEqual({
       kind: "nothing",
     });
@@ -74,16 +85,18 @@ describe("convertChatSettings", () => {
 
     expect(await convertChatSettings(dir, OPTIONS)).toEqual({
       carried: ["its folder's name"],
-      kind: "carried",
+      kind: "converted",
     });
     expect(chatFolderNames(machine.path).get("a-chat")).toBe("Trip plans");
 
+    // A device on an older build writes the file again.
     await fs.writeFile(
       path.join(dir, SETTINGS_FILE_NAME),
       JSON.stringify({ folder: "Older name" }),
     );
     expect(await convertChatSettings(dir, OPTIONS)).toEqual({
-      kind: "nothing",
+      carried: [],
+      kind: "converted",
     });
     expect(chatFolderNames(machine.path).get("a-chat")).toBe("Trip plans");
   });
@@ -104,9 +117,60 @@ describe("convertChatSettings", () => {
     );
 
     expect(await convertChatSettings(dir, OPTIONS)).toEqual({
-      kind: "nothing",
+      carried: [],
+      kind: "converted",
     });
     expect((await modelIn(dir))?.value).toBe("anthropic/claude-opus-5.5");
+  });
+
+  it("moves what the chat allowed onto this computer, unless it already answers for the chat", async () => {
+    const grant = {
+      grantedAt: at(1).toISOString(),
+      path: "/Users/someone/Trip",
+      source: "card",
+    };
+    const one = await chatWith(JSON.stringify({ grants: [grant] }), "one");
+    const two = await chatWith(JSON.stringify({ grants: [grant] }), "two");
+    const permissions = path.join(
+      machine.path,
+      WORKSPACE_MACHINE_ENTRIES.permissions,
+    );
+    await fs.writeFile(
+      permissions,
+      JSON.stringify({ chats: { two: { grants: [] } }, folders: [] }),
+    );
+
+    expect(await convertChatSettings(one, OPTIONS)).toEqual({
+      carried: ["what it allowed"],
+      kind: "converted",
+    });
+    expect(await convertChatSettings(two, OPTIONS)).toEqual({
+      carried: [],
+      kind: "converted",
+    });
+    const written = JSON.parse(await fs.readFile(permissions, "utf8")) as {
+      chats: Record<string, { grants: unknown[] }>;
+      folders: unknown[];
+    };
+    expect(written.chats.one?.grants).toHaveLength(1);
+    expect(written.chats.two?.grants).toEqual([]);
+    expect(written.folders).toEqual([]);
+  });
+
+  it("moves where this device left off into its own state file", async () => {
+    const dir = await chatWith(
+      JSON.stringify({ state: { appGuidesRead: ["mail"], browserTabs: [] } }),
+    );
+
+    expect(await convertChatSettings(dir, OPTIONS)).toEqual({
+      carried: ["where this device left off"],
+      kind: "converted",
+    });
+    expect(
+      JSON.parse(
+        await fs.readFile(path.join(dir, `state.${DEVICE_A}.json`), "utf8"),
+      ),
+    ).toEqual({ appGuidesShown: ["mail"], browserTabs: [] });
   });
 
   it("leaves a chat with no records of its own for a later launch", async () => {
@@ -121,6 +185,7 @@ describe("convertChatSettings", () => {
       kind: "left",
       reason: "it has no records of its own yet",
     });
+    expect(await exists(path.join(dir, SETTINGS_FILE_NAME))).toBe(true);
   });
 
   it("leaves a settings file it cannot read", async () => {
@@ -136,6 +201,7 @@ describe("convertChatSettings", () => {
 describe("convertChatSettingsFiles", () => {
   it("says what it carried for each chat and what it left", async () => {
     await chatWith(JSON.stringify({ modelURI: MODEL }), "carried");
+    await chatWith("{}", "empty");
     await chatWith("[]", "unreadable");
     await chatWith(undefined, "no-settings");
 
@@ -146,7 +212,10 @@ describe("convertChatSettingsFiles", () => {
         machineDir: machine.path,
       }),
     ).toEqual({
-      done: ["carried: carried its model"],
+      done: [
+        `carried: carried its model, removed ${SETTINGS_FILE_NAME}`,
+        `empty: removed ${SETTINGS_FILE_NAME}`,
+      ],
       left: [
         { reason: `${SETTINGS_FILE_NAME} cannot be read`, where: "unreadable" },
       ],

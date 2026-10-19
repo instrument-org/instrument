@@ -89,7 +89,6 @@ export {
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { type ChatRecordsSplit } from "./lib/split-chat-records";
-export { moveChatPermissions } from "./lib/permissions/move-chat-permissions";
 export { moveTopicFolders } from "./lib/permissions/move-topic-folders";
 export { attachChats } from "./lib/chat/attach";
 export { interruptTasksForQuit } from "./lib/chat/wake";
@@ -107,10 +106,7 @@ export {
   convertWorkspaceChats,
   type WorkspaceConversion,
 } from "./lib/records/convert/convert-chat";
-export {
-  type ChatSettingsConverted,
-  convertChatSettingsFiles,
-} from "./lib/records/convert/convert-chat-settings";
+export { convertChatSettingsFiles } from "./lib/records/convert/convert-chat-settings";
 export { giveChatsTheirFolders } from "./lib/chat-folders/boot";
 export { type DraftsSettled, settleDrafts } from "./lib/drafts/boot";
 export { type MemoriesMoved, moveMemoriesToFolder } from "./lib/memory/move";
@@ -176,8 +172,7 @@ export {
 } from "./lib/chat/output-folder";
 export { afterFolderAppears, isFolder } from "./lib/folder-appears";
 export { placePaths, startupPaths } from "./lib/permissions/places";
-export { chatTitle } from "./lib/chat-info";
-export { getChatSettings } from "./lib/chat-settings";
+export { chatStartedWithApp, chatTitle } from "./lib/chat-info";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
 export { serveStaticFile } from "./logic/server/serve-static";
 export {

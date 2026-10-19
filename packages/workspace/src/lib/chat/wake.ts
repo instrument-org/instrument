@@ -26,7 +26,7 @@ import { resolveChat, sessionOfChat } from "../record-folders";
 import { shellPath } from "../workspace-fs-layout";
 import { sessionLayout } from "../session-layout";
 import { ChatReads } from "../chat-reads";
-import { chatModelURI, recordChatActivity } from "../chat-settings";
+import { chatModelURI } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
 import { getCurrentDate } from "../get-current-date";
 import { isToolPart } from "../is-tool-part";
@@ -778,7 +778,6 @@ function wakeWith(
         sessionId,
       },
     });
-    await recordChatActivity(chatId);
   });
 }
 

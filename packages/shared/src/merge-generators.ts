@@ -4,13 +4,8 @@ export function mergeGenerators<T extends readonly unknown[]>(generators: {
 export function mergeGenerators<T>(
   generators: AsyncGenerator<T>[],
 ): AsyncGenerator<T>;
-export function mergeGenerators<T, U = T>(
-  generators: AsyncGenerator<T>[],
-  mapResult: (result: IteratorResult<T>, index: number) => U,
-): AsyncGenerator<NonNullable<U>>;
-export async function* mergeGenerators<T, U>(
+export async function* mergeGenerators<T>(
   generators: AsyncGenerator<T>[] | { [K in keyof T]: AsyncGenerator<T[K]> },
-  mapResult?: (result: IteratorResult<T>, index: number) => U,
 ) {
   type GeneratorType = T extends readonly unknown[] ? T[number] : T;
   type IteratorPromise = Promise<{
@@ -29,12 +24,7 @@ export async function* mergeGenerators<T, U>(
 
     const { index, result } = promise;
 
-    if (mapResult) {
-      const value = mapResult(result as IteratorResult<T>, index);
-      if (value != null) {
-        yield value;
-      }
-    } else if (!result.done) {
+    if (!result.done) {
       yield result.value;
     }
 

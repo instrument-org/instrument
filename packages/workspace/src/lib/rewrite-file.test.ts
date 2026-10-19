@@ -25,6 +25,22 @@ describe("rewriteFileSync", () => {
     expect(fs.readdirSync(path.dirname(file))).toEqual(["NOTE.md"]);
   });
 
+  it("never writes through a link left at its temp name", () => {
+    const file = path.join(dir, "TOPIC.md");
+    const elsewhere = path.join(dir, "elsewhere");
+    fs.writeFileSync(elsewhere, "kept");
+    fs.symlinkSync(
+      elsewhere,
+      path.join(dir, `.~TOPIC.md.${process.pid.toString()}.tmp`),
+    );
+
+    rewriteFileSync(file, () => "written");
+
+    expect(fs.readFileSync(elsewhere, "utf8")).toBe("kept");
+    expect(fs.lstatSync(file).isSymbolicLink()).toBe(false);
+    expect(fs.readFileSync(file, "utf8")).toBe("written");
+  });
+
   it("builds again from the newer text when the file changes under it", () => {
     const file = path.join(dir, "TOPIC.md");
     fs.writeFileSync(file, "color: red\nold body");

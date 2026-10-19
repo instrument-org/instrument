@@ -842,9 +842,6 @@ function settingsOf(
       case "starred":
         marks.starred = record;
         break;
-      case "stoppedAt":
-        marks.stoppedAt = record;
-        break;
       case "title":
         marks.title = record;
         break;

@@ -11,7 +11,7 @@ In the chat's record folder (`chats/<id>/`, resolved by `record-folders.ts`):
 | Name | What it holds |
 |---|---|
 | `<session>.<device>.jsonl` | One session's log, as that device wrote it: its header, its messages and parts, where its context window was reset, who stopped its turn, what it was told |
-| `settings.<device>.jsonl` | Every per-chat value that device set, one `set` line per change: each session's title, star, archive, unread, topic and Stop, and the chat's model on its own session. `marks.<device>.jsonl` from older builds reads as one |
+| `settings.<device>.jsonl` | Every per-chat value that device set, one `set` line per change: each session's title, star, archive, unread and topic, and the chat's model on its own session. A Stop is not a setting: it is a `stopped` record in the session's log, at the moment it was pressed. `marks.<device>.jsonl` from older builds reads as one |
 | `state.<device>.json` | Where that device left off in the chat (its tabs, the cards its agent waits on), written and read by that device alone (`chat-record.ts`) |
 | `blobs/sha256-<hex>.<ext>` | The bytes a part points at, named by their hash, so the same bytes get the same name on every device |
 

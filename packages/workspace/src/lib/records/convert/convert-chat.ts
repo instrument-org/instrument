@@ -32,6 +32,7 @@ import {
   type ChatDbPart,
   type ChatDbRead,
   type ChatDbSession,
+  type ChatDbSessionRow,
   readChatDb,
   TOLD_KEYS,
 } from "./read-chat-db";
@@ -463,6 +464,39 @@ function lastUpdate(session: Session.Type): Date {
 }
 
 /**
+ * The stop a session row says, as a `stopped` record holds it: who ended a
+ * task's turn (`stoppedBy`), at the session's last update, which is all the
+ * row says of when; else the user's Stop on the chat's own turn
+ * (`stoppedAt`), at the moment it was pressed.
+ */
+function stopOf(
+  session: ChatDbSessionRow,
+): { at: Date; by: "app" | "chat" | "user" } | undefined {
+  if (session.stoppedBy !== undefined) {
+    return { at: lastUpdate(session), by: session.stoppedBy };
+  }
+  return session.stoppedAt === undefined
+    ? undefined
+    : { at: session.stoppedAt, by: "user" };
+}
+
+/**
+ * The session row as the records keep it, for comparing with what they fold
+ * to: a stop is who made it, the moment a Stop was pressed is that record's
+ * `at`, and the newest record's `at` is when the session was last updated.
+ */
+function asRecordsKeepIt(row: ChatDbSessionRow): Session.Type {
+  const stop = stopOf(row);
+  const { stoppedAt: _stoppedAt, ...session } = row;
+  const updated = lastUpdate(session);
+  return {
+    ...session,
+    ...(stop && { stoppedBy: stop.by }),
+    updatedAt: stop && stop.at > updated ? stop.at : updated,
+  };
+}
+
+/**
  * A session's log: its header, each message followed by its parts, then
  * where its context was last reset, who stopped it, and its standing facts.
  */
@@ -508,8 +542,9 @@ async function logRecords(
         : { usableTokens: session.rolledOverUnderUsableTokens }),
     });
   }
-  if (session.stoppedBy !== undefined) {
-    records.push({ t: "stopped", at, by: session.stoppedBy });
+  const stop = stopOf(session);
+  if (stop) {
+    records.push({ t: "stopped", ...stop });
   }
   for (const [what] of TOLD_KEYS) {
     if (what in state) {
@@ -590,14 +625,6 @@ function settingsOf(
   if (session.topic !== undefined) {
     settings.push({ ...of, at, field: "topic", value: session.topic });
   }
-  if (session.stoppedAt !== undefined) {
-    settings.push({
-      ...of,
-      at: session.stoppedAt,
-      field: "stoppedAt",
-      value: session.stoppedAt,
-    });
-  }
   return settings;
 }
 
@@ -626,7 +653,6 @@ function sessionRow(folded: FoldedSession): unknown {
     ...(unread?.value ? { unreadAt: unread.at } : {}),
     ...(unread?.value === "marked" ? { unreadByUser: true } : {}),
     ...(settings.topic?.value ? { topic: settings.topic.value } : {}),
-    ...(settings.stoppedAt ? { stoppedAt: settings.stoppedAt.value } : {}),
     ...(rollover === undefined
       ? {}
       : {
@@ -740,7 +766,7 @@ async function verify(
     addDifferences(
       found,
       session.id,
-      { ...session, updatedAt: lastUpdate(session) },
+      asRecordsKeepIt(session),
       row.success ? row.data : z.prettifyError(row.error),
     );
     addDifferences(

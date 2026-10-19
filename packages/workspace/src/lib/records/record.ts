@@ -204,8 +204,6 @@ const SettingRecordSchema = z.discriminatedUnion("field", [
    * parse is the reader's to pass over, not a line to skip.
    */
   settingSchema("model", z.string().min(1)),
-  /** When the person stopped the chat's own turn. */
-  settingSchema("stoppedAt", DateSchema),
 ]);
 
 export type SettingRecord = z.output<typeof SettingRecordSchema>;

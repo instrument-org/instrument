@@ -3,7 +3,7 @@ import superjson from "superjson";
 
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../../constants";
 import { type ChatId } from "../../../schemas/chat-id";
-import { type Session } from "../../../schemas/session";
+import { type ChatDbSessionRow } from "./read-chat-db";
 import { SessionMessage } from "../../../schemas/session/message";
 import { SessionMessagePart } from "../../../schemas/session/message-part";
 import { SessionMessageRelaxedPart } from "../../../schemas/session/message-relaxed-part";
@@ -27,7 +27,7 @@ export const CHAT_SESSION = sessionId(1);
 export const TASK_SESSION = sessionId(2);
 
 /** The chat's own session row of `writeEveryKindChat`, for a test that writes it again. */
-export const EVERY_KIND_SESSION: Session.Type = {
+export const EVERY_KIND_SESSION: ChatDbSessionRow = {
   archivedAt: at(30),
   createdAt: at(0),
   id: CHAT_SESSION,
@@ -61,7 +61,7 @@ export async function writeChat(
 
 export async function saveSession(
   chat: ChatId,
-  session: Session.Type,
+  session: ChatDbSessionRow,
 ): Promise<void> {
   await tell(chat, StorageKey.session(session.id), session);
 }

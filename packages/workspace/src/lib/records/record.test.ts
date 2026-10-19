@@ -194,7 +194,6 @@ describe("parseSettingLine", () => {
     ["read", mark(4, { field: "unread", value: null })],
     ["a topic", mark(5, { field: "topic", value: "work" })],
     ["no topic", mark(5, { field: "topic", value: null })],
-    ["a stop", mark(6, { field: "stoppedAt", value: at(3) })],
   ])("reads back %s as written", (_name, record) => {
     expect(parseSettingLine(recordLine(record))).toEqual(record);
   });

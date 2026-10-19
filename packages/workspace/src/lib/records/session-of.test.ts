@@ -80,7 +80,6 @@ describe("sessionOf", () => {
           session: chatSession,
           value: "top_1",
         },
-        { at: at(7), field: "stoppedAt", session: chatSession, value: at(6) },
       ],
     );
 
@@ -89,7 +88,6 @@ describe("sessionOf", () => {
       createdAt: at(0),
       id: chatSession,
       starredAt: at(3),
-      stoppedAt: at(6),
       title: "Quarterly numbers",
       titleSettledAt: at(5),
       topic: "top_1",

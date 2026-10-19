@@ -356,9 +356,6 @@ export class ChatFold {
       case "model":
         settings.model = newer(settings.model, record, place);
         break;
-      case "stoppedAt":
-        settings.stoppedAt = newer(settings.stoppedAt, record, place);
-        break;
     }
   }
 
@@ -535,7 +532,6 @@ function foldedSettings(settings: SettingState): FoldedSettings {
     ...(settings.archived && { archived: made(settings.archived.value) }),
     ...(settings.model && { model: made(settings.model.value) }),
     ...(settings.starred && { starred: made(settings.starred.value) }),
-    ...(settings.stoppedAt && { stoppedAt: made(settings.stoppedAt.value) }),
     ...(settings.title && { title: made(settings.title.value) }),
     ...(settings.topic && { topic: made(settings.topic.value) }),
     ...(settings.unread && { unread: made(settings.unread.value) }),

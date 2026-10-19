@@ -30,7 +30,7 @@ Supersedes the backing-store phases of [conversation-storage.md](conversation-st
 |---|---|
 | record | one JSON line in a log |
 | log | `<session>.<device>.jsonl`, one session's records written by one device |
-| settings | `settings.<device>.jsonl`, every per-chat value one device set, for every session in the chat: title, star, archive, unread, topic, the chat's model, and Stop |
+| settings | `settings.<device>.jsonl`, every per-chat value one device set, for every session in the chat: title, star, archive, unread, topic, and the chat's model |
 | fold | reading every log and settings file of a chat into sessions, messages and parts |
 | view | a read shaped for one screen or caller, made from the fold or the index |
 | device id | `dev_` plus 8 Crockford base32 characters, one per install per machine |
@@ -63,7 +63,7 @@ The folder holds no SQLite, no lock file and no file anyone rewrites in place.
 
 It is replaced by `settings.<device id>.jsonl`, which is the marks file renamed and widened, since what that file already held was never only marks: a title and a list of topics are not marks in the starred sense. One writer, append only, merged newest-wins per session and field with the larger device id breaking a tie, and a title the app may still rename never beating one that settled. Its lines read `{"t":"set","seq":…,"at":…,"session":…,"field":…,"value":…,"device":…}`. A line names its session because a task's title is set the same way as the chat's; the chat's own values (its model) are set on the chat's own session.
 
-Six fields, and the Stop mark beside them:
+Six fields, and nothing else:
 
 | Field | Value | |
 |---|---|---|
@@ -73,13 +73,12 @@ Six fields, and the Stop mark beside them:
 | `unread` | `"new"` or `"marked"`, `null` once read | `"new"` clears when the person looks at the chat; `"marked"` is deliberate and does not. A status rather than a flag, since there will be other reasons a chat becomes unread |
 | `topic` | a topic id | The one opaque value in the file, so renaming a topic's folder does not empty it. Singular: a chat is filed under one topic, settled 2026-10-16, replacing the list |
 | `model` | the whole model URI | Set on the chat's own session. Kept as written: a URI this build cannot parse reads as none, rather than as a skipped line that would let an older pick win |
-| `stoppedAt` | an ISO date | Not one of the six this plan named; see below |
 
 A field set to the value it already holds writes nothing, so the file grows only on real changes and keeps the moment each was first made. Nothing is ever rolled up: compaction means rewriting a file, and append-only with one writer is what makes merging safe. The history is cheap and gives previous titles, the models a chat has used, and an undo, for free.
 
 What builds before wrote reads as settings: `marks.<device>.jsonl` is a settings file, a `mark` line a `set` line, a `settled` title the inverse of `auto`, an unread `{ byUser }` `"marked"` or `"new"`, and a `topics` list the topic it starts with. A device takes its own marks file over under the new name the first time it opens it to write, since it is that file's only writer; another device's keeps its name until that device does the same, and its bytes are unchanged, so a fold that already took them takes them once.
 
-`stoppedAt` stays, against what this plan first said. The Stop button on the chat's own turn writes it (`markChatStopped`, with the moment Stop was pressed), and moving that onto a `stopped` record is a change of its own.
+`stoppedAt` goes. A stop is a `stopped` record in the session log, which carries `by: app | chat | user` and sits in order with the conversation, where a fact about a turn belongs. Stop on the chat's own turn writes one through `ChatRecords.stopped` at the moment it was pressed (`markChatStopped`), unless a user's stop from that moment on is already there, and the turn's own later save of its stop compares against the known stop, so the log carries one. The chat reads as stopped while that record's `at` is at or after the newest message that started a turn. The database converter writes a `stoppedAt` it finds as a `stopped` record by the user at that moment. A `stoppedAt` line an older settings file holds is read and left out: a stop matters only until the next turn, every one of those is long past, and a settings line has no place among a session log's records.
 
 The model is stored whole, `openai/gpt-6.1-sol?provider=chatgpt-account&providerConfigId=01M4RQ…`, and matched loosely on read: the exact configuration if this computer has it, otherwise any configuration of that provider, otherwise the workspace default. Storing less would break the person who has two accounts with one provider, and requiring an exact match would break every second computer, since the configuration id names a row that is this machine's.
 
@@ -144,7 +143,8 @@ Dates inside `state` values and tool outputs come back as ISO strings; their rea
 | Text or reasoning streams | Whole part upserted every 100 ms or 4 KB (`DELTA_SAVE_*` in `logic/llm-request.ts`) | Nothing written while it streams. At text end or reasoning end, one part line with the whole text. |
 | A tool call runs | Read-modify-write at each state | `input-available` (before anything runs) and the final output are part lines. Input streaming and preliminary output stay in memory. |
 | A step finishes | Message row overwritten with usage and finish reason | A second message line for the same id |
-| Title, star, archive, unread, topic, model, Stop | Fields on the session row, through `saveMark`; the model in `settings.json` | A `set` line in this device's settings file |
+| Title, star, archive, unread, topic, model | Fields on the session row, through `saveMark`; the model in `settings.json` | A `set` line in this device's settings file |
+| Stop on the chat's own turn | `stoppedAt` on the session row | A `stopped` record in the session's log, at the moment Stop was pressed |
 | `updatedAt` every turn | Session row rewritten | Not stored: the newest record's `at` |
 | Baselines and browser hosts | Keys replaced whole | A `state` line per change |
 | Rollover | Two session fields and a part on the newest message | A `rollover` line and the same `data-contextRollover` part line |

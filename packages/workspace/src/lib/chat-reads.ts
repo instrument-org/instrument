@@ -7,7 +7,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { TypedError } from "./errors";
 import { type ChatRead, writingChatRecords } from "./records/chat-records";
-import { type FoldedSettings } from "./records/fold";
+import { type FoldedSession, type FoldedSettings } from "./records/fold";
 import { type StateWhat } from "./records/record";
 import { sessionOf } from "./records/session-of";
 import {
@@ -220,6 +220,26 @@ export namespace ChatReads {
       const found = chat.chat.sessions.find(({ id }) => id === sessionId);
       return found
         ? okAsync(found.settings)
+        : errAsync(missingSession(chatId, sessionId));
+    });
+  }
+
+  /**
+   * The session's newest stop, who asked for it and when, whether or not a
+   * turn has started since: a reader that measures against its own idea of a
+   * turn's start compares the time itself.
+   */
+  export function stopped({
+    chatId,
+    sessionId,
+  }: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+  }): ResultAsync<FoldedSession["stopped"], Failure> {
+    return read(chatId).andThen((chat) => {
+      const found = chat.chat.sessions.find(({ id }) => id === sessionId);
+      return found
+        ? okAsync(found.stopped)
         : errAsync(missingSession(chatId, sessionId));
     });
   }

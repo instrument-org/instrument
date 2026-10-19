@@ -585,9 +585,11 @@ export class ChatRecords {
     chatId: ChatId,
     sessionId: StoreId.Session,
     by: "app" | "chat" | "user",
+    /** When the stop was asked for, where that was before now. */
+    asked?: Date,
   ): Promise<void> {
     return this.#with(chatId, (chat) => {
-      const at = this.#now();
+      const at = asked ?? this.#now();
       return this.#log(chat, sessionId, {
         at,
         changed: () => recordChanged(chat.id, "session"),
@@ -1436,7 +1438,6 @@ type Settled = Pick<
   Session.Type,
   | "archivedAt"
   | "starredAt"
-  | "stoppedAt"
   | "title"
   | "titleSettledAt"
   | "topic"
@@ -1483,12 +1484,6 @@ function settingsBetween(was: Settled, now: Session.Type): SettingChange[] {
   }
   if ((was.topic ?? null) !== (now.topic ?? null)) {
     changes.push({ field: "topic", value: now.topic ?? null });
-  }
-  if (
-    now.stoppedAt !== undefined &&
-    was.stoppedAt?.getTime() !== now.stoppedAt.getTime()
-  ) {
-    changes.push({ field: "stoppedAt", value: now.stoppedAt });
   }
   return changes;
 }
@@ -1832,8 +1827,6 @@ function withSetting(
       return { ...settings, model: setting };
     case "starred":
       return { ...settings, starred: setting };
-    case "stoppedAt":
-      return { ...settings, stoppedAt: setting };
     case "title":
       return { ...settings, title: setting };
     case "topic":

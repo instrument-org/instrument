@@ -38,7 +38,6 @@ const SETTING_FIELDS = {
   model:
     "the model the chat runs on, as a model URI, set on the chat's own session",
   starred: "whether it is starred",
-  stoppedAt: "when the user stopped its turn",
   title:
     "its title, in `value.text`; `value.auto` is true while the app may still rename it",
   topic: "its topic id, the `id` in the topic's `TOPIC.md`, or `null` for none",

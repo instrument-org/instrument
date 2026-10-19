@@ -139,6 +139,21 @@ export namespace ChatWrites {
     );
   }
 
+  /**
+   * That the session's turn was stopped, and by whom, at `at` (the moment
+   * the stop was asked for). It holds until a turn starts after it.
+   */
+  export function stopped(
+    chatId: ChatId,
+    sessionId: StoreId.Session,
+    by: "app" | "chat" | "user",
+    at: Date,
+  ): ResultAsync<void, TypedError.Storage> {
+    return records(chatId).andThen((writing) =>
+      wrote(writing.stopped(chatId, sessionId, by, at), undefined),
+    );
+  }
+
   /** A message taken out of its session, with its parts. */
   export function retract(
     chatId: ChatId,

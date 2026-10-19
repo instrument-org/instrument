@@ -36,7 +36,6 @@ export function sessionOf(session: FoldedSession): Session.Type {
     }),
     ...(settings.starred?.value && { starredAt: settings.starred.at }),
     ...(stopped && !turnSinceStop && { stoppedBy: stopped.by }),
-    ...(settings.stoppedAt && { stoppedAt: settings.stoppedAt.value }),
     title: title?.value.text ?? session.title ?? UNTITLED_CHAT_TITLE,
     ...(title && !title.value.auto && { titleSettledAt: title.at }),
     ...(settings.topic?.value && { topic: settings.topic.value }),

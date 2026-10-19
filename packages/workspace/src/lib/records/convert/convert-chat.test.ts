@@ -333,6 +333,7 @@ describe("convertChat", () => {
         "message",
         "part tool-bash",
         "rollover",
+        "stopped",
         "state apps",
         "state browser",
         "state folders",
@@ -386,14 +387,6 @@ describe("convertChat", () => {
               "session": "ses_01K7A000000000000000000001",
               "t": "set",
               "value": true,
-            },
-            "stoppedAt": {
-              "at": 2026-10-14T12:00:50.000Z,
-              "device": "dev_AAAAAAAA",
-              "field": "stoppedAt",
-              "session": "ses_01K7A000000000000000000001",
-              "t": "set",
-              "value": 2026-10-14T12:00:50.000Z,
             },
             "title": {
               "at": 2026-10-14T12:00:10.000Z,
@@ -450,6 +443,10 @@ describe("convertChat", () => {
                 "id": "bg_1",
               },
             ],
+          },
+          "stopped": {
+            "at": 2026-10-14T12:00:50.000Z,
+            "by": "user",
           },
           "updatedAt": 2026-10-14T12:01:40.000Z,
           "writtenBy": Map {

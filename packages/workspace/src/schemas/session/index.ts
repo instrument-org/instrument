@@ -74,13 +74,6 @@ export namespace Session {
      * on the chat's own session.
      */
     stoppedBy: z.enum(["app", "chat", "user"]).optional(),
-    /**
-     * When the user last stopped the chat's own turn, whether it was under
-     * way or had not begun. The chat reads as stopped until a turn starts
-     * after it. Absent until the user first does, and on a task's session,
-     * which keeps `stoppedBy` instead.
-     */
-    stoppedAt: z.date().optional(),
     title: z.string(),
     /**
      * When the chat's title stopped being the app's to change: its one

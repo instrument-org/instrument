@@ -338,13 +338,28 @@ export async function setChatTopic(
 
 /**
  * Records that the user stopped the chat's own turn at `at`, the moment they
- * pressed Stop: the chat reads as stopped until a turn starts after it.
+ * pressed Stop, as a `stopped` record in its session's log: the chat reads as
+ * stopped until a turn starts after it. A user's stop already there from
+ * that moment on (the turn's own, saved as it ended) is that stop, and
+ * nothing more is written.
  */
 export async function markChatStopped(
   chatId: ChatId,
   at: Date,
 ): Promise<boolean> {
-  return saveMark(chatId, (session) => ({ ...session, stoppedAt: at }));
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return false;
+  }
+  const known = await ChatReads.stopped({ chatId, sessionId });
+  if (known.isErr()) {
+    return false;
+  }
+  if (known.value?.by === "user" && known.value.at >= at) {
+    return true;
+  }
+  const written = await ChatWrites.stopped(chatId, sessionId, "user", at);
+  return written.isOk();
 }
 
 /** Records that the app is done naming a chat, leaving any rename after it to the user. */
@@ -575,8 +590,9 @@ function chatDigest(
       return unkept(undefined);
     }
     const messages = await ChatReads.transcript({ chatId, sessionId });
-    return messages.isOk()
-      ? kept(digestOf(session.value, messages.value))
+    const stop = await ChatReads.stopped({ chatId, sessionId });
+    return messages.isOk() && stop.isOk()
+      ? kept(digestOf(session.value, messages.value, stop.value))
       : unkept(undefined);
   });
 }
@@ -584,6 +600,8 @@ function chatDigest(
 function digestOf(
   session: Session.Type,
   messages: SessionMessage.WithParts[],
+  /** The session's newest stop, whatever came after it. */
+  stop: { at: Date; by: "app" | "chat" | "user" } | undefined,
 ): ChatDigest {
   // Every chat is listed: the first thing the user sent opens it, whether
   // words, files, or an ask marked on a file.
@@ -647,10 +665,9 @@ function digestOf(
   // The user's Stop, rather than what it left behind: a turn stopped before
   // it began left only the message no turn took up, and one stopped between
   // steps left nothing at all.
-  const { stoppedAt } = session;
   const stopped =
-    stoppedAt !== undefined &&
-    (lastOpener === undefined || stoppedAt >= lastOpener.metadata.createdAt);
+    stop?.by === "user" &&
+    (lastOpener === undefined || stop.at >= lastOpener.metadata.createdAt);
   return {
     calledApps: commands.flatMap(appSlugsIn),
     failed,

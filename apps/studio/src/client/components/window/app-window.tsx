@@ -36,7 +36,7 @@ import { setTabPathname } from "@/client/lib/tabs-model";
 import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { fileHref } from "@/shared/computer-href";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { type Tab, type TabId } from "@/shared/tabs";
 import {
   type ChatId,
@@ -105,6 +105,7 @@ import { useSetChatTopic } from "./use-set-chat-topic";
 import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
+import { WindowDropFallback } from "./window-drop-fallback";
 import { WindowFrame } from "./window-frame";
 import { chatHref, chatOfGroup, chatOfHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
@@ -870,6 +871,17 @@ function WindowShell({
           >
             <ShellContext value={shell}>
               <div className="relative min-h-0 min-w-0 flex-1">
+                {/* A file let go of where nothing else takes it opens the
+                    way one dropped on the Dock icon does. */}
+                <WindowDropFallback
+                  onOpen={({ hostPath, isFolder }) => {
+                    if (isFolder) {
+                      openScreen(folderHref(hostPath), { newTab: true });
+                    } else {
+                      appTabs.open(fileHref(hostPath));
+                    }
+                  }}
+                />
                 {tabs.map((tab) => {
                   const router = routers.get(tab.id);
                   return router ? (

@@ -5,15 +5,17 @@ import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
 
+const LOG_LINE =
+  "It includes version numbers, recent errors and the app's log, which can name your files and chats.";
+
 /** A report the person starts from the Help menu, with nothing detected. */
 export function helpMenuReport(): ReportRequest {
   return {
-    dialogTitle: `Report a problem with ${APP_NAME}`,
+    dialogTitle: "Report a problem",
     focusNote: true,
-    intro:
-      "This report includes version numbers, the errors the app recorded recently, and its recent log, which can mention the names of files and chats you worked on.",
+    intro: LOG_LINE,
     kind: "feedback",
-    noteLabel: "What went wrong?",
+    noteLabel: "Comments",
     offerAlwaysSend: false,
     reportTitle: "Reported from the Help menu",
     surface: "help-menu",
@@ -30,11 +32,11 @@ export function pendingProblemReport(problem: PendingProblem): ReportRequest {
       : `${APP_NAME} didn't close properly`,
     fingerprint: problem.fingerprint,
     intro: crashed
-      ? `${APP_NAME} quit unexpectedly the last time it ran. This report includes what it recorded about the crash, other errors from around then, version numbers, and the last lines of its log. None of your chats are included.`
-      : `${APP_NAME} ended without closing the last time it ran, which usually means it stopped responding and was quit. This report includes version numbers, the errors it recorded recently, and the last lines of its log. None of your chats are included.`,
+      ? "It includes the crash, version numbers, recent errors and the end of the app's log. No chats are included."
+      : "It probably stopped responding and was quit. The report includes version numbers, recent errors and the end of the app's log. No chats are included.",
     events: problem.events ?? [],
     kind: problem.kind,
-    noteLabel: `What were you doing when ${APP_NAME} ${crashed ? "quit" : "stopped"}?`,
+    noteLabel: "Comments",
     offerAlwaysSend: true,
     pending: problem.fingerprint,
     reportTitle: problem.title,
@@ -53,12 +55,12 @@ export function errorReport({
   surface: "route-error" | "window-error";
 }): ReportRequest {
   return {
-    dialogTitle: `Report this problem to ${APP_NAME}?`,
+    dialogTitle: "Send a report",
     error,
     intro:
-      "This report includes the error, other errors the app recorded recently, version numbers, and its recent log. The log can mention the names of files and chats you worked on, so you can read it under Show details before you send.",
+      "It includes the error, version numbers, recent errors and the app's log, which can name your files and chats.",
     kind: "error",
-    noteLabel: "What were you doing when this happened?",
+    noteLabel: "Comments",
     offerAlwaysSend: true,
     onSent,
     reportTitle: errorTitle(error),
@@ -82,7 +84,7 @@ export function conditionReport({
     focusNote: true,
     intro: `It includes what ${APP_NAME} found, version numbers, recent errors and the app's log, which can name your files and chats.`,
     kind: "error",
-    noteLabel: "Note",
+    noteLabel: "Comments",
     offerAlwaysSend: false,
     onSent,
     reportTitle: title,

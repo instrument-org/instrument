@@ -55,8 +55,8 @@ export function isChatFileConflictCopy(name: string): boolean {
  * Only a file whose name is a copied `CHAT.md` and whose head names this
  * chat: anything else in the folder is the person's or the agent's. A real
  * delete rather than the trash, because this runs where the trash is not
- * reachable (the launch sweep, before the workspace is up) and what goes is
- * a file the next turn writes again.
+ * reachable (a launch migration, before the workspace is up) and what goes
+ * is a file the next turn writes again.
  */
 export async function deleteChatFileConflictCopies({
   folder,

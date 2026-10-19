@@ -394,7 +394,7 @@ async function runLaunchMigrations(): Promise<void> {
   });
   settleWorkspaceDb({ machineDir, rootDir: clone });
   const deviceId = newDeviceId();
-  await convertChatRecords({
+  const { converted } = await convertChatRecords({
     appVersion: "0.0.0-rehearsal",
     deviceId,
     machineDir,
@@ -411,7 +411,7 @@ async function runLaunchMigrations(): Promise<void> {
   await moveAppsToFolder(clone);
   await convertTopicsToTopicFiles(clone);
   await convertAppsToAppFiles(clone, { connections: forgottenConnections() });
-  await giveChatsTheirFolders(clone, machineDir);
+  await giveChatsTheirFolders(clone, machineDir, converted);
   await settleDrafts(clone);
 }
 

@@ -3,18 +3,18 @@ import fs from "node:fs/promises";
 import { type ChatId } from "../../schemas/chat-id";
 import { getWorkspaceConfig } from "../workspace-config";
 import { renameChatFolder } from "./chat-folder";
-import { rewriteChatFolder } from "./on-turn-end";
+import { rewriteChatFolder } from "./write-chat-folder";
 import { chatFolderNames, recordChatFolderName } from "./own-folder";
 
 /**
  * Renames a chat's folder to the title it now has, and records the name it
  * ended up under.
  *
- * Called when a title changes, rather than from the sweep: a sweep that
- * reconciled every folder against its title would rename the folder a
- * person had just renamed in a file manager, and would walk a numbered
- * folder up a number each time it ran. The two moments a title changes are
- * the only moments the folder should move.
+ * Called when a title changes, rather than whenever the folder is written:
+ * a write that reconciled the folder against its title would rename the
+ * folder a person had just renamed in a file manager, and would walk a
+ * numbered folder up a number each time it ran. The two moments a title
+ * changes are the only moments the folder should move.
  *
  * Best effort by design. Windows refuses a rename while anything holds the
  * folder, and a background job outlives the turn that started it, so this

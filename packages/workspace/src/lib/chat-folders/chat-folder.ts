@@ -18,8 +18,8 @@ import { claimFolderNamed, safeName } from "./folder-name";
  * - The folder is found by the recorded name while it is there.
  * - A rename in place is followed: where the recorded folder is gone, the
  *   one folder under `Chats/` that no chat claims whose `CHAT.md` names the
- *   chat is taken as its own, by the launch sweep and at the end of each of
- *   its turns (sweep.ts), and the shell finds it the same way meanwhile.
+ *   chat is taken as its own the next time its folder is written
+ *   (write-chat-folder.ts), and the shell finds it the same way meanwhile.
  * - A deleted or moved folder comes back: the chat's next change makes a
  *   fresh one by its current title, and the one the person moved is theirs.
  * - Nothing here reads the folder back as a record, so an edit to `CHAT.md`
@@ -27,8 +27,8 @@ import { claimFolderNamed, safeName } from "./folder-name";
  *
  * A name is claimed by making the folder, which the system does atomically,
  * rather than by listing what is there and picking what is free: two chats
- * the person gave one title, settling at the same moment or swept together,
- * would otherwise both pick that name and share one folder.
+ * the person gave one title, settling at the same moment or converted at one
+ * launch, would otherwise both pick that name and share one folder.
  */
 
 /** What the chat's folder is named, and where that name puts it. */

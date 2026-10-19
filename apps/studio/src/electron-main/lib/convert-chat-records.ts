@@ -29,6 +29,12 @@ const SET_ASIDE_CHAT_DB = path.join("set-aside", "chat-db");
  * for the log, and how many chats are still on a `chat.db`.
  */
 export interface ChatRecordsConverted {
+  /**
+   * The chats that moved onto their records at this launch, by the name of
+   * each one's record folder. A chat is named here once: the next launch
+   * finds it already converted.
+   */
+  converted: string[];
   done: string[];
   /** Chats left on their database, each with why, for the log to warn about. */
   left: { reason: string; where: string }[];
@@ -74,7 +80,11 @@ export async function convertChatRecords({
   machineDir: string;
   rootDir: string;
 }): Promise<ChatRecordsConverted> {
-  const converted: ChatRecordsConverted = { done: [], left: [] };
+  const converted: ChatRecordsConverted = {
+    converted: [],
+    done: [],
+    left: [],
+  };
   const chatsDir = workspaceLayout(rootDir).chatsDir;
   // A workspace with no chats folder has no chat on a database, which is all
   // the mark below says, so it is marked as a workspace whose every chat
@@ -90,6 +100,9 @@ export async function convertChatRecords({
       `converted ${counts.converted} chat(s) and found ${counts["already-converted"] + counts["no-store"]} already on their records, in ${Math.round(performance.now() - startedAt)}ms`,
     );
     for (const chat of conversion.chats) {
+      if (chat.kind === "converted") {
+        converted.converted.push(path.basename(chat.dir));
+      }
       const reason = whyNotConverted(chat);
       if (reason !== undefined) {
         converted.left.push({ reason, where: path.basename(chat.dir) });

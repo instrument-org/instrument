@@ -76,7 +76,7 @@ export function folderLinkedTo(
  * written in, so a listing that gives back the decomposed one still matches
  * the name recorded for a chat.
  */
-export function comparable(name: string): string {
+function comparable(name: string): string {
   return name.normalize("NFC");
 }
 

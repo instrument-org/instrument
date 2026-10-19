@@ -63,8 +63,18 @@ import {
 /** Why a folder cannot take the workspace: anywhere a workspace can't be (`folderConcern`), or a reason of moving's own. */
 const MoveRefusalSchema = z.enum([
   ...FolderRefusalSchema.options,
-  /** The workspace's own folder, or one inside or around it. */
+  /**
+   * A folder that holds the workspace's own folder, where the folder offered
+   * instead is not that one.
+   */
+  "around",
+  /**
+   * The workspace's own folder, or one around it whose folder offered
+   * instead is the workspace's own: where the workspace already is.
+   */
   "current",
+  /** A folder inside the workspace's own folder. */
+  "inside",
   /** Not a folder that is there. */
   "missing",
   /** Not a whole path. */
@@ -294,8 +304,16 @@ export function checkPlace({
     )
       ? "apps-data"
       : undefined);
-  if (pathWithin(target, from) || pathWithin(from, target)) {
-    return { instead, refusal: "current", warning };
+  if (pathWithin(target, from)) {
+    return { instead, refusal: "inside", warning };
+  }
+  if (pathWithin(from, target)) {
+    return {
+      instead,
+      refusal:
+        instead !== undefined && samePath(instead, from) ? "current" : "around",
+      warning,
+    };
   }
   return { instead, warning };
 }

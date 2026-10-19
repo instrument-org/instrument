@@ -159,7 +159,7 @@ describe("checkMoveTarget", () => {
       () => path.join(userDataDir, "elsewhere"),
       "own-data",
     ],
-    ["one holding the app's data and the workspace", () => root, "current"],
+    ["one holding the app's data and the workspace", () => root, "around"],
     ["the workspace's own folder", () => workspace.path, "current"],
     ["the home folder", () => os.homedir(), "home"],
     ["one that is not there", () => path.join(root, "nowhere"), "missing"],
@@ -365,9 +365,19 @@ describe("checkMoveTarget", () => {
     fs.mkdirSync(path.join(picked, "sub"));
     expect(check(path.join(picked, "sub"), at)).toEqual({
       kind: "refused",
-      reason: "current",
+      reason: "inside",
     });
     expect(check(path.join(root, "Documents"), at)).toEqual({
+      kind: "refused",
+      reason: "around",
+    });
+  });
+
+  it("calls the folder around the workspace where it would go anyway where it already is", () => {
+    homeAt(root);
+    const at = { ...workspace, path: picked };
+    // Documents offers Documents/Instrument, which is the workspace itself.
+    expect(check(path.join(root, "Documents"), at)).toMatchObject({
       kind: "refused",
       reason: "current",
     });

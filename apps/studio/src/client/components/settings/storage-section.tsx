@@ -1,3 +1,4 @@
+import { copyFolderPath, FolderRow } from "@/client/components/folder-row";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import {
@@ -18,10 +19,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { folderOf } from "@/client/components/window/host-path";
+import { folderLabel } from "@/client/lib/path-utils";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME, typedHostPath } from "@instrument-org/shared";
+import { APP_NAME } from "@instrument-org/shared";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
+import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -64,46 +69,66 @@ function FolderGroup({
   return (
     <div className="divide-y overflow-hidden rounded-lg border">
       {folders.map((folder) => (
-        <div className="flex items-center gap-3 p-3" key={folder.path}>
-          <div className="min-w-0 flex-1 space-y-0.5">
-            <div className="truncate text-sm">{folder.name}</div>
-            <p className="text-xs text-muted-foreground">{folder.reason}</p>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon-sm" variant="ghost">
-                <DotsThreeOutlineVerticalIcon
-                  className="size-4"
-                  weight="fill"
-                />
-                <span className="sr-only">{`Actions for ${folder.name}`}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onSelect={() => {
-                  onReveal(folder);
-                }}
-              >
-                <ShowInFolderIcon
-                  className="size-4 text-muted-foreground"
-                  kind="folder"
-                />
-                <span>{showInFolderLabel("folder")}</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => {
-                  onTrash(folder);
-                }}
-                variant="destructive"
-              >
-                <TrashIcon className="size-4" />
-                <span>Move to {osConventions().trash}</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <FolderRow
+          end={
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon-sm" variant="ghost">
+                  <DotsThreeOutlineVerticalIcon
+                    className="size-4"
+                    weight="fill"
+                  />
+                  <span className="sr-only">{`Actions for ${folder.name}`}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    onReveal(folder);
+                  }}
+                >
+                  <ShowInFolderIcon
+                    className="size-4 text-muted-foreground"
+                    kind="folder"
+                  />
+                  <span>{showInFolderLabel("folder")}</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    void copyFolderPath(folder.path);
+                  }}
+                >
+                  <ClipboardTextIcon className="size-4 text-muted-foreground" />
+                  <span>Copy Path</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    onTrash(folder);
+                  }}
+                  variant="destructive"
+                >
+                  <TrashIcon className="size-4" />
+                  <span>Move to {osConventions().trash}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          }
+          key={folder.path}
+          menu={[
+            {
+              destructive: true,
+              icon: <TrashIcon className="size-4" />,
+              label: `Move to ${osConventions().trash}`,
+              onSelect: () => {
+                onTrash(folder);
+              },
+            },
+          ]}
+          name={folder.name}
+          note={folder.reason}
+          path={folder.path}
+        />
       ))}
     </div>
   );
@@ -211,7 +236,9 @@ const REFUSALS: Record<MoveRefusal, string> = {
   home: folderRefusalSentence("home"),
   "other-workspace": folderRefusalSentence("other-workspace"),
   "own-data": folderRefusalSentence("own-data"),
-  current: "That’s your Instrument folder, or a folder inside it or around it.",
+  around: "Your Instrument folder is inside that folder.",
+  current: "That’s where your Instrument folder already is.",
+  inside: "That folder is inside your Instrument folder.",
   missing: "That folder isn’t there anymore.",
   "not-absolute": "That folder isn’t there anymore.",
   pinned: `This copy of ${APP_NAME} is set to keep its folder where it is.`,
@@ -244,10 +271,36 @@ function InstrumentFolder() {
     return null;
   }
 
-  const refuse = (reason: MoveRefusal) => {
-    toast.error(`${APP_NAME} can’t move your folder there`, {
-      description: REFUSALS[reason],
-    });
+  // Where the folder already is is nothing to do rather than a refusal, and
+  // the two folders that can't take it by where they are say which one the
+  // person picked.
+  const refuse = (reason: MoveRefusal, pickedPath: string) => {
+    const name = folderLabel(pickedPath);
+    switch (reason) {
+      case "current": {
+        toast.info(
+          `Your Instrument folder is already in “${folderLabel(folderOf(folder.path))}”.`,
+        );
+        return;
+      }
+      case "inside": {
+        toast.error("Choose a folder outside your Instrument folder", {
+          description: `“${name}” is inside it.`,
+        });
+        return;
+      }
+      case "around": {
+        toast.error(`${APP_NAME} can’t move your folder there`, {
+          description: `Your Instrument folder is inside “${name}”.`,
+        });
+        return;
+      }
+      default: {
+        toast.error(`${APP_NAME} can’t move your folder there`, {
+          description: REFUSALS[reason],
+        });
+      }
+    }
   };
 
   const choose = async () => {
@@ -263,7 +316,7 @@ function InstrumentFolder() {
       path: choice.path,
     });
     if (verdict.kind === "refused" && verdict.instead === undefined) {
-      refuse(verdict.reason);
+      refuse(verdict.reason, choice.path);
       return;
     }
     setPicked({ path: choice.path, verdict });
@@ -295,7 +348,7 @@ function InstrumentFolder() {
           path: target.path,
         });
         if (moved.kind === "refused") {
-          refuse(moved.reason);
+          refuse(moved.reason, target.path);
         } else if (moved.kind === "on-next-launch") {
           toast.info(`Quit ${APP_NAME} and open it again to move your folder.`);
         }
@@ -329,18 +382,17 @@ function InstrumentFolder() {
     }
   };
 
-  // Where the folder is rather than its name: the suggested folder is
-  // itself called Instrument, and "Move your Instrument folder to
-  // “Instrument”" reads as moving it into itself.
-  const where = picked ? typedHostPath(picked.path, window.api.homeDir) : "";
   const opensInstead = picked?.verdict.kind === "workspace";
   const warning = picked?.verdict.warning;
   const refusal =
     picked?.verdict.kind === "refused" ? picked.verdict.reason : undefined;
   const instead = picked?.verdict.instead;
-  const insteadWhere = instead
-    ? typedHostPath(instead.path, window.api.homeDir)
-    : "";
+  const pickedName = picked ? folderLabel(picked.path) : "";
+  const insteadName = instead ? folderLabel(instead.path) : "";
+  // The folder the main button moves to or opens, drawn under the words so
+  // the person checks the place rather than a name, which for the folder
+  // offered is often Instrument itself.
+  const goingTo = instead?.path ?? picked?.path;
   // A refused folder is shown only with a better one to offer, so the
   // dialog is about that one: why the pick won't do, then what the better
   // folder has in it already.
@@ -364,50 +416,51 @@ function InstrumentFolder() {
             workspace: `That folder is already an Instrument folder. ${APP_NAME} will restart and open it, and your current folder stays where it is.`,
           }[instead.holds]
         : {
-            files: `“${insteadWhere}” already has files in it, and your chats can go in beside them.`,
-            nothing: `A new folder, “${insteadWhere}”, keeps your chats apart from everything else.`,
-            workspace: `“${insteadWhere}” is already an Instrument folder, so you can open it instead.`,
+            files: `“${insteadName}” already has files in it, and your chats can go in beside them.`,
+            nothing: `A new folder, “${insteadName}”, keeps your chats apart from everything else.`,
+            workspace: `“${insteadName}” is already an Instrument folder, so you can open it instead.`,
           }[instead.holds];
 
   return (
     <section className="space-y-2" {...settingAnchor("instrument-folder")}>
-      <div className="flex items-center justify-between gap-2">
-        <h4 className="text-sm font-medium text-muted-foreground">
-          Instrument folder
-        </h4>
-        <div className="flex shrink-0 gap-2">
-          <Button
-            onClick={() => {
-              void showInFolder(folder.path, { kind: "folder" });
-            }}
-            size="sm"
-            variant="outline"
-          >
-            <ShowInFolderIcon className="size-4" kind="folder" />
-            {showInFolderLabel("folder")}
-          </Button>
-          {!folder.pinned && (
-            <Button
-              onClick={() => {
-                void choose();
-              }}
-              size="sm"
-              variant="outline"
-            >
-              Move…
-            </Button>
-          )}
-        </div>
-      </div>
+      <h4 className="text-sm font-medium text-muted-foreground">
+        Instrument folder
+      </h4>
       <p className="text-sm text-muted-foreground">
         {folder.inAppData
-          ? `Your chats, topics, and memories are kept here, with ${APP_NAME}’s own data. You can move them to a folder you choose, and what ${APP_NAME} makes for you will go there too.`
-          : `Your chats, topics, and memories are kept here, and what ${APP_NAME} makes for you goes here too.`}
+          ? `Your chats, topics and memories are kept in your Instrument folder, with ${APP_NAME}’s own data. You can move it to a folder you choose, and what ${APP_NAME} makes for you will go there too.`
+          : `Your chats, topics and memories are kept in your Instrument folder, and what ${APP_NAME} makes for you goes there too.`}
       </p>
-      <div className="rounded-lg border bg-muted/40 px-3 py-2 select-text">
-        <code className="font-mono text-xs break-all text-foreground">
-          {typedHostPath(folder.path, window.api.homeDir)}
-        </code>
+      <div className="overflow-hidden rounded-lg border">
+        <FolderRow
+          end={
+            folder.pinned ? null : (
+              <Button
+                onClick={() => {
+                  void choose();
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Move…
+              </Button>
+            )
+          }
+          menu={
+            folder.pinned
+              ? []
+              : [
+                  {
+                    icon: <ArrowRightIcon className="size-4" />,
+                    label: "Move…",
+                    onSelect: () => {
+                      void choose();
+                    },
+                  },
+                ]
+          }
+          path={folder.path}
+        />
       </div>
       <AlertDialog
         onOpenChange={(open) => {
@@ -421,23 +474,43 @@ function InstrumentFolder() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {refusal !== undefined
-                ? `Use “${insteadWhere}” instead?`
+                ? `Use “${insteadName}” instead?`
                 : opensInstead
-                  ? `“${where}” is already an Instrument folder`
-                  : `Move your Instrument folder to “${where}”?`}
+                  ? `“${pickedName}” is already an Instrument folder`
+                  : "Move your Instrument folder?"}
             </AlertDialogTitle>
             {why !== undefined && (
               <AlertDialogDescription className="text-warning-700 dark:text-warning-300">
                 {why}
               </AlertDialogDescription>
             )}
-            <AlertDialogDescription>
-              {offer ??
-                (opensInstead
-                  ? `It has its own chats and memories. ${APP_NAME} can restart and open it instead, and your current folder stays where it is.`
-                  : `${APP_NAME} will restart and move everything in your Instrument folder there, including any files of your own. What ${APP_NAME} makes for you will go there too.`)}
-            </AlertDialogDescription>
           </AlertDialogHeader>
+          {goingTo === undefined ? null : (
+            <div className="space-y-1.5">
+              {opensInstead || instead?.holds === "workspace" ? null : (
+                <>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    From
+                  </p>
+                  <div className="overflow-hidden rounded-lg border">
+                    <FolderRow actions={false} path={folder.path} />
+                  </div>
+                  <p className="pt-1 text-xs font-medium text-muted-foreground">
+                    To
+                  </p>
+                </>
+              )}
+              <div className="overflow-hidden rounded-lg border">
+                <FolderRow actions={false} path={goingTo} />
+              </div>
+            </div>
+          )}
+          <AlertDialogDescription>
+            {offer ??
+              (opensInstead
+                ? `It has its own chats and memories. ${APP_NAME} can restart and open it instead, and your current folder stays where it is.`
+                : `${APP_NAME} will restart and move everything in your Instrument folder there, including any files of your own. What ${APP_NAME} makes for you will go there too.`)}
+          </AlertDialogDescription>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={restarting}>Cancel</AlertDialogCancel>
             {instead !== undefined && refusal === undefined && (
@@ -462,7 +535,9 @@ function InstrumentFolder() {
               {restarting
                 ? "Restarting…"
                 : instead !== undefined
-                  ? `${instead.holds === "workspace" ? "Open" : "Use"} ${insteadWhere}`
+                  ? instead.holds === "workspace"
+                    ? "Open Instead"
+                    : "Use Instead"
                   : warning !== undefined
                     ? opensInstead
                       ? "Open Anyway"

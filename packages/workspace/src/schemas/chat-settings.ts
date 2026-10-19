@@ -48,9 +48,7 @@ export const ChatSettingsSchema = z.object({
   reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
 });
 
-export const ChatSettingsUpdateSchema = ChatSettingsSchema.partial().extend({
-  lastActivityAt: z.coerce.date().optional(),
-});
+export const ChatSettingsUpdateSchema = ChatSettingsSchema.partial();
 
 export type ChatSettings = z.output<typeof ChatSettingsSchema>;
 export type ChatSettingsUpdate = z.output<typeof ChatSettingsUpdateSchema>;

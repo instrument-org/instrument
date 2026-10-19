@@ -23,7 +23,7 @@ setWorkspaceConfig(
   }),
 );
 
-const { chats: tasks } = await getChatInfos({
+const tasks = await getChatInfos({
   direction: "desc",
   sortBy: "updatedAt",
 });

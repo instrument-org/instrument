@@ -33,7 +33,7 @@ if (!workspaceRootDir) {
 const absolute = path.resolve(workspaceRootDir);
 setWorkspaceConfig(buildReportWorkspaceConfig(absolute));
 
-const { chats } = await getChatInfos({
+const chats = await getChatInfos({
   direction: "asc",
   sortBy: "createdAt",
 });

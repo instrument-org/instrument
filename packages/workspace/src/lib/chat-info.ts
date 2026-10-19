@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { assign, parallel, sort } from "radashi";
+import { parallel, sort } from "radashi";
 
 import { type ChatDir } from "../schemas/paths";
 import { type ChatInfo } from "../schemas/chat-info";
@@ -15,9 +15,8 @@ import { getChatSettings } from "./chat-settings";
 import { ChatReads } from "./chat-reads";
 
 export interface ChatInfoListOptions {
-  direction?: "asc" | "desc";
-  limit?: number;
-  sortBy?: "createdAt" | "updatedAt";
+  direction: "asc" | "desc";
+  sortBy: "createdAt" | "updatedAt";
 }
 
 export async function getChatInfo(
@@ -40,8 +39,8 @@ export async function getChatInfo(
 }
 
 export async function getChatInfos(
-  options: ChatInfoListOptions = {},
-): Promise<{ chats: ChatInfo[]; total: number }> {
+  options: ChatInfoListOptions,
+): Promise<ChatInfo[]> {
   const dirs = chatIds().map((chatId) => chatDir(chatId));
   // Read chats concurrently; each readChatInfo is several independent fs ops
   // and a workspace can hold many chats, so a serial loop dominates latency.
@@ -90,35 +89,17 @@ export async function chatTitle(chatId: ChatId): Promise<string | undefined> {
   return session.isOk() ? session.value.title : undefined;
 }
 
-/** The order and window the list asks for, over a set already read. */
+/** The order the list asks for, over a set already read. */
 function sortChatInfos(
   chats: ChatInfo[],
-  options: ChatInfoListOptions = {},
-): { chats: ChatInfo[]; total: number } {
-  const { direction, limit, sortBy } = assign(
-    {
-      direction: "desc",
-      sortBy: "updatedAt",
-    },
-    options,
-  );
+  { direction, sortBy }: ChatInfoListOptions,
+): ChatInfo[] {
   const sortByFn =
     sortBy === "createdAt"
       ? (chat: ChatInfo) => chat.createdAt.getTime()
       : (chat: ChatInfo) => chat.updatedAt.getTime();
 
-  const sorted = sort(
-    chats,
-    (chat) => (direction === "asc" ? 1 : -1) * sortByFn(chat),
-  );
-
-  const total = sorted.length;
-
-  if (limit !== undefined) {
-    return { chats: sorted.slice(0, limit), total };
-  }
-
-  return { chats: sorted, total };
+  return sort(chats, (chat) => (direction === "asc" ? 1 : -1) * sortByFn(chat));
 }
 
 /**

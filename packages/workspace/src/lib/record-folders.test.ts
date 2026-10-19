@@ -112,7 +112,10 @@ describe("record folders", () => {
     expect(sessionOfChat(chat)).toBe(SESSION);
     expect(resolveChat(chat)).toBe(chat);
     expect(resolveChat(left)).toBeUndefined();
-    const { chats } = await getChatInfos();
+    const chats = await getChatInfos({
+      direction: "desc",
+      sortBy: "updatedAt",
+    });
     expect(chats.map((info) => info.id)).toEqual([chat]);
     // The window keeps its scope's id, and no record folder.
     expect(() => chatDir(WINDOW_ID)).toThrow("No chat has the id window.");

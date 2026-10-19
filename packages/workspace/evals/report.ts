@@ -175,7 +175,7 @@ export async function generateReport({
   // transcript to report.
   const tasks = (
     await Promise.all(
-      listed.chats.map(async (task) =>
+      listed.map(async (task) =>
         resolveChat(task.id) && !(await chatModelURI(task.id)) ? [] : [task],
       ),
     )

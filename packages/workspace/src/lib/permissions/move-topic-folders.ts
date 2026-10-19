@@ -21,6 +21,10 @@ const MOVED_MARK = "topicFoldersMoved";
  * write the file, which widened what every chat under the topic reaches
  * without a card.
  *
+ * Only on a computer where a build before this one kept permission
+ * settings for the workspace: a computer opening it for the first time with
+ * this build takes in nothing, whatever the files list.
+ *
  * Once, and never again: a `folders:` key in a `TOPIC.md` after this is a
  * key the build does not read, whoever wrote it, so an edit to the file
  * never opens a folder. What is held here already is kept, with the file's
@@ -42,6 +46,14 @@ export function moveTopicFolders({
   const file = permissionsFileIn(machineDir);
   const read = readJsonRecordSync(file);
   if (read.kind === "read" && read.record[MOVED_MARK] === true) {
+    return { moved: 0 };
+  }
+  // No settings here means no build before this one ran the workspace on
+  // this computer, so the folders a file lists were granted somewhere else,
+  // or written by the agent: none is taken in, and the files are left alone
+  // for the computer that granted them to take in its own.
+  if (read.kind === "missing") {
+    updateJsonRecordSync(file, () => ({ [MOVED_MARK]: true }));
     return { moved: 0 };
   }
   const listing = readTopicsSync(rootDir).flatMap((topic) => {

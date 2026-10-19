@@ -9,7 +9,11 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatReach } from "../permissions/chat-rules";
 import { moveTopicFolders } from "../permissions/move-topic-folders";
-import { readPermissionSettings, reachOf } from "../permissions/rules";
+import {
+  permissionsFileIn,
+  readPermissionSettings,
+  reachOf,
+} from "../permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   createTopic,
@@ -68,6 +72,11 @@ function listInTopicFile(name: string, folder: string) {
   );
 }
 
+/** Leaves the permission settings a build before this one kept on this computer. */
+function ranHereBefore() {
+  fs.writeFileSync(permissionsFileIn(machineDir), "{}\n");
+}
+
 /** Whether the chat reaches `folder`, and what its rules say to a change in it. */
 async function reachOfChat(folder: string) {
   const { folders, rules } = await chatReach(chatId);
@@ -121,6 +130,7 @@ describe("moveTopicFolders", () => {
     const topic = await createTopic({ name: "Taxes" });
     filed.topic = topic.id;
     listInTopicFile("Taxes", outside);
+    ranHereBefore();
 
     expect(moveTopicFolders({ machineDir, rootDir: root })).toEqual({
       moved: 1,
@@ -155,5 +165,33 @@ describe("moveTopicFolders", () => {
       { path: held },
       { path: outside },
     ]);
+  });
+
+  it("takes in nothing on a computer opening the workspace for the first time", async () => {
+    const topic = await createTopic({ name: "Taxes" });
+    filed.topic = topic.id;
+    listInTopicFile("Taxes", outside);
+
+    expect(moveTopicFolders({ machineDir, rootDir: root })).toEqual({
+      moved: 0,
+    });
+
+    expect((await readPermissionSettings()).topics).toEqual({});
+    expect(await reachOfChat(outside)).toEqual({
+      reached: false,
+      write: "ask",
+    });
+    // The file is left for the computer that granted it, and no launch of
+    // this one reads it after.
+    expect(
+      fs.readFileSync(path.join(topicsDir(), "Taxes", TOPIC_FILE_NAME), "utf8"),
+    ).toContain(outside);
+    expect(moveTopicFolders({ machineDir, rootDir: root })).toEqual({
+      moved: 0,
+    });
+    expect(await reachOfChat(outside)).toEqual({
+      reached: false,
+      write: "ask",
+    });
   });
 });

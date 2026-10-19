@@ -57,7 +57,7 @@ import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
 import { EVAL_MACHINE_DIR_NAME, recordRun } from "./lib/run-record";
-import { startRun } from "./lib/start-run";
+import { grantCaseFolders, startRun } from "./lib/start-run";
 import { timeOutTaskTurn } from "./lib/time-out-task";
 import {
   buildProviderConfigs,
@@ -380,6 +380,9 @@ export interface EvalCase {
    */
   allowsFolders?: number;
   /**
+   * Folders sent with the prompt, each already granted to the chat
+   * (`grantCaseFolders`), as an earlier Allow in it would leave them.
+   *
    * `inPlace` attaches the folder where it is rather than a per-run copy:
    * for a folder under the run's home, which `setup` made and which a
    * process with a home of its own (`INSTRUMENT_EVAL_HOME`) does not share.
@@ -1597,6 +1600,7 @@ async function openChatUnderTopic(
   await updateTopic(topic.id, { instructions });
   const newSessionId = StoreId.newSessionId();
   const id = await ensureChat(newSessionId, evalCase.prompt);
+  await grantCaseFolders(id, folders);
   const { sessionId } = await call(
     messageRoute.create,
     {

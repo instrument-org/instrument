@@ -3,6 +3,7 @@ import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { type WorkspaceActorRef } from "../../src/machines/workspace";
 import { ensureChat } from "../../src/lib/chat/chat-records";
 import { addChildTask } from "../../src/lib/chat/children";
+import { grantFolder } from "../../src/lib/chat/grants";
 import { renameChat } from "../../src/lib/chat/chats";
 import { newMessage } from "../../src/lib/new-message";
 import { ChatReads } from "../../src/lib/chat-reads";
@@ -65,6 +66,7 @@ export async function startRun(
 
   const chatSession = StoreId.newSessionId();
   const chatId: ChatId = await ensureChat(chatSession, prompt);
+  await grantCaseFolders(chatId, folders);
   let sessionId = chatSession;
   if (kind === "task") {
     // The chat's model and apps are the task's, so the case's are the chat's,
@@ -124,4 +126,19 @@ export async function startRun(
     },
   });
   return { id: chatId, sessionId };
+}
+
+/**
+ * Grants the chat each folder a case sends, before its first message. Sending
+ * a folder grants nothing in the product (the agent asks when it first
+ * reaches in), so a case's `folders` stand for folders this chat was already
+ * allowed, as an earlier Allow in it would leave them.
+ */
+export async function grantCaseFolders(
+  chatId: ChatId,
+  folders: { path: string }[] = [],
+) {
+  for (const folder of folders) {
+    await grantFolder({ chatId, path: folder.path, source: "card" });
+  }
 }

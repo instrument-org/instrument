@@ -403,8 +403,18 @@ export async function generateReport({
       // has children, and only some of its assertions ask.
       const childSessions = () => childSessionsOf(chatId, rootSession.id);
       assertionResults = await Promise.all(
+        // A check that throws fails that assertion alone, so one broken
+        // check does not take the rest of the report down with it.
         evalCase.assertions.map((a) =>
-          Promise.resolve(a.check({ childSessions, sessions, chatId })),
+          Promise.resolve()
+            .then(() => a.check({ childSessions, sessions, chatId }))
+            .catch(
+              (error: unknown): AssertionResult => ({
+                evidence: `check threw: ${error instanceof Error ? error.message : String(error)}`,
+                passed: false,
+                text: a.text,
+              }),
+            ),
         ),
       );
       const passed = assertionResults.filter((r) => r.passed).length;

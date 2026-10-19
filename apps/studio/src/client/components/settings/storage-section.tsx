@@ -56,60 +56,55 @@ function FolderGroup({
   folders,
   onReveal,
   onTrash,
-  title,
 }: {
   folders: InvalidFolder[];
   onReveal: (folder: InvalidFolder) => void;
   onTrash: (folder: InvalidFolder) => void;
-  title: string;
 }) {
   return (
-    <div className="space-y-2">
-      <h4 className="text-sm font-medium text-muted-foreground">{title}</h4>
-      <div className="divide-y overflow-hidden rounded-lg border">
-        {folders.map((folder) => (
-          <div className="flex items-center gap-3 p-3" key={folder.path}>
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <div className="truncate text-sm">{folder.name}</div>
-              <p className="text-xs text-muted-foreground">{folder.reason}</p>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="icon-sm" variant="ghost">
-                  <DotsThreeOutlineVerticalIcon
-                    className="size-4"
-                    weight="fill"
-                  />
-                  <span className="sr-only">{`Actions for ${folder.name}`}</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onSelect={() => {
-                    onReveal(folder);
-                  }}
-                >
-                  <ShowInFolderIcon
-                    className="size-4 text-muted-foreground"
-                    kind="folder"
-                  />
-                  <span>{showInFolderLabel("folder")}</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={() => {
-                    onTrash(folder);
-                  }}
-                  variant="destructive"
-                >
-                  <TrashIcon className="size-4" />
-                  <span>Move to {osConventions().trash}</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+    <div className="divide-y overflow-hidden rounded-lg border">
+      {folders.map((folder) => (
+        <div className="flex items-center gap-3 p-3" key={folder.path}>
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <div className="truncate text-sm">{folder.name}</div>
+            <p className="text-xs text-muted-foreground">{folder.reason}</p>
           </div>
-        ))}
-      </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon-sm" variant="ghost">
+                <DotsThreeOutlineVerticalIcon
+                  className="size-4"
+                  weight="fill"
+                />
+                <span className="sr-only">{`Actions for ${folder.name}`}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={() => {
+                  onReveal(folder);
+                }}
+              >
+                <ShowInFolderIcon
+                  className="size-4 text-muted-foreground"
+                  kind="folder"
+                />
+                <span>{showInFolderLabel("folder")}</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => {
+                  onTrash(folder);
+                }}
+                variant="destructive"
+              >
+                <TrashIcon className="size-4" />
+                <span>Move to {osConventions().trash}</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ))}
     </div>
   );
 }
@@ -133,7 +128,7 @@ function UnrecognizedFolders() {
     const folder = folderToTrash;
     setFolderToTrash(null);
     try {
-      await trashMutation.mutateAsync({ kind: folder.kind, name: folder.name });
+      await trashMutation.mutateAsync({ name: folder.name });
       await queryClient.invalidateQueries({
         queryKey: rpcClient.workspace.storage.invalidFolders.list.key(),
       });
@@ -152,10 +147,6 @@ function UnrecognizedFolders() {
     return null;
   }
 
-  const chats = folders.filter((folder) => folder.kind === "chat");
-  // Tasks an earlier version kept, which the move into chats left behind.
-  const tasks = folders.filter((folder) => folder.kind === "legacy-task");
-
   return (
     <section className="space-y-4" {...settingAnchor("broken-folders")}>
       <div className="space-y-1">
@@ -169,26 +160,13 @@ function UnrecognizedFolders() {
           reveal them on your computer, or delete them to tidy up.
         </p>
       </div>
-      {chats.length > 0 && (
-        <FolderGroup
-          folders={chats}
-          onReveal={(folder) => {
-            void showInFolder(folder.path, { kind: "folder" });
-          }}
-          onTrash={setFolderToTrash}
-          title="Chats"
-        />
-      )}
-      {tasks.length > 0 && (
-        <FolderGroup
-          folders={tasks}
-          onReveal={(folder) => {
-            void showInFolder(folder.path, { kind: "folder" });
-          }}
-          onTrash={setFolderToTrash}
-          title="Tasks"
-        />
-      )}
+      <FolderGroup
+        folders={folders}
+        onReveal={(folder) => {
+          void showInFolder(folder.path, { kind: "folder" });
+        }}
+        onTrash={setFolderToTrash}
+      />
       <AlertDialog
         onOpenChange={(open) => {
           if (!open) {

@@ -50,7 +50,6 @@ beforeEach(() => {
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
-    legacyTasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
     trashItem: (target) => {
       fs.rmSync(target, { force: true, recursive: true });
       return Promise.resolve();
@@ -151,9 +150,8 @@ describe("storage.invalidFolders", () => {
     expect(chats.map((chat) => chat.id)).toEqual(["2026-10-01-fine"]);
     expect(
       invalid
-        .map(({ kind, name, path: at, reason }) => ({
+        .map(({ name, path: at, reason }) => ({
           at: path.relative(root, at).replaceAll(path.sep, "/"),
-          kind,
           name,
           reason,
         }))
@@ -162,43 +160,21 @@ describe("storage.invalidFolders", () => {
       [
         {
           "at": "chats/2026-10-01-bad-settings",
-          "kind": "chat",
           "name": "2026-10-01-bad-settings",
           "reason": "Missing or unreadable settings (settings.json)",
         },
         {
           "at": "chats/2026-10-01-no-record",
-          "kind": "chat",
           "name": "2026-10-01-no-record",
           "reason": "No readable record of its chat session",
         },
         {
           "at": "chats/Not A Chat",
-          "kind": "chat",
           "name": "Not A Chat",
           "reason": "Folder name can only contain lowercase letters, numbers, and hyphens",
         },
       ]
     `);
-  });
-
-  it("takes none of a picked folder's own folders for 1.x tasks", async () => {
-    const { legacyTasksDir: _kept, ...picked } = getWorkspaceConfig();
-    setWorkspaceConfig(picked);
-    fs.mkdirSync(path.join(root, "tasks", "Field notes"), { recursive: true });
-    const context = createContext();
-
-    await expect(
-      call(storage.invalidFolders.list, undefined, { context }),
-    ).resolves.toEqual([]);
-    await expect(
-      call(
-        storage.invalidFolders.trash,
-        { kind: "legacy-task", name: "Field notes" },
-        { context },
-      ),
-    ).rejects.toThrow("This workspace keeps no 1.x tasks");
-    expect(fs.existsSync(path.join(root, "tasks", "Field notes"))).toBe(true);
   });
 
   it("trashes an unreadable chat with its work folder, and forgets it", async () => {
@@ -210,7 +186,7 @@ describe("storage.invalidFolders", () => {
 
     await call(
       storage.invalidFolders.trash,
-      { kind: "chat", name: badDb },
+      { name: badDb },
       { context: createContext() },
     );
     const invalid = await call(storage.invalidFolders.list, undefined, {
@@ -231,7 +207,7 @@ describe("storage.invalidFolders", () => {
       await expect(
         call(
           storage.invalidFolders.trash,
-          { kind: "chat", name },
+          { name },
           { context: createContext() },
         ),
       ).rejects.toThrow();

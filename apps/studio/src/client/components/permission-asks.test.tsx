@@ -126,13 +126,19 @@ describe("PermissionAsksFoot", () => {
 
     expect(
       await screen.findByText(
-        "Your Mac is keeping Instrument out of “Desktop”",
+        "Your Mac prevented Instrument from accessing “Desktop”",
+      ),
+    ).toBeDefined();
+    // An ask with no reason says why in general terms.
+    expect(
+      screen.getByText(
+        "Instrument needs access to “Desktop” to finish your task.",
       ),
     ).toBeDefined();
     expect(screen.getAllByRole("button").map((button) => button.textContent))
       .toMatchInlineSnapshot(`
       [
-        "Choose “Desktop”…",
+        "Allow",
         "Open System Settings",
         "Don’t allow",
       ]

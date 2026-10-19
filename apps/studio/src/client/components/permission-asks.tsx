@@ -17,10 +17,11 @@ import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { cn } from "@/client/lib/utils";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { KeyIcon } from "@phosphor-icons/react/Key";
+import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
+import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
+import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { XIcon } from "@phosphor-icons/react/X";
 
-import { InstrumentGlyph } from "./wordmark";
 import { Button } from "./ui/button";
 import { Delayed } from "./ui/delayed";
 import { Spinner } from "./ui/spinner";
@@ -149,7 +150,7 @@ function PermissionAskCard({
         <p className="text-sm font-medium">
           {refused
             ? // oxlint-disable-next-line studio/no-os-words -- macOS alone refuses a folder this way
-              `Your Mac is keeping Instrument out of ${askTargetName(ask.kind, ask.target)}`
+              `Your Mac prevented Instrument from accessing ${askTargetName(ask.kind, ask.target)}`
             : isFolder
               ? "Can Instrument use this folder?"
               : "Can Instrument use this app?"}
@@ -177,11 +178,10 @@ function PermissionAskCard({
           </div>
         ) : null}
       </div>
-      {refused || reason ? (
+      {reason || refused ? (
         <p className="mt-0.5 text-[13px] text-muted-foreground">
-          {refused
-            ? "You allowed it here, but macOS needs to let Instrument in too."
-            : reason}
+          {reason ??
+            `Instrument needs access to ${askTargetName(ask.kind, ask.target)} to finish your task.`}
         </p>
       ) : null}
       <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2">
@@ -208,7 +208,7 @@ function PermissionAskCard({
       </div>
       {holds ? (
         <p className="mt-2 flex items-start gap-1.5 text-[13px] text-warning-700 dark:text-warning-300">
-          <KeyIcon className="mt-0.5 size-3.5 shrink-0" />
+          <ShieldWarningIcon className="mt-0.5 size-3.5 shrink-0" />
           <span>{holds}</span>
         </p>
       ) : null}
@@ -295,7 +295,7 @@ function MacFixes({
         }}
         pending={retry.isPending && !inSettings}
       >
-        {`Choose ${name}…`}
+        Allow
       </AnswerButton>
       <Button
         className="relative"
@@ -377,7 +377,11 @@ export function PermissionAnswerNote({
   const shown = askTargetName(data.kind, data.target);
   return (
     <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-      <InstrumentGlyph className="size-3.5 shrink-0" />
+      {data.answer === "declined" ? (
+        <ShieldSlashIcon className="size-3.5 shrink-0" />
+      ) : (
+        <ShieldCheckIcon className="size-3.5 shrink-0" />
+      )}
       <span>
         {data.answer === "allowed"
           ? `You allowed ${shown} in this chat.`

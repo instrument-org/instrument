@@ -7,6 +7,7 @@ import {
   AbsolutePathSchema,
   RelativePathSchema,
   type WorkspaceFilePath,
+  WorkspaceFilePathSchema,
 } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { normalizePath } from "./normalize-path";
@@ -60,18 +61,44 @@ export async function resolveWorkspaceFilePath({
  * The same, for every path a surface is about to show at once, against one
  * reading of the chat's layout: a transcript names many files and each
  * would otherwise cost a read of the chat's record and settings.
+ *
+ * Each path stands alone: one that is malformed, or a Windows path
+ * (`C:\Users\sam\cat.png`) kept by a message written on Windows and read
+ * somewhere else, maps to null rather than failing the paths beside it.
  */
-export async function resolveWorkspaceFilePaths({
+export async function resolveWorkspaceFilePaths<Given extends string>({
   filePaths,
   chatId,
 }: {
-  filePaths: readonly WorkspaceFilePath[];
+  filePaths: readonly Given[];
   chatId: ChatId;
-}): Promise<Map<WorkspaceFilePath, AbsolutePath | null>> {
+}): Promise<Map<Given, AbsolutePath | null>> {
   const layout = await sessionLayout({ chatId });
   return new Map(
-    filePaths.map((filePath) => [filePath, storedPathOnDisk(layout, filePath)]),
+    filePaths.map((given) => [given, onDiskOrNull(layout, given)]),
   );
+}
+
+const WINDOWS_ABSOLUTE = /^[a-z]:[\\/]/i;
+
+function onDiskOrNull(
+  layout: WorkspaceFsLayout,
+  given: string,
+): AbsolutePath | null {
+  // A Windows path in the shell's spelling (`/c/Users/sam`) on Windows; on
+  // any other system it names nothing here and fails the parse below.
+  const spelled = WINDOWS_ABSOLUTE.test(given.trim())
+    ? shellPath(given.trim())
+    : given;
+  const parsed = WorkspaceFilePathSchema.safeParse(spelled);
+  if (!parsed.success) {
+    return null;
+  }
+  try {
+    return storedPathOnDisk(layout, parsed.data);
+  } catch {
+    return null;
+  }
 }
 
 /**

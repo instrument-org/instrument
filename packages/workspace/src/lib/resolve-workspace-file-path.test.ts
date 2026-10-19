@@ -13,7 +13,10 @@ import { SKILLS_FOLDER_NAME } from "../constants";
 import { type ChatId } from "../schemas/chat-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
+import {
+  resolveWorkspaceFilePath,
+  resolveWorkspaceFilePaths,
+} from "./resolve-workspace-file-path";
 import { grantFolder } from "./chat/grants";
 import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
@@ -121,6 +124,27 @@ describe("resolveWorkspaceFilePath", () => {
       expect(resolved).toBe(expected());
     },
   );
+
+  // A message written on Windows keeps `C:\...`, and one path that names
+  // nothing here must not take the files beside it off the screen.
+  it("answers each path on its own, a malformed one with null", async () => {
+    const resolved = await resolveWorkspaceFilePaths({
+      chatId,
+      filePaths: [
+        "notes.txt",
+        String.raw`C:\Users\sam\Photos\cat.png`,
+        "/Users/sam//Photos/cat.png",
+        "workspace:/../secret.txt",
+      ],
+    });
+
+    expect(Object.fromEntries(resolved)).toEqual({
+      "/Users/sam//Photos/cat.png": null,
+      [String.raw`C:\Users\sam\Photos\cat.png`]: null,
+      "notes.txt": path.join(chatRoot, "notes.txt"),
+      "workspace:/../secret.txt": null,
+    });
+  });
 
   it("resolves a workspace skill's file by its full path", async () => {
     setWorkspaceConfig({

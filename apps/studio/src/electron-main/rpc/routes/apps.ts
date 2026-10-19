@@ -33,7 +33,6 @@ import {
   listApps,
   listMcpTools,
   loadApp,
-  readAppGuide,
   nameAppAccount,
   removeLocalServer,
   setUpFromDirectory,
@@ -79,7 +78,6 @@ const AppListItemBaseSchema = z.object({
   /** API base URL, MCP server URL, or the package a local server runs from. */
   endpoint: z.string(),
   hasCredential: z.boolean(),
-  hasGuide: z.boolean(),
   /** The signed-in web app, for the page's primary action. */
   home: z.string().optional(),
   /** The app's own icon from its folder, else its Mac app's for a local server that drives one, else the directory's; drawn in place of the site's. */
@@ -206,7 +204,6 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           credentialOrigin: credentialOrigin(app.manifest),
           dir: app.dir,
           hasCredential: hasAppCredential(app.slug),
-          hasGuide: (await readAppGuide(app.dir)) !== null,
           home: appHomeFor(app.slug, app.manifest),
           ...(await iconFor(app)),
           name: app.name,

@@ -105,7 +105,7 @@ import { useSetChatTopic } from "./use-set-chat-topic";
 import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
-import { WindowDropFallback } from "./window-drop-fallback";
+import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
 import { chatHref, chatOfGroup, chatOfHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
@@ -595,6 +595,15 @@ function WindowShell({
   // The inbox's rows as the tab up lists them, for stepping through them by
   // chord.
   const listedChats = useRef<ChatId[]>([]);
+  // A file let go of where nothing else takes it opens the way one dropped
+  // on the Dock icon does.
+  useWindowDropFallback(({ hostPath, isFolder }) => {
+    if (isFolder) {
+      openScreen(folderHref(hostPath), { newTab: true });
+    } else {
+      appTabs.open(fileHref(hostPath));
+    }
+  });
   useWindowCommands(
     {
       back: () => {
@@ -871,17 +880,6 @@ function WindowShell({
           >
             <ShellContext value={shell}>
               <div className="relative min-h-0 min-w-0 flex-1">
-                {/* A file let go of where nothing else takes it opens the
-                    way one dropped on the Dock icon does. */}
-                <WindowDropFallback
-                  onOpen={({ hostPath, isFolder }) => {
-                    if (isFolder) {
-                      openScreen(folderHref(hostPath), { newTab: true });
-                    } else {
-                      appTabs.open(fileHref(hostPath));
-                    }
-                  }}
-                />
                 {tabs.map((tab) => {
                   const router = routers.get(tab.id);
                   return router ? (

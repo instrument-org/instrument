@@ -5,6 +5,7 @@ import {
   type GetProviderConfigs,
   type ModelCache,
   type ModelRoutes,
+  type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { z } from "zod";
@@ -250,6 +251,12 @@ export interface WorkspaceConfig {
    */
   modelRoutes?: ModelRoutes;
   nodeExecEnv: Record<string, string>;
+  /**
+   * How hard every model request this process makes is asked to think, for
+   * a run that pins it (an eval's `--effort`). Absent, each request takes its
+   * model's own catalog default; nothing in the app sets it.
+   */
+  reasoningEffort?: ReasoningEffort;
   /**
    * Whether native commands (node, python, uv, pnpm, ffmpeg, git) are held
    * to Settings › Permissions with Seatbelt on macOS. A plain flag, because

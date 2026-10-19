@@ -35,6 +35,7 @@ import {
   type ChatRecordsSplit,
   closeAllAgentBrowserSessions,
   convertAppsToAppFiles,
+  convertChatSettingsFiles,
   type DeviceId,
   ensurePythonBase,
   giveChatsTheirFolders,
@@ -64,6 +65,7 @@ import {
   workspaceMachine,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { call } from "@orpc/server";
 import { app, BrowserWindow, dialog, shell } from "electron";
 import ms from "ms";
@@ -148,6 +150,9 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
   await convertChatDatabases(deviceId, rootDir);
+  // Then what each chat's `settings.json` held goes where this build keeps
+  // it, from the records just converted, before anything reads a chat.
+  await convertChatSettings(deviceId, rootDir);
   // A folder of the six under another case (`skills/`, which a build before
   // kept there) is the one each step below finds under the app's name on a
   // file system that reads both as one, so it takes that name first.
@@ -633,6 +638,31 @@ async function convertChatDatabases(deviceId: DeviceId, rootDir: string) {
     // sits in the database beside it, so the bell says so rather than
     // leaving the person to wonder where it went.
     noteChatsLeftBehind(converted.left.length);
+  } catch (error) {
+    captureServerException(error);
+  }
+}
+
+/**
+ * Carry what each chat's `settings.json` held to where this build keeps it.
+ * Runs after the database converter, since a chat's settings land on its
+ * records; a chat still on its database keeps its file for the next launch.
+ * Idempotent, and a failure must not block boot.
+ */
+async function convertChatSettings(deviceId: DeviceId, rootDir: string) {
+  try {
+    const converted = await convertChatSettingsFiles({
+      chatsDir: workspaceLayout(rootDir).chatsDir,
+      deviceId,
+    });
+    for (const step of converted.done) {
+      logger.info(`Chat settings: ${step}`);
+    }
+    for (const { reason, where } of converted.left) {
+      logger.warn(
+        `Chat settings: left ${where} for the next launch: ${reason}`,
+      );
+    }
   } catch (error) {
     captureServerException(error);
   }

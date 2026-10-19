@@ -18,7 +18,7 @@ import {
   readBackgroundProcess,
   startBackgroundRun,
 } from "../background-processes";
-import { chatModelURI, updateChatSettings } from "../chat-settings";
+import { chatModelURI, setChatModel } from "../chat-settings";
 import { jobEventModelNote } from "../job-event-model-text";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -77,11 +77,12 @@ afterEach(async () => {
 /** A chat someone has written in, and its own session. */
 async function chat() {
   const chatId = await chatFor(StoreId.newSessionId());
-  const written = await updateChatSettings(chatId, {
-    modelURI: AIGatewayModelURI.Schema.parse(
+  const written = await setChatModel(
+    chatId,
+    AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
     ),
-  });
+  );
   if (written.isErr()) {
     throw written.error;
   }

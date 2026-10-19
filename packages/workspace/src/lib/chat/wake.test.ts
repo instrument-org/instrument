@@ -11,7 +11,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor, writtenIn } from "../../test/helpers/chat-task";
-import { updateChatSettings } from "../chat-settings";
+import { setChatModel } from "../chat-settings";
 import { recordAsk } from "./asks";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
@@ -75,11 +75,12 @@ async function chatWithTask() {
  */
 async function chatNobodyWroteIn() {
   const chatId = await chatFor(StoreId.newSessionId());
-  const written = await updateChatSettings(chatId, {
-    modelURI: AIGatewayModelURI.Schema.parse(
+  const written = await setChatModel(
+    chatId,
+    AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
     ),
-  });
+  );
   if (written.isErr()) {
     throw written.error;
   }

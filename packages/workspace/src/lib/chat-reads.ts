@@ -7,6 +7,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { TypedError } from "./errors";
 import { type ChatRead, writingChatRecords } from "./records/chat-records";
+import { type FoldedSettings } from "./records/fold";
 import { type StateWhat } from "./records/record";
 import { sessionOf } from "./records/session-of";
 import {
@@ -200,6 +201,26 @@ export namespace ChatReads {
         })),
         storageError,
       );
+    });
+  }
+
+  /**
+   * The session's settings as they stand: the newest of each across every
+   * device's settings file, with this device's writes still on their way
+   * over them. The chat's own session's are the chat's (its model).
+   */
+  export function settings({
+    chatId,
+    sessionId,
+  }: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+  }): ResultAsync<FoldedSettings, Failure> {
+    return read(chatId).andThen((chat) => {
+      const found = chat.chat.sessions.find(({ id }) => id === sessionId);
+      return found
+        ? okAsync(found.settings)
+        : errAsync(missingSession(chatId, sessionId));
     });
   }
 

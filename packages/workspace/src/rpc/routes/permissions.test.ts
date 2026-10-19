@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { updateChatSettings } from "../../lib/chat-settings";
+import { setChatModel } from "../../lib/chat-settings";
 import { appRefusal } from "../../lib/permissions/apps";
 import { openAsks, recordAsk } from "../../lib/chat/asks";
 import { chatDenials } from "../../lib/permissions/denials";
@@ -186,11 +186,12 @@ describe("permissions.answer", () => {
   /** A chat someone has written in, with one task. */
   async function chatWithTask() {
     const chatId = await chatFor(StoreId.newSessionId());
-    const written = await updateChatSettings(chatId, {
-      modelURI: AIGatewayModelURI.Schema.parse(
+    const written = await setChatModel(
+      chatId,
+      AIGatewayModelURI.Schema.parse(
         "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
       ),
-    });
+    );
     if (written.isErr()) {
       throw written.error;
     }

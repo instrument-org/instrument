@@ -40,7 +40,6 @@ import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { openAsks } from "../src/lib/chat/asks";
 import { ChatReads } from "../src/lib/chat-reads";
-import { updateChatSettings } from "../src/lib/chat-settings";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
@@ -589,7 +588,7 @@ export async function runEvals(
     maxRunSeconds?: number;
     maxRunTokens?: number;
     models: string[];
-    /** Asked of every task this run creates, the conversation's own included. */
+    /** Asked of every model request the run makes, through the workspace config. */
     reasoningEffort?: ReasoningEffort;
     repeat?: number;
   },
@@ -655,6 +654,7 @@ export async function runEvals(
         ? { nativeSandbox: true }
         : {}),
       nodeExecEnv: {},
+      ...(reasoningEffort ? { reasoningEffort } : {}),
       // A workspace the person picked, which is what makes its top level
       // theirs: each chat's own folder under `Chats/` is then where its
       // finished work goes, as it is for anyone who picked where their
@@ -773,12 +773,6 @@ export async function runEvals(
         }
         return startRun(
           {
-            // A task case is handed the apps it declares, the way a chat
-            // hands them, so it hears about them in its context.
-            apps:
-              evalCase.kind === "chat"
-                ? undefined
-                : evalCase.apps?.map((app) => app.slug),
             files: evalCase.files,
             folders: folders.length > 0 ? folders : undefined,
             kind: evalCase.kind ?? "task",
@@ -802,13 +796,6 @@ export async function runEvals(
         sessionId,
         trial,
       });
-
-      // Written straight onto the task rather than passed through `create`,
-      // which has no input for it: every turn of this run then reads it, the
-      // conversation's and each of its tasks'.
-      if (reasoningEffort) {
-        await updateChatSettings(id, { reasoningEffort });
-      }
 
       write(
         `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (id: ${id})${c.reset}\n`,

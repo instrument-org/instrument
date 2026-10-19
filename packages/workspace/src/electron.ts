@@ -107,6 +107,10 @@ export {
   convertWorkspaceChats,
   type WorkspaceConversion,
 } from "./lib/records/convert/convert-chat";
+export {
+  type ChatSettingsConverted,
+  convertChatSettingsFiles,
+} from "./lib/records/convert/convert-chat-settings";
 export { giveChatsTheirFolders } from "./lib/chat-folders/boot";
 export { type DraftsSettled, settleDrafts } from "./lib/drafts/boot";
 export { type MemoriesMoved, moveMemoriesToFolder } from "./lib/memory/move";

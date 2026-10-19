@@ -1,5 +1,5 @@
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway";
-import { err, ok, ResultAsync, safeTry } from "neverthrow";
+import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import { err, errAsync, ok, ResultAsync, safeTry } from "neverthrow";
 
 import { type ChatDir } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
@@ -8,15 +8,17 @@ import {
   type ChatSettingsUpdate,
   ChatSettingsUpdateSchema,
 } from "../schemas/chat-settings";
+import { ChatReads } from "./chat-reads";
+import { ChatWrites } from "./chat-writes";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
-import { chatDir } from "./record-folders";
+import { chatDir, sessionOfChat } from "./record-folders";
 import { readChatRecord, updateChatRecord } from "./chat-record";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
- * What the app knows about a chat: when it was made and last worked in, the
- * model and effort its sessions run with, and the folders granted in it.
+ * What the app knows about a chat from its `settings.json`: when it was made
+ * and last worked in, and the name of its folder.
  *
  * One of the two views over the chat's settings file; the state beside it is
  * the other. See chat-record.ts for what separates them.
@@ -97,11 +99,45 @@ async function writeMergedSettings(
 }
 
 /**
- * The model a chat's sessions run on, or undefined for a chat nobody has
- * sent a message in yet.
+ * The model a chat's sessions run on, its tasks' included: the one the
+ * composer last sent with, from the `model` setting on the chat's own
+ * session. Undefined for a chat nobody has sent a message in yet, and for a
+ * URI this build cannot parse (a provider since renamed or removed), so the
+ * chat opens on the default model rather than failing to open.
  */
 export async function chatModelURI(
   chatId: ChatId,
 ): Promise<AIGatewayModelURI.Type | undefined> {
-  return (await getChatSettings(chatDir(chatId)))?.modelURI;
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return undefined;
+  }
+  const settings = await ChatReads.settings({ chatId, sessionId });
+  if (settings.isErr()) {
+    return undefined;
+  }
+  const parsed = AIGatewayModelURI.Schema.safeParse(
+    settings.value.model?.value,
+  );
+  return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * Picks the model the chat's sessions run on, in this device's settings
+ * file. The same model again writes nothing.
+ */
+export function setChatModel(
+  chatId: ChatId,
+  modelURI: AIGatewayModelURI.Type,
+): ResultAsync<void, TypedError.NotFound | TypedError.Storage> {
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return errAsync(
+      new TypedError.NotFound(`Chat ${chatId} has no session of its own`),
+    );
+  }
+  return ChatWrites.setting(chatId, sessionId, {
+    field: "model",
+    value: modelURI,
+  });
 }

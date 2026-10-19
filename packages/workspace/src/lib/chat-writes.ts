@@ -7,7 +7,11 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { TypedError } from "./errors";
 import { isArriving } from "./records/arriving";
-import { type ChatRecords, writingChatRecords } from "./records/chat-records";
+import {
+  type ChatRecords,
+  type SettingChange,
+  writingChatRecords,
+} from "./records/chat-records";
 import { type StateWhat } from "./records/record";
 
 /**
@@ -118,6 +122,20 @@ export namespace ChatWrites {
   ): ResultAsync<void, TypedError.Storage> {
     return records(chatId).andThen((writing) =>
       wrote(writing.state(chatId, sessionId, what, value ?? null), undefined),
+    );
+  }
+
+  /**
+   * One of the session's settings, in this device's settings file. A value
+   * the session already has writes nothing.
+   */
+  export function setting(
+    chatId: ChatId,
+    sessionId: StoreId.Session,
+    change: SettingChange,
+  ): ResultAsync<void, TypedError.Storage> {
+    return records(chatId).andThen((writing) =>
+      wrote(writing.setting(chatId, sessionId, change), undefined),
     );
   }
 

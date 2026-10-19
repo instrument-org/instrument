@@ -11,7 +11,7 @@ import { TypedError } from "./errors";
 import { getChatDirTimestamps } from "./chat-dir-timestamps";
 import { isChatId } from "./is-chat-id";
 import { chatDir, chatIds, resolveChat, sessionOfChat } from "./record-folders";
-import { getChatSettings } from "./chat-settings";
+import { chatModelURI, getChatSettings } from "./chat-settings";
 import { ChatReads } from "./chat-reads";
 
 export interface ChatInfoListOptions {
@@ -69,11 +69,11 @@ async function readChatInfo({ dir }: { dir: ChatDir }) {
 
   const settings = await getChatSettings(dir);
   const title = await chatTitle(parsed.data);
+  const modelURI = await chatModelURI(parsed.data);
   const info: ChatInfo = {
     ...(await chatTimestamps(dir, settings)),
     id: parsed.data,
-    ...(settings?.modelURI ? { modelURI: settings.modelURI } : {}),
-    reasoningEffort: settings?.reasoningEffort,
+    ...(modelURI ? { modelURI } : {}),
     title: title ?? rawFolderName,
   };
   return ok(info);

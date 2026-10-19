@@ -41,8 +41,6 @@ import { cacheSessionFor } from "../lib/fork-cache-session";
 import { ChatReads } from "../lib/chat-reads";
 import { ChatWrites } from "../lib/chat-writes";
 import { turnNoteFor } from "../lib/turn-note";
-import { chatDir } from "../lib/record-folders";
-import { getChatSettings } from "../lib/chat-settings";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
@@ -332,12 +330,6 @@ export const llmRequestLogic = fromPromise<
 
     const aiSDKModel = aiSDKModelResult.value;
 
-    // Read per turn rather than captured with the session's context, because a
-    // level changed on a task takes effect on its next turn: the context
-    // baseline is immutable for the life of the session, and a request
-    // parameter is not part of it.
-    const taskSettings = await getChatSettings(chatDir(input.chatId));
-
     // A Claude account searches with Claude Code's own WebSearch, inside the
     // agent's step, rather than through our web_search tool, whose search on
     // this account is a separate Claude Code process with a model of its own
@@ -349,7 +341,7 @@ export const llmRequestLogic = fromPromise<
       chatId: input.chatId,
     });
     const providerOptions = providerOptionsForModel(aiSDKModel, {
-      effort: taskSettings?.reasoningEffort ?? catalogEffort(input.model),
+      effort: workspaceConfig.reasoningEffort ?? catalogEffort(input.model),
       reasoning: input.model.reasoning,
     });
     if (searchesNatively) {

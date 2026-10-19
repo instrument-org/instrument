@@ -13,7 +13,7 @@ import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { ChatReads } from "../chat-reads";
-import { updateChatSettings } from "../chat-settings";
+import { setChatModel } from "../chat-settings";
 import { listChildTasks } from "../chat/children";
 import { openAsks, recordAsk } from "../chat/asks";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -87,11 +87,12 @@ beforeEach(async () => {
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   await chatFor(StoreId.newSessionId(), CHAT_ID);
-  await updateChatSettings(CHAT_ID, {
-    modelURI: AIGatewayModelURI.Schema.parse(
+  await setChatModel(
+    CHAT_ID,
+    AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
     ),
-  });
+  );
   CHILD_ID = await chatTaskFor(CHAT_ID, { title: "Write the story" });
 });
 
@@ -176,9 +177,7 @@ describe("task send", () => {
   it("runs the task on the model the chat's picker is on now", async () => {
     const picked =
       "anthropic/claude-opus-5.5?provider=openrouter&providerConfigId=mock-provider-config-id";
-    await updateChatSettings(CHAT_ID, {
-      modelURI: AIGatewayModelURI.Schema.parse(picked),
-    });
+    await setChatModel(CHAT_ID, AIGatewayModelURI.Schema.parse(picked));
     await send([]);
     expect(
       sent.events.find(

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, expect, it, vi } from "vitest";
 
-import { updateChatSettings } from "../../lib/chat-settings";
+import { setChatModel } from "../../lib/chat-settings";
 import {
   closeQuestions,
   openAsks,
@@ -64,11 +64,12 @@ beforeEach(() => {
 /** A chat someone has written in, whose agent asked a question with `choose`. */
 async function chatAsking() {
   const chatId = await chatFor(StoreId.newSessionId());
-  const written = await updateChatSettings(chatId, {
-    modelURI: AIGatewayModelURI.Schema.parse(
+  const written = await setChatModel(
+    chatId,
+    AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
     ),
-  });
+  );
   if (written.isErr()) {
     throw written.error;
   }

@@ -158,19 +158,16 @@ function Chip({
 }
 
 /**
- * The level this task's model thinks at, and where that level came from.
- *
- * Absent settings do not mean no level: the request falls back to the model's
- * own catalog default, so the chip resolves it the same way the request does
- * rather than reading as though nothing were set.
+ * The level this task's model thinks at: the model's own catalog default,
+ * which is what the request falls back to, so the chip resolves it the same
+ * way the request does.
  */
 function EffortChip({ chatInfo }: { chatInfo: ChatInfo }) {
   const models = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
   const { model } = reachModel(models.data, chatInfo.modelURI);
-  const fromModel = model ? catalogEffort(model) : undefined;
-  const effort = chatInfo.reasoningEffort ?? fromModel;
+  const effort = model ? catalogEffort(model) : undefined;
   if (!effort) {
     return (
       <Chip label="Effort" title="This task uses the model’s default effort.">
@@ -181,12 +178,8 @@ function EffortChip({ chatInfo }: { chatInfo: ChatInfo }) {
   return (
     <Chip
       label="Effort"
-      title={
-        chatInfo.reasoningEffort
-          ? "The level this task was created with"
-          : "No level chosen; this model reasons by default"
-      }
-      {...(chatInfo.reasoningEffort ? {} : { note: "model default" })}
+      title="No level chosen; this model reasons by default"
+      note="model default"
     >
       {effort}
     </Chip>

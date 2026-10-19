@@ -21,7 +21,7 @@ import { SESSION_CONTEXT_VERSION } from "../session-baseline";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { chatDir } from "../record-folders";
-import { updateChatSettings } from "../chat-settings";
+import { setChatModel } from "../chat-settings";
 import { chatGrants } from "../chat/grants";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
@@ -105,11 +105,12 @@ beforeEach(async () => {
     remainingYieldMs: () => Number.POSITIVE_INFINITY,
     sessionId: chatSessionId,
   };
-  await updateChatSettings(chatId, {
-    modelURI: AIGatewayModelURI.Schema.parse(
+  await setChatModel(
+    chatId,
+    AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
     ),
-  });
+  );
   const session = await createSession({
     sessionId: chatSessionId,
     chatId,

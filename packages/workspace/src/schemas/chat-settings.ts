@@ -1,7 +1,3 @@
-import {
-  AIGatewayModelURI,
-  REASONING_EFFORTS,
-} from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
 import { StoreId } from "./store-id";
@@ -37,15 +33,6 @@ export const ChatSettingsSchema = z.object({
   // the database is rewritten by the act of opening a chat, so sorting on its
   // mtime moves a chat to the top for having been read.
   lastActivityAt: z.coerce.date().optional(),
-  // The model every session of the chat runs on, its tasks' included: the
-  // one the composer last sent with. A URI this build cannot parse (a
-  // provider since renamed or removed) reads as none, so the chat opens on
-  // the default model rather than failing to open.
-  modelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
-  // How hard the chat's model is asked to think, on every turn any of its
-  // sessions takes. Absent leaves the model's own default. Nothing picks it
-  // yet; a picker would write it here.
-  reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
 });
 
 export const ChatSettingsUpdateSchema = ChatSettingsSchema.partial();

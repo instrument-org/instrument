@@ -260,7 +260,7 @@ function describeForProvider(
     if (classification === "auth") {
       return {
         detail:
-          "Claude Code isn't signed in to your Claude account anymore. Sign in again from Settings, or switch to another model.",
+          "Sign in again to keep using your Claude subscription, or switch to another model.",
         summary: "Signed out of Claude",
       };
     }
@@ -279,7 +279,7 @@ function describeForProvider(
   if (classification === "auth") {
     return {
       detail:
-        "Sign in with ChatGPT again to keep using your plan, or switch to another model.",
+        "Sign in again to keep using your ChatGPT plan, or switch to another model.",
       summary: "Signed out of ChatGPT",
     };
   }

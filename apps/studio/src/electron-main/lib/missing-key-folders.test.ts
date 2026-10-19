@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { stored, userData } = vi.hoisted(() => ({
   stored: new Map<string, unknown>(),
@@ -73,6 +73,13 @@ async function load() {
 
 describe("missing key folders", () => {
   let root = "";
+
+  // The first import transforms both modules, which under a full related run
+  // took the first case past its timeout; done here once, each case's own
+  // `load` only evaluates them again.
+  beforeAll(async () => {
+    await load();
+  }, 30_000);
 
   beforeEach(() => {
     stored.clear();

@@ -1,4 +1,4 @@
-import type { ToolSet } from "ai";
+import type { TextStreamPart, ToolSet } from "ai";
 
 import {
   activityTelemetry,
@@ -14,6 +14,7 @@ import {
   fetchAISDKModel,
   findCachedModelByProviderId,
   namesSameModel,
+  nativeSearchTools,
   providerOptionsForModel,
 } from "@instrument-org/ai-gateway";
 import { CLAUDE_ACCOUNT_PROVIDER_CONFIG } from "@instrument-org/shared";
@@ -304,6 +305,9 @@ export const llmRequestLogic = fromPromise<
   }
 
   const toolCalls: Record<string, SessionMessagePart.ToolPart> = {};
+  // xAI names each page its hosted search read once as the search ends and
+  // again as the answer cites it; the message keeps one source per page.
+  const sourceURLs = new Set<string>();
   // Why each invalid tool call was rejected, read back when its `tool-error`
   // arrives: that part carries only the SDK's rendering of this error.
   const invalidToolCallErrors = new Map<string, unknown>();
@@ -334,8 +338,15 @@ export const llmRequestLogic = fromPromise<
     // agent's step, rather than through our web_search tool, whose search on
     // this account is a separate Claude Code process with a model of its own
     // in front of the same WebSearch. What it finds arrives as sources.
+    // A Grok account does the same with xAI's hosted web and X search, which
+    // run on xAI's side within the response; their calls are xAI's to run
+    // and replay drops them, so only the sources they cite are kept.
+    const nativeTools = await nativeSearchTools(input.model.params.provider);
+    const nativeToolNames = new Set(Object.keys(nativeTools ?? {}));
+    const nativeCallIds = new Set<string>();
     const searchesNatively =
-      aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type;
+      aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type ||
+      nativeTools !== undefined;
     const cacheSession = cacheSessionFor({
       sessionId: input.sessionId,
       chatId: input.chatId,
@@ -406,7 +417,9 @@ export const llmRequestLogic = fromPromise<
         purpose: turnPurpose(input.chatId, input.sessionId),
         sessionId: input.sessionId,
       }),
-      tools: searchesNatively ? omit(tools, [TOOL_NAMES.webSearch]) : tools,
+      tools: searchesNatively
+        ? { ...omit(tools, [TOOL_NAMES.webSearch]), ...nativeTools }
+        : tools,
     });
 
     for await (const part of result.stream) {
@@ -418,6 +431,9 @@ export const llmRequestLogic = fromPromise<
         throw storageFullError;
       }
       input.self.send({ type: "llmRequest.chunkReceived" });
+      if (isNativeSearchPart(part, nativeToolNames, nativeCallIds)) {
+        continue;
+      }
       if (
         part.type === "text-start" ||
         part.type === "tool-call" ||
@@ -561,6 +577,10 @@ export const llmRequestLogic = fromPromise<
 
         case "source": {
           if (part.sourceType === "url") {
+            if (sourceURLs.has(part.url)) {
+              break;
+            }
+            sourceURLs.add(part.url);
             await writes.savePart({
               metadata: {
                 createdAt: getCurrentDate(),
@@ -1080,4 +1100,41 @@ function bareErrorMessage(error: Error): string {
     return error.message;
   }
   return error.message.replace(String(cause), bareErrorMessage(cause));
+}
+
+/**
+ * Whether a stream part belongs to a hosted search the provider ran inside the
+ * step (`nativeSearchTools`), which is neither stored nor run here. The
+ * provider marks only the call as its own, so a call is known from its first
+ * part by the tool's name, and its later parts by the id that part gave.
+ */
+function isNativeSearchPart(
+  part: TextStreamPart<ToolSet>,
+  nativeToolNames: ReadonlySet<string>,
+  nativeCallIds: Set<string>,
+): boolean {
+  switch (part.type) {
+    case "tool-input-start": {
+      if (!nativeToolNames.has(part.toolName)) {
+        return false;
+      }
+      nativeCallIds.add(part.id);
+      return true;
+    }
+    case "tool-input-delta":
+    case "tool-input-end": {
+      return nativeCallIds.has(part.id);
+    }
+    case "tool-call":
+    case "tool-error":
+    case "tool-result": {
+      if (part.providerExecuted && nativeToolNames.has(part.toolName)) {
+        nativeCallIds.add(part.toolCallId);
+      }
+      return nativeCallIds.has(part.toolCallId);
+    }
+    default: {
+      return false;
+    }
+  }
 }

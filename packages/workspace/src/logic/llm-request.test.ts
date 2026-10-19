@@ -160,6 +160,7 @@ describe("llmRequestLogic", () => {
     chunks,
     finishReason = "stop",
     getMessages = () => Promise.resolve(mockMessages),
+    modelProvider,
     onChunkReceived,
     provider = OUR_PROVIDER_CONFIG.type,
   }: {
@@ -168,6 +169,8 @@ describe("llmRequestLogic", () => {
     chunks: LanguageModelV4StreamPart[];
     finishReason?: "length" | "stop";
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
+    /** The connection the chat's model is on, where it differs from `provider`'s. */
+    modelProvider?: AIProviderType;
     onChunkReceived?: () => void;
     provider?: AIProviderType;
   }) {
@@ -208,7 +211,8 @@ describe("llmRequestLogic", () => {
 
     const model = createMockAIGatewayModel({
       provider:
-        provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type,
+        modelProvider ??
+        (provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type),
     });
 
     // A chat of this case's own: every case writes into the same session, and
@@ -3129,6 +3133,62 @@ describe("llmRequestLogic", () => {
         },
         "role": "user",
       }
+    `);
+  });
+
+  // After the cases whose snapshots number their ids off the ones before
+  // them, and before the one that moves the chat's records.
+  it("searches on xAI's side for a Grok account, keeping each cited page once", async () => {
+    const testMachine = await createTestMachine({
+      chunks: [
+        { id: "ws_1", toolName: "web_search", type: "tool-input-start" },
+        { delta: "{}", id: "ws_1", type: "tool-input-delta" },
+        { id: "ws_1", type: "tool-input-end" },
+        {
+          input: "{}",
+          providerExecuted: true,
+          toolCallId: "ws_1",
+          toolName: "web_search",
+          type: "tool-call",
+        },
+        {
+          result: {},
+          toolCallId: "ws_1",
+          toolName: "web_search",
+          type: "tool-result",
+        },
+        ...["s1", "s2"].map((id) => ({
+          id,
+          sourceType: "url" as const,
+          title: "A post",
+          type: "source" as const,
+          url: "https://x.com/i/status/1",
+        })),
+        { id: "t", type: "text-start" },
+        { delta: "Found it.", id: "t", type: "text-delta" },
+        { id: "t", type: "text-end" },
+      ],
+      modelProvider: "grok-account",
+    });
+    const { messages } = await runTestMachine(testMachine);
+
+    expect(
+      testMachine.mockLanguageModel.doStreamCalls[0]?.tools
+        ?.filter((tool) => tool.type === "provider")
+        .map((tool) => tool.name),
+    ).toEqual(["web_search", "x_search"]);
+    expect(
+      messages
+        .at(-1)
+        ?.parts.map((part) =>
+          part.type === "source-url" ? `${part.type} ${part.url}` : part.type,
+        ),
+    ).toMatchInlineSnapshot(`
+      [
+        "step-start",
+        "source-url https://x.com/i/status/1",
+        "text",
+      ]
     `);
   });
 

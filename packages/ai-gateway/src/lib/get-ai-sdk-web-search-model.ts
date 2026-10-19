@@ -232,6 +232,27 @@ export async function getAISDKWebSearchModel({
   return Result.ok({ ...result, config });
 }
 
+/**
+ * The hosted search tools a chat model on this connection runs inside its own
+ * step, in place of the `web_search` tool's separate search model. Undefined
+ * for a connection whose models search only through that tool.
+ *
+ * A Grok account's model searches the web and X on xAI's side and answers in
+ * the same response, so the search costs no second request against the plan.
+ */
+export async function nativeSearchTools(
+  providerType: AIGatewayProviderConfig.Type["type"],
+): Promise<ToolSet | undefined> {
+  if (providerType !== "grok-account") {
+    return undefined;
+  }
+  const { xaiTools } = await import("@ai-sdk/xai");
+  return {
+    web_search: xaiTools.webSearch(),
+    x_search: xaiTools.xSearch(),
+  };
+}
+
 /** Stands in for the account's default model when its catalog was never read. */
 const X_SEARCH_FALLBACK_MODEL = "grok-4.7";
 

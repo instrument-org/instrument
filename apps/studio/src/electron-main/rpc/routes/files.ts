@@ -9,7 +9,7 @@ import {
   UndoRefusedError,
 } from "@/electron-main/lib/file-journal";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
-import { resolveAlias } from "@/electron-main/lib/mac-native";
+import { pasteboardFiles, resolveAlias } from "@/electron-main/lib/mac-native";
 import {
   isRefusedByName,
   isRefusedFile,
@@ -22,10 +22,11 @@ import { copyName, newFolderName, osOf } from "@/shared/os-conventions";
 import { moveSidebarPlaces } from "@/shared/sidebar-places";
 import { resolveThroughAliases } from "@instrument-org/workspace/electron";
 import { eventIterator, ORPCError } from "@orpc/server";
-import { shell } from "electron";
+import { clipboard, ClipboardItem, shell, webContents } from "electron";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { z } from "zod";
 
 /**
@@ -241,6 +242,104 @@ const copyInto = base
     }
     return { journalId, paths: made.map((each) => each.path) };
   });
+
+/**
+ * A clipboard format by the name the system itself gives it, which Electron
+ * reaches through a type of its own.
+ */
+const osClipboardFormat = (name: string) =>
+  `electron application/osclipboard;format="${name}"`;
+
+/** The Mac's list of paths: every file manager pastes one file for each. */
+const MAC_FILENAMES = osClipboardFormat("NSFilenamesPboardType");
+
+/** What GNOME's Files and the file managers following it paste from. */
+const GNOME_COPIED_FILES = osClipboardFormat("x-special/gnome-copied-files");
+
+function escapeXml(text: string) {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+/**
+ * Things on this computer, to the clipboard as the files themselves, the way
+ * the file manager's Copy puts them there: its Paste copies them, and so
+ * does the Finder's here, which reads them back in the window's own paste.
+ */
+const copyToClipboard = base
+  .input(z.object({ paths: z.array(HostPathSchema).min(1).max(1000) }))
+  .handler(async ({ input }) => {
+    const uris = input.paths.map((at) => pathToFileURL(at).href);
+    // On the Mac the list of paths alone: the system turns it into a file
+    // URL apiece, which is what the Finder and every other app read, and a
+    // URI list beside it would be turned into a second set.
+    const formats: Record<string, string> =
+      process.platform === "darwin"
+        ? {
+            [MAC_FILENAMES]: `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><array>${input.paths
+              .map((at) => `<string>${escapeXml(at)}</string>`)
+              .join("")}</array></plist>`,
+          }
+        : { "text/uri-list": uris.join("\r\n") };
+    if (process.platform === "linux") {
+      formats[GNOME_COPIED_FILES] = ["copy", ...uris].join("\n");
+    }
+    await clipboard.write([new ClipboardItem(formats)]);
+  });
+
+/**
+ * The files on the clipboard, every one of them, for a paste. The Mac's are
+ * read through the bridge, since the Finder's Copy puts each on an item of
+ * its own and Electron reads only the first; elsewhere this has none to give,
+ * and the page reads the paste's own files instead.
+ */
+const clipboardFiles = base
+  .output(
+    z.object({
+      files: z.array(z.object({ isFolder: z.boolean(), path: z.string() })),
+    }),
+  )
+  .handler(async () => {
+    const paths = (await pasteboardFiles()) ?? [];
+    const files = await Promise.all(
+      paths.map(async (at) => ({
+        isFolder: await fs.stat(at).then(
+          (stats) => stats.isDirectory(),
+          () => false,
+        ),
+        path: at,
+      })),
+    );
+    return { files };
+  });
+
+/** Whether the clipboard holds files a paste would copy in, for the menu's Paste. */
+const clipboardHasFiles = base
+  .output(z.object({ hasFiles: z.boolean() }))
+  .handler(async () => {
+    const paths = await pasteboardFiles();
+    if (paths !== undefined) {
+      return { hasFiles: paths.length > 0 };
+    }
+    const [item] = await clipboard.read();
+    if (!item?.types.includes("text/uri-list")) {
+      return { hasFiles: false };
+    }
+    const uris = await (await item.getType("text/uri-list")).text();
+    return {
+      hasFiles: uris.split(/\r?\n/).some((uri) => uri.startsWith("file:")),
+    };
+  });
+
+/**
+ * Edit > Paste in the window that asked, for a menu's Paste: whatever holds
+ * the keyboard there gets the paste the keys would have given it.
+ */
+const paste = base.handler(({ context }) => {
+  webContents.fromId(context.webContentsId)?.paste();
+});
 
 /**
  * Puts a file an editor was given (a picture, a PDF) into the folder of the
@@ -637,11 +736,15 @@ const live = {
 
 export const files = {
   addFile,
+  clipboardFiles,
+  clipboardHasFiles,
   copyInto,
+  copyToClipboard,
   duplicate,
   live,
   missing,
   newFolder,
+  paste,
   read,
   rename,
   trash,

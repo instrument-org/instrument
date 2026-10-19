@@ -15,6 +15,8 @@ import {
 export type ListingDirection = "down" | "left" | "right" | "up";
 
 export type ListingCommand =
+  /** ⌘C, or Ctrl+C off the Mac: what is selected, to the clipboard as files. */
+  | { type: "copy" }
   /** ⌥⌘C on the Mac, Ctrl+Shift+C on Windows: the paths of what is selected, to the clipboard. */
   | { type: "copy-path" }
   /** ⌘D on the Mac: a copy of what is selected beside it. */
@@ -55,6 +57,9 @@ const DIRECTIONS: Record<string, ListingDirection> = {
   ArrowRight: "right",
   ArrowUp: "up",
 };
+
+/** Every file manager's Copy: ⌘C, or Ctrl+C off the Mac. */
+const COPY_KEY = { alt: false, key: "c", shift: false };
 
 /** ⌘A, or Ctrl+A off the Mac. */
 function isSelectAllPress(press: KeyPress, { commandKey }: OsConventions) {
@@ -148,6 +153,9 @@ export function listingCommandOf(
   if (isCommandChordPress(press, conventions.files.copyPathKey, conventions)) {
     return { type: "copy-path" };
   }
+  if (isCommandChordPress(press, COPY_KEY, conventions)) {
+    return { type: "copy" };
+  }
   if (isCommandChordPress(press, conventions.files.duplicateKey, conventions)) {
     return { type: "duplicate" };
   }
@@ -196,10 +204,12 @@ export function listingKeys(os: Os) {
       `${held.alt ? "Alt+" : ""}${held.shift ? "Shift+" : ""}CmdOrCtrl+${held.key}`,
     );
   return {
+    copy: chord("CmdOrCtrl+C"),
     copyPath: commandChord(copyPathKey),
     duplicate: commandChord(duplicateKey),
     newFolder: chord("CmdOrCtrl+Shift+N"),
     open: chord(renameKey === "Enter" ? "CmdOrCtrl+O" : "Enter"),
+    paste: chord("CmdOrCtrl+V"),
     preview: chord("Space"),
     rename: chord(renameKey),
     trash: trashKey.withCommandKey

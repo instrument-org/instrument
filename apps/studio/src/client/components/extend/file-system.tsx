@@ -274,6 +274,11 @@ export type FileSystemProps = {
    */
   onCopyPath?: (items: FileSystemItem[]) => void;
   /**
+   * What is selected, to the clipboard as the files themselves, by ⌘C (Ctrl+C
+   * off the Mac). Left out, the key is nobody's here.
+   */
+  onCopy?: (items: FileSystemItem[]) => void;
+  /**
    * A copy of what is selected beside it, by ⌘D on the Mac. Left out, the
    * key is nobody's here.
    */
@@ -1881,6 +1886,7 @@ export function FileSystem({
   loadPreviewImageUrl,
   moveFocusWithSelection = true,
   onColumnWidthChange,
+  onCopy,
   onCopyPath,
   onDuplicate,
   onEmptyPress,
@@ -2934,9 +2940,15 @@ export function FileSystem({
         return each ? [each] : [];
       });
     switch (command.type) {
+      case "copy":
       case "copy-path":
       case "duplicate": {
-        const handler = command.type === "duplicate" ? onDuplicate : onCopyPath;
+        const handler =
+          command.type === "duplicate"
+            ? onDuplicate
+            : command.type === "copy"
+              ? onCopy
+              : onCopyPath;
         const chosen = picked();
         if (!handler || chosen.length === 0) return false;
         handler(chosen);

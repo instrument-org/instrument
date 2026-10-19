@@ -144,6 +144,11 @@ export function FileTree({
       </ContextMenuTrigger>
       <FolderMenu
         item={menuItem}
+        onCopy={() => {
+          run("Couldn't copy that", () =>
+            rpcClient.files.copyToClipboard.call({ paths: [menuHostPath] }),
+          );
+        }}
         onCopyPath={() => {
           void navigator.clipboard.writeText(menuHostPath);
         }}

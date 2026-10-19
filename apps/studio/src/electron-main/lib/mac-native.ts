@@ -71,12 +71,28 @@ export function seatbeltHelperPath(): string | undefined {
 interface MacModule {
   fileIcon: (path: string, pixels: string) => Promise<string>;
   finderEntries: (folder: string) => Promise<string>;
+  pasteboardFiles: () => Promise<string>;
   resolveAlias: (path: string) => Promise<string>;
   notificationStatus: () => Promise<string>;
   requestNotifications: () => Promise<string>;
 }
 
 let macModule: MacModule | null | undefined;
+
+/**
+ * The files on the clipboard, every one the Finder's Copy put there, by
+ * path. Undefined off macOS and in a build without the module, where the
+ * caller reads the clipboard another way.
+ */
+export async function pasteboardFiles(): Promise<string[] | undefined> {
+  const native = loadModule();
+  if (!native) {
+    return undefined;
+  }
+  return z
+    .object({ paths: z.array(z.string()) })
+    .parse(JSON.parse(await native.pasteboardFiles())).paths;
+}
 
 function loadModule(): MacModule | null {
   if (macModule === undefined) {

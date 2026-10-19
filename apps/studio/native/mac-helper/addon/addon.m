@@ -279,12 +279,31 @@ static napi_value resolveAlias(napi_env env, napi_callback_info info) {
   });
 }
 
+/// The files on the general pasteboard, every one of them: the Finder's Copy
+/// puts each on an item of its own, where Electron's clipboard reads only the
+/// first. Read where it is called, on AppKit's thread, which is quick.
+static napi_value pasteboardFiles(napi_env env, napi_callback_info info) {
+  return answer(env, ^(Done done) {
+    NSArray<NSURL *> *urls = [NSPasteboard.generalPasteboard
+        readObjectsForClasses:@[ NSURL.class ]
+                      options:@{NSPasteboardURLReadingFileURLsOnlyKey : @YES}];
+    NSMutableArray<NSString *> *paths = [NSMutableArray array];
+    for (NSURL *url in urls ?: @[]) {
+      if (url.path != nil) {
+        [paths addObject:url.path];
+      }
+    }
+    done(@{@"paths" : paths});
+  });
+}
+
 static const struct {
   const char *name;
   napi_callback fn;
 } FUNCTIONS[] = {
     {"fileIcon", fileIcon},
     {"finderEntries", finderEntries},
+    {"pasteboardFiles", pasteboardFiles},
     {"resolveAlias", resolveAlias},
     {"notificationStatus", notificationStatus},
     {"requestNotifications", requestNotifications},

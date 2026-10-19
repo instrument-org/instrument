@@ -95,6 +95,7 @@ import {
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ClipboardIcon } from "@phosphor-icons/react/Clipboard";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -738,6 +739,20 @@ export function ComputerPage({
   // Where each thing sits on the Mac, as a terminal, a Finder window or
   // another app takes it, one to a line. The browser's own path names a place
   // inside the browser and is no use anywhere else.
+  // The things themselves, as the file manager's Copy puts them on the
+  // clipboard, so a paste here or in any other app copies them.
+  const copyFiles = async (picked: FileSystemItem[]) => {
+    const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
+    if (hostPaths.length === 0) {
+      return;
+    }
+    try {
+      await rpcClient.files.copyToClipboard.call({ paths: hostPaths });
+      focusBrowser();
+    } catch (error) {
+      fileActionFailed("Couldn't copy that", error);
+    }
+  };
   const copyPaths = async (picked: FileSystemItem[]) => {
     const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
     if (hostPaths.length === 0) {
@@ -808,9 +823,8 @@ export function ComputerPage({
       }
     }
   };
-  // Copies things into a folder of this computer, as a drop does, and says
-  // where they went with an Undo for all of them. What was made is selected
-  // when it lands in the folder on screen, the way a duplicate is.
+  // Copies things into a folder of this computer, as a drop or a paste does,
+  // and says where they went with an Undo for all of them.
   const copyInto = async (
     sources: { hostPath: string; isFolder: boolean }[],
     into: { hostPath: string; prefix: string },
@@ -823,17 +837,14 @@ export function ComputerPage({
         folder: into.hostPath,
         paths: sources.map((source) => source.hostPath),
       });
-      const made = copied.paths.map(
-        (copy, index) =>
-          `${into.prefix}${nameOf(copy)}${sources[index]?.isFolder ? "/" : ""}`,
-      );
-      const [first] = made;
-      if (into.prefix === onScreen && first !== undefined) {
-        setSelectedPath(first);
-        setSelectedPaths(made);
+      const [only] = copied.paths;
+      // One copy is what is left selected, as a duplicate is.
+      if (into.prefix === onScreen && copied.paths.length === 1 && only) {
+        setSelectedPath(
+          `${into.prefix}${nameOf(only)}${sources[0]?.isFolder ? "/" : ""}`,
+        );
       }
       focusBrowser();
-      const [only] = copied.paths;
       const { journalId } = copied;
       toastWithUndo(
         copied.paths.length === 1 && only
@@ -1227,6 +1238,71 @@ export function ComputerPage({
       browser.removeEventListener("drop", drop);
     };
   }, [isDropOpen]);
+
+  // A paste lands in the folder the keyboard is in: the column it is in, in
+  // the columns, and the folder on screen otherwise, or the folder a menu's
+  // Paste named. It is heard only while the keyboard is in this Finder and
+  // out of any field, since that is the only place the window sends it.
+  const pasteInto = useRef<null | string>(null);
+  useEffect(() => {
+    const browser = browserRef.current;
+    if (!browser || !isDropOpen) {
+      return;
+    }
+    const paste = (event: ClipboardEvent) => {
+      const named = pasteInto.current;
+      pasteInto.current = null;
+      if (!event.clipboardData || isTypingTarget(event.target)) {
+        return;
+      }
+      // Read while the paste is being dispatched: the items empty after.
+      const pasted = [...event.clipboardData.items].flatMap((item) => {
+        const file = item.kind === "file" ? item.getAsFile() : null;
+        const hostPath = file ? window.api.getFilePath(file) : "";
+        return hostPath
+          ? [
+              {
+                hostPath,
+                isFolder: item.webkitGetAsEntry()?.isDirectory ?? false,
+              },
+            ]
+          : [];
+      });
+      event.preventDefault();
+      const prefix =
+        named ??
+        (event.target instanceof Element
+          ? event.target
+              .closest("[data-file-system-folder]")
+              ?.getAttribute("data-file-system-folder")
+          : undefined) ??
+        current;
+      const into = {
+        hostPath: dropHostPathRef.current(prefix || current),
+        prefix: prefix || current,
+      };
+      // The page sees only the first of several files the Finder copied, so
+      // the computer's own list comes first where there is one.
+      void rpcClient.files.clipboardFiles
+        .call()
+        .catch(() => ({ files: [] }))
+        .then(({ files }) =>
+          dropHandlers.current.copyInto(
+            files.length > 0
+              ? files.map((file) => ({
+                  hostPath: file.path,
+                  isFolder: file.isFolder,
+                }))
+              : pasted,
+            into,
+          ),
+        );
+    };
+    browser.addEventListener("paste", paste);
+    return () => {
+      browser.removeEventListener("paste", paste);
+    };
+  }, [current, isDropOpen]);
 
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
@@ -1643,6 +1719,7 @@ export function ComputerPage({
     const picked = group ?? (item ? [item] : []);
     return {
       ...menuActionsForOne(item),
+      onCopy: () => void copyFiles(picked),
       onDuplicate: () => void duplicate(picked),
       onNewDraft:
         askAbout && (item || folderOnScreenPath !== undefined)
@@ -1715,6 +1792,19 @@ export function ComputerPage({
       return isApp(tab) ? "app" : "file";
     })(),
     onCopyPath: () => void copyPaths(item ? [item] : []),
+    paste:
+      folderOnScreenPath === undefined
+        ? undefined
+        : {
+            into: segmentsOf(folderOnScreenPath).at(-1) ?? folderOnScreenPath,
+            onPaste: () => {
+              afterMenu.current = () => {
+                focusBrowser();
+                pasteInto.current = onScreen;
+                void rpcClient.files.paste.call();
+              };
+            },
+          },
     onNewFolder:
       folderOnScreenPath === undefined
         ? undefined
@@ -2216,6 +2306,7 @@ export function ComputerPage({
                         });
                       }
                 }
+                onCopy={(picked) => void copyFiles(picked)}
                 onCopyPath={(picked) => void copyPaths(picked)}
                 onDuplicate={(picked) => void duplicate(picked)}
                 onTrash={(picked) => void trash(picked)}
@@ -2437,6 +2528,7 @@ function ICloudAccessBanner() {
 
 /** What a row's menus do, by the menu's own components; see `FolderMenu`. */
 type FolderMenuActions = {
+  onCopy: () => void;
   onCopyPath: () => void;
   onDuplicate: () => void;
   /** A draft with the row, or the folder its empty space is, picked to go with it; left out where no draft can be opened. */
@@ -2462,6 +2554,8 @@ type FolderMenuActions = {
   opensOutside?: "app" | "file" | undefined;
   /** Pinning a folder to the sidebar, or unpinning it; left out for anything but one folder. */
   pin?: { isPinned: boolean; onToggle: () => void } | undefined;
+  /** Files on the clipboard, copied into the folder on screen, by its name; left out where there is no folder. */
+  paste?: { into: string; onPaste: () => void } | undefined;
   /**
    * What the menu acts on, when it is several selected: what names one thing
    * (Rename, Copy Path, Quick Look, Reveal) is left off, and Open With lists
@@ -2593,6 +2687,7 @@ function FolderMenuItems({
   item,
   menuComponents,
   newFolderFirst = false,
+  onCopy,
   onCopyPath,
   onDuplicate,
   onNewDraft,
@@ -2605,6 +2700,7 @@ function FolderMenuItems({
   onShowPackageContents,
   onTrash,
   opensOutside,
+  paste,
   pin,
   group,
 }: FolderMenuActions & {
@@ -2727,6 +2823,11 @@ function FolderMenuItems({
               <Shortcut>{keys.rename}</Shortcut>
             </Item>
           ) : null}
+          <Item onClick={onCopy}>
+            <CopyIcon className="size-4" />
+            <span>Copy</span>
+            <Shortcut>{keys.copy}</Shortcut>
+          </Item>
           <Item onClick={onDuplicate}>
             <CopyIcon className="size-4" />
             <span>Duplicate</span>
@@ -2783,10 +2884,41 @@ function FolderMenuItems({
               <Separator />
             </>
           ) : null}
+          {paste ? (
+            <>
+              <PasteItem menuComponents={menuComponents} paste={paste} />
+              <Separator />
+            </>
+          ) : null}
           {emptyTail}
         </>
       )}
     </>
+  );
+}
+
+/**
+ * The folder menu's Paste, which says where the files go and is offered only
+ * while the clipboard holds some, read as the menu opens.
+ */
+function PasteItem({
+  menuComponents: { Item, Shortcut },
+  paste,
+}: {
+  menuComponents: MenuComponents;
+  paste: NonNullable<FolderMenuActions["paste"]>;
+}) {
+  const clipboard = useQuery({
+    ...rpcClient.files.clipboardHasFiles.queryOptions(),
+    gcTime: 0,
+    staleTime: 0,
+  });
+  return (
+    <Item disabled={clipboard.data?.hasFiles !== true} onClick={paste.onPaste}>
+      <ClipboardIcon className="size-4" />
+      <span>Paste into “{paste.into}”</span>
+      <Shortcut>{listingKeys(currentOs()).paste}</Shortcut>
+    </Item>
   );
 }
 

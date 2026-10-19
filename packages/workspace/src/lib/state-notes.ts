@@ -17,7 +17,16 @@ type StateName = {
 type StateNote<K extends StateName> = {
   /** A picture with nothing in it, which is news only after one that had something. */
   isEmpty: (data: DataParts[K]) => boolean;
-  note: (data: DataParts[K]) => string;
+  note: (data: DataParts[K], options: StateNoteOptions) => string;
+};
+
+type StateNoteOptions = {
+  /**
+   * How the agent's shell spells a host path; the host spelling when absent.
+   * Passed in because this module is shared with the renderer, which has no
+   * `process` and must not load the shell's filesystem layout.
+   */
+  shellPath?: (hostPath: string) => string;
 };
 
 /** A part declared `state` without an entry here does not compile. */
@@ -32,7 +41,7 @@ const STATE_NOTES: { [K in StateName]: StateNote<K> } = {
   },
   viewContext: {
     isEmpty: () => false,
-    note: viewContextModelNote,
+    note: (data, { shellPath }) => viewContextModelNote(data, shellPath),
   },
   workspaceInstructions: {
     isEmpty: (data) => !data.instructions,
@@ -51,16 +60,16 @@ const STATE_NOTES: { [K in StateName]: StateNote<K> } = {
  * Request assembly and the transcript's developer cards read through the
  * same sequence, so a card shows exactly the note the model got.
  */
-export function stateNotes(): (
-  part: SessionMessagePart.DataPart,
-) => string | undefined {
+export function stateNotes(
+  options: StateNoteOptions = {},
+): (part: SessionMessagePart.DataPart) => string | undefined {
   const lastSaid = new Map<StateName, string>();
   const tell = <K extends StateName>(name: K, data: DataParts[K]) => {
     const { isEmpty, note } = STATE_NOTES[name];
     if (!lastSaid.has(name) && isEmpty(data)) {
       return undefined;
     }
-    const text = note(data);
+    const text = note(data, options);
     if (lastSaid.get(name) === text) {
       return undefined;
     }

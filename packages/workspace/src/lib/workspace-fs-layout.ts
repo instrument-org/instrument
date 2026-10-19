@@ -13,6 +13,7 @@ import nodePath from "node:path";
 import { CHAT_FOLDER_NAMES, HANDOFF_NOTES_FILE_NAME } from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type Listings, ruleRefusal, rulesFs } from "./permissions/rules-fs";
+import { shellPath } from "./shell-path";
 import { appUpdateCaches, windowsProgramFolders } from "./permissions/places";
 import { reachOf, type Rule, type Rules } from "./permissions/rules";
 import {
@@ -42,6 +43,7 @@ import { getWorkspaceConfig } from "./workspace-config";
 import { homeDataLayout, workspaceLayout } from "./workspace-layout";
 import { workspaceMachineDir } from "./workspace-machine-dir";
 export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
+export { shellPath } from "./shell-path";
 
 /**
  * Virtual mount point of the device files.
@@ -717,27 +719,6 @@ const SYSTEM_FOLDERS = [
   "/proc",
   "/sys",
 ];
-
-/**
- * The path the agent's shell names a host path by. The same path on macOS
- * and Linux; on Windows, the drive-letter spelling Git Bash uses
- * (`/c/Users/sam`), since the shell is POSIX.
- */
-export function shellPath(
-  hostPath: string,
-  platform: NodeJS.Platform = process.platform,
-): string {
-  if (platform !== "win32") {
-    return hostPath;
-  }
-  const drive = /^([A-Za-z]):[\\/]?(.*)$/.exec(hostPath);
-  return drive
-    ? `/${(drive[1] ?? "").toLowerCase()}/${(drive[2] ?? "").replaceAll("\\", "/")}`.replace(
-        /\/$/,
-        "",
-      )
-    : hostPath.replaceAll("\\", "/");
-}
 
 /**
  * The host path a shell path names: the inverse of {@link shellPath}. The same

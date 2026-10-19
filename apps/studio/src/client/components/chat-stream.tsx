@@ -6,6 +6,7 @@ import {
   type SessionMessagePart,
   type StoreId,
   type ChatInfo,
+  shellPath,
   stateNotes,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
@@ -494,7 +495,10 @@ export function ChatStream({
     let lastFooterIndex = 0;
     // What the model heard of each `state` part, read in the same order
     // request assembly reads them.
-    const stateNote = stateNotes();
+    const stateNote = stateNotes({
+      shellPath: (hostPath) =>
+        shellPath(hostPath, window.electron.process.platform),
+    });
     let visibleAssistantContentCount = 0;
 
     // The turn being built. A turn is one message per step, so its rows arrive

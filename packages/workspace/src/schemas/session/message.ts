@@ -355,7 +355,7 @@ export namespace SessionMessage {
     messages: WithParts[],
     { attachmentsDir, shellPath }: ModelNoteOptions = {},
   ): UIMessage[] {
-    const stateNote = stateNotes();
+    const stateNote = stateNotes({ shellPath });
     // A max-steps stop is recorded on the assistant message where the run
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.

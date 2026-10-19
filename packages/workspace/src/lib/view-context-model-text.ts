@@ -1,9 +1,9 @@
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { APP_COMMAND } from "./shell-commands/app-command";
 import { systemNote } from "./system-note";
-import { shellPath } from "./workspace-fs-layout";
 
 type ViewContext = SessionMessageDataPart.ViewContextDataPart;
+type ShellPath = (hostPath: string) => string;
 
 /** How many tabs a note names before it says how many more there are. */
 const TABS_NAMED_MAX = 8;
@@ -16,8 +16,11 @@ const TABS_NAMED_MAX = 8;
  * at the screen needs no address, path, or id typed out. Only what is on
  * screen is named; a folder the user left a screen ago is not.
  */
-export function viewContextModelNote(data: ViewContext) {
-  return `${screenNote(data)}${otherChatNote(data)}${chosenNote(data)}${tabsNote(data)}`;
+export function viewContextModelNote(
+  data: ViewContext,
+  shellPath: ShellPath = (hostPath) => hostPath,
+) {
+  return `${screenNote(data, shellPath)}${otherChatNote(data)}${chosenNote(data, shellPath)}${tabsNote(data)}`;
 }
 
 /** Another chat named beside what was on screen; on its own, the screen note says it. */
@@ -36,7 +39,7 @@ function chatNamed(chat: NonNullable<ViewContext["chat"]>) {
 }
 
 /** What the person picked to send with the message, which "this" and "these" take in alongside the screen. */
-function chosenNote(data: ViewContext) {
+function chosenNote(data: ViewContext, shellPath: ShellPath) {
   const chosen = data.chosen ?? [];
   if (chosen.length === 0) {
     return "";
@@ -79,7 +82,7 @@ function describeStanding(standing: string) {
   }
 }
 
-function fileNote(data: ViewContext) {
+function fileNote(data: ViewContext, shellPath: ShellPath) {
   const { file } = data;
   if (!file) {
     return systemNote`
@@ -134,7 +137,7 @@ function pageNote(data: ViewContext) {
   `;
 }
 
-function screenNote(data: ViewContext) {
+function screenNote(data: ViewContext, shellPath: ShellPath) {
   switch (data.screen) {
     case "apps": {
       if (data.app) {
@@ -169,7 +172,7 @@ function screenNote(data: ViewContext) {
       `;
     }
     case "file": {
-      return fileNote(data);
+      return fileNote(data, shellPath);
     }
     case "home": {
       return systemNote`

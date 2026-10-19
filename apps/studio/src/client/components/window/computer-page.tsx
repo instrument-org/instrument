@@ -266,6 +266,7 @@ export function ComputerPage({
   onQuickLook,
   onQuickLookFollow,
   path,
+  query,
   quickLookOpen = false,
   refreshInterval = REFRESH_MS,
   root,
@@ -302,6 +303,8 @@ export function ComputerPage({
   /** The file the selection moved to while Quick Look is up, for it to show. */
   onQuickLookFollow?: (file: FileTab) => void;
   path: string;
+  /** What the folder opens searched for: this step's search, from the address. */
+  query?: string;
   /** Whether Quick Look is up: the arrows then move the selection under it. */
   quickLookOpen?: boolean;
   /** How often every folder on screen is re-read; false to read each once. */
@@ -388,6 +391,8 @@ export function ComputerPage({
   // while it holds `selectedPath`, the one the keyboard is on: the page moving
   // the selection itself, onto a thing just made or renamed, moves it to one.
   const [selectedPaths, setSelectedPaths] = useState<readonly string[]>([]);
+  // What the browser's search field says, which walking to a folder empties.
+  const [searchText, setSearchText] = useState(query ?? "");
   const allSelectedPaths =
     selectedPath === null
       ? []
@@ -420,6 +425,7 @@ export function ComputerPage({
     arrived.current = true;
     setCurrent(path);
     setSelectedPath(select ?? null);
+    setSearchText(query ?? "");
     setLoaded((previous) => ({
       prefixes: rootChanged
         ? prefixesOf(path)
@@ -427,7 +433,7 @@ export function ComputerPage({
       root,
     }));
     setOpenings((count) => count + 1);
-  }, [path, root, select]);
+  }, [path, query, root, select]);
 
   // `~` names the home folder, which the workspace expands for a folder it is
   // being asked to read. Nothing else does: a path this hands to an action
@@ -965,6 +971,7 @@ export function ComputerPage({
         search: (previous) => ({
           ...previous,
           path: onScreen,
+          query: searchText || undefined,
           root,
           select: undefined,
           view,
@@ -975,7 +982,60 @@ export function ComputerPage({
     return () => {
       clearTimeout(timer);
     };
-  }, [navigate, onScreen, path, root, settled, view]);
+  }, [navigate, onScreen, path, root, searchText, settled, view]);
+
+  // The search and the selection are kept in the step on screen as they
+  // change, so back to it, after a file took the tab or a folder was walked
+  // into, finds the folder the way it was left. Only while the folder on
+  // screen is the step's: walking to a folder empties the search and the
+  // selection a render before the step moves, and that is no change to the
+  // step being left. A file open beside the folder has the selection, so
+  // only the search is kept there.
+  const parentOfSelected =
+    selectedPath === null
+      ? null
+      : selectedPath.slice(
+          0,
+          selectedPath.lastIndexOf("/", selectedPath.length - 2) + 1,
+        );
+  const stepSelect =
+    selectedPath !== null && parentOfSelected === path
+      ? selectedPath
+      : undefined;
+  useEffect(() => {
+    if (!settled || onScreen !== path) {
+      return;
+    }
+    const nextQuery = searchText || undefined;
+    const nextSelect = isBesideOpen ? select : stepSelect;
+    if (nextQuery === query && nextSelect === select) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      void navigate({
+        replace: true,
+        search: (previous) => ({
+          ...previous,
+          query: nextQuery,
+          ...(isBesideOpen ? {} : { select: nextSelect }),
+        }),
+        to: "/files",
+      });
+    });
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [
+    isBesideOpen,
+    navigate,
+    onScreen,
+    path,
+    query,
+    searchText,
+    select,
+    settled,
+    stepSelect,
+  ]);
 
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
@@ -1855,6 +1915,7 @@ export function ComputerPage({
                 columnWidth={columnWidth}
                 contextMenuPath={isMenuOpen ? (menuItem?.path ?? null) : null}
                 defaultPath={path}
+                defaultSearch={query}
                 defaultSelectedPath={select}
                 // Every row here is a thing on this computer, and drags out of
                 // the window as one: to the desktop, a Finder window, another
@@ -1917,6 +1978,7 @@ export function ComputerPage({
                 onListColumnWidthsChange={setListColumnWidths}
                 onPathChange={setCurrent}
                 onRenameCommit={rename}
+                onSearchChange={setSearchText}
                 onSelectionChange={(item, all) => {
                   setSelectedPath(item?.path ?? null);
                   setSelectedPaths(all.map((each) => each.path));

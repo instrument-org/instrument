@@ -180,6 +180,8 @@ export type FileSystemProps = {
   contextMenuPath?: null | string;
   /** Folder prefix to open initially, e.g. `"invoices/"`. */
   defaultPath?: string;
+  /** What the toolbar search opens with typed in it. */
+  defaultSearch?: string;
   /** The item selected on opening, by path, e.g. `"invoices/march.pdf"`. */
   defaultSelectedPath?: string;
   /** The order the browser opens in, when name ascending is the wrong one. */
@@ -305,6 +307,8 @@ export type FileSystemProps = {
    * what was typed, so a name that could not be used is not lost.
    */
   onRenameCommit?: (item: FileSystemItem, name: string) => Promise<void> | void;
+  /** The search field's text changed, typed or cleared, or emptied by walking to a folder. */
+  onSearchChange?: (search: string) => void;
   /**
    * The selection moved. `item` is the one of it the keyboard is on, the last
    * picked; `items` is all of it, several after a ⌘- or Shift-click.
@@ -1644,6 +1648,7 @@ export function FileSystem({
   columnWidth: columnWidthProp,
   contextMenuPath = null,
   defaultPath = "",
+  defaultSearch = "",
   defaultSelectedPath,
   defaultSort,
   defaultView = "icons",
@@ -1671,6 +1676,7 @@ export function FileSystem({
   onOpenSeveral,
   onPathChange,
   onRenameCommit,
+  onSearchChange,
   onGroupChange,
   onSelectionChange,
   onShowHiddenFilesChange,
@@ -1760,7 +1766,14 @@ export function FileSystem({
       index.files.get(selectedPath) ?? index.folders.get(selectedPath) ?? null
     );
   }, [index, selectedPath]);
-  const [searchInput, setSearchInput] = React.useState("");
+  const [searchInput, setSearchInput] = React.useState(defaultSearch);
+  const changeSearch = React.useCallback(
+    (next: string) => {
+      setSearchInput(next);
+      onSearchChange?.(next);
+    },
+    [onSearchChange],
+  );
   const searchInputRef = React.useRef<HTMLInputElement | null>(null);
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
   const searchQuery = normalizeSearchQuery(searchInput);
@@ -2098,12 +2111,12 @@ export function FileSystem({
         return { index: stack.length - 1, stack };
       });
       // Navigation exits search, like Finder.
-      setSearchInput("");
+      changeSearch("");
       setIsSearchExpanded(false);
       selectEntry(null);
       ensureChildren(path);
     },
-    [ensureChildren, selectEntry],
+    [changeSearch, ensureChildren, selectEntry],
   );
   React.useEffect(() => {
     ensureChildren(currentPath);
@@ -2930,7 +2943,7 @@ export function FileSystem({
       isExpanded={isSearchExpanded}
       layout={layout}
       onExpandedChange={setIsSearchExpanded}
-      onValueChange={setSearchInput}
+      onValueChange={changeSearch}
       value={searchInput}
     />
   );
@@ -3125,9 +3138,20 @@ export function FileSystem({
         ) : currentEntries.length === 0 &&
           (view !== "columns" || isSearching) ? (
           <FileSystemEmptyState
+            action={
+              isSearching
+                ? {
+                    label: "Clear search",
+                    onPress: () => {
+                      changeSearch("");
+                      setIsSearchExpanded(false);
+                    },
+                  }
+                : undefined
+            }
             label={
               isSearching
-                ? `No results for “${searchInput.trim()}”`
+                ? `Nothing here matches “${searchInput.trim()}”.`
                 : "This folder is empty"
             }
           />
@@ -3350,17 +3374,31 @@ function FileSystemSearchField({
   return (
     <Popover onOpenChange={onExpandedChange} open={isExpanded}>
       <PopoverTrigger asChild>
-        <button
-          aria-label="Search"
-          className={cn(TOOLBAR_ICON_BUTTON_CLASSNAME, "relative")}
-          title="Search"
-          type="button"
-        >
-          <Search className="size-4" />
-          {value ? (
-            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
-          ) : null}
-        </button>
+        {/* Searched, the button says for what, so a folder showing less than
+            it has says why at a glance. */}
+        {value ? (
+          <button
+            aria-label={`Search: ${value}`}
+            className={cn(
+              TOOLBAR_CONTROL_CLASSNAME,
+              "flex max-w-32 min-w-0 shrink items-center gap-1.5 bg-primary/10 px-2 text-sm text-primary outline-none not-disabled:hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary/15 dark:not-disabled:hover:bg-primary/20",
+            )}
+            title={`Search: ${value}`}
+            type="button"
+          >
+            <Search className="size-3.5 shrink-0" />
+            <span className="truncate">{value}</span>
+          </button>
+        ) : (
+          <button
+            aria-label="Search"
+            className={TOOLBAR_ICON_BUTTON_CLASSNAME}
+            title="Search"
+            type="button"
+          >
+            <Search className="size-4" />
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-1" sideOffset={6}>
         {input}
@@ -3658,10 +3696,21 @@ function useSlowLoads(loading: ReadonlySet<string>, ms = LOADER_DELAY_MS) {
     [loading, slow],
   );
 }
-function FileSystemEmptyState({ label }: { label: string }) {
+function FileSystemEmptyState({
+  action,
+  label,
+}: {
+  action?: { label: string; onPress: () => void };
+  label: string;
+}) {
   return (
-    <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
-      {label}
+    <div className="flex size-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
+      <p className="max-w-80 break-words">{label}</p>
+      {action ? (
+        <Button onClick={action.onPress} size="sm" variant="outline">
+          {action.label}
+        </Button>
+      ) : null}
     </div>
   );
 }

@@ -677,6 +677,66 @@ describe("FileSystem", () => {
       expect(screen.getByText(/^1 folder, 2 documents/)).toBeTruthy();
     });
   });
+
+  describe("searching", () => {
+    const FOLDERS: FileSystemItem[] = [
+      { kind: "folder", path: "drafts/" },
+      { kind: "file", path: "drafts/report.txt" },
+      { kind: "file", path: "notes.txt" },
+    ];
+    const names = () =>
+      screen
+        .queryAllByRole("option")
+        .map((option) => option.textContent?.split("--")[0] ?? "");
+
+    it("opens searched for what it was handed", () => {
+      renderWithProviders(
+        <FileSystem defaultSearch="notes" defaultView="list" items={FOLDERS} />,
+      );
+
+      expect(names()).toEqual(["notes.txt"]);
+      // Folded into the toolbar, the button says what is searched for.
+      expect(
+        screen.getByRole("button", { name: "Search: notes" }),
+      ).toBeTruthy();
+    });
+
+    it("offers to clear a search that matches nothing", () => {
+      const onSearchChange = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultView="list"
+          items={FOLDERS}
+          onSearchChange={onSearchChange}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Search" }));
+      fireEvent.change(screen.getByRole("searchbox"), {
+        target: { value: "zebra" },
+      });
+
+      expect(screen.getByText("Nothing here matches “zebra”.")).toBeTruthy();
+      fireEvent.click(screen.getByText("Clear search"));
+
+      expect(onSearchChange.mock.calls).toEqual([["zebra"], [""]]);
+      expect(names()).toEqual(["drafts", "notes.txt"]);
+    });
+
+    it("says the search is emptied by walking into a folder", () => {
+      const onSearchChange = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultSearch="draft"
+          defaultView="icons"
+          items={FOLDERS}
+          onSearchChange={onSearchChange}
+        />,
+      );
+      fireEvent.doubleClick(screen.getByRole("option", { name: /^drafts/ }));
+
+      expect(onSearchChange.mock.calls).toEqual([[""]]);
+    });
+  });
 });
 
 describe("the file manager's keys for going up and making a folder", () => {

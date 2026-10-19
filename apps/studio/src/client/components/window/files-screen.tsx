@@ -129,6 +129,7 @@ const PILE_POSES = [
 export function FilesScreen({
   file,
   path,
+  query,
   root,
   select,
   source,
@@ -138,6 +139,8 @@ export function FilesScreen({
   /** The file this tab shows, by where it is on the computer; the folder when absent. */
   file: string | undefined;
   path: string;
+  /** What the folder is searched for in this step of the tab's history. */
+  query: string | undefined;
   root: string;
   /** What the folder opens with selected, as a path under the root. */
   select: string | undefined;
@@ -756,6 +759,7 @@ export function FilesScreen({
                   : openFile
               }
               path={folderPath}
+              query={query}
               root={folderRoot}
               select={isFileOpen ? besideSelect : select}
               toolsInRow
@@ -979,6 +983,7 @@ export function FilesScreen({
             onFolderChange={onFolderChange}
             onOpenFile={openFile}
             path={path}
+            query={query}
             root={root}
             select={select}
             view={view}

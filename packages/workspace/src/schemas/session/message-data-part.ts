@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { EnvironmentChangeSchema } from "../environment";
-import { MountedFolder } from "../mounted-folder";
 import { AbsolutePathSchema, RelativePathSchema } from "../paths";
 import { StoreId } from "../store-id";
 
@@ -103,12 +102,7 @@ export namespace SessionMessageDataPart {
   // list lives in the session context, which is written once and rebuilt at
   // most hourly, so this is what gets a change to the model the same turn.
   const FolderChangesDataPartSchema = z.object({
-    added: z.array(
-      z.object({
-        access: MountedFolder.AccessSchema,
-        path: z.string(),
-      }),
-    ),
+    added: z.array(z.object({ path: z.string() })),
     removed: z.array(z.object({ path: z.string() })),
   });
 
@@ -751,8 +745,8 @@ export namespace SessionMessageDataPart {
     /**
      * Files and folders the person picked to go with the message by name,
      * from a menu or a button over them, rather than by having them on
-     * screen: each by its path, and the path the agent reaches it by
-     * when a granted folder covers it.
+     * screen: each by its path, and by its path again as `mount` when a
+     * granted folder covers it, which is what the chat lists as sent.
      */
     chosen: z
       .array(
@@ -767,7 +761,7 @@ export namespace SessionMessageDataPart {
     /** A file open on This Mac, as the person writes its path. */
     file: z
       .object({
-        /** The path the agent reaches it by, when a granted folder covers it. */
+        /** Its path when a granted folder covers it, which the chat lists as sent. */
         mount: z.string().optional(),
         name: z.string(),
         path: z.string(),
@@ -776,11 +770,9 @@ export namespace SessionMessageDataPart {
     /** The folder on screen on This Mac, or the folder a file on screen sits in. */
     folder: z
       .object({
-        /** Whether the agent may write there, when it can reach it at all. */
-        access: z.enum(["read-only", "read-write"]).optional(),
         /** As the person writes it: `~/Documents/Instrument`. */
         display: z.string(),
-        /** The path the agent reaches it by; absent means it cannot read it. */
+        /** Its path when a granted folder covers it, which the chat lists as sent. */
         mount: z.string().optional(),
         /** The names selected in it, a folder's with a trailing slash. */
         selected: z.array(z.string()).default([]),

@@ -1376,7 +1376,7 @@ done`,
         },
         {
           data: {
-            added: [{ access: "read-write", path: "/tmp/Exports" }],
+            added: [{ path: "/tmp/Exports" }],
             removed: [{ path: "/tmp/designs" }],
           },
           type: "data-folderChanges",

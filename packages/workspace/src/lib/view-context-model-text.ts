@@ -1,6 +1,7 @@
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { APP_COMMAND } from "./shell-commands/app-command";
 import { systemNote } from "./system-note";
+import { shellPath } from "./workspace-fs-layout";
 
 type ViewContext = SessionMessageDataPart.ViewContextDataPart;
 
@@ -41,10 +42,7 @@ function chosenNote(data: ViewContext) {
     return "";
   }
   const named = chosen
-    .map(
-      (entry) =>
-        `the ${entry.kind} \`${entry.path}\` (${entry.mount ? `you reach it at \`${entry.mount}\`` : "no folder you can reach covers it yet: reading it asks the person first"})`,
-    )
+    .map((entry) => `the ${entry.kind} \`${shellPath(entry.path)}\``)
     .join("; ");
   return systemNote`
     They chose to send ${chosen.length === 1 ? "this" : "these"} with the message: ${named}. "This", "these" and "it" refer to ${chosen.length === 1 ? "it" : "them"} first, then to what was on screen.
@@ -88,28 +86,12 @@ function fileNote(data: ViewContext) {
       When the user sent this, a file was open in the folder view. "This file" and "this" refer to it.
     `;
   }
-  const reach = file.mount
-    ? `You reach it at \`${file.mount}\`${data.folder?.access === "read-only" ? ", read-only" : ", read and write"}.`
-    : "No folder you can reach covers it yet: reading it asks the person first.";
   const folder = data.folder
     ? ` It sits in \`${data.folder.display}\`, which "this folder" means.`
     : "";
   return systemNote`
-    When the user sent this, the folder view showed the file \`${file.path}\` open. "This file", "this" and "it" refer to it. ${reach}${folder}
+    When the user sent this, the folder view showed the file \`${shellPath(file.path)}\` open. "This file", "this" and "it" refer to it.${folder}
   `;
-}
-
-/** Whether the agent can get at that folder, and how. */
-function folderReach(data: ViewContext) {
-  const { folder } = data;
-  if (!folder?.mount) {
-    return "No folder you can reach covers it yet: reading it asks the person first, and a task reaches it once they allow it.";
-  }
-  const access =
-    folder.access === "read-only"
-      ? "read-only for you, so ask before promising to change anything in it"
-      : "read and write for you";
-  return `You reach it at \`${folder.mount}\`, ${access}.`;
 }
 
 function folderShown(data: ViewContext) {
@@ -183,7 +165,7 @@ function screenNote(data: ViewContext) {
     }
     case "computer": {
       return systemNote`
-        When the user sent this, the folder view showed ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that. ${folderReach(data)}
+        When the user sent this, the folder view showed ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that.
       `;
     }
     case "file": {

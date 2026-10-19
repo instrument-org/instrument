@@ -217,8 +217,6 @@ const SORT_BY: {
 
 /** The folder the user is looking at, for the conversation. */
 export interface FolderOnScreen {
-  /** Whether the agent may write there, when it can reach it at all. */
-  access?: "read-only" | "read-write";
   /** As the person writes it: `~/Documents`. */
   display: string;
   hostPath: string;
@@ -1026,9 +1024,6 @@ export function ComputerPage({
   const mount = isRecents
     ? selectedRecent?.access && folderOf(selectedRecent.access.shellPath)
     : currentListing?.access?.shellPath;
-  const access = isRecents
-    ? selectedRecent?.access?.access
-    : currentListing?.access?.access;
   // Named from the folder on screen: a file in a folder opened in place in
   // the list is that folder's name and its own. The folder the columns are
   // showing is the folder itself rather than something selected in it.
@@ -1061,7 +1056,6 @@ export function ComputerPage({
       return;
     }
     onFolderChange?.({
-      ...(access === undefined ? {} : { access }),
       display,
       hostPath,
       ...(mount === undefined ? {} : { mount }),
@@ -1071,7 +1065,7 @@ export function ComputerPage({
     });
     // The selection by its key: the rows are rebuilt on every re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [access, display, hostPath, mount, onFolderChange, selectedKey, walked]);
+  }, [display, hostPath, mount, onFolderChange, selectedKey, walked]);
   // Beside a file, everything picked by where it is: the folder on screen
   // leaves out the folder the columns stand in, which is still a pick.
   const pickedBeside = selectedItems.flatMap((item): ChosenItem[] => {

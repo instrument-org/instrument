@@ -24,7 +24,7 @@ describe("FolderChangesNote", () => {
     },
     {
       data: changes({
-        added: [{ access: "read-write", ...NOTES }],
+        added: [NOTES],
         removed: [PHOTOS],
       }),
       text: "Removed Photos",
@@ -41,10 +41,7 @@ describe("FolderChangesNote", () => {
     renderWithProviders(
       <FolderChangesNote
         data={changes({
-          added: [
-            { access: "read-write", ...NOTES },
-            { access: "read-only", ...PHOTOS },
-          ],
+          added: [NOTES, PHOTOS],
         })}
       />,
     );
@@ -56,10 +53,7 @@ describe("FolderChangesNote", () => {
     renderWithProviders(
       <FolderChangesNote
         data={changes({
-          added: [
-            { access: "read-write", ...NOTES },
-            { access: "read-only", ...PHOTOS },
-          ],
+          added: [NOTES, PHOTOS],
         })}
         isDeveloperMode
       />,

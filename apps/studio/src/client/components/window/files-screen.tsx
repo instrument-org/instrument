@@ -553,7 +553,6 @@ export function FilesScreen({
       : folder
         ? {
             folder: {
-              ...(folder.access ? { access: folder.access } : {}),
               display: folder.display,
               ...(folder.mount ? { mount: folder.mount } : {}),
               selected: folder.selected,

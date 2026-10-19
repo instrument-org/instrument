@@ -86,7 +86,7 @@ describe("detectFolderChanges", () => {
 
     const changes = await changesSince([]);
 
-    expect(changes?.added).toEqual([{ access: "read-write", path: downloads }]);
+    expect(changes?.added).toEqual([{ path: downloads }]);
   });
 
   it("reports a removal beside a folder granted since", async () => {
@@ -98,7 +98,7 @@ describe("detectFolderChanges", () => {
 
     const changes = await changesSince([{ path: gone }]);
 
-    expect(changes?.added).toEqual([{ access: "read-write", path: downloads }]);
+    expect(changes?.added).toEqual([{ path: downloads }]);
     expect(changes?.removed).toEqual([{ path: gone }]);
   });
 

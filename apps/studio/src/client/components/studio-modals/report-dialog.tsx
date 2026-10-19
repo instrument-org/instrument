@@ -101,7 +101,12 @@ function ReportDialogContent({
   const { data: described } = useQuery({
     gcTime: 0,
     queryFn: () => describeReport(request),
-    queryKey: ["report-dialog", "describe", request.surface, request.reportTitle],
+    queryKey: [
+      "report-dialog",
+      "describe",
+      request.surface,
+      request.reportTitle,
+    ],
     staleTime: Infinity,
   });
   const details = described?.details;
@@ -198,7 +203,7 @@ function ReportDialogContent({
           {showDetails ? "Hide details" : "Show details"}
         </button>
         {showDetails && (
-          <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] whitespace-pre-wrap select-text">
+          <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
             {details ?? "Gathering the details…"}
           </pre>
         )}
@@ -220,7 +225,7 @@ function ReportDialogContent({
               {showData ? "Hide the error data" : "Show the error data"}
             </button>
             {showData && (
-              <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] whitespace-pre-wrap select-text">
+              <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
                 {JSON.stringify(described.events, null, 2)}
               </pre>
             )}

@@ -37,11 +37,16 @@ it("waits for a missing memory folder without making it, then publishes", async 
   try {
     await expect(fs.stat(memoryDir())).rejects.toThrow();
     await fs.mkdir(memoryDir());
-    await vi.waitFor(() => {
-      expect(heard).toHaveBeenCalled();
-    });
+    // The folder can go unreported by its parent's watcher, and is then found
+    // by the look each second, which a loaded machine can stretch.
+    await vi.waitFor(
+      () => {
+        expect(heard).toHaveBeenCalled();
+      },
+      { interval: 100, timeout: 10_000 },
+    );
   } finally {
     controller.abort();
     stop();
   }
-});
+}, 15_000);

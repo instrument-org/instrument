@@ -1,12 +1,12 @@
 import {
   type LogRecord,
-  type MarkRecord,
+  type SettingRecord,
   parseLogLine,
-  parseMarkLine,
+  parseSettingLine,
 } from "./record";
 
 /**
- * Reading a log or a marks file, from its start or from where the last read
+ * Reading a log or a settings file, from its start or from where the last read
  * stopped. A record is taken only from a line that ends in `\n`, parses, and
  * carries a larger `seq` than the record before it; every other whole line
  * is counted and skipped. Bytes after the last `\n` are left for the next
@@ -60,12 +60,12 @@ export function readLog(bytes: Uint8Array, cursor = FILE_START): LogRead {
     : { kind: "read", ...read };
 }
 
-/** Reads a marks file from `cursor` on; `bytes` is the file from that offset. */
-export function readMarks(
+/** Reads a settings file from `cursor` on; `bytes` is the file from that offset. */
+export function readSettings(
   bytes: Uint8Array,
   cursor = FILE_START,
-): RecordsRead<MarkRecord> {
-  return readLines(bytes, cursor, (text) => parseMarkLine(text));
+): RecordsRead<SettingRecord> {
+  return readLines(bytes, cursor, (text) => parseSettingLine(text));
 }
 
 const decoder = new TextDecoder("utf-8", { fatal: true });

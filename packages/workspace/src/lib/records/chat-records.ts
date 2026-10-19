@@ -20,24 +20,24 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { isArriving } from "./arriving";
 import { blobPath, writeBlob } from "./blobs";
 import { type DeviceId } from "./device-id";
-import { marksFileName, parseRecordFileName } from "./file-names";
+import { settingsFileName, parseRecordFileName } from "./file-names";
 import {
   ChatFold,
   type FoldedChat,
-  type FoldedMarks,
+  type FoldedSettings,
   type FoldedSession,
 } from "./fold";
 import {
   type LogWriter,
-  type MarksWriter,
+  type SettingsWriter,
   openLog,
-  openMarks,
+  openSettingsFile,
 } from "./open-log";
 import { type LoadBlob, partToRecord } from "./part-blobs";
 import {
   type LogRecord,
-  type MarkField,
-  type MarkRecord,
+  type SettingField,
+  type SettingRecord,
   type SessionHeader,
   type StateWhat,
 } from "./record";
@@ -47,7 +47,7 @@ import { sessionOf } from "./session-of";
 /**
  * A chat's records as this process writes and reads them: one service per
  * process, on the main thread, the only writer of this device's logs and
- * marks files.
+ * settings files.
  *
  * Each chat it has open is folded once from its folder, and kept current
  * by its own appends. A write is queued in the same tick it is asked for,
@@ -80,8 +80,8 @@ export interface SessionStart {
   title?: string;
 }
 
-/** One of the person's marks on a session: a field and what it is now. */
-export type MarkChange<R = MarkRecord> = R extends MarkRecord
+/** One of a session's settings: a field and what it is now. */
+export type SettingChange<R = SettingRecord> = R extends SettingRecord
   ? Pick<R, "field" | "value">
   : never;
 
@@ -157,7 +157,7 @@ interface PendingSession {
   /** The newest `at` of its queued log records, in ms. */
   at: number;
   header?: Queued<SessionStart & { at: Date }>;
-  marks: Map<MarkField, Queued<Unsequenced<MarkRecord>>>;
+  settings: Map<SettingField, Queued<Unsequenced<SettingRecord>>>;
   messages: Map<StoreId.Message, Queued<SessionMessage.Type>>;
   parts: Map<StoreId.Part, Queued<SessionMessagePart.Type>>;
   retracted: Map<StoreId.Message, number>;
@@ -183,7 +183,7 @@ interface OpenChat {
   fold: ChatFold;
   id: ChatId;
   logs: Map<StoreId.Session, FileState<LogWriter>>;
-  marks?: FileState<MarksWriter>;
+  settings?: FileState<SettingsWriter>;
   pending: Map<StoreId.Session, PendingSession>;
   /**
    * Sessions whose log this device opens again before its next write to it,
@@ -393,7 +393,7 @@ export class ChatRecords {
   /**
    * A session's row as records: its header the first time, and after that
    * only what changed, since one row stands for a header, a rollover, a stop
-   * and the person's marks.
+   * and the session's settings.
    */
   async saveSession(chatId: ChatId, saved: Session.Type): Promise<void> {
     const read = await this.read(chatId);
@@ -423,10 +423,10 @@ export class ChatRecords {
     ) {
       await this.stopped(chatId, saved.id, saved.stoppedBy);
     }
-    // A session just started has the title its header carries and no marks.
+    // A session just started has the title its header carries and no settings.
     const was = known ? sessionOf(known) : { title: saved.title };
-    for (const change of marksBetween(was, saved)) {
-      await this.mark(chatId, saved.id, change);
+    for (const change of settingsBetween(was, saved)) {
+      await this.setting(chatId, saved.id, change);
     }
   }
 
@@ -630,45 +630,45 @@ export class ChatRecords {
   }
 
   /**
-   * One of the person's marks on a session, in this device's marks file.
-   * A mark the session already has with the same value writes nothing, so
-   * it keeps the moment it was first made.
+   * One of a session's settings, in this device's settings file. A value the
+   * session already has writes nothing, so it keeps the moment it was first
+   * set.
    */
-  mark(
+  setting(
     chatId: ChatId,
     sessionId: StoreId.Session,
-    change: MarkChange,
+    change: SettingChange,
   ): Promise<void> {
     return this.#with(chatId, (chat) => {
       requireSession(chat, sessionId);
       const current =
-        chat.pending.get(sessionId)?.marks.get(change.field)?.value ??
-        foldedSession(chat, sessionId)?.marks[change.field];
+        chat.pending.get(sessionId)?.settings.get(change.field)?.value ??
+        foldedSession(chat, sessionId)?.settings[change.field];
       if (current && isEqual(current.value, change.value)) {
         return undefined;
       }
       const ticket = this.#nextTicket();
-      const record: Unsequenced<MarkRecord> = {
+      const record: Unsequenced<SettingRecord> = {
         ...change,
         at: this.#now(),
         device: this.device,
         session: sessionId,
-        t: "mark",
+        t: "set",
       };
-      pendingOf(chat, sessionId).marks.set(change.field, {
+      pendingOf(chat, sessionId).settings.set(change.field, {
         ticket,
         value: record,
       });
       recordChanged(chat.id, "session");
-      const file = this.#marksFile(chat);
-      const written = this.#append(chat, "marks", file, () => record, false);
+      const file = this.#settingsFile(chat);
+      const written = this.#append(chat, "settings", file, () => record, false);
       return this.#track(
         chat,
         this.#landed(chat, sessionId, written, {
           changed: () => recordChanged(chat.id, "session"),
           release: (held) => {
-            if (held.marks.get(change.field)?.ticket === ticket) {
-              held.marks.delete(change.field);
+            if (held.settings.get(change.field)?.ticket === ticket) {
+              held.settings.delete(change.field);
             }
           },
         }),
@@ -965,25 +965,25 @@ export class ChatRecords {
     return file;
   }
 
-  #marksFile(chat: OpenChat): FileState<MarksWriter> {
-    if (chat.marks) {
-      return chat.marks;
+  #settingsFile(chat: OpenChat): FileState<SettingsWriter> {
+    if (chat.settings) {
+      return chat.settings;
     }
-    const file: FileState<MarksWriter> = {
+    const file: FileState<SettingsWriter> = {
       end: 0,
-      name: marksFileName(this.device),
-      writer: openMarks(chat.dir, this.device, {
+      name: settingsFileName(this.device),
+      writer: openSettingsFile(chat.dir, this.device, {
         onWrite: (bytes, offset) => {
           wrote(chat, file, bytes, offset);
         },
       }),
     };
     file.writer.catch(() => {
-      if (chat.marks === file) {
-        delete chat.marks;
+      if (chat.settings === file) {
+        delete chat.settings;
       }
     });
-    chat.marks = file;
+    chat.settings = file;
     return file;
   }
 
@@ -1200,7 +1200,10 @@ export class ChatRecords {
     if (!this.#fsync) {
       return;
     }
-    const files = [...chat.logs.values(), ...(chat.marks ? [chat.marks] : [])];
+    const files = [
+      ...chat.logs.values(),
+      ...(chat.settings ? [chat.settings] : []),
+    ];
     await Promise.all(
       files.map((file) =>
         file.writer.then(
@@ -1349,7 +1352,7 @@ function pendingOf(chat: OpenChat, sessionId: StoreId.Session): PendingSession {
   }
   const session: PendingSession = {
     at: 0,
-    marks: new Map(),
+    settings: new Map(),
     messages: new Map(),
     parts: new Map(),
     retracted: new Map(),
@@ -1373,7 +1376,7 @@ function unhold(
     !session.header &&
     !session.rollover &&
     !session.stopped &&
-    session.marks.size === 0 &&
+    session.settings.size === 0 &&
     session.messages.size === 0 &&
     session.parts.size === 0 &&
     session.retracted.size === 0 &&
@@ -1428,8 +1431,8 @@ function headerOf(session: Session.Type): SessionStart {
   };
 }
 
-/** The marks a session row carries, each in the shape its mark holds. */
-type Marked = Pick<
+/** The settings a session row carries, each in the shape its record holds. */
+type Settled = Pick<
   Session.Type,
   | "archivedAt"
   | "starredAt"
@@ -1442,20 +1445,20 @@ type Marked = Pick<
 >;
 
 /**
- * The marks the row moved: each one as its record holds it, left out where
- * the records already say the same thing. A mark whose value has not changed
- * is never rewritten, so it keeps the moment it was made, which is the date
- * the row keeps beside it.
+ * The settings the row moved: each one as its record holds it, left out
+ * where the records already say the same thing. A setting whose value has
+ * not changed is never rewritten, so it keeps the moment it was set, which
+ * is the date the row keeps beside it.
  */
-function marksBetween(was: Marked, now: Session.Type): MarkChange[] {
-  const changes: MarkChange[] = [];
+function settingsBetween(was: Settled, now: Session.Type): SettingChange[] {
+  const changes: SettingChange[] = [];
   if (
     was.title !== now.title ||
     (was.titleSettledAt === undefined) !== (now.titleSettledAt === undefined)
   ) {
     changes.push({
       field: "title",
-      value: { settled: now.titleSettledAt !== undefined, text: now.title },
+      value: { auto: now.titleSettledAt === undefined, text: now.title },
     });
   }
   if ((was.archivedAt === undefined) !== (now.archivedAt === undefined)) {
@@ -1473,7 +1476,9 @@ function marksBetween(was: Marked, now: Session.Type): MarkChange[] {
       value:
         now.unreadAt === undefined
           ? null
-          : { byUser: now.unreadByUser === true },
+          : now.unreadByUser === true
+            ? "marked"
+            : "new",
     });
   }
   if ((was.topic ?? null) !== (now.topic ?? null)) {
@@ -1731,9 +1736,9 @@ function startedSession(
     ...(forkedAt !== undefined && { forkedAt }),
     ...(handle !== undefined && { handle }),
     id,
-    marks: {},
     messages: [],
     ...(parent !== undefined && { parent }),
+    settings: {},
     state: {},
     ...(title !== undefined && { title }),
     updatedAt: at,
@@ -1797,13 +1802,13 @@ function overlaid(
       state[what] = value;
     }
   }
-  let marks = session.marks;
-  for (const { value } of queued.marks.values()) {
-    marks = withMark(marks, value);
+  let settings = session.settings;
+  for (const { value } of queued.settings.values()) {
+    settings = withSetting(settings, value);
   }
   return {
     ...session,
-    marks,
+    settings,
     messages: [...messages.values()].toSorted((a, b) => byId(a.id, b.id)),
     ...(queued.rollover && { rollover: queued.rollover.value }),
     ...(queued.stopped && { stopped: queued.stopped.value }),
@@ -1813,23 +1818,25 @@ function overlaid(
   };
 }
 
-function withMark(
-  marks: FoldedMarks,
-  mark: Unsequenced<MarkRecord>,
-): FoldedMarks {
-  switch (mark.field) {
+function withSetting(
+  settings: FoldedSettings,
+  setting: Unsequenced<SettingRecord>,
+): FoldedSettings {
+  switch (setting.field) {
     case "archived":
-      return { ...marks, archived: mark };
+      return { ...settings, archived: setting };
+    case "model":
+      return { ...settings, model: setting };
     case "starred":
-      return { ...marks, starred: mark };
+      return { ...settings, starred: setting };
     case "stoppedAt":
-      return { ...marks, stoppedAt: mark };
+      return { ...settings, stoppedAt: setting };
     case "title":
-      return { ...marks, title: mark };
+      return { ...settings, title: setting };
     case "topic":
-      return { ...marks, topic: mark };
+      return { ...settings, topic: setting };
     case "unread":
-      return { ...marks, unread: mark };
+      return { ...settings, unread: setting };
   }
 }
 

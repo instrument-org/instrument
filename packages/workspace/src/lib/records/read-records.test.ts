@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { FILE_START, readLog, readMarks } from "./read-records";
-import { type LogRecord, type MarkRecord, recordLine } from "./record";
+import { FILE_START, readLog, readSettings } from "./read-records";
+import { type LogRecord, type SettingRecord, recordLine } from "./record";
 import {
   at,
   DEVICE_A,
@@ -128,9 +128,9 @@ describe("readLog", () => {
   });
 });
 
-describe("readMarks", () => {
+describe("readSettings", () => {
   it("takes marks and skips anything else", () => {
-    const read = readMarks(
+    const read = readSettings(
       bytes(recordLine(mark(0)), HEADER, recordLine(mark(1)), "{"),
     );
 
@@ -153,9 +153,9 @@ function seqs(read: ReturnType<typeof readLog>): number[] {
     : [];
 }
 
-function mark(seq: number): MarkRecord {
+function mark(seq: number): SettingRecord {
   return {
-    t: "mark",
+    t: "set",
     seq,
     at: at(seq),
     session,

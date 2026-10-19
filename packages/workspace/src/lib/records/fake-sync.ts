@@ -5,15 +5,15 @@ import { type DeviceId, DeviceIdSchema } from "./device-id";
 import {
   logFileName,
   logStem,
-  marksFileName,
+  settingsFileName,
   parseRecordFileName,
 } from "./file-names";
 import { ChatFold } from "./fold";
 import {
   type LogRecord,
-  type MarkRecord,
+  type SettingRecord,
   parseLogLine,
-  parseMarkLine,
+  parseSettingLine,
   RECORD_FORMAT,
   recordLine,
   type SessionHeader,
@@ -67,7 +67,7 @@ export interface SessionModel {
 export interface SimulatedChat {
   /** Every device's own files, finished. */
   files: Map<string, Uint8Array>;
-  marks: MarkRecord[];
+  marks: SettingRecord[];
   sessions: Map<StoreId.Session, SessionModel>;
 }
 
@@ -155,7 +155,7 @@ export function simulateChat(random: Random): SimulatedChat {
     }
   }
   const sessions = new Map<StoreId.Session, SessionModel>();
-  const marks: MarkRecord[] = [];
+  const marks: SettingRecord[] = [];
   /** Where each record's line ends in its file, to tell what a cut-off copy holds. */
   const lineEnds = new Map<
     string,
@@ -319,8 +319,8 @@ export function simulateChat(random: Random): SimulatedChat {
       const mark = markFor(device, target.id);
       device.marksSeq += 1;
       const line = recordLine({ ...mark, seq: device.marksSeq });
-      device.append(marksFileName(device.id), line);
-      const parsed = parseMarkLine(line);
+      device.append(settingsFileName(device.id), line);
+      const parsed = parseSettingLine(line);
       if (parsed) {
         marks.push(parsed);
       }
@@ -491,16 +491,16 @@ export function simulateChat(random: Random): SimulatedChat {
   function markFor(
     device: Device,
     session: StoreId.Session,
-  ): Unsequenced<MarkRecord> {
+  ): Unsequenced<SettingRecord> {
     // Some marks share one moment across devices, so ties are broken.
     const when = random.chance(0.3) ? at(1000) : clock(device);
-    const base = { t: "mark", at: when, session, device: device.id } as const;
+    const base = { t: "set", at: when, session, device: device.id } as const;
     switch (random.int(0, 3)) {
       case 0:
         return {
           ...base,
           field: "title",
-          value: { settled: random.chance(0.5), text: `Title ${tick}` },
+          value: { auto: random.chance(0.5), text: `Title ${tick}` },
         };
       case 1:
         return { ...base, field: "starred", value: random.chance(0.5) };
@@ -508,7 +508,11 @@ export function simulateChat(random: Random): SimulatedChat {
         return {
           ...base,
           field: "unread",
-          value: random.chance(0.5) ? null : { byUser: random.chance(0.5) },
+          value: random.chance(0.5)
+            ? null
+            : random.chance(0.5)
+              ? "marked"
+              : "new",
         };
       default:
         return {
@@ -636,7 +640,7 @@ export function wholeLines(
     const original =
       parsed.kind === "log"
         ? logFileName(parsed.session, parsed.device, parsed.generation)
-        : marksFileName(parsed.device);
+        : settingsFileName(parsed.device);
     const whole = bytes.lastIndexOf(0x0a) + 1;
     lengths.set(original, Math.max(lengths.get(original) ?? 0, whole));
   }

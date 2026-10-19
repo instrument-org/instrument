@@ -13,7 +13,11 @@ import { disposeSessionsStoreStorage } from "../../session-store-storage";
 import { StorageKey } from "../../storage-key";
 import { blobPath } from "../blobs";
 import { ChatRecords, installChatRecords } from "../chat-records";
-import { logFileName, marksFileName, parseRecordFileName } from "../file-names";
+import {
+  logFileName,
+  settingsFileName,
+  parseRecordFileName,
+} from "../file-names";
 import { foldChat, type FoldedChat, type FoldedSession } from "../fold";
 import { partFromRecord } from "../part-blobs";
 import { readLog } from "../read-records";
@@ -64,9 +68,9 @@ const EVERY_KIND_FILES = [
   "blobs/sha256-98bb5e791a5eda35b5facb9385bb19cc6692108c537da7b87f5dccbe5c9716d9.pdf",
   "blobs/sha256-a694d888a1b59b444944827ef314d864d2bb445ac852f1fcd4939c4e835a460f.png",
   "chat.db",
-  "marks.dev_AAAAAAAA.jsonl",
   "ses_01K7A000000000000000000001.dev_AAAAAAAA.jsonl",
   "ses_01K7A000000000000000000002.dev_AAAAAAAA.jsonl",
+  "settings.dev_AAAAAAAA.jsonl",
 ];
 
 /** Every file under `dir`, by its path from there. */
@@ -361,13 +365,17 @@ describe("convertChat", () => {
           "createdAt": 2026-10-14T12:00:00.000Z,
           "forked": false,
           "id": "ses_01K7A000000000000000000001",
-          "marks": {
+          "rollover": {
+            "after": "msg_01K7A000000000000000000005",
+            "usableTokens": 120000,
+          },
+          "settings": {
             "archived": {
               "at": 2026-10-14T12:00:30.000Z,
               "device": "dev_AAAAAAAA",
               "field": "archived",
               "session": "ses_01K7A000000000000000000001",
-              "t": "mark",
+              "t": "set",
               "value": true,
             },
             "starred": {
@@ -375,7 +383,7 @@ describe("convertChat", () => {
               "device": "dev_AAAAAAAA",
               "field": "starred",
               "session": "ses_01K7A000000000000000000001",
-              "t": "mark",
+              "t": "set",
               "value": true,
             },
             "stoppedAt": {
@@ -383,7 +391,7 @@ describe("convertChat", () => {
               "device": "dev_AAAAAAAA",
               "field": "stoppedAt",
               "session": "ses_01K7A000000000000000000001",
-              "t": "mark",
+              "t": "set",
               "value": 2026-10-14T12:00:50.000Z,
             },
             "title": {
@@ -391,9 +399,9 @@ describe("convertChat", () => {
               "device": "dev_AAAAAAAA",
               "field": "title",
               "session": "ses_01K7A000000000000000000001",
-              "t": "mark",
+              "t": "set",
               "value": {
-                "settled": true,
+                "auto": false,
                 "text": "Plans for the trip",
               },
             },
@@ -402,7 +410,7 @@ describe("convertChat", () => {
               "device": "dev_AAAAAAAA",
               "field": "topic",
               "session": "ses_01K7A000000000000000000001",
-              "t": "mark",
+              "t": "set",
               "value": "travel",
             },
             "unread": {
@@ -410,15 +418,9 @@ describe("convertChat", () => {
               "device": "dev_AAAAAAAA",
               "field": "unread",
               "session": "ses_01K7A000000000000000000001",
-              "t": "mark",
-              "value": {
-                "byUser": true,
-              },
+              "t": "set",
+              "value": "marked",
             },
-          },
-          "rollover": {
-            "after": "msg_01K7A000000000000000000005",
-            "usableTokens": 120000,
           },
           "state": {
             "apps": {
@@ -484,8 +486,8 @@ describe("convertChat", () => {
           "forkedAt": "msg_01K7A000000000000000000003",
           "handle": "t1",
           "id": "ses_01K7A000000000000000000002",
-          "marks": {},
           "parent": "ses_01K7A000000000000000000001",
+          "settings": {},
           "state": {
             "folders": [
               {
@@ -533,7 +535,7 @@ describe("convertChat", () => {
         kind: "converted",
       });
       const [chatSession] = (await foldFolder(dir)).sessions;
-      expect(chatSession?.marks.topic?.value).toBe(topic);
+      expect(chatSession?.settings.topic?.value).toBe(topic);
     },
   );
 
@@ -697,8 +699,8 @@ describe("convertChat", () => {
       [
         "blobs/sha256-a694d888a1b59b444944827ef314d864d2bb445ac852f1fcd4939c4e835a460f.png",
         "chat.db",
-        "marks.dev_AAAAAAAA.jsonl",
         "ses_01K7A000000000000000000020.dev_AAAAAAAA.jsonl",
+        "settings.dev_AAAAAAAA.jsonl",
       ]
     `);
   });
@@ -812,14 +814,14 @@ describe("convertChat", () => {
     await writeEveryKindChat(dir);
     await convertChat(dir, OPTIONS);
     const converted = await contents(dir);
-    // As the rename into place left it: the marks, one log and every blob
+    // As the rename into place left it: the settings, one log and every blob
     // still in the committed folder.
     const done = path.join(dir, ".~converted-4242.tmp");
     await fs.mkdir(path.join(done, "blobs"), { recursive: true });
     for (const name of EVERY_KIND_FILES.filter(
       (file) =>
         file.startsWith("blobs/") ||
-        file === marksFileName(DEVICE_A) ||
+        file === settingsFileName(DEVICE_A) ||
         file === logFileName(TASK_SESSION, DEVICE_A),
     )) {
       await fs.rename(path.join(dir, name), path.join(done, name));
@@ -881,14 +883,14 @@ describe("convertChat", () => {
   it("converts a chat whose only other-device file says nothing", async () => {
     const dir = chatPath("converted-elsewhere");
     await writeUntitledChat(dir);
-    // An empty marks file is no history, whichever device wrote it, so the
+    // An empty settings file is no history, whichever device wrote it, so the
     // chat's conversation is still only in `chat.db` and has to be written
     // out. Which device wrote a record never decides whether the records hold
     // the conversation; it decides only which files may be written again.
-    await fs.writeFile(path.join(dir, marksFileName(DEVICE_B)), "");
+    await fs.writeFile(path.join(dir, settingsFileName(DEVICE_B)), "");
 
     expect((await convertChat(dir, OPTIONS)).kind).toBe("converted");
-    expect(await listing(dir)).toContain(marksFileName(DEVICE_B));
+    expect(await listing(dir)).toContain(settingsFileName(DEVICE_B));
   });
 
   it("keeps a chat whose records from another device do not hold its history", async () => {
@@ -922,7 +924,7 @@ describe("convertChat", () => {
   it("leaves another device's records where they are when it converts", async () => {
     const dir = chatPath("beside-another-device");
     const chat = await writeEveryKindChat(dir);
-    // A header and marks, which say no more than the session row does. Ours
+    // A header and settings, which say no more than the session row does. Ours
     // are removed and written again from `chat.db`; the other computer's are
     // its own to write, so they stay as they are.
     await alongsideTheStore(
@@ -938,7 +940,7 @@ describe("convertChat", () => {
     expect(await fs.readFile(theirs)).toEqual(before);
   });
 
-  it("converts a chat the writer beside the store left a header and marks in", async () => {
+  it("converts a chat the writer beside the store left a header and settings in", async () => {
     // Frozen, so the call left in flight is swept to the same moment in both
     // conversions and the two folders compare byte for byte.
     vi.useFakeTimers({ now: at(500), toFake: ["Date"] });
@@ -949,14 +951,14 @@ describe("convertChat", () => {
     const dir = chatPath("restated");
     const chat = await writeEveryKindChat(dir);
     // Saving the row is all the app has to do to the chat: the records take
-    // its header and the marks it carries, and none of its history.
+    // its header and the settings it carries, and none of its history.
     await alongsideTheStore(dir, chat, (records) =>
       records.saveSession(chat, EVERY_KIND_SESSION),
     );
     expect(await listing(dir)).toEqual([
       "chat.db",
-      marksFileName(DEVICE_A),
       logFileName(CHAT_SESSION, DEVICE_A),
+      settingsFileName(DEVICE_A),
     ]);
     expect(
       await recordKinds(path.join(dir, logFileName(CHAT_SESSION, DEVICE_A))),
@@ -982,8 +984,8 @@ describe("convertChat", () => {
     );
     // What a crash mid-append leaves: a line with no newline after it. Every
     // reader of these files leaves those bytes for the next read.
-    const marks = path.join(dir, marksFileName(DEVICE_A));
-    await fs.appendFile(marks, '{"t":"mark","seq":9,"at":');
+    const settings = path.join(dir, settingsFileName(DEVICE_A));
+    await fs.appendFile(settings, '{"t":"set","seq":9,"at":');
 
     const result = await convertChat(dir, OPTIONS);
 
@@ -1097,8 +1099,8 @@ describe("convertWorkspaceChats", () => {
       }
     `);
     const [hello] = (await foldFolder(path.join(chats, "b-hello"))).sessions;
-    expect(hello?.marks.title?.value).toEqual({
-      settled: false,
+    expect(hello?.settings.title?.value).toEqual({
+      auto: true,
       text: "New chat",
     });
     expect(hello?.updatedAt).toEqual(at(0));

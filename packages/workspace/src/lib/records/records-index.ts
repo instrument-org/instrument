@@ -11,7 +11,7 @@ import {
   compare,
   isForked,
   logPlace,
-  markPlace,
+  settingPlace,
   type Place,
   rootHeader,
 } from "./fold";
@@ -19,15 +19,15 @@ import {
   FILE_START,
   type ReadCursor,
   readLog,
-  readMarks,
+  readSettings,
 } from "./read-records";
 import {
   type LogRecord,
-  type MarkField,
-  type MarkRecord,
+  type SettingField,
+  type SettingRecord,
   parseLogLine,
   RECORD_FORMAT,
-  parseMarkLine,
+  parseSettingLine,
   type SessionHeader,
 } from "./record";
 import { TAIL_BYTES, tailHash } from "./record-writer";
@@ -533,14 +533,14 @@ function fold(
   if (row.refused !== null) {
     return update;
   }
-  if (parsed.kind === "marks") {
-    const read = readMarks(bytes, cursor);
+  if (parsed.kind === "settings") {
+    const read = readSettings(bytes, cursor);
     for (const { line, record } of read.records) {
       keepNewest(
         folded,
         `${record.session} ${record.field}`,
         line,
-        markPlace(record, line),
+        settingPlace(record, line),
       );
     }
     next.folded_offset = read.cursor.offset;
@@ -690,7 +690,7 @@ function summarize(files: ReadonlyMap<string, FileRow>): Summary {
     if (!parsed || row.refused !== null) {
       continue;
     }
-    if (parsed.kind === "marks") {
+    if (parsed.kind === "settings") {
       for (const [key, latest] of Object.entries(row.folded.latest)) {
         const [session = "", field = ""] = key.split(" ");
         newest(partsOf(session).marks, field, latest);
@@ -747,7 +747,7 @@ function summarize(files: ReadonlyMap<string, FileRow>): Summary {
   };
 }
 
-type Marks = { [F in MarkField]?: Extract<MarkRecord, { field: F }> };
+type Marks = { [F in SettingField]?: Extract<SettingRecord, { field: F }> };
 
 /** A session's row, from its parts, or none until a log of it has its header read. */
 function sessionSummary(
@@ -781,7 +781,7 @@ function sessionSummary(
       state[record.what] = record.value;
     }
   }
-  const marks = marksOf(parts.marks);
+  const marks = settingsOf(parts.marks);
   return {
     header,
     marks,
@@ -823,16 +823,21 @@ function sessionSummary(
 }
 
 /** The newest mark of each field, from the lines that won. */
-function marksOf(latest: Map<string, { line: string; place: Place }>): Marks {
+function settingsOf(
+  latest: Map<string, { line: string; place: Place }>,
+): Marks {
   const marks: Marks = {};
   for (const { line } of latest.values()) {
-    const record = parseMarkLine(line);
+    const record = parseSettingLine(line);
     if (!record) {
       continue;
     }
     switch (record.field) {
       case "archived":
         marks.archived = record;
+        break;
+      case "model":
+        marks.model = record;
         break;
       case "starred":
         marks.starred = record;

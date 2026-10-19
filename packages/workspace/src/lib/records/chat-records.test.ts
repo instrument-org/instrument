@@ -171,11 +171,11 @@ describe("ChatRecords", () => {
       service.state(CHAT, chatSession, "folders", ["/a"]),
       service.state(CHAT, chatSession, "memory", { state: 1 }),
       service.state(CHAT, chatSession, "memory", null),
-      service.mark(CHAT, chatSession, {
+      service.setting(CHAT, chatSession, {
         field: "title",
-        value: { settled: true, text: "Totals" },
+        value: { auto: false, text: "Totals" },
       }),
-      service.mark(CHAT, chatSession, { field: "starred", value: true }),
+      service.setting(CHAT, chatSession, { field: "starred", value: true }),
       service.startSession(CHAT, {
         createdAt: at(6),
         forkedAt: messageId(1),
@@ -362,7 +362,7 @@ describe("ChatRecords", () => {
       records.service.appendPart(CHAT, bashCall(3, "input-available")),
       records.service.retract(CHAT, chatSession, [messageId(1)], "edited"),
       records.service.state(CHAT, chatSession, "apps", ["slack"]),
-      records.service.mark(CHAT, chatSession, {
+      records.service.setting(CHAT, chatSession, {
         field: "archived",
         value: true,
       }),
@@ -390,20 +390,20 @@ describe("ChatRecords", () => {
 
   it("keeps a mark that is already set, so it keeps the moment it was made", async () => {
     await replyUnderWay();
-    await records.service.mark(CHAT, chatSession, {
+    await records.service.setting(CHAT, chatSession, {
       field: "unread",
-      value: { byUser: false },
+      value: "new",
     });
     vi.setSystemTime(at(200));
-    await records.service.mark(CHAT, chatSession, {
+    await records.service.setting(CHAT, chatSession, {
       field: "unread",
-      value: { byUser: false },
+      value: "new",
     });
 
     expect(listView(await records.service.read(CHAT))[0]?.unreadAt).toEqual(
       NOW,
     );
-    await records.service.mark(CHAT, chatSession, {
+    await records.service.setting(CHAT, chatSession, {
       field: "unread",
       value: null,
     });

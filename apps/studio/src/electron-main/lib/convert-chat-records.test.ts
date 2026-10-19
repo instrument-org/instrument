@@ -72,7 +72,7 @@ const run = () =>
 function seedChat(id: string, { withSidecars = false } = {}) {
   const dir = path.join(chatsDir(), id);
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `marks.${DEVICE}.jsonl`), "");
+  fs.writeFileSync(path.join(dir, `settings.${DEVICE}.jsonl`), "");
   fs.writeFileSync(path.join(dir, "chat.db"), `${id}'s database`);
   if (withSidecars) {
     fs.writeFileSync(path.join(dir, "chat.db-wal"), "a write-ahead log");
@@ -185,8 +185,8 @@ it("sets every converted chat's database aside and marks the workspace", async (
   ).toBe("a-trip-to-lisbon's database");
   // Out of the workspace, which may be in a synced folder.
   expect(tree(chatsDir())).toEqual([
-    path.join("a-trip-to-lisbon", `marks.${DEVICE}.jsonl`),
-    path.join("red-and-blue-squares", `marks.${DEVICE}.jsonl`),
+    path.join("a-trip-to-lisbon", `settings.${DEVICE}.jsonl`),
+    path.join("red-and-blue-squares", `settings.${DEVICE}.jsonl`),
   ]);
   const identity = readWorkspaceIdentity(rootDir);
   expect(identity.chatRecordsConverted).toBe(true);

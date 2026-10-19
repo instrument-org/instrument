@@ -3,9 +3,9 @@ import fs, { type FileHandle } from "node:fs/promises";
 
 import {
   type LogRecord,
-  type MarkRecord,
+  type SettingRecord,
   parseLogLine,
-  parseMarkLine,
+  parseSettingLine,
   recordLine,
 } from "./record";
 
@@ -50,13 +50,13 @@ type Op =
     }
   | {
       kind: "line";
-      record: Unsequenced<LogRecord | MarkRecord>;
+      record: Unsequenced<LogRecord | SettingRecord>;
       reject: (error: unknown) => void;
       resolve: (seq: number) => void;
     };
 
 /**
- * Appends records to one log or marks file. One writer per file in the
+ * Appends records to one log or settings file. One writer per file in the
  * process, which is the file's only writer anywhere:
  *
  * - Each record is one `write()` of its whole line, newline included, to a
@@ -71,7 +71,7 @@ type Op =
  *   written. Commits that queue together share one sync.
  */
 export class RecordWriter {
-  readonly kind: "log" | "marks";
+  readonly kind: "log" | "settings";
   readonly path: string;
   /** Lines written since the file was last synced. */
   #dirty = false;
@@ -89,7 +89,7 @@ export class RecordWriter {
    */
   constructor(
     path: string,
-    kind: "log" | "marks",
+    kind: "log" | "settings",
     file: { bytes: Uint8Array; lastSeq: number },
     { onWrite }: { onWrite?: OnWrite } = {},
   ) {
@@ -106,7 +106,7 @@ export class RecordWriter {
    * which is not yet on disk: `commit()` is. A record that would not read
    * back is refused without writing anything.
    */
-  append(record: Unsequenced<LogRecord | MarkRecord>): Promise<number> {
+  append(record: Unsequenced<LogRecord | SettingRecord>): Promise<number> {
     const refusal = this.#refusal(record);
     if (refusal) {
       return Promise.reject(new Error(refusal));
@@ -137,15 +137,15 @@ export class RecordWriter {
     };
   }
 
-  #refusal(record: Unsequenced<LogRecord | MarkRecord>): string | undefined {
-    if ((record.t === "mark") !== (this.kind === "marks")) {
+  #refusal(record: Unsequenced<LogRecord | SettingRecord>): string | undefined {
+    if ((record.t === "set") !== (this.kind === "settings")) {
       return `A ${record.t} record does not belong in a ${this.kind} file`;
     }
     // The seq is a placeholder: any count reads, and the real one is given
     // when the line is written.
     const line = recordLine({ ...record, seq: 0 });
     const parsed =
-      this.kind === "log" ? parseLogLine(line) : parseMarkLine(line);
+      this.kind === "log" ? parseLogLine(line) : parseSettingLine(line);
     return parsed === undefined
       ? `This ${record.t} record would not read back from ${this.path}`
       : undefined;
@@ -216,9 +216,11 @@ export class RecordWriter {
   }
 
   /** A log's header is its first line, and only that. */
-  #misplaced(record: Unsequenced<LogRecord | MarkRecord>): string | undefined {
+  #misplaced(
+    record: Unsequenced<LogRecord | SettingRecord>,
+  ): string | undefined {
     if (
-      this.kind === "marks" ||
+      this.kind === "settings" ||
       (record.t === "session") === (this.#lastSeq === -1)
     ) {
       return undefined;
@@ -230,7 +232,7 @@ export class RecordWriter {
 
   async #writeLine(
     handle: FileHandle,
-    record: Unsequenced<LogRecord | MarkRecord>,
+    record: Unsequenced<LogRecord | SettingRecord>,
   ): Promise<number> {
     const seq = this.#lastSeq + 1;
     const line = Buffer.from(recordLine({ ...record, seq }));

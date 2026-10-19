@@ -231,14 +231,14 @@ const TASK_MESSAGES: SessionMessage.WithParts[] = [
 /** The same fixture, written as records. */
 async function throughRecords(service: ChatRecords) {
   await service.startSession(CHAT, { createdAt: at(0), id: chatSession });
-  await service.mark(CHAT, chatSession, {
+  await service.setting(CHAT, chatSession, {
     field: "title",
-    value: { settled: true, text: "Quarterly numbers" },
+    value: { auto: false, text: "Quarterly numbers" },
   });
-  await service.mark(CHAT, chatSession, { field: "starred", value: true });
-  await service.mark(CHAT, chatSession, {
+  await service.setting(CHAT, chatSession, { field: "starred", value: true });
+  await service.setting(CHAT, chatSession, {
     field: "unread",
-    value: { byUser: false },
+    value: "new",
   });
   for (const message of CHAT_MESSAGES) {
     await service.appendMessageWithParts(CHAT, message);

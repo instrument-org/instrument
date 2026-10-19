@@ -10,18 +10,18 @@ import {
   FILE_START,
   type ReadCursor,
   readLog,
-  readMarks,
+  readSettings,
 } from "./read-records";
 import {
   type LogRecord,
-  type MarkField,
-  type MarkRecord,
+  type SettingField,
+  type SettingRecord,
   type SessionHeader,
   type StateWhat,
 } from "./record";
 
 /**
- * Folding a chat: reading every log and marks file in its record folder,
+ * Folding a chat: reading every log and settings file in its record folder,
  * conflict copies included, into its sessions, their messages and parts.
  *
  * - The newest snapshot of a message, a part, a rollover, a stop, or each
@@ -39,18 +39,18 @@ import {
  *   happened. The session is flagged as forked, and keeps both.
  * - A record is the same record when its log, place and line are, so a
  *   conflict copy folds once however often it arrives.
- * - The person's marks merge across devices: the newest `at` per session
- *   and field, ties to the larger device id, and a title the app may still
- *   change never over one that settled.
+ * - Settings merge across devices: the newest `at` per session and field,
+ *   ties to the larger device id, and a title the app may still change
+ *   never over one that settled.
  *
  * A fold takes each file as it grows, from where it last stopped, and comes
  * to the same chat however the files and their bytes arrived. A session is
- * built again only once a record of its own, or a mark on it, arrives.
+ * built again only once a record of its own, or a setting on it, arrives.
  */
 
-/** The newest of each of a session's marks, as the person made it. */
-export type FoldedMarks = {
-  [F in MarkField]?: Omit<Extract<MarkRecord, { field: F }>, "seq">;
+/** The newest of each of a session's settings, as it was set. */
+export type FoldedSettings = {
+  [F in SettingField]?: Omit<Extract<SettingRecord, { field: F }>, "seq">;
 };
 
 export interface FoldedSession {
@@ -61,7 +61,7 @@ export interface FoldedSession {
   forkedAt?: StoreId.Message;
   handle?: string;
   id: StoreId.Session;
-  marks: FoldedMarks;
+  settings: FoldedSettings;
   /** The session's own messages, oldest first, each with its parts. */
   messages: SessionMessage.WithParts[];
   parent?: StoreId.Session;
@@ -115,8 +115,8 @@ interface SessionState {
   updatedAt: number;
 }
 
-type MarkState = {
-  [F in MarkField]?: Newest<Extract<MarkRecord, { field: F }>>;
+type SettingState = {
+  [F in SettingField]?: Newest<Extract<SettingRecord, { field: F }>>;
 };
 
 interface FileState {
@@ -131,9 +131,9 @@ export class ChatFold {
   /** The chat as last built, until anything new is folded. */
   #chat: FoldedChat | undefined;
   #files = new Map<string, FileState>();
-  /** Each session as last built, until a record of its own or a mark on it arrives. */
+  /** Each session as last built, until a record of its own or a setting on it arrives. */
   #folded = new Map<string, FoldedSession>();
-  #marks = new Map<string, MarkState>();
+  #settings = new Map<string, SettingState>();
   /** Every record folded so far, so a copy of one folds once. */
   #seen = new Set<string>();
   #sessions = new Map<string, SessionState>();
@@ -146,7 +146,7 @@ export class ChatFold {
   /**
    * Folds a file from its cursor on: `bytes` is the file from there, so the
    * whole file the first time and what it has grown by after. A name that is
-   * not a log or a marks file is left alone.
+   * not a log or a settings file is left alone.
    */
   add(name: string, bytes: Uint8Array): void {
     const parsed = parseRecordFileName(name);
@@ -158,12 +158,12 @@ export class ChatFold {
     if (file.refused) {
       return;
     }
-    if (parsed.kind === "marks") {
-      const read = readMarks(bytes, file.cursor);
+    if (parsed.kind === "settings") {
+      const read = readSettings(bytes, file.cursor);
       file.cursor = read.cursor;
       file.skipped += read.skipped;
       for (const { line, record } of read.records) {
-        this.#addMark(record, line);
+        this.#addSetting(record, line);
       }
       return;
     }
@@ -247,7 +247,7 @@ export class ChatFold {
     if (!header) {
       return undefined;
     }
-    const built = folded(header, session, this.#marks.get(id) ?? {});
+    const built = folded(header, session, this.#settings.get(id) ?? {});
     this.#folded.set(id, built);
     return built;
   }
@@ -327,32 +327,35 @@ export class ChatFold {
     }
   }
 
-  #addMark(record: MarkRecord, line: string): void {
-    const place = markPlace(record, line);
-    if (!this.#firstSight(`mark ${place.join(" ")}`)) {
+  #addSetting(record: SettingRecord, line: string): void {
+    const place = settingPlace(record, line);
+    if (!this.#firstSight(`set ${place.join(" ")}`)) {
       return;
     }
     this.#changed(record.session);
-    const marks = this.#marks.get(record.session) ?? {};
-    this.#marks.set(record.session, marks);
+    const settings = this.#settings.get(record.session) ?? {};
+    this.#settings.set(record.session, settings);
     switch (record.field) {
       case "title":
-        marks.title = newer(marks.title, record, place);
+        settings.title = newer(settings.title, record, place);
         break;
       case "starred":
-        marks.starred = newer(marks.starred, record, place);
+        settings.starred = newer(settings.starred, record, place);
         break;
       case "archived":
-        marks.archived = newer(marks.archived, record, place);
+        settings.archived = newer(settings.archived, record, place);
         break;
       case "unread":
-        marks.unread = newer(marks.unread, record, place);
+        settings.unread = newer(settings.unread, record, place);
         break;
       case "topic":
-        marks.topic = newer(marks.topic, record, place);
+        settings.topic = newer(settings.topic, record, place);
+        break;
+      case "model":
+        settings.model = newer(settings.model, record, place);
         break;
       case "stoppedAt":
-        marks.stoppedAt = newer(marks.stoppedAt, record, place);
+        settings.stoppedAt = newer(settings.stoppedAt, record, place);
         break;
     }
   }
@@ -407,12 +410,12 @@ export function logPlace(
 }
 
 /**
- * Where a mark sorts among the marks of its session and field: a title that
- * settled after one that may still change, then the newest `at`, then the
- * larger device id.
+ * Where a setting sorts among the settings of its session and field: a title
+ * that settled after one the app may still change, then the newest `at`,
+ * then the larger device id.
  */
-export function markPlace(record: MarkRecord, line: string): Place {
-  const settled = record.field === "title" && record.value.settled ? 1 : 0;
+export function settingPlace(record: SettingRecord, line: string): Place {
+  const settled = record.field === "title" && !record.value.auto ? 1 : 0;
   return [
     settled,
     record.at.getTime(),
@@ -464,7 +467,7 @@ export function historyOf(
 function folded(
   header: SessionHeader,
   session: SessionState,
-  marks: MarkState,
+  settings: SettingState,
 ): FoldedSession {
   const state: FoldedSession["state"] = {};
   for (const what of [...session.state.keys()].toSorted()) {
@@ -484,7 +487,7 @@ function folded(
     ...(header.forkedAt === undefined ? {} : { forkedAt: header.forkedAt }),
     ...(header.handle === undefined ? {} : { handle: header.handle }),
     id: header.id,
-    marks: foldedMarks(marks),
+    settings: foldedSettings(settings),
     messages,
     ...(header.parent === undefined ? {} : { parent: header.parent }),
     ...(session.rollover && { rollover: session.rollover.value }),
@@ -524,14 +527,15 @@ function messagesOf(session: SessionState): {
   return { messages, writtenBy };
 }
 
-function foldedMarks(marks: MarkState): FoldedMarks {
+function foldedSettings(settings: SettingState): FoldedSettings {
   return {
-    ...(marks.archived && { archived: made(marks.archived.value) }),
-    ...(marks.starred && { starred: made(marks.starred.value) }),
-    ...(marks.stoppedAt && { stoppedAt: made(marks.stoppedAt.value) }),
-    ...(marks.title && { title: made(marks.title.value) }),
-    ...(marks.topic && { topic: made(marks.topic.value) }),
-    ...(marks.unread && { unread: made(marks.unread.value) }),
+    ...(settings.archived && { archived: made(settings.archived.value) }),
+    ...(settings.model && { model: made(settings.model.value) }),
+    ...(settings.starred && { starred: made(settings.starred.value) }),
+    ...(settings.stoppedAt && { stoppedAt: made(settings.stoppedAt.value) }),
+    ...(settings.title && { title: made(settings.title.value) }),
+    ...(settings.topic && { topic: made(settings.topic.value) }),
+    ...(settings.unread && { unread: made(settings.unread.value) }),
   };
 }
 
@@ -541,9 +545,12 @@ function headersOf(session: SessionState): Map<string, SessionHeader> {
   );
 }
 
-/** A mark as the person made it, apart from where in its file it is. */
-function made<M extends MarkRecord>({ seq: _seq, ...mark }: M): Omit<M, "seq"> {
-  return mark;
+/** A setting as it was set, apart from where in its file it is. */
+function made<M extends SettingRecord>({
+  seq: _seq,
+  ...setting
+}: M): Omit<M, "seq"> {
+  return setting;
 }
 
 /**

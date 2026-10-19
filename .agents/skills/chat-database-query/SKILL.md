@@ -9,7 +9,7 @@ A chat keeps its conversation in records now: one append-only JSONL file per ses
 
 ## A chat's records
 
-Each file is `<session>.<device>.jsonl`, one line per record, and the first line is the session's header (`t: "session"`, with `parent` and `handle` on a task's). After it come `message`, `part`, `state`, `retract`, `rollover` and `stopped` records, and a chat's marks (starred, archived, unread) are in `marks.<device>.jsonl` beside them. So `jq` answers most questions without any tool of ours:
+Each file is `<session>.<device>.jsonl`, one line per record, and the first line is the session's header (`t: "session"`, with `parent` and `handle` on a task's). After it come `message`, `part`, `state`, `retract`, `rollover` and `stopped` records, and a chat's settings (title, starred, archived, unread, topic, model) are `set` records in `settings.<device>.jsonl` beside them (`marks.<device>.jsonl` with `mark` records in older chats). So `jq` answers most questions without any tool of ours:
 
 ```bash
 # The sessions in a chat: the chat's own has no parent, each task names it.

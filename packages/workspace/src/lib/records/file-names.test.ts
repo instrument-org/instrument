@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   logFileName,
-  marksFileName,
+  settingsFileName,
   parseRecordFileName,
   type RecordFileName,
 } from "./file-names";
@@ -12,19 +12,24 @@ const session = sessionId(1);
 const log = `${session}.${DEVICE_A}`;
 
 describe("record file names", () => {
-  it("names a device's logs and marks", () => {
+  it("names a device's logs and settings", () => {
     expect([
       logFileName(session, DEVICE_A),
       logFileName(session, DEVICE_A, 2),
-      marksFileName(DEVICE_A),
-    ]).toEqual([`${log}.jsonl`, `${log}.2.jsonl`, `marks.${DEVICE_A}.jsonl`]);
+      settingsFileName(DEVICE_A),
+    ]).toEqual([
+      `${log}.jsonl`,
+      `${log}.2.jsonl`,
+      `settings.${DEVICE_A}.jsonl`,
+    ]);
   });
 
   it.each<[string, RecordFileName]>([
     [`${log}.jsonl`, logName(1)],
     [`${log}.2.jsonl`, logName(2)],
     [`${log}.12.jsonl`, logName(12)],
-    [`marks.${DEVICE_A}.jsonl`, { device: DEVICE_A, kind: "marks" }],
+    [`settings.${DEVICE_A}.jsonl`, { device: DEVICE_A, kind: "settings" }],
+    [`marks.${DEVICE_A}.jsonl`, { device: DEVICE_A, kind: "settings" }],
   ])("reads %s", (name, expected) => {
     expect(parseRecordFileName(name)).toEqual(expected);
   });
@@ -39,14 +44,14 @@ describe("record file names", () => {
     ],
     [
       "Dropbox, by case",
-      `marks.${DEVICE_A} (Case Conflict).jsonl`,
-      { copy: " (Case Conflict)", device: DEVICE_A, kind: "marks" },
+      `settings.${DEVICE_A} (Case Conflict).jsonl`,
+      { copy: " (Case Conflict)", device: DEVICE_A, kind: "settings" },
     ],
     ["OneDrive", `${log}-JEREMY-PC.jsonl`, logName(1, "-JEREMY-PC")],
     [
       "OneDrive, a Mac's name",
-      `marks.${DEVICE_A}-Jeremy's MacBook Pro.jsonl`,
-      { copy: "-Jeremy's MacBook Pro", device: DEVICE_A, kind: "marks" },
+      `settings.${DEVICE_A}-Jeremy's MacBook Pro.jsonl`,
+      { copy: "-Jeremy's MacBook Pro", device: DEVICE_A, kind: "settings" },
     ],
     [
       "Syncthing",
@@ -88,7 +93,7 @@ describe("record file names", () => {
   // many of the segments a copied name carries used to take minutes to
   // refuse, four times as long for every two more.
   it("refuses a name of many copy segments at once", () => {
-    const name = `marks.${DEVICE_A}${"-a".repeat(120)}.txt`;
+    const name = `settings.${DEVICE_A}${"-a".repeat(120)}.txt`;
     const started = performance.now();
 
     expect(parseRecordFileName(name)).toBeUndefined();

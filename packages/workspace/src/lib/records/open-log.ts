@@ -2,11 +2,16 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { type DeviceId } from "./device-id";
-import { logFileName, marksFileName, parseRecordFileName } from "./file-names";
-import { readLog, readMarks } from "./read-records";
+import {
+  formerSettingsFileName,
+  logFileName,
+  parseRecordFileName,
+  settingsFileName,
+} from "./file-names";
+import { readLog, readSettings } from "./read-records";
 import {
   type LogRecord,
-  type MarkRecord,
+  type SettingRecord,
   RECORD_FORMAT,
   type SessionHeader,
 } from "./record";
@@ -28,9 +33,9 @@ export interface LogWriter {
   cursor(): LogCursor;
 }
 
-export interface MarksWriter {
+export interface SettingsWriter {
   readonly path: string;
-  append(record: Unsequenced<MarkRecord>): Promise<number>;
+  append(record: Unsequenced<SettingRecord>): Promise<number>;
   commit(): Promise<void>;
 }
 
@@ -114,21 +119,43 @@ export async function openLog({
   });
 }
 
-/** Opens this device's marks file to append to. */
-export async function openMarks(
+/**
+ * Opens this device's settings file to append to. The file builds before
+ * kept under `marks.<device>.jsonl` takes the settings name first: this
+ * device is its only writer, and its lines are read the same under either
+ * name, so a fold that already took them takes them once.
+ */
+export async function openSettingsFile(
   dir: string,
   device: DeviceId,
   { onWrite }: { onWrite?: OnWrite } = {},
-): Promise<MarksWriter> {
+): Promise<SettingsWriter> {
   await fs.mkdir(dir, { recursive: true });
-  const file = path.join(dir, marksFileName(device));
+  const file = path.join(dir, settingsFileName(device));
+  await takeFormerName(path.join(dir, formerSettingsFileName(device)), file);
   const bytes = await readIfThere(file);
   return new RecordWriter(
     file,
-    "marks",
-    { bytes, lastSeq: readMarks(bytes).cursor.lastSeq },
+    "settings",
+    { bytes, lastSeq: readSettings(bytes).cursor.lastSeq },
     { onWrite },
   );
+}
+
+/** Renames a file to `to` when `to` is not there yet and the file is. */
+async function takeFormerName(from: string, to: string): Promise<void> {
+  if ((await readIfThere(to)).length > 0) {
+    return;
+  }
+  try {
+    await fs.rename(from, to);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+  await syncDirectory(path.dirname(to));
 }
 
 type OwnLogName = { generation: number; name: string; stem: string };

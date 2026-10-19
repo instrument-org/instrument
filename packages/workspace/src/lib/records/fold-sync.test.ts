@@ -11,7 +11,7 @@ import {
 } from "./fake-sync";
 import { logFileName, parseRecordFileName } from "./file-names";
 import { ChatFold, type FoldedSession, foldChat, historyOf } from "./fold";
-import { type MarkRecord } from "./record";
+import { type SettingRecord } from "./record";
 import { createRandom, type Random } from "./seeded-random";
 import { DEVICE_A, sessionId } from "./test-records";
 
@@ -159,7 +159,7 @@ describe("the fold, over a fake sync engine", { timeout: 30_000 }, () => {
           messageIdsOf(model),
         );
         expect(session.updatedAt.getTime()).toBe(model.updatedAt);
-        expect(session.marks).toEqual(marksOf(marks, session.id));
+        expect(session.settings).toEqual(settingsOf(marks, session.id));
         if (!session.forked) {
           expect(written(session)).toEqual(expectedOf(model));
         }
@@ -282,11 +282,11 @@ function written(session: FoldedSession) {
 }
 
 /** The winning mark of each field: settled titles first, then the newest, then the larger device id. */
-function marksOf(marks: MarkRecord[], session: StoreId.Session) {
-  const winners: Partial<Record<MarkRecord["field"], MarkRecord>> = {};
-  const rank = (mark: MarkRecord) =>
+function settingsOf(marks: SettingRecord[], session: StoreId.Session) {
+  const winners: Partial<Record<SettingRecord["field"], SettingRecord>> = {};
+  const rank = (mark: SettingRecord) =>
     [
-      mark.field === "title" && mark.value.settled ? 1 : 0,
+      mark.field === "title" && !mark.value.auto ? 1 : 0,
       mark.at.getTime(),
       mark.device,
       mark.seq,

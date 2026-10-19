@@ -7,8 +7,12 @@ import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../../constants";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { logFileName, marksFileName } from "../records/file-names";
-import { type LogRecord, type MarkRecord, recordLine } from "../records/record";
+import { logFileName, settingsFileName } from "../records/file-names";
+import {
+  type LogRecord,
+  type SettingRecord,
+  recordLine,
+} from "../records/record";
 import {
   assistantMessage,
   at,
@@ -74,7 +78,7 @@ async function writeChat(
   const session = sessionId(1);
   const dir = path.join(chatsDir(), chatId);
   await fs.mkdir(dir, { recursive: true });
-  const write = (name: string, records: (LogRecord | MarkRecord)[]) =>
+  const write = (name: string, records: (LogRecord | SettingRecord)[]) =>
     fs.writeFile(path.join(dir, name), records.map(recordLine).join(""));
   await write(logFileName(session, DEVICE_A, 1), [
     { ...header(0, { device: DEVICE_A, id: session }), chat: chatId },
@@ -87,15 +91,15 @@ async function writeChat(
     ),
   ]);
   if (title !== undefined) {
-    await write(marksFileName(DEVICE_A), [
+    await write(settingsFileName(DEVICE_A), [
       {
-        t: "mark",
+        t: "set",
         seq: 0,
         at: at(60),
         device: DEVICE_A,
         field: "title",
         session,
-        value: { settled: true, text: title },
+        value: { auto: false, text: title },
       },
     ]);
   }

@@ -5,11 +5,11 @@ import path from "node:path";
 import { type StoreId } from "../../schemas/store-id";
 import { type DeviceId } from "./device-id";
 import { parseRecordFileName } from "./file-names";
-import { readLog, readMarks } from "./read-records";
+import { readLog, readSettings } from "./read-records";
 
 /**
  * Noticing what another device's files bring to the workspace's chats while
- * the app runs: its logs and marks files growing, a log or a chat it
+ * the app runs: its logs and settings files growing, a log or a chat it
  * started, a chat's `settings.json` it wrote. A sync engine puts them in the
  * record folders behind the app's back, and nothing else here reads a chat's
  * folder again once it is folded.
@@ -45,7 +45,7 @@ export interface Arrival {
   }[];
   /** A folder this process had not seen before: a chat another device started. */
   new: boolean;
-  /** Records other than a message's arrived: a header, a stop, a mark, a file gone. */
+  /** Records other than a message's arrived: a header, a stop, a setting, a file gone. */
   session: boolean;
   /** Its `settings.json` changed. */
   settings: boolean;
@@ -71,7 +71,7 @@ interface RecordArrivalsOptions {
 /** What the last look saw of one file. */
 interface Seen {
   mtimeMs: number;
-  /** How far its records were read, for another device's log or marks file. */
+  /** How far its records were read, for another device's log or settings file. */
   offset: number;
   size: number;
 }
@@ -305,7 +305,7 @@ export class RecordArrivals {
     }
     const cursor = { lastSeq: -1, offset: from };
     if (parsed?.kind !== "log") {
-      const read = readMarks(bytes, cursor);
+      const read = readSettings(bytes, cursor);
       if (read.records.length > 0) {
         arrival.session = true;
       }
@@ -347,7 +347,7 @@ export class RecordArrivals {
     return read.cursor.offset;
   }
 
-  /** Whether a look reads this file: another device's log or marks, or the settings. */
+  /** Whether a look reads this file: another device's log or settings file, or `settings.json`. */
   #looksAt(name: string): boolean {
     if (name === SETTINGS_FILE_NAME) {
       return true;

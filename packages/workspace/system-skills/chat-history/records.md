@@ -15,11 +15,12 @@ A chat's folder holds JSON Lines files, one record per line, with `t` naming the
     - `session-context`: what the app told you at the start, the same in every chat and no part of the conversation
     - `system`: a note the app added for you
     - `user`: the user
-- `marks.<device>.jsonl`: `mark` records, the newest of each `field` standing:
+- `settings.<device>.jsonl`: `set` records, one per change a device made to a session, the newest of each `session` and `field` standing (`marks.<device>.jsonl` from older builds, with `mark` records, reads the same):
   - `archived`: whether it is archived
+  - `model`: the model the chat runs on, as a model URI, set on the chat's own session
   - `starred`: whether it is starred
   - `stoppedAt`: when the user stopped its turn
-  - `title`: its title, in `value.text`
-  - `topic`: its topic id, the `id` in the topic's `TOPIC.md`, or `null` for none. An older `topics` mark lists ids, and its first is the topic
-  - `unread`: whether it is unread
+  - `title`: its title, in `value.text`; `value.auto` is true while the app may still rename it
+  - `topic`: its topic id, the `id` in the topic's `TOPIC.md`, or `null` for none
+  - `unread`: `new` or `marked` (the user marked it) while unread, `null` once read
 - `blobs/`: bytes a tool returned, which its part names in a `blob` field (`sha256-<hex>.<ext>`).

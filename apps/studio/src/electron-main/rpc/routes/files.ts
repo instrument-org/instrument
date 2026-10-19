@@ -176,6 +176,66 @@ const duplicate = base
   });
 
 /**
+ * Copies things into a folder, the way a drop or a paste in the Finder does:
+ * each keeps its name where that is free, and is otherwise named the way the
+ * system's file manager names a copy. A folder is copied whole, but never
+ * into itself or anything inside it. The copies made are one journal entry,
+ * so one ⌘Z takes back the whole drop or paste.
+ */
+const copyInto = base
+  .errors({
+    CANNOT_WRITE: { message: "That folder cannot be written to" },
+    INTO_ITSELF: { message: "A folder can’t be copied into itself" },
+  })
+  .input(
+    z.object({
+      folder: HostPathSchema,
+      paths: z.array(HostPathSchema).min(1).max(1000),
+    }),
+  )
+  .output(z.object({ paths: z.array(z.string()) }))
+  .handler(async ({ errors, input }) => {
+    const folder = path.resolve(input.folder);
+    for (const from of input.paths) {
+      const inside = path.relative(path.resolve(from), folder);
+      if (!inside.startsWith("..") && !path.isAbsolute(inside)) {
+        throw errors.INTO_ITSELF();
+      }
+    }
+    const made: { identity: Identity; path: string }[] = [];
+    try {
+      for (const from of input.paths) {
+        const extension = path.extname(from);
+        const stem = path.basename(from, extension);
+        const copy = await freePath(
+          folder,
+          (n) => (n === 1 ? stem : copyName(OS, stem, n - 1)),
+          extension,
+        );
+        await fs.cp(from, copy, {
+          errorOnExist: true,
+          force: false,
+          recursive: true,
+        });
+        const identity = await identityOf(copy);
+        if (identity) {
+          made.push({ identity, path: copy });
+        }
+      }
+    } catch (error) {
+      throw errors.CANNOT_WRITE({
+        message: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      // What was copied before a failure is still taken back by ⌘Z.
+      if (made.length > 0) {
+        fileJournal.record({ kind: "copy", made });
+      }
+    }
+    return { paths: made.map((each) => each.path) };
+  });
+
+/**
  * Puts a file an editor was given (a picture, a PDF) into the folder of the
  * file it is editing, so the file can name it by a relative path: a file
  * already in that folder or below it is answered as it is, one from anywhere
@@ -297,8 +357,8 @@ async function record(
 }
 
 /**
- * Takes back the newest action in the journal: a rename, a duplicate, a new
- * folder, or a move to the Trash. One that cannot be taken back safely is
+ * Takes back the newest action in the journal: a rename, a duplicate, a
+ * copy, a new folder, or a move to the Trash. One that cannot be taken back safely is
  * refused with the reason. While the person can still clear the way
  * (something has taken its name, a new folder has been filled) it stays in
  * the journal, so nothing older is undone out of order behind it; one that
@@ -318,7 +378,7 @@ const undo = base
   .input(z.object({ journalId: z.string().optional() }).optional())
   .output(
     z.object({
-      kind: z.enum(["duplicate", "new-folder", "rename", "trash"]),
+      kind: z.enum(["copy", "duplicate", "new-folder", "rename", "trash"]),
       /** Whether what was put back is a folder. */
       isFolder: z.boolean(),
       /** The entry taken back, so whatever offered to undo it can go. */
@@ -570,6 +630,7 @@ const live = {
 
 export const files = {
   addFile,
+  copyInto,
   duplicate,
   live,
   missing,

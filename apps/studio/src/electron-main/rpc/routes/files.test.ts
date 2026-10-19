@@ -261,3 +261,82 @@ it("links a picture below the folder in place and copies one from elsewhere besi
   expect(await fs.readFile(copied.path, "utf8")).toBe("outside");
   expect(await fs.readFile(pasted.path, "utf8")).toBe("bytes");
 });
+
+it("copies into a folder under each name, numbering what is taken the way the system names a copy", async () => {
+  const from = path.join(dir, "from");
+  const into = path.join(dir, "into");
+  await fs.mkdir(path.join(from, "photos"), { recursive: true });
+  await fs.mkdir(into);
+  await fs.writeFile(path.join(from, "notes.txt"), "notes");
+  await fs.writeFile(path.join(from, "photos", "a.jpg"), "a");
+  await fs.writeFile(path.join(into, "notes.txt"), "already here");
+
+  const copied = await call(
+    files.copyInto,
+    {
+      folder: into,
+      paths: [path.join(from, "notes.txt"), path.join(from, "photos")],
+    },
+    options,
+  );
+
+  expect(copied.paths.map((each) => path.relative(dir, each))).toEqual(
+    process.platform === "darwin"
+      ? ["into/notes copy.txt", "into/photos"]
+      : [expect.stringMatching(/^into\/notes.*copy.*\.txt$/i), "into/photos"],
+  );
+  expect(await fs.readFile(path.join(into, "notes.txt"), "utf8")).toBe(
+    "already here",
+  );
+  expect(await fs.readFile(path.join(into, "photos", "a.jpg"), "utf8")).toBe(
+    "a",
+  );
+});
+
+it("refuses to copy a folder into itself or anything inside it", async () => {
+  const folder = path.join(dir, "folder");
+  await fs.mkdir(path.join(folder, "inner"), { recursive: true });
+
+  for (const into of [folder, path.join(folder, "inner")]) {
+    await expect(
+      call(files.copyInto, { folder: into, paths: [folder] }, options),
+    ).rejects.toMatchObject({ code: "INTO_ITSELF" });
+  }
+});
+
+it("takes back a whole copy with one undo, and none of it once a copy has changed", async () => {
+  const { shell } = await import("electron");
+  shell.trashItem = (at: string) => fs.rm(at, { recursive: true });
+  const into = path.join(dir, "into");
+  await fs.mkdir(into);
+  const sources = ["a.txt", "b.txt"].map((name) => path.join(dir, name));
+  for (const source of sources) {
+    await fs.writeFile(source, source);
+  }
+
+  const first = await call(
+    files.copyInto,
+    { folder: into, paths: sources },
+    options,
+  );
+  expect(await call(files.undo, undefined, options)).toMatchObject({
+    kind: "copy",
+    path: null,
+  });
+  for (const copy of first.paths) {
+    await expect(fs.stat(copy)).rejects.toThrow();
+  }
+
+  const second = await call(
+    files.copyInto,
+    { folder: into, paths: sources },
+    options,
+  );
+  const [moved] = second.paths;
+  if (moved === undefined) throw new Error("nothing was copied");
+  await fs.rename(moved, path.join(into, "renamed.txt"));
+  await expect(call(files.undo, undefined, options)).rejects.toThrow(
+    "“a.txt” has been moved or replaced since it was copied.",
+  );
+  expect(await fs.readdir(into)).toEqual(["b.txt", "renamed.txt"]);
+});

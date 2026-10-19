@@ -23,12 +23,18 @@ import path from "node:path";
  */
 export type Identity = { dev: number; ino: string };
 
-export type JournalEntry = { at: number; id: string; identity: Identity } & (
-  | { from: string; kind: "rename"; to: string }
-  | { kind: "duplicate"; made: string }
-  | { kind: "new-folder"; made: string }
+export type JournalEntry = { at: number; id: string } & (
+  | { from: string; identity: Identity; kind: "rename"; to: string }
+  | { identity: Identity; kind: "duplicate"; made: string }
+  | {
+      kind: "copy";
+      /** Each copy made into the folder, by where it was made and what it was. */
+      made: { identity: Identity; path: string }[];
+    }
+  | { identity: Identity; kind: "new-folder"; made: string }
   | {
       from: string;
+      identity: Identity;
       kind: "trash";
       /** Where it landed in the Trash, or null when the Trash could not be read to find it. */
       trashed: null | string;
@@ -484,6 +490,23 @@ export async function undoEntry(
       }
       await trash(entry.made);
       return { already: false, path: null };
+    case "copy": {
+      // All of them or none: a copy moved or replaced since is the
+      // person's now, and taking back the rest would leave the paste half
+      // undone.
+      for (const made of entry.made) {
+        if (!sameIdentity(await identityOf(made.path), made.identity)) {
+          throw new UndoRefusedError(
+            `${nameOf(made.path)} has been moved or replaced since it was copied.`,
+            { permanent: true },
+          );
+        }
+      }
+      for (const made of entry.made) {
+        await trash(made.path);
+      }
+      return { already: false, path: null };
+    }
     case "new-folder": {
       if (!sameIdentity(await identityOf(entry.made), entry.identity)) {
         throw new UndoRefusedError(

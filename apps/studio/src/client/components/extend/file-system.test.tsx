@@ -678,6 +678,34 @@ describe("FileSystem", () => {
     });
   });
 
+  it("opens in the list the folders it is told are open, and says when one closes", () => {
+    const onOpenFolderChange = vi.fn();
+    const items: FileSystemItem[] = [
+      { kind: "folder", path: "drafts/" },
+      { kind: "file", path: "drafts/report.txt" },
+      { kind: "file", path: "notes.txt" },
+    ];
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={items}
+        onOpenFolderChange={onOpenFolderChange}
+        openFolders={new Set(["drafts/"])}
+      />,
+    );
+    const names = () =>
+      screen
+        .getAllByRole("option")
+        .map((option) => option.textContent?.split("--")[0] ?? "");
+
+    expect(names()).toEqual(["drafts", "report.txt", "notes.txt"]);
+    const drafts = screen.getByRole("option", { name: /^drafts/ });
+    fireEvent.click(drafts);
+    fireEvent.keyDown(drafts, { key: "ArrowLeft" });
+
+    expect(onOpenFolderChange.mock.calls).toEqual([["drafts/", false]]);
+  });
+
   describe("searching", () => {
     const FOLDERS: FileSystemItem[] = [
       { kind: "folder", path: "drafts/" },

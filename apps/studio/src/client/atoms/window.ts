@@ -271,6 +271,18 @@ export const computerFolderViewsAtom = keptAtom<
   Record<string, ComputerFolderView>
 >("view", "computer-folder-views.v1", {});
 
+/**
+ * The folders opened in place in the list, by where each is on the
+ * computer, newest last. One set for every Finder, the way the Finder keeps
+ * them: a folder stands open wherever a list shows it, in any tab or window,
+ * reached any way, until it is closed.
+ */
+export const computerOpenFoldersAtom = keptAtom<string[]>(
+  "view",
+  "computer-open-folders.v1",
+  [],
+);
+
 export interface ComputerFolderView {
   /** Absent for a folder last set before grouping, which is ungrouped. */
   group?: FileSystemGroupKey | null;

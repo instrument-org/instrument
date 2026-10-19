@@ -180,6 +180,12 @@ export type FileSystemProps = {
   contextMenuPath?: null | string;
   /** Folder prefix to open initially, e.g. `"invoices/"`. */
   defaultPath?: string;
+  /**
+   * The folders the list shows opened in place, by path, when the caller
+   * holds the answer. Left out, the browser keeps its own for each folder it
+   * stands in, for as long as it is mounted.
+   */
+  openFolders?: ReadonlySet<string>;
   /** What the toolbar search opens with typed in it. */
   defaultSearch?: string;
   /** The item selected on opening, by path, e.g. `"invoices/march.pdf"`. */
@@ -307,6 +313,8 @@ export type FileSystemProps = {
    * what was typed, so a name that could not be used is not lost.
    */
   onRenameCommit?: (item: FileSystemItem, name: string) => Promise<void> | void;
+  /** A folder opened or closed in place in the list, by its path. */
+  onOpenFolderChange?: (path: string, open: boolean) => void;
   /** The search field's text changed, typed or cleared, or emptied by walking to a folder. */
   onSearchChange?: (search: string) => void;
   /**
@@ -1675,6 +1683,7 @@ export function FileSystem({
   onNewFolder,
   onOpenSeveral,
   onPathChange,
+  onOpenFolderChange,
   onRenameCommit,
   onSearchChange,
   onGroupChange,
@@ -1683,6 +1692,7 @@ export function FileSystem({
   onSortChange,
   onTrash,
   onViewChange,
+  openFolders,
   prefetchChildren,
   ref,
   renderFileActions,
@@ -2822,6 +2832,7 @@ export function FileSystem({
     selection,
     sort,
     treeExpansionRef,
+    ...(openFolders === undefined ? {} : { openFolders, onOpenFolderChange }),
   };
   // ⌘F focuses the toolbar search. Below 560px the field is in a popover,
   // outside the component, so a press with the caret already in it is ours too.
@@ -3574,6 +3585,9 @@ type FileSystemViewProps = {
   sort: FileSystemSortState;
   /** The list's open folders per folder on screen, surviving view switches. */
   treeExpansionRef: React.RefObject<Map<string, readonly string[]>>;
+  /** The caller's open folders, which take the place of `treeExpansionRef`'s. */
+  openFolders?: ReadonlySet<string>;
+  onOpenFolderChange?: (path: string, open: boolean) => void;
 };
 /** How a view's rows are walked by the keys the browser reads (`listingCommandOf`). */
 type ListingNav = {
@@ -4612,6 +4626,8 @@ function FileSystemListView({
   selection,
   sort,
   treeExpansionRef,
+  openFolders,
+  onOpenFolderChange,
 }: FileSystemViewProps) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const rowRefs = React.useRef(new Map<string, HTMLDivElement>());
@@ -4621,9 +4637,10 @@ function FileSystemListView({
   });
   // The folders left open here, kept by the browser per folder so walking
   // away and back, or to another layout and back, finds them open again.
-  const [expanded, setExpanded] = React.useState<ReadonlySet<string>>(
+  const [ownExpanded, setExpanded] = React.useState<ReadonlySet<string>>(
     () => new Set(treeExpansionRef.current.get(currentPath) ?? []),
   );
+  const expanded = openFolders ?? ownExpanded;
   const setExpandedFolders = (next: ReadonlySet<string>) => {
     setExpanded(next);
     treeExpansionRef.current.set(currentPath, [...next]);
@@ -4729,9 +4746,26 @@ function FileSystemListView({
       row.entry !== null,
   );
   const rowEntries = entryRows.map((row) => row.entry);
+  // A folder drawn open that was opened somewhere else (another window,
+  // another folder walked through) has its contents read as it is drawn.
+  const unreadOpen = rowEntries
+    .filter(
+      (entry) =>
+        entry.kind === "folder" &&
+        expanded.has(entry.path) &&
+        !index.children.get(entry.path)?.length,
+    )
+    .map((entry) => entry.path)
+    .join("\n");
+  React.useEffect(() => {
+    for (const path of unreadOpen.split("\n").filter(Boolean)) {
+      onExpandFolder(path);
+    }
+  }, [onExpandFolder, unreadOpen]);
   const toggleFolder = (folder: FolderEntry, open: boolean) => {
     if (open === expanded.has(folder.path)) return;
     const next = new Set(expanded);
+    onOpenFolderChange?.(folder.path, open);
     if (open) {
       next.add(folder.path);
       onExpandFolder(folder.path);

@@ -6,6 +6,7 @@ import {
   computerHiddenFilesAtom,
   computerListColumnsAtom,
   computerListColumnWidthsAtom,
+  computerOpenFoldersAtom,
   computerViewAtom,
   type FileTab,
   finderPlacesOpenAtom,
@@ -146,6 +147,7 @@ import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
  * back to opening the way a folder never set does.
  */
 const FOLDER_VIEWS_KEPT = 500;
+const OPEN_FOLDERS_KEPT = 500;
 
 /** Below this width, in CSS px (Tailwind's `@xl`), the places stand over the folder rather than beside it. */
 const NARROW_FINDER_PX = 576;
@@ -330,6 +332,9 @@ export function ComputerPage({
   // of no layout of its own opens in when arrived at directly.
   const [defaultView, setDefaultView] = useAtom(computerViewAtom);
   const [folderViews, setFolderViews] = useAtom(computerFolderViewsAtom);
+  const [openFolderPaths, setOpenFolderPaths] = useAtom(
+    computerOpenFoldersAtom,
+  );
   const [columnWidth, setColumnWidth] = useAtom(computerColumnWidthAtom);
   const [listColumns, setListColumns] = useAtom(computerListColumnsAtom);
   const [listColumnWidths, setListColumnWidths] = useAtom(
@@ -589,6 +594,29 @@ export function ComputerPage({
     ),
   );
   const itemsByPath = new Map(items.map((item) => [item.path, item]));
+  // The folders the list shows opened in place: every one listed here that
+  // was left open anywhere. The recents open nothing.
+  const openFolderSet = new Set(openFolderPaths);
+  const openFolders = new Set(
+    items.flatMap((item) =>
+      item.kind === "folder" && openFolderSet.has(hostPathOfItem(item))
+        ? [item.path]
+        : [],
+    ),
+  );
+  const changeOpenFolder = (folderPath: string, open: boolean) => {
+    const hostPath = hostPathOfItem(itemsByPath.get(folderPath));
+    if (!hostPath) {
+      return;
+    }
+    // Newest last, so the oldest are the ones let go of past the cap.
+    setOpenFolderPaths((previous) =>
+      [
+        ...previous.filter((kept) => kept !== hostPath),
+        ...(open ? [hostPath] : []),
+      ].slice(-OPEN_FOLDERS_KEPT),
+    );
+  };
   const selectedItem =
     selectedPath === null ? undefined : itemsByPath.get(selectedPath);
   const selectedItems = allSelectedPaths.flatMap((selected) => {
@@ -1977,6 +2005,7 @@ export function ComputerPage({
                 onListColumnsChange={setListColumns}
                 onListColumnWidthsChange={setListColumnWidths}
                 onPathChange={setCurrent}
+                onOpenFolderChange={isRecents ? undefined : changeOpenFolder}
                 onRenameCommit={rename}
                 onSearchChange={setSearchText}
                 onSelectionChange={(item, all) => {
@@ -2000,6 +2029,7 @@ export function ComputerPage({
                 onCopyPath={(picked) => void copyPaths(picked)}
                 onDuplicate={(picked) => void duplicate(picked)}
                 onTrash={(picked) => void trash(picked)}
+                openFolders={isRecents ? undefined : openFolders}
                 onViewChange={(next) => {
                   setDefaultView(next);
                   keepLook({

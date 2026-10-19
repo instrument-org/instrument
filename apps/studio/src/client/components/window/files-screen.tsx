@@ -28,6 +28,7 @@ import {
 } from "@/client/lib/computer-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
+import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn } from "@/client/lib/utils";
 import { useTheme } from "@/client/components/theme-provider";
 import { rpcClient } from "@/client/rpc/client";
@@ -303,13 +304,6 @@ export function FilesScreen({
     const [only] = picked;
     if (picked.length === 1 && only?.kind === "file" && only.path !== file) {
       showFile(only.path, { replace: true });
-    }
-  };
-  // A press on empty space in the folder is the one click that puts the
-  // file away and gives the folder its width back, as the × does.
-  const onBesideEmpty = () => {
-    if (isFileOpen) {
-      closeBeside();
     }
   };
   // A file arriving with no layout of its own, as one opened into a tab of
@@ -711,6 +705,27 @@ export function FilesScreen({
       <div className="flex h-full min-h-0 flex-col">
         <div
           className="@container/beside relative flex min-h-0 flex-1 overflow-hidden"
+          // Escape puts the file away, as the × does, when nothing in the
+          // tab answered it first: a field being typed in, or a menu or
+          // Quick Look, which sit outside this element.
+          onKeyDown={(event) => {
+            if (
+              event.key !== "Escape" ||
+              !isFileOpen ||
+              event.defaultPrevented ||
+              event.altKey ||
+              event.ctrlKey ||
+              event.metaKey ||
+              event.shiftKey ||
+              !(event.target instanceof Node) ||
+              !event.currentTarget.contains(event.target) ||
+              isTypingTarget(event.target)
+            ) {
+              return;
+            }
+            event.preventDefault();
+            closeBeside();
+          }}
           ref={setLayout}
         >
           <div
@@ -730,7 +745,6 @@ export function FilesScreen({
                       isClosing,
                       isFolderShown,
                       isResizing: draggedWidth !== null,
-                      onEmpty: onBesideEmpty,
                       onPick: onBesidePick,
                       pickedInto: pickedSlot,
                       toggle: (

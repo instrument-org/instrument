@@ -287,8 +287,6 @@ export function ComputerPage({
     isClosing: boolean;
     isFolderShown: boolean;
     isResizing: boolean;
-    /** A press on empty space in the folder, which puts the file away. */
-    onEmpty: () => void;
     /** Everything picked, a folder the columns stand in included, whenever it changes. */
     onPick: (picked: ChosenItem[]) => void;
     /** Where Ask and the menu for several picked go, in the file's section of the row. */
@@ -2191,7 +2189,6 @@ export function ComputerPage({
                   ? {}
                   : {
                       besideWidth: beside.width,
-                      onEmptyPress: beside.onEmpty,
                     })}
                 {...(toolsInRow
                   ? {

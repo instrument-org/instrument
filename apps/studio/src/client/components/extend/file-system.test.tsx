@@ -706,6 +706,18 @@ describe("FileSystem", () => {
     expect(onOpenFolderChange.mock.calls).toEqual([["drafts/", false]]);
   });
 
+  it("says how many items the folder lists and how many are selected", () => {
+    const { row } = renderList();
+    const status = () =>
+      document.querySelector("[data-file-system-status]")?.textContent;
+
+    expect(status()).toBe("5 items");
+    fireEvent.click(row("a.txt"));
+    expect(status()).toBe("1 of 5 selected");
+    fireEvent.click(row("c.txt"), { metaKey: true });
+    expect(status()).toBe("2 of 5 selected");
+  });
+
   describe("searching", () => {
     const FOLDERS: FileSystemItem[] = [
       { kind: "folder", path: "drafts/" },

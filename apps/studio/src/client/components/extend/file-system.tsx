@@ -3408,6 +3408,21 @@ export function FileSystem({
           <FileSystemGalleryView {...viewProps} />
         )}
       </div>
+      {currentUnreadable === null &&
+      !(isLoadingCurrentFolder && currentEntries.length === 0) ? (
+        <FileSystemStatusBar
+          count={
+            (
+              sortedIndex.children.get(
+                view === "columns" && selectedPath !== null
+                  ? pathParent(selectedPath)
+                  : currentPath,
+              ) ?? []
+            ).length
+          }
+          selected={selectedPaths.length}
+        />
+      ) : null}
       <Dialog
         onOpenChange={(open) => {
           if (!open) setOpenedFile(null);
@@ -3941,6 +3956,32 @@ function useSlowLoads(loading: ReadonlySet<string>, ms = LOADER_DELAY_MS) {
   return React.useMemo(
     () => new Set([...slow].filter((path) => loading.has(path))),
     [loading, slow],
+  );
+}
+/**
+ * How many things the folder on screen lists, and how many of them are
+ * selected, along the bottom as the Finder's status bar says it. In the
+ * columns the folder is the column the selection is in; in the list, it is
+ * the folder's own items, not what is open in place under them.
+ */
+function FileSystemStatusBar({
+  count,
+  selected,
+}: {
+  count: number;
+  selected: number;
+}) {
+  return (
+    <div
+      className="flex h-6 shrink-0 items-center justify-center border-t px-3 text-xs text-muted-foreground tabular-nums"
+      data-file-system-status=""
+    >
+      <span className="truncate">
+        {selected > 0
+          ? `${selected} of ${count} selected`
+          : `${count} ${count === 1 ? "item" : "items"}`}
+      </span>
+    </div>
   );
 }
 function FileSystemEmptyState({

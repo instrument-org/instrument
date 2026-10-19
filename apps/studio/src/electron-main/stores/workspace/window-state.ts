@@ -30,9 +30,6 @@ interface WindowState {
   isMaximized: boolean;
 }
 
-const DEFAULT_WIDTH = 1400;
-const DEFAULT_HEIGHT = 900;
-
 // Full containment is too strict for multi-display restores; users can leave a
 // window slightly over an edge and still expect that position to be restored.
 const MIN_VISIBLE_PX = 100;
@@ -82,7 +79,7 @@ export function getAppZoom() {
  */
 export function getWindowState(
   name: WindowStateName,
-  size?: { height: number; width: number },
+  size: { height: number; width: number },
 ) {
   const stored = getStore().store.windows?.[name];
   const defaults = getDefaultState(size);
@@ -156,7 +153,7 @@ export function shrinkBelowAutoMaximize(bounds: WindowBounds) {
 
 function ensureWindowVisible(
   state: WindowState,
-  size?: { height: number; width: number },
+  size: { height: number; width: number },
 ) {
   if (!isWindowBoundsVisible(state.bounds)) {
     const defaultState = getDefaultState(size);
@@ -176,13 +173,14 @@ function ensureWindowVisible(
   return state;
 }
 
-function getDefaultState(size?: {
+function getDefaultState({
+  height,
+  width,
+}: {
   height: number;
   width: number;
 }): WindowState {
   const primaryDisplay = screen.getPrimaryDisplay();
-  const height = size?.height ?? DEFAULT_HEIGHT;
-  const width = size?.width ?? DEFAULT_WIDTH;
   return {
     bounds: {
       height,

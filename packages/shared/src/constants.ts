@@ -124,6 +124,8 @@ export const WINDOWS_SANDBOX_URL = `${APP_REPO_URL}/blob/main/docs/architecture/
 // What the sandbox-off warning on macOS and Linux links to, written for the
 // person who sees it.
 export const SANDBOX_OFF_URL = `${APP_REPO_URL}/blob/main/docs/architecture/native-sandbox-off.md`;
+// What the notice for web pages running without Chromium's sandbox links to.
+export const BROWSER_SANDBOX_OFF_URL = `${SANDBOX_OFF_URL}#when-web-pages-have-no-sandbox`;
 export const SKILLS_MARKETPLACE_URL = "https://skills.sh";
 export const X_HANDLE = "@tryinstrument";
 export const X_URL = `https://x.com/${X_HANDLE}`;

@@ -24,6 +24,12 @@ You can choose to run them anyway, with the switch in that warning in Settings â
 
 After you change something, quit Instrument and open it again so it checks again.
 
+## When web pages have no sandbox
+
+The in-app browser has a sandbox of its own, separate from the one above. Chromium, the engine Instrument's browser is built on, runs every web page in a process that can't reach your files or start programs, so a harmful page that finds a bug in the browser stays trapped there.
+
+Instrument's AppImage starts without that sandbox when Linux blocks the kernel feature it needs, which Ubuntu does for apps it hasn't been told about. Instrument then shows a notice saying so. Pages still load and work, but a page that broke out of the browser could reach anything your account can. Installing Instrument from the `.deb` package fixes it on Ubuntu, since the package installs the setting Chromium needs.
+
 ## For developers
 
 The check runs once per process, the first time a native command or the Permissions page needs it (`native-sandbox/probe.ts`). It starts a program that does nothing under the sandbox. If that works, every native command runs sandboxed. If it fails, the system's own settings decide what happens next, never the probe's error text:
@@ -35,3 +41,5 @@ The check runs once per process, the first time a native command or the Permissi
 Wherever no sandbox holds a native command, `wrapNativeCommand` refuses it with `NativeSandboxUnavailableError`, unless the person turned on "Run programs without a sandbox" (the machine preference `runProgramsWithoutSandbox`, reaching the workspace and the bash worker as `programsWithoutSandbox` in the config). Windows, which has no sandbox until MXC holds its commands, keeps running them unwrapped, as Settings says there.
 
 `nativeSandboxOff` in `native-sandbox/index.ts` names the reason, which the Permissions view carries as `sandboxOff`. Settings â€º Permissions shows it with the switch, and on macOS and Linux the notifications bell carries a notice for it (`sandboxOffNotice` in `apps/studio/src/electron-main/lib/notices.ts`): critical until the person decides, so it toasts, stays until closed and keeps the bell's dot red, and quiet once they chose to run programs anyway. `simulateSandboxOff`, reached through the debug RPC, reports a reason without changing what holds a command, so the warnings can be checked on a computer whose sandbox works.
+
+The browser's notice comes from `chromiumSandboxOff` in `apps/studio/src/electron-main/lib/chromium-sandbox.ts`: an AppImage (`APPIMAGE` set) started with `--no-sandbox`, which electron-builder's AppRun adds when `unshare -Ur true` fails. `debug.trigger.simulateChromiumSandboxOff` shows it anywhere.

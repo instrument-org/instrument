@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { env, prefs, sandbox, userData, workspace } = vi.hoisted(() => ({
   env: { version: "2.0.0-beta.58" },
   workspace: { defaultModelURI: undefined as string | undefined },
-  sandbox: { off: undefined as string | undefined },
+  sandbox: { browser: false, off: undefined as string | undefined },
   prefs: {
     releaseChannel: undefined as string | undefined,
     runAnyway: false,
@@ -29,6 +29,9 @@ vi.mock("electron", () => ({
 // The real check probes this computer's sandbox, which differs by machine.
 vi.mock("@instrument-org/workspace/electron", () => ({
   nativeSandboxOff: () => sandbox.off,
+}));
+vi.mock("./chromium-sandbox", () => ({
+  chromiumSandboxOff: () => sandbox.browser,
 }));
 vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
@@ -92,6 +95,7 @@ describe("notices", () => {
     workspace.defaultModelURI = undefined;
     prefs.runAnyway = false;
     sandbox.off = undefined;
+    sandbox.browser = false;
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
     vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", "https://api.example");
@@ -212,6 +216,19 @@ describe("notices", () => {
     expect(notices.claimNoticeToast("loud")).toBe(false);
     expect(notices.claimNoticeToast("louder")).toBe(false);
     expect(notices.claimNoticeToast("also-loud")).toBe(true);
+  });
+
+  it("says where to get a build whose web pages are sandboxed", async () => {
+    const notices = await load();
+    sandbox.browser = true;
+    const [warning] = notices.listNotices();
+    expect(warning).toMatchObject({
+      action: { label: "Learn more" },
+      kind: "security",
+      severity: "important",
+      title: "Web pages in the browser aren't sandboxed",
+    });
+    expect(warning?.body).toContain(".deb package");
   });
 
   it("toasts a notice the app makes itself", async () => {

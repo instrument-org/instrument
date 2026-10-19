@@ -13,9 +13,13 @@ import {
   type SignedOutAccount,
   type SignInAccountType,
 } from "@/shared/notices";
-import { SANDBOX_OFF_COPY } from "@/shared/sandbox-off";
+import { chromiumSandboxOff } from "@/electron-main/lib/chromium-sandbox";
+import {
+  BROWSER_SANDBOX_OFF_COPY,
+  SANDBOX_OFF_COPY,
+} from "@/shared/sandbox-off";
 import { modelNameFromURI, readModelURI } from "@instrument-org/ai-gateway";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, BROWSER_SANDBOX_OFF_URL } from "@instrument-org/shared";
 import {
   nativeSandboxOff,
   type SandboxOff,
@@ -142,6 +146,9 @@ export function listNotices(now = Date.now()): BellNotice[] {
   const off = nativeSandboxOff();
   if (off && off !== "windows") {
     all.push(sandboxOffNotice(off));
+  }
+  if (chromiumSandboxOff()) {
+    all.push(browserSandboxOffNotice());
   }
   const { chatsLeftBehind, missingFolders } = getNoticesStore().store;
   if (missingFolders) {
@@ -283,6 +290,24 @@ export function noteSignedOut(
   if (sorted(next) !== sorted(held)) {
     getNoticesStore().set("signedOut", next);
   }
+}
+
+/**
+ * The notice for web pages in the browser running without Chromium's
+ * sandbox, which the AppImage starts without where Linux blocks it. Nothing
+ * in the app turns it back on, so it says where to get a build that has it,
+ * toasts once per build and stays in the bell.
+ */
+function browserSandboxOffNotice(): Omit<BellNotice, "seen"> {
+  return {
+    action: { label: "Learn more", url: BROWSER_SANDBOX_OFF_URL },
+    body: BROWSER_SANDBOX_OFF_COPY.notice,
+    id: `browser-sandbox-off-${app.getVersion()}`,
+    kind: "security",
+    publishedAt: LAUNCHED_AT,
+    severity: "important",
+    title: BROWSER_SANDBOX_OFF_COPY.title,
+  };
 }
 
 /**

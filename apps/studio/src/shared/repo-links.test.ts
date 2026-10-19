@@ -13,7 +13,7 @@ const BLOB_MAIN = `${shared.APP_REPO_URL}/blob/main/`;
  */
 const links = Object.entries(shared).flatMap(([name, value]) =>
   typeof value === "string" && value.startsWith(BLOB_MAIN)
-    ? [{ file: value.slice(BLOB_MAIN.length), name }]
+    ? [{ file: value.slice(BLOB_MAIN.length).split("#")[0] ?? "", name }]
     : [],
 );
 

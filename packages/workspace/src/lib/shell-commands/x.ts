@@ -2,9 +2,10 @@ import {
   CLIENT_SESSION_ID_HEADER,
   getXSearchModel,
 } from "@instrument-org/ai-gateway";
-import { APICallError, streamText } from "ai";
+import { APICallError, generateText, Output } from "ai";
 import { defineCommand } from "just-bash";
 import { dedent } from "radashi";
+import { z } from "zod";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
@@ -19,18 +20,45 @@ export { X_COMMAND } from "./x-command";
 
 const NAME = X_COMMAND.name;
 
-const USAGE = `Usage: ${NAME} search "<query>" [--from <handle>] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--limit <n>]
+const DEFAULT_LIMIT = 10;
+const MAX_LIMIT = 50;
+/** Searches one command makes at most, each a request on the user's plan. */
+const MAX_PAGES = 5;
 
-  ${NAME} search "<query>"
-      Posts on X that answer the query, each with its author, date and link,
-      found by Grok on the user's Grok account.
+const USAGE = `Usage: ${NAME} search ["<words>"] [--from <handle>] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--limit <n>] [--json]
+
+  ${NAME} search "<words>"
+      Posts on X about the words, newest first, found by Grok on the user's
+      Grok account. The words say what the posts are about in plain language;
+      who, when and how many go in the flags, not in X's search operators.
+  ${NAME} search --from <handle>
+      That account's latest posts.
+
       --from <handle>   Only posts by this account (repeat for several).
       --since <date>    Only posts from this day on.
       --until <date>    Only posts up to this day.
-      --limit <n>       At most this many posts.
+      --limit <n>       At most this many posts (${String(DEFAULT_LIMIT)} unless given, up to ${String(MAX_LIMIT)}).
+      --json            Print the posts as a JSON array of
+                        {"handle", "date", "text", "url"} instead of text,
+                        to pipe into jq or save to a file.
+
+  Every post printed is one xAI's search returned and cited; its url is the
+  post's own. Each search is a request on the user's Grok plan.
 `;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+const PostsSchema = z.object({
+  posts: z.array(
+    z.object({
+      date: z.string().describe("When it was posted, YYYY-MM-DD."),
+      handle: z.string().describe("The author's handle, without the @."),
+      text: z.string().describe("The post's words exactly as written."),
+      url: z.string().describe("https://x.com/<handle>/status/<id>"),
+    }),
+  ),
+});
+type Post = z.output<typeof PostsSchema>["posts"][number];
 
 /** What `x` needs from the `bash` call it runs inside. */
 export interface XCommandContext {
@@ -42,7 +70,8 @@ export interface XCommandContext {
  * X search as a command rather than a tool: it is there in every shell on
  * every model, so the tool definitions a provider caches never change with
  * whether a Grok account is signed in, and a missing account, a usage limit
- * or a refusal reaches the agent as the reason it failed.
+ * or a refusal reaches the agent as the reason it failed. Its posts are data
+ * the agent can pipe and keep, which a tool's result is not.
  */
 export function createXCommand(context: XCommandContext) {
   return defineCommand(NAME, (args, ctx) => runX(args, context, ctx));
@@ -52,12 +81,14 @@ const runX = defineSubcommands<XCommandContext>({
   name: NAME,
   subcommands: {
     search: subcommand({
+      booleans: ["json"],
       flags: ["from", "limit", "since", "until"],
       repeatable: ["from"],
       run: (input, context, { signal }) =>
         search(
           {
             from: input.all("from"),
+            json: input.has("json"),
             limit: input.value("limit"),
             query: input.positional.join(" ").trim(),
             since: input.value("since"),
@@ -78,23 +109,24 @@ function instructions() {
     year: "numeric",
   });
   return dedent`
-    You look up posts on X now with x_search and report what you find. Today is ${today}. Never answer from memory, and never ask a question back: whoever asked cannot answer, so search with what you were given.
+    You find posts on X with x_search and return them as data. Today is ${today}. Never answer from memory, and never ask anything back: search with what you were given.
 
-    - Search once; search again only when the first results miss the query entirely. The filters given are already applied to x_search: "my" or "latest" in a query searched with an author filter means that author's newest posts.
-    - List the posts that answer the query, newest first: the author's handle, the date, the post's words as written, and its link (https://x.com/<handle>/status/<id>). Then, in a sentence or two, what they add up to when that helps.
-    - Leave out anything you did not find. When nothing matches, say so plainly.
+    - The author and date filters given are already applied to x_search. Search again when the posts found are fewer than the number asked for and there may be more, such as earlier ones; stop when you have that many or a search finds nothing new.
+    - Return the posts x_search found that fit, newest first, each with its author's handle, its date, its words exactly as written, and its link. Only posts x_search returned; none when nothing fits.
   `;
 }
 
 async function search(
   {
     from,
+    json,
     limit,
     query,
     since,
     until,
   }: {
     from: string[];
+    json: boolean;
     limit?: string;
     query: string;
     since?: string;
@@ -103,11 +135,19 @@ async function search(
   { chatId, sessionId }: XCommandContext,
   signal: AbortSignal | undefined,
 ) {
-  if (!query) {
-    throw new Error(`search: what to search for? ${USAGE}`);
+  const handles = from.map((handle) => handle.replace(/^@/, ""));
+  if (!query && handles.length === 0) {
+    throw new Error(
+      `search: what to search for? Give words, --from <handle>, or both.`,
+    );
   }
-  if (limit !== undefined && !/^[1-9]\d*$/.test(limit)) {
-    throw new Error(`--limit takes a number of posts, not "${limit}".`);
+  if (
+    limit !== undefined &&
+    (!/^[1-9]\d*$/.test(limit) || Number(limit) > MAX_LIMIT)
+  ) {
+    throw new Error(
+      `--limit takes a number of posts up to ${String(MAX_LIMIT)}, not "${limit}".`,
+    );
   }
   for (const [flag, value] of [
     ["since", since],
@@ -117,13 +157,70 @@ async function search(
       throw new Error(`--${flag} takes a day as YYYY-MM-DD, not "${value}".`);
     }
   }
+  const count = Number(limit ?? DEFAULT_LIMIT);
+  // One search answers with the newest page of posts however often it is
+  // repeated, so the next page is asked for as the posts up to the oldest day
+  // found so far, until there are enough or a page brings nothing new.
+  const posts: Post[] = [];
+  let before = until;
+  for (let page = 0; page < MAX_PAGES && posts.length < count; page++) {
+    const found = await searchOnce({
+      before,
+      chatId,
+      count: count - posts.length,
+      handles,
+      query,
+      sessionId,
+      signal,
+      since,
+    });
+    const seen = new Set(posts.map((post) => post.url));
+    const fresh = found.filter((post) => !seen.has(post.url));
+    if (fresh.length === 0) {
+      break;
+    }
+    posts.push(...fresh);
+    before = fresh.map((post) => post.date).toSorted()[0];
+  }
+  posts.sort((a, b) => b.date.localeCompare(a.date));
+  posts.splice(count);
+  if (json) {
+    return `${JSON.stringify(posts, null, 2)}\n`;
+  }
+  if (posts.length === 0) {
+    return "No posts found.\n";
+  }
+  return `${posts
+    .map((post) => `@${post.handle} · ${post.date}\n${post.text}\n${post.url}`)
+    .join("\n\n")}\n`;
+}
+
+/** One search of X, answering with the posts it cited. */
+async function searchOnce({
+  before,
+  chatId,
+  count,
+  handles,
+  query,
+  sessionId,
+  signal,
+  since,
+}: XCommandContext & {
+  /** `YYYY-MM-DD`, inclusive. */
+  before?: string;
+  count: number;
+  handles: string[];
+  query: string;
+  signal: AbortSignal | undefined;
+  since?: string;
+}): Promise<Post[]> {
   const workspaceConfig = getWorkspaceConfig();
   const resolved = await getXSearchModel({
     configs: workspaceConfig.getAIProviderConfigs(),
     fromDate: since,
-    handles: from.map((handle) => handle.replace(/^@/, "")),
+    handles,
     modelCache: workspaceConfig.modelCache,
-    toDate: until,
+    toDate: before,
     workspaceServerURL: getWorkspaceServerURL(),
   });
   if (!resolved.ok) {
@@ -132,25 +229,24 @@ async function search(
     );
   }
   const { config, model, tools } = resolved.value;
-  const handles = from.map((handle) => `@${handle.replace(/^@/, "")}`);
+  const authors = handles.map((handle) => `@${handle}`).join(", ");
   const prompt = [
-    `Search X for: ${query}`,
-    handles.length > 0 && `Only posts by ${handles.join(", ")}.`,
+    query ? `Posts about: ${query}` : `The latest posts by ${authors}.`,
+    query && handles.length > 0 && `Only posts by ${authors}.`,
     since && `Posted on or after ${since}.`,
-    until && `Posted on or before ${until}.`,
-    limit && `At most ${limit} posts.`,
+    before && `Posted on or before ${before}.`,
+    `At most ${String(count)} posts.`,
   ]
     .filter(Boolean)
     .join("\n");
 
-  const sources = new Map<string, string | undefined>();
-  let text = "";
   try {
-    const result = streamText({
+    const result = await generateText({
       abortSignal: signal,
       headers: { [CLIENT_SESSION_ID_HEADER]: sessionId },
       instructions: instructions(),
       model,
+      output: firstObjectOutput(),
       prompt,
       telemetry: activityTelemetry({
         chatId,
@@ -159,33 +255,79 @@ async function search(
         purpose: "x-search",
         sessionId,
       }),
-      toolChoice: "required",
       tools,
     });
-    for await (const part of result.stream) {
-      if (part.type === "error") {
-        throw part.error;
-      }
-      if (part.type === "text-delta") {
-        text += part.text;
-      } else if (part.type === "source" && part.sourceType === "url") {
-        sources.set(part.url, part.title);
-      }
-    }
+    return cited(
+      result.output.posts,
+      result.sources.flatMap((source) =>
+        source.sourceType === "url" ? [source.url] : [],
+      ),
+    );
   } catch (error) {
     throw new Error(refusal(error), { cause: error });
   }
+}
 
-  const links = [...sources].map(
-    ([url, title]) =>
-      `- ${title && title !== url ? `[${title}](${url})` : url}`,
-  );
-  return (
-    [
-      text.trim() || "Nothing found.",
-      ...(links.length > 0 ? ["", "Sources:", ...links] : []),
-    ].join("\n") + "\n"
-  );
+/**
+ * The posts as structured output, read from the first JSON object in the
+ * reply. xAI now and then sends its answer twice in one response, and the two
+ * copies arrive joined (`{...}{...}`), which is no JSON at all.
+ */
+function firstObjectOutput() {
+  const output = Output.object({ schema: PostsSchema });
+  return {
+    ...output,
+    parseCompleteOutput: (
+      { text }: { text: string },
+      context: Parameters<typeof output.parseCompleteOutput>[1],
+    ) => output.parseCompleteOutput({ text: firstObject(text) }, context),
+  };
+}
+
+/** The first complete top-level `{...}` in `text`, or the text as it is. */
+export function firstObject(text: string): string {
+  const start = text.indexOf("{");
+  if (start === -1) {
+    return text;
+  }
+  let depth = 0;
+  let inString = false;
+  for (let index = start; index < text.length; index++) {
+    const char = text[index];
+    if (inString) {
+      if (char === "\\") {
+        index++;
+      } else if (char === '"') {
+        inString = false;
+      }
+    } else if (char === '"') {
+      inString = true;
+    } else if (char === "{") {
+      depth++;
+    } else if (char === "}" && --depth === 0) {
+      return text.slice(start, index + 1);
+    }
+  }
+  return text;
+}
+
+/**
+ * The posts whose status the search cited, so every one printed is a post x_search
+ * returned rather than one the model wrote: a citation names the status by
+ * id (`x.com/i/status/<id>`), which a post's own link ends with.
+ */
+export function cited(posts: Post[], sources: string[]): Post[] {
+  const statusIds = new Set(sources.flatMap((url) => statusId(url) ?? []));
+  return posts.flatMap((post) => {
+    const id = statusId(post.url);
+    return id && statusIds.has(id)
+      ? [{ ...post, url: `https://x.com/${post.handle}/status/${id}` }]
+      : [];
+  });
+}
+
+function statusId(url: string): string | undefined {
+  return /\/status\/(\d+)/.exec(url)?.[1];
 }
 
 /** What went wrong, as the agent should hear it and pass on to the user. */

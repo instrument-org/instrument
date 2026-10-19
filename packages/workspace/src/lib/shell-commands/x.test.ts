@@ -1,5 +1,5 @@
-import { type LanguageModelV4StreamPart } from "@ai-sdk/provider";
-import { APICallError, simulateReadableStream } from "ai";
+import { type LanguageModelV4Content } from "@ai-sdk/provider";
+import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,16 +20,62 @@ const searched = (model: MockLanguageModelV4) => ({
   value: {
     config: { id: "grok-account", type: "grok-account" },
     model,
-    tools: {
-      x_search: {
-        args: {},
-        id: "xai.x_search",
-        inputSchema: { jsonSchema: {} },
-        type: "provider",
-      },
-    },
+    tools: {},
   },
 });
+
+const ANSWER = JSON.stringify({
+  posts: [
+    {
+      date: "2026-10-19",
+      handle: "sam",
+      text: "Shipped it. {not a brace that counts}",
+      url: "https://x.com/sam/status/111",
+    },
+    {
+      date: "2026-10-18",
+      handle: "sam",
+      text: "A post nobody cited.",
+      url: "https://x.com/sam/status/222",
+    },
+  ],
+});
+
+/** A search that found two posts and cited only the first. */
+function answering(
+  onPrompt?: (prompt: unknown) => void,
+  { doubled = false } = {},
+) {
+  const content: LanguageModelV4Content[] = [
+    {
+      id: "s1",
+      sourceType: "url",
+      type: "source",
+      url: "https://x.com/i/status/111",
+    },
+    // xAI now and then sends its answer twice, joined.
+    { text: doubled ? `${ANSWER}${ANSWER}` : ANSWER, type: "text" },
+  ];
+  return new MockLanguageModelV4({
+    doGenerate: (options) => {
+      onPrompt?.(options.prompt.at(-1)?.content);
+      return Promise.resolve({
+        content,
+        finishReason: { raw: "stop", unified: "stop" },
+        usage: {
+          inputTokens: {
+            cacheRead: undefined,
+            cacheWrite: undefined,
+            noCache: undefined,
+            total: 1,
+          },
+          outputTokens: { reasoning: undefined, text: undefined, total: 1 },
+        },
+        warnings: [],
+      });
+    },
+  });
+}
 
 function run(args: string[]) {
   return createXCommand({
@@ -51,86 +97,84 @@ beforeEach(() => {
 });
 
 describe("instrument x search", () => {
-  it("prints what Grok found, with each post's link once", async () => {
-    let prompt: unknown;
+  it("prints an account's latest posts that the search cited, paging back until nothing is new", async () => {
+    const prompts: unknown[] = [];
     getXSearchModel.mockResolvedValue(
-      searched(
-        new MockLanguageModelV4({
-          doStream: (options) => {
-            prompt = options.prompt.at(-1)?.content;
-            return Promise.resolve({
-              stream: simulateReadableStream({
-                chunks: [
-                  {
-                    input: "{}",
-                    providerExecuted: true,
-                    toolCallId: "c",
-                    toolName: "x_search",
-                    type: "tool-call",
-                  },
-                  {
-                    result: {},
-                    toolCallId: "c",
-                    toolName: "x_search",
-                    type: "tool-result",
-                  },
-                  { id: "t", type: "text-start" },
-                  { delta: "@sam: hello", id: "t", type: "text-delta" },
-                  { id: "t", type: "text-end" },
-                  {
-                    id: "s",
-                    sourceType: "url",
-                    title: "https://x.com/i/status/1",
-                    type: "source",
-                    url: "https://x.com/i/status/1",
-                  },
-                  {
-                    finishReason: { raw: "stop", unified: "stop" },
-                    type: "finish",
-                    usage: {
-                      inputTokens: {
-                        cacheRead: undefined,
-                        cacheWrite: undefined,
-                        noCache: undefined,
-                        total: 1,
-                      },
-                      outputTokens: {
-                        reasoning: undefined,
-                        text: undefined,
-                        total: 1,
-                      },
-                    },
-                  },
-                ] satisfies LanguageModelV4StreamPart[],
-              }),
-            });
-          },
-        }),
-      ),
+      searched(answering((sent) => prompts.push(sent))),
     );
 
-    const result = await run(["search", "latest", "--from", "@sam"]);
+    const result = await run(["search", "--from", "@sam", "--limit", "3"]);
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "@sam: hello
-
-      Sources:
-      - https://x.com/i/status/1
+      "@sam · 2026-10-19
+      Shipped it. {not a brace that counts}
+      https://x.com/sam/status/111
       "
     `);
-    expect(prompt).toMatchInlineSnapshot(`
+    // The second page asks up to the oldest day found, finds only the same
+    // post, and ends the search.
+    expect(prompts).toMatchInlineSnapshot(`
+      [
+        [
+          {
+            "text": "The latest posts by @sam.
+      At most 3 posts.",
+            "type": "text",
+          },
+        ],
+        [
+          {
+            "text": "The latest posts by @sam.
+      Posted on or before 2026-10-19.
+      At most 2 posts.",
+            "type": "text",
+          },
+        ],
+      ]
+    `);
+    expect(getXSearchModel).toHaveBeenLastCalledWith(
+      expect.objectContaining({ handles: ["sam"], toDate: "2026-10-19" }),
+    );
+  });
+
+  it("prints the posts as JSON to pipe", async () => {
+    getXSearchModel.mockResolvedValue(searched(answering()));
+
+    const result = await run(["search", "shipping", "--json"]);
+
+    expect(JSON.parse(result.stdout)).toMatchInlineSnapshot(`
       [
         {
-          "text": "Search X for: latest
-      Only posts by @sam.",
-          "type": "text",
+          "date": "2026-10-19",
+          "handle": "sam",
+          "text": "Shipped it. {not a brace that counts}",
+          "url": "https://x.com/sam/status/111",
         },
       ]
     `);
-    expect(getXSearchModel).toHaveBeenCalledWith(
-      expect.objectContaining({ handles: ["sam"] }),
+  });
+
+  it("reads the posts when xAI sends its answer twice", async () => {
+    getXSearchModel.mockResolvedValue(
+      searched(answering(undefined, { doubled: true })),
     );
+
+    const result = await run(["search", "shipping", "--json"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toHaveLength(1);
+  });
+
+  it("asks for words or an account when given neither", async () => {
+    const result = await run(["search"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "instrument x: search: what to search for? Give words, --from <handle>, or both.
+      "
+    `);
+    expect(getXSearchModel).not.toHaveBeenCalled();
   });
 
   it("says no Grok account is signed in", async () => {
@@ -149,7 +193,7 @@ describe("instrument x search", () => {
     getXSearchModel.mockResolvedValue(
       searched(
         new MockLanguageModelV4({
-          doStream: () => {
+          doGenerate: () => {
             throw new APICallError({
               message: "Forbidden",
               requestBodyValues: {},

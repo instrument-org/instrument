@@ -253,8 +253,11 @@ export async function nativeSearchTools(
   };
 }
 
-/** Stands in for the account's default model when its catalog was never read. */
-const X_SEARCH_FALLBACK_MODEL = "grok-4.7";
+/**
+ * xAI's alias for its newest non-reasoning Grok, for an account whose catalog
+ * was never read.
+ */
+const X_SEARCH_FALLBACK_MODEL = "grok-4.20-non-reasoning";
 
 /**
  * A model that searches posts on X with xAI's hosted `x_search`, on the
@@ -285,10 +288,16 @@ export async function getXSearchModel({
     );
   }
   const sdk = await createXAISDK(config, workspaceServerURL);
-  const listed = modelCache?.read(config.cacheIdentifier) ?? [];
+  // A non-reasoning Grok: finding posts and writing them out is a lookup, and
+  // measured on 2026-10-19 it took about 6 seconds where Grok 4.7 took 16 and
+  // Grok 4.5 took 21, each finding the same posts.
   const modelId =
-    listed.find((model) => model.tags.includes("default"))?.providerId ??
-    X_SEARCH_FALLBACK_MODEL;
+    (modelCache?.read(config.cacheIdentifier) ?? [])
+      .filter((model) => model.canonicalId.includes("non-reasoning"))
+      .toSorted((a, b) =>
+        (b.releasedAt ?? "").localeCompare(a.releasedAt ?? ""),
+      )
+      .at(0)?.providerId ?? X_SEARCH_FALLBACK_MODEL;
   return Result.ok({
     config,
     model: sdk.responses(modelId),

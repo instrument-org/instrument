@@ -7,7 +7,7 @@ import { INSTRUMENT_COMMAND } from "./instrument-command";
  */
 export const X_COMMAND = {
   description:
-    "Searches posts on X (Twitter) through the user's Grok account, whatever model you run on: `instrument x search \"<query>\"`, with `--from <handle>` for one account's posts and `--since`/`--until YYYY-MM-DD`. It prints the posts themselves, each with its author, date, words and link, which x.com shows only to a signed-in browser. A shell command, not a skill. When it fails it says why (no Grok account, a usage limit, a refusal), which is what to tell the user.",
+    "Searches posts on X (Twitter) through the user's Grok account, whatever model you run on: `instrument x search \"<words>\"` for posts about something, `--from <handle>` alone for an account's latest, `--since`/`--until YYYY-MM-DD`, `--limit <n>`, and `--json` for the posts as data (handle, date, text, url) to pipe or save. It prints the posts themselves, which x.com shows only to a signed-in browser. A shell command, not a skill; `instrument x search --help` has the rest. When it fails it says why (no Grok account, a usage limit, a refusal), which is what to tell the user.",
   name: `${INSTRUMENT_COMMAND.name} x`,
   summary: "Search posts on X through the user's Grok account.",
   word: "x",

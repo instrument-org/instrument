@@ -9,6 +9,7 @@ import {
   setTopicFolders,
 } from "../permissions/topic-folders";
 import { validateFolderName } from "../project-folder-name";
+import { rewriteFileSync } from "../rewrite-file";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   parseTopicFile,
@@ -215,15 +216,37 @@ export async function updateTopic(
  * read off the file it came from, so a round trip through the app keeps what
  * another client wrote.
  */
-export function writeTopicSync(rootDir: string, topic: Topic): void {
-  const { name, ...file } = topic;
-  const folder = path.join(topicsDirOf(rootDir), name);
-  fs.mkdirSync(folder, { recursive: true });
-  fs.writeFileSync(
-    path.join(folder, TOPIC_FILE_NAME),
-    renderTopicFile(file),
-    "utf8",
+export function writeTopicSync(rootDir: string, topic: Topic): Topic {
+  return rewriteTopicSync(rootDir, topic, () => topic);
+}
+
+/**
+ * Applies `change` to the topic as its `TOPIC.md` holds it at the moment of
+ * writing, so a change to its front matter keeps instructions the person
+ * edited since the topic was read, and answers with what was written. `topic`
+ * stands in where the file is gone or names another topic.
+ */
+function rewriteTopicSync(
+  rootDir: string,
+  topic: Topic,
+  change: (onDisk: Topic) => Topic,
+): Topic {
+  let written = topic;
+  rewriteFileSync(
+    path.join(topicsDirOf(rootDir), topic.name, TOPIC_FILE_NAME),
+    (text) => {
+      const onDisk =
+        text === undefined
+          ? undefined
+          : parseTopicFile(text, { at: topic.created });
+      written = change(
+        onDisk?.id === topic.id ? { ...onDisk, name: topic.name } : topic,
+      );
+      const { name: _name, ...file } = written;
+      return renderTopicFile(file);
+    },
   );
+  return written;
 }
 
 /** A name the person typed, or a `TopicNameError` saying why a folder cannot take it. */
@@ -259,15 +282,15 @@ function createTopicNow({
     if (!existing.retired) {
       return existing;
     }
-    const { retired: _retired, ...revived } = existing;
-    const topic = {
-      ...revived,
-      ...(about ? { about } : {}),
-      ...(color ? { color } : {}),
-      ...(emoji ? { emoji } : {}),
-    };
-    writeTopicSync(rootDir, topic);
-    return topic;
+    return rewriteTopicSync(rootDir, existing, (current) => {
+      const { retired: _retired, ...revived } = current;
+      return {
+        ...revived,
+        ...(about ? { about } : {}),
+        ...(color ? { color } : {}),
+        ...(emoji ? { emoji } : {}),
+      };
+    });
   }
   const topic: Topic = {
     ...(about ? { about } : {}),
@@ -277,8 +300,7 @@ function createTopicNow({
     id: newTopicId(),
     name: wanted,
   };
-  writeTopicSync(rootDir, topic);
-  return topic;
+  return writeTopicSync(rootDir, topic);
 }
 
 function nameKey(name: string): string {
@@ -317,7 +339,10 @@ function retireTopicNow(topicId: string): void {
   const rootDir = getWorkspaceConfig().rootDir;
   const topic = readTopicsSync(rootDir).find((entry) => entry.id === topicId);
   if (topic) {
-    writeTopicSync(rootDir, { ...topic, retired: true });
+    rewriteTopicSync(rootDir, topic, (current) => ({
+      ...current,
+      retired: true,
+    }));
   }
 }
 
@@ -362,18 +387,19 @@ function updateTopicNow(topicId: string, change: TopicChange): boolean {
       fs.renameSync(path.join(dir, topic.name), path.join(dir, name));
     }
   }
-  const { instructions, ...rest } = topic;
-  const nextInstructions =
-    change.instructions === undefined
-      ? instructions
-      : change.instructions.trim();
-  writeTopicSync(rootDir, {
-    ...rest,
-    ...(change.about === undefined ? {} : { about: change.about }),
-    ...(change.color === undefined ? {} : { color: change.color }),
-    ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
-    ...(nextInstructions ? { instructions: nextInstructions } : {}),
-    name,
+  rewriteTopicSync(rootDir, { ...topic, name }, (current) => {
+    const { instructions, ...rest } = current;
+    const nextInstructions =
+      change.instructions === undefined
+        ? instructions
+        : change.instructions.trim();
+    return {
+      ...rest,
+      ...(change.about === undefined ? {} : { about: change.about }),
+      ...(change.color === undefined ? {} : { color: change.color }),
+      ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
+      ...(nextInstructions ? { instructions: nextInstructions } : {}),
+    };
   });
   return true;
 }

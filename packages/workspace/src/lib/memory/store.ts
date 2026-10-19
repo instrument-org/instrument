@@ -8,6 +8,7 @@ import { publisher } from "../../rpc/publisher";
 import { type AbsolutePath } from "../../schemas/paths";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { MEMORY_FOLDER_NAME } from "../../constants";
+import { rewriteFileSync } from "../rewrite-file";
 import { isRecord, splitFrontmatter } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
 
@@ -186,17 +187,14 @@ export async function saveMemory(
   }
   const at = Date.now();
   const filePath = path.join(dir, `${parsedName}${FILE_EXTENSION}`);
-  // Read rather than ask whether it is there: correcting a memory rewrites
-  // the file from these few fields, and anything else in its front matter,
-  // left by a newer build or by the person, would go with the old bytes.
-  const held = await fs.readFile(filePath, "utf8").catch(() => undefined);
-  const replaced = held !== undefined;
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(
-    filePath,
-    serialize({ at, body, from, others: othersIn(held) }),
-    "utf8",
-  );
+  // Built from the file as it is when written: correcting a memory rewrites
+  // it from these few fields, and anything else in its front matter, left by
+  // a newer build or by the person, would go with the old bytes.
+  let replaced = false;
+  rewriteFileSync(filePath, (held) => {
+    replaced = held !== undefined;
+    return serialize({ at, body, from, others: othersIn(held) });
+  });
   publisher.publish("memory.changed", null);
   return {
     memory: {

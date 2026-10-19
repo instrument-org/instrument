@@ -65,7 +65,7 @@ export function environmentChangeModelNote(
   const facts = [
     change.computer && `- The computer: ${change.computer}`,
     change.timeZone && `- Time zone: ${change.timeZone}`,
-    change.homeFolder && `- The user's home folder: ${change.homeFolder}`,
+    change.homeFolder && `- The user's home folder: \`${change.homeFolder}\``,
     ...VARIABLE_FOLDERS.map(
       ([fact, name, variable]) =>
         change[fact] && `- ${name} (\`$${variable}\`): \`${change[fact]}\``,

@@ -138,7 +138,7 @@ describe("environmentChangeModelNote", () => {
       <instrument-system-note>
       These facts about the computer changed since the system information above was written, which they supersede:
       - The computer: Windows (win32 10.0.26200)
-      - The user's home folder: /c/Users/cubetop
+      - The user's home folder: \`/c/Users/cubetop\`
       - The output folder (\`$INSTRUMENT_OUTPUT\`): \`/c/Users/cubetop/Instrument\`
       - The apps folder (\`$INSTRUMENT_APPS\`): \`/c/Users/cubetop/Instrument/.instrument/apps\`
       - The workspace's skills folder (\`$INSTRUMENT_WORKSPACE_SKILLS\`): \`/c/Users/cubetop/Instrument/.instrument/skills\`

@@ -30,7 +30,7 @@ Which folders and places on this computer Instrument may use.
 
 - **Permissions** (`permissions`): Which folders and places on this computer the agent may use.
 - **Use folders without asking** (`use-folders-without-asking`): Use any folder that isn't marked Not allowed, without asking.
-- **Always open** (`always-open`): Places every chat can use because Instrument needs them.
+- **Folders every chat can use** (`always-open`): Your Instrument folder, each chat's files, past chats and caches, which every chat can use because Instrument needs them.
 
 ### Providers (`providers`)
 

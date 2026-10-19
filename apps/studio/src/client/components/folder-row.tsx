@@ -18,6 +18,7 @@ import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
+import { ArrowElbowDownRightIcon } from "@phosphor-icons/react/ArrowElbowDownRight";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { type ReactNode } from "react";
 
@@ -76,12 +77,17 @@ export function FolderPath({
  * Files first and copies its path, then whatever the list adds. A row with
  * `onOpen` opens on a click; one without shows Open in Files under the
  * pointer. One with `actions` off is only a picture of the folder, for a
- * dialog asking about it, where the folder may not be there yet.
+ * dialog asking about it, where the folder may not be there yet. A place
+ * that is more than one folder, or that names itself, passes its own `mark`
+ * and `line`; `indent` sets a folder under the place it is in.
  */
 export function FolderRow({
   actions = true,
   className,
   end,
+  indent = false,
+  line,
+  mark,
   menu = [],
   name,
   note,
@@ -91,6 +97,10 @@ export function FolderRow({
   actions?: boolean;
   className?: string;
   end?: ReactNode;
+  indent?: boolean;
+  /** What stands under the name in place of the path; null for nothing. */
+  line?: ReactNode;
+  mark?: ReactNode;
   menu?: FolderMenuItem[];
   name?: string;
   /** A line under the path, for what the list has to say about this folder. */
@@ -104,12 +114,19 @@ export function FolderRow({
   };
   const body = (
     <>
+      {indent ? (
+        <ArrowElbowDownRightIcon className="-mr-1 ml-4 size-3.5 shrink-0 text-muted-foreground/60" />
+      ) : null}
       <span className="flex w-7 shrink-0 justify-center">
-        <FolderMark path={path} size="row" />
+        {mark ?? <FolderMark path={path} size="row" />}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
         <span className="truncate text-sm">{label}</span>
-        <FolderPath className="text-xs text-muted-foreground" path={path} />
+        {line === undefined ? (
+          <FolderPath className="text-xs text-muted-foreground" path={path} />
+        ) : line === null ? null : (
+          <span className="truncate text-xs text-muted-foreground">{line}</span>
+        )}
         {note ? (
           <span className="text-xs text-muted-foreground">{note}</span>
         ) : null}

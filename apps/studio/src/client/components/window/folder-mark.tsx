@@ -62,3 +62,17 @@ export function FolderMark({
     />
   );
 }
+
+/**
+ * The mark of a place that is many folders at once, like the folders other
+ * apps keep or the caches: two folders, one behind the other, at the size of a
+ * settings row's mark.
+ */
+export function FoldersMark() {
+  return (
+    <span className="relative inline-block h-5 w-7 shrink-0" aria-hidden="true">
+      <FileSystemFolderGlyph className="absolute -top-0.5 left-1.5 h-4 w-auto opacity-60" />
+      <FileSystemFolderGlyph className="absolute top-1 left-0 h-4 w-auto" />
+    </span>
+  );
+}

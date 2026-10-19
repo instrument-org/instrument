@@ -1,45 +1,90 @@
-import { rpcClient } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../../tests/render";
 import { PermissionsSection } from "./permissions-section";
 
+type View = RPCOutput["workspace"]["permissions"]["get"];
+
+const NO_PLACES: View = {
+  alwaysOpen: { caches: [], chats: "", programs: [], workFolders: "" },
+  apps: [],
+  dangerouslyAllowEveryFolder: false,
+  folders: [],
+  home: "/Users/sam",
+  places: [],
+};
+
+function showView(view: View) {
+  const { queryClient } = renderWithProviders(<PermissionsSection />);
+  queryClient.setQueryData(
+    rpcClient.workspace.permissions.get.queryKey(),
+    view,
+  );
+}
+
 describe("PermissionsSection", () => {
   it.each([
     // A backslash is a character a name can hold on a Mac or Linux.
-    ["/Users/sam", "/Users/sam/Documents/a\\b", "a\\b", "Documents › a\\b"],
+    ["/Users/sam", "/Users/sam/Documents/a\\b", "a\\b", "sam/Documents/a\\b"],
     [
       "C:\\Users\\sam",
       "C:\\Users\\sam\\Documents\\Clients",
       "Clients",
-      "Documents › Clients",
+      "sam\\Documents\\Clients",
     ],
   ])(
-    "with home at %s, lists %s as %s in %s",
+    "with home at %s, lists %s as %s at %s",
     async (home, path, name, where) => {
-      const { queryClient } = renderWithProviders(<PermissionsSection />);
-      queryClient.setQueryData(rpcClient.workspace.permissions.get.queryKey(), {
-        alwaysOpen: {
-          caches: [],
-          chats: home,
-          programs: [],
-          workFolders: home,
-        },
-        apps: [],
+      window.api.homeDir = home;
+      showView({
+        ...NO_PLACES,
         folders: [{ addedAt: new Date(0), level: "allow", path }],
         home,
-        places: [],
-        dangerouslyAllowEveryFolder: false,
       });
 
       expect(
         await screen.findByRole("combobox", { name: `Access for ${name}` }),
       ).toBeDefined();
       expect(screen.getByText(name)).toBeDefined();
-      expect(screen.getByText(where)).toBeDefined();
+      expect(screen.getByTitle(where)).toBeDefined();
+      window.api.homeDir = "/Users/sam";
     },
   );
+
+  it("sets a folder the person allowed under the place it is in, and one in no place at the end", async () => {
+    showView({
+      ...NO_PLACES,
+      folders: [
+        { addedAt: new Date(0), level: "allow", path: "/Users/sam/Projects" },
+        {
+          addedAt: new Date(0),
+          level: "allow",
+          path: "/Users/sam/Documents/Taxes",
+        },
+      ],
+      places: [
+        { id: "desktop", level: "ask", paths: ["/Users/sam/Desktop"] },
+        { id: "documents", level: "ask", paths: ["/Users/sam/Documents"] },
+        { id: "downloads", level: "ask", paths: ["/Users/sam/Downloads"] },
+      ],
+    });
+
+    const rows = await screen.findAllByRole("combobox", {
+      name: /^Access for /,
+    });
+    expect(rows.map((row) => row.getAttribute("aria-label")))
+      .toMatchInlineSnapshot(`
+      [
+        "Access for Desktop",
+        "Access for Documents",
+        "Access for Taxes",
+        "Access for Downloads",
+        "Access for Projects",
+      ]
+    `);
+  });
 
   it.each([
     ["user-namespaces-closed", /AppImage on Ubuntu/],
@@ -47,16 +92,7 @@ describe("PermissionsSection", () => {
   ] as const)(
     "warns that the agent's programs reach every file, %s",
     async (sandboxOff, reason) => {
-      const { queryClient } = renderWithProviders(<PermissionsSection />);
-      queryClient.setQueryData(rpcClient.workspace.permissions.get.queryKey(), {
-        alwaysOpen: { caches: [], chats: "", programs: [], workFolders: "" },
-        apps: [],
-        dangerouslyAllowEveryFolder: false,
-        folders: [],
-        home: "/home/sam",
-        places: [],
-        sandboxOff,
-      });
+      showView({ ...NO_PLACES, home: "/home/sam", sandboxOff });
 
       const alert = await screen.findByRole("alert");
       expect(alert.textContent).toContain(
@@ -67,39 +103,52 @@ describe("PermissionsSection", () => {
     },
   );
 
+  it("warns while folders are used without asking, with a way to turn it off", async () => {
+    showView({ ...NO_PLACES, dangerouslyAllowEveryFolder: true });
+
+    expect(
+      (await screen.findByRole("status")).textContent,
+    ).toMatchInlineSnapshot(
+      `"Instrument uses folders without askingIt reads and changes any folder that isn’t marked Not allowed. It still asks before using your passwords and keys.Turn off"`,
+    );
+    expect(screen.getByRole("button", { name: "Turn off" })).toBeDefined();
+  });
+
   // The window stubs run as a Mac.
   it.each([
-    ["ask", "Allowed", true],
+    ["ask", "Always allowed", true],
     ["never", "Not allowed", false],
   ] as const)(
     "with Other apps' files at %s, shows the caches as %s",
     async (level, caches, listed) => {
-      const { queryClient } = renderWithProviders(<PermissionsSection />);
-      queryClient.setQueryData(rpcClient.workspace.permissions.get.queryKey(), {
+      showView({
+        ...NO_PLACES,
         alwaysOpen: {
           caches: ["/Users/sam/Library/Caches", "/Users/sam/.cache"],
           chats: "/Users/sam/Instrument/.instrument/chats",
           programs: [],
           workFolders: "/Users/sam/.instrument/work",
         },
-        apps: [],
-        dangerouslyAllowEveryFolder: false,
-        folders: [],
-        home: "/Users/sam",
-        places: [{ id: "appFiles", level, paths: ["/Users/sam/Library"] }],
+        places: [
+          { id: "output", level: "allow", paths: ["/Users/sam/Instrument"] },
+          { id: "appFiles", level, paths: ["/Users/sam/Library"] },
+        ],
       });
 
+      (await screen.findByText("Folders every chat can use")).click();
+
       const rows = await screen.findAllByText(
-        /^(Chat work folders|Chat history|Caches)$/,
+        /^(Instrument folder|Each chat’s files|Past chats|Caches)$/,
       );
       expect(
         rows.map((row) =>
-          row.closest(".flex.items-center")?.textContent?.trim(),
+          row.closest(".group\\/folder-row")?.textContent?.trim(),
         ),
       ).toEqual([
-        "Chat work folders.instrument › workAllowed",
-        "Chat historyInstrument › .instrument › chatsRead only",
-        `CachesLibrary › Caches, .cache${caches}`,
+        "Instrument foldersam/InstrumentAlways allowed",
+        "Each chat’s filessam/.instrument/workAlways allowed",
+        "Past chatssam/Instrument/.instrument/chatsRead only",
+        `Cachessam/Library/Caches, sam/.cache${caches}`,
       ]);
       expect(screen.queryByText(/names, sizes and dates/) !== null).toBe(
         listed,

@@ -1,4 +1,7 @@
-import { APP_NAME_SLUG } from "@instrument-org/shared";
+import {
+  APP_NAME_SLUG,
+  WORKSPACE_MACHINE_ENTRIES,
+} from "@instrument-org/shared";
 import { Bash } from "just-bash";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -255,8 +258,11 @@ describe("buildBashFs", () => {
 
     it("names the chat's own folder, where its finished work goes", async () => {
       await fs.writeFile(
-        path.join(record, "settings.json"),
-        JSON.stringify({ folder: "Quiet dishwashers" }),
+        path.join(
+          getWorkspaceConfig().workspaceMachineDir,
+          WORKSPACE_MACHINE_ENTRIES.chatFolders,
+        ),
+        JSON.stringify({ [path.basename(record)]: "Quiet dishwashers" }),
       );
 
       const layout = buildWorkspaceFsLayout({
@@ -269,7 +275,7 @@ describe("buildBashFs", () => {
       );
     });
 
-    it("names no folder for a chat whose settings record none", async () => {
+    it("names no folder for a chat this computer recorded none for", async () => {
       const layout = buildWorkspaceFsLayout({
         chatHostRoot: WorkDirSchema.parse(work),
         recordHostRoot: ChatDirSchema.parse(record),

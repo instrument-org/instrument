@@ -14,9 +14,11 @@ import { type ChatFoldersSwept, sweepChatFolders } from "./sweep";
  */
 export function giveChatsTheirFolders(
   rootDir: string,
+  machineDir: string,
 ): Promise<ChatFoldersSwept> {
   return sweepChatFolders({
     chatsDir: workspaceLayout(rootDir).chatsDir,
+    machineDir,
     rootDir,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     topicNames: new Map(

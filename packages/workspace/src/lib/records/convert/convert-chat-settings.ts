@@ -3,6 +3,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parallel } from "radashi";
 
+import { ChatIdSchema } from "../../../schemas/chat-id";
+import {
+  chatFolderNames,
+  recordChatFolderName,
+} from "../../chat-folders/own-folder";
 import { readJsonRecord } from "../../json-record-file";
 import { type DeviceId } from "../device-id";
 import { foldChatInFolder } from "../fold-folder";
@@ -16,6 +21,8 @@ import { openSettingsFile } from "../open-log";
  *
  * - The model (`modelURI`) becomes a `model` setting on the chat's own
  *   session, in this device's settings file, unless a device already set one.
+ * - The name of the chat's folder under `Chats/` (`folder`) is recorded in
+ *   this computer's machine folder, unless it already has one for the chat.
  *
  * Safe to run on every launch: a value already carried writes nothing.
  */
@@ -33,10 +40,13 @@ const CHATS_AT_ONCE = 8;
 export async function convertChatSettingsFiles({
   chatsDir,
   deviceId,
+  machineDir,
 }: {
   /** The workspace's record folders, `.instrument/chats/`. */
   chatsDir: string;
   deviceId: DeviceId;
+  /** The workspace's folder on this computer. */
+  machineDir: string;
 }): Promise<ChatSettingsConverted> {
   const converted: ChatSettingsConverted = { done: [], left: [] };
   let entries;
@@ -50,7 +60,7 @@ export async function convertChatSettingsFiles({
     .map((entry) => path.join(chatsDir, entry.name))
     .toSorted();
   const results = await parallel({ limit: CHATS_AT_ONCE }, dirs, (dir) =>
-    convertChatSettings(dir, deviceId),
+    convertChatSettings(dir, { deviceId, machineDir }),
   );
   for (const [index, result] of results.entries()) {
     const where = path.basename(dirs[index] ?? "");
@@ -71,7 +81,7 @@ type ChatSettingsConversion =
 /** Carries one chat's `settings.json`, whose record folder is `dir`. */
 export async function convertChatSettings(
   dir: string,
-  deviceId: DeviceId,
+  { deviceId, machineDir }: { deviceId: DeviceId; machineDir: string },
 ): Promise<ChatSettingsConversion> {
   const read = await readJsonRecord(path.join(dir, SETTINGS_FILE_NAME));
   if (read.kind === "missing") {
@@ -106,6 +116,16 @@ export async function convertChatSettings(
     });
     await writer.commit();
     carried.push("its model");
+  }
+  const id = ChatIdSchema.safeParse(path.basename(dir));
+  if (
+    id.success &&
+    typeof settings.folder === "string" &&
+    settings.folder !== "" &&
+    chatFolderNames(machineDir).get(id.data) === undefined
+  ) {
+    await recordChatFolderName(machineDir, id.data, settings.folder);
+    carried.push("its folder's name");
   }
   return carried.length > 0
     ? { carried, kind: "carried" }

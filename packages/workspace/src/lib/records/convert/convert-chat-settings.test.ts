@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { withTempDir } from "../../../test/helpers/temp-dir";
+import { chatFolderNames } from "../../chat-folders/own-folder";
 import { logFileName, settingsFileName } from "../file-names";
 import { foldChatInFolder } from "../fold-folder";
 import { recordLine } from "../record";
@@ -14,6 +15,7 @@ import {
 } from "./convert-chat-settings";
 
 const root = withTempDir("convert-chat-settings");
+const machine = withTempDir("convert-chat-settings-machine");
 
 const MODEL =
   "openai/gpt-6.1-sol?provider=chatgpt-account&providerConfigId=mock-provider-config-id";
@@ -32,6 +34,13 @@ async function chatWith(settings: string | undefined, name = "a-chat") {
   return dir;
 }
 
+const OPTIONS = {
+  deviceId: DEVICE_A,
+  get machineDir() {
+    return machine.path;
+  },
+};
+
 async function modelIn(dir: string) {
   const chat = await foldChatInFolder(dir);
   return chat.sessions.find((session) => !session.parent)?.settings.model;
@@ -46,7 +55,7 @@ describe("convertChatSettings", () => {
       }),
     );
 
-    expect(await convertChatSettings(dir, DEVICE_A)).toEqual({
+    expect(await convertChatSettings(dir, OPTIONS)).toEqual({
       carried: ["its model"],
       kind: "carried",
     });
@@ -55,9 +64,28 @@ describe("convertChatSettings", () => {
       device: DEVICE_A,
       value: MODEL,
     });
-    expect(await convertChatSettings(dir, DEVICE_A)).toEqual({
+    expect(await convertChatSettings(dir, OPTIONS)).toEqual({
       kind: "nothing",
     });
+  });
+
+  it("records the folder's name on this computer, unless it has one", async () => {
+    const dir = await chatWith(JSON.stringify({ folder: "Trip plans" }));
+
+    expect(await convertChatSettings(dir, OPTIONS)).toEqual({
+      carried: ["its folder's name"],
+      kind: "carried",
+    });
+    expect(chatFolderNames(machine.path).get("a-chat")).toBe("Trip plans");
+
+    await fs.writeFile(
+      path.join(dir, SETTINGS_FILE_NAME),
+      JSON.stringify({ folder: "Older name" }),
+    );
+    expect(await convertChatSettings(dir, OPTIONS)).toEqual({
+      kind: "nothing",
+    });
+    expect(chatFolderNames(machine.path).get("a-chat")).toBe("Trip plans");
   });
 
   it("leaves a model another device already set", async () => {
@@ -75,7 +103,7 @@ describe("convertChatSettings", () => {
       }),
     );
 
-    expect(await convertChatSettings(dir, DEVICE_A)).toEqual({
+    expect(await convertChatSettings(dir, OPTIONS)).toEqual({
       kind: "nothing",
     });
     expect((await modelIn(dir))?.value).toBe("anthropic/claude-opus-5.5");
@@ -89,7 +117,7 @@ describe("convertChatSettings", () => {
       JSON.stringify({ modelURI: MODEL }),
     );
 
-    expect(await convertChatSettings(dir, DEVICE_A)).toEqual({
+    expect(await convertChatSettings(dir, OPTIONS)).toEqual({
       kind: "left",
       reason: "it has no records of its own yet",
     });
@@ -98,7 +126,7 @@ describe("convertChatSettings", () => {
   it("leaves a settings file it cannot read", async () => {
     const dir = await chatWith('{"modelURI": "openai/gp');
 
-    expect(await convertChatSettings(dir, DEVICE_A)).toEqual({
+    expect(await convertChatSettings(dir, OPTIONS)).toEqual({
       kind: "left",
       reason: `${SETTINGS_FILE_NAME} cannot be read`,
     });
@@ -115,6 +143,7 @@ describe("convertChatSettingsFiles", () => {
       await convertChatSettingsFiles({
         chatsDir: root.path,
         deviceId: DEVICE_A,
+        machineDir: machine.path,
       }),
     ).toEqual({
       done: ["carried: carried its model"],

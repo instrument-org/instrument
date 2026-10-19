@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { ensureChatFolder } from "../chat-folders/chat-folder";
+import { recordChatFolderName } from "../chat-folders/own-folder";
 import { newChatName } from "../chat-folder-name";
 import { getCurrentDate } from "../get-current-date";
 import { initializeChat } from "../initialize-chat";
@@ -48,7 +49,7 @@ export async function ensureChat(
   });
   const made = await initializeChat({
     chatId,
-    initialSettings: { folder: folder.name },
+    initialSettings: {},
     sessionId,
     workspaceConfig: getWorkspaceConfig(),
   });
@@ -63,6 +64,11 @@ export async function ensureChat(
     }
     throw made.error;
   }
+  await recordChatFolderName(
+    getWorkspaceConfig().workspaceMachineDir,
+    chatId,
+    folder.name,
+  );
   return chatId;
 }
 

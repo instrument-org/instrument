@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
 import { FileUpload } from "../schemas/file-upload";
@@ -185,9 +185,15 @@ describe("writeUploadedAttachments", () => {
   it("writes pasted bytes into the chat's own folder", async () => {
     const folder = path.join(root, "workspace", "Chats", "Quiet dishwashers");
     await fs.mkdir(folder, { recursive: true });
+    await fs.mkdir(getWorkspaceConfig().workspaceMachineDir, {
+      recursive: true,
+    });
     await fs.writeFile(
-      path.join(recordDir, SETTINGS_FILE_NAME),
-      JSON.stringify({ folder: "Quiet dishwashers" }),
+      path.join(
+        getWorkspaceConfig().workspaceMachineDir,
+        WORKSPACE_MACHINE_ENTRIES.chatFolders,
+      ),
+      JSON.stringify({ [path.basename(recordDir)]: "Quiet dishwashers" }),
     );
     // A workspace the person picked, so its top level is theirs and the
     // chat's folder is somewhere the agent may read what they sent.
@@ -219,9 +225,15 @@ describe("writeUploadedAttachments", () => {
   it("writes pasted bytes into the record folder for a workspace in the app's own data", async () => {
     const folder = path.join(root, "workspace", "Chats", "Quiet dishwashers");
     await fs.mkdir(folder, { recursive: true });
+    await fs.mkdir(getWorkspaceConfig().workspaceMachineDir, {
+      recursive: true,
+    });
     await fs.writeFile(
-      path.join(recordDir, SETTINGS_FILE_NAME),
-      JSON.stringify({ folder: "Quiet dishwashers" }),
+      path.join(
+        getWorkspaceConfig().workspaceMachineDir,
+        WORKSPACE_MACHINE_ENTRIES.chatFolders,
+      ),
+      JSON.stringify({ [path.basename(recordDir)]: "Quiet dishwashers" }),
     );
     setWorkspaceConfig({
       ...getWorkspaceConfig(),

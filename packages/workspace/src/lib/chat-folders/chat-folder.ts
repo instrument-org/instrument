@@ -11,17 +11,17 @@ import { claimFolderNamed, safeName } from "./folder-name";
  * its tasks made. Its records stay in the workspace's hidden `.instrument/`,
  * and the folder is written from them.
  *
- * The app's hold on the folder is a name in the chat's record settings and
- * nothing else, which is what makes a gesture in a file manager safe:
+ * The app's hold on the folder is the name this computer recorded for it
+ * (own-folder.ts) and the chat its `CHAT.md` names, which is what makes a
+ * gesture in a file manager safe:
  *
- * - The folder is found by the name the settings give it. Nothing here opens
- *   a folder to decide which chat it belongs to.
+ * - The folder is found by the recorded name while it is there.
+ * - A rename in place is followed: where the recorded folder is gone, the
+ *   one folder under `Chats/` that no chat claims whose `CHAT.md` names the
+ *   chat is taken as its own, by the launch sweep and at the end of each of
+ *   its turns (sweep.ts), and the shell finds it the same way meanwhile.
  * - A deleted or moved folder comes back: the chat's next change makes a
  *   fresh one by its current title, and the one the person moved is theirs.
- * - A rename in place is followed by the launch sweep alone, which writes the
- *   name the person gave the folder into the settings where one folder under
- *   `Chats/` that no chat claims links to the chat and the folder its
- *   settings named is gone (sweep.ts).
  * - Nothing here reads the folder back as a record, so an edit to `CHAT.md`
  *   does not last: the next turn writes the file again whole.
  *
@@ -45,21 +45,19 @@ function chatsFolderDir(rootDir: string): string {
 }
 
 /**
- * The folder the chat should be in, made if it is not there: the one its
- * settings name while that folder is still there, and otherwise a free name
- * from `title`.
+ * The folder the chat should be in, made if it is not there: the one named
+ * `folder` while that folder is still there, and otherwise a free name from
+ * `title`.
  *
- * `folder` is what the chat's settings last named, and the answer says what
- * to record where it differs. Nothing is written to the settings here, so a
- * caller that cannot write them (a sweep over a workspace nobody has open)
- * still gets the folder.
+ * `folder` is the name recorded for the chat's folder, or one to adopt, and
+ * the answer says what to record where it differs. Nothing is recorded here.
  */
 export async function ensureChatFolder({
   folder,
   rootDir,
   title,
 }: {
-  /** The name the chat's settings last gave its folder, if any. */
+  /** The name recorded for the chat's folder, or one to adopt, if any. */
   folder: string | undefined;
   rootDir: string;
   title: string | undefined;
@@ -86,7 +84,7 @@ export async function renameChatFolder({
   rootDir,
   title,
 }: {
-  /** The folder the chat's settings name now. */
+  /** The name recorded for the chat's folder now. */
   from: string;
   rootDir: string;
   title: string | undefined;

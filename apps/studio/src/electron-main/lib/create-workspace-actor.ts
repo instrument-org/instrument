@@ -654,6 +654,7 @@ async function convertChatSettings(deviceId: DeviceId, rootDir: string) {
     const converted = await convertChatSettingsFiles({
       chatsDir: workspaceLayout(rootDir).chatsDir,
       deviceId,
+      machineDir: workspaceMachineDir(),
     });
     for (const step of converted.done) {
       logger.info(`Chat settings: ${step}`);
@@ -679,7 +680,7 @@ async function convertChatSettings(deviceId: DeviceId, rootDir: string) {
 async function writeChatFolders(rootDir: string) {
   try {
     const startedAt = performance.now();
-    const swept = await giveChatsTheirFolders(rootDir);
+    const swept = await giveChatsTheirFolders(rootDir, workspaceMachineDir());
     logger.info(
       `Chat folders: wrote ${swept.counts.written} and found ${swept.counts["already-there"]} already there, in ${Math.round(performance.now() - startedAt)}ms`,
     );

@@ -174,7 +174,7 @@ describe("updateChatRecord", () => {
 
     const record = await readChatRecord(chatDir(chatId));
 
-    expect(record.settings?.folder).toBe("Landed");
+    expect(record.raw.folder).toBe("Landed");
   });
 
   it("reports a failure that waiting cannot clear, without waiting", async () => {
@@ -204,7 +204,7 @@ describe("updateChatRecord", () => {
     const record = await readChatRecord(chatDir(chatId));
 
     expect(record.settings?.createdWithAppVersion).toBe("2.0.0");
-    expect(record.settings?.folder).toBe("Drafted");
+    expect(record.raw.folder).toBe("Drafted");
   });
 });
 

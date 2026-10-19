@@ -18,15 +18,6 @@ export const ChatSettingsSchema = z.object({
   // when the copy happened.
   createdAt: z.coerce.date().optional(),
   createdWithAppVersion: z.string().optional(),
-  // The name this chat's own folder was last given under `Chats/`, which is
-  // the app's whole hold on that folder: the folder is found by this name and
-  // never by what is inside it, so a folder moved out of `Chats/` is not
-  // followed, and the chat's next change makes a fresh one under its current
-  // title. A folder renamed in place is followed by the launch sweep, which
-  // writes the name the person gave it here (chat-folders/sweep.ts).
-  // References to what the person pasted are stored relative to the folder,
-  // so a rename breaks none of them.
-  folder: z.string().min(1).optional().catch(undefined),
   // When something happened in this chat, as opposed to when a file under it
   // was last written. It orders the chat list, and it is recorded rather than
   // observed because the observable timestamps do not mean what the list needs:

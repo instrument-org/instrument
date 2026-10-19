@@ -154,6 +154,12 @@ export const WORKSPACE_MACHINE_ENTRIES = {
   /** The Chromium profiles of the app and its browser, history, page pictures, downloads. */
   browser: "browser",
   /**
+   * The name of each chat's own folder under `Chats/` as this computer last
+   * knew it, by chat id: where to look first. A folder's `CHAT.md` names
+   * its chat, which is what finds one a person renamed.
+   */
+  chatFolders: "chat-folders.json",
+  /**
    * The config folder our copy of Claude Code runs with, holding the Claude
    * subscription it is signed in to. Beside `keys` because it is one, and
    * per workspace for the same reason every other sign-in is.

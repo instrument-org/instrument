@@ -9,20 +9,25 @@ import {
 } from "../../constants";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type ChatDir, ChatDirSchema } from "../../schemas/paths";
-import { readChatRecord, updateChatRecord } from "../chat-record";
 import { chatFolderTheyOpen } from "../chat/output-folder";
 import { foldChatInFolder } from "../records/fold-folder";
 import { ensureChatFolder, writeChatFile } from "./chat-folder";
 import { chatLinkedInFile } from "./chat-link";
 import { chatTitleOf, renderChatMarkdown } from "./chat-markdown";
 import { deleteChatFileConflictCopies } from "./conflict-copies";
+import {
+  chatFolderNames,
+  comparable,
+  folderLinkedTo,
+  recordChatFolderName,
+} from "./own-folder";
 
 /**
  * Gives every chat in a workspace its own folder and `CHAT.md`, from the
  * records each holds. Runs at each launch, after the records converter, and
- * costs nothing after the first: a chat whose folder its settings name and
- * whose transcript already reads the same is left alone, so a run over a
- * workspace nothing has changed writes nothing.
+ * costs nothing after the first: a chat whose folder this computer has
+ * recorded and whose transcript already reads the same is left alone, so a
+ * run over a workspace nothing has changed writes nothing.
  *
  * Reads the chats' records straight from their folders rather than through
  * the records service, so it can run before the workspace is up, and over a
@@ -70,12 +75,15 @@ const FOLDERS_AT_ONCE = 8;
 
 export async function sweepChatFolders({
   chatsDir,
+  machineDir,
   rootDir,
   timeZone,
   topicNames,
 }: {
   /** The workspace's record folders, `.instrument/chats/`. */
   chatsDir: string;
+  /** The workspace's machine folder, where each chat's folder name is recorded. */
+  machineDir: string;
   /** The workspace's own folder, which `Chats/` is at the top of. */
   rootDir: string;
   /** The zone the days and times in each transcript are written in. */
@@ -84,13 +92,16 @@ export async function sweepChatFolders({
   topicNames?: ReadonlyMap<string, string>;
 }): Promise<ChatFoldersSwept> {
   const ids = (await chatIdsIn(chatsDir)).toSorted();
-  const adopt = await foldersToAdopt({ chatsDir, ids, rootDir });
+  const names = chatFolderNames(machineDir);
+  const adopt = await foldersToAdopt({ ids, names, rootDir });
   const chats = await parallel({ limit: CHATS_AT_ONCE }, ids, async (id) => ({
     id,
     ...(await sweepChatFolder({
       adopt: adopt.get(id),
       chatsDir,
       id,
+      machineDir,
+      named: names.get(id),
       rootDir,
       timeZone,
       topicNames,
@@ -158,27 +169,37 @@ async function moveAttachmentsIn(
  * every chat, for a caller that already knows which chat moved.
  *
  * The chat's own turn ending is that caller: the transcript on disk is a
- * relaunch out of date otherwise. Nothing is adopted here, since a folder
- * renamed in a file manager is the sweep's to notice, and nothing is
- * written when the bytes already read the same.
+ * relaunch out of date otherwise. A chat whose recorded folder is gone takes
+ * the one folder no other chat claims whose `CHAT.md` names it, before a
+ * fresh one is made, so a folder renamed in a file manager while the app
+ * runs keeps the chat's work in one place. Nothing is written when the
+ * bytes already read the same.
  */
-export function writeChatFolder({
+export async function writeChatFolder({
   chatsDir,
   id,
+  machineDir,
   rootDir,
   timeZone,
   topicNames,
 }: {
   chatsDir: string;
   id: ChatId;
+  machineDir: string;
   rootDir: string;
   timeZone: string;
   topicNames?: ReadonlyMap<string, string>;
 }): Promise<ChatFolderSweep> {
+  const names = chatFolderNames(machineDir);
+  const named = names.get(id);
+  const chats = path.join(rootDir, CHATS_FOLDER_NAME);
+  const there = named !== undefined && (await isDir(path.join(chats, named)));
   return sweepChatFolder({
-    adopt: undefined,
+    adopt: there ? undefined : folderLinkedTo(chats, id, names),
     chatsDir,
     id,
+    machineDir,
+    named,
     rootDir,
     timeZone,
     topicNames,
@@ -190,6 +211,8 @@ async function sweepChatFolder({
   adopt,
   chatsDir,
   id,
+  machineDir,
+  named,
   rootDir,
   timeZone,
   topicNames,
@@ -198,6 +221,9 @@ async function sweepChatFolder({
   adopt: string | undefined;
   chatsDir: string;
   id: ChatId;
+  machineDir: string;
+  /** The name this computer last recorded for the chat's folder. */
+  named: string | undefined;
   rootDir: string;
   timeZone: string;
   topicNames?: ReadonlyMap<string, string>;
@@ -215,9 +241,8 @@ async function sweepChatFolder({
     if (markdown === undefined) {
       return { kind: "no-conversation" };
     }
-    const record = await readChatRecord(dir);
     const folder = await ensureChatFolder({
-      folder: adopt ?? record.settings?.folder,
+      folder: adopt ?? named,
       rootDir,
       title: chatTitleOf(chat),
     });
@@ -226,18 +251,12 @@ async function sweepChatFolder({
     // nothing is most of them, and a copy left beside the file we are not
     // rewriting is exactly the one nothing else would ever notice.
     await deleteChatFileConflictCopies({ folder: folder.path, id });
-    if (
-      record.settings?.folder === folder.name &&
-      (await alreadyReads(folder.path, markdown))
-    ) {
+    if (named === folder.name && (await alreadyReads(folder.path, markdown))) {
       return { kind: "already-there" };
     }
     await writeChatFile(folder.path, markdown);
-    if (record.settings?.folder !== folder.name && !record.unreadable) {
-      await updateChatRecord(dir, (current) => ({
-        ...current.raw,
-        folder: folder.name,
-      }));
+    if (named !== folder.name) {
+      await recordChatFolderName(machineDir, id, folder.name);
     }
     return { folder: folder.name, kind: "written" };
   } catch (error) {
@@ -247,32 +266,35 @@ async function sweepChatFolder({
 
 /**
  * Which chats are to take a folder a person renamed in a file manager, by the
- * name the folder has now: a chat whose own folder is gone, and for which
- * exactly one folder under `Chats/` that no chat claims links to it.
+ * name the folder has now: a chat whose recorded folder is gone, or that this
+ * computer has recorded none for, and for which exactly one folder under
+ * `Chats/` that no chat claims names it.
  *
  * Both halves have to hold, and neither is read as an answer on its own:
  *
- * - Two unclaimed folders linking to one chat are a copy, the conflicted copy
- *   a sync engine left, or a restore from a backup, and which of them the chat
+ * - Two unclaimed folders naming one chat are a copy, the conflicted copy a
+ *   sync engine left, or a restore from a backup, and which of them the chat
  *   belongs in is the person's to say.
  * - A chat whose own folder is still there is the one that was copied, and the
  *   copy is the person's: a second folder holding the same transcript is not a
  *   rename.
- * - A folder with no `CHAT.md`, one whose head holds no link, or one linking
- *   to a chat this workspace does not have says nothing about a chat here.
+ * - A folder with no `CHAT.md`, one whose head names no chat, or one naming a
+ *   chat this workspace does not have says nothing about a chat here.
  *
- * Costs the listing of `Chats/` and each chat's settings, which is what says
- * who claims which name, and the head of one `CHAT.md` per folder no chat
- * claims. A workspace where nothing was renamed opens no transcript: that no
- * chat has lost its folder is answered from the listing alone.
+ * A chat this computer has recorded no folder for is one whose folder another
+ * computer made, so it is found the same way.
+ *
+ * Costs the listing of `Chats/`, and the head of one `CHAT.md` per folder no
+ * chat claims. A workspace where nothing was renamed opens no transcript:
+ * that no chat has lost its folder is answered from the listing alone.
  */
 async function foldersToAdopt({
-  chatsDir,
   ids,
+  names,
   rootDir,
 }: {
-  chatsDir: string;
   ids: readonly ChatId[];
+  names: ReadonlyMap<string, string>;
   rootDir: string;
 }): Promise<ReadonlyMap<ChatId, string>> {
   const chats = path.join(rootDir, CHATS_FOLDER_NAME);
@@ -280,20 +302,13 @@ async function foldersToAdopt({
   if (listed.length === 0) {
     return new Map();
   }
-  const claims = await parallel({ limit: CHATS_AT_ONCE }, ids, async (id) => ({
-    folder: (await readChatRecord(chatDirOf(chatsDir, id))).settings?.folder,
-    id,
-  }));
   const there = new Set(listed.map(comparable));
-  const claimed = new Set(
-    claims.flatMap(({ folder }) =>
-      folder === undefined ? [] : [comparable(folder)],
-    ),
-  );
+  const claimed = new Set([...names.values()].map(comparable));
   const lost = new Set(
-    claims.flatMap(({ folder, id }) =>
-      folder !== undefined && !there.has(comparable(folder)) ? [id] : [],
-    ),
+    ids.filter((id) => {
+      const name = names.get(id);
+      return name === undefined || !there.has(comparable(name));
+    }),
   );
   const unclaimed = listed.filter((name) => !claimed.has(comparable(name)));
   if (lost.size === 0 || unclaimed.length === 0) {
@@ -336,18 +351,17 @@ async function alreadyReads(
   }
 }
 
-/**
- * A folder's name as it compares: composed, which is the form a name is
- * written in, so a listing that gives back the decomposed one still matches
- * the name a chat's settings hold.
- */
-function comparable(name: string): string {
-  return name.normalize("NFC");
-}
-
 /** Where a chat's records are, `chats/<id>/`. */
 function chatDirOf(chatsDir: string, id: ChatId): ChatDir {
   return ChatDirSchema.parse(path.join(chatsDir, id));
+}
+
+async function isDir(entry: string): Promise<boolean> {
+  try {
+    return (await fs.stat(entry)).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 /** The folders directly under `Chats/`, as the listing names them. */

@@ -1,4 +1,6 @@
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import {
+  convertChatSettingsFiles,
   giveChatsTheirFolders,
   migrateWorkspaceLayout,
   type AppConnectionStore,
@@ -391,11 +393,17 @@ async function runLaunchMigrations(): Promise<void> {
     workFoldersDir: path.join(machineDir, "work"),
   });
   settleWorkspaceDb({ machineDir, rootDir: clone });
+  const deviceId = newDeviceId();
   await convertChatRecords({
     appVersion: "0.0.0-rehearsal",
-    deviceId: newDeviceId(),
+    deviceId,
     machineDir,
     rootDir: clone,
+  });
+  await convertChatSettingsFiles({
+    chatsDir: path.join(clone, ".instrument", "chats"),
+    deviceId,
+    machineDir,
   });
   await moveMemoriesToFolder(clone);
   await moveSkillsToFolder(clone);
@@ -403,7 +411,7 @@ async function runLaunchMigrations(): Promise<void> {
   await moveAppsToFolder(clone);
   await convertTopicsToTopicFiles(clone);
   await convertAppsToAppFiles(clone, { connections: forgottenConnections() });
-  await giveChatsTheirFolders(clone);
+  await giveChatsTheirFolders(clone, machineDir);
   await settleDrafts(clone);
 }
 
@@ -421,28 +429,27 @@ function forgottenConnections(): AppConnectionStore {
   };
 }
 
-/** Each chat's id and the folder its settings say it claimed. */
+/** Each chat's id and the folder this computer recorded it claimed. */
 function chatFolderClaims(): Map<string, string> {
-  const dir = path.join(clone, ".instrument", "chats");
-  const claims = new Map<string, string>();
-  for (const id of foldersUnder(dir)) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(
-        fs.readFileSync(path.join(dir, id, "settings.json"), "utf8"),
-      );
-    } catch {
-      continue;
-    }
-    const folder =
-      typeof parsed === "object" && parsed !== null && "folder" in parsed
-        ? parsed.folder
-        : undefined;
-    if (typeof folder === "string" && folder) {
-      claims.set(id, folder);
-    }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(
+      fs.readFileSync(
+        path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.chatFolders),
+        "utf8",
+      ),
+    );
+  } catch {
+    return new Map();
   }
-  return claims;
+  if (typeof parsed !== "object" || parsed === null) {
+    return new Map();
+  }
+  return new Map(
+    Object.entries(parsed).flatMap(([id, folder]: [string, unknown]) =>
+      typeof folder === "string" && folder ? [[id, folder] as const] : [],
+    ),
+  );
 }
 
 /** A clone on macOS, a copy anywhere else. `to` must not exist. */

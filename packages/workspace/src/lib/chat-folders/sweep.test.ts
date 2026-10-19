@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../../constants";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import { chatOwnFolder } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { logFileName, settingsFileName } from "../records/file-names";
 import {
@@ -27,6 +28,7 @@ import {
   userMessage,
 } from "../records/test-records";
 import { ensureChatFolder, renameChatFolder } from "./chat-folder";
+import { chatFolderNames } from "./own-folder";
 import { sweepChatFolders, writeChatFolder } from "./sweep";
 
 /**
@@ -52,6 +54,7 @@ beforeEach(async () => {
     ...heldConfig,
     outputDir: AbsolutePathSchema.parse(root),
     rootDir: WorkspaceDirSchema.parse(root),
+    workspaceMachineDir: AbsolutePathSchema.parse(machineDir()),
   });
 });
 
@@ -106,9 +109,25 @@ async function writeChat(
   return { chatId, dir };
 }
 
+function machineDir() {
+  return path.join(root, "machine");
+}
+
 function sweep() {
   return sweepChatFolders({
     chatsDir: chatsDir(),
+    machineDir: machineDir(),
+    rootDir: root,
+    timeZone: ZONE,
+  });
+}
+
+/** The end of one chat's turn. */
+function turnEnded(id: string) {
+  return writeChatFolder({
+    chatsDir: chatsDir(),
+    id: ChatIdSchema.parse(id),
+    machineDir: machineDir(),
     rootDir: root,
     timeZone: ZONE,
   });
@@ -122,10 +141,9 @@ async function folderNames() {
   }
 }
 
-async function settingsOf(dir: string) {
-  return JSON.parse(
-    await fs.readFile(path.join(dir, "settings.json"), "utf8"),
-  ) as Record<string, unknown>;
+/** The name this computer recorded for the folder of the chat in `dir`. */
+function folderOf(dir: string) {
+  return chatFolderNames(machineDir()).get(path.basename(dir));
 }
 
 /** Renames a folder under `Chats/`, the way a person does in a file manager. */
@@ -185,10 +203,8 @@ describe("every chat gets a folder", () => {
     ).toContain(
       "[Open this chat in Instrument](instrument://chat/2026-10-15-taxes)",
     );
-    expect((await settingsOf(one.dir)).folder).toBe(
-      "Quiet dishwashers under 900",
-    );
-    expect((await settingsOf(two.dir)).folder).toBe("Taxes 2026");
+    expect(folderOf(one.dir)).toBe("Quiet dishwashers under 900");
+    expect(folderOf(two.dir)).toBe("Taxes 2026");
   });
 
   it("names a chat the agent never named by its opening words", async () => {
@@ -269,7 +285,7 @@ describe("a gesture in a file manager", () => {
     const again = await sweep();
     expect(again.counts.written).toBe(1);
     expect(await folderNames()).toEqual(["Dishwashers"]);
-    expect((await settingsOf(dir)).folder).toBe("Dishwashers");
+    expect(folderOf(dir)).toBe("Dishwashers");
   });
 
   it("follows a folder the person renamed", async () => {
@@ -282,7 +298,7 @@ describe("a gesture in a file manager", () => {
     const again = await sweep();
     expect(again.counts.written).toBe(1);
     expect(await folderNames()).toEqual(["My own notes"]);
-    expect((await settingsOf(dir)).folder).toBe("My own notes");
+    expect(folderOf(dir)).toBe("My own notes");
     expect(
       await fs.readFile(
         path.join(chatsFolder(), "My own notes", CHAT_FILE_NAME),
@@ -297,6 +313,56 @@ describe("a gesture in a file manager", () => {
         "My own notes",
       ]
     `);
+  });
+
+  it("follows a folder the person renamed while the app runs, at the end of the chat's next turn", async () => {
+    const { dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await turnEnded("2026-10-14-dishwashers");
+    await renameFolder("Dishwashers", "My own notes");
+
+    // The shell finds it before the turn ends, so the turn's work lands there.
+    expect(chatOwnFolder(dir)).toBe(path.join(chatsFolder(), "My own notes"));
+
+    expect(await turnEnded("2026-10-14-dishwashers")).toEqual({
+      folder: "My own notes",
+      kind: "written",
+    });
+    expect(await folderNames()).toEqual(["My own notes"]);
+    expect(folderOf(dir)).toBe("My own notes");
+  });
+
+  it("takes the folder another computer made for a chat this one has no name for", async () => {
+    const { dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await sweep();
+    await fs.rm(machineDir(), { force: true, recursive: true });
+    await renameFolder("Dishwashers", "Named elsewhere");
+
+    await sweep();
+
+    expect(await folderNames()).toEqual(["Named elsewhere"]);
+    expect(folderOf(dir)).toBe("Named elsewhere");
+  });
+
+  it("makes a fresh folder at the end of a turn when the renamed one is a copy", async () => {
+    const { dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await turnEnded("2026-10-14-dishwashers");
+    await renameFolder("Dishwashers", "My own notes");
+    await copyFolder("My own notes", "My own notes (conflict)");
+
+    await turnEnded("2026-10-14-dishwashers");
+
+    expect(await folderNames()).toEqual([
+      "Dishwashers",
+      "My own notes",
+      "My own notes (conflict)",
+    ]);
+    expect(folderOf(dir)).toBe("Dishwashers");
   });
 
   it("follows a folder whose transcript names its chat in the link alone", async () => {
@@ -314,19 +380,14 @@ describe("a gesture in a file manager", () => {
     await sweep();
 
     expect(await folderNames()).toEqual(["My own notes"]);
-    expect((await settingsOf(dir)).folder).toBe("My own notes");
+    expect(folderOf(dir)).toBe("My own notes");
   });
 
   it("writes one chat's transcript on its own, as the end of its turn does", async () => {
     await writeChat("2026-10-14-dishwashers", { title: "Dishwashers" });
     await writeChat("2026-10-15-taxes", { title: "Taxes" });
 
-    const written = await writeChatFolder({
-      chatsDir: chatsDir(),
-      id: ChatIdSchema.parse("2026-10-14-dishwashers"),
-      rootDir: root,
-      timeZone: ZONE,
-    });
+    const written = await turnEnded("2026-10-14-dishwashers");
 
     // Only the chat whose turn ended; the other is the next sweep's.
     expect(written).toEqual({ folder: "Dishwashers", kind: "written" });
@@ -335,15 +396,11 @@ describe("a gesture in a file manager", () => {
 
   it("writes nothing for a turn that left the transcript reading the same", async () => {
     await writeChat("2026-10-14-dishwashers", { title: "Dishwashers" });
-    const once = {
-      chatsDir: chatsDir(),
-      id: ChatIdSchema.parse("2026-10-14-dishwashers"),
-      rootDir: root,
-      timeZone: ZONE,
-    };
-    await writeChatFolder(once);
+    await turnEnded("2026-10-14-dishwashers");
 
-    expect(await writeChatFolder(once)).toEqual({ kind: "already-there" });
+    expect(await turnEnded("2026-10-14-dishwashers")).toEqual({
+      kind: "already-there",
+    });
   });
 
   it("brings what the person sent out of the record folder and into theirs", async () => {
@@ -409,7 +466,7 @@ describe("a gesture in a file manager", () => {
       "Dishwashers",
       "Dishwashers, my copy",
     ]);
-    expect((await settingsOf(dir)).folder).toBe("Dishwashers");
+    expect(folderOf(dir)).toBe("Dishwashers");
     expect(opened()).toEqual([]);
   });
 
@@ -426,7 +483,7 @@ describe("a gesture in a file manager", () => {
       "My own notes",
       "My own notes (conflict)",
     ]);
-    expect((await settingsOf(dir)).folder).toBe("Dishwashers");
+    expect(folderOf(dir)).toBe("Dishwashers");
   });
 
   it.each([
@@ -451,7 +508,7 @@ describe("a gesture in a file manager", () => {
     await change(path.join(chatsFolder(), "My own notes"));
     await sweep();
     expect(await folderNames()).toEqual(["Dishwashers", "My own notes"]);
-    expect((await settingsOf(dir)).folder).toBe("Dishwashers");
+    expect(folderOf(dir)).toBe("Dishwashers");
   });
 
   it("leaves a folder naming a chat this workspace does not have", async () => {
@@ -471,7 +528,7 @@ describe("a gesture in a file manager", () => {
       "Dishwashers",
       "From another computer",
     ]);
-    expect((await settingsOf(dir)).folder).toBe("Dishwashers");
+    expect(folderOf(dir)).toBe("Dishwashers");
   });
 });
 

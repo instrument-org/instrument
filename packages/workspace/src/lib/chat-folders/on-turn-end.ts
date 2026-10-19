@@ -41,10 +41,11 @@ export function startChatFolderWrites(): void {
  * reporting a failure rather than throwing it.
  */
 export async function rewriteChatFolder(id: ChatId): Promise<void> {
-  const rootDir = getWorkspaceConfig().rootDir;
+  const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
   const written = await writeChatFolder({
     chatsDir: workspaceLayout(rootDir).chatsDir,
     id,
+    machineDir: workspaceMachineDir,
     rootDir,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     topicNames: new Map(

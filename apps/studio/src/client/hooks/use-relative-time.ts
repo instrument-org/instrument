@@ -14,10 +14,7 @@ import { useState, useSyncExternalStore } from "react";
  * `RelativeTime` is the usual way to reach this. Call the hook directly where
  * the string is joined into a larger one rather than rendered on its own.
  */
-export function useRelativeTime(
-  date: Date,
-  { compact = false }: { compact?: boolean } = {},
-) {
+export function useRelativeTime(date: Date) {
   // The cadence is state rather than something read off the clock as the
   // instance renders: the age it follows from goes on changing after the first
   // render, and a rendering that reads the clock directly is free to be cached
@@ -40,7 +37,7 @@ export function useRelativeTime(
     setIntervalMs(nextIntervalMs);
   }
 
-  return formatRelativeTime(date, now, { compact });
+  return formatRelativeTime(date, now);
 }
 
 function noopSubscribe() {

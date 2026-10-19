@@ -194,10 +194,13 @@ export const CodeBlock = ({
 export const MarkdownCodeBlock = ({
   code,
   filename,
+  isArriving = false,
   language,
 }: {
   code: string;
   filename?: string;
+  /** The fence has not closed yet, so the code it holds is still arriving. */
+  isArriving?: boolean;
   language?: string;
 }) => {
   const [wrapLines, setWrapLines] = useState(true);
@@ -252,13 +255,19 @@ export const MarkdownCodeBlock = ({
             }}
             pressed={wrapLines}
           />
+          {/* Off until the fence closes: until then the block holds part of
+              the code, and a command copied half written does something other
+              than what it says once it is pasted into a terminal. */}
           <CopyButton
-            className={blockToolbarButtonClassName}
+            className={cn(blockToolbarButtonClassName, "disabled:opacity-50")}
+            disabled={isArriving}
             iconSize={12}
             onCopy={async () => {
               await navigator.clipboard.writeText(code);
             }}
-            tooltip="Copy code"
+            tooltip={
+              isArriving ? "You can copy this once it finishes." : "Copy code"
+            }
           />
         </div>
       </div>

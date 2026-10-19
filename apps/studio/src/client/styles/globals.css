@@ -56,6 +56,15 @@ body {
     outline: 2px solid var(--ring);
     outline-offset: 0;
   }
+
+  /* Monospace text is code, a command, or a path, and it is drawn as the
+     characters written. Both of the app's faces turn `=>` into an arrow and
+     `!=` into a slashed equals through their contextual alternates, which puts
+     a character on screen that is not the one that runs. Zero specificity, so
+     a surface that wants them back can say so. */
+  :where(code, kbd, samp, pre, .font-mono) {
+    font-variant-ligatures: none;
+  }
 }
 
 /* =========================
@@ -511,6 +520,37 @@ body {
   --tw-prose-counters: var(--muted-foreground);
   --tw-prose-invert-bullets: var(--muted-foreground);
   --tw-prose-invert-counters: var(--muted-foreground);
+
+  /* Inline code is a quiet pill in the text's own color and weight.
+     Typography draws it bold between literal backticks, which reads as markup
+     that failed to render and makes a filename in a sentence the loudest thing
+     in it. The pill takes its fill and hairline from the theme, so it is a
+     shade apart from the bubble, card, or page it sits on in either theme. A
+     fence's own `code` is the block's business, and `not-prose` opts out here
+     as it does from Typography. */
+  code:not(:where(pre code, .not-prose *)) {
+    padding: 0.125em 0.3125em;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 2px);
+    background-color: var(--muted);
+    color: inherit;
+    font-weight: inherit;
+    box-decoration-break: clone;
+  }
+
+  code:not(:where(pre code, .not-prose *))::before,
+  code:not(:where(pre code, .not-prose *))::after {
+    content: none;
+  }
+
+  /* In a link's label or a file chip the code keeps its face and drops the
+     pill: the underline or the chip already sets it apart, and a pill inside
+     either draws a second box around the same words. */
+  :is(a, [role="button"]) code {
+    padding: 0;
+    border: 0;
+    background-color: transparent;
+  }
 
   /* A code block renders inside a wrapper that positions its hover controls,
      so Typography's own first/last-child margin reset lands on the wrapper

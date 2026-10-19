@@ -25,6 +25,7 @@ import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
   type ComponentProps,
+  createContext,
   memo,
   type ReactNode,
   useCallback,
@@ -284,12 +285,51 @@ const readFence = (node: FenceNode | undefined): Fence | undefined => {
   };
 };
 
+/**
+ * The source of the block of a message still arriving, for the one construct
+ * that has to read it: a fence, which is drawn the same whether or not it has
+ * closed. Absent for every block that has stopped growing, and for a message
+ * that has stopped arriving.
+ */
+const ArrivingBlockContext = createContext<string | undefined>(undefined);
+
+// A fence's opening run, behind whatever indent or quote markers its container
+// puts in front of each of its lines.
+const FENCE_OPENER = /^[\s>]*(`{3,}|~{3,})/;
+
+/**
+ * Whether a fence is still waiting for its closing line.
+ *
+ * Markdown runs an unclosed fence to the end of the document, so the tree cannot
+ * tell a block still arriving from a finished one: both are a `pre` holding
+ * code. The source can. A fence that has closed ends on a line of its opening
+ * character at least as long as the run that opened it.
+ */
+const isFenceOpen = (source: string, node: FenceNode | undefined) => {
+  const start = node?.position?.start.offset;
+  const end = node?.position?.end.offset;
+  if (start === undefined || end === undefined) {
+    return false;
+  }
+  const [first = "", ...rest] = source.slice(start, end).trimEnd().split("\n");
+  const opener = FENCE_OPENER.exec(first)?.[1];
+  // Indented code has no fence to close.
+  if (!opener) {
+    return false;
+  }
+  const last = rest.at(-1)?.replace(/^[\s>]*/, "") ?? "";
+  return !(
+    last.length >= opener.length && last.replaceAll(opener.charAt(0), "") === ""
+  );
+};
+
 // Only the `pre` is told which code is which: an inline `code` element is
 // indistinguishable from the one inside a fence when all you have is the
 // element itself. Reading the fence from here is what lets a fence with no
 // language be a block at all -- reached through `code`, it fell through to the
 // inline branch, where a browser collapses its newlines into spaces.
-const markdownPre: Components["pre"] = ({ children, node }) => {
+const MarkdownPre: Components["pre"] = ({ children, node }) => {
+  const arrivingSource = useContext(ArrivingBlockContext);
   const fence = readFence(node);
 
   // Raw HTML can carry a `pre` that holds anything, and there is no fence to
@@ -314,6 +354,9 @@ const markdownPre: Components["pre"] = ({ children, node }) => {
     <MarkdownCodeBlock
       code={fence.code}
       filename={fence.filename}
+      isArriving={
+        arrivingSource !== undefined && isFenceOpen(arrivingSource, node)
+      }
       language={fence.language}
     />
   );
@@ -972,24 +1015,32 @@ const chatFilePathFromImageSrc = (src: string | undefined) =>
  */
 const MarkdownBlock = memo(function MarkdownBlock({
   components,
+  isArriving,
   markdown,
   rehypePlugins,
   remarkPlugins,
 }: {
   components: Components;
+  /** The block of a message still arriving that is still growing; see `ArrivingBlockContext`. */
+  isArriving: boolean;
   markdown: string;
   rehypePlugins: PluginList;
   remarkPlugins: RemarkPluginList;
 }) {
+  // Provided either way, so a block that stops growing keeps the tree it has
+  // rather than being remounted under a different parent, which would reset
+  // whatever a reader had done to its code blocks.
   return (
-    <ReactMarkdown
-      components={components}
-      rehypePlugins={rehypePlugins}
-      remarkPlugins={remarkPlugins}
-      urlTransform={markdownUrlTransform}
-    >
-      {markdown}
-    </ReactMarkdown>
+    <ArrivingBlockContext value={isArriving ? markdown : undefined}>
+      <ReactMarkdown
+        components={components}
+        rehypePlugins={rehypePlugins}
+        remarkPlugins={remarkPlugins}
+        urlTransform={markdownUrlTransform}
+      >
+        {markdown}
+      </ReactMarkdown>
+    </ArrivingBlockContext>
   );
 });
 
@@ -1173,7 +1224,7 @@ export const Markdown = memo(
         },
         ol: markdownOrderedList,
         p: markdownParagraph,
-        pre: markdownPre,
+        pre: MarkdownPre,
         table: MarkdownTable,
       }),
       [documentUrl, handleImageClick, hideImages, imageKinds],
@@ -1197,6 +1248,7 @@ export const Markdown = memo(
         {blocks === undefined ? (
           <MarkdownBlock
             components={components}
+            isArriving={false}
             markdown={markdown}
             rehypePlugins={streamingRehypePlugins}
             remarkPlugins={remarkPluginList}
@@ -1205,6 +1257,7 @@ export const Markdown = memo(
           blocks.map((block, index) => (
             <MarkdownBlock
               components={components}
+              isArriving={index === blocks.length - 1}
               // The index is the right key here rather than a compromise: a
               // block only changes identity by being the one still growing, and
               // that one's contents have changed anyway.

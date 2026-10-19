@@ -1,8 +1,10 @@
+import { ariaSnapshot } from "@/tests/aria-snapshot";
 import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it, vi } from "vitest";
 
 import { CodeWithCopy, MarkdownCodeBlock } from "./code-block";
 import { ImageViewer } from "./image-viewer";
+import { SessionMarkdown } from "./session-markdown";
 import { TranscriptScrollContext } from "./transcript-scroll-context";
 
 // A block asks which theme to highlight against, and the real provider answers
@@ -400,5 +402,77 @@ describe("markdown code block", () => {
 
       expect(releaseAutoScroll).toHaveBeenCalledOnce();
     });
+  });
+});
+
+// Code as a reply draws it, through the prose classes the reply really wears.
+// What is under test is the stylesheet, which only a real browser computes.
+describe("code in a reply", () => {
+  const elementIn = (root: Element, selector: string) => {
+    const element = root.querySelector(selector);
+    if (!element) {
+      throw new Error(`nothing matched ${selector}`);
+    }
+    return element;
+  };
+
+  // Typography draws inline code bold between literal backticks, which reads
+  // as markup that failed to render.
+  it("draws inline code without backticks, at the weight of its sentence", async () => {
+    const screen = await renderInBrowser(
+      <SessionMarkdown markdown="Run `git rebase -i HEAD~3` before you push." />,
+    );
+    const code = elementIn(screen.container, "p code");
+    const sentence = elementIn(screen.container, "p");
+
+    expect({
+      after: globalThis.getComputedStyle(code, "::after").content,
+      before: globalThis.getComputedStyle(code, "::before").content,
+      weight: globalThis.getComputedStyle(code).fontWeight,
+    }).toEqual({
+      after: "none",
+      before: "none",
+      weight: globalThis.getComputedStyle(sentence).fontWeight,
+    });
+  });
+
+  // Both of the app's faces turn `=>` into an arrow through their contextual
+  // alternates. Code is drawn as the characters written, wherever it is.
+  it.each([
+    ["inline code", "p code"],
+    ["a fenced block", "pre"],
+    ["monospace outside markdown", ".font-mono"],
+  ])("draws %s without ligatures", async (_case, selector) => {
+    const screen = await renderInBrowser(
+      <>
+        <SessionMarkdown
+          markdown={"Still `() => {}`.\n\n```js\nconst f = () => {};\n```"}
+        />
+        <span className="font-mono">a =&gt; b</span>
+      </>,
+    );
+
+    expect(
+      globalThis.getComputedStyle(elementIn(screen.container, selector))
+        .fontVariantLigatures,
+    ).toBe("none");
+  });
+
+  // Copying a fence that has not closed takes part of a command, which runs as
+  // something else once pasted; it is offered once the fence closes.
+  it("holds copying back on a fence still arriving", async () => {
+    const screen = await renderInBrowser(
+      <div data-testid="reply">
+        <SessionMarkdown isStreaming markdown={"```sh\nrm -rf build"} />
+      </div>,
+    );
+
+    expect(await ariaSnapshot(screen.getByTestId("reply")))
+      .toMatchInlineSnapshot(`
+      "- text: Shell
+      - button "Wrap lines" [pressed]
+      - button "Copy" [disabled]
+      - code: rm -rf build"
+    `);
   });
 });

@@ -336,6 +336,41 @@ describe("Markdown fences", () => {
     ).toEqual(["Wrap lines", "Copy"]);
   });
 
+  // A fence that has not closed holds part of its code, and a command copied
+  // half written runs as something else once it is pasted. Only that fence
+  // waits: one that closed above it in the same reply is whole.
+  it.each([
+    ["a fence still arriving", "Run this:\n\n```sh\nrm -rf build", true],
+    ["a fence arriving inside a list", "- First:\n\n  ```sh\n  rm -rf", true],
+    [
+      "a longer fence holding a shorter one",
+      "````md\n```sh\nrm -rf build\n```",
+      true,
+    ],
+    ["a fence that just closed", "```sh\nrm -rf build\n```", false],
+    [
+      "a closed fence with prose arriving after it",
+      "```sh\nrm -rf build\n```\n\nThen rebuild",
+      false,
+    ],
+  ])("with %s, offers copying only once it closes", (_case, text, isOff) => {
+    renderWithProviders(<Markdown isStreaming markdown={text} />);
+
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Copy" }).disabled,
+    ).toBe(isOff);
+  });
+
+  // A finished reply that never closed its fence has nothing more coming, so
+  // what the block holds is all of it.
+  it("offers copying an unclosed fence once the reply has finished", () => {
+    renderWithProviders(<Markdown markdown={"```sh\nrm -rf build"} />);
+
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Copy" }).disabled,
+    ).toBe(false);
+  });
+
   it("wraps by default, and remembers nothing once toggled off", () => {
     const { container, unmount } = renderMarkdown("```\ncat log.txt\n```");
     const toggle = screen.getByRole("button", { name: "Wrap lines" });

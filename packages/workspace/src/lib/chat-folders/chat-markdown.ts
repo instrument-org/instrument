@@ -28,10 +28,10 @@ import { spokenDuration, workFoldFacts, workFoldLines } from "./work-fold";
  *
  * What the person sees in the chat stays visible: what they and the agent
  * said, what they sent, the cards they answered, a model switch. The work
- * between two visible messages folds into one `<details>` holding plain
- * `<pre>` lines, which is the one markup that reads the same in Obsidian: it
- * renders no Markdown inside `<details>`, so a callout or a list in there
- * would show its own source.
+ * between two visible messages folds into one `<details>` whose body is
+ * Markdown, set off by blank lines so a reader that renders Markdown inside
+ * HTML (GitHub, the app's own viewer and editor) draws it: each call's
+ * command in a shell block, each thought as a quote.
  */
 
 /** What a render is made from. */
@@ -107,13 +107,13 @@ const ConnectInputSchema = z.object({
   slug: z.string(),
 });
 
-/** One line the fold holds: a line of work, at the depth it belongs. */
+/** One line the fold holds: a call, or a thought when there is no call. */
 interface WorkLine {
   at: Date;
   /** The call the line is, for the summary to count; none for a thought. */
   call?: SessionMessagePart.ToolPart;
-  /** 0 for the chat's own agent, 1 for a task of its. */
-  depth: number;
+  /** The task's handle for a task's line; empty for the chat's own agent. */
+  handle: string;
   /** When the call it names ended, where the records say so; `at` otherwise. */
   endedAt: Date;
   /** Where in the records it is, so two at the same moment keep an order. */
@@ -364,8 +364,10 @@ function card(part: SessionMessagePart.ToolPart): string | undefined {
 
 /**
  * The work of a stretch, as one `<details>`: how long it ran and what it did
- * in the summary, and its lines in a `<pre>`, a task's indented under the
- * chat's own.
+ * in the summary, and under it each step as Markdown: a call's label in bold
+ * with how it ended, its command in a shell block and what it touched or why
+ * it failed under that, and a thought as a quote. A task's steps carry its
+ * handle in front.
  */
 function details(held: WorkLine[]): string {
   const first = held[0];
@@ -375,11 +377,6 @@ function details(held: WorkLine[]): string {
   // To the end of the last call to finish rather than to when it was made: a
   // fold whose one call ran for two minutes took two minutes.
   const ended = Math.max(...held.map((line) => line.endedAt.getTime()));
-  const body = held.flatMap((line) =>
-    line.text
-      .split("\n")
-      .map((each) => escaped(`${" ".repeat(line.depth * 2)}${each}`)),
-  );
   const summary = [
     `Worked for ${spokenDuration(ended - first.at.getTime())}`,
     ...workFoldFacts(held.flatMap((line) => (line.call ? [line.call] : []))),
@@ -387,16 +384,54 @@ function details(held: WorkLine[]): string {
   return [
     "<details>",
     `<summary>${escaped(summary)}</summary>`,
-    "<pre>",
-    ...body,
-    "</pre>",
+    "",
+    ...held.map(step),
     "</details>",
   ].join("\n");
 }
 
+/** One line of work as the Markdown a fold shows it in, ending in a blank line. */
+function step(line: WorkLine): string {
+  const handle = line.handle ? `${inlineMarkdown(line.handle)} ` : "";
+  if (!line.call) {
+    const quoted = inlineMarkdown(line.text)
+      .split("\n")
+      .map((each) => (each.trim() === "" ? ">" : `> ${each}`));
+    return [
+      ...(handle ? [`> **${handle.trim()}**`, ">"] : []),
+      ...quoted,
+      "",
+    ].join("\n");
+  }
+  const [head = "", ...more] = line.text.split("\n");
+  const at = head.indexOf(" · ");
+  const label = at === -1 ? head : head.slice(0, at);
+  const ending = at === -1 ? "" : head.slice(at);
+  const out = [
+    `**${handle}${inlineMarkdown(label)}**${inlineMarkdown(ending)}`,
+    "",
+  ];
+  for (const each of more) {
+    const text = each.replace(/^ {2}/, "");
+    if (text.startsWith("$ ")) {
+      const command = text.slice(2);
+      const fence = "`".repeat(
+        Math.max(
+          3,
+          ...[...command.matchAll(/`+/g)].map((m) => m[0].length + 1),
+        ),
+      );
+      out.push(`${fence}sh`, command, fence, "");
+    } else {
+      out.push(inlineMarkdown(text), "");
+    }
+  }
+  return out.join("\n");
+}
+
 /**
  * Every line of work the chat's sessions hold, oldest first: its own agent's
- * reasoning and calls, and each of its tasks' at a depth of one. Ordered by
+ * reasoning and calls, and each of its tasks' under its handle. Ordered by
  * when each happened, and for two at the same moment by the session and the
  * part they are, so the order never comes from how the records were read.
  */
@@ -407,8 +442,7 @@ function workLines(
 ): WorkLine[] {
   const lines: WorkLine[] = [];
   for (const session of chat.sessions) {
-    const depth = session.id === own ? 0 : 1;
-    const handle = depth === 0 ? "" : `${session.handle ?? session.id} `;
+    const handle = session.id === own ? "" : (session.handle ?? session.id);
     for (const message of session.messages) {
       if (message.role !== "assistant") {
         continue;
@@ -422,10 +456,10 @@ function workLines(
           if (text !== "") {
             lines.push({
               at,
-              depth,
               endedAt,
+              handle,
               order,
-              text: `${handle}thinking: ${text.slice(0, CLIP_LENGTH)}`,
+              text: text.slice(0, CLIP_LENGTH),
             });
           }
           continue;
@@ -433,14 +467,13 @@ function workLines(
         if (!isToolPart(part) || VISIBLE.has(part.type)) {
           continue;
         }
-        const [head = "", ...more] = workFoldLines(part, rootDir);
         lines.push({
           at,
           call: part,
-          depth,
           endedAt,
+          handle,
           order,
-          text: [`${handle}${head}`, ...more].join("\n"),
+          text: workFoldLines(part, rootDir).join("\n"),
         });
       }
     }
@@ -504,6 +537,21 @@ function yamlScalar(value: string): string {
   return /^[\w ][\w ().-]*$/.test(value) && value.trim() === value
     ? value
     : `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+/**
+ * Text the agent wrote, as Markdown that draws its code spans and emphasis
+ * but never markup: an angle bracket outside a code span is escaped, so a
+ * `</details>` in a thought cannot close the fold, and a code span is left
+ * as written, since Markdown shows what is in one literally.
+ */
+function inlineMarkdown(text: string): string {
+  return text
+    .split(/(`+[^`]*?`+)/)
+    .map((piece, i) =>
+      i % 2 === 1 ? piece : piece.replaceAll("<", "\\<").replaceAll(">", "\\>"),
+    )
+    .join("");
 }
 
 /** A line of work as HTML text, so nothing in it is read as markup. */

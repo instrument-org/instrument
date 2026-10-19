@@ -239,13 +239,21 @@ it("renders a chat whole", () => {
 
     <details>
     <summary>Worked for 20s · ran 2 commands</summary>
-    <pre>
-    thinking: Noise matters more to them than price.
-    Ran a command · 10s
-      $ ls
-      t1 Ran a command · exit 1 · 1s
-        $ ls
-    </pre>
+
+    > Noise matters more to them than price.
+
+    **Ran a command** · 10s
+
+    \`\`\`sh
+    ls
+    \`\`\`
+
+    **t1 Ran a command** · exit 1 · 1s
+
+    \`\`\`sh
+    ls
+    \`\`\`
+
     </details>
 
     ### Instrument at 8:03 AM
@@ -292,6 +300,59 @@ it("counts the work to the end of the call, not to when it was made", () => {
   expect(render(slow)).toContain(
     "<summary>Worked for 3m 10s · ran a command</summary>",
   );
+});
+
+it("keeps what the agent wrote inside the fold: no markup escapes it, and a command reads as typed", () => {
+  const meta = (id: number, seconds: number) => ({
+    createdAt: at(seconds),
+    id: partId(id),
+    messageId: messageId(2),
+    sessionId: chatSession,
+  });
+  const chat = foldChat([
+    log(DEVICE_A, [
+      header(0, { device: DEVICE_A, id: chatSession }),
+      messageRecord(1, assistantMessage(chatSession, messageId(2), at(0))),
+      partRecord(
+        2,
+        SessionMessagePart.coerce({
+          metadata: meta(1, 0),
+          text: "Close it with </details>, then run `a <b> c`.",
+          type: "reasoning",
+        }),
+      ),
+      partRecord(
+        3,
+        SessionMessagePart.coerce({
+          input: { command: "echo ``` && ls 2>/dev/null" },
+          metadata: meta(2, 1),
+          output: { exitCode: 0 },
+          state: "output-available",
+          toolCallId: "call-echo",
+          type: "tool-bash",
+        }),
+      ),
+      partRecord(
+        4,
+        textPart(chatSession, messageId(2), partId(3), "Done.", at(2)),
+      ),
+    ]),
+  ]);
+  const fold = render(chat)?.match(/<details>[\s\S]*?<\/details>/)?.[0];
+  expect(fold).toMatchInlineSnapshot(`
+    "<details>
+    <summary>Worked for 1s · ran a command</summary>
+
+    > Close it with \\</details\\>, then run \`a <b> c\`.
+
+    **Ran a command**
+
+    \`\`\`\`sh
+    echo \`\`\` && ls 2>/dev/null
+    \`\`\`\`
+
+    </details>"
+  `);
 });
 
 describe("the same records render the same bytes", () => {

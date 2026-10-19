@@ -1,14 +1,7 @@
-import { APP_NAME_SLUG } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
-
-/** How much of a transcript is read to find the chat it links to. */
-const LINK_HEAD_BYTES = 2048;
-
-/** The chat a `CHAT.md` names, in its front matter and then in its link. */
-const CHAT_KEY = /^chat:\s*"?([^"\n]+?)"?\s*$/m;
-const CHAT_LINK = new RegExp(`${APP_NAME_SLUG}://chat/([^)\\s]+)`);
+import { type ChatId } from "../../schemas/chat-id";
+import { chatLinkedInText, LINK_HEAD_BYTES } from "./chat-transcript";
 
 /**
  * The chat a transcript names, from the head of the file: the front matter
@@ -34,13 +27,5 @@ export async function chatLinkedInFile(
   } catch {
     return undefined;
   }
-  // The key first, since that is where the chat is named; the link after it
-  // for a file written before the key was, which is every folder the update
-  // made and any a person is holding from an older build.
-  const named = CHAT_KEY.exec(head)?.[1] ?? CHAT_LINK.exec(head)?.[1];
-  if (named === undefined) {
-    return undefined;
-  }
-  const id = ChatIdSchema.safeParse(named);
-  return id.success ? id.data : undefined;
+  return chatLinkedInText(head);
 }

@@ -26,6 +26,7 @@ import { splitFrontMatter } from "@/shared/front-matter";
 import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
+  isChatTranscript,
   isMessageDocument,
   parseMessage,
   WINDOW_ID,
@@ -82,7 +83,11 @@ export function MarkdownEditor({
   readOnlyView,
 }: {
   hostPath: string;
-  /** What shows instead when the file is not UTF-8, which saving would corrupt. */
+  /**
+   * What shows instead when the file is not UTF-8, which saving would
+   * corrupt, or is a chat's `CHAT.md`, which the app rewrites after every
+   * reply and whose own head says so.
+   */
   readOnlyView: ReactNode;
 }) {
   const initial = useQuery({
@@ -114,6 +119,9 @@ export function MarkdownEditor({
         <div className="relative min-h-0 flex-1">{readOnlyView}</div>
       </div>
     );
+  }
+  if (isChatTranscript(hostPath, initial.data.content)) {
+    return readOnlyView;
   }
   return <LiveDocument hostPath={hostPath} initial={initial.data} />;
 }

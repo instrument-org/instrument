@@ -9,6 +9,7 @@ export {
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
 export { appEventModelNote } from "./lib/app-event-model-text";
+export { isChatTranscript } from "./lib/chat-folders/chat-transcript";
 export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
 export { topicModelNote } from "./lib/topic-model-text";
 export { dateChangeModelNote } from "./lib/date-change-model-text";

@@ -9,7 +9,10 @@ import { updateChatSettings } from "../../lib/chat-settings";
 import { appRefusal } from "../../lib/permissions/apps";
 import { openAsks, recordAsk } from "../../lib/chat/asks";
 import { chatDenials } from "../../lib/permissions/denials";
-import { readPermissionSettings } from "../../lib/permissions/rules";
+import {
+  readPermissionSettings,
+  updateChatPermissions,
+} from "../../lib/permissions/rules";
 import { sessionOfChat } from "../../lib/record-folders";
 import {
   getWorkspaceConfig,
@@ -92,6 +95,43 @@ it("keeps a folder rule for a folder inside a place", async () => {
   const settings = await readPermissionSettings();
   expect(settings.places.documents).toBeUndefined();
   expect(settings.folders.map((f) => f.path)).toEqual([folder]);
+});
+
+it("resets every rule, and what every chat was allowed, to a new install's", async () => {
+  const context = { context: createContext() };
+  await call(
+    permissions.setFolder,
+    {
+      level: "allow",
+      path: AbsolutePathSchema.parse(
+        path.join(os.homedir(), "Documents", "Taxes"),
+      ),
+    },
+    context,
+  );
+  await call(permissions.setPlace, { id: "desktop", level: "allow" }, context);
+  await call(permissions.setApp, { level: "allow", name: "Notes" }, context);
+  await call(
+    permissions.setDangerouslyAllowEveryFolder,
+    { dangerouslyAllowEveryFolder: true },
+    context,
+  );
+  await updateChatPermissions("2026-10-19-pantry", (held) => ({
+    ...held,
+    denials: [
+      { deniedAt: new Date(), kind: "folder", target: "/Users/me/Pantry" },
+    ],
+  }));
+
+  await call(permissions.reset, undefined, context);
+
+  expect(await readPermissionSettings()).toEqual({
+    apps: [],
+    chats: {},
+    dangerouslyAllowEveryFolder: false,
+    folders: [],
+    places: {},
+  });
 });
 
 describe("permissions.answer", () => {

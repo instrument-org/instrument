@@ -139,6 +139,12 @@ export const SETTINGS_INDEX = [
     title: "Folders every chat can use",
   },
   {
+    detail: `Put every folder and app back the way they were when you installed ${APP_NAME}.`,
+    id: "reset-permissions",
+    tab: "Permissions",
+    title: "Reset permissions",
+  },
+  {
     detail: "Ask for a skill that teaches a new way of working.",
     id: "new-skill",
     tab: "Skills",

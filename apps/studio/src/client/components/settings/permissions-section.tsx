@@ -118,6 +118,7 @@ export function PermissionsSection() {
   const queryClient = useQueryClient();
   const openLink = useOpenExternalLink();
   const [confirmingWithoutAsking, setConfirmingWithoutAsking] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
   const { data: view } = useQuery(
     rpcClient.workspace.permissions.get.queryOptions(),
   );
@@ -166,6 +167,13 @@ export function PermissionsSection() {
         onSuccess: refresh,
       },
     ),
+  );
+
+  const reset = useMutation(
+    rpcClient.workspace.permissions.reset.mutationOptions({
+      onError,
+      onSuccess: refresh,
+    }),
   );
 
   if (!view) {
@@ -421,6 +429,39 @@ export function PermissionsSection() {
         output={placeById.get("output")?.paths[0]}
         places={view.alwaysOpen}
       />
+      <button
+        className="w-full rounded-lg border bg-card p-4 text-left text-sm text-destructive hover:bg-muted/50"
+        onClick={() => {
+          setConfirmingReset(true);
+        }}
+        type="button"
+        {...settingAnchor("reset-permissions")}
+      >
+        Reset permissions
+      </button>
+      <AlertDialog onOpenChange={setConfirmingReset} open={confirmingReset}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset permissions?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Every folder and app goes back to how it was when you installed
+              Instrument, and chats will ask again before using anything you
+              allowed in them.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                reset.mutate(undefined);
+              }}
+              variant="destructive"
+            >
+              Reset
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         onOpenChange={setConfirmingWithoutAsking}
         open={confirmingWithoutAsking}

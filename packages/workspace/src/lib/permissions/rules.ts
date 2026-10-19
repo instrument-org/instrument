@@ -163,6 +163,26 @@ export async function updatePermissionSettings(
   return PermissionSettingsSchema.parse(written);
 }
 
+/**
+ * Every rule as a new install has it: the places at their defaults, none of
+ * the person's own folders or apps, asking switched back on, and nothing
+ * allowed or refused in any chat, so each chat asks again.
+ */
+export async function resetPermissionSettings(): Promise<PermissionSettings> {
+  let chats: string[] = [];
+  const reset = await updatePermissionSettings((settings) => {
+    chats = Object.keys(settings.chats);
+    return PermissionSettingsSchema.parse({});
+  });
+  for (const chatId of chats) {
+    const chat = ChatIdSchema.safeParse(chatId);
+    if (chat.success) {
+      recordChanged(chat.data, "settings");
+    }
+  }
+  return reset;
+}
+
 /** What one chat holds, or nothing held yet. */
 export async function readChatPermissions(
   chatId: string,

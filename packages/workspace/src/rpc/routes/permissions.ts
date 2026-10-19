@@ -17,6 +17,7 @@ import {
 import {
   type PermissionSettings,
   readPermissionSettings,
+  resetPermissionSettings,
   updatePermissionSettings,
 } from "../../lib/permissions/rules";
 import { appBundleId, grantApp } from "../../lib/permissions/apps";
@@ -195,6 +196,11 @@ const removeFolder = base
       })),
     ),
   );
+
+/** Puts every rule back as a new install has it, in Settings and in every chat. */
+const reset = base
+  .output(PermissionsViewSchema)
+  .handler(async () => view(await resetPermissionSettings()));
 
 /** "Use folders without asking": every Ask first becomes a yes. */
 const setDangerouslyAllowEveryFolder = base
@@ -461,6 +467,7 @@ export const permissions = {
   liveAsks,
   get,
   removeApp,
+  reset,
   setApp,
   removeFolder,
   setFolder,

@@ -193,7 +193,13 @@ const copyInto = base
       paths: z.array(HostPathSchema).min(1).max(1000),
     }),
   )
-  .output(z.object({ paths: z.array(z.string()) }))
+  .output(
+    z.object({
+      /** The journal entry that takes the copies back, when any were made. */
+      journalId: z.string().nullable(),
+      paths: z.array(z.string()),
+    }),
+  )
   .handler(async ({ errors, input }) => {
     const folder = path.resolve(input.folder);
     for (const from of input.paths) {
@@ -203,6 +209,7 @@ const copyInto = base
       }
     }
     const made: { identity: Identity; path: string }[] = [];
+    let journalId: null | string = null;
     try {
       for (const from of input.paths) {
         const extension = path.extname(from);
@@ -229,10 +236,10 @@ const copyInto = base
     } finally {
       // What was copied before a failure is still taken back by ⌘Z.
       if (made.length > 0) {
-        fileJournal.record({ kind: "copy", made });
+        journalId = fileJournal.record({ kind: "copy", made }).id;
       }
     }
-    return { paths: made.map((each) => each.path) };
+    return { journalId, paths: made.map((each) => each.path) };
   });
 
 /**

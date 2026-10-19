@@ -75,6 +75,10 @@ import {
 import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import {
+  isSelfFileDrag,
+  releaseSelfFileDrag,
+} from "@/client/lib/self-file-drag";
+import {
   cn,
   commandKeyHeld,
   currentOs,
@@ -796,7 +800,7 @@ export function ComputerPage({
             ? {
                 journalIds: undoable,
                 undo: () => {
-                  void undoTrash(undoable);
+                  void undoJournaled(undoable);
                 },
               }
             : null,
@@ -804,10 +808,56 @@ export function ComputerPage({
       }
     }
   };
-  // The toast's Undo: each of them back, the last trashed first, stopping at
-  // the first that cannot come back and saying why. One already put back
-  // another way, by ⌘Z say, is passed over quietly.
-  const undoTrash = async (journalIds: string[]) => {
+  // Copies things into a folder of this computer, as a drop does, and says
+  // where they went with an Undo for all of them. What was made is selected
+  // when it lands in the folder on screen, the way a duplicate is.
+  const copyInto = async (
+    sources: { hostPath: string; isFolder: boolean }[],
+    into: { hostPath: string; prefix: string },
+  ) => {
+    if (sources.length === 0) {
+      return;
+    }
+    try {
+      const copied = await rpcClient.files.copyInto.call({
+        folder: into.hostPath,
+        paths: sources.map((source) => source.hostPath),
+      });
+      const made = copied.paths.map(
+        (copy, index) =>
+          `${into.prefix}${nameOf(copy)}${sources[index]?.isFolder ? "/" : ""}`,
+      );
+      const [first] = made;
+      if (into.prefix === onScreen && first !== undefined) {
+        setSelectedPath(first);
+        setSelectedPaths(made);
+      }
+      focusBrowser();
+      const [only] = copied.paths;
+      const { journalId } = copied;
+      toastWithUndo(
+        copied.paths.length === 1 && only
+          ? `Copied “${nameOf(only)}” into “${nameOf(into.hostPath)}”`
+          : `Copied ${copied.paths.length} items into “${nameOf(into.hostPath)}”`,
+        journalId === null
+          ? null
+          : {
+              journalIds: [journalId],
+              undo: () => {
+                void undoJournaled([journalId]);
+              },
+            },
+      );
+    } catch (error) {
+      fileActionFailed("Couldn't copy that", error);
+    } finally {
+      reread();
+    }
+  };
+  // The toast's Undo: each of them back, the last first, stopping at the
+  // first that cannot come back and saying why. One already put back another
+  // way, by ⌘Z say, is passed over quietly.
+  const undoJournaled = async (journalIds: string[]) => {
     let first: null | RPCOutput["files"]["undo"] = null;
     try {
       for (const journalId of journalIds.toReversed()) {
@@ -1062,6 +1112,121 @@ export function ComputerPage({
     settled,
     stepSelect,
   ]);
+
+  // Files dropped on the folder are copied into it: onto a folder's row, into
+  // that folder; onto a file's row, into the folder that lists it; anywhere
+  // else, into the folder the pointer is over (a column's own, in the
+  // columns). The folder taking it is outlined while the drag is over it,
+  // and the Finder takes the drop before anything around it can.
+  const [dropInto, setDropInto] = useState<null | string>(null);
+  const dropIntoOf = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) {
+      return current;
+    }
+    const row = target
+      .closest("[data-file-system-item]")
+      ?.getAttribute("data-file-system-item");
+    if (row !== undefined && row !== null) {
+      return itemsByPath.get(row)?.kind === "folder"
+        ? row
+        : row.slice(0, row.lastIndexOf("/", row.length - 2) + 1);
+    }
+    return (
+      target
+        .closest("[data-file-system-folder]")
+        ?.getAttribute("data-file-system-folder") || current
+    );
+  };
+  const dropHandlers = useRef({ copyInto, dropIntoOf });
+  useEffect(() => {
+    dropHandlers.current = { copyInto, dropIntoOf };
+  });
+  const isDropOpen = !isRecents && settled;
+  const dropHostPathOf = (prefix: string) =>
+    hostPathOf(prefix, rootHostPath ?? root);
+  const dropHostPathRef = useRef(dropHostPathOf);
+  useEffect(() => {
+    dropHostPathRef.current = dropHostPathOf;
+  });
+  useEffect(() => {
+    const browser = browserRef.current;
+    if (!browser || !isDropOpen) {
+      return;
+    }
+    let staleTimer: number | undefined;
+    const clear = () => {
+      window.clearTimeout(staleTimer);
+      setDropInto(null);
+    };
+    const over = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes("Files")) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+      setDropInto(dropHandlers.current.dropIntoOf(event.target));
+      // `dragover` repeats while the drag is over the folder, so its silence
+      // means the drag went somewhere this did not hear about.
+      window.clearTimeout(staleTimer);
+      staleTimer = window.setTimeout(clear, 1000);
+    };
+    const leave = (event: DragEvent) => {
+      if (
+        !(event.relatedTarget instanceof Node) ||
+        !browser.contains(event.relatedTarget)
+      ) {
+        clear();
+      }
+    };
+    const drop = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes("Files")) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      clear();
+      const isOwnDrag = isSelfFileDrag();
+      releaseSelfFileDrag();
+      const prefix = dropHandlers.current.dropIntoOf(event.target);
+      const into = { hostPath: dropHostPathRef.current(prefix), prefix };
+      // Read while the drop is being dispatched: the items empty after.
+      const sources = [...event.dataTransfer.items].flatMap((item) => {
+        const file = item.kind === "file" ? item.getAsFile() : null;
+        const hostPath = file ? window.api.getFilePath(file) : "";
+        return hostPath
+          ? [
+              {
+                hostPath,
+                isFolder: item.webkitGetAsEntry()?.isDirectory ?? false,
+              },
+            ]
+          : [];
+      });
+      // A row of this Finder let go of where it already is, or inside
+      // itself, is a drag that went nowhere, as in the Finder.
+      const moved = isOwnDrag
+        ? sources.filter(
+            (source) =>
+              joinHostPath(into.hostPath, nameOf(source.hostPath)) !==
+                source.hostPath &&
+              !`${into.hostPath}/`.startsWith(`${source.hostPath}/`),
+          )
+        : sources;
+      void dropHandlers.current.copyInto(moved, into);
+    };
+    browser.addEventListener("dragenter", over);
+    browser.addEventListener("dragover", over);
+    browser.addEventListener("dragleave", leave);
+    browser.addEventListener("drop", drop);
+    return () => {
+      clear();
+      browser.removeEventListener("dragenter", over);
+      browser.removeEventListener("dragover", over);
+      browser.removeEventListener("dragleave", leave);
+      browser.removeEventListener("drop", drop);
+    };
+  }, [isDropOpen]);
 
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
@@ -1954,10 +2119,19 @@ export function ComputerPage({
               }}
               ref={browserRef}
             >
+              {dropInto === current ? (
+                <div className="pointer-events-none absolute inset-1 z-10 rounded-lg ring-2 ring-brand-500 ring-inset" />
+              ) : null}
               <FileSystem
                 className="h-full rounded-none border-0"
                 columnWidth={columnWidth}
-                contextMenuPath={isMenuOpen ? (menuItem?.path ?? null) : null}
+                contextMenuPath={
+                  dropInto !== null && dropInto !== current
+                    ? dropInto
+                    : isMenuOpen
+                      ? (menuItem?.path ?? null)
+                      : null
+                }
                 defaultPath={path}
                 defaultSearch={query}
                 defaultSelectedPath={select}

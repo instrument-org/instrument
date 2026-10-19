@@ -185,8 +185,9 @@ export type FileSystemProps = {
    */
   columnWidth?: number;
   /**
-   * The item a context menu is open on, by path. It is outlined rather than
-   * selected, the way the Finder marks what its menu acts on.
+   * The item a context menu is open on, or a drop is aimed at, by path. It
+   * is outlined rather than selected, the way the Finder marks what its menu
+   * acts on.
    */
   contextMenuPath?: null | string;
   /** Folder prefix to open initially, e.g. `"invoices/"`. */
@@ -6116,6 +6117,9 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
         "relative",
         fills ? "min-h-0 min-w-0 flex-1" : "shrink-0 border-r",
       )}
+      // The folder the column lists, for a drop on its empty space; the first
+      // column's is the browser's own.
+      data-file-system-folder={ownFolder?.path ?? ""}
       style={fills ? {} : { width }}
     >
       <InlineScrollArea2

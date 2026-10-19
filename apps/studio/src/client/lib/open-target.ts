@@ -1,3 +1,4 @@
+import { type ChatId } from "@instrument-org/workspace/client";
 import {
   filePathOfInstrumentLink,
   instrumentLinkOf,
@@ -21,7 +22,17 @@ export type OpenTarget =
   /** A web page. */
   | { kind: "page"; url: string }
   /** A file or a folder, by the path the conversation reaches it through. A trailing slash names a folder. */
-  | { kind: "path"; path: string };
+  | {
+      /**
+       * The chat the path was kept by, when the surface drawing it knows:
+       * "Copy Path" then copies where the file is on this computer, read
+       * against that chat, rather than the chat's own spelling of it
+       * (`workspace:/Notes/plan.md`, `attachments/cat.png`).
+       */
+      chatId?: ChatId;
+      kind: "path";
+      path: string;
+    };
 
 /**
  * What "copy" puts on the clipboard for a target, and what the row is called.

@@ -291,6 +291,7 @@ export function ChatRow({
                 <HoldsInChat chatId={chat.id}>
                   <HoldMarks
                     appsBySlug={appsBySlug}
+                    chatId={chat.id}
                     className="min-w-0 flex-1 gap-1"
                     holds={chat.holds}
                     namedFiles

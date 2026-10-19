@@ -133,6 +133,20 @@ describe("SyncedFold", () => {
     expect(a.write([{ key: "gone", t: "del" }], T0 + 5)).toEqual([]);
   });
 
+  it("writes a change made earlier as of then, and not at all over a newer one", () => {
+    const a = new Device(DEVICE_A);
+    const b = new Device(DEVICE_B);
+    // Both import one file, last changed at T0; a removes the bookmark later.
+    const imported: SyncedOp = { at: T0, key: "k", t: "set", value: "kept" };
+    expect(a.write([imported], T0 + 60_000).map((r) => r.at)).toEqual([
+      new Date(T0),
+    ]);
+    a.write([{ key: "k", t: "del" }], T0 + 60_000);
+    b.receive(a.file, a.bytes);
+    expect(b.write([imported], T0 + 120_000)).toEqual([]);
+    expect(b.fold.entries()).toEqual(new Map());
+  });
+
   it("ties on time go to the larger device id, then the later line", () => {
     const a = new Device(DEVICE_A);
     const b = new Device(DEVICE_B);

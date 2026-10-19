@@ -46,10 +46,16 @@ const SyncedRecordSchema = z
 
 export type SyncedRecord = z.output<typeof SyncedRecordSchema>;
 
-/** One change a store is asked for: a key set to a value, or deleted. */
-export type SyncedOp =
-  | { key: string; t: "del" }
-  | { key: string; t: "set"; value: unknown };
+/**
+ * One change a store is asked for: a key set to a value, or deleted. `at`,
+ * in ms, is for a change made before it reached the store (an import), which
+ * is written as of then and outranked by anything newer; left out, the
+ * change is made now.
+ */
+export type SyncedOp = { at?: number; key: string } & (
+  | { t: "del" }
+  | { t: "set"; value: unknown }
+);
 
 /** A record as its file's line, newline included. */
 export function syncedLine(record: SyncedRecord): string {
@@ -127,9 +133,10 @@ export function syncedPlace(record: SyncedRecord, line: string): Place {
 /**
  * The records that make the ops so, for `device` to append: an op that
  * would change nothing (a key set to the value it has, a key deleted that is
- * not there) writes nothing. Each is stamped no earlier than one past the
- * record it replaces, so a change made here outranks what this device has
- * read even when another device's clock runs ahead of this one's.
+ * not there) writes nothing, and nor does one stamped with an `at` older
+ * than the record it would replace. One made now is stamped no earlier than
+ * one past the record it replaces, so a change made here outranks what this
+ * device has read even when another device's clock runs ahead of this one's.
  */
 export function recordsFor(
   ops: readonly SyncedOp[],
@@ -150,9 +157,11 @@ export function recordsFor(
     ) {
       continue;
     }
-    const at = new Date(
-      Math.max(now, current ? current.at.getTime() + 1 : now),
-    );
+    const since = current ? current.at.getTime() + 1 : 0;
+    if (op.at !== undefined && op.at < since) {
+      continue;
+    }
+    const at = new Date(op.at ?? Math.max(now, since));
     const record: Unsequenced<SyncedRecord> =
       op.t === "set"
         ? { at, device, key: op.key, t: "set", value: op.value }

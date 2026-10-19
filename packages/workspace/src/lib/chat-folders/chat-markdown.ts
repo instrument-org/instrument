@@ -12,7 +12,12 @@ import { isToolPart } from "../is-tool-part";
 import { type FoldedChat, type FoldedSession } from "../records/fold";
 import { localStamp } from "../local-stamp";
 import { sessionOf } from "../records/session-of";
-import { spokenDuration, workFoldFacts, workFoldLines } from "./work-fold";
+import {
+  inlineMarkdown,
+  spokenDuration,
+  workFoldFacts,
+  workFoldStep,
+} from "./work-fold";
 
 /**
  * A chat's `CHAT.md`: its conversation as Markdown, for the person to read in
@@ -118,6 +123,7 @@ interface WorkLine {
   endedAt: Date;
   /** Where in the records it is, so two at the same moment keep an order. */
   order: readonly [string, string];
+  /** A thought's words, or a call already written as the fold's Markdown. */
   text: string;
 }
 
@@ -394,41 +400,14 @@ function details(held: WorkLine[]): string {
 
 /** One line of work as the Markdown a fold shows it in, ending in a blank line. */
 function step(line: WorkLine): string {
-  const handle = line.handle ? `${inlineMarkdown(line.handle)} ` : "";
-  if (!line.call) {
-    const quoted = inlineMarkdown(line.text)
-      .split("\n")
-      .map((each) => (each.trim() === "" ? ">" : `> ${each}`));
-    return [
-      ...(handle ? [`> **${handle.trim()}**`, ">"] : []),
-      ...quoted,
-      "",
-    ].join("\n");
+  if (line.call) {
+    return `${line.text}\n`;
   }
-  const [head = "", ...more] = line.text.split("\n");
-  const at = head.indexOf(" · ");
-  const label = at === -1 ? head : head.slice(0, at);
-  const ending = at === -1 ? "" : head.slice(at);
-  const out = [
-    `**${handle}${inlineMarkdown(label)}**${inlineMarkdown(ending)}`,
-    "",
-  ];
-  for (const each of more) {
-    const text = each.replace(/^ {2}/, "");
-    if (text.startsWith("$ ")) {
-      const command = text.slice(2);
-      const fence = "`".repeat(
-        Math.max(
-          3,
-          ...[...command.matchAll(/`+/g)].map((m) => m[0].length + 1),
-        ),
-      );
-      out.push(`${fence}sh`, command, fence, "");
-    } else {
-      out.push(inlineMarkdown(text), "");
-    }
-  }
-  return out.join("\n");
+  const quoted = inlineMarkdown(line.text)
+    .split("\n")
+    .map((each) => (each.trim() === "" ? ">" : `> ${each}`));
+  const who = line.handle ? [`> **${inlineMarkdown(line.handle)}**`, ">"] : [];
+  return [...who, ...quoted, ""].join("\n");
 }
 
 /**
@@ -475,7 +454,7 @@ function workLines(
           endedAt,
           handle,
           order,
-          text: workFoldLines(part, rootDir).join("\n"),
+          text: workFoldStep(part, rootDir, handle),
         });
       }
     }
@@ -539,21 +518,6 @@ function yamlScalar(value: string): string {
   return /^[\w ][\w ().-]*$/.test(value) && value.trim() === value
     ? value
     : `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
-}
-
-/**
- * Text the agent wrote, as Markdown that draws its code spans and emphasis
- * but never markup: an angle bracket outside a code span is escaped, so a
- * `</details>` in a thought cannot close the fold, and a code span is left
- * as written, since Markdown shows what is in one literally.
- */
-function inlineMarkdown(text: string): string {
-  return text
-    .split(/(`+[^`]*?`+)/)
-    .map((piece, i) =>
-      i % 2 === 1 ? piece : piece.replaceAll("<", "\\<").replaceAll(">", "\\>"),
-    )
-    .join("");
 }
 
 /** A line of work as HTML text, so nothing in it is read as markup. */

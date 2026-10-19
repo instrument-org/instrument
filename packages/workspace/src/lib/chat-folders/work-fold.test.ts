@@ -5,7 +5,7 @@ import { type SessionMessageRelaxedPart } from "../../schemas/session/message-re
 import { type ToolName } from "../../tools/types";
 import { isToolPart } from "../is-tool-part";
 import { at, messageId, partId, sessionId } from "../records/test-records";
-import { spokenDuration, workFoldFacts, workFoldLines } from "./work-fold";
+import { spokenDuration, workFoldFacts, workFoldStep } from "./work-fold";
 
 let next = 0;
 
@@ -40,105 +40,241 @@ function call(
   return part;
 }
 
-it.each([
-  {
-    name: "a command that worked keeps no output",
-    lines: ["Listing the folder", "  $ ls -la ~/Desktop '~/My files'"],
-    part: call(
-      "bash",
-      {
-        command: "ls -la /Users/someone/Desktop '/Users/other/My files'",
-        explanation: "Listing the folder",
-      },
-      { output: { exitCode: 0, output: "a\nb\nc\nd" } },
-    ),
-  },
-  {
-    name: "a command that failed keeps its last lines",
-    lines: [
-      "Reading the plan · exit 1 · 4s",
-      "  $ cat kyoto.md",
-      "  two",
-      "  three",
-      "  no such file",
-    ],
-    part: call(
-      "bash",
-      { command: "cat kyoto.md", explanation: "Reading the plan" },
-      {
-        output: { exitCode: 1, output: "one\ntwo\n\nthree\nno such file\n" },
-        seconds: 4,
-      },
-    ),
-  },
-  {
-    name: "a file under the home folder",
-    lines: ["Reading kyoto.md", "  Chats/Kyoto/kyoto.md"],
-    part: call(
-      "read_file",
-      { explanation: "Reading kyoto.md", filePath: "kyoto.md" },
-      { output: { filePath: "/Users/someone/Workspace/Chats/Kyoto/kyoto.md" } },
-    ),
-  },
-  {
-    name: "a file outside the workspace",
-    lines: ["Read a file", "  ~/notes.md"],
-    part: call("read_file", { filePath: "/home/other/notes.md" }),
-  },
-  {
-    name: "an edit",
-    lines: [
-      "Replacing Day 3",
-      "  ~\\kyoto.md",
-      "  “Day 3: Golden Pavilion” → “Day 3: Nara”",
-    ],
-    part: call("edit_file", {
-      explanation: "Replacing Day 3",
-      filePath: "C:\\Users\\someone\\kyoto.md",
-      newString: "Day 3: Nara",
-      oldString: "Day 3: Golden Pavilion",
-    }),
-  },
-  {
-    name: "a search and the sites it found",
-    lines: [
-      "Searched the web",
-      "  nara park deer hours",
-      "  japan-guide.com, nara-park.com, example.org",
-    ],
-    part: call(
-      "web_search",
-      { query: "nara park deer hours" },
-      {
-        output: {
-          results: {
-            sources: [
-              { url: "https://www.japan-guide.com/a" },
-              { url: "https://japan-guide.com/b" },
-              { url: "https://nara-park.com" },
-              { url: "https://example.org" },
-              { url: "https://fourth.example" },
-            ],
+it("writes each call as the fold's Markdown", () => {
+  const cases = [
+    {
+      name: "a command that worked keeps no output",
+      part: call(
+        "bash",
+        {
+          command: "ls -la /Users/someone/Desktop '/Users/other/My files'",
+          explanation: "Listing the folder",
+        },
+        { output: { exitCode: 0, output: "a\nb\nc\nd" } },
+      ),
+    },
+    {
+      name: "a command that failed keeps its last lines",
+      part: call(
+        "bash",
+        { command: "cat kyoto.md", explanation: "Reading the plan" },
+        {
+          output: { exitCode: 1, output: "one\ntwo\n\nthree\nno such file\n" },
+          seconds: 4,
+        },
+      ),
+    },
+    {
+      name: "a file under the home folder",
+      part: call(
+        "read_file",
+        { explanation: "Reading kyoto.md", filePath: "kyoto.md" },
+        {
+          output: { filePath: "/Users/someone/Workspace/Chats/Kyoto/kyoto.md" },
+        },
+      ),
+    },
+    {
+      name: "a file outside the workspace",
+      part: call("read_file", { filePath: "/home/other/notes.md" }),
+    },
+    {
+      name: "an edit",
+      part: call("edit_file", {
+        explanation: "Replacing Day 3",
+        filePath: "C:\\Users\\someone\\kyoto.md",
+        newString: "Day 3: Nara",
+        oldString: "Day 3: Golden Pavilion",
+      }),
+    },
+    {
+      name: "a search and the sites it found",
+      part: call(
+        "web_search",
+        { query: "nara park deer hours" },
+        {
+          output: {
+            results: {
+              sources: [
+                { url: "https://www.japan-guide.com/a" },
+                { url: "https://japan-guide.com/b" },
+                { url: "https://nara-park.com" },
+                { url: "https://example.org" },
+                { url: "https://fourth.example" },
+              ],
+            },
           },
         },
-      },
-    ),
-  },
-  {
-    name: "a call that threw",
-    lines: [
-      "Opening the park's page · failed",
-      "  https://nara-park.com",
-      "  Timed out",
-    ],
-    part: call(
-      "web_fetch",
-      { explanation: "Opening the park's page", url: "https://nara-park.com" },
-      { errorText: "Timed out" },
-    ),
-  },
-])("$name", ({ lines, part }) => {
-  expect(workFoldLines(part, "/Users/someone/Workspace")).toEqual(lines);
+      ),
+    },
+    {
+      name: "a call that threw",
+      part: call(
+        "web_fetch",
+        {
+          explanation: "Opening the park's page",
+          url: "https://nara-park.com",
+        },
+        { errorText: "Timed out" },
+      ),
+    },
+
+    {
+      name: "a multi-line edit in the workspace, as a diff",
+      part: call("edit_file", {
+        explanation: "Adding Day 4",
+        filePath: "/Users/someone/Workspace/Notes/Kyoto trip.md",
+        newString: "Day 3: Nara\nDay 4: Arashiyama",
+        oldString: "Day 3: Nara",
+      }),
+    },
+    {
+      name: "a picture made in the workspace, shown",
+      part: call(
+        "generate_image",
+        { explanation: "Making a header" },
+        {
+          output: {
+            images: [{ filePath: "/Users/someone/Workspace/Notes/header.png" }],
+          },
+          seconds: 12,
+        },
+      ),
+    },
+    {
+      name: "a skill its label already names",
+      part: call("load_skill", {
+        explanation: "Loading the photo-editing skill",
+        name: "photo-editing",
+      }),
+    },
+    {
+      name: "a folder asked for",
+      part: call("ask_permission", {
+        explanation: "Asking for Documents",
+        kind: "folder",
+        reason: "So I can put the copy on your Desktop.",
+        target: "/Users/someone/Documents",
+      }),
+    },
+    {
+      name: "a search with titled pages",
+      part: call(
+        "web_search",
+        { query: "quiet dishwashers" },
+        {
+          output: {
+            results: {
+              sources: [
+                {
+                  title: "Best Quiet Dishwashers",
+                  url: "https://rtings.com/q",
+                },
+                { url: "https://example.org/a b" },
+              ],
+            },
+          },
+        },
+      ),
+    },
+  ];
+  expect(
+    cases
+      .map(
+        ({ name, part }) =>
+          `<!-- ${name} -->\n${workFoldStep(part, "/Users/someone/Workspace")}`,
+      )
+      .join("\n\n"),
+  ).toMatchInlineSnapshot(`
+    "<!-- a command that worked keeps no output -->
+    **Listing the folder**
+
+    \`\`\`sh
+    ls -la ~/Desktop '~/My files'
+    \`\`\`
+
+    <!-- a command that failed keeps its last lines -->
+    **Reading the plan** · exit 1 · 4s
+
+    \`\`\`sh
+    cat kyoto.md
+    \`\`\`
+
+    \`\`\`text
+    two
+    three
+    no such file
+    \`\`\`
+
+    <!-- a file under the home folder -->
+    **Reading kyoto.md**
+
+    [Chats/Kyoto/kyoto.md](../../Chats/Kyoto/kyoto.md)
+
+    <!-- a file outside the workspace -->
+    **Read a file**
+
+    \`~/notes.md\`
+
+    <!-- an edit -->
+    **Replacing Day 3**
+
+    \`~\\kyoto.md\`
+
+    \`\`\`diff
+    - Day 3: Golden Pavilion
+    + Day 3: Nara
+    \`\`\`
+
+    <!-- a search and the sites it found -->
+    **Searched the web**
+
+    “nara park deer hours”
+
+    - [www.japan-guide.com/a](https://www.japan-guide.com/a)
+    - [japan-guide.com/b](https://japan-guide.com/b)
+    - [nara-park.com](https://nara-park.com)
+
+    <!-- a call that threw -->
+    **Opening the park's page** · failed
+
+    [nara-park.com](https://nara-park.com)
+
+    Timed out
+
+    <!-- a multi-line edit in the workspace, as a diff -->
+    **Adding Day 4**
+
+    [Notes/Kyoto trip.md](../../Notes/Kyoto%20trip.md)
+
+    \`\`\`diff
+      Day 3: Nara
+    + Day 4: Arashiyama
+    \`\`\`
+
+    <!-- a picture made in the workspace, shown -->
+    **Making a header** · 12s
+
+    ![header.png](../../Notes/header.png)
+
+    <!-- a skill its label already names -->
+    **Loading the photo-editing skill**
+
+    <!-- a folder asked for -->
+    **Asking for Documents**
+
+    \`~/Documents\`
+
+    So I can put the copy on your Desktop.
+
+    <!-- a search with titled pages -->
+    **Searched the web**
+
+    “quiet dishwashers”
+
+    - [Best Quiet Dishwashers](https://rtings.com/q)
+    - [example.org/a b](https://example.org/a%20b)"
+  `);
 });
 
 it("says what a stretch did, a few facts and a count of the rest", () => {

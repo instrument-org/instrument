@@ -255,7 +255,7 @@ export const sessionMachine = setup({
       queuedMessages: SessionMessage.UserWithParts[];
       runRequested?: boolean;
       /** Those of `queuedMessages` the sender wrote to the store on arrival. */
-      savedMessageIds?: StoreId.Message[];
+      savedMessageIds: StoreId.Message[];
       sessionId: StoreId.Session;
       chatId: ChatId;
     },
@@ -286,7 +286,7 @@ export const sessionMachine = setup({
       parentRef: input.parentRef,
       queuedMessages: input.queuedMessages,
       runRequested: input.runRequested ?? false,
-      savedMessageIds: input.savedMessageIds ?? [],
+      savedMessageIds: input.savedMessageIds,
       sessionId: input.sessionId,
       subscription,
       chatId: input.chatId,

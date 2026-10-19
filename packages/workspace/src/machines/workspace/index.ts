@@ -125,7 +125,7 @@ export type WorkspaceEvent =
       /** Every session of the record, or the one named, with whose stop it is and why. */
       value: {
         id: ChatId;
-        notice?: StopNotice;
+        notice: StopNotice;
         reason?: StopReason;
         sessionId?: StoreId.Session;
       };
@@ -585,7 +585,7 @@ export const workspaceMachine = setup({
             sessionActorRef.getSnapshot().context.sessionId === sessionId
           ) {
             sessionActorRef.send({
-              ...(notice ? { notice } : {}),
+              notice,
               ...(reason ? { reason } : {}),
               type: "stop",
             });

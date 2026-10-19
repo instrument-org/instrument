@@ -359,6 +359,7 @@ describe("sessionMachine", () => {
         } as unknown as AnyActorRef,
         queuedMessages,
         runRequested,
+        savedMessageIds: [],
         sessionId,
         chatId: testTaskConfig,
       },

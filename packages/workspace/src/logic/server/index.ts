@@ -26,39 +26,37 @@ import { setWorkspaceServerPort } from "./url";
 export const workspaceServerLogic = fromCallback<
   AnyEventObject,
   {
-    aiGatewayApp?: AIGatewayApp;
+    aiGatewayApp: AIGatewayApp;
     parentRef: WorkspaceServerParentRef;
     workspaceConfig: WorkspaceConfig;
   }
 >(({ input }) => {
   const app = new Hono();
 
-  if (input.aiGatewayApp) {
-    app.use<string, AIGatewayEnv>(
-      `${AI_GATEWAY_API_PATH}/*`,
-      async (c, next) => {
-        if (input.workspaceConfig.refreshExpiredCredentials) {
-          c.set(
-            "refreshExpiredCredentials",
-            input.workspaceConfig.refreshExpiredCredentials,
-          );
-        }
+  app.use<string, AIGatewayEnv>(
+    `${AI_GATEWAY_API_PATH}/*`,
+    async (c, next) => {
+      if (input.workspaceConfig.refreshExpiredCredentials) {
         c.set(
-          "getAIProviderConfigs",
-          input.workspaceConfig.getAIProviderConfigs,
+          "refreshExpiredCredentials",
+          input.workspaceConfig.refreshExpiredCredentials,
         );
-        c.set("captureException", input.workspaceConfig.captureException);
-        c.set("clientInfo", {
-          clientArch: process.arch,
-          clientName: APP_CLIENT_NAME_STUDIO,
-          clientPlatform: process.platform,
-          clientVersion: input.workspaceConfig.appVersion,
-        });
-        await next();
-      },
-    );
-    app.route("/", input.aiGatewayApp);
-  }
+      }
+      c.set(
+        "getAIProviderConfigs",
+        input.workspaceConfig.getAIProviderConfigs,
+      );
+      c.set("captureException", input.workspaceConfig.captureException);
+      c.set("clientInfo", {
+        clientArch: process.arch,
+        clientName: APP_CLIENT_NAME_STUDIO,
+        clientPlatform: process.platform,
+        clientVersion: input.workspaceConfig.appVersion,
+      });
+      await next();
+    },
+  );
+  app.route("/", input.aiGatewayApp);
 
   let server: null | ServerType = null;
 

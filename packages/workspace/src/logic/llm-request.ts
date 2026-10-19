@@ -63,9 +63,9 @@ const INPUT_PARSE_MAX_UNPARSED_CHARS = 4096;
 interface LLMRequestInput {
   /**
    * Why the request is being let go, asked when its signal fires; the caller
-   * that let it go is the one that knows. Unknown when there is none.
+   * that let it go is the one that knows.
    */
-  abortReason?: () => SessionMessage.AbortReason;
+  abortReason: () => SessionMessage.AbortReason;
   agent: AnyAgent;
   model: AIGatewayModel.Type;
   self: ActorRef<AnyMachineSnapshot, { type: "llmRequest.chunkReceived" }>;
@@ -184,7 +184,7 @@ export const llmRequestLogic = fromPromise<
     assistantMessage.metadata.error = {
       kind: "aborted",
       message: "Aborted",
-      reason: input.abortReason?.() ?? "unknown",
+      reason: input.abortReason(),
     };
     assistantMessage.metadata.finishedAt = getCurrentDate();
     assistantMessage.metadata.finishReason = "aborted";
@@ -898,7 +898,7 @@ export const llmRequestLogic = fromPromise<
             error.name === "TimeoutError"
               ? "timeout"
               : signal.aborted
-                ? (input.abortReason?.() ?? "unknown")
+                ? input.abortReason()
                 : "unknown",
         };
         break;

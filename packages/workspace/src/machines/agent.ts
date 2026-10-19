@@ -459,7 +459,7 @@ export const agentMachine = setup({
     baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
     llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
     maxAttemptCount: 3,
-    maxStepCount: input.maxStepCount || 1,
+    maxStepCount: input.maxStepCount,
     model: input.model,
     outputLimitContinuations: 0,
     parentMessageId: input.parentMessageId,

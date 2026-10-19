@@ -18,7 +18,7 @@ These held up in the draft and carry into the build.
 - **A trial the server cannot start says why.** When the day's free trials are taken, the plans page says so and keeps Subscribe.
 - **Own key.** After the key is accepted, the person picks the model new chats use, and a toggle says whether setup may spend that key writing their suggested tasks. A model list that has not loaded after 10 seconds offers Skip.
 - **Notes above the reply box.** A ChatGPT or Claude plan that runs out, or an account that can't be used here, ends the turn with one line in the transcript; the note above the reply box carries the ways on (switch AI, wait for the reset, see the usage, connect another AI). This replaces the recovery buttons the transcript's error card carries for those two providers.
-- **Words.** The theme choice is "System", as in Settings. Once suggested tasks are showing there is no Skip; unchecking them all is the way past.
+- **Words.** The theme choice that follows the computer is "Auto", as in Figma and the rest of the app. Once suggested tasks are showing there is no Skip; unchecking them all is the way past.
 
 ## Requirements the draft did not meet
 
@@ -26,6 +26,35 @@ These held up in the draft and carry into the build.
 - **The workspace folder.** Onboarding gets a screen that requires choosing the workspace folder, built on main's pick-and-move ([choose-where-instrument-keeps-files.md](choose-where-instrument-keeps-files.md), [workspace-layout.md](workspace-layout.md) "The onboarding folder step"). The draft's folder step kept an output-folder setting of its own and held folder creation until setup finished; none of that carries over.
 - **Drafts on the first launch.** The tasks and memory imports picked during setup arrive as drafts. On the first launch the inbox shows drafts and chats together, ordered by time, with a filter that shows only drafts.
 - **Adding another provider from inside the app.** The sheet behind every "add a provider" entry point still has the old small-window design and shows every option whatever is connected. It is being redesigned: it hides each sign-in that is already connected, falls back to adding a key by hand when nothing else is left, and covers Grok as a third subscription provider beside ChatGPT and Claude. Whether a second ChatGPT account gets a place there is part of that design.
+
+## Building it from Figma
+
+The draft is rebuilt on main's components, not merged. About a quarter of its UI was composed from `components/ui` and the billing components; the rest copied main or was drawn by hand, so what carries over is its logic, its tests, and a few patterns.
+
+**What the draft got wrong.** It re-implemented ChatGPT and Claude sign-in beside `chatgpt-login-button.tsx` and `claude-login-button.tsx` (toast copy and the install-percent helper included), key entry beside `add-provider/form.tsx`, a model list with no search beside `model-picker.tsx` and `lib/model-picker-rows.ts`, and the theme screen beside `onboarding/theme-screen.tsx`. It hand-rolled a toggle, checkbox, input, cards, and buttons that `components/ui` has, and used raw hex colors.
+
+**What carries over.** The step reducer with its Back history (`flow.ts`, which needs a test). The tested pure logic: account-check routing and reset times, which models to suggest for a key, plans, starter tasks, and drafts. The guard against a stale sign-in, the race guard on key checks, the dev jump to any page, and the welcome hero's Reduce Motion handling.
+
+**Each frame and where it comes from.**
+
+| Source | Frames |
+|---|---|
+| Main as it is | 05 Choose a folder and 08 Folder already exists (`settings/storage-section.tsx`, `workspace-move.ts` `checkPlace`); 10, 12, 13 notifications (`rpc/routes/mac.ts` notification status and request, `sendTestNotification`, `lib/notification-settings.ts`); 14 Choose your look (`onboarding/theme-screen.tsx`); 16 and 17 Claude sign-in (`claude-login-button.tsx`, `chatgpt-login-button.tsx`); 20 Free account (`google-login-button.tsx`); 21 to 23 and 25 adding a provider (`add-provider/form.tsx`, `provider-picker.tsx`); 26 Connect OpenRouter (`add-provider/connect-openrouter.tsx`); 28 and 29 model list and search (`model-picker.tsx`); the logo set (`ai-provider-icon.tsx`, `model-maker-icon.tsx`) |
+| Adapted from the draft | 01 Welcome (the hero and burst); 02 and 03 plans and trial, once billing is on main; 04 Choose a model (the suggested-models logic); 18 No paid plan and 19 Out of usage (account-check routing); 24 Key accepted; 15 All set (suggested tasks); 30 Welcome back, after the returning-person fix; the page frame, rebuilt as Figma's title bar and footer |
+| New | 06 Documents access and 07 Documents denied (create the folder on Continue so macOS asks, fall back to the home folder if refused, offer a fix); 09 Earlier chats found (the move check knows a workspace is there, not how many chats it holds); 11 Test notification (knowing it was clicked and bringing setup forward); 27 No credits (needs an OpenRouter credits signal); Figma's component set: footer variants, model, folder, and notification rows, plan and way cards, brand tile |
+
+**Order.**
+
+1. Port the pure logic and its tests, adding one for the step reducer.
+2. Build Figma's component set as a setup kit on `components/ui`, with no hand-rolled controls.
+3. The shell: one window, the fixed size, the version gate, and picking up after a quit.
+4. The pages main already covers: folder, notifications, look, provider form, model picker.
+5. Lift sign-in and the account check out of the login buttons into hooks Settings and setup share, then frames 16 to 20.
+6. Plans, trial, and Welcome back.
+7. The new pages: Documents denied, Earlier chats found, No credits, the test notification.
+8. Illustrations and the hero last.
+
+Exact spacing and tokens come from Figma per frame during the build; this map does not carry them.
 
 ## Open gaps
 

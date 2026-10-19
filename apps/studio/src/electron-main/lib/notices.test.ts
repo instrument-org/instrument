@@ -6,7 +6,7 @@ import {
   AIGatewayModelURI,
 } from "@instrument-org/ai-gateway/schemas";
 import { AIProviderConfigIdSchema } from "@instrument-org/shared";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { env, prefs, sandbox, userData, workspace } = vi.hoisted(() => ({
   env: { version: "2.0.0-beta.58" },
@@ -88,6 +88,13 @@ function answer(notices: unknown[], { etag = '"a"', pollAfter = 21600 } = {}) {
 }
 
 describe("notices", () => {
+  // The first import transforms the module, which under a full related run
+  // took the first case past its timeout; done here once, each case's own
+  // `load` only evaluates it again.
+  beforeAll(async () => {
+    await load();
+  }, 30_000);
+
   beforeEach(() => {
     userData.dir = fs.mkdtempSync(path.join(os.tmpdir(), "notices-"));
     env.version = "2.0.0-beta.58";

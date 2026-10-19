@@ -2310,11 +2310,6 @@ describe("llmRequestLogic", () => {
                     "type": "ephemeral",
                   },
                 },
-                "openrouter": {
-                  "cache_control": {
-                    "type": "ephemeral",
-                  },
-                },
               },
               "role": "assistant",
             },
@@ -2338,11 +2333,6 @@ describe("llmRequestLogic", () => {
                   },
                 },
                 "openaiCompatible": {
-                  "cache_control": {
-                    "type": "ephemeral",
-                  },
-                },
-                "openrouter": {
                   "cache_control": {
                     "type": "ephemeral",
                   },

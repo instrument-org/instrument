@@ -27,15 +27,8 @@ export function useChatTasks(chat: ChatId | undefined) {
  * session, in the chat whose store holds it. Nothing without a chat, or for
  * a session that is none of its tasks.
  */
-export function useChildTask(
-  chat: ChatId | undefined,
-  id: StoreId.Session,
-  enabled = true,
-) {
-  const tasks = useQuery({
-    ...childTasksOptions(chat ?? skipToken),
-    enabled,
-  });
+export function useChildTask(chat: ChatId | undefined, id: StoreId.Session) {
+  const tasks = useQuery(childTasksOptions(chat ?? skipToken));
   return tasks.data?.find((task) => task.id === id);
 }
 

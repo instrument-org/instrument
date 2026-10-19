@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 /** How far outside the scroll port still counts as near, so work finishes
  * before the element is actually looked at. */
-const DEFAULT_ROOT_MARGIN = "400px";
+const ROOT_MARGIN = "400px";
 
 /**
  * Reports when an element first comes near the viewport, for content too
@@ -19,9 +19,7 @@ const DEFAULT_ROOT_MARGIN = "400px";
  * them all on mount, and a delay would tax the case that actually matters:
  * an element already on screen when the message opens.
  */
-export function useNearViewport<T extends HTMLElement>({
-  rootMargin = DEFAULT_ROOT_MARGIN,
-}: { rootMargin?: string } = {}): {
+export function useNearViewport<T extends HTMLElement>(): {
   isNear: boolean;
   ref: React.RefObject<null | T>;
 } {
@@ -41,14 +39,14 @@ export function useNearViewport<T extends HTMLElement>({
           observer.disconnect();
         }
       },
-      { root: nearestScrollPort(element), rootMargin },
+      { root: nearestScrollPort(element), rootMargin: ROOT_MARGIN },
     );
     observer.observe(element);
 
     return () => {
       observer.disconnect();
     };
-  }, [isNear, rootMargin]);
+  }, [isNear]);
 
   return { isNear, ref };
 }

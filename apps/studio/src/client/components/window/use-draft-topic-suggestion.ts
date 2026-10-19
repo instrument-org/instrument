@@ -1,4 +1,4 @@
-import { type Draft } from "@/client/atoms/drafts";
+import { type Draft } from "@/shared/drafts";
 import { useDecision } from "@/client/hooks/use-decision";
 import { useEffect, useState } from "react";
 

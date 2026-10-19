@@ -1,10 +1,12 @@
-import { promptDraftAtom } from "@/client/atoms/prompt-value";
+import {
+  draftSnapshotsAtom,
+  storedWordsAtom,
+} from "@/client/atoms/prompt-value";
 import {
   type Draft,
   type DraftAttachment,
   draftGroupOf,
-  draftSnapshotsAtom,
-} from "@/client/atoms/drafts";
+} from "@/shared/drafts";
 import {
   APPS_HREF,
   BROWSER_HREF,
@@ -294,7 +296,7 @@ export function ComposeWindow({
   const snapshots = useAtomValue(draftSnapshotsAtom);
   const setSnapshots = useSetAtom(draftSnapshotsAtom);
   const snapshot = snapshots[draft.id];
-  const words = useAtomValue(promptDraftAtom(key));
+  const words = useAtomValue(storedWordsAtom(key));
 
   const inputRef = useRef<PromptInputRef>(null);
 

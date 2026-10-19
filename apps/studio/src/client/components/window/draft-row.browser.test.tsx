@@ -1,4 +1,4 @@
-import { type Draft } from "@/client/atoms/drafts";
+import { type Draft } from "@/shared/drafts";
 import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";

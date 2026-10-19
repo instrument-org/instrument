@@ -10,6 +10,12 @@ import {
   type KeptFile,
   type KeptSnapshot,
 } from "@/shared/kept-state";
+import {
+  DRAFTS_CHANNEL,
+  type DraftOpBatch,
+  type DraftsSnapshot,
+  type DraftStageRequest,
+} from "@/shared/drafts";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import os from "node:os";
@@ -62,7 +68,7 @@ applyInitialTheme();
 
 /**
  * Everything the windows keep, read synchronously so the first render has
- * the tabs and drafts it was left with rather than defaults it swaps out. A
+ * the tabs it was left with rather than defaults it swaps out. A
  * failed read starts from the defaults, and the window's writes still land.
  */
 function loadKeptState(): KeptSnapshot {
@@ -84,6 +90,32 @@ function loadKeptState(): KeptSnapshot {
   );
 }
 
+/**
+ * The drafts as main has them, read synchronously for the same reason: a
+ * chat's box reads the reply waiting in it as it first draws. A failed read
+ * starts with none, and the window hears of them with the next change.
+ */
+function loadDrafts(): DraftsSnapshot {
+  try {
+    const value: unknown = ipcRenderer.sendSync(DRAFTS_CHANNEL.load);
+    if (
+      value !== null &&
+      typeof value === "object" &&
+      "drafts" in value &&
+      Array.isArray(value.drafts) &&
+      "acks" in value &&
+      value.acks !== null &&
+      typeof value.acks === "object"
+    ) {
+      // Main's own snapshot, made by the store this preload's window writes to.
+      return value as DraftsSnapshot;
+    }
+  } catch {
+    // Starts with none, as below.
+  }
+  return { acks: {}, drafts: [] };
+}
+
 const api: Window["api"] = {
   captureException: async (payload) => {
     const answer: unknown = await ipcRenderer.invoke(
@@ -96,6 +128,29 @@ const api: Window["api"] = {
   // reads it as each key press arrives.
   codeEditorFocus: (focused) => {
     ipcRenderer.send(CODE_EDITOR_FOCUS_CHANNEL, focused);
+  },
+  drafts: {
+    apply: async (batch: DraftOpBatch) => {
+      await ipcRenderer.invoke(DRAFTS_CHANNEL.apply, batch);
+    },
+    initial: loadDrafts(),
+    onChange: (listener) => {
+      const forward = (_event: unknown, snapshot: DraftsSnapshot) => {
+        listener(snapshot);
+      };
+      ipcRenderer.on(DRAFTS_CHANNEL.changed, forward);
+      return () => {
+        ipcRenderer.off(DRAFTS_CHANNEL.changed, forward);
+      };
+    },
+    stage: async (request: DraftStageRequest) => {
+      const answer: unknown = await ipcRenderer.invoke(
+        DRAFTS_CHANNEL.stage,
+        request,
+      );
+      // Main's answer to the stage it was asked for.
+      return answer as { path: string; size: number };
+    },
   },
   getFilePath: (file: File) => webUtils.getPathForFile(file),
   homeDir: os.homedir(),

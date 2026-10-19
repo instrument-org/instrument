@@ -1,4 +1,4 @@
-import { draftGroupOf } from "@/client/atoms/drafts";
+import { draftGroupOf } from "@/shared/drafts";
 import {
   BROWSER_HREF,
   NEW_TAB_HREF,

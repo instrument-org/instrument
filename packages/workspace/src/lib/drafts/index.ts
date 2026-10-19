@@ -26,4 +26,3 @@ export {
   removeDraft,
   writeDraftFile,
 } from "./draft-folder";
-export { pointDraftAtChat } from "./send";

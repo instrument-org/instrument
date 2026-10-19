@@ -1,4 +1,4 @@
-import { type ChosenItem } from "@/client/atoms/drafts";
+import { type ChosenItem } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
 import {
   FileSystemFolderGlyph,

@@ -1,4 +1,9 @@
-import { type Draft, draftGroupOf, draftsAtom } from "@/client/atoms/drafts";
+import {
+  draftsAtom,
+  removeDraftAtom,
+  updateDraftAtom,
+} from "@/client/drafts/store";
+import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
   chatFiltersAtom,
@@ -232,10 +237,6 @@ function focusField() {
  * into it. What keeps it past its window, and what a draft has to have to be
  * one to come back to.
  */
-function holdsSomething(draft: Draft): boolean {
-  return draft.words.trim() !== "" || (draft.attached ?? []).length > 0;
-}
-
 function WindowShell({
   routers,
   tabs,
@@ -265,7 +266,9 @@ function WindowShell({
   );
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
-  const [drafts, setDrafts] = useAtom(draftsAtom);
+  const drafts = useAtomValue(draftsAtom);
+  const updateDraft = useSetAtom(updateDraftAtom);
+  const removeDraft = useSetAtom(removeDraftAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
   const setChatFilters = useSetAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
@@ -329,13 +332,13 @@ function WindowShell({
       draft.chatId !== undefined ||
       holdsSomething(draft) ||
       floating.has(draft.id);
+    // A draft's folder goes with it, and what was pasted into it.
     for (const draft of drafts) {
       if (!isKept(draft)) {
         windowTabs.dropGroup(draftGroupOf(draft.id));
+        removeDraft(draft.id);
       }
     }
-    // A draft's folder goes with it, and what was pasted into it.
-    setDrafts((current) => current.filter(isKept));
     for (const entry of compose.entries) {
       if (
         entry.kind === "draft" &&
@@ -755,6 +758,7 @@ function WindowShell({
     chatTitles,
     drafts: drafts.filter(
       (draft) =>
+        draft.sendingTo === undefined &&
         (draft.chatId === undefined ||
           (chats.data !== undefined &&
             !chats.data.some((chat) => chat.id === draft.chatId))) &&
@@ -828,17 +832,7 @@ function WindowShell({
                 drafts={drafts}
                 modelURI={defaultModelURI}
                 onChangeDraft={(id, update) => {
-                  setDrafts((current) =>
-                    current.map((entry) => {
-                      if (entry.id !== id) {
-                        return entry;
-                      }
-                      const next = update(entry);
-                      return next === entry
-                        ? entry
-                        : { ...next, updatedAt: Date.now() };
-                    }),
-                  );
+                  updateDraft({ id, update });
                 }}
                 onCloseChat={(chatId) => {
                   compose.remove(chatId);
@@ -993,18 +987,14 @@ function WindowShell({
                       setChatTopic(id, created.id);
                     }
                     if (forDraft !== undefined) {
-                      setDrafts((current) =>
-                        current.map((draft) =>
-                          draft.id === forDraft
-                            ? {
-                                ...draft,
-                                topicId: created.id,
-                                topicSource: "chosen",
-                                updatedAt: Date.now(),
-                              }
-                            : draft,
-                        ),
-                      );
+                      updateDraft({
+                        id: forDraft,
+                        update: (draft) => ({
+                          ...draft,
+                          topicId: created.id,
+                          topicSource: "chosen",
+                        }),
+                      });
                     }
                     if (filedOn) {
                       setChatTopic(filedOn.id, created.id);

@@ -1,4 +1,4 @@
-import { type Draft } from "@/client/atoms/drafts";
+import { type Draft } from "@/shared/drafts";
 import { chatFiltersAtom } from "@/client/atoms/window";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";

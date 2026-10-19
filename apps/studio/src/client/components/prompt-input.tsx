@@ -70,10 +70,11 @@ import { ulid } from "ulid";
 import { featuresAtom } from "../atoms/features";
 import {
   draftKeyString,
-  promptDraftAtom,
   type PromptDraftKey,
   promptDraftRefAtom,
   removeTransientDraft,
+  storedWordsAtom,
+  typedWordsAtom,
 } from "../atoms/prompt-value";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
@@ -247,7 +248,22 @@ export const PromptInput = ({
     null,
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useAtom(promptDraftAtom(draftKey));
+  // The words the editor shows, which reach the draft a beat after they are
+  // typed. The editor reads its text once, at mount, from what the draft has,
+  // and every edit after that comes back through `onChange`; a composer moved
+  // onto another draft starts again from that one's.
+  const draftKeyed = draftKeyString(draftKey);
+  const storedWords = useAtomValue(storedWordsAtom(draftKey));
+  const typeWords = useSetAtom(typedWordsAtom);
+  const [shown, setShown] = useState({ key: draftKeyed, words: storedWords });
+  if (shown.key !== draftKeyed) {
+    setShown({ key: draftKeyed, words: storedWords });
+  }
+  const value = shown.key === draftKeyed ? shown.words : storedWords;
+  const setValue = (words: string) => {
+    setShown({ key: draftKeyed, words });
+    typeWords({ key: draftKey, words });
+  };
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
 
   const {
@@ -1092,7 +1108,7 @@ export const PromptInput = ({
           bounds={composerBounds}
           defaultValue={value}
           disabled={isLoading}
-          key={draftKeyString(draftKey)}
+          key={draftKeyed}
           onChange={setValue}
           onPaste={handlePaste}
           onSubmit={handleSubmit}

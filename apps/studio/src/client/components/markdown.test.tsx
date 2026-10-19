@@ -1,6 +1,6 @@
 import {
   type PromptDraftKey,
-  promptDraftAtom,
+  storedWordsAtom,
 } from "@/client/atoms/prompt-value";
 import {
   type ImageSourceKind,
@@ -1278,7 +1278,7 @@ describe("Markdown file chips", () => {
     fireEvent.contextMenu(screen.getByRole("button", { name: "notes.md" }));
     fireEvent.click(await screen.findByRole("button", { name: "Add to chat" }));
 
-    expect(store.get(promptDraftAtom(draftKey))).toContain("output/notes.md");
+    expect(store.get(storedWordsAtom(draftKey))).toContain("output/notes.md");
   });
 
   // A task's own transcript has no composer under it, so there is nowhere

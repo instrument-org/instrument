@@ -1,3 +1,4 @@
+import type { DraftsBridge } from "@/shared/drafts";
 import type { KeptFile, KeptSnapshot } from "@/shared/kept-state";
 import type { ElectronAPI } from "@electron-toolkit/preload";
 import type { CaptureContext } from "@instrument-org/shared";
@@ -22,6 +23,10 @@ declare global {
       // Absent outside Electron.
       codeEditorFocus?: (focused: boolean) => void;
       getFilePath: (file: File) => string;
+      // The drafts main owns (`shared/drafts.ts`, `client/drafts/store.ts`):
+      // every draft as the window loaded, ops sent back, and every change
+      // main makes. Absent outside Electron.
+      drafts?: DraftsBridge;
       // Where the user's home directory is, for shortening displayed paths.
       // Fixed for the life of the process, so the preload hands it over once
       // rather than the renderer asking per path.

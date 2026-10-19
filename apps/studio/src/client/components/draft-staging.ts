@@ -1,5 +1,5 @@
-import { type Draft, type DraftAttachment } from "@/client/atoms/drafts";
-import { rpcClient } from "@/client/rpc/client";
+import { stageIntoDraft } from "@/client/drafts/store";
+import { type Draft, type DraftAttachment } from "@/shared/drafts";
 import type { FileUpload } from "@instrument-org/workspace/client";
 import { isEqual } from "radashi";
 import { useRef } from "react";
@@ -35,11 +35,12 @@ export function useDraftStaging({
   onChange,
 }: {
   /**
-   * The draft what is pasted belongs to, made if there is not one yet: a
-   * paste is on disk the moment it arrives, so it needs a folder of its own
-   * before the words have settled into a draft.
+   * The draft what the box holds belongs to. Made if there is not one yet
+   * where `make` says so, which is when there is something to keep: a paste
+   * is on disk the moment it arrives, so it needs a folder of its own before
+   * the words have settled into a draft.
    */
-  draftFor: () => string;
+  draftFor: (make: boolean) => string | undefined;
   /** Changes that draft, by its id. */
   onChange: (draftId: string, update: (draft: Draft) => Draft) => void;
 }) {
@@ -111,7 +112,11 @@ export function useDraftStaging({
 
     /** Everything the box holds now, with what has no file behind it written one. */
     keepItems: (items: AttachedItem[]) => {
-      const draftId = draftFor();
+      const draftId = draftFor(items.length > 0);
+      if (draftId === undefined) {
+        latestItems.current = items;
+        return;
+      }
       for (const item of items) {
         if (
           item.type !== "file" ||
@@ -121,13 +126,12 @@ export function useDraftStaging({
           continue;
         }
         staged.current.set(item.id, null);
-        void rpcClient.drafts.stage
-          .call({
-            content: item.content,
-            draftId,
-            itemId: item.id,
-            name: item.name,
-          })
+        void stageIntoDraft({
+          content: item.content,
+          draftId,
+          itemId: item.id,
+          name: item.name,
+        })
           .then(({ path, size }) => {
             staged.current.set(item.id, {
               kind: "file",

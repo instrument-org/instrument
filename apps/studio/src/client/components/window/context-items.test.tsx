@@ -1,4 +1,4 @@
-import { type Draft } from "@/client/atoms/drafts";
+import { type Draft } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";

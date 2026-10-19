@@ -1,6 +1,6 @@
 import type * as FaviconUrl from "@/client/lib/favicon-url";
 
-import { promptDraftAtom } from "@/client/atoms/prompt-value";
+import { resetDrafts } from "@/client/drafts/store";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { isMacOS, osConventions } from "@/client/lib/utils";
 import { renderInBrowser } from "@/tests/render-browser";
@@ -386,6 +386,10 @@ function titleOf(row: HTMLElement) {
 }
 
 describe("ChatRow", () => {
+  afterEach(() => {
+    resetDrafts();
+  });
+
   it("stacks: the title with the pill at its end on one line, the latest under it, the files and the time under that", async () => {
     const { row } = await renderRow(
       chat({
@@ -487,14 +491,20 @@ describe("ChatRow", () => {
     expect(titleOf(seen).className).not.toContain("font-semibold");
   });
 
-  it("says Draft in red right after the title while the chat's composer holds words", async () => {
-    const store = createStore();
-    store.set(
-      promptDraftAtom({ chatId: CHAT_ID, scope: "chat" }),
-      "and keep the porch light on",
-    );
+  /** A reply of this chat's waiting, with these words. */
+  const reply = (words: string, more: { sendingTo?: typeof CHAT_ID } = {}) => ({
+    chatId: CHAT_ID,
+    createdAt: 1,
+    id: "reply",
+    updatedAt: 1,
+    words,
+    ...more,
+  });
+
+  it("says Draft in red right after the title while a reply waits in the chat", async () => {
+    resetDrafts([reply("and keep the porch light on")]);
     const { row } = await renderRow(chat({ topic: "house" }), {
-      store,
+      store: createStore(),
     });
     const draft = [...row.querySelectorAll("span")].find(
       (span) => span.textContent === "Draft",
@@ -511,10 +521,15 @@ describe("ChatRow", () => {
     expect(row.textContent).not.toContain("porch light");
   });
 
-  it("says nothing of a draft that is only whitespace", async () => {
-    const store = createStore();
-    store.set(promptDraftAtom({ chatId: CHAT_ID, scope: "chat" }), "  \n");
-    const { row } = await renderRow(chat(), { store });
+  it.each([
+    ["a reply that is only whitespace", reply("  \n")],
+    [
+      "a draft on its way into the chat",
+      reply("what's my latest tweet", { sendingTo: CHAT_ID }),
+    ],
+  ])("says nothing of %s", async (_case, draft) => {
+    resetDrafts([draft]);
+    const { row } = await renderRow(chat(), { store: createStore() });
     expect(row.textContent).not.toContain("Draft");
   });
 

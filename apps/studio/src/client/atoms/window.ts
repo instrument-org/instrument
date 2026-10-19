@@ -1,8 +1,4 @@
-import {
-  type ChosenItem,
-  draftGroupOf,
-  draftOfGroup,
-} from "@/client/atoms/drafts";
+import { type ChosenItem, draftGroupOf, draftOfGroup } from "@/shared/drafts";
 import { PANE_DEFAULT_SHARE } from "@/client/atoms/right-pane";
 import {
   type FileSystemListColumn,
@@ -79,7 +75,7 @@ export function chatsOutOf(entries: ComposeEntry[]): Set<string> {
  * right, and the ones there is no room for are not drawn. The drafts being
  * written and the chats in their small views share the row. Kept across
  * launches, so what was floating when the app quit floats again; the drafts
- * themselves are in `draftsAtom`.
+ * themselves are in `draftsAtom` (`client/drafts/store.ts`).
  */
 export const composeAtom = keptAtom<ComposeEntry[]>("layout", "compose.v2", []);
 

@@ -21,7 +21,6 @@ const read = (file: string): unknown =>
 it("writes each key to its file on flush, and reads them back in a new store", () => {
   const store = createKeptStateStore(() => dir);
   store.set("layout", "app-tabs.v2", { tabs: [] });
-  store.set("drafts", "drafts.v2", [{ id: "d" }]);
   store.set("view", "zoom.v1", 1.25);
   expect(fs.readdirSync(dir)).toEqual([]);
 
@@ -29,7 +28,6 @@ it("writes each key to its file on flush, and reads them back in a new store", (
 
   expect(fs.readdirSync(dir).toSorted()).toMatchInlineSnapshot(`
     [
-      "drafts.json",
       "layout.json",
       "view.json",
     ]
@@ -37,7 +35,6 @@ it("writes each key to its file on flush, and reads them back in a new store", (
   expect(read("view.json")).toEqual({ "zoom.v1": 1.25 });
   expect(createKeptStateStore(() => dir).snapshot()).toEqual({
     bookmarks: {},
-    drafts: { "drafts.v2": [{ id: "d" }] },
     layout: { "app-tabs.v2": { tabs: [] } },
     view: { "zoom.v1": 1.25 },
   });
@@ -67,16 +64,16 @@ it("writes each file into the folder named for it, making the folder", () => {
 
 it("rewrites only the files that changed", () => {
   const store = createKeptStateStore(() => dir);
-  store.set("drafts", "drafts.v2", []);
+  store.set("bookmarks", "bookmarks.v1", []);
   store.flush();
   store.set("view", "zoom.v1", 2);
   store.flush();
-  fs.rmSync(path.join(dir, "drafts.json"));
+  fs.rmSync(path.join(dir, "bookmarks.json"));
 
   store.set("view", "zoom.v1", 1);
   store.flush();
 
-  expect(fs.existsSync(path.join(dir, "drafts.json"))).toBe(false);
+  expect(fs.existsSync(path.join(dir, "bookmarks.json"))).toBe(false);
 });
 
 it("removes a key set to undefined", () => {
@@ -118,7 +115,7 @@ it("reads a file through its own reader as it loads", () => {
     path.join(dir, "layout.json"),
     JSON.stringify({ "app-tabs.v2": { tabs: ["a"] } }),
   );
-  const store = createKeptStateStore(() => dir, undefined, {
+  const store = createKeptStateStore(() => dir, {
     layout: (keys) => ({ ...keys, read: true }),
   });
   expect(store.snapshot().layout).toEqual({

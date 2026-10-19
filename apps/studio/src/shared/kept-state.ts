@@ -4,16 +4,13 @@
  * key back as it changes.
  *
  * They split by what losing one costs: `layout` is where the person left off,
- * `drafts` and `bookmarks` are things they made, and `view` is how they like
- * things laid out. What they made travels with the workspace; `layout` and
- * `view` stay on this computer, in the workspace's machine folder. `drafts`
- * is not a file: its one key, {@link DRAFTS_KEY}, is kept as a folder per
- * draft in the workspace's `.instrument/drafts/`.
+ * `bookmarks` are things they made, and `view` is how they like things laid
+ * out. What they made travels with the workspace; `layout` and `view` stay on
+ * this computer, in the workspace's machine folder. Drafts are not kept here:
+ * main owns them as a folder each in the workspace's `Drafts/`
+ * (`shared/drafts.ts`).
  */
-export const KEPT_FILES = ["bookmarks", "drafts", "layout", "view"] as const;
-
-/** The key of `drafts` the window's drafts are kept under, the only one it holds. */
-export const DRAFTS_KEY = "drafts.v2";
+export const KEPT_FILES = ["bookmarks", "layout", "view"] as const;
 
 export type KeptFile = (typeof KEPT_FILES)[number];
 

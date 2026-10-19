@@ -1,4 +1,4 @@
-import { draftOfGroup } from "@/client/atoms/drafts";
+import { draftOfGroup } from "@/shared/drafts";
 import {
   type BrowserTab,
   newTabHrefOf,

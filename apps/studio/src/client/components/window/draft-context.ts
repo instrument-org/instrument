@@ -1,4 +1,4 @@
-import { type ChosenItem, type Draft } from "@/client/atoms/drafts";
+import { type ChosenItem, type Draft } from "@/shared/drafts";
 import { type ScreenView, type WindowTab } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { type TabId } from "@/shared/tabs";

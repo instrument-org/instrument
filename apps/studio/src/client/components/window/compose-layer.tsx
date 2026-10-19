@@ -1,5 +1,5 @@
 import { useHoldWindow } from "@/client/hooks/use-hold-window";
-import { type Draft, draftGroupOf } from "@/client/atoms/drafts";
+import { type Draft, draftGroupOf } from "@/shared/drafts";
 import { composeKeyOf } from "@/client/atoms/window";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {

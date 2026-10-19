@@ -1,4 +1,4 @@
-import { type ChosenItem } from "@/client/atoms/drafts";
+import { type ChosenItem } from "@/shared/drafts";
 import {
   computerColumnWidthAtom,
   type ComputerFolderView,

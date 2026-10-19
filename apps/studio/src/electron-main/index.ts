@@ -54,6 +54,7 @@ import {
 } from "electron";
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
+import { serveDrafts } from "./drafts/serve-drafts";
 import { serveKeptState } from "./stores/workspace/kept-state";
 import { serveRendererExceptions } from "./lib/renderer-exceptions";
 import {
@@ -259,6 +260,7 @@ async function bootstrapPrimaryInstance() {
   // Registered before any window exists, so no preload can ask before it answers.
   serveResolvedTheme();
   serveKeptState();
+  serveDrafts();
   serveRendererExceptions();
   servePageEditorBoot();
 

@@ -593,7 +593,7 @@ export function BrowserPanel({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() => {
-                  find.setFindOpen(true);
+                  find.openFind();
                 }}
               >
                 <MagnifyingGlassIcon className="size-4" />

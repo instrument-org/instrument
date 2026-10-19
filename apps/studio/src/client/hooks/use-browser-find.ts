@@ -5,10 +5,13 @@ import { registerForegroundBrowser } from "@/client/lib/foreground-browser-regis
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
+/** The last search run in any browser panel, which an empty find bar opens with. */
+let lastFindQuery = "";
+
 /**
  * Find-in-page state and wiring for a browser panel's guest. Owns the find bar's
  * open/query/result state, mirrors the guest's `found-in-page` matches, registers
- * as the Cmd+F target while foreground, and focuses the input on open. Resets
+ * as the Cmd+F and Cmd+G target while foreground, and focuses the input on open. Resets
  * when the guest is reaped (`active` -> false) so a later reopen starts clean.
  */
 export function useBrowserFind({
@@ -56,22 +59,41 @@ export function useBrowserFind({
   );
 
   // Close the bar when the page goes to a new address, as a browser does. A
-  // reload commits the same address and keeps the bar; an in-page (hash)
-  // navigation fires `did-navigate-in-page` instead, so it keeps it too.
+  // reload commits the same address and keeps the bar, searching again once
+  // the page has loaded, since the reload took the highlights with it; an
+  // in-page (hash) navigation fires `did-navigate-in-page` instead, so it
+  // keeps it too.
+  const openQuery = useRef("");
+  useEffect(() => {
+    openQuery.current = findOpen ? findQuery : "";
+  }, [findOpen, findQuery]);
   useEffect(() => {
     if (!guest) {
       return;
     }
     let committedUrl = guest.url();
-    return guest.on("did-navigate", ({ url }) => {
+    let searchOnLoad = false;
+    const offNavigate = guest.on("did-navigate", ({ url }) => {
+      setFindResult(null);
       if (url === committedUrl) {
+        searchOnLoad = true;
         return;
       }
       committedUrl = url;
+      searchOnLoad = false;
       setFindOpen(false);
       setFindQuery("");
-      setFindResult(null);
     });
+    const offLoaded = guest.on("did-stop-loading", () => {
+      if (searchOnLoad && openQuery.current) {
+        guest.find(openQuery.current);
+      }
+      searchOnLoad = false;
+    });
+    return () => {
+      offNavigate();
+      offLoaded();
+    };
   }, [guest]);
 
   // The guest outlives this panel (it's pooled, not reaped on panel close), so a
@@ -97,12 +119,16 @@ export function useBrowserFind({
   useFindTarget({
     anchor: surfaceRef,
     enabled: isForeground,
-    holdsKeyboard: () => pageHoldingKeyboard() === targetId,
-    openFind: () => {
-      setFindOpen(true);
-      findInputRef.current?.focus();
-      findInputRef.current?.select();
+    findAgain: (forward) => {
+      if (findQuery) {
+        setFindOpen(true);
+        runFind(findQuery, { forward });
+      } else {
+        openFind();
+      }
     },
+    holdsKeyboard: () => pageHoldingKeyboard() === targetId,
+    openFind,
   });
 
   // Focus the find input when the bar opens (its first render, when the opener
@@ -137,7 +163,7 @@ export function useBrowserFind({
   // Empty query clears the highlight; otherwise search. `forward` is only passed
   // for next/prev stepping (Enter / the arrows); a fresh keystroke omits it so
   // the guest re-anchors from the top.
-  const runFind = (query: string, options?: { forward: boolean }) => {
+  function runFind(query: string, options?: { forward: boolean }) {
     const target = getGuest(targetId);
     if (!target) {
       return;
@@ -147,11 +173,24 @@ export function useBrowserFind({
       setFindResult(null);
       return;
     }
+    lastFindQuery = query;
     target.find(
       query,
       options ? { findNext: true, forward: options.forward } : undefined,
     );
-  };
+  }
+
+  // Opening an empty bar fills in the last search from any page, selected so
+  // typing replaces it, and runs it, as a browser does.
+  function openFind() {
+    setFindOpen(true);
+    if (!findQuery && lastFindQuery) {
+      setFindQuery(lastFindQuery);
+      runFind(lastFindQuery);
+    }
+    findInputRef.current?.focus();
+    findInputRef.current?.select();
+  }
 
   const closeFind = () => {
     getGuest(targetId)?.stopFind("clearSelection");
@@ -166,8 +205,8 @@ export function useBrowserFind({
     findOpen,
     findQuery,
     findResult,
+    openFind,
     runFind,
-    setFindOpen,
     setFindQuery,
   };
 }

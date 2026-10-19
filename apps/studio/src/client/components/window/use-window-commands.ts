@@ -14,7 +14,10 @@ import {
 import { type AppPlace } from "@/client/atoms/window";
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
-import { openFindForKeyboard } from "@/client/lib/find-targets";
+import {
+  findAgainForKeyboard,
+  openFindForKeyboard,
+} from "@/client/lib/find-targets";
 import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
 import { runPageChord } from "@/client/lib/page-chords";
 import { isMacOS } from "@/client/lib/utils";
@@ -35,6 +38,8 @@ const RECONNECT_DELAY_MS = 1000;
 const MODAL_SAFE_COMMANDS = new Set([
   "clearBrowsingData",
   "findInPage",
+  "findNext",
+  "findPrevious",
   "openSettings",
   "openShortcutGuide",
   "reloadPage",
@@ -244,6 +249,11 @@ export function useWindowCommands(
               // The search of the surface the keyboard is in; with none on
               // screen there is nothing to search.
               openFindForKeyboard();
+              break;
+            }
+            case "findNext":
+            case "findPrevious": {
+              findAgainForKeyboard(command === "findNext");
               break;
             }
             case "forward": {

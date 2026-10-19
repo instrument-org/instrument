@@ -56,6 +56,8 @@ const WINDOW_GROUPS: Record<
   commandMenu: "General",
   editPage: "Pages",
   findInPage: "Pages",
+  findNext: "Pages",
+  findPrevious: "Pages",
   forward: "Pages",
   goToApps: "General",
   goToBrowser: "General",

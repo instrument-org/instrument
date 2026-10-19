@@ -87,6 +87,8 @@ interface PublisherEvents {
     | "commandMenu"
     | "editPage"
     | "findInPage"
+    | "findNext"
+    | "findPrevious"
     | "forward"
     | "goToApps"
     | "goToBrowser"

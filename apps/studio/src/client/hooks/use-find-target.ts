@@ -11,22 +11,31 @@ import { type RefObject, useEffect, useRef } from "react";
 export function useFindTarget({
   anchor,
   enabled = true,
+  findAgain,
   holdsKeyboard,
   openFind,
 }: {
   anchor: RefObject<Element | null>;
   enabled?: boolean;
+  findAgain?: (forward: boolean) => void;
   holdsKeyboard?: () => boolean;
   openFind: () => void;
 }) {
-  const latest = useRef({ holdsKeyboard, openFind });
-  latest.current = { holdsKeyboard, openFind };
+  const latest = useRef({ findAgain, holdsKeyboard, openFind });
+  latest.current = { findAgain, holdsKeyboard, openFind };
   useEffect(() => {
     if (!enabled) {
       return;
     }
     return registerFindTarget({
       anchor: () => anchor.current,
+      findAgain: (forward) => {
+        if (latest.current.findAgain) {
+          latest.current.findAgain(forward);
+        } else {
+          latest.current.openFind();
+        }
+      },
       holdsKeyboard: () => latest.current.holdsKeyboard?.() ?? false,
       openFind: () => {
         latest.current.openFind();

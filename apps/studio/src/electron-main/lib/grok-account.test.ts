@@ -372,7 +372,7 @@ describe("spellTier", () => {
     ["XPremiumPlus", "X Premium Plus"],
     ["SuperGrokHeavy", "SuperGrok Heavy"],
     ["SuperGrok", "SuperGrok"],
-  ])("spells %s as %s", (tier, spelled) => {
-    expect(grok.spellTier(tier)).toBe(spelled);
+  ])("spells %s as %s", (raw, spelled) => {
+    expect(grok.spellTier(raw)).toBe(spelled);
   });
 });

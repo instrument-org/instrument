@@ -125,7 +125,7 @@ const DOWNLOAD_BODY = [
   ...Array.from(
     { length: 30 },
     (_, index) =>
-      `${index + 1}. Carriers are given priority by the colour of the leg band, and a lost carrier is retransmitted.`,
+      `${index + 1}. Carriers are given priority by the color of the leg band, and a lost carrier is retransmitted.`,
   ),
   "",
 ].join("\n");

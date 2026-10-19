@@ -50,7 +50,7 @@ const dismissedUsageWarningAtom = keptAtom<null | string>(
 );
 
 /** What the reply box lends the note it draws: the flash a held send asks for, and its model picker. */
-export type ChatNoteContext = { nudge: number; openModelPicker: () => void };
+type ChatNoteContext = { nudge: number; openModelPicker: () => void };
 
 /**
  * The note a chat has for its reply box about the account its model runs on.

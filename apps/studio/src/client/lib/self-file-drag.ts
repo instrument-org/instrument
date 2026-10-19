@@ -52,6 +52,7 @@ export function releaseSelfFileDrag() {
 export function trackSelfFileDrag(paths: readonly string[] = []) {
   startedAt = Date.now();
   carried = paths.length > 0 ? new Set(paths) : null;
+  carriedSince = startedAt;
   if (carried) {
     listenForEnd();
   }
@@ -65,35 +66,50 @@ export function trackSelfFileDrag(paths: readonly string[] = []) {
 // so the first one after it is the end of a drag that went somewhere else; a
 // drop here ends it first.
 let carried: null | ReadonlySet<string> = null;
+let carriedSince = 0;
 // The pointer events a page can still be sent as a drag begins, which are
 // not its end.
 const END_GRACE_MS = 250;
+// Longer than anyone holds a drag over a folder. A drag that went out to
+// another app without the window hearing of it, and the same files dragged
+// back in from somewhere else later, is never taken for this one.
+const CARRIED_FOR_MS = 30_000;
 
 function listenForEnd() {
   const end = () => {
-    if (Date.now() - startedAt < END_GRACE_MS) {
+    if (Date.now() - carriedSince < END_GRACE_MS) {
       return;
     }
+    endOwnFileDrag();
+  };
+  // The window losing or taking focus means the drag went to another app,
+  // or the person came back from one: either way it is over.
+  const leave = () => {
     endOwnFileDrag();
   };
   const stop = () => {
     window.removeEventListener("pointermove", end, { capture: true });
     window.removeEventListener("pointerdown", end, { capture: true });
+    window.removeEventListener("blur", leave);
+    window.removeEventListener("focus", leave);
   };
   stopListening?.();
   stopListening = stop;
   window.addEventListener("pointermove", end, { capture: true });
   window.addEventListener("pointerdown", end, { capture: true });
+  window.addEventListener("blur", leave);
+  window.addEventListener("focus", leave);
 }
 let stopListening: (() => void) | null = null;
 
 /**
  * Whether a drop carrying `paths` is this app's own drag of exactly those
- * files, still in the air.
+ * files, still in the air and not older than any drag is held.
  */
 export function isOwnFileDragOf(paths: readonly string[]) {
   return (
     carried !== null &&
+    Date.now() - carriedSince < CARRIED_FOR_MS &&
     paths.length === carried.size &&
     paths.every((at) => carried?.has(at))
   );

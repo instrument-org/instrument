@@ -52,7 +52,7 @@ describe("self file drag", () => {
 
     // A drag held over a folder for a while is still the Finder's own, which
     // moves rather than copies.
-    it("knows its own files however long the drag is held", () => {
+    it("knows its own files while the drag is held", () => {
       trackSelfFileDrag(["/a.txt", "/pics"]);
       vi.advanceTimersByTime(10_000);
 
@@ -80,6 +80,25 @@ describe("self file drag", () => {
       releaseSelfFileDrag();
 
       expect(isOwnFileDragOf(["/a.txt"])).toBe(true);
+    });
+
+    // Dragged out to another app without the window hearing it end, then
+    // the same files dragged back in from elsewhere: not this drag.
+    it.each(["blur", "focus"])(
+      "forgets them when the window's focus changes (%s)",
+      (event) => {
+        trackSelfFileDrag(["/a.txt"]);
+        window.dispatchEvent(new Event(event));
+
+        expect(isOwnFileDragOf(["/a.txt"])).toBe(false);
+      },
+    );
+
+    it("forgets them once older than any drag is held", () => {
+      trackSelfFileDrag(["/a.txt"]);
+      vi.advanceTimersByTime(31_000);
+
+      expect(isOwnFileDragOf(["/a.txt"])).toBe(false);
     });
   });
 });

@@ -91,3 +91,16 @@ it("draws a link into the app as a chip with its kind's glyph, and a web link as
   expect(site?.querySelector(".md-app-chip-icon")).toBeNull();
   expect(view.state.doc.textContent).toBe("the dog and a site");
 });
+
+it("puts the site's icon in front of a web link, and none in front of a file's", async () => {
+  const view = await openMarkdownEditor(
+    "[a site](https://example.com/page) and [a file](plan.md)\n",
+  );
+  const [site, file] = view.dom.querySelectorAll("a");
+
+  expect(site?.querySelector("img.md-site-icon")?.getAttribute("src")).toMatch(
+    /site-icon\/example\.com$/,
+  );
+  expect(file?.querySelector("img")).toBeNull();
+  expect(view.state.doc.textContent).toBe("a site and a file");
+});

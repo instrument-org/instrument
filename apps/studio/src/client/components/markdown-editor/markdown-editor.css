@@ -647,6 +647,18 @@ textarea.md-input {
 .md-editor .milkdown .ProseMirror .md-app-chip-icon.is-task {
   color: var(--brand-600);
 }
+/* A web link's site icon (links.ts), as the app's other Markdown draws it. */
+.md-editor .milkdown .ProseMirror .md-site-icon:not([hidden]) {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin: 0 4px 0 0;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.dark .md-editor .milkdown .ProseMirror .md-site-icon {
+  background: rgb(255 255 255 / 0.1);
+}
 /* Inline code as Typography draws it in Studio: weight and backticks. */
 .md-editor .milkdown .ProseMirror :not(pre) > code {
   font-family: var(--font-mono);

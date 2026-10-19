@@ -1,5 +1,13 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type OpenTarget, openTargetOfHref } from "@/client/lib/open-target";
+import {
+  getFaviconUrl,
+  markIconlessThisSession,
+} from "@/client/lib/favicon-url";
+import {
+  isWebPage,
+  type OpenTarget,
+  openTargetOfHref,
+} from "@/client/lib/open-target";
 import { commandKeyHeld } from "@/client/lib/utils";
 import {
   type InstrumentLink,
@@ -22,7 +30,8 @@ import { icon, type IconName, instrumentMark } from "./icons";
 // file beside it and opens in the app's viewer; one that names nothing on
 // disk is marked, so a renamed or deleted file shows where it was linked.
 // A link into the app (`instrument://chat/…`) is drawn as the chip the
-// app's other Markdown draws it as, its kind's glyph in front of its words.
+// app's other Markdown draws it as, its kind's glyph in front of its words,
+// and a link to a web page with the site's icon in front, as there too.
 
 /** The middle button, which asks for a place of its own wherever a link is drawn. */
 const MIDDLE_BUTTON = 1;
@@ -152,15 +161,32 @@ export function linksPlugin({
                 .map(({ from, to }) =>
                   Decoration.inline(from, to, { class: "md-link-broken" }),
                 ),
-              ...appLinks(state.doc).flatMap(({ from, link, mark, to }) => [
-                Decoration.inline(from, to, { class: "md-app-chip" }),
-                Decoration.widget(from, () => appChipIcon(link), {
-                  ignoreSelection: true,
-                  key: `app-chip-${link.kind}-${link.name}`,
-                  marks: [mark],
-                  side: -1,
-                }),
-              ]),
+              ...linkRanges(state.doc).flatMap(({ from, href, mark, to }) => {
+                const link = instrumentLinkOf(href);
+                if (link) {
+                  return [
+                    Decoration.inline(from, to, { class: "md-app-chip" }),
+                    Decoration.widget(from, () => appChipIcon(link), {
+                      ignoreSelection: true,
+                      key: `app-chip-${link.kind}-${link.name}`,
+                      marks: [mark],
+                      side: -1,
+                    }),
+                  ];
+                }
+                if (!isWebPage(href)) {
+                  return [];
+                }
+                const favicon = getFaviconUrl(href);
+                return [
+                  Decoration.widget(from, () => siteIcon(href, favicon), {
+                    ignoreSelection: true,
+                    key: `site-icon-${favicon}`,
+                    marks: [mark],
+                    side: -1,
+                  }),
+                ];
+              }),
             ];
             return decos.length > 0
               ? DecorationSet.create(state.doc, decos)
@@ -260,17 +286,15 @@ function linkedPaths(doc: PMNode, folder: string) {
   return out;
 }
 
-/** Every link into the app in `doc`, by what it names and the stretch of text it covers. */
-function appLinks(doc: PMNode) {
-  const out: { from: number; link: InstrumentLink; mark: Mark; to: number }[] =
-    [];
+/** Every link in `doc`, by its address and the stretch of text it covers. */
+function linkRanges(doc: PMNode) {
+  const out: { from: number; href: string; mark: Mark; to: number }[] = [];
   doc.descendants((node, pos) => {
     if (!node.isText) {
       return;
     }
     const mark = node.marks.find((m) => m.type.name === "link");
-    const link = mark && instrumentLinkOf(String(mark.attrs.href ?? ""));
-    if (!mark || !link) {
+    if (!mark) {
       return;
     }
     // A link whose words are partly bold is several text nodes under one mark.
@@ -279,9 +303,30 @@ function appLinks(doc: PMNode) {
       last.to = pos + node.nodeSize;
       return;
     }
-    out.push({ from: pos, link, mark, to: pos + node.nodeSize });
+    const href = String(mark.attrs.href ?? "");
+    out.push({ from: pos, href, mark, to: pos + node.nodeSize });
   });
   return out;
+}
+
+/**
+ * A site's icon at the front of a link to it, drawn once it has loaded, so a
+ * site with none, or one still being looked up, leaves no gap in the line.
+ */
+function siteIcon(href: string, src: string) {
+  const img = document.createElement("img");
+  img.className = "md-site-icon";
+  img.alt = "";
+  img.draggable = false;
+  img.hidden = true;
+  img.addEventListener("load", () => {
+    img.hidden = false;
+  });
+  img.addEventListener("error", () => {
+    markIconlessThisSession(href);
+  });
+  img.src = src;
+  return img;
 }
 
 /** The glyph for each kind of thing a link into the app names, as the viewer's chips draw them. */

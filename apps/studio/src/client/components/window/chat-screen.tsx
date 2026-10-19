@@ -229,7 +229,6 @@ function ChatScreenOfRecord({
                   // What the chat holds, over the composer.
                   beforeComposer={tiles}
                   composerLead={composerLead}
-                  composerPlaceholder="Talk to Instrument"
                   // Kept past this screen's unmount, so the row in the inbox
                   // can say the chat holds a draft while it does.
                   draftKey={{ chatId, scope: "chat" }}

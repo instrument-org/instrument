@@ -32,7 +32,7 @@ import {
   StoreId,
   type ChatInfo,
 } from "@instrument-org/workspace/client";
-import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
   type ComponentProps,
@@ -98,14 +98,12 @@ export function ChatConversation({
   asks,
   beforeComposer,
   composerLead,
-  composerPlaceholder,
   draftKey,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
   sendContext,
   sentPrompt,
   chatInfo,
-  transcriptTrailing,
 }: {
   /**
    * Places marked in files that go with the next message: drawn as pills in
@@ -123,18 +121,16 @@ export function ChatConversation({
   beforeComposer?: ReactNode;
   /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
   composerLead?: ReactNode;
-  /** What the empty composer says, when the window knows better than the app's name does. */
-  composerPlaceholder?: string;
   /** Which draft the composer edits, and the one "Add to chat" in the transcript writes to. */
   draftKey: PromptDraftKey;
   selectedModelURI?: AIGatewayModelURI.Type;
-  selectedSessionId?: StoreId.Session;
+  selectedSessionId: StoreId.Session;
   /**
    * What the surface around this chat has on screen when a prompt is sent, so
    * "this folder" means the folder in view. Read at send time, since what is on
    * screen when the prompt is typed is what the words refer to.
    */
-  sendContext?: () => Promise<
+  sendContext: () => Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
   >;
   /**
@@ -145,8 +141,6 @@ export function ChatConversation({
    */
   sentPrompt?: string;
   chatInfo: ChatInfo;
-  /** Drawn under the transcript's last turn, inside the scroller: what is going on past the conversation. */
-  transcriptTrailing?: ReactNode;
 }) {
   const appWindow = useContext(WindowContext);
   const id = chatInfo.id;
@@ -195,12 +189,10 @@ export function ChatConversation({
 
   const messagesQuery = useQuery(
     rpcClient.workspace.message.live.list.experimental_liveOptions({
-      input: selectedSessionId
-        ? {
-            id,
-            sessionId: selectedSessionId,
-          }
-        : skipToken,
+      input: {
+        id,
+        sessionId: selectedSessionId,
+      },
       retry: 1,
     }),
   );
@@ -237,9 +229,12 @@ export function ChatConversation({
     prompt: string,
     reply?: SessionMessageDataPart.ReplyDataPart,
   ) => {
-    const entry = selectedSessionId
-      ? pendingPrompt({ messages, prompt, reply, sessionId: selectedSessionId })
-      : undefined;
+    const entry = pendingPrompt({
+      messages,
+      prompt,
+      reply,
+      sessionId: selectedSessionId,
+    });
     if (entry) {
       setPending((current) => [...current, entry]);
     }
@@ -289,10 +284,6 @@ export function ChatConversation({
   });
 
   const handleRetry = (prompt: string) => {
-    if (!selectedSessionId) {
-      // No retry UI is shown when no session is selected
-      return;
-    }
     if (!selectedModelURI) {
       toast.error("Couldn't try again", {
         description: "Choose a model first.",
@@ -310,10 +301,6 @@ export function ChatConversation({
   // The failed turn again, with nothing said on the user's behalf: the agent
   // runs over the session as it stands and answers the request already in it.
   const handleRunAgain = (modelURI = selectedModelURI) => {
-    if (!selectedSessionId) {
-      // No retry UI is shown when no session is selected
-      return;
-    }
     if (!modelURI) {
       toast.error("Couldn't try again", {
         description: "Choose a model first.",
@@ -480,7 +467,7 @@ export function ChatConversation({
         // Drawn before what goes with it is read: reading a page can take a
         // moment, and the send is only stored once that is in.
         const dropPending = showPending(prompt, reply);
-        void Promise.resolve(sendContext?.()).then((viewing) => {
+        void sendContext().then((viewing) => {
           createMessage.mutate(
             {
               ...(taken ? { asks: taken.part } : {}),
@@ -519,7 +506,7 @@ export function ChatConversation({
           );
         });
       }}
-      placeholder={composerPlaceholder ?? `Talk to ${APP_NAME}`}
+      placeholder={`Talk to ${APP_NAME}`}
       places={places}
       ref={promptInputRef}
       selectedSessionId={selectedSessionId}
@@ -558,7 +545,7 @@ export function ChatConversation({
         of a spinner is not the end of the chat. */}
           <ScrollToEndBridge
             contentRef={contentRef}
-            signal={`${selectedSessionId ?? ""}:${isLoadingMessages ? "loading" : "loaded"}:${scrollToEndSignal}`}
+            signal={`${selectedSessionId}:${isLoadingMessages ? "loading" : "loaded"}:${scrollToEndSignal}`}
           />
           <div className="flex h-full min-h-0 flex-col">
             <MessageScroller className="min-h-0 flex-1">
@@ -574,58 +561,53 @@ export function ChatConversation({
                   className="mx-auto w-full max-w-3xl gap-4 p-4 pb-8 [--transcript-room:100cqi]"
                   ref={contentRef}
                 >
-                  {selectedSessionId ? (
-                    sentPrompt !== undefined && messages.length === 0 ? (
-                      <SentPrompt
-                        sessionId={selectedSessionId}
-                        text={sentPrompt}
+                  {sentPrompt !== undefined && messages.length === 0 ? (
+                    <SentPrompt
+                      sessionId={selectedSessionId}
+                      text={sentPrompt}
+                    />
+                  ) : isLoadingMessages ? (
+                    <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
+                      <Spinner
+                        className="size-4 text-muted-foreground"
+                        delay={0}
                       />
-                    ) : isLoadingMessages ? (
-                      <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
-                        <Spinner
-                          className="size-4 text-muted-foreground"
-                          delay={0}
-                        />
-                      </div>
-                    ) : messageError ? (
-                      <Alert className="mt-4" variant="warning">
-                        <AlertDescription className="flex flex-col gap-4">
-                          <div className="font-semibold">
-                            Failed to load messages
-                          </div>
-                          <div className="text-sm">
-                            {messageError.message || "Unknown error occurred"}
-                          </div>
-                          <div className="flex gap-2">
-                            <Button onClick={() => refetch()}>Retry</Button>
-                          </div>
-                        </AlertDescription>
-                      </Alert>
-                    ) : !isAgentRunning && shownMessages.length === 0 ? (
-                      <NoMessages />
-                    ) : (
-                      <TranscriptStream
-                        isAgentRunning={isAgentRunning || runTurn.isPending}
-                        isDeveloperMode={isDeveloperMode}
-                        messages={shownMessages}
-                        onContinue={handleContinue}
-                        onModelChange={(modelURI) => {
-                          setSelectedModelURI(modelURI);
-                          handleRunAgain(modelURI);
-                        }}
-                        onRetry={handleRetry}
-                        onRunAgain={() => handleRunAgain()}
-                        presentation="chat"
-                        chatInfo={chatInfo}
-                      />
-                    )
-                  ) : (
+                    </div>
+                  ) : messageError ? (
+                    <Alert className="mt-4" variant="warning">
+                      <AlertDescription className="flex flex-col gap-4">
+                        <div className="font-semibold">
+                          Failed to load messages
+                        </div>
+                        <div className="text-sm">
+                          {messageError.message || "Unknown error occurred"}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button onClick={() => refetch()}>Retry</Button>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  ) : !isAgentRunning && shownMessages.length === 0 ? (
                     <NoMessages />
+                  ) : (
+                    <TranscriptStream
+                      isAgentRunning={isAgentRunning || runTurn.isPending}
+                      isDeveloperMode={isDeveloperMode}
+                      messages={shownMessages}
+                      onContinue={handleContinue}
+                      onModelChange={(modelURI) => {
+                        setSelectedModelURI(modelURI);
+                        handleRunAgain(modelURI);
+                      }}
+                      onRetry={handleRetry}
+                      onRunAgain={() => handleRunAgain()}
+                      presentation="chat"
+                      chatInfo={chatInfo}
+                    />
                   )}
                   {pendingModelChange && (
                     <ModelChangeNote data={pendingModelChange} />
                   )}
-                  {transcriptTrailing}
                 </MessageScrollerContent>
               </MessageScrollerViewport>
 

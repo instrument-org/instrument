@@ -172,7 +172,7 @@ async function handleMediaFile({
   if (!model.features.includes(config.feature)) {
     return executeError(
       [
-        `This model cannot take ${config.label.toLowerCase()} input, so reading ${fixedPath} would show it nothing, in this format or any other.`,
+        `This model cannot take ${config.label.toLowerCase()} input, so reading \`${fixedPath}\` would show it nothing, in this format or any other.`,
         config.unreadableHint,
       ].join(" "),
     );
@@ -644,7 +644,7 @@ export const ReadFile = setupTool({
 
       return {
         type: "error-text",
-        value: `File ${output.filePath} does not exist${suggestionText}`,
+        value: `File \`${output.filePath}\` does not exist${suggestionText}`,
       };
     }
 
@@ -695,9 +695,9 @@ export const ReadFile = setupTool({
         return {
           type: "error-text",
           value: [
-            `Cannot read ${output.filePath} as an image: nothing identifies these bytes as one.`,
+            `Cannot read \`${output.filePath}\` as an image: nothing identifies these bytes as one.`,
             "It may be a different format under an image's name, or not an image at all.",
-            `Identify it once with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${output.filePath}\` or \`file\`.`,
+            `Identify it once with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${shellQuoted(output.filePath)}\` or \`file\`.`,
             "If it is a format that converts, convert it and read the result; if it is not, say so rather than reading this file again.",
           ].join(" "),
         };
@@ -724,8 +724,8 @@ export const ReadFile = setupTool({
         return {
           type: "error-text",
           value: [
-            `Cannot decode ${output.filePath}${mimeInfo}: it is either incomplete or not the format its name claims.`,
-            `Identify it once with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${output.filePath}\`.`,
+            `Cannot decode \`${output.filePath}\`${mimeInfo}: it is either incomplete or not the format its name claims.`,
+            `Identify it once with \`${FFPROBE_COMMAND.name} -v error -show_format -show_streams -of json ${shellQuoted(output.filePath)}\`.`,
             "If that names a format, converting it is worth one attempt; if it reports a truncated or unknown stream, the data is missing and no conversion will recover it.",
             "Either way, do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat.",
           ].join(" "),
@@ -736,7 +736,7 @@ export const ReadFile = setupTool({
         return {
           type: "error-text",
           value: [
-            `Cannot read ${output.filePath} as a PDF.`,
+            `Cannot read \`${output.filePath}\` as a PDF.`,
             "Its header or its end marker is missing, so it is truncated, incomplete, or not a PDF at all.",
             "Fetch it again or convert it before reading.",
           ].join(" "),
@@ -751,7 +751,7 @@ export const ReadFile = setupTool({
         return {
           type: "error-text",
           value: [
-            `Unsupported image format: ${output.filePath}${mimeInfo}.`,
+            `Unsupported image format: \`${output.filePath}\`${mimeInfo}.`,
             `Input should be ${supportedFormatsText}.`,
             "Please convert the image to a supported format before reading.",
           ].join(" "),
@@ -764,7 +764,7 @@ export const ReadFile = setupTool({
       return {
         type: "error-text",
         value: [
-          `Cannot read binary file${mimeTypeInfo}: ${output.filePath}.`,
+          `Cannot read binary file${mimeTypeInfo}: \`${output.filePath}\`.`,
           "Consider using command-line tools or scripts to extract or convert the file contents if needed.",
         ].join(" "),
       };
@@ -783,7 +783,7 @@ export const ReadFile = setupTool({
           type: "content",
           value: [
             {
-              text: `${config.label} file: ${output.filePath}${size}.`,
+              text: `${config.label} file: \`${output.filePath}\`${size}.`,
               type: "text",
             },
             {
@@ -801,7 +801,8 @@ export const ReadFile = setupTool({
       // which is indistinguishable from a file holding one empty line.
       return {
         type: "text",
-        value: systemNote`File ${output.filePath} exists but is empty.`.trim(),
+        value:
+          systemNote`File \`${output.filePath}\` exists but is empty.`.trim(),
       };
     }
 
@@ -832,7 +833,7 @@ export const ReadFile = setupTool({
     const result = `<path>${output.filePath}</path>\n<content${isPartial ? ` lines="${header}"` : ""}>\n${contentBody}\n</content>`;
     const regionNote =
       output.regionIgnored === "not-an-image"
-        ? systemNote`${INPUT_PARAMS.region} only applies to images, and ${output.filePath} is not one, so it was ignored and the file read as text. Leave ${INPUT_PARAMS.region} out when reading anything but an image.`
+        ? systemNote`${INPUT_PARAMS.region} only applies to images, and \`${output.filePath}\` is not one, so it was ignored and the file read as text. Leave ${INPUT_PARAMS.region} out when reading anything but an image.`
         : "";
 
     return {
@@ -841,3 +842,8 @@ export const ReadFile = setupTool({
     };
   },
 });
+
+/** A path as one shell word, for a command the agent is told to run. */
+function shellQuoted(file: string): string {
+  return `'${file.replaceAll("'", `'\\''`)}'`;
+}

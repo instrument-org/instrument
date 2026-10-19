@@ -724,4 +724,31 @@ describe("app account", () => {
         .manifest.account,
     ).toBeUndefined();
   });
+
+  it("moves a connected Gmail app to the account's address and keeps it connected", async () => {
+    await app(
+      "new",
+      "gmail-work",
+      "--name",
+      "Gmail",
+      "--web",
+      "https://mail.google.com/mail/u/1/",
+    );
+    await getWorkspaceConfig().apps.connections.set("gmail-work", {
+      manifestHash: (await appOf("gmail-work")).manifestHash,
+      status: "connected",
+      updatedAt: 1,
+    });
+
+    const named = await app("account", "gmail-work", "jeremy@example.com");
+    const after = await appOf("gmail-work");
+
+    expect(named.stdout).toMatchInlineSnapshot(`
+      "gmail-work is Gmail 2 (jeremy@example.com) wherever it appears now. It opens at https://mail.google.com/mail/?authuser=jeremy%40example.com, that account's own address.
+      "
+    `);
+    expect(
+      await getWorkspaceConfig().apps.connections.get("gmail-work"),
+    ).toMatchObject({ manifestHash: after.manifestHash, status: "connected" });
+  });
 });

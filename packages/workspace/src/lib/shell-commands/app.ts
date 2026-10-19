@@ -20,6 +20,7 @@ import {
 import {
   describeConnection,
   isConnected,
+  nameAppAccount,
   readConnection,
 } from "../apps/connection";
 import { APP_FILE_NAME } from "../apps/app-file";
@@ -47,7 +48,6 @@ import {
   listApps,
   loadApp,
   readAppGuide,
-  setAppAccount,
   writeAppFolder,
   writeAppGuide,
 } from "../apps/store";
@@ -168,9 +168,11 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
   ${APP_COMMAND.name} account <slug> ['<account>'] [--clear]
       Name the account the app is signed in as, the way the user would know
       it ("jeremy@example.com", "Acme workspace"), so two apps for one service
-      can be told apart; it shows wherever the app does. Once you have seen
-      which account it is, from what the service answered or the page a task
-      worked on, name it. The user can rename it. With no name, prints it.
+      can be told apart; it shows wherever the app does. Name it when it is
+      plain (the service answered it, the page shows it, or the user said
+      it); don't hunt for it. A web app whose site serves several accounts
+      (Gmail) moves to that account's address. The user can rename it. With
+      no name, prints it.
   ${APP_COMMAND.name} disconnect <slug>
       Take the app's key or sign-in away. Its folder stays.
 
@@ -750,7 +752,7 @@ async function runAccount(input: SubcommandInput) {
   const app = await requireApp(slug, { connected: false });
   const named = words.join(" ").trim();
   if (input.has("clear")) {
-    await setAppAccount(getWorkspaceConfig().appsDir, app.slug, undefined);
+    await nameAppAccount(getWorkspaceConfig().appsDir, app.slug, undefined);
     await appChanged(app.slug);
     return ok(`${app.slug} no longer names an account.\n`);
   }
@@ -761,9 +763,21 @@ async function runAccount(input: SubcommandInput) {
         : `${app.slug} names no account yet. Name it with \`${APP_COMMAND.name} account ${app.slug} '<account>'\` once you have seen which one it is.\n`,
     );
   }
-  await setAppAccount(getWorkspaceConfig().appsDir, app.slug, named);
+  const manifest = await nameAppAccount(
+    getWorkspaceConfig().appsDir,
+    app.slug,
+    named,
+  );
   await appChanged(app.slug);
-  return ok(`${app.slug} is ${app.name} (${named}) wherever it appears now.\n`);
+  const moved =
+    manifest.type === "web" &&
+    app.manifest.type === "web" &&
+    manifest.url !== app.manifest.url
+      ? ` It opens at ${manifest.url}, that account's own address.`
+      : "";
+  return ok(
+    `${app.slug} is ${app.name} (${named}) wherever it appears now.${moved}\n`,
+  );
 }
 
 async function runList() {

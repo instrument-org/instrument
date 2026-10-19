@@ -213,35 +213,22 @@ export function guideSkeleton(
 /**
  * Names the account an app is signed in as, or clears the name, rewriting
  * its manifest and keeping its guide. The name is outside the manifest's
- * hash, so the app stays connected.
+ * hash. Where the directory has an address for one account of the service
+ * (`accountHome`), naming a web app's account also moves the app there, so
+ * its tasks open that account rather than whichever the site shows first;
+ * that changes the hash, so `nameAppAccount` carries the connection over.
+ * Clearing the name leaves the address where it is.
  */
 export async function setAppAccount(
   appsDir: AbsolutePath,
   slug: AppSlug,
   account: string | undefined,
 ): Promise<AppManifest> {
-  const rest = omit((await requireApp(appsDir, slug)).manifest, ["account"]);
-  return writeManifest(
-    appsDir,
-    slug,
-    AppManifestSchema.parse(
-      account === undefined ? rest : { ...rest, account },
-    ),
-  );
-}
-
-/**
- * Names the account a web app signed in as and, where the directory has an
- * address for one account of the service, moves the app there, so its tasks
- * open that account rather than whichever the site shows first. Moving it
- * changes the manifest's hash, so the caller records the connection after.
- */
-export async function setWebAppAccount(
-  appsDir: AbsolutePath,
-  slug: AppSlug,
-  account: string,
-): Promise<AppManifest> {
   const current = (await requireApp(appsDir, slug)).manifest;
+  const rest = omit(current, ["account"]);
+  if (account === undefined) {
+    return writeManifest(appsDir, slug, AppManifestSchema.parse(rest));
+  }
   const accountHome =
     current.type === "web"
       ? catalogEntryForApp(slug, current)?.accountHome
@@ -250,7 +237,7 @@ export async function setWebAppAccount(
     appsDir,
     slug,
     AppManifestSchema.parse({
-      ...current,
+      ...rest,
       account,
       ...(accountHome
         ? { url: accountHome.replace("{account}", encodeURIComponent(account)) }

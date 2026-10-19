@@ -13,7 +13,6 @@ import {
   loadApp,
   readAppGuide,
   setAppAccount,
-  setWebAppAccount,
   writeAppFolder,
   writeAppGuide,
 } from "./store";
@@ -248,23 +247,25 @@ describe("an app's guide", () => {
   });
 });
 
-describe("setWebAppAccount", () => {
-  it("names the account and moves a Gmail app to that account's own address", async () => {
+describe("setAppAccount", () => {
+  const gmail = AppSlugSchema.parse("gmail-2");
+
+  async function gmailApps() {
     const apps = await freshApps("account");
     await writeApp(apps, "Gmail 2", {
-      id: "gmail-2",
+      id: gmail,
       service: "gmail",
       type: "web",
       url: "https://mail.google.com/mail/u/1/",
     });
+    return apps;
+  }
 
-    const manifest = await setWebAppAccount(
-      apps,
-      AppSlugSchema.parse("gmail-2"),
-      "jeremy@example.com",
-    );
+  it("names the account and moves a Gmail app to that account's own address", async () => {
+    const apps = await gmailApps();
 
-    expect(manifest).toMatchInlineSnapshot(`
+    expect(await setAppAccount(apps, gmail, "jeremy@example.com"))
+      .toMatchInlineSnapshot(`
       {
         "account": "jeremy@example.com",
         "service": "gmail",
@@ -272,6 +273,45 @@ describe("setWebAppAccount", () => {
         "url": "https://mail.google.com/mail/?authuser=jeremy%40example.com",
       }
     `);
+  });
+
+  it("moves the app again when the account is renamed, and leaves it when the name is cleared", async () => {
+    const apps = await gmailApps();
+    await setAppAccount(apps, gmail, "jeremy@example.com");
+
+    const renamed = await setAppAccount(apps, gmail, "ada@example.com");
+    const cleared = await setAppAccount(apps, gmail, undefined);
+
+    expect(renamed.type === "web" && renamed.url).toBe(
+      "https://mail.google.com/mail/?authuser=ada%40example.com",
+    );
+    expect(cleared).toMatchInlineSnapshot(`
+      {
+        "service": "gmail",
+        "type": "web",
+        "url": "https://mail.google.com/mail/?authuser=ada%40example.com",
+      }
+    `);
+  });
+
+  it("keeps the address of a web app the directory has no account address for", async () => {
+    const apps = await freshApps("account");
+    await writeApp(apps, "Inbox", {
+      id: "inbox",
+      type: "web",
+      url: "https://inbox.example/",
+    });
+    const slug = AppSlugSchema.parse("inbox");
+    const before = (await loadApp(apps, slug))._unsafeUnwrap().manifestHash;
+
+    const manifest = await setAppAccount(apps, slug, "jeremy@example.com");
+
+    expect(manifest.type === "web" && manifest.url).toBe(
+      "https://inbox.example/",
+    );
+    expect((await loadApp(apps, slug))._unsafeUnwrap().manifestHash).toBe(
+      before,
+    );
   });
 });
 

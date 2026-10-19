@@ -34,10 +34,9 @@ import {
   listMcpTools,
   loadApp,
   readAppGuide,
+  nameAppAccount,
   removeLocalServer,
-  setAppAccount,
   setUpFromDirectory,
-  setWebAppAccount,
   requireAppCredential,
   runAppTest,
   searchAppCatalogByMeaning,
@@ -61,7 +60,6 @@ import {
   settleConnection,
   standingOf,
 } from "../../lib/app-connection";
-import { accountSignedInOn } from "../../lib/web-sign-in-account";
 import {
   expectSignIn,
   settleSignIn,
@@ -753,39 +751,8 @@ const markWebSignedIn = base
         message: `${input.slug} is not a web app.`,
       });
     }
-    // The account it signed in as, when a page open on its site names one
-    // no other app of the service holds; naming it can move the app to that
-    // account's own address, so the connection pins the manifest after.
-    if (manifest.account === undefined) {
-      const service = catalogEntryForApp(input.slug, manifest)?.slug;
-      const others = (
-        await listApps(context.workspaceConfig.appsDir)
-      ).apps.filter(
-        (app) =>
-          app.slug !== input.slug &&
-          service !== undefined &&
-          catalogEntryForApp(app.slug, app.manifest)?.slug === service,
-      );
-      const claimed = new Set(
-        others.flatMap((app) =>
-          app.manifest.account ? [app.manifest.account.toLowerCase()] : [],
-        ),
-      );
-      const account = accountSignedInOn(manifest.url, claimed);
-      if (account !== undefined) {
-        await setWebAppAccount(
-          context.workspaceConfig.appsDir,
-          input.slug,
-          account,
-        );
-      }
-    }
-    const signedIn = await loadApp(context.workspaceConfig.appsDir, input.slug);
-    if (signedIn.isErr()) {
-      throw errors.NOT_FOUND({ message: signedIn.error.message });
-    }
     await settleConnection(input.slug, {
-      manifestHash: signedIn.value.manifestHash,
+      manifestHash: loaded.value.manifestHash,
       status: "connected",
     });
   });
@@ -818,7 +785,7 @@ const setAccount = base
     }),
   )
   .handler(async ({ context, input }) => {
-    await setAppAccount(
+    await nameAppAccount(
       context.workspaceConfig.appsDir,
       input.slug,
       input.account === "" ? undefined : input.account,

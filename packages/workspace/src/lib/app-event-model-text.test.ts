@@ -19,7 +19,7 @@ describe("the note an app event wakes the chat with", () => {
       "
       <instrument-system-note>
       An app changed:
-      - The user says they are signed in to Google Drive (google-drive) on the web, in Instrument's browser. It is connected. Work it there: open https://drive.google.com in a tab, where the sign-in holds, or use a tab already open there. No \`instrument app\` call reaches it. Once you see which account it is (an email address, a workspace), name it with \`instrument app account google-drive '<account>'\`, so it can be told from another.
+      - The user says they are signed in to Google Drive (google-drive) on the web, in Instrument's browser. It is connected. Work it there: open https://drive.google.com in a tab, where the sign-in holds, or use a tab already open there. No \`instrument app\` call reaches it. If its account is plain (the page you are on shows it, or the user said it), name it: \`instrument app account google-drive '<account>'\`. Don't hunt for it.
       Nobody typed anything; this note is why you are awake. Tell the user in one line where things stand, and finish what they asked for if it was waiting on this.
       </instrument-system-note>"
     `);

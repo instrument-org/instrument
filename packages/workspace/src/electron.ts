@@ -19,6 +19,7 @@ export {
   AppConnectionSchema,
   type AppConnectionStore,
   isConnected,
+  nameAppAccount,
   recordConnection,
 } from "./lib/apps/connection";
 export {
@@ -60,13 +61,7 @@ export {
 } from "./lib/apps/directory-icon";
 export { findAppIcon } from "./lib/apps/icon";
 export { setUpFromDirectory } from "./lib/apps/set-up";
-export {
-  listApps,
-  loadApp,
-  readAppGuide,
-  setAppAccount,
-  setWebAppAccount,
-} from "./lib/apps/store";
+export { listApps, loadApp, readAppGuide } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {
   BACKGROUND_PROCESS_TEARDOWN_MS,

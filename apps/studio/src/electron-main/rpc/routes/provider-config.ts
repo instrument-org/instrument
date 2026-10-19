@@ -194,7 +194,7 @@ const create = base
 
     getWorkspaceState().set("hasCompletedProviderSetup", true);
 
-    void setDefaultModel({ onlyIfUnset: true });
+    void setDefaultModel({ replacing: "nothing" });
   });
 
 /**

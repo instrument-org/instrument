@@ -75,16 +75,22 @@ export async function setClaudeAccountDefaultModel(): Promise<
   return chosen.name.trim();
 }
 
-export async function setDefaultModel(options?: {
-  onlyIfOurModel?: boolean;
-  onlyIfUnset?: boolean;
+/**
+ * Picks a default model from what the connections list. `replacing` says
+ * which default already set it may replace: any, only one of ours, or none.
+ * With no default set, it always picks one.
+ */
+export async function setDefaultModel({
+  replacing,
+}: {
+  replacing: "anything" | "nothing" | "ours";
 }): Promise<void> {
   const existingDefault = getDefaultModelURI();
-  if (existingDefault && options?.onlyIfUnset) {
+  if (existingDefault && replacing === "nothing") {
     return;
   }
 
-  if (existingDefault && options?.onlyIfOurModel) {
+  if (existingDefault && replacing === "ours") {
     const parsed = AIGatewayModelURI.parse(existingDefault);
     if (!parsed.ok || parsed.value.author !== OUR_MODELS.author) {
       return;
@@ -92,7 +98,7 @@ export async function setDefaultModel(options?: {
   }
 
   const selectedModel = pickDefaultModel(await listModels(), {
-    replacingOurs: options?.onlyIfOurModel,
+    replacingOurs: replacing === "ours",
   });
 
   if (selectedModel) {

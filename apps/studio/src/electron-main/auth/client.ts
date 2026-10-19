@@ -122,7 +122,7 @@ export async function signInSocial(): Promise<
     } catch (error) {
       throw new Error("Login failed", { cause: error });
     }
-    void setDefaultModel();
+    void setDefaultModel({ replacing: "anything" });
     return { email, outcome: "signed-in" };
   });
   return result.outcome;
@@ -160,6 +160,6 @@ export async function signOut() {
   // The whole record, not just the bearer token, so nothing an earlier
   // sign-in left beside it outlives the sign-out.
   getSessionStore().clear();
-  void setDefaultModel({ onlyIfOurModel: true });
+  void setDefaultModel({ replacing: "ours" });
   return response;
 }

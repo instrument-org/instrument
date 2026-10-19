@@ -100,8 +100,9 @@ export async function pasteboardFiles(): Promise<string[] | undefined> {
 /**
  * Renames `from` to `to` only if nothing is at `to`, in one step the disk
  * makes (`renamex_np` with RENAME_EXCL); fails with an error whose `code`
- * is Node's errno name (`EEXIST` for a name taken). False off macOS and in
- * a build without the module, where the caller renames another way.
+ * is Node's errno name (`EEXIST` for a name taken). False off macOS, in a
+ * build without the module, and on a disk that has no such rename (exFAT,
+ * some network shares), where the caller renames another way.
  */
 export async function renameExclusive(
   from: string,
@@ -117,6 +118,9 @@ export async function renameExclusive(
       z.object({ code: z.string(), error: z.string() }),
     ])
     .parse(JSON.parse(await native.renameExclusive(from, to)));
+  if ("error" in answer && answer.code === "ENOTSUP") {
+    return false;
+  }
   if ("error" in answer) {
     throw Object.assign(new Error(`${answer.error}: ${to}`), {
       code: answer.code,

@@ -100,24 +100,22 @@ const live = {
    * days. Newest first.
    */
   completions: base
-    .input(z.object({ limit: z.number().max(LIMIT_MAX).default(LIMIT_MAX) }))
     .output(eventIterator(z.array(PageSchema)))
-    .handler(async function* ({ input, signal }) {
+    .handler(async function* ({ signal }) {
       const store = getHistoryStore();
       yield* liveRead({
         changes: [store.changes.subscribe("changed", { signal })],
-        read: () => store.significant(input.limit, Date.now()),
+        read: () => store.significant(LIMIT_MAX, Date.now()),
       });
     }),
   /** The person's visible pages, newest first. */
   recent: base
-    .input(z.object({ limit: z.number().max(LIMIT_MAX).default(LIMIT_MAX) }))
     .output(eventIterator(z.array(PageSchema)))
-    .handler(async function* ({ input, signal }) {
+    .handler(async function* ({ signal }) {
       const store = getHistoryStore();
       yield* liveRead({
         changes: [store.changes.subscribe("changed", { signal })],
-        read: () => store.recent(input.limit),
+        read: () => store.recent(LIMIT_MAX),
       });
     }),
 };

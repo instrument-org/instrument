@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
  */
 export function useRecentPages() {
   const recent = useQuery(
-    rpcClient.history.live.recent.experimental_liveOptions({ input: {} }),
+    rpcClient.history.live.recent.experimental_liveOptions(),
   );
   return recent.data ?? [];
 }
@@ -20,7 +20,7 @@ export type HistoryPage = ReturnType<typeof useRecentPages>[number];
 /** The pages the address field may complete to: Chromium's significant ones, newest first. */
 export function useCompletionPages(): HistoryPage[] {
   const completions = useQuery(
-    rpcClient.history.live.completions.experimental_liveOptions({ input: {} }),
+    rpcClient.history.live.completions.experimental_liveOptions(),
   );
   return completions.data ?? [];
 }

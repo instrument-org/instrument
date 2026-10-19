@@ -5,10 +5,20 @@ import {
   type Identity,
   identityOf,
   type NewJournalEntry,
+  type Trashed,
   undoEntry,
   UndoRefusedError,
 } from "@/electron-main/lib/file-journal";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import {
+  executePlacing,
+  fileSystemOps,
+} from "@/electron-main/lib/finder-placing/execute";
+import { gatherPlaceRequest } from "@/electron-main/lib/finder-placing/gather";
+import {
+  clashesOf,
+  planPlacing,
+} from "@/electron-main/lib/finder-placing/plan";
 import { pasteboardFiles, resolveAlias } from "@/electron-main/lib/mac-native";
 import {
   isRefusedByName,
@@ -176,185 +186,125 @@ const duplicate = base
     }
   });
 
-/**
- * Copies things into a folder, the way a drop or a paste in the Finder does:
- * each keeps its name where that is free, and is otherwise named the way the
- * system's file manager names a copy. A folder is copied whole, but never
- * into itself or anything inside it. The copies made are one journal entry,
- * so one ⌘Z takes back the whole drop or paste.
- */
-const copyInto = base
-  .errors({
-    CANNOT_WRITE: { message: "That folder cannot be written to" },
-    INTO_ITSELF: { message: "A folder can’t be copied into itself" },
-  })
-  .input(
-    z.object({
-      folder: HostPathSchema,
-      paths: z.array(HostPathSchema).min(1).max(1000),
-    }),
-  )
-  .output(
-    z.object({
-      /** The journal entry that takes the copies back, when any were made. */
-      journalId: z.string().nullable(),
-      paths: z.array(z.string()),
-    }),
-  )
-  .handler(async ({ errors, input }) => {
-    const folder = path.resolve(input.folder);
-    for (const from of input.paths) {
-      const inside = path.relative(path.resolve(from), folder);
-      if (!inside.startsWith("..") && !path.isAbsolute(inside)) {
-        throw errors.INTO_ITSELF();
+/** Something in the way moved to the Trash, and where it landed there. */
+async function trashFound(at: string): Promise<Trashed | null> {
+  const identity = await identityOf(at);
+  await shell.trashItem(at);
+  return identity
+    ? {
+        from: at,
+        identity,
+        trashed: await findInTrash(identity, { from: at }),
       }
-    }
-    const made: { identity: Identity; path: string }[] = [];
-    let journalId: null | string = null;
-    try {
-      for (const from of input.paths) {
-        const extension = path.extname(from);
-        const stem = path.basename(from, extension);
-        const copy = await freePath(
-          folder,
-          (n) => (n === 1 ? stem : copyName(OS, stem, n - 1)),
-          extension,
-        );
-        await fs.cp(from, copy, {
-          errorOnExist: true,
-          force: false,
-          recursive: true,
-        });
-        const identity = await identityOf(copy);
-        if (identity) {
-          made.push({ identity, path: copy });
-        }
-      }
-    } catch (error) {
-      throw errors.CANNOT_WRITE({
-        message: error instanceof Error ? error.message : undefined,
-      });
-    } finally {
-      // What was copied before a failure is still taken back by ⌘Z.
-      if (made.length > 0) {
-        journalId = fileJournal.record({ kind: "copy", made }).id;
-      }
-    }
-    return { journalId, paths: made.map((each) => each.path) };
-  });
-
-/** Whether a thing and a folder are on one disk, where moving it there is a rename. */
-async function onOneDisk(at: string, folder: string) {
-  const [thing, into] = await Promise.all([fs.lstat(at), fs.stat(folder)]);
-  return thing.dev === into.dev;
+    : null;
 }
 
-/** A folder asked to go into itself, or into a folder inside it. */
-export class IntoItselfError extends Error {}
+const ClashSchema = z.object({
+  kind: z.enum(["file", "folder", "link", "package"]),
+  name: z.string(),
+  path: z.string(),
+  replaceable: z.boolean(),
+  with: z.object({
+    by: z.enum(["entry", "source"]),
+    kind: z.enum(["file", "folder", "link", "package"]),
+  }),
+});
+
+const PlaceInputSchema = z.object({
+  folder: HostPathSchema,
+  paths: z.array(HostPathSchema).min(1).max(1000),
+  /** The person's answer for each clash, by the source's path. */
+  resolutions: z
+    .record(z.string(), z.enum(["keepBoth", "replace", "skip"]))
+    .optional(),
+});
 
 /**
- * Moves things into a folder, as a drop of the Finder's own rows does: on
- * one disk each is moved, and onto another it is copied, the way the
- * Finder's own drag decides. A thing already in the folder stays where it
- * is, and one whose name is taken there is numbered beside it ("notes 2")
- * rather than written over. What was moved and copied is one journal entry,
- * so one ⌘Z puts every one of them back.
+ * Copies things into a folder (a drop from outside the app, or a paste), or
+ * moves the Finder's own rows into one (a drop of them): read, planned and
+ * carried out by `finder-placing`, where the rules and their invariants are.
+ * What was done is one journal entry, so one ⌘Z takes all of it back.
  */
-export async function moveItemsInto(
-  { folder: asked, paths }: { folder: string; paths: readonly string[] },
-  {
-    sameDisk = onOneDisk,
-  }: { sameDisk?: (at: string, folder: string) => Promise<boolean> } = {},
-) {
-  const folder = path.resolve(asked);
-  for (const from of paths) {
-    const inside = path.relative(path.resolve(from), folder);
-    if (!inside.startsWith("..") && !path.isAbsolute(inside)) {
-      throw new IntoItselfError();
-    }
-  }
-  const moved: { from: string; identity: Identity; to: string }[] = [];
-  const made: { identity: Identity; path: string }[] = [];
-  const placed: { from: string; how: "copied" | "moved"; path: string }[] = [];
-  let journalId: null | string = null;
-  try {
-    for (const from of paths) {
-      if (path.dirname(path.resolve(from)) === folder) {
-        continue;
-      }
-      const extension = path.extname(from);
-      const stem = path.basename(from, extension);
-      const to = await freePath(
-        folder,
-        (n) => (n === 1 ? stem : `${stem} ${n.toString()}`),
-        extension,
-      );
-      if (await sameDisk(from, folder)) {
-        await fs.rename(from, to);
-        followMove(from, to);
-        const identity = await identityOf(to);
-        if (identity) {
-          moved.push({ from, identity, to });
-        }
-        placed.push({ from, how: "moved", path: to });
-      } else {
-        await fs.cp(from, to, {
-          errorOnExist: true,
-          force: false,
-          recursive: true,
-        });
-        const identity = await identityOf(to);
-        if (identity) {
-          made.push({ identity, path: to });
-        }
-        placed.push({ from, how: "copied", path: to });
-      }
-    }
-  } finally {
-    // What was done before a failure is still taken back by ⌘Z.
-    if (moved.length > 0 || made.length > 0) {
-      journalId = fileJournal.record({ kind: "move", made, moved }).id;
-    }
-  }
-  return { journalId, placed };
-}
-
-const moveInto = base
-  .errors({
-    CANNOT_WRITE: { message: "That folder cannot be written to" },
-    INTO_ITSELF: { message: "A folder can’t be moved into itself" },
-  })
-  .input(
-    z.object({
-      folder: HostPathSchema,
-      paths: z.array(HostPathSchema).min(1).max(1000),
-    }),
-  )
-  .output(
-    z.object({
-      /** The journal entry that puts them all back, when anything moved. */
-      journalId: z.string().nullable(),
-      placed: z.array(
-        z.object({
-          from: z.string(),
-          how: z.enum(["copied", "moved"]),
-          path: z.string(),
+function placeRoute(op: "copy" | "move") {
+  return base
+    .errors({
+      CANNOT_PLACE: { message: "That couldn’t be done" },
+    })
+    .input(PlaceInputSchema)
+    .output(
+      z.object({
+        /** Why it stopped short, and what that left where; null when it did all of it. */
+        failure: z.string().nullable(),
+        /** The journal entry that takes all of it back, when anything changed. */
+        journalId: z.string().nullable(),
+        placed: z.array(
+          z.object({
+            from: z.string(),
+            how: z.enum(["copied", "moved"]),
+            path: z.string(),
+            replaced: z.boolean(),
+          }),
+        ),
+        skipped: z.array(
+          z.object({
+            source: z.string(),
+            why: z.enum(["answered", "changed"]),
+          }),
+        ),
+      }),
+    )
+    .handler(async ({ errors, input }) => {
+      const plan = planPlacing(
+        await gatherPlaceRequest({
+          answers: input.resolutions ?? {},
+          folder: input.folder,
+          op,
+          paths: input.paths,
         }),
-      ),
+      );
+      if ("refusal" in plan) {
+        throw errors.CANNOT_PLACE({ message: plan.refusal });
+      }
+      const outcome = await executePlacing(
+        op,
+        plan.steps,
+        fileSystemOps({ trash: trashFound }),
+      );
+      for (const each of outcome.placed) {
+        if (each.how === "moved") {
+          followMove(each.from, each.path);
+        }
+      }
+      return {
+        failure: outcome.failure,
+        journalId: outcome.journal
+          ? fileJournal.record(outcome.journal).id
+          : null,
+        placed: outcome.placed,
+        skipped: outcome.skipped,
+      };
+    });
+}
+
+/** Copies things into a folder: a drop from outside the app, or a paste. */
+const copyInto = placeRoute("copy");
+
+/** Moves the Finder's own rows into a folder they were dropped on. */
+const moveInto = placeRoute("move");
+
+/** What a drop or paste into a folder would land on, to ask about before anything is touched. */
+const clashes = base
+  .input(
+    z.object({
+      folder: HostPathSchema,
+      op: z.enum(["copy", "move"]),
+      paths: z.array(HostPathSchema).min(1).max(1000),
     }),
   )
-  .handler(async ({ errors, input }) => {
-    try {
-      return await moveItemsInto(input);
-    } catch (error) {
-      if (error instanceof IntoItselfError) {
-        throw errors.INTO_ITSELF();
-      }
-      throw errors.CANNOT_WRITE({
-        message: error instanceof Error ? error.message : undefined,
-      });
-    }
-  });
+  .output(z.object({ clashes: z.array(ClashSchema) }))
+  .handler(async ({ input }) => ({
+    clashes: clashesOf(await gatherPlaceRequest(input)),
+  }));
 
 /**
  * A clipboard format by the name the system itself gives it, which Electron
@@ -865,6 +815,7 @@ const live = {
 
 export const files = {
   addFile,
+  clashes,
   clipboardFiles,
   clipboardHasFiles,
   copyInto,

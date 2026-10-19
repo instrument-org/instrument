@@ -23,6 +23,13 @@ import path from "node:path";
  */
 export type Identity = { dev: number; ino: string };
 
+/** Something moved to the Trash: from where, what it was, and where it landed, or null when the Trash could not be read to find it. */
+export type Trashed = {
+  from: string;
+  identity: Identity;
+  trashed: null | string;
+};
+
 export type JournalEntry = { at: number; id: string } & (
   | { from: string; identity: Identity; kind: "rename"; to: string }
   | { identity: Identity; kind: "duplicate"; made: string }
@@ -30,6 +37,8 @@ export type JournalEntry = { at: number; id: string } & (
       kind: "copy";
       /** Each copy made into the folder, by where it was made and what it was. */
       made: { identity: Identity; path: string }[];
+      /** What a copy took the place of, moved to the Trash. */
+      replaced: Trashed[];
     }
   | {
       kind: "move";
@@ -37,6 +46,10 @@ export type JournalEntry = { at: number; id: string } & (
       moved: { from: string; identity: Identity; to: string }[];
       /** What the same drop copied instead, onto another disk. */
       made: { identity: Identity; path: string }[];
+      /** What a moved or copied item took the place of, moved to the Trash. */
+      replaced: Trashed[];
+      /** What was moved onto another disk, copied there and then moved to the Trash. */
+      left: Trashed[];
     }
   | { identity: Identity; kind: "new-folder"; made: string }
   | {
@@ -460,6 +473,153 @@ export type Undone = {
 };
 
 /**
+ * Refuses, with the reason, to put back something moved to the Trash: it
+ * was never found there, has left it, or the folder it came from is gone.
+ * Whether its old place is free is the caller's, since one taken by what
+ * replaced it is cleared by the same undo.
+ */
+async function refuseTrashedBack(item: Trashed, platform: NodeJS.Platform) {
+  const conventions = osConventionsFor(platform);
+  if (item.trashed === null) {
+    throw new UndoRefusedError(
+      `${APP_NAME} couldn't find ${nameOf(item.from)} in the ${conventions.trash}. You can put it back from there in ${conventions.inFileManager}.`,
+      { permanent: true },
+    );
+  }
+  if (!(await isStillTrashed(item.trashed, item, platform))) {
+    throw new UndoRefusedError(
+      `${nameOf(item.from)} is no longer in the ${conventions.trash}.`,
+      { permanent: true },
+    );
+  }
+  if ((await identityOf(path.dirname(item.from))) === null) {
+    throw new UndoRefusedError(
+      `The folder ${nameOf(item.from)} was in is gone.`,
+      { permanent: true },
+    );
+  }
+}
+
+/** Moves something back out of the Trash, once `refuseTrashedBack` has passed it. */
+async function putTrashedBack(
+  { from, trashed }: Trashed & { trashed: string },
+  platform: NodeJS.Platform,
+) {
+  await fs.rename(trashed, from);
+  const record = recordOf(trashed, platform);
+  if (record !== null) {
+    // It is back either way; a record left behind would only list it in
+    // the Trash as something that can no longer be put back.
+    await fs.rm(record, { force: true }).catch(() => undefined);
+  }
+}
+
+/**
+ * Something moved to the Trash a moment ago put back where it was, by a
+ * step that failed after it: refused with the reason when it cannot be.
+ */
+export async function restoreFromTrash(
+  item: Trashed,
+  platform: NodeJS.Platform = process.platform,
+) {
+  await refuseTrashedBack(item, platform);
+  if (!(await isFreeFor(item.from, item.identity))) {
+    throw new UndoRefusedError(
+      `Something named ${nameOf(item.from)} is already there.`,
+      { permanent: false },
+    );
+  }
+  if (item.trashed !== null) {
+    await putTrashedBack({ ...item, trashed: item.trashed }, platform);
+  }
+}
+
+/**
+ * Takes back a drop or paste into a folder: what was moved goes back where it
+ * came from, what was copied goes to the Trash, and what was moved to the
+ * Trash along the way (what was replaced, and the sources of a move onto
+ * another disk) comes back out. Every piece is checked before any is
+ * touched, so it all comes back or none of it does.
+ */
+async function undoPlacing(
+  {
+    left = [],
+    made,
+    moved = [],
+    replaced,
+  }: {
+    left?: readonly Trashed[];
+    made: readonly { identity: Identity; path: string }[];
+    moved?: readonly { from: string; identity: Identity; to: string }[];
+    replaced: readonly Trashed[];
+  },
+  {
+    platform,
+    trash,
+  }: { platform: NodeJS.Platform; trash: (at: string) => Promise<void> },
+): Promise<Undone> {
+  for (const item of moved) {
+    if (!sameIdentity(await identityOf(item.to), item.identity)) {
+      throw new UndoRefusedError(
+        `${nameOf(item.to)} has been moved or replaced since it was moved.`,
+        { permanent: true },
+      );
+    }
+    if (!(await isFreeFor(item.from, item.identity))) {
+      throw new UndoRefusedError(
+        `Something named ${nameOf(item.from)} is already there.`,
+        { permanent: false },
+      );
+    }
+  }
+  for (const item of made) {
+    if (!sameIdentity(await identityOf(item.path), item.identity)) {
+      throw new UndoRefusedError(
+        `${nameOf(item.path)} has been moved or replaced since it was copied.`,
+        { permanent: true },
+      );
+    }
+  }
+  // What was replaced goes back to its own name, which only what replaced
+  // it may hold now: that is taken back first.
+  const placed = [...moved, ...made].map((item) => item.identity);
+  for (const item of replaced) {
+    await refuseTrashedBack(item, platform);
+    const there = await identityOf(item.from);
+    if (there && !placed.some((each) => sameIdentity(each, there))) {
+      throw new UndoRefusedError(
+        `Something named ${nameOf(item.from)} is already there.`,
+        { permanent: false },
+      );
+    }
+  }
+  for (const item of left) {
+    await refuseTrashedBack(item, platform);
+    if (!(await isFreeFor(item.from, item.identity))) {
+      throw new UndoRefusedError(
+        `Something named ${nameOf(item.from)} is already there.`,
+        { permanent: false },
+      );
+    }
+  }
+  for (const item of moved) {
+    await fs.rename(item.to, item.from);
+  }
+  for (const item of made) {
+    await trash(item.path);
+  }
+  for (const item of [...left, ...replaced]) {
+    if (item.trashed !== null) {
+      await putTrashedBack({ ...item, trashed: item.trashed }, platform);
+    }
+  }
+  return {
+    already: false,
+    path: moved[0]?.from ?? left[0]?.from ?? null,
+  };
+}
+
+/**
  * Takes one entry back, or refuses with what is in the way. Nothing here
  * deletes anything that is not provably what the entry made: a duplicate goes
  * to the Trash rather than away, and a folder is removed only while empty.
@@ -497,56 +657,9 @@ export async function undoEntry(
       }
       await trash(entry.made);
       return { already: false, path: null };
-    case "copy": {
-      // All of them or none: a copy moved or replaced since is the
-      // person's now, and taking back the rest would leave the paste half
-      // undone.
-      for (const made of entry.made) {
-        if (!sameIdentity(await identityOf(made.path), made.identity)) {
-          throw new UndoRefusedError(
-            `${nameOf(made.path)} has been moved or replaced since it was copied.`,
-            { permanent: true },
-          );
-        }
-      }
-      for (const made of entry.made) {
-        await trash(made.path);
-      }
-      return { already: false, path: null };
-    }
-    case "move": {
-      // All of them or none, checked before anything is put back: a drop
-      // half undone is a mess of its own.
-      for (const moved of entry.moved) {
-        if (!sameIdentity(await identityOf(moved.to), moved.identity)) {
-          throw new UndoRefusedError(
-            `${nameOf(moved.to)} has been moved or replaced since it was moved.`,
-            { permanent: true },
-          );
-        }
-        if (!(await isFreeFor(moved.from, moved.identity))) {
-          throw new UndoRefusedError(
-            `Something named ${nameOf(moved.from)} is already there.`,
-            { permanent: false },
-          );
-        }
-      }
-      for (const made of entry.made) {
-        if (!sameIdentity(await identityOf(made.path), made.identity)) {
-          throw new UndoRefusedError(
-            `${nameOf(made.path)} has been moved or replaced since it was copied.`,
-            { permanent: true },
-          );
-        }
-      }
-      for (const moved of entry.moved) {
-        await fs.rename(moved.to, moved.from);
-      }
-      for (const made of entry.made) {
-        await trash(made.path);
-      }
-      return { already: false, path: entry.moved[0]?.from ?? null };
-    }
+    case "copy":
+    case "move":
+      return undoPlacing(entry, { platform, trash });
     case "new-folder": {
       if (!sameIdentity(await identityOf(entry.made), entry.identity)) {
         throw new UndoRefusedError(
@@ -570,37 +683,15 @@ export async function undoEntry(
       if (sameIdentity(await identityOf(entry.from), entry.identity)) {
         return { already: true, path: entry.from };
       }
-      if (entry.trashed === null) {
-        const conventions = osConventionsFor(platform);
-        throw new UndoRefusedError(
-          `${APP_NAME} couldn't find ${nameOf(entry.from)} in the ${conventions.trash}. You can put it back from there in ${conventions.inFileManager}.`,
-          { permanent: true },
-        );
-      }
-      if (!(await isStillTrashed(entry.trashed, entry, platform))) {
-        throw new UndoRefusedError(
-          `${nameOf(entry.from)} is no longer in the ${osConventionsFor(platform).trash}.`,
-          { permanent: true },
-        );
-      }
+      await refuseTrashedBack(entry, platform);
       if (!(await isFreeFor(entry.from, entry.identity))) {
         throw new UndoRefusedError(
           `Something named ${nameOf(entry.from)} is already there.`,
           { permanent: false },
         );
       }
-      if ((await identityOf(path.dirname(entry.from))) === null) {
-        throw new UndoRefusedError(
-          `The folder ${nameOf(entry.from)} was in is gone.`,
-          { permanent: true },
-        );
-      }
-      await fs.rename(entry.trashed, entry.from);
-      const record = recordOf(entry.trashed, platform);
-      if (record !== null) {
-        // It is back either way; a record left behind would only list it in
-        // the Trash as something that can no longer be put back.
-        await fs.rm(record, { force: true }).catch(() => undefined);
+      if (entry.trashed !== null) {
+        await putTrashedBack({ ...entry, trashed: entry.trashed }, platform);
       }
       return { already: false, path: entry.from };
     }

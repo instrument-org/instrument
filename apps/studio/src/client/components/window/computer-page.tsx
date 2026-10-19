@@ -147,6 +147,7 @@ import {
   parentFolderOf,
   segmentsOf,
 } from "./host-path";
+import { useClashQuestions } from "./clash-dialog";
 import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
 
 /**
@@ -825,69 +826,51 @@ export function ComputerPage({
       }
     }
   };
-  // Copies things into a folder of this computer, as a drop or a paste does,
-  // and says where they went with an Undo for all of them.
-  const copyInto = async (
+  const clashQuestions = useClashQuestions();
+  // Copies things into a folder of this computer, as a drop from outside or
+  // a paste does, or moves the Finder's own rows there, as a drop of them
+  // does. Any name already taken there is asked about first, every one
+  // before anything is touched, so stopping leaves everything as it was;
+  // then it happens in one go, with one Undo for all of it.
+  const placeInto = async (
+    mode: "copy" | "move",
     sources: { hostPath: string; isFolder: boolean }[],
     into: { hostPath: string; prefix: string },
   ) => {
     if (sources.length === 0) {
       return;
     }
+    const paths = sources.map((source) => source.hostPath);
+    const folderName = nameOf(into.hostPath);
     try {
-      const copied = await rpcClient.files.copyInto.call({
+      const { clashes } = await rpcClient.files.clashes.call({
         folder: into.hostPath,
-        paths: sources.map((source) => source.hostPath),
+        op: mode,
+        paths,
       });
-      const [only] = copied.paths;
-      // One copy is what is left selected, as a duplicate is.
-      if (into.prefix === onScreen && copied.paths.length === 1 && only) {
-        setSelectedPath(
-          `${into.prefix}${nameOf(only)}${sources[0]?.isFolder ? "/" : ""}`,
-        );
-      }
-      focusBrowser();
-      const { journalId } = copied;
-      toastWithUndo(
-        copied.paths.length === 1 && only
-          ? `Copied “${nameOf(only)}” into “${nameOf(into.hostPath)}”`
-          : `Copied ${copied.paths.length} items into “${nameOf(into.hostPath)}”`,
-        journalId === null
-          ? null
-          : {
-              journalIds: [journalId],
-              undo: () => {
-                void undoJournaled([journalId]);
-              },
-            },
-      );
-    } catch (error) {
-      fileActionFailed("Couldn't copy that", error);
-    } finally {
-      reread();
-    }
-  };
-  // The Finder's own rows dropped on one of its folders: moved there, or
-  // copied onto another disk, the way the Finder's own drag decides.
-  const moveInto = async (
-    sources: { hostPath: string; isFolder: boolean }[],
-    into: { hostPath: string; prefix: string },
-  ) => {
-    if (sources.length === 0) {
-      return;
-    }
-    try {
-      const { journalId, placed } = await rpcClient.files.moveInto.call({
-        folder: into.hostPath,
-        paths: sources.map((source) => source.hostPath),
-      });
-      if (placed.length === 0) {
+      const resolutions =
+        clashes.length === 0
+          ? {}
+          : await clashQuestions.ask(clashes, {
+              folder: folderName,
+              verb: mode === "move" ? "moving" : "copying",
+            });
+      if (resolutions === null) {
+        focusBrowser();
         return;
       }
+      const route = mode === "move" ? "moveInto" : "copyInto";
+      const { failure, journalId, placed, skipped } = await rpcClient.files[
+        route
+      ].call({
+        folder: into.hostPath,
+        paths,
+        resolutions,
+      });
       const folders = new Set(
         sources.flatMap((source) => (source.isFolder ? [source.hostPath] : [])),
       );
-      if (into.prefix === onScreen) {
+      if (into.prefix === onScreen && placed.length > 0) {
         selectWhenListed(
           placed.map(
             (each) =>
@@ -896,33 +879,60 @@ export function ComputerPage({
         );
       }
       focusBrowser();
-      const moved = placed.filter((each) => each.how === "moved").length;
-      const verb =
-        moved === placed.length
-          ? "Moved"
-          : moved === 0
-            ? "Copied"
-            : "Moved and copied";
-      const [only] = placed;
-      toastWithUndo(
-        placed.length === 1 && only
-          ? `${verb} “${nameOf(only.path)}” into “${nameOf(into.hostPath)}”`
-          : `${verb} ${placed.length} items into “${nameOf(into.hostPath)}”`,
-        journalId === null
-          ? null
-          : {
-              journalIds: [journalId],
-              undo: () => {
-                void undoJournaled([journalId]);
+      const message = placedMessage({
+        folderName,
+        placed,
+        skipped: skipped.filter((each) => each.why === "answered").length,
+      });
+      if (message) {
+        toastWithUndo(
+          message,
+          journalId === null
+            ? null
+            : {
+                journalIds: [journalId],
+                undo: () => {
+                  void undoJournaled([journalId]);
+                },
               },
-            },
-      );
+        );
+      }
+      // Said apart from what was done, so nothing that stopped short or was
+      // passed over goes unmentioned.
+      const changed = skipped.filter((each) => each.why === "changed");
+      const [first] = changed;
+      if (first) {
+        toast(
+          changed.length === 1
+            ? `“${nameOf(first.source)}” changed before it could be put there, so it was left where it was.`
+            : `${changed.length.toString()} items changed before they could be put there, so they were left where they were.`,
+        );
+      }
+      if (failure) {
+        toast.error(
+          mode === "move"
+            ? "Couldn't finish moving"
+            : "Couldn't finish copying",
+          { description: failure },
+        );
+      }
     } catch (error) {
-      fileActionFailed("Couldn't move that", error);
+      fileActionFailed(
+        mode === "move" ? "Couldn't move that" : "Couldn't copy that",
+        error,
+      );
     } finally {
       reread();
     }
   };
+  const copyInto = (
+    sources: { hostPath: string; isFolder: boolean }[],
+    into: { hostPath: string; prefix: string },
+  ) => placeInto("copy", sources, into);
+  const moveInto = (
+    sources: { hostPath: string; isFolder: boolean }[],
+    into: { hostPath: string; prefix: string },
+  ) => placeInto("move", sources, into);
   // What a drop just put in the folder on screen, selected once the re-read
   // lists it: until then there is no row to select.
   const selectingWhenListed = useRef<null | readonly string[]>(null);
@@ -2541,6 +2551,7 @@ export function ComputerPage({
               />
             </div>
           </ContextMenuTrigger>
+          {clashQuestions.dialog}
           <FolderMenu
             {...menuActionsFor(menuItem)}
             isRecents={isRecents}
@@ -3095,6 +3106,46 @@ export function fileActionFailed(title: string, error: unknown) {
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
   return typeof hostPath === "string" ? hostPath : "";
+}
+
+/**
+ * What a toast says a drop or paste did: what was moved or copied into the
+ * folder, and how many of them replaced something. Skipped ones are named
+ * only when nothing else happened. Null when there is nothing to say.
+ */
+export function placedMessage({
+  folderName,
+  placed,
+  skipped,
+}: {
+  folderName: string;
+  placed: readonly {
+    how: "copied" | "moved";
+    path: string;
+    replaced: boolean;
+  }[];
+  skipped: number;
+}) {
+  if (placed.length === 0) {
+    return skipped === 0
+      ? null
+      : `You skipped ${skipped === 1 ? "it" : "them"}, so nothing changed.`;
+  }
+
+  const moved = placed.filter((each) => each.how === "moved").length;
+  const verb =
+    moved === placed.length
+      ? "Moved"
+      : moved === 0
+        ? "Copied"
+        : "Moved and copied";
+  const replaced = placed.filter((each) => each.replaced).length;
+  const [only] = placed;
+  if (placed.length === 1 && only) {
+    const name = only.path.split(/[\\/]/).at(-1) ?? only.path;
+    return `${verb} “${name}” into “${folderName}”${replaced ? ", replacing the one there" : ""}`;
+  }
+  return `${verb} ${placed.length} items into “${folderName}”${replaced ? ` and replaced ${replaced}` : ""}`;
 }
 
 /**

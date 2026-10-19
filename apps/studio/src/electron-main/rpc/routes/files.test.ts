@@ -7,7 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fileJournal, identityOf } from "@/electron-main/lib/file-journal";
 
 import { type InitialRPCContext } from "../context";
-import { files, moveItemsInto } from "./files";
+import { files } from "./files";
 
 // The system clipboard as what was last written to it and what it holds:
 // one item, by its formats. `pasteboard` is the Mac module's list of the
@@ -51,6 +51,7 @@ vi.mock("@/electron-main/stores/machine/preferences", () => ({
 // whatever `aliasTargets` names for it.
 const aliasTargets = new Map<string, string>();
 vi.mock("@/electron-main/lib/mac-native", () => ({
+  finderEntries: () => Promise.resolve([]),
   pasteboardFiles: () => Promise.resolve(clipboardState.pasteboard),
   resolveAlias: (filePath: string) =>
     Promise.resolve(aliasTargets.get(filePath)),
@@ -299,85 +300,6 @@ it("links a picture below the folder in place and copies one from elsewhere besi
   expect(await fs.readFile(pasted.path, "utf8")).toBe("bytes");
 });
 
-it("copies into a folder under each name, numbering what is taken the way the system names a copy", async () => {
-  const from = path.join(dir, "from");
-  const into = path.join(dir, "into");
-  await fs.mkdir(path.join(from, "photos"), { recursive: true });
-  await fs.mkdir(into);
-  await fs.writeFile(path.join(from, "notes.txt"), "notes");
-  await fs.writeFile(path.join(from, "photos", "a.jpg"), "a");
-  await fs.writeFile(path.join(into, "notes.txt"), "already here");
-
-  const copied = await call(
-    files.copyInto,
-    {
-      folder: into,
-      paths: [path.join(from, "notes.txt"), path.join(from, "photos")],
-    },
-    options,
-  );
-
-  expect(copied.paths.map((each) => path.relative(dir, each))).toEqual(
-    process.platform === "darwin"
-      ? ["into/notes copy.txt", "into/photos"]
-      : [expect.stringMatching(/^into\/notes.*copy.*\.txt$/i), "into/photos"],
-  );
-  expect(await fs.readFile(path.join(into, "notes.txt"), "utf8")).toBe(
-    "already here",
-  );
-  expect(await fs.readFile(path.join(into, "photos", "a.jpg"), "utf8")).toBe(
-    "a",
-  );
-});
-
-it("refuses to copy a folder into itself or anything inside it", async () => {
-  const folder = path.join(dir, "folder");
-  await fs.mkdir(path.join(folder, "inner"), { recursive: true });
-
-  for (const into of [folder, path.join(folder, "inner")]) {
-    await expect(
-      call(files.copyInto, { folder: into, paths: [folder] }, options),
-    ).rejects.toMatchObject({ code: "INTO_ITSELF" });
-  }
-});
-
-it("takes back a whole copy with one undo, and none of it once a copy has changed", async () => {
-  const { shell } = await import("electron");
-  shell.trashItem = (at: string) => fs.rm(at, { recursive: true });
-  const into = path.join(dir, "into");
-  await fs.mkdir(into);
-  const sources = ["a.txt", "b.txt"].map((name) => path.join(dir, name));
-  for (const source of sources) {
-    await fs.writeFile(source, source);
-  }
-
-  const first = await call(
-    files.copyInto,
-    { folder: into, paths: sources },
-    options,
-  );
-  expect(await call(files.undo, undefined, options)).toMatchObject({
-    kind: "copy",
-    path: null,
-  });
-  for (const copy of first.paths) {
-    await expect(fs.stat(copy)).rejects.toThrow();
-  }
-
-  const second = await call(
-    files.copyInto,
-    { folder: into, paths: sources },
-    options,
-  );
-  const [moved] = second.paths;
-  if (moved === undefined) throw new Error("nothing was copied");
-  await fs.rename(moved, path.join(into, "renamed.txt"));
-  await expect(call(files.undo, undefined, options)).rejects.toThrow(
-    "“a.txt” has been moved or replaced since it was copied.",
-  );
-  expect(await fs.readdir(into)).toEqual(["b.txt", "renamed.txt"]);
-});
-
 it("copies files to the clipboard with their names as text beside them", async () => {
   clipboardState.written.length = 0;
   await call(
@@ -418,8 +340,12 @@ it.each([
   },
 );
 
+// Placing things into a folder is planned and carried out by
+// `finder-placing`, whose own tests cover every case and every failure;
+// these cover the routes over it, with no Trash involved.
+
 /** A folder `from` holding `notes.txt` and `pics/a.jpg`, and an empty folder `into` beside it. */
-async function moveFixture() {
+async function placeFixture() {
   const from = path.join(dir, "from");
   const into = path.join(dir, "into");
   await fs.mkdir(path.join(from, "pics"), { recursive: true });
@@ -433,33 +359,77 @@ async function moveFixture() {
   };
 }
 
-it("moves the Finder's own rows into a folder on one disk, numbering a taken name, and puts all of them back with one undo", async () => {
-  const { from, into, sources } = await moveFixture();
-  await fs.writeFile(path.join(into, "notes.txt"), "already here");
+it("finds the names a drop would land on, but not one going back into its own folder", async () => {
+  const { from, into, sources } = await placeFixture();
+  await fs.mkdir(path.join(into, "pics"));
 
-  const moved = await call(
-    files.moveInto,
-    { folder: into, paths: sources },
+  const { clashes } = await call(
+    files.clashes,
+    { folder: into, op: "move", paths: sources },
+    options,
+  );
+  expect(clashes.map((clash) => [clash.name, clash.kind, clash.with])).toEqual([
+    ["pics", "folder", { by: "entry", kind: "folder" }],
+  ]);
+  expect(
+    await call(
+      files.clashes,
+      { folder: from, op: "copy", paths: sources },
+      options,
+    ),
+  ).toEqual({ clashes: [] });
+});
+
+it("copies in, keeping both where answered, and one undo takes all of it back", async () => {
+  const { shell } = await import("electron");
+  shell.trashItem = (at: string) => fs.rm(at, { recursive: true });
+  const { into, sources } = await placeFixture();
+  await fs.writeFile(path.join(into, "notes.txt"), "already here");
+  const [notes] = sources;
+  if (!notes) throw new Error("no sources");
+
+  const copied = await call(
+    files.copyInto,
+    { folder: into, paths: sources, resolutions: { [notes]: "keepBoth" } },
     options,
   );
 
-  expect(
-    moved.placed.map((each) => [each.how, path.relative(dir, each.path)]),
-  ).toEqual([
-    ["moved", "into/notes 2.txt"],
-    ["moved", "into/pics"],
+  expect(copied.placed.map((each) => path.basename(each.path))).toEqual([
+    "notes 2.txt",
+    "pics",
   ]);
+  expect(await call(files.undo, undefined, options)).toMatchObject({
+    kind: "copy",
+  });
+  expect(await fs.readdir(into)).toEqual(["notes.txt"]);
+});
+
+it("refuses a clash it has no answer for, touching nothing", async () => {
+  const { into, sources } = await placeFixture();
+  await fs.writeFile(path.join(into, "notes.txt"), "already here");
+
+  await expect(
+    call(files.copyInto, { folder: into, paths: sources }, options),
+  ).rejects.toMatchObject({ code: "CANNOT_PLACE" });
+  expect(await fs.readdir(into)).toEqual(["notes.txt"]);
+});
+
+it("moves the Finder's own rows on one disk, and one undo puts them back", async () => {
+  const { from, into, sources } = await placeFixture();
+
+  await call(files.moveInto, { folder: into, paths: sources }, options);
   expect(await fs.readdir(from)).toEqual([]);
+
   expect(await call(files.undo, undefined, options)).toMatchObject({
     kind: "move",
     path: sources[0],
   });
   expect((await fs.readdir(from)).toSorted()).toEqual(["notes.txt", "pics"]);
-  expect(await fs.readdir(into)).toEqual(["notes.txt"]);
+  expect(await fs.readdir(into)).toEqual([]);
 });
 
 it("refuses to undo a move once something it moved has changed, and puts nothing back", async () => {
-  const { from, into, sources } = await moveFixture();
+  const { from, into, sources } = await placeFixture();
   await call(files.moveInto, { folder: into, paths: sources }, options);
   await fs.rename(path.join(into, "pics"), path.join(into, "photos"));
 
@@ -470,36 +440,16 @@ it("refuses to undo a move once something it moved has changed, and puts nothing
 });
 
 it("leaves a row dropped on its own folder where it is, and refuses a folder into itself", async () => {
-  const { from, sources } = await moveFixture();
+  const { from, sources } = await placeFixture();
 
   expect(
     await call(files.moveInto, { folder: from, paths: sources }, options),
-  ).toEqual({ journalId: null, placed: [] });
+  ).toEqual({ failure: null, journalId: null, placed: [], skipped: [] });
   await expect(
     call(
       files.moveInto,
       { folder: path.join(from, "pics"), paths: [path.join(from, "pics")] },
       options,
     ),
-  ).rejects.toMatchObject({ code: "INTO_ITSELF" });
-});
-
-// The Finder's own rule: a drag onto another disk copies.
-it("copies rather than moves onto another disk, and takes the copies back on undo", async () => {
-  const { shell } = await import("electron");
-  shell.trashItem = (at: string) => fs.rm(at, { recursive: true });
-  const { from, into, sources } = await moveFixture();
-
-  const result = await moveItemsInto(
-    { folder: into, paths: sources },
-    { sameDisk: () => Promise.resolve(false) },
-  );
-
-  expect(result.placed.map((each) => each.how)).toEqual(["copied", "copied"]);
-  expect((await fs.readdir(from)).toSorted()).toEqual(["notes.txt", "pics"]);
-  expect(await call(files.undo, undefined, options)).toMatchObject({
-    kind: "move",
-    path: null,
-  });
-  expect(await fs.readdir(into)).toEqual([]);
+  ).rejects.toMatchObject({ code: "CANNOT_PLACE" });
 });

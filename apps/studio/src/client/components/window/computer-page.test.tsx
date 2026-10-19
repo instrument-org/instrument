@@ -14,8 +14,13 @@ vi.mock("sonner", async (importOriginal) => ({
 }));
 
 const { setToastDeveloperMode } = await import("@/client/lib/toast");
-const { fileActionFailed, filesToPaste, rootParentSearch, rowPress } =
-  await import("./computer-page");
+const {
+  fileActionFailed,
+  filesToPaste,
+  placedMessage,
+  rootParentSearch,
+  rowPress,
+} = await import("./computer-page");
 const { listingCommandOf } = await import("../extend/file-system-keys");
 
 // With Quick Look up, the arrows are handed to the listing's selected row.
@@ -84,4 +89,26 @@ it("pastes the computer's list of files over the paste's own, and nothing for te
   ]);
   expect(filesToPaste([], event)).toEqual(event);
   expect(filesToPaste([], [])).toEqual([]);
+});
+
+// What the toast says a drop or paste did; skipped ones only when nothing
+// else was done.
+it.each([
+  [[{ how: "moved", path: "/r/a.txt", replaced: false }], 0],
+  [[{ how: "moved", path: "/r/a.txt", replaced: true }], 0],
+  [
+    [
+      { how: "moved", path: "/r/a.txt", replaced: true },
+      { how: "copied", path: "/r/b", replaced: false },
+      { how: "moved", path: "/r/c", replaced: true },
+    ],
+    1,
+  ],
+  [[{ how: "copied", path: "/r/a.txt", replaced: false }], 2],
+  [[], 2],
+  [[], 1],
+] as const)("words what a drop did: %j, %i skipped", (placed, skipped) => {
+  expect(
+    placedMessage({ folderName: "Reports", placed, skipped }),
+  ).toMatchSnapshot();
 });

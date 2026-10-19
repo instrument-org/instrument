@@ -22,11 +22,13 @@ interface InvalidChatFolder {
   reason: string;
 }
 
+/** Why a folder is listed, said to the person in Settings > Storage. */
 const REASONS = {
-  "no-session": "No chat session in its settings (settings.json)",
-  "unreadable-messages": "Unreadable messages",
-  "unreadable-session": "No readable record of its chat session",
-  "unreadable-settings": "Missing or unreadable settings (settings.json)",
+  "bad-name": "Its folder name isn’t one a chat can use.",
+  "no-session": "Its settings don’t say which conversation is its own.",
+  "unreadable-messages": "Its messages can’t be read.",
+  "unreadable-session": "Its conversation can’t be read.",
+  "unreadable-settings": "Its settings file is missing or damaged.",
 } as const;
 
 /**
@@ -41,10 +43,7 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
   for (const name of listDirs(root)) {
     const id = ChatIdSchema.safeParse(name);
     if (!id.success) {
-      invalid.push({
-        name,
-        reason: id.error.issues[0]?.message ?? "Not a recognized chat folder",
-      });
+      invalid.push({ name, reason: REASONS["bad-name"] });
       continue;
     }
     const stored = storedChatSession(path.join(root, name));

@@ -43,7 +43,7 @@ export function StorageSection() {
       <div>
         <h3 className="text-base font-semibold">Storage</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Where {APP_NAME} keeps your chats and tasks on your computer
+          Where {APP_NAME} keeps your chats, topics, and memories
         </p>
       </div>
       <InstrumentFolder />
@@ -152,12 +152,12 @@ function UnrecognizedFolders() {
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <FolderIcon className="size-4" />
-          <h4 className="text-sm font-medium">Broken chats and tasks</h4>
+          <h4 className="text-sm font-medium">Chats that can’t be opened</h4>
         </div>
         <p className="text-sm text-muted-foreground">
-          These chats and tasks are in your Instrument folder, but {APP_NAME}{" "}
-          can&apos;t show them because of problems in the folders. You can
-          reveal them on your computer, or delete them to tidy up.
+          {APP_NAME} can’t open these chats because something in their folders
+          is missing or damaged. You can find them on your computer or move them
+          to the {osConventions().trash}.
         </p>
       </div>
       <FolderGroup

@@ -151,10 +151,10 @@ export const SETTINGS_INDEX = [
     title: "Instrument folder",
   },
   {
-    detail: "Chats and tasks with problems in their folders",
+    detail: "Chats in your Instrument folder that can’t be opened",
     id: "broken-folders",
     tab: "Storage",
-    title: "Broken chats and tasks",
+    title: "Chats that can’t be opened",
   },
   {
     detail: "Whether this computer can encrypt saved keys",
@@ -250,7 +250,7 @@ export const SETTINGS_PAGES: Record<
   },
   Storage: {
     detail:
-      "Where your Instrument folder is, and fixing chats and tasks whose folders have problems.",
+      "Where your Instrument folder is, and chats in it that can’t be opened.",
   },
   Features: {
     detail: "Feature flags.",

@@ -161,17 +161,17 @@ describe("storage.invalidFolders", () => {
         {
           "at": "chats/2026-10-01-bad-settings",
           "name": "2026-10-01-bad-settings",
-          "reason": "Missing or unreadable settings (settings.json)",
+          "reason": "Its settings file is missing or damaged.",
         },
         {
           "at": "chats/2026-10-01-no-record",
           "name": "2026-10-01-no-record",
-          "reason": "No readable record of its chat session",
+          "reason": "Its conversation can’t be read.",
         },
         {
           "at": "chats/Not A Chat",
           "name": "Not A Chat",
-          "reason": "Folder name can only contain lowercase letters, numbers, and hyphens",
+          "reason": "Its folder name isn’t one a chat can use.",
         },
       ]
     `);

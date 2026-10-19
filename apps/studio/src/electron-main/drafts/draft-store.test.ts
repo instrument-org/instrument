@@ -147,18 +147,19 @@ describe("a window's ops", () => {
       words: "what's my latest tweet",
     });
 
-    expect(read()).toContain(`chat: "${CHAT}"`);
+    expect(read()).toContain(`sending: "${CHAT}"`);
+    expect(read()).not.toContain("chat:");
     expect(read()).toContain("what's my latest tweet");
   });
 
-  it("take the chat off again when the send fails, so a new chat's draft is not left a reply", () => {
+  it("take the send off again when it fails, the draft the kind it was", () => {
     const { apply, store } = open();
     apply({ draft: draft("a", { words: "hi" }), type: "create" });
     apply({ at: DAY, chatId: CHAT, id: "a", type: "claim", words: "hi" });
 
     apply({ id: "a", type: "release" });
 
-    expect(read()).not.toContain("chat:");
+    expect(read()).not.toContain("sending:");
     expect(store.snapshot().drafts[0]).toEqual(draft("a", { words: "hi" }));
   });
 
@@ -261,11 +262,15 @@ describe("the folder changing under the app", () => {
     expect(tree()).toEqual([]);
   });
 
-  it("leaves a draft on its way still on its way, and still a new chat's", () => {
+  it("leaves a draft this app has on its way on its way, whatever its file says meanwhile", () => {
     const { apply, store } = open();
     apply({ draft: draft("a", { words: "hi" }), type: "create" });
     apply({ at: DAY, chatId: CHAT, id: "a", type: "claim", words: "hi" });
-    fs.writeFileSync(fileOf(), read().replace("hi", "hi there"));
+    // Another device's launch finding the send unfinished.
+    fs.writeFileSync(
+      fileOf(),
+      read().replace(`sending: "${CHAT}"\n`, "").replace("hi", "hi there"),
+    );
 
     store.reconcile();
 
@@ -283,6 +288,97 @@ describe("the folder changing under the app", () => {
 
     expect(again.store.snapshot().drafts).toHaveLength(1);
     expect(tree()).toHaveLength(2);
+  });
+});
+
+describe("what the folder has that the store has not read yet", () => {
+  it("is taken in before a window's change is written over it", () => {
+    const { apply, store } = open();
+    apply({ draft: draft("a", { words: "Plan" }), type: "create" });
+    // Another device files the draft under a topic, and its file arrives
+    // before the watcher has said so.
+    fs.writeFileSync(
+      fileOf(),
+      read().replace("---\n\nPlan", 'topic: "travel"\n---\n\nPlan'),
+    );
+
+    apply({
+      at: DAY,
+      id: "a",
+      set: { words: "Plan the trip" },
+      type: "update",
+    });
+
+    expect(store.snapshot().drafts[0]).toMatchObject({
+      topicId: "travel",
+      words: "Plan the trip",
+    });
+    expect(read()).toContain('topic: "travel"');
+  });
+
+  it("leaves a draft whose file cannot be read for the moment as it was", () => {
+    const { apply, store } = open();
+    apply({ draft: draft("a", { words: "Plan" }), type: "create" });
+    // An editor partway through a save that is not atomic.
+    fs.writeFileSync(fileOf(), "");
+
+    store.reconcile();
+
+    expect(store.snapshot().drafts.map((entry) => entry.words)).toEqual([
+      "Plan",
+    ]);
+  });
+
+  it("takes in a draft another device has on its way as on its way", () => {
+    const { store } = open();
+    fs.mkdirSync(path.dirname(fileOf()), { recursive: true });
+    fs.writeFileSync(
+      fileOf(),
+      `---\nid: "a"\ncreated: 2026-10-19T12:00:00.000Z\nsending: "${CHAT}"\n---\n\nhi\n`,
+    );
+
+    store.reconcile();
+
+    const [sending] = store.snapshot().drafts;
+    expect(sending).toMatchObject({ sendingTo: CHAT });
+    expect(sending?.chatId).toBeUndefined();
+  });
+});
+
+describe("a sync engine's conflict copy", () => {
+  /** A draft, and a copy of its file beside it under a conflict copy's name. */
+  function copied(name: string) {
+    const { apply } = open();
+    apply({ draft: draft("a", { words: "mine" }), type: "create" });
+    const copy = path.join(path.dirname(fileOf()), name);
+    fs.writeFileSync(copy, read().replace("mine", "theirs"));
+    return copy;
+  }
+
+  it.each(["DRAFT 2.md", "DRAFT (conflicted copy).md"])(
+    "named %j is never the draft",
+    (name) => {
+      copied(name);
+      const { store } = open();
+      expect(store.snapshot().drafts.map((entry) => entry.words)).toEqual([
+        "mine",
+      ]);
+      store.reconcile();
+      expect(store.snapshot().drafts.map((entry) => entry.words)).toEqual([
+        "mine",
+      ]);
+    },
+  );
+
+  it("goes with the draft when the draft is thrown away", () => {
+    const copy = copied("DRAFT 2.md");
+    const { apply, store } = open();
+
+    apply({ id: "a", type: "remove" });
+    store.reconcile();
+
+    expect(fs.existsSync(copy)).toBe(false);
+    expect(store.snapshot().drafts).toEqual([]);
   });
 });
 
@@ -341,6 +437,16 @@ describe("a paste into a draft", () => {
       ).toThrow();
     },
   );
+
+  it("goes with its draft even when the draft was thrown away before it said so", () => {
+    const { apply, store } = open();
+    apply({ draft: draft("d3", { words: "see this" }), type: "create" });
+    store.stage({ content: PNG, draftId: "d3", itemId: "a", name: "a.png" });
+
+    apply({ id: "d3", type: "remove" });
+
+    expect(tree()).toEqual([]);
+  });
 
   it("refuses a draft the store does not have", () => {
     const { store } = open();

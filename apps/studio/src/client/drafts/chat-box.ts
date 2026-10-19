@@ -3,7 +3,7 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 import { ulid } from "ulid";
 
-import { cancelWords } from "./settle-words";
+import { cancelWords, flushWords } from "./settle-words";
 import {
   applyDraftOpsAtom,
   claimDraftAtom,
@@ -94,6 +94,23 @@ const bindBoxAtom = atom(
     );
   },
 );
+
+/**
+ * A chat's box as it first draws: it writes into the reply it shows, or into
+ * nothing where it shows none, from here on. Held from the start, so a reply
+ * that arrives later (another window's, another device's) is one waiting
+ * rather than the one the box writes its next words into.
+ */
+export const takeUpBoxAtom = atom(null, (get, set, chatId: ChatId) => {
+  if (get(chatBoxesAtom)[chatId] !== undefined) {
+    return;
+  }
+  set(bindBoxAtom, {
+    chatId,
+    draftId:
+      replyInBox(get(draftsAtom), get(chatBoxesAtom), chatId)?.id ?? null,
+  });
+});
 
 /**
  * A reply made for a chat's box, and written into from here: for words typed
@@ -197,6 +214,9 @@ export const settleReplySendAtom = atom(
       return;
     }
     set(releaseDraftAtom, draftId);
+    // Words typed since the press, written now, are a reply of their own and
+    // take the box; only a box still writing into nothing takes this one back.
+    flushWords(chatBoxWordsKey(chatId));
     if (get(chatBoxesAtom)[chatId] === null) {
       set(bindBoxAtom, { chatId, draftId });
     }

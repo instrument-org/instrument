@@ -39,6 +39,7 @@ const OWN_KEYS = new Set([
   "id",
   "send",
   "sendOn",
+  "sending",
   "state",
   "topic",
   "updated",
@@ -68,6 +69,14 @@ export interface DraftFile {
   send?: "auto";
   /** The one device that sends a `send: auto` draft; see {@link DraftFile.send}. */
   sendOn?: string;
+  /**
+   * The chat the draft is on its way into, from the press until the message
+   * naming it is written: what a launch after a crash looks in for that
+   * message, and what tells another device the draft is not waiting. A
+   * draft found with it at a launch whose chat holds no such message was
+   * never sent, and is the person's again as the kind of draft it was.
+   */
+  sending?: string;
   /** What the app keeps about the draft besides the above: the window's own bookkeeping. */
   state?: Record<string, unknown>;
   /** The topic the chat it opens is filed under. */
@@ -131,6 +140,9 @@ export function parseDraftFile(
     ...(typeof front.sendOn === "string" && front.sendOn
       ? { sendOn: front.sendOn }
       : {}),
+    ...(typeof front.sending === "string" && front.sending
+      ? { sending: front.sending }
+      : {}),
     ...(isRecord(front.state) ? { state: front.state } : {}),
     ...(typeof front.topic === "string" && front.topic
       ? { topic: front.topic }
@@ -163,6 +175,9 @@ export function renderDraftFile(draft: DraftFile): string {
   }
   if (draft.sendOn !== undefined) {
     lines.push(`sendOn: ${JSON.stringify(draft.sendOn)}`);
+  }
+  if (draft.sending !== undefined) {
+    lines.push(`sending: ${JSON.stringify(draft.sending)}`);
   }
   if (draft.attached && draft.attached.length > 0) {
     lines.push("attached:");

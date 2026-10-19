@@ -1,4 +1,8 @@
-import { typedWordsAtom } from "@/client/atoms/prompt-value";
+import {
+  appendToPromptAtom,
+  storedWordsAtom,
+  typedWordsAtom,
+} from "@/client/atoms/prompt-value";
 import { type Draft } from "@/shared/drafts";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
@@ -11,6 +15,7 @@ import {
   replyInBox,
   settleReplySendAtom,
   swapInReplyAtom,
+  takeUpBoxAtom,
 } from "./chat-box";
 import { WORDS_SETTLE_MS } from "./settle-words";
 import { claimDraftAtom, draftsAtom, resetDrafts } from "./store";
@@ -183,6 +188,31 @@ describe("a reply's send", () => {
     expect(inBox()?.id).toBe(sending?.draftId);
   });
 
+  it("keeps what was typed since the press, not yet written, when it fails", () => {
+    const { replies, settle, store, type } = window();
+    type("Thanks");
+    settle();
+    const sending = store.set(beginReplySendAtom, {
+      chatId: CHAT,
+      words: "Thanks",
+    });
+    type("");
+    type("One more");
+
+    store.set(settleReplySendAtom, {
+      chatId: CHAT,
+      draftId: sending?.draftId ?? "",
+      ok: false,
+    });
+    settle();
+
+    expect(
+      replies()
+        .map((draft) => draft.words)
+        .toSorted(),
+    ).toEqual(["One more", "Thanks"]);
+  });
+
   it("sends no draft from a box whose words had not settled into one", () => {
     const { replies, store, type } = window();
     type("Quick");
@@ -214,6 +244,49 @@ describe("a reply's send", () => {
 
     expect(inBox()).toBeUndefined();
     expect(otherRepliesOf(store.get(draftsAtom), {}, CHAT)).toEqual([]);
+  });
+});
+
+describe("a box opened on a chat", () => {
+  it("writes into the reply it showed, not one that arrived after", () => {
+    const { replies, settle, store, type } = window([reply("mine", 1, "one")]);
+    store.set(takeUpBoxAtom, CHAT);
+    // Another window's reply, newer than the one this box shows.
+    resetDrafts([reply("mine", 1, "one"), reply("theirs", 2, "two")]);
+    type("one, and more");
+    settle();
+
+    expect(
+      Object.fromEntries(replies().map((draft) => [draft.id, draft.words])),
+    ).toEqual({ mine: "one, and more", theirs: "two" });
+  });
+
+  it("writes a reply of its own where it showed none", () => {
+    const { replies, settle, store, type } = window();
+    store.set(takeUpBoxAtom, CHAT);
+    resetDrafts([reply("theirs", 2, "two")]);
+    type("mine");
+    settle();
+
+    expect(
+      replies()
+        .map((draft) => draft.words)
+        .toSorted(),
+    ).toEqual(["mine", "two"]);
+  });
+
+  it("adds to what was typed into it last, written or not, when nothing shows it", () => {
+    const { settle, store, type } = window();
+    type("Look at");
+    store.set(appendToPromptAtom, {
+      key: { chatId: CHAT, scope: "chat" },
+      update: "notes.md",
+    });
+    settle();
+
+    expect(store.get(storedWordsAtom({ chatId: CHAT, scope: "chat" }))).toBe(
+      "Look at notes.md ",
+    );
   });
 });
 

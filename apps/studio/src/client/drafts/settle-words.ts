@@ -8,7 +8,9 @@
  *
  * One entry per composer, keyed by what it writes into, each the write to
  * make once the typing settles. A send drops its composer's entry, since the
- * send carries the words; a window going flushes them all.
+ * send carries the words; a composer going, or anything about to read the
+ * draft's words without it, makes the write at once; a window going makes
+ * them all.
  */
 
 /** How long typing is left alone before it is written into its draft. */
@@ -32,7 +34,7 @@ export function settleWords(key: string, write: () => void) {
 }
 
 /** Makes a composer's waiting write now. */
-function flushWords(key: string) {
+export function flushWords(key: string) {
   const entry = waiting.get(key);
   if (entry === undefined) {
     return;

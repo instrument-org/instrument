@@ -6,7 +6,7 @@ import {
   keepChatBoxAtom,
   replyInBox,
 } from "@/client/drafts/chat-box";
-import { settleWords } from "@/client/drafts/settle-words";
+import { flushWords, settleWords } from "@/client/drafts/settle-words";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
@@ -155,7 +155,8 @@ export const appendToPromptAtom = atom(
     if (!editor) {
       // No composer mounted for the draft, so no caret to aim at: it goes on
       // the end of the stored words, which is what the composer is built from
-      // when it comes back.
+      // when it comes back, once what was typed into it last is in them.
+      flushWords(draftKeyString(key));
       const previous = get(storedWordsAtom(key)).trimEnd();
       set(commitWordsAtom, {
         key,

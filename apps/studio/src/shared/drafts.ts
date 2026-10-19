@@ -79,9 +79,9 @@ export interface Draft {
   /**
    * The chat the draft is on its way into, from the press until the message
    * is written or the send fails. A draft being sent is neither a reply
-   * waiting nor a draft to list: it is the message about to arrive. Main's
-   * alone, never written to the draft's file, which names the chat as `chat`
-   * instead so a launch after a crash knows where to look for the message.
+   * waiting nor a draft to list: it is the message about to arrive. Its file
+   * says so as `sending`, so a launch after a crash knows where to look for
+   * the message and another device leaves the draft alone meanwhile.
    */
   sendingTo?: ChatId;
   /** The one device that sends a `send: auto` draft; see {@link Draft.send}. */

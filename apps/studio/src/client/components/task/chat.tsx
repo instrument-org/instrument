@@ -9,6 +9,7 @@ import {
   replyInBox,
   settleReplySendAtom,
   swapInReplyAtom,
+  takeUpBoxAtom,
 } from "@/client/drafts/chat-box";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
 import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
@@ -327,6 +328,14 @@ export function ChatConversation({
   const beginReplySend = useSetAtom(beginReplySendAtom);
   const settleReplySend = useSetAtom(settleReplySendAtom);
   const swapInReplyDraft = useSetAtom(swapInReplyAtom);
+  const takeUpBox = useSetAtom(takeUpBoxAtom);
+  const boxChat = draftKey.scope === "chat" ? draftKey.chatId : undefined;
+  // The box writes into the reply it first shows, whatever arrives after.
+  useLayoutEffect(() => {
+    if (boxChat !== undefined) {
+      takeUpBox(boxChat);
+    }
+  }, [boxChat, takeUpBox]);
   const replyDraft =
     draftKey.scope === "chat"
       ? replyInBox(drafts, boxes, draftKey.chatId)

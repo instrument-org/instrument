@@ -6,10 +6,13 @@ import {
   type DraftStageRequest,
 } from "@/shared/drafts";
 import {
+  DRAFT_FILE_NAME,
   type DraftFile,
+  type DraftOnDisk,
   draftsFolderDir,
   ensureDraftFolder,
   isEmptyDraft,
+  parseDraftFile,
   readDrafts,
   removeDraft,
   renderDraftFile,
@@ -88,18 +91,80 @@ export function createDraftStore({
   let drafts: Draft[] = [];
   const onDisk = new Map<string, OnDisk>();
   const sent = new Set<string>();
+  /**
+   * The drafts a window here has on its way, by id: a file read while one is
+   * in flight does not take it off its way, since the file is only as far
+   * along as the store's last write.
+   */
+  const sending = new Set<string>();
   const acks: Record<string, number> = {};
   /** By draft and pasted item: where its bytes were written, so a second stage of one item writes over the first. */
   const staged = new Map<string, string>();
 
   const snapshot = (): DraftsSnapshot => ({ acks: { ...acks }, drafts });
 
+  /**
+   * Of the files holding one draft, the one that is the draft: the one this
+   * store has been writing, else the one named as a draft is named, else the
+   * oldest. The others are a sync engine's conflict copies, left for the
+   * person to look at.
+   */
+  const pick = (id: string, entries: DraftOnDisk[]): DraftOnDisk => {
+    const known = onDisk.get(id)?.file;
+    return (
+      entries.find((entry) => entry.file === known) ??
+      entries.find((entry) => path.basename(entry.file) === DRAFT_FILE_NAME) ??
+      entries[0] ??
+      unreachable(id)
+    );
+  };
+
+  /** A draft taken in from its file, still on its way where a window here has it on its way. */
+  const takeIn = (entry: DraftOnDisk) => {
+    const id = entry.draft.id;
+    onDisk.set(id, {
+      dir: entry.dir,
+      file: entry.file,
+      text: textOf(entry.draft),
+    });
+    const read = draftOf(entry);
+    const current = drafts.find((draft) => draft.id === id);
+    if (current === undefined) {
+      drafts = [...drafts, read];
+      return;
+    }
+    const next =
+      sending.has(id) && current.sendingTo !== undefined
+        ? { ...read, sendingTo: current.sendingTo }
+        : read;
+    drafts = drafts.map((draft) => (draft.id === id ? next : draft));
+  };
+
+  /**
+   * Whatever the files of these drafts say that this store has not read
+   * yet, taken in before ops change them: an edit made elsewhere that the
+   * watcher has not brought in would otherwise be written over by the next
+   * change, and then read back as the store's own.
+   */
+  const refresh = (ids: Iterable<string>) => {
+    for (const id of ids) {
+      const known = onDisk.get(id);
+      if (known === undefined) {
+        continue;
+      }
+      const found = readFile(known.file);
+      if (found !== undefined && textOf(found) !== known.text) {
+        takeIn({ dir: known.dir, draft: found, file: known.file });
+      }
+    }
+  };
+
   /** Writes what changed between `before` and `drafts`, and takes away what went. */
   const persist = (before: Draft[]) => {
     const now = new Map(drafts.map((draft) => [draft.id, draft]));
     for (const draft of before) {
       if (!now.has(draft.id)) {
-        forget(draft);
+        forget(draft.id);
       }
     }
     const was = new Map(before.map((draft) => [draft.id, draft]));
@@ -112,55 +177,70 @@ export function createDraftStore({
 
   /** A draft's file brought up to date, made where there is something to keep or `force` asks for one. */
   const write = (draft: Draft, { force }: { force: boolean }) => {
-    const known = onDisk.get(draft.id);
     try {
-      if (known === undefined) {
+      if (!onDisk.has(draft.id)) {
         const file = draftFileOf(draft, undefined);
         if (!force && isEmptyDraft(file)) {
           return undefined;
         }
         const made = ensureDraftFolder({ draft: file, rootDir, timeZone });
-        const where = { dir: made.dir, file: made.file };
-        return save(draft, where);
+        onDisk.set(draft.id, {
+          dir: made.dir,
+          file: made.file,
+          text: textOf(file),
+        });
       }
-      return save(draft, known);
+      return save(draft);
     } catch (error) {
       logger.error(`Could not write draft ${draft.id}`, error);
       return undefined;
     }
   };
 
-  const save = (draft: Draft, where: { dir: string; file: string }) => {
-    const file = draftFileOf(draft, where.dir);
-    const text = textOf(file);
-    if (onDisk.get(draft.id)?.text !== text) {
-      writeDraftFile(where.file, file);
+  const save = (draft: Draft) => {
+    const known = onDisk.get(draft.id);
+    if (known === undefined) {
+      return undefined;
     }
-    const kept = { ...where, text };
+    const file = draftFileOf(draft, known.dir);
+    const text = textOf(file);
+    if (known.text !== text) {
+      writeDraftFile(known.file, file);
+    }
+    const kept = { ...known, text };
     onDisk.set(draft.id, kept);
     return kept;
   };
 
-  /** A draft's file taken away, with what was pasted into it. */
-  const forget = (draft: Draft) => {
-    const known = onDisk.get(draft.id);
-    onDisk.delete(draft.id);
+  /**
+   * A draft taken away: every file holding it, conflict copies too, what was
+   * pasted into it, and its folder once that leaves it empty.
+   */
+  const forget = (id: string) => {
+    onDisk.delete(id);
+    sending.delete(id);
+    const pasted = [...staged].flatMap(([key, file]) =>
+      key.startsWith(`${id}/`) ? [file] : [],
+    );
     for (const key of staged.keys()) {
-      if (key.startsWith(`${draft.id}/`)) {
+      if (key.startsWith(`${id}/`)) {
         staged.delete(key);
       }
     }
-    if (known === undefined) {
-      return;
-    }
     try {
-      removeDraft({
-        dir: known.dir,
-        draft: draftFileOf(draft, known.dir),
-        file: known.file,
-      });
+      const entries = readDrafts(rootDir).filter(
+        (entry) => entry.draft.id === id,
+      );
+      for (const entry of entries) {
+        removeDraft(entry);
+      }
+      // What was pasted before the draft said so is the draft's all the same.
+      for (const file of pasted) {
+        fs.rmSync(file, { force: true });
+        removeIfEmpty(path.dirname(file));
+      }
     } catch (error) {
-      logger.error(`Could not take away draft ${draft.id}`, error);
+      logger.error(`Could not take away draft ${id}`, error);
     }
   };
 
@@ -168,15 +248,35 @@ export function createDraftStore({
     /**
      * Applies a window's ops, writes them through, and tells every window.
      * Synchronous, so by the time a window hears back the files say what the
-     * ops did: a send points its draft at the chat before it writes anything
-     * there.
+     * ops did: a send marks its draft on its way before it writes anything in
+     * the chat.
      */
     apply(batch: DraftOpBatch) {
+      refresh(
+        batch.ops.map((op) => (op.type === "create" ? op.draft.id : op.id)),
+      );
       const before = drafts;
       drafts = applyDraftOps(drafts, batch.ops);
       for (const op of batch.ops) {
-        if (op.type === "sent") {
-          sent.add(op.id);
+        switch (op.type) {
+          case "claim": {
+            sending.add(op.id);
+            break;
+          }
+          case "sent": {
+            sent.add(op.id);
+            sending.delete(op.id);
+            break;
+          }
+          case "release":
+          case "remove": {
+            sending.delete(op.id);
+            break;
+          }
+          case "create":
+          case "update": {
+            break;
+          }
         }
       }
       persist(before);
@@ -188,21 +288,8 @@ export function createDraftStore({
     load() {
       drafts = [];
       onDisk.clear();
-      const seen = new Set<string>();
-      for (const entry of readDrafts(rootDir)) {
-        // Two files holding one draft are a sync engine's conflict copy
-        // beside its original: the older is the draft, and the copy is left
-        // where it is for the person to look at.
-        if (seen.has(entry.draft.id)) {
-          continue;
-        }
-        seen.add(entry.draft.id);
-        drafts.push(draftOf(entry));
-        onDisk.set(entry.draft.id, {
-          dir: entry.dir,
-          file: entry.file,
-          text: textOf(entry.draft),
-        });
+      for (const [id, entries] of byDraft(readDrafts(rootDir))) {
+        takeIn(pick(id, entries));
       }
     },
 
@@ -210,39 +297,42 @@ export function createDraftStore({
      * Takes in what changed in the folder since this store last wrote or read
      * it: a draft whose file reads differently is taken from the file, one
      * whose file went is gone, and a file for a draft this store has not seen
-     * is a draft of its own. A draft on its way into a chat stays on its way.
+     * is a draft of its own. A file still there that cannot be read for the
+     * moment (an editor partway through a save, a placeholder a sync engine
+     * has yet to fill) leaves its draft as it was.
      */
     reconcile() {
       const before = drafts;
-      const seen = new Set<string>();
-      for (const entry of readDrafts(rootDir)) {
-        const id = entry.draft.id;
-        if (seen.has(id)) {
-          continue;
-        }
-        seen.add(id);
+      const found = byDraft(readDrafts(rootDir));
+      for (const [id, entries] of found) {
         if (sent.has(id)) {
-          removeDraft(entry);
+          for (const entry of entries) {
+            try {
+              removeDraft(entry);
+            } catch (error) {
+              logger.error(`Could not take away sent draft ${id}`, error);
+            }
+          }
           continue;
         }
-        const text = textOf(entry.draft);
         const known = onDisk.get(id);
-        if (known?.text === text && known.file === entry.file) {
+        if (
+          known !== undefined &&
+          !entries.some((entry) => entry.file === known.file) &&
+          fs.existsSync(known.file)
+        ) {
           continue;
         }
-        onDisk.set(id, { dir: entry.dir, file: entry.file, text });
-        const read = draftOf(entry);
-        const current = drafts.find((draft) => draft.id === id);
-        drafts =
-          current === undefined
-            ? [...drafts, read]
-            : drafts.map((draft) =>
-                draft.id === id ? stillSending(read, current) : draft,
-              );
+        const entry = pick(id, entries);
+        if (known?.file === entry.file && known.text === textOf(entry.draft)) {
+          continue;
+        }
+        takeIn(entry);
       }
-      for (const id of onDisk.keys()) {
-        if (!seen.has(id)) {
+      for (const [id, known] of onDisk) {
+        if (!found.has(id) && !fs.existsSync(known.file)) {
           onDisk.delete(id);
+          sending.delete(id);
           drafts = drafts.filter((draft) => draft.id !== id);
         }
       }
@@ -327,21 +417,36 @@ export function createDraftStore({
   };
 }
 
-/**
- * A draft read from its file while it is on its way into a chat: still on
- * its way, and still the kind of draft it was. The file names the chat it is
- * being sent into, which for a new chat's draft is no reply's chat.
- */
-function stillSending(read: Draft, current: Draft): Draft {
-  if (current.sendingTo === undefined) {
-    return read;
+/** Drafts on disk by id, each with every file holding it. */
+function byDraft(entries: DraftOnDisk[]): Map<string, DraftOnDisk[]> {
+  const found = new Map<string, DraftOnDisk[]>();
+  for (const entry of entries) {
+    found.set(entry.draft.id, [...(found.get(entry.draft.id) ?? []), entry]);
   }
-  const { chatId: _named, ...rest } = read;
-  return {
-    ...rest,
-    ...(current.chatId === undefined ? {} : { chatId: current.chatId }),
-    sendingTo: current.sendingTo,
-  };
+  return found;
+}
+
+/** A draft's file read on its own, or nothing where it is gone or names no draft. */
+function readFile(file: string): DraftFile | undefined {
+  try {
+    return parseDraftFile(fs.readFileSync(file, "utf8"), {
+      at: fs.statSync(file).mtime,
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function removeIfEmpty(dir: string) {
+  try {
+    fs.rmdirSync(dir);
+  } catch {
+    // Something else is in the folder, which is not the draft's to take.
+  }
+}
+
+function unreachable(id: string): never {
+  throw new Error(`No file holds draft ${id}`);
 }
 
 /**

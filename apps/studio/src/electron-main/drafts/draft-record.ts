@@ -57,8 +57,10 @@ const FILE_KEYS = new Set<string>([
  * the first time a draft is written, when the folder it names is the one
  * about to be made.
  *
- * A draft on its way into a chat names that chat, so a launch after a crash
- * knows where to look for the message that says it was sent.
+ * A draft on its way into a chat names that chat as `sending`, apart from
+ * the chat a reply is for, so a launch after a crash knows where to look for
+ * the message that says it was sent, and another device does not read a new
+ * chat's draft as a reply.
  */
 export function draftFileOf(draft: Draft, dir: string | undefined): DraftFile {
   const state = Object.fromEntries(
@@ -66,15 +68,15 @@ export function draftFileOf(draft: Draft, dir: string | undefined): DraftFile {
       ([key, value]) => !FILE_KEYS.has(key) && value !== undefined,
     ),
   );
-  const chat = draft.chatId ?? draft.sendingTo;
   const attached = attachedOf(draft, dir);
   return {
     ...(attached.length > 0 ? { attached } : {}),
-    ...(chat === undefined ? {} : { chat }),
+    ...(draft.chatId === undefined ? {} : { chat: draft.chatId }),
     created: new Date(draft.createdAt),
     id: draft.id,
     ...(draft.send === undefined ? {} : { send: draft.send }),
     ...(draft.sendOn === undefined ? {} : { sendOn: draft.sendOn }),
+    ...(draft.sendingTo === undefined ? {} : { sending: draft.sendingTo }),
     ...(Object.keys(state).length > 0 ? { state } : {}),
     ...(draft.topicId === undefined ? {} : { topic: draft.topicId }),
     updated: new Date(draft.updatedAt),
@@ -90,6 +92,7 @@ export function draftFileOf(draft: Draft, dir: string | undefined): DraftFile {
  */
 export function draftOf({ dir, draft }: DraftOnDisk): Draft {
   const chat = ChatIdSchema.safeParse(draft.chat);
+  const sending = ChatIdSchema.safeParse(draft.sending);
   const attached = (draft.attached ?? []).map((item) =>
     attachmentOf(item, dir),
   );
@@ -101,6 +104,7 @@ export function draftOf({ dir, draft }: DraftOnDisk): Draft {
     id: draft.id,
     ...(draft.send === undefined ? {} : { send: draft.send }),
     ...(draft.sendOn === undefined ? {} : { sendOn: draft.sendOn }),
+    ...(sending.success ? { sendingTo: sending.data } : {}),
     ...(draft.topic === undefined ? {} : { topicId: draft.topic }),
     updatedAt: draft.updated.getTime(),
     words: draft.words,

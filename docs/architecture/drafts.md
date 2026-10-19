@@ -1,6 +1,6 @@
 # Drafts
 
-A draft is a chat not yet started, or a reply waiting in a chat. Both live in the workspace's `Drafts/`, a folder per draft holding a `DRAFT.md` (plain YAML front matter over the person's words) and whatever was pasted into it. A reply names its chat (`chat:`); a new chat's draft does not. The folder is the record: a file manager, a sync engine bringing another device's edit, or a newer build can change it, and every window has to follow.
+A draft is a chat not yet started, or a reply waiting in a chat. Both live in the workspace's `Drafts/`, a folder per draft holding a `DRAFT.md` (plain YAML front matter over the person's words) and whatever was pasted into it. A reply names its chat (`chat:`); a new chat's draft does not. A draft being sent names the chat it is going into as `sending:`, whichever kind it is. The folder is the record: a file manager, a sync engine bringing another device's edit, or a newer build can change it, and every window has to follow.
 
 ## Layers
 
@@ -26,25 +26,25 @@ The preload reads the snapshot synchronously before the first render (`drafts:lo
 
 ## The folder changing under the app
 
-The store remembers, for each draft, the file it is in and that file as the store last wrote or read it. On a watch event it reads the folder. A file that reads the same is its own write. A file that reads differently is taken in, a missing file means the draft is gone, and an unknown id is a new draft. Nothing in main writes a draft's file behind the store's back: pastes are staged through it (`drafts:stage`), and so is a send's claim.
+The store remembers, for each draft, the file it is in and that file as the store last wrote or read it. On a watch event it reads the folder. A file that reads the same is its own write. A file that reads differently is taken in, a missing file means the draft is gone, and an unknown id is a new draft. A file that is still there but can't be read for the moment (an editor partway through a save, a sync engine's placeholder) leaves its draft as it was. Before applying ops, the store rereads the files of the drafts they touch, so an edit from another device that the watcher hasn't reported yet is taken in instead of written over. Nothing in main writes a draft's file behind the store's back: pastes are staged through it (`drafts:stage`), and so is a send's claim.
 
-When the same id appears in two files (a sync engine's conflict copy beside its original), the older file is the draft and the copy is left for the person.
+When the same id appears in two files (a sync engine's conflict copy beside its original), the draft is the file the store has been writing, else the one named `DRAFT.md`. The copy is left for the person, and goes when the draft is thrown away.
 
 ## Sending
 
 A message names the draft it came from (`fromDraft`), and that message is what says the draft was sent ([`send.ts`](../../packages/workspace/src/lib/drafts/send.ts)). A send is three steps, and the person loses nothing whichever step the app stops at:
 
-1. **Claim.** `claim` gives the draft `sendingTo` and the words it is being sent with. The file then names the chat, so a launch after a crash knows where to look for the message. The window waits for main's answer before it writes anything in the chat. While `sendingTo` is set, the draft is neither a reply waiting (`repliesOf`) nor a draft in the inbox list. It is the message on its way.
+1. **Claim.** `claim` gives the draft `sendingTo` and the words it is being sent with. Its file says `sending:` the chat, so a launch after a crash knows where to look for the message, and another device treats the draft as on its way. The window waits for main's answer before it writes anything in the chat. While `sendingTo` is set, the draft is neither a reply waiting (`repliesOf`) nor a draft in the inbox list. It is the message on its way. A file read meanwhile does not take a draft this app is sending off its way.
 2. **Message.** The message is appended with `fromDraft`.
 3. **Sent or released.** On success, `sent` removes the draft, and the store refuses to take that id back for as long as it runs, so a sync engine bringing the file back cannot offer it again. On failure, `release` clears `sendingTo`, and the draft is the person's again, as it was. A new chat's draft goes back to naming no chat.
 
-A launch finishes any send step 3 never reached (`finishSentDrafts`). `sendingTo` exists only in memory, so a new chat's draft claimed just before a crash, whose message never landed, reads after the launch as a reply in its chat.
+A launch finishes any send step 3 never reached (`finishSentDrafts`). A draft still marked `sending:` whose chat has no message from it was never sent: the launch clears the mark, and the draft is the person's again, as the kind of draft it was.
 
 ## A chat's box
 
-Each chat's box writes into one reply at a time (`chatBoxesAtom`, per window, in memory). A box that has taken nothing up reads the chat's newest reply. Typing settles into that reply after `WORDS_SETTLE_MS`, or makes a new one where the box writes into none. Emptying the box removes its reply, unless something is attached, and the box then writes into nothing, so the next words start a new reply instead of landing in another one waiting. Submitting claims the reply and points the box at nothing, so what is typed while the send is in flight is a reply of its own. A failed send puts the reply back in the box, if nothing was typed since.
+Each chat's box writes into one reply at a time (`chatBoxesAtom`, per window, in memory). A box takes up the reply it shows as it first draws (the chat's newest), or nothing where there is none, so a reply that arrives later from another window or device waits beside it instead of receiving the box's next words. Typing settles into that reply after `WORDS_SETTLE_MS`, or makes a new one where the box writes into none. Emptying the box removes its reply, unless something is attached, and the box then writes into nothing, so the next words start a new reply instead of landing in another one waiting. Submitting claims the reply and points the box at nothing, so what is typed while the send is in flight is a reply of its own. A failed send first writes any words typed since, then puts the reply back in the box only if those made no reply of their own.
 
-The composer holds the words being typed. The draft gets them a beat later, and the inbox and the Drafts list read the draft. Nothing else holds a copy of the typed words that could outlive its composer.
+The composer holds the words being typed. The draft gets them a beat later, and the inbox and the Drafts list read the draft. A composer that unmounts or moves to another draft writes its waiting words at once, and so does anything that adds to a draft with no composer showing it, so the next reader starts from them. Nothing else holds a copy of the typed words that could outlive its composer.
 
 ## What a draft does not do yet
 

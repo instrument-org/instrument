@@ -10,6 +10,7 @@
  * `electron` entry with the rest of the launch's sweeps.
  */
 
+export { DRAFT_FILE_NAME } from "../../constants";
 export {
   type DraftAttached,
   type DraftFile,

@@ -76,6 +76,7 @@ import {
   storedWordsAtom,
   typedWordsAtom,
 } from "../atoms/prompt-value";
+import { flushWords } from "../drafts/settle-words";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
@@ -264,6 +265,14 @@ export const PromptInput = ({
     setShown({ key: draftKeyed, words });
     typeWords({ key: draftKey, words });
   };
+  // A composer going, or moving onto another draft, writes what it was
+  // typed into at once: the next one to show that draft starts from it.
+  useEffect(
+    () => () => {
+      flushWords(draftKeyed);
+    },
+    [draftKeyed],
+  );
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
 
   const {

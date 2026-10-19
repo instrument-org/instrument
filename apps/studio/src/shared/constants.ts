@@ -12,5 +12,10 @@ export const START_FILE_DRAG_CHANNEL = "start-file-drag";
 // bindAppWindowChords in electron-main/menus/app-window.
 export const CODE_EDITOR_FOCUS_CHANNEL = "code-editor-focus";
 
+// The renderer's captured exceptions, serialized, for the main process to
+// build and keep as events. Its own channel rather than oRPC, so a capture
+// still arrives when RPC is what broke. See electron-main/lib/renderer-exceptions.
+export const CAPTURE_EXCEPTION_CHANNEL = "capture-exception";
+
 export const TOOLBAR_HEIGHT = 40;
 export const SIDEBAR_WIDTH = 250;

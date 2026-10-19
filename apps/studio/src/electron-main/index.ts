@@ -53,6 +53,7 @@ import {
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
 import { serveKeptState } from "./stores/workspace/kept-state";
+import { serveRendererExceptions } from "./lib/renderer-exceptions";
 import {
   configureAppSession,
   waitForPreviousDevInstance,
@@ -256,6 +257,7 @@ async function bootstrapPrimaryInstance() {
   // Registered before any window exists, so no preload can ask before it answers.
   serveResolvedTheme();
   serveKeptState();
+  serveRendererExceptions();
   servePageEditorBoot();
 
   // Early, so the first requests to a local API server that is not running

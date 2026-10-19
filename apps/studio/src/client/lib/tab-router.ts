@@ -10,7 +10,7 @@ import {
 import { routeTree } from "../routeTree.gen";
 import { shouldRestoreScroll } from "./scroll-restoration";
 import { routerEntries } from "./tab-router-history";
-import { captureException } from "./capture-exception";
+import { captureComponentError } from "./capture-exception";
 
 /**
  * One QueryClient shared by every per-tab router in the app window so tabs
@@ -58,9 +58,7 @@ export function createTabRouter({
     context: { queryClient: sharedQueryClient },
     defaultErrorComponent: DefaultErrorComponent,
     defaultNotFoundComponent: NotFoundRouteComponent,
-    defaultOnCatch: (error, errorInfo) => {
-      captureException(error, { componentStack: errorInfo.componentStack });
-    },
+    defaultOnCatch: captureComponentError,
     defaultPreload: false,
     history: memoryHistory,
     routeTree,

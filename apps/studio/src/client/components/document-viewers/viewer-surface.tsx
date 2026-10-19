@@ -109,8 +109,9 @@ function reportViewerError(error: unknown, errorInfo: ErrorInfo) {
   const properties = viewerErrorReport(error);
   if (properties) {
     captureException(error, {
-      componentStack: errorInfo.componentStack,
-      ...properties,
+      componentStack: errorInfo.componentStack ?? undefined,
+      data: properties,
+      mechanism: "error-boundary",
     });
   }
 }

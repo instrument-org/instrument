@@ -177,13 +177,13 @@ describe("a background process that ends while its session is at rest", () => {
     }
     expect(jobEventModelNote({ events: [{ ...event, durationMs: 95_000 }] }))
       .toMatchInlineSnapshot(`
-        "
-        <instrument-system-note>
-        A command you started has ended in the background:
-        - bg_1 (\`ls ~/Documents\`) finished with exit code 0 after 2 minutes. Read what it wrote with \`fg bg_1\`; all of it is in \`.tool-output/bg_1.log\`.
-        Nobody typed anything; this note is why you are awake. If the user was waiting on it, read its output and finish what they asked for. Otherwise tell them in a line what came of it.
-        </instrument-system-note>"
-      `);
+      "
+      <instrument-system-note>
+      A command you started has ended in the background:
+      - ${job.id} (\`ls ~/Documents\`) finished with exit code 0 after 2 minutes. Read what it wrote with \`fg ${job.id}\`; all of it is in \`.tool-output/${job.id}.log\`.
+      Nobody typed anything; this note is why you are awake. If the user was waiting on it, read its output and finish what they asked for. Otherwise tell them in a line what came of it.
+      </instrument-system-note>"
+    `);
 
     // The wake told it; the turn it starts ending wakes nothing more.
     publisher.publish("session.done", {

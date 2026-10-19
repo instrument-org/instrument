@@ -8,7 +8,12 @@ import { executePlacing, fileSystemOps, type PlacingOps } from "./execute";
 import { gatherPlaceRequest } from "./gather";
 import { type Answer, planPlacing, type Step } from "./plan";
 
-vi.mock("../mac-native", () => ({ finderEntries: () => Promise.resolve([]) }));
+// No bridge: placing goes the way it does off the Mac, by hard link and
+// checked rename, which the Mac module's own test covers the rest of.
+vi.mock("../mac-native", () => ({
+  finderEntries: () => Promise.resolve([]),
+  renameExclusive: () => Promise.resolve(false),
+}));
 
 let root: string;
 beforeEach(async () => {
@@ -367,6 +372,26 @@ describe("carrying out a plan", () => {
 
       await expect(undo(outcome.journal)).rejects.toThrow(reason);
       expect(await tree({ trash: true })).toEqual(after);
+    },
+  );
+
+  // A file placed by a hard link whose old name cannot be let go of (its
+  // folder is read only) is taken back out of the destination, so it is
+  // never in two places and the plan sees it not placed.
+  it.skipIf(process.getuid?.() === 0)(
+    "takes its link back when the old name cannot be let go of",
+    async () => {
+      await write({ "src/a.txt": "a" });
+      await fs.chmod(at("src"), 0o555);
+      try {
+        await expect(
+          ops().place(at("src/a.txt"), at("dest/a.txt")),
+        ).rejects.toMatchObject({ code: "EACCES" });
+        expect(await fs.readdir(at("dest"))).toEqual([]);
+        expect(await fs.readFile(at("src/a.txt"), "utf8")).toBe("a");
+      } finally {
+        await fs.chmod(at("src"), 0o755);
+      }
     },
   );
 });

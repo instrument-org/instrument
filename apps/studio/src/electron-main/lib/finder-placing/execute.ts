@@ -5,6 +5,8 @@ import {
   restoreFromTrash,
   type Trashed,
 } from "../file-journal";
+import { renameExclusive } from "../exclusive-rename";
+import { renameExclusive as nativeRenameExclusive } from "../mac-native";
 import { sameIdentity, STAGING_PREFIX, type Step } from "./plan";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -219,10 +221,9 @@ function cannotLink(error: unknown) {
 }
 
 /**
- * The file system's own ops. Placing a file is a hard link, which fails when
- * the name is taken, then the old name let go; where a disk makes no links,
- * and for a folder or a link, the name is checked just before the rename,
- * which leaves only that instant for something else to take it.
+ * The file system's own ops. Placing is an exclusive rename on the Mac; on
+ * the other systems a file goes by a hard link and anything else by
+ * `renameExclusive`, which says what that leaves open.
  */
 export function fileSystemOps({
   trash,
@@ -241,27 +242,35 @@ export function fileSystemOps({
     identity: identityOf,
     measure,
     place: async (from, to) => {
+      // In one step where the disk can: the Mac's exclusive rename.
+      if (await nativeRenameExclusive(from, to)) {
+        return;
+      }
+      // Elsewhere a file goes by a hard link, which fails when the name is
+      // taken, then lets go of its old name; if that fails, the new name is
+      // taken back, so the file is never left in both places.
       const stats = await fs.lstat(from);
       if (stats.isFile()) {
-        try {
-          await fs.link(from, to);
-          await fs.unlink(from);
-          return;
-        } catch (error) {
-          if (!cannotLink(error)) {
+        const linked = await fs.link(from, to).then(
+          () => true,
+          (error: unknown) => {
+            if (cannotLink(error)) {
+              return false;
+            }
             throw error;
-          }
-        }
-      }
-      if ((await identityOf(to)) !== null) {
-        throw Object.assign(
-          new Error(`Something named ${nameOf(to)} is there now.`),
-          {
-            code: "EEXIST",
           },
         );
+        if (linked) {
+          try {
+            await fs.unlink(from);
+          } catch (error) {
+            await fs.unlink(to).catch(() => undefined);
+            throw error;
+          }
+          return;
+        }
       }
-      await fs.rename(from, to);
+      await renameExclusive(from, to);
     },
     removeStaging: async (at) => {
       if (!path.basename(at).startsWith(STAGING_PREFIX)) {

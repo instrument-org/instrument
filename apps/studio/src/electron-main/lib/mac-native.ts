@@ -72,6 +72,8 @@ interface MacModule {
   fileIcon: (path: string, pixels: string) => Promise<string>;
   finderEntries: (folder: string) => Promise<string>;
   pasteboardFiles: () => Promise<string>;
+  renameExclusive: (from: string, to: string) => Promise<string>;
+  caseSensitivity: (path: string) => Promise<string>;
   resolveAlias: (path: string) => Promise<string>;
   notificationStatus: () => Promise<string>;
   requestNotifications: () => Promise<string>;
@@ -92,6 +94,55 @@ export async function pasteboardFiles(): Promise<string[] | undefined> {
   return z
     .object({ paths: z.array(z.string()) })
     .parse(JSON.parse(await native.pasteboardFiles())).paths;
+}
+
+/**
+ * Renames `from` to `to` only if nothing is at `to`, in one step the disk
+ * makes (`renamex_np` with RENAME_EXCL); fails with an error whose `code`
+ * is Node's errno name (`EEXIST` for a name taken). False off macOS and in
+ * a build without the module, where the caller renames another way.
+ */
+export async function renameExclusive(
+  from: string,
+  to: string,
+): Promise<boolean> {
+  const native = loadModule();
+  if (!native) {
+    return false;
+  }
+  const answer = z
+    .union([
+      z.object({ renamed: z.literal(true) }),
+      z.object({ code: z.string(), error: z.string() }),
+    ])
+    .parse(JSON.parse(await native.renameExclusive(from, to)));
+  if ("error" in answer) {
+    throw Object.assign(new Error(`${answer.error}: ${to}`), {
+      code: answer.code,
+    });
+  }
+  return true;
+}
+
+/**
+ * Whether the disk under `folder` tells names apart by case, as the disk
+ * itself says. Undefined off macOS, in a build without the module, and for
+ * a disk that does not say.
+ */
+export async function caseSensitivity(
+  folder: string,
+): Promise<boolean | undefined> {
+  const native = loadModule();
+  if (!native) {
+    return undefined;
+  }
+  const answer = z
+    .union([
+      z.object({ caseSensitive: z.boolean() }),
+      z.object({ error: z.string() }),
+    ])
+    .parse(JSON.parse(await native.caseSensitivity(folder)));
+  return "error" in answer ? undefined : answer.caseSensitive;
 }
 
 function loadModule(): MacModule | null {

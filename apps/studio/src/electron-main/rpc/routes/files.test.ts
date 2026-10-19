@@ -52,6 +52,7 @@ vi.mock("@/electron-main/stores/machine/preferences", () => ({
 const aliasTargets = new Map<string, string>();
 vi.mock("@/electron-main/lib/mac-native", () => ({
   finderEntries: () => Promise.resolve([]),
+  renameExclusive: () => Promise.resolve(false),
   pasteboardFiles: () => Promise.resolve(clipboardState.pasteboard),
   resolveAlias: (filePath: string) =>
     Promise.resolve(aliasTargets.get(filePath)),

@@ -72,7 +72,6 @@ interface LLMRequestInput {
   sessionId: StoreId.Session;
   stepCount: number;
   chatId: ChatId;
-  toolChoice?: "auto" | "none" | "required";
 }
 
 export const llmRequestLogic = fromPromise<
@@ -411,7 +410,6 @@ export const llmRequestLogic = fromPromise<
         purpose: turnPurpose(input.chatId, input.sessionId),
         sessionId: input.sessionId,
       }),
-      toolChoice: input.toolChoice,
       tools: searchesNatively ? omit(tools, [TOOL_NAMES.webSearch]) : tools,
     });
 

@@ -433,7 +433,6 @@ export const agentMachine = setup({
       stopReason?: StopReason;
       chatId: ChatId;
       toolCallQueue: SessionMessagePart.ToolPartInputAvailable[];
-      toolChoice?: "auto" | "none" | "required";
       // Streams whose tool parts no queue has taken over: raised when a
       // request starts and lowered when that request's own end hands its parts
       // to the queues, so an attempt the machine walked away from stays
@@ -451,7 +450,6 @@ export const agentMachine = setup({
       parentRef: ParentActorRef;
       sessionId: StoreId.Session;
       chatId: ChatId;
-      toolChoice?: "auto" | "none" | "required";
     },
     output: {} as AgentResult,
   },
@@ -475,7 +473,6 @@ export const agentMachine = setup({
     stepCount: 0,
     chatId: input.chatId,
     toolCallQueue: [],
-    toolChoice: input.toolChoice,
     unaccountedStreamCount: 0,
   }),
   id: "agent",
@@ -673,7 +670,6 @@ export const agentMachine = setup({
             sessionId: context.sessionId,
             stepCount: context.stepCount,
             chatId: context.chatId,
-            toolChoice: context.toolChoice,
           };
         },
         onDone: {

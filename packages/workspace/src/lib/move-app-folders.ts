@@ -61,9 +61,18 @@ export function moveAppFoldersIntoDataDir({
 }): AppFoldersMove {
   const move: AppFoldersMove = { done: [], failed: 0 };
   const { dataDir } = workspaceLayout(rootDir);
+  // By the names listed rather than by whether a path is there: where the
+  // file system reads `skills` and `Skills` as one, the person's `Skills/` is
+  // there under the old name too.
+  let listed: string[];
+  try {
+    listed = fs.readdirSync(rootDir);
+  } catch {
+    return move;
+  }
   const waiting = MOVED_ENTRY_NAMES.flatMap((name) => {
     const from = path.join(rootDir, name);
-    if (!entryExists(from)) {
+    if (!listed.includes(name)) {
       return [];
     }
     if (!isDirectorySync(from)) {

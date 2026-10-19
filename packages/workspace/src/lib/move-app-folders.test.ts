@@ -174,4 +174,15 @@ describe("moveAppFoldersIntoDataDir", () => {
       },
     });
   });
+
+  it("leaves the person's Skills/ and Topics/ where the old lowercase names would find them", () => {
+    write(at("Skills", "tdd", "SKILL.md"));
+    write(at("Topics", "Work", "TOPIC.md"));
+
+    expect(move().done).toEqual([]);
+    expect(listing(workspace.path)).toEqual([
+      path.join("Skills", "tdd", "SKILL.md"),
+      path.join("Topics", "Work", "TOPIC.md"),
+    ]);
+  });
 });

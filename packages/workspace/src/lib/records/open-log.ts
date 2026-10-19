@@ -50,7 +50,7 @@ export interface OpenLogOptions {
    * its fold). Written only when a log is started.
    */
   header: Header;
-  /** What the index last saw of this device's newest log of the session. */
+  /** Where this device last left its newest log of the session (`own-log-cursors.ts`). */
   last?: { cursor: LogCursor; name: string };
   /** Told of each write to the log, its header included when it starts one. */
   onWrite?: OnWrite;
@@ -61,9 +61,10 @@ export interface OpenLogOptions {
  * in its newest log of the session while it recognizes it, and starts the
  * next one (`.2`, then `.3`) when:
  *
- * - The index saw the file differently: shorter than it was, or ending in
- *   other bytes. The device never writes on top of a file it does not
- *   recognize, and the new log carries on from what the index saw.
+ * - The device last left the file differently (`own-log-cursors.ts`):
+ *   shorter than it was, or ending in other bytes. The device never writes
+ *   on top of a file it does not recognize, and the new log carries on from
+ *   where it left the old one.
  * - The file's first line is not this session's header from this device.
  * - The device has read more of other devices' logs of the session than the
  *   file's header says. A header is the one place a log says what it

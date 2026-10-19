@@ -6,14 +6,13 @@ import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { cn } from "@/client/lib/utils";
+
 import { Button } from "./ui/button";
 
 /**
- * Send a report beside an error screen's own way out. It opens the report
- * dialog right here rather than through the window's modals, because the
- * window's own fallback draws it with the rest of the window gone. Once sent
- * it reads Report sent, so one error isn't reported twice. With error reports
- * set to go automatically, the error is sent as it appears.
+ * Send a report beside an error screen's own way out. With error reports set
+ * to go automatically, the error is sent as it appears.
  */
 export function ReportErrorButton({
   error,
@@ -22,7 +21,6 @@ export function ReportErrorButton({
   error: unknown;
   surface: "route-error" | "window-error";
 }) {
-  const [request, setRequest] = useState<null | ReportRequest>(null);
   const [sent, setSent] = useState(false);
   useSendAutomatically({
     error,
@@ -31,10 +29,43 @@ export function ReportErrorButton({
     },
     surface,
   });
+  return (
+    <SendReportButton
+      request={(onSent) => errorReport({ error, onSent, surface })}
+      sent={sent}
+    />
+  );
+}
 
-  if (sent) {
+/**
+ * Send a report about what this surface shows. It opens the report dialog
+ * right here rather than through the window's modals, because the window's
+ * own fallback draws it with the rest of the window gone, and Settings is
+ * itself one of those modals. Once sent it reads Report sent, so one problem
+ * isn't reported twice.
+ */
+export function SendReportButton({
+  onSent,
+  request: makeRequest,
+  sent: sentAlready = false,
+  size,
+}: {
+  onSent?: () => void;
+  request: (onSent: () => void) => ReportRequest;
+  sent?: boolean;
+  size?: "sm";
+}) {
+  const [request, setRequest] = useState<null | ReportRequest>(null);
+  const [sentHere, setSentHere] = useState(false);
+
+  if (sentAlready || sentHere) {
     return (
-      <span className="inline-flex h-9 items-center gap-1.5 px-2 text-sm text-muted-foreground">
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 px-2 text-sm text-muted-foreground",
+          size === "sm" ? "h-8" : "h-9",
+        )}
+      >
         <CheckIcon className="size-3.5 text-brand-600" />
         Report sent
       </span>
@@ -46,15 +77,13 @@ export function ReportErrorButton({
       <Button
         onClick={() => {
           setRequest(
-            errorReport({
-              error,
-              onSent: () => {
-                setSent(true);
-              },
-              surface,
+            makeRequest(() => {
+              setSentHere(true);
+              onSent?.();
             }),
           );
         }}
+        size={size}
         variant="outline"
       >
         Send a report

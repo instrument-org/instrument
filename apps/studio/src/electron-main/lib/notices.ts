@@ -14,6 +14,7 @@ import {
   type SignInAccountType,
 } from "@/shared/notices";
 import { chromiumSandboxOff } from "@/electron-main/lib/chromium-sandbox";
+import { type Condition } from "@/shared/problem-reports";
 import {
   BROWSER_SANDBOX_OFF_COPY,
   SANDBOX_OFF_COPY,
@@ -209,12 +210,46 @@ function sandboxOffNotice(
   return {
     action: { label: "See why", settings: "Permissions" },
     body: copy.notice,
+    report: "sandbox-off",
     id: `sandbox-off-${off}-${allowed ? "allowed" : "refused"}-${app.getVersion()}`,
     kind: "security",
     publishedAt: LAUNCHED_AT,
     severity: allowed ? "info" : "critical",
     title: copy.title,
   };
+}
+
+/**
+ * What a report about a condition says the app found, read here at the time
+ * of the report, and the fingerprint that makes every report of the same
+ * cause one problem.
+ */
+export function describeCondition(condition: Condition): {
+  fingerprint: string;
+  found: string[];
+} {
+  switch (condition) {
+    case "sandbox-off": {
+      const off = nativeSandboxOff() ?? "none";
+      return {
+        fingerprint: `condition:sandbox-off:${off}`,
+        found: [
+          `sandboxOff: ${off}`,
+          `runProgramsWithoutSandbox: ${String(getMachinePreferences().get("runProgramsWithoutSandbox"))}`,
+          ...(process.platform === "linux"
+            ? [`appImage: ${String(!!process.env.APPIMAGE)}`]
+            : []),
+        ],
+      };
+    }
+    case "chats-left-behind": {
+      const left = getNoticesStore().get("chatsLeftBehind");
+      return {
+        fingerprint: "condition:chats-left-behind",
+        found: [`chatsLeftBehind: ${String(left?.count ?? 0)}`],
+      };
+    }
+  }
 }
 
 /**
@@ -359,6 +394,7 @@ function chatsLeftBehindNotice({
         ? `${APP_NAME} couldn't finish bringing ${count.toString()} of your chats over, so they look empty right now. Their conversations are safe where they are, and ${APP_NAME} tries again the next time it starts.`
         : `${APP_NAME} couldn't finish bringing one of your chats over, so it looks empty right now. The conversation is safe where it is, and ${APP_NAME} tries again the next time it starts.`,
     id: `chats-left-behind-${count.toString()}-${at}`,
+    report: "chats-left-behind",
     kind: "announcement",
     publishedAt: new Date(at).toISOString(),
     severity: "important",

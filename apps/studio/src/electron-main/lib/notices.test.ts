@@ -291,6 +291,31 @@ describe("notices", () => {
     ]);
   });
 
+  it("offers a report on what it found about the sandbox, one problem per cause", async () => {
+    const notices = await load();
+    sandbox.off = "no-seatbelt";
+    expect(notices.listNotices()).toMatchObject([{ report: "sandbox-off" }]);
+    expect(notices.describeCondition("sandbox-off")).toEqual({
+      fingerprint: "condition:sandbox-off:no-seatbelt",
+      found: expect.arrayContaining([
+        "sandboxOff: no-seatbelt",
+        "runProgramsWithoutSandbox: false",
+      ]),
+    });
+  });
+
+  it("offers a report on chats left behind that says how many", async () => {
+    const notices = await load();
+    notices.noteChatsLeftBehind(2);
+    expect(notices.listNotices()).toMatchObject([
+      { report: "chats-left-behind" },
+    ]);
+    expect(notices.describeCondition("chats-left-behind")).toEqual({
+      fingerprint: "condition:chats-left-behind",
+      found: ["chatsLeftBehind: 2"],
+    });
+  });
+
   it("keeps an update dismissed, and never toasts it", async () => {
     const notices = await load();
     notices.noteUpdate({ from: "2.0.0-beta.57", to: "2.0.0-beta.58" });

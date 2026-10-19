@@ -1,5 +1,5 @@
 import { studioModalAtom } from "@/client/atoms/studio-modal";
-import { type ReportKind } from "@/shared/problem-reports";
+import { type Condition, type ReportKind } from "@/shared/problem-reports";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
 import { getDefaultStore } from "jotai";
 
@@ -10,6 +10,8 @@ import { getDefaultStore } from "jotai";
  * as, so what Show details shows is what is sent.
  */
 export type ReportRequest = {
+  /** What the app found wrong that the report is about. */
+  condition?: Condition;
   details?: string;
   dialogTitle: string;
   /** The error a screen showed, which the report is about. */

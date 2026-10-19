@@ -166,11 +166,14 @@ export async function sendPendingAutomatically() {
  */
 export function describeProblem({
   ended,
+  found = [],
   lead,
   surface,
   version = app.getVersion(),
 }: {
   ended?: string;
+  /** What the app found about the condition a report is about. */
+  found?: string[];
   lead?: ExceptionEvent;
   surface: string;
   version?: string;
@@ -183,6 +186,7 @@ export function describeProblem({
     `platform: ${process.platform} ${process.getSystemVersion()} ${process.arch}`,
     `surface: ${surface}`,
     ...(ended ? [`ended: ${ended}`] : []),
+    ...found,
   ].join("\n");
   const tail = readLogTail();
   const logLines =

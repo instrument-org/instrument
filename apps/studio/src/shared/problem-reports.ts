@@ -20,6 +20,16 @@ const ReportKindSchema = z.enum(["crash", "hang", "error", "feedback"]);
 
 export type ReportKind = z.output<typeof ReportKindSchema>;
 
+/**
+ * Something wrong the app found on this computer rather than an error it
+ * threw: no sandbox for the programs the agent runs, or chats it couldn't
+ * finish bringing over. A report about one carries what the main process
+ * found, so it says what the app saw rather than what a screen claimed.
+ */
+export const ConditionSchema = z.enum(["sandbox-off", "chats-left-behind"]);
+
+export type Condition = z.output<typeof ConditionSchema>;
+
 /** One report as it is sent: the body of `POST /reports`. */
 export const ReportInputSchema = z.object({
   automatic: z.boolean(),

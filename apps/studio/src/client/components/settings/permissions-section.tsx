@@ -1,4 +1,6 @@
 import { SANDBOX_OFF_URL, WINDOWS_SANDBOX_URL } from "@instrument-org/shared";
+import { SendReportButton } from "@/client/components/report-error-button";
+import { conditionReport } from "@/client/lib/problem-reports";
 import { FolderRow } from "@/client/components/folder-row";
 import {
   Alert,
@@ -790,16 +792,28 @@ function SandboxOffWarning({
             }}
           />
         </label>
-        <Button
-          className="mt-1"
-          onClick={() => {
-            openLink(SANDBOX_OFF_URL, { addReferral: false });
-          }}
-          size="sm"
-          variant="outline"
-        >
-          Learn more
-        </Button>
+        <div className="mt-1 flex flex-wrap gap-2">
+          <Button
+            onClick={() => {
+              openLink(SANDBOX_OFF_URL, { addReferral: false });
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Learn more
+          </Button>
+          <SendReportButton
+            request={(onSent) =>
+              conditionReport({
+                condition: "sandbox-off",
+                onSent,
+                surface: "settings",
+                title: copy.title,
+              })
+            }
+            size="sm"
+          />
+        </div>
       </AlertDescription>
     </Alert>
   );

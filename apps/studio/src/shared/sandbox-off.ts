@@ -36,7 +36,7 @@ export const SANDBOX_OFF_REASONS = {
     "This computer doesn't have bubblewrap, the program Instrument uses for the sandbox. Installing your system's bubblewrap package adds it.",
   "no-seatbelt":
     // oxlint-disable-next-line studio/no-os-words -- shown only on macOS
-    "This Mac is missing the system tool Instrument uses for the sandbox, which we don't expect. Please tell us with Report a Problem in the Help menu.",
+    "This Mac is missing the system tool Instrument uses for the sandbox, which we don't expect. Please send us a report so we can find out why.",
   "user-namespaces-closed":
     "Linux on this computer is set to block the kind of sandbox Instrument uses. One known cause is running Instrument from its AppImage on Ubuntu 24.04, and installing the .deb package is the first thing to try.",
 } satisfies Record<

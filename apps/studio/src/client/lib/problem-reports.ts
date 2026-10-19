@@ -1,5 +1,5 @@
 import { type ReportRequest } from "@/client/atoms/report-dialog";
-import { type PendingProblem } from "@/shared/problem-reports";
+import { type Condition, type PendingProblem } from "@/shared/problem-reports";
 import { captureOnce } from "@/client/lib/capture-exception";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -66,6 +66,35 @@ export function errorReport({
   };
 }
 
+/**
+ * Something wrong the app found and showed the person, like no sandbox for
+ * the programs the agent runs. Titled by what the person read.
+ */
+export function conditionReport({
+  condition,
+  onSent,
+  surface,
+  title,
+}: {
+  condition: Condition;
+  onSent?: () => void;
+  surface: "bell" | "settings";
+  title: string;
+}): ReportRequest {
+  return {
+    condition,
+    dialogTitle: `Report this problem to ${APP_NAME}?`,
+    focusNote: true,
+    intro: `This report includes what ${APP_NAME} found on this computer, version numbers, the errors it recorded recently, and its recent log. The log can mention the names of files and chats you worked on, so you can read it under Show details before you send.`,
+    kind: "error",
+    noteLabel: "Anything you'd like us to know?",
+    offerAlwaysSend: false,
+    onSent,
+    reportTitle: title,
+    surface: `${condition}-${surface}`,
+  };
+}
+
 function errorTitle(error: unknown): string {
   const text =
     error instanceof Error
@@ -98,6 +127,7 @@ export async function describeReport(request: ReportRequest): Promise<{
       ? null
       : await captureOnce(request.error, { mechanism: "report" });
   return rpcClient.problems.describe.call({
+    condition: request.condition,
     exception: captured?.fingerprint,
     surface: request.surface,
   });

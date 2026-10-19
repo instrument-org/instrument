@@ -1,3 +1,4 @@
+import { type Condition } from "@/shared/problem-reports";
 import { z } from "zod";
 
 /**
@@ -32,8 +33,9 @@ export const NoticesResponseSchema = z.object({
 /**
  * A notice as the bell shows it: whether the person has seen it yet, and, for
  * one the app makes itself, an action that opens a page in the app or a page
- * of Settings (lighting one row of it, by its setting name), and the
- * `account` kind, for an account that was signed out.
+ * of Settings (lighting one row of it, by its setting name), the condition
+ * a report from its row is about, and the `account` kind, for an account
+ * that was signed out.
  */
 export type BellNotice = Omit<Notice, "action" | "kind"> & {
   action?:
@@ -45,6 +47,7 @@ export type BellNotice = Omit<Notice, "action" | "kind"> & {
       }
     | Notice["action"];
   kind: "account" | Notice["kind"];
+  report?: Condition;
   seen: boolean;
 };
 

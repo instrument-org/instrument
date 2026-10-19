@@ -10,7 +10,8 @@ import { findExceptionEvent } from "@/electron-main/lib/exception-store";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
-import { ReportInputSchema } from "@/shared/problem-reports";
+import { describeCondition } from "@/electron-main/lib/notices";
+import { ConditionSchema, ReportInputSchema } from "@/shared/problem-reports";
 import { z } from "zod";
 
 const live = {
@@ -26,16 +27,25 @@ const live = {
  * anything is sent: the details text and the exception events behind it.
  * `exception` is the fingerprint of the captured exception the report is
  * about, which leads, and whose fingerprint becomes the report's, so every
- * report of it is one problem.
+ * report of it is one problem. `condition` is what the app found wrong
+ * that a report is about instead, described as it stands now.
  */
 const describe = base
   .input(
     z.object({
+      condition: ConditionSchema.optional(),
       exception: z.string().optional(),
       surface: z.string(),
     }),
   )
   .handler(({ input }) => {
+    if (input.condition) {
+      const { fingerprint, found } = describeCondition(input.condition);
+      return {
+        ...describeProblem({ found, surface: input.surface }),
+        fingerprint,
+      };
+    }
     const lead = input.exception
       ? findExceptionEvent(input.exception)
       : undefined;

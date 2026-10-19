@@ -103,6 +103,9 @@ describe("PermissionsSection", () => {
         screen.getByRole("switch", { name: /Run programs without a sandbox/ }),
       ).toBeDefined();
       expect(screen.getByRole("button", { name: "Learn more" })).toBeDefined();
+      expect(
+        screen.getByRole("button", { name: "Send a report" }),
+      ).toBeDefined();
     },
   );
 

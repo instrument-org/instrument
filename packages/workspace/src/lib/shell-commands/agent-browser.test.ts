@@ -76,6 +76,14 @@ const mockCtx = createCommandContext({
   stdin: EMPTY_BYTES,
 });
 
+/** What upstream prints for any error that mentions a timeout. */
+const upstreamTimeout = {
+  exitCode: 1,
+  stderr:
+    "✗ Operation timed out. The page may still be loading or the element may not exist.\n",
+  stdout: "",
+};
+
 describe("createAgentBrowserCommand", () => {
   const chatId = ChatIdSchema.parse("test");
   const sessionId = StoreId.newSessionId();
@@ -740,23 +748,48 @@ describe("agent-browser routing", () => {
       "5000",
     ]);
 
-    await answerAgentBrowser({
+    // The run takes the five seconds the cap gives it.
+    vi.useFakeTimers({ toFake: ["performance"] });
+    try {
+      await answerAgentBrowser(() => {
+        vi.advanceTimersByTime(5000);
+        return upstreamTimeout;
+      });
+      const result = await command.execute(
+        ["wait", "--load", "networkidle"],
+        commandCtx,
+      );
+
+      expect(result).toEqual({
+        exitCode: 0,
+        stderr: "",
+        stdout: NETWORK_IDLE_GAVE_UP,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    upstreamTimeout,
+    {
       exitCode: 1,
       stderr:
-        "✗ Operation timed out. The page may still be loading or the element may not exist.\n",
+        "✗ CDP connection failed: Timeout connecting to CDP at 127.0.0.1:9222\n",
       stdout: "",
-    });
-    const result = await command.execute(
-      ["wait", "--load", "networkidle"],
-      commandCtx,
-    );
+    },
+  ])(
+    "shows a network-idle wait's failure that came back before the cap as it is: $stderr",
+    async (answer) => {
+      await answerAgentBrowser(answer);
+      const result = await command.execute(
+        ["wait", "--load", "networkidle"],
+        commandCtx,
+      );
 
-    expect(result).toEqual({
-      exitCode: 0,
-      stderr: "",
-      stdout: NETWORK_IDLE_GAVE_UP,
-    });
-  });
+      expect(result).toEqual(answer);
+    },
+  );
 
   it("keeps a named wait's timeout a failure through a chain and says what to do next", async () => {
     await answerAgentBrowser((args) =>

@@ -927,6 +927,10 @@ export function createAgentBrowserCommand({
       stateDir: agentBrowserStateDir,
     };
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
+    // How long the command ran, which tells a capped wait that gave up from
+    // a failure that came back before the cap.
+    const startedAt = performance.now();
+    let elapsedMs: number;
     try {
       result = await runAgentBrowser({
         ...spawnOptions,
@@ -934,6 +938,7 @@ export function createAgentBrowserCommand({
         cancelSignal: ctx.signal,
         input: subprocessStdin(ctx.stdin),
       });
+      elapsedMs = performance.now() - startedAt;
     } finally {
       if (drivesHeldTabs) {
         await recordHeldTabHosts({ sessionId, chatId });
@@ -994,7 +999,9 @@ export function createAgentBrowserCommand({
       stderr: scrub(result.stderr),
       stdout: scrub(result.stdout),
     };
-    return cappedWait ? cappedWaitResult(cappedWait, output) : output;
+    return cappedWait
+      ? cappedWaitResult(cappedWait, output, elapsedMs)
+      : output;
   });
 }
 

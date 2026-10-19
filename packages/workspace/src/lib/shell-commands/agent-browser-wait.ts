@@ -125,29 +125,54 @@ export function namedWaitGaveUp(
 }
 
 /**
- * The capped wait's result as the agent sees it.
+ * What upstream prints for any error whose message mentions a timeout, the
+ * capped network-idle wait's included. Its launch and connect failures can read
+ * the same, so the line alone does not say the wait gave up.
+ */
+const UPSTREAM_TIMEOUT_LINE =
+  "✗ Operation timed out. The page may still be loading or the element may not exist.";
+
+/**
+ * How much earlier than the cap a network-idle timeout may come back and still
+ * count as the wait giving up. The CLI's own startup runs before the wait's
+ * timer starts, so a real give-up takes at least the cap.
+ */
+const NETWORK_IDLE_ELAPSED_TOLERANCE_MS = 250;
+
+/**
+ * The capped wait's result as the agent sees it, given how long the command
+ * ran.
  *
  * A network-idle timeout becomes a success that says the network stayed busy.
  * The page is as ready as a longer wait would make it (`open` already waited
  * for the load event), and a failure would end the `&&` chain the agent wrote
- * to read that page.
+ * to read that page. It counts only when upstream's timeout line comes back
+ * after the cap: the same line sooner is a launch or connect failure.
  *
  * A named wait's timeout stays a failure, since the next step in the chain
  * would act on a page that is not the one the agent expected, and its message
- * says what to do next instead of upstream's bare `Wait timed out`.
+ * says what to do next instead of upstream's bare `Wait timed out`. It counts
+ * only when the timeout upstream names is the cap the harness added.
+ *
+ * Anything else reaches the agent as upstream printed it.
  */
 export function cappedWaitResult(
   wait: CappedWait,
   result: { exitCode: number; stderr: string; stdout: string },
+  elapsedMs: number,
 ) {
+  if (result.exitCode === 0) {
+    return result;
+  }
+  const stderr = result.stderr.trim();
   if (wait.kind === "networkidle") {
-    const timedOut =
-      result.exitCode !== 0 && /timed out|timeout/i.test(result.stderr);
-    return timedOut
+    const gaveUp =
+      stderr === UPSTREAM_TIMEOUT_LINE &&
+      elapsedMs >= NETWORK_IDLE_TIMEOUT_MS - NETWORK_IDLE_ELAPSED_TOLERANCE_MS;
+    return gaveUp
       ? { exitCode: 0, stderr: "", stdout: NETWORK_IDLE_GAVE_UP }
       : result;
   }
-  const timedOut =
-    result.exitCode !== 0 && /Wait timed out/i.test(result.stderr);
-  return timedOut ? { ...result, stderr: namedWaitGaveUp(wait) } : result;
+  const gaveUp = stderr === `✗ Wait timed out after ${NAMED_WAIT_TIMEOUT_MS}ms`;
+  return gaveUp ? { ...result, stderr: namedWaitGaveUp(wait) } : result;
 }

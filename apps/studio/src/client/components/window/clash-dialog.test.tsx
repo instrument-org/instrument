@@ -13,21 +13,21 @@ const FILE_OVER_FILE: Clash = {
   name: "notes.txt",
   path: "/a/notes.txt",
   replaceable: true,
-  with: { by: "entry", kind: "file" },
+  with: { by: "entry", identity: { dev: 1, ino: "2" }, kind: "file" },
 };
 const FOLDER_OVER_FOLDER: Clash = {
   kind: "folder",
   name: "pics",
   path: "/a/pics",
   replaceable: true,
-  with: { by: "entry", kind: "folder" },
+  with: { by: "entry", identity: { dev: 1, ino: "3" }, kind: "folder" },
 };
 const TWO_SOURCES: Clash = {
   kind: "file",
   name: "notes.txt",
   path: "/b/notes.txt",
   replaceable: false,
-  with: { by: "source", kind: "file" },
+  with: { by: "source", identity: { dev: 1, ino: "4" }, kind: "file" },
 };
 
 /** Asks about `clashes` and hands back what it settles with. */
@@ -105,7 +105,10 @@ describe("asking about names already taken", () => {
   it("says when a folder would replace a folder, and a file a folder", () => {
     askAbout([
       FOLDER_OVER_FOLDER,
-      { ...FILE_OVER_FILE, with: { by: "entry", kind: "folder" } },
+      {
+        ...FILE_OVER_FILE,
+        with: { by: "entry", identity: { dev: 1, ino: "3" }, kind: "folder" },
+      },
     ]);
 
     expect(screen.getByRole("alertdialog").textContent).toContain(

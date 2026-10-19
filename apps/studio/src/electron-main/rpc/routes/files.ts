@@ -234,6 +234,7 @@ const ClashSchema = z.object({
   replaceable: z.boolean(),
   with: z.object({
     by: z.enum(["entry", "source"]),
+    identity: z.object({ dev: z.number(), ino: z.string() }),
     kind: z.enum(["file", "folder", "link", "package"]),
   }),
 });
@@ -244,6 +245,10 @@ const PlaceInputSchema = z.object({
   /** The person's answer for each clash, by the source's path. */
   resolutions: z
     .record(z.string(), z.enum(["keepBoth", "replace", "skip"]))
+    .optional(),
+  /** For each source answered Replace, the identity of what the person was shown in its way. */
+  replacing: z
+    .record(z.string(), z.object({ dev: z.number(), ino: z.string() }))
     .optional(),
 });
 
@@ -292,6 +297,7 @@ function placeRoute(op: "copy" | "move") {
           folder: input.folder,
           op,
           paths: input.paths,
+          ...(input.replacing ? { replacing: input.replacing } : {}),
         }),
       );
       if ("refusal" in plan) {

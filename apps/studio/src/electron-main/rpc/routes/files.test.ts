@@ -380,9 +380,14 @@ it("finds the names a drop would land on, but not one going back into its own fo
     { folder: into, op: "move", paths: sources },
     options,
   );
-  expect(clashes.map((clash) => [clash.name, clash.kind, clash.with])).toEqual([
-    ["pics", "folder", { by: "entry", kind: "folder" }],
-  ]);
+  expect(
+    clashes.map((clash) => [
+      clash.name,
+      clash.kind,
+      clash.with.by,
+      clash.with.kind,
+    ]),
+  ).toEqual([["pics", "folder", "entry", "folder"]]);
   expect(
     await call(
       files.clashes,

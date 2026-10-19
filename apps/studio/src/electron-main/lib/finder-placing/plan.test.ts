@@ -28,7 +28,7 @@ type Source = {
  * A request into `/dest` (identity 2, under `/`), from `/other` (3) unless a
  * source says otherwise, on a disk that compares names like the Mac's.
  */
-function request({
+function requestAsAsked({
   answers = {},
   caseSensitive = false,
   chain = [2, 1],
@@ -43,6 +43,8 @@ function request({
   chain?: number[];
   entries?: { id: number; kind?: ItemKind; name: string }[];
   op?: "copy" | "move";
+  /** What each Replace was shown in its way; left out, what the dialog would have shown. */
+  replacing?: Record<string, number>;
   sources: Source[];
   unicodeSensitive?: boolean;
 }): PlaceRequest {
@@ -67,6 +69,28 @@ function request({
       path: source.path ?? `/other/${source.name}`,
     })),
     token: "t",
+  };
+}
+
+/** A request the way the app sends one: each Replace naming what the dialog showed in its way. */
+function request(options: Parameters<typeof requestAsAsked>[0]) {
+  const asked = requestAsAsked(options);
+  return {
+    ...asked,
+    replacing: options.replacing
+      ? Object.fromEntries(
+          Object.entries(options.replacing).map(([source, n]) => [
+            source,
+            id(n),
+          ]),
+        )
+      : Object.fromEntries(
+          clashesOf(asked).flatMap((clash) =>
+            asked.answers[clash.path] === "replace"
+              ? [[clash.path, clash.with.identity]]
+              : [],
+          ),
+        ),
   };
 }
 
@@ -494,6 +518,24 @@ describe("planning a drop, a paste or a move", () => {
         "clash a.txt (file) with entry (file)",
         "skip /other/a.txt (answered)",
         "copy /other/b.txt -> /dest/b.txt via /dest/.instrument-placing-t-1",
+      ]
+    `);
+  });
+
+  it("refuses a replace once the name holds something other than what was asked about", () => {
+    expect(
+      read(
+        request({
+          answers: { "/other/notes.txt": "replace" },
+          entries: [{ id: 21, name: "notes.txt" }],
+          replacing: { "/other/notes.txt": 20 },
+          sources: [{ id: 10, name: "notes.txt" }],
+        }),
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "clash notes.txt (file) with entry (file)",
+        "refused: “notes.txt” changed after you were asked about it, so nothing was done. Try again to choose what happens to it.",
       ]
     `);
   });

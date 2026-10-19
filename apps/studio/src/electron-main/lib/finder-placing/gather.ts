@@ -153,11 +153,13 @@ export async function gatherPlaceRequest(
     folder,
     op,
     paths,
+    replacing,
   }: {
     answers?: Readonly<Record<string, Answer>>;
     folder: string;
     op: "copy" | "move";
     paths: readonly string[];
+    replacing?: PlaceRequest["replacing"];
   },
   { names = probeNames, packagesIn = finderPackages }: GatherSeams = {},
 ): Promise<PlaceRequest> {
@@ -210,6 +212,7 @@ export async function gatherPlaceRequest(
     join: (one, name) => path.join(one, name),
     names: await names(destination),
     op,
+    ...(replacing ? { replacing } : {}),
     sources,
     token: randomUUID().slice(0, 8),
   };

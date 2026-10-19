@@ -864,6 +864,14 @@ export function ComputerPage({
         await rpcClient.files[route].call({
           folder: into.hostPath,
           paths,
+          // What each Replace was shown in its way, so it replaces only that.
+          replacing: Object.fromEntries(
+            clashes.flatMap((clash) =>
+              resolutions[clash.path] === "replace"
+                ? [[clash.path, clash.with.identity]]
+                : [],
+            ),
+          ),
           resolutions,
         });
       const folders = new Set(

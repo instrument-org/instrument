@@ -7,7 +7,7 @@ import { fileJournal, type UndoOps, undoEntry } from "../file-journal";
 import { executePlacing, fileSystemOps, type PlacingOps } from "./execute";
 import { gatherPlaceRequest } from "./gather";
 import { createLeftovers, type Leftover } from "./leftovers";
-import { type Answer, planPlacing } from "./plan";
+import { type Answer, clashesOf, planPlacing } from "./plan";
 
 // No bridge: placing goes the way it does off the Mac, by hard link and
 // checked rename, which the Mac module's own test covers the rest of.
@@ -158,6 +158,14 @@ async function planFor({
   );
   const plan = planPlacing({
     ...request,
+    // What the dialog would have shown in each Replace's way.
+    replacing: Object.fromEntries(
+      clashesOf(request).flatMap((clash) =>
+        request.answers[clash.path] === "replace"
+          ? [[clash.path, clash.with.identity]]
+          : [],
+      ),
+    ),
     sources: request.sources.map((source) => ({
       ...source,
       onDestinationDisk:

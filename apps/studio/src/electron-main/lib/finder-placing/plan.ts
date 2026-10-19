@@ -90,6 +90,12 @@ export type NameRules = {
 
 export type PlaceRequest = {
   answers: Readonly<Record<string, Answer>>;
+  /**
+   * For each source answered Replace, what the person was shown as being in
+   * the way, by identity: a Replace goes ahead only while that same thing
+   * holds the name.
+   */
+  replacing?: Readonly<Record<string, Identity>>;
   /** What the system's file manager calls the `n`th copy of a stem beside it. */
   copyName: (stem: string, n: number) => string;
   /** The destination's entries as they are now. */
@@ -114,7 +120,8 @@ export type Clash = {
   path: string;
   /** Whether Replace may be answered: not for an earlier source, one of the sources, or a folder holding one. */
   replaceable: boolean;
-  with: { by: "entry" | "source"; kind: ItemKind };
+  /** What it clashes with: what kind of thing, and which, for a Replace to name what it replaces. */
+  with: { by: "entry" | "source"; identity: Identity; kind: ItemKind };
 };
 
 export type Step =
@@ -199,7 +206,7 @@ export function clashesOf(request: PlaceRequest): Clash[] {
         path: source.path,
         replaceable:
           there.by === "entry" && !isGuarded(there.identity, request),
-        with: { by: there.by, kind: there.kind },
+        with: { by: there.by, identity: there.identity, kind: there.kind },
       });
     }
     taken.set(key, {
@@ -235,6 +242,16 @@ export function planPlacing(request: PlaceRequest): Plan {
     if (answer === undefined) {
       return {
         refusal: `Something named “${clash.name}” is already there. Try again to choose what happens to it.`,
+      };
+    }
+    const shown = request.replacing?.[clash.path];
+    if (
+      answer === "replace" &&
+      clash.replaceable &&
+      (!shown || !sameIdentity(shown, clash.with.identity))
+    ) {
+      return {
+        refusal: `“${clash.name}” changed after you were asked about it, so nothing was done. Try again to choose what happens to it.`,
       };
     }
     if (answer === "replace" && !clash.replaceable) {

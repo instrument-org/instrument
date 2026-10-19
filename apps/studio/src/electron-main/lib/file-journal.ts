@@ -31,6 +31,13 @@ export type JournalEntry = { at: number; id: string } & (
       /** Each copy made into the folder, by where it was made and what it was. */
       made: { identity: Identity; path: string }[];
     }
+  | {
+      kind: "move";
+      /** What a drop of the Finder's own rows moved, from where to where, and what each was. */
+      moved: { from: string; identity: Identity; to: string }[];
+      /** What the same drop copied instead, onto another disk. */
+      made: { identity: Identity; path: string }[];
+    }
   | { identity: Identity; kind: "new-folder"; made: string }
   | {
       from: string;
@@ -506,6 +513,39 @@ export async function undoEntry(
         await trash(made.path);
       }
       return { already: false, path: null };
+    }
+    case "move": {
+      // All of them or none, checked before anything is put back: a drop
+      // half undone is a mess of its own.
+      for (const moved of entry.moved) {
+        if (!sameIdentity(await identityOf(moved.to), moved.identity)) {
+          throw new UndoRefusedError(
+            `${nameOf(moved.to)} has been moved or replaced since it was moved.`,
+            { permanent: true },
+          );
+        }
+        if (!(await isFreeFor(moved.from, moved.identity))) {
+          throw new UndoRefusedError(
+            `Something named ${nameOf(moved.from)} is already there.`,
+            { permanent: false },
+          );
+        }
+      }
+      for (const made of entry.made) {
+        if (!sameIdentity(await identityOf(made.path), made.identity)) {
+          throw new UndoRefusedError(
+            `${nameOf(made.path)} has been moved or replaced since it was copied.`,
+            { permanent: true },
+          );
+        }
+      }
+      for (const moved of entry.moved) {
+        await fs.rename(moved.to, moved.from);
+      }
+      for (const made of entry.made) {
+        await trash(made.path);
+      }
+      return { already: false, path: entry.moved[0]?.from ?? null };
     }
     case "new-folder": {
       if (!sameIdentity(await identityOf(entry.made), entry.identity)) {

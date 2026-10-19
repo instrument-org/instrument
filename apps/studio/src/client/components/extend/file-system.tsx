@@ -424,6 +424,8 @@ export type FileSystemHandle = {
    * once it is, unless the person does something else first.
    */
   startRename: (path: string) => void;
+  /** Exactly these selected, by path, the first the one the keyboard is on. */
+  select: (paths: readonly string[]) => void;
 };
 export type FileSystemView = "columns" | "gallery" | "icons" | "list";
 type FileEntry = FileSystemFileItem & {
@@ -2727,7 +2729,16 @@ export function FileSystem({
     },
     [canRename, listedNameOf, sendRename],
   );
-  React.useImperativeHandle(ref, () => ({ startRename }), [startRename]);
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      select: (paths) => {
+        commitSelection(selectExactly(selectOnly(null), paths));
+      },
+      startRename,
+    }),
+    [commitSelection, startRename],
+  );
   React.useEffect(() => {
     sendRename({ nameOf: listedNameOf, type: "listed" });
   }, [listedNameOf, sendRename]);

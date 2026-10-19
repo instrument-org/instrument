@@ -243,6 +243,119 @@ const copyInto = base
     return { journalId, paths: made.map((each) => each.path) };
   });
 
+/** Whether a thing and a folder are on one disk, where moving it there is a rename. */
+async function onOneDisk(at: string, folder: string) {
+  const [thing, into] = await Promise.all([fs.lstat(at), fs.stat(folder)]);
+  return thing.dev === into.dev;
+}
+
+/** A folder asked to go into itself, or into a folder inside it. */
+export class IntoItselfError extends Error {}
+
+/**
+ * Moves things into a folder, as a drop of the Finder's own rows does: on
+ * one disk each is moved, and onto another it is copied, the way the
+ * Finder's own drag decides. A thing already in the folder stays where it
+ * is, and one whose name is taken there is numbered beside it ("notes 2")
+ * rather than written over. What was moved and copied is one journal entry,
+ * so one ⌘Z puts every one of them back.
+ */
+export async function moveItemsInto(
+  { folder: asked, paths }: { folder: string; paths: readonly string[] },
+  {
+    sameDisk = onOneDisk,
+  }: { sameDisk?: (at: string, folder: string) => Promise<boolean> } = {},
+) {
+  const folder = path.resolve(asked);
+  for (const from of paths) {
+    const inside = path.relative(path.resolve(from), folder);
+    if (!inside.startsWith("..") && !path.isAbsolute(inside)) {
+      throw new IntoItselfError();
+    }
+  }
+  const moved: { from: string; identity: Identity; to: string }[] = [];
+  const made: { identity: Identity; path: string }[] = [];
+  const placed: { from: string; how: "copied" | "moved"; path: string }[] = [];
+  let journalId: null | string = null;
+  try {
+    for (const from of paths) {
+      if (path.dirname(path.resolve(from)) === folder) {
+        continue;
+      }
+      const extension = path.extname(from);
+      const stem = path.basename(from, extension);
+      const to = await freePath(
+        folder,
+        (n) => (n === 1 ? stem : `${stem} ${n.toString()}`),
+        extension,
+      );
+      if (await sameDisk(from, folder)) {
+        await fs.rename(from, to);
+        followMove(from, to);
+        const identity = await identityOf(to);
+        if (identity) {
+          moved.push({ from, identity, to });
+        }
+        placed.push({ from, how: "moved", path: to });
+      } else {
+        await fs.cp(from, to, {
+          errorOnExist: true,
+          force: false,
+          recursive: true,
+        });
+        const identity = await identityOf(to);
+        if (identity) {
+          made.push({ identity, path: to });
+        }
+        placed.push({ from, how: "copied", path: to });
+      }
+    }
+  } finally {
+    // What was done before a failure is still taken back by ⌘Z.
+    if (moved.length > 0 || made.length > 0) {
+      journalId = fileJournal.record({ kind: "move", made, moved }).id;
+    }
+  }
+  return { journalId, placed };
+}
+
+const moveInto = base
+  .errors({
+    CANNOT_WRITE: { message: "That folder cannot be written to" },
+    INTO_ITSELF: { message: "A folder can’t be moved into itself" },
+  })
+  .input(
+    z.object({
+      folder: HostPathSchema,
+      paths: z.array(HostPathSchema).min(1).max(1000),
+    }),
+  )
+  .output(
+    z.object({
+      /** The journal entry that puts them all back, when anything moved. */
+      journalId: z.string().nullable(),
+      placed: z.array(
+        z.object({
+          from: z.string(),
+          how: z.enum(["copied", "moved"]),
+          path: z.string(),
+        }),
+      ),
+    }),
+  )
+  .handler(async ({ errors, input }) => {
+    try {
+      return await moveItemsInto(input);
+    } catch (error) {
+      if (error instanceof IntoItselfError) {
+        throw errors.INTO_ITSELF();
+      }
+      throw errors.CANNOT_WRITE({
+        message: error instanceof Error ? error.message : undefined,
+      });
+    }
+  });
+
 /**
  * A clipboard format by the name the system itself gives it, which Electron
  * reaches through a type of its own.
@@ -469,7 +582,7 @@ async function record(
 
 /**
  * Takes back the newest action in the journal: a rename, a duplicate, a
- * copy, a new folder, or a move to the Trash. One that cannot be taken back safely is
+ * copy, a move, a new folder, or a move to the Trash. One that cannot be taken back safely is
  * refused with the reason. While the person can still clear the way
  * (something has taken its name, a new folder has been filled) it stays in
  * the journal, so nothing older is undone out of order behind it; one that
@@ -489,7 +602,14 @@ const undo = base
   .input(z.object({ journalId: z.string().optional() }).optional())
   .output(
     z.object({
-      kind: z.enum(["copy", "duplicate", "new-folder", "rename", "trash"]),
+      kind: z.enum([
+        "copy",
+        "duplicate",
+        "move",
+        "new-folder",
+        "rename",
+        "trash",
+      ]),
       /** Whether what was put back is a folder. */
       isFolder: z.boolean(),
       /** The entry taken back, so whatever offered to undo it can go. */
@@ -518,6 +638,10 @@ const undo = base
         }
         if (entry.kind === "rename") {
           followMove(entry.to, entry.from);
+        } else if (entry.kind === "move") {
+          for (const moved of entry.moved) {
+            followMove(moved.to, moved.from);
+          }
         }
         const isFolder =
           undone.path !== null &&
@@ -748,6 +872,7 @@ export const files = {
   duplicate,
   live,
   missing,
+  moveInto,
   newFolder,
   paste,
   read,

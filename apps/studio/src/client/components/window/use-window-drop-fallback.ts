@@ -1,4 +1,5 @@
 import {
+  endOwnFileDrag,
   isSelfFileDrag,
   releaseSelfFileDrag,
 } from "@/client/lib/self-file-drag";
@@ -47,6 +48,7 @@ export function useWindowDropFallback(
       event.preventDefault();
       const isOwnDrag = isSelfFileDrag();
       releaseSelfFileDrag();
+      endOwnFileDrag();
       // A file this app put in the air and let go of again nowhere in
       // particular, as a click that moved too far does.
       if (isOwnDrag || !event.dataTransfer) {

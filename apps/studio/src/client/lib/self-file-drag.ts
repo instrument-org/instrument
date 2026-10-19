@@ -48,7 +48,60 @@ export function releaseSelfFileDrag() {
   startedAt = 0;
 }
 
-/** Called as this app hands a file to the OS. */
-export function trackSelfFileDrag() {
+/** Called as this app hands files to the OS, with where they are. */
+export function trackSelfFileDrag(paths: readonly string[] = []) {
   startedAt = Date.now();
+  carried = paths.length > 0 ? new Set(paths) : null;
+  if (carried) {
+    listenForEnd();
+  }
+}
+
+// What this app's own drag carries, for a drop to tell it from the same
+// files dragged in from somewhere else: a row of the Finder dropped on one
+// of its folders moves, where a file from the desktop is copied. Unlike the
+// flag above this lasts as long as the drag does, however long it is held.
+// The OS owns the drag and the page hears no pointer events until it ends,
+// so the first one after it is the end of a drag that went somewhere else; a
+// drop here ends it first.
+let carried: null | ReadonlySet<string> = null;
+// The pointer events a page can still be sent as a drag begins, which are
+// not its end.
+const END_GRACE_MS = 250;
+
+function listenForEnd() {
+  const end = () => {
+    if (Date.now() - startedAt < END_GRACE_MS) {
+      return;
+    }
+    endOwnFileDrag();
+  };
+  const stop = () => {
+    window.removeEventListener("pointermove", end, { capture: true });
+    window.removeEventListener("pointerdown", end, { capture: true });
+  };
+  stopListening?.();
+  stopListening = stop;
+  window.addEventListener("pointermove", end, { capture: true });
+  window.addEventListener("pointerdown", end, { capture: true });
+}
+let stopListening: (() => void) | null = null;
+
+/**
+ * Whether a drop carrying `paths` is this app's own drag of exactly those
+ * files, still in the air.
+ */
+export function isOwnFileDragOf(paths: readonly string[]) {
+  return (
+    carried !== null &&
+    paths.length === carried.size &&
+    paths.every((at) => carried?.has(at))
+  );
+}
+
+/** Called once a drop has taken this app's own drag, or it is known to have ended. */
+export function endOwnFileDrag() {
+  carried = null;
+  stopListening?.();
+  stopListening = null;
 }

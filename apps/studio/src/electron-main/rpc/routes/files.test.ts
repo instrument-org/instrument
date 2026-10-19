@@ -7,7 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fileJournal, identityOf } from "@/electron-main/lib/file-journal";
 
 import { type InitialRPCContext } from "../context";
-import { files } from "./files";
+import { files, moveItemsInto } from "./files";
 
 // The system clipboard as what was last written to it and what it holds:
 // one item, by its formats. `pasteboard` is the Mac module's list of the
@@ -37,6 +37,16 @@ vi.mock("electron", () => ({
   shell: {},
 }));
 vi.mock("@/electron-main/rpc/base", () => ({ base: os }));
+// What the app keeps by path and carries along with a move: here nothing.
+vi.mock("@/electron-main/browser-view/history-store", () => ({
+  getHistoryStore: () => ({ moveFiles: () => undefined }),
+}));
+vi.mock("@/electron-main/stores/machine/preferences", () => ({
+  getMachinePreferences: () => ({
+    get: () => ({ pinned: [], unpinned: [] }),
+    set: () => undefined,
+  }),
+}));
 // A Finder alias resolves through the Mac module; here every alias leads to
 // whatever `aliasTargets` names for it.
 const aliasTargets = new Map<string, string>();
@@ -407,3 +417,89 @@ it.each([
     });
   },
 );
+
+/** A folder `from` holding `notes.txt` and `pics/a.jpg`, and an empty folder `into` beside it. */
+async function moveFixture() {
+  const from = path.join(dir, "from");
+  const into = path.join(dir, "into");
+  await fs.mkdir(path.join(from, "pics"), { recursive: true });
+  await fs.mkdir(into);
+  await fs.writeFile(path.join(from, "notes.txt"), "notes");
+  await fs.writeFile(path.join(from, "pics", "a.jpg"), "a");
+  return {
+    from,
+    into,
+    sources: [path.join(from, "notes.txt"), path.join(from, "pics")],
+  };
+}
+
+it("moves the Finder's own rows into a folder on one disk, numbering a taken name, and puts all of them back with one undo", async () => {
+  const { from, into, sources } = await moveFixture();
+  await fs.writeFile(path.join(into, "notes.txt"), "already here");
+
+  const moved = await call(
+    files.moveInto,
+    { folder: into, paths: sources },
+    options,
+  );
+
+  expect(
+    moved.placed.map((each) => [each.how, path.relative(dir, each.path)]),
+  ).toEqual([
+    ["moved", "into/notes 2.txt"],
+    ["moved", "into/pics"],
+  ]);
+  expect(await fs.readdir(from)).toEqual([]);
+  expect(await call(files.undo, undefined, options)).toMatchObject({
+    kind: "move",
+    path: sources[0],
+  });
+  expect((await fs.readdir(from)).toSorted()).toEqual(["notes.txt", "pics"]);
+  expect(await fs.readdir(into)).toEqual(["notes.txt"]);
+});
+
+it("refuses to undo a move once something it moved has changed, and puts nothing back", async () => {
+  const { from, into, sources } = await moveFixture();
+  await call(files.moveInto, { folder: into, paths: sources }, options);
+  await fs.rename(path.join(into, "pics"), path.join(into, "photos"));
+
+  await expect(call(files.undo, undefined, options)).rejects.toThrow(
+    "“pics” has been moved or replaced since it was moved.",
+  );
+  expect(await fs.readdir(from)).toEqual([]);
+});
+
+it("leaves a row dropped on its own folder where it is, and refuses a folder into itself", async () => {
+  const { from, sources } = await moveFixture();
+
+  expect(
+    await call(files.moveInto, { folder: from, paths: sources }, options),
+  ).toEqual({ journalId: null, placed: [] });
+  await expect(
+    call(
+      files.moveInto,
+      { folder: path.join(from, "pics"), paths: [path.join(from, "pics")] },
+      options,
+    ),
+  ).rejects.toMatchObject({ code: "INTO_ITSELF" });
+});
+
+// The Finder's own rule: a drag onto another disk copies.
+it("copies rather than moves onto another disk, and takes the copies back on undo", async () => {
+  const { shell } = await import("electron");
+  shell.trashItem = (at: string) => fs.rm(at, { recursive: true });
+  const { from, into, sources } = await moveFixture();
+
+  const result = await moveItemsInto(
+    { folder: into, paths: sources },
+    { sameDisk: () => Promise.resolve(false) },
+  );
+
+  expect(result.placed.map((each) => each.how)).toEqual(["copied", "copied"]);
+  expect((await fs.readdir(from)).toSorted()).toEqual(["notes.txt", "pics"]);
+  expect(await call(files.undo, undefined, options)).toMatchObject({
+    kind: "move",
+    path: null,
+  });
+  expect(await fs.readdir(into)).toEqual([]);
+});

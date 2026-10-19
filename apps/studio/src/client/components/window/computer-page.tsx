@@ -75,6 +75,8 @@ import {
 import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import {
+  endOwnFileDrag,
+  isOwnFileDragOf,
   isSelfFileDrag,
   releaseSelfFileDrag,
 } from "@/client/lib/self-file-drag";
@@ -865,6 +867,77 @@ export function ComputerPage({
       reread();
     }
   };
+  // The Finder's own rows dropped on one of its folders: moved there, or
+  // copied onto another disk, the way the Finder's own drag decides.
+  const moveInto = async (
+    sources: { hostPath: string; isFolder: boolean }[],
+    into: { hostPath: string; prefix: string },
+  ) => {
+    if (sources.length === 0) {
+      return;
+    }
+    try {
+      const { journalId, placed } = await rpcClient.files.moveInto.call({
+        folder: into.hostPath,
+        paths: sources.map((source) => source.hostPath),
+      });
+      if (placed.length === 0) {
+        return;
+      }
+      const folders = new Set(
+        sources.flatMap((source) => (source.isFolder ? [source.hostPath] : [])),
+      );
+      if (into.prefix === onScreen) {
+        selectWhenListed(
+          placed.map(
+            (each) =>
+              `${into.prefix}${nameOf(each.path)}${folders.has(each.from) ? "/" : ""}`,
+          ),
+        );
+      }
+      focusBrowser();
+      const moved = placed.filter((each) => each.how === "moved").length;
+      const verb =
+        moved === placed.length
+          ? "Moved"
+          : moved === 0
+            ? "Copied"
+            : "Moved and copied";
+      const [only] = placed;
+      toastWithUndo(
+        placed.length === 1 && only
+          ? `${verb} “${nameOf(only.path)}” into “${nameOf(into.hostPath)}”`
+          : `${verb} ${placed.length} items into “${nameOf(into.hostPath)}”`,
+        journalId === null
+          ? null
+          : {
+              journalIds: [journalId],
+              undo: () => {
+                void undoJournaled([journalId]);
+              },
+            },
+      );
+    } catch (error) {
+      fileActionFailed("Couldn't move that", error);
+    } finally {
+      reread();
+    }
+  };
+  // What a drop just put in the folder on screen, selected once the re-read
+  // lists it: until then there is no row to select.
+  const selectingWhenListed = useRef<null | readonly string[]>(null);
+  const selectWhenListed = (paths: readonly string[]) => {
+    selectingWhenListed.current = paths;
+  };
+  useEffect(() => {
+    const paths = selectingWhenListed.current;
+    const listed = new Set(items.map((item) => item.path));
+    if (paths === null || !paths.every((each) => listed.has(each))) {
+      return;
+    }
+    selectingWhenListed.current = null;
+    fileSystemRef.current?.select(paths);
+  }, [items]);
   // The toast's Undo: each of them back, the last first, stopping at the
   // first that cannot come back and saying why. One already put back another
   // way, by ⌘Z say, is passed over quietly.
@@ -1148,9 +1221,9 @@ export function ComputerPage({
         ?.getAttribute("data-file-system-folder") || current
     );
   };
-  const dropHandlers = useRef({ copyInto, dropIntoOf });
+  const dropHandlers = useRef({ copyInto, dropIntoOf, moveInto });
   useEffect(() => {
-    dropHandlers.current = { copyInto, dropIntoOf };
+    dropHandlers.current = { copyInto, dropIntoOf, moveInto };
   });
   const isDropOpen = !isRecents && settled;
   const dropHostPathOf = (prefix: string) =>
@@ -1197,7 +1270,7 @@ export function ComputerPage({
       event.preventDefault();
       event.stopPropagation();
       clear();
-      const isOwnDrag = isSelfFileDrag();
+      const wasSelfDrag = isSelfFileDrag();
       releaseSelfFileDrag();
       const prefix = dropHandlers.current.dropIntoOf(event.target);
       const into = { hostPath: dropHostPathRef.current(prefix), prefix };
@@ -1214,17 +1287,26 @@ export function ComputerPage({
             ]
           : [];
       });
+      const isRowDrag = isOwnFileDragOf(
+        sources.map((source) => source.hostPath),
+      );
+      endOwnFileDrag();
       // A row of this Finder let go of where it already is, or inside
       // itself, is a drag that went nowhere, as in the Finder.
-      const moved = isOwnDrag
-        ? sources.filter(
-            (source) =>
-              joinHostPath(into.hostPath, nameOf(source.hostPath)) !==
-                source.hostPath &&
-              !`${into.hostPath}/`.startsWith(`${source.hostPath}/`),
-          )
-        : sources;
-      void dropHandlers.current.copyInto(moved, into);
+      const kept =
+        isRowDrag || wasSelfDrag
+          ? sources.filter(
+              (source) =>
+                joinHostPath(into.hostPath, nameOf(source.hostPath)) !==
+                  source.hostPath &&
+                !`${into.hostPath}/`.startsWith(`${source.hostPath}/`),
+            )
+          : sources;
+      // The Finder's own rows move, as its own drag does, unless Option is
+      // held; everything from outside the app is copied in.
+      void (isRowDrag && !event.altKey
+        ? dropHandlers.current.moveInto(kept, into)
+        : dropHandlers.current.copyInto(kept, into));
     };
     browser.addEventListener("dragenter", over);
     browser.addEventListener("dragover", over);

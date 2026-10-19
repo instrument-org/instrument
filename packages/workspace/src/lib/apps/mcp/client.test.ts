@@ -3,19 +3,35 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import http from "node:http";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isExpectedNetworkError } from "@instrument-org/shared";
+import {
+  InvalidGrantError,
+  ServerError,
+} from "@modelcontextprotocol/sdk/server/auth/errors.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
+import { StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { isPlainObject } from "radashi";
 import { z } from "zod";
 
-import { callMcpTool, listMcpTools, withMcpClient } from "./client";
+import {
+  callMcpTool,
+  describeMcpFailure,
+  listMcpTools,
+  withLocalMcpClient,
+  withMcpClient,
+} from "./client";
 
 let server: http.Server;
 let baseUrl: string;
 let requiredToken: null | string;
+/** A response sent in place of the server's, to every request or to one method's. */
+let refusal: { body: string; method?: string; status: number } | undefined;
 
 // Stand up a real MCP server over Streamable HTTP so the client wrapper is
 // exercised end to end (initialize handshake, tools/list, tools/call), plus a
 // bearer-token gate to prove auth headers are sent.
 beforeEach(async () => {
   requiredToken = "good-token";
+  refusal = undefined;
 
   server = http.createServer((req, res) => {
     void (async () => {
@@ -25,6 +41,26 @@ beforeEach(async () => {
       ) {
         res.writeHead(401, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: "unauthorized" }));
+        return;
+      }
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) {
+        chunks.push(chunk as Buffer);
+      }
+      const body: unknown =
+        chunks.length > 0
+          ? JSON.parse(Buffer.concat(chunks).toString("utf8"))
+          : undefined;
+
+      const method =
+        isPlainObject(body) && "method" in body ? body.method : undefined;
+      if (
+        refusal &&
+        (refusal.method === undefined || refusal.method === method)
+      ) {
+        res.writeHead(refusal.status, { "content-type": "text/plain" });
+        res.end(refusal.body);
         return;
       }
 
@@ -48,15 +84,6 @@ beforeEach(async () => {
         void mcp.close();
       });
       await mcp.connect(transport);
-
-      const chunks: Buffer[] = [];
-      for await (const chunk of req) {
-        chunks.push(chunk as Buffer);
-      }
-      const body: unknown =
-        chunks.length > 0
-          ? JSON.parse(Buffer.concat(chunks).toString("utf8"))
-          : undefined;
       await transport.handleRequest(req, res, body);
     })();
   });
@@ -110,8 +137,67 @@ describe("withMcpClient", () => {
       run: (client) => listMcpTools(client),
     });
 
-    expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr().reason).toBe("unauthorized");
+    const { message, reason } = result._unsafeUnwrapErr();
+    expect({ message, reason }).toMatchInlineSnapshot(`
+      {
+        "message": "The MCP server rejected the credential (unauthorized): HTTP 401: Streamable HTTP error: Error POSTing to endpoint: {"error":"unauthorized"}",
+        "reason": "unauthorized",
+      }
+    `);
+  });
+
+  // A missing permission: signing in again would change nothing.
+  it("reports forbidden, with what the server said, on a 403", async () => {
+    refusal = { body: "This workspace has no API access.", status: 403 };
+    const result = await withMcpClient({
+      config: { auth: { kind: "bearer", value: "good-token" }, url: baseUrl },
+      run: (client) => listMcpTools(client),
+    });
+
+    const { message, reason } = result._unsafeUnwrapErr();
+    expect({ message, reason }).toMatchInlineSnapshot(`
+      {
+        "message": "The MCP server refused access (forbidden): HTTP 403: Streamable HTTP error: Error POSTing to endpoint: This workspace has no API access.",
+        "reason": "forbidden",
+      }
+    `);
+  });
+
+  // A body that mentions a 401, a port or an "unauthorized" page is still the
+  // server's 500, and the agent reads it whole.
+  it("keeps a failure whose body mentions 401 a plain failure", async () => {
+    refusal = {
+      body: "<h1>Unauthorized proxy on :4012</h1> upstream 401 retried",
+      status: 502,
+    };
+    const result = await withMcpClient({
+      config: { auth: { kind: "bearer", value: "good-token" }, url: baseUrl },
+      run: (client) => listMcpTools(client),
+    });
+
+    const { message, reason } = result._unsafeUnwrapErr();
+    expect({ message, reason }).toMatchInlineSnapshot(`
+      {
+        "message": "Could not connect to the MCP server: HTTP 502: Streamable HTTP error: Error POSTing to endpoint: <h1>Unauthorized proxy on :4012</h1> upstream 401 retried",
+        "reason": "connect",
+      }
+    `);
+  });
+
+  it("classifies a refusal after the connect the same way", async () => {
+    refusal = { body: "token expired", method: "tools/list", status: 401 };
+    const result = await withMcpClient({
+      config: { auth: { kind: "bearer", value: "good-token" }, url: baseUrl },
+      run: (client) => listMcpTools(client),
+    });
+
+    const { message, reason } = result._unsafeUnwrapErr();
+    expect({ message, reason }).toMatchInlineSnapshot(`
+      {
+        "message": "The MCP server rejected the credential (unauthorized): HTTP 401: Streamable HTTP error: Error POSTing to endpoint: token expired",
+        "reason": "unauthorized",
+      }
+    `);
   });
 
   // A desktop app's local server while the app is closed: the cause is kept
@@ -143,5 +229,58 @@ describe("withMcpClient", () => {
 
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr().reason).toBe("connect");
+  });
+});
+
+describe("withLocalMcpClient", () => {
+  it("carries what a server that dies on startup wrote to stderr", async () => {
+    const result = await withLocalMcpClient({
+      launch: {
+        args: [
+          "-e",
+          "console.error('needs the desktop app running'); process.exit(1)",
+        ],
+        command: process.execPath,
+        env: {},
+      },
+      run: (client) => listMcpTools(client),
+    });
+
+    const { message, reason } = result._unsafeUnwrapErr();
+    expect(reason).toBe("connect");
+    expect(message).toMatch(/needs the desktop app running$/);
+  });
+});
+
+describe("describeMcpFailure", () => {
+  it("puts the status, OAuth code and error data beside the message", () => {
+    const described = {
+      http: new StreamableHTTPError(500, "Error POSTing to endpoint: boom"),
+      jsonRpc: new McpError(-32_602, "Invalid params", { field: "q" }),
+      oauth: new ServerError("HTTP 403: Raw body: nope"),
+      oauthNoDescription: new InvalidGrantError(""),
+      string: "plain words",
+      unreadable: new StreamableHTTPError(
+        -1,
+        "Unexpected content type: text/html",
+      ),
+    };
+    expect(
+      Object.fromEntries(
+        Object.entries(described).map(([key, error]) => [
+          key,
+          describeMcpFailure(error),
+        ]),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "http": "HTTP 500: Streamable HTTP error: Error POSTing to endpoint: boom",
+        "jsonRpc": "MCP error -32602: Invalid params {"field":"q"}",
+        "oauth": "OAuth server_error: HTTP 403: Raw body: nope",
+        "oauthNoDescription": "OAuth invalid_grant",
+        "string": "plain words",
+        "unreadable": "Streamable HTTP error: Unexpected content type: text/html",
+      }
+    `);
   });
 });

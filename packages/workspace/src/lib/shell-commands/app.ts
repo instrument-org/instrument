@@ -486,8 +486,12 @@ async function callAppTool({
     slug: app.slug,
   });
   if (result.isErr()) {
+    const next: Partial<Record<typeof result.error.reason, string>> = {
+      forbidden: ` A 403 usually means the account lacks a permission, scope or plan on the service's side, which signing in again does not change; tell the user what the server said. Some servers send it for a bad key too: \`${APP_COMMAND.name} test ${app.slug}\` checks the key.`,
+      unauthorized: ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with connect_app.`,
+    };
     throw new Error(
-      `${redact(result.error.message)}${result.error.reason === "unauthorized" ? ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with connect_app.` : ""}`,
+      `${redact(result.error.message)}${next[result.error.reason] ?? ""}`,
     );
   }
   return { ...result.value, app, redact, tool };

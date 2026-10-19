@@ -47,7 +47,7 @@ import {
   findAppIcon,
   type AppManifest,
 } from "@instrument-org/workspace/electron";
-import { call, eventIterator } from "@orpc/server";
+import { call, eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import {
@@ -522,6 +522,15 @@ async function withInspectorClient<T>({
         status: manifest.auth.kind === "oauth" ? "needs-sign-in" : "needs-key",
       });
       throw errors.UNAUTHORIZED({ message: result.error.message });
+    }
+    // A server that knows who is asking and refuses anyway (HTTP 403) is
+    // missing a permission on its side: the sign-in or key stands, so the app
+    // stays as it is and the page shows what the server said.
+    if (result.error.reason === "forbidden") {
+      throw new ORPCError("FORBIDDEN", {
+        cause: result.error.cause,
+        message: result.error.message,
+      });
     }
     // Carried as the cause so a server that is not there (a desktop app's
     // local server while the app is closed, a service that is down) is

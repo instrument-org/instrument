@@ -208,6 +208,21 @@ describe("inspect", () => {
     expect(mocks.withAppMcpClient).not.toHaveBeenCalled();
   });
 
+  it("keeps the sign-in when the server refuses a permission", async () => {
+    mocks.withAppMcpClient.mockResolvedValue({
+      error: { message: "HTTP 403: no API access", reason: "forbidden" },
+      isErr: () => true,
+    });
+
+    await expect(
+      call(apps.inspect, { slug: "signed-in" }, options),
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: "HTTP 403: no API access",
+    });
+    expect(mocks.recordConnection).not.toHaveBeenCalled();
+  });
+
   it("leaves a server that cannot be reached connected", async () => {
     mocks.withAppMcpClient.mockResolvedValue({
       error: { message: "down", reason: "connect" },

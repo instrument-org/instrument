@@ -3,12 +3,12 @@ import { APP_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { z } from "zod";
 
 /**
- * What the person browsing their own computer did to it from the Finder, kept
- * so ⌘Z can take it back: after the toast is gone, the window closed, or the
- * app restarted.
+ * What the person browsing their own computer did to it from the Finder in
+ * this launch, kept so ⌘Z can take it back after the toast is gone or the
+ * window closed. Like the Finder's own Edit > Undo, it ends with the app: an
+ * action from an earlier launch is never what ⌘Z reaches.
  *
  * Each entry carries the identity (device and inode) of the thing it made or
  * moved, as it was at the time. Undo puts back only that same thing, and only
@@ -16,49 +16,24 @@ import { z } from "zod";
  * since is refused with a reason, never half put back and never written over.
  */
 
-const Identity = z.object({
-  dev: z.number(),
-  // Kept as its digits: Node's number for an NTFS file id is rounded, so two
-  // files could share one. An entry kept before reads its number as digits.
-  ino: z.union([z.string(), z.number().transform(String)]),
-});
-/** Which thing on disk an entry is about, whatever it is called now. */
-export type Identity = z.output<typeof Identity>;
+/**
+ * Which thing on disk an entry is about, whatever it is called now. The inode
+ * is kept as its digits: Node's number for an NTFS file id is rounded, so two
+ * files could share one.
+ */
+export type Identity = { dev: number; ino: string };
 
-export const JournalEntrySchema = z.discriminatedUnion("kind", [
-  z.object({
-    at: z.number(),
-    from: z.string(),
-    id: z.string(),
-    identity: Identity,
-    kind: z.literal("rename"),
-    to: z.string(),
-  }),
-  z.object({
-    at: z.number(),
-    id: z.string(),
-    identity: Identity,
-    kind: z.literal("duplicate"),
-    made: z.string(),
-  }),
-  z.object({
-    at: z.number(),
-    id: z.string(),
-    identity: Identity,
-    kind: z.literal("new-folder"),
-    made: z.string(),
-  }),
-  z.object({
-    at: z.number(),
-    from: z.string(),
-    id: z.string(),
-    identity: Identity,
-    kind: z.literal("trash"),
-    /** Where it landed in the Trash, or null when the Trash could not be read to find it. */
-    trashed: z.string().nullable(),
-  }),
-]);
-export type JournalEntry = z.output<typeof JournalEntrySchema>;
+export type JournalEntry = { at: number; id: string; identity: Identity } & (
+  | { from: string; kind: "rename"; to: string }
+  | { kind: "duplicate"; made: string }
+  | { kind: "new-folder"; made: string }
+  | {
+      from: string;
+      kind: "trash";
+      /** Where it landed in the Trash, or null when the Trash could not be read to find it. */
+      trashed: null | string;
+    }
+);
 /** An entry as an action reports it, before the journal stamps it. */
 export type NewJournalEntry = JournalEntry extends infer Entry
   ? Entry extends JournalEntry
@@ -69,37 +44,33 @@ export type NewJournalEntry = JournalEntry extends infer Entry
 /** How many of the newest entries are kept. */
 export const JOURNAL_LIMIT = 100;
 
-/** Where the entries are kept between launches. */
-export type JournalStorage = {
-  read: () => JournalEntry[];
-  write: (entries: JournalEntry[]) => void;
-};
-
 export type FileJournal = ReturnType<typeof createFileJournal>;
 
-export function createFileJournal(
-  storage: JournalStorage,
-  {
-    now = Date.now,
-    makeId = () => crypto.randomUUID(),
-  }: { makeId?: () => string; now?: () => number } = {},
-) {
+export function createFileJournal({
+  now = Date.now,
+  makeId = () => crypto.randomUUID(),
+}: { makeId?: () => string; now?: () => number } = {}) {
+  let entries: JournalEntry[] = [];
   return {
     /** One entry by its id, or null once it is undone or has aged out. */
-    byId: (id: string) =>
-      storage.read().find((entry) => entry.id === id) ?? null,
+    byId: (id: string) => entries.find((entry) => entry.id === id) ?? null,
+    /** Every entry kept, oldest first. */
+    entries: () => entries,
     /** The newest entry, the one ⌘Z takes back next. */
-    latest: () => storage.read().at(-1) ?? null,
+    latest: () => entries.at(-1) ?? null,
     record: (entry: NewJournalEntry) => {
       const recorded: JournalEntry = { ...entry, at: now(), id: makeId() };
-      storage.write([...storage.read(), recorded].slice(-JOURNAL_LIMIT));
+      entries = [...entries, recorded].slice(-JOURNAL_LIMIT);
       return recorded;
     },
     remove: (id: string) => {
-      storage.write(storage.read().filter((entry) => entry.id !== id));
+      entries = entries.filter((entry) => entry.id !== id);
     },
   };
 }
+
+/** This launch's journal, which every Finder action writes to. */
+export const fileJournal = createFileJournal();
 
 /**
  * The device and inode of what is at a path, without following a link; null

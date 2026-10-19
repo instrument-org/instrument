@@ -8,8 +8,6 @@ import {
   findInTrash,
   identityOf,
   JOURNAL_LIMIT,
-  JournalEntrySchema,
-  type JournalEntry,
   type NewJournalEntry,
   undoEntry,
   UndoRefusedError,
@@ -341,18 +339,6 @@ describe("an identity", () => {
 
     expect((await identity("notes.txt")).ino).toBe(String(ino));
   });
-
-  it("reads an inode the journal kept as a number", () => {
-    expect(
-      JournalEntrySchema.parse({
-        at: 0,
-        id: "entry",
-        identity: { dev: 1, ino: 42 },
-        kind: "new-folder",
-        made: "/untitled folder",
-      }).identity,
-    ).toEqual({ dev: 1, ino: "42" });
-  });
 });
 
 describe("undoing a move to the freedesktop Trash", () => {
@@ -583,17 +569,11 @@ describe("undoing a move to the Recycle Bin", () => {
 
 describe("the journal", () => {
   it("keeps the newest entries, newest last", () => {
-    let entries: JournalEntry[] = [];
     let id = 0;
-    const journal = createFileJournal(
-      {
-        read: () => entries,
-        write: (next) => {
-          entries = next;
-        },
-      },
-      { makeId: () => String((id += 1)), now: () => id },
-    );
+    const journal = createFileJournal({
+      makeId: () => String((id += 1)),
+      now: () => id,
+    });
 
     for (let n = 0; n < JOURNAL_LIMIT + 5; n += 1) {
       journal.record({
@@ -602,13 +582,13 @@ describe("the journal", () => {
         made: `/folder ${n}`,
       });
     }
-    expect(entries).toHaveLength(JOURNAL_LIMIT);
+    expect(journal.entries()).toHaveLength(JOURNAL_LIMIT);
     expect(journal.latest()).toMatchObject({
       made: `/folder ${JOURNAL_LIMIT + 4}`,
     });
 
     // An older entry is found by its id, as a toast's Undo asks for one.
-    const older = entries[0];
+    const older = journal.entries()[0];
     expect(journal.byId(older?.id ?? "")).toBe(older);
 
     journal.remove(journal.latest()?.id ?? "");

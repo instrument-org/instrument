@@ -1,5 +1,6 @@
 import { getHistoryStore } from "@/electron-main/browser-view/history-store";
 import {
+  fileJournal,
   findInTrash,
   type Identity,
   identityOf,
@@ -16,7 +17,6 @@ import {
 import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
-import { getFileJournal } from "@/electron-main/stores/machine/file-journal";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { copyName, newFolderName, osOf } from "@/shared/os-conventions";
 import { moveSidebarPlaces } from "@/shared/sidebar-places";
@@ -260,7 +260,7 @@ const trash = base
       return { journalId: null };
     }
     const trashed = await findInTrash(identity, { from: input.path });
-    const entry = getFileJournal().record({
+    const entry = fileJournal.record({
       from: input.path,
       identity,
       kind: "trash",
@@ -292,7 +292,7 @@ async function record(
 ) {
   const identity = await identityOf(at);
   if (identity) {
-    getFileJournal().record(entry(identity));
+    fileJournal.record(entry(identity));
   }
 }
 
@@ -328,13 +328,12 @@ const undo = base
     }),
   )
   .handler(async ({ errors, input }) => {
-    const journal = getFileJournal();
     // Each pass drops an entry, so this ends when the journal does.
     for (;;) {
       const entry =
         input?.journalId === undefined
-          ? journal.latest()
-          : journal.byId(input.journalId);
+          ? fileJournal.latest()
+          : fileJournal.byId(input.journalId);
       if (!entry) {
         throw errors.NOTHING_TO_UNDO();
       }
@@ -342,7 +341,7 @@ const undo = base
         const undone = await undoEntry(entry, {
           trash: (at) => shell.trashItem(at),
         });
-        journal.remove(entry.id);
+        fileJournal.remove(entry.id);
         if (undone.already && input?.journalId === undefined) {
           continue;
         }
@@ -368,7 +367,7 @@ const undo = base
         if (!(error instanceof UndoRefusedError)) {
           captureServerException(error);
         } else if (error.permanent) {
-          journal.remove(entry.id);
+          fileJournal.remove(entry.id);
         }
         throw errors.CANNOT_UNDO({
           message:

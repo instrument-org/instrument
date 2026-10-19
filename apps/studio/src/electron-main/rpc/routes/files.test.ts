@@ -4,11 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-import {
-  identityOf,
-  type JournalEntry,
-} from "@/electron-main/lib/file-journal";
-import { getFileJournal } from "@/electron-main/stores/machine/file-journal";
+import { fileJournal, identityOf } from "@/electron-main/lib/file-journal";
 
 import { type InitialRPCContext } from "../context";
 import { files } from "./files";
@@ -33,19 +29,6 @@ vi.mock("@/electron-main/lib/refused-files", () => ({
   isRefusedByName: (filePath: string) => isClosed(filePath),
   isRefusedFile: (filePath: string) => Promise.resolve(isClosed(filePath)),
 }));
-// The journal kept in memory rather than in the machine's store.
-vi.mock("@/electron-main/stores/machine/file-journal", async () => {
-  const { createFileJournal } =
-    await import("@/electron-main/lib/file-journal");
-  let entries: JournalEntry[] = [];
-  const journal = createFileJournal({
-    read: () => entries,
-    write: (next) => {
-      entries = next;
-    },
-  });
-  return { getFileJournal: () => journal };
-});
 
 // Neither route reads its context, and the base it is built on is mocked
 // out, so an empty one stands in for the window's.
@@ -188,7 +171,7 @@ async function journalTrash(
   await fs.writeFile(notes, "notes");
   const identity = await identityOf(notes);
   if (!identity) throw new Error("notes.txt is not there");
-  getFileJournal().record({
+  fileJournal.record({
     from: notes,
     identity,
     kind: "trash",

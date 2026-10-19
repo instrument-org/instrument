@@ -62,7 +62,7 @@ const ChatDenialSchema = z.object({
   target: z.string().min(1),
 });
 
-const ChatPermissionsSchema = z.object({
+export const ChatPermissionsSchema = z.object({
   appGrants: z.array(ChatAppGrantSchema).catch([]).default([]),
   denials: z.array(ChatDenialSchema).catch([]).default([]),
   grants: z.array(ChatGrantSchema).catch([]).default([]),

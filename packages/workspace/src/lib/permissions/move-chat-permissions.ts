@@ -1,7 +1,11 @@
 import { type ChatId } from "../../schemas/chat-id";
 import { readChatRecord, updateChatRecord } from "../chat-record";
 import { chatDir, chatIds } from "../record-folders";
-import { updatePermissionSettings } from "./rules";
+import {
+  type ChatPermissions,
+  ChatPermissionsSchema,
+  updatePermissionSettings,
+} from "./rules";
 
 /**
  * Brings what each chat allowed out of its own `settings.json` and into this
@@ -21,21 +25,19 @@ import { updatePermissionSettings } from "./rules";
  * since the first.
  */
 export async function moveChatPermissions(): Promise<{ moved: number }> {
-  const held = new Map<
-    ChatId,
-    { appGrants: unknown[]; denials: unknown[]; grants: unknown[] }
-  >();
+  const held = new Map<ChatId, ChatPermissions>();
   for (const id of chatIds()) {
-    const record = await readChatRecord(chatDir(id));
-    const { appGrants, denials, grants } = record.settings ?? {};
-    if (!appGrants?.length && !denials?.length && !grants?.length) {
+    // Read from the file itself: the settings schema leaves the three out.
+    const { raw } = await readChatRecord(chatDir(id));
+    const carried = ChatPermissionsSchema.parse(raw);
+    if (
+      carried.appGrants.length === 0 &&
+      carried.denials.length === 0 &&
+      carried.grants.length === 0
+    ) {
       continue;
     }
-    held.set(id, {
-      appGrants: appGrants ?? [],
-      denials: denials ?? [],
-      grants: grants ?? [],
-    });
+    held.set(id, carried);
   }
   if (held.size === 0) {
     return { moved: 0 };
@@ -48,7 +50,7 @@ export async function moveChatPermissions(): Promise<{ moved: number }> {
       if (chats[id]) {
         continue;
       }
-      chats[id] = carried as (typeof chats)[string];
+      chats[id] = carried;
     }
     return { ...settings, chats };
   });

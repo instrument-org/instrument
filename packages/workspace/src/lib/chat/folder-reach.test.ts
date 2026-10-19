@@ -7,7 +7,7 @@ import { AbsolutePathSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { WINDOW_ID } from "../../schemas/window-id";
-import { type ChatGrant } from "../../schemas/chat-settings";
+import { type ChatGrant } from "../permissions/rules";
 import { folderReach } from "./folder-reach";
 import { type Topic } from "./topics";
 

@@ -3,13 +3,16 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { type ChatId } from "../../schemas/chat-id";
-import { type ChatAppGrant } from "../../schemas/chat-settings";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { getCurrentDate } from "../get-current-date";
 import { type Level } from "./places";
 import { type Asker, askFirstNote } from "../chat/asks";
 import { chatDenials } from "./denials";
-import { readChatPermissions, updateChatPermissions } from "./rules";
+import {
+  type ChatAppGrant,
+  readChatPermissions,
+  updateChatPermissions,
+} from "./rules";
 import { readPermissionSettings } from "./rules";
 
 const execFileAsync = promisify(execFile);

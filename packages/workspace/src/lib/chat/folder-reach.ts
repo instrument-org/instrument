@@ -1,6 +1,6 @@
 import os from "node:os";
 
-import { type ChatGrant } from "../../schemas/chat-settings";
+import { type ChatGrant } from "../permissions/rules";
 import { MountedFolder } from "../../schemas/mounted-folder";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { pathExists } from "../path-exists";

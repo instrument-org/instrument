@@ -1,0 +1,444 @@
+import { openPlanSheet } from "@/client/atoms/plan-sheet";
+import { openSettings } from "@/client/atoms/settings-modal";
+import { ReplyNote, ReplyNoteButton } from "@/client/components/reply-note";
+import { useBillingStatus } from "@/client/hooks/use-billing-status";
+import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
+import {
+  accountNotice,
+  type BillingNotice,
+  type BillingNoticeAction,
+  noticeCopy,
+  refusalNotice,
+  upgradePlan,
+  usageWarning,
+  usageWarningText,
+} from "@/client/lib/billing";
+import { keptAtom } from "@/client/lib/kept-state";
+import { parsePlatformApiError } from "@/client/lib/parse-platform-api-error";
+import {
+  hasUsageReturned,
+  lastPlanAccountStop,
+  planAccountNoteText,
+  type PlanAccountStop,
+} from "@/client/lib/plan-account-stop";
+import { toast } from "@/client/lib/toast";
+import { rpcClient } from "@/client/rpc/client";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import { OUR_MODELS, SUPPORT_URL } from "@instrument-org/shared";
+import { type SessionMessage } from "@instrument-org/workspace/client";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { GaugeIcon } from "@phosphor-icons/react/Gauge";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useAtom } from "jotai";
+import { useEffect, useRef, useState } from "react";
+
+/** The least time between the billing reads a finished turn makes. */
+const TURN_END_READ_GAP_MS = 15_000;
+
+/** The longest a note waits to redraw itself at a reset it names. */
+const MAX_RESET_WAIT_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Which 80% warning was dismissed, by its period: dismissing one holds until
+ * the next period (or the next trial) reaches 80% again.
+ */
+const dismissedUsageWarningAtom = keptAtom<null | string>(
+  "layout",
+  "billing-usage-warning-dismissed.v1",
+  null,
+);
+
+/** What the reply box lends the note it draws: the flash a held send asks for, and its model picker. */
+export type ChatNoteContext = { nudge: number; openModelPicker: () => void };
+
+/**
+ * The note a chat has for its reply box about the account its model runs on.
+ * `stop`: the next turn can't run, so a send is held and flashes the note.
+ * `ready`: what stopped the chat has gone, and Continue sends the turn again.
+ * `quiet`: worth knowing, and dismissible.
+ */
+export type ChatNote = {
+  rank: "quiet" | "ready" | "stop";
+  render: (context: ChatNoteContext) => React.ReactNode;
+};
+
+/** The provider a model's address names, without needing the rest of it to parse. */
+function providerOf(modelURI: AIGatewayModelURI.Type | undefined) {
+  const query = modelURI?.split("?")[1];
+  return query ? new URLSearchParams(query).get("provider") : null;
+}
+
+/**
+ * The chat's one note about its account, for the reply box to draw above
+ * itself. Only a chat whose model runs on that account gets one: a plan
+ * Instrument refused, or one the status says the next turn would hit, shows
+ * only while the chat is on Instrument's models, and a ChatGPT or Claude
+ * plan's stop only while the chat is on that plan. Changing the model is
+ * always a way out.
+ */
+export function useChatNote({
+  isAgentRunning,
+  messages,
+  modelURI,
+  onContinue,
+}: {
+  isAgentRunning: boolean;
+  messages: SessionMessage.WithParts[];
+  modelURI: AIGatewayModelURI.Type | undefined;
+  /** Sends the stopped turn again. */
+  onContinue?: () => void;
+}): ChatNote | undefined {
+  const provider = providerOf(modelURI);
+  const isOurs = provider === OUR_MODELS.providerType;
+  const {
+    data: status,
+    dataUpdatedAt,
+    isSignedIn,
+    refetch,
+  } = useBillingStatus();
+  const { data: offer } = useQuery({
+    ...rpcClient.billing.offer.queryOptions(),
+    enabled: isSignedIn,
+  });
+  const openLink = useOpenExternalLink();
+  const portal = useMutation(
+    rpcClient.billing.openPortal.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't open billing", { cause: error });
+      },
+    }),
+  );
+  const [dismissed, setDismissed] = useState<null | string>(null);
+  const [dismissedWarning, setDismissedWarning] = useAtom(
+    dismissedUsageWarningAtom,
+  );
+
+  // The turn the conversation ended on: its last reply, unless something has
+  // been said since. Context the session records after a turn is neither.
+  const last = messages.findLast(
+    (message) => message.role === "assistant" || message.role === "user",
+  );
+  const refused =
+    !isAgentRunning && last?.role === "assistant" ? last : undefined;
+  const refusal = refused ? parsePlatformApiError(refused) : null;
+  const refusedId = refusal ? refused?.id : undefined;
+
+  // A finished turn spent some of the plan and a refusal is news about the
+  // account, so what billing says is read again as each turn ends rather than
+  // at the next focus: that is what moves the 80% line and the notices.
+  // The API allows ten status reads a minute, so a run of short turns reads
+  // it at most every 15 seconds; a new refusal is always read, once.
+  const readRefusal = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (isAgentRunning || !isSignedIn) {
+      return;
+    }
+    const isNewRefusal =
+      refusedId !== undefined && readRefusal.current !== refusedId;
+    if (
+      isNewRefusal ||
+      new Date().getTime() - dataUpdatedAt > TURN_END_READ_GAP_MS
+    ) {
+      readRefusal.current = refusedId;
+      void refetch();
+    }
+  }, [isAgentRunning, refusedId, isSignedIn, refetch, dataUpdatedAt]);
+
+  const now = new Date();
+  const fromRefusal =
+    refused && refusal
+      ? refusalNotice({
+          now,
+          offer,
+          refusal,
+          refusedAt: new Date(refused.metadata.createdAt),
+          status,
+          statusReadAt: dataUpdatedAt,
+        })
+      : undefined;
+  const billing = isOurs
+    ? (fromRefusal ?? (isSignedIn ? accountNotice(status, offer) : undefined))
+    : undefined;
+  const planStop = lastPlanAccountStop({ isAgentRunning, messages });
+  const plan =
+    planStop && planStop.stop.provider === provider ? planStop : undefined;
+
+  // A note that names a reset redraws itself once it passes, so "until 3:40
+  // PM" turns into Continue without waiting on anything else to change.
+  const resetsAt =
+    billing?.kind === "plan-limit"
+      ? billing.resetsAt
+      : plan?.stop.kind === "usage-limit"
+        ? plan.stop.resetsAt
+        : undefined;
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    const wait = resetsAt ? resetsAt.getTime() - Date.now() : 0;
+    if (wait <= 0 || wait > MAX_RESET_WAIT_MS) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      redraw((count) => count + 1);
+      void refetch();
+    }, wait + 1000);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [resetsAt, refetch]);
+
+  const act = (kind: BillingNoticeAction) => {
+    switch (kind) {
+      case "choose-plan": {
+        openPlanSheet();
+        break;
+      }
+      case "contact-support": {
+        openLink(SUPPORT_URL);
+        break;
+      }
+      case "continue": {
+        onContinue?.();
+        break;
+      }
+      case "update-card": {
+        portal.mutate(undefined);
+        break;
+      }
+      case "upgrade": {
+        openPlanSheet({ preselect: upgradePlan(offer, status)?.key });
+        break;
+      }
+      default: {
+        kind satisfies never;
+      }
+    }
+  };
+
+  if (billing) {
+    const key = `${refused?.id ?? "account"}:${billing.kind}`;
+    const isReady = billing.kind === "resumed";
+    if (!(isReady && dismissed === key)) {
+      return {
+        rank: isReady ? "ready" : "stop",
+        render: (context) => (
+          <BillingNote
+            context={context}
+            isBusy={portal.isPending}
+            notice={billing}
+            now={now}
+            onAct={(kind) => {
+              if (kind === "continue") {
+                setDismissed(key);
+              }
+              act(kind);
+            }}
+            onDismiss={
+              isReady
+                ? () => {
+                    setDismissed(key);
+                  }
+                : undefined
+            }
+          />
+        ),
+      };
+    }
+  }
+
+  if (plan) {
+    const key = `${plan.messageId}:${plan.stop.kind}`;
+    const isReady = hasUsageReturned(plan.stop, now);
+    if (!(isReady && dismissed === key)) {
+      return {
+        rank: isReady ? "ready" : "stop",
+        render: (context) => (
+          <PlanAccountNote
+            context={context}
+            isReady={isReady}
+            now={now}
+            onContinue={() => {
+              setDismissed(key);
+              onContinue?.();
+            }}
+            onDismiss={() => {
+              setDismissed(key);
+            }}
+            stop={plan.stop}
+          />
+        ),
+      };
+    }
+  }
+
+  const warning = isOurs
+    ? usageWarning(isSignedIn ? status : undefined)
+    : undefined;
+  if (!warning || warning.key === dismissedWarning) {
+    return undefined;
+  }
+  const canGoUp =
+    warning.kind === "trial" || upgradePlan(offer, status) !== undefined;
+  return {
+    rank: "quiet",
+    render: () => (
+      <ReplyNote
+        action={
+          canGoUp && (
+            <ReplyNoteButton
+              onClick={() => {
+                openPlanSheet({
+                  preselect:
+                    warning.kind === "trial"
+                      ? undefined
+                      : upgradePlan(offer, status)?.key,
+                });
+              }}
+            >
+              See plans
+            </ReplyNoteButton>
+          )
+        }
+        data-billing-usage-warning={warning.kind}
+        icon={GaugeIcon}
+        onDismiss={() => {
+          setDismissedWarning(warning.key);
+        }}
+        tone="neutral"
+      >
+        {usageWarningText(warning, now)}
+      </ReplyNote>
+    ),
+  };
+}
+
+/** A notice about Instrument's plan: its fix, and Change model beside it while the chat can't run. */
+function BillingNote({
+  context,
+  isBusy,
+  notice,
+  now,
+  onAct,
+  onDismiss,
+}: {
+  context: ChatNoteContext;
+  isBusy: boolean;
+  notice: BillingNotice;
+  now: Date;
+  onAct: (kind: BillingNoticeAction) => void;
+  onDismiss?: () => void;
+}) {
+  const copy = noticeCopy(notice, now);
+  const isReady = notice.kind === "resumed";
+  const { action } = copy;
+  return (
+    <ReplyNote
+      action={
+        <>
+          {action && (
+            <ReplyNoteButton
+              disabled={action.kind === "update-card" && isBusy}
+              emphasis={
+                action.kind === "continue" ||
+                action.kind === "choose-plan" ||
+                action.kind === "update-card"
+              }
+              onClick={() => {
+                onAct(action.kind);
+              }}
+            >
+              {action.label}
+            </ReplyNoteButton>
+          )}
+          {!isReady && (
+            <ReplyNoteButton onClick={context.openModelPicker}>
+              Change model
+            </ReplyNoteButton>
+          )}
+        </>
+      }
+      data-billing-notice={notice.kind}
+      icon={isReady ? CheckCircleIcon : WarningIcon}
+      nudge={context.nudge}
+      onDismiss={onDismiss}
+      tone={isReady ? "neutral" : "warn"}
+    >
+      <span className="font-medium">{copy.title}</span>
+      {copy.line && ` ${copy.line}`}
+    </ReplyNote>
+  );
+}
+
+/**
+ * A stop the person's own ChatGPT or Claude plan made: when its usage comes
+ * back, with its usage in Settings and Change model beside it, then Continue
+ * once it has.
+ */
+function PlanAccountNote({
+  context,
+  isReady,
+  now,
+  onContinue,
+  onDismiss,
+  stop,
+}: {
+  context: ChatNoteContext;
+  isReady: boolean;
+  now: Date;
+  onContinue: () => void;
+  onDismiss: () => void;
+  stop: PlanAccountStop;
+}) {
+  const text = planAccountNoteText(stop, now);
+  if (isReady) {
+    return (
+      <ReplyNote
+        action={
+          <ReplyNoteButton emphasis onClick={onContinue}>
+            Continue
+          </ReplyNoteButton>
+        }
+        data-plan-account-note="usage-returned"
+        icon={CheckCircleIcon}
+        onDismiss={onDismiss}
+        tone="neutral"
+      >
+        <span className="font-medium">{text}</span>
+      </ReplyNote>
+    );
+  }
+  return (
+    <ReplyNote
+      action={
+        <>
+          {stop.kind === "usage-limit" && (
+            <ReplyNoteButton
+              onClick={() => {
+                openSettings(
+                  stop.provider === "claude-account"
+                    ? {
+                        providerUsage: "claude-account",
+                        setting: "claude-account",
+                        tab: "Providers",
+                      }
+                    : { setting: "chatgpt-account", tab: "Providers" },
+                );
+              }}
+            >
+              See usage
+            </ReplyNoteButton>
+          )}
+          <ReplyNoteButton onClick={context.openModelPicker}>
+            Change model
+          </ReplyNoteButton>
+        </>
+      }
+      data-plan-account-note={stop.kind}
+      icon={WarningIcon}
+      nudge={context.nudge}
+      tone="warn"
+    >
+      <span className="font-medium">{text}</span>
+    </ReplyNote>
+  );
+}

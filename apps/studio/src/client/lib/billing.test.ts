@@ -2,6 +2,7 @@ import { type RPCOutput } from "@/client/rpc/client";
 import { describe, expect, it } from "vitest";
 
 import {
+  accountNotice,
   allowanceLabel,
   checkoutTrialLine,
   describeWhen,
@@ -184,17 +185,17 @@ describe("refusalNotice", () => {
     {
       name: "a plan bought",
       reason: "trial-ended",
-      title: "You're subscribed",
+      title: "You're subscribed.",
     },
     {
       name: "a failed payment fixed",
       reason: "payment-failed",
-      title: "Your payment went through",
+      title: "Your payment went through.",
     },
     {
       name: "access restored",
       reason: "access-revoked",
-      title: "Instrument's AI is available again",
+      title: "Instrument is available again.",
     },
   ])("says what changed once $name lifts the refusal", ({ reason, title }) => {
     const resumed = notice(
@@ -246,7 +247,7 @@ describe("refusalNotice", () => {
           "label": "Upgrade",
         },
         "line": "It resets at 3:40 PM.",
-        "title": "You've reached your plan's limit for now",
+        "title": "You've reached your plan's limit for now.",
       }
     `);
   });
@@ -263,7 +264,7 @@ describe("refusalNotice", () => {
     expect(limit && noticeCopy(limit, NOW)).toMatchInlineSnapshot(`
       {
         "line": "It resets October 12.",
-        "title": "You've reached your plan's limit for now",
+        "title": "You've reached your plan's limit for now.",
       }
     `);
   });
@@ -294,9 +295,35 @@ it("offers support rather than a plan when access was revoked", () => {
         "label": "Contact support",
       },
       "line": "Get in touch and we'll sort it out.",
-      "title": "Instrument's AI isn't available on this account",
+      "title": "Instrument isn't available on this account.",
     }
   `);
+});
+
+describe("accountNotice", () => {
+  it.each([
+    { expected: undefined, name: "a trial under way", status: trialActive },
+    {
+      expected: undefined,
+      name: "a trial not started",
+      status: { ...noPlan, trial: { state: "available" } } satisfies Status,
+    },
+    { expected: "trial-ended", name: "a trial over", status: trialEnded },
+    { expected: "trial-ended", name: "no plan after a trial", status: noPlan },
+    {
+      expected: "payment-failed",
+      name: "a failed payment",
+      status: onPlan("none", { plan: "basic", status: "past_due" }),
+    },
+    { expected: undefined, name: "a plan with room", status: onPlan("basic") },
+    {
+      expected: "plan-limit",
+      name: "a spent window",
+      status: onPlan("basic", {}, [100, 40, 10]),
+    },
+  ])("reads $name as $expected", ({ expected, status }) => {
+    expect(accountNotice(status, offer)?.kind).toBe(expected);
+  });
 });
 
 describe("stopLineText", () => {
@@ -306,7 +333,7 @@ describe("stopLineText", () => {
       refusal: { code: "subscription-required", reason: "trial-ended" },
     },
     {
-      line: "Stopped: Instrument's AI needs a plan.",
+      line: "Stopped: Instrument needs a plan.",
       refusal: { code: "subscription-required", reason: "no-plan" },
     },
     {
@@ -322,7 +349,7 @@ describe("stopLineText", () => {
       refusal: { code: "concurrency-limit" },
     },
     {
-      line: "Stopped: Instrument's AI isn't available on this account.",
+      line: "Stopped: Instrument isn't available on this account.",
       refusal: { code: "subscription-required", reason: "access-revoked" },
     },
     { line: undefined, refusal: { code: "meter-unavailable" } },
@@ -507,8 +534,8 @@ describe("checkoutTrialLine", () => {
     });
 
     expect(notice && noticeCopy(notice, NOW)).toMatchObject({
-      line: "Your first month is $1. Or switch to your own model.",
-      title: "Choose a plan to start",
+      line: "Your first month is $1.",
+      title: "Choose a plan to start.",
     });
   });
 });

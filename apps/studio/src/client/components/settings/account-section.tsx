@@ -147,7 +147,7 @@ function PlanGroup({ status }: { status: Status }) {
               {...settingAnchor("plan")}
               data-billing-row="access-revoked"
               detail="Get in touch and we'll sort it out."
-              title={`${APP_NAME}'s AI isn't available on this account`}
+              title={`${APP_NAME} isn't available on this account`}
             >
               <Button
                 onClick={() => {
@@ -298,7 +298,7 @@ function PlanGroup({ status }: { status: Status }) {
               isTrial
                 ? trialEndsAt
                   ? `Ends ${describeDay(trialEndsAt)}`
-                  : `Starts with your first message to ${APP_NAME}'s AI${days ? ` and runs ${days} days` : ""}.`
+                  : `Starts with your first message to ${APP_NAME}${days ? ` and runs ${days} days` : ""}.`
                 : [
                     checkoutTrialLine(offer),
                     `${APP_NAME}'s models need a plan. Your ChatGPT or Claude account, or your own key, works without one.`,

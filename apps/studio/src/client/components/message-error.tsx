@@ -13,15 +13,14 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { openLogin } from "../atoms/login-modal";
 import { openSettings } from "../atoms/settings-modal";
-import { useOpenExternalLink } from "../hooks/use-open-external-link";
 import { stopLineText } from "../lib/billing";
 import {
   parsePlatformApiError,
   requiresAutoModelRecovery,
 } from "../lib/parse-platform-api-error";
 import { readModelStatus } from "../lib/model-status";
+import { planAccountStop, planAccountStopLine } from "../lib/plan-account-stop";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
@@ -48,8 +47,6 @@ interface MessageErrorProps {
   /** Sends the last message again; the card offers no retry without it. */
   onRunAgain?: () => void;
 }
-
-const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
 
 /**
  * A turn that ended in an error, said in our words with the way forward
@@ -78,10 +75,6 @@ export function MessageError({
   const { data: modelsData } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
-  const { data: hasToken } = useQuery(
-    rpcClient.auth.live.hasToken.experimental_liveOptions(),
-  );
-  const openLink = useOpenExternalLink();
   const [showDetails, setShowDetails] = useState(false);
   const [expandedPast, setExpandedPast] = useState(false);
 
@@ -104,6 +97,19 @@ export function MessageError({
       }
     }
     return <BillingStopLine text={stopLine} />;
+  }
+  // The same for a turn the person's ChatGPT or Claude plan stopped: the note
+  // over the reply box says when it is back and how to keep going.
+  const planStop = planAccountStop(message);
+  if (planStop) {
+    return (
+      <BillingStopLine
+        text={planAccountStopLine(
+          planStop,
+          new Date(message.metadata.createdAt),
+        )}
+      />
+    );
   }
   const classification =
     "classification" in error ? error.classification : undefined;
@@ -154,14 +160,6 @@ export function MessageError({
       : undefined;
 
   const actions = errorActions({
-    instrumentOffer:
-      classification === "usage-limit" && isPlanProvider(provider)
-        ? hasToken === undefined
-          ? undefined
-          : hasToken
-            ? modelsData?.models.find(isAuto)
-            : "sign-up"
-        : undefined,
     switchTo: needsAutoRecovery
       ? recoveryFor(message.metadata.aiGatewayModel?.uri, modelsData?.models)
       : undefined,
@@ -169,7 +167,6 @@ export function MessageError({
     kind: error.kind,
     onModelChange,
     onRunAgain,
-    openLink,
     provider,
   });
 
@@ -286,12 +283,6 @@ function describeForProvider(
   }: { classification: string | undefined; provider: string | undefined },
 ): { detail: string; summary: string } {
   if (provider === "claude-account") {
-    if (classification === "usage-limit") {
-      return {
-        detail: `You've reached your Claude subscription's usage limit. It starts over when the window resets; Settings shows when. Until then, switch to another model.`,
-        summary: "Claude usage limit reached",
-      };
-    }
     if (classification === "auth") {
       return {
         detail:
@@ -303,13 +294,6 @@ function describeForProvider(
   }
   if (provider !== "chatgpt-account") {
     return described;
-  }
-  if (classification === "usage-limit") {
-    return {
-      detail:
-        "Your ChatGPT plan has hit its limit. You can check your usage in ChatGPT, or switch to another model.",
-      summary: "ChatGPT is out of usage for now",
-    };
   }
   if (classification === "auth") {
     return {
@@ -373,32 +357,19 @@ function detailsText(facts: [string, string][], body: string | undefined) {
   return body ? [...lines, "", body].join("\n") : lines.join("\n");
 }
 
-/**
- * A plan the user brings, whose limit is theirs to reach. Running out offers
- * Instrument's own models, as a choice and never as a silent fallback.
- */
-function isPlanProvider(provider: string | undefined) {
-  return provider === "chatgpt-account" || provider === "claude-account";
-}
-
 function errorActions({
-  instrumentOffer,
   switchTo,
   classification,
   kind,
   onModelChange,
   onRunAgain,
-  openLink,
   provider,
 }: {
-  /** Instrument's Auto to switch to, or signing up for Instrument to get it. */
-  instrumentOffer: AIGatewayModel.Type | "sign-up" | undefined;
   switchTo: AIGatewayModel.Type | undefined;
   classification: string | undefined;
   kind: MessageErrorData["kind"];
   onModelChange: ((modelURI: AIGatewayModelURI.Type) => void) | undefined;
   onRunAgain: (() => void) | undefined;
-  openLink: ReturnType<typeof useOpenExternalLink>;
   provider: string | undefined;
 }): ErrorAction[] {
   const tryAgain = onRunAgain
@@ -423,60 +394,14 @@ function errorActions({
     ];
   }
   if (classification === "usage-limit") {
-    const offer: ErrorAction[] =
-      instrumentOffer === "sign-up"
-        ? [
-            {
-              label: `Try ${APP_NAME}`,
-              onClick: () => {
-                openLogin({ instrumentOnly: true });
-              },
-            },
-          ]
-        : instrumentOffer && onModelChange
-          ? [
-              {
-                label: "Switch to Auto",
-                onClick: () => {
-                  onModelChange(instrumentOffer.uri);
-                },
-              },
-            ]
-          : [];
-    if (provider === "claude-account") {
-      return [
-        ...offer,
-        {
-          label: "View usage limits",
-          onClick: () =>
-            openSettings({
-              tab: "Providers",
-              setting: "claude-account",
-              providerUsage: "claude-account",
-            }),
-        },
-        ...tryAgain,
-      ];
-    }
-    return provider === "chatgpt-account"
-      ? [
-          ...offer,
-          {
-            label: "View usage limits",
-            onClick: () => {
-              openLink(CHATGPT_USAGE_URL, { addReferral: false });
-            },
-          },
-          ...tryAgain,
-        ]
-      : [providerSettings, ...tryAgain];
+    return [providerSettings, ...tryAgain];
   }
   if (classification === "auth" || kind === "api-key") {
     if (provider === OUR_MODELS.providerType) {
       return tryAgain;
     }
     return provider === "chatgpt-account" || provider === "claude-account"
-      ? [{ ...providerSettings, label: "Sign in again" }, ...tryAgain]
+      ? [{ ...providerSettings, label: "Sign in" }, ...tryAgain]
       : [providerSettings, ...tryAgain];
   }
   return tryAgain;

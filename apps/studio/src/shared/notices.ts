@@ -8,11 +8,32 @@ import { z } from "zod";
  * decide; none of that reaches the app.
  */
 export const NoticeSchema = z.object({
-  action: z.object({ label: z.string(), url: z.url() }).optional(),
+  /**
+   * A link, or a page of Settings to open. An action this build can't read
+   * is dropped rather than the notice, so the service can add kinds of it.
+   */
+  action: z
+    .union([
+      z.object({ label: z.string(), url: z.url() }),
+      z.object({
+        label: z.string(),
+        setting: z.string().optional(),
+        settings: z.enum(["Account", "Permissions", "Providers"]),
+      }),
+    ])
+    .optional()
+    .catch(undefined),
   body: z.string(),
   endsAt: z.iso.datetime().optional(),
   id: z.string().min(1),
-  kind: z.enum(["update", "whats-new", "announcement", "security", "fixed"]),
+  kind: z.enum([
+    "account",
+    "update",
+    "whats-new",
+    "announcement",
+    "security",
+    "fixed",
+  ]),
   publishedAt: z.iso.datetime(),
   /**
    * How loud it is: `info` is a dot on the bell, `important` adds one toast,
@@ -41,10 +62,10 @@ export type BellNotice = Omit<Notice, "action" | "kind"> & {
     | {
         label: string;
         setting?: string;
-        settings: "Permissions" | "Providers";
+        settings: "Account" | "Permissions" | "Providers";
       }
     | Notice["action"];
-  kind: "account" | Notice["kind"];
+  kind: Notice["kind"];
   seen: boolean;
 };
 

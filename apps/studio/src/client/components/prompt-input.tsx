@@ -15,6 +15,7 @@ import {
 import { ComposerFrame } from "@/client/components/composer-frame";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
+import { type ChatNote } from "@/client/components/billing/chat-note";
 import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
@@ -171,6 +172,14 @@ interface PromptInputProps {
   /** A chip at the head of the box, before any attached file: what goes with the prompt besides its words. */
   lead?: React.ReactNode;
   modelURI?: AIGatewayModelURI.Type;
+  /**
+   * The chat's note about the account its model runs on. A pill draws one
+   * note above itself, outside the box: a note that the next turn can't run,
+   * then a problem with the model, then the rest of the chat's note, then a
+   * newer-model offer. Either kind that stops the next turn holds a send and
+   * flashes the note.
+   */
+  note?: ChatNote;
   /** What the box holds besides the words, each time that changes after it first draws. */
   onItemsChange?: (items: AttachedItem[]) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
@@ -206,6 +215,7 @@ export const PromptInput = ({
   isLoading,
   lead,
   modelURI,
+  note,
   onItemsChange,
   onModelChange,
   onSubmit,
@@ -348,12 +358,36 @@ export const PromptInput = ({
       : undefined;
   const noticeRow = modelNotice && (
     <ModelNoticeRow
+      floating={variant === "pill"}
       notice={modelNotice}
       nudge={noticeNudge}
       onAction={handleModelAction}
       onDismiss={dismissOffer}
     />
   );
+  // A pill has one note, over the box: the chat's when the next turn can't
+  // run, the model's when it has a problem, then the chat's quieter one, then
+  // the model's offer.
+  const chatNote =
+    variant === "pill" && note
+      ? note.render({
+          nudge: noticeNudge,
+          openModelPicker: () => {
+            setPickerOpen(true);
+          },
+        })
+      : undefined;
+  const isModelProblem = modelNotice?.tone === "problem";
+  const pillNote =
+    variant !== "pill"
+      ? undefined
+      : note?.rank === "stop"
+        ? chatNote
+        : isModelProblem
+          ? noticeRow
+          : (chatNote ?? noticeRow);
+  const holdsSend =
+    isModelProblem || (variant === "pill" && note?.rank === "stop");
 
   useEffect(() => {
     setInputRef(promptEditorRef.current);
@@ -709,9 +743,9 @@ export const PromptInput = ({
       });
       return false;
     }
-    // The notice row already says what is wrong and holds the fix, so a send
-    // it refuses draws the eye there rather than saying it again.
-    if (modelNotice?.tone === "problem") {
+    // The note already says what is wrong and holds the fix, so a send it
+    // refuses draws the eye there rather than saying it again.
+    if (holdsSend) {
       setNoticeNudge((n) => n + 1);
       return false;
     }
@@ -835,6 +869,11 @@ export const PromptInput = ({
 
   return (
     <div className={cn("relative flex flex-col", className)}>
+      {pillNote && (
+        <div className="mb-2" data-slot="reply-note-slot">
+          {pillNote}
+        </div>
+      )}
       <ComposerFrame
         actions={
           <>
@@ -976,7 +1015,7 @@ export const PromptInput = ({
         layout={variant}
         // A pill shows it only while open, with the rest of its second row;
         // a draft always has room over its words.
-        notice={variant === "pill" && !pillOpen ? undefined : noticeRow}
+        notice={variant === "pill" ? undefined : noticeRow}
         leading={
           variant === "pill" ? (
             // The picker has no button of its own here: it hangs off an empty

@@ -45,7 +45,7 @@ import {
 } from "react";
 import { toast } from "@/client/lib/toast";
 
-import { ChatBillingNotice } from "../billing/chat-billing-notice";
+import { useChatNote } from "../billing/chat-note";
 import { ChatStream, TypingRow } from "../chat-stream";
 import { ComposerDraftContext } from "../composer-draft-context";
 import { ModelChangeNote } from "../model-change-note";
@@ -315,6 +315,13 @@ export function ChatConversation({
     });
   };
 
+  const note = useChatNote({
+    isAgentRunning,
+    messages,
+    modelURI: selectedModelURI,
+    onContinue: handleRunAgain,
+  });
+
   const isActiveTab = useIsActiveTab();
   const outputFolder = useOutputFolder();
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
@@ -440,6 +447,7 @@ export function ChatConversation({
       isLoading={createMessage.isPending}
       lead={composerLead}
       modelURI={selectedModelURI}
+      note={note}
       onItemsChange={draftKey.scope === "chat" ? staging.keepItems : undefined}
       onModelChange={setSelectedModelURI}
       onSubmit={(sending) => {
@@ -632,11 +640,6 @@ export function ChatConversation({
             <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
               {/* Inside the column rather than above it, so it is exactly as wide
               as the composer it belongs to. */}
-              <ChatBillingNotice
-                isAgentRunning={isAgentRunning}
-                messages={messages}
-                onContinue={handleRunAgain}
-              />
               {beforeComposer}
               <PermissionAsksFoot chatId={id} />
               {draftKey.scope === "chat" && (

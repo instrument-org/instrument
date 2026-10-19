@@ -1,6 +1,7 @@
 import { type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { ORPCError } from "@orpc/client";
+import { PAYMENT_FAILED_STATUSES } from "@/shared/billing";
 
 type Offer = RPCOutput["billing"]["offer"];
 type OfferPlan = Offer["plans"][number];
@@ -101,18 +102,6 @@ export function allowanceLabel(plan: OfferPlan) {
   const multiple = plan.allowance.multiple;
   return multiple <= 1 ? "Standard" : `${multiple}× Standard`;
 }
-
-/**
- * Subscription states in which the last payment failed and is still owed,
- * the ones the API refuses with `payment-failed`. A Stripe trial that ended
- * without a card pauses, and a card is what resumes it.
- */
-const PAYMENT_FAILED_STATUSES = new Set([
-  "incomplete",
-  "past_due",
-  "paused",
-  "unpaid",
-]);
 
 export function hasPaymentFailed(status: Status | undefined) {
   return (
@@ -441,6 +430,58 @@ export function refusalNotice({
   }
 }
 
+/**
+ * The notice a chat on Instrument's models shows before any turn of its is
+ * refused, when the account as last read says the next one would be: access
+ * revoked, a failed payment, a trial over with no plan, or a usage window
+ * spent. A trial not yet started is none of these, since it starts with the
+ * first message.
+ */
+export function accountNotice(
+  status: Status | undefined,
+  offer: Offer | undefined,
+): BillingNotice | undefined {
+  if (!status) {
+    return undefined;
+  }
+  if (isAccessRevoked(status)) {
+    return { kind: "access-revoked" };
+  }
+  if (hasPaymentFailed(status)) {
+    return { kind: "payment-failed" };
+  }
+  if (
+    (status.plan === "none" || status.plan === "trial") &&
+    !status.subscription &&
+    status.trial.state === "ended"
+  ) {
+    return { kind: "trial-ended" };
+  }
+  if (!canUseHostedModels(status)) {
+    return undefined;
+  }
+  // Of the windows spent, the one that comes back last is the one in the way.
+  const resets = status.windows
+    .filter((window) => window.percentUsed >= 100)
+    .map((window) =>
+      window.resetsAt ? new Date(window.resetsAt) : new Date(Number.NaN),
+    );
+  if (resets.length === 0) {
+    return undefined;
+  }
+  const known = resets.filter((date) => !Number.isNaN(date.getTime()));
+  const resetsAt =
+    known.length === resets.length
+      ? known.toSorted((a, b) => b.getTime() - a.getTime())[0]
+      : undefined;
+  const upgradeTo = upgradePlan(offer, status);
+  return {
+    kind: "plan-limit",
+    ...(resetsAt && { resetsAt }),
+    ...(upgradeTo && { upgradeTo }),
+  };
+}
+
 /** What a notice's one button does. */
 export type BillingNoticeAction =
   | "choose-plan"
@@ -454,7 +495,7 @@ export function noticeCopy(
   now: Date,
 ): {
   action?: { kind: BillingNoticeAction; label: string };
-  line: string;
+  line?: string;
   title: string;
 } {
   const choosePlan = { kind: "choose-plan" as const, label: "Choose a plan" };
@@ -463,14 +504,14 @@ export function noticeCopy(
       return {
         action: { kind: "contact-support", label: "Contact support" },
         line: "Get in touch and we'll sort it out.",
-        title: `${APP_NAME}'s AI isn't available on this account`,
+        title: `${APP_NAME} isn't available on this account.`,
       };
     }
     case "payment-failed": {
       return {
         action: { kind: "update-card", label: "Update card" },
         line: "Update your card to keep going.",
-        title: "Your payment didn't go through",
+        title: "Your payment didn't go through.",
       };
     }
     case "plan-limit": {
@@ -482,46 +523,42 @@ export function noticeCopy(
           action: { kind: "upgrade" as const, label: "Upgrade" },
         }),
         line: resets,
-        title: "You've reached your plan's limit for now",
+        title: "You've reached your plan's limit for now.",
       };
     }
     case "plan-required": {
       return {
         action: choosePlan,
-        line:
-          notice.reason === "card-required"
-            ? `${notice.trialLine ?? "Start it in Checkout."} Or switch to your own model.`
-            : "Choose a plan, or switch to your own model.",
+        ...(notice.reason === "card-required" &&
+          notice.trialLine && { line: notice.trialLine }),
         title:
           notice.reason === "card-required"
-            ? "Choose a plan to start"
-            : `${APP_NAME}'s AI needs a plan`,
+            ? "Choose a plan to start."
+            : `${APP_NAME} needs a plan.`,
       };
     }
     case "resumed": {
       return {
         action: { kind: "continue", label: "Continue" },
-        line: "Pick up where this chat stopped.",
         title:
           notice.after === "payment-failed"
-            ? "Your payment went through"
+            ? "Your payment went through."
             : notice.after === "access-revoked"
-              ? `${APP_NAME}'s AI is available again`
+              ? `${APP_NAME} is available again.`
               : notice.subscribed
-                ? "You're subscribed"
-                : "Your plan has room again",
+                ? "You're subscribed."
+                : "Your usage limit has reset.",
       };
     }
     case "trial-ended": {
       return {
         action: choosePlan,
-        line: "Choose a plan, or switch to your own model.",
-        title: "Your free trial has ended",
+        title: "Your free trial has ended.",
       };
     }
     default: {
       notice satisfies never;
-      return { line: "", title: "" };
+      return { title: "" };
     }
   }
 }
@@ -540,7 +577,7 @@ export function stopLineText(refusal: BillingRefusal) {
     case "subscription-required": {
       switch (refusal.reason) {
         case "access-revoked": {
-          return `Stopped: ${APP_NAME}'s AI isn't available on this account.`;
+          return `Stopped: ${APP_NAME} isn't available on this account.`;
         }
         case "card-required": {
           return "Stopped: choose a plan to start.";
@@ -553,7 +590,7 @@ export function stopLineText(refusal: BillingRefusal) {
           return "Stopped: your free trial has ended.";
         }
         default: {
-          return `Stopped: ${APP_NAME}'s AI needs a plan.`;
+          return `Stopped: ${APP_NAME} needs a plan.`;
         }
       }
     }

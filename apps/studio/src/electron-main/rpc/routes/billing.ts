@@ -1,3 +1,4 @@
+import { fetchNotices } from "@/electron-main/lib/notices";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
   lastPlatformRefusal,
@@ -8,6 +9,7 @@ import { platformApiRpcClient } from "@/electron-main/platform-api/client";
 import { getToken } from "@/electron-main/platform-api/utils";
 import { authenticated, base, devOnly } from "@/electron-main/rpc/base";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
+import { PAYMENT_FAILED_STATUSES } from "@/shared/billing";
 import { readPlatformRefusal } from "@instrument-org/ai-gateway";
 import { app } from "electron";
 import { z } from "zod";
@@ -31,9 +33,28 @@ async function openBillingPage(url: string) {
 
 const offer = base.handler(() => platformApiRpcClient.billing.offer.call());
 
-const status = authenticated.handler(() =>
-  platformApiRpcClient.billing.status.call(),
-);
+/** The last status read's account trouble, to notice the read that brings it on. */
+let lastTrouble: string | undefined;
+
+/**
+ * What the account's plan, trial and usage stand at. A read that finds a
+ * payment failed or a trial over, where the last one didn't, asks for the
+ * bell's notices at once: the service sends the account notice for it, and
+ * otherwise the bell would only hear at its next poll, hours away.
+ */
+const status = authenticated.handler(async () => {
+  const read = await platformApiRpcClient.billing.status.call();
+  const trouble = PAYMENT_FAILED_STATUSES.has(read.subscription?.status ?? "")
+    ? "payment-failed"
+    : !read.subscription && read.trial.state === "ended"
+      ? "trial-ended"
+      : undefined;
+  if (trouble && trouble !== lastTrouble) {
+    void fetchNotices();
+  }
+  lastTrouble = trouble;
+  return read;
+});
 
 /**
  * Stripe's hosted Checkout for one plan, in the system browser; with

@@ -1,16 +1,36 @@
 import { planSheetAtom } from "@/client/atoms/plan-sheet";
 import { type RPCInput, type RPCOutput } from "@/client/rpc/client";
 import { renderWithProviders } from "@/tests/render";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 import { ORPCError } from "@orpc/client";
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AccountSection } from "../settings/account-section";
-import { ChatBillingNotice } from "./chat-billing-notice";
+import { useChatNote } from "./chat-note";
 import { PlanSheet } from "./plan-sheet";
 
 type ChangePlan = RPCOutput["billing"]["changePlan"];
+
+const OURS =
+  "instrument/auto?provider=instrument&providerConfigId=instrument" as AIGatewayModelURI.Type;
+const CLAUDE =
+  "anthropic/claude-sonnet-5-5?provider=claude-account&providerConfigId=claude" as AIGatewayModelURI.Type;
+
+/** The chat's note as the reply box draws it. */
+function ChatNoteHarness({
+  isAgentRunning,
+  messages,
+  modelURI = OURS,
+}: {
+  isAgentRunning: boolean;
+  messages: SessionMessage.WithParts[];
+  modelURI?: AIGatewayModelURI.Type;
+}) {
+  const note = useChatNote({ isAgentRunning, messages, modelURI });
+  return note?.render({ nudge: 0, openModelPicker: vi.fn() }) ?? null;
+}
 type Offer = RPCOutput["billing"]["offer"];
 type Status = RPCOutput["billing"]["status"];
 
@@ -277,7 +297,7 @@ describe("Settings > Account", () => {
     platform.status = { ...onBasic(), plan: "none", windows: [] };
     renderWithProviders(<AccountSection />);
 
-    await screen.findByText("Instrument's AI isn't available on this account");
+    await screen.findByText("Instrument isn't available on this account");
     expect(screen.queryByText("Change plan")).toBeNull();
     expect(screen.queryByText("Choose a plan")).toBeNull();
     expect(screen.queryByText("Keep my plan")).toBeNull();
@@ -425,7 +445,7 @@ describe("the chat's billing notice", () => {
   it("offers Upgrade, without naming a plan, at a limit on the lower plan", async () => {
     platform.status = onBasic({}, 100);
     renderWithProviders(
-      <ChatBillingNotice
+      <ChatNoteHarness
         isAgentRunning={false}
         messages={refusedTurn({
           code: "usage-limit-exceeded",
@@ -444,7 +464,7 @@ describe("the chat's billing notice", () => {
   it("offers Continue once a plan has been bought", async () => {
     platform.status = onBasic();
     renderWithProviders(
-      <ChatBillingNotice
+      <ChatNoteHarness
         isAgentRunning={false}
         messages={refusedTurn(
           { code: "subscription-required", reason: "trial-ended" },
@@ -461,7 +481,7 @@ describe("the chat's billing notice", () => {
   it("says nothing while the turn is still running", () => {
     platform.status = onBasic({}, 100);
     const { container } = renderWithProviders(
-      <ChatBillingNotice
+      <ChatNoteHarness
         isAgentRunning
         messages={refusedTurn({ code: "usage-limit-exceeded", window: "5h" })}
       />,
@@ -473,11 +493,38 @@ describe("the chat's billing notice", () => {
   it("warns quietly at 80% of a window", async () => {
     platform.status = onBasic({}, 86);
     renderWithProviders(
-      <ChatBillingNotice isAgentRunning={false} messages={[]} />,
+      <ChatNoteHarness isAgentRunning={false} messages={[]} />,
     );
 
     expect(
       await screen.findByText(/You've used 86% of your plan/),
     ).toBeDefined();
+  });
+
+  it("offers Change model beside the fix while the chat can't run", async () => {
+    platform.status = onBasic({}, 100);
+    renderWithProviders(
+      <ChatNoteHarness
+        isAgentRunning={false}
+        messages={refusedTurn({ code: "usage-limit-exceeded", window: "5h" })}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Change model" }),
+    ).toBeDefined();
+  });
+
+  it("says nothing about Instrument's plan in a chat on another model", () => {
+    platform.status = onBasic({}, 100);
+    const { container } = renderWithProviders(
+      <ChatNoteHarness
+        isAgentRunning={false}
+        messages={refusedTurn({ code: "usage-limit-exceeded", window: "5h" })}
+        modelURI={CLAUDE}
+      />,
+    );
+
+    expect(container.innerHTML).toBe("");
   });
 });

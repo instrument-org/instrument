@@ -64,7 +64,6 @@ const CASES: Record<string, string> = {
   weather: "research",
   research: "research",
   "long-work": "context",
-  "interrupt-foreground": "background",
   "parallel-scratch": "background",
   // Whole-design scenarios (`cases/scenarios.ts`): run only when named.
   fleet: "scenario",

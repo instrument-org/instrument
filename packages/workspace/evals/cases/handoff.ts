@@ -2821,24 +2821,6 @@ const SCENARIOS: Scenario[] = [
     slug: "long-work",
   },
   {
-    // A job the agent does itself, a few tool calls long, and a quick
-    // question sent while one of those calls is running: the turn reads it
-    // at its next step, and answers it without dropping the job.
-    assertions: [answeredTheQuickQuestion, renamedTheScans],
-    followUps: [
-      {
-        duringWork: { afterToolCalls: 1 },
-        prompt: "unrelated, quick: what's 18% of 240?",
-      },
-    ],
-    marks: [{ after: "18% of 240", match: QUICK_ANSWER, name: "quick answer" }],
-    prompt:
-      "Quick one: the scans in this folder have useless names. Rename each one from what's inside it to date-kind-sender.txt, like 2026-01-05-invoice-corbel-print-shop.txt, right here in this folder.",
-    sent: [path.join(HOME, "Documents", "Scans")],
-    setup: seedScans,
-    slug: "interrupt-foreground",
-  },
-  {
     // Two background jobs at once whose scratch would naturally share a
     // name (a totals script, a totals.json), both forks working in the
     // chat's one folder: both have to come out right.

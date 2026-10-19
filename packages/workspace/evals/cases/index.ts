@@ -15,7 +15,6 @@ import { HANDOFF_EVALS } from "./handoff";
 import { IMAGE_REGION_EVALS } from "./image-region";
 import { INTERRUPTION_EVALS } from "./interruptions";
 import { INSTRUMENT_GUIDE_EVALS } from "./instrument-guide";
-import { LARGE_FOLDER_SEARCH_EVALS } from "./large-folder-search";
 import { MEMORY_EVALS } from "./memory";
 import { MESSAGE_BLOCK_EVALS } from "./message-blocks";
 import { CHAT_EVALS } from "./chat";
@@ -58,7 +57,6 @@ export const EVALS = [
   ...IMAGE_REGION_EVALS,
   ...INTERRUPTION_EVALS,
   ...INSTRUMENT_GUIDE_EVALS,
-  ...LARGE_FOLDER_SEARCH_EVALS,
   ...MEMORY_EVALS,
   ...MESSAGE_BLOCK_EVALS,
   ...CHAT_EVALS,

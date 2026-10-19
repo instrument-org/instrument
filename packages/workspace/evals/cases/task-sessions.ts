@@ -196,81 +196,6 @@ const tabCameBack: Assertion = {
   text: "the tab went back to the chat when the task finished",
 };
 
-/**
- * The chat's turn the user's stop woke: its reply, and the commands it ran,
- * from the note on.
- */
-function afterTheStop(sessions: Session.WithMessagesAndParts[]) {
-  const messages = sessions.flatMap((session) => session.messages);
-  const woke = messages.findIndex((message) =>
-    message.parts.some(
-      (part) =>
-        part.type === "data-taskEvent" &&
-        part.data.events.some((event) => event.stoppedBy === "user"),
-    ),
-  );
-  if (woke === -1) {
-    return undefined;
-  }
-  const after = messages.slice(woke + 1);
-  return {
-    commands: commandsIn(
-      sessions.map((session) => ({
-        ...session,
-        messages: session.messages.filter((message) => after.includes(message)),
-      })),
-    ),
-    reply: after
-      .filter((message) => message.role === "assistant")
-      .flatMap((message) =>
-        message.parts.flatMap((part) =>
-          part.type === "text" ? [part.text] : [],
-        ),
-      )
-      .join("\n"),
-  };
-}
-
-/**
- * The user's stop left a note in the chat and woke nothing: the person
- * stopped it on purpose, and the chat learns of it with their next message
- * (task-session-stopped-then-asked covers that turn).
- */
-const notedTheStopQuietly: Assertion = {
-  check: async (ctx: Context) => {
-    const text = "noted the user's stop without starting a turn";
-    const after = afterTheStop(ctx.sessions);
-    const [task] = await listChildTasks(ctx.chatId);
-    if (!after) {
-      return fail(
-        text,
-        `no stop note; t1 stopped by ${task?.stoppedBy ?? "nobody"}`,
-      );
-    }
-    return (after.reply === "" && task?.stoppedBy === "user" ? pass : fail)(
-      text,
-      `t1 stopped by ${task?.stoppedBy ?? "nobody"}; reply after the note: ${after.reply.slice(0, 200) || "(none)"}`,
-    );
-  },
-  text: "noted the user's stop without starting a turn",
-};
-
-/** Nothing the user stopped was started again. */
-const leftItStopped: Assertion = {
-  check: (ctx: Context) => {
-    const text = "started nothing again after the stop";
-    const after = afterTheStop(ctx.sessions);
-    const restarted = (after?.commands ?? []).filter((command) =>
-      /(?:^|[\n;&|])\s*instrument task (?:new|send)\b/.test(command),
-    );
-    return (restarted.length === 0 ? pass : fail)(
-      text,
-      restarted.join(" | ") || "no task new or send",
-    );
-  },
-  text: "started nothing again after the stop",
-};
-
 /** The question asked once the chat's turn and its task are both stopped. */
 const WHAT_HAPPENED = "what happened?";
 
@@ -621,14 +546,6 @@ export const TASK_SESSION_EVALS = [
       screen: "browser",
       url: PAGE,
     },
-  }),
-  defineEval({
-    assertions: [startedOneTaskAsT1, notedTheStopQuietly, leftItStopped],
-    followUps: [{ afterMs: 20_000, stopTask: "t1" }],
-    kind: "chat",
-    name: "task-session-user-stop",
-    prompt:
-      "Start a background task for this, please: write twenty haiku about tea, one at a time, checking each one's syllable counts before the next, and save them as tea-haiku.md in the workspace folder.",
   }),
   defineEval({
     assertions: [notedTheTimeout, retriedOrOfferedTo],

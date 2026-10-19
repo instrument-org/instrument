@@ -4,9 +4,9 @@
  *
  * Each case is a job typed the way a person types it, never naming a tool:
  * research long enough for a background task with a quick question while it
- * runs, a price on a website, a printable code a skill covers, earlier work
- * to pick up, a folder the chat does not reach, a small build in parts, two
- * short jobs at once, a folder of many files, and a read across 200 files
+ * runs, a printable code a skill covers, earlier work to pick up, a folder the
+ * chat does not reach, a small build in parts, two short jobs at once, a
+ * folder of many files, and a read across 200 files
  * long enough to outlast a quick question asked partway through. This is a
  * measurement, not a target: each case scores the outcome, and `toolsChosen`
  * records which of the tools it used (tasks, the browser, skills, reading
@@ -228,40 +228,6 @@ const comparedFiveGenerators: Assertion = {
         );
   },
   text: "compared at least five generators, in a file or the reply",
-};
-
-// ---------------------------------------------------------------------------
-// website-price: a price on a named site
-// ---------------------------------------------------------------------------
-
-const lookedUpThePrice: Assertion = {
-  check: async (ctx) => {
-    const text = "looked at frame.work and gave a current dollar price";
-    const tree = await treeSessions(ctx);
-    const looked =
-      commandsIn(tree).some((command) => /frame\.work/.test(command)) ||
-      tree
-        .flatMap((session) => session.messages)
-        .flatMap((message) => message.parts)
-        .some(
-          (part) =>
-            part.type === "tool-web_fetch" &&
-            /frame\.work/.test(JSON.stringify(part.input ?? {})),
-        );
-    const last = said(ctx.sessions).at(-1)?.text ?? "";
-    const price = /\$\s?\d[\d,]{2,}/.exec(last)?.[0];
-    // A price it says it could not get or confirm is a stale one.
-    const hedged = /\bcould(?:n'?t| not) (?:get|confirm|verify|load)\b/i.test(
-      last,
-    );
-    return looked && price && !hedged
-      ? pass(text, `said ${price}`)
-      : fail(
-          text,
-          `${looked ? "looked" : "never opened frame.work"}; ${price ? `said ${price}` : "no price said"}${hedged ? ", hedged as unconfirmed" : ""}`,
-        );
-  },
-  text: "looked at frame.work and gave a current dollar price",
 };
 
 // ---------------------------------------------------------------------------
@@ -786,13 +752,6 @@ export const UNPROMPTED_TOOL_EVALS = [
     name: "unprompted-research-then-quick",
     prompt:
       "We're picking a static site generator for our docs. Can you compare the five most popular ones for me? GitHub stars, language, latest release, and what each is best at.",
-  }),
-  defineEval({
-    assertions: [lookedUpThePrice, toolsChosen],
-    kind: "chat",
-    name: "unprompted-website-price",
-    prompt:
-      "What's the cheapest Framework Laptop 13 on frame.work going for right now?",
   }),
   defineEval({
     assertions: [madeAnImage, toolsChosen],

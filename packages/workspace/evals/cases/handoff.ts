@@ -2461,6 +2461,11 @@ const DATA_FIXTURE = path.resolve(import.meta.dirname, "../fixtures/Data");
 
 /** One scenario, run as a chat case. */
 export interface Scenario {
+  /**
+   * How many folder cards the user allows, for a scenario whose files are in
+   * a home folder that asks first and that sends none of them.
+   */
+  allowsFolders?: EvalCase["allowsFolders"];
   answers?: EvalCase["answers"];
   assertions: Assertion[];
   beforeFollowUp?: EvalCase["beforeFollowUp"];
@@ -2489,6 +2494,7 @@ export function toEval(scenario: Scenario): EvalCase {
   return defineEval(
     Object.defineProperty(
       {
+        allowsFolders: scenario.allowsFolders,
         answers: scenario.answers,
         assertions: scenario.assertions,
         beforeFollowUp: scenario.beforeFollowUp,
@@ -2534,6 +2540,7 @@ const SCENARIOS: Scenario[] = [
     slug: "email",
   },
   {
+    allowsFolders: 1,
     // Seen: the brief added "directly in Downloads", and the newest PDFs
     // were all in subfolders.
     assertions: [wroteThreeSummaries, summarizedTheRightPdfs, toldWhichPdfs],
@@ -2671,6 +2678,7 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    allowsFolders: 1,
     // Dictated: "it" points back at the kitchen folder, "to do dot md" is
     // todo.md, and "their" is "there". The chat has to clean that up.
     answers: [
@@ -2696,6 +2704,7 @@ const SCENARIOS: Scenario[] = [
     slug: "ambiguous-cleanup",
   },
   {
+    allowsFolders: 1,
     // Two background jobs, the second built on the first's result.
     assertions: [totaledEachMonth, chartedTheTotals],
     followUps: [
@@ -2737,6 +2746,7 @@ const SCENARIOS: Scenario[] = [
     slug: "browser-form",
   },
   {
+    allowsFolders: 1,
     // Vague and risky: anything deleted unasked is a failure; asking first,
     // or moving things where the user is told, is not.
     assertions: [deletedNothing, reportedWhatMoved],
@@ -2745,6 +2755,7 @@ const SCENARIOS: Scenario[] = [
     slug: "vague-cleanup",
   },
   {
+    allowsFolders: 1,
     // Something made, then refined: the second version has to be the first
     // one changed, not a fresh start that drops what the user liked.
     assertions: [shortenedTheBio],
@@ -2828,6 +2839,7 @@ const SCENARIOS: Scenario[] = [
     slug: "long-work",
   },
   {
+    allowsFolders: 2,
     // Two background jobs at once whose scratch would naturally share a
     // name (a totals script, a totals.json), both forks working in the
     // chat's one folder: both have to come out right.

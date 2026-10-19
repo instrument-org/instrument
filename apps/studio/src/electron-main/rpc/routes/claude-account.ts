@@ -11,7 +11,12 @@ import {
 } from "@/electron-main/lib/claude-account";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
+import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
+import {
+  AIProviderConfigIdSchema,
+  CLAUDE_ACCOUNT_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { z } from "zod";
 
 import { publisher } from "../publisher";
@@ -44,7 +49,15 @@ const cancelSignIn = base.handler(() => {
 });
 
 /** Signs Instrument's copy of Claude Code out of its Claude account. */
-const signOut = base.handler(() => signOutOfClaude());
+const signOut = base.handler(async () => {
+  const status = await signOutOfClaude();
+  // Signing in again later starts the account on.
+  setProviderConfigEnabled(
+    AIProviderConfigIdSchema.parse(CLAUDE_ACCOUNT_PROVIDER_CONFIG.id),
+    true,
+  );
+  return status;
+});
 
 /** Looks again, after the person says they have signed in. */
 const refresh = base.handler(() => refreshClaudeAccountStatus({ force: true }));

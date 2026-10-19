@@ -4,6 +4,7 @@ import {
   notificationSettingsTarget,
   openNotificationSettings as openSystemNotificationSettings,
 } from "@/electron-main/lib/notification-settings";
+import { effectiveDefaultModelURI } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -16,7 +17,6 @@ import {
 } from "@/electron-main/stores/machine/state";
 import {
   AgentCompletionNotificationModeSchema,
-  getDefaultModelURI,
   getWorkspacePreferences,
   WorkspacePreferencesSchema,
 } from "@/electron-main/stores/workspace/preferences";
@@ -164,8 +164,11 @@ const live = {
     .output(eventIterator(AIGatewayModelURI.Schema.optional()))
     .handler(async function* ({ signal }) {
       yield* liveRead({
-        changes: [publisher.subscribe("preferences.updated", { signal })],
-        read: getDefaultModelURI,
+        changes: [
+          publisher.subscribe("preferences.updated", { signal }),
+          publisher.subscribe("provider-config.updated", { signal }),
+        ],
+        read: effectiveDefaultModelURI,
       });
     }),
   get: base.handler(async function* ({ context, signal }) {

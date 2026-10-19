@@ -11,7 +11,9 @@ import {
 } from "@/electron-main/lib/chatgpt-account";
 import { setChatGPTAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
+import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { publisher } from "../publisher";
@@ -78,7 +80,13 @@ const chooseDefaultModel = base
 
 const signOut = base
   .input(z.object({ accountId: z.string() }))
-  .handler(({ input }) => signOutOfChatGPT(input));
+  .handler(async ({ input }) => {
+    await signOutOfChatGPT(input);
+    setProviderConfigEnabled(
+      AIProviderConfigIdSchema.parse(input.accountId),
+      true,
+    );
+  });
 
 /** The user gave up on the sign-in waiting in their browser. */
 const cancelSignIn = base.handler(() => {

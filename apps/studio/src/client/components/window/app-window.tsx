@@ -38,6 +38,7 @@ import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { setTabPathname } from "@/client/lib/tabs-model";
+import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -93,7 +94,7 @@ import { useSignInLanding } from "./use-sign-in-landing";
 import { InboxPeek } from "./inbox-peek";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
-import { NewTopicDialog } from "./new-topic-dialog";
+import { TopicDialog } from "./topic-dialog";
 import { contextReaders } from "./send-context";
 import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
@@ -492,6 +493,13 @@ function WindowShell({
   const topics = topicsQuery.data ?? [];
   const createTopic = useMutation(
     rpcClient.workspace.topics.create.mutationOptions({
+      onError: (error) => {
+        // A name a topic can't take comes back in words written for people.
+        toast.error("Couldn't make the topic", {
+          cause: error,
+          description: spokenMessage(error, ["BAD_REQUEST"]),
+        });
+      },
       onSuccess: () => void topicsQuery.refetch(),
     }),
   );
@@ -966,12 +974,13 @@ function WindowShell({
             )}
             {/* Asked for from a chat's head or a draft's, so the topic it
               makes is filed on that chat or draft as it lands. */}
-            <NewTopicDialog
+            <TopicDialog
               candidates={backfillCandidates(
                 (chats.data ?? []).filter(
                   (chat) => chat.id !== (newTopic?.chatId ?? chatUp),
                 ),
               )}
+              mode="create"
               {...(newTopic?.name ? { name: newTopic.name } : {})}
               onCreate={(topic, alsoFile) => {
                 const forDraft = newTopic?.draftId;
@@ -1008,6 +1017,11 @@ function WindowShell({
                 }
               }}
               open={newTopic !== undefined}
+              // A retired topic's name brings it back, so only the ones in
+              // use are names a new topic cannot take.
+              otherNames={topics.flatMap((topic) =>
+                topic.retired ? [] : [topic.name],
+              )}
               taken={topics.flatMap((topic) =>
                 topic.emoji ? [topic.emoji] : [],
               )}

@@ -52,14 +52,14 @@ import { type BackfillCandidate, useTopicBackfill } from "./use-topic-backfill";
  */
 const CONFIDENT = 0.3;
 
-/** What the user chooses about a topic: its name, its mark, its tint, and for one that exists, its instructions and folders. */
+/** What the user chooses about a topic: its name, its mark, its tint, its instructions and its folders. */
 export interface TopicChoice {
   color: string;
   emoji: string;
   /** The user's folders the work under it uses, attached to each chat filed there. */
-  folders?: TopicFolder[];
+  folders: TopicFolder[];
   /** What every chat filed under it is given; empty takes them away. */
-  instructions?: string;
+  instructions: string;
   name: string;
 }
 
@@ -74,35 +74,82 @@ interface TopicFolder {
 }
 
 /**
- * A topic as it stands, in the shape the dialog that made it used: its name,
- * its mark, its tint, its instructions and its folders, for changing any of
- * them, and at its foot the way to delete it. Only what changed is handed
- * back.
+ * A topic's name, mark, tint, instructions and folders, the same fields
+ * whether the topic is being made or changed.
+ *
+ * Making one (`create`) starts from a fresh mark that follows the name until
+ * one is picked by hand, and can file the chats that fit it as it lands.
+ * Changing one (`edit`) starts from the topic as it stands, hands back only
+ * what changed, and offers deleting it at its foot.
  */
-export function EditTopicDialog({
-  onChange,
-  onDelete,
-  onOpenChange,
-  open,
-  otherNames,
-  topic,
-}: {
-  onChange: (edits: Partial<TopicChoice>) => void;
-  /** Asked for from the foot, past a confirmation; the dialog closes with it. */
-  onDelete: () => void;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
-  /** Every other topic's name, none of which this one can take. */
-  otherNames: readonly string[];
-  topic: {
-    color?: string;
-    emoji?: string;
-    folders?: TopicFolder[];
-    id: string;
-    instructions?: string;
-    name: string;
-  };
-}) {
+export function TopicDialog(
+  props: {
+    onOpenChange: (open: boolean) => void;
+    open: boolean;
+    /** Every other topic's name, none of which this one can take. */
+    otherNames: readonly string[];
+  } & (
+    | {
+        /** Chats the new topic can be filed on as it is made, when they fit it. */
+        candidates?: BackfillCandidate[];
+        mode: "create";
+        /** The name it starts with: what was typed where it was asked for. */
+        name?: string;
+        /** The topic, and the chats the person chose to file under it at once. */
+        onCreate: (
+          topic: TopicChoice,
+          alsoFile: BackfillCandidate["id"][],
+        ) => void;
+        /** The marks already in use, so a new topic does not repeat one. */
+        taken?: readonly string[];
+      }
+    | {
+        mode: "edit";
+        onChange: (edits: Partial<TopicChoice>) => void;
+        /** Asked for from the foot, past a confirmation; the dialog closes with it. */
+        onDelete: () => void;
+        topic: {
+          color?: string;
+          emoji?: string;
+          folders?: TopicFolder[];
+          id: string;
+          instructions?: string;
+          name: string;
+        };
+      }
+  ),
+) {
+  const { onOpenChange, open, otherNames } = props;
+  if (props.mode === "create") {
+    const { candidates = [], name = "", onCreate, taken = [] } = props;
+    return (
+      <Dialog onOpenChange={onOpenChange} open={open}>
+        <TopicForm
+          action="Create"
+          candidates={candidates}
+          description="Filing chats under a topic makes them easier to find later."
+          // Seeded from how many topics there already are, so opening the
+          // dialog twice in a row offers two different marks without the
+          // render being random.
+          initial={{
+            color:
+              TOPIC_COLORS[taken.length % TOPIC_COLORS.length] ?? "#3b6ef6",
+            emoji: starterEmoji(taken, taken.length),
+            folders: [],
+            instructions: "",
+            name,
+          }}
+          isNew
+          onCommit={onCreate}
+          onOpenChange={onOpenChange}
+          open={open}
+          otherNames={otherNames}
+          title="New topic"
+        />
+      </Dialog>
+    );
+  }
+  const { onChange, onDelete, topic } = props;
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       {/* Keyed by the topic so opening a different one re-seeds the fields
@@ -125,12 +172,10 @@ export function EditTopicDialog({
             ...(chosen.emoji === (topic.emoji ?? "")
               ? {}
               : { emoji: chosen.emoji }),
-            ...(chosen.folders === undefined ||
-            samePaths(chosen.folders, topic.folders ?? [])
+            ...(samePaths(chosen.folders, topic.folders ?? [])
               ? {}
               : { folders: chosen.folders }),
-            ...(chosen.instructions === undefined ||
-            chosen.instructions.trim() === (topic.instructions ?? "").trim()
+            ...(chosen.instructions.trim() === (topic.instructions ?? "").trim()
               ? {}
               : { instructions: chosen.instructions }),
             ...(chosen.name === topic.name ? {} : { name: chosen.name }),
@@ -140,54 +185,6 @@ export function EditTopicDialog({
         open={open}
         otherNames={otherNames}
         title="Topic details"
-      />
-    </Dialog>
-  );
-}
-
-/**
- * Making a topic, which is a tag rather than a place: chats are filed under
- * it and the list is filtered by it. Worth a moment, and nothing here can be
- * got wrong permanently, since the topic's details rename and re-mark it.
- */
-export function NewTopicDialog({
-  candidates = [],
-  name = "",
-  onCreate,
-  onOpenChange,
-  open,
-  taken = [],
-}: {
-  /** Chats the new topic can be filed on as it is made, when they fit it. */
-  candidates?: BackfillCandidate[];
-  /** The name it starts with: what was typed where it was asked for. */
-  name?: string;
-  /** The topic, and the chats the person chose to file under it at once. */
-  onCreate: (topic: TopicChoice, alsoFile: BackfillCandidate["id"][]) => void;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
-  /** The marks already in use, so a new topic does not repeat one. */
-  taken?: readonly string[];
-}) {
-  return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
-      <TopicForm
-        action="Create"
-        candidates={candidates}
-        description="Filing chats under a topic makes them easier to find later."
-        // Seeded from how many topics there already are, so opening the
-        // dialog twice in a row offers two different marks without the
-        // render being random.
-        initial={{
-          color: TOPIC_COLORS[taken.length % TOPIC_COLORS.length] ?? "#3b6ef6",
-          emoji: starterEmoji(taken, taken.length),
-          name,
-        }}
-        isNew
-        onCommit={onCreate}
-        onOpenChange={onOpenChange}
-        open={open}
-        title="New topic"
       />
     </Dialog>
   );
@@ -247,7 +244,9 @@ function TopicFolders({
     }
   };
   return (
-    <div>
+    // min-w-0 so a long path truncates inside the dialog rather than
+    // widening the grid track it sits in.
+    <div className="min-w-0">
       <div className="flex items-center justify-between pb-1">
         <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
           Folders
@@ -267,7 +266,7 @@ function TopicFolders({
       {folders.length === 0 ? (
         <p className="text-xs text-muted-foreground/70">No folders yet.</p>
       ) : (
-        <ul className="-mx-2 grid">
+        <ul className="-mx-2 grid grid-cols-1">
           {folders.map((folder) => (
             <li key={folder.path}>
               <FolderRow
@@ -413,7 +412,7 @@ function TopicForm({
   onCommit,
   onOpenChange,
   open,
-  otherNames = [],
+  otherNames,
   title,
 }: {
   action: string;
@@ -428,7 +427,7 @@ function TopicForm({
   onCommit: (topic: TopicChoice, alsoFile: BackfillCandidate["id"][]) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  otherNames?: readonly string[];
+  otherNames: readonly string[];
   title: string;
 }) {
   const [name, setName] = useState(initial.name);
@@ -490,13 +489,7 @@ function TopicForm({
       return;
     }
     onCommit(
-      {
-        color,
-        emoji,
-        ...(folders === undefined ? {} : { folders }),
-        ...(instructions === undefined ? {} : { instructions }),
-        name: trimmed,
-      },
+      { color, emoji, folders, instructions, name: trimmed },
       isFilingFits ? fits.map((chat) => chat.id) : [],
     );
     onOpenChange(false);
@@ -504,7 +497,6 @@ function TopicForm({
 
   return (
     <DialogContent
-      className={instructions === undefined ? "sm:max-w-md" : "sm:max-w-lg"}
       // The name is what the dialog is for, so the caret starts in it, with
       // the name selected so typing replaces it; the dialog would otherwise
       // put focus on the first control, which is the mark.
@@ -570,30 +562,24 @@ function TopicForm({
         </p>
         <ColorRow onPick={setColor} value={color} />
       </div>
-      {/* Only for a topic that exists: making one is a moment, and what
-        chats under it should be told comes once there are some. */}
-      {instructions !== undefined && (
-        <div>
-          <label
-            className="block pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase"
-            htmlFor="topic-instructions"
-          >
-            Instructions
-          </label>
-          <Textarea
-            className="max-h-64 min-h-24 text-sm"
-            id="topic-instructions"
-            onChange={(event) => {
-              setInstructions(event.target.value);
-            }}
-            placeholder={`What ${APP_NAME} should know or do in every chat filed here`}
-            value={instructions}
-          />
-        </div>
-      )}
-      {folders !== undefined && (
-        <TopicFolders folders={folders} onChange={setFolders} />
-      )}
+      <div>
+        <label
+          className="block pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase"
+          htmlFor="topic-instructions"
+        >
+          Instructions
+        </label>
+        <Textarea
+          className="max-h-64 min-h-24 text-sm"
+          id="topic-instructions"
+          onChange={(event) => {
+            setInstructions(event.target.value);
+          }}
+          placeholder={`What ${APP_NAME} should know or do in every chat filed here`}
+          value={instructions}
+        />
+      </div>
+      <TopicFolders folders={folders} onChange={setFolders} />
       <DialogFooter className="sm:justify-between">
         {deleting ? (
           <DeleteTopicButton

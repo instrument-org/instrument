@@ -24,7 +24,7 @@ import {
 } from "./chats";
 import { FilterHead } from "./filter-head";
 import { DeleteChatDialog } from "./delete-chat-dialog";
-import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
+import { TopicDialog } from "./topic-dialog";
 import { TopicBanner } from "./topic-banner";
 import { useChatSearchFallback } from "./use-chat-search-fallback";
 import { useSetChatTopic } from "./use-set-chat-topic";
@@ -263,10 +263,11 @@ export function ChatPane({
           open
         />
       )}
-      <NewTopicDialog
+      <TopicDialog
         candidates={backfillCandidates(
           chats.filter((chat) => chat.id !== newTopic?.forChat?.id),
         )}
+        mode="create"
         {...(newTopic?.name ? { name: newTopic.name } : {})}
         onCreate={(topic, alsoFile) => {
           const forChat = newTopic?.forChat;
@@ -297,10 +298,16 @@ export function ChatPane({
           }
         }}
         open={newTopic !== undefined}
+        // A retired topic's name brings it back, so only the ones in use
+        // are names a new topic cannot take.
+        otherNames={topics.flatMap((topic) =>
+          topic.retired ? [] : [topic.name],
+        )}
         taken={topics.flatMap((topic) => (topic.emoji ? [topic.emoji] : []))}
       />
       {editingTopic && (
-        <EditTopicDialog
+        <TopicDialog
+          mode="edit"
           onChange={(edits) => {
             if (Object.keys(edits).length === 0) {
               return;

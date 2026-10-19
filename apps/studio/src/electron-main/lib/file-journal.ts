@@ -44,8 +44,6 @@ export type NewJournalEntry = JournalEntry extends infer Entry
 /** How many of the newest entries are kept. */
 export const JOURNAL_LIMIT = 100;
 
-export type FileJournal = ReturnType<typeof createFileJournal>;
-
 export function createFileJournal({
   now = Date.now,
   makeId = () => crypto.randomUUID(),

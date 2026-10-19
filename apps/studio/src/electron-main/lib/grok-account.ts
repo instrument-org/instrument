@@ -65,6 +65,11 @@ const AccountSchema = z.object({
   expiresAt: z.number().optional(),
   name: z.string().optional(),
   refreshToken: z.string().optional(),
+  /**
+   * What xAI said when it turned the account away at the last check, such as
+   * an account with no Grok subscription. Absent once a check goes through.
+   */
+  refusal: z.string().optional(),
 });
 type Account = z.output<typeof AccountSchema>;
 
@@ -77,16 +82,24 @@ type StoreShape = z.output<typeof StoreSchema>;
 
 let STORE: null | Store<StoreShape> = null;
 
-export type GrokAccountState = "signed-in" | "signed-out";
+export type GrokAccountState = "refused" | "signed-in" | "signed-out";
 
 export interface GrokAccountStatus {
-  account?: { email?: string; label: string; state: GrokAccountState };
+  account?: {
+    email?: string;
+    label: string;
+    /** xAI's words, while the account is refused. */
+    refusal?: string;
+    state: GrokAccountState;
+  };
   /** The code to enter on xAI's page while a sign-in waits on it. */
   pending?: { userCode: string; verificationUri: string };
 }
 
 export interface GrokSignInResult {
   outcome: Extract<SignInOutcome, "canceled" | "declined" | "signed-in">;
+  /** Signed in, but xAI turned the account away with these words. */
+  refusal?: string;
 }
 
 let pending:
@@ -99,7 +112,8 @@ let pending:
 
 export function grokAccountProviderConfigs(): AIGatewayProviderConfig.Type[] {
   const account = getStore().get("account");
-  if (!account?.accessToken) {
+  // A refused account lists nothing to pick, rather than models that fail.
+  if (!account?.accessToken || account.refusal !== undefined) {
     return [];
   }
   if (isDue(account)) {
@@ -122,7 +136,12 @@ export function grokAccountStatus(): GrokAccountStatus {
       account: {
         email: account.email,
         label: account.email ?? account.name ?? "Grok account",
-        state: account.refreshToken ? "signed-in" : "signed-out",
+        refusal: account.refusal,
+        state: !account.refreshToken
+          ? "signed-out"
+          : account.refusal === undefined
+            ? "signed-in"
+            : "refused",
       },
     }),
     ...(pending && {
@@ -257,7 +276,85 @@ function accountFromTokens(
     expiresAt: Date.now() + (tokens.expires_in ?? 3600) * 1000,
     name: claims?.name ?? previous?.name,
     refreshToken: tokens.refresh_token ?? previous?.refreshToken,
+    refusal: previous?.refusal,
   };
+}
+
+const ACCESS_CHECK_EVERY_MS = 30 * 1000;
+let lastAccessCheck = 0;
+
+/** The smallest request a Grok subscription's model answers. */
+const ACCESS_CHECK = {
+  input: "Reply with ok.",
+  max_output_tokens: 16,
+  model: "grok-4.20-non-reasoning",
+  store: false,
+};
+
+/**
+ * Ask xAI whether the account may use its models, with one tiny request. An
+ * xAI account signs in whether or not it has a Grok subscription, and one
+ * without is refused only when it asks for something, so the card says so
+ * up front rather than at a chat's first reply. A network failure or another
+ * status leaves the last answer standing.
+ */
+export async function checkGrokAccess({
+  recent = false,
+}: {
+  /** Skip the check when one ran in the last half minute, as opening Settings does. */
+  recent?: boolean;
+} = {}): Promise<void> {
+  const account = getStore().get("account");
+  if (
+    !account?.accessToken ||
+    (recent && Date.now() - lastAccessCheck < ACCESS_CHECK_EVERY_MS)
+  ) {
+    return;
+  }
+  lastAccessCheck = Date.now();
+  try {
+    const response = await fetch(`${API_BASE_URL}/responses`, {
+      body: JSON.stringify(ACCESS_CHECK),
+      headers: {
+        authorization: `Bearer ${account.accessToken}`,
+        "content-type": "application/json",
+      },
+      method: "POST",
+    });
+    if (response.ok) {
+      saveUnlessReplaced(account, { ...account, refusal: undefined });
+      return;
+    }
+    if (response.status === 401 || response.status === 403) {
+      const body = await response.text().catch(() => "");
+      log.warn(`xAI refused the Grok account (${String(response.status)})`);
+      saveUnlessReplaced(account, {
+        ...account,
+        refusal: refusalWords(body) || `Refused (${String(response.status)})`,
+      });
+    }
+  } catch (error) {
+    log.warn("Couldn't check the Grok account", error);
+  }
+}
+
+/** The sentence in an xAI error body, which is JSON or plain text. */
+function refusalWords(body: string): string {
+  try {
+    const parsed = z
+      .object({
+        code: z.string().optional(),
+        error: z
+          .union([z.string(), z.object({ message: z.string().optional() })])
+          .optional(),
+      })
+      .parse(JSON.parse(body));
+    const error =
+      typeof parsed.error === "string" ? parsed.error : parsed.error?.message;
+    return (error ?? parsed.code ?? body).trim();
+  } catch {
+    return body.trim();
+  }
 }
 
 /**
@@ -344,9 +441,11 @@ export async function signInWithGrok(): Promise<GrokSignInResult> {
         }
         getStore().set("account", account);
         grant().send({ type: "signedIn" });
+        await checkGrokAccess();
         // The person approved on xAI's page; bring them back to the app.
         focusAppWindow();
-        return { outcome: "signed-in" };
+        const refusal = getStore().get("account")?.refusal;
+        return { outcome: "signed-in", ...(refusal && { refusal }) };
       } catch (error) {
         if (!(error instanceof TokenError)) {
           throw error;

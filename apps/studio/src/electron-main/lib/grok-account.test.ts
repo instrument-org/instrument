@@ -50,6 +50,7 @@ vi.mock("electron-store", () => ({
 
 const DEVICE_URL = "https://auth.x.ai/oauth2/device/code";
 const TOKEN_URL = "https://auth.x.ai/oauth2/token";
+const RESPONSES_URL = "https://api.x.ai/v1/responses";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
@@ -64,6 +65,8 @@ function idToken(claims: Record<string, unknown>) {
 let grok: typeof GrokAccountModule;
 /** What the token endpoint answers, one per poll; the last repeats. */
 let tokenAnswers: Response[];
+/** What xAI answers the access check with. */
+let accessAnswer: Response;
 const requests: { body: URLSearchParams; url: string }[] = [];
 
 beforeEach(async () => {
@@ -72,6 +75,7 @@ beforeEach(async () => {
   stored = {};
   requests.length = 0;
   openExternal.mockReset();
+  accessAnswer = json({ output: [] });
   grok = await import("./grok-account");
   vi.stubGlobal(
     "fetch",
@@ -98,6 +102,9 @@ beforeEach(async () => {
         const answer =
           tokenAnswers.length > 1 ? tokenAnswers.shift() : tokenAnswers[0];
         return Promise.resolve(answer?.clone() ?? json({}, 500));
+      }
+      if (url === RESPONSES_URL) {
+        return Promise.resolve(accessAnswer.clone());
       }
       return Promise.reject(new Error(`unexpected fetch ${url}`));
     }),
@@ -148,6 +155,35 @@ describe("Grok sign-in", () => {
     expect(grok.grokAccountProviderConfigs()).toMatchObject([
       { apiKey: "access-1", id: "grok-account", type: "grok-account" },
     ]);
+  });
+
+  it("signs in an account xAI refuses, says why, and lists none of its models", async () => {
+    tokenAnswers = [
+      json({
+        access_token: "access-1",
+        expires_in: 3600,
+        id_token: idToken({ email: "free@example.com", sub: "user-2" }),
+        refresh_token: "refresh-1",
+      }),
+    ];
+    const refusal =
+      "You have either run out of available resources or do not have an active Grok subscription.";
+    accessAnswer = json({ code: "forbidden", error: refusal }, 403);
+    const signingIn = grok.signInWithGrok();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(await signingIn).toEqual({ outcome: "signed-in", refusal });
+    expect(grok.grokAccountStatus().account).toMatchObject({
+      refusal,
+      state: "refused",
+    });
+    expect(grok.grokAccountProviderConfigs()).toEqual([]);
+
+    // Subscribed since: the next check lets the account through.
+    accessAnswer = json({ output: [] });
+    await grok.checkGrokAccess();
+    expect(grok.grokAccountStatus().account?.state).toBe("signed-in");
+    expect(grok.grokAccountProviderConfigs()).toHaveLength(1);
   });
 
   it("answers declined when the person says no on xAI's page", async () => {

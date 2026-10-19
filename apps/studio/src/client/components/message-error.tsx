@@ -266,6 +266,25 @@ function describeForProvider(
     }
     return described;
   }
+  if (provider === "grok-account") {
+    if (classification === "usage-limit") {
+      return {
+        detail:
+          "Your Grok subscription has hit its limit for now. Try again later, or switch to another model.",
+        summary: "Grok is out of usage for now",
+      };
+    }
+    if (classification === "auth") {
+      // xAI answers both a spent allowance and an account with no
+      // subscription with the same refusal, so this names both.
+      return {
+        detail:
+          "xAI turned this account away. It may be out of usage for now, or it may need a SuperGrok subscription, or X Premium that includes Grok. Settings shows which.",
+        summary: "xAI refused your Grok account",
+      };
+    }
+    return described;
+  }
   if (provider !== "chatgpt-account") {
     return described;
   }
@@ -343,7 +362,11 @@ function detailsText(facts: [string, string][], body: string | undefined) {
  * Instrument's own models, as a choice and never as a silent fallback.
  */
 function isPlanProvider(provider: string | undefined) {
-  return provider === "chatgpt-account" || provider === "claude-account";
+  return (
+    provider === "chatgpt-account" ||
+    provider === "claude-account" ||
+    provider === "grok-account"
+  );
 }
 
 function errorActions({
@@ -434,7 +457,9 @@ function errorActions({
           },
           ...tryAgain,
         ]
-      : [providerSettings, ...tryAgain];
+      : provider === "grok-account"
+        ? [...offer, providerSettings, ...tryAgain]
+        : [providerSettings, ...tryAgain];
   }
   if (classification === "auth" || kind === "api-key") {
     if (provider === OUR_MODELS.providerType) {

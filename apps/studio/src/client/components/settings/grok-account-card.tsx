@@ -49,6 +49,9 @@ export function GrokAccountCard() {
   const attempts = useRef(0);
   const signIn = useMutation(rpcClient.grokAccount.signIn.mutationOptions());
   const signOut = useMutation(rpcClient.grokAccount.signOut.mutationOptions());
+  const checkAccess = useMutation(
+    rpcClient.grokAccount.checkAccess.mutationOptions(),
+  );
   const providerSwitch = useProviderSwitch();
 
   const continueWithGrok = async () => {
@@ -67,6 +70,12 @@ export function GrokAccountCard() {
       return;
     }
     if (result.outcome !== "signed-in") {
+      return;
+    }
+    if (result.refusal) {
+      toast.error("xAI won't let this account use Grok here", {
+        cause: result.refusal,
+      });
       return;
     }
     const title = "Signed in with Grok";
@@ -126,9 +135,11 @@ export function GrokAccountCard() {
                   `${account.label}${
                     account.state === "signed-out"
                       ? " · Signed out"
-                      : off
-                        ? ` · Disabled, so ${APP_NAME} won’t use it`
-                        : ""
+                      : account.state === "refused"
+                        ? " · xAI says this account can't use Grok here. It needs a SuperGrok subscription, or X Premium that includes Grok."
+                        : off
+                          ? ` · Disabled, so ${APP_NAME} won’t use it`
+                          : ""
                   }`
                 )}
               </p>
@@ -145,6 +156,16 @@ export function GrokAccountCard() {
               >
                 {account ? "Sign in again" : "Continue with Grok"}
               </BrowserHandoffButton>
+            ) : account.state === "refused" ? (
+              <Button
+                disabled={checkAccess.isPending}
+                onClick={() => {
+                  checkAccess.mutate({});
+                }}
+                variant="outline"
+              >
+                Check again
+              </Button>
             ) : (
               off && (
                 <Button

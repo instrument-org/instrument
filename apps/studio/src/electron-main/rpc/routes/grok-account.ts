@@ -2,6 +2,7 @@ import { liveRead } from "@instrument-org/workspace/electron";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import {
   cancelGrokSignIn,
+  checkGrokAccess,
   type GrokSignInResult,
   grokAccountStatus,
   signInWithGrok,
@@ -21,6 +22,9 @@ import { publisher } from "../publisher";
 const live = {
   status: base.handler(async function* ({ signal }) {
     const changes = publisher.subscribe("grok-account.updated", { signal });
+    // A subscription can lapse or start while the app runs, and xAI says so
+    // only when asked, so the card asks when it opens.
+    void checkGrokAccess({ recent: true });
     yield* liveRead({ changes: [changes], read: grokAccountStatus });
   }),
 };
@@ -69,8 +73,14 @@ const cancelSignIn = base.handler(() => {
   cancelGrokSignIn();
 });
 
+/** Asks xAI again whether a refused account may use its models now. */
+const checkAccess = base.handler(async () => {
+  await checkGrokAccess();
+});
+
 export const grokAccount = {
   cancelSignIn,
+  checkAccess,
   chooseDefaultModel,
   live,
   signIn,

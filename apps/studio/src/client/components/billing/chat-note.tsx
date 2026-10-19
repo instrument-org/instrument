@@ -57,8 +57,12 @@ type ChatNoteContext = { nudge: number; openModelPicker: () => void };
  * `stop`: the next turn can't run, so a send is held and flashes the note.
  * `ready`: what stopped the chat has gone, and Continue sends the turn again.
  * `quiet`: worth knowing, and dismissible.
+ * `holdsSend` is set only where the account as last read confirms the next
+ * turn would be refused, so a note can never hold the box shut after the
+ * trouble is fixed somewhere this app can't see.
  */
 export type ChatNote = {
+  holdsSend: boolean;
   rank: "quiet" | "ready" | "stop";
   render: (context: ChatNoteContext) => React.ReactNode;
 };
@@ -220,6 +224,8 @@ export function useChatNote({
     const isReady = billing.kind === "resumed";
     if (!(isReady && dismissed === key)) {
       return {
+        holdsSend:
+          !isReady && isSignedIn && accountNotice(status, offer) !== undefined,
         rank: isReady ? "ready" : "stop",
         render: (context) => (
           <BillingNote
@@ -250,7 +256,10 @@ export function useChatNote({
     const key = `${plan.messageId}:${plan.stop.kind}`;
     const isReady = hasUsageReturned(plan.stop, now);
     if (!(isReady && dismissed === key)) {
+      // Whether a ChatGPT or Claude plan has room again is the provider's to
+      // say, so the note never holds a send: the next turn is how to find out.
       return {
+        holdsSend: false,
         rank: isReady ? "ready" : "stop",
         render: (context) => (
           <PlanAccountNote
@@ -280,6 +289,7 @@ export function useChatNote({
   const canGoUp =
     warning.kind === "trial" || upgradePlan(offer, status) !== undefined;
   return {
+    holdsSend: false,
     rank: "quiet",
     render: () => (
       <ReplyNote

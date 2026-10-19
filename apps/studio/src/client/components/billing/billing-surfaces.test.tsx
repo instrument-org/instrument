@@ -29,7 +29,11 @@ function ChatNoteHarness({
   modelURI?: AIGatewayModelURI.Type;
 }) {
   const note = useChatNote({ isAgentRunning, messages, modelURI });
-  return note?.render({ nudge: 0, openModelPicker: vi.fn() }) ?? null;
+  return note ? (
+    <div data-holds-send={String(note.holdsSend)}>
+      {note.render({ nudge: 0, openModelPicker: vi.fn() })}
+    </div>
+  ) : null;
 }
 type Offer = RPCOutput["billing"]["offer"];
 type Status = RPCOutput["billing"]["status"];
@@ -513,6 +517,14 @@ describe("the chat's billing notice", () => {
     expect(
       await screen.findByRole("button", { name: "Change model" }),
     ).toBeDefined();
+    // The status confirms the window is spent, so a send waits for it.
+    await vi.waitFor(() => {
+      expect(
+        document
+          .querySelector("[data-holds-send]")
+          ?.getAttribute("data-holds-send"),
+      ).toBe("true");
+    });
   });
 
   it("says nothing about Instrument's plan in a chat on another model", () => {

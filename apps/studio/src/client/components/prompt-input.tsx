@@ -176,8 +176,8 @@ interface PromptInputProps {
    * The chat's note about the account its model runs on. A pill draws one
    * note above itself, outside the box: a note that the next turn can't run,
    * then a problem with the model, then the rest of the chat's note, then a
-   * newer-model offer. Either kind that stops the next turn holds a send and
-   * flashes the note.
+   * newer-model offer. A model problem, or a note that says it holds sends,
+   * holds a send and flashes the note.
    */
   note?: ChatNote;
   /** What the box holds besides the words, each time that changes after it first draws. */
@@ -386,8 +386,7 @@ export const PromptInput = ({
         : isModelProblem
           ? noticeRow
           : (chatNote ?? noticeRow);
-  const holdsSend =
-    isModelProblem || (variant === "pill" && note?.rank === "stop");
+  const holdsSend = isModelProblem || (variant === "pill" && note?.holdsSend === true);
 
   useEffect(() => {
     setInputRef(promptEditorRef.current);

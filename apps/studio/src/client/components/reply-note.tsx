@@ -3,9 +3,9 @@ import { type Icon } from "@phosphor-icons/react";
 import { XIcon } from "@phosphor-icons/react/X";
 
 /**
- * A note that sits over the reply box, as wide as the box and with the same
- * rounded ends, saying something about the chat the person may want to act
- * on: a plan out of usage, a model that has gone, a trial nearly spent.
+ * A card that sits over the reply box, as wide as the box, saying something
+ * about the chat the person may want to act on: a plan out of usage, a model
+ * that has gone, a trial nearly spent.
  *
  * A warning is the app's yellow, for something in the way of the next reply.
  * Anything else is neutral: white like the box, with its icon held back. The
@@ -41,7 +41,7 @@ export function ReplyNote({
   return (
     <div
       className={cn(
-        "@container/note relative isolate min-h-8 min-w-0 rounded-[22px] py-1 pr-1 pl-3 text-xs shadow-xs ring-1 ring-inset",
+        "@container/note relative isolate min-h-8 min-w-0 rounded-xl py-1 pr-1 pl-3 text-xs shadow-xs ring-1 ring-inset",
         isWarn
           ? "bg-yellow-50 text-yellow-900 ring-yellow-300 dark:bg-yellow-500/15 dark:text-yellow-100 dark:ring-yellow-500/30"
           : "bg-white text-foreground/70 ring-black/[0.06] dark:bg-gray-800 dark:ring-white/10",
@@ -79,7 +79,7 @@ export function ReplyNote({
           {onDismiss && (
             <button
               aria-label="Dismiss"
-              className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+              className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
               onClick={onDismiss}
               type="button"
             >
@@ -105,7 +105,7 @@ export function ReplyNoteButton({
   return (
     <button
       className={cn(
-        "inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2.5 font-medium shadow-xs disabled:opacity-50",
+        "inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-2.5 font-medium shadow-xs disabled:opacity-50",
         emphasis
           ? "bg-brand-600 text-brand-foreground hover:bg-brand-700"
           : "bg-white text-foreground ring-1 ring-black/10 hover:bg-gray-50 dark:bg-gray-700 dark:ring-white/10 dark:hover:bg-gray-600",

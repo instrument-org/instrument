@@ -22,6 +22,10 @@ describe("readModelStatus and noticeFor", () => {
     );
     expect(read).toMatchInlineSnapshot(`
       {
+        "Claude account signed out": {
+          "notice": "[problem] You're signed out of Claude → Sign in again",
+          "status": "gone",
+        },
         "another computer's connection, one of the kind here": {
           "status": "ready",
         },

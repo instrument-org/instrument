@@ -215,7 +215,7 @@ function describe(status: Status) {
     }
     case "signed-out": {
       return status.expired
-        ? "Your Claude sign-in ran out. Continue with Claude to sign in again."
+        ? "You're signed out. Continue with Claude to sign in again."
         : "Pay for Claude Pro or Max? Use it here.";
     }
     case "not-a-plan": {

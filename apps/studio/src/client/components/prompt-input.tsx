@@ -1,6 +1,7 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { dismissedModelOffersAtom } from "@/client/atoms/dismissed-model-offers";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { openLogin } from "@/client/atoms/login-modal";
 import { type ComposerApp } from "@/client/components/app-mention";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
@@ -293,6 +294,9 @@ export const PromptInput = ({
   const { data: disabledProviders } = useQuery(
     rpcClient.providerConfig.live.disabled.experimental_liveOptions(),
   );
+  const { data: signedOutAccounts } = useQuery(
+    rpcClient.notices.live.signedOut.experimental_liveOptions(),
+  );
   const modelStatus = readModelStatus({
     connections: modelsData?.connections,
     disabled: new Set(disabledProviders),
@@ -306,6 +310,7 @@ export const PromptInput = ({
       [...providerMetadataMap].map(([type, metadata]) => [type, metadata.name]),
     ),
     routes: modelsData?.routes,
+    signedOut: new Set(signedOutAccounts?.map((account) => account.id)),
   });
   const modelNotice = noticeFor(modelStatus);
   // Counts the sends the notice refused, for the row to flash at each one.
@@ -325,6 +330,10 @@ export const PromptInput = ({
       }
       case "retry": {
         void modelsRefetch();
+        break;
+      }
+      case "sign-in": {
+        openSettings({ setting: action.account });
         break;
       }
       case "switch": {

@@ -29,7 +29,7 @@ const model = ({
   canonicalId: string;
   config?: string;
   name: string;
-  provider?: "anthropic" | "instrument" | "openrouter";
+  provider?: "anthropic" | "claude-account" | "instrument" | "openrouter";
   providerId?: string;
   replacedBy?: string;
   restricted?: string;
@@ -164,6 +164,18 @@ export const modelStatusScenarios = {
     models: listed,
     modelURI: goneURI("claude-haiku-4.5", "off-key"),
     providerNames: new Map([["anthropic", "Anthropic"]]),
+  },
+  "Claude account signed out": {
+    dismissedOffers: none,
+    models: listed,
+    modelURI: model({
+      canonicalId: "claude-opus-4.5",
+      config: "claude-account",
+      name: "Claude Opus 4.5",
+      provider: "claude-account",
+    }).uri,
+    providerNames: new Map([["claude-account", "Claude account"]]),
+    signedOut: new Set(["claude-account"]),
   },
   "provider removed, same model through OpenRouter and Instrument": {
     dismissedOffers: none,

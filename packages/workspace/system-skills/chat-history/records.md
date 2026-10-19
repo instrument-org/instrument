@@ -10,7 +10,7 @@ A chat's folder holds JSON Lines files, one record per line, with `t` naming the
   - `session`: the log's first line: `parent` and `forkedAt` on a task, a session the chat started, whose history is its parent's up to `forkedAt`, then its own
   - `state`: a standing fact the app keeps, `what` naming it
   - `stopped`: the turn was stopped, `by` saying who stopped it
-  A message's `role`:
+  - A message's `role`:
     - `assistant`: you
     - `session-context`: what the app told you at the start, the same in every chat and no part of the conversation
     - `system`: a note the app added for you

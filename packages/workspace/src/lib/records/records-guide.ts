@@ -69,7 +69,7 @@ export function chatRecordsReference(): string {
     "",
     `- \`${RECORD_FILE_EXAMPLES.log}\`: one session's log as one device wrote it (\`.2\` and on once it grew long). Its records, by \`t\`:`,
     ...listed(LOG_RECORDS, 1),
-    "  A message's `role`:",
+    "  - A message's `role`:",
     ...listed(MESSAGE_ROLES, 2),
     `- \`${RECORD_FILE_EXAMPLES.marks}\`: \`mark\` records, the newest of each \`field\` standing:`,
     ...listed(MARK_FIELDS, 1),

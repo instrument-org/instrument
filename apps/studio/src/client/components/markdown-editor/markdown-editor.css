@@ -1313,6 +1313,9 @@ textarea.md-input {
 }
 .md-html-rendered {
   cursor: pointer;
+  /* HTML's own whitespace, not the editor's pre-wrap: the newlines between
+     tags (`<summary>`, then `<pre>`) are a blank line each otherwise. */
+  white-space: normal;
 }
 .md-html-block.md-html-rendered {
   outline: 1px dashed transparent;

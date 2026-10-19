@@ -394,18 +394,15 @@ export function ChatRow({
  * A topic the chat is filed under, as a pill in its tint no taller than
  * the line it sits on: its emoji, or its mark's tile where it has none, then
  * its name, or the mark alone on a narrow chat head, where the name is its
- * tooltip. Clicking it opens the chat's topic list rather than the chat;
- * given nothing to open, it is the name alone and no control.
+ * tooltip.
  */
 export function TopicPill({
   compact,
-  onPick,
   quiet = false,
   topic,
 }: {
   /** The mark alone on a narrow chat head. */
   compact?: "narrow";
-  onPick?: () => void;
   /** A faint wash with the name in the topic's ink, for a list where the pill is a label beside the words rather than a thing to look at. */
   quiet?: boolean;
   topic: Topic;
@@ -436,34 +433,14 @@ export function TopicPill({
       </span>
     </>
   );
-  if (!onPick) {
-    return (
-      <span
-        className={className}
-        style={topicTint(topicColor(topic))}
-        title={compact ? topic.name : undefined}
-      >
-        {inside}
-      </span>
-    );
-  }
   return (
-    <button
-      className={cn(
-        className,
-        "hover:bg-(--topic-tint-edge) hover:text-foreground",
-      )}
-      onAuxClick={stopHere}
-      onClick={(event) => {
-        stopHere(event);
-        onPick();
-      }}
+    <span
+      className={className}
       style={topicTint(topicColor(topic))}
-      title={compact ? topic.name : "Topic"}
-      type="button"
+      title={compact ? topic.name : undefined}
     >
       {inside}
-    </button>
+    </span>
   );
 }
 

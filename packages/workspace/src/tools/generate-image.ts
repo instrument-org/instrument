@@ -73,7 +73,7 @@ export const GenerateImage = setupTool({
       description: "Detailed description of the image to generate",
     }),
     [INPUT_PARAMS.sourceImages]: z.array(z.string()).optional().meta({
-      description: `Paths to images used for image-to-image (img2img) conditioning: relative to this conversation's folder, or the full path of an image in one of the user's folders. Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.`,
+      description: `Paths to images used for image-to-image (img2img) conditioning: relative to your work folder, or the full path of an image in one of the user's folders. Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.`,
     }),
   }),
   name: "generate_image",
@@ -144,7 +144,7 @@ export const GenerateImage = setupTool({
     if (!files.inWorkFolder(typed.value)) {
       yield executeError(
         `Images cannot be generated directly into "${files.shown(typed.value)}". ` +
-          `Generate into this conversation's folder (e.g. poster/image.png), then move it there with the bash tool if it belongs in the folder.`,
+          `Generate into your work folder (e.g. poster/image.png), then move it there with the bash tool if it belongs in the folder.`,
       );
       return;
     }

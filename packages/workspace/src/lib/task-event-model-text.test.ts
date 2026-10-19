@@ -45,7 +45,7 @@ describe("taskEventModelNote", () => {
             /Users/sam/Instrument/report.md
             \`\`\`
         It left running in the background: bg_1 \`rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Li…\` (7 minutes), bg_2 \`node work/server.js\` (1 minute). Stop what the user does not need with \`instrument task stop ses_01K4M7V0A7T2B9S6QH4Z3X1C5D <bg id>\`, or all of it with \`instrument task stop ses_01K4M7V0A7T2B9S6QH4Z3X1C5D --all\`; a server they are using stays.
-      Nobody typed anything; this note is why you are awake.
+      Nobody typed anything; this note is why you are awake. What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it.
       </instrument-system-note>"
     `);
   });
@@ -84,9 +84,9 @@ describe("taskEventModelNote", () => {
       <instrument-system-note>
       Tasks you created have finished:
       - ses_01K4M7V0A7T2B9S6QH4Z3X1C5D ("Demonstrate the JavaScript runner") was stopped while locating any bundled QuickJS runtime (2 minutes of work, 40K tokens so far).
-      - ses_01K4W2N8E5G0P3R7KJ6Y1T9M4F ("Audit the vault") was stopped at the 200-step limit.
-      - ses_01K4W2Q3H6D8V5C1NX0B7R2T9A ("Draft the brief") stopped with an error, "Model is busy".
-      Nobody typed anything; this note is why you are awake.
+      - ses_01K4W2N8E5G0P3R7KJ6Y1T9M4F ("Audit the vault") was stopped at the 200-step limit. \`instrument task send ses_01K4W2N8E5G0P3R7KJ6Y1T9M4F\` picks it up again.
+      - ses_01K4W2Q3H6D8V5C1NX0B7R2T9A ("Draft the brief") stopped with an error, "Model is busy". \`instrument task send ses_01K4W2Q3H6D8V5C1NX0B7R2T9A\` picks it up again.
+      Nobody typed anything; this note is why you are awake. What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it.
       </instrument-system-note>"
     `);
     expect(note).not.toContain("said nothing");
@@ -125,7 +125,7 @@ describe("taskEventModelNote", () => {
       - ses_01K4M7V0A7T2B9S6QH4Z3X1C5D ("Optimize the cart") finished a turn. It said:
             The cart is ready.
         Its pages still open in the window: https://unscentedco.com/cart (tab ses_01M48PS7HWJZEM6M3D3PA0CS8Z), a blank page (tab ses_01M48PS7HWJZEM6M3D3PA0CS90, handed to it).
-      Nobody typed anything; this note is why you are awake.
+      Nobody typed anything; this note is why you are awake. What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it. A result on a page is in the tab listed; \`instrument tab show <id>\` it when the user has something to do there.
       </instrument-system-note>"
     `);
   });
@@ -157,7 +157,7 @@ describe("taskEventModelNote", () => {
       <instrument-system-note>
       A task you created is taking a while:
       - ses_01K4M7V0A7T2B9S6QH4Z3X1C5D ("Audit execution environment changes") is still working (7 minutes of work, 3271K tokens so far, 90% of them cached reads). Its steps this turn, latest last: "Scoping commits without running runtime tests", "Tracing runtime commits, entry points, and policy", "Checking whether the shell exposes worker cleanup".
-      Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake.
+      Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake. One that is lost, or whose step has run for minutes with no tool call, gets \`instrument task send <id> --now\` to steer it or \`instrument task stop <id>\`, since minutes there are the user's money. One on track needs no word: end this turn without writing anything, since the user already sees it working.
       </instrument-system-note>"
     `);
   });
@@ -200,7 +200,7 @@ describe("taskEventModelNote", () => {
       A task you created is taking a while:
       - ses_01K4M7V0A7T2B9S6QH4Z3X1C5D ("Find the pnpm store") is still working (6 minutes of work). Its steps this turn, latest last: "bash: Searching pnpm source".
         Now: working 6m · last tool call 5m 40s ago · writing for 5m 35s: ~4.1K tokens, no tool call.
-      Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake.
+      Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake. One that is lost, or whose step has run for minutes with no tool call, gets \`instrument task send <id> --now\` to steer it or \`instrument task stop <id>\`, since minutes there are the user's money. One on track needs no word: end this turn without writing anything, since the user already sees it working.
       </instrument-system-note>"
     `);
   });
@@ -231,7 +231,7 @@ describe("taskEventModelNote", () => {
         It cannot go on without:
             folder: Desktop, to save the confirmation there
             answer: which of the two Lisbon hotels?
-      Nobody typed anything; this note is why you are awake.
+      Nobody typed anything; this note is why you are awake. Give one waiting on you what you can with \`instrument task send\`, ask the user in one message for the rest, and send it their answer; weigh what it asks of them against what they asked for, and never send it back for a check the user did not ask for.
       </instrument-system-note>"
     `);
   });
@@ -256,8 +256,8 @@ describe("taskEventModelNote", () => {
       "
       <instrument-system-note>
       A task you created has finished:
-      - t1 ("Audit the vault") stopped with an error, "Timed out while reading the vault" (42 seconds of work, 12K tokens so far).
-      Nobody typed anything; this note is why you are awake.
+      - t1 ("Audit the vault") stopped with an error, "Timed out while reading the vault" (42 seconds of work, 12K tokens so far). \`instrument task send t1\` picks it up again.
+      Nobody typed anything; this note is why you are awake. What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it.
       </instrument-system-note>"
     `);
   });

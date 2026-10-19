@@ -363,7 +363,7 @@ async function handleMediaFile({
 export const ReadFile = setupTool({
   inputSchema: BaseInputSchema.extend({
     [INPUT_PARAMS.filePath]: z.string().meta({
-      description: `Path to the file to read, relative to this conversation's folder or the full path of a file in one of the user's folders`,
+      description: `Path to the file to read, relative to your work folder or the full path of a file in one of the user's folders`,
     }),
     [INPUT_PARAMS.limit]: z
       .number()
@@ -471,10 +471,10 @@ export const ReadFile = setupTool({
   ]),
 }).create({
   description: ({ model }) => dedent`
-    Reads a file from this conversation's folder, or from one of the user's folders. You can access any file directly by using this tool.
+    Reads a file from your work folder, or from one of the user's folders.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter must be a path relative to this conversation's folder, or the full path of a file in one of the user's folders. E.g. ./research/notes.md
+    - The ${INPUT_PARAMS.filePath} parameter must be a path relative to your work folder, or the full path of a file in one of the user's folders. E.g. ./research/notes.md
     - By default, it reads up to ${DEFAULT_READ_LIMIT} lines starting from the beginning of the file, and at most ${formatBytes(MAX_BYTES)} of content -- whichever limit is reached first. A long file therefore often stops well before ${DEFAULT_READ_LIMIT} lines; the output says where it stopped and which limit applied.
     - You can optionally specify a line ${INPUT_PARAMS.offset} and ${INPUT_PARAMS.limit} (especially handy for long files), but it's recommended to read the whole file by not providing these parameters.
     - When using ${INPUT_PARAMS.limit}, avoid using too small of a limit (< 100), which can lead to tons of tokens being used.

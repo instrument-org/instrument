@@ -3,6 +3,7 @@ import ms from "ms";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { asClause } from "./as-clause";
 import { describeLeftRunning } from "./chat/left-running";
+import { TAB_COMMAND } from "./shell-commands/tab-command";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";
 
@@ -97,22 +98,27 @@ export function taskEventModelNote(
         : event.stoppedBy === "app"
           ? `\n  The app's closing also ended what it had running in the background: ${background}. None of it is running now.`
           : `\n  It left running in the background: ${background}. Stop what the user does not need with \`${TASK_COMMAND.name} stop ${id} <bg id>\`, or all of it with \`${TASK_COMMAND.name} stop ${id} --all\`; a server they are using stays.`;
-    // The user's stop is a decision, not a turn to pick up again.
+    // The user's stop is a decision, not a turn to pick up again; a task that
+    // hit its step limit or lost its model to an error is one to resume.
     const leave =
       event.stoppedBy === "user"
         ? ` Leave it stopped unless they ask for it again.`
-        : "";
+        : event.stoppedBy === undefined &&
+            (event.status === "error" ||
+              /^(Stopped at|Cut off)/.test(event.ended ?? ""))
+          ? ` \`${TASK_COMMAND.name} send ${id}\` picks it up again.`
+          : "";
     return `- ${id} ("${event.title}") ${outcome}${cost}.${leave}${steps}${summary}${inFlight}${needs}${tabs}${running}`;
   });
 
-  // What to do about a wake is the prompt's business (When a task finishes);
-  // the note says only what happened and why the turn is running.
+  // Each kind of wake closes with what to do about it, since the note is read
+  // at the moment it applies and the prompt need not carry every case.
   const overdue = data.events.every((event) => event.status === "overdue");
   if (overdue) {
     return systemNote`
       ${data.events.length === 1 ? "A task you created is taking a while:" : "Tasks you created are taking a while:"}
       ${lines.join("\n")}
-      Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake.
+      Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake. One that is lost, or whose step has run for minutes with no tool call, gets \`${TASK_COMMAND.name} send <id> --now\` to steer it or \`${TASK_COMMAND.name} stop <id>\`, since minutes there are the user's money. One on track needs no word: end this turn without writing anything, since the user already sees it working.
     `;
   }
 
@@ -138,6 +144,18 @@ export function taskEventModelNote(
   const waiting = data.events.every(
     (event) => event.needs && event.needs.length > 0,
   );
+  const anyWaiting = data.events.some(
+    (event) => event.needs && event.needs.length > 0,
+  );
+  const anyTabs = data.events.some(
+    (event) => event.tabs && event.tabs.length > 0,
+  );
+  const relay = waiting
+    ? ""
+    : ` What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it.${anyTabs ? ` A result on a page is in the tab listed; \`${TAB_COMMAND.name} show <id>\` it when the user has something to do there.` : ""}`;
+  const asks = anyWaiting
+    ? ` Give one waiting on you what you can with \`${TASK_COMMAND.name} send\`, ask the user in one message for the rest, and send it their answer; weigh what it asks of them against what they asked for, and never send it back for a check the user did not ask for.`
+    : "";
   return systemNote`
     ${
       waiting
@@ -149,7 +167,7 @@ export function taskEventModelNote(
           : "Tasks you created have finished:"
     }
     ${lines.join("\n")}
-    Nobody typed anything; this note is why you are awake.
+    Nobody typed anything; this note is why you are awake.${relay}${asks}
   `;
 }
 

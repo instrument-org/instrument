@@ -32,7 +32,7 @@ export function topicModelNote({
       : []),
     ...(topic.folders?.length
       ? [
-          `Folders the work under "${topic.name}" uses, attached to this chat: ${topic.folders.map((folder) => `\`${folder}\``).join(", ")}. Hand a task the ones its work needs.`,
+          `Folders the work under "${topic.name}" uses, attached to this chat: ${topic.folders.map((folder) => `\`${folder}\``).join(", ")}.`,
         ]
       : []),
   ];

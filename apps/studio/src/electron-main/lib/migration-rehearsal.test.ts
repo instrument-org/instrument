@@ -160,14 +160,16 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
   );
 
   it("sets every store it converted aside, with none left where a chat is read", () => {
-    const were = [...before.keys()].filter((where) => A_STORE.test(where));
     // The workspace keeps one place for a store it is done with: the chats
     // an earlier build left empty, parked under `.pre-chats/`. A store
     // anywhere else is a chat still on its database.
+    const parked = (where: string) =>
+      where.startsWith(path.join(".instrument", ".pre-chats"));
+    const were = [...before.keys()].filter(
+      (where) => A_STORE.test(where) && !parked(where),
+    );
     const left = [...after.keys()].filter(
-      (where) =>
-        A_STORE.test(where) &&
-        !where.startsWith(path.join(".instrument", ".pre-chats")),
+      (where) => A_STORE.test(where) && !parked(where),
     );
     const setAside = [...machine.keys()].filter((where) =>
       where.includes("set-aside"),
@@ -176,11 +178,10 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
     // 1.x task kept a store of its own and becomes a session of the chat's,
     // so its store is read and folded rather than set aside on its own. That
     // nothing was lost on the way is the assertion above.
-    expect({
-      left,
-      setAside: setAside.length > 0,
-      were: were.length > 0,
-    }).toEqual({ left: [], setAside: true, were: true });
+    expect({ left, setAside: setAside.length > 0 }).toEqual({
+      left: [],
+      setAside: were.length > 0,
+    });
   });
 
   it("gives every chat one folder, and no folder two chats", () => {
@@ -231,24 +232,27 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
     expect(problems).toEqual([]);
   });
 
-  it("moves what the person sent into the chat's own folder, and only there", () => {
+  it("keeps what the person sent in one place, never in both", () => {
+    // What was sent moves into the chat's own folder only where the person
+    // opens that folder, and then at the chat's next write; a workspace in
+    // the app's own data, like this clone, keeps it in the record folder.
+    // That nothing sent was lost is the assertion above.
     const claimed = chatFolderClaims();
-    const inRecords = [...after.keys()].filter((where) =>
-      where.startsWith(path.join(".instrument", "chats")),
-    );
-    const sent = inRecords.filter((where) =>
-      where.includes(`${path.sep}attachments${path.sep}`),
-    );
-    const withSomethingSent = [...claimed.values()].filter((name) =>
-      fs.existsSync(path.join(clone, "Chats", name, "attachments")),
-    );
-    expect({
-      inTheChatsOwnFolder: withSomethingSent.length > 0,
-      stillInTheRecords: sent,
-    }).toEqual({
-      inTheChatsOwnFolder: withSomethingSent.length > 0,
-      stillInTheRecords: [],
-    });
+    const inBoth = [...after.keys()]
+      .filter(
+        (where) =>
+          where.startsWith(path.join(".instrument", "chats")) &&
+          where.includes(`${path.sep}attachments${path.sep}`),
+      )
+      .filter((where) => {
+        const [, , id, , ...rest] = where.split(path.sep);
+        const name = id === undefined ? undefined : claimed.get(id);
+        return (
+          name !== undefined &&
+          fs.existsSync(path.join(clone, "Chats", name, "attachments", ...rest))
+        );
+      });
+    expect(inBoth).toEqual([]);
   });
 
   it("brings the person's own folders out of .instrument", () => {

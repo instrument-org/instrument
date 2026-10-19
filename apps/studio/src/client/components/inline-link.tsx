@@ -151,7 +151,8 @@ function splitFirstWord(
 
 /**
  * A chip that opens what it names, from a click or from Enter or Space while
- * focused, the way a button would.
+ * focused, the way a button would, and with a button's arrow rather than the
+ * text cursor the span would take from the prose around it.
  */
 export function ChipButton({
   className,
@@ -163,7 +164,7 @@ export function ChipButton({
   return (
     <span
       {...props}
-      className={cn(INLINE_CHIP_CLASS_NAME, className)}
+      className={cn(INLINE_CHIP_CLASS_NAME, "cursor-default", className)}
       onClick={onActivate}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {

@@ -1,17 +1,17 @@
 # Plan: privacy-first diagnostics and feedback
 
-Status: in progress. Tier A's removal half has landed: PostHog is gone from both processes (SDKs, init, CSP hosts, env validation, the release source-map upload), along with the persisted `telemetryId`, the `enableUsageMetrics` preference and its Settings toggle, and the whole event catalog with every call site. Decision 2 went the other way from its recommendation: the catalog was deleted rather than retargeted, so nothing records events locally either. Exceptions still flow through the injected `CaptureExceptionFunction`, which now writes only to the main log and the developer-mode exception list. Phase 3's local half is built: Crashpad runs with uploads off, and each start logs the minidumps it has not reported yet and whether the last session exited at all ([register-crash-diagnostics.ts](../../../apps/studio/src/electron-main/lib/register-crash-diagnostics.ts)). Release builds attach their source maps to the GitHub release, so a stack in a report can be resolved against the build it came from. Sending is built too: a crash or hang from the last session waits in a bell in the window corner, every report goes through one dialog whose Show details is exactly what is sent, Help > Report a Problem… and the two error screens open it, and reports post to the `apps/reports` Worker in the internal repo (`MAIN_VITE_REPORTS_BASE_URL`), which attributes signed-in reports by their token. Not started: the local journal, spans and the stall watchdog, the diagnostics screen, and chat feedback with its transcript. Owner: TBD. Depends on [conversation-storage.md](conversation-storage.md) for the report payload; related to [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md).
+Status: in progress. Tier A's removal half has landed: PostHog is gone from both processes (SDKs, init, CSP hosts, env validation, the release source-map upload), along with the persisted `telemetryId`, the `enableUsageMetrics` preference and its Settings toggle, and the whole event catalog with every call site. Decision 2 went the other way from its recommendation: the catalog was deleted rather than retargeted, so nothing records events locally either. Exceptions are captured as complete events modeled on Sentry's ([shared exceptions](../../../packages/shared/src/exceptions/)): every error in the chain with parsed frames, the error's own properties, the caller's context, the app's contexts, the last breadcrumbs, and a fingerprint; they are kept on this computer collapsed by fingerprint, and a report the person sends carries the recent ones. Phase 3's local half is built: Crashpad runs with uploads off, and each start logs the minidumps it has not reported yet and whether the last session exited at all ([register-crash-diagnostics.ts](../../../apps/studio/src/electron-main/lib/register-crash-diagnostics.ts)). Release builds attach their source maps to the GitHub release, so a stack in a report can be resolved against the build it came from. Sending is built too: a crash or hang from the last session waits in a bell in the window corner, every report goes through one dialog whose Show details is exactly what is sent (the details text, and the exception events as JSON), Help > Report a Problem… and the two error screens open it, and reports post to the `apps/reports` Worker in the internal repo (`MAIN_VITE_REPORTS_BASE_URL`), which attributes signed-in reports by their token. Not started: the local journal, spans and the stall watchdog, the diagnostics screen, and chat feedback with its transcript. Owner: TBD. Depends on [conversation-storage.md](conversation-storage.md) for the report payload; related to [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md).
 
 ## Scope
 
-Remove ambient telemetry from Studio. Replace it with a local diagnostics journal that never leaves the device, plus two user-invoked upload paths: a feedback report that can carry a conversation, and a sanitized crash report. Hosted API telemetry is out of scope but must not contradict the claim.
+Remove ambient telemetry from Studio. Replace it with a local diagnostics journal that never leaves the device, plus two user-invoked upload paths: a feedback report that can carry a conversation, and a crash report the person reads in full before sending. Hosted API telemetry is out of scope but must not contradict the claim.
 
 ## The claim
 
 | Tier | Sentence                                                                                          | Requires                                                                 | Cost                                              |
 | ---- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------- |
 | A    | "Instrument does not observe how you use the app. Nothing leaves your device unless you send it." | No analytics SDK, no install identifier, no automatic upload of any kind | No passive crash signal                           |
-| B    | Tier A plus "you can turn on sanitized crash reports"                                             | Tier A plus one default-off switch with a published schema               | Small                                             |
+| B    | Tier A plus "you can turn on automatic crash reports"                                             | Tier A plus one default-off switch with a published schema               | Small                                             |
 | C    | "Anonymous telemetry, opt out any time"                                                           | Today's code                                                             | Free, and indistinguishable from every competitor |
 
 Recommendation: **B**.
@@ -26,11 +26,9 @@ Two carve-outs to state before someone else finds them:
 
 No analytics SDK ships and nothing leaves the device on its own account. What remains is local:
 
-- `captureServerException` ([capture-server-exception.ts](../../../apps/studio/src/electron-main/lib/capture-server-exception.ts)) is the sink every workspace and ai-gateway exception reaches through `CaptureExceptionFunction` ([types.ts](../../../packages/workspace/src/types.ts), [types.ts](../../../packages/ai-gateway/src/types.ts)). It writes to electron-log, and in developer mode to the in-memory exception list. The renderer's `captureException` ([capture-exception.ts](../../../apps/studio/src/client/lib/capture-exception.ts)) writes to the console. Rebinding either to a journal or an opt-in uploader is a change to one file.
-- [shared/src/types/exceptions.ts](../../../packages/shared/src/types/exceptions.ts) still allows `session_id`, `message_id`, `tool_call_id`, `rpc_path` and `machine_state` on an exception. Harmless while nothing uploads them; the phase 3 allowlist has to drop them.
+- `captureServerException` ([capture-server-exception.ts](../../../apps/studio/src/electron-main/lib/capture-server-exception.ts)) is the one sink. The workspace and the ai-gateway reach it through `CaptureExceptionFunction` ([types.ts](../../../packages/workspace/src/types.ts), [types.ts](../../../packages/ai-gateway/src/types.ts)), each binding naming its area; the renderer ([capture-exception.ts](../../../apps/studio/src/client/lib/capture-exception.ts)) and the bash worker send a serialized error, and the main process builds every event with its own contexts and breadcrumbs. A capture takes a typed context (area, mechanism, handled, RPC path, chat, session, message, tool, model and provider ids, component stack, data).
+- Events are kept in `exceptions.json` in userData ([exception-store.ts](../../../apps/studio/src/electron-main/lib/exception-store.ts)): one per fingerprint with a count and first and last times, the 50 most recently seen. The developer-mode indicator reads the ones seen this session. An uncaught main-process throw also writes its event synchronously to `last-crash.json`, which the next start reads back into the bell.
 - The event catalog is gone. Phase 1's journal, if it wants events, starts from an empty catalog rather than a retargeted one.
-
-**Diagnostics seed.** [server-exceptions.ts](../../../apps/studio/src/electron-main/lib/server-exceptions.ts) is an unbounded in-memory array, developer-mode only.
 
 **Timing seed.** [boot-timing.ts](../../../apps/studio/src/electron-main/lib/boot-timing.ts) wraps each step of main-process boot and logs its duration through electron-log, so a packaged build's `main.log` says which step a slow launch spent its time in. A formatted string, not a record, and the only timing anywhere in the app. [main-log-retention-and-transport.md](../../findings/main-log-retention-and-transport.md) measures what that file retains and why its transport defaults do not survive the volume Phase 1 adds.
 
@@ -57,7 +55,7 @@ Keep the event catalog, retarget the sink. Bind a `DiagnosticsSink` to the two c
 
 - Append-only, in application data, bounded by size and age, same format as conversation storage.
 - Repeated records collapse rather than accumulate: one record per fingerprint with a count and first and last timestamps. Size and age bounds alone do not survive an emitter that fires once per frame, and the noisiest sources are the content-free ones, so an uncaught browser notice raised during a splitter drag can evict every diagnostic record ahead of it. The analytics SDK absorbed this with a client-side rate limiter; an append-only file has none. Collapsing belongs in the sink before the write, since the format rules out editing a record in place.
-- Sanitize on write, not on send: home and task roots become placeholders, URL query and fragment dropped, known secret and key formats matched, prompts, model output, tool payloads and file contents excluded.
+- Exception events are complete rather than sanitized: the home folder reads `~` and nothing else is taken out, because nothing is sent without the person seeing it first. Show details is the whole report, the events' exact JSON included.
 - The two catalog entries carrying user content are already gone, ahead of this plan: `model_picker.searched` took the text someone typed and `external_link.clicked` took the full URL of anything they opened, path and query included. Reshaping them into a had-results boolean and an origin category was the earlier intent; removing them outright was cheaper than either, and neither answered a question worth a schema. Nothing in the catalog now carries content, which means the sanitizer below has no field it is the last line of defense for.
 - Diagnostics screen: inspect, copy, export, delete. Absorbs the dev-mode exception store.
 
@@ -83,13 +81,13 @@ Attachment defaults: rating and app version on; thread on for a thumbs report wi
 
 Identity: unlinked, random report ID, optional contact field stored apart from content, receipt carrying a deletion token.
 
-Redaction is defense in depth and must never be described as a guarantee. The preview is the authority.
+The preview is the authority: what it shows is what is sent.
 
 ### Crash reports
 
 Electron Crashpad with `uploadToServer: false`. Minidumps stay local. On next launch, show the crash with a readable summary and an optional manual attachment.
 
-Separate default-off setting, "Automatically share sanitized exception reports", not "usage metrics". Versioned allowlist: fingerprint, sanitized stack, app version, coarse OS and architecture, subsystem and RPC route, state-machine state, counts, timing, random per-report ID. Readable before opting in. No conversation content, no task or session identifiers, no stable install identifier. Minidumps stay manual until real dumps are audited for path, memory, URL, and content exposure.
+A default-off setting, "Send error reports automatically", offered from a report's own dialog after the person has read one. It sends crashes and app errors as that dialog would have shown them: the details and the exception events, which carry the chat, session and tool ids the capture knew, never conversation content. There is no stable install identifier. Minidumps stay manual until real dumps are audited for path, memory, URL, and content exposure.
 
 ### Ingestion
 
@@ -111,7 +109,7 @@ Today it attaches account identity, email, URL, user agent, country, and Cloudfl
 
 **Phase 2.** Report composer, thumbs with first-run disclosure, task rating, "Report this problem". Bundle, redaction, preview, upload, receipt, deletion token, lifecycle.
 
-**Phase 3.** Crashpad with upload disabled and the unclean-exit marker (built). Pending-crash UI, manual submission, the default-off sanitized exception setting.
+**Phase 3.** Crashpad with upload disabled and the unclean-exit marker (built). Pending-crash UI, manual submission, and the default-off automatic error report setting (built).
 
 **Phase 4.** Quarantine queue, sanitized derivatives, dedup fingerprints, isolated triage, human approval gate, promotion into evals.
 
@@ -137,8 +135,8 @@ Phase 0 and 1 are independent of the storage work. **Phase 2 is not**: built aga
 - [ ] Opening or dismissing any feedback surface sends nothing.
 - [ ] The previewed manifest, byte counts, and hashes match the uploaded bundle exactly.
 - [ ] Unselected transcript ranges, files, tool payloads, screenshots, and diagnostics are absent server-side.
-- [ ] A default report carries no account, user, installation, task, session, or message identifier.
-- [ ] Automatic exception sharing is off on a fresh install and sends only the documented allowlist when on.
+- [x] A report carries exactly what its Show details shows: the details text and the exception events, nothing else.
+- [x] Automatic error reports are off on a fresh install, and when on send the same report the dialog would show.
 - [ ] A launch slower than its budget leaves a named step and duration in the journal, and a main-thread stall leaves an overshoot record.
 - [ ] A report carrying only spans contains no path, identifier, or user content.
 - [ ] Revoking consent stops future uploads; deleting removes pending local reports.

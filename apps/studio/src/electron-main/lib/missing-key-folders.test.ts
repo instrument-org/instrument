@@ -262,7 +262,7 @@ describe("the notice for a folder that is gone", () => {
     stored.clear();
     userData.dir = fs.mkdtempSync(path.join(os.tmpdir(), "folders-store-"));
     root = fs.mkdtempSync(path.join(os.tmpdir(), "folders-root-"));
-    vi.stubEnv("MAIN_VITE_REPORTS_BASE_URL", "https://reports.example");
+    vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", "https://api.example");
     return () => {
       vi.unstubAllEnvs();
       fs.rmSync(userData.dir, { force: true, recursive: true });

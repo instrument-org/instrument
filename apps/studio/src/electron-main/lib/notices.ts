@@ -59,12 +59,8 @@ function currentChannel(): string {
  */
 export function fetchNotices(): Promise<void> {
   inFlight ??= (async () => {
-    const base = import.meta.env.MAIN_VITE_REPORTS_BASE_URL;
-    if (!base) {
-      return;
-    }
     const store = getNoticesStore();
-    const url = new URL("/notices", base);
+    const url = new URL("/notices", import.meta.env.MAIN_VITE_APP_API_BASE_URL);
     url.searchParams.set("version", app.getVersion());
     url.searchParams.set("platform", process.platform);
     url.searchParams.set("arch", process.arch);

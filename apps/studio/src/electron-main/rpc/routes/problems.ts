@@ -70,8 +70,8 @@ const send = base
       return sent;
     } catch (error) {
       captureServerException(error);
-      // Said in words the dialog can show: nowhere to send to, too many
-      // reports at once, or the service refusing it.
+      // Said in words the dialog can show: too many reports at once, or the
+      // service refusing it.
       throw errors.API_ERROR({
         cause: error,
         message: error instanceof Error ? error.message : String(error),

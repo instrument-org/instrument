@@ -84,7 +84,7 @@ describe("notices", () => {
     workspace.defaultModelURI = undefined;
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
-    vi.stubEnv("MAIN_VITE_REPORTS_BASE_URL", "https://reports.example");
+    vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", "https://api.example");
     return () => {
       vi.unstubAllGlobals();
       vi.unstubAllEnvs();

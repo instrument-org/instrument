@@ -272,23 +272,22 @@ function reportBody(input: ReportInput): string {
 }
 
 /**
- * Sends one report to the reports service and answers its id. A signed-in
- * report carries the account's token, the way every request to us does, so
+ * Sends one report to the API, which hands it to the reports service, and
+ * answers its id. A signed-in report carries the account's token, the way every request to us does, so
  * it can be answered; one from someone not signed in goes without.
  */
 export async function sendReport(input: ReportInput): Promise<{ id: string }> {
-  const base = import.meta.env.MAIN_VITE_REPORTS_BASE_URL;
-  if (!base) {
-    throw new Error("This build has nowhere to send reports.");
-  }
-  const response = await fetch(new URL("/reports", base), {
-    body: reportBody(input),
-    headers: {
-      ...getPlatformApiHeaders(),
-      "content-type": "application/json",
+  const response = await fetch(
+    new URL("/reports", import.meta.env.MAIN_VITE_APP_API_BASE_URL),
+    {
+      body: reportBody(input),
+      headers: {
+        ...getPlatformApiHeaders(),
+        "content-type": "application/json",
+      },
+      method: "POST",
     },
-    method: "POST",
-  });
+  );
   if (!response.ok) {
     throw new Error(
       response.status === 429

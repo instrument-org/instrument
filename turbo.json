@@ -47,7 +47,6 @@
         "SIGNTOOL_PATH",
         "MAIN_VITE_APP_API_BASE_URL",
         "MAIN_VITE_APP_REGISTRY_DIR_PATH",
-        "MAIN_VITE_REPORTS_BASE_URL",
         "WAYLAND_DISPLAY",
         "WIN_CERT_PATH",
         "WIN_GCP_KMS_KEY_VERSION",
@@ -57,12 +56,7 @@
       "outputs": ["dist/**", "out/**"]
     },
     "build:vite": {
-      "env": [
-        "CI",
-        "INSTRUMENT_PREVIEW_NAME",
-        "MAIN_VITE_APP_API_BASE_URL",
-        "MAIN_VITE_REPORTS_BASE_URL"
-      ],
+      "env": ["CI", "INSTRUMENT_PREVIEW_NAME", "MAIN_VITE_APP_API_BASE_URL"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["out/**"]
     },

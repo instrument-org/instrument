@@ -707,6 +707,10 @@ describe("FileSystem", () => {
         .map((option) => option.textContent?.split("--")[0] ?? "");
 
     expect(names()).toEqual(["drafts", "report.txt", "notes.txt"]);
+    // The list counts what it draws, what is open in place included.
+    expect(
+      document.querySelector("[data-file-system-status]")?.textContent,
+    ).toBe("3 items");
     const drafts = screen.getByRole("option", { name: /^drafts/ });
     fireEvent.click(drafts);
     fireEvent.keyDown(drafts, { key: "ArrowLeft" });

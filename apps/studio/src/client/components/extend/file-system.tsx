@@ -2199,6 +2199,9 @@ export function FileSystem({
     },
     [commitSelection],
   );
+  // How many items the list draws, which is what it counts, as the Finder's
+  // list counts what is open in place under a folder.
+  const [listedCount, setListedCount] = React.useState<null | number>(null);
   // What a box dragged across the rows starts from, and how it adds to it.
   const marqueeStartRef = React.useRef<{
     base: Selection;
@@ -3050,6 +3053,7 @@ export function FileSystem({
     onSelect: selectAndPrefetchEntry,
     onSelectEntries: selectEntries,
     marquee,
+    onListedCount: setListedCount,
     onSortColumnClick: toggleSortColumn,
     pageUrlCache,
     poolStagePath,
@@ -3418,13 +3422,15 @@ export function FileSystem({
       !(isLoadingCurrentFolder && currentEntries.length === 0) ? (
         <FileSystemStatusBar
           count={
-            (
-              sortedIndex.children.get(
-                view === "columns" && selectedPath !== null
-                  ? pathParent(selectedPath)
-                  : currentPath,
-              ) ?? []
-            ).length
+            view === "list" && isViewShown && listedCount !== null
+              ? listedCount
+              : (
+                  sortedIndex.children.get(
+                    view === "columns" && selectedPath !== null
+                      ? pathParent(selectedPath)
+                      : currentPath,
+                  ) ?? []
+                ).length
           }
           selected={selectedPaths.length}
         />
@@ -3810,6 +3816,8 @@ type FileSystemViewProps = {
   onSelectEntries: (entries: readonly FileSystemEntry[]) => void;
   /** Where a box dragged across the rows says what it touches. */
   marquee: MarqueeControl;
+  /** How many items the list draws, those in folders opened in place included. */
+  onListedCount: (count: number) => void;
   onSortColumnClick: (key: FileSystemSortKey) => void;
   /** `"path#pageIndex"` → thumbnail URL, shared by every pager. */
   pageUrlCache: Map<string, string>;
@@ -3967,8 +3975,8 @@ function useSlowLoads(loading: ReadonlySet<string>, ms = LOADER_DELAY_MS) {
 /**
  * How many things the folder on screen lists, and how many of them are
  * selected, along the bottom as the Finder's status bar says it. In the
- * columns the folder is the column the selection is in; in the list, it is
- * the folder's own items, not what is open in place under them.
+ * columns the folder is the column the selection is in; in the list it is
+ * every item drawn, those open in place under a folder included.
  */
 function FileSystemStatusBar({
   count,
@@ -4954,6 +4962,7 @@ function FileSystemListView({
   menuTargetPath,
   moveFocusWithSelection,
   onExpandFolder,
+  onListedCount,
   onFolderHover,
   onItemContextMenu,
   onListColumnsChange,
@@ -5093,6 +5102,9 @@ function FileSystemListView({
       row.entry !== null,
   );
   const rowEntries = entryRows.map((row) => row.entry);
+  React.useEffect(() => {
+    onListedCount(rowEntries.length);
+  }, [onListedCount, rowEntries.length]);
   // A folder drawn open that was opened somewhere else (another window,
   // another folder walked through) has its contents read as it is drawn.
   const unreadOpen = rowEntries

@@ -6,7 +6,10 @@ import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { type ChatId } from "../schemas/chat-id";
 import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import {
+  createMockChatConfigForDir,
+  MOCK_WORKSPACE_DIRS,
+} from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { hostPathOf, shellPath } from "./workspace-fs-layout";
@@ -141,14 +144,16 @@ it("asks before changing the home folder a temp folder holds", async () => {
 it.skipIf(process.platform === "win32")(
   "keeps the workspace's records a temp folder holds closed",
   async () => {
+    const records = path.join(MOCK_WORKSPACE_DIRS.root, ".instrument");
+    await fs.mkdir(records, { recursive: true });
     const result = await run(
-      "ls /tmp/workspace/.instrument; touch /tmp/workspace/.instrument/leak.txt",
+      `ls '${records}'; touch '${records}/leak.txt'`,
     );
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Permission denied");
     expect(result.stderr).toContain("Instrument's own data");
     await expect(
-      fs.stat("/tmp/workspace/.instrument/leak.txt"),
+      fs.stat(path.join(records, "leak.txt")),
     ).rejects.toThrow();
   },
 );

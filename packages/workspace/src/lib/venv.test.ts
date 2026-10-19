@@ -1,7 +1,11 @@
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../schemas/chat-id";
-import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import {
+  createMockChatConfig,
+  MOCK_WORKSPACE_DIRS,
+} from "../test/helpers/mock-chat-config";
 import { workVenvDir } from "./uv";
 import { ensureVenv, pythonToRun, venvToInstallInto } from "./venv";
 import { workDir } from "./work-dir";
@@ -182,7 +186,7 @@ describe("venvToInstallInto", () => {
     await expect(
       venvToInstallInto({
         chatId,
-        cwd: "/tmp/workspace-machine/work/first-install/job",
+        cwd: path.join(MOCK_WORKSPACE_DIRS.work, "first-install", "job"),
       }),
     ).resolves.toEqual({ venv: workVenvDir(chatId) });
     expect(vi.mocked(runUvCommand).mock.calls[0]?.[0]).toMatchObject({
@@ -203,7 +207,10 @@ describe("pythonToRun", () => {
     const chatId = createMockChatConfig(ChatIdSchema.parse("no-venv"));
 
     await expect(
-      pythonToRun({ chatId, cwd: "/tmp/workspace-machine/work/no-venv" }),
+      pythonToRun({
+        chatId,
+        cwd: path.join(MOCK_WORKSPACE_DIRS.work, "no-venv"),
+      }),
     ).resolves.toEqual({
       python: "/runtime/python/cpython-3.12/bin/python3.12",
       venv: undefined,

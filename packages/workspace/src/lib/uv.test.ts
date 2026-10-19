@@ -7,6 +7,7 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import {
   createMockChatConfig,
   createMockChatConfigForDir,
+  MOCK_WORKSPACE_DIRS,
 } from "../test/helpers/mock-chat-config";
 import { modelCachesEnvFor } from "./tool-isolation-env";
 import {
@@ -25,7 +26,7 @@ const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
 describe("workVenvDir", () => {
   it("resolves to .venv at the root of the chat's work folder", () => {
     expect(workVenvDir(chatId)).toBe(
-      path.resolve("/tmp/workspace-machine/work/test/.venv"),
+      path.join(MOCK_WORKSPACE_DIRS.work, "test", ".venv"),
     );
   });
 });
@@ -87,7 +88,7 @@ describe("nearestVenv", () => {
 
 describe("uvSubprocessEnv", () => {
   const env = uvSubprocessEnv({ chatId, cwd: workDir(chatId) });
-  const runtime = path.resolve("/tmp/workspace/runtime");
+  const runtime = MOCK_WORKSPACE_DIRS.runtime;
 
   it("keeps uv's cache and tools in the runtime caches, and its Pythons in their own folder", () => {
     expect(env.UV_CACHE_DIR).toBe(path.join(runtime, "caches", "uv"));
@@ -146,7 +147,7 @@ describe("uvSubprocessEnv", () => {
 
 describe("uvBuildSubprocessEnv", () => {
   const env = uvBuildSubprocessEnv();
-  const runtime = path.resolve("/tmp/workspace/runtime");
+  const runtime = MOCK_WORKSPACE_DIRS.runtime;
 
   it("keeps a shipped skill's build in the build folders, with nothing of a chat's", () => {
     expect(env.UV_CACHE_DIR).toBe(path.join(runtime, "build", "caches", "uv"));

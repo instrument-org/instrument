@@ -22,6 +22,7 @@ import { fetchModelsForOpenRouter } from "./fetch-models/openrouter";
 import { isWorkersAiProviderConfig } from "./fetch-models/parse-workers-ai-base-url";
 import { fetchModelsForVercel } from "./fetch-models/vercel";
 import { fetchAndParseWorkersAiModels } from "./fetch-models/workers-ai";
+import { fetchAndParseXAIModels } from "./fetch-models/xai";
 import { type ModelCache } from "./model-cache";
 
 const capturedErrors = new Set<string>();
@@ -71,6 +72,10 @@ export function fetchModelsForProvider(
         }
         case "vercel": {
           return fetchModelsForVercel(config);
+        }
+        case "grok-account":
+        case "x-ai": {
+          return fetchAndParseXAIModels(config);
         }
         default: {
           return fetchAndParseOpenAICompatibleModels(config);

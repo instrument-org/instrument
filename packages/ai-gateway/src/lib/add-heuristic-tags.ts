@@ -10,6 +10,13 @@ const MODEL_TAGS: Record<string, AIGatewayModel.ModelTag[]> = {
 };
 
 /**
+ * Every numbered Grok at or above its recommended floor (4.5), with nothing
+ * after the number. Only a recommended model is ranked against the list, so a
+ * release under the floor would keep the tag next to the newest one.
+ */
+const GROK_RELEASE = /^grok-(?:4\.[5-9]|[5-9](?:\.\d+)?)$/;
+
+/**
  * The model each kind of provider leads its list with. A pattern rather than
  * an id where the line is what matters: every Sonnet matches, and
  * `demoteSupersededModels` leaves the tag on the newest one only.
@@ -20,10 +27,10 @@ const DEFAULT_MODELS_BY_CONFIG_TYPE: Partial<
   anthropic: /^claude-sonnet-/,
   cerebras: /^gpt-oss-120b$/,
   google: /^gemini-3\.7-flash$/,
-  "grok-account": /^grok-4\.6$/,
+  "grok-account": GROK_RELEASE,
   groq: /^gpt-oss-120b$/,
   openai: /^gpt-5\.6-terra$/,
-  "x-ai": /^grok-4\.6$/,
+  "x-ai": GROK_RELEASE,
   "z-ai": /^glm-5\.3$/,
 };
 

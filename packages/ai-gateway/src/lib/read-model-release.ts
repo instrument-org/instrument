@@ -55,6 +55,12 @@ const QUALIFIER_SEGMENTS = new Set([
   "latest",
   "preview",
   "stable",
+  // xAI serves one release several ways after its build date:
+  // `grok-4.20-0309-reasoning`, `-non-reasoning`, `-multi-agent`.
+  "agent",
+  "multi",
+  "non",
+  "reasoning",
 ]);
 
 /**
@@ -111,17 +117,20 @@ export function readModelRelease(
   }
 
   const afterVersion = segments.slice(versionIndex + 1);
+  // Qualifiers can follow the build as well as precede it, so they come out
+  // before the build is looked for.
+  const unqualified = afterVersion.filter(
+    (segment) => !QUALIFIER_SEGMENTS.has(segment),
+  );
 
-  // A build number sits at the end of the id and is digits and dashes only, so
-  // walk back from the end for as long as the segments are numeric.
-  let buildStart = afterVersion.length;
-  while (BUILD_SEGMENT.test(afterVersion[buildStart - 1] ?? "")) {
+  // A build number sits at the end of what is left and is digits and dashes
+  // only, so walk back from the end for as long as the segments are numeric.
+  let buildStart = unqualified.length;
+  while (BUILD_SEGMENT.test(unqualified[buildStart - 1] ?? "")) {
     buildStart -= 1;
   }
-  const build = afterVersion.slice(buildStart).join("");
-
-  const named = afterVersion.slice(0, buildStart);
-  const tier = named.filter((segment) => !QUALIFIER_SEGMENTS.has(segment));
+  const build = unqualified.slice(buildStart).join("");
+  const tier = unqualified.slice(0, buildStart);
   const stem = [...segments.slice(0, versionIndex), lineLetters]
     .filter(Boolean)
     .join("-");
@@ -130,7 +139,8 @@ export function readModelRelease(
   return {
     build: build === "" ? undefined : Number.parseInt(build, 10),
     family: head.replace(/\d.*$/, "") || head,
-    qualifierCount: named.length - tier.length + servingVariants.length,
+    qualifierCount:
+      afterVersion.length - unqualified.length + servingVariants.length,
     // Separated so that a tier spelled into the stem cannot collide with the
     // same word read as a tier: `gpt-luna-5.6` is not `gpt-5.6-luna`.
     series: `${stem}|${tier.join("-")}`,

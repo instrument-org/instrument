@@ -67,12 +67,21 @@ const NO_PARAMS: ImageModelCapabilities = {
   supportsStreaming: false,
 };
 
+/** Grok Imagine, reached with a key or a Grok account alike. */
+const XAI_IMAGE: ImageModelCapabilities = {
+  params: {
+    quality: { values: GRADED_QUALITY, via: "providerOption" },
+  },
+  supportsStreaming: false,
+};
+
 const IMAGE_CAPABILITIES: Record<
   ImageGenerationProviderType,
   ImageModelCapabilities
 > = {
   deepinfra: NO_PARAMS,
   fireworks: NO_PARAMS,
+  "grok-account": XAI_IMAGE,
   google: {
     params: {
       aspectRatio: { values: GEMINI_GOOGLE_ASPECT_RATIOS, via: "standard" },
@@ -102,12 +111,7 @@ const IMAGE_CAPABILITIES: Record<
   },
   together: NO_PARAMS,
   vercel: NO_PARAMS,
-  "x-ai": {
-    params: {
-      quality: { values: GRADED_QUALITY, via: "providerOption" },
-    },
-    supportsStreaming: false,
-  },
+  "x-ai": XAI_IMAGE,
 };
 
 // AI SDK `providerOptions` key for each provider's image model. Provider-option
@@ -119,6 +123,7 @@ const PROVIDER_IMAGE_OPTION_NAMESPACE: Record<
   deepinfra: "deepinfra",
   fireworks: "fireworks",
   google: "google",
+  "grok-account": "xai",
   openai: "openai",
   openrouter: "openrouter",
   [OUR_MODELS.providerType]: "openrouter",

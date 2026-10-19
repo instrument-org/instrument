@@ -126,8 +126,9 @@ const PROVIDER_METADATA = {
     canAddManually: false,
     description: "Grok models on your SuperGrok or X Premium subscription",
     name: "Grok",
-    // Searches with xAI's hosted `web_search` and `x_search` tools.
-    tags: ["webSearch"],
+    // Searches with xAI's hosted `web_search` and `x_search` tools, and draws
+    // with Grok Imagine.
+    tags: ["imageGeneration", "webSearch"],
     type: "grok-account",
     url: addRef("https://grok.com"),
   },

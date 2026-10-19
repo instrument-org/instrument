@@ -35,13 +35,13 @@ const PILL_END_SIZE = 28;
 async function renderFrame({
   attachmentCount = 0,
   draft = "",
-  layout = "block",
+  layout = "bare",
   maxHeight = 400,
   withExtras = false,
 }: {
   attachmentCount?: number;
   draft?: string;
-  layout?: "block" | "pill";
+  layout?: "bare" | "pill";
   maxHeight?: number;
   withExtras?: boolean;
 } = {}) {
@@ -161,7 +161,7 @@ describe("ComposerFrame in a browser", () => {
         buttons.top,
       );
       // Inside the box's padding, not merely inside its border.
-      expect(buttons.bottom).toBeLessThanOrEqual(box.bottom - 16);
+      expect(buttons.bottom).toBeLessThanOrEqual(box.bottom - 12);
       // The draft is long enough that the box is full: without this the
       // assertions above would hold for a composer with nothing in it.
       expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);

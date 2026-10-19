@@ -91,7 +91,6 @@ export function ModelPicker({
   onOpenChange,
   onValueChange,
   open: openProp,
-  placeholder = "Select a model",
   selectedModel,
 }: {
   /** Which edge of the trigger the panel lines up with: the end for a trigger at the right of its row. */
@@ -129,7 +128,6 @@ export function ModelPicker({
   onValueChange: (value: AIGatewayModelURI.Type) => void;
   /** Open from outside, for a surface that offers the picker from a menu rather than its own button. */
   open?: boolean;
-  placeholder?: string;
   selectedModel?: AIGatewayModel.Type;
 }) {
   const [open, setOpen] = useState(false);
@@ -162,7 +160,7 @@ export function ModelPicker({
     : isError
       ? "Couldn't load models"
       : models?.length
-        ? placeholder
+        ? "Select a model"
         : "No models available";
 
   return (

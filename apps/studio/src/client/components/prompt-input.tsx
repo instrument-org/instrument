@@ -163,7 +163,6 @@ interface PromptInputProps {
   /** Where the box stops growing and the draft starts scrolling. Defaults by variant; null leaves the cap to the host's layout. */
   autoResizeMaxHeight?: null | number;
   className?: string;
-  disabled?: boolean;
   draftKey: PromptDraftKey;
   /** Whether `attachmentsLead` holds anything, which is enough to send with no words. */
   hasAttachmentsLead?: boolean;
@@ -189,8 +188,8 @@ interface PromptInputProps {
   places?: Omit<ComposerPlaces, "apps" | "onNameApp">;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
-  /** A pill is one row, the height of a text field, that grows with the draft; bare is the block with no box drawn around it, for a host that draws its own. */
-  variant?: "bare" | "block" | "pill";
+  /** A pill is one row, the height of a text field, that grows with the draft; bare is the editor above its button row with no box drawn around them, for a host that draws its own. */
+  variant: "bare" | "pill";
 }
 
 export const PromptInput = ({
@@ -201,7 +200,6 @@ export const PromptInput = ({
   autoFocus = false,
   autoResizeMaxHeight,
   className,
-  disabled = false,
   draftKey,
   hasAttachmentsLead = false,
   id,
@@ -215,7 +213,7 @@ export const PromptInput = ({
   places,
   ref,
   selectedSessionId,
-  variant = "block",
+  variant,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
@@ -675,7 +673,6 @@ export const PromptInput = ({
   };
 
   const canSubmit =
-    !disabled &&
     !isLoading &&
     (value.trim() || attachedItems.length > 0 || hasAttachmentsLead) &&
     modelURI &&
@@ -846,7 +843,7 @@ export const PromptInput = ({
                 <ComposerAddMenu
                   actions={actions}
                   bounds={composerBounds}
-                  disabled={disabled || isLoading}
+                  disabled={isLoading}
                   onReturnFocus={() => {
                     promptEditorRef.current?.focus();
                   }}
@@ -875,7 +872,7 @@ export const PromptInput = ({
               <ModelPicker
                 align="end"
                 className="min-w-0"
-                disabled={disabled || isLoading}
+                disabled={isLoading}
                 errors={modelsErrors}
                 isError={modelsIsError}
                 isLoading={modelsIsLoading}
@@ -978,7 +975,7 @@ export const PromptInput = ({
         extras={pillOpen ? lead : undefined}
         layout={variant}
         // A pill shows it only while open, with the rest of its second row;
-        // a block or a draft always has room over its words.
+        // a draft always has room over its words.
         notice={variant === "pill" && !pillOpen ? undefined : noticeRow}
         leading={
           variant === "pill" ? (
@@ -989,7 +986,7 @@ export const PromptInput = ({
               <ComposerAddMenu
                 actions={actions}
                 bounds={composerBounds}
-                disabled={disabled || isLoading}
+                disabled={isLoading}
                 onReturnFocus={() => {
                   promptEditorRef.current?.focus();
                 }}
@@ -1008,7 +1005,7 @@ export const PromptInput = ({
                 anchorOnly
                 bounds={composerBounds}
                 className="pointer-events-none absolute inset-0"
-                disabled={disabled || isLoading}
+                disabled={isLoading}
                 errors={modelsErrors}
                 isError={modelsIsError}
                 isLoading={modelsIsLoading}
@@ -1094,7 +1091,7 @@ export const PromptInput = ({
           autoFocus={autoFocus}
           bounds={composerBounds}
           defaultValue={value}
-          disabled={disabled || isLoading}
+          disabled={isLoading}
           key={draftKeyString(draftKey)}
           onChange={setValue}
           onPaste={handlePaste}

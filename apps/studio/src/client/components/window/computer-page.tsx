@@ -148,6 +148,7 @@ import {
   segmentsOf,
 } from "./host-path";
 import { useClashQuestions } from "./clash-dialog";
+import { createPasteTarget } from "./paste-target";
 import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
 
 /**
@@ -1368,15 +1369,14 @@ export function ComputerPage({
   // the columns, and the folder on screen otherwise, or the folder a menu's
   // Paste named. It is heard only while the keyboard is in this Finder and
   // out of any field, since that is the only place the window sends it.
-  const pasteInto = useRef<null | string>(null);
+  const [pasteTarget] = useState(() => createPasteTarget());
   useEffect(() => {
     const browser = browserRef.current;
     if (!browser || !isDropOpen) {
       return;
     }
     const paste = (event: ClipboardEvent) => {
-      const named = pasteInto.current;
-      pasteInto.current = null;
+      const named = pasteTarget.take();
       if (!event.clipboardData || isTypingTarget(event.target)) {
         return;
       }
@@ -1419,7 +1419,7 @@ export function ComputerPage({
     return () => {
       browser.removeEventListener("paste", paste);
     };
-  }, [current, isDropOpen]);
+  }, [current, isDropOpen, pasteTarget]);
 
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
@@ -1917,7 +1917,7 @@ export function ComputerPage({
             onPaste: () => {
               afterMenu.current = () => {
                 focusBrowser();
-                pasteInto.current = onScreen;
+                pasteTarget.name(onScreen);
                 void rpcClient.files.paste.call();
               };
             },

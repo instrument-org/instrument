@@ -220,22 +220,22 @@ describe("selectProviderConfigs", () => {
     `);
   });
 
-  it("never falls back from one ChatGPT account to another", () => {
-    const configs = [
-      createConfig({ id: "chatgpt-personal", type: "chatgpt-account" }),
-      createConfig({ id: "chatgpt-work", type: "chatgpt-account" }),
-      createConfig({ id: "openai-1", type: "openai" }),
-    ];
+  it.each(["chatgpt-account", "grok-account"] as const)(
+    "never falls back from one %s to another",
+    (type) => {
+      const configs = [
+        createConfig({ id: "personal", type }),
+        createConfig({ id: "work", type }),
+        createConfig({ id: "openai-1", type: "openai" }),
+      ];
 
-    const result = selectProviderConfigs({
-      configs,
-      preferredProviderConfig: createConfig({
-        id: "chatgpt-work",
-        type: "chatgpt-account",
-      }),
-      providerTypePriority: ["chatgpt-account", "openai"],
-    });
+      const result = selectProviderConfigs({
+        configs,
+        preferredProviderConfig: createConfig({ id: "work", type }),
+        providerTypePriority: [type, "openai"],
+      });
 
-    expect(result.map((c) => c.id)).toEqual(["chatgpt-work", "openai-1"]);
-  });
+      expect(result.map((c) => c.id)).toEqual(["work", "openai-1"]);
+    },
+  );
 });

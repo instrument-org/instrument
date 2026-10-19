@@ -4,7 +4,10 @@ import type * as GrokAccountModule from "./grok-account";
 
 let stored: Record<string, unknown> = {};
 
-const { openExternal } = vi.hoisted(() => ({ openExternal: vi.fn() }));
+const { noteSignedOut, openExternal } = vi.hoisted(() => ({
+  noteSignedOut: vi.fn(),
+  openExternal: vi.fn(),
+}));
 
 vi.mock("electron", () => ({
   safeStorage: { isEncryptionAvailable: () => true },
@@ -26,7 +29,7 @@ vi.mock("@/electron-main/platform-api/headers", () => ({
   getAnonymousPlatformApiHeaders: () => ({ "user-agent": "Instrument/test" }),
 }));
 
-vi.mock("@/electron-main/lib/notices", () => ({ noteSignedOut: vi.fn() }));
+vi.mock("@/electron-main/lib/notices", () => ({ noteSignedOut }));
 
 vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
@@ -301,6 +304,17 @@ describe("Grok sign-in", () => {
     expect(grok.grokAccountsStatus().accounts).toEqual([]);
   });
 
+  it("answers canceled when given up before xAI hands out a code, and opens nothing", async () => {
+    tokenAnswers = [tokensFor("user-1")];
+    const signingIn = grok.signInWithGrok();
+    grok.cancelGrokSignIn();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(await signingIn).toEqual({ outcome: "canceled" });
+    expect(openExternal).not.toHaveBeenCalled();
+    expect(grok.grokAccountsStatus().accounts).toEqual([]);
+  });
+
   it("answers canceled when given up in the app", async () => {
     tokenAnswers = [json({ error: "authorization_pending" }, 400)];
     const signingIn = grok.signInWithGrok();
@@ -359,7 +373,16 @@ describe("Grok account refresh", () => {
     tokenAnswers = [json({ error: "invalid_grant" }, 400)];
     await grok.refreshExpiredGrokTokens();
     expect(grok.grokAccountsStatus().accounts[0]?.state).toBe("signed-out");
+
     expect(grok.grokAccountProviderConfigs()).toEqual([]);
+  });
+
+  it("tells the notices about an account whose session ended", () => {
+    seed({ accessToken: undefined, refreshToken: undefined });
+    grok.grokAccountsStatus();
+    expect(noteSignedOut).toHaveBeenLastCalledWith("grok-account", [
+      { id: "account-1" },
+    ]);
   });
 
   it("waits on nothing for another provider's config", async () => {

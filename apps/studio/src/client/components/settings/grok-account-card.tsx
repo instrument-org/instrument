@@ -178,7 +178,7 @@ export function GrokAccountCard() {
               ) : (
                 accounts.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    Pay for SuperGrok or X Premium? Use it here.
+                    Pay for SuperGrok or X Premium+? Use it here.
                   </p>
                 )
               )}

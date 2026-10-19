@@ -3206,6 +3206,30 @@ describe("llmRequestLogic", () => {
     `);
   });
 
+  it("refuses a Grok model's call to a tool that does not exist, rather than taking it for a search", async () => {
+    const { messages } = await createAndRunTestMachine({
+      chunks: [
+        { id: "made_1", toolName: "made_up", type: "tool-input-start" },
+        { delta: "{}", id: "made_1", type: "tool-input-delta" },
+        { id: "made_1", type: "tool-input-end" },
+        {
+          input: "{}",
+          toolCallId: "made_1",
+          toolName: "made_up",
+          type: "tool-call",
+        },
+      ],
+      modelProvider: "grok-account",
+    });
+
+    expect(
+      messages
+        .at(-1)
+        ?.parts.filter((part) => part.type === "tool-unavailable")
+        .map((part) => "state" in part && part.state),
+    ).toEqual(["output-error"]);
+  });
+
   it("holds a reply still arriving in the turn's memory, and records none of it", async () => {
     const input = JSON.stringify({
       activity: "Reading the list",

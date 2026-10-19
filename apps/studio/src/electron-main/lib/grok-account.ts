@@ -140,12 +140,15 @@ export interface GrokSignInResult {
   outcome: Extract<SignInOutcome, "canceled" | "declined" | "signed-in">;
 }
 
+/**
+ * The sign-in under way, from the press on: its code once xAI has handed one
+ * out, so a cancel before then still reaches it.
+ */
 let pending:
   | undefined
   | {
+      code?: { userCode: string; verificationUri: string };
       controller: AbortController;
-      userCode: string;
-      verificationUri: string;
     };
 
 /**
@@ -181,12 +184,7 @@ export function grokAccountsStatus(): GrokAccountsStatus {
   const all = registrations();
   return {
     accounts: all.map((registration) => accountStatus(registration, all)),
-    ...(pending && {
-      pending: {
-        userCode: pending.userCode,
-        verificationUri: pending.verificationUri,
-      },
-    }),
+    ...(pending?.code && { pending: pending.code }),
   };
 }
 
@@ -316,8 +314,8 @@ function currentSetup(): GrokSignInSetup {
  * Asks our API for the current setup before a sign-in, keeping what it serves
  * for later refreshes. When it cannot answer, the last one it served stands.
  */
-async function loadSignInSetup(): Promise<GrokSignInSetup> {
-  const fetched = await fetchGrokSignInSetup();
+async function loadSignInSetup(signal: AbortSignal): Promise<GrokSignInSetup> {
+  const fetched = await fetchGrokSignInSetup(signal);
   if (fetched) {
     getStore().set("signInSetup", fetched);
   }
@@ -613,7 +611,8 @@ export async function signInWithGrok(): Promise<GrokSignInResult> {
   const controller = new AbortController();
   const { signal } = controller;
   try {
-    const setup = await loadSignInSetup();
+    pending = { controller };
+    const setup = await loadSignInSetup(signal);
     const device = DeviceCodeSchema.parse(
       await postForm(
         `${setup.issuer}/device/code`,
@@ -627,7 +626,13 @@ export async function signInWithGrok(): Promise<GrokSignInResult> {
     );
     const verificationUri =
       device.verification_uri_complete ?? device.verification_uri;
-    pending = { controller, userCode: device.user_code, verificationUri };
+    if (signal.aborted) {
+      return { outcome: "canceled" };
+    }
+    pending = {
+      code: { userCode: device.user_code, verificationUri },
+      controller,
+    };
     publisher.publish("grok-account.updated", null);
     await shell.openExternal(verificationUri);
 

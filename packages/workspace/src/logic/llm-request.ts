@@ -1132,7 +1132,19 @@ function isNativeSearchPart(
     case "tool-input-end": {
       return nativeCallIds.has(part.id);
     }
-    case "tool-call":
+    case "tool-call": {
+      // Only the provider's own calls are its searches. A call the model made
+      // to a tool that does not exist goes on to be refused as one, so the
+      // model hears why, though its input was skipped.
+      if (!part.providerExecuted) {
+        nativeCallIds.delete(part.toolCallId);
+        return false;
+      }
+      if (!ownToolNames.has(part.toolName)) {
+        nativeCallIds.add(part.toolCallId);
+      }
+      return nativeCallIds.has(part.toolCallId);
+    }
     case "tool-error":
     case "tool-result": {
       if (part.providerExecuted && !ownToolNames.has(part.toolName)) {

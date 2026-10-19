@@ -71,9 +71,10 @@ export const BUILT_IN_GROK_SIGN_IN_SETUP: GrokSignInSetup = {
  * time or answers with one that fails validation. Sent without the account
  * token, so a signed-in person's sign-in stays unlinked to their account.
  */
-export async function fetchGrokSignInSetup(): Promise<
-  GrokSignInSetup | undefined
-> {
+export async function fetchGrokSignInSetup(
+  /** Ends the wait when the sign-in that asked is given up. */
+  signal?: AbortSignal,
+): Promise<GrokSignInSetup | undefined> {
   const base = import.meta.env.MAIN_VITE_APP_API_BASE_URL;
   if (!base) {
     return undefined;
@@ -81,7 +82,9 @@ export async function fetchGrokSignInSetup(): Promise<
   try {
     const response = await fetch(`${base}/grok/sign-in-setup`, {
       headers: getAnonymousPlatformApiHeaders(),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)])
+        : AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {
       log.warn(`Grok sign-in setup answered ${String(response.status)}`);

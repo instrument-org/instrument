@@ -286,6 +286,26 @@ describe("MessageError", () => {
     ).not.toBeNull();
   });
 
+  it.each([
+    [429, "No Grok plan on this account", "Open provider settings"],
+    [401, "Signed out of Grok", "Sign in again"],
+  ])("tells a Grok %i apart: %s", (statusCode, summary, action) => {
+    renderError({
+      error: {
+        classification: "auth",
+        kind: "api-call",
+        message: "refused",
+        name: "AI_APICallError",
+        statusCode,
+        url: "http://localhost/ai-gateway/providers/grok-1/responses",
+      },
+      provider: "grok-account",
+    });
+
+    expect(screen.getByText(summary)).not.toBeNull();
+    expect(screen.getByRole("button", { name: action })).not.toBeNull();
+  });
+
   it("offers Auto when the Claude account's limit was reached", async () => {
     renderError({
       error: {

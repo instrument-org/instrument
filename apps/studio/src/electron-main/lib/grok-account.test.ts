@@ -55,6 +55,7 @@ vi.mock("electron-store", () => ({
 const DEVICE_URL = "https://auth.x.ai/oauth2/device/code";
 const TOKEN_URL = "https://auth.x.ai/oauth2/token";
 const USER_URL = "https://cli-chat-proxy.grok.com/v1/user?include=subscription";
+const SETTINGS_URL = "https://cli-chat-proxy.grok.com/v1/settings";
 const API_BASE_URL = "https://api.test";
 const SETUP_URL = `${API_BASE_URL}/grok/sign-in-setup`;
 
@@ -127,8 +128,15 @@ beforeEach(async () => {
           tokenAnswers.length > 1 ? tokenAnswers.shift() : tokenAnswers[0];
         return Promise.resolve(answer?.clone() ?? json({}, 500));
       }
+      if (url === SETTINGS_URL) {
+        return Promise.resolve(
+          json({ subscription_tier_display: "SuperGrok Pro" }),
+        );
+      }
       if (url === USER_URL) {
-        return Promise.resolve(json({ subscriptionTier: tier }));
+        return Promise.resolve(
+          json(tier === "<missing>" ? {} : { subscriptionTier: tier }),
+        );
       }
       return Promise.reject(new Error(`unexpected fetch ${url}`));
     }),
@@ -166,8 +174,8 @@ describe("Grok sign-in", () => {
     expect(result).toMatchObject({
       account: {
         label: "user-1@example.com",
+        plan: "SuperGrok Pro",
         state: "signed-in",
-        tier: "SuperGrok",
       },
       outcome: "signed-in",
     });
@@ -218,6 +226,33 @@ describe("Grok sign-in", () => {
     await signIn();
 
     expect(requests.map((request) => request.url)).toContain(DEVICE_URL);
+  });
+
+  it("lets an account through when xAI's answer no longer names a plan", async () => {
+    tier = "<missing>";
+    tokenAnswers = [tokensFor("user-1")];
+
+    const result = await signIn();
+
+    expect(result.account?.state).toBe("signed-in");
+    expect(grok.grokAccountProviderConfigs()).toHaveLength(1);
+  });
+
+  it("knows an account again when its token carries a claim of the wrong type", async () => {
+    const tokens = () =>
+      json({
+        access_token: jwt({ principal_id: "user-x" }),
+        expires_in: 3600,
+        id_token: jwt({ email: null, sub: "user-x" }),
+        refresh_token: "refresh-x",
+      });
+    tokenAnswers = [tokens()];
+    const first = await signIn();
+    tokenAnswers = [tokens()];
+    const again = await signIn();
+
+    expect(again.account?.id).toBe(first.account?.id);
+    expect(grok.grokAccountsStatus().accounts).toHaveLength(1);
   });
 
   it("keeps an account with no subscription, says so, and lists none of its models", async () => {
@@ -329,5 +364,15 @@ describe("Grok account refresh", () => {
     seed();
     await grok.refreshExpiredGrokTokens("some-other-config");
     expect(requests).toEqual([]);
+  });
+});
+
+describe("spellTier", () => {
+  it.each([
+    ["XPremiumPlus", "X Premium Plus"],
+    ["SuperGrokHeavy", "SuperGrok Heavy"],
+    ["SuperGrok", "SuperGrok"],
+  ])("spells %s as %s", (tier, spelled) => {
+    expect(grok.spellTier(tier)).toBe(spelled);
   });
 });

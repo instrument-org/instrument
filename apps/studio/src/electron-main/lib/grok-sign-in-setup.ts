@@ -45,6 +45,12 @@ export const GrokSignInSetupSchema = z.object({
   /** How xAI tells which agent host a sign-in came from. */
   referrer: z.string().min(1),
   scope: z.string().min(1),
+  /**
+   * Names the account's plan the way xAI shows it to people
+   * (`subscription_tier_display`). Optional, since a setup served before it
+   * existed still holds.
+   */
+  settingsURL: XAIURLSchema.optional(),
   /** Answers who the account is and its subscription tier (`subscriptionTier`). */
   userURL: XAIURLSchema,
 });
@@ -56,6 +62,7 @@ export const BUILT_IN_GROK_SIGN_IN_SETUP: GrokSignInSetup = {
   issuer: "https://auth.x.ai/oauth2",
   referrer: "instrument",
   scope: "openid profile email offline_access grok-cli:access api:access",
+  settingsURL: "https://cli-chat-proxy.grok.com/v1/settings",
   userURL: "https://cli-chat-proxy.grok.com/v1/user?include=subscription",
 };
 

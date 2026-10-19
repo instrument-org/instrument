@@ -342,7 +342,8 @@ export const llmRequestLogic = fromPromise<
     // run on xAI's side within the response; their calls are xAI's to run
     // and replay drops them, so only the sources they cite are kept.
     const nativeTools = await nativeSearchTools(input.model.params.provider);
-    const nativeToolNames = new Set(Object.keys(nativeTools ?? {}));
+    const ownToolNames =
+      nativeTools && new Set(Object.keys(omit(tools, [TOOL_NAMES.webSearch])));
     const nativeCallIds = new Set<string>();
     const searchesNatively =
       aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type ||
@@ -431,7 +432,7 @@ export const llmRequestLogic = fromPromise<
         throw storageFullError;
       }
       input.self.send({ type: "llmRequest.chunkReceived" });
-      if (isNativeSearchPart(part, nativeToolNames, nativeCallIds)) {
+      if (isNativeSearchPart(part, ownToolNames, nativeCallIds)) {
         continue;
       }
       if (
@@ -1110,12 +1111,18 @@ function bareErrorMessage(error: Error): string {
  */
 function isNativeSearchPart(
   part: TextStreamPart<ToolSet>,
-  nativeToolNames: ReadonlySet<string>,
+  /** The tools this app runs, undefined when nothing searches natively. */
+  ownToolNames: ReadonlySet<string> | undefined,
   nativeCallIds: Set<string>,
 ): boolean {
+  if (!ownToolNames) {
+    return false;
+  }
+  // Known by not being one of ours rather than by a list of the provider's
+  // names, so a search step it adds later is skipped too.
   switch (part.type) {
     case "tool-input-start": {
-      if (!nativeToolNames.has(part.toolName)) {
+      if (ownToolNames.has(part.toolName)) {
         return false;
       }
       nativeCallIds.add(part.id);
@@ -1128,7 +1135,7 @@ function isNativeSearchPart(
     case "tool-call":
     case "tool-error":
     case "tool-result": {
-      if (part.providerExecuted && nativeToolNames.has(part.toolName)) {
+      if (part.providerExecuted && !ownToolNames.has(part.toolName)) {
         nativeCallIds.add(part.toolCallId);
       }
       return nativeCallIds.has(part.toolCallId);

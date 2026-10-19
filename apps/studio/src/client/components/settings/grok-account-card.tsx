@@ -74,9 +74,8 @@ export function GrokAccountCard() {
       return;
     }
     if (account.state === "no-subscription") {
-      toast.error(`${account.label} has no Grok subscription`, {
-        description:
-          "Subscribe to SuperGrok, or to X Premium with Grok, and it works here.",
+      toast.error(`${account.label} doesn’t have a Grok plan`, {
+        description: "You need SuperGrok or X Premium+ to use it here.",
       });
       return;
     }
@@ -170,7 +169,7 @@ export function GrokAccountCard() {
                 </p>
               ) : single ? (
                 <p className="text-sm text-muted-foreground">
-                  {describe(single, isOff(single))}
+                  <AccountLine account={single} off={isOff(single)} />
                 </p>
               ) : (
                 accounts.length === 0 && (
@@ -218,7 +217,7 @@ export function GrokAccountCard() {
                     isOff(account) && "opacity-60",
                   )}
                 >
-                  {describe(account, isOff(account))}
+                  <AccountLine account={account} off={isOff(account)} />
                 </p>
                 <AccountActions
                   account={account}
@@ -266,20 +265,32 @@ export function GrokAccountCard() {
   );
 }
 
-/** An account's label, its plan, and where it stands when that needs saying. */
-function describe(account: Account, off: boolean) {
-  const named = account.tier
-    ? `${account.label} · ${account.tier}`
-    : account.label;
-  return `${named}${
+/**
+ * An account's label and plan on one line, and on a line of its own, what
+ * stands in the way of using it when something does.
+ */
+function AccountLine({ account, off }: { account: Account; off: boolean }) {
+  const status =
     account.state === "signed-out"
-      ? " · Signed out"
-      : account.state === "no-subscription"
-        ? " · No Grok subscription, so it can't be used here. SuperGrok, or X Premium with Grok, turns it on."
-        : off
-          ? ` · Disabled, so ${APP_NAME} won’t use it`
-          : ""
-  }`;
+      ? "Signed out"
+      : off
+        ? `Disabled, so ${APP_NAME} won’t use it`
+        : undefined;
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span className="truncate">
+        {account.label}
+        {account.plan && ` · ${account.plan}`}
+        {status && ` · ${status}`}
+      </span>
+      {account.state === "no-subscription" && (
+        <span className="text-xs">
+          This account doesn’t have a Grok plan. You need SuperGrok or X
+          Premium+ to use it here.
+        </span>
+      )}
+    </span>
+  );
 }
 
 /**

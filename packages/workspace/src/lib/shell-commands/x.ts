@@ -69,7 +69,11 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const PostsSchema = z.object({
   posts: z.array(
     z.object({
-      date: z.string().describe("When it was posted, YYYY-MM-DD."),
+      // Pages back from it, so a date in any other form is refused.
+      date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .describe("When it was posted, YYYY-MM-DD."),
       handle: z.string().describe("The author's handle, without the @."),
       text: z
         .string()
@@ -397,7 +401,7 @@ function refusal(error: unknown): string {
       error.statusCode === 429 &&
       NO_ALLOWANCE_PATTERN.test(`${error.message}\n${detail}`)
     ) {
-      return "the Grok account has no Grok subscription, so xAI allows it no requests. It needs SuperGrok, or X Premium with Grok; Settings › Providers shows each account's plan.";
+      return "the Grok account has no Grok subscription, so xAI allows it no requests. It needs SuperGrok or X Premium+; Settings › Providers shows each account's plan.";
     }
     if (error.statusCode === 429) {
       return `the Grok account hit its usage limit; try again later. xAI said: ${detail}`;

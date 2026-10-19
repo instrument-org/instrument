@@ -41,6 +41,8 @@ const DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 const MAX_REFRESH_BACKOFF_MS = 5 * 60 * 1000;
 const EXPIRED_REFRESH_WAIT_MS = 10 * 1000;
+/** A refresh still unanswered after this is a failed one, tried again later. */
+const REFRESH_TIMEOUT_MS = 15 * 1000;
 const SUBSCRIPTION_CHECK_EVERY_MS = 30 * 1000;
 
 const TokenResponseSchema = z.object({
@@ -63,7 +65,14 @@ const RegistrationSchema = z.object({
   accessToken: z.string().optional(),
   /** Unix milliseconds of the first sign-in, which orders the accounts. */
   addedAt: z.number(),
+  /**
+   * The client and issuer the account signed in through, which its refresh
+   * token is bound to: a setup served later with another client applies to
+   * new sign-ins only.
+   */
+  clientId: z.string().optional(),
   email: z.string().optional(),
+  issuer: z.string().optional(),
   expiresAt: z.number().optional(),
   /** Ours, and the provider config id its models' URIs carry. */
   id: AIProviderConfigIdSchema,
@@ -76,13 +85,27 @@ const RegistrationSchema = z.object({
    * "SuperGrok", null for none, absent until xAI has been asked.
    */
   tier: z.string().nullable().optional(),
+  /** How xAI names that plan to people, such as "X Premium+". */
+  tierName: z.string().optional(),
 });
 type Registration = z.output<typeof RegistrationSchema>;
 
 const StoreSchema = z.object({
   // Keyed by `id`. One whose session ended elsewhere stays, without tokens,
   // so the card can say so; signing out removes it.
-  registrations: z.record(z.string(), RegistrationSchema).default({}),
+  // Read one at a time, so a record that no longer validates is dropped
+  // alone rather than taking every account with it.
+  registrations: z
+    .record(z.string(), z.unknown())
+    .default({})
+    .transform((records) =>
+      Object.fromEntries(
+        Object.entries(records).flatMap(([id, record]) => {
+          const parsed = RegistrationSchema.safeParse(record);
+          return parsed.success ? [[id, parsed.data] as const] : [];
+        }),
+      ),
+    ),
   // The last setup our API served, kept so refreshes follow it after a
   // restart. One that no longer validates is dropped rather than failing the
   // whole store.
@@ -100,8 +123,8 @@ export interface GrokAccountStatus {
   /** What the account is called wherever accounts sit side by side. */
   label: string;
   state: GrokAccountState;
-  /** The subscription xAI names, such as "SuperGrok", when it named one. */
-  tier?: string;
+  /** The plan as a person reads it, such as "X Premium+", when xAI named one. */
+  plan?: string;
 }
 
 export interface GrokAccountsStatus {
@@ -179,7 +202,9 @@ function accountStatus(
       : hasSubscription(registration)
         ? "signed-in"
         : "no-subscription",
-    ...(registration.tier && { tier: registration.tier }),
+    ...(registration.tier && {
+      plan: registration.tierName ?? spellTier(registration.tier),
+    }),
   };
 }
 
@@ -353,11 +378,14 @@ async function postForm(
   return body;
 }
 
+// Each claim read on its own, so one of an unexpected type (an email of null
+// on an account reached through X) leaves the rest standing.
+const claim = z.string().optional().catch(undefined);
 const ClaimsSchema = z.object({
-  email: z.string().optional(),
-  name: z.string().optional(),
-  principal_id: z.string().optional(),
-  sub: z.string().optional(),
+  email: claim,
+  name: claim,
+  principal_id: claim,
+  sub: claim,
 });
 
 /**
@@ -381,13 +409,18 @@ function readClaims(jwt: string): z.output<typeof ClaimsSchema> {
 
 function registrationFromTokens(
   tokens: z.output<typeof TokenResponseSchema>,
-  identity: Pick<Registration, "addedAt" | "id" | "subject">,
+  identity: Pick<Registration, "addedAt" | "id" | "subject"> &
+    Pick<Partial<Registration>, "clientId" | "issuer">,
   previous?: Registration,
 ): Registration {
   const claims = tokens.id_token ? readClaims(tokens.id_token) : {};
+  const clientId = identity.clientId ?? previous?.clientId;
+  const issuer = identity.issuer ?? previous?.issuer;
   return {
     accessToken: tokens.access_token,
     addedAt: identity.addedAt,
+    ...(clientId && { clientId }),
+    ...(issuer && { issuer }),
     email: claims.email ?? previous?.email,
     expiresAt: Date.now() + (tokens.expires_in ?? 3600) * 1000,
     id: identity.id,
@@ -395,6 +428,7 @@ function registrationFromTokens(
     refreshToken: tokens.refresh_token ?? previous?.refreshToken,
     subject: identity.subject,
     ...(previous?.tier !== undefined && { tier: previous.tier }),
+    ...(previous?.tierName !== undefined && { tierName: previous.tierName }),
   };
 }
 
@@ -414,6 +448,51 @@ function subjectOf(tokens: z.output<typeof TokenResponseSchema>): string {
 const UserSchema = z.object({
   subscriptionTier: z.string().nullable().optional(),
 });
+
+const SettingsSchema = z.object({
+  subscription_tier_display: z.string().optional(),
+});
+
+/**
+ * How xAI names the account's plan to people ("X Premium+"), read from its
+ * settings. Undefined when that cannot be read, so the card spells the tier
+ * itself instead.
+ */
+async function tierDisplayName(
+  accessToken: string,
+): Promise<string | undefined> {
+  const url =
+    currentSetup().settingsURL ?? BUILT_IN_GROK_SIGN_IN_SETUP.settingsURL;
+  if (!url) {
+    return undefined;
+  }
+  try {
+    const response = await fetch(url, {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      return undefined;
+    }
+    const parsed = SettingsSchema.safeParse(await response.json());
+    return parsed.success
+      ? parsed.data.subscription_tier_display?.trim() || undefined
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A tier's identifier as words, for when xAI's own name for it could not be
+ * read: `XPremiumPlus` reads "X Premium Plus", and the SuperGrok brand stays
+ * one word.
+ */
+export function spellTier(tier: string): string {
+  return tier
+    .replaceAll(/([a-z])([A-Z])|([A-Z])([A-Z][a-z])/g, "$1$3 $2$4")
+    .replaceAll(/\bSuper Grok\b/g, "SuperGrok")
+    .trim();
+}
 
 const lastSubscriptionCheck = new Map<string, number>();
 
@@ -457,10 +536,29 @@ export async function checkGrokSubscriptions({
             );
             return;
           }
-          const user = UserSchema.parse(await response.json());
+          const body: unknown = await response.json();
+          // Only an answer that names the field holds an account back: one
+          // that changed shape says nothing, and leaves the last answer.
+          if (
+            typeof body !== "object" ||
+            body === null ||
+            !("subscriptionTier" in body)
+          ) {
+            log.warn(
+              "xAI's answer about the Grok plan had no subscriptionTier",
+            );
+            return;
+          }
+          const user = UserSchema.parse(body);
+          const tier = user.subscriptionTier ?? null;
+          const tierName =
+            tier === null
+              ? undefined
+              : await tierDisplayName(registration.accessToken ?? "");
           saveUnlessReplaced(registration, {
             ...registration,
-            tier: user.subscriptionTier ?? null,
+            tier,
+            ...(tierName && { tierName }),
           });
         } catch (error) {
           log.warn("Couldn't read the Grok account's subscription", error);
@@ -565,7 +663,9 @@ export async function signInWithGrok(): Promise<GrokSignInResult> {
         tokens,
         {
           addedAt: existing?.addedAt ?? Date.now(),
+          clientId: setup.clientId,
           id: existing?.id ?? AIProviderConfigIdSchema.parse(ulid()),
+          issuer: setup.issuer,
           subject,
         },
         existing,
@@ -700,14 +800,21 @@ async function refreshTokens(id: string): Promise<RefreshOutcome> {
   if (!registration?.refreshToken) {
     return "ended";
   }
-  const { clientId, issuer } = currentSetup();
+  // The refresh token is bound to the client the account signed in through.
+  const setup = currentSetup();
+  const clientId = registration.clientId ?? setup.clientId;
+  const issuer = registration.issuer ?? setup.issuer;
   try {
     const tokens = TokenResponseSchema.parse(
-      await postForm(`${issuer}/token`, {
-        client_id: clientId,
-        grant_type: "refresh_token",
-        refresh_token: registration.refreshToken,
-      }),
+      await postForm(
+        `${issuer}/token`,
+        {
+          client_id: clientId,
+          grant_type: "refresh_token",
+          refresh_token: registration.refreshToken,
+        },
+        AbortSignal.timeout(REFRESH_TIMEOUT_MS),
+      ),
     );
     return saveUnlessReplaced(
       registration,

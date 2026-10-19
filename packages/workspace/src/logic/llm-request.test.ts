@@ -3141,6 +3141,20 @@ describe("llmRequestLogic", () => {
   it("searches on xAI's side for a Grok account, keeping each cited page once", async () => {
     const testMachine = await createTestMachine({
       chunks: [
+        // A search step xAI names for itself, which no list here knows.
+        {
+          id: "xk_1",
+          toolName: "x_keyword_search",
+          type: "tool-input-start",
+        },
+        { id: "xk_1", type: "tool-input-end" },
+        {
+          input: "{}",
+          providerExecuted: true,
+          toolCallId: "xk_1",
+          toolName: "x_keyword_search",
+          type: "tool-call",
+        },
         { id: "ws_1", toolName: "web_search", type: "tool-input-start" },
         { delta: "{}", id: "ws_1", type: "tool-input-delta" },
         { id: "ws_1", type: "tool-input-end" },

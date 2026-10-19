@@ -156,7 +156,9 @@ export async function getAISDKWebSearchModel({
       const sdk = await createXAISDK(config, workspaceServerURL);
       result = {
         model: sdk.responses(
-          isCallingModelSameProvider ? callingModel.providerId : "grok-4.6",
+          isCallingModelSameProvider
+            ? callingModel.providerId
+            : lookupGrokModel(config, modelCache),
         ),
         tools: {
           web_search: sdk.tools.webSearch(),
@@ -291,21 +293,33 @@ export async function getXSearchModel({
     );
   }
   const sdk = await createXAISDK(config, workspaceServerURL);
-  // A non-reasoning Grok: finding posts and writing them out is a lookup, and
-  // measured on 2026-10-19 it took about 6 seconds where Grok 4.7 took 16 and
-  // Grok 4.5 took 21, each finding the same posts.
-  const modelId =
-    (modelCache?.read(config.cacheIdentifier) ?? [])
-      .filter((model) => model.canonicalId.includes("non-reasoning"))
-      .toSorted((a, b) =>
-        (b.releasedAt ?? "").localeCompare(a.releasedAt ?? ""),
-      )
-      .at(0)?.providerId ?? X_SEARCH_FALLBACK_MODEL;
   return Result.ok({
     config,
-    model: sdk.responses(modelId),
+    model: sdk.responses(lookupGrokModel(config, modelCache)),
     tools: { x_search: sdk.tools.xSearch(options) },
   });
+}
+
+/**
+ * The Grok a search runs on, read from the account's own catalog so a model
+ * xAI retires is never asked for: its newest non-reasoning model, since a
+ * search is a lookup (measured on 2026-10-19 at about 6 seconds where Grok
+ * 4.7 took 16, finding the same posts), else its default, else xAI's alias.
+ */
+function lookupGrokModel(
+  config: AIGatewayProviderConfig.Type,
+  modelCache: ModelCache | undefined,
+): string {
+  const listed = modelCache?.read(config.cacheIdentifier) ?? [];
+  const newestFirst = listed.toSorted((a, b) =>
+    (b.releasedAt ?? "").localeCompare(a.releasedAt ?? ""),
+  );
+  return (
+    newestFirst.find((model) => model.canonicalId.includes("non-reasoning"))
+      ?.providerId ??
+    newestFirst.find((model) => model.tags.includes("default"))?.providerId ??
+    X_SEARCH_FALLBACK_MODEL
+  );
 }
 
 export async function getWebSearchModel({

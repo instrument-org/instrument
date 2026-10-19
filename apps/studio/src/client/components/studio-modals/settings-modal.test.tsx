@@ -1,7 +1,9 @@
-import { openSettings } from "@/client/atoms/settings-modal";
+import { settingsModalAtom, openSettings } from "@/client/atoms/settings-modal";
+import { modalBackStackAtom } from "@/client/atoms/tab-navigation-block";
 import { renderWithDefaultStore } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
-import { act, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
+import { getDefaultStore } from "jotai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SettingsModal } from "./settings-modal";
@@ -62,5 +64,51 @@ describe("Settings sidebar in developer mode", () => {
     expect(screen.queryByRole("button", { name: "Debug" }) !== null).toBe(
       listed,
     );
+  });
+});
+
+describe("Settings pages", () => {
+  const activePage = () =>
+    screen
+      .getAllByRole("button")
+      .find((button) => button.dataset.active === "true")?.textContent;
+  const back = () => {
+    act(() => {
+      getDefaultStore().get(modalBackStackAtom).at(-1)?.run();
+    });
+  };
+
+  it("steps back through the pages visited, then closes", () => {
+    setPlatform("darwin");
+    renderWithDefaultStore(<SettingsModal />);
+    act(() => {
+      openSettings({ tab: "Features" });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Storage" }));
+    fireEvent.click(screen.getByRole("button", { name: "Memory" }));
+    expect(activePage()).toBe("Memory");
+
+    back();
+    expect(activePage()).toBe("Storage");
+    back();
+    expect(activePage()).toBe("Features");
+    back();
+    expect(getDefaultStore().get(settingsModalAtom)).toBeNull();
+  });
+
+  it("opens each page at its top", () => {
+    setPlatform("darwin");
+    renderWithDefaultStore(<SettingsModal />);
+    act(() => {
+      openSettings({ tab: "Features" });
+    });
+    // jsdom lays nothing out, so it keeps no scroll offset of its own.
+    const scroller = screen.getByRole("main");
+    Object.defineProperty(scroller, "scrollTop", {
+      value: 400,
+      writable: true,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Storage" }));
+    expect(scroller.scrollTop).toBe(0);
   });
 });

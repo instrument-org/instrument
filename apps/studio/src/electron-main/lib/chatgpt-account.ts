@@ -1,6 +1,7 @@
 import { createLoopbackSignIn } from "@/electron-main/auth/loopback-sign-in";
 import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { logger } from "@/electron-main/lib/electron-logger";
+import { noteSignedOut } from "@/electron-main/lib/notices";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { is } from "@electron-toolkit/utils";
@@ -332,9 +333,29 @@ function getStore(): Store<StoreShape> {
     STORE.onDidAnyChange(() => {
       publisher.publish("chatgpt-account.updated", null);
       publisher.publish("provider-config.updated", null);
+      noteSignedOutAccounts();
     });
+    noteSignedOutAccounts();
   }
   return STORE;
+}
+
+/**
+ * Tell the notices which accounts are signed out. Signing out forgets an
+ * account, so one kept without its tokens is one whose session ended
+ * without the person asking.
+ */
+function noteSignedOutAccounts() {
+  const all = registrations();
+  noteSignedOut(
+    CHATGPT_ACCOUNT_PROVIDER_CONFIG.type,
+    all
+      .filter((registration) => !registration.refreshToken)
+      .map((registration) => ({
+        id: registration.id,
+        ...(all.length > 1 && { label: labelFor(registration, all) }),
+      })),
+  );
 }
 
 function hostId(): string {

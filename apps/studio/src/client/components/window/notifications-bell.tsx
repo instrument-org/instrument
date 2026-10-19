@@ -20,6 +20,7 @@ import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
 import { NewspaperClippingIcon } from "@phosphor-icons/react/NewspaperClipping";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
+import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -46,7 +47,10 @@ export function NotificationsBell() {
   const openAction = (notice: BellNotice) => {
     if (notice.action && "settings" in notice.action) {
       setOpen(false);
-      openSettings({ tab: notice.action.settings });
+      openSettings({
+        ...(notice.action.setting && { setting: notice.action.setting }),
+        tab: notice.action.settings,
+      });
       return;
     }
     if (notice.action && "href" in notice.action) {
@@ -184,6 +188,7 @@ function openNoticeLink(notice: BellNotice) {
 }
 
 const NOTICE_ICON = {
+  account: UserCircleIcon,
   announcement: MegaphoneSimpleIcon,
   fixed: CheckCircleIcon,
   security: ShieldCheckIcon,

@@ -30,6 +30,8 @@ export * from "./lib/get-ai-sdk-web-search-model";
 export * from "./lib/image-capabilities";
 export { isRouterModel } from "./lib/is-router-model";
 export * from "./lib/model-cache";
+export { modelNameFromURI } from "./lib/model-name-from-uri";
+export { readModelURI } from "./lib/find-replacement";
 export * from "./lib/route-model";
 export { namesSameModel } from "./lib/names-same-model";
 export { baseURLWithDefault } from "./lib/providers/base-url-with-default";

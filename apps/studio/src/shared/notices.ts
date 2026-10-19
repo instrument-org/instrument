@@ -32,12 +32,39 @@ export const NoticesResponseSchema = z.object({
 /**
  * A notice as the bell shows it: whether the person has seen it yet, and, for
  * one the app makes itself, an action that opens a page in the app or a page
- * of Settings.
+ * of Settings (lighting one row of it, by its setting name), and the
+ * `account` kind, for an account that was signed out.
  */
-export type BellNotice = Omit<Notice, "action"> & {
+export type BellNotice = Omit<Notice, "action" | "kind"> & {
   action?:
     | { href: string; label: string }
-    | { label: string; settings: "Permissions" }
+    | {
+        label: string;
+        setting?: string;
+        settings: "Permissions" | "Providers";
+      }
     | Notice["action"];
+  kind: "account" | Notice["kind"];
   seen: boolean;
 };
+
+/**
+ * The accounts that sign in rather than take a key, by their provider type,
+ * which is also the name of their row in Settings › Providers.
+ */
+export const SIGN_IN_ACCOUNT_NAMES = {
+  "chatgpt-account": "ChatGPT",
+  "claude-account": "Claude",
+} as const;
+
+export type SignInAccountType = keyof typeof SIGN_IN_ACCOUNT_NAMES;
+
+/** An account signed out without the person asking, by its connection id. */
+export interface SignedOutAccount {
+  /** When this was first seen, which the notice is dated and named by. */
+  at: number;
+  id: string;
+  /** Which of several accounts of its type, when there is more than one. */
+  label?: string;
+  type: SignInAccountType;
+}

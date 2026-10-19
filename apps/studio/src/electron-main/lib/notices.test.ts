@@ -1,10 +1,16 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {
+  AIGatewayModel,
+  AIGatewayModelURI,
+} from "@instrument-org/ai-gateway/schemas";
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { env, prefs, sandbox, userData } = vi.hoisted(() => ({
+const { env, prefs, sandbox, userData, workspace } = vi.hoisted(() => ({
   env: { version: "2.0.0-beta.58" },
+  workspace: { defaultModelURI: undefined as string | undefined },
   sandbox: { off: undefined as string | undefined },
   prefs: { releaseChannel: undefined as string | undefined },
   userData: { dir: "" },
@@ -26,6 +32,9 @@ vi.mock("@/electron-main/rpc/publisher", () => ({
 }));
 vi.mock("@/electron-main/stores/machine/preferences", () => ({
   getMachinePreferences: () => ({ get: () => prefs.releaseChannel }),
+}));
+vi.mock("@/electron-main/stores/workspace/preferences", () => ({
+  getDefaultModelURI: () => workspace.defaultModelURI,
 }));
 vi.mock("@/electron-main/platform-api/headers", () => ({
   getPlatformApiHeaders: () => ({ "x-client-version": env.version }),
@@ -72,6 +81,7 @@ describe("notices", () => {
     userData.dir = fs.mkdtempSync(path.join(os.tmpdir(), "notices-"));
     env.version = "2.0.0-beta.58";
     prefs.releaseChannel = undefined;
+    workspace.defaultModelURI = undefined;
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
     vi.stubEnv("MAIN_VITE_REPORTS_BASE_URL", "https://reports.example");
@@ -309,6 +319,100 @@ describe("notices", () => {
 
       expect(notices.listNotices()).toMatchObject([
         { title: "One chat is still being brought over" },
+      ]);
+    });
+  });
+  describe("accounts signed out without the person asking", () => {
+    const claudeOpus = AIGatewayModelURI.fromModel({
+      author: "anthropic",
+      canonicalId: AIGatewayModel.CanonicalIdSchema.parse("claude-opus-5.5"),
+      params: {
+        provider: "claude-account",
+        providerConfigId: AIProviderConfigIdSchema.parse("claude-account"),
+      },
+    });
+
+    it("asks loudly when new chats start on the account, and quietly otherwise", async () => {
+      const notices = await load();
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      notices.noteSignedOut("chatgpt-account", [
+        { id: "01J0000000000000000000000A", label: "me@example.com" },
+      ]);
+      workspace.defaultModelURI = claudeOpus;
+
+      expect(
+        notices.listNotices().map(({ action, body, severity, title }) => ({
+          action,
+          body,
+          severity,
+          title,
+        })),
+      ).toMatchInlineSnapshot(`
+        [
+          {
+            "action": {
+              "label": "Sign in again",
+              "setting": "chatgpt-account",
+              "settings": "Providers",
+            },
+            "body": "Sign in to me@example.com again to use its models, or dismiss this if you don't need them.",
+            "severity": "info",
+            "title": "You're signed out of ChatGPT",
+          },
+          {
+            "action": {
+              "label": "Sign in again",
+              "setting": "claude-account",
+              "settings": "Providers",
+            },
+            "body": "Sign in again to keep using Claude Opus 5.5 in new chats.",
+            "severity": "critical",
+            "title": "You're signed out of Claude",
+          },
+        ]
+      `);
+    });
+
+    it("toasts the loud one", async () => {
+      const notices = await load();
+      workspace.defaultModelURI = claudeOpus;
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+
+      expect(notices.claimNoticeToast(notices.listNotices()[0]?.id ?? "")).toBe(
+        true,
+      );
+    });
+
+    it("goes once the account is signed in again or removed", async () => {
+      const notices = await load();
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      notices.noteSignedOut("claude-account", []);
+
+      expect(notices.listNotices()).toEqual([]);
+    });
+
+    // Each launch reads the account again, so the same answer must not
+    // raise the notice the person has already dismissed.
+    it("stays dismissed while the account stays signed out, and comes back the next time", async () => {
+      const notices = await load();
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      notices.dismissNotice(notices.listNotices()[0]?.id ?? "");
+
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      expect(notices.listNotices()).toEqual([]);
+
+      notices.noteSignedOut("claude-account", []);
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      expect(notices.listNotices()).toHaveLength(1);
+    });
+
+    it("leaves the other type's accounts alone", async () => {
+      const notices = await load();
+      notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      notices.noteSignedOut("chatgpt-account", []);
+
+      expect(notices.signedOutAccounts()).toMatchObject([
+        { id: "claude-account", type: "claude-account" },
       ]);
     });
   });

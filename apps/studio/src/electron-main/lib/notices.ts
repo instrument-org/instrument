@@ -1,5 +1,6 @@
 import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
+import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
   getNoticesStore,
   type NoticesStore,
@@ -8,8 +9,12 @@ import {
   type BellNotice,
   NoticeSchema,
   NoticesResponseSchema,
+  SIGN_IN_ACCOUNT_NAMES,
+  type SignedOutAccount,
+  type SignInAccountType,
 } from "@/shared/notices";
 import { SANDBOX_OFF_NOTICE, SANDBOX_OFF_TITLE } from "@/shared/sandbox-off";
+import { modelNameFromURI, readModelURI } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   nativeSandboxOff,
@@ -149,6 +154,7 @@ export function listNotices(now = Date.now()): BellNotice[] {
   if (chatsLeftBehind) {
     all.push(chatsLeftBehindNotice(chatsLeftBehind));
   }
+  all.push(...signedOutAccounts().map(signedOutNotice));
   return all
     .filter(
       (notice) =>
@@ -202,6 +208,81 @@ function sandboxOffNotice(
     severity: "critical",
     title: SANDBOX_OFF_TITLE,
   };
+}
+
+/**
+ * The notice for a Claude or ChatGPT account signed out without the person
+ * asking, which the app makes itself. Critical when new chats start on one of
+ * its models, so it toasts and stays until closed, since nothing new can be
+ * sent until it is fixed; otherwise a dot on the bell, for an account the
+ * person may not use any more. Its action lights the account's row in
+ * Settings, where signing in again, signing out and every other provider are.
+ *
+ * Its id carries when, so an account signed out again after the person
+ * dismissed the last notice is a notice of its own.
+ */
+function signedOutNotice({
+  at,
+  id,
+  label,
+  type,
+}: SignedOutAccount): Omit<BellNotice, "seen"> {
+  const name = SIGN_IN_ACCOUNT_NAMES[type];
+  const defaultURI = getDefaultModelURI();
+  const isDefault =
+    defaultURI !== undefined &&
+    readModelURI(defaultURI)?.providerConfigId === id;
+  const model = isDefault ? modelNameFromURI(defaultURI) : null;
+  const signIn = label ? `Sign in to ${label} again` : "Sign in again";
+  return {
+    action: { label: "Sign in again", setting: type, settings: "Providers" },
+    body: isDefault
+      ? `${signIn} to keep using ${model ?? `${name}'s models`} in new chats.`
+      : `${signIn} to use ${label ? "its" : `${name}'s`} models, or dismiss this if you don't need them.`,
+    id: `signed-out-${id}-${at.toString()}`,
+    kind: "account",
+    publishedAt: new Date(at).toISOString(),
+    severity: isDefault ? "critical" : "info",
+    title: `You're signed out of ${name}`,
+  };
+}
+
+/** The accounts signed out without the person asking, first seen first. */
+export function signedOutAccounts(): SignedOutAccount[] {
+  return Object.entries(getNoticesStore().store.signedOut)
+    .map(([id, account]) => ({ ...account, id }))
+    .toSorted((a, b) => a.at - b.at);
+}
+
+/**
+ * Records which accounts of one type are signed out without the person
+ * asking, replacing what was recorded for that type. One still signed out
+ * keeps when it was first seen, so the same answer again changes nothing and
+ * a dismissed notice stays dismissed.
+ */
+export function noteSignedOut(
+  type: SignInAccountType,
+  accounts: { id: string; label?: string }[],
+): void {
+  const held = getNoticesStore().store.signedOut;
+  const next = Object.fromEntries(
+    Object.entries(held).filter(([, account]) => account.type !== type),
+  );
+  for (const { id, label } of accounts) {
+    next[id] = {
+      at: held[id]?.at ?? Date.now(),
+      ...(label && { label }),
+      type,
+    };
+  }
+  // Compared in one key order, since the entries are rebuilt in another.
+  const sorted = (record: typeof held) =>
+    JSON.stringify(
+      Object.entries(record).toSorted(([a], [b]) => a.localeCompare(b)),
+    );
+  if (sorted(next) !== sorted(held)) {
+    getNoticesStore().set("signedOut", next);
+  }
 }
 
 /**

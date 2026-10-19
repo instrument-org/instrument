@@ -5,6 +5,7 @@ import {
   listNotices,
   markNoticesSeen,
   missingFolderNames,
+  signedOutAccounts,
 } from "@/electron-main/lib/notices";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -14,13 +15,24 @@ const live = {
   // The notices from us the bell shows.
   list: base.handler(async function* ({ signal }) {
     const changes = publisher.subscribe("notices.updated", { signal });
-    yield* liveRead({ changes: [changes], read: () => listNotices() });
+    // How loud a signed-out account's notice is follows the default model.
+    const preferences = publisher.subscribe("preferences.updated", { signal });
+    yield* liveRead({
+      changes: [changes, preferences],
+      read: () => listNotices(),
+    });
   }),
   // The folders of the six that have gone, so a column with nothing in it can
   // say why rather than inviting the person to start something.
   missingFolders: base.handler(async function* ({ signal }) {
     const changes = publisher.subscribe("notices.updated", { signal });
     yield* liveRead({ changes: [changes], read: () => missingFolderNames() });
+  }),
+  // The accounts signed out without the person asking, so the composer can
+  // ask them to sign in again rather than to pick another model.
+  signedOut: base.handler(async function* ({ signal }) {
+    const changes = publisher.subscribe("notices.updated", { signal });
+    yield* liveRead({ changes: [changes], read: () => signedOutAccounts() });
   }),
 };
 

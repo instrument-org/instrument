@@ -53,6 +53,23 @@ const NoticesStoreSchema = z.object({
   notices: z.array(NoticeSchema).default([]),
   pollAfter: z.number().default(DEFAULT_POLL_SECONDS),
   /**
+   * The Claude and ChatGPT accounts of the workspace open now that were
+   * signed out without the person asking, by connection id. Each keeps when
+   * it was first seen, so a launch that finds it still signed out does not
+   * remake a notice the person dismissed.
+   */
+  signedOut: z
+    .record(
+      z.string(),
+      z.object({
+        at: z.number(),
+        label: z.string().optional(),
+        type: z.enum(["chatgpt-account", "claude-account"]),
+      }),
+    )
+    .default({})
+    .catch({}),
+  /**
    * The last update this computer launched into. One slot, so a newer update
    * takes the place of one whose notice was never read.
    */

@@ -22,6 +22,8 @@ vi.mock("@/electron-main/lib/electron-logger", () => {
   return { logger: { scope: () => scoped } };
 });
 
+vi.mock("@/electron-main/lib/notices", () => ({ noteSignedOut: vi.fn() }));
+
 vi.mock("@/electron-main/platform-api/headers", () => ({
   getAnonymousPlatformApiHeaders: () => ({ "user-agent": "Instrument/test" }),
 }));

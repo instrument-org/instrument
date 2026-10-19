@@ -6,6 +6,7 @@ import {
 } from "@/electron-main/lib/claude-code-download";
 import { claudeSignInMachine } from "@/electron-main/lib/claude-sign-in";
 import { createScopedLogger } from "@/electron-main/lib/electron-logger";
+import { noteSignedOut } from "@/electron-main/lib/notices";
 import { workspaceMachineDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { focusAppWindow } from "@/electron-main/windows/foreground";
@@ -220,6 +221,17 @@ export function refreshClaudeAccountStatus({
     return Promise.resolve(claudeAccountStatus());
   }
   refreshing = readStatus()
+    .then((next) => {
+      // Only from a reading Claude Code gave, and a sign-out the person asked
+      // for reads as signed out without `expired`.
+      noteSignedOut(
+        CLAUDE_ACCOUNT_PROVIDER_CONFIG.type,
+        next.kind === "signed-out" && next.expired
+          ? [{ id: CLAUDE_ACCOUNT_PROVIDER_CONFIG.id }]
+          : [],
+      );
+      return next;
+    })
     .catch((error: unknown) => {
       // A status Claude Code could not give (it timed out, or would not
       // start) says nothing about the sign-in, so the last one stands.

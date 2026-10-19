@@ -44,7 +44,9 @@ export function platformGuidance(platform: string): string | undefined {
  */
 export function folderVariablesText(environment: Environment): string {
   const folders = VARIABLE_FOLDERS.map(
-    ([fact, , variable]) => `\`$${variable}\` is ${environment[fact]}`,
+    // Quoted, since a conversation's folder is named for it and can hold
+    // spaces and commas that would otherwise run into the next one.
+    ([fact, , variable]) => `\`$${variable}\` is \`${environment[fact]}\``,
   ).join(", ");
   return `On this computer ${folders}. Write a path out in full where a tool takes one, since only the shell reads a variable.`;
 }

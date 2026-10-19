@@ -356,26 +356,12 @@ function browserGuidance(): string {
 }
 
 /**
- * A line that says a task is about to be made or sent, rather than one that
- * merely mentions tasks or tells of one made before ("I started the
- * background task"): a hand-off verb, not in the past tense, within a few
- * words of the noun.
- */
-const PROMISES_A_TASK =
-  /\b(?:hand|send|start|creat|kick|spin|delegat|goes to|go to|off to)(?!ed\b)\w*\s+(?:\w+[,']?\s+){0,4}(?:a|an|the|one|new|another)\s+(?:\w+\s+)?task\b/i;
-
-/** Text whose last sentence is a question, past any closing quote or emphasis. */
-const ENDS_ASKING = /\?["'”’)*_\s]*$/;
-
-/**
  * The turn ends once a task has been created or steered, or the user has been
  * asked to connect an app, and the user has heard a line, or at once once the
  * user has been asked for a folder or an app: the next word about
  * it comes from the wake, and every model given the chance narrates the
  * hand-off a second time. A step that handed off before saying anything gets
- * one more step, for the line. The mirror case gets one more step too: a
- * first step that only promised a task, calling nothing, would otherwise
- * leave the user waiting on work nobody started.
+ * one more step, for the line.
  */
 export async function shouldContinueAfterHandingOff({
   messages,
@@ -389,30 +375,6 @@ export async function shouldContinueAfterHandingOff({
   const last = turn.findLast((message) => message.role === "assistant");
   if (!last) {
     return shouldContinueWithToolCalls({ messages });
-  }
-  const promisedOnly =
-    turn.length === 1 &&
-    !messages[turnStart]?.parts.some(
-      (part) =>
-        part.type === "data-taskEvent" ||
-        part.type === "data-appEvent" ||
-        part.type === "data-jobEvent" ||
-        part.type === "data-permissionAnswer" ||
-        part.type === "data-questionAnswer",
-    ) &&
-    !last.parts.some((part) => isToolPart(part)) &&
-    last.parts.some(
-      (part) => part.type === "text" && PROMISES_A_TASK.test(part.text),
-    ) &&
-    // A reply that ends on a question ("Want me to start the task again?")
-    // waits on the user's answer, whatever it said before it.
-    !ENDS_ASKING.test(
-      last.parts
-        .flatMap((part) => (part.type === "text" ? [part.text] : []))
-        .join("\n"),
-    );
-  if (promisedOnly) {
-    return true;
   }
   // A permission card says why it asks itself, so the turn ends on the call
   // with no step after it for a line, which could land after the answer.

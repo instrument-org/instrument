@@ -2063,9 +2063,9 @@ describe("sessionMachine", () => {
         }
       }, 30_000);
 
-      // A message that calls the work off stops it where it is, and runs
-      // next as a turn of its own, with no note.
-      it("stops the turn when it calls the work off", async () => {
+      // A typed "stop" is a message like any other: it joins the turn, and
+      // the agent decides what it means.
+      it("joins the turn when it says stop, which only the Stop button cuts off", async () => {
         const result = await startChatTurn();
         result.actor.send({
           model: createMockAIGatewayModel(),
@@ -2075,10 +2075,10 @@ describe("sessionMachine", () => {
 
         const session = await runTestMachine(result);
         const shorthand = sessionToShorthand(session);
-        expect(shorthand).toContain(
+        expect(shorthand).not.toContain(
           "<error>This action was interrupted by a newer message from the user, and may not have finished.</error>",
         );
-        expect(shorthand).not.toContain("<data-intent>");
+        expect(shorthand).toContain("<data-intent>");
       });
     });
   });

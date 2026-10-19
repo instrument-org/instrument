@@ -79,7 +79,6 @@ const CASES: Record<string, string> = {
   "interrupt-correction": "interruption",
   "interrupt-added-step": "interruption",
   "interrupt-later-wish": "interruption",
-  "interrupt-stop": "interruption",
   "holdout-unrelated": "interruption",
   "holdout-issue": "interruption",
   "holdout-month": "interruption",

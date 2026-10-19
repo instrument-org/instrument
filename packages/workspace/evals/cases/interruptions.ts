@@ -31,7 +31,6 @@ import {
   pass,
   QUICK_ANSWER,
   readText,
-  recentFilesUnder,
   renamedTheScans,
   said,
   seedScans,
@@ -337,42 +336,6 @@ const answeredTheLength: Assertion = {
 };
 
 // ---------------------------------------------------------------------------
-// stop: a plain "stop" mid-job
-// ---------------------------------------------------------------------------
-
-const STOP = "stop";
-
-const stoppedPromptly: Assertion = {
-  check: async (ctx) => {
-    const text = "nothing kept working on the scans 15 seconds after stop";
-    const stopAt = sentAt(ctx.sessions, STOP);
-    if (stopAt === undefined) {
-      return fail(text, "stop was never sent");
-    }
-    const lateSteps = (await agents(ctx)).flatMap((agent) =>
-      agent.sessions.flatMap((session) =>
-        session.messages.flatMap((message) =>
-          message.role === "assistant" &&
-          message.metadata.createdAt.getTime() > stopAt + 15_000 &&
-          message.parts.some((part) => part.type.startsWith("tool-"))
-            ? [agent.name]
-            : [],
-        ),
-      ),
-    );
-    const lateFiles = recentFilesUnder(
-      path.join(HOME, "Documents", "Scans"),
-      stopAt + 15_000,
-    );
-    const evidence = `tool steps after +15s: ${lateSteps.length} (${[...new Set(lateSteps)].join(", ")}); files changed after +15s: ${lateFiles.length}`;
-    return lateSteps.length === 0 && lateFiles.length === 0
-      ? pass(text, evidence)
-      : fail(text, evidence);
-  },
-  text: "nothing kept working on the scans 15 seconds after stop",
-};
-
-// ---------------------------------------------------------------------------
 // holdout: an unrelated question mid-job
 // ---------------------------------------------------------------------------
 
@@ -515,15 +478,6 @@ const INTERRUPTIONS: Interruption[] = [
     sent: "Book Club",
     setup: seedBookClub,
     slug: "interrupt-later-wish",
-  },
-  {
-    assertions: [stoppedPromptly],
-    followUps: [{ duringWork: { afterToolCalls: 1 }, prompt: STOP }],
-    prompt:
-      "The scans in Documents/Scans have useless names. Rename each from what's inside it to date-kind-sender.txt, like 2026-01-05-invoice-corbel-print-shop.txt, right there in that folder.",
-    sent: "Scans",
-    setup: seedScans,
-    slug: "interrupt-stop",
   },
   {
     assertions: [answeredQuickly, renamedTheScans],

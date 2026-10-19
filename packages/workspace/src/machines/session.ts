@@ -16,7 +16,7 @@ import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { ChatReads } from "../lib/chat-reads";
 import { ChatWrites } from "../lib/chat-writes";
-import { callsItOff, MID_TURN_NOTE } from "../lib/chat/mid-turn";
+import { MID_TURN_NOTE } from "../lib/chat/mid-turn";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
 import { sessionRole } from "../lib/chat/children";
 import { recordChanged } from "../lib/record-changes";
@@ -325,9 +325,8 @@ export const sessionMachine = setup({
         // stays queued, so a turn that ends first runs it as a turn of its own.
         // A message the user typed into a chat's working turn joins it the
         // same way, with a note that it arrived mid-turn, and the turn decides
-        // what it is (lib/chat/mid-turn.ts). It supersedes the turn instead
-        // when it calls the work off. A sender that asks to interrupt
-        // supersedes any agent's step the same way.
+        // what it is (lib/chat/mid-turn.ts). A sender that asks to interrupt,
+        // as the Stop button does, supersedes the turn.
         enqueueActions(({ context, enqueue, event }) => {
           const agentRef = context.agentRef;
           if (agentRef?.getSnapshot().status !== "active") {
@@ -336,7 +335,7 @@ export const sessionMachine = setup({
           const typedIntoChat =
             sessionRole(context.chatId, context.sessionId) === "chat" &&
             isTypedByUser(event.value);
-          if (event.interrupt || (typedIntoChat && callsItOff(event.value))) {
+          if (event.interrupt) {
             enqueue.raise({ reason: "superseded", type: "stop" });
             return;
           }

@@ -73,22 +73,6 @@ const bash =
     type: "tool-bash",
   });
 
-const wake = (messageId: StoreId.Message): SessionMessagePart.Type => ({
-  data: {
-    events: [
-      {
-        status: "done",
-        sessionId: StoreId.SessionSchema.parse(
-          "ses_01K4M8C2B5N7R0T3V6X9Z1D4F7",
-        ),
-        title: "Lisbon hotel",
-      },
-    ],
-  },
-  metadata: partMetadata(messageId),
-  type: "data-taskEvent",
-});
-
 const askPermission =
   (state: "allowed" | "asked") =>
   (messageId: StoreId.Message): SessionMessagePart.Type => ({
@@ -196,77 +180,6 @@ describe("shouldContinueAfterHandingOff", () => {
                   ),
                 },
               ],
-            ),
-          ),
-        ],
-      }),
-    ).resolves.toBe(false);
-  });
-
-  it("gives a first step that only promised a task one more step, so the task gets made", async () => {
-    await expect(
-      shouldContinueAfterHandingOff({
-        messages: [
-          user(text("find me a hotel in lisbon")),
-          assistant(text("I'll hand this to a task.")),
-        ],
-      }),
-    ).resolves.toBe(true);
-  });
-
-  it("does not read a mention of tasks as a promise", async () => {
-    await expect(
-      shouldContinueAfterHandingOff({
-        messages: [
-          user(text("what are you working on?")),
-          assistant(text("One task is looking for a hotel; nothing else.")),
-        ],
-      }),
-    ).resolves.toBe(false);
-  });
-
-  // Asked what happened after a stop, the reply tells of the task started
-  // before it, and a second step read as a promise would start it again.
-  it("does not read an account of a task already started as a promise", async () => {
-    await expect(
-      shouldContinueAfterHandingOff({
-        messages: [
-          user(text("what happened?")),
-          assistant(
-            text(
-              "I started the background task (t1), and you stopped it before it finished. I can restart the task if you want.",
-            ),
-          ),
-        ],
-      }),
-    ).resolves.toBe(false);
-  });
-
-  it("does not give a reply that ends asking the user a second step", async () => {
-    await expect(
-      shouldContinueAfterHandingOff({
-        messages: [
-          user(text("what happened?")),
-          assistant(
-            text(
-              "You stopped the task before it finished. Want me to start the task again?",
-            ),
-          ),
-        ],
-      }),
-    ).resolves.toBe(false);
-  });
-
-  it("does not give a wake's one-line reply a second step for naming the task", async () => {
-    await expect(
-      shouldContinueAfterHandingOff({
-        messages: [
-          user(text("find me a hotel in lisbon")),
-          assistant(text("Looking for one."), taskNew),
-          user(wake),
-          assistant(
-            text(
-              "The task found the Hotel Avenida; I'll send a task for the booking next.",
             ),
           ),
         ],

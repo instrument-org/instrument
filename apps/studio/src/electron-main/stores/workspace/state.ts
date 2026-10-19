@@ -18,7 +18,7 @@ const WorkspaceStateSchema = z.object({
   // through another computer's connection (`routeModel`), so it always goes
   // through the same one here. This computer's alone, which is why it is
   // kept here rather than in the chat.
-  modelRoutes: z.record(z.string(), z.string()).catch({}).default({}),
+  modelRoutes: z.record(z.string(), z.string()).catch({}),
 });
 
 type WorkspaceState = z.output<typeof WorkspaceStateSchema>;

@@ -21,9 +21,8 @@ export const MachinePreferencesSchema = z.object({
     .catch(undefined),
   // Set from a report's own checkbox, and turned off in Settings: crashes and
   // app errors are then sent without asking. Chats never are.
-  sendErrorReportsAutomatically: z.boolean().catch(false).default(false),
-  sidebarPlaces:
-    SidebarPlacesSchema.catch(NO_SIDEBAR_CHANGES).default(NO_SIDEBAR_CHANGES),
+  sendErrorReportsAutomatically: z.boolean().catch(false),
+  sidebarPlaces: SidebarPlacesSchema.catch(NO_SIDEBAR_CHANGES),
 });
 
 type MachinePreferences = z.output<typeof MachinePreferencesSchema>;

@@ -10,7 +10,7 @@ A draft is a chat not yet started, or a reply waiting in a chat. Both live in th
 | Store | [`electron-main/drafts/draft-store.ts`](../../apps/studio/src/electron-main/drafts/draft-store.ts) | the drafts while the app runs: the one writer of `Drafts/`, applying ops, watching the folder, staging pastes |
 | Record | [`electron-main/drafts/draft-record.ts`](../../apps/studio/src/electron-main/drafts/draft-record.ts) | the translation between a window's `Draft` and a `DraftFile`, checking what is read from `state` |
 | Ops | [`shared/drafts.ts`](../../apps/studio/src/shared/drafts.ts) | the `Draft` type, the `DraftOp` union, and `applyDraftOps`, which main and every window run |
-| Window mirror | [`client/drafts/store.ts`](../../apps/studio/src/client/drafts/store.ts) | what a window shows: main's snapshot with its own unacknowledged ops applied over it |
+| Window mirror | [`client/drafts/store.ts`](../../apps/studio/src/client/drafts/store.ts), over [`client/lib/op-mirror.ts`](../../apps/studio/src/client/lib/op-mirror.ts) | what a window shows: main's snapshot with its own unacknowledged ops applied over it; the bookmarks share the mirror |
 | Chat box | [`client/drafts/chat-box.ts`](../../apps/studio/src/client/drafts/chat-box.ts) | which reply each chat's box writes into, and a reply's send |
 | Composer words | [`client/drafts/settle-words.ts`](../../apps/studio/src/client/drafts/settle-words.ts), [`client/atoms/prompt-value.ts`](../../apps/studio/src/client/atoms/prompt-value.ts) | the words being typed, written into the draft a beat after the typing settles |
 

@@ -1,8 +1,14 @@
 import {
+  createOpMirror,
+  memoryMirrorBridge,
+  type MirrorSync,
+  rebaseMirror,
+  shownOf,
+} from "@/client/lib/op-mirror";
+import {
   applyDraftOps,
   type Draft,
   type DraftOp,
-  type DraftOpBatch,
   type DraftsBridge,
   type DraftsSnapshot,
   draftUpdateOf,
@@ -12,48 +18,41 @@ import {
 import { type ChatId } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 import { atomFamily, selectAtom } from "jotai/utils";
-import { ulid } from "ulid";
 
 /**
  * The drafts as this window shows them: main's (`shared/drafts.ts`), with the
- * ops this window has sent and main has not yet applied laid over them.
- *
- * So a change made here shows at once, and a change main reports from
- * elsewhere (another window, a file manager, another device) lands under the
- * ones still on their way rather than over them: main applies those after it,
- * and says so with the next snapshot it sends, which is when they come off.
+ * ops this window has sent and main has not yet applied laid over them
+ * (`client/lib/op-mirror.ts`).
  */
 
-/** This window, among the ones sending main ops. */
-const CLIENT = ulid();
+export type Sync = MirrorSync<DraftsSnapshot, DraftOp>;
 
-/** The number of this window's last batch. */
-let lastSeq = 0;
-
-export interface Sync {
-  /** What main last said the drafts are. */
-  confirmed: DraftsSnapshot;
-  /** This window's batches main had not applied as of {@link confirmed}, oldest first. */
-  pending: DraftOpBatch[];
-}
+const memory = memoryMirrorBridge<DraftsSnapshot, DraftOp>(
+  { acks: {}, drafts: [] },
+  (snapshot, ops) => ({
+    ...snapshot,
+    drafts: applyDraftOps(snapshot.drafts, ops),
+  }),
+);
 
 /** Main's side, or drafts kept in this window's memory where there is no main (tests, a browser). */
-const bridge: DraftsBridge & { reset?: (drafts: Draft[]) => void } =
-  globalThis.window?.api?.drafts ?? memoryBridge();
+const bridge: DraftsBridge & { reset?: (drafts: Draft[]) => void } = globalThis
+  .window?.api?.drafts ?? {
+  ...memory,
+  reset: (drafts) => {
+    memory.reset({ acks: {}, drafts });
+  },
+  stage: (request) =>
+    Promise.resolve({
+      path: `/drafts/${request.draftId}/${request.name}`,
+      size: request.content.length,
+    }),
+};
 
-/**
- * The newest snapshot main has sent, kept from the moment the window loads
- * rather than from whenever something first reads the drafts, so a change
- * main sends before the first render is not missed.
- */
-let latest = bridge.initial;
-const listeners = new Set<(snapshot: DraftsSnapshot) => void>();
-bridge.onChange((snapshot) => {
-  latest = snapshot;
-  for (const listener of listeners) {
-    listener(snapshot);
-  }
-});
+const showDrafts = (snapshot: DraftsSnapshot, pending: DraftOp[]) =>
+  applyDraftOps(snapshot.drafts, pending);
+
+const mirror = createOpMirror({ bridge, show: showDrafts });
 
 /**
  * Takes in a snapshot from main: it is what the drafts are, and each of this
@@ -62,78 +61,25 @@ bridge.onChange((snapshot) => {
 export function rebase(
   sync: Sync,
   snapshot: DraftsSnapshot,
-  client = CLIENT,
+  client?: string,
 ): Sync {
-  const applied = snapshot.acks[client] ?? 0;
-  return {
-    confirmed: snapshot,
-    pending: sync.pending.filter((batch) => batch.seq > applied),
-  };
+  return rebaseMirror(sync, snapshot, client);
 }
 
 /** The drafts a window shows: main's, with its own batches still on their way applied over them. */
-export function shownDrafts({ confirmed, pending }: Sync): Draft[] {
-  return pending.reduce(
-    (drafts, batch) => applyDraftOps(drafts, batch.ops),
-    confirmed.drafts,
-  );
+export function shownDrafts(sync: Sync): Draft[] {
+  return shownOf(sync, showDrafts);
 }
 
-/**
- * What this window has heard and sent. Until something is written here it
- * reads as the newest snapshot with nothing pending, so a store made after
- * the drafts changed starts from those.
- */
-const syncStateAtom = atom<Sync | undefined>(undefined);
-
-const syncAtom = atom(
-  (get): Sync => get(syncStateAtom) ?? { confirmed: latest, pending: [] },
-  (get, set, update: (sync: Sync) => Sync) => {
-    set(syncStateAtom, update(get(syncAtom)));
-  },
-);
-syncAtom.onMount = (set) => {
-  set((sync) => rebase(sync, latest));
-  const listener = (snapshot: DraftsSnapshot) => {
-    set((sync) => rebase(sync, snapshot));
-  };
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-};
-
 /** Every draft, oldest first, as this window shows them. */
-export const draftsAtom = atom((get) => shownDrafts(get(syncAtom)));
+export const draftsAtom = mirror.shownAtom;
 
 /**
  * Sends ops to main and shows them at once. Answers once main has applied
  * them and written them through; a batch main refused is taken back off, so
  * the window shows what main has.
  */
-export const applyDraftOpsAtom = atom(
-  null,
-  async (_get, set, ops: DraftOp[]): Promise<void> => {
-    if (ops.length === 0) {
-      return;
-    }
-    lastSeq += 1;
-    const batch: DraftOpBatch = { client: CLIENT, ops, seq: lastSeq };
-    set(syncAtom, (sync) => ({
-      ...sync,
-      pending: [...sync.pending, batch],
-    }));
-    try {
-      await bridge.apply(batch);
-    } catch (error) {
-      set(syncAtom, (sync) => ({
-        ...sync,
-        pending: sync.pending.filter((entry) => entry !== batch),
-      }));
-      throw error;
-    }
-  },
-);
+export const applyDraftOpsAtom = mirror.applyOpsAtom;
 
 /** Writes pasted bytes into a draft's own folder; answers where they went. */
 export function stageIntoDraft(request: {
@@ -224,46 +170,4 @@ export const hasReplyWaitingAtom = atomFamily((chatId: ChatId) =>
  */
 export function resetDrafts(drafts: Draft[] = []) {
   bridge.reset?.(drafts);
-}
-
-/**
- * Drafts kept in this window's memory, for where there is no main to keep
- * them: the same ops applied the same way, answered on the next turn the way
- * main's answer arrives.
- */
-function memoryBridge(): DraftsBridge & { reset: (drafts: Draft[]) => void } {
-  let snapshot: DraftsSnapshot = { acks: {}, drafts: [] };
-  const heard = new Set<(snapshot: DraftsSnapshot) => void>();
-  return {
-    reset: (drafts) => {
-      snapshot = { acks: snapshot.acks, drafts };
-      for (const listener of heard) {
-        listener(snapshot);
-      }
-    },
-    apply: (batch) => {
-      snapshot = {
-        acks: { ...snapshot.acks, [batch.client]: batch.seq },
-        drafts: applyDraftOps(snapshot.drafts, batch.ops),
-      };
-      const sent = snapshot;
-      return Promise.resolve().then(() => {
-        for (const listener of heard) {
-          listener(sent);
-        }
-      });
-    },
-    initial: snapshot,
-    onChange: (listener) => {
-      heard.add(listener);
-      return () => {
-        heard.delete(listener);
-      };
-    },
-    stage: (request) =>
-      Promise.resolve({
-        path: `/drafts/${request.draftId}/${request.name}`,
-        size: request.content.length,
-      }),
-  };
 }

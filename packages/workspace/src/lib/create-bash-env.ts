@@ -198,6 +198,33 @@ function osascriptRefusal(): string {
   return `AppleScript you write doesn't run here. Mail, Notes and Messages have the \`${MAIL_COMMAND.name}\`, \`${NOTES_COMMAND.name}\` and \`${MESSAGES_COMMAND.name}\` commands.${helper} Any other app has no way in from here, so tell the person what you couldn't do in it.`;
 }
 
+/**
+ * The scheduling and job-registration programs refused by their bare name.
+ * `launchctl` is macOS's; the `cron`/`at` family is on both platforms. Each
+ * would hand code to a system daemon to run later outside the sandbox, which
+ * the Seatbelt profile also denies as an operation (`job-creation`).
+ */
+const SCHEDULING_COMMANDS = [
+  "launchctl",
+  "crontab",
+  "at",
+  "atq",
+  "atrm",
+  "batch",
+  "schtasks",
+] as const;
+
+/** A scheduling command's platforms, where it is not on every one. */
+const SCHEDULING_PLATFORMS: Partial<Record<string, NodeJS.Platform[]>> = {
+  launchctl: ["darwin"],
+  schtasks: ["win32"],
+};
+
+/** What the agent hears for a scheduling command it tries to run. */
+function schedulingRefusal(name: string): string {
+  return `${name} doesn't run here: a job it schedules would run later, outside this conversation's sandbox. Do the work in this turn instead, and if something genuinely needs to run on a schedule, tell the person to set it up themselves.`;
+}
+
 const STATIC_STUB_COMMANDS = [
   stubCommand(
     "npm",
@@ -444,6 +471,22 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     name: "osascript",
     platforms: ["darwin"],
   },
+  // A launchd job (and the `cron`/`at` spoolers) would run later outside
+  // every sandbox; `(deny job-creation)` in the Seatbelt profile is the
+  // boundary, and these stubs give the agent a clear reason by the bare
+  // name rather than a launchd I/O error. Run by path they meet the same
+  // profile deny.
+  ...SCHEDULING_COMMANDS.map(
+    (name): CustomCommandDef => ({
+      description: `Refuses ${name}: scheduled or background jobs don't run here.`,
+      factory: () => stubCommand(name, schedulingRefusal(name)),
+      listInDescription: false,
+      name,
+      ...(SCHEDULING_PLATFORMS[name]
+        ? { platforms: SCHEDULING_PLATFORMS[name] }
+        : {}),
+    }),
+  ),
   {
     description: PNPM_COMMAND.description,
     factory: ({ layout, chatId }) => createPnpmCommand(chatId, layout),

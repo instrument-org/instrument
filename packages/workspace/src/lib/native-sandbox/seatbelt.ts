@@ -272,6 +272,12 @@ export function seatbeltProfile(
     // environment, and execShim says what to do. A Mac with the tools never
     // asks, so nothing that works is lost.
     `(deny mach-lookup (global-name "${COMMAND_LINE_TOOLS_INSTALLER}"))`,
+    // Registering a launchd job (`launchctl`, and the `cron`/`at` spoolers)
+    // hands code to launchd to run later, in the login session, under no
+    // profile of ours. Allow-by-default leaves that open, so it is denied
+    // here the way Apple's own profiles opt into it: the operation holds
+    // whatever starts the job, a copy of the binary or a script included.
+    "(deny job-creation)",
   );
   // Some apps' work runs in their own services rather than in the program
   // that asks for it, so those are closed until the person allows the app,

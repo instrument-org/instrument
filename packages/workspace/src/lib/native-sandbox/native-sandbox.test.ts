@@ -116,6 +116,7 @@ describe.skipIf(onWindows)("seatbeltProfile", () => {
         "(deny lsopen)",
         "(deny mach-lookup (global-name "com.apple.coreservices.appleevents"))",
         "(deny mach-lookup (global-name "com.apple.dt.CommandLineTools.installondemand"))",
+        "(deny job-creation)",
         "(deny mach-lookup (global-name "com.apple.siri.VoiceShortcuts.xpc") (global-name "com.apple.siriactionsd.xpc") (global-name "com.apple.shortcuts.systemshortcutservice.runner") (xpc-service-name "com.apple.WorkflowKit.BackgroundShortcutRunner"))",
         "(deny signal)",
         "(allow signal (target same-sandbox))",

@@ -1,3 +1,4 @@
+import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
@@ -209,6 +210,9 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       macHelperBinPath: macHelperBinPath(),
       seatbeltHelperPath: seatbeltHelperPath(),
       mxcExecPath: getMxcExecPath(),
+      programsWithoutSandbox: getMachinePreferences().get(
+        "runProgramsWithoutSandbox",
+      ),
       getAIProviderConfigs,
       getUser: getSignedInUser,
       // This computer's folder, and in it the workspace's: where the

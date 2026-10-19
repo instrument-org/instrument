@@ -30,6 +30,8 @@ export const WORKER_CONFIG_KEYS = [
   "mxcExecPath",
   "nativeSandbox",
   "nodeExecEnv",
+  // The person's choice to run programs where no sandbox holds them.
+  "programsWithoutSandbox",
   // Where finished work goes, which the shell names `INSTRUMENT_OUTPUT`.
   "outputDir",
   "pnpmBinPath",

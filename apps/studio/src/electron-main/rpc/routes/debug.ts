@@ -137,7 +137,12 @@ const trigger = {
     .input(
       z.object({
         off: z
-          .enum(["no-bubblewrap", "no-seatbelt", "user-namespaces-closed"])
+          .enum([
+            "did-not-start",
+            "no-bubblewrap",
+            "no-seatbelt",
+            "user-namespaces-closed",
+          ])
           .optional(),
       }),
     )

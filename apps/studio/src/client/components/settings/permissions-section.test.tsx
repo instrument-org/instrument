@@ -90,15 +90,18 @@ describe("PermissionsSection", () => {
     ["user-namespaces-closed", /AppImage on Ubuntu/],
     ["no-bubblewrap", /bubblewrap package/],
   ] as const)(
-    "warns that the agent's programs reach every file, %s",
+    "warns that the agent's programs don't run, and offers to run them anyway, %s",
     async (sandboxOff, reason) => {
       showView({ ...NO_PLACES, home: "/home/sam", sandboxOff });
 
       const alert = await screen.findByRole("alert");
       expect(alert.textContent).toContain(
-        "Programs the agent runs can reach all your files",
+        "The agent can't run programs right now",
       );
       expect(alert.textContent).toMatch(reason);
+      expect(
+        screen.getByRole("switch", { name: /Run programs without a sandbox/ }),
+      ).toBeDefined();
       expect(screen.getByRole("button", { name: "Learn more" })).toBeDefined();
     },
   );

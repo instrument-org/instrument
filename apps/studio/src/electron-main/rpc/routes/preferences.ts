@@ -1,4 +1,7 @@
-import { liveRead } from "@instrument-org/workspace/electron";
+import {
+  allowProgramsWithoutSandbox,
+  liveRead,
+} from "@instrument-org/workspace/electron";
 import { showAgentCompletionTestNotification } from "@/electron-main/lib/agent-completion-notifications";
 import {
   notificationSettingsTarget,
@@ -102,6 +105,18 @@ const restoreDefaultSidebarPlaces = base.handler(() => {
   changeSidebarPlaces(restoreDefaultPlaces);
 });
 
+/**
+ * Lets the programs the agent runs go ahead with no sandbox on this
+ * computer, where none holds them, or stops them again.
+ */
+const setRunProgramsWithoutSandbox = base
+  .input(z.object({ enabled: z.boolean() }))
+  .handler(({ input }) => {
+    getMachinePreferences().set("runProgramsWithoutSandbox", input.enabled);
+    allowProgramsWithoutSandbox(input.enabled);
+    publisher.publish("notices.updated", null);
+  });
+
 const setBlockAds = base
   .input(z.object({ enabled: z.boolean() }))
   .handler(({ input }) => {
@@ -186,6 +201,7 @@ export const preferences = {
   sendTestNotification,
   setAgentCompletionNotifications,
   setBlockAds,
+  setRunProgramsWithoutSandbox,
   setDefaultModelURI,
   setDeveloperMode,
   setReleaseChannel,

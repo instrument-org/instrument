@@ -60,7 +60,11 @@ export function NotificationsBell() {
     }
     void openNoticeLink(notice);
   };
-  const hasProblems = problems.length > 0;
+  // A critical notice keeps the dot red until its cause is gone, seen or
+  // not, as a problem does: there is nothing to do but act on it.
+  const hasProblems =
+    problems.length > 0 ||
+    notices.some((notice) => notice.severity === "critical");
   const unseen = notices.filter((notice) => !notice.seen);
   const empty = problems.length === 0 && notices.length === 0;
 

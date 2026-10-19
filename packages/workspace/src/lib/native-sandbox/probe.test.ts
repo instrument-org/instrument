@@ -31,8 +31,10 @@ vi.mock("node:child_process", async (importOriginal) => ({
 
 // Each case reloads the module and so a fresh config holder; a config with
 // no Seatbelt launcher keeps every wrapped command on sandbox-exec.
+const config = vi.hoisted(() => ({ programsWithoutSandbox: false }));
+
 vi.mock("../workspace-config", () => ({
-  getWorkspaceConfig: () => ({}),
+  getWorkspaceConfig: () => config,
   hasWorkspaceConfig: () => true,
   setWorkspaceConfig: () => undefined,
 }));
@@ -54,6 +56,7 @@ describe("the sandbox probe on macOS", () => {
   beforeEach(() => {
     vi.resetModules();
     execFileSync.mockReset();
+    config.programsWithoutSandbox = false;
     vi.spyOn(console, "warn").mockImplementation(() => {});
     Object.defineProperty(process, "platform", { value: "darwin" });
   });
@@ -99,7 +102,7 @@ describe("the sandbox probe on macOS", () => {
       NativeSandboxUnavailableError,
     );
     expect(execFileSync).toHaveBeenCalledTimes(2);
-    expect(nativeSandboxOff()).toBeUndefined();
+    expect(nativeSandboxOff()).toBe("did-not-start");
   });
 
   it("says the sandbox is enforced while a probe has no answer", async () => {
@@ -115,6 +118,7 @@ describe("the sandbox probe on Linux", () => {
   beforeEach(() => {
     vi.resetModules();
     execFileSync.mockReset();
+    config.programsWithoutSandbox = false;
     vi.spyOn(console, "warn").mockImplementation(() => {});
     Object.defineProperty(process, "platform", { value: "linux" });
     files.bwrap = true;
@@ -129,15 +133,26 @@ describe("the sandbox probe on Linux", () => {
     ["/proc/sys/kernel/apparmor_restrict_unprivileged_userns", "1"],
     ["/proc/sys/kernel/unprivileged_userns_clone", "0"],
     ["/proc/sys/user/max_user_namespaces", "0"],
-  ])("runs unwrapped and says why when %s is %s", async (setting, value) => {
-    const { nativeSandboxOff, wrapNativeCommand } = await import("./index");
-    files.settings[setting] = value;
-    execFileSync.mockImplementation(() =>
-      failure({ status: 1, stderr: "bwrap: anything at all\n" }),
-    );
-    expect(wrapNativeCommand("cat", ["x"], reach).kind).toBe("unwrapped");
-    expect(nativeSandboxOff()).toBe("user-namespaces-closed");
-  });
+  ])(
+    "says why when %s is %s, and runs a command only once the person allows it",
+    async (setting, value) => {
+      const {
+        NativeSandboxUnavailableError,
+        nativeSandboxOff,
+        wrapNativeCommand,
+      } = await import("./index");
+      files.settings[setting] = value;
+      execFileSync.mockImplementation(() =>
+        failure({ status: 1, stderr: "bwrap: anything at all\n" }),
+      );
+      expect(nativeSandboxOff()).toBe("user-namespaces-closed");
+      expect(() => wrapNativeCommand("cat", ["x"], reach)).toThrow(
+        NativeSandboxUnavailableError,
+      );
+      config.programsWithoutSandbox = true;
+      expect(wrapNativeCommand("cat", ["x"], reach).kind).toBe("unwrapped");
+    },
+  );
 
   // "Permission denied" from a failure the settings do not explain was once
   // read as namespaces closed, and ran every command with no rules.
@@ -155,14 +170,20 @@ describe("the sandbox probe on Linux", () => {
     expect(() => wrapNativeCommand("cat", ["x"], reach)).toThrow(
       NativeSandboxUnavailableError,
     );
-    expect(nativeSandboxOff()).toBeUndefined();
+    expect(nativeSandboxOff()).toBe("did-not-start");
   });
 
-  it("runs unwrapped and says so where bubblewrap is not installed", async () => {
-    const { nativeSandboxOff, wrapNativeCommand } = await import("./index");
+  it("says so where bubblewrap is not installed, and runs nothing until allowed", async () => {
+    const {
+      NativeSandboxUnavailableError,
+      nativeSandboxOff,
+      wrapNativeCommand,
+    } = await import("./index");
     files.bwrap = false;
     execFileSync.mockImplementation(() => failure({ code: "ENOENT" }));
-    expect(wrapNativeCommand("cat", ["x"], reach).kind).toBe("unwrapped");
+    expect(() => wrapNativeCommand("cat", ["x"], reach)).toThrow(
+      NativeSandboxUnavailableError,
+    );
     expect(nativeSandboxOff()).toBe("no-bubblewrap");
   });
 });

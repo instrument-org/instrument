@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { getWorkspaceConfig } from "../workspace-config";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   bwrapAvailable,
   bwrapCommand,
@@ -47,12 +47,14 @@ export function nativeSandboxEnforced(): boolean {
 }
 
 /**
- * Why native commands here run with no system sandbox, by what the system
+ * Why no system sandbox holds native commands here, by what the system
  * itself shows: no `sandbox-exec` on a Mac, no bubblewrap or user namespaces
- * closed on Linux, and Windows until MXC holds them. Undefined where a
- * sandbox holds them, or will once a probe that gave no answer gets one.
+ * closed on Linux, a probe that failed for a reason the settings do not
+ * show, and Windows until MXC holds them. Undefined where a sandbox holds
+ * them.
  */
 export type SandboxOff =
+  | "did-not-start"
   | "no-bubblewrap"
   | "no-seatbelt"
   | "user-namespaces-closed"
@@ -69,12 +71,27 @@ export function simulateSandboxOff(off: SandboxOff | undefined): void {
   simulatedOff = off;
 }
 
+/**
+ * Records the person's choice to let native commands run with no sandbox on
+ * this computer where none holds them, which every later command reads.
+ */
+export function allowProgramsWithoutSandbox(allowed: boolean): void {
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    programsWithoutSandbox: allowed,
+  });
+}
+
 export function nativeSandboxOff(): SandboxOff | undefined {
   if (simulatedOff) {
     return simulatedOff;
   }
-  if (nativeSandboxEnforced()) {
+  const states = [seatbeltState(), bwrapState(), mxcState()];
+  if (states.includes("works")) {
     return undefined;
+  }
+  if (states.includes("failed")) {
+    return "did-not-start";
   }
   if (process.platform === "darwin") {
     return "no-seatbelt";
@@ -99,13 +116,14 @@ export function nativeCommandsSandboxed(): boolean {
 }
 
 /**
- * Thrown in place of running a command with no sandbox when the one this
- * computer has did not start.
+ * Thrown in place of running a command with no sandbox, where none holds
+ * native commands here and the person has not chosen to run them without
+ * one.
  */
 export class NativeSandboxUnavailableError extends Error {
   constructor(file: string) {
     super(
-      `${path.basename(file)} did not run: the sandbox that holds commands to the permission settings did not start, and Instrument does not run a command without it. Run the command again in a moment.`,
+      `${path.basename(file)} did not run: no sandbox holds programs to the permission settings on this computer, and Instrument runs none without one unless the person allows it. Settings › Permissions says why and has the switch; tell them, and don't look for another way to run it. The shell's own commands and your file tools still work.`,
     );
     this.name = "NativeSandboxUnavailableError";
   }
@@ -158,7 +176,14 @@ export function wrapNativeCommand(
   }
   const bwrap = bwrapState();
   const mxc = mxcState();
-  if (seatbelt === "failed" || bwrap === "failed" || mxc === "failed") {
+  const failed =
+    seatbelt === "failed" || bwrap === "failed" || mxc === "failed";
+  // No sandbox holds it: it runs only where the person chose that, and on
+  // Windows, which Settings says has none until MXC can hold it.
+  const runsAnyway =
+    getWorkspaceConfig().programsWithoutSandbox === true ||
+    (process.platform === "win32" && !failed);
+  if (failed && !runsAnyway) {
     throw new NativeSandboxUnavailableError(file);
   }
   const mxcExec = getWorkspaceConfig().mxcExecPath;
@@ -173,6 +198,9 @@ export function wrapNativeCommand(
   }
   if (bwrap === "works") {
     return { ...bwrapCommand(reach, file, args), kind: "sandboxed", reach };
+  }
+  if (!runsAnyway) {
+    throw new NativeSandboxUnavailableError(file);
   }
   return unwrapped;
 }

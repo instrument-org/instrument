@@ -218,6 +218,7 @@ export {
   type OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 export {
+  allowProgramsWithoutSandbox,
   nativeSandboxOff,
   type SandboxOff,
   simulateSandboxOff,

@@ -258,6 +258,12 @@ export interface WorkspaceConfig {
    * off macOS.
    */
   nativeSandbox?: boolean;
+  /**
+   * Whether the person chose to let native commands run with no sandbox on
+   * this computer, where none can be made or none starts. Without it such a
+   * command does not run. A plain flag for the same reason as `nativeSandbox`.
+   */
+  programsWithoutSandbox?: boolean;
   pnpmBinPath: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;

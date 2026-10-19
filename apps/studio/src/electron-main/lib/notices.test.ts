@@ -12,7 +12,10 @@ const { env, prefs, sandbox, userData, workspace } = vi.hoisted(() => ({
   env: { version: "2.0.0-beta.58" },
   workspace: { defaultModelURI: undefined as string | undefined },
   sandbox: { off: undefined as string | undefined },
-  prefs: { releaseChannel: undefined as string | undefined },
+  prefs: {
+    releaseChannel: undefined as string | undefined,
+    runAnyway: false,
+  },
   userData: { dir: "" },
 }));
 
@@ -31,7 +34,12 @@ vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));
 vi.mock("@/electron-main/stores/machine/preferences", () => ({
-  getMachinePreferences: () => ({ get: () => prefs.releaseChannel }),
+  getMachinePreferences: () => ({
+    get: (key: string) =>
+      key === "runProgramsWithoutSandbox"
+        ? prefs.runAnyway
+        : prefs.releaseChannel,
+  }),
 }));
 vi.mock("@/electron-main/stores/workspace/preferences", () => ({
   getDefaultModelURI: () => workspace.defaultModelURI,
@@ -82,6 +90,8 @@ describe("notices", () => {
     env.version = "2.0.0-beta.58";
     prefs.releaseChannel = undefined;
     workspace.defaultModelURI = undefined;
+    prefs.runAnyway = false;
+    sandbox.off = undefined;
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
     vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", "https://api.example");
@@ -209,7 +219,6 @@ describe("notices", () => {
     sandbox.off = "no-bubblewrap";
     const [warning] = notices.listNotices();
     expect(notices.claimNoticeToast(warning?.id ?? "")).toBe(true);
-    sandbox.off = undefined;
   });
   it("lists only the last update this computer launched into", async () => {
     const notices = await load();
@@ -241,7 +250,7 @@ describe("notices", () => {
       action: { label: "See why", settings: "Permissions" },
       kind: "security",
       severity: "critical",
-      title: "Programs the agent runs can reach all your files",
+      title: "The agent can't run programs right now",
     });
     notices.dismissNotice(warning?.id ?? "");
     expect(notices.listNotices()).toEqual([]);
@@ -251,7 +260,18 @@ describe("notices", () => {
     // Windows says so in Settings alone, as it does on every Windows computer.
     sandbox.off = "windows";
     expect(notices.listNotices()).toEqual([]);
-    sandbox.off = undefined;
+  });
+
+  it("quiets the warning once the person chose to run programs anyway", async () => {
+    const notices = await load();
+    sandbox.off = "no-bubblewrap";
+    prefs.runAnyway = true;
+    expect(notices.listNotices()).toMatchObject([
+      {
+        severity: "info",
+        title: "Programs the agent runs can reach all your files",
+      },
+    ]);
   });
 
   it("keeps an update dismissed, and never toasts it", async () => {

@@ -60,6 +60,7 @@ const PermissionsViewSchema = z.object({
    */
   sandboxOff: z
     .enum([
+      "did-not-start",
       "no-bubblewrap",
       "no-seatbelt",
       "user-namespaces-closed",

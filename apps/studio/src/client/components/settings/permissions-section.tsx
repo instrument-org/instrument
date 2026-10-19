@@ -44,7 +44,7 @@ import { displayPath } from "@/client/lib/path-utils";
 import { isLinux, isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
-import { SANDBOX_OFF_REASONS, SANDBOX_OFF_TITLE } from "@/shared/sandbox-off";
+import { SANDBOX_OFF_COPY, SANDBOX_OFF_REASONS } from "@/shared/sandbox-off";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -265,31 +265,7 @@ export function PermissionsSection() {
           </p>
         </div>
       ) : view.sandboxOff ? (
-        <Alert variant="warning">
-          <ShieldWarningIcon />
-          <AlertTitle className="line-clamp-none">
-            {SANDBOX_OFF_TITLE}
-          </AlertTitle>
-          <AlertDescription>
-            <p>{SANDBOX_OFF_REASONS[view.sandboxOff]}</p>
-            <p>
-              Instrument's own tools still follow this list, but a program the
-              agent runs, like a Python script, can reach any file you can. Once
-              you've changed something, quit and reopen Instrument so it checks
-              again.
-            </p>
-            <Button
-              className="mt-1"
-              onClick={() => {
-                openLink(SANDBOX_OFF_URL, { addReferral: false });
-              }}
-              size="sm"
-              variant="outline"
-            >
-              Learn more
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <SandboxOffWarning off={view.sandboxOff} openLink={openLink} />
       ) : null}
       <section className="space-y-2">
         <div
@@ -760,5 +736,70 @@ function LevelSelect({
         ) : null}
       </SelectContent>
     </Select>
+  );
+}
+
+/**
+ * Where no sandbox can hold the programs the agent runs: why, and the
+ * person's choice to run them anyway, which stays here while it is on.
+ */
+function SandboxOffWarning({
+  off,
+  openLink,
+}: {
+  off: Exclude<View["sandboxOff"], "windows" | undefined>;
+  openLink: ReturnType<typeof useOpenExternalLink>;
+}) {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setRunAnyway = useMutation(
+    rpcClient.preferences.setRunProgramsWithoutSandbox.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't change that setting", { cause: error });
+      },
+    }),
+  );
+  const allowed = preferences?.runProgramsWithoutSandbox === true;
+  const copy = SANDBOX_OFF_COPY[allowed ? "allowed" : "refused"];
+  return (
+    <Alert variant="warning">
+      <ShieldWarningIcon />
+      <AlertTitle className="line-clamp-none">{copy.title}</AlertTitle>
+      <AlertDescription>
+        <p>{SANDBOX_OFF_REASONS[off]}</p>
+        <p>
+          {copy.settings} Once you've changed something, quit and reopen
+          Instrument so it checks again.
+        </p>
+        <label className="mt-1 flex w-full items-center justify-between gap-4 rounded-lg border border-border bg-card p-3">
+          <span className="space-y-0.5">
+            <span className="block text-sm font-medium text-foreground">
+              Run programs without a sandbox
+            </span>
+            <span className="block text-xs">
+              They'll be able to reach any file you can on this computer.
+            </span>
+          </span>
+          <Switch
+            checked={allowed}
+            disabled={preferences === undefined || setRunAnyway.isPending}
+            onCheckedChange={(enabled) => {
+              setRunAnyway.mutate({ enabled });
+            }}
+          />
+        </label>
+        <Button
+          className="mt-1"
+          onClick={() => {
+            openLink(SANDBOX_OFF_URL, { addReferral: false });
+          }}
+          size="sm"
+          variant="outline"
+        >
+          Learn more
+        </Button>
+      </AlertDescription>
+    </Alert>
   );
 }

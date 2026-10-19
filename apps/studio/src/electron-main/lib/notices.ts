@@ -13,7 +13,7 @@ import {
   type SignedOutAccount,
   type SignInAccountType,
 } from "@/shared/notices";
-import { SANDBOX_OFF_NOTICE, SANDBOX_OFF_TITLE } from "@/shared/sandbox-off";
+import { SANDBOX_OFF_COPY } from "@/shared/sandbox-off";
 import { modelNameFromURI, readModelURI } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
 import {
@@ -187,22 +187,26 @@ const LAUNCHED_AT = new Date().toISOString();
 
 /**
  * The notice for programs the agent runs having no sandbox on macOS or Linux,
- * which the app makes itself whenever the computer's own settings show it
- * cannot make one. It is critical, so it toasts and stays until closed, and
- * its id carries the reason and the build, so a dismissed one comes back
- * with the next update while the cause is still there.
+ * which the app makes itself while none holds them. Until the person decides,
+ * it is critical: it toasts, stays until closed, and keeps the bell's dot
+ * red. Its id carries the reason, the choice and the build, so a dismissed
+ * one comes back with the next update while the cause is still there.
  */
 function sandboxOffNotice(
   off: Exclude<SandboxOff, "windows">,
 ): Omit<BellNotice, "seen"> {
+  // Once the person chose to run the programs anyway there is nothing left
+  // to decide, so it stays in the bell without toasting again.
+  const allowed = getMachinePreferences().get("runProgramsWithoutSandbox");
+  const copy = SANDBOX_OFF_COPY[allowed ? "allowed" : "refused"];
   return {
     action: { label: "See why", settings: "Permissions" },
-    body: SANDBOX_OFF_NOTICE,
-    id: `sandbox-off-${off}-${app.getVersion()}`,
+    body: copy.notice,
+    id: `sandbox-off-${off}-${allowed ? "allowed" : "refused"}-${app.getVersion()}`,
     kind: "security",
     publishedAt: LAUNCHED_AT,
-    severity: "critical",
-    title: SANDBOX_OFF_TITLE,
+    severity: allowed ? "info" : "critical",
+    title: copy.title,
   };
 }
 

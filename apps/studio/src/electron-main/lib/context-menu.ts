@@ -4,22 +4,11 @@ import contextMenu from "electron-context-menu";
 
 import { saveContextMenuMediaAs } from "./context-menu-download";
 
-/**
- * How "Inspect" opens DevTools:
- * - `default`: docked, Chromium's last-used dock side (the standard action).
- * - `detach`: a separate DevTools window (good for narrow/side surfaces).
- * - `bottom`: docked at the bottom, clear of any draggable top strip that
- *   would otherwise swallow clicks on a docked DevTools toolbar.
- */
-type InspectMode = "bottom" | "default" | "detach";
-
 export function createContextMenu({
   browserWindow,
-  inspectMode = "default",
   onOpenLink,
 }: {
   browserWindow: BrowserWindow;
-  inspectMode?: InspectMode;
   /**
    * Opens the link under the pointer where the page says, for a window that
    * keeps links in the app. The menu raised over a link at all is the one
@@ -37,30 +26,11 @@ export function createContextMenu({
   // items as the template evolves, which is how right-click spellcheck went
   // missing.
   return contextMenu({
-    append: (defaultActions, parameters) => {
+    append: (defaultActions) => {
       if (!isDeveloperMode()) {
         return [];
       }
-      if (inspectMode === "default") {
-        return [defaultActions.inspect()];
-      }
-      return [
-        {
-          click: () => {
-            browserWindow.webContents.openDevTools({
-              mode: inspectMode,
-            });
-            browserWindow.webContents.inspectElement(
-              parameters.x,
-              parameters.y,
-            );
-          },
-          label:
-            inspectMode === "detach"
-              ? "Inspect Element in New Window"
-              : "Inspect Element",
-        },
-      ];
+      return [defaultActions.inspect()];
     },
     // Offer "Copy Link" for links that lead somewhere outside the app; see
     // `isCopyableLink`.

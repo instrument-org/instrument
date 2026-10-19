@@ -72,17 +72,38 @@ export interface TopicChange {
 export class TopicNameError extends Error {}
 
 /**
- * Makes a topic and returns it. A name already in use returns that topic
- * instead, since its folder is its name; one retired under that name comes
- * back, with the instructions and folders it had.
+ * Makes a topic and returns it, with its instructions and the folders granted
+ * under it on this computer. A name already in use returns that topic as it
+ * is instead, since its folder is its name; one retired under that name comes
+ * back, with the instructions and folders it had unless new ones are given.
+ * A grant that fails takes back the topic it was for, so no topic is left
+ * made without the folders it was made with.
  */
-export function createTopic(topic: {
+export async function createTopic({
+  folders = [],
+  ...topic
+}: {
   about?: string;
   color?: string;
   emoji?: string;
+  folders?: TopicFolder[];
+  instructions?: string;
   name: string;
 }): Promise<Topic> {
-  return Promise.resolve().then(() => createTopicNow(topic));
+  const made = await Promise.resolve().then(() => createTopicNow(topic));
+  if (made.was === "in use" || folders.length === 0) {
+    return made.topic;
+  }
+  try {
+    await setTopicFolders(
+      made.topic.id,
+      folders.map((folder) => folder.path),
+    );
+  } catch (error) {
+    takeBackTopic(made);
+    throw error;
+  }
+  return made.topic;
 }
 
 /**
@@ -262,35 +283,48 @@ function checkedTopicName(raw: string): string {
   return checked.value;
 }
 
+/**
+ * What `createTopicNow` did: found a topic in use under the name, brought a
+ * retired one back (kept as it was, to put back), or made a new one.
+ */
+type MadeTopic =
+  | { retired: Topic; topic: Topic; was: "retired" }
+  | { topic: Topic; was: "in use" | "new" };
+
 function createTopicNow({
   about,
   color,
   emoji,
+  instructions: given,
   name,
 }: {
   about?: string;
   color?: string;
   emoji?: string;
+  instructions?: string;
   name: string;
-}): Topic {
+}): MadeTopic {
   const rootDir = getWorkspaceConfig().rootDir;
   const wanted = checkedTopicName(name);
+  const instructions = given?.trim();
   const existing = readTopicsSync(rootDir).find(
     (topic) => nameKey(topic.name) === nameKey(wanted),
   );
   if (existing) {
     if (!existing.retired) {
-      return existing;
+      return { topic: existing, was: "in use" };
     }
-    return rewriteTopicSync(rootDir, existing, (current) => {
+    const topic = rewriteTopicSync(rootDir, existing, (current) => {
       const { retired: _retired, ...revived } = current;
       return {
         ...revived,
         ...(about ? { about } : {}),
         ...(color ? { color } : {}),
         ...(emoji ? { emoji } : {}),
+        ...(instructions ? { instructions } : {}),
       };
     });
+    return { retired: existing, topic, was: "retired" };
   }
   const topic: Topic = {
     ...(about ? { about } : {}),
@@ -298,9 +332,32 @@ function createTopicNow({
     created: toTheSecond(new Date()),
     ...(emoji ? { emoji } : {}),
     id: newTopicId(),
+    ...(instructions ? { instructions } : {}),
     name: wanted,
   };
-  return writeTopicSync(rootDir, topic);
+  return { topic: writeTopicSync(rootDir, topic), was: "new" };
+}
+
+/**
+ * Puts back what `createTopicNow` changed: a retired topic retired again as
+ * it was, or a new one's file gone, with its folder when nothing else is in
+ * it, since a folder of the person's can stand where the topic was made.
+ */
+function takeBackTopic(made: MadeTopic): void {
+  const rootDir = getWorkspaceConfig().rootDir;
+  if (made.was === "retired") {
+    writeTopicSync(rootDir, made.retired);
+    return;
+  }
+  if (made.was === "new") {
+    const folder = path.join(topicsDirOf(rootDir), made.topic.name);
+    fs.rmSync(path.join(folder, TOPIC_FILE_NAME), { force: true });
+    try {
+      fs.rmdirSync(folder);
+    } catch {
+      // Something of the person's is in it, so the folder stays.
+    }
+  }
 }
 
 function nameKey(name: string): string {

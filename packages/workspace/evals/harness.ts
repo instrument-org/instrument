@@ -359,6 +359,11 @@ export interface EvalCase {
   apps?: AppFixture[];
   assertions?: Assertion[];
   /**
+   * This case's own token cap, over the run's (`--max-run-tokens`), for a
+   * long conversation whose legitimate total is past the default.
+   */
+  maxRunTokens?: number;
+  /**
    * Called with a follow-up's position just before it is sent, for a case
    * that has to see what the run had made by then: a draft the follow-up
    * asks to change, say.
@@ -894,11 +899,12 @@ export async function runEvals(
           return;
         }
         const elapsedSeconds = (Date.now() - startedAt) / 1000;
-        if (maxRunTokens > 0 && totalTokens > maxRunTokens) {
+        const tokenCap = evalCase.maxRunTokens ?? maxRunTokens;
+        if (tokenCap > 0 && totalTokens > tokenCap) {
           stoppedBy = "budget";
           overBudget = totalTokens;
           process.stderr.write(
-            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(totalTokens)} tokens > ${formatNumber(maxRunTokens)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
+            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(totalTokens)} tokens > ${formatNumber(tokenCap)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
           );
         } else if (maxRunSeconds > 0 && elapsedSeconds > maxRunSeconds) {
           stoppedBy = "timeout";

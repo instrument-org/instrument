@@ -8,7 +8,7 @@ import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 export function SaveFailedPill({ onRetry }: { onRetry: () => void }) {
   return (
     <div
-      className="pointer-events-auto flex items-center gap-2 rounded-full border border-border bg-popover py-1 pr-1 pl-3 text-xs font-medium text-foreground shadow-md"
+      className="pointer-events-auto flex items-center gap-2 rounded-full border border-border bg-popover py-1 pr-1 pl-3 text-xs font-medium text-foreground shadow-float-md"
       role="alert"
     >
       <WarningCircleIcon className="size-3.5 shrink-0 text-destructive" />

@@ -40,7 +40,7 @@ export function AskTray({ path }: { path: string }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-3.5 z-30 flex justify-center px-4">
       <div
-        className="pointer-events-auto flex max-w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg"
+        className="pointer-events-auto flex max-w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-float-lg"
         data-slot="ask-tray"
       >
         {isOpen && (

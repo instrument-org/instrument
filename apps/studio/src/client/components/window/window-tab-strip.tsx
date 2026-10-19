@@ -139,7 +139,7 @@ export function WindowTabStrip({
       />
       {menu && menuTab && (
         <div
-          className="fixed z-50 min-w-40 rounded-md border border-border bg-popover p-1 text-sm text-popover-foreground shadow-md"
+          className="fixed z-50 min-w-40 rounded-md border border-border bg-popover p-1 text-sm text-popover-foreground shadow-float-md"
           onPointerDown={(event) => {
             event.stopPropagation();
           }}

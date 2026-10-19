@@ -14,7 +14,7 @@ export function UpdatedPill({
 }) {
   return (
     <button
-      className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-border bg-popover px-3 py-1.5 text-xs font-medium text-foreground shadow-md hover:bg-muted"
+      className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-border bg-popover px-3 py-1.5 text-xs font-medium text-foreground shadow-float-md hover:bg-muted"
       onClick={onClick}
       type="button"
     >

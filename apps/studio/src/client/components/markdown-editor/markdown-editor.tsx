@@ -217,7 +217,7 @@ function FenceView({
           <MermaidDiagram code={content} language={language} />
         )}
         <button
-          className="absolute top-2 right-2 rounded-md border border-border bg-popover px-2 py-0.5 text-xs text-muted-foreground opacity-0 shadow-xs group-hover/fence:opacity-100 hover:text-foreground"
+          className="absolute top-2 right-2 rounded-md border border-border bg-popover px-2 py-0.5 text-xs text-muted-foreground opacity-0 shadow-float-sm group-hover/fence:opacity-100 hover:text-foreground"
           onClick={(event) => {
             onEditSource(event.currentTarget);
           }}

@@ -207,7 +207,7 @@ export function FileDropRegion({
       </DropRegisterContext>
       {isDragging && activeNote && (
         <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-brand-500 bg-brand-500/5">
-          <span className="flex items-center gap-2 rounded-full bg-popover px-4 py-2 text-sm font-medium shadow-xl">
+          <span className="flex items-center gap-2 rounded-full bg-popover px-4 py-2 text-sm font-medium shadow-float-lg">
             <PaperclipIcon className="size-4 text-brand-600" />
             {activeNote}
           </span>

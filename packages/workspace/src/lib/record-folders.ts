@@ -195,11 +195,15 @@ export function chatOwnFolder(chatFolder: string): AbsolutePath | undefined {
 
 /**
  * The chat's own session, read from the records in its folder: the session
- * that was not started from another one. A chat with one session needs no
- * more than the names of its files; one with tasks has the first line of a
- * log read per session, oldest first, until the one with no parent, and the
- * chat's own is almost always the oldest. Nothing a device rewrites decides
- * it, so a damaged file beside the logs cannot hide a chat.
+ * that was not started from another one, which a log's header says. The
+ * first line of each session's logs is read, oldest session first, until
+ * one with no parent; the chat's own is almost always the oldest. Nothing a
+ * device rewrites decides it, so a damaged file beside the logs cannot hide
+ * a chat.
+ *
+ * A folder whose logs are all tasks' has none: a task's log can arrive by
+ * sync before the chat's own, and the chat is found once that one does
+ * rather than opened as the task.
  *
  * A folder with no logs yet is a chat still on its `chat.db`, which the
  * database converter retries at each launch; its `settings.json`, which
@@ -207,26 +211,23 @@ export function chatOwnFolder(chatFolder: string): AbsolutePath | undefined {
  * reads that file.
  */
 export function chatSessionIn(chatFolder: string): StoreId.Session | undefined {
-  const logs = new Map<StoreId.Session, string>();
+  const logs = new Map<StoreId.Session, string[]>();
   for (const name of listFiles(chatFolder).toSorted()) {
     const parsed = parseRecordFileName(name);
     if (parsed?.kind === "log" && parsed.copy === undefined) {
-      if (!logs.has(parsed.session) || parsed.generation === 1) {
-        logs.set(parsed.session, name);
-      }
+      logs.set(parsed.session, [...(logs.get(parsed.session) ?? []), name]);
     }
   }
-  const sessions = [...logs.keys()].toSorted();
-  if (sessions.length <= 1) {
-    return sessions[0] ?? sessionInSettingsFile(chatFolder);
+  if (logs.size === 0) {
+    return sessionInSettingsFile(chatFolder);
   }
-  for (const session of sessions) {
-    const header = firstLineOf(path.join(chatFolder, logs.get(session) ?? ""));
-    if (isRootHeader(header)) {
-      return session;
-    }
-  }
-  return sessions[0];
+  return [...logs.keys()]
+    .toSorted()
+    .find((session) =>
+      (logs.get(session) ?? []).some((name) =>
+        isRootHeader(firstLineOf(path.join(chatFolder, name))),
+      ),
+    );
 }
 
 /**

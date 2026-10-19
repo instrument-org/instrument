@@ -283,6 +283,32 @@ describe("a chat's own session", () => {
     expect(chatSessionIn(dir)).toBe(OWN);
   });
 
+  it("is none for a folder holding only a task's log, until the chat's own arrives", async () => {
+    const dir = path.join(rootDir, "chats", "2026-09-25-task-first");
+    await writeHeader(dir, TASK, DEVICE_A, OWN);
+
+    expect(chatSessionIn(dir)).toBeUndefined();
+    expect(resolveChat("2026-09-25-task-first")).toBeUndefined();
+
+    await writeHeader(dir, OWN, DEVICE_B);
+
+    expect(resolveChat("2026-09-25-task-first")).toBe("2026-09-25-task-first");
+    expect(sessionOfChat(ChatIdSchema.parse("2026-09-25-task-first"))).toBe(
+      OWN,
+    );
+  });
+
+  it("is none for a folder of several sessions where no header is the chat's own", async () => {
+    const dir = path.join(rootDir, "chats", "2026-09-25-no-root");
+    const other = StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0C");
+    await writeHeader(dir, TASK, DEVICE_A, OWN);
+    await writeHeader(dir, other, DEVICE_A, OWN);
+    // The chat's own log, started and not yet given its header.
+    await fs.writeFile(path.join(dir, logFileName(OWN, DEVICE_B)), "");
+
+    expect(chatSessionIn(dir)).toBeUndefined();
+  });
+
   it("is none for a folder with neither", async () => {
     const dir = path.join(rootDir, "chats", "2026-09-25-empty");
     await fs.mkdir(dir, { recursive: true });

@@ -1,53 +1,32 @@
-import { cn } from "@/client/lib/utils";
 import { type ReactNode } from "react";
 
 import { Button } from "./ui/button";
 
 export function CollapsiblePartMainContent({
   children,
-  className,
-  contentClassName,
-  contentRef,
-  footer,
 }: {
   children: ReactNode;
-  className?: string;
-  contentClassName?: string;
-  contentRef?: React.Ref<HTMLDivElement>;
-  footer?: ReactNode;
 }) {
   return (
-    <div className={cn("mt-2 text-xs", className)}>
-      <div
-        className={cn(
-          "max-h-64 overflow-y-auto rounded-md border bg-muted/30 p-2",
-          contentClassName,
-        )}
-        ref={contentRef}
-      >
+    <div className="mt-2 text-xs">
+      <div className="max-h-64 overflow-y-auto rounded-md border bg-muted/30 p-2">
         {children}
       </div>
-      {footer}
     </div>
   );
 }
 
 export function CollapsiblePartTrigger({
   children,
-  className,
   ref,
   ...props
 }: {
   children: ReactNode;
-  className?: string;
   ref?: React.Ref<HTMLButtonElement>;
 }) {
   return (
     <Button
-      className={cn(
-        "h-6 w-full justify-start rounded-sm px-1 py-0 hover:bg-accent/30 disabled:opacity-100",
-        className,
-      )}
+      className="h-6 w-full justify-start rounded-sm px-1 py-0 hover:bg-accent/30 disabled:opacity-100"
       ref={ref}
       variant="ghost"
       {...props}

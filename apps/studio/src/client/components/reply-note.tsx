@@ -41,7 +41,7 @@ export function ReplyNote({
   return (
     <div
       className={cn(
-        "relative isolate flex min-h-8 min-w-0 items-center gap-2 rounded-[22px] py-1 pr-1 pl-3 text-xs shadow-xs ring-1 ring-inset",
+        "@container/note relative isolate min-h-8 min-w-0 rounded-[22px] py-1 pr-1 pl-3 text-xs shadow-xs ring-1 ring-inset",
         isWarn
           ? "bg-yellow-50 text-yellow-900 ring-yellow-300 dark:bg-yellow-500/15 dark:text-yellow-100 dark:ring-yellow-500/30"
           : "bg-white text-foreground/70 ring-black/[0.06] dark:bg-gray-800 dark:ring-white/10",
@@ -59,29 +59,35 @@ export function ReplyNote({
           key={nudge}
         />
       )}
-      <NoteIcon
-        className={cn(
-          "size-4 shrink-0",
-          isWarn
-            ? "text-yellow-700 dark:text-yellow-300"
-            : "text-foreground/45",
-          iconClassName,
-        )}
-      />
-      <span className="min-w-0 flex-1 py-1 leading-snug text-pretty">
-        {children}
-      </span>
-      {action}
-      {onDismiss && (
-        <button
-          aria-label="Dismiss"
-          className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
-          onClick={onDismiss}
-          type="button"
-        >
-          <XIcon className="size-3" />
-        </button>
-      )}
+      {/* Laid out against its own width: in a narrow chat the buttons drop
+          under the words rather than squeezing them into a column. */}
+      <div className="flex min-h-6 flex-wrap items-center gap-x-2 gap-y-1">
+        <NoteIcon
+          className={cn(
+            "size-4 shrink-0",
+            isWarn
+              ? "text-yellow-700 dark:text-yellow-300"
+              : "text-foreground/45",
+            iconClassName,
+          )}
+        />
+        <span className="min-w-0 flex-1 py-1 leading-snug text-pretty @max-md/note:basis-[calc(100%-1.5rem)]">
+          {children}
+        </span>
+        <div className="flex shrink-0 items-center gap-1.5 @max-md/note:ml-6 @max-md/note:pb-1">
+          {action}
+          {onDismiss && (
+            <button
+              aria-label="Dismiss"
+              className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+              onClick={onDismiss}
+              type="button"
+            >
+              <XIcon className="size-3" />
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const live = {
   me: base
-    .input(z.object({ staleTime: z.number().optional().default(30_000) }))
+    .input(z.object({ staleTime: z.number().default(30_000) }))
     .handler(async function* ({ errors, input, signal }) {
       try {
         yield* createAuthenticatedLiveQuery({
@@ -24,26 +24,24 @@ const live = {
         });
       }
     }),
-  subscriptionStatus: base
-    .input(z.object({ staleTime: z.number().optional().default(30_000) }))
-    .handler(async function* ({ errors, input, signal }) {
-      try {
-        yield* createAuthenticatedLiveQuery({
-          getOptions: (enabled) =>
-            platformApiRpcClient.users.getSubscriptionStatus.queryOptions({
-              enabled,
-              staleTime: input.staleTime,
-            }),
-          queryKey: platformApiRpcClient.users.getSubscriptionStatus.queryKey(),
-          signal,
-        });
-      } catch (error) {
-        throw errors.API_ERROR({
-          cause: error,
-          message: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
-    }),
+  subscriptionStatus: base.handler(async function* ({ errors, signal }) {
+    try {
+      yield* createAuthenticatedLiveQuery({
+        getOptions: (enabled) =>
+          platformApiRpcClient.users.getSubscriptionStatus.queryOptions({
+            enabled,
+            staleTime: 0,
+          }),
+        queryKey: platformApiRpcClient.users.getSubscriptionStatus.queryKey(),
+        signal,
+      });
+    } catch (error) {
+      throw errors.API_ERROR({
+        cause: error,
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }),
 };
 
 export const user = {

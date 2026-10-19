@@ -19,9 +19,7 @@ export function SubscriptionCard() {
     error,
     isLoading,
     refetch,
-  } = useLiveSubscriptionStatus({
-    input: { staleTime: 0 },
-  });
+  } = useLiveSubscriptionStatus();
   const { mutateAsync: createPortalSession } = useMutation(
     rpcClient.stripe.createPortalSession.mutationOptions(),
   );

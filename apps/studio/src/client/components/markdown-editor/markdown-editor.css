@@ -1487,6 +1487,40 @@ textarea.md-input {
 .md-editor .ProseMirror > .md-html-inner:has(+ .md-html-inner) {
   padding-bottom: 0.55em;
 }
+/* A quote in a body: the quote's own rules would take the indent and the
+   spacing above, which are padding here, and draw its bar at the left edge,
+   ahead of the body's rule. Its bar is drawn as a background instead, after
+   the indent and clear of the spacing. */
+.md-editor .milkdown .ProseMirror > blockquote.md-html-inner:not(.md-callout) {
+  --quote-top: 0.55em;
+  --quote-bottom: 0px;
+  border-left: 0;
+  padding: var(--quote-top) 0 var(--quote-bottom)
+    calc(var(--html-indent) + 3px + 1.25em);
+  background:
+    repeating-linear-gradient(
+        to right,
+        var(--html-line) 0 1px,
+        transparent 1px 16px
+      )
+      5px 0 / var(--html-indent) 100% no-repeat,
+    linear-gradient(var(--border), var(--border)) var(--html-indent)
+      var(--quote-top) / 3px calc(100% - var(--quote-top) - var(--quote-bottom))
+      no-repeat;
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  > blockquote.md-html-inner:not(.md-callout):has(+ .md-html-inner) {
+  --quote-bottom: 0.55em;
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  > .md-html-open:has(.md-html-details)
+  + blockquote.md-html-inner:not(.md-callout) {
+  --quote-top: 0.35em;
+}
 .md-editor .ProseMirror > .md-html-hidden {
   display: none !important;
 }

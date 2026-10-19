@@ -65,6 +65,21 @@ A held program starts about 150 ms later there, more than the 90 ms the phase 1 
 
 The same preview, driven through real chats on GLM 5.3 Flash: files and a summary in the work folder, a matplotlib chart, `node count.js` with no package.json, `pnpm add is-odd` then `require`, `git init`/`commit`/`status` and Windows PowerShell 5.1's `Get-Location` in the work folder and in a granted folder under Documents (the folder, never `C:\`), a granted Documents file behind its card, a Downloads file declined at its card, `AppData\Roaming` listed and a file in one app's folder behind a card naming that app, a node server stopped with `kill bg_1`, `/tmp` shared between the shell and Python, and `ssh-add -l | sort` twice with no card. Held programs ran under `wxc-exec` at Low integrity. `kill`, `taskkill` and `Get-Process` did not reach a process outside the chat; since a held program sees only its own processes, the agent took "not found" for "gone" and said a running process had exited, and answered "what's using CPU?" with the sandbox's own processes before saying it could not see the rest.
 
+What Windows serves through another process, measured on the PC (Windows 11 26200.9711) through a chat's shell, unwrapped and held. None of it follows the filesystem policy, so the policy changes since leave it as measured:
+
+| Command | Unwrapped | Under MXC | Cause |
+| --- | --- | --- | --- |
+| clipboard (`Set-Clipboard`, `clip.exe`) | works | fails, also with `ui.clipboard: "all"` | broker |
+| `start file.txt`, `explorer.exe .` | opens | nothing opens | broker |
+| `start https://...` | opens a tab | waits until killed | broker |
+| `Start-Process <url>`, choco's shim | works | `Access is denied` | ShellExecute |
+| `Get-CimInstance`, `Get-Printer`, `Get-Volume`, `systeminfo` | works | `Access to a CIM resource was not available` | WMI over DCOM |
+| `Get-Process`, `tasklist` held | every process | only the command's own | process ACLs at low integrity |
+| `ping` | works | `Unable to contact IP driver` | ICMP |
+| `cmdkey /list` | the person's credentials | none | credential store |
+| `reg add HKCU\...`, `setx`, `schtasks /create` | works | refused | low integrity |
+| COM in process (`Scripting.FileSystemObject`, `WScript.Shell`), fonts | works | works | |
+
 ## Approach
 
 ### A third backend behind `wrapNativeCommand`

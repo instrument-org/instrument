@@ -75,7 +75,7 @@ export const COPY_PATTERN = [
  * 125 ms, a 102-character one minutes, on the thread that draws the window
  * and for every entry of a folder a sync engine also writes to.
  */
-const COPY_SUFFIXES = `(?:(?=(?<copy>(?:${COPY_PATTERN})+))\\k<copy>)?`;
+export const COPY_SUFFIXES = `(?:(?=(?<copy>(?:${COPY_PATTERN})+))\\k<copy>)?`;
 
 const LOG_NAME = new RegExp(
   `^(ses_[0-9A-HJKMNP-TV-Z]{26})\\.(${DEVICE_ID_PATTERN})(?:\\.(${GENERATION_PATTERN}))?${COPY_SUFFIXES}\\.jsonl$`,

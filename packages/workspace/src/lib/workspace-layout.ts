@@ -33,7 +33,9 @@ export const WORKSPACE_DATA_ENTRIES = {
   /**
    * One folder per device that has opened the workspace, named by its device
    * id: what only that device writes and every device reads, its activity
-   * log a file per month (`activity/<YYYY-MM>.jsonl`).
+   * log a file per month (`activity/<YYYY-MM>.jsonl`) and its file of each
+   * synced store (`<domain>.jsonl`, `lib/synced-store/`), `bookmarks.jsonl`
+   * among them.
    */
   devices: "devices",
   /**
@@ -105,8 +107,7 @@ export function workspaceLayout(workspaceDir: string) {
     chatsDir: entry(WORKSPACE_DATA_ENTRIES.chats),
     /**
      * What the app keeps that travels with the workspace: `workspace.json`,
-     * `preferences.json`, `features.json`, `bookmarks.json`, and every folder
-     * below.
+     * `preferences.json`, `features.json`, and every folder below.
      */
     dataDir,
     devicesDir: entry(WORKSPACE_DATA_ENTRIES.devices),

@@ -135,6 +135,11 @@ export {
   startRecordArrivals,
   stopRecordArrivals,
 } from "./lib/records/take-arrivals";
+export {
+  openSyncedStore,
+  type SyncedStore,
+} from "./lib/synced-store/synced-store";
+export { type SyncedOp } from "./lib/synced-store/synced-record";
 export { runtimeLayout } from "./lib/runtime-dir";
 export { ensurePythonBase } from "./lib/python-base";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";

@@ -116,7 +116,7 @@ function retiredSetting(
 
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
-function readLines<R extends { seq: number }>(
+export function readLines<R extends { seq: number }>(
   bytes: Uint8Array,
   cursor: ReadCursor,
   parse: (text: string, offset: number) => R | undefined,

@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../../constants";
 import { ChatIdSchema } from "../../schemas/chat-id";
-import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import {
+  AbsolutePathSchema,
+  ChatDirSchema,
+  WorkspaceDirSchema,
+} from "../../schemas/paths";
+import { chatAttachmentsDir } from "../chat-dir-utils";
 import { chatOwnFolder } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { logFileName, settingsFileName } from "../records/file-names";
@@ -31,7 +36,7 @@ import {
 import { ensureChatFolder, renameChatFolder } from "./chat-folder";
 import { giveChatsTheirFolders } from "./first-folders";
 import { chatFolderNames } from "./own-folder";
-import { writeChatFolder } from "./write-chat-folder";
+import { attachmentsWaitingToMove, writeChatFolder } from "./write-chat-folder";
 
 /**
  * A chat's folder is written one chat at a time, at the moments something
@@ -289,26 +294,54 @@ describe("a chat's folder", () => {
     await expect(fs.readdir(path.join(dir, "attachments"))).rejects.toThrow();
   });
 
-  it("leaves an attachments folder the person already made alone", async () => {
+  it("brings older uploads in beside newer ones already in the chat's folder", async () => {
+    const { chatId, dir } = await writeChat("2026-10-14-dishwashers", {
+      title: "Dishwashers",
+    });
+    await writeFolder("2026-10-14-dishwashers");
+    // Sent before the chat had its folder, and after.
+    await fs.mkdir(path.join(dir, "attachments"), { recursive: true });
+    await fs.writeFile(path.join(dir, "attachments", "spec.pdf"), "a pdf");
+    const theirs = path.join(chatsFolder(), "Dishwashers", "attachments");
+    await fs.mkdir(theirs, { recursive: true });
+    await fs.writeFile(path.join(theirs, "photo.jpg"), "a photo");
+    expect(await attachmentsWaitingToMove(chatId)).toBe(true);
+
+    await writeFolder("2026-10-14-dishwashers");
+
+    expect((await fs.readdir(theirs)).toSorted()).toEqual([
+      "photo.jpg",
+      "spec.pdf",
+    ]);
+    await expect(fs.readdir(path.join(dir, "attachments"))).rejects.toThrow();
+    expect(await attachmentsWaitingToMove(chatId)).toBe(false);
+    expect(chatAttachmentsDir(ChatDirSchema.parse(dir))).toBe(theirs);
+  });
+
+  it("never writes over a file of the same name in the chat's folder", async () => {
     const { dir } = await writeChat("2026-10-14-dishwashers", {
       title: "Dishwashers",
     });
     await writeFolder("2026-10-14-dishwashers");
     const theirs = path.join(chatsFolder(), "Dishwashers", "attachments");
     await fs.mkdir(theirs, { recursive: true });
-    await fs.writeFile(path.join(theirs, "mine.txt"), "the person's own");
+    await fs.writeFile(path.join(theirs, "spec.pdf"), "the person's own");
     await fs.mkdir(path.join(dir, "attachments"), { recursive: true });
     await fs.writeFile(path.join(dir, "attachments", "spec.pdf"), "a pdf");
+    await fs.writeFile(path.join(dir, "attachments", "notes.md"), "notes");
 
     await writeFolder("2026-10-14-dishwashers");
 
-    // Never merged over: a second write cannot overwrite what they put there.
+    // Both kept: theirs where it was, the upload left in the record folder.
     await expect(
-      fs.readFile(path.join(theirs, "mine.txt"), "utf8"),
+      fs.readFile(path.join(theirs, "spec.pdf"), "utf8"),
     ).resolves.toBe("the person's own");
     await expect(
       fs.readFile(path.join(dir, "attachments", "spec.pdf"), "utf8"),
     ).resolves.toBe("a pdf");
+    await expect(
+      fs.readFile(path.join(theirs, "notes.md"), "utf8"),
+    ).resolves.toBe("notes");
   });
 });
 

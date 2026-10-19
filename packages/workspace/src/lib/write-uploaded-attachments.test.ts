@@ -219,6 +219,39 @@ describe("writeUploadedAttachments", () => {
     await expect(attachmentsIn(recordDir)).rejects.toThrow();
   });
 
+  it("takes no name an older upload still has in the record folder", async () => {
+    const folder = path.join(root, "workspace", "Chats", "Quiet dishwashers");
+    await fs.mkdir(folder, { recursive: true });
+    await fs.mkdir(getWorkspaceConfig().workspaceMachineDir, {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(
+        getWorkspaceConfig().workspaceMachineDir,
+        WORKSPACE_MACHINE_ENTRIES.chatFolders,
+      ),
+      JSON.stringify({ [path.basename(recordDir)]: "Quiet dishwashers" }),
+    );
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      outputDir: AbsolutePathSchema.parse(path.join(root, "workspace")),
+      rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+    });
+    await writeSourceFile(
+      path.join(recordDir, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
+      "sent before the chat had its folder",
+    );
+
+    const [attached] = await attach([pastedFile("photo.jpg")]);
+
+    // Both are `attachments/<name>` to the records, and the older one moves
+    // in beside this one.
+    expect(attached?.filePath).toBe(
+      `${CHAT_FOLDER_NAMES.attachments}/photo-1.jpg`,
+    );
+    await expect(attachmentsIn(folder)).resolves.toEqual(["photo-1.jpg"]);
+  });
+
   // Every workspace the app keeps in its own data: the folder under
   // `Chats/` is inside what the rules close to every command, so a file
   // written there is refused rather than read.

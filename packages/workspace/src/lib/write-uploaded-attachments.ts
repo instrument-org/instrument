@@ -133,14 +133,18 @@ function fileSystemError(error: unknown) {
 }
 
 async function getUniqueFilename(
-  inputDir: AbsolutePath,
+  inputDirs: AbsolutePath[],
   filename: string,
   reservedFilenames: ReadonlySet<string>,
 ): Promise<string> {
   const { name } = await findAvailableName({
-    isTaken: (candidate) =>
+    isTaken: async (candidate) =>
       reservedFilenames.has(candidate) ||
-      pathExists(absolutePathJoin(inputDir, candidate)),
+      (
+        await Promise.all(
+          inputDirs.map((dir) => pathExists(absolutePathJoin(dir, candidate))),
+        )
+      ).some(Boolean),
     name: filename,
     splitExtension: true,
     startAt: 1,
@@ -169,6 +173,15 @@ function prepareUploadedFiles({
     // is which folder holds them and nothing stored has to change.
     const sentTo = chatFolderTheyOpen(chatOwnFolder(recordDir)) ?? recordDir;
     const inputDir = absolutePathJoin(sentTo, CHAT_FOLDER_NAMES.attachments);
+    // A name what the chat was sent before still has in the record folder
+    // is taken too: both are `attachments/<name>` to the records, and those
+    // files move in beside these when the chat's folder is next written.
+    const takenIn = [
+      ...new Set([
+        inputDir,
+        absolutePathJoin(recordDir, CHAT_FOLDER_NAMES.attachments),
+      ]),
+    ];
     yield* ResultAsync.fromPromise(
       fs.mkdir(inputDir, { recursive: true }),
       fileSystemError,
@@ -206,7 +219,7 @@ function prepareUploadedFiles({
 
       const sanitized = sanitizeFilename(file.filename);
       const uniqueFilename = yield* ResultAsync.fromPromise(
-        getUniqueFilename(inputDir, sanitized, reservedFilenames),
+        getUniqueFilename(takenIn, sanitized, reservedFilenames),
         fileSystemError,
       );
 

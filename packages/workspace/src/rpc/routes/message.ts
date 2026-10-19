@@ -3,7 +3,10 @@ import { eventIterator, type } from "@orpc/server";
 import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
-import { rewriteChatFolder } from "../../lib/chat-folders/write-chat-folder";
+import {
+  attachmentsWaitingToMove,
+  rewriteChatFolder,
+} from "../../lib/chat-folders/write-chat-folder";
 import { ChatReads } from "../../lib/chat-reads";
 import { ChatWrites } from "../../lib/chat-writes";
 import { ensureChatSession } from "../../lib/create-session";
@@ -185,10 +188,16 @@ const create = base
           throw toORPCError(written.error, errors);
         }
         // The chat's `CHAT.md` takes the message the person just sent,
-        // without the send waiting on it.
-        void rewriteChatFolder(chatId).catch((error: unknown) => {
+        // without the send waiting on it, unless what they sent is still to
+        // move into the chat's folder: the turn names each file where it is,
+        // so it starts once they are there.
+        const moving = await attachmentsWaitingToMove(chatId);
+        const rewritten = rewriteChatFolder(chatId).catch((error: unknown) => {
           context.workspaceConfig.captureException(error);
         });
+        if (moving) {
+          await rewritten;
+        }
         // Writing in the chat is the person's answer to whatever it asked,
         // so a question still open there is closed rather than left to be
         // answered against a turn that has moved on.

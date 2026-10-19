@@ -88,6 +88,28 @@ export function rewriteChatFolder(id: ChatId): Promise<void> {
 }
 
 /**
+ * Whether what the person sent the chat is in its record folder, where the
+ * next write of the chat's folder moves it in (`moveAttachmentsIn`). A turn
+ * names each upload at `attachments/` in whichever folder has one, so a send
+ * with some waiting has its write finish before the turn starts.
+ */
+export async function attachmentsWaitingToMove(id: ChatId): Promise<boolean> {
+  const { rootDir } = getWorkspaceConfig();
+  if (chatFolderTheyOpen(path.join(rootDir, CHATS_FOLDER_NAME)) === undefined) {
+    return false;
+  }
+  const from = path.join(
+    chatDirOf(workspaceLayout(rootDir).chatsDir, id),
+    CHAT_FOLDER_NAMES.attachments,
+  );
+  try {
+    return (await fs.readdir(from)).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Moves what the person sent a chat out of its record folder and into the
  * folder they can see, the first time the chat's folder is written and at
  * any later write where the move was refused.
@@ -102,9 +124,12 @@ export function rewriteChatFolder(id: ChatId): Promise<void> {
  * relative, as `attachments/<name>`, so moving the folder the prefix refers
  * to is the whole migration: the records keep saying what they said.
  *
- * Idempotent, and it never merges: a chat whose folder already holds
- * `attachments/` is left alone, so a second run cannot overwrite a file the
- * person put there themselves.
+ * Entry by entry, into an `attachments/` the chat's folder may already
+ * have, since what is sent once the folder exists is written there. A name
+ * already there is never written over: that entry stays in the record
+ * folder, so both files are kept. New uploads take no name the record
+ * folder still has (`write-uploaded-attachments.ts`), so a name clash is a
+ * file the person put there themselves. Idempotent.
  */
 async function moveAttachmentsIn(
   recordDir: ChatDir,
@@ -115,20 +140,38 @@ async function moveAttachmentsIn(
   }
   const from = path.join(recordDir, CHAT_FOLDER_NAMES.attachments);
   const to = path.join(folderPath, CHAT_FOLDER_NAMES.attachments);
+  let names: string[];
   try {
-    if ((await fs.readdir(from)).length === 0) {
-      return;
-    }
+    names = await fs.readdir(from);
   } catch {
     // Nothing sent to this chat, which is most of them.
     return;
   }
+  if (names.length === 0) {
+    return;
+  }
+  await fs.mkdir(to, { recursive: true });
+  for (const name of names) {
+    const target = path.join(to, name);
+    if (await exists(target)) {
+      continue;
+    }
+    try {
+      await fs.rename(path.join(from, name), target);
+    } catch {
+      // Across a volume, or something holds it: it stays where it is.
+    }
+  }
+  // Only once it is empty.
+  await fs.rmdir(from).catch(() => undefined);
+}
+
+async function exists(entry: string): Promise<boolean> {
   try {
-    await fs.rename(from, to);
+    await fs.lstat(entry);
+    return true;
   } catch {
-    // Already there, or the move crosses a volume, or something holds it.
-    // The files stay where they are and still resolve, since the chat's
-    // record folder is where an attachment was always read from before.
+    return false;
   }
 }
 

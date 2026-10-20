@@ -20,7 +20,6 @@ export const RPC_ERROR_CODES = {
   // The workspace's base map, which `toORPCError` maps typed errors onto.
   FILE_SYSTEM_ERROR: "fault",
   GATEWAY_FETCH_ERROR: "fault",
-  GIT_ERROR: "fault",
   INVALID_INPUT: "expected",
   PARSE_ERROR: "fault",
   STORAGE_ERROR: "fault",

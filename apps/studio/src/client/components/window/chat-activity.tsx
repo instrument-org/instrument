@@ -228,7 +228,7 @@ function JobRows({
     <>
       <div className="flex items-center gap-2 pr-1 pl-2.5">
         <span className="flex-1 pt-1.5 pb-1 text-[11px] font-medium text-muted-foreground">
-          Jobs
+          Commands
         </span>
         <Button disabled={busy} onClick={stopAll} size="xs" variant="ghost">
           {jobs.length > 1 ? "Stop all" : "Stop"}
@@ -272,7 +272,7 @@ function JobRows({
             <StopProcessButton
               className="size-6"
               disabled={busy}
-              label="Stop this job"
+              label="Stop this command"
               onClick={() => {
                 stop(job.id);
               }}

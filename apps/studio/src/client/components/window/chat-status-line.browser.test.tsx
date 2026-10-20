@@ -97,7 +97,7 @@ describe("ChatStatusLine", () => {
       .not.toBeInTheDocument();
   });
 
-  it("says how many jobs are still running once the work is done", async () => {
+  it("says how many commands are still running once the work is done", async () => {
     jobs.running = [
       JOB("bg_1", "Serving the comparison page"),
       JOB("bg_2", "Checking Intercom's pricing every hour"),
@@ -106,8 +106,8 @@ describe("ChatStatusLine", () => {
       <ChatStatusLine chat={chat("idle")} onOpenTask={vi.fn()} />,
     );
     await expect.element(page.getByText("Done")).toBeVisible();
-    await expect.element(page.getByText("2 jobs running")).toBeVisible();
-    await userEvent.click(page.getByText("2 jobs running"));
+    await expect.element(page.getByText("2 commands running")).toBeVisible();
+    await userEvent.click(page.getByText("2 commands running"));
     await expect
       .element(page.getByText("Serving the comparison page"))
       .toBeVisible();
@@ -122,7 +122,7 @@ describe("ChatStatusLine", () => {
     );
     await expect.element(page.getByText("Reading the fares")).toBeVisible();
     await expect
-      .element(page.getByText("1 job running"))
+      .element(page.getByText("1 command running"))
       .not.toBeInTheDocument();
   });
 });

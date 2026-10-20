@@ -21,7 +21,7 @@ describe("quitPrompt", () => {
       quitPrompt({ agentCount: 0, jobNames: ["Serving the comparison page"] })
         ?.detail,
     ).toMatchInlineSnapshot(`
-      "Quitting stops this job, which is still running:
+      "Quitting stops this command, which is still running:
       Serving the comparison page"
     `);
   });
@@ -38,7 +38,7 @@ describe("quitPrompt", () => {
     ).toMatchInlineSnapshot(`
       "Active tasks will be interrupted and you may lose in-progress work.
 
-      Quitting also stops these jobs, which are still running:
+      Quitting also stops these commands, which are still running:
       Serving the comparison page
       Checking Intercom's pricing every hour"
     `);
@@ -51,7 +51,7 @@ describe("quitPrompt", () => {
         jobNames: ["One", "Two", "Three", "Four", "Five", "Six", "Seven"],
       })?.detail,
     ).toMatchInlineSnapshot(`
-      "Quitting stops these jobs, which are still running:
+      "Quitting stops these commands, which are still running:
       One
       Two
       Three

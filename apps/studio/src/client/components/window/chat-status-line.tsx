@@ -142,7 +142,7 @@ export function ChatStatusLine({
 
 /** How many jobs the chat and its tasks left running, said after the line's state. */
 function jobsRunning(count: number) {
-  return `${count} ${count === 1 ? "job" : "jobs"} running`;
+  return `${count} ${count === 1 ? "command" : "commands"} running`;
 }
 
 /**

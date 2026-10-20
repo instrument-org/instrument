@@ -22,6 +22,7 @@ import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
+import { isArriving } from "../lib/records/arriving";
 import {
   MAX_OUTPUT_LIMIT_REPLIES,
   outputLimitRun,
@@ -169,10 +170,10 @@ export const agentMachine = setup({
       const danglingParts: SessionMessagePart.ToolPart[] = [];
       for (const message of runMessages.value) {
         for (const part of message.parts) {
+          // A preliminary output is the turn's memory, not an answer.
           if (
             isToolPart(part) &&
-            (part.state === "input-available" ||
-              part.state === "input-streaming")
+            (part.state === "input-available" || isArriving(part))
           ) {
             danglingParts.push(part);
           }

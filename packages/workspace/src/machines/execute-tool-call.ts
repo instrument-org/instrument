@@ -1,4 +1,5 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import { omit } from "radashi";
 import { assign, fromPromise, log, setup } from "xstate";
 
 import { ChatWrites } from "../lib/chat-writes";
@@ -8,6 +9,7 @@ import {
   STOPPED_TOOL_CALL_ERROR_TEXT,
 } from "../constants";
 import { isToolPart } from "../lib/is-tool-part";
+import { isArriving } from "../lib/records/arriving";
 import { runToolCall } from "../lib/run-tool-call";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
@@ -61,21 +63,23 @@ export async function saveStoppedToolCallPart(input: {
       sessionId: input.part.metadata.sessionId,
     },
     (current) => {
+      // A preliminary output is the turn's memory, not an answer: the record
+      // under it still waits on one.
       if (
         !isToolPart(current) ||
-        (current.state !== "input-available" &&
-          current.state !== "input-streaming")
+        (current.state !== "input-available" && !isArriving(current))
       ) {
         return current;
       }
+      const unsettled = omit(current, ["output", "preliminary"]);
       // The part union is discriminated by tool type as well as by state, so
       // a spread that moves only the state does not land on a member of it;
       // the fields written here are the ones an errored call carries.
       return {
-        ...current,
+        ...unsettled,
         errorText: STOPPED_BECAUSE[input.reason],
         metadata: {
-          ...current.metadata,
+          ...unsettled.metadata,
           endedAt: getCurrentDate(),
           ...(input.reason === "chat" ? { stoppedBy: "chat" } : {}),
         },

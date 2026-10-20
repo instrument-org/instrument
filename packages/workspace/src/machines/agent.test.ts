@@ -579,6 +579,89 @@ describe("agentMachine", () => {
     `);
   });
 
+  // A preliminary output lives only in the turn's memory, so the record under
+  // it still waits on an answer the stop says will never come.
+  it("finalizes a saved call that had only offered a preliminary output when the turn is stopped", async () => {
+    const runSessionId = await startedSession();
+    const parentMessageId = StoreId.newMessageId();
+    const runMessage = createAssistantMessage(
+      StoreId.newMessageId(),
+      runSessionId,
+    );
+    const call = createQueuedReadFilePart(1, {
+      messageId: runMessage.id,
+      sessionId: runSessionId,
+    });
+
+    let resolveSaved!: () => void;
+    const saved = new Promise<void>((resolve) => {
+      resolveSaved = resolve;
+    });
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          // As above: the call reaches the store and no context array, so the
+          // sweep is the only thing that can finish it.
+          llmRequestLogic: fromPromise(async () => {
+            (
+              await ChatWrites.saveMessageWithParts(
+                { ...runMessage, parts: [call] },
+                chatId,
+              )
+            )._unsafeUnwrap();
+            (
+              await ChatWrites.updatePart(
+                {
+                  chatId,
+                  messageId: runMessage.id,
+                  partId: call.metadata.id,
+                  sessionId: runSessionId,
+                },
+                () =>
+                  ({
+                    ...call,
+                    output: { content: "partial" },
+                    preliminary: true,
+                    state: "output-available",
+                  }) as SessionMessagePart.ToolPart,
+              )
+            )._unsafeUnwrap();
+            resolveSaved();
+            return new Promise<{
+              message: SessionMessage.Assistant;
+              parts: SessionMessagePart.Type[];
+            }>(noop);
+          }),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
+        },
+        delays: { requestAbortBackstop: 10 },
+      }),
+      { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
+    );
+
+    actor.start();
+    await saved;
+
+    actor.send({ type: "stop" });
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect(await readToolParts(runSessionId)).toMatchInlineSnapshot(`
+      [
+        {
+          "errorText": "This action was stopped by you.",
+          "state": "output-error",
+          "toolCallId": "call-1",
+        },
+      ]
+    `);
+  });
+
   it("reads nothing back when a completed turn leaves the queues empty", async () => {
     const runSessionId = await startedSession();
     const parentMessageId = StoreId.newMessageId();

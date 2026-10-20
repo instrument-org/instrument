@@ -712,6 +712,52 @@ describe("agentMachine", () => {
     `);
   });
 
+  it("runs the finish once when a stop lands while the turn finishes", async () => {
+    let finishes = 0;
+    let releaseFinish!: () => void;
+    const finishGate = new Promise<void>((resolve) => {
+      releaseFinish = resolve;
+    });
+    const parent: { send: (event: { type: string }) => void } = {
+      send: vi.fn(),
+    };
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          llmRequestLogic: fromPromise(() =>
+            Promise.resolve({ message: assistantMessage, parts: noParts }),
+          ),
+          onFinish: fromPromise(async () => {
+            finishes++;
+            await finishGate;
+          }),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
+        },
+      }),
+      {
+        input: {
+          ...createAgentInput({ parentMessageId: messageId, sessionId }),
+          parentRef: parent as unknown as AnyActorRef,
+        },
+      },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Finishing"));
+    actor.send({ reason: "quit", type: "stop" });
+    releaseFinish();
+    await waitFor(actor, (state) => state.matches("Done"));
+    actor.send({ type: "stop" });
+
+    expect(finishes).toBe(1);
+    expect(parent.send).toHaveBeenCalledTimes(1);
+  });
+
   it("records how many replies the output limit cut off when it ends the turn", async () => {
     const runSessionId = StoreId.newSessionId();
     const parentMessageId = StoreId.newMessageId();

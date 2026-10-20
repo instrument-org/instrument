@@ -44,6 +44,12 @@ import { type StopReason } from "./execute-tool-call";
  */
 const UNATTENDED_STEPS = 500;
 
+/**
+ * How long a stop waits for the agent to wind down on its own before it is
+ * stopped outright, from the first stop.
+ */
+export const STOP_FAILSAFE_MS = 1000;
+
 export type SessionMachineParentEvent = {
   type: "session.done";
   value: {
@@ -217,6 +223,9 @@ export const sessionMachine = setup({
         }
       }
     }),
+  },
+  delays: {
+    stopFailsafe: STOP_FAILSAFE_MS,
   },
   guards: {
     isAgentRefActive: ({ context }) =>
@@ -426,8 +435,7 @@ export const sessionMachine = setup({
 
         Stopping: {
           after: {
-            // Failsafe if the agent does not stop itself promptly.
-            1000: {
+            stopFailsafe: {
               actions: ["forceStopAgent", "clearAgentRef"],
               target: "AgentDone",
             },
@@ -437,6 +445,12 @@ export const sessionMachine = setup({
             "agent.done": {
               actions: "clearAgentRef",
               target: "AgentDone",
+            },
+            // The agent is already winding down, so a later stop only says
+            // whose it was and what it holds, and the failsafe keeps the
+            // deadline the first stop set.
+            stop: {
+              actions: ["rememberStopNotice", "holdQueuedOnPersonsStop"],
             },
           },
         },

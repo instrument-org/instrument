@@ -62,7 +62,11 @@ import {
 } from "../test/helpers/mock-chat-config";
 import { sessionToShorthand } from "../test/helpers/session-to-shorthand";
 import { TOOLS } from "../tools/all";
-import { sessionMachine, type SessionMachineParentEvent } from "./session";
+import {
+  sessionMachine,
+  type SessionMachineParentEvent,
+  STOP_FAILSAFE_MS,
+} from "./session";
 
 vi.mock(import("ulid"));
 vi.mock(import("../lib/session-store-storage"));
@@ -1170,6 +1174,117 @@ describe("sessionMachine", () => {
         sessionId: result.sessionId,
       },
     ]);
+  });
+
+  /** The one agent, finishing its turn with `onFinish` in place of its own. */
+  function agentFinishingWith(onFinish: () => Promise<void>) {
+    return setupAgent({
+      agentTools: pick(TOOLS, ["ReadFile"]),
+      name: "instrument",
+    }).create(() => ({
+      getMessages: instrumentAgent.getMessages,
+      onFinish,
+      onStart: instrumentAgent.onStart,
+      shouldContinue: instrumentAgent.shouldContinue,
+      systemPrompt: instrumentAgent.systemPrompt,
+    }));
+  }
+
+  // A quit stops every session still alive, a stopped one winding down
+  // included, and a stop that lands while the turn finishes must not run
+  // the finish again: it consumes the turn's skill changes as it reads them.
+  it("finishes a stopped turn once when the app's quit stops it again", async () => {
+    const stream = createManualModelStream();
+    let finishes = 0;
+    let releaseFinish!: () => void;
+    const finishGate = new Promise<void>((resolve) => {
+      releaseFinish = resolve;
+    });
+    const result = await createActorAndTask({
+      agent: agentFinishingWith(async () => {
+        finishes++;
+        await finishGate;
+      }),
+      aiSDKModel: new MockLanguageModelV4({
+        doStream: () =>
+          Promise.resolve({
+            rawCall: { rawPrompt: null, rawSettings: {} },
+            stream: stream.stream,
+          }),
+      }),
+    });
+    const done: unknown[] = [];
+    const unsubscribe = publisher.subscribe("session.done", (payload) => {
+      done.push(payload);
+    });
+    result.actor.start();
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Running" }));
+    const agentRef = result.actor.getSnapshot().context.agentRef;
+    if (!agentRef) {
+      throw new Error("Expected agent ref");
+    }
+    await waitFor(agentRef, (state) => state.matches("LLMStreaming"));
+
+    result.actor.send({
+      notice: { by: "user", wakesChat: false },
+      type: "stop",
+    });
+    await vi.waitFor(() => {
+      expect(finishes).toBe(1);
+    });
+    result.actor.send({
+      notice: { by: "app", wakesChat: false },
+      reason: "quit",
+      type: "stop",
+    });
+    releaseFinish();
+    await waitFor(result.actor, (state) => state.status === "done");
+    unsubscribe();
+
+    expect(finishes).toBe(1);
+    expect(done).toEqual([
+      {
+        id: result.chatId,
+        notice: { by: "user", wakesChat: false },
+        sessionId: result.sessionId,
+      },
+    ]);
+  });
+
+  // The failsafe bounds the whole stop from the moment it was asked for; a
+  // second stop pushing it out would let a turn that never winds down hold
+  // the session for as long as stops keep arriving.
+  it("keeps the stop failsafe's deadline when the chat's stop follows the user's", async () => {
+    const clock = new SimulatedClock();
+    const result = await createActorAndTask({
+      actorOptions: { clock },
+      agent: agentFinishingWith(() => new Promise<void>(noop)),
+      chunkSets: [finishChunks],
+    });
+    result.actor.start();
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Running" }));
+    const agentRef = result.actor.getSnapshot().context.agentRef;
+    if (!agentRef) {
+      throw new Error("Expected agent ref");
+    }
+    await waitFor(agentRef, (state) => state.matches("Finishing"));
+
+    result.actor.send({
+      notice: { by: "user", wakesChat: false },
+      type: "stop",
+    });
+    clock.increment(STOP_FAILSAFE_MS - 100);
+    result.actor.send({
+      notice: { by: "chat", wakesChat: false },
+      reason: "chat",
+      type: "stop",
+    });
+    clock.increment(100);
+
+    await waitFor(result.actor, (state) => state.status === "done", {
+      timeout: 1000,
+    });
+    expect(agentRef.getSnapshot().status).toBe("stopped");
   });
 
   it("should force stop agents before the stopping failsafe completes", async () => {

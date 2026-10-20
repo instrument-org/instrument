@@ -540,6 +540,7 @@ export const agentMachine = setup({
           value: { error: context.error },
         });
       },
+      on: { stop: {} },
     },
 
     /**
@@ -615,6 +616,15 @@ export const agentMachine = setup({
 
     Finishing: {
       initial: "RunningOnFinish",
+      // Already finishing: a stop says why, for the sweep, and runs nothing
+      // again, since `onFinish` consumes what it reads.
+      on: {
+        stop: {
+          actions: assign({
+            stopReason: ({ event }) => event.reason ?? "manual",
+          }),
+        },
+      },
       states: {
         FinalizingDanglingToolCalls: {
           invoke: {

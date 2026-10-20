@@ -43,7 +43,7 @@ const FOLDERS: Record<
 };
 
 /** The folder drawn for `os`, as an SVG document. */
-export function folderGlyphSvg(os: Os) {
+function folderGlyphSvg(os: Os) {
   const { back, front, shape } = FOLDERS[os];
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 50" width="64" height="50"><defs><linearGradient id="back" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${back[0]}"/><stop offset="1" stop-color="${back[1]}"/></linearGradient><linearGradient id="front" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${front[0]}"/><stop offset="1" stop-color="${front[1]}"/></linearGradient></defs><path d="${BACK}" fill="url(#back)"/><path d="${shape}" fill="url(#front)"/></svg>`;
 }

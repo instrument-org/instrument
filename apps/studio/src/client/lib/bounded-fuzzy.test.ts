@@ -11,9 +11,9 @@ function matches(haystack: string[], needle: string) {
 describe("boundedFuzzy", () => {
   it("answers a pasted path against a page at a sibling path at once", () => {
     const pasted =
-      "/private/tmp/claude-501/-Users-studio26-code-instrument-instrument/f94deb05-c51c-4db2-acdf-fadbef4c012d/scratchpad/";
+      "/private/tmp/claude-501/-Users-mac-user-code-instrument-instrument/f94deb05-c51c-4db2-acdf-fadbef4c012d/scratchpad/";
     const sibling =
-      "file:///private/tmp/claude-501/-Users-studio26-code-instrument-instrument/81958524-3483-444d-8e0e-15d7926e6b62/scratchpad/report.html";
+      "file:///private/tmp/claude-501/-Users-mac-user-code-instrument-instrument/81958524-3483-444d-8e0e-15d7926e6b62/scratchpad/report.html";
     const started = performance.now();
     expect(matches([sibling, `${pasted}notes.md`], pasted)).toEqual([1]);
     expect(performance.now() - started).toBeLessThan(100);

@@ -18,7 +18,7 @@ describe("classifyProcessList on macOS", () => {
     "-p 123 -o pid=,rss=",
     "-o pid,ppid,%cpu,command -r",
     "-m -A",
-    "-u studio26",
+    "-u mac-user",
     "-cU 501",
     "-t ttys001",
     "-L",
@@ -38,7 +38,7 @@ describe("classifyProcessList on macOS", () => {
     "-t ../../etc/passwd",
     "-o pid,env",
     // In the old form `u` takes no value, so the name is an operand.
-    "aux -u studio26",
+    "aux -u mac-user",
   ])("ps %s is refused", (line) => {
     expect(allowed("darwin", "ps", line)).toBe(false);
   });

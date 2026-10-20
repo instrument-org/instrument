@@ -915,7 +915,7 @@ describe("SessionMessage.toModelMessages", () => {
                 },
                 {
                   filename: "old.md",
-                  filePath: "/Users/jeremy/Instrument/Notes/old.md",
+                  filePath: "/Users/mac-user/Instrument/Notes/old.md",
                   mimeType: "text/markdown",
                   modifiedAt: 1_718_198_400_000,
                   size: 120,
@@ -946,7 +946,7 @@ describe("SessionMessage.toModelMessages", () => {
       .toMatchInlineSnapshot(`
         [
           "- \`/home/alex/Instrument/Notes/plan.md\` (120B)",
-          "- \`/Users/jeremy/Instrument/Notes/old.md\` (120B)",
+          "- \`/Users/mac-user/Instrument/Notes/old.md\` (120B)",
         ]
       `);
     expect(
@@ -958,7 +958,7 @@ describe("SessionMessage.toModelMessages", () => {
     ).toMatchInlineSnapshot(`
       [
         "- \`/c/Users/alex/Instrument/Notes/plan.md\` (120B)",
-        "- \`/Users/jeremy/Instrument/Notes/old.md\` (120B)",
+        "- \`/Users/mac-user/Instrument/Notes/old.md\` (120B)",
       ]
     `);
   });

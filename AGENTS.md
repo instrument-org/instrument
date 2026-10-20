@@ -37,6 +37,8 @@ Warm words are welcome. "Create an account to enjoy free AI usage" says "enjoy" 
 
 Never commit machine-local paths (`/Users/...`, `~/code/...`, `C:\...`) or names of sibling repos/checkouts on one dev's disk — not in code, docs, plans, commits, or PRs. Meaningless to others, goes stale when layout changes. Such pointers go in local notes, not shared history.
 
+The same goes for a real computer's or account's name (a hostname, a login, a person's home folder): where a test, fixture, doc or wireframe needs one, use a generic name that says what it is, `mac-user`, `windows-user`, `linux-user`, and in prose say "the Windows test host".
+
 Sources outside this repo are reachable by name instead: `agent-reference.json` (shared) and `agent-reference.local.json` (gitignored, where machine paths go) declare them, and `agent-reference status` lists them.
 
 ## Plans and usage

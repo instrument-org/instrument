@@ -707,7 +707,7 @@ const toolBtn = (inner, cls = "") =>
 
 /** Files' top row. `mark` leads the omnibar (a folder, or the open file's type), `crumbs` are its path, `open` the kind whose Mac app the open-in pill at its end wears (openIn), `right` the open file's controls (fileActions). */
 const filesTop = ({
-  crumbs = ["studio26"],
+  crumbs = ["mac-user"],
   mark = fileMark("folder", "text-[15px]"),
   open = "folder",
   right = "",
@@ -731,16 +731,16 @@ const fileActions = ({ editing = false, ask = "Ask", expand = false } = {}) => `
 
 /** The Finder's sidebar of places: Recents and the Instrument folder, then the folders the person pinned (`places`) and the Locations. `starred` adds a Starred place over Recents. */
 const finderSidebar = ({
-  on = "studio26",
+  on = "mac-user",
   starred = false,
-  places = ["studio26", "Desktop", "Documents", "Downloads"],
+  places = ["mac-user", "Desktop", "Documents", "Downloads"],
 } = {}) => {
   const item = (icon, name) =>
     `<div class="flex h-7 items-center gap-2 rounded-lg px-2 ${name === on ? "bg-foreground/8" : ""}">${icon}<span class="truncate">${name}</span></div>`;
   const placeIcon = (n) =>
     n === "Instrument"
       ? `<i class="ph ph-folder-simple shrink-0 text-[15px] text-[#3f9d8a]"></i>`
-      : n === "studio26"
+      : n === "mac-user"
         ? `<i class="ph ph-house shrink-0 text-[15px] text-muted-foreground"></i>`
         : fileMark("folder", "text-[15px]");
   return `
@@ -762,7 +762,7 @@ const finderViews = (view = "columns", extra = []) =>
 
 /** The Finder's 48px header: the folder's name, then Ask, the views, sort, filter, more and search. */
 const finderHeader = ({
-  title = "studio26",
+  title = "mac-user",
   views = finderViews(),
   ask = "Ask",
 } = {}) => `
@@ -800,7 +800,7 @@ const fileTree = (rows, { on = "" } = {}) => `
  * caret, for a pane.
  */
 const filesRow = ({
-  crumbs = ["studio26"],
+  crumbs = ["mac-user"],
   mark = fileMark("folder", "text-[15px]"),
   open = "folder",
   view = "list",
@@ -912,7 +912,7 @@ const filesPlace = ({
 /** The Finder as Files opens it on the Instrument folder, in list view. */
 const finder = ({ pick = -1 } = {}) =>
   filesPlace({
-    top: filesRow({ crumbs: ["studio26", "Instrument"] }),
+    top: filesRow({ crumbs: ["mac-user", "Instrument"] }),
     side: finderSidebar({ on: "Instrument" }),
     body: finderListView(
       FINDER_FILES.map(([k, n], i) => [

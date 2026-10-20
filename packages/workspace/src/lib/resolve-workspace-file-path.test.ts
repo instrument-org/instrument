@@ -117,8 +117,8 @@ describe("resolveWorkspaceFilePath", () => {
       await fs.mkdir(path.join(root, "Unattached"), { recursive: true });
       await fs.writeFile(path.join(root, "Unattached", "cat.png"), "secret");
       const stored = inWorkspacePath(
-        path.posix.join("/Users/jeremy/Instrument", inWorkspace),
-        "/Users/jeremy/Instrument",
+        path.posix.join("/Users/mac-user/Instrument", inWorkspace),
+        "/Users/mac-user/Instrument",
       );
 
       const resolved = await resolveWorkspaceFilePath({

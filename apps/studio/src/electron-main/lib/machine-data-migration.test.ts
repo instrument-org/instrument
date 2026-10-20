@@ -637,4 +637,43 @@ describe("moveMachineData", () => {
     );
     expect(tree(machineDir)).not.toContain(".move-unfinished");
   });
+
+  it("waits for a settings take-in that stopped partway, and moves what it finishes over the defaults", () => {
+    for (const name of ["session.json.enc", "providers.json.enc"]) {
+      write(path.join(userDataDir, name), `${name} from before workspaces`);
+    }
+    const root = defaultWorkspacePath(userDataDir);
+    const launch = () => {
+      migrateWorkspaceSettings({
+        packaged: false,
+        userDataDir,
+        workspace: workspace(),
+      });
+      return moveMachineData({ userDataDir, workspace: workspace() });
+    };
+    const copy = fs.copyFileSync.bind(fs);
+    const once = vi.spyOn(fs, "copyFileSync").mockImplementation((from, to) => {
+      if (path.basename(String(from)) === "providers.json.enc") {
+        once.mockImplementation(copy);
+        throw Object.assign(new Error("in use"), { code: "EBUSY" });
+      }
+      copy(from, to);
+    });
+
+    const { machineDir } = launch();
+
+    expect(readWorkspaceIdentity(root).formatVersion).toBe(0);
+    // The app opened anyway, and its stores wrote their defaults.
+    write(path.join(machineDir, "keys", "session.json.enc"), "the default");
+
+    launch();
+
+    for (const name of ["session.json.enc", "providers.json.enc"]) {
+      expect(fs.readFileSync(path.join(machineDir, "keys", name), "utf8")).toBe(
+        `${name} from before workspaces`,
+      );
+    }
+    expect(tree(path.join(root, ".instrument", "settings"))).toEqual([]);
+    expect(readWorkspaceIdentity(root).formatVersion).toBe(1);
+  });
 });

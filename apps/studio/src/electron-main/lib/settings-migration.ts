@@ -111,6 +111,13 @@ const MOVED_FILES = ["chatgpt-account.json", "chatgpt-account.json.enc"];
  */
 const TAKE_IN_MARKER = ".take-in-unfinished";
 
+/** Whether the legacy take-in into `workspacePath` stopped partway and has yet to finish. */
+export function takeInUnfinished(workspacePath: string): boolean {
+  return fs.existsSync(
+    path.join(workspaceSettingsDirOf(workspacePath), TAKE_IN_MARKER),
+  );
+}
+
 /** Take the machine keys out of the legacy root files, which stay for the workspace half. */
 export function migrateMachineSettings(userDataDir: string): string[] {
   const done: string[] = [];

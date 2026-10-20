@@ -674,8 +674,11 @@ function sessionRow(folded: FoldedSession): unknown {
  * holds: every session, each one's messages in order, and each message's
  * parts. A conversion wrote all of them at once from one read, so it covers
  * every one; so does a chat whose every message went through the records as
- * it was written. A log a writer beside the store began part way through a
- * chat is missing the messages written before it, which is what this finds.
+ * it was written. Records may go on past `chat.db`, since a chat used after
+ * its conversion takes turns and starts tasks only there: more sessions,
+ * messages after its own, and parts beside its own. A log a writer beside
+ * the store began part way through a chat is missing the messages written
+ * before it, which is what this finds.
  *
  * Ids and their order, and no more: reading `chat.db` again stamps a call a
  * process left in flight with the moment of that read
@@ -697,7 +700,6 @@ async function sameShape(
   const folded = new Map(fold.chat().sessions.map((one) => [one.id, one]));
   for (const { messages, session } of read.sessions) {
     const mine = folded.get(session.id);
-    folded.delete(session.id);
     if (!mine) {
       addDifference(found, session.id, "a session", undefined);
       continue;
@@ -706,20 +708,21 @@ async function sameShape(
       found,
       `${session.id} messages`,
       messages.map(({ message }) => message.id),
-      mine.messages.map(({ id }) => id),
+      mine.messages.slice(0, messages.length).map(({ id }) => id),
     );
     const byId = new Map(mine.messages.map((message) => [message.id, message]));
     for (const { message, parts } of messages) {
+      const held = new Set(parts.map(({ part }) => part.metadata.id));
       addDifferences(
         found,
         `${session.id}/${message.id} parts`,
         parts.map(({ part }) => part.metadata.id),
-        byId.get(message.id)?.parts.map(({ metadata }) => metadata.id),
+        byId
+          .get(message.id)
+          ?.parts.map(({ metadata }) => metadata.id)
+          .filter((id) => held.has(id)),
       );
     }
-  }
-  for (const extra of folded.keys()) {
-    addDifference(found, extra, undefined, "a session chat.db does not hold");
   }
   return found.slice(0, MAX_DIFFERENCES);
 }

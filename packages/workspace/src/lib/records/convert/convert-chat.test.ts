@@ -879,6 +879,31 @@ describe("convertChat", () => {
     expect(await contents(dir)).toEqual(converted);
   });
 
+  it("counts a converted chat used since as converted", async () => {
+    const dir = chatPath("converted-then-used");
+    const chat = await writeEveryKindChat(dir);
+    expect((await convertChat(dir, OPTIONS)).kind).toBe("converted");
+    // The chat.db that could not be set aside, under records that went on
+    // to take a turn and start a task.
+    await alongsideTheStore(dir, chat, async (records) => {
+      await records.appendMessage(
+        chat,
+        SessionMessage.Schema.parse(
+          userMessage(CHAT_SESSION, messageId(99), at(200)),
+        ),
+      );
+      await records.startSession(chat, {
+        createdAt: at(201),
+        handle: "t2",
+        id: sessionId(9),
+        parent: CHAT_SESSION,
+        title: "Later",
+      });
+    });
+
+    expect((await convertChat(dir, OPTIONS)).kind).toBe("already-converted");
+  });
+
   it("converts a chat whose only other-device file says nothing", async () => {
     const dir = chatPath("converted-elsewhere");
     await writeUntitledChat(dir);

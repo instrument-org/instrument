@@ -487,28 +487,52 @@ function utm(...args) {
   };
 }
 
+/** Hides UTM, as Cmd-H does; its windows come back from the Dock. */
+function hideUtm() {
+  spawnSync("osascript", [
+    "-l",
+    "JavaScript",
+    "-e",
+    "ObjC.import('AppKit'); var a = $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.utmapp.UTM'); a.count ? a.firstObject.hide : false",
+  ]);
+}
+
+/**
+ * Has UTM running from an ordinary launch before any command that changes a
+ * VM. utmctl launches a stopped UTM hidden, and UTM 4.7.5 launched hidden
+ * ignores every such command, with no error, until its main window has been
+ * shown once (utmapp/UTM#7949). A background launch shows the window behind
+ * the app in front, and it is hidden right after.
+ */
+async function wakeUtm() {
+  if (spawnSync("pgrep", ["-x", "UTM"]).status === 0) return;
+  spawnSync("open", ["-g", "-a", "UTM"]);
+  await sleep(5000);
+  hideUtm();
+}
+
 /**
  * Starts a VM without putting its window in front of the person at the Mac.
  * `utmctl start --hide` only closes UTM's library window and still shows the
- * VM's display window, so UTM itself is hidden (as Cmd-H does) before the
- * start and for a few seconds after, while the window is ordered in. Clicking
- * UTM in the Dock shows every window again.
+ * VM's display window, so UTM itself is hidden before the start and for a few
+ * seconds after, while the window is ordered in. A start UTM ignored fails
+ * here rather than as an SSH timeout minutes later.
  */
 async function startHidden(vm) {
-  const hide = () =>
-    spawnSync("osascript", [
-      "-l",
-      "JavaScript",
-      "-e",
-      "ObjC.import('AppKit'); var a = $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.utmapp.UTM'); a.count ? a.firstObject.hide : false",
-    ]);
-  hide();
+  await wakeUtm();
+  hideUtm();
   // utmctl reports an error when UTM is already hidden, though the VM starts.
   utm("start", vm, "--hide");
   for (let i = 0; i < 6; i++) {
-    hide();
+    hideUtm();
     await sleep(500);
   }
+  for (let i = 0; i < 30 && utm("status", vm).out !== "started"; i++)
+    await sleep(1000);
+  if (utm("status", vm).out !== "started")
+    fail(
+      `UTM did not start ${vm}. A UTM launched hidden ignores VM commands until its window has been shown once (utmapp/UTM#7949): open UTM from the Dock, then run this again.`,
+    );
 }
 
 function answersSsh(host) {
@@ -530,6 +554,7 @@ function sleep(ms) {
  * installed release app), so unlike the Mac VM it is started, never replaced.
  */
 async function startVm(host, vm) {
+  await wakeUtm();
   const status = utm("status", vm).out;
   if (/not found|Error/u.test(status))
     fail(`No UTM virtual machine named ${vm}.`);

@@ -38,7 +38,7 @@ node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs boot --purpo
 node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs goto /tasks/generated-pdf --workspace documents
 ```
 
-It seeds into the OS cache directory keyed by checkout, sets `SKIP_ONBOARDING`, and picks a port of its own. Pass `--workspace` to every command of that run, not just `boot`: it selects the instance. Workspaces nobody has driven for two weeks are dropped at the next boot, and installed dependencies inside a task go sooner; both cost a reseed, which is seconds.
+It seeds into the OS cache directory keyed by checkout, sets `SKIP_ONBOARDING`, points the fixture's output folder at a folder beside it (`INSTRUMENT_OUTPUT_FOLDER`) so its agents never write into your real `~/Instrument Dev`, and picks a port of its own. Pass `--workspace` to every command of that run, not just `boot`: it selects the instance. Workspaces nobody has driven for two weeks are dropped at the next boot, and installed dependencies inside a task go sooner; both cost a reseed, which is seconds.
 
 ## What belongs in a fixture, and what does not
 

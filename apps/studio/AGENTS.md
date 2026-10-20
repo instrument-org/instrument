@@ -51,7 +51,7 @@ A workspace's own data splits in two (`lib/get-workspace-folder.ts`). What follo
 
 The app and onboarding windows run on the workspace's own Chromium session (`lib/app-session.ts`, `browser/app-session` in its machine folder), and the in-app browser on `browser-session` beside it, so localStorage, cookies, and history never cross workspaces. Anything a session must have (protocol handlers, the user agent, the permission policy) goes in `configureAppSession`, not on `session.defaultSession`.
 
-`ELECTRON_USER_DATA_DIR` still swaps the whole userData, for first-install behavior, the packaged smoke test, and seeded fixtures: `ELECTRON_USER_DATA_DIR=<empty dir> pnpm dev` is a first launch on a fresh machine.
+`ELECTRON_USER_DATA_DIR` still swaps the whole userData, for first-install behavior, the packaged smoke test, and seeded fixtures: `ELECTRON_USER_DATA_DIR=<empty dir> pnpm dev` is a first launch on a fresh machine. A workspace kept in that userData sends finished work to the flavor's folder in the home folder, the developer's real one, unless `INSTRUMENT_OUTPUT_FOLDER` names another; `studio-drive` sets it for a fixture.
 
 ## App-wide modals
 

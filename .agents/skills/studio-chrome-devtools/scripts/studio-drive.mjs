@@ -84,11 +84,12 @@
 // `--workspace <fixture>` boots against a disposable workspace built from a
 // committed fixture (fixtures/workspaces/) instead of the shared dev
 // application-data directory, so a run does not depend on what the developer
-// happened to do last. Add `--fresh` to rebuild it first. Each boot starts
-// with no tabs restored; `--keep-tabs` carries the last run's tabs over. The
-// flag belongs on every command of that run, not just `boot`: it selects both
-// the port and the instance record, so two workspaces from one checkout never
-// collide.
+// happened to do last, and its agents put finished work in a folder beside it
+// rather than the developer's own. Add `--fresh` to rebuild it first. Each
+// boot starts with no tabs restored; `--keep-tabs` carries the last run's tabs
+// over. The flag belongs on every command of that run, not just `boot`: it
+// selects both the port and the instance record, so two workspaces from one
+// checkout never collide.
 //
 //   node studio-drive.mjs boot --purpose "document viewer" --workspace documents
 //   node studio-drive.mjs shot task.png --workspace documents
@@ -258,9 +259,20 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
   }
   const result = JSON.parse(output.slice(start));
 
+  // Where its agents put finished work. Not in its application data, which
+  // the agent's rules close, and not the flavor's folder in the home folder,
+  // where a workspace in the app's own data sends it otherwise: that is the
+  // developer's real one. Beside it, so it is reaped and rebuilt with it.
+  const outputDir = `${userDataDir}-output`;
+  if (fresh) {
+    rmSync(outputDir, { force: true, recursive: true });
+  }
+  mkdirSync(outputDir, { recursive: true });
+
   // Reaping goes by mtime, so record that this workspace was used even when the
   // seeder had nothing to do and the app writes nothing before it is killed.
   utimesSync(userDataDir, new Date(), new Date());
+  utimesSync(outputDir, new Date(), new Date());
 
   reapWorkArtifacts(userDataDir);
 
@@ -275,7 +287,7 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
     rmSync(path.join(machineDir, "window", "layout.json"), { force: true });
   }
 
-  return { tasks: result.tasks, userDataDir };
+  return { outputDir, tasks: result.tasks, userDataDir };
 }
 
 // --- clean rooms -------------------------------------------------------
@@ -699,6 +711,7 @@ async function cmdBoot(
         // and never reveals the main one, which reads as a hang.
         ...(workspace && {
           ELECTRON_USER_DATA_DIR: workspace.userDataDir,
+          INSTRUMENT_OUTPUT_FOLDER: workspace.outputDir,
           SKIP_ONBOARDING: "true",
         }),
         // Pinned rather than switched to, so the developer's own instance keeps

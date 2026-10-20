@@ -251,10 +251,15 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       },
       // A folder the person picked is where their finished work goes too,
       // and only the app's own data ever held 1.x tasks.
+      // `INSTRUMENT_OUTPUT_FOLDER` is a driven fixture's own folder, set by
+      // studio-drive, so its agents never write into the developer's real
+      // Instrument folder.
       ...(inAppData
         ? {
             legacyTasks: true,
-            outputDir: unchosenOutputFolder(getUserDataDir()),
+            outputDir: process.env.INSTRUMENT_OUTPUT_FOLDER
+              ? path.resolve(process.env.INSTRUMENT_OUTPUT_FOLDER)
+              : unchosenOutputFolder(getUserDataDir()),
           }
         : { outputDir: rootDir }),
       // Passwords and sign-ins stay out of every native command's reach.

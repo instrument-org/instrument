@@ -55,6 +55,12 @@ declare namespace NodeJS {
        * docs/findings/drag-out-does-not-cross-xwayland.md.
        */
       INSTRUMENT_OZONE_PLATFORM: string | undefined;
+      /**
+       * Where finished work goes for a workspace in the app's own data, in
+       * place of the flavor's folder in the home folder: studio-drive sets it
+       * for a fixture. See create-workspace-actor.ts.
+       */
+      INSTRUMENT_OUTPUT_FOLDER: string | undefined;
       /** Build time only: names a preview build, inlined by electron.vite.config.ts. */
       INSTRUMENT_PREVIEW_NAME: string | undefined;
       /**

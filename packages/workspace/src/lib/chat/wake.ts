@@ -561,10 +561,18 @@ async function onSessionDone(
         );
   const event: TaskEvent = {
     activeMs: usage.activeMs,
-    ...(ending ? { ended: ending.line } : {}),
+    ...(ending
+      ? {
+          ended:
+            stop?.by === "user"
+              ? `Stopped by the user${ending.stoppedWhile ? ` while ${ending.stoppedWhile}` : ""}`
+              : ending.line,
+        }
+      : {}),
     ...(files.length > 0 ? { files } : {}),
     handle: task.handle,
     ...(needs.length > 0 ? { needs } : {}),
+    ...(ending?.resumable ? { resumable: true } : {}),
     ...(running.length > 0 ? { running } : {}),
     status: ending?.failed ? "error" : "done",
     ...(stop?.by === "user" ? { stoppedBy: stop.by } : {}),

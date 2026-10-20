@@ -63,6 +63,7 @@ describe("taskEventModelNote", () => {
         },
         {
           ended: "Stopped at the 200-step limit",
+          resumable: true,
           status: "done",
           sessionId: StoreId.SessionSchema.parse(
             "ses_01K4W2N8E5G0P3R7KJ6Y1T9M4F",
@@ -71,6 +72,7 @@ describe("taskEventModelNote", () => {
         },
         {
           ended: "Model is busy",
+          resumable: true,
           status: "error",
           sessionId: StoreId.SessionSchema.parse(
             "ses_01K4W2Q3H6D8V5C1NX0B7R2T9A",
@@ -245,6 +247,7 @@ describe("taskEventModelNote", () => {
           activeMs: 42_000,
           ended: "Timed out while reading the vault",
           handle: "t1",
+          resumable: true,
           status: "error",
           sessionId: TASK_ID,
           title: "Audit the vault",
@@ -269,7 +272,7 @@ describe("taskEventModelNote", () => {
       events: [
         {
           activeMs: 42_000,
-          ended: "Stopped while reading the vault",
+          ended: "Stopped by the user while reading the vault",
           handle: "t1",
           status: "done",
           stoppedBy: "user",

@@ -440,6 +440,12 @@ export namespace SessionMessageDataPart {
            */
           needs: z.array(z.string()).optional(),
           /**
+           * Whether sending the task on picks its turn up again: true when
+           * the step limit, the output limit, a model error, or a timeout
+           * ended it, which nobody decided. Absent for a stop.
+           */
+          resumable: z.boolean().optional(),
+          /**
            * What the child left running in the background as its turn ended:
            * a server it started on purpose, or a scan it never stopped. Absent
            * when nothing was, and on an overdue event, whose turn is still

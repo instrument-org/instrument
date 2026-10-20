@@ -170,6 +170,7 @@ describe("a stopped task", () => {
     await vi.waitFor(async () => {
       expect(await notesIn(chatId)).toHaveLength(1);
     }, 5000);
+    expect((await notesIn(chatId))[0]).not.toHaveProperty("resumable");
     expect((await notesIn(chatId))[0]).toMatchObject({
       sessionId: taskSession,
       stoppedBy: "user",
@@ -297,6 +298,7 @@ describe("a task whose request timed out", () => {
     const [event] = wakesOf(chatId);
     expect(event).toMatchObject({
       ended: "Timed out while reading the vault",
+      resumable: true,
       status: "error",
     });
     expect(event).not.toHaveProperty("stoppedBy");

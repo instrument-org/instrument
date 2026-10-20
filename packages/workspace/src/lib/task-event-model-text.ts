@@ -23,7 +23,7 @@ export function taskEventModelNote(
       event.stoppedBy === "app"
         ? `did not finish: ${asClause(event.ended ?? "The app closed before it finished")}`
         : event.stoppedBy === "user"
-          ? `was ${asClause(event.ended ?? "Stopped").replace(/^stopped/, "stopped by the user")} and did not finish`
+          ? `was ${asClause(event.ended ?? "Stopped by the user")} and did not finish`
           : event.status === "error"
             ? `stopped with an error${event.ended ? `, "${event.ended}"` : ""}`
             : event.status === "overdue"
@@ -103,9 +103,7 @@ export function taskEventModelNote(
     const leave =
       event.stoppedBy === "user"
         ? ` Leave it stopped unless they ask for it again.`
-        : event.stoppedBy === undefined &&
-            (event.status === "error" ||
-              /^(Stopped at|Cut off)/.test(event.ended ?? ""))
+        : event.stoppedBy === undefined && event.resumable
           ? ` \`${TASK_COMMAND.name} send ${id}\` picks it up again.`
           : "";
     return `- ${id} ("${event.title}") ${outcome}${cost}.${leave}${steps}${summary}${inFlight}${needs}${tabs}${running}`;

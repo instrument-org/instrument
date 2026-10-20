@@ -3,13 +3,13 @@ import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { type ReactNode } from "react";
 
 /**
- * A way to a skill's page from wherever a skill is named: the token of a
+ * A way to a skill's folder from wherever a skill is named: the token of a
  * mention, the row of a skill-changes card.
  *
- * The window's own openers take the skill's address to Settings, open on the
- * skill, and a middle click or a right click get the gestures every opener
- * there answers. A transcript drawn where nothing can be opened (the debug
- * pages) shows the name alone.
+ * The window's own openers take the skill's address to its folder in Files,
+ * and a middle click or a right click get the gestures every opener there
+ * answers. A transcript drawn where nothing can be opened (the debug pages)
+ * shows the name alone.
  */
 export function SkillLink({
   name,
@@ -17,7 +17,7 @@ export function SkillLink({
 }: {
   children: ReactNode;
   className?: string;
-  /** The name the skill's page is looked up by. */
+  /** The name the skill's folder is looked up by. */
   name: string;
   tabIndex?: number;
 }) {

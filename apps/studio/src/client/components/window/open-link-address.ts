@@ -41,9 +41,14 @@ const OPEN_LINK = {
     openSettings({ setting });
     return undefined;
   },
-  // A skill is shown in Settings, open on the one named.
+  // A skill is a folder, shown in Files in a tab of the window's own. Which
+  // folder is the workspace's answer, so it opens once that arrives. The
+  // opener is loaded when used: it adds to the window's tabs, which open
+  // every link address through here.
   skill: (skill) => {
-    openSettings({ skill, tab: "Skills" });
+    void import("@/client/lib/show-in-files").then(({ showSkillFolder }) =>
+      showSkillFolder(skill),
+    );
     return undefined;
   },
 } satisfies Record<

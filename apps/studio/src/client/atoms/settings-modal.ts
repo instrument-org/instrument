@@ -24,8 +24,6 @@ interface SettingsModalState {
    * row's id, a page's name, or words to search for (`settingsTargetOf`).
    */
   setting?: string;
-  /** The skill to open on the Skills tab, by the name a task loads it by, for a link to one. */
-  skill?: string;
   tab?: SettingsTab;
 }
 

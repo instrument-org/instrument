@@ -249,7 +249,7 @@ export function useChatNote({
   };
 
   if (billing) {
-    const key = `${refused?.id ?? (billing === startedTrial ? `trial:${trialStartedAt}` : "account")}:${billing.kind}`;
+    const key = `${refused?.id ?? (billing === startedTrial ? `trial:${trialStartedAt ?? 0}` : "account")}:${billing.kind}`;
     const isReady = billing.kind === "resumed";
     if (!(isReady && dismissed === key)) {
       return {

@@ -823,3 +823,17 @@ export function canStartTrial(
     !offer.trial.cardRequired
   );
 }
+
+/**
+ * What Auto's row in the model picker says about paying for it: that the
+ * plan or the free trial includes it, and nothing while the account has
+ * neither, or before its status is read.
+ */
+export function autoIncludedLine(status: Status | undefined) {
+  if (!status || !canUseHostedModels(status)) {
+    return undefined;
+  }
+  return status.plan === "trial"
+    ? "Included with your free trial"
+    : "Included with your subscription";
+}

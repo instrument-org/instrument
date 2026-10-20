@@ -24,7 +24,11 @@ import {
   rowsForSearch,
 } from "@/client/lib/model-picker-rows";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
-import { canStartTrial, hasNoPlan } from "@/client/lib/billing";
+import {
+  autoIncludedLine,
+  canStartTrial,
+  hasNoPlan,
+} from "@/client/lib/billing";
 import { type ModelAction, type ModelNotice } from "@/client/lib/model-status";
 import { cn } from "@/client/lib/utils";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
@@ -741,6 +745,7 @@ function AutoRow({
   model: AIGatewayModel.Type;
   onPick: (model: AIGatewayModel.Type) => void;
 }) {
+  const note = useAutoNote(model);
   return (
     <CommandItem
       data-chosen={chosen || undefined}
@@ -767,14 +772,16 @@ function AutoRow({
             Recommended
           </span>
         )}
-        <span
-          className={cn(
-            "truncate text-xs",
-            chosen ? "opacity-80" : "text-muted-foreground",
-          )}
-        >
-          {model.note ?? "Included with your subscription"}
-        </span>
+        {note && (
+          <span
+            className={cn(
+              "truncate text-xs",
+              chosen ? "opacity-80" : "text-muted-foreground",
+            )}
+          >
+            {note}
+          </span>
+        )}
       </span>
       {chosen && (
         <>
@@ -784,6 +791,15 @@ function AutoRow({
       )}
     </CommandItem>
   );
+}
+
+/**
+ * The line beside Auto: the lineup's own note for it, or what includes it
+ * for this account, which is nothing while the account has no plan or trial.
+ */
+function useAutoNote(model: AIGatewayModel.Type) {
+  const { data: status, isSignedIn } = useBillingStatus();
+  return model.note ?? (isSignedIn ? autoIncludedLine(status) : undefined);
 }
 
 /**
@@ -801,6 +817,7 @@ function AutoOnly({
   model: AIGatewayModel.Type;
   onPick: (model: AIGatewayModel.Type) => void;
 }) {
+  const note = useAutoNote(model);
   return (
     <div className="flex flex-col items-center gap-3 px-6 pt-16 pb-10 text-center">
       <AIProviderIcon
@@ -817,9 +834,7 @@ function AutoOnly({
             </span>
           )}
         </span>
-        <span className="text-sm text-muted-foreground">
-          {model.note ?? "Included with your subscription"}
-        </span>
+        {note && <span className="text-sm text-muted-foreground">{note}</span>}
       </div>
       <CommandItem
         data-solid

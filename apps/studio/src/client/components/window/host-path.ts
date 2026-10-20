@@ -8,14 +8,17 @@ export function folderOf(hostPath: string) {
 }
 
 /**
- * The folder a folder sits in, or null at the top of a disk (`/`, `C:\`),
- * which nothing is above. A Windows drive's top keeps its backslash, as the
- * drive is written.
+ * The folder a folder sits in, or null at the top of a disk (`/`, `C:\`) or
+ * of a network share (`\\server\share`), which nothing is above. A Windows
+ * drive's top keeps its backslash, as the drive is written.
  */
 export function parentFolderOf(hostPath: string): null | string {
   const names = segmentsOf(hostPath);
   if (separatorOf(hostPath) === "\\") {
     const above = names.slice(0, -1);
+    if (hostPath.startsWith("\\\\")) {
+      return above.length < 2 ? null : `\\\\${above.join("\\")}`;
+    }
     if (above.length === 0) {
       return null;
     }

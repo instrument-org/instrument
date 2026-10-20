@@ -145,6 +145,23 @@ function storedPathOnDisk(
   return found === null ? null : spelledOnDisk(found);
 }
 
+/**
+ * A relative path the work folder does not have, read from the workspace's
+ * top level when a file is there and the chat may read it: an agent that
+ * worked in `Skills/` names what it made as `Skills/<name>/SKILL.md`. The
+ * work folder is asked first, so a path it has keeps meaning that file.
+ */
+function inWorkspaceRoot(
+  layout: WorkspaceFsLayout,
+  relative: string,
+): AbsolutePath | null {
+  const inRoot = path.join(getWorkspaceConfig().rootDir, relative);
+  if (![inRoot, ...nameVariants(inRoot)].some((each) => existsSync(each))) {
+    return null;
+  }
+  return resolveReadOnlyHostPath(layout, shellPath(inRoot));
+}
+
 /** A host path as the disk spells it, when macOS spells its name another way. */
 function spelledOnDisk(found: string): AbsolutePath {
   const named =
@@ -181,13 +198,12 @@ function relativeOnDisk(
   if (inWork === null) {
     return null;
   }
-  const { record } = layout;
-  if (
-    !record ||
-    existsSync(inWork) ||
-    relative.split("/")[0] !== CHAT_FOLDER_NAMES.attachments
-  ) {
+  if (existsSync(inWork)) {
     return inWork;
+  }
+  const { record } = layout;
+  if (!record || relative.split("/")[0] !== CHAT_FOLDER_NAMES.attachments) {
+    return inWorkspaceRoot(layout, relative) ?? inWork;
   }
   // What the person sent, kept by its path in the folder the chat's files
   // and records once shared.

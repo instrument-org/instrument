@@ -118,7 +118,12 @@ export function useChatNote({
       },
     }),
   );
-  const startTrial = useStartTrial();
+  const [trialStartedAt, setTrialStartedAt] = useState<number>();
+  const startTrial = useStartTrial({
+    onStarted: () => {
+      setTrialStartedAt(Date.now());
+    },
+  });
   const [dismissed, setDismissed] = useState<null | string>(null);
   const [dismissedWarning, setDismissedWarning] = useAtom(
     dismissedUsageWarningAtom,
@@ -167,8 +172,22 @@ export function useChatNote({
           statusReadAt: dataUpdatedAt,
         })
       : undefined;
+  // A trial started from this note leads back into the chat once the status
+  // has it running, whatever the stopped turn's record says.
+  const startedTrial =
+    trialStartedAt !== undefined &&
+    status?.plan === "trial" &&
+    status.trial.state === "active"
+      ? ({
+          after: "trial-started",
+          kind: "resumed",
+          subscribed: false,
+        } satisfies BillingNotice)
+      : undefined;
   const billing = isOurs
-    ? (fromRefusal ?? (isSignedIn ? accountNotice(status, offer) : undefined))
+    ? (fromRefusal ??
+      (isSignedIn ? accountNotice(status, offer) : undefined) ??
+      startedTrial)
     : undefined;
   const planStop = lastPlanAccountStop({ isAgentRunning, messages });
   const plan =
@@ -230,7 +249,7 @@ export function useChatNote({
   };
 
   if (billing) {
-    const key = `${refused?.id ?? "account"}:${billing.kind}`;
+    const key = `${refused?.id ?? (billing === startedTrial ? `trial:${trialStartedAt}` : "account")}:${billing.kind}`;
     const isReady = billing.kind === "resumed";
     if (!(isReady && dismissed === key)) {
       return {
@@ -246,6 +265,7 @@ export function useChatNote({
             onAct={(kind) => {
               if (kind === "continue") {
                 setDismissed(key);
+                setTrialStartedAt(undefined);
               }
               act(kind);
             }}
@@ -253,6 +273,7 @@ export function useChatNote({
               isReady
                 ? () => {
                     setDismissed(key);
+                    setTrialStartedAt(undefined);
                   }
                 : undefined
             }

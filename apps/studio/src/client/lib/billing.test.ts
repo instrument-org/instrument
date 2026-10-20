@@ -374,7 +374,7 @@ describe("accountNotice", () => {
     {
       expected: "trial-ended",
       name: "the free allowance after the trial",
-      status: { ...onFree(), trial: { state: "ended" } },
+      status: { ...onFree(), trial: { state: "ended" } } satisfies Status,
     },
     {
       expected: "plan-limit",
@@ -720,13 +720,19 @@ describe("the free allowance", () => {
     {
       expected: false,
       name: "trial used",
-      offer: { ...offer, trial: { ...offer.trial, available: false } },
-      status: { ...onFree(), trial: { state: "ended" } },
+      offer: {
+        ...offer,
+        trial: { available: false, cardRequired: false, days: 7 },
+      },
+      status: { ...onFree(), trial: { state: "ended" } } satisfies Status,
     },
     {
       expected: false,
       name: "card trial",
-      offer: { ...offer, trial: { ...offer.trial, cardRequired: true } },
+      offer: {
+        ...offer,
+        trial: { available: true, cardRequired: true, days: 7 },
+      },
       status: onFree(),
     },
     {
@@ -736,7 +742,12 @@ describe("the free allowance", () => {
       status: onFree(),
     },
     { expected: false, name: "on the trial", offer, status: trialActive },
-  ] as const)("starts a trial in the app when $name: $expected", (input) => {
+  ] satisfies {
+    expected: boolean;
+    name: string;
+    offer: Offer;
+    status: Status;
+  }[])("starts a trial in the app when $name: $expected", (input) => {
     expect(canStartTrial(input.status, input.offer)).toBe(input.expected);
   });
 

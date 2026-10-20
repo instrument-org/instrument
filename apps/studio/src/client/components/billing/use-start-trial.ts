@@ -21,7 +21,10 @@ export function useStartTrial({ onStarted }: { onStarted?: () => void } = {}) {
         );
       },
       onSuccess: (status) => {
-        queryClient.setQueryData(rpcClient.billing.status.queryKey(), status);
+        queryClient.setQueriesData(
+          { queryKey: rpcClient.billing.status.key() },
+          status,
+        );
         void queryClient.invalidateQueries({
           queryKey: rpcClient.workspace.decision.available.queryKey(),
         });

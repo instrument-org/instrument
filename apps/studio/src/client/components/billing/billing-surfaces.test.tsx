@@ -100,7 +100,7 @@ vi.mock("@/client/rpc/client", () => ({
         mutationOptions: mutation(() => platform.startTrial()),
       },
       status: {
-        queryKey: () => ["status"],
+        key: () => ["status"],
         queryOptions: query("status", () => platform.status),
       },
     },
@@ -697,6 +697,10 @@ describe("the chat's billing notice", () => {
     ).toBeDefined();
     expect(screen.getByText("Your free trial has started.")).toBeDefined();
     expect(startTrial).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await vi.waitFor(() => {
+      expect(screen.queryByText("Your free trial has started.")).toBeNull();
+    });
   });
 
   it("holds a send on Instrument's models on the free allowance before any refusal", async () => {

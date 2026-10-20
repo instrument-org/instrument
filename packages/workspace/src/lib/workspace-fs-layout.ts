@@ -36,7 +36,7 @@ import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
 import { runtimeLayout } from "./runtime-dir";
-import { setupTrackingFs } from "./setup-changes";
+import { SETUP_KINDS, setupTrackingFs } from "./setup-changes";
 import { type WalkBudget } from "./walk-budget";
 import { skillSourceRoots } from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -231,7 +231,6 @@ export async function buildBashFs(
   // each is the rules' to say, the app's own folders included: its own data
   // is refused, the skills it ships are read-only, and the chat's folder is
   // open.
-  const workspaceSkills = layout.skills.find((mount) => !mount.readOnly);
   const { links, roots } = await mountRoots(layout);
   for (const mount of roots) {
     const readOnly = mount.readOnly && !holdsWritable(layout, mount);
@@ -247,18 +246,18 @@ export async function buildBashFs(
         })
       : new ReadWriteFs({ maxFileReadSize, root });
     // The setup folders this mount reaches, whose writes say what a turn
-    // did to the person's skills and apps.
-    const setupFolders = (
-      [
-        ["skill", workspaceSkills],
-        ["app", layout.apps],
-      ] as const
-    ).flatMap(([kind, folder]) => {
-      const within = folder && hostPathWithin(mount.hostRoot, folder.hostRoot);
-      return within === undefined || within === null
-        ? []
-        : [{ kind, root: within === "/" ? "" : within.replace(/\/+$/, "") }];
-    });
+    // did to the person's skills, apps, topics and memories.
+    const setupFolders = (["app", "memory", "skill", "topic"] as const).flatMap(
+      (kind) => {
+        const within = hostPathWithin(
+          mount.hostRoot,
+          SETUP_KINDS[kind].folder(),
+        );
+        return within === null
+          ? []
+          : [{ kind, root: within === "/" ? "" : within.replace(/\/+$/, "") }];
+      },
+    );
     if (setupFolders.length > 0) {
       mounted = setupTrackingFs(mounted, setupFolders);
     }

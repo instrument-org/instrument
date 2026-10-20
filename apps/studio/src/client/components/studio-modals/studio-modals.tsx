@@ -3,6 +3,7 @@ import { LoginModal } from "@/client/components/studio-modals/login-modal";
 import { ReportDialog } from "@/client/components/studio-modals/report-dialog";
 import { SettingsModal } from "@/client/components/studio-modals/settings-modal";
 import { ShortcutGuideModal } from "@/client/components/studio-modals/shortcut-guide-modal";
+import { TopicDetailsModal } from "@/client/components/studio-modals/topic-details-modal";
 
 /**
  * Mounts the app-wide modals once at the window root so each `<Dialog>`
@@ -19,6 +20,7 @@ export function StudioModals() {
       <ReportDialog />
       <SettingsModal />
       <ShortcutGuideModal />
+      <TopicDetailsModal />
     </>
   );
 }

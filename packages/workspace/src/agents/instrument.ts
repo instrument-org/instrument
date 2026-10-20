@@ -35,6 +35,7 @@ import {
   beginSetupChangeTracking,
   consumeSetupChanges,
 } from "../lib/setup-changes";
+import { recordSetupTold } from "../lib/setup-news";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { TOOLS } from "../tools/all";
@@ -131,6 +132,8 @@ export const instrumentAgent = setupAgent({
     if (changes.length === 0) {
       return;
     }
+    // Told through this part, so the next message's news does not repeat it.
+    await recordSetupTold({ changes, chatId, sessionId });
 
     const result = await safeTry(async function* () {
       // This run's messages: the one it answered and the session's own after

@@ -22,6 +22,7 @@ export { isToolPart } from "./lib/is-tool-part";
 export { askTargetName } from "./lib/permissions/ask-target";
 export { jobEventModelNote } from "./lib/job-event-model-text";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
+export { setupNewsModelNote } from "./lib/setup-news-model-text";
 export { outputLimitModelNote } from "./lib/output-limit-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { modelChangeSincePreviousTurn } from "./lib/model-change";
@@ -67,6 +68,7 @@ export { MountedFolder } from "./schemas/mounted-folder";
 export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";
 export { type SessionMessage } from "./schemas/session/message";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
+export { setupChangeSentence } from "./lib/setup-change-sentence";
 export {
   applyBubbleFeedEvent,
   BubbleProjection,

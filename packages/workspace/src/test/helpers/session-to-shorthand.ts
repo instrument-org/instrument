@@ -196,16 +196,11 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join(",");
       return `<setup-changes changes="${changes}" />`;
     }
-    case "data-skillChanges": {
-      const created =
-        part.data.created.length > 0
-          ? ` created="${part.data.created.join(",")}"`
-          : "";
-      const updated =
-        part.data.updated.length > 0
-          ? ` updated="${part.data.updated.join(",")}"`
-          : "";
-      return `<data-skillChanges${created}${updated} />`;
+    case "data-setupNews": {
+      const changes = part.data.changes
+        .map((item) => `${item.change}:${item.kind}:${item.name}`)
+        .join(",");
+      return `<setup-news changes="${changes}" />`;
     }
     case "data-skillMentions": {
       return `<data-skillMentions>${part.data.names.join(",")}</data-skillMentions>`;

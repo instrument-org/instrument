@@ -2,9 +2,13 @@ import { type IFileSystem } from "just-bash";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { APPS_FOLDER_NAME } from "../constants";
+import {
+  APPS_FOLDER_NAME,
+  TOPIC_FILE_NAME,
+  TOPICS_FOLDER_NAME,
+} from "../constants";
 import { APP_FILE_NAME } from "./apps/app-file";
-import { memoryDir, readMemory } from "./memory/store";
+import { memoryDir } from "./memory/store";
 import {
   beginTurn,
   endTurn,
@@ -18,10 +22,48 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 /**
  * The parts of a person's setup a turn can change that outlast the chat: a
- * skill (a folder in `Skills/`), an app (a folder in `Apps/`), a memory (a
- * file in `Memory/`). Each is named the way its folder or file is.
+ * skill (a folder in `Skills/`), an app (a folder in `Apps/`), a topic (a
+ * folder in `Topics/`), a memory (a file in `Memory/`). Each is named the way
+ * its folder or file is.
  */
-type SetupKind = "app" | "memory" | "skill";
+export type SetupKind = "app" | "memory" | "skill" | "topic";
+
+/**
+ * Where each kind lives, how a name in its folder is an item, and the file
+ * whose presence makes the item one: a skill folder without its `SKILL.md`
+ * is not a skill.
+ */
+export const SETUP_KINDS: Record<
+  SetupKind,
+  {
+    folder: () => string;
+    /** The item a name directly in the folder is, if any. */
+    itemOf: (entry: string) => string | undefined;
+    /** The marker's path inside the folder. */
+    marker: (name: string) => string;
+  }
+> = {
+  app: {
+    folder: () => path.join(getWorkspaceConfig().rootDir, APPS_FOLDER_NAME),
+    itemOf: (entry) => entry,
+    marker: (name) => `${name}/${APP_FILE_NAME}`,
+  },
+  memory: {
+    folder: () => memoryDir(),
+    itemOf: (entry) => (entry.endsWith(".md") ? entry.slice(0, -3) : undefined),
+    marker: (name) => `${name}.md`,
+  },
+  skill: {
+    folder: () => getWorkspaceSkillsDir(),
+    itemOf: (entry) => entry,
+    marker: (name) => `${name}/SKILL.md`,
+  },
+  topic: {
+    folder: () => path.join(getWorkspaceConfig().rootDir, TOPICS_FOLDER_NAME),
+    itemOf: (entry) => entry,
+    marker: (name) => `${name}/${TOPIC_FILE_NAME}`,
+  },
+};
 
 /** One item of the setup this turn wrote to, and whether it was there first. */
 export interface SetupTouch {
@@ -64,10 +106,11 @@ export function beginSetupChangeTracking(turn: TurnKey): void {
 }
 
 /**
- * Records that the turn running now wrote to one item of the setup. Only a
- * write the agent's own shell, file tools or commands made reaches here, so
- * whatever is recorded is this turn's doing; a write from anywhere else (the
- * person, another chat, a program run outside the shell's filesystem) is not.
+ * Records that the turn running now changed one item of the setup: a write
+ * through the agent's own shell or file tools, one of our commands, or what a
+ * program the turn ran was seen to change (`setup-snapshot.ts`). A change the
+ * person or another chat made is not recorded, unless it landed while this
+ * turn's program ran, when it cannot be told apart.
  */
 export function recordSetupTouch(touch: SetupTouch): void {
   if (forwardTouch) {
@@ -115,21 +158,10 @@ export async function consumeSetupChanges(
     );
 }
 
-/** Whether a skill, app or memory of that name is there now. */
+/** Whether an item of that kind and name is there now. */
 async function setupItemExists(kind: SetupKind, name: string) {
-  if (kind === "memory") {
-    return (await readMemory(memoryDir(), name)) !== undefined;
-  }
-  const marker =
-    kind === "skill"
-      ? path.join(getWorkspaceSkillsDir(), name, "SKILL.md")
-      : path.join(
-          getWorkspaceConfig().rootDir,
-          APPS_FOLDER_NAME,
-          name,
-          APP_FILE_NAME,
-        );
-  return fs.stat(marker).then(
+  const { folder, marker } = SETUP_KINDS[kind];
+  return fs.stat(path.join(folder(), marker(name))).then(
     (stats) => stats.isFile(),
     () => false,
   );
@@ -149,12 +181,9 @@ function trackerForCurrentTurn(): TurnTracker | undefined {
   return tracker?.turnId === context.turnId ? tracker : undefined;
 }
 
-/**
- * A setup folder (`Skills/` or `Apps/`) as a mounted filesystem names it,
- * and where an item's marker file sits in it.
- */
+/** A setup folder as a mounted filesystem names it. */
 export interface SetupFolder {
-  kind: "app" | "skill";
+  kind: SetupKind;
   /**
    * The folder as the delegate is handed paths, without a trailing slash:
    * `""` when the mount is the folder itself.
@@ -178,7 +207,7 @@ export function setupTrackingFs(
   folders: readonly SetupFolder[],
 ): IFileSystem {
   const markerOf = (folder: SetupFolder, name: string) =>
-    `${folder.root}/${name}/${folder.kind === "skill" ? "SKILL.md" : APP_FILE_NAME}`;
+    `${folder.root}/${SETUP_KINDS[folder.kind].marker(name)}`;
 
   /** The folder a path is in, and the item it names there ("" for the folder itself). */
   const locate = (given: string) => {
@@ -188,8 +217,8 @@ export function setupTrackingFs(
         return { folder, name: "" };
       }
       if (target.startsWith(`${folder.root}/`)) {
-        const name = target.slice(folder.root.length + 1).split("/")[0] ?? "";
-        return { folder, name };
+        const entry = target.slice(folder.root.length + 1).split("/")[0] ?? "";
+        return { folder, name: SETUP_KINDS[folder.kind].itemOf(entry) };
       }
     }
     return undefined;
@@ -197,9 +226,9 @@ export function setupTrackingFs(
 
   const touchOf = async (
     folder: SetupFolder,
-    name: string,
+    name: string | undefined,
   ): Promise<SetupTouch | undefined> =>
-    name === "" || name === "."
+    name === undefined || name === "" || name === "."
       ? undefined
       : {
           existedBefore: await delegate.exists(markerOf(folder, name)),
@@ -222,7 +251,10 @@ export function setupTrackingFs(
     }
     // Into the folder itself: the item is named after what arrives.
     if (into !== undefined) {
-      const touch = await touchOf(found.folder, path.posix.basename(into));
+      const touch = await touchOf(
+        found.folder,
+        SETUP_KINDS[found.folder.kind].itemOf(path.posix.basename(into)),
+      );
       return touch ? [touch] : [];
     }
     return [];
@@ -278,7 +310,14 @@ export function setupTrackingFs(
           : [];
       const whole = found
         ? (
-            await Promise.all(names.map((name) => touchOf(found.folder, name)))
+            await Promise.all(
+              names.map((entry) =>
+                touchOf(
+                  found.folder,
+                  SETUP_KINDS[found.folder.kind].itemOf(entry),
+                ),
+              ),
+            )
           ).filter((touch) => touch !== undefined)
         : [];
       const result = await tracked([{ path: args[0] }], () =>

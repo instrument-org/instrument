@@ -1,21 +1,28 @@
-import { SkillLink } from "@/client/components/skill-link";
+import { openTopicDetails } from "@/client/atoms/topic-details-modal";
+import { ScreenLink } from "@/client/components/skill-link";
+import { memoryHref, skillHref } from "@/client/components/window/tab-location";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { rpcClient } from "@/client/rpc/client";
-import { skillMentionLabel } from "@instrument-org/shared/skill-mention";
-import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
+import {
+  type SessionMessageDataPart,
+  setupChangeSentence,
+} from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { BrainIcon } from "@phosphor-icons/react/Brain";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
+import { HashIcon } from "@phosphor-icons/react/Hash";
 import { useQuery } from "@tanstack/react-query";
+import { type ReactNode } from "react";
 
 type SetupChange =
   SessionMessageDataPart.SetupChangesDataPart["changes"][number];
 
 /**
- * What a turn did to the person's skills, apps and memories, a line each, in
- * the voice of the other notes under a reply. Only the turn's own writes are
- * here, so each line is something this chat did.
+ * What a turn did to the person's skills, apps, topics and memories, a line
+ * each, in the voice of the other notes under a reply. Only the turn's own
+ * writes are here, so each line is something this chat did. The name in a
+ * line opens the item, unless the line says it is gone.
  */
 export function SetupChangesNote({ changes }: { changes: SetupChange[] }) {
   return (
@@ -30,25 +37,15 @@ export function SetupChangesNote({ changes }: { changes: SetupChange[] }) {
   );
 }
 
-/** The skills a chat from an earlier build recorded, drawn as the same lines. */
-export function skillChangesAsSetupChanges(
-  data: SessionMessageDataPart.SkillChangesDataPart,
-): SetupChange[] {
-  return [
-    ...data.created.map(
-      (name): SetupChange => ({ change: "added", kind: "skill", name }),
-    ),
-    ...data.updated
-      .filter((name) => !data.created.includes(name))
-      .map((name): SetupChange => ({ change: "changed", kind: "skill", name })),
-  ];
-}
-
 const ICONS = {
   app: AppWindowIcon,
   memory: BrainIcon,
   skill: CubeIcon,
+  topic: HashIcon,
 } as const;
+
+const LINK_CLASS_NAME =
+  "inline font-medium text-foreground underline-offset-2 hover:underline";
 
 function SetupChangeLine({ change }: { change: SetupChange }) {
   const Icon = ICONS[change.kind];
@@ -56,32 +53,73 @@ function SetupChangeLine({ change }: { change: SetupChange }) {
     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
       <Icon className="size-3.5 shrink-0" />
       <span className="min-w-0">
-        {change.kind === "skill" ? (
+        {change.kind === "app" ? (
+          <AppSentence change={change} />
+        ) : change.kind === "memory" ? (
+          <Sentence
+            change={change}
+            link={(label) => (
+              <ScreenLink
+                className={LINK_CLASS_NAME}
+                href={memoryHref(change.name)}
+              >
+                {label}
+              </ScreenLink>
+            )}
+          />
+        ) : change.kind === "skill" ? (
           <SkillSentence change={change} />
-        ) : change.kind === "app" ? (
-          appSentence(change)
         ) : (
-          memorySentence(change)
+          <TopicSentence change={change} />
         )}
       </span>
     </p>
   );
 }
 
-function appSentence({ change, name }: SetupChange) {
-  return change === "added"
-    ? `Set up the ${name} app.`
-    : change === "changed"
-      ? `Updated the ${name} app.`
-      : `Removed the ${name} app.`;
+/**
+ * The line `setupChangeSentence` words, with the item's name drawn by
+ * `link` while the item is still there.
+ */
+function Sentence({
+  change,
+  label,
+  link,
+}: {
+  change: SetupChange;
+  label?: string;
+  link?: (label: ReactNode) => ReactNode;
+}) {
+  const sentence = setupChangeSentence(change, label ? { label } : {});
+  return (
+    <>
+      {sentence.before}
+      {link && change.change !== "removed"
+        ? link(sentence.label)
+        : sentence.label}
+      {sentence.after}
+    </>
+  );
 }
 
-function memorySentence({ change, name }: SetupChange) {
-  return change === "added"
-    ? `Saved “${name}” to your memories.`
-    : change === "changed"
-      ? `Updated “${name}” in your memories.`
-      : `Forgot “${name}”.`;
+function AppSentence({ change }: { change: SetupChange }) {
+  const { data } = useQuery(
+    rpcClient.apps.live.list.experimental_liveOptions(),
+  );
+  // The line names the app's folder; its page is at the id its file gives.
+  const app = data?.apps.find((each) => each.name === change.name);
+  return (
+    <Sentence
+      change={change}
+      {...(app && {
+        link: (label) => (
+          <ScreenLink className={LINK_CLASS_NAME} href={`/apps/${app.slug}`}>
+            {label}
+          </ScreenLink>
+        ),
+      })}
+    />
+  );
 }
 
 function SkillSentence({ change }: { change: SetupChange }) {
@@ -96,27 +134,50 @@ function SkillSentence({ change }: { change: SetupChange }) {
   const skill = skills.find(
     (each) => each.editable && each.name === change.name,
   );
-  // A skill that opted out of being invoked by hand gets its bare name, since
-  // the slash form would say it can be.
-  const label =
-    skill?.userInvocable === false
-      ? skill.name
-      : skillMentionLabel(skill?.name ?? change.name);
-  const token = <span className={SKILL_TOKEN_CLASS_NAME}>{label}</span>;
-  if (change.change === "removed") {
-    return <>Removed the {label} skill.</>;
-  }
   return (
-    <>
-      {change.change === "added" ? "Created the " : "Updated the "}
-      {skill ? (
-        <SkillLink className="inline" name={skill.id}>
-          {token}
-        </SkillLink>
-      ) : (
-        token
-      )}{" "}
-      skill.
-    </>
+    <Sentence
+      change={change}
+      // A skill that opted out of being invoked by hand gets its bare name,
+      // since the slash form would say it can be.
+      {...(skill?.userInvocable === false && { label: skill.name })}
+      link={(label) => {
+        const token = <span className={SKILL_TOKEN_CLASS_NAME}>{label}</span>;
+        return skill ? (
+          <ScreenLink className="inline" href={skillHref(skill.id)}>
+            {token}
+          </ScreenLink>
+        ) : (
+          token
+        );
+      }}
+    />
+  );
+}
+
+function TopicSentence({ change }: { change: SetupChange }) {
+  const { data: topics = [] } = useQuery(
+    rpcClient.workspace.topics.list.queryOptions(),
+  );
+  // The line names the topic's folder, which is its name.
+  const topic = topics.find(
+    (each) => each.name === change.name && !each.retired,
+  );
+  return (
+    <Sentence
+      change={change}
+      {...(topic && {
+        link: (label) => (
+          <button
+            className={LINK_CLASS_NAME}
+            onClick={() => {
+              openTopicDetails(topic.id);
+            }}
+            type="button"
+          >
+            {label}
+          </button>
+        ),
+      })}
+    />
   );
 }

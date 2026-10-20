@@ -24,16 +24,11 @@ describe("CADENCE", () => {
     `);
   });
 
-  it("writes nothing under the retired names", () => {
+  it("writes nothing under the three retired names", () => {
     const unwritten = Object.entries(SessionMessageDataPart.CADENCE)
       .filter(([, cadence]) => cadence === "unwritten")
       .map(([name]) => name)
       .toSorted();
-    expect(unwritten).toEqual([
-      "chatContext",
-      "fileChanges",
-      "skillChanges",
-      "unknown",
-    ]);
+    expect(unwritten).toEqual(["chatContext", "fileChanges", "unknown"]);
   });
 });

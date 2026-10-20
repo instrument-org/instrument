@@ -1301,8 +1301,8 @@ done`,
           type: "data-modelChange",
         },
         {
-          data: { created: ["wireframe"], updated: [] },
-          type: "data-skillChanges",
+          data: { changes: [{ change: "added", kind: "skill", name: "wireframe" }] },
+          type: "data-setupChanges",
         },
       ),
       user("Find hotels too, and add my Trips folder.", {
@@ -1477,10 +1477,18 @@ done`,
       ),
       prose("I updated the hero section and removed the legacy stylesheet."),
       notes({
-        // Real skill names, so the card resolves a title and description here
-        // the way it does in a session; an unknown one falls back to the name.
-        data: { created: ["wireframe"], updated: ["markdown"] },
-        type: "data-skillChanges",
+        // Real skill names, so the line links the skill here the way it does
+        // in a session; an unknown one falls back to the name.
+        data: {
+          changes: [
+            { change: "added", kind: "memory", name: "Prefers window seats" },
+            { change: "changed", kind: "skill", name: "markdown" },
+            { change: "added", kind: "skill", name: "wireframe" },
+            { change: "changed", kind: "topic", name: "Travel" },
+            { change: "removed", kind: "app", name: "Old CRM" },
+          ],
+        },
+        type: "data-setupChanges",
       }),
       user(
         "Great, keep going and check it in the browser.",

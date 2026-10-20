@@ -32,6 +32,7 @@ import { jobEventModelNote } from "../../lib/job-event-model-text";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { outputLimitModelNote } from "../../lib/output-limit-model-text";
 import { memoryModelNote } from "../../lib/memory-model-text";
+import { setupNewsModelNote } from "../../lib/setup-news-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
@@ -404,21 +405,6 @@ export namespace SessionMessage {
         pendingOutputLimitNote = outputLimitModelNote(outputLimitPart.data);
       }
 
-      const skillChangesPart = message.parts.find(
-        (
-          part,
-        ): part is SessionMessagePart.DataPart & {
-          type: "data-skillChanges";
-        } => part.type === "data-skillChanges",
-      );
-      if (skillChangesPart) {
-        for (const name of skillChangesPart.data.created) {
-          pendingSkillChanges.created.add(name);
-        }
-        for (const name of skillChangesPart.data.updated) {
-          pendingSkillChanges.updated.add(name);
-        }
-      }
       const setupChangesPart = message.parts.find(
         (
           part,
@@ -642,6 +628,7 @@ const USER_TURN_NOTES = [
   noted("workspaceInstructions", stated),
   noted("topic", stated),
   noted("memory", ({ data }) => memoryModelNote(data)),
+  noted("setupNews", ({ data }) => setupNewsModelNote(data)),
 ];
 
 /**

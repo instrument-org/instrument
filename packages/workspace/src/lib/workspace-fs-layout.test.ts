@@ -38,10 +38,7 @@ import {
   shellPath,
   shellPathOfHostSpelling,
 } from "./workspace-fs-layout";
-import {
-  beginSetupChangeTracking,
-  consumeSetupChanges,
-} from "./setup-changes";
+import { beginSetupChangeTracking, consumeSetupChanges } from "./setup-changes";
 
 describe("buildBashFs", () => {
   let tmpDir: string;

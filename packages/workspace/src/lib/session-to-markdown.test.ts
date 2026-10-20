@@ -37,7 +37,7 @@ const userSecondPartId = StoreId.PartSchema.parse(
 );
 const stepPartId = StoreId.PartSchema.parse("prt_01J00000000000000000000003");
 const sourcePartId = StoreId.PartSchema.parse("prt_01J00000000000000000000004");
-const skillChangesPartId = StoreId.PartSchema.parse(
+const setupChangesPartId = StoreId.PartSchema.parse(
   "prt_01J00000000000000000000005",
 );
 const toolPartId = StoreId.PartSchema.parse("prt_01J00000000000000000000006");
@@ -181,14 +181,16 @@ const session = Session.WithMessagesAndPartsSchema.parse({
           url: "https://provider.example/docs",
         },
         {
-          data: { created: ["pdf-report"], updated: [] },
+          data: {
+            changes: [{ change: "added", kind: "skill", name: "pdf-report" }],
+          },
           metadata: {
             createdAt: new Date("2026-07-24T10:00:04.500Z"),
-            id: skillChangesPartId,
+            id: setupChangesPartId,
             messageId: assistantMessageId,
             sessionId,
           },
-          type: "data-skillChanges",
+          type: "data-setupChanges",
         },
         {
           input: {
@@ -250,7 +252,7 @@ describe("session diagnostics", () => {
     const markdown = await sessionToMarkdown(session);
     expect(markdown).toContain("### Sources");
     expect(markdown).toContain('"url": "https://provider.example/docs"');
-    expect(markdown).toContain("### Persisted Data: skillChanges");
+    expect(markdown).toContain("### Persisted Data: setupChanges");
     expect(markdown).toContain('"pdf-report"');
     // As the model reads it: a call the turn never settled is answered.
     expect(markdown).toContain("### Tool Call 1: bash");

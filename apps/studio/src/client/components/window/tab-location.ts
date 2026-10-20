@@ -54,6 +54,11 @@ export function chatOfTasksList(chat: unknown): ChatId | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
+/** The address of one memory, by its name. */
+export function memoryHref(name: string): string {
+  return pathOf(LINK_ADDRESSES.memory, { name });
+}
+
 /** The address of one skill, by the name a task loads it by. */
 export function skillHref(name: string): string {
   return pathOf(LINK_ADDRESSES.skill, { name });

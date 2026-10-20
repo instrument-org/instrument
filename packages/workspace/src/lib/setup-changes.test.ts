@@ -4,8 +4,18 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { MEMORY_FOLDER_NAME, SKILLS_FOLDER_NAME } from "../constants";
-import { WorkDirSchema, WorkspaceDirSchema } from "../schemas/paths";
+import {
+  MEMORY_FOLDER_NAME,
+  SKILLS_FOLDER_NAME,
+  TOPIC_FILE_NAME,
+  TOPICS_FOLDER_NAME,
+} from "../constants";
+import {
+  AbsolutePathSchema,
+  WorkDirSchema,
+  WorkspaceDirSchema,
+} from "../schemas/paths";
+import { MountedFolder } from "../schemas/mounted-folder";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import {
@@ -48,10 +58,22 @@ afterEach(async () => {
 });
 
 /** The agent's own filesystem, the one its shell and file tools write through. */
-async function agentFs() {
+async function agentFs({ folders }: { folders?: string[] } = {}) {
   const files = await toolFs(
     buildWorkspaceFsLayout({
       chatHostRoot: WorkDirSchema.parse(path.join(rootDir, "work")),
+      ...(folders && {
+        folders: Object.fromEntries(
+          folders.map((folder, index) => [
+            `folder-${index}`,
+            {
+              access: "read-write" as const,
+              id: MountedFolder.IdSchema.parse(`folder-${index}`),
+              path: AbsolutePathSchema.parse(folder),
+            },
+          ]),
+        ),
+      }),
     }),
   );
   const at = (...segments: string[]) =>
@@ -231,6 +253,43 @@ describe("consumeSetupChanges", () => {
       { change: "removed", kind: "memory", name: "no-stevia" },
       { change: "changed", kind: "memory", name: "pacific-time" },
     ]);
+  });
+});
+
+describe("the workspace's top level as a folder of the chat's", () => {
+  // As it is when the output folder is the workspace itself.
+  it("reads topics and memories the agent's shell wrote there", async () => {
+    try {
+      const agent = await agentFs({ folders: [rootDir] });
+      const at = (...segments: string[]) =>
+        shellPath(path.join(rootDir, ...segments));
+      beginSetupChangeTracking(turn);
+
+      await withTurnContext(turn, async () => {
+        await agent.fs.mkdir(at(TOPICS_FOLDER_NAME, "Travel"), {
+          recursive: true,
+        });
+        await agent.fs.writeFile(
+          at(TOPICS_FOLDER_NAME, "Travel", TOPIC_FILE_NAME),
+          "---\nid: travel\n---\n",
+        );
+        await agent.fs.mkdir(at(MEMORY_FOLDER_NAME), { recursive: true });
+        await agent.fs.writeFile(
+          at(MEMORY_FOLDER_NAME, "mornings.md"),
+          "Mornings are best.\n",
+        );
+      });
+
+      await expect(consumeSetupChanges(turn)).resolves.toEqual([
+        { change: "added", kind: "memory", name: "mornings" },
+        { change: "added", kind: "topic", name: "Travel" },
+      ]);
+    } finally {
+      await fs.rm(path.join(rootDir, TOPICS_FOLDER_NAME), {
+        force: true,
+        recursive: true,
+      });
+    }
   });
 });
 

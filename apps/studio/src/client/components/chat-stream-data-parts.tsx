@@ -9,6 +9,7 @@ import {
   messageGapModelNote,
   outputLimitModelNote,
   type SessionMessagePart,
+  setupNewsModelNote,
 } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
 
@@ -22,10 +23,7 @@ import { type RenderPartContext } from "./chat-stream-render-part";
 import { PermissionAnswerNote } from "./permission-asks";
 import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
-import {
-  SetupChangesNote,
-  skillChangesAsSetupChanges,
-} from "./setup-changes-note";
+import { SetupChangesNote } from "./setup-changes-note";
 import { TaskEventNote } from "./task-event-note";
 import { SentAsksNote } from "./window/ask-pills";
 
@@ -262,17 +260,19 @@ export function renderDataPart({
         />
       );
     }
+    case "data-setupNews": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={setupNewsModelNote(part.data)}
+        />
+      );
+    }
     case "data-setupChanges": {
       return (
         <SetupChangesNote changes={part.data.changes} key={part.metadata.id} />
-      );
-    }
-    case "data-skillChanges": {
-      return (
-        <SetupChangesNote
-          changes={skillChangesAsSetupChanges(part.data)}
-          key={part.metadata.id}
-        />
       );
     }
     case "data-jobEvent": {

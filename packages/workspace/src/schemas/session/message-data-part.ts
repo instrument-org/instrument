@@ -26,7 +26,7 @@ export namespace SessionMessageDataPart {
     "intent",
     "jobEvent",
     "setupChanges",
-    "skillChanges",
+    "setupNews",
     "skillMentions",
     "maxSteps",
     "memory",
@@ -58,9 +58,8 @@ export namespace SessionMessageDataPart {
    *   reads as the last note said, and nothing for an empty picture before
    *   anything was said. Every message carrying the whole is what lets a fork
    *   or a rollover read the picture from the messages it kept.
-   * - `unwritten`: nothing writes it. `fileChanges`, `chatContext` and
-   *   `skillChanges` are retired, and `unknown` is what an unreadable payload
-   *   becomes.
+   * - `unwritten`: nothing writes it. `fileChanges` and `chatContext` are
+   *   retired, and `unknown` is what an unreadable payload becomes.
    */
   export type Cadence = "diff" | "event" | "state" | "unwritten";
 
@@ -93,7 +92,7 @@ export namespace SessionMessageDataPart {
     questionAnswer: "event",
     reply: "event",
     setupChanges: "event",
-    skillChanges: "unwritten",
+    setupNews: "diff",
     skillMentions: "event",
     taskEvent: "event",
     topic: "state",
@@ -335,21 +334,6 @@ export namespace SessionMessageDataPart {
   export type ReplyDataPart = z.output<typeof ReplyDataPartSchema>;
 
   /**
-   * Skills a turn installed or revised, as builds before `setupChanges`
-   * recorded them. Nothing writes it now; it is read for the chats that hold
-   * one. Names are directory names, which is how the skills routes address
-   * them.
-   */
-  export const SkillChangesDataPartSchema = z.object({
-    created: z.array(z.string()),
-    updated: z.array(z.string()),
-  });
-
-  export type SkillChangesDataPart = z.output<
-    typeof SkillChangesDataPartSchema
-  >;
-
-  /**
    * What a turn did to the person's setup: the skills, apps and memories it
    * added, changed or removed, read off the turn's own writes
    * (`setup-changes.ts`), so each is the turn's doing and none is another
@@ -362,7 +346,7 @@ export namespace SessionMessageDataPart {
       .array(
         z.object({
           change: z.enum(["added", "changed", "removed"]),
-          kind: z.enum(["app", "memory", "skill"]),
+          kind: z.enum(["app", "memory", "skill", "topic"]),
           name: z.string(),
         }),
       )
@@ -372,6 +356,29 @@ export namespace SessionMessageDataPart {
   export type SetupChangesDataPart = z.output<
     typeof SetupChangesDataPartSchema
   >;
+
+  /**
+   * The skills and apps that changed since this session last heard, by
+   * anyone: another chat, the person, a program. Carried on the user's
+   * message so the agent works from what is there now: its skill catalog and
+   * app list were written when the session began. A change the session's own
+   * turn made is not repeated here; `setupChanges` told it already.
+   */
+  export const SetupNewsDataPartSchema = z.object({
+    changes: z
+      .array(
+        z.object({
+          // A removal is not news: calling for what is gone comes back not
+          // found, beside what there is.
+          change: z.enum(["added", "changed"]),
+          kind: z.enum(["app", "skill"]),
+          name: z.string(),
+        }),
+      )
+      .min(1),
+  });
+
+  export type SetupNewsDataPart = z.output<typeof SetupNewsDataPartSchema>;
 
   /**
    * Skills the user named in their message. Recorded so the model is told what
@@ -1069,7 +1076,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.outputLimit]: OutputLimitDataPartSchema,
     [NameSchema.enum.reply]: ReplyDataPartSchema,
     [NameSchema.enum.setupChanges]: SetupChangesDataPartSchema,
-    [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
+    [NameSchema.enum.setupNews]: SetupNewsDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,

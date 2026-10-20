@@ -12,10 +12,8 @@ import { type ReactNode } from "react";
  * pages) shows the name alone.
  */
 export function SkillLink({
-  children,
-  className,
   name,
-  tabIndex,
+  ...rest
 }: {
   children: ReactNode;
   className?: string;
@@ -23,10 +21,22 @@ export function SkillLink({
   name: string;
   tabIndex?: number;
 }) {
-  const gestures = useOpenGestures({
-    href: skillHref(name),
-    kind: "screen",
-  });
+  return <ScreenLink href={skillHref(name)} {...rest} />;
+}
+
+/** The same way to any screen of the window's, by its address. */
+export function ScreenLink({
+  children,
+  className,
+  href,
+  tabIndex,
+}: {
+  children: ReactNode;
+  className?: string;
+  href: string;
+  tabIndex?: number;
+}) {
+  const gestures = useOpenGestures({ href, kind: "screen" });
   const open = gestures.destinations.find((entry) => entry.id === "open");
   if (open) {
     return (

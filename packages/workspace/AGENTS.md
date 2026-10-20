@@ -24,7 +24,7 @@ Core AI agents, workflow logic, RPC, and tools.
 - So every `getMessages`-derived value (system date, computer, folder list, skill catalog, task layout) is a startup snapshot for the life of the session. A fact that must reach the model later is an **append-only correction**: a persisted `data-*` part rendered onto a user turn (`folder-changes.ts`, `create-browser-status-part.ts`, `date-change.ts`, `environment.ts`), never an edit to an earlier message. Corrections must be deterministic to render from what is stored, so no live reads or timers during model-message conversion.
 - Every `data-*` part declares a `CADENCE`. A standing picture (`state`: topic, workspace instructions, what was on screen, a task's tabs) is stored whole on every message whose writer could read it, an empty picture included, and `stateNotes` (`lib/state-notes.ts`) alone decides what of it the model hears; Studio's developer cards read through the same function. A writer that keeps a record of what the session was told and writes only a change is `diff`.
 - Derive standing values from current state so a value read at baseline time is not pinned to a snapshot that later parts already superseded.
-- A correction recorded on an assistant message (`data-maxSteps`, `data-skillChanges`) is carried forward in `SessionMessage.toModelMessages` to the next user turn, since injection only runs for user messages.
+- A correction recorded on an assistant message (`data-maxSteps`, `data-setupChanges`) is carried forward in `SessionMessage.toModelMessages` to the next user turn, since injection only runs for user messages.
 
 ## Evals
 

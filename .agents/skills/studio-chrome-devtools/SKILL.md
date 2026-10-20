@@ -222,6 +222,20 @@ Enabling the `Runtime` domain replays the console buffer, so a run would otherwi
 
 The event subscription behind it (`app.cdp.on`) is available to any sequence; the domain that emits them still has to be enabled (`app.cdp.send("Runtime.enable")`).
 
+## Measuring the renderer
+
+Count before timing. This machine is usually busy, so a frame time from one run says little about the next, while a count of what happened does not move with load: how many commits, which components rendered and why, how many RPC messages and bytes each procedure sent. `perf-probe-page.js` records those from ahead of the renderer's first script, and two sequences install it and report per scenario:
+
+```bash
+node $DRIVE run $(dirname $DRIVE)/perf-screens.mjs --allow-reload --workspace documents
+node $DRIVE run $(dirname $DRIVE)/perf-chat-turns.mjs --allow-reload --clean-room perf \
+  --args '{"prompts":["Without using any tools, write 600 words on lighthouses."],"watch":["MessageScrollerItem"]}'
+```
+
+`perf-screens` covers boot, an idle window, a walk of the screens, and opening chats. `perf-chat-turns` streams turns into one new chat on Workers AI and reports each turn's `kbPerUpdate` and `fibersPerCommit` beside the session's size: a cost that grows with the session rather than with the update is the thing to look for. `watch` names components whose renders it explains (`prop:children`, `state`, `context-or-forced`), which is what tells a missing memo from a parent that rebuilds its children. Both need `--allow-reload`, since installing the probe reloads the window.
+
+Long animation frames come back too, and those do depend on load: compare them only between runs taken side by side, ideally alternating, and say which machine they came from. The counts are the same in a dev run and a production build, so a dev run answers render and wire questions. Load time (parse, code cache, bundle size) needs a production build, made in a worktree of your own: a build replaces the `out/` that every dev instance of its checkout runs from.
+
 ## Measuring the main thread
 
 Typing and pasting wait on the main process's thread twice: once for the key to reach the page and once for the paste's clipboard read. So input lag is a main-thread question, and the renderer's own timestamps cannot see it (`KeyboardEvent.timeStamp` is when the renderer got the event). Boot with the main process's inspector open and sample it:

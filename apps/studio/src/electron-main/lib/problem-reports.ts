@@ -2,9 +2,13 @@ import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getProblemsStore } from "@/electron-main/stores/machine/problems";
 import {
+  FEEDBACK_TOO_LARGE,
+  type FeedbackDescription,
+  type FeedbackItem,
   MAX_REPORT_BYTES,
   MAX_REPORT_DETAILS,
   MAX_REPORT_EVENTS,
+  MAX_REPORT_FILES,
   type PendingProblem,
   type ReportInput,
 } from "@/shared/problem-reports";
@@ -14,9 +18,16 @@ import {
   type ExceptionEvent,
   formatExceptionEvent,
 } from "@instrument-org/shared/exceptions";
+import {
+  chatDir,
+  type ChatId,
+  chatSessions,
+  chatStartedWithApp,
+} from "@instrument-org/workspace/electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
+import path from "node:path";
 import { z } from "zod";
 
 import { createScopedLogger, getMainLogFilePath } from "./electron-logger";
@@ -188,7 +199,7 @@ export function describeProblem({
     ...(ended ? [`ended: ${ended}`] : []),
     ...found,
   ].join("\n");
-  const tail = readLogTail();
+  const tail = readLogLines(LOG_TAIL_BYTES).slice(-LOG_TAIL_LINES);
   const logLines =
     tail.length > 0 ? ["Last log lines:", ...tail].join("\n") : undefined;
   const compose = (events: readonly ExceptionEvent[]) =>
@@ -230,18 +241,19 @@ function reportBytes(details: string, events: readonly ExceptionEvent[]) {
   return Buffer.byteLength(JSON.stringify({ details, events }));
 }
 
-function readLogTail(): string[] {
+/** The log's last `bytes`, as the whole lines in them. */
+function readLogLines(bytes: number): string[] {
   try {
     const file = getMainLogFilePath();
     const size = fs.statSync(file).size;
-    const start = Math.max(0, size - LOG_TAIL_BYTES);
+    const start = Math.max(0, size - bytes);
     const handle = fs.openSync(file, "r");
     try {
       const buffer = Buffer.alloc(size - start);
       fs.readSync(handle, buffer, 0, buffer.length, start);
       const lines = buffer.toString("utf8").split("\n").filter(Boolean);
       // The first line read may start mid-line, unless the read began at the top.
-      return (start > 0 ? lines.slice(1) : lines).slice(-LOG_TAIL_LINES);
+      return start > 0 ? lines.slice(1) : lines;
     } finally {
       fs.closeSync(handle);
     }
@@ -302,4 +314,279 @@ export async function sendReport(input: ReportInput): Promise<{ id: string }> {
   const { id } = z.object({ id: z.string() }).parse(await response.json());
   log.info(`Sent ${input.kind} report ${id} from ${input.surface}`);
   return { id };
+}
+
+/** How much of the log's end feedback carries, in whole lines. */
+const FEEDBACK_LOG_BYTES = 512 * 1024;
+
+/** Where the app's log goes in a feedback report. */
+export const FEEDBACK_LOG_PATH = "diagnostics/app.log";
+
+/** A session's log, `<session>.<device>.jsonl` and its later generations. */
+const SESSION_LOG = /^(ses_[0-9A-Za-z]+)\..+\.jsonl$/;
+
+/** The chat's own files beside its logs: each device's settings and state, and the notes a handoff leaves. */
+const CHAT_SETTINGS =
+  /^(?:(?:settings|marks)\..+\.jsonl|state\..+\.json|handoff-notes\.md)$/;
+
+/** A name that can stand in a report's path, which a sync engine's copy (`… 2.jsonl`) cannot. */
+const PLAIN_NAME = /^[A-Za-z0-9._-]+$/;
+
+type ChatFile = { content: string; name: string };
+
+/**
+ * A chat's record files as feedback offers them: one item per session, the
+ * chat's own first and then its tasks, each with every log its devices
+ * wrote, and one for the chat's settings. Each file goes as
+ * `chat/<name on disk>`, so the folder can be laid out again from the
+ * report. Blobs and attachments are never among them, nor the work folder.
+ */
+export function chatFeedbackItems({
+  files,
+  sessions,
+}: {
+  files: readonly ChatFile[];
+  sessions: readonly { id: string; parentId?: string; title: string }[];
+}): FeedbackItem[] {
+  const plain = files.filter((file) => PLAIN_NAME.test(file.name));
+  const toReport = (list: readonly ChatFile[]) =>
+    list.map((file) => ({ content: file.content, path: `chat/${file.name}` }));
+  const logs = new Map<string, ChatFile[]>();
+  for (const file of plain) {
+    const session = SESSION_LOG.exec(file.name)?.[1];
+    if (session) {
+      logs.set(session, [...(logs.get(session) ?? []), file]);
+    }
+  }
+  const known = new Set(sessions.map((session) => session.id));
+  const ordered = [
+    ...sessions,
+    // A log whose session the records could not name still goes.
+    ...[...logs.keys()]
+      .filter((id) => !known.has(id))
+      .map((id) => ({ id, parentId: id, title: id })),
+  ];
+  const items = ordered.flatMap((session): FeedbackItem[] => {
+    const own = logs.get(session.id);
+    if (!own) {
+      return [];
+    }
+    return [
+      feedbackItem({
+        files: toReport(own),
+        id: `session:${session.id}`,
+        kind: session.parentId ? "task" : "chat",
+        label: session.parentId ? `Task: ${session.title}` : session.title,
+      }),
+    ];
+  });
+  const settings = plain.filter((file) => CHAT_SETTINGS.test(file.name));
+  return settings.length > 0
+    ? [
+        ...items,
+        feedbackItem({
+          files: toReport(settings),
+          id: "chat-settings",
+          kind: "settings",
+          label: "Chat settings",
+        }),
+      ]
+    : items;
+}
+
+function feedbackItem(item: Omit<FeedbackItem, "bytes">): FeedbackItem {
+  return { ...item, bytes: itemBytes(item) };
+}
+
+/** What an item adds to a report's body: its files and events as JSON. */
+function itemBytes({
+  events = [],
+  files,
+}: Pick<FeedbackItem, "events" | "files">) {
+  return (
+    files.reduce((sum, file) => sum + jsonBytes(file) + 1, 0) +
+    events.reduce((sum, event) => sum + jsonBytes(event) + 1, 0)
+  );
+}
+
+function jsonBytes(value: unknown) {
+  return Buffer.byteLength(JSON.stringify(value));
+}
+
+/**
+ * What feedback can carry, for the dialog to offer: the chat it is about,
+ * when there is one, read from its record folder, and the diagnostics.
+ */
+export async function describeFeedback(
+  chatId: ChatId | undefined,
+): Promise<FeedbackDescription> {
+  const chat = chatId ? await describeChatFeedback(chatId) : undefined;
+  return {
+    chat: chat && {
+      items: chat.items,
+      taskCount: chat.items.filter((item) => item.kind === "task").length,
+    },
+    diagnostics: {
+      items: diagnosticsItems(
+        chatId && { id: chatId, startedWith: chat?.startedWith },
+      ),
+    },
+  };
+}
+
+async function describeChatFeedback(chatId: ChatId) {
+  const dir = chatDir(chatId);
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+  const files = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile())
+      .map(async (entry) => ({
+        content: await fs.promises.readFile(path.join(dir, entry.name), "utf8"),
+        name: entry.name,
+      })),
+  );
+  return {
+    items: chatFeedbackItems({ files, sessions: await chatSessions(chatId) }),
+    startedWith: await chatStartedWithApp(chatId),
+  };
+}
+
+/**
+ * The diagnostics feedback offers: what app and computer it came from, the
+ * errors recorded lately, and the end of the app's log with the home folder
+ * read as `~`. An item with nothing in it is left out.
+ */
+function diagnosticsItems(
+  chat: undefined | { id: ChatId; startedWith: string | undefined },
+): FeedbackItem[] {
+  const about = {
+    app: { packaged: app.isPackaged, version: app.getVersion() },
+    ...(chat && {
+      chat: { id: chat.id, startedWith: chat.startedWith ?? null },
+    }),
+    locale: app.getLocale(),
+    os: {
+      arch: process.arch,
+      platform: process.platform,
+      release: os.release(),
+      version: process.getSystemVersion(),
+    },
+    versions: {
+      chrome: process.versions.chrome,
+      electron: process.versions.electron,
+      node: process.versions.node,
+    },
+  };
+  const events = listExceptionEvents()
+    .toSorted((a, b) => b.lastAt - a.lastAt)
+    .slice(0, MAX_REPORT_EVENTS);
+  const logLines = readLogLines(FEEDBACK_LOG_BYTES);
+  return [
+    feedbackItem({
+      files: [
+        {
+          content: JSON.stringify(about, null, 2),
+          path: "diagnostics/about.json",
+        },
+      ],
+      id: "about",
+      kind: "about",
+      label: `About ${osConventionsFor(process.platform).thisComputer} and app`,
+    }),
+    ...(events.length > 0
+      ? [
+          feedbackItem({
+            events,
+            files: [],
+            id: "errors",
+            kind: "errors",
+            label: "Recent errors",
+          }),
+        ]
+      : []),
+    ...(logLines.length > 0
+      ? [
+          feedbackItem({
+            files: [
+              {
+                content: scrubHome(`${logLines.join("\n")}\n`),
+                path: FEEDBACK_LOG_PATH,
+              },
+            ],
+            id: "log",
+            kind: "log",
+            label: "App log",
+          }),
+        ]
+      : []),
+  ];
+}
+
+/** Feedback whose chat alone is more than one report may carry. */
+export class FeedbackTooLargeError extends Error {
+  constructor() {
+    super(FEEDBACK_TOO_LARGE);
+  }
+}
+
+/**
+ * The report feedback sends: the person's note and the items they kept
+ * checked, their files in `files` and the recent errors in `events`. Over
+ * the service's cap, the log loses lines from its top first, then the
+ * oldest errors go; a chat still over it is refused whole rather than sent
+ * cut short.
+ */
+export function feedbackReportInput({
+  items,
+  note,
+  surface,
+  title,
+}: {
+  items: readonly FeedbackItem[];
+  note?: string;
+  surface: string;
+  title: string;
+}): ReportInput {
+  const files = items.flatMap((item) => item.files);
+  const events = items
+    .flatMap((item) => item.events ?? [])
+    .toSorted((a, b) => b.lastAt - a.lastAt)
+    .slice(0, MAX_REPORT_EVENTS);
+  const compose = (): ReportInput => ({
+    automatic: false,
+    ...(events.length > 0 && { events }),
+    ...(files.length > 0 && { files }),
+    kind: "feedback",
+    ...(note && { note }),
+    surface,
+    title,
+  });
+
+  let over = jsonBytes(compose()) - MAX_REPORT_BYTES;
+  const logIndex = files.findIndex((file) => file.path === FEEDBACK_LOG_PATH);
+  const logFile = files[logIndex];
+  if (over > 0 && logFile) {
+    // A line's share of the body is its own JSON escaping, so lines come off
+    // the top until the body fits or the log is gone.
+    const lines = logFile.content.split(/(?<=\n)/);
+    let drop = 0;
+    while (drop < lines.length && over > 0) {
+      over -= jsonBytes(lines[drop]) - 2;
+      drop += 1;
+    }
+    if (drop < lines.length) {
+      files[logIndex] = { ...logFile, content: lines.slice(drop).join("") };
+    } else {
+      files.splice(logIndex, 1);
+    }
+    over = jsonBytes(compose()) - MAX_REPORT_BYTES;
+  }
+  while (over > 0 && events.length > 0) {
+    events.pop();
+    over = jsonBytes(compose()) - MAX_REPORT_BYTES;
+  }
+  if (over > 0 || files.length > MAX_REPORT_FILES) {
+    throw new FeedbackTooLargeError();
+  }
+  return compose();
 }

@@ -377,6 +377,8 @@ export function ChatRow({
         <ContextMenuSeparator />
         {groups.files.map(item)}
         <ContextMenuSeparator />
+        {groups.feedback.map(item)}
+        <ContextMenuSeparator />
         {groups.put.map(item)}
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={onDelete} variant="destructive">

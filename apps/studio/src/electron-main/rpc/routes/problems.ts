@@ -1,8 +1,11 @@
-import { liveRead } from "@instrument-org/workspace/electron";
+import { ChatIdSchema, liveRead } from "@instrument-org/workspace/electron";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import {
   clearPendingProblem,
+  describeFeedback,
   describeProblem,
+  FeedbackTooLargeError,
+  feedbackReportInput,
   listPendingProblems,
   sendReport,
 } from "@/electron-main/lib/problem-reports";
@@ -11,7 +14,11 @@ import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { describeCondition } from "@/electron-main/lib/notices";
-import { ConditionSchema, ReportInputSchema } from "@/shared/problem-reports";
+import {
+  ConditionSchema,
+  FeedbackItemSchema,
+  ReportInputSchema,
+} from "@/shared/problem-reports";
 import { z } from "zod";
 
 const live = {
@@ -89,6 +96,48 @@ const send = base
     }
   });
 
+/**
+ * What feedback can carry, for the dialog to offer part by part: the chat
+ * named, when there is one, and the diagnostics, each item with the files
+ * it sends and their size.
+ */
+const describeFeedbackRoute = base
+  .input(z.object({ chatId: ChatIdSchema.optional() }))
+  .handler(({ input }) => describeFeedback(input.chatId));
+
+/**
+ * Sends feedback: the note and the items the person kept checked, as the
+ * dialog was given them, trimmed to the service's cap.
+ */
+const sendFeedback = base
+  .input(
+    z.object({
+      items: z.array(FeedbackItemSchema),
+      note: z.string().max(5000).optional(),
+      surface: ReportInputSchema.shape.surface,
+      title: ReportInputSchema.shape.title,
+    }),
+  )
+  .handler(async ({ errors, input }) => {
+    try {
+      return await sendReport(feedbackReportInput(input));
+    } catch (error) {
+      if (!(error instanceof FeedbackTooLargeError)) {
+        captureServerException(error);
+      }
+      // `fetch` throws a TypeError only when the request never got an answer.
+      throw errors.API_ERROR({
+        cause: error,
+        message:
+          error instanceof TypeError
+            ? "We couldn't be reached, so it didn't send. Check your connection and try again."
+            : error instanceof Error
+              ? error.message
+              : String(error),
+      });
+    }
+  });
+
 /** Takes a waiting problem out of the bell without sending it. */
 const dismiss = base
   .input(z.object({ fingerprint: z.string() }))
@@ -104,8 +153,10 @@ const setSendAutomatically = base
 
 export const problems = {
   describe,
+  describeFeedback: describeFeedbackRoute,
   dismiss,
   live,
   send,
+  sendFeedback,
   setSendAutomatically,
 };

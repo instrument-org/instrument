@@ -469,6 +469,8 @@ function ChatMenu({
         <DropdownMenuSeparator />
         {groups.files.map(item)}
         <DropdownMenuSeparator />
+        {groups.feedback.map(item)}
+        <DropdownMenuSeparator />
         {groups.put.map((action) =>
           action.id === "archive"
             ? item({

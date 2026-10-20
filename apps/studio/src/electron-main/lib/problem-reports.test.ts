@@ -24,6 +24,14 @@ vi.mock("./exception-store", () => ({
   listExceptionEvents: () => stored.events,
 }));
 
+vi.mock("@instrument-org/workspace/electron", () => ({
+  chatDir: () => {
+    throw new Error("No chat in these tests");
+  },
+  chatSessions: () => Promise.resolve([]),
+  chatStartedWithApp: () => Promise.resolve(undefined),
+}));
+
 vi.mock("electron", () => ({
   app: {
     getPath: () => userData.dir,
@@ -232,5 +240,176 @@ describe("problem reports", () => {
 
     expect(details).toContain("ENOENT: open '~/Documents/notes.md'");
     expect(details).not.toContain(os.homedir());
+  });
+});
+
+const OWN = "ses_01JB2W0000000000000000000A";
+const TASK = "ses_01JB2W0000000000000000000B";
+
+describe("feedback", () => {
+  beforeEach(async () => {
+    vi.resetModules();
+    reports = await import("./problem-reports");
+  });
+
+  const file = (name: string, content = `${name}\n`) => ({ content, name });
+
+  it("lays a chat's records out as its folder, a session per item and its settings last", () => {
+    const items = reports.chatFeedbackItems({
+      files: [
+        file("state.mac1.json"),
+        file(`${TASK}.mac1.jsonl`),
+        file(`${OWN}.mac1.jsonl`),
+        file(`${OWN}.win1.jsonl`),
+        file("settings.mac1.jsonl"),
+        file("handoff-notes.md"),
+        // A sync engine's copy, and what is not a record, stay home.
+        file(`${OWN}.mac1 2.jsonl`),
+        file("CHAT.md"),
+        file("chat.db"),
+      ],
+      sessions: [
+        { id: OWN, title: "Help desk pricing" },
+        { id: TASK, parentId: OWN, title: "Competitor pricing pages" },
+      ],
+    });
+
+    expect(
+      items.map(({ files, id, kind, label }) => ({
+        files: files.map((each) => each.path),
+        id,
+        kind,
+        label,
+      })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "files": [
+            "chat/ses_01JB2W0000000000000000000A.mac1.jsonl",
+            "chat/ses_01JB2W0000000000000000000A.win1.jsonl",
+          ],
+          "id": "session:ses_01JB2W0000000000000000000A",
+          "kind": "chat",
+          "label": "Help desk pricing",
+        },
+        {
+          "files": [
+            "chat/ses_01JB2W0000000000000000000B.mac1.jsonl",
+          ],
+          "id": "session:ses_01JB2W0000000000000000000B",
+          "kind": "task",
+          "label": "Task: Competitor pricing pages",
+        },
+        {
+          "files": [
+            "chat/state.mac1.json",
+            "chat/settings.mac1.jsonl",
+            "chat/handoff-notes.md",
+          ],
+          "id": "chat-settings",
+          "kind": "settings",
+          "label": "Chat settings",
+        },
+      ]
+    `);
+    expect(items[0]?.bytes).toBe(
+      Buffer.byteLength(JSON.stringify(items[0]?.files[0])) +
+        Buffer.byteLength(JSON.stringify(items[0]?.files[1])) +
+        2,
+    );
+  });
+
+  const item = (
+    id: string,
+    files: { content: string; path: string }[],
+    events?: ExceptionEvent[],
+  ) => ({
+    bytes: 0,
+    events,
+    files,
+    id,
+    kind: "chat" as const,
+    label: id,
+  });
+
+  const input = (items: ReturnType<typeof item>[]) =>
+    reports.feedbackReportInput({
+      items,
+      note: "It never checked the per-resolution price.",
+      surface: "chat-menu",
+      title: "It never checked the per-resolution price.",
+    });
+
+  it("sends the items' files and events, with no details", () => {
+    const sent = input([
+      item("chat", [{ content: "{}\n", path: `chat/${OWN}.mac1.jsonl` }]),
+      item("errors", [], [crashEvent()]),
+    ]);
+
+    expect(sent).toMatchObject({
+      automatic: false,
+      files: [{ path: `chat/${OWN}.mac1.jsonl` }],
+      kind: "feedback",
+    });
+    expect(sent.events).toHaveLength(1);
+    expect(sent).not.toHaveProperty("details");
+  });
+
+  it("trims the log from its top, in whole lines, before anything else", () => {
+    const line = (index: number) =>
+      `${String(index).padStart(6, "0")} ${"x".repeat(1000)}\n`;
+    const log = Array.from({ length: 1500 }, (_, index) => line(index)).join(
+      "",
+    );
+    const chat = "y".repeat(800_000);
+    const sent = input([
+      item("chat", [{ content: chat, path: `chat/${OWN}.mac1.jsonl` }]),
+      item("errors", [], [crashEvent()]),
+      item("log", [{ content: log, path: reports.FEEDBACK_LOG_PATH }]),
+    ]);
+
+    const trimmed = sent.files?.find(
+      (each) => each.path === reports.FEEDBACK_LOG_PATH,
+    )?.content;
+    expect(Buffer.byteLength(JSON.stringify(sent))).toBeLessThanOrEqual(
+      2_000_000,
+    );
+    expect(trimmed).toMatch(/^\d{6} x+\n/);
+    expect(trimmed?.endsWith(line(1499))).toBe(true);
+    expect(log.endsWith(trimmed ?? "-")).toBe(true);
+    expect(trimmed?.length).toBeLessThan(log.length);
+    expect(sent.events).toHaveLength(1);
+    expect(
+      sent.files?.find((each) => each.path.startsWith("chat/"))?.content,
+    ).toBe(chat);
+  });
+
+  it("drops the oldest errors once the log is gone", () => {
+    const huge = (index: number) => ({
+      ...crashEvent(THROW, `big ${index}`),
+      data: { blob: "x".repeat(400_000) },
+      fingerprint: `fp${index}`,
+      lastAt: index,
+    });
+    const sent = input([
+      item("chat", [{ content: "y".repeat(500_000), path: "chat/a.jsonl" }]),
+      item("errors", [], [1, 2, 3, 4, 5].map(huge)),
+      item("log", [
+        { content: "z\n".repeat(1000), path: reports.FEEDBACK_LOG_PATH },
+      ]),
+    ]);
+
+    expect(sent.files?.map((each) => each.path)).toEqual(["chat/a.jsonl"]);
+    expect(sent.events?.map((event) => event.lastAt)).toEqual([5, 4, 3]);
+  });
+
+  it("refuses a chat too big to send rather than cutting it short", () => {
+    expect(() =>
+      input([
+        item("chat", [
+          { content: "y".repeat(2_100_000), path: "chat/a.jsonl" },
+        ]),
+      ]),
+    ).toThrow(reports.FeedbackTooLargeError);
   });
 });

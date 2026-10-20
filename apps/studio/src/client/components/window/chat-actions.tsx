@@ -1,11 +1,14 @@
+import { openReportDialog } from "@/client/atoms/report-dialog";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { useCopyChatLocation } from "@/client/components/task/copy-chat-location";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import { showInFolderLabel, showChatFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
+import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { EnvelopeSimpleOpenIcon } from "@phosphor-icons/react/EnvelopeSimpleOpen";
@@ -28,13 +31,15 @@ interface ChatInput {
 
 /**
  * A chat's actions as every menu of one lists them, each group set off by a
- * separator: its marks first, then what it keeps on disk, then putting it
- * away. A menu adds its own entries between these, never reorders them.
+ * separator: its marks first, then what it keeps on disk, then sending
+ * feedback about it, then putting it away. A menu adds its own entries
+ * between these, never reorders them.
  */
 export function chatMenuGroups(actions: RowAction[]) {
   const of = (ids: string[]) =>
     actions.filter((action) => ids.includes(action.id));
   return {
+    feedback: of(["feedback"]),
     files: of(["location", "reveal"]),
     marks: of(["read", "unread", "star", "unstar"]),
     put: of(["archive", "unarchive"]),
@@ -53,8 +58,8 @@ export function useChatActions(chat: Chat): RowAction[] {
  * unread mark, or unread while it does not, whatever it holds, with no
  * toast at all, since the row itself says which it is; starring it or
  * taking the star back, last, where a starred row wears its star; and, in
- * the menu alone, showing its folder, and in developer mode copying where
- * its records are.
+ * the menu alone, showing its folder, in developer mode copying where its
+ * records are, and sending feedback about it.
  *
  * Answered for any chat by one set of mutations, so a list asks once and
  * hands each row its actions, rather than every row registering its own ten
@@ -182,7 +187,25 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
         void showChatFolder(chat.id);
       },
     };
-    return [put, mark, starred, ...(isDeveloperMode ? [location] : []), show];
+    const feedback: RowAction = {
+      icon: <ChatTextIcon className="size-3.5" />,
+      id: "feedback",
+      label: "Send feedback…",
+      menuOnly: true,
+      run: () => {
+        openReportDialog(
+          feedbackReport({ chatId: chat.id, surface: "chat-menu" }),
+        );
+      },
+    };
+    return [
+      put,
+      mark,
+      starred,
+      ...(isDeveloperMode ? [location] : []),
+      show,
+      feedback,
+    ];
   };
 }
 

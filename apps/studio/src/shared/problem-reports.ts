@@ -30,16 +30,44 @@ export const ConditionSchema = z.enum(["sandbox-off"]);
 
 export type Condition = z.output<typeof ConditionSchema>;
 
+/** The most files one report carries. */
+export const MAX_REPORT_FILES = 200;
+
+/**
+ * A file's place in a report, laid out the way the folder it came from is so
+ * the folder can be rebuilt from it: `chat/<name as on disk>`,
+ * `diagnostics/about.json`. Plain segments only, and never `..`.
+ */
+const ReportFilePathSchema = z
+  .string()
+  .max(200)
+  .regex(/^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/)
+  .refine((path) => !path.split("/").includes(".."), "No `..` segments");
+
+const ReportFileSchema = z.object({
+  content: z.string(),
+  path: ReportFilePathSchema,
+});
+
 /** One report as it is sent: the body of `POST /reports`. */
 export const ReportInputSchema = z.object({
   automatic: z.boolean(),
-  /** Exactly the text the person saw under Show details. */
-  details: z.string().max(MAX_REPORT_DETAILS),
+  /** Exactly the text the person saw under Show details. Feedback has none. */
+  details: z.string().max(MAX_REPORT_DETAILS).optional(),
   /**
    * The exceptions the report is about, then the others recorded recently,
    * whole; `details` has them in readable form, and Show details has both.
    */
   events: z.array(ExceptionEventSchema).max(MAX_REPORT_EVENTS).optional(),
+  /** What feedback carries besides the note: the chat's records and the diagnostics the person kept checked. */
+  files: z
+    .array(ReportFileSchema)
+    .max(MAX_REPORT_FILES)
+    .refine(
+      (files) => new Set(files.map((file) => file.path)).size === files.length,
+      "Each file's path appears once",
+    )
+    .optional(),
   /**
    * What makes reports of the same bug one problem: the exception's own
    * fingerprint for a report about one. Feedback has none.
@@ -54,6 +82,34 @@ export const ReportInputSchema = z.object({
 });
 
 export type ReportInput = z.output<typeof ReportInputSchema>;
+
+/**
+ * One line of a feedback report the person can check or leave out: a session
+ * of the chat, the chat's settings, or one of the diagnostics. `files` and
+ * `events` are what it sends, exactly as the main process read them, and
+ * `bytes` is what they add to the report.
+ */
+export const FeedbackItemSchema = z.object({
+  bytes: z.number().int().min(0),
+  events: z.array(ExceptionEventSchema).max(MAX_REPORT_EVENTS).optional(),
+  files: z.array(ReportFileSchema),
+  id: z.string(),
+  kind: z.enum(["chat", "task", "settings", "about", "errors", "log"]),
+  label: z.string(),
+});
+
+export type FeedbackItem = z.output<typeof FeedbackItemSchema>;
+
+/** Said when the chat a person kept checked is more than one report may carry. */
+export const FEEDBACK_TOO_LARGE =
+  "This chat is too big to send in one go. Leave out a task or two and try again.";
+
+/** What a feedback report can carry, for the dialog to offer part by part. */
+export type FeedbackDescription = {
+  /** The chat the feedback is about, with how many tasks it started. */
+  chat?: { items: FeedbackItem[]; taskCount: number };
+  diagnostics: { items: FeedbackItem[] };
+};
 
 /**
  * A problem from an earlier session waiting in the bell until it is sent or

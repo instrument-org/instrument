@@ -180,7 +180,7 @@ export {
 } from "./lib/chat/output-folder";
 export { afterFolderAppears, isFolder } from "./lib/folder-appears";
 export { placePaths, startupPaths } from "./lib/permissions/places";
-export { chatStartedWithApp, chatTitle } from "./lib/chat-info";
+export { chatSessions, chatStartedWithApp, chatTitle } from "./lib/chat-info";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
 export { serveStaticFile } from "./logic/server/serve-static";
 export {

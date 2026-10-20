@@ -1,29 +1,37 @@
-import { type ReportRequest } from "@/client/atoms/report-dialog";
+import {
+  type FeedbackRequest,
+  type ProblemReportRequest,
+} from "@/client/atoms/report-dialog";
 import { type Condition, type PendingProblem } from "@/shared/problem-reports";
 import { captureOnce } from "@/client/lib/capture-exception";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
 
-const LOG_LINE =
-  "It includes version numbers, recent errors and the app's log, which can name your files and chats.";
+/** How long the thank-you stays before the report dialog closes on its own. */
+export const SENT_CLOSE_MS = 1600;
 
-/** A report the person starts from the Help menu, with nothing detected. */
-export function helpMenuReport(): ReportRequest {
-  return {
-    dialogTitle: "Report a problem",
-    focusNote: true,
-    intro: LOG_LINE,
-    kind: "feedback",
-    noteLabel: "Comments",
-    offerAlwaysSend: false,
-    reportTitle: "Reported from the Help menu",
-    surface: "help-menu",
-  };
+/**
+ * Feedback the person starts: from a chat's menu or a slash command in its
+ * reply box, about that chat, or from the Help menu or a new draft, with no
+ * chat to send.
+ */
+export function feedbackReport({
+  chatId,
+  surface,
+}: Omit<FeedbackRequest, "kind">): FeedbackRequest {
+  return { chatId, kind: "feedback", surface };
+}
+
+/** Feedback from the Help menu, about no chat in particular. */
+export function helpMenuReport(): FeedbackRequest {
+  return feedbackReport({ surface: "help-menu" });
 }
 
 /** A crash or hang from an earlier session, waiting in the bell. */
-export function pendingProblemReport(problem: PendingProblem): ReportRequest {
+export function pendingProblemReport(
+  problem: PendingProblem,
+): ProblemReportRequest {
   const crashed = problem.kind === "crash";
   return {
     details: problem.details,
@@ -53,7 +61,7 @@ export function errorReport({
   error: unknown;
   onSent?: () => void;
   surface: "route-error" | "window-error";
-}): ReportRequest {
+}): ProblemReportRequest {
   return {
     dialogTitle: "Send a report",
     error,
@@ -77,7 +85,7 @@ export function conditionReport({
   condition: Condition;
   onSent?: () => void;
   title: string;
-}): ReportRequest {
+}): ProblemReportRequest {
   return {
     condition,
     dialogTitle: "Send a report",
@@ -107,7 +115,7 @@ function errorTitle(error: unknown): string {
  * already has, or what the main process describes, led by the exception
  * the request's error was captured as.
  */
-export async function describeReport(request: ReportRequest): Promise<{
+export async function describeReport(request: ProblemReportRequest): Promise<{
   details: string;
   events: ExceptionEvent[];
   fingerprint?: string;

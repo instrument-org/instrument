@@ -195,6 +195,10 @@ export function createAuthCallbackApp() {
           }),
         );
       }
+      case "sign-up-refused": {
+        focusAppWindow();
+        return c.html(renderAuthPage({ kind: "sign-up-refused" }), 403);
+      }
       case "signed-in": {
         // Delay focus so the renderer has time to navigate to the success
         // screen before the window comes to front -- keeps the entrance

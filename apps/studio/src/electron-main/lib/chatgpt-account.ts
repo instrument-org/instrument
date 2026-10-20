@@ -134,7 +134,7 @@ export interface ChatGPTAccountsStatus {
  */
 export interface ChatGPTSignInResult {
   account?: ChatGPTAccountStatus;
-  outcome: Exclude<SignInOutcome, "expired" | "failed">;
+  outcome: Exclude<SignInOutcome, "expired" | "failed" | "sign-up-refused">;
 }
 
 /**

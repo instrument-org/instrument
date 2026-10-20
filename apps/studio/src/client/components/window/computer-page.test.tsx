@@ -52,6 +52,23 @@ it.each(["/Users/sam/Documents", "C:\\Users\\sam\\Documents"])(
   },
 );
 
+it.each(["/", "C:\\", "\\\\server\\share"])(
+  "goes up from the top of the disk at %s to the computer",
+  (root) => {
+    expect(rootParentSearch(root, "list")).toEqual({
+      path: "",
+      root: "computer:",
+      view: "list",
+    });
+  },
+);
+
+it("goes up from a disk mounted in a folder to the computer", () => {
+  expect(
+    rootParentSearch("/Volumes/Backup", "list", { isDisk: true }),
+  ).toMatchObject({ root: "computer:" });
+});
+
 // Without Full Disk Access the app cannot find what it moved to the Trash, so
 // the move is journaled with nowhere to put it back from, and ⌘Z refuses it.
 it("says why ⌘Z cannot put something back, outside developer mode", () => {

@@ -720,7 +720,7 @@ function compareEntryNames(
     sensitivity: "base",
   });
 }
-function formatByteSize(size: number | undefined) {
+export function formatByteSize(size: number | undefined) {
   if (size === undefined) return null;
   if (size < 1000) return `${size} bytes`;
   const units = ["KB", "MB", "GB", "TB"];

@@ -4,7 +4,9 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useOutputFolder } from "@/client/lib/output-folder";
 import { expandHomePath, isHomeDir } from "@instrument-org/shared";
+import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
+import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { HouseIcon } from "@phosphor-icons/react/House";
@@ -37,6 +39,9 @@ export function FolderMark({
   );
   if (path === "") {
     return <ClockCounterClockwiseIcon className={iconClassName} />;
+  }
+  if (path === COMPUTER_ROOT) {
+    return <MonitorIcon className={iconClassName} />;
   }
   const hostPath = expandHomePath(path, home);
   if (isHomeDir(hostPath, home)) {

@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import {
+  computerDrives,
+  ComputerDriveSchema,
   computerPlaces,
   ComputerPlacesSchema,
 } from "../../lib/chat/computer-places";
@@ -77,6 +79,11 @@ const places = base
   .output(ComputerPlacesSchema)
   .handler(() => computerPlaces());
 
+/** The disks, with how much of each is free. */
+const drives = base
+  .output(ComputerDriveSchema.array())
+  .handler(() => computerDrives());
+
 /**
  * Files by host path, in the order asked, each with whether the chat `id`
  * can reach it. Paths no longer there, or no longer files, are left out.
@@ -90,6 +97,7 @@ const describe = base
 
 export const computer = {
   describe,
+  drives,
   list,
   locate,
   places,

@@ -1,5 +1,6 @@
 import { type OpenTarget } from "@/client/lib/open-target";
-import { folderHref } from "@/shared/computer-href";
+import { osConventions } from "@/client/lib/utils";
+import { COMPUTER_ROOT, folderHref } from "@/shared/computer-href";
 import { expandHomePath, namesFromHome } from "@instrument-org/shared";
 import {
   type ChatId,
@@ -129,6 +130,9 @@ export function locationCrumbs(
     }
     // Several picked are the place, under the folder they are in.
     case "folder": {
+      if (location.path === COMPUTER_ROOT) {
+        return [{ label: osConventions().computer }];
+      }
       if (location.picked === undefined) {
         return pathCrumbs(location.path, { home, volumes });
       }

@@ -31,6 +31,14 @@ export const ComputerPlacesSchema = z.object({
 type ComputerPlace = z.output<typeof ComputerPlaceSchema>;
 export type ComputerPlaces = z.output<typeof ComputerPlacesSchema>;
 
+export const ComputerDriveSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  /** In bytes; absent for a disk that has not answered in a moment. */
+  space: z.object({ free: z.number(), total: z.number() }).optional(),
+});
+export type ComputerDrive = z.output<typeof ComputerDriveSchema>;
+
 /**
  * The person's own folders each system's file manager lists, in its order:
  * the Finder's three on a Mac, and the media folders as well where Explorer
@@ -104,6 +112,36 @@ export async function computerPlaces(): Promise<ComputerPlaces> {
     // its Locations.
     volumes: [...(iCloudDrive ? [iCloudDrive] : []), ...clouds, ...drives],
   };
+}
+
+/**
+ * The disks the sidebar lists, each with how big it is and how much of it is
+ * free: what This PC, the Finder's Computer and GNOME's Other Locations show.
+ * A disk that has not answered in a moment is listed without its space.
+ */
+export async function computerDrives(): Promise<ComputerDrive[]> {
+  const drives = await drivePlaces(os.homedir());
+  return Promise.all(
+    drives.map(async ({ name, path: at }): Promise<ComputerDrive> => {
+      const space = await inAMoment(at, spaceOf, checkingSpace);
+      return space === UNANSWERED || space === undefined
+        ? { name, path: at }
+        : { name, path: at, space };
+    }),
+  );
+}
+
+/** How big the disk at `at` is and how much of it is free, in bytes. */
+async function spaceOf(at: string) {
+  try {
+    const stats = await fs.statfs(at);
+    return {
+      free: stats.bavail * stats.bsize,
+      total: stats.blocks * stats.bsize,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -269,6 +307,10 @@ const UNANSWERED = Symbol("unanswered");
  */
 const checkingDrives = new Map<string, Promise<boolean>>();
 const checkingVolumes = new Map<string, Promise<string | undefined>>();
+const checkingSpace = new Map<
+  string,
+  Promise<Awaited<ReturnType<typeof spaceOf>>>
+>();
 
 /**
  * What `look` finds at `at`, or `UNANSWERED` when it has not finished in a

@@ -70,7 +70,6 @@ import {
 import { REQUEST_ABORT_BACKSTOP_MS } from "./agent";
 
 vi.mock(import("ulid"));
-vi.mock(import("../lib/session-store-storage"));
 vi.mock(import("../lib/get-current-date"));
 vi.mock(import("dugite"));
 vi.mock(import("execa"), () => ({

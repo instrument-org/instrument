@@ -29,8 +29,6 @@ import {
   stepsView,
 } from "./views";
 
-vi.mock(import("../session-store-storage"));
-
 const records = withTestRecords();
 
 const NOW = at(100);

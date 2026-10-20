@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { type Environment } from "../schemas/environment";
 import { type SessionMessage } from "../schemas/session/message";
@@ -13,8 +13,6 @@ import {
   lastToldEnvironment,
 } from "./environment";
 import { environmentChangeModelNote } from "./environment-model-text";
-
-vi.mock(import("./session-store-storage"));
 
 const MAC: Environment = {
   appsFolder: "/Users/mytop/Instrument/.instrument/apps",

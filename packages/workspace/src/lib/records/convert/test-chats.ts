@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import superjson from "superjson";
 
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../../constants";
@@ -8,12 +9,11 @@ import { SessionMessage } from "../../../schemas/session/message";
 import { SessionMessagePart } from "../../../schemas/session/message-part";
 import { SessionMessageRelaxedPart } from "../../../schemas/session/message-relaxed-part";
 import { type StoreId } from "../../../schemas/store-id";
+import { withChatDb } from "../../../test/helpers/chat-db";
 import { createMockChatConfigForDir } from "../../../test/helpers/mock-chat-config";
-import {
-  disposeSessionsStoreStorage,
-  getSessionsStoreStorage,
-} from "../../session-store-storage";
 import { StorageKey } from "../../storage-key";
+import { STORE_MIGRATION_COUNT } from "../../store-migrations";
+import { type WrappedStorage } from "../../wrap-storage";
 import { at, messageId, partId, sessionId } from "../test-records";
 
 /**
@@ -47,37 +47,45 @@ export const EVERY_KIND_SESSION: ChatDbSessionRow = {
 const IMAGE = Buffer.from("an image's bytes");
 const PDF = Buffer.from("a PDF's bytes");
 
-/** Makes the chat whose record folder is `dir` with `write`, then closes its store. */
+/**
+ * Makes the chat whose record folder is `dir`, writing its `chat.db` with
+ * `write` and closing it again. The database carries the migration version
+ * the store wrote on every open, as one an older build left does.
+ */
 export async function writeChat(
   dir: string,
-  write: (chat: ChatId) => Promise<void>,
+  write: (store: WrappedStorage) => Promise<void>,
 ): Promise<ChatId> {
   const chat = createMockChatConfigForDir(dir);
   await fs.mkdir(dir, { recursive: true });
-  await write(chat);
-  await disposeSessionsStoreStorage(chat);
+  await withChatDb(path.join(dir, "chat.db"), async (store) => {
+    (
+      await store.setItemRaw("__migration_version__", STORE_MIGRATION_COUNT)
+    )._unsafeUnwrap();
+    await write(store);
+  });
   return chat;
 }
 
 export async function saveSession(
-  chat: ChatId,
+  store: WrappedStorage,
   session: ChatDbSessionRow,
 ): Promise<void> {
-  await tell(chat, StorageKey.session(session.id), session);
+  await tell(store, StorageKey.session(session.id), session);
 }
 
 /** Saves a message with its parts, each part given as the store keeps it. */
 export async function saveMessage(
-  chat: ChatId,
+  store: WrappedStorage,
   message: Record<string, unknown>,
   parts: SessionMessagePart.Type[] = [],
 ): Promise<void> {
   const saved = SessionMessage.Schema.parse(message);
   const session = saved.metadata.sessionId;
-  await tell(chat, StorageKey.message(session, saved.id), saved);
+  await tell(store, StorageKey.message(session, saved.id), saved);
   for (const held of parts) {
     await tell(
-      chat,
+      store,
       StorageKey.part(session, held.metadata.messageId, held.metadata.id),
       held,
     );
@@ -134,12 +142,11 @@ function row(
 
 /** Stores a session's standing facts, as each fact's module stores them. */
 export async function tell(
-  chat: ChatId,
+  store: WrappedStorage,
   key: string,
   value: unknown,
 ): Promise<void> {
-  const storage = (await getSessionsStoreStorage(chat))._unsafeUnwrap();
-  (await storage.setItemRaw(key, superjson.stringify(value)))._unsafeUnwrap();
+  (await store.setItemRaw(key, superjson.stringify(value)))._unsafeUnwrap();
 }
 
 function assistant(session: StoreId.Session, n: number) {
@@ -186,10 +193,10 @@ function text(session: StoreId.Session, n: number, words: string) {
  * call still waiting to run, which opening the chat finishes as interrupted.
  */
 export function writeEveryKindChat(dir: string): Promise<ChatId> {
-  return writeChat(dir, async (chat) => {
+  return writeChat(dir, async (store) => {
     const s = CHAT_SESSION;
-    await saveSession(chat, EVERY_KIND_SESSION);
-    await saveSession(chat, {
+    await saveSession(store, EVERY_KIND_SESSION);
+    await saveSession(store, {
       createdAt: at(60),
       forkedAtMessageId: messageId(3),
       handle: "t1",
@@ -200,7 +207,7 @@ export function writeEveryKindChat(dir: string): Promise<ChatId> {
       updatedAt: at(90),
     });
 
-    await saveMessage(chat, user(s, 1), [
+    await saveMessage(store, user(s, 1), [
       text(s, 1, "Help me plan a trip."),
       part(s, messageId(1), 11, {
         data: {
@@ -218,7 +225,7 @@ export function writeEveryKindChat(dir: string): Promise<ChatId> {
       }),
     ]);
     await saveMessage(
-      chat,
+      store,
       {
         id: messageId(2),
         metadata: {
@@ -244,7 +251,7 @@ export function writeEveryKindChat(dir: string): Promise<ChatId> {
           ...(ended ? { endedAt: at(n + 1) } : {}),
         },
       );
-    await saveMessage(chat, assistant(s, 3), [
+    await saveMessage(store, assistant(s, 3), [
       part(s, m3, 30, { type: "step-start" }, { stepCount: 1 }),
       part(
         s,
@@ -317,7 +324,7 @@ export function writeEveryKindChat(dir: string): Promise<ChatId> {
         type: "tool-bash",
       }),
     ]);
-    await saveMessage(chat, user(s, 4), [
+    await saveMessage(store, user(s, 4), [
       text(s, 4, "Which one is cheaper?"),
       part(s, messageId(4), 41, {
         data: { messageId: m3, partId: partId(32), text: "Let me look." },
@@ -335,14 +342,14 @@ export function writeEveryKindChat(dir: string): Promise<ChatId> {
         type: "data-retiredThing",
       }),
     ]);
-    await saveMessage(chat, assistant(s, 5), [
+    await saveMessage(store, assistant(s, 5), [
       text(s, 5, "The second one."),
       part(s, messageId(5), 51, {
         data: { droppedMessages: 3, retainedUserMessages: 1 },
         type: "data-contextRollover",
       }),
     ]);
-    await saveMessage(chat, assistant(s, 6), [
+    await saveMessage(store, assistant(s, 6), [
       part(
         s,
         messageId(6),
@@ -357,24 +364,24 @@ export function writeEveryKindChat(dir: string): Promise<ChatId> {
       ),
     ]);
 
-    await tell(chat, StorageKey.foldersBaseline(s), [
+    await tell(store, StorageKey.foldersBaseline(s), [
       { path: "/Users/someone/Trips" },
     ]);
-    await tell(chat, StorageKey.chatAppsBaseline(s), {
+    await tell(store, StorageKey.chatAppsBaseline(s), {
       gmail: { connected: true, name: "Gmail" },
     });
-    await tell(chat, StorageKey.memoryReported(s), { "trips.md": "rev-1" });
-    await tell(chat, StorageKey.backgroundProcessesReported(s), [
+    await tell(store, StorageKey.memoryReported(s), { "trips.md": "rev-1" });
+    await tell(store, StorageKey.backgroundProcessesReported(s), [
       { command: "npm run dev", id: "bg_1" },
     ]);
-    await tell(chat, StorageKey.browserState(s), {
+    await tell(store, StorageKey.browserState(s), {
       lastUsedAt: at(70),
       visitedHosts: ["example.com"],
     });
 
     const t = TASK_SESSION;
-    await saveMessage(chat, user(t, 7), [text(t, 7, "Find three hotels.")]);
-    await saveMessage(chat, assistant(t, 8), [
+    await saveMessage(store, user(t, 7), [text(t, 7, "Find three hotels.")]);
+    await saveMessage(store, assistant(t, 8), [
       part(
         t,
         messageId(8),
@@ -396,7 +403,7 @@ export function writeEveryKindChat(dir: string): Promise<ChatId> {
       ),
       part(t, messageId(8), 85, { text: "Here are three.", type: "text" }),
     ]);
-    await tell(chat, StorageKey.foldersBaseline(t), [
+    await tell(store, StorageKey.foldersBaseline(t), [
       { path: "/Users/someone/Trips" },
     ]);
   });
@@ -419,17 +426,17 @@ export const OLDER_SESSION = sessionId(20);
  * than the row holds.
  */
 export function writeOlderThanSchemasChat(dir: string): Promise<ChatId> {
-  return writeChat(dir, async (chat) => {
+  return writeChat(dir, async (store) => {
     const s = OLDER_SESSION;
-    await saveSession(chat, {
+    await saveSession(store, {
       createdAt: at(0),
       id: s,
       title: "What the task did",
       titleSettledAt: at(1),
       updatedAt: at(25),
     });
-    await saveMessage(chat, user(s, 21), [text(s, 21, "What did it do?")]);
-    await saveMessage(chat, assistant(s, 22), [
+    await saveMessage(store, user(s, 21), [text(s, 21, "What did it do?")]);
+    await saveMessage(store, assistant(s, 22), [
       storedPart(s, messageId(22), 220, {
         data: { handle: "t1", title: "Find hotels" },
         type: "data-adoptedTask",
@@ -470,9 +477,9 @@ export function writeOlderThanSchemasChat(dir: string): Promise<ChatId> {
 
 /** A chat whose title the app may still change, never updated since it began. */
 export function writeUntitledChat(dir: string): Promise<ChatId> {
-  return writeChat(dir, async (chat) => {
+  return writeChat(dir, async (store) => {
     const s = sessionId(10);
-    await saveSession(chat, { createdAt: at(0), id: s, title: "New chat" });
-    await saveMessage(chat, user(s, 11), [text(s, 11, "Hello there.")]);
+    await saveSession(store, { createdAt: at(0), id: s, title: "New chat" });
+    await saveMessage(store, user(s, 11), [text(s, 11, "Hello there.")]);
   });
 }

@@ -4,7 +4,6 @@ import { publisher } from "../rpc/publisher";
 import { type ChatId } from "../schemas/chat-id";
 import { type StoreId } from "../schemas/store-id";
 import { bumpChatGeneration } from "./chat-generation";
-import { StorageKey } from "./storage-key";
 
 /**
  * What moved in a record:
@@ -71,33 +70,6 @@ export function recordMessageChanged(
 /** Says that a chat is gone, once the index has forgotten it. */
 export function recordRemoved(id: ChatId): void {
   publisher.publish("record.changed", { id, kind: "removed" });
-}
-
-/**
- * Says what a write to one key of a chat's store changed, once it has
- * landed: its transcript, naming the message, or what its sessions keep.
- */
-export function recordStoreWrite(
-  id: ChatId,
-  key: string,
-  { removed }: { removed: boolean },
-): void {
-  if (!key.startsWith("messages:") && !key.startsWith("parts:")) {
-    publisher.publish("record.changed", { id, kind: "session" });
-    return;
-  }
-  const message = StorageKey.messageOf(key);
-  publisher.publish("record.changed", {
-    id,
-    kind: "messages",
-    ...(message && {
-      message: {
-        id: message.id,
-        removed: removed && message.ownRow,
-        sessionId: message.sessionId,
-      },
-    }),
-  });
 }
 
 /**

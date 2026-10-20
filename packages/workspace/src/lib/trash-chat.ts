@@ -1,5 +1,5 @@
 import ms from "ms";
-import { err, ok, ResultAsync } from "neverthrow";
+import { ok, ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
 
 import { type WorkspaceActorRef } from "../machines/workspace";
@@ -22,18 +22,13 @@ import { closeAgentBrowserSessionsForSessions } from "./agent-browser-cleanup";
 import { writingChatRecords } from "./records/chat-records";
 import { workDir } from "./work-dir";
 import { listChildTasks } from "./chat/children";
-import {
-  disposeSessionsStoreStorage,
-  markStorageAsDisposing,
-  unmarkStorageAsDisposing,
-} from "./session-store-storage";
 
 /**
  * Puts a chat in the trash with every task it started, which are sessions in
  * its store. Every agent of the chat's, its tasks' included, is stopped and
  * refused new messages, so nothing it does meanwhile starts a task that would
- * be missed; what any of them left running is killed, its store let go; then
- * its record folder and its work folder each go to the trash in one piece,
+ * be missed; what any of them left running is killed; then its
+ * record folder and its work folder each go to the trash in one piece,
  * where the system's own put-back returns each to its place. The index
  * forgets it once its records are gone; a work folder that will not go is
  * reported and left.
@@ -82,9 +77,6 @@ export async function trashChat({
         },
       );
 
-      // Mark storage as disposing to prevent recreation during deletion
-      markStorageAsDisposing(id);
-
       try {
         const chatId = id;
 
@@ -104,10 +96,6 @@ export async function trashChat({
           await rmrf(nodeModulesPath);
         }
 
-        const disposeResult = await disposeSessionsStoreStorage(id);
-        if (disposeResult.isErr()) {
-          return err(disposeResult.error);
-        }
         // Its records let go once every session of it has stopped and before
         // the folder goes: an append landing after the delete would make the
         // folder again.
@@ -145,10 +133,6 @@ export async function trashChat({
 
         return ok({ id });
       } finally {
-        // Always unmark the chat, even if deletion fails: a chat still
-        // marked refuses new sessions, and a chat later made with the same
-        // id must not inherit the mark.
-        unmarkStorageAsDisposing(id);
         workspaceRef.send({
           type: "removeChatBeingTrashed",
           value: { id },

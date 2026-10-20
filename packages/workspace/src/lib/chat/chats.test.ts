@@ -44,8 +44,6 @@ import { updateSessionTitle } from "../update-session-title";
 import { liveChatList } from "./live-chat-list";
 import { createTopic } from "./topics";
 
-vi.mock(import("../session-store-storage"));
-
 const running = vi.hoisted(() => {
   const value: ChatActivity["running"] = [];
   return { value };

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
@@ -6,8 +6,6 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { ChatWrites } from "../chat-writes";
 import { renderSteps, sessionSteps, trajectorySince } from "./steps";
-
-vi.mock(import("../session-store-storage"));
 
 const chatId = createMockChatConfig(ChatIdSchema.parse("steps-outline"));
 

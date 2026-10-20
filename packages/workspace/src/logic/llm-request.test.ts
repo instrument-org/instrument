@@ -56,8 +56,6 @@ import { llmRequestLogic } from "./llm-request";
 
 vi.mock(import("ulid"));
 
-vi.mock(import("../lib/session-store-storage"));
-
 vi.mock(import("../lib/get-current-date"));
 vi.mock(import("../lib/turn-note"), async (importOriginal) => {
   const original = await importOriginal();

@@ -40,7 +40,6 @@ import { llmRequestLogic } from "./llm-request";
 import { setWorkspaceServerPort } from "./server/url";
 
 vi.mock(import("ulid"));
-vi.mock(import("../lib/session-store-storage"));
 vi.mock(import("../lib/get-current-date"));
 
 const captureDir = process.env.WIRE_CAPTURE_DIR;

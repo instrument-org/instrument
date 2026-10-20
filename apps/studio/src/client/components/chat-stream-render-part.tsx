@@ -8,8 +8,7 @@ import {
 
 import { AssistantMessage } from "./assistant-message";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
-import { ChatDevOnly } from "./dev-mode-card";
-import { ToolCall, ToolCallBody } from "./message-part/tool-call";
+import { ToolCall } from "./message-part/tool-call";
 import {
   isToolCallVisible,
   isToolPartRunning,
@@ -38,22 +37,6 @@ export interface RenderPartContext {
    */
   presentation?: "chat";
   chatInfo: ChatInfo;
-}
-
-/** A call whose card asks the user something, which the chat always shows. */
-function isAskingTheUser(part: SessionMessagePart.ToolPart): boolean {
-  return part.type === "tool-choose" || part.type === "tool-connect_app";
-}
-
-/**
- * Whether a card asking the user has what it needs to draw: the whole question
- * or folder request, or for a connect, the app the call came back naming.
- */
-function isCardReady(part: SessionMessagePart.ToolPart): boolean {
-  if (part.type === "tool-connect_app") {
-    return part.state === "output-available" || part.state === "output-error";
-  }
-  return part.state !== "input-streaming";
 }
 
 // Returns null for parts that don't render inline. Data-part visibility comes
@@ -87,32 +70,16 @@ export function renderChatPart({
 
     switch (message.role) {
       case "assistant": {
-        const reply = (
+        return (
           <AssistantMessage
-            // The conversation reads as messages: each reply in a bubble at
-            // the left, facing the user's at the right.
-            bubble={ctx.presentation === "chat"}
             key={part.metadata.id}
             part={part}
             chatId={ctx.chatInfo.id}
           />
         );
-        // The chat shows a reply a newer one cut off only in developer mode.
-        return ctx.presentation === "chat" &&
-          message.metadata.error?.kind === "aborted" ? (
-          <ChatDevOnly key={part.metadata.id}>{reply}</ChatDevOnly>
-        ) : (
-          reply
-        );
       }
       case "user": {
-        return (
-          <UserMessage
-            compact={ctx.presentation === "chat"}
-            key={part.metadata.id}
-            part={part}
-          />
-        );
+        return <UserMessage key={part.metadata.id} part={part} />;
       }
       // session-context messages are filtered out before this loop, so they
       // never reach here.
@@ -141,35 +108,6 @@ export function renderChatPart({
   }
 
   if (isToolPart(part)) {
-    // What the conversation asks the user (a choice, a sign-in, a folder)
-    // and nothing else: every other call is its own business, a task it
-    // started included, since the tasks at work stand over the composer
-    // rather than in the transcript. A connect the tool refused never put a
-    // card up: what it said is the agent's to fix before asking again, not
-    // the user's to read. Developer mode shows every call.
-    const isDevOnly =
-      ctx.presentation === "chat" &&
-      (!isAskingTheUser(part) ||
-        (part.type === "tool-connect_app" &&
-          part.state === "output-available" &&
-          part.output.state === "failure"));
-    if (isDevOnly && !ctx.isDeveloperMode) {
-      return null;
-    }
-    // The chat draws a card that asks the user as the card alone, with no
-    // row above it to open or shut it, and only once it has something to
-    // ask: a card that arrives empty and fills in a moment later reads as
-    // broken.
-    if (ctx.presentation === "chat" && !isDevOnly) {
-      return isCardReady(part) ? (
-        <ToolCallBody
-          chatInfo={ctx.chatInfo}
-          key={part.metadata.id}
-          onRetry={ctx.onRetry}
-          part={part}
-        />
-      ) : null;
-    }
     const streaming = ctx.isToolStreaming(part, message);
     // A part can carry a start with no end long after the run that wrote it
     // died, so the record alone never means "running now": the live session
@@ -187,7 +125,7 @@ export function renderChatPart({
 
     // Indentation and the group box around a run of these are the chat
     // stream's, not this row's.
-    const row = (
+    return (
       <ToolCall
         isDeveloperMode={ctx.isDeveloperMode}
         isRunning={isRunning}
@@ -198,17 +136,9 @@ export function renderChatPart({
         chatInfo={ctx.chatInfo}
       />
     );
-    return isDevOnly ? (
-      <ChatDevOnly key={part.metadata.id}>{row}</ChatDevOnly>
-    ) : (
-      row
-    );
   }
 
   if (part.type === "reasoning") {
-    if (ctx.presentation === "chat" && !ctx.isDeveloperMode) {
-      return null;
-    }
     // Whether the run is still writing into this block. Anything after it means
     // the model has moved on, whatever the part's own state says: a provider can
     // hold a reasoning block's end event until the step finishes, and a row that
@@ -223,7 +153,7 @@ export function renderChatPart({
     if (!isReasoningPartVisible({ isLive, part })) {
       return null;
     }
-    const row = (
+    return (
       <ReasoningMessage
         createdAt={part.metadata.createdAt}
         endedAt={part.metadata.endedAt}
@@ -233,11 +163,6 @@ export function renderChatPart({
         rowId={part.metadata.id}
         text={part.text}
       />
-    );
-    return ctx.presentation === "chat" ? (
-      <ChatDevOnly key={part.metadata.id}>{row}</ChatDevOnly>
-    ) : (
-      row
     );
   }
 

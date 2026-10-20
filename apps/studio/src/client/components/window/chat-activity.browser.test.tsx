@@ -35,6 +35,20 @@ vi.mock("@/client/hooks/use-task-background-processes", () => ({
   useTaskBackgroundProcesses: () => [],
 }));
 
+// The steps themselves are the transcript's, tested with it; the card only
+// says which session it shows.
+vi.mock("./child-tasks", () => ({
+  ChildTranscript: ({ sessionId }: { sessionId: string }) => (
+    <p>Steps of {sessionId}</p>
+  ),
+}));
+
+vi.mock("@/client/hooks/use-developer-mode", () => ({
+  useTabDeveloperMode: () => false,
+}));
+
+const chatSession = StoreId.newSessionId();
+
 const { stopSessions } = vi.hoisted(() => ({
   stopSessions:
     vi.fn<(input: { id: string; sessionId?: string }) => Promise<void>>(),
@@ -43,6 +57,14 @@ const { stopSessions } = vi.hoisted(() => ({
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     workspace: {
+      chats: {
+        session: {
+          queryOptions: () => ({
+            queryFn: () => ({ sessionId: chatSession }),
+            queryKey: ["chat-session"],
+          }),
+        },
+      },
       session: {
         stop: { mutationOptions: () => ({ mutationFn: stopSessions }) },
       },
@@ -74,6 +96,7 @@ function tasksList({
     <ChatTasksPopover
       chatId={CHAT_ID}
       onOpen={onOpen}
+      own={{ line: "Planning the trip", title: "Lisbon trip", working: true }}
       tasks={running}
       trigger={<button type="button">Tasks</button>}
     />,
@@ -84,15 +107,30 @@ const openList = () =>
   userEvent.click(page.getByRole("button", { name: "Tasks" }));
 
 describe("ChatTasksPopover", () => {
-  it("lists running tasks, then finished ones, and opens the one pressed", async () => {
+  it("lists the chat first and shows the steps of the task pressed", async () => {
     const onOpen = vi.fn();
     await tasksList({ onOpen });
     await openList();
+    await expect.element(page.getByText("This chat")).toBeVisible();
     await expect.element(page.getByText("Running")).toBeVisible();
     await expect.element(page.getByText("Finished")).toBeVisible();
     await expect.element(page.getByText("Pastel de nata shops")).toBeVisible();
     await userEvent.click(page.getByRole("button", { name: /Packing list/ }));
+    await expect.element(page.getByText(`Steps of ${packing}`)).toBeVisible();
+    await userEvent.click(page.getByRole("button", { name: "Open" }));
     expect(onOpen).toHaveBeenCalledWith(packing);
+  });
+
+  it("opens straight onto the chat's own steps when it has no task", async () => {
+    listed.tasks = [];
+    await tasksList({ running: [] });
+    await openList();
+    await expect
+      .element(page.getByText(`Steps of ${chatSession}`))
+      .toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: "All tasks" }))
+      .not.toBeInTheDocument();
   });
 
   it("stops one working task from its row, and offers no stop on a finished one", async () => {
@@ -177,7 +215,8 @@ describe("ChatTasksPopover", () => {
     await openList();
     await expect.element(page.getByText("Running")).not.toBeInTheDocument();
     await userEvent.click(page.getByRole("button", { name: /Packing list/ }));
-    expect(onOpen).toHaveBeenCalledWith(packing);
+    await expect.element(page.getByText(`Steps of ${packing}`)).toBeVisible();
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it("says why a finished task failed, and nothing under one that is done", async () => {

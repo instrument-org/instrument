@@ -13,7 +13,6 @@ import {
   renderChatPart,
   type RenderPartContext,
 } from "./chat-stream-render-part";
-import { ToolCallBody } from "./message-part/tool-call";
 
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
@@ -162,85 +161,4 @@ describe("renderChatPart reasoning", () => {
       chatPartNode(reasoningPart, { isAgentRunning: false }),
     ).not.toBeNull();
   });
-});
-
-describe("renderChatPart in the chat", () => {
-  // A command still being written: hidden in the chat for its kind, not its
-  // state, and drawn in developer mode whatever its state.
-  const bashPart: SessionMessagePart.ToolPart = {
-    ...toolPart,
-    type: "tool-bash",
-  };
-  const doneReasoningPart: SessionMessagePart.ReasoningPart = {
-    ...reasoningPart,
-    state: "done",
-  };
-
-  function chatNode(
-    part: SessionMessagePart.Type,
-    isDeveloperMode: boolean,
-    { isStreaming = false }: { isStreaming?: boolean } = {},
-  ) {
-    const message = {
-      id: messageId,
-      metadata: { createdAt: new Date(0), sessionId },
-      parts: [part],
-      role: "assistant",
-    } as SessionMessage.WithParts;
-    const node = renderChatPart({
-      stateNote: undefined,
-      ctx: {
-        isAgentRunning: false,
-        isDeveloperMode,
-        isToolStreaming: () => isStreaming,
-        lastMessageId: messageId,
-        onRetry: () => {
-          // Nothing to do: these tests assert on whether the row exists.
-        },
-        presentation: "chat",
-        // Only the id is read, to look up the asks a call raised.
-        chatInfo: { id: "chat" } as never,
-      },
-      message,
-      part,
-      partIndex: 0,
-    });
-    return node;
-  }
-
-  it.each([
-    ["a command", bashPart],
-    ["reasoning", doneReasoningPart],
-  ])("hides %s, and shows it in developer mode", (_case, part) => {
-    expect(chatNode(part, false)).toBeNull();
-    expect(chatNode(part, true)).not.toBeNull();
-  });
-
-  // A question the model is still writing has nothing to ask yet, and once
-  // written it is the card alone, with no row above it to open or shut it.
-  it.each([false, true])(
-    "draws a question as its card once it has arrived (developer mode: %s)",
-    (isDeveloperMode) => {
-      const choosePart = {
-        ...toolPart,
-        input: { question: "Which one?" },
-        state: "input-streaming",
-        type: "tool-choose",
-      } satisfies SessionMessagePart.ToolPart;
-      expect(
-        chatNode(choosePart, isDeveloperMode, { isStreaming: true }),
-      ).toBeNull();
-      expect(
-        chatNode(
-          {
-            ...choosePart,
-            input: { choices: ["This", "That"], question: "Which one?" },
-            state: "input-available",
-          },
-          isDeveloperMode,
-          { isStreaming: true },
-        ),
-      ).toMatchObject({ type: ToolCallBody });
-    },
-  );
 });

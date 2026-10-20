@@ -66,6 +66,16 @@ export { MountedFolder } from "./schemas/mounted-folder";
 export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";
 export { type SessionMessage } from "./schemas/session/message";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
+export {
+  applyBubbleFeedEvent,
+  BubbleProjection,
+  type BubbleFeed,
+  type BubbleFeedEvent,
+} from "./lib/bubble-messages";
+export {
+  dataPartVisibility,
+  type DataPartVisibility,
+} from "./lib/data-part-visibility";
 export { type SessionMessagePart } from "./schemas/session/message-part";
 export { StoreId } from "./schemas/store-id";
 export type { ChatInfo } from "./schemas/chat-info";

@@ -1,4 +1,4 @@
-import { CHAT_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { CHAT_FOLDER_NAMES, StoreId } from "@instrument-org/workspace/client";
 
 import {
   CHATGPT_ACCOUNT_MODEL,
@@ -1239,6 +1239,97 @@ done`,
       prose(
         "Lint is failing in four places, the build is clean, and the slugify change is in. The runner guide says the config is read per package, so the override we have is doing what we thought.",
       ),
+    ],
+  },
+  {
+    // Everything the chat's bubbles draw, in one conversation: turn on Chat
+    // to read it as the chat does. The steps between the words are the task
+    // card's, so none of them draw here.
+    id: "bubbles",
+    name: "Chat bubbles, every case",
+    script: [
+      user("Can you find me a flight to Lisbon for next month?"),
+      user("Two people, and we're flexible on the dates."),
+      prose("I'll look at fares for the next five weeks."),
+      activity("Checking fares"),
+      read({
+        explanation: "Reading the airline's fare calendar",
+        filePath: "work/fare-calendar.md",
+      }),
+      prose("I'll look at fares for the next five weeks."),
+      prose(
+        "The cheapest round trip is $412 each, leaving on the 14th.\n\n```files\nwork/fares.md\n```",
+      ),
+      user(
+        "The 14th works. Book the 7:30 or the 8:15?",
+        {
+          data: {
+            messageId: StoreId.newMessageId(),
+            partId: StoreId.newPartId(),
+            text: "The cheapest round trip is $412 each, leaving on the 14th.",
+          },
+          type: "data-reply",
+        },
+        {
+          data: {
+            attached: [
+              {
+                kind: "page",
+                title: "TAP Air Portugal: Fares",
+                url: "https://www.flytap.com/",
+              },
+            ],
+            screen: "browser",
+            url: "https://www.flytap.com/",
+          },
+          type: "data-viewContext",
+        },
+      ),
+      chose({
+        answer: { selectedChoice: "8:15" },
+        choices: ["7:30", "8:15"],
+        explanation: "Asking which departure to book",
+        question: "Which departure should I book?",
+      }),
+      prose("Booked the 8:15 for both of you."),
+      notes(
+        {
+          data: {
+            from: { modelId: "fast-model", name: "Fast Model" },
+            to: { modelId: "careful-model", name: "Careful Model" },
+          },
+          type: "data-modelChange",
+        },
+        {
+          data: { created: ["wireframe"], updated: [] },
+          type: "data-skillChanges",
+        },
+      ),
+      user("Find hotels too, and add my Trips folder.", {
+        data: {
+          answer: "allowed",
+          kind: "folder",
+          target: "/Users/mac-user/Trips",
+        },
+        type: "data-permissionAnswer",
+      }),
+      sameStep(
+        prose("Looking for hotels in"),
+        fail({
+          kind: "api-call",
+          message: "Rate limit exceeded. Please try again later.",
+          name: "RateLimitError",
+          statusCode: 429,
+          url: "https://api.example.com/v1/messages",
+        }),
+      ),
+      user("Keep going on the hotels."),
+      activity("Comparing hotels"),
+      read({
+        explanation: "Reading hotel listings",
+        filePath: "work/hotels.md",
+      }),
+      maxSteps(25),
     ],
   },
   {

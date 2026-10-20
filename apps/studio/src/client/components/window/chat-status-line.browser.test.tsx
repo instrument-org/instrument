@@ -11,6 +11,9 @@ vi.mock("./child-tasks-query", () => ({
   useChatTasks: () => ({ data: [] }),
 }));
 
+// The card's steps are the transcript's, which this does not draw.
+vi.mock("./child-tasks", () => ({ ChildTranscript: () => null }));
+
 /** The jobs the chat left running in the test running. */
 const jobs = vi.hoisted(() => ({ running: [] as unknown[] }));
 
@@ -51,6 +54,14 @@ const { stopSessions } = vi.hoisted(() => ({
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     workspace: {
+      chats: {
+        session: {
+          queryOptions: () => ({
+            queryFn: () => ({ sessionId: undefined }),
+            queryKey: ["chat-session"],
+          }),
+        },
+      },
       session: {
         stop: { mutationOptions: () => ({ mutationFn: stopSessions }) },
       },

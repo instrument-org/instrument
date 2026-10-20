@@ -1,6 +1,12 @@
 import { noop } from "radashi";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type AnyActorRef, createActor, fromPromise, waitFor } from "xstate";
+import {
+  type AnyActorRef,
+  createActor,
+  fromPromise,
+  type InputFrom,
+  waitFor,
+} from "xstate";
 
 import { instrumentAgent } from "../agents/instrument";
 import { ChatReads } from "../lib/chat-reads";
@@ -14,6 +20,7 @@ import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model"
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { agentMachine, type ShouldContinueResult } from "./agent";
 import { executeToolCallMachine } from "./execute-tool-call";
+import { llmRequestLogic } from "../logic/llm-request";
 
 vi.mock(import("../lib/session-store-storage"));
 
@@ -798,6 +805,64 @@ describe("agentMachine", () => {
     expect(parent.send).not.toHaveBeenCalled();
     land();
     await waitFor(actor, (state) => state.matches("Done"));
+    expect(parent.send).toHaveBeenCalledWith({
+      type: "agent.done",
+      value: { error: undefined },
+    });
+  });
+
+  it("ends without an error when a retry recovers from an attempt that threw", async () => {
+    let attempts = 0;
+    const parent: { send: (event: { type: string }) => void } = {
+      send: vi.fn(),
+    };
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          // The first attempt hears nothing until its chunk timeout aborts
+          // it, then throws; the retry answers.
+          llmRequestLogic: fromPromise<
+            {
+              message: SessionMessage.Assistant;
+              parts: SessionMessagePart.Type[];
+            },
+            InputFrom<typeof llmRequestLogic>
+          >(({ input }) => {
+            attempts++;
+            if (attempts > 1) {
+              return Promise.resolve({
+                message: assistantMessage,
+                parts: noParts,
+              });
+            }
+            return new Promise((_, reject) => {
+              input.stop?.addEventListener("abort", () => {
+                reject(new Error("socket hang up"));
+              });
+            });
+          }),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
+        },
+      }),
+      {
+        input: {
+          ...createAgentInput({ parentMessageId: messageId, sessionId }),
+          llmRequestChunkTimeoutMs: 20,
+          parentRef: parent as unknown as AnyActorRef,
+        },
+      },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect(attempts).toBe(2);
     expect(parent.send).toHaveBeenCalledWith({
       type: "agent.done",
       value: { error: undefined },

@@ -795,7 +795,10 @@ export const agentMachine = setup({
     MaybeRetrying: {
       always: [
         {
+          // An error the failed attempt threw is not the turn's once another
+          // attempt runs: only the last attempt's error says how it ended.
           actions: assign({
+            error: undefined,
             retryCount: ({ context }) => context.retryCount + 1,
           }),
           guard: ({ context }) =>

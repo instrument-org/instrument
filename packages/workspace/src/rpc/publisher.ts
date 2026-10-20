@@ -2,7 +2,6 @@ import { EventPublisher } from "@orpc/server";
 
 import { type AppEvent } from "../lib/apps/changed";
 import { type RecordChanged } from "../lib/record-changes";
-import { type WorkspaceSnapshot } from "../machines/workspace";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type StopNotice } from "../schemas/stop-notice";
@@ -81,9 +80,6 @@ export const publisher = new EventPublisher<{
    * `recordChanges` in `lib/record-changes.ts`.
    */
   "record.changed": RecordChanged;
-  "runtime.log.updated": {
-    id: ChatId;
-  };
   "session.done": {
     id: ChatId;
     /** Present when a stop ended the turn and said whose it was. */
@@ -108,7 +104,6 @@ export const publisher = new EventPublisher<{
    * nothing.
    */
   "window.tabDone": WindowTabAnswer & { id: ChatId };
-  "workspaceActor.snapshot": WorkspaceSnapshot;
 }>({
   // Per subscription, starting empty when it subscribes: what a subscriber
   // that is still busy with one event holds of the ones after it. Many of

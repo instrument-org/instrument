@@ -52,7 +52,13 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
 import { useFindTarget } from "@/client/hooks/use-find-target";
-import { cn, commandKeyHeld, currentOs, isMacOS } from "@/client/lib/utils";
+import {
+  cn,
+  commandKeyHeld,
+  currentOs,
+  isMacOS,
+  isWindows,
+} from "@/client/lib/utils";
 import {
   createFileTreeIconResolver,
   getBuiltInSpriteSheet,
@@ -720,13 +726,19 @@ function compareEntryNames(
     sensitivity: "base",
   });
 }
+/**
+ * A size the way the system's file manager writes it: File Explorer counts a
+ * kilobyte as 1024 bytes, and the Finder and GNOME's Files as 1000, so a disk
+ * reads the same here as there.
+ */
 export function formatByteSize(size: number | undefined) {
   if (size === undefined) return null;
-  if (size < 1000) return `${size} bytes`;
+  const step = isWindows() ? 1024 : 1000;
+  if (size < step) return `${size} bytes`;
   const units = ["KB", "MB", "GB", "TB"];
   let value = size;
   for (const unit of units) {
-    value /= 1000;
+    value /= step;
     if (value < 1000 || unit === "TB") {
       return `${value >= 100 ? Math.round(value) : value.toFixed(value >= 10 ? 1 : 2).replace(/\.?0+$/, "")} ${unit}`;
     }

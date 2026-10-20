@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { unique } from "radashi";
 import { z } from "zod";
 
@@ -28,6 +30,8 @@ export const ComputerPlacesSchema = z.object({
   /** The disks and the cloud services' folders: the sidebar's Locations. */
   volumes: ComputerPlaceSchema.array(),
 });
+const run = promisify(execFile);
+
 type ComputerPlace = z.output<typeof ComputerPlaceSchema>;
 export type ComputerPlaces = z.output<typeof ComputerPlacesSchema>;
 
@@ -262,7 +266,11 @@ async function cloudStoragePlaces(home: string): Promise<ComputerPlace[]> {
 async function drivePlaces(home: string): Promise<ComputerPlace[]> {
   if (process.platform === "darwin") {
     // The boot volume is a link to `/`; the others are themselves.
-    return realFolders("/Volumes");
+    const [volumes, hidden] = await Promise.all([
+      realFolders("/Volumes"),
+      unbrowsableMounts(),
+    ]);
+    return volumes.filter((volume) => !hidden.has(volume.path));
   }
   if (process.platform === "win32") {
     // A and B are the floppy letters, which a machine with no floppy can
@@ -292,6 +300,29 @@ async function drivePlaces(home: string): Promise<ComputerPlace[]> {
     { kind: "drive", name: "Root", path: path.parse(home).root },
     ...mounted.flat(),
   ];
+}
+
+/**
+ * Where macOS mounted a volume it asks the Finder not to show, such as the
+ * Recovery volume: `mount` lists each with `nobrowse` among its options.
+ * Nothing is hidden when `mount` cannot be asked.
+ */
+async function unbrowsableMounts(): Promise<ReadonlySet<string>> {
+  try {
+    const { stdout } = await run("/sbin/mount", [], {
+      timeout: DRIVE_ANSWER_MS,
+    });
+    return new Set(
+      stdout.split("\n").flatMap((line) => {
+        const match = / on (.+) \(([^)]*)\)$/.exec(line);
+        return match?.[1] && match[2]?.split(", ").includes("nobrowse")
+          ? [match[1]]
+          : [];
+      }),
+    );
+  } catch {
+    return new Set();
+  }
 }
 
 /** How long a disk has to answer before it is listed unanswered. */

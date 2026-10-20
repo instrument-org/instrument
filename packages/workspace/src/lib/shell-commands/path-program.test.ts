@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { programsOnPath } from "./path-program";
+import { windowsCommandLine } from "../native-sandbox";
+import { batchFileLaunch, programsOnPath } from "./path-program";
 
 let tmpDir: string;
 let first: string;
@@ -84,5 +85,30 @@ describe("programsOnPath on Windows", () => {
     expect(await lookup("notes", ".TXT")).toEqual([
       String.raw`C:\Tools\notes.txt`,
     ]);
+  });
+});
+
+describe("batchFileLaunch", () => {
+  const cmd = String.raw`C:\Windows\System32\cmd.exe`;
+  const yarn = String.raw`C:\Program Files\nodejs\yarn.cmd`;
+
+  it.each([
+    [
+      ["--version"],
+      String.raw`/d /s /c ""C:\Program Files\nodejs\yarn.cmd" ^"--version^""`,
+    ],
+    [
+      ["a&b", "x|y", "<in>", "50%", "^"],
+      String.raw`/d /s /c ""C:\Program Files\nodejs\yarn.cmd" ^"a^&b^" ^"x^|y^" ^"^<in^>^" ^"50^%^" ^"^^^""`,
+    ],
+    [
+      ['say "hi"', "a b", ""],
+      String.raw`/d /s /c ""C:\Program Files\nodejs\yarn.cmd" ^"say \^"hi\^"^" ^"a b^" ^"^""`,
+    ],
+  ])("hands cmd.exe %j as one line", (args, line) => {
+    const [file, fileArgs] = batchFileLaunch(cmd, yarn, args);
+    expect(file).toBe(cmd);
+    // Joined verbatim, as both Node and the MXC request join it.
+    expect(windowsCommandLine(fileArgs, true)).toBe(line);
   });
 });

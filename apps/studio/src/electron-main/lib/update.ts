@@ -355,6 +355,14 @@ function checkBeforeInstallOnQuit() {
   }
 }
 
+/**
+ * Leave a staged update for a later quit rather than this one. The update is
+ * found in the cache folder again on the next launch and staged as before.
+ */
+export function deferInstallOnQuit() {
+  autoUpdater.autoInstallOnAppQuit = false;
+}
+
 function installStagedUpdate() {
   if (rejectedStagedArtifact() !== undefined) {
     throw new StagedUpdateRejectedError(

@@ -59,7 +59,7 @@ export namespace SessionMessage {
    * chat's, a newer message superseding the reply, the app quitting), its
    * chunk timeout, or nothing the session could name.
    */
-  const AbortReasonSchema = z.enum([
+  export const AbortReasonSchema = z.enum([
     "chat",
     "manual",
     "quit",

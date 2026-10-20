@@ -91,9 +91,24 @@ type AgentResult = Result<void, "agent-error:unknown">;
 
 type ParentActorRef = ActorRef<AnyMachineSnapshot, AgentParentEvent>;
 
+/**
+ * How long a request that was let go has to write what it was holding before
+ * the turn finishes without it. A request honors its abort in milliseconds;
+ * this bounds one that does not, inside the second a stop gives the whole of
+ * `Finishing`.
+ */
+const REQUEST_LET_GO_MS = 250;
+
 export const agentMachine = setup({
   actions: {
     assignEventError: createAssignEventError(),
+    // With why, since the request asks as it lets go, before this
+    // transition's context is the snapshot's.
+    letRequestGo: ({ context }) => {
+      context.requestStop?.abort(
+        context.stopReason ?? (context.requestTimedOut ? "timeout" : "unknown"),
+      );
+    },
   },
 
   actors: {
@@ -400,6 +415,7 @@ export const agentMachine = setup({
 
   delays: {
     llmRequestChunkTimeoutMs: ({ context }) => context.llmRequestChunkTimeoutMs,
+    requestLetGoMs: REQUEST_LET_GO_MS,
     retryBackoff: ({ context }) => {
       return context.baseLLMRetryDelayMs * Math.pow(2, context.retryCount - 1);
     },
@@ -418,6 +434,8 @@ export const agentMachine = setup({
       outputLimitContinuations: number;
       parentMessageId: StoreId.Message;
       parentRef: ParentActorRef;
+      /** Lets the request in flight go while the machine waits for it; one per request. */
+      requestStop?: AbortController;
       /** The request in flight went past its chunk timeout, which lets it go; cleared as each starts. */
       requestTimedOut: boolean;
       retryCount: number;
@@ -649,6 +667,7 @@ export const agentMachine = setup({
 
     LLMStreaming: {
       entry: assign({
+        requestStop: () => new AbortController(),
         requestTimedOut: false,
         unaccountedStreamCount: ({ context }) =>
           context.unaccountedStreamCount + 1,
@@ -669,39 +688,57 @@ export const agentMachine = setup({
             self,
             sessionId: context.sessionId,
             stepCount: context.stepCount,
+            stop: context.requestStop?.signal,
             chatId: context.chatId,
           };
         },
-        onDone: {
-          actions: [
-            raise(({ event: { output } }) => {
-              const { message } = output;
+        onDone: [
+          {
+            // Let go by a stop or by its last timeout, and done writing what
+            // it held, so the turn's end reads the whole reply.
+            guard: ({ context }) =>
+              context.requestStop?.signal.aborted === true,
+            target: "Finishing",
+          },
+          {
+            // The request ended itself in a way no retry helps (its own
+            // abort, a full disk, a refused credential).
+            actions: assign({ stopReason: "manual" }),
+            guard: ({ event: { output } }) =>
+              getErrorAction(output.message).type === "stop",
+            target: "Finishing",
+          },
+          {
+            actions: [
+              raise(({ event: { output } }) => {
+                const { message } = output;
 
-              const errorAction = getErrorAction(message);
-              if (errorAction.type !== "continue") {
-                return errorAction;
-              }
+                const errorAction = getErrorAction(message);
+                if (errorAction.type !== "continue") {
+                  return errorAction;
+                }
 
-              return { type: "executeToolCalls" };
-            }),
-            assign(({ context, event: { output } }) => {
-              const { message, parts } = output;
-              if (getErrorAction(message).type !== "continue") {
-                return {};
-              }
+                return { type: "executeToolCalls" };
+              }),
+              assign(({ context, event: { output } }) => {
+                const { message, parts } = output;
+                if (getErrorAction(message).type !== "continue") {
+                  return {};
+                }
 
-              const toolCallQueue = parts.filter(
-                (part): part is SessionMessagePart.ToolPartInputAvailable =>
-                  isToolPart(part) && part.state === "input-available",
-              );
+                const toolCallQueue = parts.filter(
+                  (part): part is SessionMessagePart.ToolPartInputAvailable =>
+                    isToolPart(part) && part.state === "input-available",
+                );
 
-              return {
-                toolCallQueue,
-                unaccountedStreamCount: context.unaccountedStreamCount - 1,
-              };
-            }),
-          ],
-        },
+                return {
+                  toolCallQueue,
+                  unaccountedStreamCount: context.unaccountedStreamCount - 1,
+                };
+              }),
+            ],
+          },
+        ],
         onError: { actions: "assignEventError", target: "Finishing" },
         src: "llmRequestLogic",
       },
@@ -725,11 +762,39 @@ export const agentMachine = setup({
             target: "RetryingWithDelay",
           },
           {
+            // Out of attempts while the request is still running: it writes
+            // what it held before the turn finishes.
+            actions: "letRequestGo",
+            guard: ({ context }) => context.requestTimedOut,
+            target: ".LettingGo",
+          },
+          {
             target: "Finishing",
           },
         ],
+        // The request writes what it was holding before the turn finishes,
+        // so a reply cut off by the stop is in the records when the turn's
+        // end reads them.
+        stop: {
+          actions: [
+            assign({ stopReason: ({ event }) => event.reason ?? "manual" }),
+            "letRequestGo",
+          ],
+          target: ".LettingGo",
+        },
       },
       states: {
+        LettingGo: {
+          after: { requestLetGoMs: "#agent.Finishing" },
+          on: {
+            "llmRequest.chunkReceived": {},
+            stop: {
+              actions: assign({
+                stopReason: ({ event }) => event.reason ?? "manual",
+              }),
+            },
+          },
+        },
         PendingTimeout: {
           after: {
             llmRequestChunkTimeoutMs: {

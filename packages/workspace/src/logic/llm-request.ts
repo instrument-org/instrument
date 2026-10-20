@@ -44,7 +44,7 @@ import { ChatWrites } from "../lib/chat-writes";
 import { turnNoteFor } from "../lib/turn-note";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
-import { type SessionMessage } from "../schemas/session/message";
+import { SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -70,6 +70,12 @@ interface LLMRequestInput {
   self: ActorRef<AnyMachineSnapshot, { type: "llmRequest.chunkReceived" }>;
   sessionId: StoreId.Session;
   stepCount: number;
+  /**
+   * Lets the request go while its caller waits for it: what it was holding
+   * is written on the way out, which stopping the actor would leave running
+   * after the caller has moved on. Aborted with why, an `AbortReason`.
+   */
+  stop?: AbortSignal;
   chatId: ChatId;
 }
 
@@ -79,7 +85,13 @@ export const llmRequestLogic = fromPromise<
     parts: SessionMessagePart.Type[];
   },
   LLMRequestInput
->(async ({ input, signal }) => {
+>(async ({ input, signal: actorSignal }) => {
+  const { stop } = input;
+  const signal = stop ? AbortSignal.any([actorSignal, stop]) : actorSignal;
+  const abortReason = () =>
+    stop?.aborted
+      ? SessionMessage.AbortReasonSchema.catch("unknown").parse(stop.reason)
+      : input.abortReason();
   // The first write that failed for lack of disk space. Once set, every later
   // write would fail the same way, so part saves stop, the stream loop ends
   // the request with a `disk-full` error, and the condition is reported once
@@ -185,7 +197,7 @@ export const llmRequestLogic = fromPromise<
     assistantMessage.metadata.error = {
       kind: "aborted",
       message: "Aborted",
-      reason: input.abortReason(),
+      reason: abortReason(),
     };
     assistantMessage.metadata.finishedAt = getCurrentDate();
     assistantMessage.metadata.finishReason = "aborted";
@@ -932,7 +944,7 @@ export const llmRequestLogic = fromPromise<
             error.name === "TimeoutError"
               ? "timeout"
               : signal.aborted
-                ? input.abortReason()
+                ? abortReason()
                 : "unknown",
         };
         break;

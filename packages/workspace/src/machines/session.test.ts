@@ -12,6 +12,7 @@ import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import mockFs from "mock-fs";
 import { ok } from "neverthrow";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { noop, pick } from "radashi";
 import {
@@ -35,10 +36,12 @@ import {
 import { setupAgent } from "../agents/create-agent";
 import { instrumentAgent } from "../agents/instrument";
 import { type AnyAgent } from "../agents/types";
+import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../constants";
 import {
   killSessionBackgroundProcesses,
   listBackgroundProcesses,
 } from "../lib/background-processes";
+import { writeChatFolder } from "../lib/chat-folders/write-chat-folder";
 import { openAsks } from "../lib/chat/asks";
 import * as children from "../lib/chat/children";
 import * as bashEnv from "../lib/create-bash-env";
@@ -1310,6 +1313,63 @@ describe("sessionMachine", () => {
         ),
       ).toEqual(["manual"]);
     });
+  });
+
+  // The chat's folder is written as each turn ends (`on-turn-end.ts`), from
+  // the records on disk, so the words a stopped reply had reached have to be
+  // written by then.
+  it("writes a stopped reply's words before its turn ends", async () => {
+    const stream = createManualModelStream();
+    const result = await createActorAndTask({
+      aiSDKModel: new MockLanguageModelV4({
+        doStream: () =>
+          Promise.resolve({
+            rawCall: { rawPrompt: null, rawSettings: {} },
+            stream: stream.stream,
+          }),
+      }),
+    });
+    const rootDir = MOCK_WORKSPACE_DIRS.root;
+    let transcript: Promise<string> | undefined;
+    const unsubscribe = publisher.subscribe("session.done", ({ id }) => {
+      transcript ??= writeChatFolder({
+        chatsDir: MOCK_WORKSPACE_DIRS.chats,
+        id,
+        machineDir: MOCK_WORKSPACE_DIRS.machine,
+        rootDir,
+        timeZone: "UTC",
+      }).then((written) => {
+        if (written.kind !== "written") {
+          throw new Error(`Expected a written folder, got ${written.kind}`);
+        }
+        return fs.readFile(
+          path.join(rootDir, CHATS_FOLDER_NAME, written.folder, CHAT_FILE_NAME),
+          "utf8",
+        );
+      });
+    });
+    result.actor.start();
+    stream.push({ id: "1", type: "text-start" });
+    stream.push({ delta: "Half of the answer", id: "1", type: "text-delta" });
+    // Held by the turn, which every read sees and nothing has written yet.
+    await vi.waitFor(async () => {
+      const messages = await ChatReads.transcript({
+        chatId: result.chatId,
+        sessionId: result.sessionId,
+      });
+      expect(
+        messages
+          ._unsafeUnwrap()
+          .flatMap((message) => message.parts)
+          .some((part) => part.type === "text" && part.text.length > 0),
+      ).toBe(true);
+    });
+
+    result.actor.send({ type: "stop" });
+    await waitFor(result.actor, (state) => state.status === "done");
+    unsubscribe();
+
+    await expect(transcript).resolves.toContain("Half of the answer");
   });
 
   it("should retry and fail on timeout", async () => {

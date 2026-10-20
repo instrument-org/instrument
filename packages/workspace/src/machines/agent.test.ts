@@ -518,10 +518,10 @@ describe("agentMachine", () => {
     const actor = createActor(
       agentMachine.provide({
         actors: {
-          // A stream that saves parts and never finishes, like a request the
-          // stop cuts off mid-stream: the parts are in the store but reach no
-          // context array, because the machine leaves LLMStreaming before the
-          // invoke's onDone runs.
+          // A stream that saves parts and never finishes, not even when the
+          // stop lets it go: the parts are in the store but reach no context
+          // array, because the machine stops waiting for it and leaves
+          // LLMStreaming before the invoke's onDone runs.
           llmRequestLogic: fromPromise(async () => {
             const savedResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: savedParts },

@@ -2335,9 +2335,18 @@ export function ComputerPage({
                   </div>
                 ),
               })}
-          menu={(drive) => placeMenu(drive)}
-          onOpen={(drive) => {
-            rootTo(drive);
+          clouds={places.data.volumes.filter(
+            (volume) => volume.kind === "cloud",
+          )}
+          // The system's own folders as it lists them, not the sidebar as
+          // the person has pinned it.
+          folders={places.data.pinned.filter(
+            (place) => place.kind === "home" || place.kind === "folder",
+          )}
+          home={homePath}
+          menu={(place) => placeMenu(place)}
+          onOpen={(place) => {
+            rootTo(place === homePath ? "~" : place);
           }}
           onOpenInNewTab={openPlaceInNewTab}
           refreshInterval={refreshInterval}

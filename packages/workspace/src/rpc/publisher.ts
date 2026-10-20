@@ -3,7 +3,6 @@ import { EventPublisher } from "@orpc/server";
 import { type AppEvent } from "../lib/apps/changed";
 import { type RecordChanged } from "../lib/record-changes";
 import { type WorkspaceSnapshot } from "../machines/workspace";
-import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type StopNotice } from "../schemas/stop-notice";
@@ -68,10 +67,6 @@ export const publisher = new EventPublisher<{
    * every listener re-reads the folder.
    */
   "memory.changed": null;
-  "part.updated": {
-    id: ChatId;
-    part: SessionMessagePart.Type;
-  };
   /**
    * Something about one record moved: its transcript, its sessions, its
    * settings or state, its agent, or the record itself is gone. Published

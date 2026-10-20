@@ -1,4 +1,6 @@
+import { openPlanSheet } from "@/client/atoms/plan-sheet";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { useStartTrial } from "@/client/components/billing/use-start-trial";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -21,10 +23,12 @@ import {
   rowsForConnection,
   rowsForSearch,
 } from "@/client/lib/model-picker-rows";
+import { useBillingStatus } from "@/client/hooks/use-billing-status";
+import { canStartTrial, hasNoPlan } from "@/client/lib/billing";
 import { type ModelAction, type ModelNotice } from "@/client/lib/model-status";
 import { cn } from "@/client/lib/utils";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
-import { type RPCOutput } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
@@ -39,6 +43,7 @@ import { InfoIcon } from "@phosphor-icons/react/Info";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   type PointerEvent,
@@ -520,6 +525,9 @@ function PickerPanel({
               </EmptyMessage>
             ) : (
               <>
+                {!searching && opened?.provider === OUR_MODELS.providerType && (
+                  <PlanNeeded />
+                )}
                 {/* Auto leads its connection's list, set apart from the
                     models under it rather than being the first of them. */}
                 {autoRow && rows.length === 1 ? (
@@ -972,6 +980,57 @@ function FailedConnection({
         </Button>
       </div>
     </EmptyMessage>
+  );
+}
+
+/**
+ * Over Instrument's models while the account has no plan for them (the free
+ * allowance covers search and suggestions alone): how to get them, the free
+ * trial first while it can start. Picking one stays possible; the chat says
+ * the same if a message is sent on it.
+ */
+function PlanNeeded() {
+  const { data: status, isSignedIn } = useBillingStatus();
+  const { data: offer } = useQuery({
+    ...rpcClient.billing.offer.queryOptions(),
+    enabled: isSignedIn,
+  });
+  const startTrial = useStartTrial();
+  if (!isSignedIn || !hasNoPlan(status)) {
+    return null;
+  }
+  const offerTrial = canStartTrial(status, offer);
+  return (
+    <div
+      className="mx-1 mb-2 flex items-center gap-3 rounded-xl bg-muted/60 px-3 py-2.5"
+      data-billing-picker="plan-needed"
+    >
+      <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+        {offerTrial
+          ? `Start your free trial to use ${APP_NAME}'s models.`
+          : `${APP_NAME}'s models need a plan.`}
+      </p>
+      {offerTrial && (
+        <Button
+          disabled={startTrial.isPending}
+          onClick={() => {
+            startTrial.mutate(undefined);
+          }}
+          size="sm"
+        >
+          Start free trial
+        </Button>
+      )}
+      <Button
+        onClick={() => {
+          openPlanSheet();
+        }}
+        size="sm"
+        variant={offerTrial ? "outline" : "default"}
+      >
+        Choose a plan
+      </Button>
+    </div>
   );
 }
 

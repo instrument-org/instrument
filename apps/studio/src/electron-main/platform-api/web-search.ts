@@ -1,6 +1,7 @@
 import { systemCountry } from "@/electron-main/lib/system-country";
 import { getToken } from "@/electron-main/platform-api/utils";
 import {
+  type PlatformSearchRefusal,
   type WebSearchClient,
   WebSearchResponseSchema,
 } from "@instrument-org/workspace/electron";
@@ -10,6 +11,16 @@ import { getPlatformApiHeaders } from "./headers";
 
 const ErrorResponseSchema = z.object({
   error: z.string(),
+});
+
+// What the platform refuses a search with when the account's plan does not
+// cover it: no plan, or the free allowance spent until `resetsAt`.
+const RefusalResponseSchema = z.object({
+  error: z.object({
+    code: z.enum(["subscription-required", "usage-limit-exceeded"]),
+    reason: z.string().optional(),
+    resetsAt: z.string().optional(),
+  }),
 });
 
 export const searchWeb: WebSearchClient = async ({ input, signal }) => {
@@ -50,17 +61,23 @@ export const searchWeb: WebSearchClient = async ({ input, signal }) => {
   const responseBody = await response.text();
   if (!response.ok) {
     let errorMessage = `Web search failed with status ${response.status}.`;
+    let refusal: PlatformSearchRefusal | undefined;
     try {
       const errorJson: unknown = JSON.parse(responseBody);
       const parsedError = ErrorResponseSchema.safeParse(errorJson);
       if (parsedError.success) {
         errorMessage = parsedError.data.error;
       }
+      const parsedRefusal = RefusalResponseSchema.safeParse(errorJson);
+      if (parsedRefusal.success) {
+        refusal = parsedRefusal.data.error;
+      }
     } catch {
       // Preserve the status-based message when the server did not return JSON.
     }
     return {
       errorMessage,
+      ...(refusal && { refusal }),
       errorType:
         response.status === 401
           ? "not-authenticated"

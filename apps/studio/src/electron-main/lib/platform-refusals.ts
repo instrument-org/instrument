@@ -1,6 +1,7 @@
 import { type PlatformRefusal } from "@instrument-org/ai-gateway";
 
 import { getToken } from "../platform-api/utils";
+import { noteHostedRefusal } from "./hosted-features";
 
 let last:
   | { refusal: PlatformRefusal; token: null | string | undefined }
@@ -13,6 +14,7 @@ let last:
  */
 export function recordPlatformRefusal(refusal: PlatformRefusal) {
   last = { refusal, token: getToken() };
+  noteHostedRefusal(refusal);
 }
 
 /** The last refusal, while the account it was made for is still signed in. */

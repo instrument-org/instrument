@@ -1,3 +1,7 @@
+import {
+  recordHostedFeatures,
+  setHostedFeaturesReader,
+} from "@/electron-main/lib/hosted-features";
 import { fetchNotices } from "@/electron-main/lib/notices";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
@@ -42,8 +46,9 @@ let lastTrouble: string | undefined;
  * bell's notices at once: the service sends the account notice for it, and
  * otherwise the bell would only hear at its next poll, hours away.
  */
-const status = authenticated.handler(async () => {
+async function readStatus() {
   const read = await platformApiRpcClient.billing.status.call();
+  recordHostedFeatures(read.features);
   const trouble = PAYMENT_FAILED_STATUSES.has(read.subscription?.status ?? "")
     ? "payment-failed"
     : !read.subscription && read.trial.state === "ended"
@@ -54,7 +59,11 @@ const status = authenticated.handler(async () => {
   }
   lastTrouble = trouble;
   return read;
-});
+}
+
+setHostedFeaturesReader(readStatus);
+
+const status = authenticated.handler(readStatus);
 
 /**
  * Stripe's hosted Checkout for one plan, in the system browser; with
@@ -99,12 +108,15 @@ const changePlan = authenticated
   });
 
 /**
- * Starts the free trial now, for onboarding to start it when the person
- * picks it; answers the billing status with the trial's end date.
+ * Starts the free trial, the only way it starts, when the person picks it
+ * (onboarding, the plan sheet, a refused chat); answers the billing status
+ * with the trial's end date.
  */
-const startTrial = authenticated.handler(() =>
-  platformApiRpcClient.billing.startTrial.call(),
-);
+const startTrial = authenticated.handler(async () => {
+  const started = await platformApiRpcClient.billing.startTrial.call();
+  recordHostedFeatures(started.features);
+  return started;
+});
 
 const lastRefusal = base.handler(() => lastPlatformRefusal() ?? null);
 

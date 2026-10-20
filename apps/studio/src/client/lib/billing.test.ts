@@ -4,8 +4,12 @@ import { describe, expect, it } from "vitest";
 import {
   accountNotice,
   allowanceLabel,
+  canStartTrial,
   checkoutTrialLine,
   describeWhen,
+  featurePause,
+  freeAllowancePause,
+  hasNoPlan,
   isAccessRevoked,
   isTrialHeldBack,
   noticeCopy,
@@ -76,6 +80,34 @@ const noPlan: Status = {
   trial: { state: "ended" },
   windows: [],
 };
+const RESET = new Date(2026, 10, 4, 9, 0);
+const onFree = (paused = false): Status => ({
+  canSubscribe: true,
+  features: {
+    decisions: paused
+      ? {
+          available: false,
+          code: "usage-limit-exceeded",
+          resetsAt: RESET.toISOString(),
+        }
+      : { available: true },
+    models: {
+      available: false,
+      code: "subscription-required",
+      reason: "trial-available",
+    },
+    search: paused
+      ? {
+          available: false,
+          code: "usage-limit-exceeded",
+          resetsAt: RESET.toISOString(),
+        }
+      : { available: true },
+  },
+  plan: "free",
+  trial: { state: "available" },
+  windows: [{ key: "free", percentUsed: paused ? 100 : 5 }],
+});
 const onPlan = (
   plan: string,
   overrides: Partial<NonNullable<Status["subscription"]>> = {},
@@ -334,6 +366,16 @@ describe("accountNotice", () => {
       status: onPlan("none", { plan: "basic", status: "past_due" }),
     },
     { expected: undefined, name: "a plan with room", status: onPlan("basic") },
+    {
+      expected: "plan-required",
+      name: "the free allowance before the trial",
+      status: onFree(),
+    },
+    {
+      expected: "trial-ended",
+      name: "the free allowance after the trial",
+      status: { ...onFree(), trial: { state: "ended" } },
+    },
     {
       expected: "plan-limit",
       name: "a spent window",
@@ -619,6 +661,115 @@ describe("subscriptionPhaseLine", () => {
   ])("$phase.key", ({ expected, phase }) => {
     expect(subscriptionPhaseLine(subscribed(phase), "$10 a month", NOW)).toBe(
       expected,
+    );
+  });
+});
+
+describe("the free allowance", () => {
+  it("has no plan for Instrument's models", () => {
+    expect(hasNoPlan(onFree())).toBe(true);
+    expect(hasNoPlan(noPlan)).toBe(true);
+    expect(hasNoPlan(trialActive)).toBe(false);
+    expect(accountNotice(onFree(), offer)).toEqual({
+      kind: "plan-required",
+      reason: "trial-available",
+    });
+  });
+
+  it.each([
+    { expected: undefined, feature: "decisions", status: onFree() },
+    {
+      expected: { code: "usage-limit-exceeded", resetsAt: RESET },
+      feature: "search",
+      status: onFree(true),
+    },
+    {
+      expected: { code: "subscription-required", reason: "trial-available" },
+      feature: "models",
+      status: onFree(),
+    },
+    // A platform that predates the block leaves every feature to try.
+    { expected: undefined, feature: "decisions", status: noPlan },
+    // Dictation is not reported yet.
+    { expected: undefined, feature: "dictation", status: onFree(true) },
+  ] as const)(
+    "pauses $feature as $expected",
+    ({ expected, feature, status }) => {
+      expect(featurePause(status, feature, NOW)).toEqual(
+        expected && expect.objectContaining(expected),
+      );
+    },
+  );
+
+  it("ends a pause once its reset passes, before the next read", () => {
+    expect(
+      featurePause(onFree(true), "search", new Date(RESET.getTime() + 1)),
+    ).toBeUndefined();
+  });
+
+  it("says when free decisions and search come back, only on the free allowance", () => {
+    expect(freeAllowancePause(onFree(true), NOW)).toEqual({ resetsAt: RESET });
+    expect(freeAllowancePause(onFree(), NOW)).toBeUndefined();
+    expect(
+      freeAllowancePause({ ...onFree(true), plan: "basic" }, NOW),
+    ).toBeUndefined();
+  });
+
+  it.each([
+    { expected: true, name: "never trialed", offer, status: onFree() },
+    {
+      expected: false,
+      name: "trial used",
+      offer: { ...offer, trial: { ...offer.trial, available: false } },
+      status: { ...onFree(), trial: { state: "ended" } },
+    },
+    {
+      expected: false,
+      name: "card trial",
+      offer: { ...offer, trial: { ...offer.trial, cardRequired: true } },
+      status: onFree(),
+    },
+    {
+      expected: false,
+      name: "trials held back",
+      offer: { ...offer, trial: null },
+      status: onFree(),
+    },
+    { expected: false, name: "on the trial", offer, status: trialActive },
+  ] as const)("starts a trial in the app when $name: $expected", (input) => {
+    expect(canStartTrial(input.status, input.offer)).toBe(input.expected);
+  });
+
+  it("offers the trial on a trial-available refusal, then Continue once it runs", () => {
+    const refusal = {
+      code: "subscription-required",
+      reason: "trial-available",
+    };
+    const refused = refusalNotice({
+      now: NOW,
+      offer,
+      refusal,
+      refusedAt: NOW,
+      status: onFree(),
+      statusReadAt: LATER,
+    });
+    expect(refused && noticeCopy(refused, NOW)).toEqual({
+      action: { kind: "start-trial", label: "Start free trial" },
+      secondary: { kind: "choose-plan", label: "Choose a plan" },
+      title: "Start your free trial to use Instrument's models.",
+    });
+    expect(
+      refusalNotice({
+        now: NOW,
+        offer,
+        refusal,
+        refusedAt: NOW,
+        status: trialActive,
+        statusReadAt: LATER,
+      }),
+    ).toEqual({ after: "trial-started", kind: "resumed", subscribed: false });
+    expect(stopLineText(refusal)).toBe(
+      "Stopped: start your free trial to keep going.",
     );
   });
 });

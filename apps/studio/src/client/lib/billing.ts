@@ -165,9 +165,18 @@ export function subscribedPlan(
   return offer?.plans.find((plan) => plan.key === key);
 }
 
+/**
+ * Whether the account has no plan for Instrument's models: none at all
+ * (`none`, refused outright), or the free allowance (`free`), which covers
+ * decisions and web search alone.
+ */
+export function hasNoPlan(status: Status | undefined) {
+  return status?.plan === "none" || status?.plan === "free";
+}
+
 /** Whether the next hosted request would be let through, by what status says. */
 function canUseHostedModels(status: Status) {
-  if (status.plan === "none" || hasPaymentFailed(status)) {
+  if (hasNoPlan(status) || hasPaymentFailed(status)) {
     return false;
   }
   if (status.plan === "trial") {
@@ -374,7 +383,7 @@ export type BillingNotice =
     }
   | {
       /** What the refusal was about, when it was not a missing plan. */
-      after?: "access-revoked" | "payment-failed";
+      after?: "access-revoked" | "payment-failed" | "trial-started";
       kind: "resumed";
       subscribed: boolean;
     }
@@ -414,6 +423,14 @@ export function refusalNotice({
           kind: "resumed",
           subscribed: true,
         };
+      }
+      // The trial the refusal offered has started since.
+      if (
+        refusal.reason === "trial-available" &&
+        current?.plan === "trial" &&
+        canUseHostedModels(current)
+      ) {
+        return { after: "trial-started", kind: "resumed", subscribed: false };
       }
       if (refusal.reason === "access-revoked") {
         return { kind: "access-revoked" };
@@ -461,8 +478,8 @@ export function refusalNotice({
  * The notice a chat on Instrument's models shows before any turn of its is
  * refused, when the account as last read says the next one would be: access
  * revoked, a failed payment, a trial over with no plan, or a usage window
- * spent. A trial not yet started is none of these, since it starts with the
- * first message.
+ * spent, or the free allowance, which leaves Instrument's models to a plan
+ * or a trial the person starts.
  */
 export function accountNotice(
   status: Status | undefined,
@@ -478,11 +495,18 @@ export function accountNotice(
     return { kind: "payment-failed" };
   }
   if (
-    (status.plan === "none" || status.plan === "trial") &&
+    (hasNoPlan(status) || status.plan === "trial") &&
     !status.subscription &&
     status.trial.state === "ended"
   ) {
     return { kind: "trial-ended" };
+  }
+  const models = status.features?.models;
+  if (status.plan === "free" && models && !models.available) {
+    return {
+      kind: "plan-required",
+      ...(models.reason && { reason: models.reason }),
+    };
   }
   if (!canUseHostedModels(status)) {
     return undefined;
@@ -509,11 +533,12 @@ export function accountNotice(
   };
 }
 
-/** What a notice's one button does. */
+/** What a notice's buttons do. */
 export type BillingNoticeAction =
   | "choose-plan"
   | "contact-support"
   | "continue"
+  | "start-trial"
   | "update-card"
   | "upgrade";
 
@@ -522,6 +547,8 @@ export function noticeCopy(
   now: Date,
 ): {
   action?: { kind: BillingNoticeAction; label: string };
+  /** A second way forward beside the first, quieter. */
+  secondary?: { kind: BillingNoticeAction; label: string };
   line?: string;
   title: string;
 } {
@@ -554,6 +581,13 @@ export function noticeCopy(
       };
     }
     case "plan-required": {
+      if (notice.reason === "trial-available") {
+        return {
+          action: { kind: "start-trial", label: "Start free trial" },
+          secondary: choosePlan,
+          title: `Start your free trial to use ${APP_NAME}'s models.`,
+        };
+      }
       if (isTrialHeldBackReason(notice.reason)) {
         return {
           action: choosePlan,
@@ -576,11 +610,13 @@ export function noticeCopy(
         title:
           notice.after === "payment-failed"
             ? "Your payment went through."
-            : notice.after === "access-revoked"
-              ? `${APP_NAME} is available again.`
-              : notice.subscribed
-                ? "You're subscribed."
-                : "Your usage limit has reset.",
+            : notice.after === "trial-started"
+              ? "Your free trial has started."
+              : notice.after === "access-revoked"
+                ? `${APP_NAME} is available again.`
+                : notice.subscribed
+                  ? "You're subscribed."
+                  : "Your usage limit has reset.",
       };
     }
     case "trial-ended": {
@@ -617,6 +653,9 @@ export function stopLineText(refusal: BillingRefusal) {
         }
         case "payment-failed": {
           return "Stopped: your payment didn't go through.";
+        }
+        case "trial-available": {
+          return "Stopped: start your free trial to keep going.";
         }
         case "trial-capacity":
         case "trial-paused": {
@@ -716,4 +755,71 @@ export function usageWarningText(warning: UsageWarning, now: Date) {
     ? ` It resets ${describeWhen(warning.resetsAt, now)}.`
     : "";
   return `You've used ${warning.percent}% of your plan for ${period}.${resets}`;
+}
+
+/** A hosted feature `billing.status` reports on. */
+export type HostedFeature = keyof NonNullable<Status["features"]>;
+
+/**
+ * Why a hosted feature is refused now, when the status says it is: the
+ * refusal code, what unlocks it, and when a spent allowance comes back.
+ * Undefined while it runs, and for a platform that does not report it (no
+ * `features` yet, or no `dictation` entry), which leaves the feature to try.
+ * A pause whose reset has passed counts as over before the next read.
+ */
+export function featurePause(
+  status: Status | undefined,
+  feature: HostedFeature,
+  now: Date,
+) {
+  const availability = status?.features?.[feature];
+  if (!availability || availability.available) {
+    return undefined;
+  }
+  const resetsAt = availability.resetsAt
+    ? new Date(availability.resetsAt)
+    : undefined;
+  if (resetsAt && resetsAt.getTime() <= now.getTime()) {
+    return undefined;
+  }
+  return {
+    code: availability.code,
+    reason: availability.reason,
+    ...(resetsAt && { resetsAt }),
+  };
+}
+
+/**
+ * The free allowance's decisions and search spent until a reset: when they
+ * come back. Only for an account on the free allowance; a plan's own limits
+ * are the usage notices'.
+ */
+export function freeAllowancePause(status: Status | undefined, now: Date) {
+  if (status?.plan !== "free") {
+    return undefined;
+  }
+  const paused = [
+    featurePause(status, "search", now),
+    featurePause(status, "decisions", now),
+  ].find((pause) => pause?.code === "usage-limit-exceeded");
+  return paused && { resetsAt: paused.resetsAt };
+}
+
+/**
+ * Whether this account can start its no-card trial in the app now: it has
+ * never had one or a subscription, trials are open, and the offer's trial
+ * starts here rather than through Checkout.
+ */
+export function canStartTrial(
+  status: Status | undefined,
+  offer: Offer | undefined,
+) {
+  return (
+    status !== undefined &&
+    status.plan !== "trial" &&
+    status.trial.state === "available" &&
+    !status.subscription &&
+    offer?.trial?.available === true &&
+    !offer.trial.cardRequired
+  );
 }

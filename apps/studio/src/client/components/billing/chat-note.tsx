@@ -3,9 +3,13 @@ import { openSettings } from "@/client/atoms/settings-modal";
 import { ReplyNote, ReplyNoteButton } from "@/client/components/reply-note";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
+import { useStartTrial } from "@/client/components/billing/use-start-trial";
 import {
   accountNotice,
   type BillingNotice,
+  canStartTrial,
+  describeDate,
+  featurePause,
   type BillingNoticeAction,
   noticeCopy,
   refusalNotice,
@@ -24,10 +28,11 @@ import {
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { OUR_MODELS, SUPPORT_URL } from "@instrument-org/shared";
+import { APP_NAME, OUR_MODELS, SUPPORT_URL } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { GaugeIcon } from "@phosphor-icons/react/Gauge";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
@@ -113,6 +118,7 @@ export function useChatNote({
       },
     }),
   );
+  const startTrial = useStartTrial();
   const [dismissed, setDismissed] = useState<null | string>(null);
   const [dismissedWarning, setDismissedWarning] = useAtom(
     dismissedUsageWarningAtom,
@@ -205,6 +211,10 @@ export function useChatNote({
         onContinue?.();
         break;
       }
+      case "start-trial": {
+        startTrial.mutate(undefined);
+        break;
+      }
       case "update-card": {
         portal.mutate(undefined);
         break;
@@ -230,7 +240,7 @@ export function useChatNote({
         render: (context) => (
           <BillingNote
             context={context}
-            isBusy={portal.isPending}
+            isBusy={portal.isPending || startTrial.isPending}
             notice={billing}
             now={now}
             onAct={(kind) => {
@@ -278,6 +288,52 @@ export function useChatNote({
         ),
       };
     }
+  }
+
+  // A search our endpoint refused while the free allowance is spent ran on a
+  // basic search instead; the chat says so quietly, until the reset.
+  const searchPause = isSignedIn
+    ? lastSearchPause(messages, status, now)
+    : undefined;
+  if (searchPause && dismissed !== searchPause.key) {
+    const offerTrial = canStartTrial(status, offer);
+    return {
+      holdsSend: false,
+      rank: "quiet",
+      render: () => (
+        <ReplyNote
+          action={
+            <>
+              {offerTrial && (
+                <ReplyNoteButton
+                  disabled={startTrial.isPending}
+                  onClick={() => {
+                    startTrial.mutate(undefined);
+                  }}
+                >
+                  Start free trial
+                </ReplyNoteButton>
+              )}
+              <ReplyNoteButton
+                onClick={() => {
+                  openPlanSheet();
+                }}
+              >
+                Choose a plan
+              </ReplyNoteButton>
+            </>
+          }
+          data-billing-search-paused=""
+          icon={MagnifyingGlassIcon}
+          onDismiss={() => {
+            setDismissed(searchPause.key);
+          }}
+          tone="neutral"
+        >
+          {searchPauseText(searchPause.resetsAt, now)}
+        </ReplyNote>
+      ),
+    };
   }
 
   const warning = isOurs
@@ -340,7 +396,7 @@ function BillingNote({
 }) {
   const copy = noticeCopy(notice, now);
   const isReady = notice.kind === "resumed";
-  const { action } = copy;
+  const { action, secondary } = copy;
   return (
     <ReplyNote
       action={
@@ -351,6 +407,7 @@ function BillingNote({
               emphasis={
                 action.kind === "continue" ||
                 action.kind === "choose-plan" ||
+                action.kind === "start-trial" ||
                 action.kind === "update-card"
               }
               onClick={() => {
@@ -358,6 +415,15 @@ function BillingNote({
               }}
             >
               {action.label}
+            </ReplyNoteButton>
+          )}
+          {secondary && (
+            <ReplyNoteButton
+              onClick={() => {
+                onAct(secondary.kind);
+              }}
+            >
+              {secondary.label}
             </ReplyNoteButton>
           )}
           {!isReady && (
@@ -451,4 +517,51 @@ function PlanAccountNote({
       <span className="font-medium">{text}</span>
     </ReplyNote>
   );
+}
+
+/**
+ * The pause behind the conversation's last turn's web search, when our
+ * endpoint refused it for the spent free allowance and the status still says
+ * search is paused (or has not said, and the refusal's reset is ahead).
+ * `key` names the pause, so dismissing it holds until the next one.
+ */
+export function lastSearchPause(
+  messages: SessionMessage.WithParts[],
+  status: Parameters<typeof featurePause>[0],
+  now: Date,
+) {
+  const last = messages.findLast((message) => message.role === "assistant");
+  const refusal = last?.parts
+    .map((part) =>
+      part.type === "tool-web_search" &&
+      part.state === "output-available" &&
+      part.output.state === "success"
+        ? part.output.platformRefusal
+        : undefined,
+    )
+    .findLast((found) => found?.code === "usage-limit-exceeded");
+  if (!refusal) {
+    return undefined;
+  }
+  const refusedUntil = refusal.resetsAt
+    ? new Date(refusal.resetsAt)
+    : undefined;
+  const pause = status?.features
+    ? featurePause(status, "search", now)
+    : refusedUntil && refusedUntil > now
+      ? { resetsAt: refusedUntil }
+      : undefined;
+  if (!pause) {
+    return undefined;
+  }
+  return {
+    key: `search-paused:${pause.resetsAt?.toISOString() ?? ""}`,
+    resetsAt: pause.resetsAt,
+  };
+}
+
+function searchPauseText(resetsAt: Date | undefined, now: Date) {
+  return resetsAt
+    ? `${APP_NAME}'s advanced web search is paused until ${describeDate(resetsAt, now)}.`
+    : `${APP_NAME}'s advanced web search is paused for now.`;
 }

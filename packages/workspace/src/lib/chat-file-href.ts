@@ -1,12 +1,16 @@
-import { isDriveHref, normalizeChatFilePath } from "./normalize-chat-file-path";
+import {
+  isWindowsPathHref,
+  normalizeChatFilePath,
+} from "./normalize-chat-file-path";
 
 // A schemeless, non-anchor href is a candidate chat-file reference (e.g. the
 // agent's `[Download](work/report.xml)`). Real URLs carry a scheme
 // (`https:`, `mailto:`, `data:`) or are protocol-relative (`//host`); those go
 // to ExternalLink instead. A Windows drive path (`C:/Users/sam/a.txt`) is a
-// file whatever its `C:` looks like.
+// file whatever its `C:` looks like, and so is a path on a network share
+// (`\\server\share\a.txt`).
 export const isChatFileHref = (href: string): boolean =>
-  isDriveHref(href) ||
+  isWindowsPathHref(href) ||
   (!href.startsWith("#") &&
     !href.startsWith("//") &&
     !/^[a-z][a-z0-9+.-]*:/i.test(href));

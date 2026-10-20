@@ -50,6 +50,7 @@ export { stateNotes } from "./lib/state-notes";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";
 export { isChatFileHref, chatFilePathFromHref } from "./lib/chat-file-href";
+export { isDriveHref } from "./lib/normalize-chat-file-path";
 export {
   isAddressableChatFilePath,
   isFolderPath,

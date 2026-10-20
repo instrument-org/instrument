@@ -358,10 +358,10 @@ export namespace SessionMessageDataPart {
   >;
 
   /**
-   * The skills and apps that changed since this session last heard, by
+   * The workspace's skills that changed since this session last heard, by
    * anyone: another chat, the person, a program. Carried on the user's
-   * message so the agent works from what is there now: its skill catalog and
-   * app list were written when the session began. A change the session's own
+   * message so the agent works from what is there now: its skill catalog was
+   * written when the session began. Apps have their own (`data-appEvent`). A change the session's own
    * turn made is not repeated here; `setupChanges` told it already.
    */
   export const SetupNewsDataPartSchema = z.object({
@@ -371,7 +371,7 @@ export namespace SessionMessageDataPart {
           // A removal is not news: calling for what is gone comes back not
           // found, beside what there is.
           change: z.enum(["added", "changed"]),
-          kind: z.enum(["app", "skill"]),
+          kind: z.enum(["skill"]),
           name: z.string(),
         }),
       )
@@ -617,6 +617,8 @@ export namespace SessionMessageDataPart {
           /** A line of detail: how many tools, what went wrong. */
           detail: z.string().optional(),
           event: z.enum([
+            "added",
+            "changed",
             "connected",
             "declined",
             "disconnected",

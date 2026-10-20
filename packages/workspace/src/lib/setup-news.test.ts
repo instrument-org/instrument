@@ -125,9 +125,9 @@ describe("createSetupNewsPart", () => {
     // Memories have news of their own.
     await write(path.join(MEMORY_FOLDER_NAME, "mornings.md"));
 
+    // Apps and memories have news of their own.
     await expect(next()).resolves.toEqual({
       changes: [
-        { change: "added", kind: "app", name: "Linear" },
         { change: "changed", kind: "skill", name: "tidy" },
       ],
     });

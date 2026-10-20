@@ -11,12 +11,13 @@ import { type SetupSnapshot, snapshotSetup } from "./setup-snapshot";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
- * The kinds the agent is told about here. Memories and topics have notes of
- * their own (`create-memory-part.ts`, the topic's standing part).
+ * The kinds the agent is told about here. Memories, topics and apps have
+ * notes of their own (`create-memory-part.ts`, the topic's standing part,
+ * `chat-app-changes.ts`).
  */
-const NEWS_KINDS = new Set(["app", "skill"]);
+const NEWS_KINDS = new Set(["skill"]);
 
-/** Each skill and app the session has heard of, `kind:name`, with its fingerprint. */
+/** Each skill the session has heard of, `kind:name`, with its fingerprint. */
 const ToldSchema = z.record(z.string(), z.string());
 
 type Told = z.output<typeof ToldSchema>;
@@ -30,10 +31,9 @@ function toldOf(snapshot: SetupSnapshot): Told {
 }
 
 /**
- * The skills and apps that changed since this session last heard, on the
- * chat's user message: what another chat, the person or a program did,
- * which the session's skill catalog and app list (written when it began)
- * do not show. A session's first message only records what there is, since
+ * The skills that changed since this session last heard, on the chat's
+ * user message: what another chat, the person or a program did, which the
+ * session's skill catalog (written when it began) does not show. A session's first message only records what there is, since
  * its context lists it whole.
  */
 export async function createSetupNewsPart({
@@ -128,7 +128,7 @@ function changesBetween(
   for (const key of new Set([...Object.keys(told), ...Object.keys(now)])) {
     const [kind, ...rest] = key.split(":");
     const name = rest.join(":");
-    if (kind !== "app" && kind !== "skill") {
+    if (kind !== "skill") {
       continue;
     }
     // What is gone is left out (`SetupNewsDataPartSchema`).

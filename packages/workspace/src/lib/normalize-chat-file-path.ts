@@ -8,7 +8,7 @@ const SHARE_PATH = /^\\\\[^\\/]/;
  * The one spelling a file reference from a reply is read in.
  *
  * Tool outputs (e.g. generate_image) keep the agent-facing "./"-prefixed
- * convention from fixRelativePath; chat file index paths are bare. Strip
+ * convention; chat file index paths are bare. Strip
  * the prefix when building URLs or resolving a path from either source.
  *
  * A Windows drive path (`C:\Users\sam\a.txt`, `C:/Users/sam/a.txt`) is how a

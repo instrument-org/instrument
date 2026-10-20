@@ -119,17 +119,3 @@ export function shellSpelledSlashedPaths(
       `/${drive.toLowerCase()}${rest}`.replace(/(.)\/$/, "$1"),
   );
 }
-
-export function shouldFilterDebuggerMessage(message: string): boolean {
-  return (
-    shouldFilter() &&
-    (message.includes("Debugger attached.") ||
-      message.includes("Waiting for the debugger to disconnect..."))
-  );
-}
-
-function shouldFilter() {
-  return (
-    process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test"
-  );
-}

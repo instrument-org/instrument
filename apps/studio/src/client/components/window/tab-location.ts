@@ -182,26 +182,6 @@ export function tasksOfHref(
   return tasks;
 }
 
-/**
- * The memory an address names, by its name. Nothing for any other address,
- * and nothing for the memories as a whole, which have no address: the
- * Settings tab is where they are, and a tab is not a place a link goes.
- */
-export function memoryOfHref(href: string): string | undefined {
-  const screen = matchScreen(href);
-  return screen.kind === "memory" ? screen.name : undefined;
-}
-
-/**
- * The skill an address names, by the name a task loads it by. Nothing for
- * any other address, and nothing for the skills as a whole: the Settings tab
- * is where they are, the way it is for the memories.
- */
-export function skillOfHref(href: string): string | undefined {
-  const screen = matchScreen(href);
-  return screen.kind === "skill" ? screen.name : undefined;
-}
-
 /** A name that is a whole volume on Windows, which is where a path there starts. */
 function isDrive(name: string) {
   return /^[a-z]:$/i.test(name);

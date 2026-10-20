@@ -39,19 +39,6 @@ export {
 } from "./seatbelt";
 
 /**
- * Whether native commands run under a system sandbox here, or would once a
- * probe that gave no answer gets one; false only where the system said none
- * can be made.
- */
-export function nativeSandboxEnforced(): boolean {
-  return (
-    seatbeltState() !== "unavailable" ||
-    bwrapState() !== "unavailable" ||
-    mxcState() !== "unavailable"
-  );
-}
-
-/**
  * Why no system sandbox holds native commands here, by what the system
  * itself shows: no `sandbox-exec` on a Mac, no bubblewrap or user namespaces
  * closed on Linux, a probe that failed for a reason the settings do not

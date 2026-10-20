@@ -1301,7 +1301,9 @@ done`,
           type: "data-modelChange",
         },
         {
-          data: { changes: [{ change: "added", kind: "skill", name: "wireframe" }] },
+          data: {
+            changes: [{ change: "added", kind: "skill", name: "wireframe" }],
+          },
           type: "data-setupChanges",
         },
       ),

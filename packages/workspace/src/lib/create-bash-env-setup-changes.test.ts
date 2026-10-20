@@ -9,10 +9,7 @@ import { ChatDirSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
-import {
-  beginSetupChangeTracking,
-  consumeSetupChanges,
-} from "./setup-changes";
+import { beginSetupChangeTracking, consumeSetupChanges } from "./setup-changes";
 import { withTurnContext } from "./turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 

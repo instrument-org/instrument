@@ -360,6 +360,139 @@ describe("webSearch", () => {
     });
   });
 
+  // A model on the person's own provider searches through our endpoint while
+  // the host says the platform offers it (signed in, the switch on, search
+  // available), and through its provider otherwise.
+  describe("routing a search by provider and the platform's offer", () => {
+    const platformResults = { data: { results: [] }, ok: true as const };
+
+    function setUp(
+      provider: "instrument" | "openrouter",
+      offered: boolean | undefined,
+      platformSearch: WebSearchClient = () => Promise.resolve(platformResults),
+    ) {
+      const model = createMockAIGatewayModel({ provider });
+      const searchWeb = vi.fn<WebSearchClient>(platformSearch);
+      const providerSearch = new MockLanguageModelV4({
+        doStream: () =>
+          Promise.resolve({
+            stream: simulateReadableStream({
+              chunks: [...textDelta("What the provider found."), finishPart],
+            }),
+          }),
+      });
+      createMockChatConfig(ChatIdSchema.parse("2026-10-20-web-search-route"), {
+        ...(offered !== undefined && {
+          isPlatformSearchForEveryModel: () => offered,
+        }),
+        model,
+        webSearch: searchWeb,
+        webSearchModel: { model: providerSearch },
+      });
+      return { model, providerSearch, searchWeb };
+    }
+
+    it.each([
+      { offered: true, provider: "instrument", served: "excerpts" },
+      { offered: false, provider: "instrument", served: "excerpts" },
+      { offered: undefined, provider: "instrument", served: "excerpts" },
+      { offered: true, provider: "openrouter", served: "excerpts" },
+      { offered: false, provider: "openrouter", served: "summary" },
+      { offered: undefined, provider: "openrouter", served: "summary" },
+    ] as const)(
+      "a $provider model with the offer $offered gets $served",
+      async ({ offered, provider, served }) => {
+        const { model, providerSearch, searchWeb } = setUp(provider, offered);
+
+        const last = (await collect(model)).at(-1)?._unsafeUnwrap();
+
+        expect(last?.kind).toBe(served);
+        expect(searchWeb).toHaveBeenCalledTimes(served === "excerpts" ? 1 : 0);
+        expect(providerSearch.doStreamCalls).toHaveLength(
+          served === "summary" ? 1 : 0,
+        );
+      },
+    );
+
+    it.each([
+      {
+        failure: {
+          errorMessage: "Web search failed with status 429.",
+          errorType: "request-failed",
+          ok: false,
+          refusal: {
+            code: "usage-limit-exceeded",
+            resetsAt: "2026-11-19T00:00:00.000Z",
+          },
+        },
+        platformCalls: 1,
+        situation: "the free allowance is spent",
+      },
+      {
+        failure: {
+          errorMessage: "Web search failed with status 402.",
+          errorType: "payment-required",
+          ok: false,
+          refusal: { code: "subscription-required", reason: "no-plan" },
+        },
+        platformCalls: 1,
+        situation: "the plan leaves search out",
+      },
+      {
+        failure: {
+          errorMessage: "Sign in to Instrument to search the web.",
+          errorType: "not-authenticated",
+          ok: false,
+        },
+        platformCalls: 1,
+        situation: "the person signed out",
+      },
+      { failure: unavailable, platformCalls: 2, situation: "it is down" },
+    ] satisfies {
+      failure: Awaited<ReturnType<WebSearchClient>>;
+      platformCalls: number;
+      situation: string;
+    }[])(
+      "falls back to the provider's search for a model of the person's own when $situation",
+      async ({ failure, platformCalls }) => {
+        const { model, searchWeb } = setUp("openrouter", true, () =>
+          Promise.resolve(failure),
+        );
+
+        const last = (await collect(model)).at(-1)?._unsafeUnwrap();
+
+        expect(searchWeb).toHaveBeenCalledTimes(platformCalls);
+        expect(last).toMatchObject({
+          kind: "summary",
+          text: "What the provider found.",
+        });
+        expect(last?.platformRefusal).toEqual(
+          "refusal" in failure ? failure.refusal : undefined,
+        );
+      },
+    );
+
+    it("asks our endpoint once when a model of the person's own has no search of its own", async () => {
+      const model = createMockAIGatewayModel({ provider: "openai-compatible" });
+      const searchWeb = vi.fn<WebSearchClient>(() =>
+        Promise.resolve(unavailable),
+      );
+      createMockChatConfig(
+        ChatIdSchema.parse("2026-10-20-web-search-route-no-backend"),
+        {
+          isPlatformSearchForEveryModel: () => true,
+          model,
+          webSearch: searchWeb,
+        },
+      );
+
+      const last = (await collect(model)).at(-1);
+
+      expect(searchWeb).toHaveBeenCalledTimes(2);
+      expect(last?._unsafeUnwrapErr().errorType).toBe("api-call");
+    });
+  });
+
   describe("a model whose provider cannot search", () => {
     const signedOut: WebSearchClient = () =>
       Promise.resolve({

@@ -21,15 +21,43 @@ export interface PathMove {
 }
 
 /**
- * A rewrite the caller brings, for a path the app keeps somewhere this does
- * not open: where the person left off in a window, and the files they opened
- * lately. Handed the moves and where a path is after them, it answers what it
- * did in the same words as the rest, and reports rather than throws.
+ * A rewrite for a store the app keeps that this package does not open: where
+ * the person left off in a window, and the files they opened lately. Handed
+ * the workspace's machine folder, the moves and where a path is after them,
+ * it answers what it did in the same words as the rest, and reports rather
+ * than throws.
  */
 export type StoredPathRewrite = (moved: {
+  machineDir: string;
   moves: readonly PathMove[];
   where: (hostPath: string) => string;
 }) => string[];
+
+/**
+ * Every store registered with `registerStoredPaths`, by name, so one
+ * registered again replaces itself rather than running twice.
+ */
+const registered = new Map<string, StoredPathRewrite>();
+
+/**
+ * Adds a store whose paths every `rewriteStoredPaths` writes where they went,
+ * whichever migration or move calls it. The app registers its stores once,
+ * before anything that moves a folder runs, so no caller has to remember
+ * them. Outside the app (this package's own tests, a script) none is
+ * registered, and only the stores this package opens are rewritten. Answers
+ * a function that takes the store out again.
+ */
+export function registerStoredPaths(
+  name: string,
+  rewrite: StoredPathRewrite,
+): () => void {
+  registered.set(name, rewrite);
+  return () => {
+    if (registered.get(name) === rewrite) {
+      registered.delete(name);
+    }
+  };
+}
 
 /**
  * How many moves one path is followed through: a folder moved twice (a
@@ -50,9 +78,9 @@ const MAX_MOVES_FOLLOWED = 4;
  *   and files opened to one chat, the folders they said not now to, and the
  *   folders granted under each topic.
  * - A file or folder attached to a draft, in its `DRAFT.md`.
- * - Whatever the caller brings in `also`, for what it keeps in a store this
- *   does not open: the Files tabs a window is left on, and the person's
- *   recent files.
+ * - Every store registered with `registerStoredPaths`, which the app keeps
+ *   and this does not open: the Files tabs a window is left on, and the
+ *   person's recent files.
  *
  * Safe to run again, and safe to run with moves an earlier launch already
  * wrote: a path is rewritten only when what it names is gone and the place
@@ -61,12 +89,10 @@ const MAX_MOVES_FOLLOWED = 4;
  * here throws.
  */
 export function rewriteStoredPaths({
-  also = [],
   machineDir,
   moves,
   rootDir,
 }: {
-  also?: readonly StoredPathRewrite[];
   machineDir: string;
   moves: readonly PathMove[];
   rootDir: string;
@@ -80,11 +106,11 @@ export function rewriteStoredPaths({
   for (const entry of readDrafts(rootDir)) {
     rewriteDraftAttachments({ done, entry, where });
   }
-  for (const rewrite of also) {
+  for (const [name, rewrite] of registered) {
     try {
-      done.push(...rewrite({ moves, where }));
+      done.push(...rewrite({ machineDir, moves, where }));
     } catch (error) {
-      done.push(`left one of the app's own stores as it is (${String(error)})`);
+      done.push(`left the app's ${name} store as it is (${String(error)})`);
     }
   }
   return done;
@@ -100,11 +126,9 @@ export function rewriteStoredPaths({
  * finds no record does nothing.
  */
 export function settleMovedPaths({
-  also,
   machineDir,
   rootDir,
 }: {
-  also?: readonly StoredPathRewrite[];
   machineDir: string;
   rootDir: string;
 }): string[] {
@@ -125,7 +149,7 @@ export function settleMovedPaths({
           : [],
       )
     : [];
-  const done = rewriteStoredPaths({ also, machineDir, moves, rootDir });
+  const done = rewriteStoredPaths({ machineDir, moves, rootDir });
   fs.rmSync(file, { force: true });
   return [...done, `took in and removed ${file}`];
 }

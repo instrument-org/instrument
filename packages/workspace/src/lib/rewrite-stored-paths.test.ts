@@ -1,9 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import { withTempDir } from "../test/helpers/temp-dir";
-import { rewriteStoredPaths, settleMovedPaths } from "./rewrite-stored-paths";
+import {
+  registerStoredPaths,
+  rewriteStoredPaths,
+  settleMovedPaths,
+  type StoredPathRewrite,
+} from "./rewrite-stored-paths";
 
 const workspace = withTempDir("rewrite-stored-paths-workspace");
 const machine = withTempDir("rewrite-stored-paths-machine");
@@ -263,46 +268,56 @@ describe("a draft's attachments", () => {
   });
 });
 
-describe("what the caller brings", () => {
-  it("hands each one where a path is now, and keeps what it says", () => {
+describe("the stores the app registers", () => {
+  function register(name: string, store: StoredPathRewrite) {
+    onTestFinished(registerStoredPaths(name, store));
+  }
+
+  it("runs every one on a call that passes nothing for them, with the machine folder, and keeps what each says", () => {
     const now = path.join(machine.path, "work", "c", "notes");
     fs.mkdirSync(now, { recursive: true });
+    register("window", ({ machineDir, where }) => [
+      `a tab in ${machineDir} opens on ${where(at("chats", "c", "notes"))}`,
+    ]);
+    register("browser", ({ moves }) =>
+      moves.map((one) => `a recent file moved to ${one.to}`),
+    );
 
-    const done = rewriteStoredPaths({
-      also: [
-        ({ where }) => [`a tab opens on ${where(at("chats", "c", "notes"))}`],
-        ({ moves }) => moves.map((one) => `a recent file moved to ${one.to}`),
-      ],
-      machineDir: machine.path,
-      moves: [move()],
-      rootDir: workspace.path,
-    });
-
-    expect(done).toEqual([
-      `a tab opens on ${now}`,
+    expect(rewrite()).toEqual([
+      `a tab in ${machine.path} opens on ${now}`,
       `a recent file moved to ${path.join(machine.path, "work")}`,
     ]);
   });
 
-  it("carries on past one that throws, and says which", () => {
-    const done = rewriteStoredPaths({
-      also: [
-        () => {
-          throw new Error("no history here");
-        },
-        () => ["the window's tabs are where they went"],
-      ],
-      machineDir: machine.path,
-      moves: [move()],
-      rootDir: workspace.path,
-    });
+  it("runs one registered twice under a name once", () => {
+    register("window", () => ["first"]);
+    register("window", () => ["second"]);
 
-    expect(done).toMatchInlineSnapshot(`
+    expect(rewrite()).toEqual(["second"]);
+  });
+
+  it("carries on past one that throws, and says which", () => {
+    register("browser", () => {
+      throw new Error("no history here");
+    });
+    register("window", () => ["the window's tabs are where they went"]);
+
+    expect(rewrite()).toMatchInlineSnapshot(`
       [
-        "left one of the app's own stores as it is (Error: no history here)",
+        "left the app's browser store as it is (Error: no history here)",
         "the window's tabs are where they went",
       ]
     `);
+  });
+
+  it("is none outside the app, which leaves the package's own stores to rewrite", () => {
+    const now = path.join(machine.path, "work", "c", "notes");
+    fs.mkdirSync(now, { recursive: true });
+    writePermissions(at("chats", "c", "notes"));
+
+    expect(rewrite()).toEqual([
+      `wrote 3 path(s) where they went in ${permissionsFile()}`,
+    ]);
   });
 });
 

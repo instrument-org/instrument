@@ -168,9 +168,9 @@ export {
 } from "./lib/move-entry";
 export {
   type PathMove,
+  registerStoredPaths,
   rewriteStoredPaths,
   settleMovedPaths,
-  type StoredPathRewrite,
 } from "./lib/rewrite-stored-paths";
 export {
   chatOutputFolder,

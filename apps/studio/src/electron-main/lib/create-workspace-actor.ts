@@ -93,7 +93,6 @@ import {
   workspaceDbFileOf,
   workspaceLayoutMarks,
 } from "./workspaces";
-import { storedPathRewrites } from "./workspace-move";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
@@ -489,7 +488,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
 function takeInMovedPaths(rootDir: string) {
   try {
     for (const step of settleMovedPaths({
-      also: storedPathRewrites(workspaceMachineDir()),
       machineDir: workspaceMachineDir(),
       rootDir,
     })) {

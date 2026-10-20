@@ -21,11 +21,12 @@ import {
   migrateMachineSettings,
   migrateWorkspaceSettings,
 } from "./lib/settings-migration";
+import { registerAppStoredPaths } from "./lib/app-stored-paths";
 import { cleanUpMachineData } from "./lib/machine-cleanups";
 import { moveMachineData } from "./lib/machine-data-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
 import { settleWorkFolders } from "./lib/work-folders";
-import { finishPendingMove, storedPathRewrites } from "./lib/workspace-move";
+import { finishPendingMove } from "./lib/workspace-move";
 import {
   inspectWorkspaceFolder,
   setWorkspaceRefusal,
@@ -107,6 +108,10 @@ installAISDKWarningLogger();
  * is first asked for.
  */
 function openWorkspace() {
+  // First, before a move, a launch migration or a folder found moved by hand
+  // writes a stored path where it went: each of those writes every store
+  // registered here.
+  registerAppStoredPaths();
   const userDataDir = getUserDataDir();
   // Before the workspace resolves, which takes a path inside this folder.
   for (const step of renameMachineFolder(userDataDir)) {
@@ -169,9 +174,8 @@ function openWorkspace() {
     logger.info(`Machine cleanup: ${step}`);
   }
   // After the cleanups, and before any store opens: the paths it moves are
-  // written into the window's and the browser's stores.
+  // written into the window's and the browser's stores (`registerAppStoredPaths`).
   const work = settleWorkFolders({
-    also: storedPathRewrites(moved.machineDir),
     machineDir: moved.machineDir,
     userDataDir,
     workspace,

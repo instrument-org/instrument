@@ -1,3 +1,4 @@
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { type ChildProcess, spawn } from "node:child_process";
 import fs from "node:fs";
@@ -6,6 +7,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { startLiveProcess } from "../../tests/live-process";
+import { createHistoryStore } from "../browser-view/history-store";
+import { registerAppStoredPaths } from "./app-stored-paths";
 import {
   defaultWorkspacePath,
   machineDirOwnedBy,
@@ -507,6 +510,58 @@ describe("registerWorkspaceFolder", () => {
         ),
       ),
     ).toMatchObject({ folders: [{ path: path.join(found, "Notes") }] });
+  });
+
+  it("writes the Files tabs and recent files of a workspace moved by hand where it was found", () => {
+    registerAppStoredPaths();
+    const gone = path.join(userDataDir, "elsewhere", "Old");
+    const found = path.join(userDataDir, "elsewhere", "Found");
+    fs.mkdirSync(path.join(found, "Notes"), { recursive: true });
+    const machineDir = workspaceMachineDirOf(userDataDir, "old");
+    const windowDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.window);
+    fs.mkdirSync(windowDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(windowDir, "layout.json"),
+      JSON.stringify({
+        "window-tabs.v9": {
+          tabs: [
+            {
+              href: `/files?path=&root=${encodeURIComponent(path.join(gone, "Notes"))}`,
+            },
+          ],
+        },
+      }),
+    );
+    const historyFile = path.join(
+      machineDir,
+      WORKSPACE_MACHINE_ENTRIES.browser,
+      "history.db",
+    );
+    const history = createHistoryStore(historyFile);
+    history.addFileOpen({
+      at: 1,
+      path: path.join(gone, "Notes", "a.md"),
+      via: "tab",
+    });
+    history.close();
+    updateRegistry(userDataDir, (registry) => ({
+      ...registry,
+      workspaces: [
+        ...registry.workspaces,
+        { id: "old", path: gone, workspaceId: "01K000000000000000000000OLD" },
+      ],
+    }));
+    writeWorkspaceIdentity(found, identity("01K000000000000000000000OLD"));
+
+    registerWorkspaceFolder({ dir: found, userDataDir });
+
+    expect(
+      fs.readFileSync(path.join(windowDir, "layout.json"), "utf8"),
+    ).toContain(encodeURIComponent(path.join(found, "Notes")));
+    const after = createHistoryStore(historyFile);
+    const recents = after.openedFiles(10).map((file) => file.path);
+    after.close();
+    expect(recents).toEqual([path.join(found, "Notes", "a.md")]);
   });
 });
 

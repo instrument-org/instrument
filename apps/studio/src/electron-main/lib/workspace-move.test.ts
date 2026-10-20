@@ -17,6 +17,7 @@ import {
 
 import { startLiveProcess } from "../../tests/live-process";
 import { createHistoryStore } from "../browser-view/history-store";
+import { registerAppStoredPaths } from "./app-stored-paths";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
   checkMoveTarget,
@@ -36,6 +37,9 @@ import {
 } from "./workspaces";
 
 const WORKSPACE_ID = "01K0000000000000000000MOVE";
+
+// As the launch does before anything moves.
+registerAppStoredPaths();
 
 let root: string;
 let userDataDir: string;

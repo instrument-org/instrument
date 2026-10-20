@@ -29,12 +29,12 @@ import {
  *   windows. Every browser guest runs in a partition of its own where the
  *   scheme does not exist, so a page the agent visits cannot name a host path
  *   at all, and no other process on the machine can speak the scheme.
- * - The host carries a token minted once per launch. The packaged renderer's
- *   own `file://` origin serializes as `null`, as any sandboxed frame's opaque
- *   origin does, so an allow-list of origins could never tell the app from
- *   content it did not write. The token can: the renderer learns it over the
- *   RPC bridge, which only the top frame can open, and it is the renderer's
- *   own code that builds every URL on this host. Nothing the agent wrote is
+ * - The host carries a token minted once per launch. An allow-list of origins
+ *   could not tell the app from content it did not write: a sandboxed frame's
+ *   origin is opaque, and an origin says where a frame came from rather than
+ *   who wrote it. The token can: the renderer learns it over the RPC bridge,
+ *   which only the top frame can open, and it is the renderer's own code
+ *   that builds every URL on this host. Nothing the agent wrote is
  *   ever loaded from this channel as a document, since a document can read
  *   its own location: a page's file is shown in a browser guest at its
  *   `file://` address instead. The check is unconditional so development

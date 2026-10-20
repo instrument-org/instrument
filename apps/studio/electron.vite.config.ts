@@ -201,9 +201,8 @@ function copyVendorAssets(): Plugin {
       from: require.resolve("@tailwindcss/browser"),
       to: path.join(resourcesDir, "tailwind-browser.js"),
     },
-    // The renderer runs from `file://` in production, where `fetch()` of
-    // bundled assets is blocked, so these are served over the app protocol
-    // from `resources/` instead of being emitted into the renderer bundle.
+    // Served over the app protocol's vendor host from `resources/`
+    // (`client/lib/document-viewers.ts`).
     {
       from: require.resolve("@embedpdf/pdfium/pdfium.wasm"),
       to: path.join(vendorDir, "pdfium.wasm"),

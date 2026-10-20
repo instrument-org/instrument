@@ -263,7 +263,7 @@ async function loadSqlite() {
   // The published types declare the initializer as taking nothing, but it is an
   // Emscripten module factory and reads the standard `locateFile` hook off its
   // argument. Without it the module resolves `sqlite3.wasm` against its own
-  // script URL, which under `file://` in production is not fetchable.
+  // script URL rather than the vendor host.
   const init = sqlite3InitModule as (options: {
     locateFile: () => string;
   }) => Promise<Sqlite3Static>;

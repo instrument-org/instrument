@@ -107,8 +107,12 @@ if (gotTheLock) {
   protocol.registerSchemesAsPrivileged([
     {
       privileges: {
-        // The renderer's origin is never this scheme, so the document viewers
-        // fetching their WASM from it is always a cross-origin request.
+        // The built renderer is served from this scheme (`app-protocol.ts`),
+        // and Chromium keeps V8's compiled code for a custom scheme's scripts
+        // only when it opts in. Development loads from the dev server.
+        codeCache: true,
+        // The renderer's origin is one host of this scheme, so the document
+        // viewers fetching their WASM from another is a cross-origin request.
         // Chromium rejects those for custom schemes unless the scheme itself
         // opts in, regardless of the response's CORS headers.
         corsEnabled: true,

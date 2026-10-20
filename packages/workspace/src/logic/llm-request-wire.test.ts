@@ -710,7 +710,6 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
 
       const actor = createActor(llmRequestLogic, {
         input: {
-          abortReason: () => "unknown",
           agent: {
             agentTools: {},
             getMessages: () =>

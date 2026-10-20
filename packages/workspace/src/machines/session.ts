@@ -32,6 +32,7 @@ import {
   agentMachine,
   type AgentMachineActorRef,
   type AgentParentEvent,
+  REQUEST_ABORT_BACKSTOP_MS,
 } from "./agent";
 import { type StopNotice } from "../schemas/stop-notice";
 import { type StopReason } from "./execute-tool-call";
@@ -46,9 +47,13 @@ const UNATTENDED_STEPS = 500;
 
 /**
  * How long a stop waits for the agent to wind down on its own before it is
- * stopped outright, from the first stop.
+ * stopped outright, from the first stop. A request that ignores its abort
+ * holds the agent for `REQUEST_ABORT_BACKSTOP_MS`, and the turn still has
+ * its finish to run after that (`onFinish`, the sweep of calls left open,
+ * its writes landing), which takes well under a second on a working disk, so
+ * the margin is the second it gets plus one for a disk that is slow.
  */
-export const STOP_FAILSAFE_MS = 1000;
+export const STOP_FAILSAFE_MS = REQUEST_ABORT_BACKSTOP_MS + 2000;
 
 export type SessionMachineParentEvent = {
   type: "session.done";

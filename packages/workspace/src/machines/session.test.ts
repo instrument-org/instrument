@@ -11,7 +11,7 @@ import {
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import mockFs from "mock-fs";
-import { ok } from "neverthrow";
+import { ok, ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { noop, pick } from "radashi";
@@ -67,6 +67,7 @@ import {
   type SessionMachineParentEvent,
   STOP_FAILSAFE_MS,
 } from "./session";
+import { REQUEST_ABORT_BACKSTOP_MS } from "./agent";
 
 vi.mock(import("ulid"));
 vi.mock(import("../lib/session-store-storage"));
@@ -1288,23 +1289,14 @@ describe("sessionMachine", () => {
   });
 
   it("should force stop agents before the stopping failsafe completes", async () => {
+    const clock = new SimulatedClock();
     let finishOnFinish: (() => void) | undefined;
     const onFinishPromise = new Promise<void>((resolve) => {
       finishOnFinish = resolve;
     });
     const result = await createActorAndTask({
-      agent: setupAgent({
-        agentTools: pick(TOOLS, ["ReadFile"]),
-        name: "instrument",
-      }).create(() => ({
-        getMessages: instrumentAgent.getMessages,
-        onFinish: async () => {
-          await onFinishPromise;
-        },
-        onStart: instrumentAgent.onStart,
-        shouldContinue: instrumentAgent.shouldContinue,
-        systemPrompt: instrumentAgent.systemPrompt,
-      })),
+      actorOptions: { clock },
+      agent: agentFinishingWith(() => onFinishPromise),
       chunkSets: [finishChunks],
     });
     result.actor.start();
@@ -1316,6 +1308,7 @@ describe("sessionMachine", () => {
     }
 
     result.actor.send({ type: "stop" });
+    clock.increment(STOP_FAILSAFE_MS);
     await waitFor(result.actor, (state) => state.status === "done");
 
     const snapshot = result.actor.getSnapshot();
@@ -1541,6 +1534,123 @@ describe("sessionMachine", () => {
     `);
   });
 
+  // A request held up past its backstop is left behind still running, and the
+  // retry streams beside it. What the late one writes on its way out is its
+  // own reply's, never the retry's.
+  it("leaves the retry's reply arriving when the attempt before it returns late", async () => {
+    const clock = new SimulatedClock();
+    const chunkTimeoutMs = 100;
+    const retryDelayMs = 10;
+    const attempts: ReturnType<typeof createManualModelStream>[] = [];
+    const result = await createActorAndTask({
+      actorOptions: { clock },
+      aiSDKModel: new MockLanguageModelV4({
+        doStream: () => {
+          const attempt = createManualModelStream();
+          attempts.push(attempt);
+          return Promise.resolve({
+            rawCall: { rawPrompt: null, rawSettings: {} },
+            stream: attempt.stream,
+          });
+        },
+      }),
+      baseLLMRetryDelayMs: retryDelayMs,
+      llmRequestChunkTimeoutMs: chunkTimeoutMs,
+    });
+
+    // A save that ignores the abort, the way a write behind a slow disk does,
+    // holding the first request past its backstop.
+    let stuck = false;
+    let unstick!: () => void;
+    const unstuck = new Promise<void>((resolve) => {
+      unstick = resolve;
+    });
+    const savePart = ChatWrites.savePart;
+    vi.spyOn(ChatWrites, "savePart").mockImplementation((part, chatId) => {
+      if (part.type === "text" && part.text.endsWith("held up")) {
+        stuck = true;
+        return ResultAsync.fromSafePromise(unstuck).andThen(() =>
+          savePart(part, chatId),
+        );
+      }
+      return savePart(part, chatId);
+    });
+
+    async function textParts() {
+      const transcript = await ChatReads.transcript({
+        chatId: result.chatId,
+        sessionId: result.sessionId,
+      });
+      return transcript
+        ._unsafeUnwrap()
+        .flatMap((message) =>
+          message.role === "assistant" ? message.parts : [],
+        )
+        .flatMap((part) =>
+          part.type === "text" ? [pick(part, ["state", "text"])] : [],
+        );
+    }
+
+    result.actor.start();
+    await vi.waitFor(() => {
+      expect(attempts).toHaveLength(1);
+    });
+    const agentRef = result.actor.getSnapshot().context.agentRef;
+    if (!agentRef) {
+      throw new Error("Expected agent ref");
+    }
+    const [first] = attempts;
+    first?.push({ id: "1", type: "text-start" });
+    first?.push({ delta: "First attempt, ", id: "1", type: "text-delta" });
+    first?.push({ delta: "held up", id: "1", type: "text-delta" });
+    await vi.waitFor(() => {
+      expect(stuck).toBe(true);
+    });
+
+    clock.increment(chunkTimeoutMs);
+    expect(agentRef.getSnapshot().matches({ LLMStreaming: "Aborting" })).toBe(
+      true,
+    );
+    clock.increment(REQUEST_ABORT_BACKSTOP_MS);
+    await waitFor(agentRef, (state) => state.matches("RetryingWithDelay"));
+    clock.increment(retryDelayMs);
+    await vi.waitFor(() => {
+      expect(attempts).toHaveLength(2);
+    });
+    const second = attempts[1];
+    second?.push({ id: "2", type: "text-start" });
+    second?.push({ delta: "Second attempt", id: "2", type: "text-delta" });
+    await vi.waitFor(async () => {
+      expect(await textParts()).toContainEqual({
+        state: "streaming",
+        text: "Second attempt",
+      });
+    });
+
+    // The first request returns, writing its own reply as it was cut off.
+    unstick();
+    await vi.waitFor(async () => {
+      expect(await textParts()).toContainEqual({
+        state: "done",
+        text: "First attempt, held up",
+      });
+    });
+    expect(await textParts()).toEqual([
+      { state: "done", text: "First attempt, held up" },
+      { state: "streaming", text: "Second attempt" },
+    ]);
+
+    second?.push({ delta: " finished.", id: "2", type: "text-delta" });
+    second?.push({ id: "2", type: "text-end" });
+    second?.push(streamFinishChunk);
+    second?.close();
+    await waitFor(result.actor, (state) => state.status === "done");
+    expect(await textParts()).toEqual([
+      { state: "done", text: "First attempt, held up" },
+      { state: "done", text: "Second attempt finished." },
+    ]);
+  });
+
   // Every step waits on something the machine did rather than on elapsed time,
   // so the long test timeout only bounds a genuine hang.
   it("should extend timeout when chunks are received", async () => {
@@ -1633,6 +1743,8 @@ describe("sessionMachine", () => {
       { interval: 5, timeout: 10_000 },
     );
     clock.increment(chunkTimeoutMs);
+    // The timed-out request returns before the retry waits out its backoff.
+    await waitFor(agentRef, (state) => state.matches("RetryingWithDelay"));
     clock.increment(retryDelayMs);
 
     // Second attempt: each chunk lands a tick before the deadline and pushes it

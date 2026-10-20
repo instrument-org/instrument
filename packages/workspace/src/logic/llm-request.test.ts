@@ -235,6 +235,9 @@ describe("llmRequestLogic", () => {
       taskConfig,
     );
 
+    // Aborted the way the agent machine aborts a request it waits for, with
+    // why: its one stop here.
+    const requestStop = new AbortController();
     const machine = setup({
       actors: { llmRequest: llmRequestLogic },
       types: {
@@ -248,7 +251,11 @@ describe("llmRequestLogic", () => {
             throw new Error(`Unknown event ${event.type}`);
           },
         },
-        stop: ".Stopped",
+        stop: {
+          actions: () => {
+            requestStop.abort("manual");
+          },
+        },
       },
       states: {
         Done: { type: "final" },
@@ -256,8 +263,6 @@ describe("llmRequestLogic", () => {
         Start: {
           invoke: {
             input: () => ({
-              // What the machine says let a request go: its one stop here.
-              abortReason: () => "manual" as const,
               agent: {
                 agentTools: {},
                 getMessages,
@@ -275,6 +280,7 @@ describe("llmRequestLogic", () => {
               } as unknown as AnyActorRef,
               sessionId,
               stepCount: 1,
+              stop: requestStop.signal,
               chatId: taskConfig,
             }),
             onDone: "Done",
@@ -286,7 +292,6 @@ describe("llmRequestLogic", () => {
             src: "llmRequest",
           },
         },
-        Stopped: { type: "final" },
       },
     });
 

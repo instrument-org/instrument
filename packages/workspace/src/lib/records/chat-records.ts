@@ -97,11 +97,12 @@ export interface LiveTurn {
 /** A session's running turn, as its writer holds it. */
 export interface Live {
   /**
-   * Ends the turn, writing whatever it still holds as cut off: the words a
-   * reply had reached, and a call whose input never finished arriving, as
-   * interrupted. A turn that settled everything has nothing to write here.
+   * Ends one reply of the turn, or with no id the whole turn, writing
+   * whatever it still holds as cut off: the words a reply had reached, and a
+   * call whose input never finished arriving, as interrupted. A reply that
+   * settled everything has nothing to write here.
    */
-  clear(): Promise<void>;
+  clear(messageId?: StoreId.Message): Promise<void>;
   /** Takes a part out of the turn's memory, for one appended another way. */
   forget(partId: StoreId.Part): void;
   setMessage(message: SessionMessage.Type): void;
@@ -700,14 +701,28 @@ export class ChatRecords {
       }
     };
     return {
-      clear: async () => {
+      clear: async (messageId) => {
         const state = this.#live.get(chatId)?.get(sessionId);
         if (!state) {
           return;
         }
-        const held = [...state.parts.values()];
-        drop();
-        for (const id of messagesOfTurn(state)) {
+        const ends = (id: StoreId.Message) =>
+          messageId === undefined || id === messageId;
+        const held = [...state.parts.values()].filter((part) =>
+          ends(part.metadata.messageId),
+        );
+        const ended = new Set(held.map((part) => part.metadata.messageId));
+        for (const part of held) {
+          state.parts.delete(part.metadata.id);
+        }
+        if (state.message && ends(state.message.id)) {
+          ended.add(state.message.id);
+          delete state.message;
+        }
+        if (!state.message && state.parts.size === 0) {
+          drop();
+        }
+        for (const id of ended) {
           this.#liveChanged(chatId, sessionId, id);
         }
         // Whatever arrived and never settled is written as the turn left it,
@@ -1688,13 +1703,6 @@ async function recordFiles(dir: string): Promise<string[]> {
     }
     throw error;
   }
-}
-
-function messagesOfTurn(state: LiveState): Set<StoreId.Message> {
-  return new Set([
-    ...(state.message ? [state.message.id] : []),
-    ...[...state.parts.values()].map((part) => part.metadata.messageId),
-  ]);
 }
 
 /** The fold with what is queued over it, sessions only queued so far included. */

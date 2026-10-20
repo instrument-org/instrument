@@ -60,20 +60,16 @@ const INPUT_PARSE_INTERVAL_MS = 100;
 const INPUT_PARSE_MAX_UNPARSED_CHARS = 4096;
 
 interface LLMRequestInput {
-  /**
-   * Why the request is being let go, asked when its signal fires; the caller
-   * that let it go is the one that knows.
-   */
-  abortReason: () => SessionMessage.AbortReason;
   agent: AnyAgent;
   model: AIGatewayModel.Type;
   self: ActorRef<AnyMachineSnapshot, { type: "llmRequest.chunkReceived" }>;
   sessionId: StoreId.Session;
   stepCount: number;
   /**
-   * Lets the request go while its caller waits for it: what it was holding
-   * is written on the way out, which stopping the actor would leave running
-   * after the caller has moved on. Aborted with why, an `AbortReason`.
+   * Aborts the request while its caller waits for it to return: what it was
+   * holding is written on the way out, which stopping the actor would leave
+   * running after the caller has moved on. Aborted with why, an
+   * `AbortReason`; an abort that says nothing reads as `unknown`.
    */
   stop?: AbortSignal;
   chatId: ChatId;
@@ -89,9 +85,9 @@ export const llmRequestLogic = fromPromise<
   const { stop } = input;
   const signal = stop ? AbortSignal.any([actorSignal, stop]) : actorSignal;
   const abortReason = () =>
-    stop?.aborted
-      ? SessionMessage.AbortReasonSchema.catch("unknown").parse(stop.reason)
-      : input.abortReason();
+    SessionMessage.AbortReasonSchema.catch("unknown").parse(
+      stop?.aborted ? stop.reason : undefined,
+    );
   // The first write that failed for lack of disk space. Once set, every later
   // write would fail the same way, so part saves stop, the stream loop ends
   // the request with a `disk-full` error, and the condition is reported once
@@ -312,7 +308,7 @@ export const llmRequestLogic = fromPromise<
 
   if (isSignalAborted()) {
     saveAbortMessage();
-    await live?.clear();
+    await live?.clear(assistantMessage.id);
     return { message: assistantMessage, parts: await getCurrentParts() };
   }
 
@@ -1058,11 +1054,13 @@ export const llmRequestLogic = fromPromise<
       }
     }
   }
-  // The turn is over, so what it was holding is written: every part that
+  // The request is over, so what it was holding is written: every part that
   // settled is in the records already, since each write here was waited for,
-  // and whatever was still arriving is written as the turn left it, which is
-  // how a reply cut off mid-word is still a reply the person can read.
-  await live?.clear();
+  // and whatever was still arriving is written as the request left it, which
+  // is how a reply cut off mid-word is still a reply the person can read.
+  // Only this reply's: a request returning after its caller moved on to
+  // another attempt leaves that attempt's parts arriving.
+  await live?.clear(assistantMessage.id);
 
   const parts = await getCurrentParts();
   // Detection only, and after the turn has let go: a call still arriving at

@@ -408,7 +408,7 @@ export class ChatFold {
  * `seq`), then by `at`, then by log, then by its line, so a copy of a record
  * sorts where the record does and two records never tie.
  */
-export function logPlace(
+function logPlace(
   header: SessionHeader,
   stem: string,
   record: LogRecord,
@@ -429,7 +429,7 @@ export function logPlace(
  * that settled after one the app may still change, then the newest `at`,
  * then the larger device id.
  */
-export function settingPlace(record: SettingRecord, line: string): Place {
+function settingPlace(record: SettingRecord, line: string): Place {
   const settled = record.field === "title" && !record.value.auto ? 1 : 0;
   return [
     settled,
@@ -574,7 +574,7 @@ function made<M extends SettingRecord>({
  * from nothing. Every log of a session repeats the same session fields, so
  * any header stands in until that log is read.
  */
-export function rootHeader(
+function rootHeader(
   headers: ReadonlyMap<string, SessionHeader>,
 ): SessionHeader | undefined {
   let root: { header: SessionHeader; place: Place } | undefined;
@@ -592,7 +592,7 @@ export function rootHeader(
  * Whether two logs each hold records past what the other's writer had read
  * of it: two devices that carried the session on side by side.
  */
-export function isForked(
+function isForked(
   headers: ReadonlyMap<string, SessionHeader>,
   /** The highest `seq` after its header in each log. */
   dataSeqs: ReadonlyMap<string, number>,

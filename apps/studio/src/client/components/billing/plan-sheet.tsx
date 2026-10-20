@@ -1,5 +1,6 @@
 import { planSheetAtom } from "@/client/atoms/plan-sheet";
 import { PlanCards } from "@/client/components/billing/plan-cards";
+import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import {
   usePlanCheckout,
   WAITING_POLL_MS,
@@ -67,13 +68,6 @@ export function PlanSheet() {
           }}
           showCloseButton={false}
         >
-          <div className="absolute top-3 right-3 z-10">
-            <DialogClose asChild>
-              <Button aria-label="Close" type="button" variant="outline">
-                <XIcon className="size-4" />
-              </Button>
-            </DialogClose>
-          </div>
           <PlanSheetBody
             onDone={() => {
               setState(null);
@@ -165,12 +159,24 @@ function PlanSheetBody({
     }),
   );
 
+  if (checkout.openedFor) {
+    return (
+      <CheckoutHandoff
+        isWaiting={checkout.isWaiting || checkout.isOpening}
+        onCancel={checkout.cancel}
+        onClose={onDone}
+        onTryAgain={checkout.retry}
+      />
+    );
+  }
+
   if (scheduledChange) {
     const when = scheduledChange.at
       ? `on ${describeDate(scheduledChange.at, new Date())}`
       : "when this billing period ends";
     return (
       <>
+        <CloseButton />
         <DialogHeader>
           <DialogTitle>
             Switching to {scheduledChange.to} {when}
@@ -191,6 +197,7 @@ function PlanSheetBody({
   if (pendingChange) {
     return (
       <>
+        <CloseButton />
         <DialogHeader>
           <DialogTitle>
             {pendingChange.invoiceUrl
@@ -219,20 +226,11 @@ function PlanSheetBody({
     );
   }
 
-  if (checkout.waitingFor) {
-    return (
-      <WaitingForStripe
-        isOpening={checkout.isOpening}
-        onBack={checkout.cancel}
-        onOpenAgain={checkout.reopen}
-      />
-    );
-  }
-
   const isChanging = status?.subscription !== undefined && !status.canSubscribe;
 
   return (
     <>
+      <CloseButton />
       <DialogHeader>
         <DialogTitle>
           {isChanging ? "Change your plan" : "Choose a plan"}
@@ -251,13 +249,7 @@ function PlanSheetBody({
       <div>
         {offer ? (
           <PlanCards
-            busyPlan={
-              changePlan.isPending
-                ? changePlan.variables.plan
-                : checkout.isOpening
-                  ? checkout.waitingFor
-                  : null
-            }
+            busyPlan={changePlan.isPending ? changePlan.variables.plan : null}
             offer={offer}
             onChoose={(plan, action) => {
               if (action === "switch" || action === "keep") {
@@ -314,33 +306,64 @@ function changeDescription(
   return "You'll pay the difference for the rest of this month. Your limits go up as soon as it's paid.";
 }
 
+/** The sheet's close button, for every screen but the wait on Checkout. */
+function CloseButton() {
+  return (
+    <div className="absolute top-3 right-3 z-10">
+      <DialogClose asChild>
+        <Button aria-label="Close" type="button" variant="outline">
+          <XIcon className="size-4" />
+        </Button>
+      </DialogClose>
+    </div>
+  );
+}
+
 /**
- * Checkout is open in the browser: where to finish, that the app is
- * listening, and the way back to it should the tab have closed.
+ * Checkout is open in the browser, handed off the way a sign-in is: one
+ * line, and the button that holds as a spinner and Cancel while the browser
+ * has it. Canceled, the same button opens a fresh Checkout, and the plan
+ * still lands here if the payment goes through after all.
  */
-function WaitingForStripe({
-  isOpening,
-  onBack,
-  onOpenAgain,
+function CheckoutHandoff({
+  isWaiting,
+  onCancel,
+  onClose,
+  onTryAgain,
 }: {
-  isOpening: boolean;
-  onBack?: () => void;
-  onOpenAgain: () => void;
+  isWaiting: boolean;
+  onCancel: () => void;
+  onClose: () => void;
+  onTryAgain: () => void;
 }) {
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Finish in your browser</DialogTitle>
+        <DialogTitle>
+          {isWaiting ? "Finish in your browser" : "No payment yet"}
+        </DialogTitle>
         <DialogDescription>
-          Checkout opened in your browser. Pay there, and you&rsquo;ll come
-          right back.
+          {isWaiting
+            ? "Checkout is open in your browser. This updates on its own once your payment goes through."
+            : "If you pay in the browser later, your plan still shows up here."}
         </DialogDescription>
       </DialogHeader>
-      <WaitingForStripeStatus
-        isOpening={isOpening}
-        onBack={onBack}
-        onOpenAgain={onOpenAgain}
-      />
+      <div className="flex justify-end gap-2" data-checkout-handoff>
+        {!isWaiting && (
+          <Button onClick={onClose} size="sm" variant="ghost">
+            Close
+          </Button>
+        )}
+        <BrowserHandoffButton
+          onCancel={onCancel}
+          onStart={onTryAgain}
+          size="sm"
+          variant={isWaiting ? "outline" : "default"}
+          waiting={isWaiting}
+        >
+          Try again
+        </BrowserHandoffButton>
+      </div>
     </>
   );
 }
@@ -348,11 +371,9 @@ function WaitingForStripe({
 /** The listening half of the handoff, for a screen that has its own heading. */
 function WaitingForStripeStatus({
   isOpening,
-  onBack,
   onOpenAgain,
 }: {
   isOpening: boolean;
-  onBack?: () => void;
   onOpenAgain?: () => void;
 }) {
   return (
@@ -364,11 +385,6 @@ function WaitingForStripeStatus({
         <Spinner className="size-3.5" delay={0} />
         Waiting for Stripe
       </div>
-      {onBack && (
-        <Button onClick={onBack} size="sm" variant="ghost">
-          Back
-        </Button>
-      )}
       {onOpenAgain && (
         <Button
           disabled={isOpening}

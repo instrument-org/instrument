@@ -347,6 +347,39 @@ describe("the plan sheet", () => {
     return within(element ?? document.body);
   };
 
+  // Checkout is handed off the way a sign-in is: a spinner and Cancel while
+  // the browser has it, then Try again, and a payment made after the cancel
+  // still closes the sheet.
+  it("waits on Checkout with Cancel, then offers Try again", async () => {
+    platform.status = {
+      canSubscribe: true,
+      plan: "none",
+      trial: { state: "ended" },
+      windows: [],
+    } satisfies Status;
+    const { queryClient, store } = renderWithProviders(<PlanSheet />);
+    act(() => {
+      store.set(planSheetAtom, {});
+    });
+    fireEvent.click(
+      (await card("basic")).getByRole("button", { name: "Subscribe for $10" }),
+    );
+
+    expect(await screen.findByText("Finish in your browser")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    fireEvent.click(screen.getByText("Cancel"));
+
+    expect(await screen.findByText("No payment yet")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDefined();
+
+    platform.status = onBasic();
+    await act(() => queryClient.refetchQueries({ queryKey: ["status"] }));
+    await vi.waitFor(() => {
+      expect(store.get(planSheetAtom)).toBeNull();
+    });
+  });
+
   it("says a smaller plan starts when the period ends, before it is chosen", async () => {
     await openSheet({ ...onBasic({ plan: "pro" }), plan: "pro" });
 

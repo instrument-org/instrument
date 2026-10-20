@@ -57,6 +57,9 @@ const workspaceRef = {
 
 const sessions: StoreId.Session[] = [];
 
+/** Shorter than the app's, so a case waits less for a wake that is coming. */
+const DEBOUNCE_MS = 300;
+
 beforeAll(() => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "job-wake-"));
   setWorkspaceConfig({
@@ -64,7 +67,7 @@ beforeAll(() => {
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
   });
-  startJobWake(workspaceRef);
+  startJobWake(workspaceRef, { debounceMs: DEBOUNCE_MS });
 });
 
 afterEach(async () => {
@@ -151,7 +154,7 @@ function wakesOf(sessionId: StoreId.Session) {
 
 /** Long enough for a wake that is coming to have been sent. */
 async function pastTheDebounce() {
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  await new Promise((resolve) => setTimeout(resolve, DEBOUNCE_MS * 3));
 }
 
 describe("a background process that ends while its session is at rest", () => {
@@ -200,7 +203,7 @@ describe("a background process that ends while its session is at rest", () => {
     const tests = promote(owner, "pnpm test");
 
     build.exit(0);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, DEBOUNCE_MS / 3));
     tests.exit(1);
 
     await pastTheDebounce();

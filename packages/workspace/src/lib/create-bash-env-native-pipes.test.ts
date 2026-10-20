@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
@@ -162,20 +162,40 @@ describe.runIf(vendored)("native pipelines", () => {
     }
   }
 
-  async function abortedUnderSink(command: string) {
+  async function abortedUnderSink(command: string, pidFiles: string[]) {
     const started = Date.now();
-    await withShellOutputSink(
+    const controller = new AbortController();
+    const running = withShellOutputSink(
       () => {},
-      () => run(command, AbortSignal.timeout(1500)),
+      () => run(command, controller.signal),
     ).catch((error: unknown) => error);
+    // Aborted once every program is up, so there is a whole tree to stop.
+    await vi.waitFor(
+      async () => {
+        for (const name of pidFiles) {
+          await fs.access(path.join(chatRoot, name));
+        }
+      },
+      { interval: 20, timeout: 10_000 },
+    );
+    controller.abort();
+    await running;
     // The tree kill escalates to SIGKILL after a second.
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await vi.waitFor(
+      async () => {
+        for (const name of pidFiles) {
+          expect(await alive(name)).toBe(false);
+        }
+      },
+      { interval: 50, timeout: 5000 },
+    );
     return Date.now() - started;
   }
 
   it("stops every stage when a background run is aborted", async () => {
     const took = await abortedUnderSink(
       `${lingers("a.pid")} | ${lingers("b.pid")} | wc -l`,
+      ["a.pid", "b.pid"],
     );
     expect(took).toBeLessThan(10_000);
     expect(await alive("a.pid")).toBe(false);
@@ -185,6 +205,7 @@ describe.runIf(vendored)("native pipelines", () => {
   it("stops xargs -P's programs when a background run is aborted", async () => {
     const took = await abortedUnderSink(
       `seq 1 2 | xargs -P 2 -I {} ${lingers("x{}.pid")}`,
+      ["x1.pid", "x2.pid"],
     );
     expect(took).toBeLessThan(10_000);
     expect(await alive("x1.pid")).toBe(false);

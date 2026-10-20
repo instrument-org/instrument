@@ -1045,16 +1045,22 @@ describe("sendCommand", () => {
       });
       const entries = new Map([[TARGET_ID, entry]]);
 
-      await expect(
-        dispatch({
+      vi.useFakeTimers();
+      try {
+        const sent = dispatch({
           ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Input.insertText",
           params: { text: "hello" },
           requestGuestFocus,
           targetId: TARGET_ID,
-        }),
-      ).rejects.toThrow(/does not hold keyboard focus/);
+        });
+        void sent.catch(noop);
+        await vi.advanceTimersByTimeAsync(5000);
+        await expect(sent).rejects.toThrow(/does not hold keyboard focus/);
+      } finally {
+        vi.useRealTimers();
+      }
 
       expect(requestGuestFocus).toHaveBeenCalledWith(TARGET_ID);
       expect(wcSendCommand).not.toHaveBeenCalled();
@@ -1094,16 +1100,22 @@ describe("sendCommand", () => {
       });
       const entries = new Map([[TARGET_ID, entry]]);
 
-      await expect(
-        dispatch({
+      vi.useFakeTimers();
+      try {
+        const sent = dispatch({
           ensureDebuggerAttached: vi.fn(),
           entries,
           method: "Input.insertText",
           params: { text: "hello" },
           requestGuestFocus: vi.fn(),
           targetId: TARGET_ID,
-        }),
-      ).rejects.toThrow(/does not hold keyboard focus/);
+        });
+        void sent.catch(noop);
+        await vi.advanceTimersByTimeAsync(5000);
+        await expect(sent).rejects.toThrow(/does not hold keyboard focus/);
+      } finally {
+        vi.useRealTimers();
+      }
 
       expect(wcSendCommand).not.toHaveBeenCalled();
     });

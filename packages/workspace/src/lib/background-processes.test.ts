@@ -10,6 +10,7 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
+  BACKGROUND_PROCESS_TEARDOWN_MS,
   handOverBackgroundProcesses,
   killBackgroundProcess,
   killSessionBackgroundProcesses,
@@ -126,6 +127,29 @@ function promote(
     throw new Error(promoted.error);
   }
   return { controllable, handle, info: promoted.info };
+}
+
+/**
+ * Runs a stop of a process that never settles past the termination grace on a
+ * fake clock, rather than waiting the grace out for real.
+ */
+async function pastTerminationGrace<T>(stop: () => Promise<T>) {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    let done = false;
+    const stopped = stop().finally(() => {
+      done = true;
+    });
+    while (!done) {
+      // The stop reaches its grace timer after real I/O, which a fake clock
+      // does not move, so let the event loop turn before each advance.
+      await new Promise((resolve) => setImmediate(resolve));
+      await vi.advanceTimersByTimeAsync(BACKGROUND_PROCESS_TEARDOWN_MS);
+    }
+    return await stopped;
+  } finally {
+    vi.useRealTimers();
+  }
 }
 
 afterEach(async () => {
@@ -255,11 +279,13 @@ describe("background processes", () => {
 
     // Nothing settles, so the stop gives up and says so rather than claiming a
     // process it could not confirm was gone.
-    const killed = await killBackgroundProcess({
-      by: "agent",
-      id: info.id,
-      sessionId: owner.sessionId,
-    });
+    const killed = await pastTerminationGrace(() =>
+      killBackgroundProcess({
+        by: "agent",
+        id: info.id,
+        sessionId: owner.sessionId,
+      }),
+    );
     expect(killed?.info.status).toBe("termination-uncertain");
     expect(killed?.terminationConfirmed).toBe(false);
 
@@ -279,7 +305,7 @@ describe("background processes", () => {
     });
     expect(read?.info.exitCode).toBe(3);
     expect(read?.output).toContain("wrote this on the way out");
-  }, 30_000);
+  });
 
   it("refuses to promote when the log file cannot be opened", async () => {
     const owner = makeOwner("nolog");
@@ -925,11 +951,13 @@ describe("background processes", () => {
       throw new Error(promoted.error);
     }
 
-    const killed = await killBackgroundProcess({
-      by: "agent",
-      id: promoted.info.id,
-      sessionId: owner.sessionId,
-    });
+    const killed = await pastTerminationGrace(() =>
+      killBackgroundProcess({
+        by: "agent",
+        id: promoted.info.id,
+        sessionId: owner.sessionId,
+      }),
+    );
 
     expect(killed?.info.status).toBe("termination-uncertain");
     expect(killed?.terminationConfirmed).toBe(false);
@@ -947,7 +975,7 @@ describe("background processes", () => {
         (process) => process.id === promoted.info.id,
       )?.status,
     ).toBe("killed");
-  }, 20_000);
+  });
 
   it("releases a session holding a record an earlier kill could not confirm", async () => {
     const owner = makeOwner("stranded");
@@ -963,11 +991,13 @@ describe("background processes", () => {
     if ("error" in promoted) {
       throw new Error(promoted.error);
     }
-    await killBackgroundProcess({
-      by: "agent",
-      id: promoted.info.id,
-      sessionId: owner.sessionId,
-    });
+    await pastTerminationGrace(() =>
+      killBackgroundProcess({
+        by: "agent",
+        id: promoted.info.id,
+        sessionId: owner.sessionId,
+      }),
+    );
 
     // Nothing is running now, so deleting the session has nothing left to stop
     // and must not keep failing on the record the earlier kill gave up on.
@@ -975,7 +1005,7 @@ describe("background processes", () => {
       killSessionBackgroundProcesses(owner.sessionId),
     ).resolves.toBeUndefined();
     expect(listBackgroundProcesses(owner.sessionId)).toEqual([]);
-  }, 20_000);
+  });
 
   it("kills every running process for a session at once", async () => {
     const owner = makeOwner("kills");

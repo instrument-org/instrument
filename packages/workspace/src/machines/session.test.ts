@@ -1975,23 +1975,24 @@ describe("sessionMachine", () => {
       // at the step after.
       it("moves a running command to the background and hears the message next", async () => {
         answersAsChat();
-        // A command that takes five seconds, unless stopped. The shell's
-        // own commands load from disk, which the mocked filesystem hides.
+        // A command that runs until the case ends it, so the turn can only
+        // finish by moving it to the background. The shell's own commands
+        // load from disk, which the mocked filesystem hides.
         let stopped = false;
+        let finish = () => {};
         vi.spyOn(bashEnv, "createBashEnv").mockResolvedValue({
           exec: (_command, options) =>
             new Promise((resolve, reject) => {
-              const timer = setTimeout(() => {
+              finish = () => {
                 // Only the fields the bash tool reads.
                 resolve({
                   exitCode: 0,
                   stderr: "",
                   stdout: "slept\n",
                 } as Awaited<ReturnType<bashEnv.BashRunner["exec"]>>);
-              }, 5000);
+              };
               options?.signal?.addEventListener("abort", () => {
                 stopped = true;
-                clearTimeout(timer);
                 reject(new Error("aborted"));
               });
             }),
@@ -2024,7 +2025,6 @@ describe("sessionMachine", () => {
         await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
         // Past the bash call's start, so its wait is registered.
         await new Promise((resolve) => setTimeout(resolve, 200));
-        const started = performance.now();
         result.actor.send({
           model: createMockAIGatewayModel(),
           type: "addMessage",
@@ -2033,7 +2033,6 @@ describe("sessionMachine", () => {
 
         try {
           const session = await runTestMachine(result);
-          expect(performance.now() - started).toBeLessThan(4000);
           const shorthand = sessionToShorthand(session);
           expect(shorthand).not.toContain("interrupted by a newer message");
           expect(shorthand).toContain('"movedForMessageFrom": "user"');
@@ -2048,21 +2047,19 @@ describe("sessionMachine", () => {
             ),
           ).toEqual(["running"]);
           // The turn is over and the command runs on to its own end.
-          await vi.waitFor(
-            () => {
-              expect(
-                listBackgroundProcesses(result.sessionId).map(
-                  (process) => process.status,
-                ),
-              ).toEqual(["exited"]);
-            },
-            { timeout: 10_000 },
-          );
+          finish();
+          await vi.waitFor(() => {
+            expect(
+              listBackgroundProcesses(result.sessionId).map(
+                (process) => process.status,
+              ),
+            ).toEqual(["exited"]);
+          });
           expect(stopped).toBe(false);
         } finally {
           await killSessionBackgroundProcesses(result.sessionId);
         }
-      }, 30_000);
+      });
 
       // A typed "stop" is a message like any other: it joins the turn, and
       // the agent decides what it means.

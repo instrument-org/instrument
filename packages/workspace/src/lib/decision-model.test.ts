@@ -61,6 +61,28 @@ describe("askDecisionModel", () => {
     expect(decisionModelAvailable(configs)).toBe(true);
   });
 
+  // A signed-in account with no plan, running on its own ChatGPT or Claude:
+  // every ask is refused, which is no fault and no reason to ask again soon.
+  it.each([
+    { refusal: '{"error":{"code":"subscription-required"}}', status: 402 },
+    { refusal: '{"error":{"code":"usage-limit-exceeded"}}', status: 429 },
+  ])(
+    "answers nothing for ten minutes after the plan refuses ($status)",
+    async ({ refusal, status }) => {
+      requestDecision.mockRejectedValueOnce(
+        new DecisionRequestError(`refused (${status}): ${refusal}`, status),
+      );
+      await expect(askDecisionModel({ body, configs, activity })).resolves.toBe(
+        undefined,
+      );
+      vi.advanceTimersByTime(9 * 60_000);
+      expect(decisionModelAvailable(configs)).toBe(false);
+      vi.advanceTimersByTime(60_000);
+      expect(decisionModelAvailable(configs)).toBe(true);
+      expect(requestDecision).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("keeps asking after a request the provider calls malformed", async () => {
     requestDecision.mockRejectedValueOnce(
       new DecisionRequestError("too many options", 400),

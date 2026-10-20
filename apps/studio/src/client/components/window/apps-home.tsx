@@ -30,7 +30,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useDeferredValue, useRef, useState } from "react";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
-type CatalogEntry = RPCOutput["apps"]["catalog"][number];
+type CatalogEntry = RPCOutput["apps"]["catalogByMeaning"][number];
 
 /**
  * A search this long that names no service by its words is asked of the
@@ -71,7 +71,9 @@ export function AppsHome({
     openScreen(APPS_HREF, { newTab: true });
   };
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
+  const catalog = useQuery(
+    rpcClient.apps.live.catalog.experimental_liveOptions(),
+  );
   const [query, setQuery] = useState("");
 
   const apps = list.data?.apps ?? [];

@@ -144,7 +144,11 @@ export { runtimeLayout } from "./lib/runtime-dir";
 export { ensurePythonBase } from "./lib/python-base";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";
 export { WINDOW_ID } from "./schemas/window-id";
-export { appListChanges, sessionEnds } from "./lib/host-events";
+export {
+  appCatalogChanges,
+  appListChanges,
+  sessionEnds,
+} from "./lib/host-events";
 export { FILES_FENCE } from "./lib/parse-files-block";
 
 export { getBrowserSessionDir } from "./lib/chat-dir-utils";

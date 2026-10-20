@@ -40,6 +40,7 @@ import {
   runAppTest,
   searchAppCatalogByMeaning,
   withAppMcpClient,
+  appCatalogChanges,
   appChanged,
   appListChanges,
   findAppIcon,
@@ -268,13 +269,18 @@ const live = {
       read: () => call(list, {}, { context, signal }),
     });
   }),
+  /**
+   * The directory: what the product knows how to reach before anyone
+   * connects it, each service with the icon the build ships for it, if any.
+   * Read again only when a served copy changes it.
+   */
+  catalog: base.handler(async function* ({ signal }) {
+    yield* liveRead({
+      changes: [appCatalogChanges(signal)],
+      read: () => Promise.all(getAppCatalog().map(withIcon)),
+    });
+  }),
 };
-
-/**
- * The directory: what the product knows how to reach before anyone connects
- * it, each service with the icon the build ships for it, if any.
- */
-const catalog = base.handler(() => Promise.all(getAppCatalog().map(withIcon)));
 
 /**
  * The directory's services a search means without naming them, most likely
@@ -833,7 +839,6 @@ const test = base
 export const apps = {
   allow,
   cancelOAuth,
-  catalog,
   catalogByMeaning,
   disconnect,
   dismiss,

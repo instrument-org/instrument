@@ -35,6 +35,11 @@ export const publisher = new EventPublisher<{
    */
   "app.updated": null;
   /**
+   * The app directory changed, because a copy our API served was taken in.
+   * Carries no payload because every listener re-reads the directory.
+   */
+  "app.catalogChanged": null;
+  /**
    * A background process in this chat appeared, ended, or was removed. Carries
    * no detail because every listener re-reads the list, and deliberately not
    * published per chunk of output: what a viewer needs is whether the process

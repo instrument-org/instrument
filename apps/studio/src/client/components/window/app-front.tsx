@@ -75,7 +75,9 @@ export function AppFront({
 }) {
   const { ask, browser, openPage, openScreen } = useWindow();
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
+  const catalog = useQuery(
+    rpcClient.apps.live.catalog.experimental_liveOptions(),
+  );
   // The default browser by name, as the sign-in button beside it says it.
   const defaultBrowser = useQuery(
     rpcClient.utils.browserOpenTarget.queryOptions({

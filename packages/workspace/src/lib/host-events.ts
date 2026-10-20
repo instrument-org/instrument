@@ -13,6 +13,11 @@ export function appListChanges(signal: AbortSignal | undefined) {
   return publisher.subscribe("app.updated", { signal });
 }
 
+/** Fires each time the app directory changes, until `signal` aborts. */
+export function appCatalogChanges(signal: AbortSignal | undefined) {
+  return publisher.subscribe("app.catalogChanged", { signal });
+}
+
 /**
  * Each session whose agent finished, until `signal` aborts. `maxBuffered`
  * is how many a listener still busy with one keeps of those after it.

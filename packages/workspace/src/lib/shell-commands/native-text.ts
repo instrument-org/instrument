@@ -31,6 +31,7 @@ import {
   shellPathOfHostSpelling,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
+import { recordBuiltinAnswered } from "./command-runs";
 import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { tarProgramArgs, tarWrites, tarWritesStdout } from "./tar-args";
@@ -734,6 +735,13 @@ export function createNativeTextCommand(
   const command = defineCommand(route.name, async (args, ctx) => {
     const program = routeProgram(route);
     if (program === undefined || route.builtinFor?.matches(args) === true) {
+      recordBuiltinAnswered(
+        program !== undefined
+          ? "builtin-args"
+          : route.binary === "system"
+            ? "no-system-program"
+            : "no-bundled-program",
+      );
       return ctx.origCommand
         ? await ctx.origCommand(args)
         : {

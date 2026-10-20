@@ -58,6 +58,7 @@ import {
   FOLLOW_UP_WAIT_ARGS,
 } from "./agent-browser-follow-up";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
+import { recordProgramStart } from "./command-runs";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 import { workDir } from "../work-dir";
 
@@ -1172,6 +1173,8 @@ async function spawnAgentBrowser({
   const managedArgs = managedConfigPath
     ? ["--config", managedConfigPath, ...args]
     : args;
+  // It drives the app's own browser, so no native sandbox wraps it.
+  recordProgramStart(AGENT_BROWSER_PATH, "skipped");
 
   if (managedConfigPath) {
     await fs.mkdir(path.dirname(managedConfigPath), { recursive: true });

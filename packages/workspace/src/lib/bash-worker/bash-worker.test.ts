@@ -23,6 +23,7 @@ import {
 } from "../create-bash-env";
 import { resolveChat, chatDir } from "../record-folders";
 import { workDir } from "../work-dir";
+import { CommandRuns, withCommandRuns } from "../shell-commands/command-runs";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import {
   SubprocessTreeTerminationError,
@@ -173,6 +174,27 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     ]);
     expect(remote.stdout).toBe(onMain.stdout);
     expect(remote.exitCode).toBe(onMain.exitCode);
+  });
+
+  it("records what answered each command, in the worker and on main", async () => {
+    const runs = new CommandRuns();
+    await withCommandRuns(runs, () =>
+      remoteBash().exec("for i in 1 2; do cat /dev/null; done; jobs; jobs"),
+    );
+    expect(runs.rows()).toMatchInlineSnapshot(`
+      [
+        {
+          "count": 2,
+          "name": "cat",
+          "source": "builtin",
+        },
+        {
+          "count": 2,
+          "name": "jobs",
+          "source": "instrument",
+        },
+      ]
+    `);
   });
 
   it("runs an `instrument` subcommand on the main thread", async () => {

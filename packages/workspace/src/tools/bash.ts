@@ -39,6 +39,11 @@ import {
   withBrowserFollowUp,
 } from "../lib/shell-commands/agent-browser-follow-up";
 import {
+  CommandRunSchema,
+  CommandRuns,
+  withCommandRuns,
+} from "../lib/shell-commands/command-runs";
+import {
   type HandOff,
   HandOffSchema,
   withHandOffs,
@@ -215,6 +220,12 @@ export const BashTool = setupTool({
     /** The tasks the call's `task` commands handed work to, when any did. */
     handOffs: z.array(HandOffSchema).optional(),
     /**
+     * What answered each command the shell ran, and under which sandbox; for
+     * the session log, never the model. A promoted command's is what it had
+     * run when the call returned.
+     */
+    ran: z.array(CommandRunSchema).optional(),
+    /**
      * The page after the call's agent-browser commands changed it, when
      * nothing in the call read it afterwards.
      */
@@ -276,6 +287,11 @@ export const BashTool = setupTool({
     let commands: string[] = [];
     const browserFollowUp = new BrowserFollowUp();
     const handOffs: HandOff[] = [];
+    const commandRuns = new CommandRuns();
+    const ran = () => {
+      const rows = commandRuns.rows();
+      return rows.length > 0 ? { ran: rows } : {};
+    };
 
     const handle = startBackgroundRun({
       callerSignal: signal,
@@ -283,9 +299,11 @@ export const BashTool = setupTool({
       explanation: input.explanation,
       run: async ({ signal: runSignal }) => {
         try {
-          const result = await withHandOffs(handOffs, () =>
-            withBrowserFollowUp(browserFollowUp, () =>
-              bash.exec(input.command, { signal: runSignal }),
+          const result = await withCommandRuns(commandRuns, () =>
+            withHandOffs(handOffs, () =>
+              withBrowserFollowUp(browserFollowUp, () =>
+                bash.exec(input.command, { signal: runSignal }),
+              ),
             ),
           );
           commands = Array.isArray(result.metadata?.commands)
@@ -331,6 +349,7 @@ export const BashTool = setupTool({
         output: text,
         pids: info.pids,
         processId: info.id,
+        ...ran(),
       });
     };
 
@@ -437,6 +456,7 @@ export const BashTool = setupTool({
       omittedBytes: 0,
       output: outcome.output,
       ...(pageAfter ? { pageAfter } : {}),
+      ...ran(),
       spillFilePath,
     });
   },

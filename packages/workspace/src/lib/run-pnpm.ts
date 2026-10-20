@@ -9,6 +9,7 @@ import { nodeBuildEnvFor, nodeInstallEnvFor } from "./tool-isolation-env";
 import { chatNativeReach } from "./chat-native-reach";
 import { runtimeLayout } from "./runtime-dir";
 import { execaNodeForChat } from "./execa-node-for-chat";
+import { recordProgramStart } from "./shell-commands/command-runs";
 import { filterShellOutput } from "./filter-shell-output";
 import { inheritedEnv } from "./native-env";
 import {
@@ -123,6 +124,7 @@ export async function runPnpmOutsideSandbox({
 }) {
   const sink = currentShellOutputSink();
   const { nodeExecEnv, pnpmBinPath, runtimeDir } = getWorkspaceConfig();
+  recordProgramStart(process.execPath, "skipped");
   const subprocess = execa(process.execPath, [pnpmBinPath, ...args], {
     all: true,
     cancelSignal: sink ? undefined : signal,

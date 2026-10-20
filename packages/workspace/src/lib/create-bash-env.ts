@@ -113,6 +113,11 @@ import {
   createValidateSkillCommand,
   VALIDATE_SKILL_COMMAND,
 } from "./shell-commands/validate-skill";
+import {
+  type CommandRun,
+  recordCommandRun,
+  runDispatched,
+} from "./shell-commands/command-runs";
 import { createPathProgramResolver } from "./shell-commands/path-program";
 import { createWhichCommand } from "./shell-commands/which";
 import { AGENT_BROWSER_PATH } from "./agent-browser";
@@ -632,6 +637,33 @@ function pythonProgram(chatId: ChatId): string | undefined {
   return venv ? venvPython(venv) : foundManagedPython();
 }
 
+/**
+ * Our commands that run a program the app ships: those `COMMAND_PROGRAMS`
+ * names, and the ones that run one of them for what they do.
+ */
+const BUNDLED_PROGRAM_COMMANDS: ReadonlySet<string> = new Set([
+  ...Object.keys(COMMAND_PROGRAMS),
+  NPX_COMMAND.name,
+  PIP_COMMAND.name,
+  PIP3_COMMAND.name,
+  PNPX_COMMAND.name,
+  PNX_COMMAND.name,
+  UVX_COMMAND.name,
+]);
+
+/**
+ * `command`, recording each run on the bash call's record (`command-runs.ts`)
+ * as `source` unless what it does says more: the program it starts, or the
+ * builtin it hands the call to.
+ */
+function recordingRuns(command: Command, source: CommandRun["source"]) {
+  return {
+    ...command,
+    execute: (...[args, ctx]: Parameters<Command["execute"]>) =>
+      runDispatched(command.name, source, () => command.execute(args, ctx)),
+  } satisfies Command;
+}
+
 /** The program one of our commands runs, in the shell's spelling. */
 function commandProgram(chatId: ChatId, name: string): string | undefined {
   let program: string | undefined;
@@ -916,6 +948,18 @@ export async function createLocalBashEnv({
     ].toSorted((a, b) => a.word.localeCompare(b.word)),
   });
   const specializedCommands = [instrumentCommand, ...nativeCommands];
+  const routes = nativeTextRoutes();
+  const runSource = (name: string): CommandRun["source"] => {
+    const route = routes.find((each) => each.name === name);
+    if (route) {
+      return route.binary === "system" ? "system" : "bundled";
+    }
+    return BUNDLED_PROGRAM_COMMANDS.has(name) ? "bundled" : "instrument";
+  };
+  const resolvePathProgram = createPathProgramResolver(
+    chatId,
+    layout.rules.asker,
+  );
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [
@@ -930,7 +974,7 @@ export async function createLocalBashEnv({
       createDuCommand({ layout }),
       // After the bundled commands, so the uutils programs shadow the
       // builtins they answer for.
-      ...nativeTextRoutes().map((route) =>
+      ...routes.map((route) =>
         createNativeTextCommand(route, { chatId, layout }),
       ),
       ...specializedCommands,
@@ -942,9 +986,10 @@ export async function createLocalBashEnv({
       createWhichCommand(chatId),
       ...STATIC_STUB_COMMANDS,
     ].map((command) =>
+      // A stand-in's run is recorded on the main thread, where it runs.
       standIn && MAIN_THREAD_COMMANDS.has(command.name)
         ? standIn(command.name)
-        : command,
+        : recordingRuns(command, runSource(command.name)),
     ),
     cwd: layout.chat.shellRoot,
     executionLimits: {
@@ -997,10 +1042,20 @@ export async function createLocalBashEnv({
     },
     // A name no builtin or command of ours answers runs the program by that
     // name on the computer's PATH, as a native command.
-    resolveExternalCommand: createPathProgramResolver(
-      chatId,
-      layout.rules.asker,
-    ),
+    resolveExternalCommand: async (name, context) => {
+      const found = await resolvePathProgram(name, context);
+      return (
+        found && { ...found, command: recordingRuns(found.command, "path") }
+      );
+    },
+    // One of our commands records its own runs; just-bash's own are told
+    // here, as nothing else sees them start. What bash itself implements
+    // (`echo`, `printf`) is part of the shell rather than a command it ran.
+    onCommandStart: (name, { bundled, shellBuiltin }) => {
+      if (bundled && !shellBuiltin) {
+        recordCommandRun({ name, source: "builtin" });
+      }
+    },
     // A redirect into a folder that does not exist fails, as in bash, rather
     // than making the folder on the disk.
     redirectCreatesDirectories: false,

@@ -76,8 +76,8 @@ function load(f) {
 
 // Other exports of the same session sitting next to this one (the -2, -3
 // files a re-export leaves behind).
-function duplicates(f, sessionId) {
-  if (!sessionId) return [];
+function duplicates(f, exportedSession) {
+  if (!exportedSession) return [];
   const dir = path.dirname(f);
   const self = fs.readFileSync(f, "utf8");
   return fs
@@ -85,7 +85,7 @@ function duplicates(f, sessionId) {
     .filter((n) => n.endsWith(".md") && path.join(dir, n) !== path.resolve(f))
     .flatMap((n) => {
       const text = fs.readFileSync(path.join(dir, n), "utf8");
-      if (!text.slice(0, 3000).includes(`sessionId: "${sessionId}"`)) return [];
+      if (!text.slice(0, 3000).includes(`sessionId: "${exportedSession}"`)) return [];
       const exportedAt =
         text.slice(0, 3000).match(/transcriptGeneratedAt: "([^"]+)"/)?.[1] ??
         "?";

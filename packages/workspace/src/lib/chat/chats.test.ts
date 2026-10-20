@@ -670,6 +670,30 @@ describe("listChats", () => {
 
     const [chat] = await listChats();
     expect(chat?.state).toBe("limited");
+    expect(chat?.stoppedFor).toBe("usage");
+  });
+
+  it("says a chat Instrument refused for want of a plan stopped for its plan", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "hru");
+    await userSays(chatId, sessionId, "hru", 1);
+    await agentSays(chatId, sessionId, "", {
+      error: {
+        classification: "usage-limit",
+        kind: "api-call",
+        message: "Start your free trial or choose a plan.",
+        name: "AI_APICallError",
+        responseBody: JSON.stringify({
+          error: { code: "subscription-required", reason: "trial-available" },
+        }),
+        statusCode: 402,
+        url: "http://127.0.0.1/ai-gateway/providers/instrument/chat/completions",
+      },
+      minute: 2,
+    });
+
+    const [chat] = await listChats();
+    expect(chat).toMatchObject({ state: "limited", stoppedFor: "plan" });
   });
 
   it("leaves a failed turn behind once the user sends again", async () => {

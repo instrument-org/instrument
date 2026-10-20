@@ -115,6 +115,12 @@ export const ChatSchema = z.object({
   sessionId: StoreId.SessionSchema,
   /** Where the chat stands, by the one rule in `chatStateOf`. */
   state: z.enum(["failed", "idle", "limited", "stopped", "waiting", "working"]),
+  /**
+   * While `state` is `limited`, what stopped the turn: a plan the account
+   * does not have (`plan`, Instrument's refusal for a missing or lapsed
+   * plan), or a usage window spent (`usage`).
+   */
+  stoppedFor: z.enum(["plan", "usage"]).optional(),
   title: z.string(),
   /**
    * Whether the agent has named the chat. Until it has, `title` is the
@@ -399,6 +405,8 @@ interface ChatDigest {
   failed: boolean;
   /** Whether that error was a usage limit, which `failed` then leaves out. */
   limited: boolean;
+  /** Whether that limit was a missing plan rather than a spent window. */
+  planRequired?: boolean;
   openedHosts: string[];
   root?: SessionMessage.UserWithParts;
   sent: ReturnType<typeof sentHeld>;
@@ -558,6 +566,9 @@ async function chatFor(
       : { lastReplyAt: digest.lastReplyAt }),
     ...(digest.lastStep ? { lastStep: digest.lastStep } : {}),
     lastUserMessageAt: digest.lastUserMessageAt ?? createdAt,
+    ...(state === "limited" && {
+      stoppedFor: digest.planRequired ? ("plan" as const) : ("usage" as const),
+    }),
     ...(root ? { root } : {}),
     runningTasks,
     sessionId: session.id,
@@ -672,6 +683,10 @@ function digestOf(
     "classification" in error &&
     error.classification === "usage-limit";
   const failed = endedInError && !limited;
+  // Instrument refusing a turn for want of a plan reads as a usage limit to
+  // the provider error classifier; its own code tells the two apart.
+  const planRequired =
+    limited && "responseBody" in error && isPlanRefusal(error.responseBody);
   // The user's Stop, rather than what it left behind: a turn stopped before
   // it began left only the message no turn took up, and one stopped between
   // steps left nothing at all.
@@ -689,6 +704,7 @@ function digestOf(
     }),
     limited,
     madeFiles: filesHeld(messages),
+    ...(planRequired && { planRequired }),
     openedHosts: commands.flatMap(openedHostsIn),
     ...(root && { root }),
     sent: sentHeld(messages),
@@ -1028,4 +1044,29 @@ function startsTurn(message: SessionMessage.WithParts): boolean {
   return (
     message.role === "user" && !isStopNote(message) && !joinedMidTurn(message)
   );
+}
+
+/**
+ * Whether a refused request's body is Instrument's `subscription-required`:
+ * the account has no plan or trial that covers it, which is not a usage
+ * window running out.
+ */
+function isPlanRefusal(responseBody: unknown) {
+  if (typeof responseBody !== "string") {
+    return false;
+  }
+  try {
+    const parsed: unknown = JSON.parse(responseBody);
+    return (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "error" in parsed &&
+      typeof parsed.error === "object" &&
+      parsed.error !== null &&
+      "code" in parsed.error &&
+      parsed.error.code === "subscription-required"
+    );
+  } catch {
+    return false;
+  }
 }

@@ -138,8 +138,13 @@ describe("statusLine", () => {
     ],
     [
       "a chat stopped at a usage limit, calmly",
-      { chat: at("limited"), listed: [] },
+      { chat: at("limited", { stoppedFor: "usage" }), listed: [] },
       { text: "Stopped at a usage limit", tone: "limited" },
+    ],
+    [
+      "a chat Instrument refused for want of a plan, as that",
+      { chat: at("limited", { stoppedFor: "plan" }), listed: [] },
+      { text: "Stopped: needs a plan", tone: "limited" },
     ],
     [
       "that its work is done once the user wrote after the task they stopped, though its reply took no step",

@@ -32,7 +32,7 @@ import { type ReactNode, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { chatMenuGroups } from "./chat-actions";
-import { LIMITED } from "./chat-status-line";
+import { limitedText } from "./chat-status-line";
 import { ChatTitleField } from "./chat-title";
 import { activityLabel, type Chat, type Topic, wordRanges } from "./chats";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
@@ -541,7 +541,7 @@ function Peek({
         </>
       ) : isLimited ? (
         <span className="min-w-0 truncate text-muted-foreground">
-          {LIMITED}
+          {limitedText(chat)}
         </span>
       ) : isWaiting ? (
         <>

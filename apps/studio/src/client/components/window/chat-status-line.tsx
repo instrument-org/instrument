@@ -35,7 +35,18 @@ const WORKING = "Instrument is working";
  * Said once a usage limit stopped the chat's last turn, which is not an error:
  * the note over its reply box says what to do.
  */
-export const LIMITED = "Stopped at a usage limit";
+const LIMITED = "Stopped at a usage limit";
+
+/**
+ * Said once Instrument refused the chat's last turn for want of a plan or a
+ * trial: not a limit reached, and the reply box's note says what unlocks it.
+ */
+const PLAN_NEEDED = "Stopped: needs a plan";
+
+/** What a stopped-at-a-limit chat says, by what stopped it. */
+export function limitedText(chat: Pick<Chat, "stoppedFor">) {
+  return chat.stoppedFor === "plan" ? PLAN_NEEDED : LIMITED;
+}
 
 /**
  * Said with the check once the chat's own work is done. A step's label is
@@ -251,6 +262,7 @@ export function statusLine({
     | "latest"
     | "runningTasks"
     | "state"
+    | "stoppedFor"
     | "title"
   >;
   listed:
@@ -279,7 +291,7 @@ export function statusLine({
     return undefined;
   }
   if (chat.state === "limited") {
-    return { text: LIMITED, tone: "limited" };
+    return { text: limitedText(chat), tone: "limited" };
   }
   const own = chat.lastStep;
   const task = listed

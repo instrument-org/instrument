@@ -605,6 +605,19 @@ describe("ChatRow", () => {
     expect(peekOf(row)?.textContent).toBe("Stopped on an error");
   });
 
+  it.each([
+    { expected: "Stopped at a usage limit", stoppedFor: "usage" as const },
+    { expected: "Stopped: needs a plan", stoppedFor: "plan" as const },
+  ])(
+    "says $expected, with no mark, for a chat stopped for its $stoppedFor",
+    async ({ expected, stoppedFor }) => {
+      const { row } = await renderRow(chat({ state: "limited", stoppedFor }));
+      const peek = peekOf(row);
+      expect(peek?.textContent).toBe(expected);
+      expect(peek?.querySelector("svg")).toBeNull();
+    },
+  );
+
   it("has no latest line for an idle chat with nothing to say", async () => {
     const { row } = await renderRow(
       chat({ lastReplyAt: undefined, latest: undefined }),

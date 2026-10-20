@@ -838,6 +838,24 @@ describe.skipIf(onWindows)("bwrapArgs", () => {
     rmSync(home, { force: true, recursive: true });
   });
 
+  it("makes a closed folder read-only only after a folder a link opens inside it", () => {
+    const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
+    const work = path.join(home, "Documents/work");
+    mkdirSync(work, { recursive: true });
+    symlinkSync(work, path.join(home, "work"));
+    const args = bwrapArgs(
+      reachOver(home, [
+        { level: "ask", path: path.join(home, "Documents"), source: "place" },
+        { level: "allow", path: path.join(home, "work"), source: "grant" },
+      ]),
+    ).join(" ");
+    expect(args).toContain(`--perms 0111 --tmpfs ${home}/Documents`);
+    expect(args.lastIndexOf(`--remount-ro ${home}/Documents`)).toBeGreaterThan(
+      args.indexOf(`--bind ${work} ${work}`),
+    );
+    rmSync(home, { force: true, recursive: true });
+  });
+
   it("never changes a file a link in place of the closed file leads to", () => {
     const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
     const victim = path.join(home, "thesis.docx");

@@ -73,6 +73,18 @@ export function nameOf(hostPath: string) {
   return segmentsOf(hostPath).at(-1) ?? hostPath;
 }
 
+/**
+ * Where a path on this computer sits under a root, as the browser spells a
+ * prefix (with slashes, whatever the computer); null when it is not under it.
+ */
+export function relativeHostPath(root: string, hostPath: string) {
+  const separator = root.includes("\\") ? "\\" : "/";
+  const base = root.endsWith(separator) ? root : `${root}${separator}`;
+  return hostPath.startsWith(base)
+    ? hostPath.slice(base.length).split(separator).join("/")
+    : null;
+}
+
 /** Every name along a path, in order, whichever way the path is spelled. */
 export function segmentsOf(hostPath: string) {
   return hostPath

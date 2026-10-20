@@ -6,6 +6,7 @@ import {
   isInside,
   nameOf,
   parentFolderOf,
+  relativeHostPath,
   segmentsOf,
   separatorOf,
 } from "./host-path";
@@ -51,6 +52,27 @@ describe("parentFolderOf", () => {
     ["\\\\nas\\photos\\", null],
   ])("goes up from %s to %s", (hostPath, parent) => {
     expect(parentFolderOf(hostPath)).toBe(parent);
+  });
+});
+
+describe("relativeHostPath", () => {
+  it.each([
+    ["/Users/sam", "/Users/sam/Desktop/notes.txt", "Desktop/notes.txt"],
+    ["/Users/sam/", "/Users/sam/Desktop", "Desktop"],
+    ["/", "/Users/sam", "Users/sam"],
+    ["/Users/sam", "/Users/samantha/notes.txt", null],
+    ["/Users/sam", "/Applications/Notes.app", null],
+    [
+      "C:\\Users\\sam",
+      "C:\\Users\\sam\\Desktop\\notes.txt",
+      "Desktop/notes.txt",
+    ],
+    ["C:\\", "C:\\Users\\sam", "Users/sam"],
+    ["C:\\Users\\sam", "C:\\Users\\samantha\\notes.txt", null],
+    ["C:\\Users\\sam", "D:\\notes.txt", null],
+    ["\\\\nas\\photos", "\\\\nas\\photos\\2024\\beach.jpg", "2024/beach.jpg"],
+  ])("puts %s + %s at %s", (root, hostPath, relative) => {
+    expect(relativeHostPath(root, hostPath)).toBe(relative);
   });
 });
 

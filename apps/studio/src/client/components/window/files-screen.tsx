@@ -63,7 +63,7 @@ import { FileAskButton } from "./file-ask-button";
 import { reachablePath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { useGroupTab } from "./group-tab";
-import { folderOf, segmentsOf } from "./host-path";
+import { folderOf, relativeHostPath, segmentsOf } from "./host-path";
 import {
   hostGroupOf,
   useHostedPage,
@@ -332,9 +332,7 @@ export function FilesScreen({
         ? `${window.api.homeDir}/${folderRoot.slice(2)}`
         : folderRoot;
   const besideSelect =
-    file?.startsWith(`${rootHostPath}/`) === true
-      ? file.slice(rootHostPath.length + 1)
-      : undefined;
+    (file && relativeHostPath(rootHostPath, file)) ?? undefined;
   const activeFile: FileTab | undefined = file
     ? { hostPath: file, name: segmentsOf(file).at(-1) ?? file }
     : undefined;

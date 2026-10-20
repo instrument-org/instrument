@@ -145,6 +145,7 @@ import {
   joinHostPath,
   nameOf,
   parentFolderOf,
+  relativeHostPath,
   segmentsOf,
 } from "./host-path";
 import { useClashQuestions } from "./clash-dialog";
@@ -3059,18 +3060,6 @@ function combineListings(
     isPending: result.isPending,
     refusal: result.data?.kind === "refused" ? result.data : undefined,
   }));
-}
-
-/**
- * Where a path on this computer sits under a root, as the browser spells a
- * prefix (with slashes, whatever the computer); null when it is not under it.
- */
-function relativeHostPath(root: string, hostPath: string) {
-  const separator = root.includes("\\") ? "\\" : "/";
-  const base = root.endsWith(separator) ? root : `${root}${separator}`;
-  return hostPath.startsWith(base)
-    ? hostPath.slice(base.length).split(separator).join("/")
-    : null;
 }
 
 /**

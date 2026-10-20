@@ -491,11 +491,12 @@ function HoldsInChat({
 }
 
 /**
- * The agent's latest line: the step while it works, in brand; the question
- * while it waits, behind an amber glyph with the words themselves in gray;
- * that the user stopped it, behind a stop mark, until the next turn starts;
- * and the last reply's first words otherwise, in muted. Nothing when an idle
- * chat has said nothing yet. One line that truncates.
+ * The agent's latest line: the step while it works, in brand; that its turn
+ * stopped on an error, behind a red warning glyph; the question while it
+ * waits, behind an amber glyph with the words themselves in gray; and
+ * otherwise, a chat the user stopped included, the last reply's first words,
+ * in muted. Nothing when an idle or stopped chat has said nothing yet. One
+ * line that truncates.
  */
 function Peek({
   chat,

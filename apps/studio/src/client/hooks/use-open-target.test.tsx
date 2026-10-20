@@ -16,6 +16,9 @@ const hostPaths = vi.fn(
     ),
 );
 
+const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
+vi.mock("@/client/lib/toast", () => ({ toast: { error: toastError } }));
+
 // Nothing here opens a link.
 vi.mock("@/client/hooks/use-open-external-link", () => ({
   useOpenExternalLink: () => () => undefined,
@@ -39,6 +42,7 @@ const chatId = ChatIdSchema.parse("2026-10-19-copy-path");
 
 afterEach(() => {
   hostPaths.mockClear();
+  toastError.mockClear();
 });
 
 async function copied(
@@ -73,9 +77,30 @@ describe("Copy Path", () => {
   });
 
   it("copies the path as named with no chat to read it against", async () => {
+    await expect(copied({ kind: "path", path: "report.md" })).resolves.toEqual([
+      "report.md",
+    ]);
+    expect(hostPaths).not.toHaveBeenCalled();
+  });
+
+  // Where a file in the workspace is depends on the workspace alone.
+  it("copies where a file in the workspace is with no chat to read it against", async () => {
     await expect(
       copied({ kind: "path", path: "workspace:/Notes/plan.md" }),
-    ).resolves.toEqual(["workspace:/Notes/plan.md"]);
-    expect(hostPaths).not.toHaveBeenCalled();
+    ).resolves.toEqual(["/Users/sam/Instrument/Notes/plan.md"]);
+  });
+
+  it("copies nothing for a file in the workspace that names nothing here", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.assign(navigator, { clipboard: { writeText } });
+    const { result } = renderHook(() => useGesturesFor());
+    result
+      .current({ chatId, kind: "path", path: "workspace:/Gone/plan.md" })
+      .destinations.find((destination) => destination.id === "copy")
+      ?.run();
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalled();
+    });
+    expect(writeText).not.toHaveBeenCalled();
   });
 });

@@ -60,6 +60,7 @@ export {
   type UsageSummary,
 } from "./lib/usage-summary-compute";
 export { readWebSearchResults } from "./lib/web-search-results";
+export { isInWorkspacePath } from "./lib/workspace-relative-path";
 export { FileUpload } from "./schemas/file-upload";
 export { MountedFolder } from "./schemas/mounted-folder";
 export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";

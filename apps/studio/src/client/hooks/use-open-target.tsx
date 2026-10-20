@@ -9,7 +9,11 @@ import {
 } from "@/client/lib/open-target";
 import { commandKeyHeld } from "@/client/lib/utils";
 import { rpcClient, type RPCInput } from "@/client/rpc/client";
-import { isFolderPath } from "@instrument-org/workspace/client";
+import {
+  isFolderPath,
+  isInWorkspacePath,
+  WINDOW_ID,
+} from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { useContext } from "react";
 import { toast } from "@/client/lib/toast";
@@ -18,20 +22,34 @@ import { toast } from "@/client/lib/toast";
  * What "copy" puts on the clipboard: for a path a known chat kept, where it
  * is on this computer, found the way the files under a message are, so what
  * is pasted is a path another program can open. The path as named when it
- * names nothing the chat reaches.
+ * names nothing the chat reaches, except a file kept by its place in the
+ * workspace (`workspace:/Notes/plan.md`), which is read under the
+ * workspace's root whatever chat kept it and fails rather than pasting a
+ * name no other program can open.
  */
 async function copiedValue(target: OpenTarget, named: string) {
-  if (target.kind !== "path" || target.chatId === undefined) {
+  if (target.kind !== "path") {
+    return named;
+  }
+  const inWorkspace = isInWorkspacePath(named);
+  if (target.chatId === undefined && !inWorkspace) {
     return named;
   }
   const filePath = isFolderPath(named) ? named.slice(0, -1) : named;
   const [error, hostPaths] = await safe(
     rpcClient.workspace.chats.files.hostPaths.call({
-      chatId: target.chatId,
+      chatId: target.chatId ?? WINDOW_ID,
       filePaths: [filePath],
     }),
   );
-  return (error ? undefined : hostPaths[filePath]) ?? named;
+  const hostPath = error ? undefined : hostPaths[filePath];
+  if (hostPath) {
+    return hostPath;
+  }
+  if (inWorkspace) {
+    throw error ?? new Error(`No file on this computer at ${named}`);
+  }
+  return named;
 }
 
 /** The middle button, which asks for a place of its own wherever a link is drawn. */

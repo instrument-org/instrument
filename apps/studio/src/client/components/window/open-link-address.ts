@@ -13,9 +13,10 @@ import { type LINK_ADDRESSES, matchScreen } from "./window-href";
  * a type error here until it says where it goes.
  */
 const OPEN_LINK = {
-  // A memory is shown where all of them are, in Settings, brought to the
-  // one named; a screen of its own would be one memory with nothing to do
-  // to it.
+  // A memory is a file, which the window's openers find and open as one
+  // (`useOpeners`). Reaching here, the name has no file, or the address came
+  // straight to the tabs: Settings shows the memories there are, and says
+  // when the one named is gone.
   memory: (memory) => {
     openSettings({ memory, tab: "Memory" });
     return undefined;

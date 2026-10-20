@@ -65,7 +65,6 @@ import {
   isMermaidLanguage,
   prefetchMermaid,
 } from "../lib/mermaid";
-import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
 import {
   FRONT_MATTER_ID,
@@ -1182,21 +1181,6 @@ export const Markdown = memo(
       }
     }, [needsMermaid]);
 
-    // The word split goes last, after everything that reads the text of a node
-    // whole: the HTML `rehype-raw` re-parses, the formulas `rehype-katex`
-    // consumes. It leaves the pipeline the moment the text settles, so a
-    // finished message carries no spans at all.
-    //
-    // Every block carries it rather than only the one still arriving. A block
-    // that lost its spans as the next one opened would drop whatever words were
-    // mid-fade straight to full opacity, and since a block is memoized the
-    // plugin runs over it once either way.
-    const streamingRehypePlugins = useMemo(
-      () =>
-        isStreaming ? [...rehypePlugins, rehypeAnimateWords] : rehypePlugins,
-      [isStreaming, rehypePlugins],
-    );
-
     // Held apart from the render so a block that has not changed is a memo hit
     // rather than a re-parse; see `MarkdownBlock`.
     const components = useMemo<Components>(
@@ -1255,7 +1239,7 @@ export const Markdown = memo(
             components={components}
             isArriving={false}
             markdown={markdown}
-            rehypePlugins={streamingRehypePlugins}
+            rehypePlugins={rehypePlugins}
             remarkPlugins={remarkPluginList}
           />
         ) : (
@@ -1275,7 +1259,7 @@ export const Markdown = memo(
                 // construct it knows, several of those walks quadratically.
                 index === blocks.length - 1 ? remend(block) : block
               }
-              rehypePlugins={streamingRehypePlugins}
+              rehypePlugins={rehypePlugins}
               remarkPlugins={remarkPluginList}
             />
           ))

@@ -546,39 +546,6 @@ describe("Markdown half-written constructs", () => {
   });
 });
 
-// react-markdown under the name the stylesheet looks for.
-describe("Markdown streaming words", () => {
-  const streamingWords = (markdown: string) => {
-    const { container } = renderWithProviders(
-      <Markdown isStreaming markdown={markdown} chatId={TASK_ID} />,
-    );
-    return [...container.querySelectorAll("[data-stream-word]")].map(
-      (word) => word.textContent,
-    );
-  };
-
-  it("hands every word of streaming prose to the stylesheet", () => {
-    expect(streamingWords("Reading the config")).toEqual([
-      "Reading",
-      "the",
-      "config",
-    ]);
-  });
-
-  it("leaves code alone, since the components under it read a string", () => {
-    expect(streamingWords("Run `pnpm test run` first")).toEqual([
-      "Run",
-      "first",
-    ]);
-  });
-
-  it("wraps nothing once the text has settled", () => {
-    const { container } = renderMarkdown("Reading the config");
-
-    expect(container.querySelectorAll("[data-stream-word]")).toHaveLength(0);
-  });
-});
-
 // A long document navigates by linking its own headings, which is the only
 // intra-document navigation Markdown itself can express -- and the reason an
 // author does not have to hand-write anchor targets to get one.
@@ -1150,22 +1117,13 @@ describe("Markdown while a message is still arriving", () => {
    * comparing text with the whitespace out catches anything dropped from a
    * word. What is left uncovered, a space lost between two words, is what
    * `splitMarkdownBlocks`' round-trip test rules out at the source.
-   *
-   * The word-fade spans are unwrapped first: they exist only while the text is
-   * moving, so they are a difference between the two readings by design.
    */
-  const reading = (container: HTMLElement) => {
-    const copy = container.cloneNode(true) as HTMLElement;
-    for (const span of copy.querySelectorAll("[data-stream-word]")) {
-      span.replaceWith(...span.childNodes);
-    }
-    return {
-      elements: [...copy.querySelectorAll("*")]
-        .map((element) => element.tagName.toLowerCase())
-        .join(" "),
-      text: copy.textContent.replaceAll(/\s+/g, ""),
-    };
-  };
+  const reading = (container: HTMLElement) => ({
+    elements: [...container.querySelectorAll("*")]
+      .map((element) => element.tagName.toLowerCase())
+      .join(" "),
+    text: container.textContent.replaceAll(/\s+/g, ""),
+  });
 
   // Deliberately not here: a document ending mid-construct. The two readings
   // differ on it by design -- one is repaired and one is shown as written --
@@ -1193,12 +1151,6 @@ describe("Markdown while a message is still arriving", () => {
     );
 
     expect(container.querySelector("strong")?.textContent).toBe("half writ");
-  });
-
-  it("leaves a settled message with no word spans at all", () => {
-    expect(
-      draw(documents["several paragraphs"]).querySelector("[data-stream-word]"),
-    ).toBeNull();
   });
 });
 

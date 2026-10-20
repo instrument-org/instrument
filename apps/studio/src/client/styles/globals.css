@@ -1051,38 +1051,6 @@ a.cursor-pointer {
   }
 }
 
-/* Each word of a message still streaming in; see `rehype-animate-words`, which
- * is what puts the attribute there and only while the text is still growing.
- *
- * Long and eased out rather than short and linear. Tokens arrive in bursts of
- * wildly varying size, and at a couple of hundred milliseconds each burst reads
- * as its own slab landing; held this long the fades overlap far enough to read
- * as one wash settling, which is what removes the appearance of chunking
- * without holding a single word back from the page. The curve front-loads the
- * opacity so a word is legible in a fraction of the time it takes to finish.
- *
- * Opacity alone. Hundreds of words are in flight at once on a fast model, and
- * anything else worth animating here either moves the text or, as a filter
- * would, puts every one of them on its own compositing layer for the duration. */
-[data-stream-word] {
-  animation: stream-word-in 800ms ease-out both;
-}
-
-@keyframes stream-word-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-stream-word] {
-    animation: none;
-  }
-}
-
 /* A heading the reader just jumped to; see `flashJumpTarget`, which puts the
  * class there and takes it off when the animation ends.
  *

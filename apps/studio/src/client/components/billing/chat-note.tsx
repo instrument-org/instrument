@@ -546,7 +546,7 @@ function PlanAccountNote({
  * search is paused (or has not said, and the refusal's reset is ahead).
  * `key` names the pause, so dismissing it holds until the next one.
  */
-export function lastSearchPause(
+function lastSearchPause(
   messages: SessionMessage.WithParts[],
   status: Parameters<typeof featurePause>[0],
   now: Date,

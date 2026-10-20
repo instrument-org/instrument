@@ -428,13 +428,13 @@ export class ChatRecords {
         saved.rolledOverUnderUsableTokens,
       );
     }
-    // Against the stop itself rather than the session as it reads, which
-    // leaves a stop behind once a turn starts after it: a row written then
-    // still carries the stop it was last saved with, and saying so again
-    // would stop the session a second time.
+    // Against the session as it reads, whose stop a turn after it retires:
+    // a row re-saved with the stop it still reads with says nothing new, and
+    // a row read once a turn retired the stop carries none, so a stop that
+    // differs is a new one, even by whoever made the last.
     if (
       saved.stoppedBy !== undefined &&
-      known?.stopped?.by !== saved.stoppedBy
+      (known ? sessionOf(known).stoppedBy : undefined) !== saved.stoppedBy
     ) {
       await this.stopped(chatId, saved.id, saved.stoppedBy);
     }

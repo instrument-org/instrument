@@ -36,7 +36,7 @@ import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
 import { runtimeLayout } from "./runtime-dir";
-import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
+import { setupTrackingFs } from "./setup-changes";
 import { type WalkBudget } from "./walk-budget";
 import { skillSourceRoots } from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -246,18 +246,21 @@ export async function buildBashFs(
           root,
         })
       : new ReadWriteFs({ maxFileReadSize, root });
-    if (workspaceSkills) {
-      const skillsWithin = hostPathWithin(
-        mount.hostRoot,
-        workspaceSkills.hostRoot,
-      );
-      if (skillsWithin !== null) {
-        mounted = skillWriteTrackingFs(mounted, (path) =>
-          skillsWithin === "/"
-            ? normalizePath(path)
-            : (relativeWithin(skillsWithin, normalizePath(path)) ?? undefined),
-        );
-      }
+    // The setup folders this mount reaches, whose writes say what a turn
+    // did to the person's skills and apps.
+    const setupFolders = (
+      [
+        ["skill", workspaceSkills],
+        ["app", layout.apps],
+      ] as const
+    ).flatMap(([kind, folder]) => {
+      const within = folder && hostPathWithin(mount.hostRoot, folder.hostRoot);
+      return within === undefined || within === null
+        ? []
+        : [{ kind, root: within === "/" ? "" : within.replace(/\/+$/, "") }];
+    });
+    if (setupFolders.length > 0) {
+      mounted = setupTrackingFs(mounted, setupFolders);
     }
     mounted = rulesFs({
       delegate: mounted,

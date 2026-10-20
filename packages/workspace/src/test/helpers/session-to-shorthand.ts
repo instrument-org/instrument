@@ -190,6 +190,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-reply": {
       return `<data-reply>${part.data.text}</data-reply>`;
     }
+    case "data-setupChanges": {
+      const changes = part.data.changes
+        .map((item) => `${item.change}:${item.kind}:${item.name}`)
+        .join(",");
+      return `<setup-changes changes="${changes}" />`;
+    }
     case "data-skillChanges": {
       const created =
         part.data.created.length > 0

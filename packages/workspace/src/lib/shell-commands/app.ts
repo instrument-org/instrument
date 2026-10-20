@@ -2,9 +2,11 @@ import { APP_NAME } from "@instrument-org/shared";
 import { APP_CATEGORIES } from "@instrument-org/shared/app-directory";
 import { type ByteString, defineCommand, EMPTY_BYTES } from "just-bash";
 import ms from "ms";
+import { basename } from "node:path";
 import { isPlainObject } from "radashi";
 
 import { appChanged } from "../apps/changed";
+import { recordSetupTouch } from "../setup-changes";
 import { type ChatId } from "../../schemas/chat-id";
 import {
   type AppCatalogEntry,
@@ -949,6 +951,11 @@ async function runNew(input: SubcommandInput) {
     name,
     replacesGuide: reachChanged,
     slug,
+  });
+  recordSetupTouch({
+    existedBefore: existing.isOk(),
+    kind: "app",
+    name: basename(dir),
   });
   const prompts = guidePlaceholdersLeft(manifest, guide);
   // A key already in the store outlives the manifest that asked for it, so

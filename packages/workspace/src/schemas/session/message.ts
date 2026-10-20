@@ -419,6 +419,22 @@ export namespace SessionMessage {
           pendingSkillChanges.updated.add(name);
         }
       }
+      const setupChangesPart = message.parts.find(
+        (
+          part,
+        ): part is SessionMessagePart.DataPart & {
+          type: "data-setupChanges";
+        } => part.type === "data-setupChanges",
+      );
+      // The catalog's correction names the skills there are now; one the turn
+      // removed is not in the catalog's way, so the model is not told.
+      for (const item of setupChangesPart?.data.changes ?? []) {
+        if (item.kind === "skill" && item.change === "added") {
+          pendingSkillChanges.created.add(item.name);
+        } else if (item.kind === "skill" && item.change === "changed") {
+          pendingSkillChanges.updated.add(item.name);
+        }
+      }
 
       const filteredParts = message.parts
         .map(withUnansweredToolCallResult)

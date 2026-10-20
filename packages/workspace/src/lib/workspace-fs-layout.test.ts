@@ -39,9 +39,9 @@ import {
   shellPathOfHostSpelling,
 } from "./workspace-fs-layout";
 import {
-  beginSkillChangeTracking,
-  consumeSkillChanges,
-} from "./workspace-skill-index";
+  beginSetupChangeTracking,
+  consumeSetupChanges,
+} from "./setup-changes";
 
 describe("buildBashFs", () => {
   let tmpDir: string;
@@ -624,7 +624,7 @@ describe("buildBashFs skills mount", () => {
       id: ChatIdSchema.parse("skills-mount-test"),
       sessionId: StoreId.newSessionId(),
     };
-    await beginSkillChangeTracking(turn);
+    beginSetupChangeTracking(turn);
 
     await withTurnContext(turn, () =>
       bash.exec(
@@ -632,9 +632,9 @@ describe("buildBashFs skills mount", () => {
       ),
     );
 
-    await expect(consumeSkillChanges(turn)).resolves.toMatchObject({
-      created: ["tracked"],
-    });
+    await expect(consumeSetupChanges(turn)).resolves.toEqual([
+      { change: "added", kind: "skill", name: "tracked" },
+    ]);
   });
 
   it("provisions the mount when the workspace has no skills dir yet", async () => {

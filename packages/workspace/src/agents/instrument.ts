@@ -19,7 +19,6 @@ import { folderReach } from "../lib/chat/folder-reach";
 import { currentEnvironment } from "../lib/environment";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
-import { isToolPart } from "../lib/is-tool-part";
 import { PYTHON_BASE_PACKAGES, pythonBaseReady } from "../lib/python-base";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
@@ -33,12 +32,12 @@ import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import { SKILL_NAMES } from "../lib/skill-names";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import {
-  beginSkillChangeTracking,
-  consumeSkillChanges,
-} from "../lib/workspace-skill-index";
+  beginSetupChangeTracking,
+  consumeSetupChanges,
+} from "../lib/setup-changes";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { getToolByType, TOOLS } from "../tools/all";
+import { TOOLS } from "../tools/all";
 import { TOOL_NAMES } from "../tools/name";
 import { setupAgent } from "./create-agent";
 import {
@@ -128,21 +127,12 @@ export const instrumentAgent = setupAgent({
     return [systemMessage, userMessage];
   },
   onFinish: async ({ parentMessageId, sessionId, chatId }) => {
-    const skillChanges = await consumeSkillChanges({ id: chatId, sessionId });
-
-    // Skills live outside the working folder, in the shared writable
-    // workspace skills folder, so a turn that only authored a skill leaves
-    // nothing in the folder.
-    const skillChangesPart =
-      skillChanges.created.length > 0 || skillChanges.updated.length > 0
-        ? { created: skillChanges.created, updated: skillChanges.updated }
-        : undefined;
+    const changes = await consumeSetupChanges({ id: chatId, sessionId });
+    if (changes.length === 0) {
+      return;
+    }
 
     const result = await safeTry(async function* () {
-      if (!skillChangesPart) {
-        return ok(undefined);
-      }
-
       // This run's messages: the one it answered and the session's own after
       // it. A run whose message the session does not have is one whose steps
       // cannot be placed, and reads as none.
@@ -152,36 +142,23 @@ export const instrumentAgent = setupAgent({
         sessionId,
       });
       const start = own.findIndex(({ id }) => id === parentMessageId);
-      const messages = start === -1 ? [] : own.slice(start);
-
-      const usedNonReadOnlyTools = messages.some((message) =>
-        message.parts.some(
-          (part) => isToolPart(part) && !getToolByType(part.type).readOnly,
-        ),
-      );
-
-      if (!usedNonReadOnlyTools) {
-        return ok(undefined);
-      }
-
-      const lastAssistantMessage = messages.findLast(
-        (message) => message.role === "assistant",
-      );
-
+      const lastAssistantMessage = (
+        start === -1 ? [] : own.slice(start)
+      ).findLast((message) => message.role === "assistant");
       if (!lastAssistantMessage) {
         return err(new TypedError.NotFound("No assistant message found"));
       }
 
       yield* ChatWrites.savePart(
         {
-          data: skillChangesPart,
+          data: { changes },
           metadata: {
             createdAt: new Date(),
             id: StoreId.newPartId(),
             messageId: lastAssistantMessage.id,
             sessionId,
           },
-          type: "data-skillChanges",
+          type: "data-setupChanges",
         },
         chatId,
       );
@@ -193,7 +170,7 @@ export const instrumentAgent = setupAgent({
     }
   },
   onStart: async ({ sessionId, chatId }) => {
-    await beginSkillChangeTracking({ id: chatId, sessionId });
+    beginSetupChangeTracking({ id: chatId, sessionId });
   },
   shouldContinue: shouldContinueAfterHandingOff,
   systemPrompt,

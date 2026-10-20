@@ -19,7 +19,7 @@ import { CommandRuns, withCommandRuns } from "../shell-commands/command-runs";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
-import { setSkillMutationForwarder } from "../workspace-skill-index";
+import { setSetupTouchForwarder } from "../setup-changes";
 import {
   fromWireError,
   type FromWorker,
@@ -89,13 +89,13 @@ process.on("unhandledRejection", (reason) => {
   });
 });
 
-// State the main thread owns: which turn a skill write belongs to, the process
+// State the main thread owns: which turn a setup write belongs to, the process
 // trees to end if this worker dies, and the one creator of every venv and
 // skill environment.
-setSkillMutationForwarder((skillPath) => {
+setSetupTouchForwarder((touch) => {
   const id = currentExec.getStore();
   if (id !== undefined) {
-    post({ id, skillPath, type: "skill-mutation" });
+    post({ id, touch, type: "setup-touch" });
   }
 });
 setSubprocessTreeObserver({

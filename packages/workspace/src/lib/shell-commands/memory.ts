@@ -13,6 +13,7 @@ import {
   saveMemory,
 } from "../memory/store";
 import { ChatReads } from "../chat-reads";
+import { recordSetupTouch } from "../setup-changes";
 import { MEMORY_COMMAND } from "./memory-command";
 import { defineSubcommands, subcommand } from "./subcommands";
 import { subprocessStdin } from "./utils";
@@ -130,6 +131,7 @@ async function runForget(args: string[], context: MemoryCommandContext) {
     throw new Error(`no memory named "${name}". ${NAME} list names them.`);
   }
   await rememberTold(context, memory.name, undefined);
+  recordSetupTouch({ existedBefore: true, kind: "memory", name: memory.name });
   return ok(`Forgot "${memory.name}": ${memoryHeadline(memory.text)}`);
 }
 
@@ -175,6 +177,11 @@ async function runSave(
     text,
   });
   await rememberTold(context, memory.name, memory);
+  recordSetupTouch({
+    existedBefore: replaced,
+    kind: "memory",
+    name: memory.name,
+  });
   return ok(
     `${replaced ? "Replaced" : "Saved"} "${memory.name}": ${memoryHeadline(memory.text)}`,
   );

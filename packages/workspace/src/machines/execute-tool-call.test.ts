@@ -232,6 +232,13 @@ describe("executeToolCallMachine", () => {
             "omittedBytes": 0,
             "output": "mocked stdout
         mocked stderr",
+            "ran": [
+              {
+                "count": 1,
+                "name": "pnpm",
+                "source": "bundled",
+              },
+            ],
           },
           "preliminary": false,
           "state": "output-available",
@@ -287,6 +294,13 @@ describe("executeToolCallMachine", () => {
             "omittedBytes": 0,
             "output": "pnpm: Shell command failed
         ",
+            "ran": [
+              {
+                "count": 1,
+                "name": "pnpm",
+                "source": "bundled",
+              },
+            ],
           },
           "preliminary": false,
           "state": "output-available",
@@ -342,6 +356,13 @@ describe("executeToolCallMachine", () => {
             "omittedBytes": 0,
             "output": "mocked stdout
         mocked stderr",
+            "ran": [
+              {
+                "count": 1,
+                "name": "pnpm",
+                "source": "bundled",
+              },
+            ],
           },
           "preliminary": false,
           "state": "output-available",

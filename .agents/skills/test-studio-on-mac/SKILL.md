@@ -41,4 +41,4 @@ macOS asks once per app for Desktop, Documents, Downloads, removable volumes, Au
 - **Sign-in goes through Safari.** On the VM, Safari keeps a Google session from enrollment; "Continue with Google" completes through the app's local callback, then Safari stays in front of the app. Bring the app back with `desk.mjs <host> bring_to_front`.
 - **`/usr/bin/python3` and `/usr/bin/git` are stubs** on a Mac without Apple's command-line tools: running them raises "install command line developer tools". The agent's own Python and git do not use them, but a test or a person's command can trigger the dialog.
 - **One VM at a time.** The base and its clones share a host name; only one may run.
-- **Start a VM only through `reset-vm`.** It passes `--hide`; a bare `utmctl start` opens the VM's window on the screen of the person at the Mac and takes their focus.
+- **Start a VM only through `reset-vm`.** It hides UTM around the start; a bare `utmctl start`, `--hide` included, opens the VM's window on the screen of the person at the Mac and takes their focus. Clicking UTM in the Dock shows the window again.

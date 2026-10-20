@@ -29,6 +29,7 @@ import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useGroupTabRouters } from "@/client/hooks/use-group-tab-routers";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
+import { useRefreshTopicsOnChange } from "@/client/hooks/use-refresh-topics-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { getGuest } from "@/client/lib/browser-pool";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
@@ -247,6 +248,7 @@ function WindowShell({
 }) {
   const appTabs = useAppTabs();
   useRefreshSkillsOnChange();
+  useRefreshTopicsOnChange();
   // Where the tab up stands, read off its own router, which the context above
   // is: the rail lights its place and the group on screen follows it.
   const activeHref = useRouterState({

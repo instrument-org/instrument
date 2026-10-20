@@ -345,8 +345,7 @@ export default defineConfig(({ command }) => {
         },
         rollupOptions: {
           // node-liblzma and @mongodb-js/zstd are optional dependencies of just-bash that fail to build in CI.
-          // @parcel/watcher (and its per-platform native bindings) must load from node_modules at runtime, never bundled.
-          external: ["node-liblzma", "@mongodb-js/zstd", /^@parcel\/watcher/],
+          external: ["node-liblzma", "@mongodb-js/zstd"],
           // Rolldown's default region comments name each module by id, and a
           // `?nodeWorker` import's id carries its importer's absolute path,
           // which would ship the build machine's checkout path in the bundle.

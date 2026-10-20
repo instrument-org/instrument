@@ -30,7 +30,8 @@ export const publisher = new EventPublisher<{
   };
   /**
    * An app's folder or connection record changed. Carries no payload because
-   * every listener re-reads the list. Published only by `appChanged`.
+   * every listener re-reads the list. Published by `appChanged`, and by the
+   * apps folder's watch while a list of apps is open (`appListChanges`).
    */
   "app.updated": null;
   /**
@@ -91,6 +92,11 @@ export const publisher = new EventPublisher<{
    * deleted. Carries no payload because every listener re-reads the list.
    */
   "skill.changed": null;
+  /**
+   * A topic's folder changed on disk, by the app or anyone else. Carries no
+   * payload because every listener re-reads the list.
+   */
+  "topic.changed": null;
   /**
    * An agent asking the window to act on its tabs: open one (on screen, or
    * behind whatever is up), point one at something else, close one, or bring

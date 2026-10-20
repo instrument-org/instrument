@@ -70,7 +70,6 @@
     "@orpc/server": "catalog:",
     "@orpc/shared": "catalog:",
     "@orpc/tanstack-query": "catalog:",
-    "@parcel/watcher": "2.6.0",
     "@tanstack/query-core": "^5.104.0",
     "@vscode/ripgrep": "^1.18.0",
     "@zkochan/cmd-shim": "^7.0.0",
@@ -257,14 +256,6 @@
     "yaml": "^2.9.0"
   },
   "optionalDependencies": {
-    "@parcel/watcher-darwin-arm64": "2.6.0",
-    "@parcel/watcher-darwin-x64": "2.6.0",
-    "@parcel/watcher-linux-arm64-glibc": "2.6.0",
-    "@parcel/watcher-linux-arm64-musl": "2.6.0",
-    "@parcel/watcher-linux-x64-glibc": "2.6.0",
-    "@parcel/watcher-linux-x64-musl": "2.6.0",
-    "@parcel/watcher-win32-arm64": "2.6.0",
-    "@parcel/watcher-win32-x64": "2.6.0",
     "@vscode/ripgrep-darwin-arm64": "1.18.0",
     "@vscode/ripgrep-darwin-x64": "1.18.0",
     "@vscode/ripgrep-linux-arm64": "1.18.0",

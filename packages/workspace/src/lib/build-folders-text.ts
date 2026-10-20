@@ -19,7 +19,6 @@ import { folderLabel, folderParentLabel } from "./folder-parent-label";
  */
 export function buildFoldersText({
   folders,
-  guidance = true,
   intro,
 }: {
   folders: {
@@ -27,12 +26,6 @@ export function buildFoldersText({
     missing?: boolean;
     path: string;
   }[];
-  /**
-   * Whether the rules for reading and writing these folders follow the list.
-   * A session reads them once, under the first folders it hears of; a folder
-   * announced after that is a list entry under rules already read.
-   */
-  guidance?: boolean;
   intro: string;
 }) {
   const displayNames = folders.map((folder) => folderLabel(folder.path));
@@ -51,15 +44,6 @@ export function buildFoldersText({
       return `- "${name}"${where} -> \`${shellPath(path)}\`${state}`;
     })
     .join("\n");
-
-  if (!guidance) {
-    return dedent`
-      <folders>
-      ${intro}
-      ${folderList}
-      </folders>
-    `;
-  }
 
   // Lines, not a `- ` list: the folder list above already is one, and a second
   // list under it reads as more folders.

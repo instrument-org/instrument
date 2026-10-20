@@ -19,8 +19,6 @@ interface SettingsModalState {
   diagnosticLog?: boolean;
   /** The memory to bring into view on the Memory tab, by its name, for a link to one. */
   memory?: string;
-  // Deep-link the Providers tab straight to the add-provider dialog.
-  showNewProviderDialog?: boolean;
   /**
    * The setting to bring into view and light, by the name a link gives it: a
    * row's id, a page's name, or words to search for (`settingsTargetOf`).

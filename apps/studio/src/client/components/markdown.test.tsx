@@ -173,6 +173,20 @@ describe("Markdown links", () => {
     );
   });
 
+  // A person writes a Windows file by its drive, and a reply may link one
+  // that way: it is the same file as the shell's spelling of it.
+  it.each([
+    "C:/Users/sam/Documents/sp%20ace/notes.txt",
+    "c:/Users/sam/Documents/sp%20ace/notes.txt",
+    "<C:\\Users\\sam\\Documents\\sp ace\\notes.txt>",
+  ])("opens a link to a Windows file by its drive: %s", (href) => {
+    renderMarkdown(`[notes.txt](${href})`);
+
+    expect(screen.getByRole("button", { name: "notes.txt" }).title).toBe(
+      "/c/Users/sam/Documents/sp ace/notes.txt",
+    );
+  });
+
   it("opens a task-relative link", () => {
     renderMarkdown("Wrote [`notes.md`](output/notes.md).");
 

@@ -761,6 +761,11 @@ const markdownUrlTransform: UrlTransform = (url, key, node) => {
   if (filePath !== undefined) {
     return shellSpelledDrive(filePath);
   }
+  // A Windows drive path, whose `C:` the default reads as a scheme it does not
+  // know and drops.
+  if (key === "href" && isChatFileHref(url)) {
+    return url;
+  }
   if (!/^file:/i.test(url)) {
     return defaultUrlTransform(url);
   }

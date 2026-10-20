@@ -178,17 +178,31 @@ describe("AgentFilesBlock", () => {
     `);
   });
 
-  // The paths come from model output, so a traversal or a Windows spelling can
+  // A person writes a Windows file by its drive, and a reply may hand that
+  // back: it is the same file as the shell's spelling of it.
+  it.each([
+    String.raw`C:\Users\sam\Documents\sp ace\notes.txt`,
+    "c:/Users/sam/Documents/sp ace/notes.txt",
+  ])("shows a Windows file named by its drive: %s", (path) => {
+    renderBlock(path);
+
+    expect(shownFiles()).toEqual([
+      "/c/Users/sam/Documents/sp ace/notes.txt @ /c/Users/sam/Documents/sp ace/notes.txt @ instrument://computer-test/c/Users/sam/Documents/sp ace/notes.txt",
+    ]);
+  });
+
+  // The paths come from model output, so a traversal or a stray backslash can
   // turn up among them. Nothing this app can do with one, so it draws no card
   // claiming otherwise.
-  it.each(["../../etc/passwd", "C:\\keys.txt"])(
-    "refuses %s, which is not a path it can address",
-    (path) => {
-      const { container } = renderBlock(path);
+  it.each([
+    "../../etc/passwd",
+    String.raw`work\keys.txt`,
+    String.raw`C:\Users\..\keys.txt`,
+  ])("refuses %s, which is not a path it can address", (path) => {
+    const { container } = renderBlock(path);
 
-      expect(container.innerHTML).toBe("");
-    },
-  );
+    expect(container.innerHTML).toBe("");
+  });
 
   // Mid-stream the last line is a path the model is still typing, and drawing
   // it would put up a card for `output/ch` and replace it on every keystroke.

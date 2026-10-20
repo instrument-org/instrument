@@ -121,13 +121,13 @@ Closing the libraries holds for every native program, `python`'s `os.walk` inclu
 
 ## find
 
-`find` is the walk models reach for even with `rg` in the bash description: in the record, 311 `find` calls in 129 app sessions against 529 `rg` in 120, and 627 against 2,084 in the evals; 29 of the `find` calls start at the home folder. It runs uutils on macOS and Linux and the builtin on Windows.
+`find` is the walk models reach for even with `rg` in the bash description: in the record, 311 `find` calls in 129 app sessions against 529 `rg` in 120, and 627 against 2,084 in the evals; 29 of the `find` calls start at the home folder. It runs uutils on every platform, on Windows with the separator patch the architecture page describes.
 
 - **Answers.** On the corpus the builtin misses `-type f` from `.`, `-printf` with `%TY-%Tm-%Td`, `-prune`, `-L` and `-type f,d`; uutils misses only `-newermt` with a time, which the builtin misses as well. The table passes 229 of 245 with `find` native against 224 with the builtin, `find`'s own cases 23 of 24 against 18, on the macOS and the Linux runs alike.
 - **Speed.** just-bash#597 (carried on the records branch as `mountable-dirents-3.6.0.diff`) reads each folder once rather than once per entry, which brings the builtin's 21,000-file `find -type f` to 135 ms on macOS (from 734) and 383 ms on Windows (from 8,423); uutils took 63 ms over 20,000 files through the shell. With the launcher a native start costs about 6 ms, so a native `find` is never the slower of the two. The builtin also stops at 20,000 entries over the home folder and 300,000 in all.
 - **Privacy dialogs.** uutils' `-prune` opens the pruned folder before skipping it, which set off macOS's Media Library dialog over `~/Movies/TV`. With the media libraries closed as places the sandbox refuses that open first: in a notarized preview, `find ~/Movies -path ~/Movies/TV -prune -o -print` and `find ~ -maxdepth 3` ran with no dialog and no request to macOS beyond the ones it answers silently.
-- **What the app hides.** The native sandbox does not hide the chat's `.instrument` folder or its `tasks/`, which the builtin never lists. The command's arguments carry a prune of every `.instrument` by name and of `tasks/` by path ahead of the caller's expression, with an explicit `-print` when the expression has no action of its own, and only the start points are held to the rules as paths.
-- **Windows** keeps the builtin: uutils prints backslashes there, which `-path '*/.*'` and `-prune` written with slashes never match, and once Windows has a sandbox each spawn will cost about 45 ms more.
+- **What the app hides.** Nothing, once the chat records moved out of the chat's folder: the workspace's `.instrument` is closed by the rules, which the sandbox enforces for `find` as for any program, so `find` gets no prune and only its start points are held to the rules as paths. Hiding it had been tidiness rather than a boundary; the sandbox protected the folder either way.
+- **Windows** first kept the builtin: uutils printed backslashes there, which `-path '*/.*'` and `-prune` written with slashes never match. The uutils-build patch read through `UUTILS_PATH_SEPARATOR=slash` fixed that, and `find` joined the Windows column (`4c0331dae`).
 - **`-newermt`.** findutils 0.10.0 parses no date; `main` parses ISO dates since 2026-08-20, unreleased, reading them as UTC where GNU reads local time.
 
 ## Going further
@@ -147,7 +147,7 @@ In the rebuilt preview on the macOS VM, a notarized app launched with the helper
 
 **Windows.** The 25 ms a start was measured inside the preview through CDP; the 7.5 ms process creation and the 14.7 ms with `windowsHide` were taken over SSH, a non-interactive logon session, and need repeating in the interactive one before anyone builds on them. Once Windows has a sandbox, MXC costs about 45 ms a spawn on top, roughly 70 ms a native command, which argues for keeping Windows' column short.
 
-**More commands.** Outside the table the corpus finds little: `tr` passes either way except `tr '\0'`, which the builtin gets wrong; `touch` would fix the builtin discarding `-t` and `-r` (#364), but it writes every operand, so each needs the write check; `printf` is the interpreter's own and cannot be shadowed; `ls` stays a builtin so the entries the app hides stay hidden. At 6 ms a start `tr` could join at a cost of about 0.12 s per 20-iteration loop; on Linux, until its start cost moves, 0.4 s.
+**More commands.** Outside the table the corpus finds little: `tr` passes either way except `tr '\0'`, which the builtin gets wrong; `touch` would fix the builtin discarding `-t` and `-r` (#364), but it writes every operand, so each needs the write check; `printf` is the interpreter's own and cannot be shadowed. `ls` once stayed a builtin so the entries the app hides stay hidden; nothing is hidden any more, so what keeps it is loop cost and unscored `ls -l` output. The corpus never scored the commands both just-bash and uutils have that models write less often (`sha1sum`, `base64`, `paste`, `nl`, `fold`, `tac`, `split`, `readlink`, `mktemp`, `basename`, `dirname`, `expand`, `unexpand`), so they stayed builtins by default rather than by score. At 6 ms a start `tr` could join at a cost of about 0.12 s per 20-iteration loop; on Linux, until its start cost moves, 0.4 s.
 
 ## One name, one implementation
 
@@ -201,6 +201,8 @@ Preview builds of the first prototype (builtin first, `find` native) for macOS a
 | Haiku 5.5, builtins | 3 of 3 | 0 of 12 | 3, 4, 5 | 13, 14, 16 s | 117 to 125K |
 
 Both models answered correctly either way. GLM wrote two commands the builtins turned down and recovered from both, at a call and about 30K tokens a run; Haiku wrote none. Wall time on Workers AI is dominated by queuing, and three runs cannot separate the rest. The case measures that the routing costs nothing in answers; the benefit it buys shows in the record's 41 `sort -g` and 28 `grep -H` failures more than in one well-specified task. About $0.04 in all.
+
+A broader run compared the shell before and after the day the routing landed, six cases twice each (baseline `c0f84aeb4`, candidate `8f3d2496e`). GLM 5.3 Flash passed 12 of 12 against 10, Haiku 5.5 10 of 12 against 9, and failed bash calls fell from 17 to 15 and from 9 to 4. Most of that gain was not uutils: the same day fixed Python libraries the sandbox could not import, and ten baseline sessions hit `ModuleNotFoundError` against none. The part that was uutils is the GNU flags: the baseline turned down `sort -g` once and `grep -H` twice, the candidate neither, and after one `grep -H` refusal GLM spent 198 s wandering and failed the text-tools case, which it passed in all four candidate runs.
 
 ## What it retires
 

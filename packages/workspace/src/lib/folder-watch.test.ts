@@ -90,7 +90,9 @@ describe("watchFolder", () => {
   });
 
   it("waits for a folder not made yet, and for one removed and made again", async () => {
-    const watch = listen();
+    // A short read, so the test does not hang on how soon the system
+    // reports a removed folder.
+    const watch = listen({ recheckMs: 300 });
     await settled();
 
     const made = watch.next();

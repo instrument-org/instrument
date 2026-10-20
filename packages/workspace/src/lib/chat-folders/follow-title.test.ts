@@ -59,6 +59,29 @@ describe("followTitle", () => {
     expect(folderOf(chatId)).toBe("Check the weather");
   });
 
+  it("renames a folder to its title's new capitals on a disk that ignores case", async (context) => {
+    const chatId = await ensureChat(StoreId.newSessionId(), "Dinner plans");
+    const folder = path.join(chatsFolder(), "Dinner plans");
+    const ignoresCase = await fs
+      .stat(path.join(chatsFolder(), "DINNER PLANS"))
+      .then(
+        (found) => found.isDirectory(),
+        () => false,
+      );
+    if (!ignoresCase) {
+      await fs.rm(folder, { recursive: true });
+      context.skip();
+    }
+
+    await followTitle(chatId, "Dinner Plans");
+
+    const names = await fs.readdir(chatsFolder());
+    expect(names).toContain("Dinner Plans");
+    expect(names).not.toContain("Dinner plans");
+    expect(names).not.toContain("Dinner Plans 2");
+    expect(folderOf(chatId)).toBe("Dinner Plans");
+  });
+
   it("says nothing and throws nothing for a chat with no folder recorded", async () => {
     await expect(
       followTitle("not-a-chat" as never, "Anything"),

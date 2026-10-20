@@ -143,7 +143,7 @@ export function claimFolderNamedSync(
 }
 
 /** Whether making the folder failed because something is already there. */
-function isTakenError(error: unknown): boolean {
+export function isTakenError(error: unknown): boolean {
   return (
     error instanceof Error &&
     "code" in error &&

@@ -6,6 +6,8 @@ const base = oc.errors({
   CONFLICT: {},
   FORBIDDEN: {},
   INTERNAL_SERVER_ERROR: {},
+  // Every billing procedure but the offer takes ten calls a minute per user.
+  TOO_MANY_REQUESTS: {},
   UNAUTHORIZED: {},
 });
 

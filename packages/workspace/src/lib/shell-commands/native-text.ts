@@ -120,7 +120,7 @@ function sortOutput(args: string[]): string[] {
 }
 
 /** split's short options that take a value, joined or the next argument. */
-const SPLIT_SHORT_VALUE = "abClnt";
+const SPLIT_SHORT_VALUE = /[abClnt]/;
 
 /** split's long options that take the next argument when not joined by `=`. */
 const SPLIT_LONG_VALUE = new Set([
@@ -156,9 +156,7 @@ export function splitPrefix(args: string[]): string {
     } else if (!/^-\d+$/.test(arg)) {
       // A cluster ends at the first letter taking a value: the rest of the
       // cluster is that value, or else the next argument is.
-      const at = [...arg.slice(1)].findIndex((letter) =>
-        SPLIT_SHORT_VALUE.includes(letter),
-      );
+      const at = arg.slice(1).search(SPLIT_SHORT_VALUE);
       if (at !== -1 && at === arg.length - 2) {
         index++;
       }

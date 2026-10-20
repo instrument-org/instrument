@@ -29,11 +29,11 @@ import { type RowAction } from "./row-shell";
 const NEST_GUARD = StoreId.newSessionId();
 const calls = vi.hoisted(() => ({
   archive: vi.fn(),
+  location: vi.fn(),
   rename: vi.fn(),
   retitle: vi.fn(),
   read: vi.fn(),
   star: vi.fn(),
-  transcript: vi.fn(),
   unarchive: vi.fn(),
   unread: vi.fn(),
 }));
@@ -82,9 +82,8 @@ vi.mock("@/client/rpc/client", () => {
   });
   return {
     rpcClient: {
-      transcript: {
-        copy: routeOf(vi.fn()),
-        save: routeOf(calls.transcript),
+      chatLocation: {
+        copy: routeOf(calls.location),
       },
       utils: {
         // The Finder's icon is decorative; the row draws its glyph without it.
@@ -1146,15 +1145,15 @@ describe("the row's actions", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
-  it("offers saving the transcript in developer mode alone, in its color", async () => {
+  it("offers copying the chat location in developer mode alone, in its color", async () => {
     developerMode.enabled = true;
     const { row } = await renderRow(chat());
     await userEvent.click(titleOf(row), { button: "right" });
-    const save = page.getByRole("menuitem", { name: "Save transcript" });
-    await expect.element(save).toHaveAttribute("data-variant", "developer");
-    await userEvent.click(save);
-    expect(calls.transcript).toHaveBeenCalledWith(
-      expect.objectContaining({ format: "markdown", sessionId }),
+    const copy = page.getByRole("menuitem", { name: "Copy chat location" });
+    await expect.element(copy).toHaveAttribute("data-variant", "developer");
+    await userEvent.click(copy);
+    expect(calls.location).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId }),
     );
   });
 

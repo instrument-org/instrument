@@ -1,20 +1,30 @@
 #!/usr/bin/env node
-// node digest.mjs <transcript.md> [--json] [--children]
+// node digest.mjs <transcript.md | chat records folder> [--session <id>] [--json] [--children]
 // Turns an exported transcript into what is worth reading: where the time
 // went, which calls failed or repeated, and one line per step with its line
 // number, so the Markdown is read at the flagged ranges rather than end to end.
+// Given a chat's records folder instead, renders the session first (the
+// chat's own, or the one `--session` names).
 import fs from "node:fs";
 import path from "node:path";
 
-import { loadChildren } from "./children.mjs";
+import { exportSession, loadChildren } from "./children.mjs";
 import { analyze, fmt, groupFlags, parseTranscript, short } from "./parse.mjs";
 
 const args = process.argv.slice(2);
-const file = args.find((a) => !a.startsWith("--"));
-if (!file) {
-  console.error("usage: digest.mjs <transcript.md> [--json] [--children]");
+const sessionAt = args.indexOf("--session");
+const sessionId = sessionAt === -1 ? undefined : args[sessionAt + 1];
+const input = args.find(
+  (a, i) => !a.startsWith("--") && (sessionAt === -1 || i !== sessionAt + 1),
+);
+if (!input) {
+  console.error(
+    "usage: digest.mjs <transcript.md | chat records folder> [--session <id>] [--json] [--children]",
+  );
   process.exit(2);
 }
+const rendered = fs.statSync(input).isDirectory();
+const file = rendered ? exportSession(input, sessionId) : input;
 const asJson = args.includes("--json");
 
 const main = load(file);
@@ -24,8 +34,9 @@ if (asJson) {
   process.stdout.write(
     JSON.stringify(
       {
+        ...(rendered ? { file } : {}),
         ...toJson(main),
-        duplicates: duplicates(file, main.p.meta.sessionId),
+        duplicates: rendered ? [] : duplicates(file, main.p.meta.sessionId),
         children: children.map((c) => ({
           id: c.id,
           ...(c.p ? { file: c.file, ...toJson(c) } : { missing: c.missing }),
@@ -36,8 +47,10 @@ if (asJson) {
     ) + "\n",
   );
 } else {
-  const out = [];
-  const dups = duplicates(file, main.p.meta.sessionId);
+  // A rendered transcript is the one export of its session in the cache, so
+  // it has no others beside it to compare.
+  const out = rendered ? [`Transcript at ${file}`, ""] : [];
+  const dups = rendered ? [] : duplicates(file, main.p.meta.sessionId);
   if (dups.length)
     out.push(
       `Same session also exported as: ${dups.map((d) => `${d.name} (${d.lines} lines, exported ${d.exportedAt}${d.identical ? ", identical" : ""})`).join("; ")}. This one was exported ${main.p.meta.transcriptGeneratedAt}.`,
@@ -137,7 +150,7 @@ function render({ p, a }) {
   log(
     `${a.steps.length} model steps, ${m.toolCallCount} tool calls, ${m.userMessageCount} user messages. Active ${fmt(m.activeDurationMs)}, model ${fmt(m.aiGenerationDurationMs)}. ${m.usage?.inputTokens ?? "?"} input tokens (${Math.round((100 * (m.usage?.cacheReadTokens ?? 0)) / (m.usage?.inputTokens || 1))}% cache read), ${m.usage?.outputTokens ?? "?"} output.`,
   );
-  log(`Task folder: ${m.taskDir}`);
+  log(`Chat folder: ${m.chatDir ?? m.taskDir ?? m.source}`);
   log();
   log("## Where the time went (inside turns)");
   const tot = Object.values(a.buckets).reduce((x, y) => x + y, 0) || 1;

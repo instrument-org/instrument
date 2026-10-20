@@ -1,5 +1,5 @@
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
-import { useTranscriptActions } from "@/client/components/task/transcript-actions";
+import { useCopyChatLocation } from "@/client/components/task/copy-chat-location";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -11,13 +11,13 @@ import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { showInFolderLabel, showChatFolder } from "@/client/lib/show-in-files";
 import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
-import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 
 /**
  * The menu beside a task's name, for what someone looking over its shoulder can
  * do with the run itself rather than with anything in it: open the folder it
- * worked in, or in developer mode save its transcript.
+ * worked in, or in developer mode copy where its records are.
  */
 export function TaskMenu({
   sessionId,
@@ -27,7 +27,7 @@ export function TaskMenu({
   sessionId: StoreId.Session | undefined;
   chatId: ChatId;
 }) {
-  const transcript = useTranscriptActions({ id: chatId, sessionId });
+  const copyChatLocation = useCopyChatLocation();
   const isDeveloperMode = useTabDeveloperMode();
 
   return (
@@ -47,18 +47,18 @@ export function TaskMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="bottom">
-        {/* Saves without opening anything: the transcript is on its way
-          somewhere else, and the path lands on the clipboard for it. */}
         {isDeveloperMode && (
           <DropdownMenuItem
             disabled={!sessionId}
             onSelect={() => {
-              transcript.save("markdown");
+              if (sessionId) {
+                copyChatLocation({ id: chatId, sessionId });
+              }
             }}
             variant="developer"
           >
-            <ArrowLineDownIcon className="size-4" />
-            Save transcript
+            <CopyIcon className="size-4" />
+            Copy chat location
           </DropdownMenuItem>
         )}
         {/* The chat's output folder, where the task's deliverables land. */}

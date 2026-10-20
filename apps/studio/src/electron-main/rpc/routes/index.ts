@@ -6,6 +6,7 @@ import { apps } from "./apps";
 import { auth } from "./auth";
 import { browser } from "./browser";
 import { browsingData } from "./browsing-data";
+import { chatLocation } from "./chat-location";
 import { chatgptAccount } from "./chatgpt-account";
 import { claudeAccount } from "./claude-account";
 import { debug } from "./debug";
@@ -25,7 +26,6 @@ import { providerConfig } from "./provider-config";
 import { releases } from "./releases";
 import { stripe } from "./stripe";
 import { syntax } from "./syntax";
-import { transcript } from "./transcript";
 import { updates } from "./updates";
 import { user } from "./user";
 import { utils } from "./utils";
@@ -39,6 +39,7 @@ export const router = {
   auth,
   browser,
   browsingData,
+  chatLocation,
   chatgptAccount,
   claudeAccount,
   debug,
@@ -58,7 +59,6 @@ export const router = {
   releases,
   stripe,
   syntax,
-  transcript,
   updates,
   user,
   utils,

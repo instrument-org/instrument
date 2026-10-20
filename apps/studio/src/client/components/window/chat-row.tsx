@@ -19,7 +19,6 @@ import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { openClickGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { HourglassIcon } from "@phosphor-icons/react/Hourglass";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -541,12 +540,9 @@ function Peek({
           </span>
         </>
       ) : isLimited ? (
-        <>
-          <HourglassIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 truncate text-muted-foreground">
-            {LIMITED}
-          </span>
-        </>
+        <span className="min-w-0 truncate text-muted-foreground">
+          {LIMITED}
+        </span>
       ) : isWaiting ? (
         <>
           <QuestionIcon

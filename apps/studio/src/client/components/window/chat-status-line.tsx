@@ -9,7 +9,6 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import { HourglassIcon } from "@phosphor-icons/react/Hourglass";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StopIcon } from "@phosphor-icons/react/Stop";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -188,7 +187,11 @@ function StopChatButton({ chatId }: { chatId: ChatId }) {
   );
 }
 
-/** The mark the chat's row and the tasks list put beside the same state. */
+/**
+ * The mark the chat's row and the tasks list put beside the same state. A
+ * stop at a usage limit has none: the words say it, and the reply box's note
+ * says what to do.
+ */
 function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
   switch (tone) {
     case "run": {
@@ -219,9 +222,7 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
       return <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />;
     }
     case "limited": {
-      return (
-        <HourglassIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      );
+      return null;
     }
   }
 }

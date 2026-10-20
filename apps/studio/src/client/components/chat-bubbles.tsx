@@ -13,6 +13,7 @@ import {
   createContext,
   memo,
   use,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -83,6 +84,13 @@ export function ChatBubbles({
     isDeveloperMode,
   });
   const boxes = useStableBoxes(derived.boxes);
+  // Everything on screen as the conversation opens counts as already here,
+  // the older turns filled in above it included, so only what arrives while
+  // it is being read comes in moving.
+  const [arrivals] = useState(() => new Arrivals(derived.boxes));
+  useEffect(() => {
+    arrivals.goLive();
+  }, [arrivals]);
   const followedKey = derived.followed.join(" ");
   const [followed, setFollowed] = useState(() => ({
     key: followedKey,
@@ -100,28 +108,30 @@ export function ChatBubbles({
 
   return (
     <BubbleActionsContext value={actions}>
-      <FollowedBubblesContext value={followed.set}>
-        <TailFirst
-          items={boxes.map((box) => (
-            <BubbleBoxItem box={box} chatInfo={chatInfo} key={box.key} />
-          ))}
-        />
-        {pausedAtMaxSteps && (
-          <MessageScrollerItem key="continue">
-            <Alert className="mt-4" variant="warning">
-              <WarningIcon />
-              <AlertDescription className="flex flex-col gap-3">
-                <div className="text-xs">
-                  Instrument paused after working on its own for a while.
-                </div>
-                <Button onClick={onContinue} size="sm" variant="secondary">
-                  Keep going
-                </Button>
-              </AlertDescription>
-            </Alert>
-          </MessageScrollerItem>
-        )}
-      </FollowedBubblesContext>
+      <ArrivalsContext value={arrivals}>
+        <FollowedBubblesContext value={followed.set}>
+          <TailFirst
+            items={boxes.map((box) => (
+              <BubbleBoxItem box={box} chatInfo={chatInfo} key={box.key} />
+            ))}
+          />
+          {pausedAtMaxSteps && (
+            <MessageScrollerItem key="continue">
+              <Alert className="mt-4" variant="warning">
+                <WarningIcon />
+                <AlertDescription className="flex flex-col gap-3">
+                  <div className="text-xs">
+                    Instrument paused after working on its own for a while.
+                  </div>
+                  <Button onClick={onContinue} size="sm" variant="secondary">
+                    Keep going
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            </MessageScrollerItem>
+          )}
+        </FollowedBubblesContext>
+      </ArrivalsContext>
     </BubbleActionsContext>
   );
 }
@@ -532,26 +542,106 @@ const BubbleBoxItem = memo(function BubbleBoxItem({
       // The conversation keeps to its end, the way a chat does.
       scrollAnchor={false}
     >
-      {box.rows.map((row, index) =>
-        // Only the cards and notes read the chat's record; the rest name the
-        // chat, so a record that moved redraws no bubble.
-        row.kind === "card" || row.kind === "note" ? (
-          <RecordRowView
-            chatInfo={chatInfo}
-            key={rowKey(row, index)}
-            row={row}
-          />
-        ) : (
-          <BubbleRowView
-            chatId={chatInfo.id}
-            key={rowKey(row, index)}
-            row={row}
-          />
-        ),
-      )}
+      {box.rows.map((row, index) => (
+        <Arriving
+          key={rowKey(row, index)}
+          side={box.speaker}
+          signature={arrivalSignature(box, row, index)}
+        >
+          {
+            // Only the cards and notes read the chat's record; the rest name
+            // the chat, so a record that moved redraws no bubble.
+            row.kind === "card" || row.kind === "note" ? (
+              <RecordRowView chatInfo={chatInfo} row={row} />
+            ) : (
+              <BubbleRowView chatId={chatInfo.id} row={row} />
+            )
+          }
+        </Arriving>
+      ))}
     </MessageScrollerItem>
   );
 });
+
+/**
+ * What a row is for telling whether it has been on screen before. A message
+ * the user sent is drawn from the press and again once stored, under a new
+ * id, so its rows go by its words: the stored copy is not a second arrival.
+ */
+function arrivalSignature(box: BubbleBox, row: BubbleRow, index: number) {
+  if (box.speaker !== "user") {
+    return rowKey(row, index);
+  }
+  const words = box.rows
+    .map((each) => (each.kind === "text" ? each.part.text : ""))
+    .join("\n");
+  return `user:${words}:${row.kind}:${index}`;
+}
+
+/** The rows a conversation has drawn, and whether it has finished opening. */
+class Arrivals {
+  private live = false;
+  private readonly seen: Set<string>;
+
+  constructor(boxes: readonly BubbleBox[]) {
+    this.seen = new Set(
+      boxes.flatMap((box) =>
+        box.rows.map((row, index) => arrivalSignature(box, row, index)),
+      ),
+    );
+  }
+
+  /** Whether a row mounting now is new to the reader. */
+  isArriving(signature: string) {
+    return this.live && !this.seen.has(signature);
+  }
+
+  goLive() {
+    this.live = true;
+  }
+
+  see(signature: string) {
+    this.seen.add(signature);
+  }
+}
+
+const ArrivalsContext = createContext(new Arrivals([]));
+
+/**
+ * The way a text chat brings in a message: a short fade and rise, grown
+ * from the corner of the bubble's own side. Only for a row that arrives
+ * while the conversation is being read.
+ */
+const ARRIVE =
+  "animate-in fill-mode-both fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-200 ease-out motion-reduce:animate-none";
+
+function Arriving({
+  children,
+  side,
+  signature,
+}: {
+  children: React.ReactNode;
+  side: BubbleBox["speaker"];
+  signature: string;
+}) {
+  const arrivals = use(ArrivalsContext);
+  // Decided once, as the row mounts: a row redrawn later is not arriving.
+  const [isArriving] = useState(() => arrivals.isArriving(signature));
+  useEffect(() => {
+    arrivals.see(signature);
+  }, [arrivals, signature]);
+  return (
+    <div
+      className={cn(
+        isArriving && ARRIVE,
+        isArriving &&
+          (side === "user" ? "origin-bottom-right" : "origin-bottom-left"),
+      )}
+    >
+      {children}
+    </div>
+  );
+}
 
 function rowKey(row: BubbleRow, index: number): string {
   switch (row.kind) {

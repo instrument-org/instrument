@@ -190,6 +190,7 @@ async function runExec({
   execOptions,
   id,
   chat,
+  path: searchPath,
   stream,
 }: Extract<ToWorker, { type: "exec" }>) {
   const controller = new AbortController();
@@ -201,6 +202,11 @@ async function runExec({
   });
   // One config per process on main, so the latest snapshot is the only one.
   setWorkspaceConfig(workerConfig(config));
+  // A worker's environment is a copy taken when it started, which is during
+  // boot, before the login shell's PATH reaches main.
+  if (searchPath !== undefined) {
+    process.env.PATH = searchPath;
+  }
   // Main keeps the folder index current as it makes and trashes chats, so
   // the chat comes resolved with the command rather than read here, where a
   // copy of the index would miss a chat made since.

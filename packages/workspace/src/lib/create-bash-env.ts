@@ -21,6 +21,7 @@ import { type MountedFolder } from "../schemas/mounted-folder";
 import { type StoreId } from "../schemas/store-id";
 import { TOOL_NAMES } from "../tools/name";
 import { bashWorkerEnabled, createRemoteBash } from "./bash-worker/client";
+import { shellPathReady } from "./login-shell-path";
 import {
   AGENT_BROWSER_COMMAND,
   agentBrowserCommandDescription,
@@ -862,6 +863,9 @@ const CHAT_ONLY_SUBCOMMANDS: Record<string, string> = Object.fromEntries(
 export async function createBashEnv(
   options: BashEnvOptions,
 ): Promise<BashRunner> {
+  // Every program the agent runs is found on this PATH, so the first command
+  // after launch waits for the login shell's.
+  await shellPathReady();
   return bashWorkerEnabled()
     ? createRemoteBash(options, () => createLocalBashEnv(options))
     : await createLocalBashEnv(options);

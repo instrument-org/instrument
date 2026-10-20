@@ -80,6 +80,8 @@ declare namespace NodeJS {
       REHEARSE_WORKSPACE: string | undefined;
       /** Dev only: the port electron-vite gives the Electron child for CDP. */
       REMOTE_DEBUGGING_PORT: string | undefined;
+      /** The person's login shell, read for its PATH when the passwd entry names none. */
+      SHELL: string | undefined;
       SIGNTOOL_PATH: string | undefined;
       SKIP_MOVE_TO_APPLICATIONS: string | undefined;
       SKIP_ONBOARDING: string | undefined;

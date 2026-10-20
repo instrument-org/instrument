@@ -110,6 +110,8 @@ export type ToWorker =
        * reads the index itself.
        */
       chat: { dir: ChatDir; id: ChatId } | undefined;
+      /** Main's PATH as the command starts, which the login shell's read may have changed since the worker started. */
+      path: string | undefined;
       /** Whether main has a background run's sink to stream native output into. */
       stream: boolean;
       type: "exec";

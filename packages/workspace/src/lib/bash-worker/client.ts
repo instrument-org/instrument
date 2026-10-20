@@ -152,6 +152,7 @@ export function createRemoteBash(
             execOptions,
             id,
             chat: chatId ? { dir: chatDir(chatId), id: chatId } : undefined,
+            path: process.env.PATH,
             stream: sink !== undefined,
             type: "exec",
           });

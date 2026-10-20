@@ -238,6 +238,26 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     });
   });
 
+  it.skipIf(process.platform === "win32")(
+    "finds programs on the PATH main has when the command starts",
+    async () => {
+      // The login shell's PATH reaches main after the worker has started.
+      const bin = path.join(root, "later-bin");
+      await fs.mkdir(bin, { recursive: true });
+      await fs.writeFile(path.join(bin, "zz-later"), "#!/bin/sh\n", {
+        mode: 0o755,
+      });
+      const before = process.env.PATH;
+      process.env.PATH = `${bin}:${before ?? ""}`;
+      try {
+        const result = await remoteBash().exec("which zz-later");
+        expect(result.stdout).toBe(`${path.join(bin, "zz-later")}\n`);
+      } finally {
+        process.env.PATH = before;
+      }
+    },
+  );
+
   it("finds a chat made after the worker started", async () => {
     const made = await chatFor();
     const dir = workDir(made);

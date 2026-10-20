@@ -80,6 +80,7 @@ export {
   isKnownCdpMethod,
 } from "./lib/cdp-methods";
 export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
+export { startLoginShellPath } from "./lib/login-shell-path";
 export { findAvailableName } from "./lib/find-available-name";
 export {
   type LayoutMarkStore,

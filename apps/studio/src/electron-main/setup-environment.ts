@@ -1,9 +1,11 @@
 import { is, platform } from "@electron-toolkit/utils";
 import { APP_NAME } from "@instrument-org/shared";
 import { STACK_FRAME_LIMIT } from "@instrument-org/shared/exceptions";
-import { installAISDKWarningLogger } from "@instrument-org/workspace/electron";
+import {
+  installAISDKWarningLogger,
+  startLoginShellPath,
+} from "@instrument-org/workspace/electron";
 import { app } from "electron";
-import fixPath from "fix-path";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
@@ -76,6 +78,19 @@ function configureUserDataDirectory() {
 }
 
 configureUserDataDirectory();
+
+// An app started from the Dock or a desktop entry has the session's bare PATH,
+// and the agent's commands need the person's programs. The PATH saved from
+// the last read goes on now; the login shell's is read in the background,
+// started first so it has the whole boot to finish, and the agent's shell and
+// local app servers wait for it before their first spawn. Does nothing on
+// Windows, whose GUI apps get the user's PATH.
+startLoginShellPath({
+  cacheFile: path.join(app.getPath("userData"), "login-shell-path.json"),
+  log: (message) => {
+    logger.info(message);
+  },
+});
 
 // A page can hand an agent its own callable tools, described and typed,
 // through `document.modelContext`, instead of making it read the page and
@@ -273,9 +288,4 @@ if (platform.isLinux) {
     app.commandLine.appendSwitch("password-store", passwordStore);
     logger.info(`Using password store: ${passwordStore}`);
   }
-}
-
-if (!platform.isWindows) {
-  // Fix the $PATH on macOS and Linux when run from a GUI app
-  fixPath();
 }

@@ -11,9 +11,10 @@ import {
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { BrainIcon } from "@phosphor-icons/react/Brain";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
-import { HashIcon } from "@phosphor-icons/react/Hash";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
+
+import { TopicPill } from "./window/chat-row";
 
 type SetupChange =
   SessionMessageDataPart.SetupChangesDataPart["changes"][number];
@@ -37,11 +38,12 @@ export function SetupChangesNote({ changes }: { changes: SetupChange[] }) {
   );
 }
 
+// A topic has no icon of its own: its line wears the topic's pill.
 const ICONS = {
   app: AppWindowIcon,
   memory: BrainIcon,
   skill: CubeIcon,
-  topic: HashIcon,
+  topic: undefined,
 } as const;
 
 const LINK_CLASS_NAME =
@@ -51,7 +53,7 @@ function SetupChangeLine({ change }: { change: SetupChange }) {
   const Icon = ICONS[change.kind];
   return (
     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      <Icon className="size-3.5 shrink-0" />
+      {Icon && <Icon className="size-3.5 shrink-0" />}
       <span className="min-w-0">
         {change.kind === "app" ? (
           <AppSentence change={change} />
@@ -166,15 +168,15 @@ function TopicSentence({ change }: { change: SetupChange }) {
     <Sentence
       change={change}
       {...(topic && {
-        link: (label) => (
+        link: () => (
           <button
-            className={LINK_CLASS_NAME}
+            className="inline-flex align-middle"
             onClick={() => {
               openTopicDetails(topic.id);
             }}
             type="button"
           >
-            {label}
+            <TopicPill topic={topic} />
           </button>
         ),
       })}

@@ -29,19 +29,13 @@ export function setupChangeSentence(
       };
     }
     case "memory": {
+      // A memory is its file, which is how the person finds it again.
+      const file = label ?? `${name}.md`;
       return change === "added"
-        ? {
-            after: "” to your memories.",
-            before: "Saved “",
-            label: label ?? name,
-          }
+        ? { after: " to your memories.", before: "Saved ", label: file }
         : change === "changed"
-          ? {
-              after: "” in your memories.",
-              before: "Updated “",
-              label: label ?? name,
-            }
-          : { after: "”.", before: "Forgot “", label: label ?? name };
+          ? { after: " in your memories.", before: "Updated ", label: file }
+          : { after: " from your memories.", before: "Removed ", label: file };
     }
     case "skill": {
       return {

@@ -212,6 +212,14 @@ function bubbleBoxes(
     bubbles: string[],
     opensRun: boolean,
   ) => {
+    // A box of notes alone (what the user answered to a card) sits under
+    // whatever is above it, and opens no run of either speaker's bubbles.
+    if (!opensRun && box.rows.every((row) => row.kind === "note")) {
+      endRun();
+      lastSpeaker = undefined;
+      boxes.push({ ...box, continuesRun: boxes.length > 0 });
+      return;
+    }
     const continuesRun = lastSpeaker === box.speaker && !opensRun;
     if (!continuesRun) {
       endRun();
@@ -522,6 +530,13 @@ const BOX = "flex flex-col gap-1";
  */
 const CONTINUES_RUN = "-mt-3";
 
+/**
+ * A note's spacing is the box's, whatever margin the note brings: 4px under
+ * the note above it, 8px under a bubble or a card.
+ */
+const NOTE = "*:mt-0";
+const NOTE_UNDER_BUBBLE = "mt-1";
+
 // Memoized by hand: the boxes arrive as a new array every render, so nothing
 // the compiler can see says an item's props are the ones it had.
 const BubbleBoxItem = memo(function BubbleBoxItem({
@@ -544,6 +559,16 @@ const BubbleBoxItem = memo(function BubbleBoxItem({
     >
       {box.rows.map((row, index) => (
         <Arriving
+          className={
+            row.kind === "note"
+              ? cn(
+                  NOTE,
+                  index > 0 &&
+                    box.rows[index - 1]?.kind !== "note" &&
+                    NOTE_UNDER_BUBBLE,
+                )
+              : undefined
+          }
           key={rowKey(row, index)}
           side={box.speaker}
           signature={arrivalSignature(box, row, index)}
@@ -617,10 +642,12 @@ const ARRIVE =
 
 function Arriving({
   children,
+  className,
   side,
   signature,
 }: {
   children: React.ReactNode;
+  className?: string;
   side: BubbleBox["speaker"];
   signature: string;
 }) {
@@ -633,6 +660,7 @@ function Arriving({
   return (
     <div
       className={cn(
+        className,
         isArriving && ARRIVE,
         isArriving &&
           (side === "user" ? "origin-bottom-right" : "origin-bottom-left"),

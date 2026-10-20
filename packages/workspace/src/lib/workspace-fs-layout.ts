@@ -232,7 +232,8 @@ export async function buildBashFs(
   // is refused, the skills it ships are read-only, and the chat's folder is
   // open.
   const workspaceSkills = layout.skills.find((mount) => !mount.readOnly);
-  for (const mount of await mountRoots(layout)) {
+  const { links, roots } = await mountRoots(layout);
+  for (const mount of roots) {
     const readOnly = mount.readOnly && !holdsWritable(layout, mount);
     // Where the folder really is, which a filesystem over the disk compares
     // every path it is handed against: `/tmp` is a link on macOS.
@@ -282,7 +283,56 @@ export async function buildBashFs(
     );
   }
 
-  return fs;
+  return links.length > 0 ? linkedFs(fs, links) : fs;
+}
+
+/** A folder's name in the shell that leads through a link to another. */
+interface FolderLink {
+  from: string;
+  to: string;
+}
+
+/**
+ * The shell's filesystem with each linked folder's name leading where the
+ * link does, as the kernel follows it for a native program. Only the folder
+ * named is followed, and what is there is the rules' to say at that path.
+ */
+function linkedFs(fs: IFileSystem, links: FolderLink[]): IFileSystem {
+  const follow = (path: unknown): unknown => {
+    if (typeof path !== "string") {
+      return path;
+    }
+    const link = links.find(
+      ({ from }) => path === from || path.startsWith(`${from}/`),
+    );
+    return link ? `${link.to}${path.slice(link.from.length)}` : path;
+  };
+  return new Proxy(fs, {
+    get(target, key, receiver) {
+      const value: unknown = Reflect.get(target, key, receiver);
+      if (
+        typeof value !== "function" ||
+        key === "resolvePath" ||
+        key === "getAllPaths"
+      ) {
+        return value;
+      }
+      // The methods naming two paths; a symbolic link's target is its text,
+      // never a path to follow. Every other method names one, first.
+      const paths =
+        key === "cp" || key === "mv" || key === "link"
+          ? [0, 1]
+          : key === "symlink"
+            ? [1]
+            : [0];
+      return (...args: unknown[]): unknown =>
+        Reflect.apply(
+          value,
+          target,
+          args.map((arg, index) => (paths.includes(index) ? follow(arg) : arg)),
+        );
+    },
+  });
 }
 
 /**
@@ -966,7 +1016,7 @@ export function appDataBounds(layout: WorkspaceFsLayout): {
 /** The layout's mounts with every one inside another left to the outer. */
 async function mountRoots(
   layout: WorkspaceFsLayout,
-): Promise<WorkspaceFsMount[]> {
+): Promise<{ links: FolderLink[]; roots: WorkspaceFsMount[] }> {
   const present: WorkspaceFsMount[] = [];
   const missingOurs: WorkspaceFsMount[] = [];
   // The app's own folders are made when missing; a folder of the person's
@@ -1003,13 +1053,55 @@ async function mountRoots(
       present.push(mount);
     }
   }
-  const outermost = present.toSorted(
-    (a, b) => a.hostRoot.length - b.hostRoot.length,
-  );
   // A mount at a second name for its folder (`/tmp` on Windows) mounts
   // beside the one at the folder's own path rather than inside it.
   const aliased = (mount: WorkspaceFsMount) =>
     mount.shellRoot !== shellPath(mount.hostRoot);
+  // A folder reached through a link inside another mount (`~/work` leading
+  // to `~/Documents/work`) mounts where the link leads, since a mount
+  // refuses to pass a link, and its own name leads there (`links`). Where it
+  // leads is spelled through the mount holding it, as the shell routes it.
+  const real = (hostPath: string) =>
+    canonicalizeThroughMissing(hostPath) ?? hostPath;
+  const leadsElsewhere = (mount: WorkspaceFsMount) =>
+    !aliased(mount) &&
+    present.some((outer) => {
+      const within =
+        outer !== mount && !aliased(outer)
+          ? hostPathWithin(outer.hostRoot, mount.hostRoot)
+          : null;
+      return (
+        within !== null &&
+        real(mount.hostRoot) !== nodePath.join(real(outer.hostRoot), within)
+      );
+    });
+  const linked = present.filter(leadsElsewhere);
+  const spelledIn = (realPath: string) => {
+    const holder = present
+      .filter((mount) => !aliased(mount) && !linked.includes(mount))
+      .map((mount) => ({
+        mount,
+        within: hostPathWithin(real(mount.hostRoot), realPath),
+      }))
+      .filter(({ within }) => within !== null)
+      .toSorted((a, b) => b.mount.hostRoot.length - a.mount.hostRoot.length)
+      .at(0);
+    return holder?.within
+      ? absolutePathJoin(holder.mount.hostRoot, holder.within)
+      : AbsolutePathSchema.parse(realPath);
+  };
+  const links: FolderLink[] = [];
+  const resolved = present.map((mount) => {
+    if (!linked.includes(mount)) {
+      return mount;
+    }
+    const hostRoot = spelledIn(real(mount.hostRoot));
+    links.push({ from: mount.shellRoot, to: shellPath(hostRoot) });
+    return { ...mount, hostRoot, shellRoot: shellPath(hostRoot) };
+  });
+  const outermost = resolved.toSorted(
+    (a, b) => a.hostRoot.length - b.hostRoot.length,
+  );
   const roots: WorkspaceFsMount[] = [];
   for (const mount of outermost) {
     if (
@@ -1022,7 +1114,7 @@ async function mountRoots(
       roots.push(mount);
     }
   }
-  return roots;
+  return { links, roots };
 }
 
 /** Whether a read-only mount holds one the agent writes, which it reaches through it. */

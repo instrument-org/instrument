@@ -61,7 +61,7 @@ just-bash is the published npm package (`just-bash@^3.6.0` in `packages/workspac
 
 ## Symlink policy differs by layer (intentionally)
 
-- **just-bash mounts** refuse to traverse _any_ symlink, inside or out, and **the file tools** read and write through the same mounts, so they refuse the same links. Outside every mount, the read-only disk under the mounts follows a link, and the rules are asked of where it leads as well as of the path.
+- **just-bash mounts** refuse to traverse _any_ symlink, inside or out, and **the file tools** read and write through the same mounts, so they refuse the same links. The one link they follow is a folder the chat reaches that is itself a link inside another mount (`~/work` leading to `~/Documents/work`): it mounts where it leads, and its own name leads there (`linkedFs`), where the rules decide as they do at that path. Outside every mount, the read-only disk under the mounts follows a link, and the rules are asked of where it leads as well as of the path.
 - **Native commands** follow symlinks as the operating system does, and the Seatbelt and bubblewrap profiles name a rule's path in both spellings where a link lies on the way.
 
 ## Testing without booting Studio

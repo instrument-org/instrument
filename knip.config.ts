@@ -44,7 +44,7 @@ const config: KnipConfig = {
         "src/client/components/ui/*.tsx!",
         "src/client/router.tsx!",
         "src/client/main.tsx!",
-        "src/electron-main/index.ts!",
+        "src/electron-main/boot.ts!",
         "src/electron-preload/index.ts!",
         // Page editor guest: built by a nested Vite build in electron.vite.config.ts.
         "src/page-editor-guest/preload.ts!",

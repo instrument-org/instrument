@@ -337,7 +337,11 @@ export default defineConfig(({ command }) => {
             command === "serve" ? [] : mainKeepsExternal,
         },
         lib: {
-          entry: path.join(process.cwd(), "src/electron-main/index.ts"),
+          // `boot.ts` turns on the compile cache before it loads `index.ts`,
+          // and is what `out/main/index.js` (package.json's `main`) runs.
+          entry: {
+            index: path.join(process.cwd(), "src/electron-main/boot.ts"),
+          },
         },
         rollupOptions: {
           // node-liblzma and @mongodb-js/zstd are optional dependencies of just-bash that fail to build in CI.

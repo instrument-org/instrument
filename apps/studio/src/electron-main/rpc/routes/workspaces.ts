@@ -242,16 +242,20 @@ const remove = devOnly
       .filter((other) => other !== listing)
       .map((other) => readBearerTokensIn(keysDirOf(getUserDataDir(), other)));
     const tokens = readBearerTokensIn(keysDirOf(getUserDataDir(), listing));
-    for (const [origin, token] of Object.entries(tokens)) {
-      if (others.some((held) => held[origin] === token)) {
-        continue;
-      }
-      const baseUrl =
-        origin === platformApiOrigin() ? platformApiBaseUrl() : origin;
-      await revokeSession(token, baseUrl).catch((error: unknown) => {
-        logger.warn("Could not end the deleted workspace's session", error);
-      });
-    }
+    await Promise.all(
+      Object.entries(tokens)
+        .filter(([origin, token]) =>
+          others.every((held) => held[origin] !== token),
+        )
+        .map(([origin, token]) =>
+          revokeSession(
+            token,
+            origin === platformApiOrigin() ? platformApiBaseUrl() : origin,
+          ).catch((error: unknown) => {
+            logger.warn("Could not end the deleted workspace's session", error);
+          }),
+        ),
+    );
     // Read before its `.instrument/` goes, since the id that says the
     // machine folder is its own is in it. Its keys and browser profiles go
     // to the Trash too. Of the folder itself only the app's part goes: what

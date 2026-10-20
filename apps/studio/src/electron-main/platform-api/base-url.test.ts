@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", "https://build.example");
+// With a trailing slash, which the helper drops.
+vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", "https://build.example/");
 
 const { platformApiBaseUrl, platformApiOrigin, settlePlatformApiServer } =
   await import("./base-url");

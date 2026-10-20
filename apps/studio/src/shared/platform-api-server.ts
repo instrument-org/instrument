@@ -24,7 +24,13 @@ const SERVER_LABELS: Record<NamedServer, string> = {
  */
 export const PlatformApiServerSchema = z.union([
   z.enum(NAMED_SERVERS),
-  z.object({ custom: z.url({ protocol: /^https?$/ }) }),
+  z.object({
+    // Call sites append paths to it, which a query or fragment would swallow.
+    custom: z.url({ protocol: /^https?$/ }).refine((url) => {
+      const parsed = URL.parse(url);
+      return !parsed?.search && !parsed?.hash;
+    }, "Leave out the query and fragment"),
+  }),
 ]);
 
 export type PlatformApiServer = z.output<typeof PlatformApiServerSchema>;
@@ -39,7 +45,7 @@ export function offersAnyPlatformApiServer(flavor: AppFlavor): boolean {
 }
 
 /** A base URL as call sites join paths onto it: no trailing slash. */
-function trimBaseUrl(url: string): string {
+export function trimBaseUrl(url: string): string {
   return url.replace(/\/+$/, "");
 }
 

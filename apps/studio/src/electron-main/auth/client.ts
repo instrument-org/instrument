@@ -154,6 +154,9 @@ export async function revokeSession(
       headers: {
         authorization: `Bearer ${token}`,
       },
+      // A server that no longer answers (a typed-in one off the network)
+      // must not hold up sign-out or a workspace's deletion.
+      signal: AbortSignal.timeout(10_000),
     },
   });
   if (response.error) {

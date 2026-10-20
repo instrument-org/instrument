@@ -64,6 +64,8 @@ describe("PlatformApiServerSchema", () => {
     ["an unknown name", "qa"],
     ["an address that is not http(s)", { custom: "ftp://example.com" }],
     ["something that is not an address", { custom: "not a url" }],
+    ["an address with a query", { custom: "http://localhost:8787/?debug=1" }],
+    ["an address with a fragment", { custom: "http://localhost:8787/#debug" }],
   ])("refuses %s", (_name, value) => {
     expect(PlatformApiServerSchema.safeParse(value).success).toBe(false);
   });

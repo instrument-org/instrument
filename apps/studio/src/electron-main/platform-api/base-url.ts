@@ -2,6 +2,7 @@ import {
   type PlatformApiServer,
   platformApiOriginOf,
   resolvePlatformApiBaseUrl,
+  trimBaseUrl,
 } from "@/shared/platform-api-server";
 import { APP_FLAVOR } from "@instrument-org/shared";
 
@@ -9,7 +10,7 @@ let settled: string | undefined;
 
 /** The platform API the build was made against (`MAIN_VITE_APP_API_BASE_URL`). */
 export function buildDefaultPlatformApiBaseUrl(): string {
-  return import.meta.env.MAIN_VITE_APP_API_BASE_URL;
+  return trimBaseUrl(import.meta.env.MAIN_VITE_APP_API_BASE_URL);
 }
 
 /**

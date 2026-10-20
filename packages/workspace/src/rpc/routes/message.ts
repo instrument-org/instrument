@@ -253,7 +253,7 @@ const live = {
         // Each batch re-reads only the changed messages and splices them into
         // the snapshot, so store work per update is proportional to the
         // change, not the session. Bursts coalesce: a turn's token storm
-        // targets one message, so its part.updated events collapse into a
+        // targets one message, so its record changes collapse into a
         // single re-read + yield. Every yield is the complete sorted array.
         for await (const batch of batches) {
           for (const messageId of batch.removed) {

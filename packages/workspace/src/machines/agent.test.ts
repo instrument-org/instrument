@@ -759,6 +759,51 @@ describe("agentMachine", () => {
     expect(parent.send).toHaveBeenCalledTimes(1);
   });
 
+  it("says it is done only once the turn's writes have landed", async () => {
+    let land!: () => void;
+    const landing = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    const parent: { send: (event: { type: string }) => void } = {
+      send: vi.fn(),
+    };
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          landRecords: fromPromise(() => landing),
+          llmRequestLogic: fromPromise(() =>
+            Promise.resolve({ message: assistantMessage, parts: noParts }),
+          ),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
+        },
+      }),
+      {
+        input: {
+          ...createAgentInput({ parentMessageId: messageId, sessionId }),
+          parentRef: parent as unknown as AnyActorRef,
+        },
+      },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) =>
+      state.matches({ Finishing: "LandingRecords" }),
+    );
+    expect(parent.send).not.toHaveBeenCalled();
+    land();
+    await waitFor(actor, (state) => state.matches("Done"));
+    expect(parent.send).toHaveBeenCalledWith({
+      type: "agent.done",
+      value: { error: undefined },
+    });
+  });
+
   it("records how many replies the output limit cut off when it ends the turn", async () => {
     const runSessionId = StoreId.newSessionId();
     const parentMessageId = StoreId.newMessageId();

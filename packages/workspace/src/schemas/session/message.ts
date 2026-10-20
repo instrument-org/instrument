@@ -36,7 +36,10 @@ import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { stateNotes } from "../../lib/state-notes";
-import { withStoppedToolCallModelText } from "../../lib/stopped-tool-call-model-text";
+import {
+  withStoppedToolCallModelText,
+  withUnansweredToolCallResult,
+} from "../../lib/stopped-tool-call-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
 import { workspaceHostPath } from "../../lib/workspace-relative-path";
 import { TOOL_NAMES } from "../../tools/name";
@@ -418,11 +421,12 @@ export namespace SessionMessage {
       }
 
       const filteredParts = message.parts
+        .map(withUnansweredToolCallResult)
         .filter(
           (part) =>
-            // Must filter or the AI SDK will throw an error in toModelMessages
+            // A call still in input-* (one the provider ran and never
+            // answered) makes the AI SDK throw in toModelMessages.
             !isToolPart(part) ||
-            // If the state is input-*, AI SDK errors in converting to model messages
             part.state === "output-available" ||
             part.state === "output-error",
         )

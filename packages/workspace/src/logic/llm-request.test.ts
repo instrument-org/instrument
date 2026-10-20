@@ -3141,6 +3141,83 @@ describe("llmRequestLogic", () => {
     `);
   });
 
+  // The step after a reply the output limit cut off is told to carry on
+  // from the cut without repeating it, and the call the cut caught
+  // mid-input answers that it never ran, so carrying on includes making it.
+  it("reads a call the output limit cut off as never run, beside the note to carry on", async () => {
+    const testMachine = await createTestMachine({
+      chunks: [
+        { id: "1", type: "text-start" },
+        { delta: "Reading the plan.", id: "1", type: "text-delta" },
+        { id: "1", type: "text-end" },
+        { id: "2", toolName: "read_file", type: "tool-input-start" },
+        { delta: '{"filePath": "./pl', id: "2", type: "tool-input-delta" },
+      ],
+      finishReason: "length",
+    });
+
+    await runTestMachine(testMachine);
+    await runTestMachine(testMachine);
+    expect(prompts[1]?.slice(1)).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "providerOptions": undefined,
+              "text": "Reading the plan.",
+              "type": "text",
+            },
+            {
+              "input": {
+                "filePath": "./pl",
+              },
+              "providerExecuted": undefined,
+              "providerOptions": undefined,
+              "toolCallId": "2",
+              "toolName": "read_file",
+              "type": "tool-call",
+            },
+          ],
+          "providerOptions": undefined,
+          "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "output": {
+                "type": "error-text",
+                "value": "The output limit cut this call off before its input was complete, so it did not run. Call it again.",
+              },
+              "providerOptions": undefined,
+              "toolCallId": "2",
+              "toolName": "read_file",
+              "type": "tool-result",
+            },
+          ],
+          "providerOptions": undefined,
+          "role": "tool",
+        },
+        {
+          "content": [
+            {
+              "text": "
+      <instrument-system-note>
+      Your last reply was cut off at the output limit, mid-word. Carry on from exactly where it stops, without repeating what is already there and without starting over. Write less at a time.
+      </instrument-system-note>",
+              "type": "text",
+            },
+          ],
+          "providerOptions": {
+            "instrument": {
+              "transient": true,
+            },
+          },
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
   // After the cases whose snapshots number their ids off the ones before
   // them, and before the one that moves the chat's records.
   it("searches on xAI's side for a Grok account, keeping each cited page once", async () => {

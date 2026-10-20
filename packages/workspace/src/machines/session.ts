@@ -150,6 +150,14 @@ export const sessionMachine = setup({
   actors: {
     agentMachine,
 
+    cutOffTurn: fromPromise<
+      void,
+      { chatId: ChatId; sessionId: StoreId.Session }
+    >(async ({ input: { chatId, sessionId } }) => {
+      await ChatWrites.cutOffTurn(chatId, sessionId);
+      await ChatWrites.landed(chatId);
+    }),
+
     // Where a turn that brings no message of its own begins: everything the
     // agent writes from here lands after the newest message already stored, so
     // that message is the boundary the turn is measured from. Undefined when
@@ -438,11 +446,33 @@ export const sessionMachine = setup({
       states: {
         AgentDone: { type: "final" },
 
+        /**
+         * The agent was stopped outright, so nothing of it is left to write
+         * what its turn still held: that is written here, as cut off, and
+         * the session ends once it and every write before it have landed.
+         */
+        CuttingOffTurn: {
+          invoke: {
+            input: ({ context }) => ({
+              chatId: context.chatId,
+              sessionId: context.sessionId,
+            }),
+            onDone: "AgentDone",
+            onError: { actions: "assignEventError", target: "AgentDone" },
+            src: "cutOffTurn",
+          },
+          on: {
+            stop: {
+              actions: ["rememberStopNotice", "holdQueuedOnPersonsStop"],
+            },
+          },
+        },
+
         Stopping: {
           after: {
             stopFailsafe: {
               actions: ["forceStopAgent", "clearAgentRef"],
-              target: "AgentDone",
+              target: "CuttingOffTurn",
             },
           },
           always: [{ guard: "isAgentRefActive" }, { target: "AgentDone" }],

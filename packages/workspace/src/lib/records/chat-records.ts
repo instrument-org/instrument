@@ -304,6 +304,19 @@ export class ChatRecords {
     );
   }
 
+  /**
+   * Waits until every write of the chat already asked for has landed or
+   * failed, so whatever reads the chat next finds them in its files. Writes
+   * asked for after the call are not waited for.
+   */
+  async landed(chatId: ChatId): Promise<void> {
+    const entry = this.#chats.get(chatId);
+    const chat = entry && (entry.open ?? (await entry.ready?.catch(noop)));
+    if (chat) {
+      await Promise.allSettled(chat.writes);
+    }
+  }
+
   /** The chat as it stands: its fold with what is pending over it, and its running turns. */
   read(chatId: ChatId): Promise<ChatRead> {
     return this.#with(chatId, (chat) => ({

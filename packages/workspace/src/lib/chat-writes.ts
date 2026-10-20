@@ -154,6 +154,29 @@ export namespace ChatWrites {
     );
   }
 
+  /**
+   * Resolves once every write of the chat already asked for has landed or
+   * failed: what a turn ends on, so whatever hears it is over reads all of
+   * it from the chat's files.
+   */
+  export function landed(chatId: ChatId): Promise<void> {
+    return writingChatRecords()?.landed(chatId) ?? Promise.resolve();
+  }
+
+  /**
+   * Writes what the session's turn still holds in memory as cut off: a
+   * reply's words as they stood, and a call still arriving as interrupted.
+   * For a turn whose writer is gone.
+   */
+  export function cutOffTurn(
+    chatId: ChatId,
+    sessionId: StoreId.Session,
+  ): Promise<void> {
+    return (
+      writingChatRecords()?.live(chatId, sessionId).clear() ?? Promise.resolve()
+    );
+  }
+
   /** A message taken out of its session, with its parts. */
   export function retract(
     chatId: ChatId,

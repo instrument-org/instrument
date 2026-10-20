@@ -632,6 +632,63 @@ describe("ChatRecords", () => {
     expect(read.chat.sessions[0]?.messages[1]?.parts).toEqual([settled]);
   });
 
+  it("ends one reply of a turn, leaving another reply's parts arriving", async () => {
+    await replyUnderWay();
+    await records.service.appendMessage(
+      CHAT,
+      assistantMessage(chatSession, messageId(3), at(3), {
+        finishReason: "unknown",
+      }),
+    );
+    const live = records.service.live(CHAT, chatSession);
+    const streaming = (
+      message: number,
+      part: number,
+      text: string,
+    ): SessionMessagePart.TextPart => ({
+      metadata: {
+        createdAt: at(part),
+        id: partId(part),
+        messageId: messageId(message),
+        sessionId: chatSession,
+      },
+      state: "streaming",
+      text,
+      type: "text",
+    });
+    live.setPart(streaming(2, 4, "The first attempt"));
+    live.setPart(streaming(3, 5, "The retry"));
+
+    await live.clear(messageId(2));
+
+    const read = await records.service.read(CHAT);
+    expect(liveView(read, chatSession)[0]?.parts).toEqual([
+      streaming(3, 5, "The retry"),
+    ]);
+    expect(
+      read.chat.sessions[0]?.messages.map(({ parts }) =>
+        parts.map((part) => (part.type === "text" ? part.state : part.type)),
+      ),
+    ).toEqual([[], ["done"], []]);
+  });
+
+  it("answers once every write already asked for is in the chat's files", async () => {
+    await replyUnderWay();
+    const asked = records.service.appendMessage(
+      CHAT,
+      assistantMessage(chatSession, messageId(3), at(3), {
+        finishReason: "stop",
+      }),
+    );
+
+    await records.service.landed(CHAT);
+
+    expect(
+      (await foldedFromDisk()).sessions[0]?.messages.map(({ id }) => id),
+    ).toEqual([messageId(1), messageId(2), messageId(3)]);
+    await asked;
+  });
+
   it("is the process's records, made from the workspace's config when none stands in", () => {
     expect(chatRecords()).toBe(records.service);
     installChatRecords(undefined);

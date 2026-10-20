@@ -1319,6 +1319,101 @@ describe("sessionMachine", () => {
     finishOnFinish?.();
   });
 
+  // A turn stopped outright leaves nothing of the agent to write what its
+  // request was holding, so the session writes it before it says it is done.
+  it("writes what a force-stopped turn held as cut off before the session ends", async () => {
+    const clock = new SimulatedClock();
+    const stream = createManualModelStream();
+    const result = await createActorAndTask({
+      actorOptions: { clock },
+      agent: agentFinishingWith(() => new Promise<void>(noop)),
+      aiSDKModel: new MockLanguageModelV4({
+        doStream: () =>
+          Promise.resolve({
+            rawCall: { rawPrompt: null, rawSettings: {} },
+            stream: stream.stream,
+          }),
+      }),
+    });
+    // A save that ignores the abort, holding the request past its backstop
+    // with its reply still arriving.
+    let stuck = false;
+    const savePart = ChatWrites.savePart;
+    vi.spyOn(ChatWrites, "savePart").mockImplementation((part, chatId) => {
+      if (part.type === "text" && part.text.endsWith("held up")) {
+        stuck = true;
+        return ResultAsync.fromSafePromise(new Promise<void>(noop)).andThen(
+          () => savePart(part, chatId),
+        );
+      }
+      return savePart(part, chatId);
+    });
+    async function replyParts() {
+      const transcript = await ChatReads.transcript({
+        chatId: result.chatId,
+        sessionId: result.sessionId,
+      });
+      return transcript
+        ._unsafeUnwrap()
+        .flatMap((message) =>
+          message.role === "assistant" ? message.parts : [],
+        )
+        .flatMap((part): object[] => {
+          if (part.type === "text") {
+            return [pick(part, ["state", "text"])];
+          }
+          if (part.type === "tool-read_file") {
+            return [
+              {
+                errorText:
+                  part.state === "output-error" ? part.errorText : undefined,
+                state: part.state,
+              },
+            ];
+          }
+          return [];
+        });
+    }
+    let partsAtDone: ReturnType<typeof replyParts> | undefined;
+    const unsubscribe = publisher.subscribe("session.done", () => {
+      partsAtDone ??= replyParts();
+    });
+
+    result.actor.start();
+    stream.push({ id: "1", type: "text-start" });
+    stream.push({ delta: "Reading it", id: "1", type: "text-delta" });
+    stream.push({
+      id: "call-1",
+      toolName: "read_file",
+      type: "tool-input-start",
+    });
+    stream.push({ delta: ", held up", id: "1", type: "text-delta" });
+    await vi.waitFor(() => {
+      expect(stuck).toBe(true);
+    });
+
+    result.actor.send({
+      notice: { by: "user", wakesChat: false },
+      type: "stop",
+    });
+    clock.increment(STOP_FAILSAFE_MS);
+    await waitFor(result.actor, (state) => state.status === "done");
+    unsubscribe();
+
+    expect(await partsAtDone).toMatchInlineSnapshot(`
+      [
+        {
+          "state": "done",
+          "text": "Reading it, held up",
+        },
+        {
+          "errorText": "This action was cut off before it could run.",
+          "state": "output-error",
+        },
+      ]
+    `);
+  });
+
   it("ends the turn on a chat's choose and leaves the question open", async () => {
     answersAsChat();
     const result = await createActorAndTask({

@@ -28,7 +28,7 @@ function baseMetadata() {
 }
 
 describe("SessionMessage.toModelMessages", () => {
-  it("excludes tool parts in input-available (preliminary) state", async () => {
+  it("leaves out a call the provider ran and never answered", async () => {
     const { messageId, messageMetadata, partMetadata } = baseMetadata();
 
     const messages: SessionMessage.WithParts[] = [
@@ -82,7 +82,7 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  it("excludes tool parts in input-streaming (preliminary) state", async () => {
+  it("answers a call of ours the turn left without a result as stopped", async () => {
     const { messageId, messageMetadata, partMetadata } = baseMetadata();
 
     const messages: SessionMessage.WithParts[] = [
@@ -128,8 +128,29 @@ describe("SessionMessage.toModelMessages", () => {
               "text": "Thinking...",
               "type": "text",
             },
+            {
+              "input": undefined,
+              "providerExecuted": false,
+              "toolCallId": "call_456",
+              "toolName": "read_file",
+              "type": "tool-call",
+            },
           ],
           "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "output": {
+                "type": "error-text",
+                "value": "This call was stopped before it returned: it never ran, or was interrupted while it ran.",
+              },
+              "toolCallId": "call_456",
+              "toolName": "read_file",
+              "type": "tool-result",
+            },
+          ],
+          "role": "tool",
         },
       ]
     `);

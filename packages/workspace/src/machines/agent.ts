@@ -109,11 +109,11 @@ export const agentMachine = setup({
 
     /**
      * A tool part of this run still in `input-*` when the run ends has no
-     * writer left: the stream that saved it is gone, queued calls are never
-     * re-executed on resume, and model-message conversion filters `input-*`
-     * parts out entirely, so the part would sit unresolved in the transcript
-     * forever and the resumed model would lose the record of having made the
-     * call. That covers queued siblings of a stopped call, calls an aborted,
+     * writer left: the stream that saved it is gone, and queued calls are
+     * never re-executed on resume, so the part would sit unresolved in the
+     * transcript forever, and the resumed model would read only the general
+     * answer model-message conversion gives such a call rather than who
+     * stopped it. That covers queued siblings of a stopped call, calls an aborted,
      * failed or retried attempt saved (they reach no queue), pending
      * interactive calls, and the calls of a request the machine stopped
      * waiting for. `Finishing` runs this on the paths that can strand one,
@@ -191,6 +191,10 @@ export const agentMachine = setup({
         ),
       );
     }),
+
+    landRecords: fromPromise<void, { chatId: ChatId }>(({ input }) =>
+      ChatWrites.landed(input.chatId),
+    ),
 
     llmRequestLogic,
 
@@ -624,9 +628,22 @@ export const agentMachine = setup({
               stopReason: context.stopReason,
               chatId: context.chatId,
             }),
-            onDone: "#agent.Done",
-            onError: { actions: "assignEventError", target: "#agent.Done" },
+            onDone: "LandingRecords",
+            onError: { actions: "assignEventError", target: "LandingRecords" },
             src: "finalizeDanglingToolCalls",
+          },
+        },
+        /**
+         * The turn is over once what it wrote is in the chat's files, so
+         * everything that hears `agent.done` (the session's end, and the
+         * wake, retitle, unread mark and CHAT.md it starts) reads all of it.
+         */
+        LandingRecords: {
+          invoke: {
+            input: ({ context }) => ({ chatId: context.chatId }),
+            onDone: "#agent.Done",
+            onError: "#agent.Done",
+            src: "landRecords",
           },
         },
         MaybeFinalizingDanglingToolCalls: {
@@ -640,7 +657,7 @@ export const agentMachine = setup({
                 !context.partsLeftBehind &&
                 context.stopReason === undefined &&
                 context.toolCallQueue.length === 0,
-              target: "#agent.Done",
+              target: "LandingRecords",
             },
             { target: "FinalizingDanglingToolCalls" },
           ],

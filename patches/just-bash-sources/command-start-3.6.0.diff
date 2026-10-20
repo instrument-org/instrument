@@ -1,0 +1,243 @@
+diff --git a/packages/just-bash/src/Bash.ts b/packages/just-bash/src/Bash.ts
+--- a/packages/just-bash/src/Bash.ts
++++ b/packages/just-bash/src/Bash.ts
+@@ -81,6 +81,7 @@
+   BashExecResult,
+   Command,
+   CommandRegistry,
++  CommandStartListener,
+   ExternalCommandResolver,
+   FeatureCoverageWriter,
+   RegisteredCommandPath,
+@@ -232,6 +233,14 @@
+    * script.
+    */
+   registeredCommandPath?: RegisteredCommandPath;
++  /**
++   * Told each time the shell runs a command it resolved, whether the shell's
++   * own or one the embedder added, as it starts, so the embedder can record
++   * what answered each name. Lookups (`type`, `command -v`, `hash`) and names
++   * the interpreter answers itself are not runs, and are not told. Runs as
++   * trusted host code; what it throws is ignored.
++   */
++  onCommandStart?: CommandStartListener;
+   /**
+    * Optional logger for execution tracing.
+    * When provided, logs exec commands (info), stdout (debug), stderr (info), and exit codes (info).
+@@ -364,6 +373,7 @@
+   private redirectCreatesDirectories: boolean;
+   private resolveExternalCommand?: ExternalCommandResolver;
+   private registeredCommandPath?: RegisteredCommandPath;
++  private onCommandStart?: CommandStartListener;
+   private invokeToolFn?: (
+     path: string,
+     argsJson: string,
+@@ -437,6 +447,7 @@
+     this.logger = options.logger;
+     this.resolveExternalCommand = options.resolveExternalCommand;
+     this.registeredCommandPath = options.registeredCommandPath;
++    this.onCommandStart = options.onCommandStart;
+ 
+     // Preserve the historical enabled default. Older supported Nodes use the
+     // strongest scoped controls they expose and report loader-hook capability.
+@@ -862,6 +873,7 @@
+             commands: this.commands,
+             resolveExternalCommand: this.resolveExternalCommand,
+             registeredCommandPath: this.registeredCommandPath,
++            onCommandStart: this.onCommandStart,
+             limits: this.limits,
+             executionScope,
+             exec: (script, childOptions, childStdinAlreadyAccounted = false) =>
+diff --git a/packages/just-bash/src/index.ts b/packages/just-bash/src/index.ts
+--- a/packages/just-bash/src/index.ts
++++ b/packages/just-bash/src/index.ts
+@@ -139,6 +139,7 @@
+   BashExecResult,
+   Command,
+   CommandContext,
++  CommandStartListener,
+   ExecResult,
+   ExternalCommand,
+   ExternalCommandResolver,
+diff --git a/packages/just-bash/src/interpreter/builtin-dispatch.ts b/packages/just-bash/src/interpreter/builtin-dispatch.ts
+--- a/packages/just-bash/src/interpreter/builtin-dispatch.ts
++++ b/packages/just-bash/src/interpreter/builtin-dispatch.ts
+@@ -886,6 +886,20 @@
+       ctx.state.hashTable = new Map();
+     }
+     ctx.state.hashTable.set(commandName, cmdPath);
++  }
++  const onCommandStart = ctx.onCommandStart;
++  if (onCommandStart) {
++    try {
++      DefenseInDepthBox.runTrusted(() =>
++        onCommandStart(commandName, {
++          bundled: !cmd.internalIsExtension,
++          path: cmdPath,
++          shellBuiltin: SHELL_BUILTINS.has(commandName),
++        }),
++      );
++    } catch {
++      // A listener's failure is the embedder's to report, never the command's.
++    }
+   }
+ 
+   // Use groupStdin as fallback if no stdin from redirections/pipeline —
+diff --git a/packages/just-bash/src/interpreter/interpreter.ts b/packages/just-bash/src/interpreter/interpreter.ts
+--- a/packages/just-bash/src/interpreter/interpreter.ts
++++ b/packages/just-bash/src/interpreter/interpreter.ts
+@@ -40,6 +40,7 @@
+ } from "../security/defense-in-depth-box.js";
+ import type {
+   CommandRegistry,
++  CommandStartListener,
+   ExecResult,
+   ExternalCommandResolver,
+   FeatureCoverageWriter,
+@@ -168,6 +169,8 @@
+   resolveExternalCommand?: ExternalCommandResolver;
+   /** Names the program a registered command runs; see `BashOptions`. */
+   registeredCommandPath?: RegisteredCommandPath;
++  /** Told each command the shell runs; see `BashOptions`. */
++  onCommandStart?: CommandStartListener;
+   limits: Required<ExecutionLimits>;
+   executionScope: ExecutionScope;
+   exec: (
+@@ -209,6 +212,7 @@
+       commands: options.commands,
+       resolveExternalCommand: options.resolveExternalCommand,
+       registeredCommandPath: options.registeredCommandPath,
++      onCommandStart: options.onCommandStart,
+       limits: options.limits,
+       executionScope: options.executionScope,
+       execFn: options.exec,
+diff --git a/packages/just-bash/src/interpreter/types.ts b/packages/just-bash/src/interpreter/types.ts
+--- a/packages/just-bash/src/interpreter/types.ts
++++ b/packages/just-bash/src/interpreter/types.ts
+@@ -15,6 +15,7 @@
+ import type {
+   CommandExecOptions,
+   CommandRegistry,
++  CommandStartListener,
+   ExecResult,
+   ExternalCommandResolver,
+   FeatureCoverageWriter,
+@@ -493,6 +494,8 @@
+   resolveExternalCommand?: ExternalCommandResolver;
+   /** Names the program a registered command runs; see `BashOptions`. */
+   registeredCommandPath?: RegisteredCommandPath;
++  /** Told each command the shell runs; see `BashOptions`. */
++  onCommandStart?: CommandStartListener;
+   /** Execution limits configuration */
+   limits: Required<ExecutionLimits>;
+   /** Shared security accounting for this top-level execution and descendants. */
+diff --git a/packages/just-bash/src/types.ts b/packages/just-bash/src/types.ts
+--- a/packages/just-bash/src/types.ts
++++ b/packages/just-bash/src/types.ts
+@@ -399,6 +399,24 @@
+  * shell.
+  */
+ export type RegisteredCommandPath = (name: string) => string | undefined;
++
++/**
++ * Told each time the shell runs a command it resolved: a registered command,
++ * one of its bundled commands, or one `resolveExternalCommand` found. Not told
++ * of a name the interpreter answers itself (`cd`, `export`, `command`), of a
++ * function, or of a lookup that runs nothing (`type`, `command -v`, `hash`).
++ */
++export type CommandStartListener = (
++  name: string,
++  info: {
++    /** One of the shell's own commands rather than one the embedder added. */
++    bundled: boolean;
++    /** The path `type` names it by. */
++    path: string;
++    /** A name bash itself implements as a builtin (`echo`, `printf`, `pwd`). */
++    shellBuiltin: boolean;
++  },
++) => void;
+ 
+ // Re-export IFileSystem for convenience
+ export type { IFileSystem };
+diff --git a/packages/just-bash/src/interpreter/command-start-listener.test.ts b/packages/just-bash/src/interpreter/command-start-listener.test.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/just-bash/src/interpreter/command-start-listener.test.ts
+@@ -0,0 +1,77 @@
++import { describe, expect, it } from "vitest";
++import { Bash } from "../Bash.js";
++import { defineCommand } from "../custom-commands.js";
++import type { CommandStartListener } from "../types.js";
++
++function listen() {
++  const started: string[] = [];
++  const onCommandStart: CommandStartListener = (name, info) => {
++    started.push(
++      `${name}${info.bundled ? " bundled" : ""}${info.shellBuiltin ? " shell-builtin" : ""}`,
++    );
++  };
++  return { onCommandStart, started };
++}
++
++describe("onCommandStart", () => {
++  it("tells each command run, bundled or added, once per run", async () => {
++    const { onCommandStart, started } = listen();
++    const bash = new Bash({
++      customCommands: [
++        defineCommand("mine", async () => ({
++          exitCode: 0,
++          stderr: "",
++          stdout: "",
++        })),
++      ],
++      onCommandStart,
++    });
++    await bash.exec(
++      "echo a | cat; for i in 1 2; do mine; done; command sort </dev/null",
++    );
++    expect(started).toEqual([
++      "echo bundled shell-builtin",
++      "cat bundled",
++      "mine",
++      "mine",
++      "sort bundled",
++    ]);
++  });
++
++  it("is not told of lookups, functions, or what the interpreter answers", async () => {
++    const { onCommandStart, started } = listen();
++    const bash = new Bash({ onCommandStart });
++    await bash.exec(
++      "type cat >/dev/null; command -v sort >/dev/null; hash cat; f() { :; }; f; cd /; export A=1; true",
++    );
++    expect(started).toEqual([]);
++  });
++
++  it("tells a command an external resolver found", async () => {
++    const { onCommandStart, started } = listen();
++    const host = defineCommand("hostcmd", async () => ({
++      exitCode: 0,
++      stderr: "",
++      stdout: "",
++    }));
++    const bash = new Bash({
++      onCommandStart,
++      resolveExternalCommand: async (name) =>
++        name === "hostcmd"
++          ? { command: host, path: "/host/bin/hostcmd" }
++          : undefined,
++    });
++    await bash.exec("hostcmd");
++    expect(started).toEqual(["hostcmd"]);
++  });
++
++  it("runs the command when the listener throws", async () => {
++    const bash = new Bash({
++      onCommandStart: () => {
++        throw new Error("listener failed");
++      },
++    });
++    const result = await bash.exec("echo still");
++    expect(result.stdout).toBe("still\n");
++  });
++});

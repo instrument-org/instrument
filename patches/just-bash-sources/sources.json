@@ -149,6 +149,10 @@
     {
       "name": "lenient display",
       "diff": "lenient-display-3.6.0.diff"
+    },
+    {
+      "name": "command start",
+      "diff": "command-start-3.6.0.diff"
     }
   ]
 }

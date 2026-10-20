@@ -16,48 +16,66 @@ const FLAT_FRONT =
 const STEPPED_FRONT =
   "M5 18.5c0-1.1.9-2 2-2h13.6c.95 0 1.85-.4 2.5-1.1l1.8-2.1c.65-.75 1.6-1.15 2.55-1.15H55c2.2 0 4 1.8 4 4V40c0 3.87-3.13 7-7 7H12c-3.87 0-7-3.13-7-7V18.5Z";
 
-/**
- * Each system's folder in the app's own drawing: the Finder's blue, File
- * Explorer's amber, and the orange of Ubuntu's default Yaru theme, each with
- * its front shaped the way that system's folder is.
- */
-const FOLDERS: Record<
-  Os,
-  { back: [string, string]; front: [string, string]; shape: string }
-> = {
-  linux: {
-    back: ["#b8380f", "#972305"],
-    front: ["#e66c3d", "#d4552a"],
-    shape: STEPPED_FRONT,
-  },
-  mac: {
-    back: ["#3dabf5", "#1d84dd"],
-    front: ["#7accfb", "#37a0ef"],
-    shape: FLAT_FRONT,
-  },
-  windows: {
-    back: ["#ffc929", "#eea60c"],
-    front: ["#ffe69a", "#fdc844"],
-    shape: STEPPED_FRONT,
-  },
+/** Each system's folder front: the Finder's is flat, Explorer's and Yaru's step up. */
+const SHAPES: Record<Os, string> = {
+  linux: STEPPED_FRONT,
+  mac: FLAT_FRONT,
+  windows: STEPPED_FRONT,
 };
 
-/** The folder drawn for `os`, as an SVG document. */
-function folderGlyphSvg(os: Os) {
-  const { back, front, shape } = FOLDERS[os];
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 50" width="64" height="50"><defs><linearGradient id="back" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${back[0]}"/><stop offset="1" stop-color="${back[1]}"/></linearGradient><linearGradient id="front" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${front[0]}"/><stop offset="1" stop-color="${front[1]}"/></linearGradient></defs><path d="${BACK}" fill="url(#back)"/><path d="${shape}" fill="url(#front)"/></svg>`;
+type Gradient = [top: string, bottom: string];
+
+/**
+ * Each system's folder in the app's own drawing: the Finder's blue, File
+ * Explorer's amber, and the orange of Ubuntu's default Yaru theme.
+ */
+const COLORS: Record<Os, { back: Gradient; front: Gradient }> = {
+  linux: { back: ["#b8380f", "#972305"], front: ["#e66c3d", "#d4552a"] },
+  mac: { back: ["#3dabf5", "#1d84dd"], front: ["#7accfb", "#37a0ef"] },
+  windows: { back: ["#ffc929", "#eea60c"], front: ["#ffe69a", "#fdc844"] },
+};
+
+/**
+ * Instrument's output folder: the system's folder in the desktop folder
+ * icon's teal, with the Instrument mark pressed into the front.
+ */
+const OUTPUT_COLORS = {
+  back: ["#2eb3a8", "#138a80"],
+  front: ["#6fd8cb", "#2aa79c"],
+} satisfies { back: Gradient; front: Gradient };
+const OUTPUT_MARK = `<path id="mark" d="M-47-17A50 50 0 0 1 47-17Z M-49-10H-14A10 10 0 0 1-14 10H-49A50 50 0 0 1-49-10Z M49-10H14A10 10 0 0 0 14 10H49A50 50 0 0 0 49-10Z M-47 17H47A50 50 0 0 1-47 17Z"/>`;
+const OUTPUT_MARK_USES = `<use href="#mark" transform="translate(32 31.75) scale(0.115)" fill="#ffffff" opacity="0.35"/><use href="#mark" transform="translate(32 31.5) scale(0.115)" fill="#0f7a71" opacity="0.7"/>`;
+
+function gradient(id: string, [top, bottom]: Gradient) {
+  return `<linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>`;
 }
 
-const urls = new Map<Os, string>();
+/** The folder drawn for `os`, as an SVG document; Instrument's own when `output`. */
+function folderGlyphSvg(os: Os, output: boolean) {
+  const { back, front } = output ? OUTPUT_COLORS : COLORS[os];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 50" width="64" height="50"><defs>${gradient("back", back)}${gradient("front", front)}${output ? OUTPUT_MARK : ""}</defs><path d="${BACK}" fill="url(#back)"/><path d="${SHAPES[os]}" fill="url(#front)"/>${output ? OUTPUT_MARK_USES : ""}</svg>`;
+}
+
+const urls = new Map<string, string>();
+
+function glyphUrl(os: Os, output: boolean) {
+  const key = `${os}${output ? ":output" : ""}`;
+  let url = urls.get(key);
+  if (url === undefined) {
+    url = `data:image/svg+xml,${encodeURIComponent(folderGlyphSvg(os, output))}`;
+    urls.set(key, url);
+  }
+  return url;
+}
 
 /** The folder of the system the app runs on, as an image address. */
 export function folderGlyphUrl(os: Os = currentOs()) {
-  let url = urls.get(os);
-  if (url === undefined) {
-    url = `data:image/svg+xml,${encodeURIComponent(folderGlyphSvg(os))}`;
-    urls.set(os, url);
-  }
-  return url;
+  return glyphUrl(os, false);
+}
+
+/** Instrument's output folder in the shape of the system's own, as an image address. */
+export function outputFolderGlyphUrl(os: Os = currentOs()) {
+  return glyphUrl(os, true);
 }
 
 /**

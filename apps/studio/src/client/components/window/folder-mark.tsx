@@ -1,5 +1,5 @@
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
+import { outputFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useOutputFolder } from "@/client/lib/output-folder";
@@ -63,7 +63,7 @@ export function FolderMark({
         "w-auto shrink-0",
         { large: "h-3.5", row: "h-5", small: "h-3" }[size],
       )}
-      {...(hostPath === outputFolder ? { src: OUTPUT_FOLDER_GLYPH_URL } : {})}
+      {...(hostPath === outputFolder ? { src: outputFolderGlyphUrl() } : {})}
     />
   );
 }

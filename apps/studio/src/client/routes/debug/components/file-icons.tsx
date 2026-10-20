@@ -8,7 +8,10 @@ import {
   FILE_TYPE_ALIASES,
   FILE_TYPE_GLYPHS,
 } from "@/client/components/extend/file-type-glyphs";
-import { folderGlyphUrl } from "@/client/components/icons/folder-glyph";
+import {
+  folderGlyphUrl,
+  outputFolderGlyphUrl,
+} from "@/client/components/icons/folder-glyph";
 import { Input } from "@/client/components/ui/input";
 import { EXTENSION_MAP } from "@/client/lib/file-extension-to-language";
 import { getBuiltInSpriteSheet } from "@pierre/trees";
@@ -359,6 +362,10 @@ function RouteComponent() {
                   <FileSystemFolderGlyph
                     className="h-13 w-auto drop-shadow-sm"
                     src={folderGlyphUrl(os)}
+                  />
+                  <FileSystemFolderGlyph
+                    className="h-13 w-auto drop-shadow-sm"
+                    src={outputFolderGlyphUrl(os)}
                   />
                 </div>
                 <span className="font-mono text-[11px] text-muted-foreground">

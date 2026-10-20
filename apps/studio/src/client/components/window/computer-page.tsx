@@ -27,7 +27,7 @@ import {
 } from "@/client/components/extend/file-system";
 import { listingKeys } from "@/client/components/extend/file-system-keys";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
+import { outputFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { IconWithFallback } from "@/client/components/icon-with-fallback";
@@ -568,7 +568,7 @@ export function ComputerPage({
             return {
               ...stamps,
               ...(entry.path === instrumentPath
-                ? { glyphSrc: OUTPUT_FOLDER_GLYPH_URL }
+                ? { glyphSrc: outputFolderGlyphUrl() }
                 : {}),
               hasChildren: true,
               kind: "folder",

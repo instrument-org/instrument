@@ -6,7 +6,7 @@ import {
   MENU_TARGET_CLASSNAME,
   SELECTED_ROW_CLASSNAME,
 } from "@/client/components/extend/file-system";
-import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
+import { outputFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   ContextMenu,
@@ -291,7 +291,7 @@ function Folder({
         glyph={
           <FileSystemFolderGlyph
             className="h-3.5 w-auto shrink-0"
-            {...(isOutputFolder ? { src: OUTPUT_FOLDER_GLYPH_URL } : {})}
+            {...(isOutputFolder ? { src: outputFolderGlyphUrl() } : {})}
           />
         }
         isExpanded={open}

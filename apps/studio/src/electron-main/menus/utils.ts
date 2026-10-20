@@ -112,7 +112,7 @@ export function createHelpMenu({
       // the person can read before sending; a window without one sends
       // people to the public tracker.
       reportProblem
-        ? { click: reportProblem, label: "Report a Problem…" }
+        ? { click: reportProblem, label: "Send Feedback…" }
         : {
             click: () => {
               void openExternal(BUG_REPORT_URL);

@@ -17,7 +17,10 @@ import {
   settleChatTitle,
   unarchiveChat,
 } from "../../lib/chat/chats";
-import { followTitle } from "../../lib/chat-folders/follow-title";
+import {
+  followTitle,
+  titlesToFollow,
+} from "../../lib/chat-folders/follow-title";
 import { cappedTitle } from "../../lib/chat-folders/folder-name";
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { liveChatList } from "../../lib/chat/live-chat-list";
@@ -201,8 +204,24 @@ const retitleChatRoute = base
       return {};
     }
     await settleChatTitle(input.id);
+    await followTitleBetweenTurns(input.id, title);
     return { title };
   });
+
+/**
+ * Moves a chat's folder to a title it was just given, unless something of
+ * the chat's is running in it: a rename under a working agent takes its
+ * working directory out from under it, and Windows refuses it outright. The
+ * folder then catches up when the chat's turn settles (`retitle.ts`).
+ */
+async function followTitleBetweenTurns(chatId: ChatId, title: string) {
+  if (await chatIsWorking(chatId)) {
+    titlesToFollow.add(chatId);
+    return;
+  }
+  titlesToFollow.delete(chatId);
+  await followTitle(chatId, title);
+}
 
 /** Names a chat as the user typed it, and its folder with it. */
 const renameChatRoute = base
@@ -210,12 +229,8 @@ const renameChatRoute = base
   .handler(async ({ input }) => {
     await whenChat(input.id, async (chatId) => {
       const renamed = await renameChat(chatId, input.title);
-      // The folder follows unless something of the chat's is running in it:
-      // a rename under a working agent takes its working directory out from
-      // under it, and Windows refuses it outright. The turn that is running
-      // ends by settling the title, which is where the folder catches up.
-      if (renamed && !(await chatIsWorking(chatId))) {
-        await followTitle(chatId, cappedTitle(input.title));
+      if (renamed) {
+        await followTitleBetweenTurns(chatId, cappedTitle(input.title));
       }
       return renamed;
     });

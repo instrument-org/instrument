@@ -7,6 +7,14 @@ import { rewriteChatFolder } from "./write-chat-folder";
 import { chatFolderNames, recordChatFolderName } from "./own-folder";
 
 /**
+ * Chats whose title changed while something of theirs was working in the
+ * folder, which the chat's next settled turn moves to the title it has then.
+ * Kept in memory alone: a folder a quit left behind is followed at the next
+ * title change, as any rename that failed is.
+ */
+export const titlesToFollow = new Set<ChatId>();
+
+/**
  * Renames a chat's folder to the title it now has, and records the name it
  * ended up under.
  *

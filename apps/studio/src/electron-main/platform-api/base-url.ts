@@ -10,7 +10,9 @@ let settled: string | undefined;
 
 /** The platform API the build was made against (`MAIN_VITE_APP_API_BASE_URL`). */
 export function buildDefaultPlatformApiBaseUrl(): string {
-  return trimBaseUrl(import.meta.env.MAIN_VITE_APP_API_BASE_URL);
+  // Unset in tests that never reach the platform API.
+  const base: string | undefined = import.meta.env.MAIN_VITE_APP_API_BASE_URL;
+  return base ? trimBaseUrl(base) : "";
 }
 
 /**

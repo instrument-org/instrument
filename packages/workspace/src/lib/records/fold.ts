@@ -56,6 +56,12 @@ export type FoldedSettings = {
 export interface FoldedSession {
   /** The app version that began the session, from the header of its first log. */
   app: string;
+  /**
+   * The newest title the app gave the session. The app writes every name it
+   * gives as a title it may still change, and settles one with a second
+   * line of the same words; the user's rename is one settled line.
+   */
+  appTitle?: string;
   chat: ChatId;
   createdAt: Date;
   /** Whether two devices each carried the session on past what the other had read; `messages` holds both. */
@@ -119,6 +125,9 @@ interface SessionState {
 
 type SettingState = {
   [F in SettingField]?: Newest<Extract<SettingRecord, { field: F }>>;
+} & {
+  /** The words of the newest title line the app may still change. */
+  appTitle?: Newest<string>;
 };
 
 interface FileState {
@@ -340,6 +349,13 @@ export class ChatFold {
     switch (record.field) {
       case "title":
         settings.title = newer(settings.title, record, place);
+        if (record.value.auto) {
+          settings.appTitle = newer(
+            settings.appTitle,
+            record.value.text,
+            place,
+          );
+        }
         break;
       case "starred":
         settings.starred = newer(settings.starred, record, place);
@@ -478,6 +494,7 @@ function folded(
   const { messages, writtenBy } = messagesOf(session);
   return {
     app: header.app,
+    ...(settings.appTitle && { appTitle: settings.appTitle.value }),
     chat: header.chat,
     createdAt: header.createdAt,
     forked: isForked(

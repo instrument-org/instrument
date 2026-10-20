@@ -37,8 +37,10 @@ import {
   renameChat,
   setChatStarred,
   setChatTopic,
+  settleChatTitle,
   unarchiveChat,
 } from "./chats";
+import { updateSessionTitle } from "../update-session-title";
 import { liveChatList } from "./live-chat-list";
 import { createTopic } from "./topics";
 
@@ -770,6 +772,25 @@ describe("listChats", () => {
       sessionId,
     });
     expect(stored._unsafeUnwrap().titleSettledAt).toBeInstanceOf(Date);
+  });
+
+  it("tells the name the app gave from the one the user typed", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Untitled chat", 1);
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    const id = await chatFor(sessionId);
+
+    await updateSessionTitle({ chatId: id, sessionId, title: "Grocery list" });
+    await settleChatTitle(id);
+    const [named] = await listChats();
+    expect([named?.title, named?.titleByApp]).toEqual(["Grocery list", true]);
+
+    await renameChat(id, "Weekly shop");
+    const [renamed] = await listChats();
+    expect([renamed?.title, renamed?.titleByApp]).toEqual([
+      "Weekly shop",
+      false,
+    ]);
   });
 
   it("cuts a typed name to the length its folder is named under", async () => {

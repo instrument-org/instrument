@@ -1098,8 +1098,8 @@ a.cursor-pointer {
   }
 }
 
-/* A task's name arriving in place of the one before it; see `useTitleArrival`,
- * which puts the class there and only for a name the reader did not type.
+/* A chat's name arriving in place of the one before it; see `useTitleArrival`,
+ * which puts the class there and only for a name the app gave.
  *
  * A mask rather than a plain fade. The old name leaves the moment the new one
  * is committed, so a fade of the whole line starts from an empty row and the

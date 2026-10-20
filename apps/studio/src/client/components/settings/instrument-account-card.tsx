@@ -6,7 +6,7 @@ import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { useLiveUser } from "@/client/hooks/use-live-user";
-import { subscribedPlan } from "@/client/lib/billing";
+import { isTrialHeldBack, subscribedPlan } from "@/client/lib/billing";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
@@ -85,7 +85,9 @@ function PlanBadge() {
   const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
   const name =
     subscribedPlan(status, offer)?.name ??
-    (status?.plan === "trial" ? "Free trial" : undefined);
+    (status?.plan === "trial" && !isTrialHeldBack(status, offer)
+      ? "Free trial"
+      : undefined);
   if (!name) {
     return null;
   }

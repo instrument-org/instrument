@@ -103,6 +103,33 @@ export function allowanceLabel(plan: OfferPlan) {
   return multiple <= 1 ? "Standard" : `${multiple}× Standard`;
 }
 
+/**
+ * A trial refused for now rather than used up: the month's trials are spent
+ * (`trial-capacity`) or new ones are paused (`trial-paused`). Only a plan
+ * gets this account going until they open again.
+ */
+function isTrialHeldBackReason(reason: string | undefined) {
+  return reason === "trial-capacity" || reason === "trial-paused";
+}
+
+/**
+ * Whether this account's trial is still to be had but can't start now. The
+ * status keeps calling it available while trials are paused or the month's
+ * are spent, and the offer, signed in, drops the trial then. A trial already
+ * taken stays in the offer, marked unavailable.
+ */
+export function isTrialHeldBack(
+  status: Status | undefined,
+  offer: Offer | undefined,
+) {
+  return (
+    status?.trial.state === "available" &&
+    !status.subscription &&
+    offer !== undefined &&
+    offer.trial === null
+  );
+}
+
 export function hasPaymentFailed(status: Status | undefined) {
   return (
     status?.subscription !== undefined &&
@@ -527,6 +554,12 @@ export function noticeCopy(
       };
     }
     case "plan-required": {
+      if (isTrialHeldBackReason(notice.reason)) {
+        return {
+          action: choosePlan,
+          title: "Free trials aren't available right now.",
+        };
+      }
       return {
         action: choosePlan,
         ...(notice.reason === "card-required" &&
@@ -584,6 +617,10 @@ export function stopLineText(refusal: BillingRefusal) {
         }
         case "payment-failed": {
           return "Stopped: your payment didn't go through.";
+        }
+        case "trial-capacity":
+        case "trial-paused": {
+          return "Stopped: free trials aren't available right now.";
         }
         case "trial-ended":
         case "trial-used": {

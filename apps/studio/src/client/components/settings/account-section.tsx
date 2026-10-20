@@ -17,6 +17,7 @@ import {
   formatPriceInWords,
   hasPaymentFailed,
   isAccessRevoked,
+  isTrialHeldBack,
   scheduledPlanChange,
   subscribedPlan,
   subscriptionEndsAt,
@@ -285,7 +286,9 @@ function PlanGroup({ status }: { status: Status }) {
   const trialEndsAt = status.trial.endsAt
     ? new Date(status.trial.endsAt)
     : undefined;
-  const isTrial = status.plan === "trial" && status.trial.state !== "ended";
+  const trialHeldBack = isTrialHeldBack(status, offer);
+  const isTrial =
+    status.plan === "trial" && status.trial.state !== "ended" && !trialHeldBack;
   const days = offer?.trial?.days;
   return (
     <SettingsSection title="Plan">
@@ -300,7 +303,9 @@ function PlanGroup({ status }: { status: Status }) {
                   ? `Ends ${describeDay(trialEndsAt)}`
                   : `Starts with your first message to ${APP_NAME}${days ? ` and runs ${days} days` : ""}.`
                 : [
-                    checkoutTrialLine(offer),
+                    trialHeldBack
+                      ? "Free trials aren't available right now."
+                      : checkoutTrialLine(offer),
                     `${APP_NAME}'s models need a plan. Your ChatGPT, Claude or Grok account, or your own key, works without one.`,
                   ]
                     .filter(Boolean)

@@ -7,6 +7,7 @@ import {
   checkoutTrialLine,
   describeWhen,
   isAccessRevoked,
+  isTrialHeldBack,
   noticeCopy,
   planCardAction,
   refusalNotice,
@@ -205,6 +206,23 @@ describe("refusalNotice", () => {
     expect(resumed && noticeCopy(resumed, NOW).title).toBe(title);
   });
 
+  // The trial isn't over, so the way forward is a plan rather than waiting.
+  it.each(["trial-capacity", "trial-paused"])(
+    "offers the plans when a trial can't start (%s)",
+    (reason) => {
+      const held = notice({ code: "subscription-required", reason }, noPlan);
+      expect(held && noticeCopy(held, NOW)).toMatchInlineSnapshot(`
+        {
+          "action": {
+            "kind": "choose-plan",
+            "label": "Choose a plan",
+          },
+          "title": "Free trials aren't available right now.",
+        }
+      `);
+    },
+  );
+
   it("keeps the trial ended when its last request would have gone over", () => {
     expect(
       notice(
@@ -337,6 +355,14 @@ describe("stopLineText", () => {
       refusal: { code: "subscription-required", reason: "no-plan" },
     },
     {
+      line: "Stopped: free trials aren't available right now.",
+      refusal: { code: "subscription-required", reason: "trial-capacity" },
+    },
+    {
+      line: "Stopped: free trials aren't available right now.",
+      refusal: { code: "subscription-required", reason: "trial-paused" },
+    },
+    {
       line: "Stopped: your payment didn't go through.",
       refusal: { code: "subscription-required", reason: "payment-failed" },
     },
@@ -446,6 +472,30 @@ describe("usageWarning", () => {
     const first = usageWarning(onPlan("basic", {}, [85, 50, 10]));
     const second = usageWarning(onPlan("basic", {}, [90, 50, 10]));
     expect(first?.key).toBe(second?.key);
+  });
+});
+
+describe("isTrialHeldBack", () => {
+  const trialAvailable: Status = {
+    canSubscribe: true,
+    plan: "trial",
+    trial: { state: "available" },
+    windows: [],
+  };
+
+  it.each([
+    { held: true, name: "an offer with no trial", trial: null },
+    {
+      held: false,
+      name: "a trial offered",
+      trial: { available: true, cardRequired: false, days: 7 },
+    },
+  ])("$name: $held", ({ held, trial }) => {
+    expect(isTrialHeldBack(trialAvailable, { ...offer, trial })).toBe(held);
+  });
+
+  it("leaves a trial already taken alone", () => {
+    expect(isTrialHeldBack(trialActive, { ...offer, trial: null })).toBe(false);
   });
 });
 

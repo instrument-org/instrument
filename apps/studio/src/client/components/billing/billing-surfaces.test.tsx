@@ -265,6 +265,24 @@ describe("Settings > Account", () => {
     });
   });
 
+  // The status still calls the trial available; the offer has dropped it.
+  it("offers a plan rather than the trial while trials can't start", async () => {
+    platform.offer = { ...OFFER, trial: null };
+    platform.status = {
+      canSubscribe: true,
+      plan: "trial",
+      trial: { state: "available" },
+      windows: [],
+    };
+    renderWithProviders(<AccountSection />);
+
+    expect(
+      await screen.findByText(/Free trials aren't available right now\./),
+    ).toBeDefined();
+    expect(screen.getByText("No plan")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
+  });
+
   it("offers only a way to log in while logged out", async () => {
     platform.signedIn = false;
     renderWithProviders(<AccountSection />);

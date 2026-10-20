@@ -125,13 +125,19 @@ const ANY_VALUES: UutilsRule = {
 /**
  * The reviewed rules, by command name. A command not here always runs
  * sandboxed: `cmp`, `comm`, `join`, `tsort` and `pr` take two files or print
- * the name; `dd`, `stat`, `realpath` and `df` reach paths through operands
- * or metadata; `find`, `xargs` walk and start programs.
+ * the name; `dd`, `stat`, `realpath`, `readlink` and `df` reach paths
+ * through operands or metadata; `split` writes files; `find`, `xargs` walk
+ * and start programs; `paste`, `nl`, `fold`, `tac`, `expand` and `unexpand`
+ * have not been read against the sources yet.
  */
 export const UNSANDBOXED_RULES: Readonly<Record<string, UutilsRule>> = {
   arch: ANY_VALUES,
   b2sum: { options: SUM_OPTIONS, positionals: "none" },
   base32: { options: BASE_OPTIONS, positionals: "files", tierB: "asStdin" },
+  // base32's parser and reader (base_common) with another alphabet.
+  base64: { options: BASE_OPTIONS, positionals: "files", tierB: "asStdin" },
+  // Takes its operands apart as strings and opens nothing.
+  basename: ANY_VALUES,
   basenc: {
     options: [
       ...BASE_OPTIONS,
@@ -168,6 +174,8 @@ export const UNSANDBOXED_RULES: Readonly<Record<string, UutilsRule>> = {
     positionals: "files",
     tierB: "asStdin",
   },
+  // Takes its operands apart as strings and opens nothing.
+  dirname: ANY_VALUES,
   // `-f`/`--file` and `-r`/`--reference` read a file and `-s` sets the
   // clock; a positional that is not `+FORMAT` is a date to set.
   date: {
@@ -262,6 +270,8 @@ export const UNSANDBOXED_RULES: Readonly<Record<string, UutilsRule>> = {
     tierB: "asStdin",
   },
   seq: ANY_VALUES,
+  // The same checksum front end as sha256sum (uu_checksum_common).
+  sha1sum: { options: SUM_OPTIONS, positionals: "none" },
   sha224sum: { options: SUM_OPTIONS, positionals: "none" },
   sha256sum: { options: SUM_OPTIONS, positionals: "none" },
   sha384sum: { options: SUM_OPTIONS, positionals: "none" },

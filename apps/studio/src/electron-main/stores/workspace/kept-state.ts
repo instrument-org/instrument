@@ -1,8 +1,4 @@
-import {
-  getWorkspaceFolder,
-  workspaceDataDir,
-  workspaceWindowDir,
-} from "@/electron-main/lib/get-workspace-folder";
+import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
 import {
   isKeptFile,
   KEPT_FILES,
@@ -15,36 +11,19 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { logger } from "../../lib/electron-logger";
-import { createDraftsFolder } from "./drafts-folder";
 
 /** How long writes gather before a file is written: a burst of navigation is one write. */
 const WRITE_DELAY_MS = 250;
 
 /**
- * Where a kept file's keys are held when it is not a JSON file of its own:
- * read whole, written whole, and told about changes made to it from outside
- * the app, which `reconcile` brings into what the windows hold.
- */
-export interface KeptBacking {
-  read(): Record<string, unknown>;
-  reconcile(
-    current: Record<string, unknown>,
-  ): Record<string, unknown> | undefined;
-  watch(onChange: () => void): () => void;
-  write(keys: Record<string, unknown>): void;
-}
-
-/**
  * The windows' kept state as JSON files, one object of keys per file in
- * `KEPT_FILES`, each in the folder `dirOf` names for it, except a file with a
- * backing of its own. Read whole on first use, through `readAs` for a file
+ * `KEPT_FILES`, each in the folder `dirOf` names for it. Read whole on first use, through `readAs` for a file
  * whose keys are read back in a shape of their own; a write lands in memory
  * at once and on disk a beat later, each file replaced by rename so a crash
  * mid-write leaves the old file rather than half of the new one.
  */
 export function createKeptStateStore(
   dirOf: (file: KeptFile) => string,
-  backings: Partial<Record<KeptFile, KeptBacking>> = {},
   readAs: Partial<
     Record<KeptFile, (keys: Record<string, unknown>) => Record<string, unknown>>
   > = {},
@@ -61,7 +40,7 @@ export function createKeptStateStore(
     }
     files = new Map();
     for (const file of KEPT_FILES) {
-      const keys = backings[file]?.read() ?? readObject(pathOf(file));
+      const keys = readObject(pathOf(file));
       files.set(file, readAs[file]?.(keys) ?? keys);
     }
     return files;
@@ -74,11 +53,6 @@ export function createKeptStateStore(
       return;
     }
     for (const file of dirty) {
-      const backing = backings[file];
-      if (backing) {
-        backing.write(loaded().get(file) ?? {});
-        continue;
-      }
       const target = pathOf(file);
       try {
         writeObject(target, loaded().get(file) ?? {});
@@ -105,37 +79,6 @@ export function createKeptStateStore(
     },
     /** Every file's keys, for a window loading. */
     snapshot: (): KeptSnapshot => Object.fromEntries(loaded()),
-    /**
-     * Calls back with each key a backing's file changed from outside the
-     * app, after taking it in; returns the stop.
-     */
-    watch: (
-      onChange: (file: KeptFile, key: string, value: unknown) => void,
-    ): (() => void) => {
-      const stops = Object.entries(backings).flatMap(([name, backing]) => {
-        if (!isKeptFile(name) || !backing) {
-          return [];
-        }
-        const file = name;
-        return [
-          backing.watch(() => {
-            const next = backing.reconcile(loaded().get(file) ?? {});
-            if (next === undefined) {
-              return;
-            }
-            loaded().set(file, { ...loaded().get(file), ...next });
-            for (const [key, value] of Object.entries(next)) {
-              onChange(file, key, value);
-            }
-          }),
-        ];
-      });
-      return () => {
-        for (const stop of stops) {
-          stop();
-        }
-      };
-    },
   };
 }
 
@@ -265,22 +208,11 @@ function readObject(file: string): Record<string, unknown> {
 let STORE: null | ReturnType<typeof createKeptStateStore> = null;
 
 /**
- * Bookmarks are things the person made, so they travel with the workspace;
- * where they left off and how they like things laid out are this computer's,
- * whose screens and paths they are measured against.
+ * Where the person left off and how they like things laid out are this
+ * computer's, whose screens and paths they are measured against.
  */
 function getStore() {
-  STORE ??= createKeptStateStore(
-    (file) =>
-      file === "bookmarks" ? workspaceDataDir() : workspaceWindowDir(),
-    {
-      // The workspace folder, not the drafts folder: `createDraftsFolder`
-      // names `Drafts/` inside what it is given, the way boot's own move
-      // does. `layout.draftsDir` is where builds before this one kept them,
-      // under `.instrument/`, which the move empties.
-      drafts: createDraftsFolder(getWorkspaceFolder()),
-    },
-  );
+  STORE ??= createKeptStateStore(() => workspaceWindowDir());
   return STORE;
 }
 
@@ -302,15 +234,6 @@ export function flushKeptState() {
  * any window exists.
  */
 export function serveKeptState() {
-  // A draft changed in its folder reaches every window, the one that wrote
-  // last included, since none of them made the change.
-  getStore().watch((file, key, value) => {
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed()) {
-        window.webContents.send(KEPT_STATE_CHANNEL.changed, file, key, value);
-      }
-    }
-  });
   ipcMain.on(KEPT_STATE_CHANNEL.load, (event) => {
     event.returnValue = getStore().snapshot();
   });

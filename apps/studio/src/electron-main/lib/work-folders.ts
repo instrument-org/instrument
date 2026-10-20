@@ -4,7 +4,6 @@ import {
   mergeEntrySync,
   removeIfEmptySync,
   rewriteStoredPaths,
-  type StoredPathRewrite,
 } from "@instrument-org/workspace/electron";
 import { homeDataLayout } from "@instrument-org/workspace/layout";
 import { randomInt } from "node:crypto";
@@ -145,15 +144,12 @@ function writeRecord(machineDir: string, record: WorkFoldersRecord) {
  * and the folder is still the workspace's.
  */
 export function settleWorkFolders({
-  also = [],
   home = os.homedir(),
   machineDir,
   random = randomSuffix,
   userDataDir,
   workspace,
 }: {
-  /** Rewrites for stores Studio keeps (`storedPathRewrites`). */
-  also?: readonly StoredPathRewrite[];
   home?: string;
   machineDir: string;
   random?: () => string;
@@ -207,7 +203,6 @@ export function settleWorkFolders({
   if (!record.moved) {
     try {
       moveEarlierWorkFolders({
-        also,
         done,
         machineDir,
         rootDir: workspace.path,
@@ -228,13 +223,11 @@ export function settleWorkFolders({
  * they went. Throws when a move fails, leaving what it had not reached yet.
  */
 function moveEarlierWorkFolders({
-  also,
   done,
   machineDir,
   rootDir,
   workFoldersDir,
 }: {
-  also: readonly StoredPathRewrite[];
   done: string[];
   machineDir: string;
   rootDir: string;
@@ -265,7 +258,6 @@ function moveEarlierWorkFolders({
   );
   done.push(
     ...rewriteStoredPaths({
-      also,
       machineDir,
       moves: [{ from: earlier, to: workFoldersDir }],
       rootDir,

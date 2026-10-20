@@ -28,7 +28,7 @@ import { hostPathArgs, resolveCommandContext } from "./utils";
  * own.
  */
 export const PYTHON_COMMAND = {
-  description: `Run Python as a real process: a skill's script with that skill's packages, and your own code with what \`pip\` installed in the nearest \`.venv\` up to this conversation's folder. Each also finds the other's packages where its own have none by that name: a skill's script finds what you installed, and your code the packages of the skill you loaded last. It reads and writes the folders you reach where they sit.`,
+  description: `Run Python as a real process: a skill's script with that skill's packages, and your own code with what \`pip\` installed in the nearest \`.venv\` up to your work folder. Each also finds the other's packages where its own have none by that name: a skill's script finds what you installed, and your code the packages of the skill you loaded last. It reads and writes the folders you reach where they sit.`,
   name: "python",
 } as const;
 

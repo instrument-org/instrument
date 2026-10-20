@@ -140,6 +140,12 @@ export const SETTINGS_INDEX = [
     title: "Claude account",
   },
   {
+    detail: "Use your SuperGrok or X Premium+ plan.",
+    id: "grok-account",
+    tab: "Providers",
+    title: "Grok account",
+  },
+  {
     detail: `Everything ${APP_NAME} asked an AI model to do, with the model, tokens, and time`,
     id: "activity",
     page: true,
@@ -270,7 +276,7 @@ export const SETTINGS_PAGES: Record<
     detail: `Who you're logged in to ${APP_NAME} as, your plan and its usage limits, and billing.`,
   },
   Providers: {
-    detail: `The AI models ${APP_NAME} can use: your ChatGPT or Claude plan, or a provider you add with your own key.`,
+    detail: `The AI models ${APP_NAME} can use: your ChatGPT, Claude or Grok plan, or a provider you add with your own key.`,
   },
   Memory: {
     detail: `What ${APP_NAME} remembers about you, which you can search, forget, or add to from another AI.`,

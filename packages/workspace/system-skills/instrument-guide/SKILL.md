@@ -34,7 +34,7 @@ A chat is where the user talks to Instrument. Instrument answers small things it
 
 - **Memory**: what Instrument remembers about the user, which they can search, forget, or bring in from another AI: [Memory](instrument://settings/memory).
 - **Skills**: recipes tasks use for a kind of work, and new ones the user asks for: [Skills](instrument://settings/skills).
-- **Models**: Instrument works with its own plan, or the user's ChatGPT or Claude plan, or a provider with their own key: [Providers](instrument://settings/providers).
+- **Models**: Instrument works with its own plan, or the user's ChatGPT, Claude or Grok plan (SuperGrok or X Premium+), or a provider with their own key: [Providers](instrument://settings/providers).
 
 ## Something wrong
 

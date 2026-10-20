@@ -6,6 +6,8 @@ import {
 /**
  * The surfaces Cmd+F can open a search in, and which one a press means.
  *
+ * Cmd+G and Shift+Cmd+G go to the same surface Cmd+F would.
+ *
  * Cmd+F is a menu accelerator (it has to be: a focused `<webview>` keeps every
  * key from the window's document), so it reaches the window as a command
  * rather than a keydown, with no element attached. Each surface with a search
@@ -30,6 +32,8 @@ type FindTarget = {
   anchor: () => Element | null;
   /** The keyboard is in this target although no element of its surface holds it: a browser page, whose `<webview>` is mounted on the body. */
   holdsKeyboard?: () => boolean;
+  /** Cmd+G and Shift+Cmd+G: steps to the next or previous match. A target without it opens its search instead. */
+  findAgain?: (forward: boolean) => void;
   openFind: () => void;
 };
 
@@ -52,6 +56,23 @@ export function registerFindTarget(target: FindTarget): () => void {
 
 /** Opens the search Cmd+F means; false when there is none on screen. */
 export function openFindForKeyboard(): boolean {
+  const chosen = findTargetForKeyboard();
+  chosen?.openFind();
+  return chosen !== undefined;
+}
+
+/** Steps the search Cmd+F means, the way Cmd+G does; false when there is none on screen. */
+export function findAgainForKeyboard(forward: boolean): boolean {
+  const chosen = findTargetForKeyboard();
+  if (chosen?.findAgain) {
+    chosen.findAgain(forward);
+  } else {
+    chosen?.openFind();
+  }
+  return chosen !== undefined;
+}
+
+function findTargetForKeyboard(): FindTarget | undefined {
   const place = keyboardPlace();
   const chosen = chooseFindTarget(
     registered.flatMap(({ stamp, target }) => {
@@ -73,8 +94,7 @@ export function openFindForKeyboard(): boolean {
     }),
     place,
   );
-  chosen?.target.openFind();
-  return chosen !== undefined;
+  return chosen?.target;
 }
 
 /**

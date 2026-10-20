@@ -57,9 +57,20 @@ export interface ChatDbPart {
   stored: SessionMessageRelaxedPart.Type;
 }
 
+/**
+ * A session row as `chat.db` kept it: today's session, and `stoppedAt`, when
+ * the user last stopped the chat's own turn, which the records keep as a
+ * `stopped` record instead.
+ */
+export type ChatDbSessionRow = z.output<typeof ChatDbSessionRowSchema>;
+
+const ChatDbSessionRowSchema = Session.Schema.extend({
+  stoppedAt: z.date().optional(),
+});
+
 export interface ChatDbSession {
   messages: ChatDbMessage[];
-  session: Session.Type;
+  session: ChatDbSessionRow;
   /** What the session was last told of each, as its module wrote it. */
   state: Partial<Record<StateWhat, unknown>>;
 }
@@ -163,7 +174,7 @@ const ChatDbSessionSchema = z.preprocess((row) => {
   const { topics, ...rest } = row;
   const first: unknown = Array.isArray(topics) ? topics[0] : undefined;
   return typeof first === "string" ? { ...rest, topic: first } : rest;
-}, Session.Schema);
+}, ChatDbSessionRowSchema);
 
 async function readStorage(storage: WrappedStorage): Promise<ChatDbRead> {
   const migrated = await runStoreMigrations({ storage });

@@ -8,7 +8,7 @@ import { type DeviceId } from "./device-id";
  * Takes what another device's files brought a chat into this process: the
  * chat's fold, when it is held, catches up first, so a read that the change
  * wakes sees it; then the change is said the way this process's own writes
- * say theirs, so the chat list, an open conversation and its marks are read
+ * say theirs, so the chat list, an open conversation and its settings are read
  * again. A folder no chat had before is found as a chat by resolving it.
  * Nothing here starts a turn.
  */
@@ -23,9 +23,6 @@ async function takeArrival(arrival: Arrival): Promise<void> {
   }
   if (arrival.new || arrival.session) {
     recordChanged(chat, "session");
-  }
-  if (arrival.settings) {
-    recordChanged(chat, "settings");
   }
 }
 

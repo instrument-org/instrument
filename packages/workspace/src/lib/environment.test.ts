@@ -100,12 +100,12 @@ describe("lastToldEnvironment", () => {
     const messages = [
       baseline(MAC),
       noted({ timeZone: "Europe/Lisbon" }),
-      noted({ homeFolder: "/c/Users/cubetop", platform: "win32" }),
+      noted({ homeFolder: "/c/Users/windows-user", platform: "win32" }),
     ];
 
     expect(lastToldEnvironment(messages, sessionId)).toEqual({
       ...MAC,
-      homeFolder: "/c/Users/cubetop",
+      homeFolder: "/c/Users/windows-user",
       platform: "win32",
       timeZone: "Europe/Lisbon",
     });
@@ -126,22 +126,23 @@ describe("environmentChangeModelNote", () => {
   it("tells a move to a Windows computer with that platform's guidance", () => {
     expect(
       environmentChangeModelNote({
-        appsFolder: "/c/Users/cubetop/Instrument/.instrument/apps",
+        appsFolder: "/c/Users/windows-user/Instrument/.instrument/apps",
         computer: "Windows (win32 10.0.26200)",
-        homeFolder: "/c/Users/cubetop",
-        outputFolder: "/c/Users/cubetop/Instrument",
+        homeFolder: "/c/Users/windows-user",
+        outputFolder: "/c/Users/windows-user/Instrument",
         platform: "win32",
-        workspaceSkillsFolder: "/c/Users/cubetop/Instrument/.instrument/skills",
+        workspaceSkillsFolder:
+          "/c/Users/windows-user/Instrument/.instrument/skills",
       }),
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
       These facts about the computer changed since the system information above was written, which they supersede:
       - The computer: Windows (win32 10.0.26200)
-      - The user's home folder: /c/Users/cubetop
-      - The output folder (\`$INSTRUMENT_OUTPUT\`): /c/Users/cubetop/Instrument
-      - The apps folder (\`$INSTRUMENT_APPS\`): /c/Users/cubetop/Instrument/.instrument/apps
-      - The workspace's skills folder (\`$INSTRUMENT_WORKSPACE_SKILLS\`): /c/Users/cubetop/Instrument/.instrument/skills
+      - The user's home folder: \`/c/Users/windows-user\`
+      - The output folder (\`$INSTRUMENT_OUTPUT\`): \`/c/Users/windows-user/Instrument\`
+      - The apps folder (\`$INSTRUMENT_APPS\`): \`/c/Users/windows-user/Instrument/.instrument/apps\`
+      - The workspace's skills folder (\`$INSTRUMENT_WORKSPACE_SKILLS\`): \`/c/Users/windows-user/Instrument/.instrument/skills\`
       Paths named earlier in this conversation may belong to the computer it ran on before; check one before you rely on it.
       The shell spells a Windows path the POSIX way (\`C:\\Users\\sam\` is \`/c/Users/sam\`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. \`/tmp\` in the shell is the temp folder (\`%TEMP%\`); a script gets it from its language (\`tempfile.gettempdir()\`, \`os.tmpdir()\`, \`$env:TEMP\`) rather than writing \`/tmp\`. \`tasklist\` lists every process on the computer; a program you start (PowerShell's \`Get-Process\` included) may see only its own.
       </instrument-system-note>"

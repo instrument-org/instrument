@@ -113,6 +113,16 @@ const cases: {
     name: "throttling that talks about tokens",
   },
   {
+    // A Grok account with no subscription, as xAI answered one on 2026-10-19.
+    error: apiCallError({
+      message:
+        "resource-exhausted: Too many requests for team t and model grok-4.7. Your team's rate limit is — Requests per Minute (actual/limit): 0/0. Your rate limit tier is determined based on your historical API spend.",
+      statusCode: 429,
+    }),
+    expected: { evidence: "prose", kind: "auth" },
+    name: "an xAI allowance of zero requests a minute",
+  },
+  {
     error: apiCallError({ message: "Payload Too Large", statusCode: 413 }),
     expected: { evidence: "status", kind: "context-overflow" },
     name: "413",

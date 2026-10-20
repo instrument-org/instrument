@@ -44,16 +44,9 @@ function createAssistantMessage({
           sessionId,
         },
         providerMetadata: {
-          openrouter: {
-            provider: "xAI",
-            reasoning_details: [
-              {
-                data: "encrypted-payload",
-                format: "xai-responses-v1",
-                id: "rs_source",
-                type: "reasoning.encrypted",
-              },
-            ],
+          openai: {
+            itemId: "rs_source",
+            reasoningEncryptedContent: "encrypted-payload",
           },
         },
         state: "done",
@@ -66,7 +59,7 @@ function createAssistantMessage({
             reasoning_details: [
               {
                 data: "tool-encrypted-payload",
-                format: "xai-responses-v1",
+                format: "google-gemini-v1",
                 id: "rs_tool",
                 type: "reasoning.encrypted",
               },
@@ -104,7 +97,7 @@ function createAssistantMessage({
 }
 
 describe("removeCrossModelReasoningDetails", () => {
-  it("removes OpenRouter reasoning details when the previous assistant turn has no exact model identity", async () => {
+  it("removes encrypted reasoning when the previous assistant turn has no exact model identity", async () => {
     const targetModel = createMockAIGatewayModel({ provider: "openrouter" });
     const sourceMessage = createAssistantMessage({
       modelId: "auto",
@@ -117,7 +110,7 @@ describe("removeCrossModelReasoningDetails", () => {
     });
 
     expect(result.redactedMessageCount).toBe(1);
-    expect(result.redactedReasoningDetailsCount).toBe(2);
+    expect(result.redactedReasoningDetailsCount).toBe(1);
     expect(result.sourceModelIds).toEqual(["auto"]);
     expect(result.sourceProviderIds).toEqual(["instrument"]);
 
@@ -131,25 +124,27 @@ describe("removeCrossModelReasoningDetails", () => {
       throw new Error("Expected reasoning and tool parts");
     }
 
-    expect(reasoningPart.providerMetadata).toEqual({
-      openrouter: { provider: "xAI" },
-    });
+    expect(reasoningPart.providerMetadata).toBeUndefined();
 
+    // OpenRouter accepts another model's reasoning details, so they stay.
     if (!("callProviderMetadata" in toolPart)) {
       throw new Error("Expected tool part");
     }
-
-    expect(toolPart.callProviderMetadata).toBeUndefined();
+    expect(toolPart.callProviderMetadata).toEqual(
+      sourceMessage.parts[1] && "callProviderMetadata" in sourceMessage.parts[1]
+        ? sourceMessage.parts[1].callProviderMetadata
+        : undefined,
+    );
 
     const modelMessages = await SessionMessage.toModelMessages(
       result.messages,
       TOOLS_FOR_MODEL_OUTPUT,
     );
 
-    expect(hasOpenRouterReasoningDetails(modelMessages)).toBe(false);
+    expect(hasEncryptedReasoning(modelMessages)).toBe(false);
   });
 
-  it("removes OpenRouter reasoning details when the canonical model matches but the model URI differs", async () => {
+  it("removes encrypted reasoning when the canonical model matches but the model URI differs", async () => {
     const targetModel = createMockAIGatewayModel({ provider: "openrouter" });
     const sourceModel = AIGatewayModel.Schema.parse({
       ...targetModel,
@@ -170,7 +165,7 @@ describe("removeCrossModelReasoningDetails", () => {
     });
 
     expect(result.redactedMessageCount).toBe(1);
-    expect(result.redactedReasoningDetailsCount).toBe(2);
+    expect(result.redactedReasoningDetailsCount).toBe(1);
     expect(result.sourceModelIds).toEqual([targetModel.canonicalId]);
     expect(result.sourceProviderIds).toEqual([targetModel.params.provider]);
 
@@ -182,7 +177,7 @@ describe("removeCrossModelReasoningDetails", () => {
       TOOLS_FOR_MODEL_OUTPUT,
     );
 
-    expect(hasOpenRouterReasoningDetails(modelMessages)).toBe(false);
+    expect(hasEncryptedReasoning(modelMessages)).toBe(false);
   });
 
   it("removes OpenAI encrypted reasoning, and keeps a reply's phase, when the model URI differs", () => {
@@ -322,6 +317,6 @@ describe("removeCrossModelReasoningDetails", () => {
   });
 });
 
-function hasOpenRouterReasoningDetails(value: unknown) {
-  return JSON.stringify(value).includes("reasoning_details");
+function hasEncryptedReasoning(value: unknown) {
+  return JSON.stringify(value).includes("reasoningEncryptedContent");
 }

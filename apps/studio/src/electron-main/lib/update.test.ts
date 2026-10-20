@@ -78,6 +78,7 @@ vi.mock("@/electron-main/stores/machine/state", () => ({
 
 const {
   createStudioAppUpdater,
+  deferInstallOnQuit,
   isDebInstall,
   publishedSha512,
   stagedArtifactProblem,
@@ -335,6 +336,13 @@ describe("installing a staged Linux update", () => {
     stageOnLinux("rpm\n", artifact).quit();
     expect(autoUpdater.autoInstallOnAppQuit).toBe(false);
     expect(fs.existsSync(artifact.file)).toBe(false);
+  });
+
+  it("leaves an AppImage staged for a later quit when a restart defers it", () => {
+    stageOnLinux("", stagedArtifact("Instrument-2.0.0.AppImage", "appimage"));
+    expect(autoUpdater.autoInstallOnAppQuit).toBe(true);
+    deferInstallOnQuit();
+    expect(autoUpdater.autoInstallOnAppQuit).toBe(false);
   });
 
   it("installs on macOS without reading the artifact, which Squirrel checks by its signature", () => {

@@ -1,0 +1,48 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`carrying out a plan > does all of a copy and one undo puts everything back 1`] = `
+{
+  "dest/": "",
+  "dest/a.txt": "new a",
+  "dest/b 2.txt": "new b",
+  "dest/b.txt": "old b",
+  "dest/pics/": "",
+  "dest/pics/latest": "-> x.jpg",
+  "dest/pics/x.jpg": "x",
+  "src/": "",
+  "src/a.txt": "new a",
+  "src/b.txt": "new b",
+  "src/pics/": "",
+  "src/pics/latest": "-> x.jpg",
+  "src/pics/x.jpg": "x",
+}
+`;
+
+exports[`carrying out a plan > does all of a move and one undo puts everything back 1`] = `
+{
+  "dest/": "",
+  "dest/a.txt": "new a",
+  "dest/c.txt": "c",
+  "dest/pics/": "",
+  "dest/pics/x.jpg": "x",
+  "src/": "",
+  "src/pics/": "",
+  "src/pics/x.jpg": "x",
+}
+`;
+
+exports[`carrying out a plan > sends what a replace displaces to the Trash, says where, and journals nothing 1`] = `
+{
+  "dest/": "",
+  "dest/a.txt": "new a",
+  "dest/pics/": "",
+  "dest/pics/x.jpg": "x",
+  "other/": "",
+  "src/": "",
+  "src/a.txt": "new a",
+  "trash/": "",
+  "trash/1-a.txt": "old a",
+  "trash/2-pics/": "",
+  "trash/2-pics/old.jpg": "old pics",
+}
+`;

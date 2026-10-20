@@ -13,6 +13,7 @@ import {
   bwrapState,
 } from "./bwrap";
 import { type MxcCommand, mxcLaunch, mxcPolicyFor, mxcState } from "./mxc";
+import { recordProgramStart } from "../shell-commands/command-runs";
 import { currentReach, type NativeReach } from "./reach";
 import { seatbeltAvailable, seatbeltCommand, seatbeltState } from "./seatbelt";
 
@@ -167,6 +168,29 @@ export function wrapNativeCommand(
   args: readonly string[],
   /** Null runs the command unwrapped, for an app the person allowed. */
   reach: NativeReach | null | undefined = currentReach(),
+): WrappedCommand {
+  const wrapped = wrap(file, args, reach);
+  // A program a shell command starts is wrapped here, so this is where the
+  // call's record learns what held it.
+  recordProgramStart(
+    file,
+    reach === null
+      ? "skipped"
+      : wrapped.kind === "unwrapped"
+        ? "none"
+        : wrapped.kind === "mxc"
+          ? "mxc"
+          : process.platform === "darwin"
+            ? "seatbelt"
+            : "bwrap",
+  );
+  return wrapped;
+}
+
+function wrap(
+  file: string,
+  args: readonly string[],
+  reach: NativeReach | null | undefined,
 ): WrappedCommand {
   const unwrapped: WrappedCommand = {
     args: [...args],

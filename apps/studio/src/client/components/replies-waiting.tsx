@@ -1,9 +1,9 @@
 import {
-  chatBoxDraftsAtom,
-  draftsAtom,
+  chatBoxesAtom,
   otherRepliesOf,
-  replyDraftOf,
-} from "@/client/atoms/drafts";
+  replyInBox,
+} from "@/client/drafts/chat-box";
+import { draftsAtom } from "@/client/drafts/store";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { useAtomValue } from "jotai";
@@ -40,9 +40,9 @@ export function RepliesWaiting({
   onSwapIn: (draftId: string) => void;
 }) {
   const drafts = useAtomValue(draftsAtom);
-  const boxDrafts = useAtomValue(chatBoxDraftsAtom);
-  const others = otherRepliesOf(drafts, boxDrafts, chatId);
-  const inTheBox = replyDraftOf(drafts, boxDrafts, chatId) !== undefined;
+  const boxes = useAtomValue(chatBoxesAtom);
+  const others = otherRepliesOf(drafts, boxes, chatId);
+  const inTheBox = replyInBox(drafts, boxes, chatId) !== undefined;
 
   if (others.length === 0) {
     return null;

@@ -126,8 +126,12 @@ export class ClaudeCodeSession implements MessageSource {
         cwd: SESSION_CWD,
         effort: shape.effort,
         env,
+        // PostToolBatch runs once every call of the step has its result,
+        // failed ones included. PostToolUse runs only for a result that
+        // succeeded, and PostToolUseFailure, which runs for the rest, cannot
+        // end the turn.
         hooks: {
-          PostToolUse: [
+          PostToolBatch: [
             {
               hooks: [
                 () =>

@@ -28,7 +28,7 @@ function baseMetadata() {
 }
 
 describe("SessionMessage.toModelMessages", () => {
-  it("excludes tool parts in input-available (preliminary) state", async () => {
+  it("leaves out a call the provider ran and never answered", async () => {
     const { messageId, messageMetadata, partMetadata } = baseMetadata();
 
     const messages: SessionMessage.WithParts[] = [
@@ -82,7 +82,7 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  it("excludes tool parts in input-streaming (preliminary) state", async () => {
+  it("answers a call of ours the turn left without a result as stopped", async () => {
     const { messageId, messageMetadata, partMetadata } = baseMetadata();
 
     const messages: SessionMessage.WithParts[] = [
@@ -128,8 +128,29 @@ describe("SessionMessage.toModelMessages", () => {
               "text": "Thinking...",
               "type": "text",
             },
+            {
+              "input": undefined,
+              "providerExecuted": false,
+              "toolCallId": "call_456",
+              "toolName": "read_file",
+              "type": "tool-call",
+            },
           ],
           "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "output": {
+                "type": "error-text",
+                "value": "This call was stopped before it returned: it never ran, or was interrupted while it ran.",
+              },
+              "toolCallId": "call_456",
+              "toolName": "read_file",
+              "type": "tool-result",
+            },
+          ],
+          "role": "tool",
         },
       ]
     `);
@@ -877,8 +898,8 @@ describe("SessionMessage.toModelMessages", () => {
       [
         "<uploaded_files>
       The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
-      - /workspace/chats/c/attachments/screen.png (18KB)
-      - work/report.md (120B)
+      - \`/workspace/chats/c/attachments/screen.png\` (18KB)
+      - \`work/report.md\` (120B)
       </uploaded_files>",
       ]
     `);
@@ -886,9 +907,79 @@ describe("SessionMessage.toModelMessages", () => {
       [
         "<uploaded_files>
       The user uploaded these files with this message. They are now available at the paths listed below. Assume they are directly relevant to the user's request.
-      - attachments/screen.png (18KB)
-      - work/report.md (120B)
+      - \`attachments/screen.png\` (18KB)
+      - \`work/report.md\` (120B)
       </uploaded_files>",
+      ]
+    `);
+  });
+
+  // A file in the workspace is kept by its place there, so the note names it
+  // under the root of whichever computer the chat is read on, while one kept
+  // at its absolute path by an earlier build is named as it was.
+  it("names a file kept by its place in the workspace under this computer's root", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+    const messages = [
+      {
+        id: StoreId.newMessageId(),
+        metadata: messageMetadata,
+        parts: [
+          SessionMessagePart.coerce({
+            data: {
+              files: [
+                {
+                  filename: "plan.md",
+                  filePath: "workspace:/Notes/plan.md",
+                  mimeType: "text/markdown",
+                  modifiedAt: 1_718_198_400_000,
+                  size: 120,
+                },
+                {
+                  filename: "old.md",
+                  filePath: "/Users/mac-user/Instrument/Notes/old.md",
+                  mimeType: "text/markdown",
+                  modifiedAt: 1_718_198_400_000,
+                  size: 120,
+                },
+              ],
+            },
+            metadata: partMetadata,
+            type: "data-attachments",
+          }),
+          { metadata: partMetadata, text: "read these", type: "text" },
+        ],
+        role: "user",
+      },
+    ] satisfies SessionMessage.WithParts[];
+    const listed = async (options: SessionMessage.ModelNoteOptions) => {
+      const [message] = await SessionMessage.toModelMessages(
+        messages,
+        TOOLS_FOR_MODEL_OUTPUT,
+        options,
+      );
+      const content = Array.isArray(message?.content) ? message.content : [];
+      return content
+        .flatMap((part) => (part.type === "text" ? part.text.split("\n") : []))
+        .filter((line) => line.startsWith("- "));
+    };
+
+    expect(await listed({ workspaceRoot: "/home/alex/Instrument" }))
+      .toMatchInlineSnapshot(`
+        [
+          "- \`/home/alex/Instrument/Notes/plan.md\` (120B)",
+          "- \`/Users/mac-user/Instrument/Notes/old.md\` (120B)",
+        ]
+      `);
+    expect(
+      await listed({
+        shellPath: (hostPath) =>
+          hostPath.replace(/^C:\\/, "/c/").replaceAll("\\", "/"),
+        workspaceRoot: String.raw`C:\Users\alex\Instrument`,
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "- \`/c/Users/alex/Instrument/Notes/plan.md\` (120B)",
+        "- \`/Users/mac-user/Instrument/Notes/old.md\` (120B)",
       ]
     `);
   });

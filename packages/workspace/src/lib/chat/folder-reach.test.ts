@@ -9,13 +9,13 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { type ChatGrant } from "../permissions/rules";
 import { folderReach } from "./folder-reach";
-import { type Topic } from "./topics";
+import { type ListedTopic } from "./topics";
 
 const world = vi.hoisted(() => ({
   missing: new Set<string>(),
   places: {} as Record<string, "allow" | "ask" | "never">,
   tagged: undefined as string | undefined,
-  topics: [] as Topic[],
+  topics: [] as ListedTopic[],
 }));
 
 vi.mock(import("../record-folders"), async (importOriginal) => ({
@@ -36,6 +36,7 @@ vi.mock(import("../permissions/rules"), async (importOriginal) => ({
     Promise.resolve({
       apps: [],
       chats: {},
+      topics: {},
       folders: [],
       places: world.places,
       dangerouslyAllowEveryFolder: false,
@@ -70,7 +71,7 @@ async function reach(grants: ChatGrant[]) {
   });
 }
 
-function topic(name: string, folders: string[]): Topic {
+function topic(name: string, folders: string[]): ListedTopic {
   return {
     created: new Date(0),
     folders: folders.map((folderPath) => ({ path: folderPath })),

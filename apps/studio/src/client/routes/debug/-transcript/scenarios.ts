@@ -1,4 +1,4 @@
-import { CHAT_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { CHAT_FOLDER_NAMES, StoreId } from "@instrument-org/workspace/client";
 
 import {
   CHATGPT_ACCOUNT_MODEL,
@@ -182,6 +182,24 @@ export const summarize = async (source: string, destination: string) => {
   return totals.size;
 };
 \`\`\``,
+].join("\n\n");
+
+/**
+ * Code the way a reply mixes it into prose: inline spans mid-sentence, then a
+ * fence in each of the languages a reply reaches for most.
+ *
+ * The inline spans are the ones that used to read worst -- a command, a
+ * variable, a filename, an arrow a font would turn into a glyph -- and every
+ * fence carries an operator a coding font ligates, so a screen of it shows at a
+ * glance whether the characters drawn are the characters written.
+ */
+const CODE_LANGUAGES = [
+  "To squash the last three commits, run `git rebase -i HEAD~3`. Git opens the list in whatever `$EDITOR` points at. The retry count lives in `config.yaml`, and the handler is still `() => {}` until the next step.",
+  "```javascript\nconst retry = async (task, attempts = 3) => {\n  for (let attempt = 1; attempt <= attempts; attempt++) {\n    try {\n      return await task();\n    } catch (error) {\n      if (attempt >= attempts) throw error;\n    }\n  }\n};\n```",
+  '```python\ndef totals_by_region(rows: list[dict]) -> dict[str, float]:\n    totals: dict[str, float] = {}\n    for row in rows:\n        if row["amount"] != 0:\n            totals[row["region"]] = totals.get(row["region"], 0) + row["amount"]\n    return totals\n```',
+  '```bash\ngit rebase -i HEAD~3\nexport EDITOR="code --wait"\n[ -f config.yaml ] && echo "retries: 3" >> config.yaml\n```',
+  '```json\n{\n  "name": "reports",\n  "version": "1.2.0",\n  "private": true,\n  "retries": 3,\n  "scripts": { "build": "tsc -p ." }\n}\n```',
+  "The helper itself is in [`src/retry.js`](src/retry.js), and the [`retry` docs](https://example.com/docs/retry) cover the options. Each block keeps its own copy button, so you can paste any one of them straight into a terminal.",
 ].join("\n\n");
 
 /**
@@ -1111,6 +1129,14 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     ],
   },
   {
+    id: "code-languages",
+    name: "Code across languages",
+    script: [
+      user("How do I squash my last three commits, and what changed?"),
+      prose(CODE_LANGUAGES, 90),
+    ],
+  },
+  {
     id: "tables",
     name: "Tables, narrow to wide",
     script: [user("Put the shortlist in a table."), prose(TABLES, 40)],
@@ -1213,6 +1239,97 @@ done`,
       prose(
         "Lint is failing in four places, the build is clean, and the slugify change is in. The runner guide says the config is read per package, so the override we have is doing what we thought.",
       ),
+    ],
+  },
+  {
+    // Everything the chat's bubbles draw, in one conversation: turn on Chat
+    // to read it as the chat does. The steps between the words are the task
+    // card's, so none of them draw here.
+    id: "bubbles",
+    name: "Chat bubbles, every case",
+    script: [
+      user("Can you find me a flight to Lisbon for next month?"),
+      user("Two people, and we're flexible on the dates."),
+      prose("I'll look at fares for the next five weeks."),
+      activity("Checking fares"),
+      read({
+        explanation: "Reading the airline's fare calendar",
+        filePath: "work/fare-calendar.md",
+      }),
+      prose("I'll look at fares for the next five weeks."),
+      prose(
+        "The cheapest round trip is $412 each, leaving on the 14th.\n\n```files\nwork/fares.md\n```",
+      ),
+      user(
+        "The 14th works. Book the 7:30 or the 8:15?",
+        {
+          data: {
+            messageId: StoreId.newMessageId(),
+            partId: StoreId.newPartId(),
+            text: "The cheapest round trip is $412 each, leaving on the 14th.",
+          },
+          type: "data-reply",
+        },
+        {
+          data: {
+            attached: [
+              {
+                kind: "page",
+                title: "TAP Air Portugal: Fares",
+                url: "https://www.flytap.com/",
+              },
+            ],
+            screen: "browser",
+            url: "https://www.flytap.com/",
+          },
+          type: "data-viewContext",
+        },
+      ),
+      chose({
+        answer: { selectedChoice: "8:15" },
+        choices: ["7:30", "8:15"],
+        explanation: "Asking which departure to book",
+        question: "Which departure should I book?",
+      }),
+      prose("Booked the 8:15 for both of you."),
+      notes(
+        {
+          data: {
+            from: { modelId: "fast-model", name: "Fast Model" },
+            to: { modelId: "careful-model", name: "Careful Model" },
+          },
+          type: "data-modelChange",
+        },
+        {
+          data: { created: ["wireframe"], updated: [] },
+          type: "data-skillChanges",
+        },
+      ),
+      user("Find hotels too, and add my Trips folder.", {
+        data: {
+          answer: "allowed",
+          kind: "folder",
+          target: "/Users/mac-user/Trips",
+        },
+        type: "data-permissionAnswer",
+      }),
+      sameStep(
+        prose("Looking for hotels in"),
+        fail({
+          kind: "api-call",
+          message: "Rate limit exceeded. Please try again later.",
+          name: "RateLimitError",
+          statusCode: 429,
+          url: "https://api.example.com/v1/messages",
+        }),
+      ),
+      user("Keep going on the hotels."),
+      activity("Comparing hotels"),
+      read({
+        explanation: "Reading hotel listings",
+        filePath: "work/hotels.md",
+      }),
+      maxSteps(25),
     ],
   },
   {

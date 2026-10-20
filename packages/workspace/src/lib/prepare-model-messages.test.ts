@@ -499,7 +499,6 @@ describe("prepareModelMessages", () => {
           anthropic: { cacheControl: { type: "ephemeral" } },
           bedrock: { cachePoint: { type: "ephemeral" } },
           openaiCompatible: { cache_control: { type: "ephemeral" } },
-          openrouter: { cache_control: { type: "ephemeral" } },
         },
         role: "system",
       });

@@ -3,10 +3,14 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
-import { readChatRecord } from "../chat-record";
-import { chatDir } from "../record-folders";
+import { chatFolderNames } from "../chat-folders/own-folder";
 import { getWorkspaceConfig } from "../workspace-config";
 import { ensureChat } from "./chat-records";
+
+/** The name this computer recorded for a chat's folder. */
+function folderOf(chatId: string): string | undefined {
+  return chatFolderNames(getWorkspaceConfig().workspaceMachineDir).get(chatId);
+}
 
 /** Where the person's own folder for a chat is, by the name it was given. */
 function chatsFolder(name: string): string {
@@ -28,8 +32,7 @@ describe("ensureChat", () => {
         .stat(chatsFolder("Find a quiet dishwasher"))
         .then((at) => at.isDirectory()),
     ).resolves.toBe(true);
-    const record = await readChatRecord(chatDir(chatId));
-    expect(record.settings?.folder).toBe("Find a quiet dishwasher");
+    expect(folderOf(chatId)).toBe("Find a quiet dishwasher");
   });
 
   it("numbers the folder of a second chat opening with the same words", async () => {
@@ -39,8 +42,7 @@ describe("ensureChat", () => {
       "Check the weather",
     );
 
-    const record = await readChatRecord(chatDir(second));
-    expect(record.settings?.folder).toBe("Check the weather 2");
+    expect(folderOf(second)).toBe("Check the weather 2");
   });
 
   it("takes a dollar sign out of the name, which the shell would expand", async () => {
@@ -49,7 +51,6 @@ describe("ensureChat", () => {
       "Quiet dishwashers under $900",
     );
 
-    const record = await readChatRecord(chatDir(chatId));
-    expect(record.settings?.folder).toBe("Quiet dishwashers under 900");
+    expect(folderOf(chatId)).toBe("Quiet dishwashers under 900");
   });
 });

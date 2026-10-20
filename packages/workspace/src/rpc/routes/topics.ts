@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   createTopic,
+  ListedTopicSchema,
   listTopics,
   retireTopic,
   TOPIC_NAME_MAX,
@@ -26,7 +27,7 @@ const TopicNameSchema = z
 
 /** The conversation's topics: in use first, in the order made, then retired. */
 const listTopicsRoute = base
-  .output(TopicSchema.array())
+  .output(ListedTopicSchema.array())
   .handler(() => listTopics());
 
 /** A name a topic's folder cannot take, said back as a bad request. */
@@ -41,10 +42,19 @@ async function sayingNameErrors<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Makes a topic under a name, or returns the one already called that. */
+/** The standing words for work under a topic; an empty string is none. */
+const TopicInstructionsSchema = z.string().max(100_000);
+
+/**
+ * Makes a topic under a name, with its instructions and the folders granted
+ * under it, or returns the one already called that as it is when given only
+ * the name. A name in use given instructions or folders is a bad request.
+ */
 const createTopicRoute = base
   .input(
     TopicMarkSchema.extend({
+      folders: z.array(TopicFolderSchema).optional(),
+      instructions: TopicInstructionsSchema.optional(),
       name: TopicNameSchema,
     }),
   )
@@ -54,6 +64,8 @@ const createTopicRoute = base
       createTopic({
         ...(input.color ? { color: input.color } : {}),
         ...(input.emoji ? { emoji: input.emoji } : {}),
+        ...(input.folders ? { folders: input.folders } : {}),
+        ...(input.instructions ? { instructions: input.instructions } : {}),
         name: input.name,
       }),
     ),
@@ -68,7 +80,7 @@ const updateTopicRoute = base
   .input(
     TopicMarkSchema.extend({
       folders: z.array(TopicFolderSchema).optional(),
-      instructions: z.string().max(100_000).optional(),
+      instructions: TopicInstructionsSchema.optional(),
       name: TopicNameSchema.optional(),
       topicId: z.string(),
     }),

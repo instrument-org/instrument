@@ -1,6 +1,7 @@
 import { liveRead } from "@instrument-org/workspace/electron";
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { claudeAccountStatusKnown } from "@/electron-main/lib/claude-account";
+import { refreshExpiredGrokTokens } from "@/electron-main/lib/grok-account";
 import { base } from "@/electron-main/rpc/base";
 import {
   AIGatewayModel,
@@ -56,7 +57,11 @@ const list = base
   })
   .output(ListSchema)
   .handler(async ({ context }) => {
-    await Promise.all([refreshExpiredTokens(), claudeAccountStatusKnown()]);
+    await Promise.all([
+      refreshExpiredTokens(),
+      refreshExpiredGrokTokens(),
+      claudeAccountStatusKnown(),
+    ]);
     const providers = context.workspaceConfig.getAIProviderConfigs();
     const modelsForProviders = await fetchModelResultsForProviders(providers, {
       captureException: context.workspaceConfig.captureException,

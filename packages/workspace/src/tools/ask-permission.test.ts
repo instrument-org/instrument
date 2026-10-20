@@ -58,36 +58,36 @@ describe("ask_permission", () => {
     }
     expect(JSON.parse(JSON.stringify(decided).replaceAll(home, "~")))
       .toMatchInlineSnapshot(`
-      {
-        "Desktop": {
-          "message": ""Desktop" is not a full path. Ask for the folder by its full path.",
-          "state": "refused",
-        },
-        "~": {
-          "message": ""~" is directly in "~", which can't be asked for whole. Work in this conversation's folder, or a folder the person names.",
-          "state": "refused",
-        },
-        "~/Desktop/Trips/2026": {
-          "kind": "folder",
-          "state": "asked",
-          "target": "~/Desktop",
-        },
-        "~/Desktop/copy.md": {
-          "kind": "folder",
-          "state": "asked",
-          "target": "~/Desktop",
-        },
-        "~/Music/Loops": {
-          "kind": "folder",
-          "state": "asked",
-          "target": "~/Music",
-        },
-        "~/notes.md": {
-          "message": ""~/notes.md" is directly in "~", which can't be asked for whole. Work in this conversation's folder, or a folder the person names.",
-          "state": "refused",
-        },
-      }
-    `);
+        {
+          "Desktop": {
+            "message": ""Desktop" is not a full path. Ask for the folder by its full path.",
+            "state": "refused",
+          },
+          "~": {
+            "message": ""~" is directly in "~", which can't be asked for whole. Work in your work folder, or a folder the person names.",
+            "state": "refused",
+          },
+          "~/Desktop/Trips/2026": {
+            "kind": "folder",
+            "state": "asked",
+            "target": "~/Desktop",
+          },
+          "~/Desktop/copy.md": {
+            "kind": "folder",
+            "state": "asked",
+            "target": "~/Desktop",
+          },
+          "~/Music/Loops": {
+            "kind": "folder",
+            "state": "asked",
+            "target": "~/Music",
+          },
+          "~/notes.md": {
+            "message": ""~/notes.md" is directly in "~", which can't be asked for whole. Work in your work folder, or a folder the person names.",
+            "state": "refused",
+          },
+        }
+      `);
   });
 
   it("puts the card up once, with the reason and the call that asked", async () => {

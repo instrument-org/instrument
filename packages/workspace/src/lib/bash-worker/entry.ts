@@ -15,6 +15,7 @@ import { setVenvCreator, type VenvError } from "../venv";
 import { setPythonEnvironmentBuilder } from "../skill-environments";
 import { setPythonBaseRefresher } from "../python-base";
 import { handChat } from "../record-folders";
+import { CommandRuns, withCommandRuns } from "../shell-commands/command-runs";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
@@ -189,12 +190,23 @@ async function runExec({
   execOptions,
   id,
   chat,
+  path: searchPath,
   stream,
 }: Extract<ToWorker, { type: "exec" }>) {
   const controller = new AbortController();
   runs.set(id, controller);
+  // Sent as each new row appears, so a command that moves to the background
+  // reports what it started before it finishes.
+  const commandRuns: CommandRuns = new CommandRuns(() => {
+    post({ id, rows: commandRuns.rows(), type: "ran" });
+  });
   // One config per process on main, so the latest snapshot is the only one.
   setWorkspaceConfig(workerConfig(config));
+  // A worker's environment is a copy taken when it started, which is during
+  // boot, before the login shell's PATH reaches main.
+  if (searchPath !== undefined) {
+    process.env.PATH = searchPath;
+  }
   // Main keeps the folder index current as it makes and trashes chats, so
   // the chat comes resolved with the command rather than read here, where a
   // copy of the index would miss a chat made since.
@@ -209,12 +221,16 @@ async function runExec({
       standIn: (name) => standIn(id, name),
     });
     const run = () =>
-      bash.exec(command, { ...execOptions, signal: controller.signal });
+      withCommandRuns(commandRuns, () =>
+        bash.exec(command, { ...execOptions, signal: controller.signal }),
+      );
     const result = await currentExec.run(id, () =>
       stream ? withShellOutputSink((text) => sendChunk(id, text), run) : run(),
     );
+    post({ id, rows: commandRuns.rows(), type: "ran" });
     post({ id, result: toWireResult(result), type: "result" });
   } catch (error) {
+    post({ id, rows: commandRuns.rows(), type: "ran" });
     post({ error: toWireError(error), id, type: "error" });
   } finally {
     runs.delete(id);

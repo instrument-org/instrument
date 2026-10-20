@@ -23,8 +23,8 @@ const MessageRoleSchema = z.object({ role: z.string() });
  * turn's finishing sweep writes `output-error` on what a stop or an error
  * stranded. A process that dies mid-call does none of that, and nothing later
  * does either: the next run's sweep covers only its own messages, so the part
- * stays unresolved in the transcript forever, and is dropped from the model's
- * view of the session, which filters `input-*` parts out.
+ * stays unresolved in the transcript forever, and the model reads only the
+ * general answer its view of the session gives a call left without one.
  *
  * Runs where a task's database is opened, before anything reads through it.
  * That is what makes the sweep safe: this process has no run of the task yet,

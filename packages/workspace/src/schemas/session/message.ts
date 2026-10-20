@@ -36,8 +36,12 @@ import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { stateNotes } from "../../lib/state-notes";
-import { withStoppedToolCallModelText } from "../../lib/stopped-tool-call-model-text";
+import {
+  withStoppedToolCallModelText,
+  withUnansweredToolCallResult,
+} from "../../lib/stopped-tool-call-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
+import { workspaceHostPath } from "../../lib/workspace-relative-path";
 import { TOOL_NAMES } from "../../tools/name";
 import { EnvironmentSchema } from "../environment";
 import { StoreId } from "../store-id";
@@ -58,7 +62,7 @@ export namespace SessionMessage {
    * chat's, a newer message superseding the reply, the app quitting), its
    * chunk timeout, or nothing the session could name.
    */
-  const AbortReasonSchema = z.enum([
+  export const AbortReasonSchema = z.enum([
     "chat",
     "manual",
     "quit",
@@ -336,6 +340,12 @@ export namespace SessionMessage {
      * rather than at a copy inside the workspace.
      */
     shellPath?: (hostPath: string) => string;
+    /**
+     * The workspace's root on this computer, which a file attached from
+     * inside the workspace is kept relative to (`workspace:/Notes/plan.md`)
+     * and is named to the model under.
+     */
+    workspaceRoot?: string;
   }
 
   export async function toModelMessages(
@@ -353,7 +363,7 @@ export namespace SessionMessage {
    */
   export function toUIMessages(
     messages: WithParts[],
-    { attachmentsDir, shellPath }: ModelNoteOptions = {},
+    { attachmentsDir, shellPath, workspaceRoot }: ModelNoteOptions = {},
   ): UIMessage[] {
     const stateNote = stateNotes({ shellPath });
     // A max-steps stop is recorded on the assistant message where the run
@@ -411,11 +421,12 @@ export namespace SessionMessage {
       }
 
       const filteredParts = message.parts
+        .map(withUnansweredToolCallResult)
         .filter(
           (part) =>
-            // Must filter or the AI SDK will throw an error in toModelMessages
+            // A call still in input-* (one the provider ran and never
+            // answered) makes the AI SDK throw in toModelMessages.
             !isToolPart(part) ||
-            // If the state is input-*, AI SDK errors in converting to model messages
             part.state === "output-available" ||
             part.state === "output-error",
         )
@@ -460,7 +471,14 @@ export namespace SessionMessage {
         };
 
         for (const note of USER_TURN_NOTES) {
-          inject(note(message.parts, { attachmentsDir, shellPath, stateNote }));
+          inject(
+            note(message.parts, {
+              attachmentsDir,
+              shellPath,
+              stateNote,
+              workspaceRoot,
+            }),
+          );
         }
 
         inject(pendingMaxStepsNote);
@@ -558,14 +576,14 @@ function stated(
  * others stay where they are.
  */
 const USER_TURN_NOTES = [
-  noted("attachments", ({ data }, { attachmentsDir, shellPath }) => {
+  noted("attachments", ({ data }, options) => {
     if (data.files.length === 0) {
       return undefined;
     }
     const attachmentDescriptions = data.files
       .map(
         (file) =>
-          `- ${attachmentPathForModel(file.filePath, attachmentsDir, shellPath)} (${formatBytes(file.size)})`,
+          `- \`${attachmentPathForModel(file.filePath, options)}\` (${formatBytes(file.size)})`,
       )
       .join("\n");
     return dedent`
@@ -613,20 +631,24 @@ const USER_TURN_NOTES = [
 /**
  * A stored attachment path as the model reads it: an upload, stored relative
  * to the chat as `attachments/<name>`, at its full path in the record folder
- * when that folder is given; a file attached where it lay in the work folder
- * as stored, relative to where the shell starts.
+ * when that folder is given; a file kept by its place in the workspace, under
+ * the workspace's root on this computer; a file attached where it lay in the
+ * work folder as stored, relative to where the shell starts.
  */
 function attachmentPathForModel(
   filePath: string,
-  attachmentsDir: string | undefined,
-  shellPath: ((hostPath: string) => string) | undefined,
+  { attachmentsDir, shellPath, workspaceRoot }: SessionMessage.ModelNoteOptions,
 ): string {
   const bare = filePath.startsWith("./") ? filePath.slice(2) : filePath;
   const prefix = `${CHAT_FOLDER_NAMES.attachments}/`;
   if (attachmentsDir !== undefined && bare.startsWith(prefix)) {
     return `${attachmentsDir}/${bare.slice(prefix.length)}`;
   }
+  const hostPath =
+    workspaceRoot === undefined
+      ? filePath
+      : (workspaceHostPath(filePath, workspaceRoot) ?? filePath);
   // A file read where the person keeps it is named at its own path, which
   // on Windows is theirs to spell rather than the shell's.
-  return shellPath === undefined ? filePath : shellPath(filePath);
+  return shellPath === undefined ? hostPath : shellPath(hostPath);
 }

@@ -36,7 +36,7 @@ import {
 } from "../../src/lib/records/chat-records";
 import { chatDir, placeChat } from "../../src/lib/record-folders";
 import { workDir } from "../../src/lib/work-dir";
-import { updateChatRecord } from "../../src/lib/chat-record";
+import { updateJsonRecord } from "../../src/lib/json-record-file";
 import { addChildTask } from "../../src/lib/chat/children";
 import { grantFolder } from "../../src/lib/chat/grants";
 import { setWorkspaceConfig } from "../../src/lib/workspace-config";
@@ -369,9 +369,7 @@ async function seedTask({
     if (isChat) {
       yield* await initializeChat({
         chatId: ChatIdSchema.parse(id),
-        initialSettings: {},
         sessionId: chatSession.id,
-        workspaceConfig,
       });
     } else {
       yield* seedLegacyTaskFolder({
@@ -485,9 +483,9 @@ function seedLegacyTaskFolder({
   return ResultAsync.fromPromise(fs.mkdir(dir, { recursive: true }), (error) =>
     error instanceof Error ? error : new Error(String(error)),
   ).map(() =>
-    // 1.x kept a task's name in its settings; written raw because a chat's
-    // settings have no such field.
-    updateChatRecord(dir, () => ({
+    // 1.x kept a task's name in its settings file, which the boot migration
+    // reads, so the file is written raw as 1.x wrote it.
+    updateJsonRecord(path.join(dir, SETTINGS_FILE_NAME), () => ({
       createdAt: new Date().toISOString(),
       createdWithAppVersion: workspaceConfig.appVersion,
       name,

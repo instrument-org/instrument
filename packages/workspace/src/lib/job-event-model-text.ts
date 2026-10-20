@@ -21,7 +21,7 @@ export function jobEventModelNote(
   const one = data.events.length === 1;
   const lines = data.events.map(
     (event) =>
-      `- ${event.id} (\`${event.command}\`) ${howItEnded(event)} Read what it wrote with \`${FG_COMMAND.name} ${event.id}\`; all of it is in ${event.logFilePath}.`,
+      `- ${event.id} (\`${event.command}\`) ${howItEnded(event)} Read what it wrote with \`${FG_COMMAND.name} ${event.id}\`; all of it is in \`${event.logFilePath}\`.`,
   );
   return systemNote`
     ${one ? "A command you started has ended in the background:" : "Commands you started have ended in the background:"}

@@ -277,7 +277,7 @@ describe("ReadFile", () => {
         });
 
         expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
-          `"This model cannot take audio input, so reading ./deaf-model-probe.mp3 would show it nothing, in this format or any other. To get at what is said in it, transcribe it to text (the \`local-ml\` skill does speech-to-text) and read the transcript."`,
+          `"This model cannot take audio input, so reading \`./deaf-model-probe.mp3\` would show it nothing, in this format or any other. To get at what is said in it, transcribe it to text (the \`local-ml\` skill does speech-to-text) and read the transcript."`,
         );
       } finally {
         await fs.rm(audioPath, { force: true });
@@ -890,7 +890,7 @@ describe("ReadFile", () => {
         (Use offset parameter to read beyond line 2)
         </content>
         <instrument-system-note>
-        region only applies to images, and ./grep-test.txt is not one, so it was ignored and the file read as text. Leave region out when reading anything but an image.
+        region only applies to images, and \`./grep-test.txt\` is not one, so it was ignored and the file read as text. Leave region out when reading anything but an image.
         </instrument-system-note>",
         }
       `);
@@ -1030,7 +1030,7 @@ describe("toModelOutput", () => {
       {
         "type": "text",
         "value": "<instrument-system-note>
-      File ./empty.ts exists but is empty.
+      File \`./empty.ts\` exists but is empty.
       </instrument-system-note>",
       }
     `);
@@ -1049,7 +1049,7 @@ describe("toModelOutput", () => {
     expect(result).toMatchInlineSnapshot(`
       {
         "type": "error-text",
-        "value": "File ./missing.ts does not exist
+        "value": "File \`./missing.ts\` does not exist
 
       Did you mean one of these?
       ./missing.txt
@@ -1071,7 +1071,7 @@ describe("toModelOutput", () => {
     expect(result).toMatchInlineSnapshot(`
       {
         "type": "error-text",
-        "value": "File ./missing.ts does not exist",
+        "value": "File \`./missing.ts\` does not exist",
       }
     `);
   });
@@ -1091,7 +1091,7 @@ describe("toModelOutput", () => {
     expect(result).toMatchInlineSnapshot(`
       {
         "type": "error-text",
-        "value": "Unsupported image format: ./photo.bmp (image/bmp). Input should be 'image/jpeg', 'image/png', 'image/webp'. Please convert the image to a supported format before reading.",
+        "value": "Unsupported image format: \`./photo.bmp\` (image/bmp). Input should be 'image/jpeg', 'image/png', 'image/webp'. Please convert the image to a supported format before reading.",
       }
     `);
   });
@@ -1111,7 +1111,7 @@ describe("toModelOutput", () => {
     expect(result).toMatchInlineSnapshot(`
       {
         "type": "error-text",
-        "value": "Cannot read binary file (application/zip): ./archive.zip. Consider using command-line tools or scripts to extract or convert the file contents if needed.",
+        "value": "Cannot read binary file (application/zip): \`./archive.zip\`. Consider using command-line tools or scripts to extract or convert the file contents if needed.",
       }
     `);
   });
@@ -1130,7 +1130,7 @@ describe("toModelOutput", () => {
     expect(result).toMatchInlineSnapshot(`
       {
         "type": "error-text",
-        "value": "Cannot read binary file with unknown MIME type: ./unknown.bin. Consider using command-line tools or scripts to extract or convert the file contents if needed.",
+        "value": "Cannot read binary file with unknown MIME type: \`./unknown.bin\`. Consider using command-line tools or scripts to extract or convert the file contents if needed.",
       }
     `);
   });
@@ -1153,7 +1153,7 @@ describe("toModelOutput", () => {
     });
     expect(result.type === "content" && result.value[0]).toMatchInlineSnapshot(`
       {
-        "text": "Image file: ./scan.png (shown to you at 1456x819 px; the file on disk is 3840x2160). Small text and closely spaced lines may not survive at that size; read it again with a \`region\` to magnify part of it. A region's corners are pixels in that 1456x819 space, not in the file's larger one.",
+        "text": "Image file: \`./scan.png\` (shown to you at 1456x819 px; the file on disk is 3840x2160). Small text and closely spaced lines may not survive at that size; read it again with a \`region\` to magnify part of it. A region's corners are pixels in that 1456x819 space, not in the file's larger one.",
         "type": "text",
       }
     `);
@@ -1208,13 +1208,13 @@ describe("toModelOutput", () => {
     expect(
       unsupportedFormatMessage("undecodable-media", "video/mp4"),
     ).toMatchInlineSnapshot(
-      `"Cannot decode ./photo.png (video/mp4): it is either incomplete or not the format its name claims. Identify it once with \`ffprobe -v error -show_format -show_streams -of json ./photo.png\`. If that names a format, converting it is worth one attempt; if it reports a truncated or unknown stream, the data is missing and no conversion will recover it. Either way, do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat."`,
+      `"Cannot decode \`./photo.png\` (video/mp4): it is either incomplete or not the format its name claims. Identify it once with \`ffprobe -v error -show_format -show_streams -of json './photo.png'\`. If that names a format, converting it is worth one attempt; if it reports a truncated or unknown stream, the data is missing and no conversion will recover it. Either way, do not read this file again. Report that it is unusable and say where it came from, so whoever can replace it knows which step to repeat."`,
     );
   });
 
   it("tells an unrecognized image to identify itself once", () => {
     expect(unsupportedFormatMessage("undecodable-image")).toMatchInlineSnapshot(
-      `"Cannot read ./photo.png as an image: nothing identifies these bytes as one. It may be a different format under an image's name, or not an image at all. Identify it once with \`ffprobe -v error -show_format -show_streams -of json ./photo.png\` or \`file\`. If it is a format that converts, convert it and read the result; if it is not, say so rather than reading this file again."`,
+      `"Cannot read \`./photo.png\` as an image: nothing identifies these bytes as one. It may be a different format under an image's name, or not an image at all. Identify it once with \`ffprobe -v error -show_format -show_streams -of json './photo.png'\` or \`file\`. If it is a format that converts, convert it and read the result; if it is not, say so rather than reading this file again."`,
     );
   });
 
@@ -1243,7 +1243,7 @@ describe("toModelOutput", () => {
     });
     expect(result.type === "content" && result.value[0]).toMatchInlineSnapshot(`
       {
-        "text": "Image file: ./scan.png -- region (100,100)-(500,400) of the 1456x819 view, cropped from the 3840x2160 original and magnified to 1270x952.",
+        "text": "Image file: \`./scan.png\` -- region (100,100)-(500,400) of the 1456x819 view, cropped from the 3840x2160 original and magnified to 1270x952.",
         "type": "text",
       }
     `);
@@ -1277,7 +1277,7 @@ describe("toModelOutput", () => {
     // Without the second sentence the first reads as a confirmation.
     expect(result.type === "content" && result.value[0]).toMatchInlineSnapshot(`
       {
-        "text": "Image file: ./scan.png -- region (0,0)-(1176,630) of the 1176x1033 view, cropped from the 2880x2530 original and magnified to 1512x810. This is not the rectangle you asked for: (0,0)-(1440,630) runs outside the 1176x1033 space the image was shown to you in, so it was trimmed to fit.",
+        "text": "Image file: \`./scan.png\` -- region (0,0)-(1176,630) of the 1176x1033 view, cropped from the 2880x2530 original and magnified to 1512x810. This is not the rectangle you asked for: (0,0)-(1440,630) runs outside the 1176x1033 space the image was shown to you in, so it was trimmed to fit.",
         "type": "text",
       }
     `);
@@ -1314,7 +1314,7 @@ describe("toModelOutput", () => {
     expect(ignoredRegionText({ x1: 0, x2: 1, y1: 0, y2: 1 }, "no-place"))
       .toMatchInlineSnapshot(`
         {
-          "text": "Image file: ./scan.png (shown to you at 1456x819 px; the file on disk is 3840x2160) -- the region (0,0)-(1,1) you asked for is too small to be a place on the image. This is the whole image; to magnify part of it, give a smaller rectangle in that 1456x819 space.",
+          "text": "Image file: \`./scan.png\` (shown to you at 1456x819 px; the file on disk is 3840x2160) -- the region (0,0)-(1,1) you asked for is too small to be a place on the image. This is the whole image; to magnify part of it, give a smaller rectangle in that 1456x819 space.",
           "type": "text",
         }
       `);
@@ -1325,7 +1325,7 @@ describe("toModelOutput", () => {
       ignoredRegionText({ x1: 0, x2: 1456, y1: 0, y2: 819 }, "whole-image"),
     ).toMatchInlineSnapshot(`
       {
-        "text": "Image file: ./scan.png (shown to you at 1456x819 px; the file on disk is 3840x2160) -- the region (0,0)-(1456,819) you asked for covers the whole image, so there is nothing in it to magnify. This is the whole image; to magnify part of it, give a smaller rectangle in that 1456x819 space.",
+        "text": "Image file: \`./scan.png\` (shown to you at 1456x819 px; the file on disk is 3840x2160) -- the region (0,0)-(1456,819) you asked for covers the whole image, so there is nothing in it to magnify. This is the whole image; to magnify part of it, give a smaller rectangle in that 1456x819 space.",
         "type": "text",
       }
     `);
@@ -1349,7 +1349,7 @@ describe("toModelOutput", () => {
     });
     expect(result.type === "content" && result.value[0]).toMatchInlineSnapshot(`
       {
-        "text": "Image file: ./photo.png (320x240 px).",
+        "text": "Image file: \`./photo.png\` (320x240 px).",
         "type": "text",
       }
     `);
@@ -1372,7 +1372,7 @@ describe("toModelOutput", () => {
         "type": "content",
         "value": [
           {
-            "text": "Image file: ./photo.png.",
+            "text": "Image file: \`./photo.png\`.",
             "type": "text",
           },
           {
@@ -1405,7 +1405,7 @@ describe("toModelOutput", () => {
         "type": "content",
         "value": [
           {
-            "text": "PDF file: ./doc.pdf.",
+            "text": "PDF file: \`./doc.pdf\`.",
             "type": "text",
           },
           {
@@ -1438,7 +1438,7 @@ describe("toModelOutput", () => {
         "type": "content",
         "value": [
           {
-            "text": "Audio file: ./sound.mp3.",
+            "text": "Audio file: \`./sound.mp3\`.",
             "type": "text",
           },
           {
@@ -1471,7 +1471,7 @@ describe("toModelOutput", () => {
         "type": "content",
         "value": [
           {
-            "text": "Video file: ./clip.mp4.",
+            "text": "Video file: \`./clip.mp4\`.",
             "type": "text",
           },
           {

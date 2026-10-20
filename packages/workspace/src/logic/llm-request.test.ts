@@ -160,6 +160,7 @@ describe("llmRequestLogic", () => {
     chunks,
     finishReason = "stop",
     getMessages = () => Promise.resolve(mockMessages),
+    modelProvider,
     onChunkReceived,
     provider = OUR_PROVIDER_CONFIG.type,
   }: {
@@ -168,6 +169,8 @@ describe("llmRequestLogic", () => {
     chunks: LanguageModelV4StreamPart[];
     finishReason?: "length" | "stop";
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
+    /** The connection the chat's model is on, where it differs from `provider`'s. */
+    modelProvider?: AIProviderType;
     onChunkReceived?: () => void;
     provider?: AIProviderType;
   }) {
@@ -208,7 +211,8 @@ describe("llmRequestLogic", () => {
 
     const model = createMockAIGatewayModel({
       provider:
-        provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type,
+        modelProvider ??
+        (provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type),
     });
 
     // A chat of this case's own: every case writes into the same session, and
@@ -231,6 +235,9 @@ describe("llmRequestLogic", () => {
       taskConfig,
     );
 
+    // Aborted the way the agent machine aborts a request it waits for, with
+    // why: its one stop here.
+    const requestStop = new AbortController();
     const machine = setup({
       actors: { llmRequest: llmRequestLogic },
       types: {
@@ -244,7 +251,11 @@ describe("llmRequestLogic", () => {
             throw new Error(`Unknown event ${event.type}`);
           },
         },
-        stop: ".Stopped",
+        stop: {
+          actions: () => {
+            requestStop.abort("manual");
+          },
+        },
       },
       states: {
         Done: { type: "final" },
@@ -252,8 +263,6 @@ describe("llmRequestLogic", () => {
         Start: {
           invoke: {
             input: () => ({
-              // What the machine says let a request go: its one stop here.
-              abortReason: () => "manual" as const,
               agent: {
                 agentTools: {},
                 getMessages,
@@ -271,6 +280,7 @@ describe("llmRequestLogic", () => {
               } as unknown as AnyActorRef,
               sessionId,
               stepCount: 1,
+              stop: requestStop.signal,
               chatId: taskConfig,
             }),
             onDone: "Done",
@@ -282,7 +292,6 @@ describe("llmRequestLogic", () => {
             src: "llmRequest",
           },
         },
-        Stopped: { type: "final" },
       },
     });
 
@@ -2310,11 +2319,6 @@ describe("llmRequestLogic", () => {
                     "type": "ephemeral",
                   },
                 },
-                "openrouter": {
-                  "cache_control": {
-                    "type": "ephemeral",
-                  },
-                },
               },
               "role": "assistant",
             },
@@ -2338,11 +2342,6 @@ describe("llmRequestLogic", () => {
                   },
                 },
                 "openaiCompatible": {
-                  "cache_control": {
-                    "type": "ephemeral",
-                  },
-                },
-                "openrouter": {
                   "cache_control": {
                     "type": "ephemeral",
                   },
@@ -3140,6 +3139,177 @@ describe("llmRequestLogic", () => {
         "role": "user",
       }
     `);
+  });
+
+  // The step after a reply the output limit cut off is told to carry on
+  // from the cut without repeating it, and the call the cut caught
+  // mid-input answers that it never ran, so carrying on includes making it.
+  it("reads a call the output limit cut off as never run, beside the note to carry on", async () => {
+    const testMachine = await createTestMachine({
+      chunks: [
+        { id: "1", type: "text-start" },
+        { delta: "Reading the plan.", id: "1", type: "text-delta" },
+        { id: "1", type: "text-end" },
+        { id: "2", toolName: "read_file", type: "tool-input-start" },
+        { delta: '{"filePath": "./pl', id: "2", type: "tool-input-delta" },
+      ],
+      finishReason: "length",
+    });
+
+    await runTestMachine(testMachine);
+    await runTestMachine(testMachine);
+    expect(prompts[1]?.slice(1)).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "providerOptions": undefined,
+              "text": "Reading the plan.",
+              "type": "text",
+            },
+            {
+              "input": {
+                "filePath": "./pl",
+              },
+              "providerExecuted": undefined,
+              "providerOptions": undefined,
+              "toolCallId": "2",
+              "toolName": "read_file",
+              "type": "tool-call",
+            },
+          ],
+          "providerOptions": undefined,
+          "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "output": {
+                "type": "error-text",
+                "value": "The output limit cut this call off before its input was complete, so it did not run. Call it again.",
+              },
+              "providerOptions": undefined,
+              "toolCallId": "2",
+              "toolName": "read_file",
+              "type": "tool-result",
+            },
+          ],
+          "providerOptions": undefined,
+          "role": "tool",
+        },
+        {
+          "content": [
+            {
+              "text": "
+      <instrument-system-note>
+      Your last reply was cut off at the output limit, mid-word. Carry on from exactly where it stops, without repeating what is already there and without starting over. Write less at a time.
+      </instrument-system-note>",
+              "type": "text",
+            },
+          ],
+          "providerOptions": {
+            "instrument": {
+              "transient": true,
+            },
+          },
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
+  // After the cases whose snapshots number their ids off the ones before
+  // them, and before the one that moves the chat's records.
+  it("searches on xAI's side for a Grok account, keeping each cited page once", async () => {
+    const testMachine = await createTestMachine({
+      chunks: [
+        // A search step xAI names for itself, which no list here knows.
+        {
+          id: "xk_1",
+          toolName: "x_keyword_search",
+          type: "tool-input-start",
+        },
+        { id: "xk_1", type: "tool-input-end" },
+        {
+          input: "{}",
+          providerExecuted: true,
+          toolCallId: "xk_1",
+          toolName: "x_keyword_search",
+          type: "tool-call",
+        },
+        { id: "ws_1", toolName: "web_search", type: "tool-input-start" },
+        { delta: "{}", id: "ws_1", type: "tool-input-delta" },
+        { id: "ws_1", type: "tool-input-end" },
+        {
+          input: "{}",
+          providerExecuted: true,
+          toolCallId: "ws_1",
+          toolName: "web_search",
+          type: "tool-call",
+        },
+        {
+          result: {},
+          toolCallId: "ws_1",
+          toolName: "web_search",
+          type: "tool-result",
+        },
+        ...["s1", "s2"].map((id) => ({
+          id,
+          sourceType: "url" as const,
+          title: "A post",
+          type: "source" as const,
+          url: "https://x.com/i/status/1",
+        })),
+        { id: "t", type: "text-start" },
+        { delta: "Found it.", id: "t", type: "text-delta" },
+        { id: "t", type: "text-end" },
+      ],
+      modelProvider: "grok-account",
+    });
+    const { messages } = await runTestMachine(testMachine);
+
+    expect(
+      testMachine.mockLanguageModel.doStreamCalls[0]?.tools
+        ?.filter((tool) => tool.type === "provider")
+        .map((tool) => tool.name),
+    ).toEqual(["web_search", "x_search"]);
+    expect(
+      messages
+        .at(-1)
+        ?.parts.map((part) =>
+          part.type === "source-url" ? `${part.type} ${part.url}` : part.type,
+        ),
+    ).toMatchInlineSnapshot(`
+      [
+        "step-start",
+        "source-url https://x.com/i/status/1",
+        "text",
+      ]
+    `);
+  });
+
+  it("refuses a Grok model's call to a tool that does not exist, rather than taking it for a search", async () => {
+    const { messages } = await createAndRunTestMachine({
+      chunks: [
+        { id: "made_1", toolName: "made_up", type: "tool-input-start" },
+        { delta: "{}", id: "made_1", type: "tool-input-delta" },
+        { id: "made_1", type: "tool-input-end" },
+        {
+          input: "{}",
+          toolCallId: "made_1",
+          toolName: "made_up",
+          type: "tool-call",
+        },
+      ],
+      modelProvider: "grok-account",
+    });
+
+    expect(
+      messages
+        .at(-1)
+        ?.parts.filter((part) => part.type === "tool-unavailable")
+        .map((part) => "state" in part && part.state),
+    ).toEqual(["output-error"]);
   });
 
   it("holds a reply still arriving in the turn's memory, and records none of it", async () => {

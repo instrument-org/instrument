@@ -87,7 +87,7 @@ export function contextRolloverNotice(
       "<context-rollover>",
       preamble,
       "",
-      `No handoff notes were found at ${notesPath}. Treat what is in this window as the remainder of the task rather than the whole of it, and write your notes there before the room runs out again.`,
+      `No handoff notes were found at \`${notesPath}\`. Treat what is in this window as the remainder of the task rather than the whole of it, and write your notes there before the room runs out again.`,
       "</context-rollover>",
     ].join("\n");
   }
@@ -96,11 +96,11 @@ export function contextRolloverNotice(
     "<context-rollover>",
     preamble,
     "",
-    `These are the handoff notes you left at ${notesPath}. They are your own account of the work above, and the only one still in front of you, so treat what they say about the task as established rather than something to rediscover:`,
+    `These are the handoff notes you left at \`${notesPath}\`. They are your own account of the work above, and the only one still in front of you, so treat what they say about the task as established rather than something to rediscover:`,
     "",
     notes,
     "",
-    `Keep them current at ${notesPath} as the task moves.`,
+    `Keep them current at \`${notesPath}\` as the task moves.`,
     "</context-rollover>",
   ].join("\n");
 }

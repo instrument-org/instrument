@@ -3,6 +3,7 @@ import { dismissedModelOffersAtom } from "@/client/atoms/dismissed-model-offers"
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openLogin } from "@/client/atoms/login-modal";
+import { openReportDialog } from "@/client/atoms/report-dialog";
 import { type ComposerApp } from "@/client/components/app-mention";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
 import { AttachedItemPreview } from "@/client/components/attached-item-preview";
@@ -25,6 +26,11 @@ import {
   useFileDropRegion,
 } from "@/client/hooks/use-file-drop-region";
 import { appMentionToken } from "@/client/lib/app-mention";
+import {
+  type ComposerCommand,
+  FEEDBACK_COMMAND_ALIASES,
+} from "@/client/lib/app-commands";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import {
   type ModelAction,
   noticeFor,
@@ -53,6 +59,7 @@ import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
+import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
@@ -71,11 +78,13 @@ import { ulid } from "ulid";
 import { featuresAtom } from "../atoms/features";
 import {
   draftKeyString,
-  promptDraftAtom,
   type PromptDraftKey,
   promptDraftRefAtom,
   removeTransientDraft,
+  storedWordsAtom,
+  typedWordsAtom,
 } from "../atoms/prompt-value";
+import { flushWords } from "../drafts/settle-words";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
@@ -257,7 +266,30 @@ export const PromptInput = ({
     null,
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useAtom(promptDraftAtom(draftKey));
+  // The words the editor shows, which reach the draft a beat after they are
+  // typed. The editor reads its text once, at mount, from what the draft has,
+  // and every edit after that comes back through `onChange`; a composer moved
+  // onto another draft starts again from that one's.
+  const draftKeyed = draftKeyString(draftKey);
+  const storedWords = useAtomValue(storedWordsAtom(draftKey));
+  const typeWords = useSetAtom(typedWordsAtom);
+  const [shown, setShown] = useState({ key: draftKeyed, words: storedWords });
+  if (shown.key !== draftKeyed) {
+    setShown({ key: draftKeyed, words: storedWords });
+  }
+  const value = shown.key === draftKeyed ? shown.words : storedWords;
+  const setValue = (words: string) => {
+    setShown({ key: draftKeyed, words });
+    typeWords({ key: draftKey, words });
+  };
+  // A composer going, or moving onto another draft, writes what it was
+  // typed into at once: the next one to show that draft starts from it.
+  useEffect(
+    () => () => {
+      flushWords(draftKeyed);
+    },
+    [draftKeyed],
+  );
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
 
   const {
@@ -697,6 +729,22 @@ export const PromptInput = ({
       ]
     : actions;
 
+  // What a slash starting the box answers with besides: feedback about the
+  // chat, or with no chat, about the app.
+  const commands: ComposerCommand[] = [
+    {
+      aliases: FEEDBACK_COMMAND_ALIASES,
+      description: id ? "Send feedback about this chat" : "Send feedback",
+      icon: ChatTextIcon,
+      id: "feedback",
+      onSelect: () => {
+        openReportDialog(
+          feedbackReport({ chatId: id, surface: "slash-command" }),
+        );
+      },
+    },
+  ];
+
   const composerPlaces: ComposerPlaces | undefined = places && {
     ...places,
     apps: composerApps,
@@ -1128,9 +1176,10 @@ export const PromptInput = ({
           apps={composerApps}
           autoFocus={autoFocus}
           bounds={composerBounds}
+          commands={commands}
           defaultValue={value}
           disabled={isLoading}
-          key={draftKeyString(draftKey)}
+          key={draftKeyed}
           onChange={setValue}
           onPaste={handlePaste}
           onSubmit={handleSubmit}

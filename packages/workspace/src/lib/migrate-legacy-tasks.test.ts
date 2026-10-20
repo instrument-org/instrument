@@ -8,17 +8,37 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { migrateLegacyTasks } from "./migrate-legacy-tasks";
 import { readTopicsSync, writeTopicSync } from "./chat/topics";
+import { permissionSettingsOf } from "./permissions/rules";
+import { addTopicFoldersSync } from "./permissions/topic-folders";
 
 let root: string;
+let machineDir: string;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "migrate-legacy-tasks-"));
+  machineDir = fs.mkdtempSync(path.join(os.tmpdir(), "legacy-machine-"));
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
   fs.rmSync(root, { force: true, recursive: true });
+  fs.rmSync(machineDir, { force: true, recursive: true });
 });
+
+/** The folders granted under each topic in this computer's permission settings, by id. */
+function topicFolders(): Record<string, string[]> {
+  const { topics } = permissionSettingsOf(
+    JSON.parse(
+      fs.readFileSync(path.join(machineDir, "permissions.json"), "utf8"),
+    ),
+  );
+  return Object.fromEntries(
+    Object.entries(topics).map(([id, topic]) => [
+      id,
+      topic.folders.map((folder) => folder.path),
+    ]),
+  );
+}
 
 interface FixtureMessage {
   metadata?: Record<string, unknown>;
@@ -254,7 +274,7 @@ describe("migrateLegacyTasks", () => {
     fs.mkdirSync(path.join(chatDir, "output"));
     fs.writeFileSync(path.join(chatDir, "output", "square.mp4"), "video");
 
-    expect(migrateLegacyTasks(root)).toEqual({
+    expect(migrateLegacyTasks(root, machineDir)).toEqual({
       adoptedCount: 1,
       emptyCount: 0,
       leftOver: 0,
@@ -351,7 +371,7 @@ describe("migrateLegacyTasks", () => {
       },
     });
 
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
 
     const read = sessionOf("2026-06-23-rotating-red-square");
     expect(read.unreadAt).toBeUndefined();
@@ -407,7 +427,7 @@ describe("migrateLegacyTasks", () => {
       },
     });
 
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
 
     const chat = "2026-06-23-bike";
     expect(
@@ -436,7 +456,7 @@ describe("migrateLegacyTasks", () => {
       settings: { pinnedAt: "2026-07-01T00:00:00.000Z" },
     });
 
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
 
     expect(sessionOf("2026-06-23-rotating-red-square").starredAt).toEqual(
       new Date("2026-07-01T00:00:00.000Z"),
@@ -464,7 +484,7 @@ describe("migrateLegacyTasks", () => {
       ],
     });
 
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
 
     expect(conversationIn("2026-06-23-rotating-red-square")).toEqual([
       "user text: first ask",
@@ -504,7 +524,7 @@ describe("migrateLegacyTasks", () => {
     fs.mkdirSync(path.join(chatDir, "attachments"));
     fs.writeFileSync(path.join(chatDir, "attachments", "cat.png"), "cat");
 
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
 
     const chat = "2026-06-23-rotating-red-square";
     expect(
@@ -522,10 +542,14 @@ describe("migrateLegacyTasks", () => {
     writeTopicSync(root, {
       created: new Date("2026-09-17T17:07:55.000Z"),
       emoji: "🛒",
-      folders: [{ path: "/Users/someone/Lists" }],
       id: "top_01M2R5DNCH9PJ09F2CV1VEMM77",
       instructions: "Prefer Target.",
       name: "Shopping",
+    });
+    addTopicFoldersSync({
+      machineDir,
+      paths: ["/Users/someone/Lists"],
+      topicId: "top_01M2R5DNCH9PJ09F2CV1VEMM77",
     });
     writeProject("Shopping", {
       // 1.x stored a folder as its path, or as its path and access.
@@ -552,33 +576,41 @@ describe("migrateLegacyTasks", () => {
       settings: { name: "A bug", projectId: "prj_01M00Q67JH4P7FHH53ZBHH2XWZ" },
     });
 
-    expect(migrateLegacyTasks(root).topicCount).toBe(1);
+    expect(migrateLegacyTasks(root, machineDir).topicCount).toBe(1);
 
     const topics = readTopicsSync(root);
     expect(
-      topics.map(({ emoji, folders, instructions, name }) => ({
+      topics.map(({ emoji, instructions, name }) => ({
         emoji,
-        folders,
         instructions,
         name,
       })),
     ).toEqual([
       {
         emoji: "🐛",
-        folders: undefined,
         instructions: "File in Linear.",
         name: "Bug tasks",
       },
       {
         emoji: "🛒",
-        folders: [
-          { path: "/Users/someone/Lists" },
-          { path: "/Users/someone/Receipts" },
-        ],
         instructions: "Prefer Target.\n\nShip to home.",
         name: "Shopping",
       },
     ]);
+    // The project's folders join the ones granted under the topic on this
+    // computer, and none goes into the topic's file.
+    expect(topicFolders()).toEqual({
+      top_01M2R5DNCH9PJ09F2CV1VEMM77: [
+        "/Users/someone/Lists",
+        "/Users/someone/Receipts",
+      ],
+    });
+    expect(
+      fs.readFileSync(
+        path.join(root, "Topics", "Shopping", "TOPIC.md"),
+        "utf8",
+      ),
+    ).not.toContain("folders");
     const made = topics.find((topic) => topic.name === "Bug tasks")?.id;
     expect(sessionOf("2026-06-23-buy-socks").topic).toBe(
       "top_01M2R5DNCH9PJ09F2CV1VEMM77",
@@ -615,13 +647,14 @@ describe("migrateLegacyTasks", () => {
       settings: { name: "Plan", projectId: "prj_01M00Q67JH4P7FHH53ZBHH2XWZ" },
     });
 
-    expect(migrateLegacyTasks(root).topicCount).toBe(2);
+    expect(migrateLegacyTasks(root, machineDir).topicCount).toBe(2);
     legacyTask("2026-06-24-later", { sessions: ONE_ASK });
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
 
+    const folders = topicFolders();
     expect(
-      readTopicsSync(root).map(({ folders, name, projectId }) => ({
-        folders,
+      readTopicsSync(root).map(({ id, name, projectId }) => ({
+        folders: folders[id],
         name,
         projectId,
       })),
@@ -629,18 +662,14 @@ describe("migrateLegacyTasks", () => {
       [
         {
           "folders": [
-            {
-              "path": "/Users/someone/2025",
-            },
+            "/Users/someone/2025",
           ],
           "name": "Marketing campaign sprin",
           "projectId": "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
         },
         {
           "folders": [
-            {
-              "path": "/Users/someone/2026",
-            },
+            "/Users/someone/2026",
           ],
           "name": "Marketing campaign spr 2",
           "projectId": "prj_01M00Q67JH4P7FHH53ZBHH2XWZ",
@@ -653,7 +682,7 @@ describe("migrateLegacyTasks", () => {
     writeProject("Shopping", { id: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1" });
     fs.writeFileSync(path.join(root, "projects", "notes.txt"), "mine");
 
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
 
     expect(
       fs.readFileSync(path.join(root, "projects", "notes.txt"), "utf8"),
@@ -680,7 +709,7 @@ describe("migrateLegacyTasks", () => {
       ],
     });
 
-    expect(migrateLegacyTasks(root)).toMatchObject({
+    expect(migrateLegacyTasks(root, machineDir)).toMatchObject({
       adoptedCount: 0,
       emptyCount: 2,
     });
@@ -696,10 +725,10 @@ describe("migrateLegacyTasks", () => {
 
   it("leaves chats, the tasks they own, and the window alone, so a second boot changes nothing", () => {
     legacyTask("2026-06-23-use-ffmpeg", { sessions: ONE_ASK });
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
     const before = fs.readdirSync(root, { recursive: true }).toSorted();
 
-    expect(migrateLegacyTasks(root)).toEqual({
+    expect(migrateLegacyTasks(root, machineDir)).toEqual({
       adoptedCount: 0,
       emptyCount: 0,
       leftOver: 0,
@@ -724,7 +753,7 @@ describe("migrateLegacyTasks", () => {
     });
     new DatabaseSync(path.join(unreadable, ".instrument", "task.db")).close();
 
-    const result = migrateLegacyTasks(root);
+    const result = migrateLegacyTasks(root, machineDir);
 
     expect(result).toMatchObject({
       adoptedCount: 1,
@@ -740,7 +769,7 @@ describe("migrateLegacyTasks", () => {
     ).toEqual(["task-records"]);
 
     const before = fs.readdirSync(root, { recursive: true }).toSorted();
-    expect(migrateLegacyTasks(root)).toMatchObject({
+    expect(migrateLegacyTasks(root, machineDir)).toMatchObject({
       adoptedCount: 0,
       emptyCount: 0,
       leftOver: 0,
@@ -760,7 +789,7 @@ describe("migrateLegacyTasks", () => {
       '{"name": "Half',
     );
 
-    expect(migrateLegacyTasks(root)).toMatchObject({
+    expect(migrateLegacyTasks(root, machineDir)).toMatchObject({
       adoptedCount: 1,
       leftOver: 0,
     });
@@ -779,7 +808,7 @@ describe("migrateLegacyTasks", () => {
       rename(from, to);
     });
 
-    expect(migrateLegacyTasks(root)).toMatchObject({
+    expect(migrateLegacyTasks(root, machineDir)).toMatchObject({
       adoptedCount: 0,
       leftOver: 1,
     });
@@ -789,7 +818,7 @@ describe("migrateLegacyTasks", () => {
     ).toEqual(["settings.json", "task.db"]);
 
     spy.mockRestore();
-    expect(migrateLegacyTasks(root)).toMatchObject({
+    expect(migrateLegacyTasks(root, machineDir)).toMatchObject({
       adoptedCount: 1,
       leftOver: 0,
     });
@@ -821,13 +850,13 @@ describe("migrateLegacyTasks", () => {
     const firstBoot = busy(
       (from) => from === second || from.endsWith(".partial"),
     );
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
     firstBoot.mockRestore();
     // The next one adopts the second, with the first still unnamed.
     const secondBoot = busy((from) => from.endsWith(".partial"));
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
     secondBoot.mockRestore();
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
 
     const chats = path.join(root, ".instrument", "chats");
     expect(
@@ -863,7 +892,7 @@ describe("migrateLegacyTasks", () => {
     writeJson(path.join(backup, "settings.json"), { name: "An earlier one" });
     fs.writeFileSync(path.join(backup, "task.db"), "an earlier one's");
 
-    expect(migrateLegacyTasks(root)).toMatchObject({
+    expect(migrateLegacyTasks(root, machineDir)).toMatchObject({
       adoptedCount: 1,
       leftOver: 0,
     });
@@ -916,7 +945,7 @@ describe("migrateLegacyTasks", () => {
     ).toBe("Rotating red square video");
 
     const before = fs.readdirSync(root, { recursive: true }).toSorted();
-    expect(migrateLegacyTasks(root)).toMatchObject({
+    expect(migrateLegacyTasks(root, machineDir)).toMatchObject({
       adoptedCount: 0,
       leftOver: 0,
     });
@@ -940,10 +969,10 @@ describe("migrateLegacyTasks", () => {
       }
       rename(from, to);
     });
-    expect(migrateLegacyTasks(root).leftOver).toBe(1);
+    expect(migrateLegacyTasks(root, machineDir).leftOver).toBe(1);
     spy.mockRestore();
 
-    migrateLegacyTasks(root);
+    migrateLegacyTasks(root, machineDir);
 
     const chat = "2026-06-23-rotating-red-square";
     expect(fs.readdirSync(path.join(root, ".instrument", "chats"))).toEqual([

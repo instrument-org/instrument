@@ -9,6 +9,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
+import { writingChatRecords } from "../records/chat-records";
+import { logFileName } from "../records/file-names";
+import { recordLine } from "../records/record";
+import { DEVICE_A, header } from "../records/test-records";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { createTsxBashWorker } from "../../test/helpers/tsx-bash-worker";
@@ -19,6 +23,7 @@ import {
 } from "../create-bash-env";
 import { resolveChat, chatDir } from "../record-folders";
 import { workDir } from "../work-dir";
+import { CommandRuns, withCommandRuns } from "../shell-commands/command-runs";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import {
   SubprocessTreeTerminationError,
@@ -50,12 +55,13 @@ beforeAll(async () => {
     workspaceLayout(root).chatsDir,
     `01k${"worker".padEnd(23, "0")}`,
   );
-  // Its settings name a session, so the chat is found again on disk after a
+  // Its session's log names it, so the chat is found again on disk after a
   // test below reads the index afresh.
+  const session = StoreId.newSessionId();
   await fs.mkdir(chatRoot, { recursive: true });
   await fs.writeFile(
-    path.join(chatRoot, "settings.json"),
-    JSON.stringify({ chatSessionId: StoreId.newSessionId() }),
+    path.join(chatRoot, logFileName(session, DEVICE_A)),
+    recordLine(header(0, { device: DEVICE_A, id: session })),
   );
   chatId = createMockChatConfigForDir(chatRoot);
   // Each chat works in a folder of its own in the machine folder, apart from
@@ -170,6 +176,27 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     expect(remote.exitCode).toBe(onMain.exitCode);
   });
 
+  it("records what answered each command, in the worker and on main", async () => {
+    const runs = new CommandRuns();
+    await withCommandRuns(runs, () =>
+      remoteBash().exec("for i in 1 2; do cat /dev/null; done; jobs; jobs"),
+    );
+    expect(runs.rows()).toMatchInlineSnapshot(`
+      [
+        {
+          "count": 2,
+          "name": "cat",
+          "source": "builtin",
+        },
+        {
+          "count": 2,
+          "name": "jobs",
+          "source": "instrument",
+        },
+      ]
+    `);
+  });
+
   it("runs an `instrument` subcommand on the main thread", async () => {
     const bashOptions = options();
     const local = await createLocalBashEnv(bashOptions);
@@ -211,6 +238,26 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     });
   });
 
+  it.skipIf(process.platform === "win32")(
+    "finds programs on the PATH main has when the command starts",
+    async () => {
+      // The login shell's PATH reaches main after the worker has started.
+      const bin = path.join(root, "later-bin");
+      await fs.mkdir(bin, { recursive: true });
+      await fs.writeFile(path.join(bin, "zz-later"), "#!/bin/sh\n", {
+        mode: 0o755,
+      });
+      const before = process.env.PATH;
+      process.env.PATH = `${bin}:${before ?? ""}`;
+      try {
+        const result = await remoteBash().exec("which zz-later");
+        expect(result.stdout).toBe(`${path.join(bin, "zz-later")}\n`);
+      } finally {
+        process.env.PATH = before;
+      }
+    },
+  );
+
   it("finds a chat made after the worker started", async () => {
     const made = await chatFor();
     const dir = workDir(made);
@@ -229,10 +276,13 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     const dir = workDir(made);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "handed\n");
-    // A scan of the disk now skips the chat, whose settings name no session;
+    // A scan of the disk now skips the chat, whose records name no session;
     // only main's index, read before they went, still knows where it is.
     expect(resolveChat(made)).toBe(made);
-    await fs.rm(path.join(chatDir(made), "settings.json"));
+    await writingChatRecords()?.close(made);
+    for (const name of await fs.readdir(chatDir(made))) {
+      await fs.rm(path.join(chatDir(made), name), { recursive: true });
+    }
 
     const result = await remoteBash({
       sessionId: StoreId.newSessionId(),
@@ -248,6 +298,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   describe("a chat's records", () => {
     let recordChat: ChatId;
     let record: string;
+    let log: string;
     let chatBash: (command: string) => ReturnType<BashRunner["exec"]>;
 
     beforeAll(async () => {
@@ -267,9 +318,16 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
         sessionId: StoreId.newSessionId(),
         chatId: recordChat,
       };
+      log =
+        (await fs.readdir(record)).find((name) => name.endsWith(".jsonl")) ??
+        "";
       const bash = remoteBash(bashOptions);
       chatBash = (command) =>
-        bash.exec(command.replaceAll("<record>", shellPath(record)));
+        bash.exec(
+          command
+            .replaceAll("<record>", shellPath(record))
+            .replaceAll("<log>", log),
+        );
     });
 
     it("starts in the work folder", async () => {
@@ -300,7 +358,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     });
 
     // Every chat's records are open to reading, and closed to changes.
-    it.each([`<record>/settings.json`, `<record>/chat.db`])(
+    it.each([`<record>/<log>`, `<record>/chat.db`])(
       "reads %s and changes none of it",
       async (target) => {
         const read = await chatBash(`cat ${target}`);

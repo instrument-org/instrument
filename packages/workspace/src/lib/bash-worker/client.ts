@@ -10,6 +10,10 @@ import { ensureVenv } from "../venv";
 import { ensurePythonEnvironmentHere } from "../skill-environments";
 import { refreshPythonBaseIfDue } from "../python-base";
 import {
+  type CommandRuns,
+  currentCommandRuns,
+} from "../shell-commands/command-runs";
+import {
   currentShellOutputSink,
   type ShellOutputSink,
 } from "../shell-commands/output-sink";
@@ -41,6 +45,8 @@ export type BashWorkerFactory = (options: WorkerOptions) => Worker;
 interface PendingExec {
   /** Proxied calls in flight, by call id. */
   calls: Map<number, AbortController>;
+  /** Where the bash call keeps what the worker reports answered each command. */
+  commandRuns?: CommandRuns;
   /**
    * Runs a callback in the async context `exec` was called in, so a proxied
    * command sees the turn and output sink it would have seen on this thread.
@@ -116,6 +122,7 @@ export function createRemoteBash(
         };
         const entry: PendingExec = {
           calls: new Map(),
+          commandRuns: currentCommandRuns(),
           inContext: AsyncLocalStorage.snapshot(),
           invokeTool,
           mainBashFactory,
@@ -145,6 +152,7 @@ export function createRemoteBash(
             execOptions,
             id,
             chat: chatId ? { dir: chatDir(chatId), id: chatId } : undefined,
+            path: process.env.PATH,
             stream: sink !== undefined,
             type: "exec",
           });
@@ -255,6 +263,10 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
         await entry.sinkDone;
         entry.reject(fromWireError(message.error));
       }
+      return;
+    }
+    case "ran": {
+      instance.pending.get(message.id)?.commandRuns?.setRemote(message.rows);
       return;
     }
     case "result": {

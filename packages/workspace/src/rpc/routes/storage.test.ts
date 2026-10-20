@@ -119,8 +119,12 @@ function recordFile(chatId: string, file: string) {
 
 async function seedBrokenChats() {
   await readableChat("2026-10-01-fine");
+  // A damaged settings file beside the records hides nothing.
   await readableChat("2026-10-01-bad-settings");
   fs.writeFileSync(recordFile("2026-10-01-bad-settings", "settings.json"), "{");
+  // A folder whose records name no conversation of its own.
+  fs.mkdirSync(path.join(root, "chats", "2026-10-01-no-session"));
+  fs.writeFileSync(recordFile("2026-10-01-no-session", "settings.json"), "{");
   // A chat whose settings name a session no record of its folder holds.
   const lost = ChatIdSchema.parse("2026-10-01-no-record");
   fs.mkdirSync(path.join(root, "chats", lost), { recursive: true });
@@ -147,7 +151,10 @@ describe("storage.invalidFolders", () => {
       context: createContext(),
     });
 
-    expect(chats.map((chat) => chat.id)).toEqual(["2026-10-01-fine"]);
+    expect(chats.map((chat) => chat.id).toSorted()).toEqual([
+      "2026-10-01-bad-settings",
+      "2026-10-01-fine",
+    ]);
     expect(
       invalid
         .map(({ name, path: at, reason }) => ({
@@ -159,14 +166,14 @@ describe("storage.invalidFolders", () => {
     ).toMatchInlineSnapshot(`
       [
         {
-          "at": "chats/2026-10-01-bad-settings",
-          "name": "2026-10-01-bad-settings",
-          "reason": "Its settings file is missing or damaged.",
-        },
-        {
           "at": "chats/2026-10-01-no-record",
           "name": "2026-10-01-no-record",
           "reason": "Its conversation can’t be read.",
+        },
+        {
+          "at": "chats/2026-10-01-no-session",
+          "name": "2026-10-01-no-session",
+          "reason": "It doesn’t have a conversation of its own.",
         },
         {
           "at": "chats/Not A Chat",

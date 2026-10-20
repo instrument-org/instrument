@@ -84,11 +84,12 @@
 // `--workspace <fixture>` boots against a disposable workspace built from a
 // committed fixture (fixtures/workspaces/) instead of the shared dev
 // application-data directory, so a run does not depend on what the developer
-// happened to do last. Add `--fresh` to rebuild it first. Each boot starts
-// with no tabs restored; `--keep-tabs` carries the last run's tabs over. The
-// flag belongs on every command of that run, not just `boot`: it selects both
-// the port and the instance record, so two workspaces from one checkout never
-// collide.
+// happened to do last, and its agents put finished work in a folder beside it
+// rather than the developer's own. Add `--fresh` to rebuild it first. Each
+// boot starts with no tabs restored; `--keep-tabs` carries the last run's tabs
+// over. The flag belongs on every command of that run, not just `boot`: it
+// selects both the port and the instance record, so two workspaces from one
+// checkout never collide.
 //
 //   node studio-drive.mjs boot --purpose "document viewer" --workspace documents
 //   node studio-drive.mjs shot task.png --workspace documents
@@ -258,9 +259,20 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
   }
   const result = JSON.parse(output.slice(start));
 
+  // Where its agents put finished work. Not in its application data, which
+  // the agent's rules close, and not the flavor's folder in the home folder,
+  // where a workspace in the app's own data sends it otherwise: that is the
+  // developer's real one. Beside it, so it is reaped and rebuilt with it.
+  const outputDir = `${userDataDir}-output`;
+  if (fresh) {
+    rmSync(outputDir, { force: true, recursive: true });
+  }
+  mkdirSync(outputDir, { recursive: true });
+
   // Reaping goes by mtime, so record that this workspace was used even when the
   // seeder had nothing to do and the app writes nothing before it is killed.
   utimesSync(userDataDir, new Date(), new Date());
+  utimesSync(outputDir, new Date(), new Date());
 
   reapWorkArtifacts(userDataDir);
 
@@ -275,7 +287,7 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
     rmSync(path.join(machineDir, "window", "layout.json"), { force: true });
   }
 
-  return { tasks: result.tasks, userDataDir };
+  return { outputDir, tasks: result.tasks, userDataDir };
 }
 
 // --- clean rooms -------------------------------------------------------
@@ -436,6 +448,67 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
   return { dir };
 }
 
+// --- accounts --------------------------------------------------------
+
+/**
+ * The Instrument account `--account` names: a JSON file with the API to talk
+ * to (`api`) and a session token on it (`token`), plus the account's `email`
+ * for the record. The platform's own tooling writes these; nothing here
+ * knows how the account was made.
+ */
+function readAccount(file) {
+  let account;
+  try {
+    account = JSON.parse(readFileSync(file, "utf8"));
+  } catch (error) {
+    fail(`Could not read the account file ${file}: ${error.message}`);
+  }
+  if (
+    typeof account?.token !== "string" ||
+    !account.token ||
+    !URL.canParse(account.api ?? "")
+  ) {
+    fail(
+      `${file} is not an account file: it needs an \`api\` URL and a \`token\`.`,
+    );
+  }
+  return {
+    api: account.api.replace(/\/+$/, ""),
+    email: typeof account.email === "string" ? account.email : undefined,
+    file: path.resolve(file),
+    token: account.token,
+  };
+}
+
+/**
+ * Signs the workspace at `workspaceDir` in as `account`: the session the app
+ * reads (plain JSON in a dev build), and setup marked done so it opens
+ * straight to the window. Replaces any session the workspace held.
+ */
+function signInAs(account, userDataDir, workspaceDir) {
+  const keysDir = keysDirOf(userDataDir, workspaceDir);
+  const stateFile = path.join(
+    movedMachineDir(userDataDir, workspaceDir) ?? keysDir,
+    "state.json",
+  );
+  mkdirSync(keysDir, { recursive: true });
+  writeFileSync(
+    path.join(keysDir, "session-dev.json"),
+    `${JSON.stringify({ apiBearerToken: account.token })}\n`,
+    { mode: 0o600 },
+  );
+  let state = {};
+  try {
+    state = JSON.parse(readFileSync(stateFile, "utf8"));
+  } catch {
+    // None yet.
+  }
+  writeFileSync(
+    stateFile,
+    `${JSON.stringify({ ...state, hasCompletedProviderSetup: true })}\n`,
+  );
+}
+
 function reapStaleCleanRooms() {
   reapGoneCheckouts();
   reapOlderThan(CLEAN_ROOMS_ROOT, WORKSPACE_MAX_AGE_MS, {
@@ -560,6 +633,7 @@ function workDirs(userDataDir) {
 async function cmdBoot(
   explicitPort,
   {
+    account: accountFile,
     fresh,
     hot,
     inspect,
@@ -576,8 +650,21 @@ async function cmdBoot(
       "Pass --workspace or --clean-room, not both: a fixture brings its own application data, a clean room uses yours.",
     );
   }
+  if (accountFile && !WORKSPACE && !CLEAN_ROOM) {
+    fail(
+      "--account signs a disposable workspace in, so it needs --workspace or --clean-room: your own workspace keeps your own sign-in.",
+    );
+  }
+  const account = accountFile ? readAccount(accountFile) : undefined;
   const existing = readSession(INSTANCE);
   if (existing && (await isPortLive(existing.port))) {
+    // Which API an instance talks to is fixed when its dev server starts.
+    if ((existing.account?.file ?? undefined) !== account?.file) {
+      fail(
+        `The running instance on port ${existing.port} is signed in ${existing.account ? `as ${existing.account.email ?? existing.account.file}` : "as its workspace was"}, not as this boot asks.\n` +
+          `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it again.`,
+      );
+    }
     if (fresh) {
       fail(
         `--fresh rebuilds the workspace on disk and the instance on port ${existing.port} has it open.\n` +
@@ -644,6 +731,17 @@ async function cmdBoot(
   const cleanRoom = CLEAN_ROOM
     ? prepareCleanRoom(CLEAN_ROOM, { purpose, withSignIns })
     : undefined;
+  if (account) {
+    if (workspace) {
+      signInAs(
+        account,
+        workspace.userDataDir,
+        path.join(workspace.userDataDir, "workspace"),
+      );
+    } else if (cleanRoom) {
+      signInAs(account, devUserDataDir(), cleanRoom.dir);
+    }
+  }
 
   const file = sessionFile(INSTANCE);
   mkdirSync(path.dirname(file), { recursive: true });
@@ -699,6 +797,7 @@ async function cmdBoot(
         // and never reveals the main one, which reads as a hang.
         ...(workspace && {
           ELECTRON_USER_DATA_DIR: workspace.userDataDir,
+          INSTRUMENT_OUTPUT_FOLDER: workspace.outputDir,
           SKIP_ONBOARDING: "true",
         }),
         // Pinned rather than switched to, so the developer's own instance keeps
@@ -706,8 +805,11 @@ async function cmdBoot(
         // main window exactly as it would for a fixture.
         ...(cleanRoom && {
           INSTRUMENT_WORKSPACE: cleanRoom.dir,
-          ...(!withSignIns && { SKIP_ONBOARDING: "true" }),
+          ...(!withSignIns && !account && { SKIP_ONBOARDING: "true" }),
         }),
+        // The account's API in place of the build's; electron-vite takes a
+        // variable already in the environment over the .env files.
+        ...(account && { MAIN_VITE_APP_API_BASE_URL: account.api }),
       },
       stdio: ["ignore", log, log],
     },
@@ -727,6 +829,9 @@ async function cmdBoot(
     startedAt: new Date().toISOString(),
     ...(workspace && { tasks: workspace.tasks, workspace: WORKSPACE }),
     ...(cleanRoom && { cleanRoom: cleanRoom.dir }),
+    ...(account && {
+      account: { api: account.api, email: account.email, file: account.file },
+    }),
   };
   writeSession(INSTANCE, session);
 
@@ -1008,6 +1113,7 @@ try {
     case "boot": {
       report(
         await cmdBoot(flag(argv, "--port"), {
+          account: flag(argv, "--account"),
           fresh: argv.includes("--fresh"),
           hot: argv.includes("--hot"),
           inspect: flag(argv, "--inspect"),

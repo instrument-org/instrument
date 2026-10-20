@@ -9,11 +9,23 @@ import {
   type SimulatedChat,
   wholeLines,
 } from "./fake-sync";
-import { logFileName, parseRecordFileName } from "./file-names";
+import { type SettingChange } from "./chat-records";
+import { type DeviceId } from "./device-id";
+import {
+  logFileName,
+  parseRecordFileName,
+  settingsFileName,
+} from "./file-names";
 import { ChatFold, type FoldedSession, foldChat, historyOf } from "./fold";
-import { type MarkRecord } from "./record";
+import { recordLine, type SettingRecord } from "./record";
 import { createRandom, type Random } from "./seeded-random";
-import { DEVICE_A, sessionId } from "./test-records";
+import {
+  at as atSecond,
+  DEVICE_A,
+  DEVICE_B,
+  header,
+  sessionId,
+} from "./test-records";
 
 /**
  * Property tests of the fold against a fake sync engine: devices write a
@@ -114,6 +126,60 @@ describe("the fold, over a fake sync engine", { timeout: 30_000 }, () => {
     });
   });
 
+  // What `settings.json` lost: two computers changing a chat at once each
+  // wrote the whole file, and one change was gone.
+  it("keeps what two devices each changed of a chat, however the files arrive", () => {
+    const own = sessionId(1);
+    const model =
+      "openai/gpt-6.1-sol?provider=chatgpt-account&providerConfigId=mock";
+    const set = (
+      device: DeviceId,
+      seq: number,
+      seconds: number,
+      change: SettingChange,
+    ) =>
+      recordLine({
+        t: "set",
+        seq,
+        at: atSecond(seconds),
+        session: own,
+        device,
+        ...change,
+      });
+    const files = new Map([
+      [
+        logFileName(own, DEVICE_A),
+        Buffer.from(recordLine(header(0, { device: DEVICE_A, id: own }))),
+      ],
+      [
+        settingsFileName(DEVICE_A),
+        Buffer.from(set(DEVICE_A, 0, 10, { field: "model", value: model })),
+      ],
+      [
+        settingsFileName(DEVICE_B),
+        Buffer.from(
+          set(DEVICE_B, 0, 11, { field: "starred", value: true }) +
+            set(DEVICE_B, 1, 12, {
+              field: "title",
+              value: { auto: false, text: "Trip plans" },
+            }),
+        ),
+      ],
+    ]);
+
+    forEachSeed(PARTIAL_SEEDS, (seed) => {
+      const { fold } = deliver(files, createRandom(seed + 30_000));
+      const settings = fold.chat().sessions[0]?.settings;
+
+      expect(settings?.model?.value).toBe(model);
+      expect(settings?.starred?.value).toBe(true);
+      expect(settings?.title?.value).toEqual({
+        auto: false,
+        text: "Trip plans",
+      });
+    });
+  });
+
   it("folds a partial delivery to what its whole lines hold, and nothing the chat does not", () => {
     forEachSeed(PARTIAL_SEEDS, (seed) => {
       const { files, sessions } = simulated(seed);
@@ -144,7 +210,7 @@ describe("the fold, over a fake sync engine", { timeout: 30_000 }, () => {
 
   it("folds to what the devices wrote", () => {
     forEachSeed(SEEDS, (seed) => {
-      const { files, marks, sessions } = simulated(seed);
+      const { files, sessions, settings } = simulated(seed);
       const chat = foldChat(filesOf(files));
 
       expect(chat.sessions.map(({ id }) => id)).toEqual(
@@ -159,7 +225,7 @@ describe("the fold, over a fake sync engine", { timeout: 30_000 }, () => {
           messageIdsOf(model),
         );
         expect(session.updatedAt.getTime()).toBe(model.updatedAt);
-        expect(session.marks).toEqual(marksOf(marks, session.id));
+        expect(session.settings).toEqual(settingsOf(settings, session.id));
         if (!session.forked) {
           expect(written(session)).toEqual(expectedOf(model));
         }
@@ -281,17 +347,17 @@ function written(session: FoldedSession) {
   return { messages, rollover, stopped, state };
 }
 
-/** The winning mark of each field: settled titles first, then the newest, then the larger device id. */
-function marksOf(marks: MarkRecord[], session: StoreId.Session) {
-  const winners: Partial<Record<MarkRecord["field"], MarkRecord>> = {};
-  const rank = (mark: MarkRecord) =>
+/** The winning setting of each field: settled titles first, then the newest, then the larger device id. */
+function settingsOf(settings: SettingRecord[], session: StoreId.Session) {
+  const winners: Partial<Record<SettingRecord["field"], SettingRecord>> = {};
+  const rank = (mark: SettingRecord) =>
     [
-      mark.field === "title" && mark.value.settled ? 1 : 0,
+      mark.field === "title" && !mark.value.auto ? 1 : 0,
       mark.at.getTime(),
       mark.device,
       mark.seq,
     ] as const;
-  for (const mark of marks.filter((each) => each.session === session)) {
+  for (const mark of settings.filter((each) => each.session === session)) {
     const current = winners[mark.field];
     if (!current || compareRanks(rank(mark), rank(current)) > 0) {
       winners[mark.field] = mark;

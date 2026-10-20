@@ -134,10 +134,18 @@ export function MessageError({
   const canReadProviderText = isDeveloperMode || isOwnKeyProvider;
   const showActions = isLastMessage && !isAgentRunning;
 
+  // xAI refuses a Grok account with no plan behind it as a 429 the
+  // classifier reads as `auth`; a 401 or 403 is a session that ended.
+  const grokWithoutPlan =
+    provider === "grok-account" &&
+    classification === "auth" &&
+    error.kind === "api-call" &&
+    error.statusCode === 429;
   const { detail, summary } =
     (platformError && describePlatformRefusal(platformError)) ??
     describeForProvider(describeMessageError(error), {
       classification,
+      grokWithoutPlan,
       provider,
     });
   const modelName = message.metadata.aiGatewayModel?.name.trim();
@@ -164,6 +172,7 @@ export function MessageError({
       ? recoveryFor(message.metadata.aiGatewayModel?.uri, modelsData?.models)
       : undefined,
     classification,
+    grokWithoutPlan,
     kind: error.kind,
     onModelChange,
     onRunAgain,
@@ -279,8 +288,13 @@ function describeForProvider(
   described: { detail: string; summary: string },
   {
     classification,
+    grokWithoutPlan,
     provider,
-  }: { classification: string | undefined; provider: string | undefined },
+  }: {
+    classification: string | undefined;
+    grokWithoutPlan: boolean;
+    provider: string | undefined;
+  },
 ): { detail: string; summary: string } {
   if (provider === "claude-account") {
     if (classification === "auth") {
@@ -288,6 +302,30 @@ function describeForProvider(
         detail:
           "Sign in again to keep using your Claude subscription, or switch to another model.",
         summary: "Signed out of Claude",
+      };
+    }
+    return described;
+  }
+  if (provider === "grok-account") {
+    if (classification === "usage-limit") {
+      return {
+        detail:
+          "Your Grok subscription has hit its limit for now. Try again later, or switch to another model.",
+        summary: "Grok is out of usage for now",
+      };
+    }
+    if (classification === "auth" && grokWithoutPlan) {
+      return {
+        detail:
+          "This Grok account doesn’t have a plan. You need SuperGrok or X Premium+ to use it here, or you can switch to another model.",
+        summary: "No Grok plan on this account",
+      };
+    }
+    if (classification === "auth") {
+      return {
+        detail:
+          "Sign in again to keep using your Grok subscription, or switch to another model.",
+        summary: "Signed out of Grok",
       };
     }
     return described;
@@ -360,11 +398,14 @@ function detailsText(facts: [string, string][], body: string | undefined) {
 function errorActions({
   switchTo,
   classification,
+  grokWithoutPlan,
   kind,
   onModelChange,
   onRunAgain,
   provider,
 }: {
+  /** A Grok account xAI allows no requests, which signing in again won't fix. */
+  grokWithoutPlan: boolean;
   switchTo: AIGatewayModel.Type | undefined;
   classification: string | undefined;
   kind: MessageErrorData["kind"];
@@ -400,7 +441,9 @@ function errorActions({
     if (provider === OUR_MODELS.providerType) {
       return tryAgain;
     }
-    return provider === "chatgpt-account" || provider === "claude-account"
+    return provider === "chatgpt-account" ||
+      provider === "claude-account" ||
+      (provider === "grok-account" && !grokWithoutPlan)
       ? [{ ...providerSettings, label: "Sign in" }, ...tryAgain]
       : [providerSettings, ...tryAgain];
   }

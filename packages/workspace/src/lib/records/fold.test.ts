@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { type DeviceId } from "./device-id";
-import { logFileName, marksFileName } from "./file-names";
+import { logFileName, settingsFileName } from "./file-names";
 import { ChatFold, type FoldedChat, foldChat, historyOf } from "./fold";
-import { type LogRecord, type MarkRecord, recordLine } from "./record";
+import { type LogRecord, type SettingRecord, recordLine } from "./record";
 import { createRandom } from "./seeded-random";
 import {
   assistantMessage,
@@ -24,7 +24,7 @@ import {
 const chatSession = sessionId(1);
 const taskSession = sessionId(2);
 
-function file(name: string, records: (LogRecord | MarkRecord)[]) {
+function file(name: string, records: (LogRecord | SettingRecord)[]) {
   return { bytes: Buffer.from(records.map(recordLine).join("")), name };
 }
 
@@ -159,8 +159,8 @@ describe("foldChat", () => {
       seq: number,
       seconds: number,
       value: boolean,
-    ): MarkRecord => ({
-      t: "mark",
+    ): SettingRecord => ({
+      t: "set",
       seq,
       at: at(seconds),
       session: chatSession,
@@ -170,14 +170,14 @@ describe("foldChat", () => {
     });
     const chat = foldChat([
       log(DEVICE_A, [HEADER_A]),
-      file(marksFileName(DEVICE_A), [
+      file(settingsFileName(DEVICE_A), [
         star(DEVICE_A, 0, 1, true),
         star(DEVICE_A, 1, 5, false),
       ]),
-      file(marksFileName(DEVICE_B), [star(DEVICE_B, 0, 5, true)]),
+      file(settingsFileName(DEVICE_B), [star(DEVICE_B, 0, 5, true)]),
     ]);
 
-    expect(chat.sessions[0]?.marks.starred).toMatchObject({
+    expect(chat.sessions[0]?.settings.starred).toMatchObject({
       device: DEVICE_B,
       value: true,
     });
@@ -189,23 +189,23 @@ describe("foldChat", () => {
       seconds: number,
       words: string,
       settled: boolean,
-    ): MarkRecord => ({
-      t: "mark",
+    ): SettingRecord => ({
+      t: "set",
       seq: 0,
       at: at(seconds),
       session: chatSession,
       field: "title",
-      value: { settled, text: words },
+      value: { auto: !settled, text: words },
       device,
     });
     const chat = foldChat([
       log(DEVICE_A, [HEADER_A]),
-      file(marksFileName(DEVICE_A), [title(DEVICE_A, 1, "Named", true)]),
-      file(marksFileName(DEVICE_B), [title(DEVICE_B, 9, "New chat", false)]),
+      file(settingsFileName(DEVICE_A), [title(DEVICE_A, 1, "Named", true)]),
+      file(settingsFileName(DEVICE_B), [title(DEVICE_B, 9, "New chat", false)]),
     ]);
 
-    expect(chat.sessions[0]?.marks.title?.value).toEqual({
-      settled: true,
+    expect(chat.sessions[0]?.settings.title?.value).toEqual({
+      auto: false,
       text: "Named",
     });
   });
@@ -468,10 +468,10 @@ describe("ChatFold", () => {
     expect(second.sessions[1]?.messages).toHaveLength(2);
 
     fold.add(
-      marksFileName(DEVICE_A),
+      settingsFileName(DEVICE_A),
       Buffer.from(
         recordLine({
-          t: "mark",
+          t: "set",
           seq: 0,
           at: at(4),
           session: chatSession,
@@ -483,7 +483,7 @@ describe("ChatFold", () => {
     );
     const third = fold.chat();
     expect(third.sessions[0]).not.toBe(second.sessions[0]);
-    expect(third.sessions[0]?.marks.starred?.value).toBe(true);
+    expect(third.sessions[0]?.settings.starred?.value).toBe(true);
     expect(third.sessions[1]).toBe(second.sessions[1]);
 
     // A copy of a record already folded changes nothing.
@@ -521,9 +521,9 @@ describe("ChatFold", () => {
         messageRecord(1, user(9)),
         partRecord(2, text(2, 7, "from b")),
       ]),
-      file(marksFileName(DEVICE_B), [
+      file(settingsFileName(DEVICE_B), [
         {
-          t: "mark",
+          t: "set",
           seq: 0,
           at: at(2),
           session: chatSession,

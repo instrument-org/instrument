@@ -21,12 +21,14 @@ import { type MountedFolder } from "../schemas/mounted-folder";
 import { type StoreId } from "../schemas/store-id";
 import { TOOL_NAMES } from "../tools/name";
 import { bashWorkerEnabled, createRemoteBash } from "./bash-worker/client";
+import { shellPathReady } from "./login-shell-path";
 import {
   AGENT_BROWSER_COMMAND,
   agentBrowserCommandDescription,
   createAgentBrowserCommand,
 } from "./shell-commands/agent-browser";
 import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
+import { createXCommand, X_COMMAND } from "./shell-commands/x";
 import { type AppToolInvoker, appToolHook } from "./app-tool-hook";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import {
@@ -112,6 +114,11 @@ import {
   createValidateSkillCommand,
   VALIDATE_SKILL_COMMAND,
 } from "./shell-commands/validate-skill";
+import {
+  type CommandRun,
+  recordCommandRun,
+  runDispatched,
+} from "./shell-commands/command-runs";
 import { createPathProgramResolver } from "./shell-commands/path-program";
 import { createWhichCommand } from "./shell-commands/which";
 import { AGENT_BROWSER_PATH } from "./agent-browser";
@@ -196,6 +203,33 @@ function osascriptRefusal(): string {
       ? ""
       : ` Calendar and Reminders have the \`${CALENDAR_COMMAND.name}\` command, and Contacts the \`${CONTACTS_COMMAND.name}\` command.`;
   return `AppleScript you write doesn't run here. Mail, Notes and Messages have the \`${MAIL_COMMAND.name}\`, \`${NOTES_COMMAND.name}\` and \`${MESSAGES_COMMAND.name}\` commands.${helper} Any other app has no way in from here, so tell the person what you couldn't do in it.`;
+}
+
+/**
+ * The scheduling and job-registration programs refused by their bare name.
+ * `launchctl` is macOS's; the `cron`/`at` family is on both platforms. Each
+ * would hand code to a system daemon to run later outside the sandbox, which
+ * the Seatbelt profile also denies as an operation (`job-creation`).
+ */
+const SCHEDULING_COMMANDS = [
+  "launchctl",
+  "crontab",
+  "at",
+  "atq",
+  "atrm",
+  "batch",
+  "schtasks",
+] as const;
+
+/** A scheduling command's platforms, where it is not on every one. */
+const SCHEDULING_PLATFORMS: Partial<Record<string, NodeJS.Platform[]>> = {
+  launchctl: ["darwin"],
+  schtasks: ["win32"],
+};
+
+/** What the agent hears for a scheduling command it tries to run. */
+function schedulingRefusal(name: string): string {
+  return `${name} doesn't run here: a job it schedules would run later, outside this conversation's sandbox. Do the work in this turn instead, and if something genuinely needs to run on a schedule, tell the person to set it up themselves.`;
 }
 
 const STATIC_STUB_COMMANDS = [
@@ -444,6 +478,22 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     name: "osascript",
     platforms: ["darwin"],
   },
+  // A launchd job (and the `cron`/`at` spoolers) would run later outside
+  // every sandbox; `(deny job-creation)` in the Seatbelt profile is the
+  // boundary, and these stubs give the agent a clear reason by the bare
+  // name rather than a launchd I/O error. Run by path they meet the same
+  // profile deny.
+  ...SCHEDULING_COMMANDS.map(
+    (name): CustomCommandDef => ({
+      description: `Refuses ${name}: scheduled or background jobs don't run here.`,
+      factory: () => stubCommand(name, schedulingRefusal(name)),
+      listInDescription: false,
+      name,
+      ...(SCHEDULING_PLATFORMS[name]
+        ? { platforms: SCHEDULING_PLATFORMS[name] }
+        : {}),
+    }),
+  ),
   {
     description: PNPM_COMMAND.description,
     factory: ({ layout, chatId }) => createPnpmCommand(chatId, layout),
@@ -588,6 +638,33 @@ function pythonProgram(chatId: ChatId): string | undefined {
   return venv ? venvPython(venv) : foundManagedPython();
 }
 
+/**
+ * Our commands that run a program the app ships: those `COMMAND_PROGRAMS`
+ * names, and the ones that run one of them for what they do.
+ */
+const BUNDLED_PROGRAM_COMMANDS: ReadonlySet<string> = new Set([
+  ...Object.keys(COMMAND_PROGRAMS),
+  NPX_COMMAND.name,
+  PIP_COMMAND.name,
+  PIP3_COMMAND.name,
+  PNPX_COMMAND.name,
+  PNX_COMMAND.name,
+  UVX_COMMAND.name,
+]);
+
+/**
+ * `command`, recording each run on the bash call's record (`command-runs.ts`)
+ * as `source` unless what it does says more: the program it starts, or the
+ * builtin it hands the call to.
+ */
+function recordingRuns(command: Command, source: CommandRun["source"]) {
+  return {
+    ...command,
+    execute: (...[args, ctx]: Parameters<Command["execute"]>) =>
+      runDispatched(command.name, source, () => command.execute(args, ctx)),
+  } satisfies Command;
+}
+
 /** The program one of our commands runs, in the shell's spelling. */
 function commandProgram(chatId: ChatId, name: string): string | undefined {
   let program: string | undefined;
@@ -676,19 +753,20 @@ export function createBashDescription() {
       .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...macAppSubcommands().map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+    `  ${X_COMMAND.name} - ${X_COMMAND.description}`,
     ...CHAT_COMMAND_LINES,
   ];
 
   const specializedCommands = [...described, ...customLines].join("\n");
 
   return dedent`
-    Execute bash commands in this conversation's folder.
+    Execute bash commands in your work folder.
 
-    IMPORTANT: Files are at their real paths on the user's computer, and your working directory is this conversation's folder. The folders list in your context says which of the user's folders you reach; every command reads and writes them where they sit, native ones included. A change there lands on the user's real files immediately, so treat \`rm\` there as permanent. "Operation not permitted" means the person keeps that place closed or wants to be asked first; the message says which and what to do.
+    IMPORTANT: Files are at their real paths on the user's computer, and every command starts in your work folder. The folders list in your context says which of the user's folders you reach; every command reads and writes them where they sit, native ones included. A change there lands on the user's real files immediately, so treat \`rm\` there as permanent. "Operation not permitted" means the person keeps that place closed or wants to be asked first; the message says which and what to do.
 
-    IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) and \`${NODE_COMMAND.name}\` are real programs: \`${PYTHON_COMMAND.name}\` runs a skill's script with that skill's packages and anything else in the nearest \`.venv\` up to this conversation's folder, which the first \`${PIP_COMMAND.name} install\` makes, and \`${NODE_COMMAND.name}\` finds the packages \`${PNPM_COMMAND.name} add\` installed beside the script or above it. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
+    IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) and \`${NODE_COMMAND.name}\` are real programs: \`${PYTHON_COMMAND.name}\` runs a skill's script with that skill's packages and anything else in the nearest \`.venv\` up to your work folder, which the first \`${PIP_COMMAND.name} install\` makes, and \`${NODE_COMMAND.name}\` finds the packages \`${PNPM_COMMAND.name} add\` installed beside the script or above it. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory (\`$${FOLDER_VARIABLES.work}\`), so \`cd .\` is always a no-op. Prefer relative paths inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh in your work folder (\`$${FOLDER_VARIABLES.work}\`), so \`cd .\` is always a no-op. Prefer relative paths inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
     A command goes to the background when it outlives \`yieldMs\`, or at once when the call ends with \`&\` (\`pnpm dev &\`); \`&\` anywhere else is refused. A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` (or \`wait\`) and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a trailing \`&\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
@@ -785,6 +863,9 @@ const CHAT_ONLY_SUBCOMMANDS: Record<string, string> = Object.fromEntries(
 export async function createBashEnv(
   options: BashEnvOptions,
 ): Promise<BashRunner> {
+  // Every program the agent runs is found on this PATH, so the first command
+  // after launch waits for the login shell's.
+  await shellPathReady();
   return bashWorkerEnabled()
     ? createRemoteBash(options, () => createLocalBashEnv(options))
     : await createLocalBashEnv(options);
@@ -841,6 +922,7 @@ export async function createLocalBashEnv({
     missing: role === "chat" ? {} : CHAT_ONLY_SUBCOMMANDS,
     subcommands: [
       { ...APP_COMMAND, command: createAppCommand({ chatId }) },
+      { ...X_COMMAND, command: createXCommand({ chatId, sessionId }) },
       ...(role === "chat"
         ? [
             {
@@ -870,6 +952,18 @@ export async function createLocalBashEnv({
     ].toSorted((a, b) => a.word.localeCompare(b.word)),
   });
   const specializedCommands = [instrumentCommand, ...nativeCommands];
+  const routes = nativeTextRoutes();
+  const runSource = (name: string): CommandRun["source"] => {
+    const route = routes.find((each) => each.name === name);
+    if (route) {
+      return route.binary === "system" ? "system" : "bundled";
+    }
+    return BUNDLED_PROGRAM_COMMANDS.has(name) ? "bundled" : "instrument";
+  };
+  const resolvePathProgram = createPathProgramResolver(
+    chatId,
+    layout.rules.asker,
+  );
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [
@@ -884,7 +978,7 @@ export async function createLocalBashEnv({
       createDuCommand({ layout }),
       // After the bundled commands, so the uutils programs shadow the
       // builtins they answer for.
-      ...nativeTextRoutes().map((route) =>
+      ...routes.map((route) =>
         createNativeTextCommand(route, { chatId, layout }),
       ),
       ...specializedCommands,
@@ -896,9 +990,10 @@ export async function createLocalBashEnv({
       createWhichCommand(chatId),
       ...STATIC_STUB_COMMANDS,
     ].map((command) =>
+      // A stand-in's run is recorded on the main thread, where it runs.
       standIn && MAIN_THREAD_COMMANDS.has(command.name)
         ? standIn(command.name)
-        : command,
+        : recordingRuns(command, runSource(command.name)),
     ),
     cwd: layout.chat.shellRoot,
     executionLimits: {
@@ -951,10 +1046,20 @@ export async function createLocalBashEnv({
     },
     // A name no builtin or command of ours answers runs the program by that
     // name on the computer's PATH, as a native command.
-    resolveExternalCommand: createPathProgramResolver(
-      chatId,
-      layout.rules.asker,
-    ),
+    resolveExternalCommand: async (name, context) => {
+      const found = await resolvePathProgram(name, context);
+      return (
+        found && { ...found, command: recordingRuns(found.command, "path") }
+      );
+    },
+    // One of our commands records its own runs; just-bash's own are told
+    // here, as nothing else sees them start. What bash itself implements
+    // (`echo`, `printf`) is part of the shell rather than a command it ran.
+    onCommandStart: (name, { bundled, shellBuiltin }) => {
+      if (bundled && !shellBuiltin) {
+        recordCommandRun({ name, source: "builtin" });
+      }
+    },
     // A redirect into a folder that does not exist fails, as in bash, rather
     // than making the folder on the disk.
     redirectCreatesDirectories: false,

@@ -1,4 +1,4 @@
-import { type Draft } from "@/client/atoms/drafts";
+import { type Draft } from "@/shared/drafts";
 import { type AppPlace } from "@/client/atoms/window";
 import {
   type ChatId,

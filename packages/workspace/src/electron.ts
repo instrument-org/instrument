@@ -80,6 +80,7 @@ export {
   isKnownCdpMethod,
 } from "./lib/cdp-methods";
 export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
+export { startLoginShellPath } from "./lib/login-shell-path";
 export { findAvailableName } from "./lib/find-available-name";
 export {
   type LayoutMarkStore,
@@ -89,7 +90,7 @@ export {
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { type ChatRecordsSplit } from "./lib/split-chat-records";
-export { moveChatPermissions } from "./lib/permissions/move-chat-permissions";
+export { moveTopicFolders } from "./lib/permissions/move-topic-folders";
 export { attachChats } from "./lib/chat/attach";
 export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
@@ -106,7 +107,8 @@ export {
   convertWorkspaceChats,
   type WorkspaceConversion,
 } from "./lib/records/convert/convert-chat";
-export { giveChatsTheirFolders } from "./lib/chat-folders/boot";
+export { convertChatSettingsFiles } from "./lib/records/convert/convert-chat-settings";
+export { giveChatsTheirFolders } from "./lib/chat-folders/first-folders";
 export { type DraftsSettled, settleDrafts } from "./lib/drafts/boot";
 export { type MemoriesMoved, moveMemoriesToFolder } from "./lib/memory/move";
 export {
@@ -123,7 +125,6 @@ export {
   moveTopicsToFolder,
   type TopicsMoved,
 } from "./lib/topics-move";
-export { type ChatFoldersSwept } from "./lib/chat-folders/sweep";
 export { chatRecords } from "./lib/records/chat-records";
 export {
   chooseDeviceId,
@@ -135,11 +136,20 @@ export {
   startRecordArrivals,
   stopRecordArrivals,
 } from "./lib/records/take-arrivals";
+export {
+  openSyncedStore,
+  type SyncedStore,
+} from "./lib/synced-store/synced-store";
+export { type SyncedOp } from "./lib/synced-store/synced-record";
 export { runtimeLayout } from "./lib/runtime-dir";
 export { ensurePythonBase } from "./lib/python-base";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";
 export { WINDOW_ID } from "./schemas/window-id";
-export { appListChanges, sessionEnds } from "./lib/host-events";
+export {
+  appCatalogChanges,
+  appListChanges,
+  sessionEnds,
+} from "./lib/host-events";
 export { FILES_FENCE } from "./lib/parse-files-block";
 
 export { getBrowserSessionDir } from "./lib/chat-dir-utils";
@@ -159,9 +169,9 @@ export {
 } from "./lib/move-entry";
 export {
   type PathMove,
+  registerStoredPaths,
   rewriteStoredPaths,
   settleMovedPaths,
-  type StoredPathRewrite,
 } from "./lib/rewrite-stored-paths";
 export {
   chatOutputFolder,
@@ -171,8 +181,7 @@ export {
 } from "./lib/chat/output-folder";
 export { afterFolderAppears, isFolder } from "./lib/folder-appears";
 export { placePaths, startupPaths } from "./lib/permissions/places";
-export { chatTitle } from "./lib/chat-info";
-export { getChatSettings } from "./lib/chat-settings";
+export { chatSessions, chatStartedWithApp, chatTitle } from "./lib/chat-info";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
 export { serveStaticFile } from "./logic/server/serve-static";
 export {

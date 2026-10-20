@@ -4,19 +4,17 @@ import { describe, expect, it } from "vitest";
 
 import { CHATS_FOLDER_NAME } from "../../constants";
 import { StoreId } from "../../schemas/store-id";
-import { readChatRecord } from "../chat-record";
 import { ensureChat } from "../chat/chat-records";
-import { chatDir } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
 import { followTitle } from "./follow-title";
+import { chatFolderNames } from "./own-folder";
 
 function chatsFolder(): string {
   return path.join(getWorkspaceConfig().rootDir, CHATS_FOLDER_NAME);
 }
 
-async function folderOf(chatId: string): Promise<string | undefined> {
-  const record = await readChatRecord(chatDir(chatId as never));
-  return record.settings?.folder;
+function folderOf(chatId: string): string | undefined {
+  return chatFolderNames(getWorkspaceConfig().workspaceMachineDir).get(chatId);
 }
 
 describe("followTitle", () => {
@@ -42,7 +40,7 @@ describe("followTitle", () => {
         "utf8",
       ),
     ).resolves.toBe("a file the agent wrote");
-    expect(await folderOf(chatId)).toBe("Quiet dishwashers under 900");
+    expect(folderOf(chatId)).toBe("Quiet dishwashers under 900");
   });
 
   it("leaves a chat alone when the person took its folder away", async () => {
@@ -58,7 +56,30 @@ describe("followTitle", () => {
 
     // Nothing is made in its place here: the chat's next change does that.
     expect(await fs.readdir(chatsFolder())).not.toContain("Friday's weather");
-    expect(await folderOf(chatId)).toBe("Check the weather");
+    expect(folderOf(chatId)).toBe("Check the weather");
+  });
+
+  it("renames a folder to its title's new capitals on a disk that ignores case", async (context) => {
+    const chatId = await ensureChat(StoreId.newSessionId(), "Dinner plans");
+    const folder = path.join(chatsFolder(), "Dinner plans");
+    const ignoresCase = await fs
+      .stat(path.join(chatsFolder(), "DINNER PLANS"))
+      .then(
+        (found) => found.isDirectory(),
+        () => false,
+      );
+    if (!ignoresCase) {
+      await fs.rm(folder, { recursive: true });
+      context.skip();
+    }
+
+    await followTitle(chatId, "Dinner Plans");
+
+    const names = await fs.readdir(chatsFolder());
+    expect(names).toContain("Dinner Plans");
+    expect(names).not.toContain("Dinner plans");
+    expect(names).not.toContain("Dinner Plans 2");
+    expect(folderOf(chatId)).toBe("Dinner Plans");
   });
 
   it("says nothing and throws nothing for a chat with no folder recorded", async () => {

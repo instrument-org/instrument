@@ -8,7 +8,7 @@ import { renameChat } from "../../src/lib/chat/chats";
 import { newMessage } from "../../src/lib/new-message";
 import { ChatReads } from "../../src/lib/chat-reads";
 import { ChatWrites } from "../../src/lib/chat-writes";
-import { updateChatSettings } from "../../src/lib/chat-settings";
+import { setChatModel } from "../../src/lib/chat-settings";
 import { type FileUpload } from "../../src/schemas/file-upload";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
 import { StoreId } from "../../src/schemas/store-id";
@@ -27,7 +27,6 @@ import { type WorkspaceConfig } from "../../src/types";
  */
 export async function startRun(
   {
-    apps,
     files,
     folders,
     kind,
@@ -36,8 +35,6 @@ export async function startRun(
     prompt,
     viewing,
   }: {
-    /** The apps a task case reaches through the `app` command, by slug. */
-    apps?: string[];
     files?: FileUpload.Type[];
     folders?: { path: string }[];
     kind: "chat" | "task";
@@ -69,14 +66,9 @@ export async function startRun(
   await grantCaseFolders(chatId, folders);
   let sessionId = chatSession;
   if (kind === "task") {
-    // The chat's model and apps are the task's, so the case's are the chat's,
-    // as the composer's send would have made them.
-    (
-      await updateChatSettings(chatId, {
-        ...(apps ? { apps } : {}),
-        modelURI: uri,
-      })
-    )._unsafeUnwrap();
+    // The chat's model is the task's, so the case's is the chat's, as the
+    // composer's send would have made it.
+    (await setChatModel(chatId, uri))._unsafeUnwrap();
     const now = new Date();
     sessionId = (
       await addChildTask(chatId, {

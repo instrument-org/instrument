@@ -5,6 +5,8 @@ import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 
 export interface ChangedMessageBatch {
+  /** Whether the chat's agent started, moved or ended since the last batch. */
+  agent: boolean;
   removed: Set<StoreId.Message>;
   updated: Set<StoreId.Message>;
 }
@@ -24,6 +26,8 @@ export interface ChangedMessageBatch {
 // pull with done.
 export function changedMessageBatches(
   input: {
+    /** Also wake when the chat's agent moves, for a reader that shows it. */
+    agent?: boolean;
     /** One task, or a test every task's events are put to. */
     id: ((id: ChatId) => boolean) | ChatId;
     sessionId?: StoreId.Session;
@@ -33,6 +37,7 @@ export function changedMessageBatches(
   const matchesTask = (id: ChatId) =>
     typeof input.id === "function" ? input.id(id) : id === input.id;
   const changes = new Map<StoreId.Message, "removed" | "updated">();
+  let agentMoved = false;
 
   let wake: (() => void) | undefined;
   const notify = () => {
@@ -50,9 +55,12 @@ export function changedMessageBatches(
     input.sessionId === undefined || sessionId === input.sessionId;
 
   const unsubscribes = [
-    publisher.subscribe("record.changed", ({ id, message }) => {
+    publisher.subscribe("record.changed", ({ id, kind, message }) => {
       if (message && matchesTask(id) && matchesSession(message.sessionId)) {
         mark(message.id, message.removed ? "removed" : "updated");
+      } else if (input.agent && kind === "agent" && matchesTask(id)) {
+        agentMoved = true;
+        notify();
       }
     }),
   ];
@@ -80,7 +88,7 @@ export function changedMessageBatches(
   return new AsyncIteratorClass<ChangedMessageBatch, void>(
     async () => {
       while (!closed) {
-        if (changes.size === 0) {
+        if (changes.size === 0 && !agentMoved) {
           // The executor runs synchronously, so `wake` is set before any
           // event can fire; no wake-up is lost between the emptiness check
           // and the await.
@@ -91,9 +99,11 @@ export function changedMessageBatches(
         }
 
         const batch: ChangedMessageBatch = {
+          agent: agentMoved,
           removed: new Set(),
           updated: new Set(),
         };
+        agentMoved = false;
         for (const [messageId, change] of changes) {
           batch[change].add(messageId);
         }

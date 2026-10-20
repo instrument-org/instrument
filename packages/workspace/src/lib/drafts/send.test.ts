@@ -135,9 +135,8 @@ describe("a send stopped between its steps", () => {
     `);
     expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
     expect(pastedStillThere(made.dir)).toBe(true);
-    // And the draft still knows where it was going, so the next send is the
-    // same send rather than a second one.
-    expect(findDraft(rootDir, "d1")?.draft.chat).toBe(CHAT);
+    // And it is no longer on its way: the person sends it again, or not.
+    expect(findDraft(rootDir, "d1")?.draft.sending).toBeUndefined();
   });
 
   it("finishes the send when it stops after the message, before the folder goes", async () => {
@@ -282,7 +281,9 @@ describe("finishing the sends a launch finds", () => {
     const first = pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
     const again = pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
 
-    expect(first?.draft.chat).toBe(CHAT);
+    expect(first?.draft.sending).toBe(CHAT);
+    // A new chat's draft stays one: it is on its way, not a reply.
+    expect(first?.draft.chat).toBeUndefined();
     expect(again?.file).toBe(first?.file);
     expect(again?.draft.words).toBe(WORDS);
   });

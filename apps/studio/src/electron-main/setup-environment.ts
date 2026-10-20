@@ -1,9 +1,11 @@
 import { is, platform } from "@electron-toolkit/utils";
 import { APP_NAME } from "@instrument-org/shared";
 import { STACK_FRAME_LIMIT } from "@instrument-org/shared/exceptions";
-import { installAISDKWarningLogger } from "@instrument-org/workspace/electron";
+import {
+  installAISDKWarningLogger,
+  startLoginShellPath,
+} from "@instrument-org/workspace/electron";
 import { app } from "electron";
-import fixPath from "fix-path";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
@@ -21,11 +23,12 @@ import {
   migrateMachineSettings,
   migrateWorkspaceSettings,
 } from "./lib/settings-migration";
+import { registerAppStoredPaths } from "./lib/app-stored-paths";
 import { cleanUpMachineData } from "./lib/machine-cleanups";
 import { moveMachineData } from "./lib/machine-data-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
 import { settleWorkFolders } from "./lib/work-folders";
-import { finishPendingMove, storedPathRewrites } from "./lib/workspace-move";
+import { finishPendingMove } from "./lib/workspace-move";
 import {
   inspectWorkspaceFolder,
   setWorkspaceRefusal,
@@ -76,6 +79,19 @@ function configureUserDataDirectory() {
 
 configureUserDataDirectory();
 
+// An app started from the Dock or a desktop entry has the session's bare PATH,
+// and the agent's commands need the person's programs. The PATH saved from
+// the last read goes on now; the login shell's is read in the background,
+// started first so it has the whole boot to finish, and the agent's shell and
+// local app servers wait for it before their first spawn. Does nothing on
+// Windows, whose GUI apps get the user's PATH.
+startLoginShellPath({
+  cacheFile: path.join(app.getPath("userData"), "login-shell-path.json"),
+  log: (message) => {
+    logger.info(message);
+  },
+});
+
 // A page can hand an agent its own callable tools, described and typed,
 // through `document.modelContext`, instead of making it read the page and
 // click. The agent reads that registry over CDP, and the domain it reads
@@ -107,6 +123,10 @@ installAISDKWarningLogger();
  * is first asked for.
  */
 function openWorkspace() {
+  // First, before a move, a launch migration or a folder found moved by hand
+  // writes a stored path where it went: each of those writes every store
+  // registered here.
+  registerAppStoredPaths();
   const userDataDir = getUserDataDir();
   // Before the workspace resolves, which takes a path inside this folder.
   for (const step of renameMachineFolder(userDataDir)) {
@@ -169,9 +189,8 @@ function openWorkspace() {
     logger.info(`Machine cleanup: ${step}`);
   }
   // After the cleanups, and before any store opens: the paths it moves are
-  // written into the window's and the browser's stores.
+  // written into the window's and the browser's stores (`registerAppStoredPaths`).
   const work = settleWorkFolders({
-    also: storedPathRewrites(moved.machineDir),
     machineDir: moved.machineDir,
     userDataDir,
     workspace,
@@ -269,9 +288,4 @@ if (platform.isLinux) {
     app.commandLine.appendSwitch("password-store", passwordStore);
     logger.info(`Using password store: ${passwordStore}`);
   }
-}
-
-if (!platform.isWindows) {
-  // Fix the $PATH on macOS and Linux when run from a GUI app
-  fixPath();
 }

@@ -9,23 +9,45 @@ import {
   UndoRefusedError,
 } from "@/electron-main/lib/file-journal";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
-import { resolveAlias } from "@/electron-main/lib/mac-native";
+import {
+  executePlacing,
+  fileSystemOps,
+  type InTrash,
+} from "@/electron-main/lib/finder-placing/execute";
+import { gatherPlaceRequest } from "@/electron-main/lib/finder-placing/gather";
+import {
+  clashesOf,
+  planPlacing,
+} from "@/electron-main/lib/finder-placing/plan";
+import {
+  createLeftovers,
+  finishLeftovers,
+} from "@/electron-main/lib/finder-placing/leftovers";
+import {
+  trashItem as nativeTrashItem,
+  pasteboardFiles,
+  resolveAlias,
+} from "@/electron-main/lib/mac-native";
 import {
   isRefusedByName,
   isRefusedFile,
 } from "@/electron-main/lib/refused-files";
+import { openPathOnComputer } from "@/electron-main/lib/open-path";
 import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
+import { getMachineState } from "@/electron-main/stores/machine/state";
 import { copyName, newFolderName, osOf } from "@/shared/os-conventions";
 import { moveSidebarPlaces } from "@/shared/sidebar-places";
 import { resolveThroughAliases } from "@instrument-org/workspace/electron";
 import { eventIterator, ORPCError } from "@orpc/server";
-import { shell } from "electron";
+import { clipboard, ClipboardItem, shell, webContents } from "electron";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { z } from "zod";
 
 /**
@@ -176,6 +198,274 @@ const duplicate = base
   });
 
 /**
+ * What a Replace displaces, moved to the Trash, and where it landed when the
+ * system says: the Mac's own call answers that, which reading the Trash could
+ * not without Full Disk Access.
+ */
+async function trashReplaced(at: string): Promise<InTrash> {
+  const landed = await nativeTrashItem(at);
+  if (landed !== undefined) {
+    return { inTrash: landed };
+  }
+  await shell.trashItem(at);
+  return { inTrash: null };
+}
+
+/** What placing and its undo leave under names of their own until each is done with, kept in the machine's state. */
+const placingLeftovers = createLeftovers({
+  read: () => getMachineState().get("placingLeftovers") ?? [],
+  write: (leftovers) => {
+    getMachineState().set("placingLeftovers", [...leftovers]);
+  },
+});
+
+/** Finishes what a quit or crash left mid-placing: once, at launch. */
+export function finishPlacingLeftovers() {
+  return finishLeftovers(placingLeftovers, {
+    identity: identityOf,
+    trash: (at) => shell.trashItem(at),
+  });
+}
+
+const ClashSchema = z.object({
+  kind: z.enum(["file", "folder", "link", "package"]),
+  name: z.string(),
+  path: z.string(),
+  replaceable: z.boolean(),
+  with: z.object({
+    by: z.enum(["entry", "source"]),
+    identity: z.object({ dev: z.number(), ino: z.string() }),
+    kind: z.enum(["file", "folder", "link", "package"]),
+  }),
+});
+
+const PlaceInputSchema = z.object({
+  folder: HostPathSchema,
+  paths: z.array(HostPathSchema).min(1).max(1000),
+  /** The person's answer for each clash, by the source's path. */
+  resolutions: z
+    .record(z.string(), z.enum(["keepBoth", "replace", "skip"]))
+    .optional(),
+  /** For each source answered Replace, the identity of what the person was shown in its way. */
+  replacing: z
+    .record(z.string(), z.object({ dev: z.number(), ino: z.string() }))
+    .optional(),
+});
+
+/**
+ * Copies things into a folder (a drop from outside the app, or a paste), or
+ * moves the Finder's own rows into one (a drop of them): read, planned and
+ * carried out by `finder-placing`, where the rules and their invariants are.
+ * What was done is one journal entry, so one ⌘Z takes all of it back.
+ */
+function placeRoute(op: "copy" | "move") {
+  return base
+    .errors({
+      CANNOT_PLACE: { message: "That couldn’t be done" },
+    })
+    .input(PlaceInputSchema)
+    .output(
+      z.object({
+        /** Why it stopped short, and what that left where; null when it did all of it. */
+        failure: z.string().nullable(),
+        /** The journal entry that takes all of it back, when anything changed. */
+        journalId: z.string().nullable(),
+        placed: z.array(
+          z.object({
+            from: z.string(),
+            how: z.enum(["copied", "moved"]),
+            path: z.string(),
+            replaced: z.boolean(),
+          }),
+        ),
+        skipped: z.array(
+          z.object({
+            source: z.string(),
+            why: z.enum(["already-there", "answered", "changed"]),
+          }),
+        ),
+        /** What a Replace moved to the Trash, and where it landed when the system said. */
+        trashed: z.array(
+          z.object({ from: z.string(), inTrash: z.string().nullable() }),
+        ),
+      }),
+    )
+    .handler(async ({ errors, input }) => {
+      const plan = planPlacing(
+        await gatherPlaceRequest({
+          answers: input.resolutions ?? {},
+          folder: input.folder,
+          op,
+          paths: input.paths,
+          ...(input.replacing ? { replacing: input.replacing } : {}),
+        }),
+      );
+      if ("refusal" in plan) {
+        throw errors.CANNOT_PLACE({ message: plan.refusal });
+      }
+      const outcome = await executePlacing(
+        op,
+        plan.steps,
+        fileSystemOps({ leftovers: placingLeftovers, trash: trashReplaced }),
+      );
+      for (const each of outcome.placed) {
+        if (each.how === "moved") {
+          followMove(each.from, each.path);
+        }
+      }
+      return {
+        failure: outcome.failure,
+        journalId: outcome.journal
+          ? fileJournal.record(outcome.journal).id
+          : null,
+        placed: outcome.placed,
+        skipped: outcome.skipped,
+        trashed: outcome.trashed,
+      };
+    });
+}
+
+/** Copies things into a folder: a drop from outside the app, or a paste. */
+const copyInto = placeRoute("copy");
+
+/** Moves the Finder's own rows into a folder they were dropped on. */
+const moveInto = placeRoute("move");
+
+/**
+ * Shows something a Replace moved to the Trash: the item itself when the
+ * system said where it landed, else the Trash, which the Finder opens without
+ * the app reading it. The Mac only; elsewhere the toast offers nothing.
+ */
+const showInTrash = base
+  .input(z.object({ inTrash: z.string().nullable() }))
+  .handler(async ({ input }) => {
+    if (input.inTrash !== null) {
+      shell.showItemInFolder(input.inTrash);
+      return;
+    }
+    if (process.platform === "darwin") {
+      await openPathOnComputer(path.join(os.homedir(), ".Trash"));
+    }
+  });
+
+/** What a drop or paste into a folder would land on, to ask about before anything is touched. */
+const clashes = base
+  .input(
+    z.object({
+      folder: HostPathSchema,
+      op: z.enum(["copy", "move"]),
+      paths: z.array(HostPathSchema).min(1).max(1000),
+    }),
+  )
+  .output(z.object({ clashes: z.array(ClashSchema) }))
+  .handler(async ({ input }) => ({
+    clashes: clashesOf(await gatherPlaceRequest(input)),
+  }));
+
+/**
+ * A clipboard format by the name the system itself gives it, which Electron
+ * reaches through a type of its own.
+ */
+const osClipboardFormat = (name: string) =>
+  `electron application/osclipboard;format="${name}"`;
+
+/** The Mac's list of paths: every file manager pastes one file for each. */
+const MAC_FILENAMES = osClipboardFormat("NSFilenamesPboardType");
+
+/** What GNOME's Files and the file managers following it paste from. */
+const GNOME_COPIED_FILES = osClipboardFormat("x-special/gnome-copied-files");
+
+function escapeXml(text: string) {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+/**
+ * Things on this computer, to the clipboard as the files themselves, the way
+ * the file manager's Copy puts them there: its Paste copies them, and so
+ * does the Finder's here, which reads them back in the window's own paste.
+ */
+const copyToClipboard = base
+  .input(z.object({ paths: z.array(HostPathSchema).min(1).max(1000) }))
+  .handler(async ({ input }) => {
+    const uris = input.paths.map((at) => pathToFileURL(at).href);
+    // On the Mac the list of paths alone: the system turns it into a file
+    // URL apiece, which is what the Finder and every other app read, and a
+    // URI list beside it would be turned into a second set.
+    const formats: Record<string, string> =
+      process.platform === "darwin"
+        ? {
+            [MAC_FILENAMES]: `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><array>${input.paths
+              .map((at) => `<string>${escapeXml(at)}</string>`)
+              .join("")}</array></plist>`,
+          }
+        : { "text/uri-list": uris.join("\r\n") };
+    if (process.platform === "linux") {
+      formats[GNOME_COPIED_FILES] = ["copy", ...uris].join("\n");
+    }
+    // Their names as text too, one to a line, as the Finder's Copy leaves
+    // them for a text field to paste. A paste in the Finder reads the files.
+    formats["text/plain"] = input.paths
+      .map((at) => path.basename(at))
+      .join("\n");
+    await clipboard.write([new ClipboardItem(formats)]);
+  });
+
+/**
+ * The files on the clipboard, every one of them, for a paste. The Mac's are
+ * read through the bridge, since the Finder's Copy puts each on an item of
+ * its own and Electron reads only the first; elsewhere this has none to give,
+ * and the page reads the paste's own files instead.
+ */
+const clipboardFiles = base
+  .output(
+    z.object({
+      files: z.array(z.object({ isFolder: z.boolean(), path: z.string() })),
+    }),
+  )
+  .handler(async () => {
+    const paths = (await pasteboardFiles()) ?? [];
+    const files = await Promise.all(
+      paths.map(async (at) => ({
+        isFolder: await fs.stat(at).then(
+          (stats) => stats.isDirectory(),
+          () => false,
+        ),
+        path: at,
+      })),
+    );
+    return { files };
+  });
+
+/** Whether the clipboard holds files a paste would copy in, for the menu's Paste. */
+const clipboardHasFiles = base
+  .output(z.object({ hasFiles: z.boolean() }))
+  .handler(async () => {
+    const paths = await pasteboardFiles();
+    if (paths !== undefined) {
+      return { hasFiles: paths.length > 0 };
+    }
+    const [item] = await clipboard.read();
+    if (!item?.types.includes("text/uri-list")) {
+      return { hasFiles: false };
+    }
+    const uris = await (await item.getType("text/uri-list")).text();
+    return {
+      hasFiles: uris.split(/\r?\n/).some((uri) => uri.startsWith("file:")),
+    };
+  });
+
+/**
+ * Edit > Paste in the window that asked, for a menu's Paste: whatever holds
+ * the keyboard there gets the paste the keys would have given it.
+ */
+const paste = base.handler(({ context }) => {
+  webContents.fromId(context.webContentsId)?.paste();
+});
+
+/**
  * Puts a file an editor was given (a picture, a PDF) into the folder of the
  * file it is editing, so the file can name it by a relative path: a file
  * already in that folder or below it is answered as it is, one from anywhere
@@ -297,8 +587,8 @@ async function record(
 }
 
 /**
- * Takes back the newest action in the journal: a rename, a duplicate, a new
- * folder, or a move to the Trash. One that cannot be taken back safely is
+ * Takes back the newest action in the journal: a rename, a duplicate, a
+ * copy, a move, a new folder, or a move to the Trash. One that cannot be taken back safely is
  * refused with the reason. While the person can still clear the way
  * (something has taken its name, a new folder has been filled) it stays in
  * the journal, so nothing older is undone out of order behind it; one that
@@ -318,7 +608,14 @@ const undo = base
   .input(z.object({ journalId: z.string().optional() }).optional())
   .output(
     z.object({
-      kind: z.enum(["duplicate", "new-folder", "rename", "trash"]),
+      kind: z.enum([
+        "copy",
+        "duplicate",
+        "move",
+        "new-folder",
+        "rename",
+        "trash",
+      ]),
       /** Whether what was put back is a folder. */
       isFolder: z.boolean(),
       /** The entry taken back, so whatever offered to undo it can go. */
@@ -339,6 +636,7 @@ const undo = base
       }
       try {
         const undone = await undoEntry(entry, {
+          leftovers: placingLeftovers,
           trash: (at) => shell.trashItem(at),
         });
         fileJournal.remove(entry.id);
@@ -347,6 +645,10 @@ const undo = base
         }
         if (entry.kind === "rename") {
           followMove(entry.to, entry.from);
+        } else if (entry.kind === "move") {
+          for (const moved of entry.moved) {
+            followMove(moved.to, moved.from);
+          }
         }
         const isFolder =
           undone.path !== null &&
@@ -570,12 +872,20 @@ const live = {
 
 export const files = {
   addFile,
+  clashes,
+  clipboardFiles,
+  clipboardHasFiles,
+  copyInto,
+  copyToClipboard,
   duplicate,
   live,
   missing,
+  moveInto,
   newFolder,
+  paste,
   read,
   rename,
+  showInTrash,
   trash,
   undo,
   write,

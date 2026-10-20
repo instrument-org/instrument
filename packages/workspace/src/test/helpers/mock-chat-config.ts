@@ -38,20 +38,23 @@ import {
 import { type BrowserConfig, type WorkspaceConfig } from "../../types";
 import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 import { mxcTestConfig } from "./mxc-test-config";
+import { MOCK_WORKSPACE_ROOT } from "./mock-workspace-root";
 import { forgetChat, placeChat } from "../../lib/record-folders";
 import { StoreId } from "../../schemas/store-id";
 import { newDeviceId } from "../../lib/records/device-id";
 
-// Resolved, so on Windows each carries the current drive (`C:\tmp\workspace`)
-// as every folder the app holds does there. A path with no drive is resolved
-// against `process.cwd()`, which the agent's shell blocks while a command runs.
-const MOCK_WORKSPACE_DIR = path.resolve("/tmp/workspace");
+const MOCK_WORKSPACE_DIR = path.join(MOCK_WORKSPACE_ROOT, "workspace");
 // Outside the workspace, as this computer's folder for it is.
-const MOCK_WORKSPACE_MACHINE_DIR = path.resolve("/tmp/workspace-machine");
+const MOCK_WORKSPACE_MACHINE_DIR = path.join(
+  MOCK_WORKSPACE_ROOT,
+  "workspace-machine",
+);
 const MOCK_WORKSPACE_LAYOUT = workspaceLayout(MOCK_WORKSPACE_DIR);
 
 export const MOCK_WORKSPACE_DIRS = {
   registry: path.join(MOCK_WORKSPACE_DIR, "registry"),
+  root: MOCK_WORKSPACE_DIR,
+  runtime: path.join(MOCK_WORKSPACE_DIR, "runtime"),
   systemSkills: path.join(MOCK_WORKSPACE_DIR, "system-skills"),
   apps: MOCK_WORKSPACE_LAYOUT.appsDir,
   chats: MOCK_WORKSPACE_LAYOUT.chatsDir,
@@ -142,9 +145,7 @@ export function createMockChatConfig(
     registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
     chatsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
-    runtimeDir: AbsolutePathSchema.parse(
-      path.join(MOCK_WORKSPACE_DIR, "runtime"),
-    ),
+    runtimeDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.runtime),
     systemSkillsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.systemSkills),
     legacyTasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
     tempFolders: [],

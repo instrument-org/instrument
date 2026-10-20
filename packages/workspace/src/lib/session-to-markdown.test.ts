@@ -252,8 +252,10 @@ describe("session diagnostics", () => {
     expect(markdown).toContain('"url": "https://provider.example/docs"');
     expect(markdown).toContain("### Persisted Data: skillChanges");
     expect(markdown).toContain('"pdf-report"');
+    // As the model reads it: a call the turn never settled is answered.
+    expect(markdown).toContain("### Tool Call 1: bash");
     expect(markdown).toContain(
-      "### Tool Call 1: bash *(incomplete: input-streaming)*",
+      "This call was stopped before it returned: it never ran, or was interrupted while it ran.",
     );
     expect(markdown).toContain("- **command:** `pnpm test`");
   });

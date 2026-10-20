@@ -1,52 +1,33 @@
 # Review instructions
 
-Focus on correctness and user impact. The rules below only calibrate what the review flags and how it reports findings.
+How to calibrate a review of this repo, whether of a pull request, a branch, or the last few days of commits. Correctness and user impact come first; the rest of this file only tunes what gets flagged and how.
 
-## What Important means here
+## What counts as Important
 
-Use 🔴 Important for concrete defects that should be fixed before merging. Preserve the default bar for correctness bugs, security vulnerabilities, and regressions, and pay particular attention to:
+A concrete defect that should be fixed before it ships: a correctness bug, a security hole, a regression. These areas deserve the most attention here:
 
-- **Security findings.** Judge them against [`docs/architecture/threat-model.md`](docs/architecture/threat-model.md): one that crosses its four protected lines is Important, and one its "Do not fix" list names is not reported.
-- **Containment regressions.** The agent works at real paths and must reach only the folders its chat reaches (the home folder, the output folder, the chat's grants and its topics' folders), held to the Settings › Permissions rules, with the rest of the workspace hidden and anything overlapping the workspace root kept read-only. Widening what the rules, the Seatbelt or bubblewrap profile, the `agent-browser` allowlist, or the git argv/env policy let through is Important.
-- **Packaging and release breakage.** Main-process runtime packages belong in `dependencies`, renderer-only packages in `devDependencies`, and native binaries may require `asarUnpack`. Flag changes that work locally but break or materially bloat the packaged app.
-- **Data loss or incompatibility.** Changes must preserve a chat's `chat.db`, `settings.json` and `attachments/` under `chats/<id>/` (its tasks are sessions in that `chat.db`) and its work folder in the workspace's machine folder, the 1.x `tasks/<id>/` folders the layout migration reads, a topic's `topics/<Name>/` folder, and the window's `.instrument/window.json` at the workspace root, and continue loading data written by the previous release unless they include a migration.
-- **Privacy leaks.** Prompts, agent messages, file contents, user paths, API keys, and `.env` values must not reach telemetry, logs, or unintended network destinations.
-- **Agent-turn correctness.** Flag deterministic tool, prompt, message-assembly, or state-management defects that make turns fail, hang, or silently drop state.
+- **Security.** Judge a finding against [`docs/architecture/threat-model.md`](docs/architecture/threat-model.md). One that crosses a line it protects is Important; one its "Do not fix" list names is not reported.
+- **Containment.** Anything that lets the agent reach further than Settings › Permissions allows, at any layer: the in-process rules the shell and file tools follow, the operating system's sandbox around the programs it starts, and what the app runs outside the sandbox on the agent's behalf. Narrowing is fine; widening is Important.
+- **The person's data.** A change must not lose, overwrite, or strand what a workspace keeps: a chat's records and its work folder, the person's own folders at the workspace's top level, this computer's files in the workspace's machine folder, and what earlier builds left for the migrations to read. A changed stored shape still reads what the previous release wrote, or ships a migration. The root `CLAUDE.md` describes the layout.
+- **Privacy.** Prompts, messages, file contents, paths, keys, and `.env` values must not reach telemetry, logs, or a network destination they were not meant for.
+- **Agent turns.** Deterministic tool, prompt, message-assembly, or state defects that make a turn fail, hang, or silently drop state.
+- **Studio's privilege boundary.** The renderer reaches Electron, Node, and the remote API only through the preload API and main-process RPC. No lint rule catches a direct import.
+- **Packaging.** A change that works under `pnpm dev` but breaks or bloats the packaged app, such as a dependency in the wrong list or a native binary left inside the asar.
 
-Naming, structure, refactor suggestions, prose style, and test organization are 🟡 Nit at most.
-
-## Cap the nits
-
-Report at most five Nits per review. If you found more, say "plus N similar items" in the summary instead of posting them inline.
+Naming, structure, refactors, prose, and test layout are Nits at most.
 
 ## Do not report
 
-- Anything the `check-and-test` scripts already enforce: formatting, lint, type errors, spelling, knip, lockfile policy, dependency dedupe, Actions pinning, and the Electron/Node version check (see the root `package.json`).
-- Changes under `registry/`, which is a read-only git submodule.
-- Generated outputs: `apps/studio/src/client/routeTree.gen.ts`, `apps/studio/icons/.generated-hashes.json`, and `pnpm-lock.yaml`.
-- Version bumps in release commits.
-- Documentation style, structure, or completeness. Do report factual claims that conflict with the implementation or with changes in the same PR.
-- General requests for more tests. Report a missing test only when the changed behavior is important and the existing test projects can observe it.
-- A program under MXC on Windows renaming a repository's `.git` to write its hooks: an accepted gap ([decision](docs/decisions/2026-10-17-accept-the-git-rename-gap.md)).
+- What `pnpm check-and-test` already enforces: formatting, lint, types, spelling, unused code, the lockfile, and its other checks.
+- Anything in `registry/`, generated files, and version bumps in release commits.
+- A tradeoff a record in `docs/decisions/` already accepts.
+- Documentation style or completeness. A doc claim the code contradicts is worth reporting.
+- General requests for more tests. Name a missing test only when the behavior matters and an existing test project could observe it.
 
-## Always check
+## Evidence and shape
 
-- **Studio privilege boundaries.** Renderer code must not import Electron, Node built-ins, or platform API modules directly. Privileged operations use the narrow preload API or main-process oRPC, and remote Instrument API calls go through main-process routes. Reading files through the `instrument://computer-<token>` channel (`client/lib/computer-file-url.ts`) is expected.
-- **Workspace error handling.** Do not discard a `Result`'s error, whichever library returned it. Expected tool failures stay typed through the tool boundary, and RPC handlers map known failures with `toORPCError`; internal invariant failures may still throw.
-- **Persisted shapes.** Changed Zod schemas, database columns, and state keys must remain backward compatible or include a migration.
-- **Session-context freshness.** Values derived from `agent.getMessages` are a startup snapshot fixed for the life of the session. Values required in a later turn must be attached to that turn as a persisted `data-*` part, and rendering one must be deterministic from what is stored.
-- **Test observability.** jsdom cannot verify browser-owned layout, scrolling, caret, or selection behavior. Those assertions belong in `*.browser.test.tsx`; every added regression test should fail against the unfixed behavior.
-
-## Verification bar
-
-- Cite `file:line` in source for every claim about behavior. `CLAUDE.md` and architecture docs describe intent; trace the implementation before reporting a finding.
-- Do not post unverified hypotheses as findings. Deterministic agent-facing wiring defects may be Important when the code path proves them; omit claims about model choices that cannot be verified statically.
-- Prefer one finding on the root cause over one per call site.
-
-## Re-review convergence
-
-On a re-review, post Important findings only, plus Nits on code introduced since the previous review. Do not re-raise resolved or previously reported Nits.
-
-## Summary shape
-
-Open with a one-line tally such as `2 important, 4 nits`, followed by the areas touched. When there are no correctness findings, say "No correctness issues" first and put any Nits below it.
+- Cite `file:line` for each claim about behavior and give the concrete scenario where it goes wrong. Docs describe intent, so trace the code before reporting.
+- A static trace that proves the path is enough. Leave out what reading cannot settle rather than building a reproduction for every hunch, and say which findings were confirmed by running something.
+- Report the root cause once, not once per call site.
+- Keep it to five Nits; mention the rest as "plus N similar".
+- On a second pass over the same work, raise only new Important findings and Nits in code added since.

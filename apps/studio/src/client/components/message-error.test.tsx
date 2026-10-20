@@ -266,6 +266,26 @@ describe("MessageError", () => {
     },
   );
 
+  it.each([
+    [429, "No Grok plan on this account", "Open provider settings"],
+    [401, "Signed out of Grok", "Sign in"],
+  ])("tells a Grok %i apart: %s", (statusCode, summary, action) => {
+    renderError({
+      error: {
+        classification: "auth",
+        kind: "api-call",
+        message: "refused",
+        name: "AI_APICallError",
+        statusCode,
+        url: "http://localhost/ai-gateway/providers/grok-1/responses",
+      },
+      provider: "grok-account",
+    });
+
+    expect(screen.getByText(summary)).not.toBeNull();
+    expect(screen.getByRole("button", { name: action })).not.toBeNull();
+  });
+
   it("says nothing about a throttle the session already got past", () => {
     const { container } = renderError({ isLastMessage: false });
 

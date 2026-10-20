@@ -9,6 +9,7 @@ import { type AbsolutePath } from "../../../schemas/paths";
 import { absolutePathJoin } from "../../absolute-path-join";
 import { commandLineToolsEnv } from "../../command-line-tools-env";
 import { nodeBuildEnvFor, uvBuildEnvFor } from "../../tool-isolation-env";
+import { shellPathReady } from "../../login-shell-path";
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type LocalMcpAppManifest } from "../manifest";
 import { workspaceMachineDir } from "../../workspace-machine-dir";
@@ -66,6 +67,10 @@ export async function prepareLocalServer({
   signal?: AbortSignal;
   slug: string;
 }): Promise<Result<LocalServerLaunch, string>> {
+  // The server, its install and whatever it starts in turn inherit this
+  // process's PATH, so the first launch after startup waits for the login
+  // shell's.
+  await shellPathReady();
   if (manifest.runtime === "python") {
     return ok({
       args: ["tool", "run", manifest.package, ...(manifest.args ?? [])],

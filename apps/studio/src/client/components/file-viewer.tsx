@@ -73,6 +73,11 @@ import { MessageCard } from "./message-card";
 import { OpenInAppMenuItems } from "./open-in-app";
 import { OpenFileButton } from "./open-file-button";
 import { SessionMarkdown } from "./session-markdown";
+import {
+  UpdatedNote,
+  UpdatedNoteContext,
+  useUpdatedNote,
+} from "./updated-note";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
 import {
@@ -785,6 +790,7 @@ export function FileViewer({
   className,
   editable = false,
   file,
+  noteInto,
   onClose,
   onExpand,
   onLeaveSource,
@@ -813,6 +819,8 @@ export function FileViewer({
    */
   editable?: boolean;
   file: ViewerFile;
+  /** Where the viewer says its file was just updated, for a viewer whose row has a field to say it in; its own head otherwise. */
+  noteInto?: HTMLElement | null;
   onClose?: () => void;
   onExpand?: () => void;
   /**
@@ -868,6 +876,30 @@ export function FileViewer({
     fileType === "text" ||
     (fileType === "html" && page === undefined) ||
     showsSource;
+  // A write to the file reaches the viewer as a new version of its URL. The
+  // live editors pull writes in themselves, and a version of theirs is as
+  // often their own save, so they say when a write came from elsewhere
+  // through `UpdatedNoteContext`; every other view is replaced whole by the
+  // new version. The watch's first answer only adds a version to a URL that
+  // had none, and is not a write.
+  const pullsWrites =
+    editable &&
+    (showsSource ||
+      fileType === "code" ||
+      fileType === "csv" ||
+      fileType === "markdown" ||
+      fileType === "text" ||
+      (fileType === "html" && page === undefined));
+  const updated = useUpdatedNote();
+  const { mark: markUpdated } = updated;
+  const shownUrl = useRef(url);
+  useEffect(() => {
+    const before = shownUrl.current;
+    shownUrl.current = url;
+    if (before !== url && /[?&]version=/.test(before) && !pullsWrites) {
+      markUpdated();
+    }
+  }, [markUpdated, pullsWrites, url]);
   const fileActions = useFileActionVisibility(file);
   // Copying the whole file is rare enough to live in the menu rather than
   // take a place in the head beside opening it.
@@ -956,6 +988,9 @@ export function FileViewer({
 
   const actions = (
     <>
+      {noteInto === undefined && (
+        <UpdatedNote shown={updated.shown} turn={updated.turn} />
+      )}
       {actionsLead}
       {showsSource && (
         // Where the source was left from: the menu took the person here, and
@@ -1100,6 +1135,11 @@ export function FileViewer({
           actionsInto,
         )
       )}
+      {noteInto &&
+        createPortal(
+          <UpdatedNote shown={updated.shown} turn={updated.turn} />,
+          noteInto,
+        )}
 
       {mediaLoadError ? (
         <div className="flex min-h-0 flex-1 items-center justify-center">
@@ -1115,14 +1155,18 @@ export function FileViewer({
         // are not nested inside the shared scroll container. The content is
         // the file, so it is text; a viewer's own toolbar and rail say not.
         <div className="flex min-h-0 flex-1 flex-col select-text">
-          {viewer.render(viewerContext)}
+          <UpdatedNoteContext value={markUpdated}>
+            {viewer.render(viewerContext)}
+          </UpdatedNoteContext>
         </div>
       ) : (
         <div
           className="relative min-h-0 flex-1 overflow-auto select-text"
           ref={contentRef}
         >
-          {viewer.render(viewerContext)}
+          <UpdatedNoteContext value={markUpdated}>
+            {viewer.render(viewerContext)}
+          </UpdatedNoteContext>
         </div>
       )}
     </div>

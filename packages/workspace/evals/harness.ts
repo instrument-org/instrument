@@ -40,7 +40,6 @@ import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { openAsks } from "../src/lib/chat/asks";
 import { ChatReads } from "../src/lib/chat-reads";
-import { updateChatSettings } from "../src/lib/chat-settings";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
@@ -359,6 +358,11 @@ export interface EvalCase {
   apps?: AppFixture[];
   assertions?: Assertion[];
   /**
+   * This case's own token cap, over the run's (`--max-run-tokens`), for a
+   * long conversation whose legitimate total is past the default.
+   */
+  maxRunTokens?: number;
+  /**
    * Called with a follow-up's position just before it is sent, for a case
    * that has to see what the run had made by then: a draft the follow-up
    * asks to change, say.
@@ -546,7 +550,7 @@ interface FollowUpTiming {
    * at the moment its next call is in flight. For a message that has to land
    * inside foreground work rather than between turns. Sent when the turn ends
    * instead, should it end first; `duringWorkMissed` in the run's metrics
-   * counts those. With `command`, the call in flight has to be a `bash` call
+   * counts those, and the report fails a run that has any. With `command`, the call in flight has to be a `bash` call
    * whose command matches it, for a message that has to land inside one
    * command in particular when a step makes several calls at once.
    */
@@ -584,7 +588,7 @@ export async function runEvals(
     maxRunSeconds?: number;
     maxRunTokens?: number;
     models: string[];
-    /** Asked of every task this run creates, the conversation's own included. */
+    /** Asked of every model request the run makes, through the workspace config. */
     reasoningEffort?: ReasoningEffort;
     repeat?: number;
   },
@@ -650,6 +654,7 @@ export async function runEvals(
         ? { nativeSandbox: true }
         : {}),
       nodeExecEnv: {},
+      ...(reasoningEffort ? { reasoningEffort } : {}),
       // A workspace the person picked, which is what makes its top level
       // theirs: each chat's own folder under `Chats/` is then where its
       // finished work goes, as it is for anyone who picked where their
@@ -768,12 +773,6 @@ export async function runEvals(
         }
         return startRun(
           {
-            // A task case is handed the apps it declares, the way a chat
-            // hands them, so it hears about them in its context.
-            apps:
-              evalCase.kind === "chat"
-                ? undefined
-                : evalCase.apps?.map((app) => app.slug),
             files: evalCase.files,
             folders: folders.length > 0 ? folders : undefined,
             kind: evalCase.kind ?? "task",
@@ -797,13 +796,6 @@ export async function runEvals(
         sessionId,
         trial,
       });
-
-      // Written straight onto the task rather than passed through `create`,
-      // which has no input for it: every turn of this run then reads it, the
-      // conversation's and each of its tasks'.
-      if (reasoningEffort) {
-        await updateChatSettings(id, { reasoningEffort });
-      }
 
       write(
         `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (id: ${id})${c.reset}\n`,
@@ -880,9 +872,39 @@ export async function runEvals(
         }
         return role;
       };
-      const partUpdates = publisher.subscribe("part.updated", {
-        signal: abortController.signal,
-      });
+      // Every part of a message the run's records say moved, read back with
+      // what the turn still holds in memory, so a call shows as in flight
+      // while it runs. Parts are read again on each change to their message,
+      // which the handling below takes, since it keys what it records by call
+      // and by mark.
+      const partUpdates = (async function* () {
+        for await (const change of publisher.subscribe("record.changed", {
+          signal: abortController.signal,
+        })) {
+          if (
+            change.id !== id ||
+            change.kind !== "messages" ||
+            change.message === undefined ||
+            change.message.removed ||
+            change.message.sessionId !== sessionId
+          ) {
+            continue;
+          }
+          const read = await ChatReads.transcript({
+            chatId: id,
+            only: new Set([change.message.id]),
+            sessionId,
+          });
+          if (read.isErr()) {
+            continue;
+          }
+          for (const message of read.value) {
+            for (const part of message.parts) {
+              yield { id, part };
+            }
+          }
+        }
+      })();
 
       // A model handed an unrecoverable input can keep trying to recover from
       // it, and nothing in the loop is wrong enough to stop it: each attempt is
@@ -894,11 +916,12 @@ export async function runEvals(
           return;
         }
         const elapsedSeconds = (Date.now() - startedAt) / 1000;
-        if (maxRunTokens > 0 && totalTokens > maxRunTokens) {
+        const tokenCap = evalCase.maxRunTokens ?? maxRunTokens;
+        if (tokenCap > 0 && totalTokens > tokenCap) {
           stoppedBy = "budget";
           overBudget = totalTokens;
           process.stderr.write(
-            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(totalTokens)} tokens > ${formatNumber(maxRunTokens)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
+            `${evalPrefix(label)}${c.red}Over budget${c.reset}${c.dim}: ${formatNumber(totalTokens)} tokens > ${formatNumber(tokenCap)}, stopping. Raise with --max-run-tokens, or 0 to disable.${c.reset}\n`,
           );
         } else if (maxRunSeconds > 0 && elapsedSeconds > maxRunSeconds) {
           stoppedBy = "timeout";

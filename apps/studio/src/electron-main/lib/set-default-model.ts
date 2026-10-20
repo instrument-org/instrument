@@ -76,6 +76,37 @@ export async function setClaudeAccountDefaultModel(): Promise<
 }
 
 /**
+ * Signing in with Grok is asked for to use the subscription, so it makes the
+ * account's default-tagged model the default. Only for the first account:
+ * adding another leaves the default where it was.
+ */
+export async function setGrokAccountDefaultModel({
+  accountId,
+}: {
+  accountId: string;
+}): Promise<string | undefined> {
+  const grokConfigs = getAIProviderConfigs().filter(
+    (candidate) => candidate.type === "grok-account",
+  );
+  const [config] = grokConfigs;
+  if (grokConfigs.length !== 1 || config?.id !== accountId) {
+    return undefined;
+  }
+  const [result] = await fetchModelResultsForProviders([config], {
+    captureException: captureFor("ai-gateway"),
+    modelCache: diskModelCache,
+  });
+  const chosen = result?.ok
+    ? result.value.find((model) => model.tags.includes("default"))
+    : undefined;
+  if (!chosen) {
+    return undefined;
+  }
+  setDefaultModelURI(chosen.uri);
+  return chosen.name.trim();
+}
+
+/**
  * Picks a default model from what the connections list. `replacing` says
  * which default already set it may replace: any, only one of ours, or none.
  * With no default set, it always picks one.

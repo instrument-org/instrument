@@ -7,7 +7,11 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { TypedError } from "./errors";
 import { isArriving } from "./records/arriving";
-import { type ChatRecords, writingChatRecords } from "./records/chat-records";
+import {
+  type ChatRecords,
+  type SettingChange,
+  writingChatRecords,
+} from "./records/chat-records";
 import { type StateWhat } from "./records/record";
 
 /**
@@ -118,6 +122,58 @@ export namespace ChatWrites {
   ): ResultAsync<void, TypedError.Storage> {
     return records(chatId).andThen((writing) =>
       wrote(writing.state(chatId, sessionId, what, value ?? null), undefined),
+    );
+  }
+
+  /**
+   * One of the session's settings, in this device's settings file. A value
+   * the session already has writes nothing.
+   */
+  export function setting(
+    chatId: ChatId,
+    sessionId: StoreId.Session,
+    change: SettingChange,
+  ): ResultAsync<void, TypedError.Storage> {
+    return records(chatId).andThen((writing) =>
+      wrote(writing.setting(chatId, sessionId, change), undefined),
+    );
+  }
+
+  /**
+   * That the session's turn was stopped, and by whom, at `at` (the moment
+   * the stop was asked for). It holds until a turn starts after it.
+   */
+  export function stopped(
+    chatId: ChatId,
+    sessionId: StoreId.Session,
+    by: "app" | "chat" | "user",
+    at: Date,
+  ): ResultAsync<void, TypedError.Storage> {
+    return records(chatId).andThen((writing) =>
+      wrote(writing.stopped(chatId, sessionId, by, at), undefined),
+    );
+  }
+
+  /**
+   * Resolves once every write of the chat already asked for has landed or
+   * failed: what a turn ends on, so whatever hears it is over reads all of
+   * it from the chat's files.
+   */
+  export function landed(chatId: ChatId): Promise<void> {
+    return writingChatRecords()?.landed(chatId) ?? Promise.resolve();
+  }
+
+  /**
+   * Writes what the session's turn still holds in memory as cut off: a
+   * reply's words as they stood, and a call still arriving as interrupted.
+   * For a turn whose writer is gone.
+   */
+  export function cutOffTurn(
+    chatId: ChatId,
+    sessionId: StoreId.Session,
+  ): Promise<void> {
+    return (
+      writingChatRecords()?.live(chatId, sessionId).clear() ?? Promise.resolve()
     );
   }
 

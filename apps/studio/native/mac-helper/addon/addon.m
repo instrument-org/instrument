@@ -14,6 +14,8 @@
 #import <Foundation/Foundation.h>
 #import <UserNotifications/UserNotifications.h>
 #include <node_api.h>
+#include <stdio.h>
+#include <unistd.h>
 
 typedef void (^Done)(NSDictionary *result);
 typedef void (^Work)(Done done);
@@ -279,12 +281,122 @@ static napi_value resolveAlias(napi_env env, napi_callback_info info) {
   });
 }
 
+/// The files on the general pasteboard, every one of them: the Finder's Copy
+/// puts each on an item of its own, where Electron's clipboard reads only the
+/// first. Read where it is called, on AppKit's thread, which is quick.
+static napi_value pasteboardFiles(napi_env env, napi_callback_info info) {
+  return answer(env, ^(Done done) {
+    NSArray<NSURL *> *urls = [NSPasteboard.generalPasteboard
+        readObjectsForClasses:@[ NSURL.class ]
+                      options:@{NSPasteboardURLReadingFileURLsOnlyKey : @YES}];
+    NSMutableArray<NSString *> *paths = [NSMutableArray array];
+    for (NSURL *url in urls ?: @[]) {
+      if (url.path != nil) {
+        [paths addObject:url.path];
+      }
+    }
+    done(@{@"paths" : paths});
+  });
+}
+
+/// An errno by the name Node gives it, so main reads a failure as it would
+/// one of its own.
+static NSString *errnoName(int code) {
+  switch (code) {
+    case EACCES: return @"EACCES";
+    case EEXIST: return @"EEXIST";
+    case EINVAL: return @"EINVAL";
+    case EISDIR: return @"EISDIR";
+    case ENOENT: return @"ENOENT";
+    case ENOSPC: return @"ENOSPC";
+    case ENOTDIR: return @"ENOTDIR";
+    case ENOTEMPTY: return @"ENOTEMPTY";
+    case ENOTSUP: return @"ENOTSUP";
+    case EPERM: return @"EPERM";
+    case EROFS: return @"EROFS";
+    case EXDEV: return @"EXDEV";
+    default: return [NSString stringWithFormat:@"E%d", code];
+  }
+}
+
+/// A rename that fails rather than replace what is at the new name:
+/// `renamex_np` with RENAME_EXCL, which the file system checks and renames
+/// in one step, so nothing can take the name in between.
+static napi_value renameExclusive(napi_env env, napi_callback_info info) {
+  NSArray *args = stringArguments(env, info, 2);
+  NSString *from = args.count > 0 && args[0] != NSNull.null ? args[0] : nil;
+  NSString *to = args.count > 1 && args[1] != NSNull.null ? args[1] : nil;
+  return answer(env, ^(Done done) {
+    if (from == nil || to == nil) {
+      done(@{@"error" : @"two paths are required", @"code" : @"EINVAL"});
+      return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      if (renamex_np(from.fileSystemRepresentation, to.fileSystemRepresentation, RENAME_EXCL) ==
+          0) {
+        done(@{@"renamed" : @YES});
+        return;
+      }
+      int code = errno;
+      done(@{@"error" : @(strerror(code)), @"code" : errnoName(code)});
+    });
+  });
+}
+
+/// Moves a thing to the Trash and says where it landed, which the app could
+/// not find by reading the Trash without Full Disk Access.
+static napi_value trashItem(napi_env env, napi_callback_info info) {
+  NSArray *args = stringArguments(env, info, 1);
+  NSString *path = args.count > 0 && args[0] != NSNull.null ? args[0] : nil;
+  return answer(env, ^(Done done) {
+    if (path == nil) {
+      done(@{@"error" : @"a path is required"});
+      return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSURL *landed = nil;
+      NSError *error = nil;
+      if (![NSFileManager.defaultManager trashItemAtURL:[NSURL fileURLWithPath:path]
+                                       resultingItemURL:&landed
+                                                  error:&error]) {
+        done(@{@"error" : error.localizedDescription ?: @"it could not be moved to the Trash"});
+        return;
+      }
+      done(landed.path != nil ? @{@"trashed" : landed.path} : @{@"trashed" : NSNull.null});
+    });
+  });
+}
+
+/// Whether the disk a path is on tells names apart by case, as the disk
+/// itself says: APFS and HFS+ answer either way, and most others do too.
+static napi_value caseSensitivity(napi_env env, napi_callback_info info) {
+  NSArray *args = stringArguments(env, info, 1);
+  NSString *path = args.count > 0 && args[0] != NSNull.null ? args[0] : nil;
+  return answer(env, ^(Done done) {
+    if (path == nil) {
+      done(@{@"error" : @"a path is required"});
+      return;
+    }
+    errno = 0;
+    long sensitive = pathconf(path.fileSystemRepresentation, _PC_CASE_SENSITIVE);
+    if (sensitive < 0) {
+      done(@{@"error" : errno == 0 ? @"the disk does not say" : @(strerror(errno))});
+      return;
+    }
+    done(@{@"caseSensitive" : sensitive == 1 ? @YES : @NO});
+  });
+}
+
 static const struct {
   const char *name;
   napi_callback fn;
 } FUNCTIONS[] = {
     {"fileIcon", fileIcon},
     {"finderEntries", finderEntries},
+    {"pasteboardFiles", pasteboardFiles},
+    {"renameExclusive", renameExclusive},
+    {"caseSensitivity", caseSensitivity},
+    {"trashItem", trashItem},
     {"resolveAlias", resolveAlias},
     {"notificationStatus", notificationStatus},
     {"requestNotifications", requestNotifications},

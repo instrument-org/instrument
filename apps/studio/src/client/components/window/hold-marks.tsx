@@ -14,6 +14,7 @@ import {
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { iconHostOf, useIconlessHosts } from "@/client/lib/favicon-url";
 import { type OpenTarget } from "@/client/lib/open-target";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { type MouseEvent, type ReactNode, type SyntheticEvent } from "react";
 
@@ -50,12 +51,15 @@ const MARKS_SHOWN = 5;
  */
 export function HoldMarks({
   appsBySlug,
+  chatId,
   className,
   holds,
   namedFiles = false,
   wrap = true,
 }: {
   appsBySlug: AppsBySlug;
+  /** The chat whose holds these are, which its files' paths are read against. */
+  chatId: ChatId;
   className?: string;
   holds: { apps: string[]; files: string[]; sites: string[] };
   /** Whether the files are chips with their names rather than bare marks. */
@@ -79,7 +83,7 @@ export function HoldMarks({
       key: `file:${path}`,
       name: nameOf(path),
       named: namedFiles,
-      target: { kind: "path" as const, path },
+      target: { chatId, kind: "path" as const, path },
     })),
     ...holds.apps.map((slug) => {
       const app = appsBySlug.get(slug);

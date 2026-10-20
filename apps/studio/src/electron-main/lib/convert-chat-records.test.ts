@@ -72,7 +72,7 @@ const run = () =>
 function seedChat(id: string, { withSidecars = false } = {}) {
   const dir = path.join(chatsDir(), id);
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `marks.${DEVICE}.jsonl`), "");
+  fs.writeFileSync(path.join(dir, `settings.${DEVICE}.jsonl`), "");
   fs.writeFileSync(path.join(dir, "chat.db"), `${id}'s database`);
   if (withSidecars) {
     fs.writeFileSync(path.join(dir, "chat.db-wal"), "a write-ahead log");
@@ -174,6 +174,11 @@ it("sets every converted chat's database aside and marks the workspace", async (
   const converted = await run();
 
   expect(converted.left).toEqual([]);
+  // Named for the one launch that gives them their folders.
+  expect(converted.converted.toSorted()).toEqual([
+    "a-trip-to-lisbon",
+    "red-and-blue-squares",
+  ]);
   expect(tree(asideDir())).toEqual([
     "a-trip-to-lisbon.db",
     "red-and-blue-squares.db",
@@ -185,8 +190,8 @@ it("sets every converted chat's database aside and marks the workspace", async (
   ).toBe("a-trip-to-lisbon's database");
   // Out of the workspace, which may be in a synced folder.
   expect(tree(chatsDir())).toEqual([
-    path.join("a-trip-to-lisbon", `marks.${DEVICE}.jsonl`),
-    path.join("red-and-blue-squares", `marks.${DEVICE}.jsonl`),
+    path.join("a-trip-to-lisbon", `settings.${DEVICE}.jsonl`),
+    path.join("red-and-blue-squares", `settings.${DEVICE}.jsonl`),
   ]);
   const identity = readWorkspaceIdentity(rootDir);
   expect(identity.chatRecordsConverted).toBe(true);
@@ -206,6 +211,8 @@ it("is a no-op on the next launch", async () => {
   const again = await run();
 
   expect(again.left).toEqual([]);
+  // So the launch writes no chat's folder.
+  expect(again.converted).toEqual([]);
   expect(again.done).toHaveLength(1);
   expect(again.done[0]).toMatch(
     /^converted 0 chat\(s\) and found 1 already on their records, in \d+ms$/,

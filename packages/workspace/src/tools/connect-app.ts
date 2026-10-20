@@ -97,7 +97,7 @@ export const ConnectApp = setupTool({
       return ok({
         message:
           guide === null
-            ? `The guide in ${shellPath(dir)}/${APP_FILE_NAME} is missing: what ${name} is for, the endpoints a request needs, and what a request has to get right. ${write}`
+            ? `The guide in \`${shellPath(dir)}/${APP_FILE_NAME}\` is missing: what ${name} is for, the endpoints a request needs, and what a request has to get right. ${write}`
             : `The guide in ${shellPath(dir)}/${APP_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left, a few lines each from what you know about ${name}. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
         slug,
         state: "failure" as const,

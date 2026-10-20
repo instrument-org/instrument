@@ -1,4 +1,9 @@
-import { type Draft, draftGroupOf, draftsAtom } from "@/client/atoms/drafts";
+import {
+  draftsAtom,
+  removeDraftAtom,
+  updateDraftAtom,
+} from "@/client/drafts/store";
+import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
   chatFiltersAtom,
@@ -33,10 +38,11 @@ import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { setTabPathname } from "@/client/lib/tabs-model";
+import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { fileHref } from "@/shared/computer-href";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { type Tab, type TabId } from "@/shared/tabs";
 import {
   type ChatId,
@@ -88,7 +94,7 @@ import { useSignInLanding } from "./use-sign-in-landing";
 import { InboxPeek } from "./inbox-peek";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
-import { NewTopicDialog } from "./new-topic-dialog";
+import { TopicDialog } from "./topic-dialog";
 import { contextReaders } from "./send-context";
 import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
@@ -105,6 +111,7 @@ import { useSetChatTopic } from "./use-set-chat-topic";
 import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
+import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
 import { chatHref, chatOfGroup, chatOfHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
@@ -231,10 +238,6 @@ function focusField() {
  * into it. What keeps it past its window, and what a draft has to have to be
  * one to come back to.
  */
-function holdsSomething(draft: Draft): boolean {
-  return draft.words.trim() !== "" || (draft.attached ?? []).length > 0;
-}
-
 function WindowShell({
   routers,
   tabs,
@@ -264,7 +267,9 @@ function WindowShell({
   );
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
-  const [drafts, setDrafts] = useAtom(draftsAtom);
+  const drafts = useAtomValue(draftsAtom);
+  const updateDraft = useSetAtom(updateDraftAtom);
+  const removeDraft = useSetAtom(removeDraftAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
   const setChatFilters = useSetAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
@@ -328,13 +333,13 @@ function WindowShell({
       draft.chatId !== undefined ||
       holdsSomething(draft) ||
       floating.has(draft.id);
+    // A draft's folder goes with it, and what was pasted into it.
     for (const draft of drafts) {
       if (!isKept(draft)) {
         windowTabs.dropGroup(draftGroupOf(draft.id));
+        removeDraft(draft.id);
       }
     }
-    // A draft's folder goes with it, and what was pasted into it.
-    setDrafts((current) => current.filter(isKept));
     for (const entry of compose.entries) {
       if (
         entry.kind === "draft" &&
@@ -488,6 +493,13 @@ function WindowShell({
   const topics = topicsQuery.data ?? [];
   const createTopic = useMutation(
     rpcClient.workspace.topics.create.mutationOptions({
+      onError: (error) => {
+        // A name a topic can't take comes back in words written for people.
+        toast.error("Couldn't make the topic", {
+          cause: error,
+          description: spokenMessage(error, ["BAD_REQUEST"]),
+        });
+      },
       onSuccess: () => void topicsQuery.refetch(),
     }),
   );
@@ -594,6 +606,15 @@ function WindowShell({
   // The inbox's rows as the tab up lists them, for stepping through them by
   // chord.
   const listedChats = useRef<ChatId[]>([]);
+  // A file let go of where nothing else takes it opens the way one dropped
+  // on the Dock icon does.
+  useWindowDropFallback(({ hostPath, isFolder }) => {
+    if (isFolder) {
+      openScreen(folderHref(hostPath), { newTab: true });
+    } else {
+      appTabs.open(fileHref(hostPath));
+    }
+  });
   useWindowCommands(
     {
       back: () => {
@@ -745,6 +766,7 @@ function WindowShell({
     chatTitles,
     drafts: drafts.filter(
       (draft) =>
+        draft.sendingTo === undefined &&
         (draft.chatId === undefined ||
           (chats.data !== undefined &&
             !chats.data.some((chat) => chat.id === draft.chatId))) &&
@@ -818,17 +840,7 @@ function WindowShell({
                 drafts={drafts}
                 modelURI={defaultModelURI}
                 onChangeDraft={(id, update) => {
-                  setDrafts((current) =>
-                    current.map((entry) => {
-                      if (entry.id !== id) {
-                        return entry;
-                      }
-                      const next = update(entry);
-                      return next === entry
-                        ? entry
-                        : { ...next, updatedAt: Date.now() };
-                    }),
-                  );
+                  updateDraft({ id, update });
                 }}
                 onCloseChat={(chatId) => {
                   compose.remove(chatId);
@@ -962,12 +974,13 @@ function WindowShell({
             )}
             {/* Asked for from a chat's head or a draft's, so the topic it
               makes is filed on that chat or draft as it lands. */}
-            <NewTopicDialog
+            <TopicDialog
               candidates={backfillCandidates(
                 (chats.data ?? []).filter(
                   (chat) => chat.id !== (newTopic?.chatId ?? chatUp),
                 ),
               )}
+              mode="create"
               {...(newTopic?.name ? { name: newTopic.name } : {})}
               onCreate={(topic, alsoFile) => {
                 const forDraft = newTopic?.draftId;
@@ -983,18 +996,14 @@ function WindowShell({
                       setChatTopic(id, created.id);
                     }
                     if (forDraft !== undefined) {
-                      setDrafts((current) =>
-                        current.map((draft) =>
-                          draft.id === forDraft
-                            ? {
-                                ...draft,
-                                topicId: created.id,
-                                topicSource: "chosen",
-                                updatedAt: Date.now(),
-                              }
-                            : draft,
-                        ),
-                      );
+                      updateDraft({
+                        id: forDraft,
+                        update: (draft) => ({
+                          ...draft,
+                          topicId: created.id,
+                          topicSource: "chosen",
+                        }),
+                      });
                     }
                     if (filedOn) {
                       setChatTopic(filedOn.id, created.id);
@@ -1008,6 +1017,11 @@ function WindowShell({
                 }
               }}
               open={newTopic !== undefined}
+              // A retired topic's name brings it back, so only the ones in
+              // use are names a new topic cannot take.
+              otherNames={topics.flatMap((topic) =>
+                topic.retired ? [] : [topic.name],
+              )}
               taken={topics.flatMap((topic) =>
                 topic.emoji ? [topic.emoji] : [],
               )}

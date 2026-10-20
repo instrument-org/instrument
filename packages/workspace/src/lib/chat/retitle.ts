@@ -8,7 +8,7 @@ import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { generateTitleFromUserMessage } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { ChatReads } from "../chat-reads";
-import { followTitle } from "../chat-folders/follow-title";
+import { followTitle, titlesToFollow } from "../chat-folders/follow-title";
 import { cappedTitle } from "../chat-folders/folder-name";
 import { chatModelURI } from "../chat-settings";
 import { sessionRole } from "./children";
@@ -155,15 +155,26 @@ async function retitleOnSettle({
   }
   const chatId = id;
   const session = await ChatReads.session({ chatId, sessionId });
-  if (session.isErr() || session.value.titleSettledAt) {
+  if (session.isErr()) {
+    return;
+  }
+  // A settled title is not named again, but one given while the chat worked
+  // has a folder still to follow it.
+  if (session.value.titleSettledAt && !titlesToFollow.has(chatId)) {
     return;
   }
   if (await chatIsWorking(chatId)) {
     return;
   }
+  if (session.value.titleSettledAt) {
+    titlesToFollow.delete(chatId);
+    await followTitle(chatId, session.value.title);
+    return;
+  }
   const title = await retitleChat({ id: chatId, keep: true, sessionId });
   if (title !== undefined) {
     await settleChatTitle(chatId);
+    titlesToFollow.delete(chatId);
     // Between two turns, which is the only moment a folder may move: the
     // chat has stopped, so nothing of its own holds the folder.
     await followTitle(chatId, title);

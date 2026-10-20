@@ -35,6 +35,7 @@ const PROVIDER_TYPE_PRIORITY: ImageGenerationProviderType[] = [
   "google",
   "openai",
   "x-ai",
+  "grok-account",
   "vercel",
   "fireworks",
   "together",
@@ -189,6 +190,7 @@ async function getAISDKImageModel({
       const model = sdk(OPENROUTER_GEMINI_IMAGE_MODEL_ID);
       return Result.ok({ model, type: "language" as const });
     }
+    case "grok-account":
     case "x-ai": {
       const sdk = await createXAISDK(config, workspaceServerURL);
       const model = sdk.imageModel("grok-imagine-image");

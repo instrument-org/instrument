@@ -2,10 +2,13 @@ import {
   closeSync,
   constants,
   fstatSync,
+  fsyncSync,
   lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
+  renameSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -119,7 +122,13 @@ export function readOwnFile({
   }
 }
 
-/** Writes a file whole, as {@link openOwnFile} opens it, making its folders. */
+/**
+ * Writes a file whole, as {@link openOwnFile} opens it, making its folders:
+ * to a temp name beside it no sync engine carries, synced to disk, then
+ * renamed over it, so a reader sees one version or the one before it and a
+ * crash mid-write leaves the older file. A link planted at the file's name
+ * is replaced by the rename rather than followed.
+ */
 export function writeOwnFile({
   data,
   file,
@@ -129,16 +138,33 @@ export function writeOwnFile({
   file: string;
   folder: string;
 }): void {
-  const fd = openOwnFile({
-    file,
-    flags: constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC,
-    folder,
-    make: true,
-  });
+  const temporary = path.join(
+    path.dirname(file),
+    `.~${path.basename(file)}.${process.pid.toString()}.tmp`,
+  );
   try {
-    writeFileSync(fd, data);
-  } finally {
-    closeSync(fd);
+    // One a crash left under this process id.
+    rmSync(temporary, { force: true });
+    const fd = openOwnFile({
+      file: temporary,
+      flags:
+        constants.O_WRONLY |
+        constants.O_CREAT |
+        constants.O_EXCL |
+        constants.O_TRUNC,
+      folder,
+      make: true,
+    });
+    try {
+      writeFileSync(fd, data);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    renameSync(temporary, file);
+  } catch (error) {
+    rmSync(temporary, { force: true });
+    throw error;
   }
 }
 

@@ -243,7 +243,7 @@ export function createGitCommand({
     const escape = findEscapingPathValue(resolvedArgs, hostCwd, layout);
     if (escape) {
       return fail(
-        `${escape} points outside this conversation's folder and every folder you reach. ` +
+        `${escape} points outside your work folder and every folder you reach. ` +
           `git can only operate on repositories inside those.`,
       );
     }

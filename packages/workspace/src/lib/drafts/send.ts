@@ -39,13 +39,15 @@ export interface DraftsFinished {
 }
 
 /**
- * Points a draft at the chat it is about to be sent into, and waits for the
- * file. The first step of a send: until the draft names its chat, nothing at
- * the next launch knows where to look for the message that would say it was
- * sent, so a crash between this and the append would strand it.
+ * Marks a draft as on its way into a chat, and waits for the file. The first
+ * step of a send: until the draft names the chat it is going into, nothing
+ * at the next launch knows where to look for the message that would say it
+ * was sent, so a crash between this and the append would strand it. A draft
+ * that opens a chat of its own stays one: `sending` is not `chat`, so a send
+ * that never landed leaves it a new chat's draft rather than a reply.
  *
- * A reply draft names its chat from its first autosave, so this changes
- * nothing for one; a draft opening a chat of its own learns the chat here.
+ * The app's draft store does this as part of its claim; this is the same step
+ * on the folder alone, for whatever sends a draft without the app's store.
  */
 export function pointDraftAtChat({
   chatId,
@@ -60,10 +62,10 @@ export function pointDraftAtChat({
   if (!found) {
     return undefined;
   }
-  if (found.draft.chat === chatId) {
+  if (found.draft.sending === chatId) {
     return found;
   }
-  const pointed = { ...found.draft, chat: chatId, updated: new Date() };
+  const pointed = { ...found.draft, sending: chatId, updated: new Date() };
   writeDraftFile(found.file, pointed);
   return { ...found, draft: pointed };
 }
@@ -89,12 +91,16 @@ export async function finishSentDrafts({
   rootDir: string;
 }): Promise<DraftsFinished> {
   const drafts = readDrafts(rootDir);
-  const waiting = drafts.filter((entry) => entry.draft.chat !== undefined);
+  // A draft on its way names the chat it is being sent into; a reply names
+  // its own chat from the start.
+  const chatOf = (entry: DraftOnDisk) =>
+    entry.draft.sending ?? entry.draft.chat;
+  const waiting = drafts.filter((entry) => chatOf(entry) !== undefined);
   const finished: string[] = [];
   const left: DraftsFinished["left"] = [];
   const sentInto = new Map<string, Promise<Set<string> | string>>();
   for (const entry of waiting) {
-    const chat = entry.draft.chat ?? "";
+    const chat = chatOf(entry) ?? "";
     const named = ChatIdSchema.safeParse(chat);
     if (!named.success) {
       left.push({ id: entry.draft.id, reason: `${chat} is no chat's id` });
@@ -111,6 +117,12 @@ export async function finishSentDrafts({
       continue;
     }
     if (!sent.has(entry.draft.id)) {
+      // A send that never landed: the draft is the person's again, as the
+      // kind of draft it was.
+      if (entry.draft.sending !== undefined) {
+        const { sending: _stopped, ...draft } = entry.draft;
+        writeDraftFile(entry.file, draft);
+      }
       left.push({
         id: entry.draft.id,
         reason: `${chat} holds no message from it`,

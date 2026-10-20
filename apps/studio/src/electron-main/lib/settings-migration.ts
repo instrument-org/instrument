@@ -1,4 +1,3 @@
-import { DRAFTS_KEY } from "@/shared/kept-state";
 import {
   PRIVATE_FOLDER_NAME,
   SETTINGS_FILE_NAME,
@@ -7,7 +6,7 @@ import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
-import { freeNameIn } from "../stores/workspace/drafts-folder";
+import { freeNameIn } from "../drafts/draft-store";
 
 import {
   hasWorkspaceIdentity,
@@ -112,6 +111,13 @@ const MOVED_FILES = ["chatgpt-account.json", "chatgpt-account.json.enc"];
  */
 const TAKE_IN_MARKER = ".take-in-unfinished";
 
+/** Whether the legacy take-in into `workspacePath` stopped partway and has yet to finish. */
+export function takeInUnfinished(workspacePath: string): boolean {
+  return fs.existsSync(
+    path.join(workspaceSettingsDirOf(workspacePath), TAKE_IN_MARKER),
+  );
+}
+
 /** Take the machine keys out of the legacy root files, which stay for the workspace half. */
 export function migrateMachineSettings(userDataDir: string): string[] {
   const done: string[] = [];
@@ -205,6 +211,9 @@ export function migrateWorkspaceSettings({
   return done;
 }
 
+/** The key the beta kept its drafts under, in `drafts.json`. */
+const KEPT_DRAFTS_KEY = "drafts.v2";
+
 /**
  * Version 2: a 2.0 beta kept the drafts as one list in the settings'
  * `drafts.json`, and what was pasted into each in `.instrument/drafts/<id>/`
@@ -222,7 +231,7 @@ function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
   const keptFile = path.join(settingsDir, "drafts.json");
   const root = workspaceLayout(workspacePath).draftsDir;
   const stagedItems = new Set<string>();
-  const kept = readObject(keptFile)?.[DRAFTS_KEY];
+  const kept = readObject(keptFile)?.[KEPT_DRAFTS_KEY];
   if (Array.isArray(kept) && kept.length > 0) {
     for (const draft of kept) {
       for (const file of stagedFilesOf(root, draft)) {

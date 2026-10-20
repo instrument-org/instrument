@@ -1,4 +1,4 @@
-import { promptDraftAtom } from "@/client/atoms/prompt-value";
+import { hasReplyWaitingAtom } from "@/client/drafts/store";
 import { chatHref } from "@/client/components/window/window-href";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
@@ -55,8 +55,8 @@ const PICKER_LEAVE_MS = 250;
  * asks for one), a right click raises its menu, and the keyboard opens it
  * with Enter. The title in semibold while there is something unseen in it,
  * which is the only mark unread wears,
- * the word Draft after it in red while a reply sits typed and unsent in the
- * chat's composer, the way mail marks a conversation with a draft in it,
+ * the word Draft after it in red while a reply waits unsent in the
+ * chat, the way mail marks a conversation with a draft in it,
  * the topic it is filed under as a pill in the row's corner, the agent's
  * latest line (the step it is on, the question it is waiting on, or its last
  * reply's first words), and the marks of what it holds. The title has the
@@ -142,10 +142,7 @@ export function ChatRow({
   // after the field took it and blur the rename shut.
   const isStartingRename = useRef(false);
   // What the chat's composer holds, whether or not it is on screen.
-  const draft = useAtomValue(
-    promptDraftAtom({ chatId: chat.id, scope: "chat" }),
-  );
-  const hasDraft = draft.trim() !== "";
+  const hasDraft = useAtomValue(hasReplyWaitingAtom(chat.id));
   const hasHolds =
     chat.holds.apps.length > 0 ||
     chat.holds.files.length > 0 ||
@@ -296,6 +293,7 @@ export function ChatRow({
                 <HoldsInChat chatId={chat.id}>
                   <HoldMarks
                     appsBySlug={appsBySlug}
+                    chatId={chat.id}
                     className="min-w-0 flex-1 gap-1"
                     holds={chat.holds}
                     namedFiles
@@ -380,6 +378,8 @@ export function ChatRow({
         </ContextMenuSub>
         <ContextMenuSeparator />
         {groups.files.map(item)}
+        <ContextMenuSeparator />
+        {groups.feedback.map(item)}
         <ContextMenuSeparator />
         {groups.put.map(item)}
         <ContextMenuSeparator />
@@ -495,11 +495,12 @@ function HoldsInChat({
 }
 
 /**
- * The agent's latest line: the step while it works, in brand; the question
- * while it waits, behind an amber glyph with the words themselves in gray;
- * that the user stopped it, behind a stop mark, until the next turn starts;
- * and the last reply's first words otherwise, in muted. Nothing when an idle
- * chat has said nothing yet. One line that truncates.
+ * The agent's latest line: the step while it works, in brand; that its turn
+ * stopped on an error, behind a red warning glyph; the question while it
+ * waits, behind an amber glyph with the words themselves in gray; and
+ * otherwise, a chat the user stopped included, the last reply's first words,
+ * in muted. Nothing when an idle or stopped chat has said nothing yet. One
+ * line that truncates.
  */
 function Peek({
   chat,

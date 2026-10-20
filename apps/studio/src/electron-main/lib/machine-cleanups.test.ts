@@ -2,7 +2,15 @@ import childProcess from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
 import { cleanUpMachineData } from "./machine-cleanups";
 import {
@@ -304,6 +312,25 @@ describe("the browser's own downloads folder", () => {
 
     expect(clean()).toEqual([]);
     expect(tree(dir())).toEqual(["report.pdf"]);
+  });
+
+  // The browser only ever made it in the app's own data; in a picked folder
+  // it is the person's, and on a disk that ignores case `Downloads` is it.
+  it("leaves the empty Downloads folder of a picked workspace", () => {
+    const picked = fs.mkdtempSync(path.join(os.tmpdir(), "picked-"));
+    onTestFinished(() => {
+      fs.rmSync(picked, { force: true, recursive: true });
+    });
+    fs.mkdirSync(path.join(picked, "downloads"));
+
+    const done = cleanUpMachineData({
+      machineDir: machineDir(),
+      userDataDir,
+      workspace: { id: "w1", isDefault: false, path: picked, pinned: true },
+    });
+
+    expect(done).toEqual([]);
+    expect(fs.existsSync(path.join(picked, "downloads"))).toBe(true);
   });
 });
 

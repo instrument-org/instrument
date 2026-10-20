@@ -1,17 +1,7 @@
-import {
-  PRIVATE_FOLDER_NAME,
-  SETTINGS_FILE_NAME,
-  WORKSPACE_MACHINE_ENTRIES,
-} from "@instrument-org/shared";
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-  parseTopicFile,
-  renderTopicFile,
-  TOPIC_FILE_NAME,
-  TOPICS_FOLDER_NAME,
-} from "./chat/topic-file";
 import {
   type DraftOnDisk,
   readDrafts,
@@ -19,7 +9,6 @@ import {
 } from "./drafts/draft-folder";
 import { hostPathWithin } from "./host-path";
 import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
-import { WORKSPACE_DATA_ENTRIES, workspaceLayout } from "./workspace-layout";
 
 /**
  * One move a migration made on this computer: what was under `from` and is
@@ -32,15 +21,43 @@ export interface PathMove {
 }
 
 /**
- * A rewrite the caller brings, for a path the app keeps somewhere this does
- * not open: where the person left off in a window, and the files they opened
- * lately. Handed the moves and where a path is after them, it answers what it
- * did in the same words as the rest, and reports rather than throws.
+ * A rewrite for a store the app keeps that this package does not open: where
+ * the person left off in a window, and the files they opened lately. Handed
+ * the workspace's machine folder, the moves and where a path is after them,
+ * it answers what it did in the same words as the rest, and reports rather
+ * than throws.
  */
 export type StoredPathRewrite = (moved: {
+  machineDir: string;
   moves: readonly PathMove[];
   where: (hostPath: string) => string;
 }) => string[];
+
+/**
+ * Every store registered with `registerStoredPaths`, by name, so one
+ * registered again replaces itself rather than running twice.
+ */
+const registered = new Map<string, StoredPathRewrite>();
+
+/**
+ * Adds a store whose paths every `rewriteStoredPaths` writes where they went,
+ * whichever migration or move calls it. The app registers its stores once,
+ * before anything that moves a folder runs, so no caller has to remember
+ * them. Outside the app (this package's own tests, a script) none is
+ * registered, and only the stores this package opens are rewritten. Answers
+ * a function that takes the store out again.
+ */
+export function registerStoredPaths(
+  name: string,
+  rewrite: StoredPathRewrite,
+): () => void {
+  registered.set(name, rewrite);
+  return () => {
+    if (registered.get(name) === rewrite) {
+      registered.delete(name);
+    }
+  };
+}
 
 /**
  * How many moves one path is followed through: a folder moved twice (a
@@ -58,13 +75,12 @@ const MAX_MOVES_FOLLOWED = 4;
  * What the app stores the path of, all of it on this computer:
  *
  * - Settings › Permissions: the folder rules the person added, the folders
- *   and files opened to one chat, and the folders they said not now to.
- * - A topic's granted folders, in its `TOPIC.md` or, for a workspace whose
- *   topics have not come out of `.instrument/` yet, its settings.
+ *   and files opened to one chat, the folders they said not now to, and the
+ *   folders granted under each topic.
  * - A file or folder attached to a draft, in its `DRAFT.md`.
- * - Whatever the caller brings in `also`, for what it keeps in a store this
- *   does not open: the Files tabs a window is left on, and the person's
- *   recent files.
+ * - Every store registered with `registerStoredPaths`, which the app keeps
+ *   and this does not open: the Files tabs a window is left on, and the
+ *   person's recent files.
  *
  * Safe to run again, and safe to run with moves an earlier launch already
  * wrote: a path is rewritten only when what it names is gone and the place
@@ -73,12 +89,10 @@ const MAX_MOVES_FOLLOWED = 4;
  * here throws.
  */
 export function rewriteStoredPaths({
-  also = [],
   machineDir,
   moves,
   rootDir,
 }: {
-  also?: readonly StoredPathRewrite[];
   machineDir: string;
   moves: readonly PathMove[];
   rootDir: string;
@@ -89,17 +103,14 @@ export function rewriteStoredPaths({
   }
   const where = (hostPath: string) => movedTo(hostPath, moves);
   rewritePermissions({ done, machineDir, where });
-  for (const file of topicFilesIn(rootDir)) {
-    rewriteTopicFolders({ done, file, where });
-  }
   for (const entry of readDrafts(rootDir)) {
     rewriteDraftAttachments({ done, entry, where });
   }
-  for (const rewrite of also) {
+  for (const [name, rewrite] of registered) {
     try {
-      done.push(...rewrite({ moves, where }));
+      done.push(...rewrite({ machineDir, moves, where }));
     } catch (error) {
-      done.push(`left one of the app's own stores as it is (${String(error)})`);
+      done.push(`left the app's ${name} store as it is (${String(error)})`);
     }
   }
   return done;
@@ -115,11 +126,9 @@ export function rewriteStoredPaths({
  * finds no record does nothing.
  */
 export function settleMovedPaths({
-  also,
   machineDir,
   rootDir,
 }: {
-  also?: readonly StoredPathRewrite[];
   machineDir: string;
   rootDir: string;
 }): string[] {
@@ -140,7 +149,7 @@ export function settleMovedPaths({
           : [],
       )
     : [];
-  const done = rewriteStoredPaths({ also, machineDir, moves, rootDir });
+  const done = rewriteStoredPaths({ machineDir, moves, rootDir });
   fs.rmSync(file, { force: true });
   return [...done, `took in and removed ${file}`];
 }
@@ -196,6 +205,16 @@ function rewritePermissions({
         : {}),
     };
   };
+  /** One topic's granted folders, where those are now. */
+  const movedTopic = (topic: unknown): unknown =>
+    isRecord(topic) && Array.isArray(topic.folders)
+      ? {
+          ...topic,
+          folders: topic.folders.map((folder: unknown) =>
+            movedPath(folder, "path"),
+          ),
+        }
+      : topic;
   try {
     updateJsonRecordSync(file, (held) => {
       const next = {
@@ -216,6 +235,16 @@ function rewritePermissions({
               ),
             }
           : {}),
+        ...(isRecord(held.topics)
+          ? {
+              topics: Object.fromEntries(
+                Object.entries(held.topics).map(([topicId, topic]) => [
+                  topicId,
+                  movedTopic(topic),
+                ]),
+              ),
+            }
+          : {}),
       };
       return rewritten > 0 ? next : undefined;
     });
@@ -228,91 +257,6 @@ function rewritePermissions({
       `wrote ${rewritten.toString()} path(s) where they went in ${file}`,
     );
   }
-}
-
-/** One topic's granted folders where those folders are now. */
-function rewriteTopicFolders({
-  done,
-  file,
-  where,
-}: {
-  done: string[];
-  file: string;
-  where: (hostPath: string) => string;
-}) {
-  if (path.basename(file) === TOPIC_FILE_NAME) {
-    rewriteTopicFile({ done, file, where });
-    return;
-  }
-  if (readJsonRecordSync(file).kind !== "read") {
-    return;
-  }
-  let rewritten = 0;
-  try {
-    updateJsonRecordSync(file, (held) => {
-      if (!Array.isArray(held.folders)) {
-        return undefined;
-      }
-      const folders = held.folders.map((folder: unknown) => {
-        if (!isRecord(folder) || typeof folder.path !== "string") {
-          return folder;
-        }
-        const to = where(folder.path);
-        if (to === folder.path) {
-          return folder;
-        }
-        rewritten += 1;
-        return { ...folder, path: to };
-      });
-      return rewritten > 0 ? { folders } : undefined;
-    });
-  } catch (error) {
-    done.push(`left ${file} as it is (${String(error)})`);
-    return;
-  }
-  if (rewritten > 0) {
-    done.push(
-      `wrote ${rewritten.toString()} path(s) where they went in ${file}`,
-    );
-  }
-}
-
-/** The same, for a topic as the person reads it: its folders are front matter. */
-function rewriteTopicFile({
-  done,
-  file,
-  where,
-}: {
-  done: string[];
-  file: string;
-  where: (hostPath: string) => string;
-}) {
-  let text: string;
-  try {
-    text = fs.readFileSync(file, "utf8");
-  } catch {
-    return;
-  }
-  const topic = parseTopicFile(text, { at: new Date() });
-  if (!topic?.folders) {
-    return;
-  }
-  const folders = topic.folders.map((folder) => ({
-    path: where(folder.path),
-  }));
-  const rewritten = folders.filter(
-    (folder, index) => folder.path !== topic.folders?.[index]?.path,
-  ).length;
-  if (rewritten === 0) {
-    return;
-  }
-  try {
-    fs.writeFileSync(file, renderTopicFile({ ...topic, folders }), "utf8");
-  } catch (error) {
-    done.push(`left ${file} as it is (${String(error)})`);
-    return;
-  }
-  done.push(`wrote ${rewritten.toString()} path(s) where they went in ${file}`);
 }
 
 /**
@@ -355,35 +299,6 @@ function rewriteDraftAttachments({
   done.push(
     `wrote ${rewritten.toString()} path(s) where they went in ${entry.file}`,
   );
-}
-
-/**
- * Every file under a workspace root that can hold a topic's granted
- * folders: a `TOPIC.md` in `Topics/`, and the settings an earlier build
- * wrote beside it or kept in `.instrument/topics/`, since a migration can
- * run before the topics have come out.
- */
-function topicFilesIn(rootDir: string): string[] {
-  const roots = [
-    path.join(rootDir, TOPICS_FOLDER_NAME),
-    path.join(workspaceLayout(rootDir).dataDir, WORKSPACE_DATA_ENTRIES.topics),
-    path.join(rootDir, WORKSPACE_DATA_ENTRIES.topics),
-  ];
-  return roots.flatMap((root) => {
-    let names: string[];
-    try {
-      names = fs
-        .readdirSync(root, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
-        .map((entry) => entry.name);
-    } catch {
-      return [];
-    }
-    return names.flatMap((name) => [
-      path.join(root, name, TOPIC_FILE_NAME),
-      path.join(root, name, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
-    ]);
-  });
 }
 
 /**

@@ -172,9 +172,14 @@ async function writeUntilPublished(
   nextEvent: Promise<IteratorResult<unknown>>,
 ) {
   let heard: IteratorResult<unknown> | undefined;
-  void nextEvent.then((event) => {
-    heard = event;
-  });
+  // The test's abort ends the subscription, which rejects an event still
+  // awaited; the wait below is what reports nothing having been heard.
+  void nextEvent.then(
+    (event) => {
+      heard = event;
+    },
+    () => undefined,
+  );
   return vi.waitFor(
     async () => {
       if (heard) {

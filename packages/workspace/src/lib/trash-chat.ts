@@ -10,6 +10,7 @@ import { killChatBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import { recordRemoved } from "./record-changes";
+import { recordChatFolderName } from "./chat-folders/own-folder";
 import {
   chatOwnFolder,
   forgetChat,
@@ -92,8 +93,8 @@ export async function trashChat({
         // node_modules will fail. Since node_modules can be recreated, we delete
         // it first using the fastest removal method available.
         const work = workDir(chatId);
-        // Read before the records go: the name of the chat's own folder is
-        // in the settings that are about to be trashed with them.
+        // Read before the chat goes: its own folder is found through the
+        // chat, and the name this computer recorded is forgotten with it.
         const ownFolder = itsFolder
           ? chatOwnFolder(chatDir(chatId))
           : undefined;
@@ -118,6 +119,13 @@ export async function trashChat({
         // folder that would not follow is only files left behind.
         await workspaceConfig.trashItem(chatDir(chatId));
         forgetChat(chatId);
+        await recordChatFolderName(
+          workspaceConfig.workspaceMachineDir,
+          chatId,
+          undefined,
+        ).catch((error: unknown) => {
+          workspaceConfig.captureException(error);
+        });
         if (known) {
           recordRemoved(chatId);
         }

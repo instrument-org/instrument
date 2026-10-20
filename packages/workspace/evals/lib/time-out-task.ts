@@ -5,10 +5,10 @@ import { type StoreId } from "../../src/schemas/store-id";
 /**
  * The event the agent's chunk timeout raises on itself once a request has
  * gone quiet for `llmRequestChunkTimeoutMs`: XState's name for the delayed
- * transition out of `LLMStreaming.PendingTimeout`.
+ * transition out of `LLMStreaming.Streaming`.
  */
 const CHUNK_TIMEOUT_EVENT =
-  "xstate.after.llmRequestChunkTimeoutMs.agent.LLMStreaming.PendingTimeout";
+  "xstate.after.llmRequestChunkTimeoutMs.agent.LLMStreaming.Streaming";
 
 const POLL_MS = 50;
 
@@ -44,7 +44,7 @@ export async function timeOutTaskTurn(
       }
     } else {
       seen = true;
-      if (agent.getSnapshot().matches({ LLMStreaming: "PendingTimeout" })) {
+      if (agent.getSnapshot().matches({ LLMStreaming: "Streaming" })) {
         timeouts += 1;
         // Typed by the machine as its own; sent from outside, it takes the
         // same transition the clock would have.

@@ -14,7 +14,6 @@ import { workDir } from "./work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
-const ISO_TIMESTAMP = /\d{4}-\d{2}-\d{2}T[\d:.]+Z/g;
 // This computer's id, which every test run makes a fresh one of.
 const DEVICE_ID = new RegExp(DEVICE_ID_PATTERN, "g");
 
@@ -60,13 +59,12 @@ describe("initializeChat", () => {
 
     const result = await initializeChat({
       chatId,
-      initialSettings: {},
       sessionId: StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
-      workspaceConfig: getWorkspaceConfig(),
     });
 
     expect(result.isOk()).toBe(true);
-    // Its session's log, started with the chat, and its settings.
+    // Its session's log, started with the chat, and nothing beside it: the
+    // log's header is what says the chat's own session, its start and build.
     expect(
       (await listPaths(chatDir(chatId))).map((name) =>
         name.replaceAll(DEVICE_ID, "<device>"),
@@ -74,27 +72,11 @@ describe("initializeChat", () => {
     ).toMatchInlineSnapshot(`
       [
         "ses_01M3AX9RF3C2E9RTATMB602W0B.<device>.jsonl",
-        "settings.json",
       ]
     `);
     await expect(fs.access(workDir(chatId))).rejects.toMatchObject({
       code: "ENOENT",
     });
-    // Stamps normalized rather than frozen: faking the clock for a snapshot
-    // leaves every real timer in the file faked too, which is a flake waiting
-    // for the suite to run under load.
-    const settings = await fs.readFile(
-      path.join(chatDir(chatId), "settings.json"),
-      "utf8",
-    );
-    expect(settings.replaceAll(ISO_TIMESTAMP, "<when>")).toMatchInlineSnapshot(`
-      "{
-        "chatSessionId": "ses_01M3AX9RF3C2E9RTATMB602W0B",
-        "createdAt": "<when>",
-        "createdWithAppVersion": "0.0.0-test",
-        "lastActivityAt": "<when>"
-      }"
-    `);
   });
 });
 

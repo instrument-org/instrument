@@ -7,6 +7,7 @@ import {
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
+import { publisher } from "../../rpc/publisher";
 import { askDecisionModel } from "../decision-model";
 
 import catalogSeed from "./catalog-seed.json";
@@ -205,6 +206,7 @@ export function applyServedAppCatalog(
     return "unreadable";
   }
   served = { entries, revision: parsed.data.revision };
+  publisher.publish("app.catalogChanged", null);
   return "used";
 }
 

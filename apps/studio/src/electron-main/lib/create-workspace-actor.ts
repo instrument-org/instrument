@@ -1,6 +1,7 @@
 import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
+import { refreshExpiredGrokTokens } from "@/electron-main/lib/grok-account";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import {
@@ -36,6 +37,7 @@ import {
   type ChatRecordsSplit,
   closeAllAgentBrowserSessions,
   convertAppsToAppFiles,
+  convertChatSettingsFiles,
   type DeviceId,
   ensurePythonBase,
   giveChatsTheirFolders,
@@ -52,7 +54,7 @@ import {
   prepareBundledSkills,
   settleDrafts,
   settleMovedPaths,
-  moveChatPermissions,
+  moveTopicFolders,
   renameChatDatabases,
   setBashWorkerFactory,
   settleWorkspaceDb,
@@ -64,6 +66,7 @@ import {
   workspaceMachine,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { call } from "@orpc/server";
 import { app, BrowserWindow, dialog, shell } from "electron";
 import ms from "ms";
@@ -91,7 +94,6 @@ import {
   workspaceDbFileOf,
   workspaceLayoutMarks,
 } from "./workspaces";
-import { storedPathRewrites } from "./workspace-move";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
@@ -147,7 +149,10 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // Before the workspace starts, which puts in place the writer every write
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
-  await convertChatDatabases(deviceId, rootDir);
+  const converted = await convertChatDatabases(deviceId, rootDir);
+  // Then what each chat's `settings.json` held goes where this build keeps
+  // it, from the records just converted, before anything reads a chat.
+  await convertChatSettings(deviceId, rootDir);
   // A folder of the six under another case (`skills/`, which a build before
   // kept there) is the one each step below finds under the app's name on a
   // file system that reads both as one, so it takes that name first.
@@ -164,13 +169,17 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // file a person reads, which is its own step: the folder moves whatever is
   // inside it, and one already converted is left alone.
   await convertTopicFiles(rootDir);
+  // Once every topic is its `TOPIC.md`, the folders an earlier build granted
+  // in one come onto this computer's permission settings, before the moves
+  // below rewrite the paths those settings hold.
+  carryTopicFolders(rootDir);
   await convertAppFiles(rootDir);
-  // Then every chat gets the folder a person opens, written from its
-  // records. After the topics, because a transcript names the topic its chat
-  // is filed under: written first, every chat filed under one would be
-  // written again by the next launch, which a folder in iCloud sees as a
-  // change to every one of those files.
-  await writeChatFolders(rootDir);
+  // Then each chat the converter just brought onto its records gets the
+  // folder a person opens, written once. After the topics, because a
+  // transcript names the topic its chat is filed under. No other chat is
+  // read here: a chat's folder is written when its turn ends or the person
+  // sends it a message.
+  await writeConvertedChatFolders(rootDir, converted);
   // And the drafts move out to `Drafts/`, where a send the app was
   // interrupted partway through is finished from the records just converted.
   await settleWorkspaceDrafts(rootDir);
@@ -242,17 +251,27 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       },
       // A folder the person picked is where their finished work goes too,
       // and only the app's own data ever held 1.x tasks.
+      // `INSTRUMENT_OUTPUT_FOLDER` is a driven fixture's own folder, set by
+      // studio-drive, so its agents never write into the developer's real
+      // Instrument folder.
       ...(inAppData
         ? {
             legacyTasks: true,
-            outputDir: unchosenOutputFolder(getUserDataDir()),
+            outputDir: process.env.INSTRUMENT_OUTPUT_FOLDER
+              ? path.resolve(process.env.INSTRUMENT_OUTPUT_FOLDER)
+              : unchosenOutputFolder(getUserDataDir()),
           }
         : { outputDir: rootDir }),
       // Passwords and sign-ins stay out of every native command's reach.
       nativeSandbox: true,
       pnpmBinPath: getPNPMBinPath(),
       reportPlatformRefusal: recordPlatformRefusal,
-      refreshExpiredCredentials: refreshExpiredTokens,
+      refreshExpiredCredentials: async (providerConfigId) => {
+        await Promise.all([
+          refreshExpiredTokens(providerConfigId),
+          refreshExpiredGrokTokens(providerConfigId),
+        ]);
+      },
       registryDir: getRegistryDir(),
       rootDir,
       runtimeDir: getRuntimeDir(),
@@ -280,13 +299,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
 
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
-  // Here rather than beside the database converter: the chats are found
-  // through the workspace's own folders, so this is the first point at which
-  // there are any to read. Still after the converter, so a chat that failed
-  // to convert has its permissions carried anyway; the two are independent,
-  // and a chat left on its database is one the person is likely to open next.
-  // Nothing has opened a chat yet, so nothing reads a grant before this.
-  await carryChatPermissions();
   // What another device writes into the chats folder reaches the app while
   // it runs: the folder is watched, and looked at whenever the window comes
   // forward and every minute while it is in front.
@@ -478,7 +490,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
 function takeInMovedPaths(rootDir: string) {
   try {
     for (const step of settleMovedPaths({
-      also: storedPathRewrites(workspaceMachineDir()),
       machineDir: workspaceMachineDir(),
       rootDir,
     })) {
@@ -565,15 +576,19 @@ function reportChatRecords(records: ChatRecordsSplit) {
 }
 
 /**
- * Bring what each chat allowed out of its own settings and into this
- * computer's permission settings. Idempotent; a failure must not block boot.
+ * Bring the folders granted under each topic out of its `TOPIC.md` and into
+ * this computer's permission settings, once per computer. A failure must not
+ * block boot; one before the settings are written is tried again next launch.
  */
-async function carryChatPermissions() {
+function carryTopicFolders(rootDir: string) {
   try {
-    const { moved } = await moveChatPermissions();
+    const { moved } = moveTopicFolders({
+      machineDir: workspaceMachineDir(),
+      rootDir,
+    });
     if (moved > 0) {
       logger.info(
-        `Chat permissions: moved ${moved} chat${moved === 1 ? "" : "s"} onto this computer's settings`,
+        `Topic folders: moved ${moved} topic${moved === 1 ? "" : "s"}' folders onto this computer's settings`,
       );
     }
   } catch (error) {
@@ -587,9 +602,12 @@ async function carryChatPermissions() {
  * databases are named, so a chat whose conversation is in the file beside
  * its own store converts from the one that holds it. Idempotent, and a chat
  * it could not convert keeps its database and is said back; a failure must
- * not block boot.
+ * not block boot. Answers with the chats converted at this launch.
  */
-async function convertChatDatabases(deviceId: DeviceId, rootDir: string) {
+async function convertChatDatabases(
+  deviceId: DeviceId,
+  rootDir: string,
+): Promise<string[]> {
   try {
     const converted = await convertChatRecords({
       appVersion: app.getVersion(),
@@ -609,27 +627,64 @@ async function convertChatDatabases(deviceId: DeviceId, rootDir: string) {
     // sits in the database beside it, so the bell says so rather than
     // leaving the person to wonder where it went.
     noteChatsLeftBehind(converted.left.length);
+    return converted.converted;
+  } catch (error) {
+    captureServerException(error);
+    return [];
+  }
+}
+
+/**
+ * Carry what each chat's `settings.json` held to where this build keeps it.
+ * Runs after the database converter, since a chat's settings land on its
+ * records; a chat still on its database keeps its file for the next launch.
+ * Idempotent, and a failure must not block boot.
+ */
+async function convertChatSettings(deviceId: DeviceId, rootDir: string) {
+  try {
+    const converted = await convertChatSettingsFiles({
+      chatsDir: workspaceLayout(rootDir).chatsDir,
+      deviceId,
+      machineDir: workspaceMachineDir(),
+    });
+    for (const step of converted.done) {
+      logger.info(`Chat settings: ${step}`);
+    }
+    for (const { reason, where } of converted.left) {
+      logger.warn(
+        `Chat settings: left ${where} for the next launch: ${reason}`,
+      );
+    }
   } catch (error) {
     captureServerException(error);
   }
 }
 
 /**
- * Give every chat the folder a person opens, `Chats/<title>/`, with its
- * transcript written from its records. Runs after the converter, so a chat
- * whose conversation was still in a database has records to write from.
- * Idempotent: a chat whose folder and transcript are already what its
- * records say is left alone, so this costs a launch a listing of the folder.
- * A failure must not block boot.
+ * Give each chat the converter just brought onto its records the folder a
+ * person opens, `Chats/<title>/`, with its transcript written from those
+ * records. Only those chats, and only at the launch that converted them, so
+ * a launch after it reads no chat at all. A failure must not block boot; the
+ * chat's next turn or message writes its folder anyway.
  */
-async function writeChatFolders(rootDir: string) {
+async function writeConvertedChatFolders(
+  rootDir: string,
+  chats: readonly string[],
+) {
+  if (chats.length === 0) {
+    return;
+  }
   try {
     const startedAt = performance.now();
-    const swept = await giveChatsTheirFolders(rootDir);
-    logger.info(
-      `Chat folders: wrote ${swept.counts.written} and found ${swept.counts["already-there"]} already there, in ${Math.round(performance.now() - startedAt)}ms`,
+    const written = await giveChatsTheirFolders(
+      rootDir,
+      workspaceMachineDir(),
+      chats,
     );
-    for (const chat of swept.chats) {
+    logger.info(
+      `Chat folders: wrote ${written.filter((chat) => chat.kind === "written").length} for the chats just converted, in ${Math.round(performance.now() - startedAt)}ms`,
+    );
+    for (const chat of written) {
       if (chat.kind === "failed") {
         logger.warn(`Chat folders: ${chat.id} has none: ${chat.error}`);
       }

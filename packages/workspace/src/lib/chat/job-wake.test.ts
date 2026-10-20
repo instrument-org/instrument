@@ -18,7 +18,7 @@ import {
   readBackgroundProcess,
   startBackgroundRun,
 } from "../background-processes";
-import { chatModelURI, updateChatSettings } from "../chat-settings";
+import { chatModelURI, setChatModel } from "../chat-settings";
 import { jobEventModelNote } from "../job-event-model-text";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -57,6 +57,9 @@ const workspaceRef = {
 
 const sessions: StoreId.Session[] = [];
 
+/** Shorter than the app's, so a case waits less for a wake that is coming. */
+const DEBOUNCE_MS = 300;
+
 beforeAll(() => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "job-wake-"));
   setWorkspaceConfig({
@@ -64,7 +67,7 @@ beforeAll(() => {
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
   });
-  startJobWake(workspaceRef);
+  startJobWake(workspaceRef, { debounceMs: DEBOUNCE_MS });
 });
 
 afterEach(async () => {
@@ -77,11 +80,12 @@ afterEach(async () => {
 /** A chat someone has written in, and its own session. */
 async function chat() {
   const chatId = await chatFor(StoreId.newSessionId());
-  const written = await updateChatSettings(chatId, {
-    modelURI: AIGatewayModelURI.Schema.parse(
+  const written = await setChatModel(
+    chatId,
+    AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
     ),
-  });
+  );
   if (written.isErr()) {
     throw written.error;
   }
@@ -150,7 +154,7 @@ function wakesOf(sessionId: StoreId.Session) {
 
 /** Long enough for a wake that is coming to have been sent. */
 async function pastTheDebounce() {
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  await new Promise((resolve) => setTimeout(resolve, DEBOUNCE_MS * 3));
 }
 
 describe("a background process that ends while its session is at rest", () => {
@@ -179,7 +183,7 @@ describe("a background process that ends while its session is at rest", () => {
       "
       <instrument-system-note>
       A command you started has ended in the background:
-      - ${job.id} (\`ls ~/Documents\`) finished with exit code 0 after 2 minutes. Read what it wrote with \`fg ${job.id}\`; all of it is in .tool-output/${job.id}.log.
+      - ${job.id} (\`ls ~/Documents\`) finished with exit code 0 after 2 minutes. Read what it wrote with \`fg ${job.id}\`; all of it is in \`.tool-output/${job.id}.log\`.
       Nobody typed anything; this note is why you are awake. If the user was waiting on it, read its output and finish what they asked for. Otherwise tell them in a line what came of it.
       </instrument-system-note>"
     `);
@@ -199,7 +203,7 @@ describe("a background process that ends while its session is at rest", () => {
     const tests = promote(owner, "pnpm test");
 
     build.exit(0);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, DEBOUNCE_MS / 3));
     tests.exit(1);
 
     await pastTheDebounce();

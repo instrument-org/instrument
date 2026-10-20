@@ -32,11 +32,15 @@ const settledStanding = indexedByRecords<TaskStanding>("task_standings");
 
 /**
  * How a turn ended when it ended without words: whether a model error ended
- * it, and the line that says so.
+ * it, whether sending the task on picks it up again, and the line that says
+ * so. A stop names what it ended in `stoppedWhile`, so the note can say who
+ * stopped it in its own words.
  */
 export interface TaskEnding {
   failed: boolean;
   line: string;
+  resumable: boolean;
+  stoppedWhile?: string;
 }
 
 export interface TaskStanding {
@@ -179,19 +183,32 @@ async function endingIn(
         return {
           failed: false,
           line: `Stopped at the ${part.data.maxStepCount}-step limit`,
+          resumable: true,
         };
       }
     }
-    return { failed: false, line: "Stopped at its step limit" };
+    return {
+      failed: false,
+      line: "Stopped at its step limit",
+      resumable: true,
+    };
   }
   // Not a failure either: the model wrote until it ran out of room, as many
   // times as it was given, and what it wrote is in the transcript.
   if (last?.metadata.finishReason === "length") {
-    return { failed: false, line: "Cut off at the output limit" };
+    return {
+      failed: false,
+      line: "Cut off at the output limit",
+      resumable: true,
+    };
   }
   const error = last?.metadata.error;
   if (error && error.kind !== "aborted") {
-    return { failed: true, line: describeMessageError(error).summary };
+    return {
+      failed: true,
+      line: describeMessageError(error).summary,
+      resumable: true,
+    };
   }
   const step = await latestStep(ref);
   // A request let go for going quiet past its timeout ended the turn the way
@@ -201,11 +218,14 @@ async function endingIn(
     return {
       failed: true,
       line: step ? `Timed out while ${asClause(step)}` : "Timed out",
+      resumable: true,
     };
   }
   return {
     failed: false,
     line: step ? `Stopped while ${asClause(step)}` : "Stopped",
+    resumable: false,
+    ...(step ? { stoppedWhile: asClause(step) } : {}),
   };
 }
 

@@ -90,6 +90,15 @@ import {
   typeAhead,
 } from "./file-system-keys";
 import {
+  type Box,
+  boxBetween,
+  edgeScrollSpeed,
+  gridTileSpan,
+  overlaps,
+  type Point,
+  runHits,
+} from "./file-system-marquee";
+import {
   RENAME_IDLE,
   type RenameEvent,
   type RenameState,
@@ -98,7 +107,9 @@ import {
 } from "./file-system-rename";
 import {
   keepShown,
+  marqueeSelection,
   normalizeSelection,
+  NOTHING_SELECTED,
   sameSelection,
   type Selection,
   selectedPathsOf,
@@ -174,8 +185,9 @@ export type FileSystemProps = {
    */
   columnWidth?: number;
   /**
-   * The item a context menu is open on, by path. It is outlined rather than
-   * selected, the way the Finder marks what its menu acts on.
+   * The item a context menu is open on, or a drop is aimed at, by path. It
+   * is outlined rather than selected, the way the Finder marks what its menu
+   * acts on.
    */
   contextMenuPath?: null | string;
   /** Folder prefix to open initially, e.g. `"invoices/"`. */
@@ -261,6 +273,11 @@ export type FileSystemProps = {
    * nobody's here.
    */
   onCopyPath?: (items: FileSystemItem[]) => void;
+  /**
+   * What is selected, to the clipboard as the files themselves, by ⌘C (Ctrl+C
+   * off the Mac). Left out, the key is nobody's here.
+   */
+  onCopy?: (items: FileSystemItem[]) => void;
   /**
    * A copy of what is selected beside it, by ⌘D on the Mac. Left out, the
    * key is nobody's here.
@@ -407,6 +424,8 @@ export type FileSystemHandle = {
    * once it is, unless the person does something else first.
    */
   startRename: (path: string) => void;
+  /** Exactly these selected, by path, the first the one the keyboard is on. */
+  select: (paths: readonly string[]) => void;
 };
 export type FileSystemView = "columns" | "gallery" | "icons" | "list";
 type FileEntry = FileSystemFileItem & {
@@ -455,6 +474,17 @@ type FolderEntry = FileSystemFolderItem & {
 type SelectionGesture = {
   mode: SelectionMode;
   order: readonly FileSystemEntry[];
+};
+/** What a view's dragged box tells the browser, which owns the selection. */
+type MarqueeControl = {
+  /**
+   * A box began, with the modifier its press carried. It adds to or flips
+   * the selection standing now, unless that is in rows the box cannot reach
+   * (`order`, as another of the columns), when it starts from nothing.
+   */
+  begin: (mode: null | SelectionMode, order: null | readonly string[]) => void;
+  /** What the box touches now, in the order the view draws it. */
+  touch: (paths: readonly string[]) => void;
 };
 /**
  * The modifier a click or an arrow carries that adds to the selection rather
@@ -1641,6 +1671,192 @@ function useVirtualWindow({
   }, [count, horizontal, itemStride, leadingPx, overscan, viewportRef]);
   return window_;
 }
+/** How far a press on empty space travels before it is a box being dragged rather than a click. */
+const MARQUEE_SLOP_PX = 4;
+/**
+ * A press on empty space dragged across the rows, which selects what it
+ * reaches as it goes, the way the Finder's does: a box drawn over the icons
+ * (`shape: "box"`), a run of rows in the list and the columns, with nothing
+ * drawn (`shape: "run"`). The view says what is reached (`hitTest`, given the
+ * box and both its ends in the coordinates of `containerRef`, the element its
+ * rows are laid out in) and draws `overlay` over its scroll area; the press
+ * itself keeps whatever the view did with it, and `onRelease` runs for one
+ * that never moved, so a plain press behaves as it always has.
+ */
+function useMarquee({
+  containerRef,
+  hitTest,
+  marquee,
+  shape,
+  viewportRef,
+}: {
+  containerRef: React.RefObject<HTMLElement | null>;
+  hitTest: (box: Box, ends: { from: Point; to: Point }) => readonly string[];
+  marquee: MarqueeControl;
+  shape: "box" | "run";
+  viewportRef: React.RefObject<HTMLElement | null>;
+}) {
+  const [drawn, setDrawn] = React.useState<Box | null>(null);
+  // The click a released box ends in is the box's, not a press on empty space.
+  const claimedClickRef = React.useRef(false);
+  const hitTestRef = React.useRef(hitTest);
+  React.useEffect(() => {
+    hitTestRef.current = hitTest;
+  });
+  const stopRef = React.useRef<(() => void) | null>(null);
+  React.useEffect(() => () => stopRef.current?.(), []);
+  const start = (
+    event: React.PointerEvent,
+    {
+      onBegin,
+      onRelease,
+      order,
+    }: {
+      /** The box began, before it touches anything. */
+      onBegin?: () => void;
+      /** A press that never moved far enough to be a box. */
+      onRelease?: () => void;
+      /** The rows the box can reach, in the order the view draws them. */
+      order?: () => readonly string[];
+    } = {},
+  ) => {
+    const container = containerRef.current;
+    const viewport = viewportRef.current;
+    if (
+      event.button !== 0 ||
+      event.pointerType === "touch" ||
+      !container ||
+      !viewport
+    ) {
+      return;
+    }
+    stopRef.current?.();
+    const mode = selectionModeOf(event);
+    // Pointer coordinates are the window's; lengths inside are the zoomed
+    // layout's, so a point is divided by how much larger the view is drawn.
+    const scaleOf = () =>
+      viewport.offsetHeight > 0
+        ? viewport.getBoundingClientRect().height / viewport.offsetHeight
+        : 1;
+    const toContent = (client: Point): Point => {
+      const scale = scaleOf();
+      const box = container.getBoundingClientRect();
+      return {
+        x: (client.x - box.left) / scale,
+        y: (client.y - box.top) / scale,
+      };
+    };
+    const origin = toContent({ x: event.clientX, y: event.clientY });
+    const pressed = { x: event.clientX, y: event.clientY };
+    let pointer = pressed;
+    let isDragging = false;
+    let frame = 0;
+    const draw = () => {
+      const bounds = viewport.getBoundingClientRect();
+      // The box stops at the edges of what is on screen, as the Finder's
+      // does, while the view scrolls on under a pointer held past them.
+      const held = {
+        x: Math.min(Math.max(pointer.x, bounds.left), bounds.right),
+        y: Math.min(Math.max(pointer.y, bounds.top), bounds.bottom),
+      };
+      const to = toContent(held);
+      const box = boxBetween(origin, to);
+      marquee.touch(hitTestRef.current(box, { from: origin, to }));
+      if (shape === "run") return;
+      const scale = scaleOf();
+      const containerBox = container.getBoundingClientRect();
+      setDrawn({
+        ...box,
+        x: box.x + (containerBox.left - bounds.left) / scale,
+        y: box.y + (containerBox.top - bounds.top) / scale,
+      });
+    };
+    const scroll = () => {
+      if (!isDragging) return;
+      const bounds = viewport.getBoundingClientRect();
+      const speed = edgeScrollSpeed({
+        bottom: bounds.bottom,
+        pointer: pointer.y,
+        top: bounds.top,
+      });
+      if (speed !== 0) {
+        viewport.scrollTop += speed / scaleOf();
+      }
+      frame = requestAnimationFrame(scroll);
+    };
+    const onMove = (move: PointerEvent) => {
+      if (move.pointerId !== event.pointerId) return;
+      pointer = { x: move.clientX, y: move.clientY };
+      if (!isDragging) {
+        if (
+          Math.hypot(pointer.x - pressed.x, pointer.y - pressed.y) <
+          MARQUEE_SLOP_PX
+        ) {
+          return;
+        }
+        isDragging = true;
+        onBegin?.();
+        marquee.begin(mode, order?.() ?? null);
+        frame = requestAnimationFrame(scroll);
+      }
+      draw();
+    };
+    const onScroll = () => {
+      if (isDragging) draw();
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      viewport.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(frame);
+      stopRef.current = null;
+      setDrawn(null);
+    };
+    const onUp = (up: PointerEvent) => {
+      if (up.pointerId !== event.pointerId) return;
+      const dragged = isDragging;
+      stop();
+      if (dragged) {
+        claimedClickRef.current = true;
+        // The click follows the release at once, when it comes at all.
+        setTimeout(() => {
+          claimedClickRef.current = false;
+        });
+      } else {
+        onRelease?.();
+      }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    stopRef.current = stop;
+  };
+  return {
+    /** Whether the click now arriving ends a box, which the view leaves alone. */
+    claimClick: () => claimedClickRef.current,
+    overlay:
+      drawn === null ? null : (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-10 overflow-hidden"
+        >
+          <div
+            className="absolute rounded-[2px] border border-foreground/25 bg-foreground/10"
+            data-file-system-marquee=""
+            style={{
+              height: drawn.height,
+              left: drawn.x,
+              top: drawn.y,
+              width: drawn.width,
+            }}
+          />
+        </div>
+      ),
+    start,
+  };
+}
 const VIEW_OPTIONS: Array<{
   icon: React.ComponentType<InlineRegistryIconProps>;
   label: string;
@@ -1672,6 +1888,7 @@ export function FileSystem({
   loadPreviewImageUrl,
   moveFocusWithSelection = true,
   onColumnWidthChange,
+  onCopy,
   onCopyPath,
   onDuplicate,
   onEmptyPress,
@@ -1989,6 +2206,37 @@ export function FileSystem({
           : selectWithMode(current, entry.path, mode, paths),
       );
     },
+    [commitSelection],
+  );
+  // How many items the list draws, which is what it counts, as the Finder's
+  // list counts what is open in place under a folder.
+  const [listedCount, setListedCount] = React.useState<null | number>(null);
+  // What a box dragged across the rows starts from, and how it adds to it.
+  const marqueeStartRef = React.useRef<{
+    base: Selection;
+    mode: null | SelectionMode;
+  } | null>(null);
+  const marquee = React.useMemo<MarqueeControl>(
+    () => ({
+      begin: (mode, order) => {
+        const current = selectionRef.current;
+        marqueeStartRef.current = {
+          base:
+            mode !== null &&
+            order !== null &&
+            current.lead !== null &&
+            !order.includes(current.lead)
+              ? NOTHING_SELECTED
+              : current,
+          mode,
+        };
+      },
+      touch: (paths) => {
+        const started = marqueeStartRef.current;
+        if (!started) return;
+        commitSelection(marqueeSelection(started.base, paths, started.mode));
+      },
+    }),
     [commitSelection],
   );
   // A query or filter change can hide some of the selection out from under
@@ -2481,7 +2729,16 @@ export function FileSystem({
     },
     [canRename, listedNameOf, sendRename],
   );
-  React.useImperativeHandle(ref, () => ({ startRename }), [startRename]);
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      select: (paths) => {
+        commitSelection(selectExactly(selectOnly(null), paths));
+      },
+      startRename,
+    }),
+    [commitSelection, startRename],
+  );
   React.useEffect(() => {
     sendRename({ nameOf: listedNameOf, type: "listed" });
   }, [listedNameOf, sendRename]);
@@ -2694,9 +2951,15 @@ export function FileSystem({
         return each ? [each] : [];
       });
     switch (command.type) {
+      case "copy":
       case "copy-path":
       case "duplicate": {
-        const handler = command.type === "duplicate" ? onDuplicate : onCopyPath;
+        const handler =
+          command.type === "duplicate"
+            ? onDuplicate
+            : command.type === "copy"
+              ? onCopy
+              : onCopyPath;
         const chosen = picked();
         if (!handler || chosen.length === 0) return false;
         handler(chosen);
@@ -2813,6 +3076,8 @@ export function FileSystem({
     onOpen: openEntry,
     onSelect: selectAndPrefetchEntry,
     onSelectEntries: selectEntries,
+    marquee,
+    onListedCount: setListedCount,
     onSortColumnClick: toggleSortColumn,
     pageUrlCache,
     poolStagePath,
@@ -3177,6 +3442,23 @@ export function FileSystem({
           <FileSystemGalleryView {...viewProps} />
         )}
       </div>
+      {currentUnreadable === null &&
+      !(isLoadingCurrentFolder && currentEntries.length === 0) ? (
+        <FileSystemStatusBar
+          count={
+            view === "list" && isViewShown && listedCount !== null
+              ? listedCount
+              : (
+                  sortedIndex.children.get(
+                    view === "columns" && selectedPath !== null
+                      ? pathParent(selectedPath)
+                      : currentPath,
+                  ) ?? []
+                ).length
+          }
+          selected={selectedPaths.length}
+        />
+      ) : null}
       <Dialog
         onOpenChange={(open) => {
           if (!open) setOpenedFile(null);
@@ -3556,6 +3838,10 @@ type FileSystemViewProps = {
   onSelect: (entry: FileSystemEntry | null, gesture?: SelectionGesture) => void;
   /** Selects exactly these, keeping the keyboard on the one it is on when it is among them. */
   onSelectEntries: (entries: readonly FileSystemEntry[]) => void;
+  /** Where a box dragged across the rows says what it touches. */
+  marquee: MarqueeControl;
+  /** How many items the list draws, those in folders opened in place included. */
+  onListedCount: (count: number) => void;
   onSortColumnClick: (key: FileSystemSortKey) => void;
   /** `"path#pageIndex"` → thumbnail URL, shared by every pager. */
   pageUrlCache: Map<string, string>;
@@ -3708,6 +3994,32 @@ function useSlowLoads(loading: ReadonlySet<string>, ms = LOADER_DELAY_MS) {
   return React.useMemo(
     () => new Set([...slow].filter((path) => loading.has(path))),
     [loading, slow],
+  );
+}
+/**
+ * How many things the folder on screen lists, and how many of them are
+ * selected, along the bottom as the Finder's status bar says it. In the
+ * columns the folder is the column the selection is in; in the list it is
+ * every item drawn, those open in place under a folder included.
+ */
+function FileSystemStatusBar({
+  count,
+  selected,
+}: {
+  count: number;
+  selected: number;
+}) {
+  return (
+    <div
+      className="flex h-6 shrink-0 items-center justify-center border-t px-3 text-xs text-muted-foreground tabular-nums"
+      data-file-system-status=""
+    >
+      <span className="truncate">
+        {selected > 0
+          ? `${selected} of ${count} selected`
+          : `${count} ${count === 1 ? "item" : "items"}`}
+      </span>
+    </div>
   );
 }
 function FileSystemEmptyState({
@@ -3923,6 +4235,7 @@ const ICON_GRID_PADDING = 12; // p-3
 const ICON_MIN_TILE_WIDTH = 104; // 6.5rem
 const ICON_TILE_GAP_X = 4; // gap-x-1
 const ICON_TILE_HEIGHT = 102; // h-16 glyph box + gap-1.5 + two text-xs lines
+const ICON_TILE_WIDTH = 80; // the glyph box, w-20
 const ICON_ROW_GAP = 12; // gap-y-3
 const ICON_ROW_STRIDE = ICON_TILE_HEIGHT + ICON_ROW_GAP;
 // Grouped, the grid steps in thirds of a row: a heading takes one, a row of
@@ -3934,6 +4247,7 @@ function FileSystemIconsView({
   entries,
   grouping,
   listingNavRef,
+  marquee,
   menuTargetPath,
   moveFocusWithSelection,
   onItemContextMenu,
@@ -3950,6 +4264,7 @@ function FileSystemIconsView({
 }: FileSystemViewProps) {
   const itemRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
+  const gridRef = React.useRef<HTMLDivElement | null>(null);
   // A tile the keyboard lands on may be outside the virtual window; the
   // selection effect scrolls it in, and the keyboard follows once it mounts.
   const focusTile = useFocusWhenDrawn(itemRefs, {
@@ -4051,6 +4366,50 @@ function FileSystemIconsView({
   const visibleEntries = visibleLines
     ? visibleLines.flatMap((line) => ("row" in line ? line.row : []))
     : entries.slice(start * resolvedColumnCount, end * resolvedColumnCount);
+  // A box dragged across the grid takes every tile whose glyph or name it
+  // reaches, by where the tiles stand rather than which are drawn.
+  const marqueeDrag = useMarquee({
+    containerRef: gridRef,
+    hitTest: (box) => {
+      const width = gridRef.current?.offsetWidth ?? 0;
+      const rows = groupedLines
+        ? groupedLines.lines.flatMap((line) =>
+            "row" in line
+              ? [{ entries: line.row, top: line.unit * ICON_UNIT }]
+              : [],
+          )
+        : Array.from({ length: rowCount }, (_, row) => ({
+            entries: entries.slice(
+              row * resolvedColumnCount,
+              (row + 1) * resolvedColumnCount,
+            ),
+            top: row * ICON_ROW_STRIDE,
+          }));
+      return rows.flatMap(({ entries: rowEntries, top }) =>
+        top <= box.y + box.height && box.y <= top + ICON_TILE_HEIGHT
+          ? rowEntries.flatMap((entry, column) => {
+              const span = gridTileSpan({
+                column,
+                columnCount: resolvedColumnCount,
+                gap: ICON_TILE_GAP_X,
+                tileWidth: ICON_TILE_WIDTH,
+                width,
+              });
+              return overlaps(box, {
+                ...span,
+                height: ICON_TILE_HEIGHT,
+                y: top,
+              })
+                ? [entry.path]
+                : [];
+            })
+          : [],
+      );
+    },
+    marquee,
+    shape: "box",
+    viewportRef,
+  });
   // Selection can land outside the window (view switches, shrinking results);
   // bring its row back into the viewport so the tile mounts and is focusable.
   React.useLayoutEffect(() => {
@@ -4179,12 +4538,15 @@ function FileSystemIconsView({
   return (
     <InlineScrollArea2
       orientation="vertical"
+      overlay={marqueeDrag.overlay}
       viewportClassName="p-3"
       viewportProps={{
         // A click past the tiles lets go of the selection, as in the Finder;
-        // one with ⌘ or Shift held keeps it.
+        // one with ⌘ or Shift held keeps it. One ending a dragged box is the
+        // box's.
         onClick: (event) => {
           if (
+            !marqueeDrag.claimClick() &&
             selectionModeOf(event) === null &&
             event.target instanceof HTMLElement &&
             !event.target.closest("[data-file-system-item], input")
@@ -4193,12 +4555,27 @@ function FileSystemIconsView({
             onEmptyPress?.();
           }
         },
+        // A press past the tiles that drags draws a box, which starts from
+        // nothing unless ⌘ or Shift is held.
+        onPointerDown: (event) => {
+          if (
+            event.target instanceof HTMLElement &&
+            !event.target.closest("[data-file-system-item], input")
+          ) {
+            marqueeDrag.start(event, {
+              onBegin: () => {
+                if (selectionModeOf(event) === null) onSelect(null);
+              },
+            });
+          }
+        },
       }}
       viewportRef={viewportRef}
     >
       {groupedLines && visibleLines ? (
         <div
           className="relative"
+          ref={gridRef}
           style={{
             height: groupedLines.unitCount * ICON_UNIT - ICON_ROW_GAP,
           }}
@@ -4241,6 +4618,7 @@ function FileSystemIconsView({
       ) : (
         <div
           className="relative"
+          ref={gridRef}
           // The scroll-height spacer needs the measured column count; until
           // then the absolutely positioned grid alone defines the scrollable
           // overflow, so the server-rendered frame doesn't flash an
@@ -4604,9 +4982,11 @@ function FileSystemListView({
   index,
   listColumnWidths,
   loadingFolders,
+  marquee,
   menuTargetPath,
   moveFocusWithSelection,
   onExpandFolder,
+  onListedCount,
   onFolderHover,
   onItemContextMenu,
   onListColumnsChange,
@@ -4746,6 +5126,9 @@ function FileSystemListView({
       row.entry !== null,
   );
   const rowEntries = entryRows.map((row) => row.entry);
+  React.useEffect(() => {
+    onListedCount(rowEntries.length);
+  }, [onListedCount, rowEntries.length]);
   // A folder drawn open that was opened somewhere else (another window,
   // another folder walked through) has its contents read as it is drawn.
   const unreadOpen = rowEntries
@@ -4854,6 +5237,28 @@ function FileSystemListView({
     overscan: 12,
     viewportRef,
   });
+  // A drag up or down the list takes the run of rows it passes, those in
+  // folders opened in place included.
+  const rowsRef = React.useRef<HTMLDivElement | null>(null);
+  const marqueeDrag = useMarquee({
+    containerRef: rowsRef,
+    hitTest: (_, { from, to }) =>
+      runHits({
+        count: rows.length,
+        from: from.y,
+        stride: LIST_ROW_HEIGHT,
+        to: to.y,
+      }).flatMap((at) => {
+        const entry = rows[at]?.entry;
+        return entry ? [entry.path] : [];
+      }),
+    marquee,
+    shape: "run",
+    viewportRef,
+  });
+  // A press that began a run on a row's own blank space, which is the run's
+  // and not a drag of the row out of the window.
+  const runFromRowRef = React.useRef(false);
   const selectedRowIndex = rows.findIndex(
     (row) => row.entry?.path === selectedPath,
   );
@@ -4944,20 +5349,26 @@ function FileSystemListView({
           <InlineScrollArea2
             className="min-h-0 flex-1"
             orientation="vertical"
+            overlay={marqueeDrag.overlay}
             viewportProps={{
               "aria-label": "Files",
               // A press past the last row lets go of the selection, as in the
-              // Finder; one with ⌘ or Shift held keeps it.
+              // Finder; one with ⌘ or Shift held keeps it. Dragged up, it
+              // selects the run of rows from the last to the pointer.
               onPointerDown: (event) => {
                 if (
-                  event.button === 0 &&
-                  selectionModeOf(event) === null &&
-                  event.target instanceof HTMLElement &&
-                  !event.target.closest('[role="option"]')
+                  event.button !== 0 ||
+                  !(event.target instanceof HTMLElement) ||
+                  event.target.closest('[role="option"]')
                 ) {
-                  onSelect(null);
-                  onEmptyPress?.();
+                  return;
                 }
+                const isPlain = selectionModeOf(event) === null;
+                if (isPlain) onSelect(null);
+                marqueeDrag.start(
+                  event,
+                  isPlain && onEmptyPress ? { onRelease: onEmptyPress } : {},
+                );
               },
               onScroll: (event) => {
                 setTopRow(
@@ -4970,6 +5381,7 @@ function FileSystemListView({
           >
             <div
               className="relative min-h-full"
+              ref={rowsRef}
               style={{ ...LIST_STRIPES, height: rows.length * LIST_ROW_HEIGHT }}
             >
               <div
@@ -5037,6 +5449,7 @@ function FileSystemListView({
                       draggable={draggable && !isRenaming}
                       key={entry.path}
                       onClick={(event) => {
+                        if (marqueeDrag.claimClick()) return;
                         rowGestures.click(entry, event, () => rowEntries);
                       }}
                       onContextMenu={(event) => {
@@ -5050,7 +5463,36 @@ function FileSystemListView({
                         if (entry.kind === "folder")
                           onFolderHover?.(entry.path);
                       }}
+                      // Pulled by its blank space (past its name, in its
+                      // other columns), the row starts a run up or down the
+                      // list, as the Finder's does; by its icon or its name,
+                      // it drags out of the window.
+                      onDragStart={(event) => {
+                        if (runFromRowRef.current) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }
+                      }}
                       onPointerDown={(event) => {
+                        runFromRowRef.current =
+                          !isRenaming &&
+                          event.button === 0 &&
+                          event.pointerType === "mouse" &&
+                          !isMacContextClick(event) &&
+                          event.target instanceof Element &&
+                          !event.target.closest(
+                            "[data-file-system-name-text], [data-file-system-glyph], input",
+                          );
+                        if (runFromRowRef.current) {
+                          marqueeDrag.start(event, {
+                            onBegin: () => {
+                              if (selectionModeOf(event) === null) {
+                                onSelect(null);
+                              }
+                            },
+                          });
+                          return;
+                        }
                         rowGestures.press(entry, event, () => rowEntries);
                       }}
                       ref={(element) => {
@@ -5101,7 +5543,10 @@ function FileSystemListView({
                             />
                           ) : null}
                         </span>
-                        <span className="ml-1.5 flex size-4 shrink-0 items-center justify-center">
+                        <span
+                          className="ml-1.5 flex size-4 shrink-0 items-center justify-center"
+                          data-file-system-glyph=""
+                        >
                           <FileSystemRowGlyph entry={entry} />
                         </span>
                         {isRenaming ? (
@@ -5111,7 +5556,9 @@ function FileSystemListView({
                             className="ml-1.5 min-w-0 flex-1 truncate"
                             data-file-system-name=""
                           >
-                            {shownName(entry)}
+                            <span data-file-system-name-text="">
+                              {shownName(entry)}
+                            </span>
                           </span>
                         )}
                       </div>
@@ -5227,6 +5674,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     onFolderHover,
     onItemContextMenu,
     listingNavRef,
+    marquee,
     onOpen,
     onSelect,
     pageUrlCache,
@@ -5442,6 +5890,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                   ? renamingPath
                   : null
               }
+              marquee={marquee}
               renderNameField={renderNameField}
               rowGestures={rowGestures}
               rowRefs={rowRefs}
@@ -5583,6 +6032,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   grouping,
   index,
   isLoading,
+  marquee,
   menuTargetChildPath,
   onEmptyPress,
   onFolderHover,
@@ -5608,6 +6058,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   grouping: Grouping | null;
   index: FileSystemIndex;
   isLoading: boolean;
+  marquee: MarqueeControl;
   menuTargetChildPath: null | string;
   onEmptyPress?: () => void;
   onFolderHover?: (folderPath: string) => void;
@@ -5650,6 +6101,25 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
     overscan: 10,
     viewportRef,
   });
+  // A drag up or down the column takes the run of rows it passes here, and
+  // only here, the way the Finder's columns pick several in one column.
+  const rowsRef = React.useRef<HTMLDivElement | null>(null);
+  const marqueeDrag = useMarquee({
+    containerRef: rowsRef,
+    hitTest: (_, { from, to }) =>
+      runHits({
+        count: lines.length,
+        from: from.y,
+        stride: COLUMN_ROW_STRIDE,
+        to: to.y,
+      }).flatMap((at) => {
+        const line = lines[at];
+        return line && !("heading" in line) ? [line.path] : [];
+      }),
+    marquee,
+    shape: "run",
+    viewportRef,
+  });
   // Keyboard navigation can select a row this column hasn't mounted; scroll
   // it into the viewport so it mounts and the pending-focus effect can land.
   React.useLayoutEffect(() => {
@@ -5670,27 +6140,36 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
         "relative",
         fills ? "min-h-0 min-w-0 flex-1" : "shrink-0 border-r",
       )}
+      // The folder the column lists, for a drop on its empty space; the first
+      // column's is the browser's own.
+      data-file-system-folder={ownFolder?.path ?? ""}
       style={fills ? {} : { width }}
     >
       <InlineScrollArea2
         className="h-full w-full"
         orientation="vertical"
+        overlay={marqueeDrag.overlay}
         viewportClassName="p-1.5"
         viewportProps={{
           "aria-label": "Files",
           // A press past the rows goes back to the folder the column lists,
           // as in the Finder, and in the first column to nothing; one with
-          // ⌘ or Shift held keeps the selection.
+          // ⌘ or Shift held keeps the selection. Dragged up, it selects the
+          // run of rows from the last to the pointer, in this column.
           onPointerDown: (event) => {
             if (
-              event.button === 0 &&
-              selectionModeOf(event) === null &&
-              event.target instanceof HTMLElement &&
-              !event.target.closest("[data-file-system-item], input")
+              event.button !== 0 ||
+              !(event.target instanceof HTMLElement) ||
+              event.target.closest("[data-file-system-item], input")
             ) {
-              onSelect(ownFolder);
-              onEmptyPress?.();
+              return;
             }
+            const isPlain = selectionModeOf(event) === null;
+            if (isPlain) onSelect(ownFolder);
+            marqueeDrag.start(event, {
+              ...(isPlain && onEmptyPress ? { onRelease: onEmptyPress } : {}),
+              order: () => entries.map((entry) => entry.path),
+            });
           },
           role: "listbox",
         }}
@@ -5705,6 +6184,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
         ) : (
           <div
             className="relative"
+            ref={rowsRef}
             style={{
               height:
                 lines.length > 0
@@ -6034,6 +6514,8 @@ type InlineScrollAreaProps = React.ComponentProps<
   typeof ScrollAreaPrimitive.Root
 > & {
   orientation?: "both" | "horizontal" | "vertical";
+  /** Drawn over the viewport, outside what scrolls, as a dragged box is. */
+  overlay?: React.ReactNode;
   scrollbarGutter?: boolean;
   scrollbarOverflowOnly?: boolean;
   scrollFade?: boolean;
@@ -6390,6 +6872,7 @@ function InlineScrollArea2({
   children,
   className,
   orientation = "both",
+  overlay,
   scrollbarGutter = false,
   scrollbarOverflowOnly = false,
   scrollFade = false,
@@ -6460,6 +6943,7 @@ function InlineScrollArea2({
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
+      {overlay}
       {orientation === "horizontal" ? null : (
         <ScrollBar orientation="vertical" />
       )}

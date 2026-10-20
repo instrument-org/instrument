@@ -26,7 +26,7 @@ import { resolveChat, sessionOfChat } from "../record-folders";
 import { shellPath } from "../workspace-fs-layout";
 import { sessionLayout } from "../session-layout";
 import { ChatReads } from "../chat-reads";
-import { chatModelURI, recordChatActivity } from "../chat-settings";
+import { chatModelURI } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
 import { getCurrentDate } from "../get-current-date";
 import { isToolPart } from "../is-tool-part";
@@ -561,10 +561,18 @@ async function onSessionDone(
         );
   const event: TaskEvent = {
     activeMs: usage.activeMs,
-    ...(ending ? { ended: ending.line } : {}),
+    ...(ending
+      ? {
+          ended:
+            stop?.by === "user"
+              ? `Stopped by the user${ending.stoppedWhile ? ` while ${ending.stoppedWhile}` : ""}`
+              : ending.line,
+        }
+      : {}),
     ...(files.length > 0 ? { files } : {}),
     handle: task.handle,
     ...(needs.length > 0 ? { needs } : {}),
+    ...(ending?.resumable ? { resumable: true } : {}),
     ...(running.length > 0 ? { running } : {}),
     status: ending?.failed ? "error" : "done",
     ...(stop?.by === "user" ? { stoppedBy: stop.by } : {}),
@@ -778,7 +786,6 @@ function wakeWith(
         sessionId,
       },
     });
-    await recordChatActivity(chatId);
   });
 }
 

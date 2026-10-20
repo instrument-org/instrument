@@ -4,14 +4,18 @@ import { monotonicFactory } from "ulid";
 import { z } from "zod";
 
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
+import {
+  everyTopicsFolderPaths,
+  setTopicFolders,
+} from "../permissions/topic-folders";
 import { validateFolderName } from "../project-folder-name";
+import { rewriteFileSync } from "../rewrite-file";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   parseTopicFile,
   renderTopicFile,
   TOPIC_FILE_NAME,
   TopicFileSchema,
-  type TopicFolder,
   TOPICS_FOLDER_NAME,
   toTheSecond,
 } from "./topic-file";
@@ -23,12 +27,7 @@ const TOPIC_ID_PREFIX = "top_";
 /** How long a topic's name may be. Short names keep the marks readable. */
 export const TOPIC_NAME_MAX = 24;
 
-export {
-  TOPIC_FILE_NAME,
-  type TopicFolder,
-  TopicFolderSchema,
-  TOPICS_FOLDER_NAME,
-} from "./topic-file";
+export { TOPIC_FILE_NAME, TOPICS_FOLDER_NAME } from "./topic-file";
 
 /**
  * A topic: a tag on chats, with a folder of its own in the workspace's
@@ -41,6 +40,22 @@ export const TopicSchema = TopicFileSchema.extend({
 });
 
 export type Topic = z.output<typeof TopicSchema>;
+
+/** A folder of the user's that work under a topic uses, by its path on disk. */
+export const TopicFolderSchema = z.object({ path: z.string() });
+
+export type TopicFolder = z.output<typeof TopicFolderSchema>;
+
+/**
+ * A topic as the app lists it: its file, and the folders granted under it on
+ * this computer, which are kept in its permission settings rather than in the
+ * file.
+ */
+export const ListedTopicSchema = TopicSchema.extend({
+  folders: z.array(TopicFolderSchema).optional(),
+});
+
+export type ListedTopic = z.output<typeof ListedTopicSchema>;
 
 /** What the user picks about a topic. Anything left out is left alone. */
 export interface TopicChange {
@@ -57,28 +72,65 @@ export interface TopicChange {
 export class TopicNameError extends Error {}
 
 /**
- * Makes a topic and returns it. A name already in use returns that topic
- * instead, since its folder is its name; one retired under that name comes
- * back, with the instructions and folders it had.
+ * Makes a topic and returns it, with its instructions and the folders granted
+ * under it on this computer. A name already in use returns that topic as it
+ * is instead, since its folder is its name, and is refused with a
+ * `TopicNameError` when instructions or folders were given, which would
+ * otherwise be dropped without a word; one retired under that name comes
+ * back, with the instructions and folders it had unless new ones are given.
+ * A grant that fails takes back the topic it was for, so no topic is left
+ * made without the folders it was made with.
  */
-export function createTopic(topic: {
+export async function createTopic({
+  folders = [],
+  ...topic
+}: {
   about?: string;
   color?: string;
   emoji?: string;
+  folders?: TopicFolder[];
+  instructions?: string;
   name: string;
 }): Promise<Topic> {
-  return Promise.resolve().then(() => createTopicNow(topic));
+  const made = await Promise.resolve().then(() => createTopicNow(topic));
+  if (
+    made.was === "in use" &&
+    (folders.length > 0 || Boolean(topic.instructions?.trim()))
+  ) {
+    throw new TopicNameError(
+      `There is already a topic called “${made.topic.name}”`,
+    );
+  }
+  if (made.was === "in use" || folders.length === 0) {
+    return made.topic;
+  }
+  try {
+    await setTopicFolders(
+      made.topic.id,
+      folders.map((folder) => folder.path),
+    );
+  } catch (error) {
+    takeBackTopic(made);
+    throw error;
+  }
+  return made.topic;
 }
 
 /**
  * Every topic: the ones in use first, in the order they were made, then the
  * retired ones after, so a menu can stop at the first retired entry and a row
- * can still name a topic the chat was tagged with before it was retired.
+ * can still name a topic the chat was tagged with before it was retired. Each
+ * with the folders granted under it on this computer.
  */
-export function listTopics(): Promise<Topic[]> {
-  return Promise.resolve().then(() =>
-    readTopicsSync(getWorkspaceConfig().rootDir),
-  );
+export async function listTopics(): Promise<ListedTopic[]> {
+  const topics = readTopicsSync(getWorkspaceConfig().rootDir);
+  const granted = await everyTopicsFolderPaths();
+  return topics.map((topic) => {
+    const paths = granted.get(topic.id) ?? [];
+    return paths.length > 0
+      ? { ...topic, folders: paths.map((each) => ({ path: each })) }
+      : topic;
+  });
 }
 
 /** A new topic's id: stable across renames, which move its folder. */
@@ -170,15 +222,22 @@ export function unusedTopicName(raw: string, taken: readonly string[]): string {
 /**
  * Changes what the user chose about a topic. A new name moves the topic's
  * folder, and one another topic has, or one no folder can take, is refused
- * with a `TopicNameError`; anything left out is left alone.
+ * with a `TopicNameError`; anything left out is left alone. Its folders are
+ * granted on this computer, in its permission settings.
  */
-export function updateTopic(
+export async function updateTopic(
   topicId: string,
   change: TopicChange,
 ): Promise<void> {
-  return Promise.resolve().then(() => {
-    updateTopicNow(topicId, change);
-  });
+  const found = await Promise.resolve().then(() =>
+    updateTopicNow(topicId, change),
+  );
+  if (found && change.folders !== undefined) {
+    await setTopicFolders(
+      topicId,
+      change.folders.map((folder) => folder.path),
+    );
+  }
 }
 
 /**
@@ -188,15 +247,37 @@ export function updateTopic(
  * read off the file it came from, so a round trip through the app keeps what
  * another client wrote.
  */
-export function writeTopicSync(rootDir: string, topic: Topic): void {
-  const { name, ...file } = topic;
-  const folder = path.join(topicsDirOf(rootDir), name);
-  fs.mkdirSync(folder, { recursive: true });
-  fs.writeFileSync(
-    path.join(folder, TOPIC_FILE_NAME),
-    renderTopicFile(file),
-    "utf8",
+export function writeTopicSync(rootDir: string, topic: Topic): Topic {
+  return rewriteTopicSync(rootDir, topic, () => topic);
+}
+
+/**
+ * Applies `change` to the topic as its `TOPIC.md` holds it at the moment of
+ * writing, so a change to its front matter keeps instructions the person
+ * edited since the topic was read, and answers with what was written. `topic`
+ * stands in where the file is gone or names another topic.
+ */
+function rewriteTopicSync(
+  rootDir: string,
+  topic: Topic,
+  change: (onDisk: Topic) => Topic,
+): Topic {
+  let written = topic;
+  rewriteFileSync(
+    path.join(topicsDirOf(rootDir), topic.name, TOPIC_FILE_NAME),
+    (text) => {
+      const onDisk =
+        text === undefined
+          ? undefined
+          : parseTopicFile(text, { at: topic.created });
+      written = change(
+        onDisk?.id === topic.id ? { ...onDisk, name: topic.name } : topic,
+      );
+      const { name: _name, ...file } = written;
+      return renderTopicFile(file);
+    },
   );
+  return written;
 }
 
 /** A name the person typed, or a `TopicNameError` saying why a folder cannot take it. */
@@ -212,35 +293,48 @@ function checkedTopicName(raw: string): string {
   return checked.value;
 }
 
+/**
+ * What `createTopicNow` did: found a topic in use under the name, brought a
+ * retired one back (kept as it was, to put back), or made a new one.
+ */
+type MadeTopic =
+  | { retired: Topic; topic: Topic; was: "retired" }
+  | { topic: Topic; was: "in use" | "new" };
+
 function createTopicNow({
   about,
   color,
   emoji,
+  instructions: given,
   name,
 }: {
   about?: string;
   color?: string;
   emoji?: string;
+  instructions?: string;
   name: string;
-}): Topic {
+}): MadeTopic {
   const rootDir = getWorkspaceConfig().rootDir;
   const wanted = checkedTopicName(name);
+  const instructions = given?.trim();
   const existing = readTopicsSync(rootDir).find(
     (topic) => nameKey(topic.name) === nameKey(wanted),
   );
   if (existing) {
     if (!existing.retired) {
-      return existing;
+      return { topic: existing, was: "in use" };
     }
-    const { retired: _retired, ...revived } = existing;
-    const topic = {
-      ...revived,
-      ...(about ? { about } : {}),
-      ...(color ? { color } : {}),
-      ...(emoji ? { emoji } : {}),
-    };
-    writeTopicSync(rootDir, topic);
-    return topic;
+    const topic = rewriteTopicSync(rootDir, existing, (current) => {
+      const { retired: _retired, ...revived } = current;
+      return {
+        ...revived,
+        ...(about ? { about } : {}),
+        ...(color ? { color } : {}),
+        ...(emoji ? { emoji } : {}),
+        ...(instructions ? { instructions } : {}),
+      };
+    });
+    return { retired: existing, topic, was: "retired" };
   }
   const topic: Topic = {
     ...(about ? { about } : {}),
@@ -248,10 +342,32 @@ function createTopicNow({
     created: toTheSecond(new Date()),
     ...(emoji ? { emoji } : {}),
     id: newTopicId(),
+    ...(instructions ? { instructions } : {}),
     name: wanted,
   };
-  writeTopicSync(rootDir, topic);
-  return topic;
+  return { topic: writeTopicSync(rootDir, topic), was: "new" };
+}
+
+/**
+ * Puts back what `createTopicNow` changed: a retired topic retired again as
+ * it was, or a new one's file gone, with its folder when nothing else is in
+ * it, since a folder of the person's can stand where the topic was made.
+ */
+function takeBackTopic(made: MadeTopic): void {
+  const rootDir = getWorkspaceConfig().rootDir;
+  if (made.was === "retired") {
+    writeTopicSync(rootDir, made.retired);
+    return;
+  }
+  if (made.was === "new") {
+    const folder = path.join(topicsDirOf(rootDir), made.topic.name);
+    fs.rmSync(path.join(folder, TOPIC_FILE_NAME), { force: true });
+    try {
+      fs.rmdirSync(folder);
+    } catch {
+      // Something of the person's is in it, so the folder stays.
+    }
+  }
 }
 
 function nameKey(name: string): string {
@@ -290,7 +406,10 @@ function retireTopicNow(topicId: string): void {
   const rootDir = getWorkspaceConfig().rootDir;
   const topic = readTopicsSync(rootDir).find((entry) => entry.id === topicId);
   if (topic) {
-    writeTopicSync(rootDir, { ...topic, retired: true });
+    rewriteTopicSync(rootDir, topic, (current) => ({
+      ...current,
+      retired: true,
+    }));
   }
 }
 
@@ -311,12 +430,13 @@ function topicFolderName(raw: string): string {
   return validateFolderName(name, "Topic").isOk() ? name : "Topic";
 }
 
-function updateTopicNow(topicId: string, change: TopicChange): void {
+/** Writes the change to the topic's file; false for a topic not there. */
+function updateTopicNow(topicId: string, change: TopicChange): boolean {
   const rootDir = getWorkspaceConfig().rootDir;
   const topics = readTopicsSync(rootDir);
   const topic = topics.find((entry) => entry.id === topicId);
   if (!topic) {
-    return;
+    return false;
   }
   let name = topic.name;
   if (change.name !== undefined) {
@@ -334,18 +454,19 @@ function updateTopicNow(topicId: string, change: TopicChange): void {
       fs.renameSync(path.join(dir, topic.name), path.join(dir, name));
     }
   }
-  const { instructions, ...rest } = topic;
-  const nextInstructions =
-    change.instructions === undefined
-      ? instructions
-      : change.instructions.trim();
-  writeTopicSync(rootDir, {
-    ...rest,
-    ...(change.about === undefined ? {} : { about: change.about }),
-    ...(change.color === undefined ? {} : { color: change.color }),
-    ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
-    ...(change.folders === undefined ? {} : { folders: change.folders }),
-    ...(nextInstructions ? { instructions: nextInstructions } : {}),
-    name,
+  rewriteTopicSync(rootDir, { ...topic, name }, (current) => {
+    const { instructions, ...rest } = current;
+    const nextInstructions =
+      change.instructions === undefined
+        ? instructions
+        : change.instructions.trim();
+    return {
+      ...rest,
+      ...(change.about === undefined ? {} : { about: change.about }),
+      ...(change.color === undefined ? {} : { color: change.color }),
+      ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
+      ...(nextInstructions ? { instructions: nextInstructions } : {}),
+    };
   });
+  return true;
 }

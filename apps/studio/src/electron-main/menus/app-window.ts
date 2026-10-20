@@ -82,6 +82,8 @@ const FILE_CHORDS: WindowChord[] = [
   // The renderer opens the find bar in the page on screen, and does nothing
   // when none is.
   chord("findInPage"),
+  chord("findNext"),
+  chord("findPrevious"),
 ];
 
 /**
@@ -167,9 +169,11 @@ function aliasChords(...ids: WindowShortcutId[]): WindowChord[] {
 const TAB_ALIAS_CHORDS = aliasChords("closeTab");
 const TAB_SWITCH_ALIAS_CHORDS = aliasChords("nextTab", "previousTab");
 const VIEW_ALIAS_CHORDS = aliasChords("reloadPage");
+const FILE_ALIAS_CHORDS = aliasChords("findNext", "findPrevious");
 
 const WINDOW_CHORDS = [
   ...FILE_CHORDS,
+  ...FILE_ALIAS_CHORDS,
   ...VIEW_CHORDS,
   ...VIEW_ALIAS_CHORDS,
   ...PLACE_CHORDS,
@@ -232,6 +236,7 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
       ...menuItems(FILE_CHORDS.slice(0, 1)),
       { type: "separator" },
       ...menuItems(FILE_CHORDS.slice(1)),
+      ...menuItems(FILE_ALIAS_CHORDS),
       { type: "separator" },
       ...menuItems(TAB_CHORDS),
       ...menuItems(TAB_ALIAS_CHORDS),

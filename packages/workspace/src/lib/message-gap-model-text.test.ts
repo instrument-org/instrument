@@ -9,7 +9,7 @@ describe("messageGapModelNote", () => {
     expect(messageGapModelNote({ minutes: 60 })).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The user last wrote in this chat about 1 hour ago. Anything since was you and your tasks.
+      The user last wrote in this chat about 1 hour ago. Anything since was you and your tasks. Answer what they say now, and offer what you owed them from before in a sentence.
       </instrument-system-note>"
     `);
   });
@@ -18,7 +18,7 @@ describe("messageGapModelNote", () => {
     expect(messageGapModelNote({ minutes: 22 * 60 })).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The user last wrote in this chat about 22 hours ago. Anything since was you and your tasks.
+      The user last wrote in this chat about 22 hours ago. Anything since was you and your tasks. Answer what they say now, and offer what you owed them from before in a sentence.
       </instrument-system-note>"
     `);
   });
@@ -26,10 +26,10 @@ describe("messageGapModelNote", () => {
   it("says days once it is longer than one", () => {
     expect(messageGapModelNote({ minutes: 3 * 24 * 60 }))
       .toMatchInlineSnapshot(`
-      "
-      <instrument-system-note>
-      The user last wrote in this chat about 3 days ago. Anything since was you and your tasks.
-      </instrument-system-note>"
-    `);
+        "
+        <instrument-system-note>
+        The user last wrote in this chat about 3 days ago. Anything since was you and your tasks. Answer what they say now, and offer what you owed them from before in a sentence.
+        </instrument-system-note>"
+      `);
   });
 });

@@ -59,7 +59,7 @@ it("refuses what the rules close, reports it, and leaves the rest alone", async 
   expect(refusals).toMatchInlineSnapshot(`
     [
       ""/c/Users/sam/Documents/a.txt" needs the person's yes first.",
-      ""/c/Users/sam/new.md" is directly in "/c/Users/sam", which can't be asked for whole. Work in this conversation's folder, or a folder the person names.",
+      ""/c/Users/sam/new.md" is directly in "/c/Users/sam", which can't be asked for whole. Work in your work folder, or a folder the person names.",
       ""/c/Users/sam/newproj" needs the person's yes first.",
     ]
   `);

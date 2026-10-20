@@ -1,5 +1,14 @@
+import ms from "ms";
 import { type FSWatcher, statSync, watch } from "node:fs";
 import path from "node:path";
+
+/**
+ * How often the folder is looked for besides what the parent's watcher
+ * reports. On macOS the watcher's stream starts on another thread after
+ * `watch` returns, so a folder made in that gap is never reported; a look
+ * this often is what finds it.
+ */
+const LOOK_EVERY_MS = ms("1 second");
 
 /** Whether `dir` is a folder on disk now. */
 export function isFolder(dir: string): boolean {
@@ -12,14 +21,14 @@ export function isFolder(dir: string): boolean {
 
 /**
  * Calls `onAppear` once, when `dir` turns up, by watching its parent folder
- * until then; returns the stop. For a folder the app watches but makes only
- * when there is something to put in it, so a workspace that never used it
- * has none.
+ * until then, and looking for it every second besides; returns the stop.
+ * For a folder the app watches but makes only when there is something to
+ * put in it, so a workspace that never used it has none.
  *
  * Every change in the parent is looked at, whatever name it reports, since a
  * folder made on a case-insensitive disk can arrive under another spelling.
- * The parent itself missing, or its watcher failing, leaves the wait over
- * without a call: nothing is listening for the folder then.
+ * The parent missing, or its watcher failing, leaves the look every second
+ * to find the folder.
  */
 export function afterFolderAppears(
   dir: string,
@@ -27,8 +36,13 @@ export function afterFolderAppears(
 ): () => void {
   let done = false;
   let watcher: FSWatcher | undefined;
+  const timer = setInterval(() => {
+    look();
+  }, LOOK_EVERY_MS);
+  timer.unref();
   const stop = () => {
     done = true;
+    clearInterval(timer);
     watcher?.close();
   };
   const look = () => {
@@ -40,10 +54,11 @@ export function afterFolderAppears(
   };
   try {
     watcher = watch(path.dirname(dir), look);
-    watcher.on("error", stop);
+    watcher.on("error", () => {
+      watcher?.close();
+    });
   } catch {
-    done = true;
-    return stop;
+    // Left to the look every second.
   }
   // Made between the caller's look and the watch starting.
   look();

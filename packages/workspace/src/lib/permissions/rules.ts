@@ -73,6 +73,17 @@ export type ChatGrant = z.output<typeof ChatGrantSchema>;
 export type ChatAppGrant = z.output<typeof ChatAppGrantSchema>;
 export type ChatDenial = z.output<typeof ChatDenialSchema>;
 
+/**
+ * What the person granted under one topic: folders every chat filed under it
+ * reaches, each by its path on this computer.
+ */
+const TopicPermissionsSchema = z.object({
+  folders: z
+    .array(z.object({ addedAt: z.coerce.date(), path: AbsolutePathSchema }))
+    .catch([])
+    .default([]),
+});
+
 const PermissionSettingsSchema = z.object({
   /**
    * Apps on this computer, by the name a script tells them by, that the
@@ -126,6 +137,21 @@ const PermissionSettingsSchema = z.object({
     .catch({})
     .default({}),
   /**
+   * The folders granted under each topic, by its id. Here rather than in the
+   * topic's `TOPIC.md`, which the workspace carries to the person's other
+   * computers and which the agent can write where the workspace is the
+   * person's own folder: a grant written there would open the same-named
+   * path on another computer, and an edit to the file would widen what every
+   * chat under the topic reaches without anyone being asked.
+   */
+  topics: z
+    .record(
+      z.string(),
+      TopicPermissionsSchema.catch(() => ({ folders: [] })),
+    )
+    .catch({})
+    .default({}),
+  /**
    * "Use folders without asking", under the name it deserves on disk: every
    * folder rule that would ask says yes instead. The passwords place still
    * asks, and a path no rule holds still asks before a change, so the name
@@ -141,10 +167,17 @@ export type PermissionSettings = z.output<typeof PermissionSettingsSchema>;
  * workspace, since its folder rules name this computer's paths.
  */
 function permissionsFile(): string {
-  return path.join(
-    workspaceMachineDir(),
-    WORKSPACE_MACHINE_ENTRIES.permissions,
-  );
+  return permissionsFileIn(workspaceMachineDir());
+}
+
+/** The same file for a machine folder named outright, for the launch's steps. */
+export function permissionsFileIn(machineDir: string): string {
+  return path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.permissions);
+}
+
+/** Settings › Permissions from a record, for the launch steps that read the file themselves. */
+export function permissionSettingsOf(record: unknown): PermissionSettings {
+  return PermissionSettingsSchema.parse(record);
 }
 
 export async function readPermissionSettings(): Promise<PermissionSettings> {
@@ -166,7 +199,8 @@ export async function updatePermissionSettings(
 /**
  * Every rule as a new install has it: the places at their defaults, none of
  * the person's own folders or apps, asking switched back on, and nothing
- * allowed or refused in any chat, so each chat asks again.
+ * allowed or refused in any chat or granted under any topic, so each chat
+ * asks again.
  */
 export async function resetPermissionSettings(): Promise<PermissionSettings> {
   let chats: string[] = [];

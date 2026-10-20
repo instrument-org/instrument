@@ -1,7 +1,4 @@
-import {
-  SETTINGS_FILE_NAME,
-  WORKSPACE_MACHINE_ENTRIES,
-} from "@instrument-org/shared";
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import fs from "node:fs";
 
 import {
@@ -73,13 +70,16 @@ function inRecordFolder(dir: ChatDir): AbsolutePath {
 
 /**
  * What the person sent the chat, wherever it is: `attachments/` in the
- * chat's own folder under `Chats/`, which is where the launch that gave the
- * chat its folder moved it and where pasted bytes are written now, and its
- * record folder for a chat that has no folder or whose move was refused.
+ * chat's own folder under `Chats/`, which is where writing the chat's
+ * folder moves it and where pasted bytes are written once the folder is
+ * there, and its record folder for a chat that has no folder or whose move
+ * was refused.
  *
  * Whichever one is there wins, rather than whichever one should be: the
  * move is best effort, so a chat can still be reading its files out of the
  * record folder on this computer while another has them in its own folder.
+ * A file left in the record folder because its name was taken in the
+ * chat's folder is named at the chat's folder all the same.
  */
 export function chatAttachmentsDir(dir: ChatDir): AbsolutePath {
   const own = chatOwnFolder(dir);
@@ -88,11 +88,6 @@ export function chatAttachmentsDir(dir: ChatDir): AbsolutePath {
   }
   const inFolder = absolutePathJoin(own, CHAT_FOLDER_NAMES.attachments);
   return fs.existsSync(inFolder) ? inFolder : inRecordFolder(dir);
-}
-
-/** What every device knows about a chat, in its record folder. */
-export function chatSettingsPath(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(dir, SETTINGS_FILE_NAME);
 }
 
 /** Where one device left off in a chat, in its record folder; only that device writes it. */

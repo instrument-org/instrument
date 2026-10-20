@@ -1,6 +1,12 @@
 import { noop } from "radashi";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type AnyActorRef, createActor, fromPromise, waitFor } from "xstate";
+import {
+  type AnyActorRef,
+  createActor,
+  fromPromise,
+  type InputFrom,
+  waitFor,
+} from "xstate";
 
 import { instrumentAgent } from "../agents/instrument";
 import { ChatReads } from "../lib/chat-reads";
@@ -14,6 +20,7 @@ import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model"
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { agentMachine, type ShouldContinueResult } from "./agent";
 import { executeToolCallMachine } from "./execute-tool-call";
+import { llmRequestLogic } from "../logic/llm-request";
 
 vi.mock(import("../lib/session-store-storage"));
 
@@ -518,10 +525,10 @@ describe("agentMachine", () => {
     const actor = createActor(
       agentMachine.provide({
         actors: {
-          // A stream that saves parts and never finishes, like a request the
-          // stop cuts off mid-stream: the parts are in the store but reach no
-          // context array, because the machine leaves LLMStreaming before the
-          // invoke's onDone runs.
+          // A stream that saves parts and never finishes, not even when the
+          // stop aborts it: the parts are in the store but reach no context
+          // array, because the machine stops waiting for it at the backstop
+          // and leaves LLMStreaming before the invoke's onDone runs.
           llmRequestLogic: fromPromise(async () => {
             const savedResult = await ChatWrites.saveMessageWithParts(
               { ...runMessage, parts: savedParts },
@@ -541,6 +548,7 @@ describe("agentMachine", () => {
               Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
           ),
         },
+        delays: { requestAbortBackstop: 10 },
       }),
       { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
     );
@@ -625,6 +633,89 @@ describe("agentMachine", () => {
     await waitFor(actor, (state) => state.matches("Done"));
 
     expect(requests).toBe(6);
+  });
+
+  // A preliminary output lives only in the turn's memory, so the record under
+  // it still waits on an answer the stop says will never come.
+  it("finalizes a saved call that had only offered a preliminary output when the turn is stopped", async () => {
+    const runSessionId = await startedSession();
+    const parentMessageId = StoreId.newMessageId();
+    const runMessage = createAssistantMessage(
+      StoreId.newMessageId(),
+      runSessionId,
+    );
+    const call = createQueuedReadFilePart(1, {
+      messageId: runMessage.id,
+      sessionId: runSessionId,
+    });
+
+    let resolveSaved!: () => void;
+    const saved = new Promise<void>((resolve) => {
+      resolveSaved = resolve;
+    });
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          // As above: the call reaches the store and no context array, so the
+          // sweep is the only thing that can finish it.
+          llmRequestLogic: fromPromise(async () => {
+            (
+              await ChatWrites.saveMessageWithParts(
+                { ...runMessage, parts: [call] },
+                chatId,
+              )
+            )._unsafeUnwrap();
+            (
+              await ChatWrites.updatePart(
+                {
+                  chatId,
+                  messageId: runMessage.id,
+                  partId: call.metadata.id,
+                  sessionId: runSessionId,
+                },
+                () =>
+                  ({
+                    ...call,
+                    output: { content: "partial" },
+                    preliminary: true,
+                    state: "output-available",
+                  }) as SessionMessagePart.ToolPart,
+              )
+            )._unsafeUnwrap();
+            resolveSaved();
+            return new Promise<{
+              message: SessionMessage.Assistant;
+              parts: SessionMessagePart.Type[];
+            }>(noop);
+          }),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
+        },
+        delays: { requestAbortBackstop: 10 },
+      }),
+      { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
+    );
+
+    actor.start();
+    await saved;
+
+    actor.send({ type: "stop" });
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect(await readToolParts(runSessionId)).toMatchInlineSnapshot(`
+      [
+        {
+          "errorText": "This action was stopped by you.",
+          "state": "output-error",
+          "toolCallId": "call-1",
+        },
+      ]
+    `);
   });
 
   it("reads nothing back when a completed turn leaves the queues empty", async () => {
@@ -766,6 +857,155 @@ describe("agentMachine", () => {
         },
       ]
     `);
+  });
+
+  it("runs the finish once when a stop lands while the turn finishes", async () => {
+    let finishes = 0;
+    let releaseFinish!: () => void;
+    const finishGate = new Promise<void>((resolve) => {
+      releaseFinish = resolve;
+    });
+    const parent: { send: (event: { type: string }) => void } = {
+      send: vi.fn(),
+    };
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          llmRequestLogic: fromPromise(() =>
+            Promise.resolve({ message: assistantMessage, parts: noParts }),
+          ),
+          onFinish: fromPromise(async () => {
+            finishes++;
+            await finishGate;
+          }),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
+        },
+      }),
+      {
+        input: {
+          ...createAgentInput({ parentMessageId: messageId, sessionId }),
+          parentRef: parent as unknown as AnyActorRef,
+        },
+      },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Finishing"));
+    actor.send({ reason: "quit", type: "stop" });
+    releaseFinish();
+    await waitFor(actor, (state) => state.matches("Done"));
+    actor.send({ type: "stop" });
+
+    expect(finishes).toBe(1);
+    expect(parent.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("says it is done only once the turn's writes have landed", async () => {
+    let land!: () => void;
+    const landing = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    const parent: { send: (event: { type: string }) => void } = {
+      send: vi.fn(),
+    };
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          landRecords: fromPromise(() => landing),
+          llmRequestLogic: fromPromise(() =>
+            Promise.resolve({ message: assistantMessage, parts: noParts }),
+          ),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
+        },
+      }),
+      {
+        input: {
+          ...createAgentInput({ parentMessageId: messageId, sessionId }),
+          parentRef: parent as unknown as AnyActorRef,
+        },
+      },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) =>
+      state.matches({ Finishing: "LandingRecords" }),
+    );
+    expect(parent.send).not.toHaveBeenCalled();
+    land();
+    await waitFor(actor, (state) => state.matches("Done"));
+    expect(parent.send).toHaveBeenCalledWith({
+      type: "agent.done",
+      value: { error: undefined },
+    });
+  });
+
+  it("ends without an error when a retry recovers from an attempt that threw", async () => {
+    let attempts = 0;
+    const parent: { send: (event: { type: string }) => void } = {
+      send: vi.fn(),
+    };
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          // The first attempt hears nothing until its chunk timeout aborts
+          // it, then throws; the retry answers.
+          llmRequestLogic: fromPromise<
+            {
+              message: SessionMessage.Assistant;
+              parts: SessionMessagePart.Type[];
+            },
+            InputFrom<typeof llmRequestLogic>
+          >(({ input }) => {
+            attempts++;
+            if (attempts > 1) {
+              return Promise.resolve({
+                message: assistantMessage,
+                parts: noParts,
+              });
+            }
+            return new Promise((_, reject) => {
+              input.stop?.addEventListener("abort", () => {
+                reject(new Error("socket hang up"));
+              });
+            });
+          }),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
+        },
+      }),
+      {
+        input: {
+          ...createAgentInput({ parentMessageId: messageId, sessionId }),
+          llmRequestChunkTimeoutMs: 20,
+          parentRef: parent as unknown as AnyActorRef,
+        },
+      },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect(attempts).toBe(2);
+    expect(parent.send).toHaveBeenCalledWith({
+      type: "agent.done",
+      value: { error: undefined },
+    });
   });
 
   it("records how many replies the output limit cut off when it ends the turn", async () => {

@@ -1,21 +1,20 @@
 import fs from "node:fs";
-import path from "node:path";
 
 import { chatFolderName } from "../../lib/chat-folder-name";
 import {
+  chatIdTaken,
   chatOfSession,
   forgetChatFolders,
-  chatIdTaken,
+  placeChat,
 } from "../../lib/record-folders";
 import { writingChatRecords } from "../../lib/records/chat-records";
-import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 
 /**
  * The chat a session is, made in the current chats folder the first time it
- * is asked for: a folder under `chats/` whose settings name the session, and
- * the session's own log started in it, which is what a chat the app made has.
+ * is asked for: a folder under `chats/` with the session's own log started
+ * in it, which is what a chat the app made has.
  * For tests that need a chat to exist without the grants and the rest that
  * `ensureChat` brings.
  */
@@ -39,16 +38,12 @@ export async function chatFor(
         title: `chat ${sessionId.slice(-6).toLowerCase()}`,
       }),
     );
-  const recordDir = path.join(getWorkspaceConfig().chatsDir, id);
-  fs.mkdirSync(recordDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(recordDir, "settings.json"),
-    JSON.stringify({
-      chatSessionId: sessionId,
-      name: "Instrument",
-    }),
-  );
+  // Read again from disk, and let go of what the records held of a chat of
+  // this name, so a name an earlier test's folder had is free and its
+  // records are written in this test's folder.
   forgetChatFolders();
+  await writingChatRecords()?.close(id);
+  fs.mkdirSync(placeChat(id, sessionId), { recursive: true });
   // Its own session's log, which every write into the chat is appended to.
   await writingChatRecords()?.startSession(id, { createdAt, id: sessionId });
   return id;

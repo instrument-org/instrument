@@ -6,6 +6,7 @@ import {
   isInside,
   nameOf,
   parentFolderOf,
+  relativeHostPath,
   segmentsOf,
   separatorOf,
 } from "./host-path";
@@ -43,8 +44,35 @@ describe("parentFolderOf", () => {
     ["C:\\Users\\sam", "C:\\Users"],
     ["C:\\Users", "C:\\"],
     ["C:\\", null],
+    // A network share's top is as far up as it goes: the server alone is no
+    // folder anything can open.
+    ["\\\\nas\\photos\\2024\\march", "\\\\nas\\photos\\2024"],
+    ["\\\\nas\\photos\\2024", "\\\\nas\\photos"],
+    ["\\\\nas\\photos", null],
+    ["\\\\nas\\photos\\", null],
   ])("goes up from %s to %s", (hostPath, parent) => {
     expect(parentFolderOf(hostPath)).toBe(parent);
+  });
+});
+
+describe("relativeHostPath", () => {
+  it.each([
+    ["/Users/sam", "/Users/sam/Desktop/notes.txt", "Desktop/notes.txt"],
+    ["/Users/sam/", "/Users/sam/Desktop", "Desktop"],
+    ["/", "/Users/sam", "Users/sam"],
+    ["/Users/sam", "/Users/samantha/notes.txt", null],
+    ["/Users/sam", "/Applications/Notes.app", null],
+    [
+      "C:\\Users\\sam",
+      "C:\\Users\\sam\\Desktop\\notes.txt",
+      "Desktop/notes.txt",
+    ],
+    ["C:\\", "C:\\Users\\sam", "Users/sam"],
+    ["C:\\Users\\sam", "C:\\Users\\samantha\\notes.txt", null],
+    ["C:\\Users\\sam", "D:\\notes.txt", null],
+    ["\\\\nas\\photos", "\\\\nas\\photos\\2024\\beach.jpg", "2024/beach.jpg"],
+  ])("puts %s + %s at %s", (root, hostPath, relative) => {
+    expect(relativeHostPath(root, hostPath)).toBe(relative);
   });
 });
 

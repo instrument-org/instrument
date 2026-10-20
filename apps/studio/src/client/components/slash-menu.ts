@@ -7,6 +7,8 @@ import {
 
 /** The slash being typed: where it starts, where the caret is, and what follows the slash. */
 interface SlashMenuRange {
+  /** Whether the slash is the first thing in the box, where the app's own commands answer it. */
+  atStart: boolean;
   from: number;
   query: string;
   to: number;
@@ -113,6 +115,10 @@ function slashRangeAt(state: EditorState): null | SlashMenuRange {
   const match = /(?:^|\s)\/([\w:-]*)$/.exec(before);
   return match
     ? {
+        atStart:
+          before
+            .slice(0, before.length - (match[1]?.length ?? 0) - 1)
+            .trim() === "",
         from: from - (match[1]?.length ?? 0) - 1,
         query: match[1] ?? "",
         to: from,

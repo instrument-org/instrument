@@ -20,7 +20,7 @@ You can choose to run them anyway, with the switch in that warning in Settings �
 
 **macOS, without `sandbox-exec`.** Instrument uses the system's own `/usr/bin/sandbox-exec` when its built-in launcher can't apply the rules. Every supported version of macOS ships it, so seeing this warning on a Mac is unexpected. Please use Send a report beside the warning in Settings › Permissions.
 
-**Windows.** Instrument can't yet sandbox programs on Windows, and Settings › Permissions says so on every Windows computer. See [the Windows sandbox](windows-sandbox.md).
+**Windows.** Where Windows' sandbox can't hold the programs the agent runs on a computer, they run anyway, and Settings › Permissions and a notice in the notifications bell say so. See [the Windows sandbox](windows-sandbox.md).
 
 After you change something, quit Instrument and open it again so it checks again.
 
@@ -40,6 +40,6 @@ The check runs once per process, the first time a native command or the Permissi
 
 Wherever no sandbox holds a native command, `wrapNativeCommand` refuses it with `NativeSandboxUnavailableError`, unless the person turned on "Run programs without a sandbox" (the machine preference `runProgramsWithoutSandbox`, reaching the workspace and the bash worker as `programsWithoutSandbox` in the config). Windows, which has no sandbox until MXC holds its commands, keeps running them unwrapped, as Settings says there.
 
-`nativeSandboxOff` in `native-sandbox/index.ts` names the reason, which the Permissions view carries as `sandboxOff`. Settings › Permissions shows it with the switch, and on macOS and Linux the notifications bell carries a notice for it (`sandboxOffNotice` in `apps/studio/src/electron-main/lib/notices.ts`): critical until the person decides, so it toasts, stays until closed and keeps the bell's dot red, and quiet once they chose to run programs anyway. `simulateSandboxOff`, reached through the debug RPC, reports a reason without changing what holds a command, so the warnings can be checked on a computer whose sandbox works.
+`nativeSandboxOff` in `native-sandbox/index.ts` names the reason, which the Permissions view carries as `sandboxOff`. Settings › Permissions shows it with the switch, and the notifications bell carries a notice for it (`sandboxOffNotice` in `apps/studio/src/electron-main/lib/notices.ts`): critical until the person decides, so it toasts, stays until closed and keeps the bell's dot red, and quiet once they chose to run programs anyway. On Windows, where the programs run with no choice to make, `windowsSandboxOffNotice` is critical too, and its id carries the build, so a dismissed one comes back with the next update. `simulateSandboxOff`, reached through the debug RPC, reports a reason without changing what holds a command, so the warnings can be checked on a computer whose sandbox works.
 
 The browser's notice comes from `chromiumSandboxOff` in `apps/studio/src/electron-main/lib/chromium-sandbox.ts`: an AppImage (`APPIMAGE` set) started with `--no-sandbox`, which electron-builder's AppRun adds when `unshare -Ur true` fails. `debug.trigger.simulateChromiumSandboxOff` shows it anywhere.

@@ -46,7 +46,7 @@ Three of the assertions had to be written against what the migration is actually
 
 The same walkthrough on each of the three, in one sitting each, rather than a matrix of isolated cases. A case that needs its own setup does not get run.
 
-Mac Studio, then Windows (`cubetop`), then Linux (`ubuntu-vm`). Each step leaves the state the next one needs:
+The Mac, then the Windows test host, then the Linux test host. Each step leaves the state the next one needs:
 
 1. New chat, paste a screenshot, send. The folder exists before the first command runs, with the screenshot in it.
 2. Ask for something that produces a file. It lands in the chat's own folder, not in a job subfolder and not in the Instrument folder.

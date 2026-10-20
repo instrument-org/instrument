@@ -71,12 +71,108 @@ export function seatbeltHelperPath(): string | undefined {
 interface MacModule {
   fileIcon: (path: string, pixels: string) => Promise<string>;
   finderEntries: (folder: string) => Promise<string>;
+  pasteboardFiles: () => Promise<string>;
+  renameExclusive: (from: string, to: string) => Promise<string>;
+  caseSensitivity: (path: string) => Promise<string>;
+  trashItem: (path: string) => Promise<string>;
   resolveAlias: (path: string) => Promise<string>;
   notificationStatus: () => Promise<string>;
   requestNotifications: () => Promise<string>;
 }
 
 let macModule: MacModule | null | undefined;
+
+/**
+ * The files on the clipboard, every one the Finder's Copy put there, by
+ * path. Undefined off macOS and in a build without the module, where the
+ * caller reads the clipboard another way.
+ */
+export async function pasteboardFiles(): Promise<string[] | undefined> {
+  const native = loadModule();
+  if (!native) {
+    return undefined;
+  }
+  return z
+    .object({ paths: z.array(z.string()) })
+    .parse(JSON.parse(await native.pasteboardFiles())).paths;
+}
+
+/**
+ * Renames `from` to `to` only if nothing is at `to`, in one step the disk
+ * makes (`renamex_np` with RENAME_EXCL); fails with an error whose `code`
+ * is Node's errno name (`EEXIST` for a name taken). False off macOS, in a
+ * build without the module, and on a disk that has no such rename (exFAT,
+ * some network shares), where the caller renames another way.
+ */
+export async function renameExclusive(
+  from: string,
+  to: string,
+): Promise<boolean> {
+  const native = loadModule();
+  if (!native) {
+    return false;
+  }
+  const answer = z
+    .union([
+      z.object({ renamed: z.literal(true) }),
+      z.object({ code: z.string(), error: z.string() }),
+    ])
+    .parse(JSON.parse(await native.renameExclusive(from, to)));
+  if ("error" in answer && answer.code === "ENOTSUP") {
+    return false;
+  }
+  if ("error" in answer) {
+    throw Object.assign(new Error(`${answer.error}: ${to}`), {
+      code: answer.code,
+    });
+  }
+  return true;
+}
+
+/**
+ * Whether the disk under `folder` tells names apart by case, as the disk
+ * itself says. Undefined off macOS, in a build without the module, and for
+ * a disk that does not say.
+ */
+export async function caseSensitivity(
+  folder: string,
+): Promise<boolean | undefined> {
+  const native = loadModule();
+  if (!native) {
+    return undefined;
+  }
+  const answer = z
+    .union([
+      z.object({ caseSensitive: z.boolean() }),
+      z.object({ error: z.string() }),
+    ])
+    .parse(JSON.parse(await native.caseSensitivity(folder)));
+  return "error" in answer ? undefined : answer.caseSensitive;
+}
+
+/**
+ * Moves a thing to the Trash and answers where it landed, or null when the
+ * system does not say. Undefined off macOS and in a build without the
+ * module, where the caller trashes another way.
+ */
+export async function trashItem(
+  at: string,
+): Promise<null | string | undefined> {
+  const native = loadModule();
+  if (!native) {
+    return undefined;
+  }
+  const answer = z
+    .union([
+      z.object({ trashed: z.string().nullable() }),
+      z.object({ error: z.string() }),
+    ])
+    .parse(JSON.parse(await native.trashItem(at)));
+  if ("error" in answer) {
+    throw new Error(answer.error);
+  }
+  return answer.trashed;
+}
 
 function loadModule(): MacModule | null {
   if (macModule === undefined) {

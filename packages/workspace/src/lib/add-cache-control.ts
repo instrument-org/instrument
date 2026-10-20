@@ -11,9 +11,10 @@ import { isAnthropic } from "./is-anthropic";
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/provider/transform.ts
 //
-// The gate is the model, not the provider: the four dialects below are the
+// The gate is the model, not the provider: the dialects below are the
 // spellings an Anthropic model takes when reached through each of those
-// providers, not support for four providers' models. Every other model gets
+// providers, not support for those providers' models. The OpenRouter provider
+// reads the `anthropic` one. Every other model gets
 // whatever prefix caching its provider does on its own, and a marker sent
 // anyway is accepted and ignored where it was measured (Workers AI, GLM; see
 // docs/findings/non-anthropic-models-get-no-cache-breakpoints.md).
@@ -42,14 +43,17 @@ export function addCacheControlToMessages({
       openaiCompatible: {
         cache_control: { type: "ephemeral" },
       },
-      openrouter: {
-        cache_control: { type: "ephemeral" },
-      },
     };
 
     for (const message of unique([...system, ...final])) {
+      // An assistant message is marked on the message: the OpenRouter
+      // provider sends its tool calls apart from its text and reads the marker
+      // only from there, so one on its last part (usually a tool call) is
+      // dropped. `openRouterCacheShape` moves it onto the text OpenRouter
+      // honors it on.
       const shouldUseContentOptions =
         model.params.provider !== "anthropic" &&
+        message.role !== "assistant" &&
         Array.isArray(message.content) &&
         message.content.length > 0;
 
@@ -59,7 +63,6 @@ export function addCacheControlToMessages({
           lastContent &&
           typeof lastContent === "object" &&
           "type" in lastContent &&
-          lastContent.type !== "tool-approval-request" &&
           lastContent.type !== "tool-approval-response"
         ) {
           lastContent.providerOptions = {

@@ -86,13 +86,19 @@ node $DRIVE boot --purpose "document viewer" --workspace documents
 node $DRIVE goto /chats/red-and-blue-squares --workspace documents
 ```
 
-It seeds when the fixture is absent or has changed (`--fresh` forces a rebuild), starts each boot with no tabs restored from earlier runs (`--keep-tabs` keeps them), and reports what it seeded: each chat by its id, which is its fixture key, and each task by its session in its chat's store (a task's page is `/tasks/<session>?chat=<chat-id>`), so a script addresses a chat by name instead of grepping for one. `--workspace` belongs on every command of the run: it picks the port and the instance record, so a fixture run and a plain dev run can both be up. `pnpm workspace:seed --list` shows what exists; `fixtures/workspaces/README.md` covers adding one.
+It seeds when the fixture is absent or has changed (`--fresh` forces a rebuild), starts each boot with no tabs restored from earlier runs (`--keep-tabs` keeps them), points the fixture's output folder at `<fixture>-output` beside it (`INSTRUMENT_OUTPUT_FOLDER`) so its agents never write into the developer's real `~/Instrument Dev`, and reports what it seeded: each chat by its id, which is its fixture key, and each task by its session in its chat's store (a task's page is `/tasks/<session>?chat=<chat-id>`), so a script addresses a chat by name instead of grepping for one. `--workspace` belongs on every command of the run: it picks the port and the instance record, so a fixture run and a plain dev run can both be up. `pnpm workspace:seed --list` shows what exists; `fixtures/workspaces/README.md` covers adding one.
 
 `--clean-room <name>` is the other kind of isolation: a blank workspace with no chats, opened by a second process on the developer's own application data and pinned to it with `INSTRUMENT_WORKSPACE`, so the developer's instance keeps its own workspace. It shares the machine's toolchain and caches, so it boots as fast as a plain run, and `--with-sign-ins` copies the developer's Instrument account and API keys into it (not a ChatGPT account, whose rotating refresh token would sign the developer's own instance out), so it can run a real agent turn, which a fixture cannot. Like `--workspace`, it goes on every command. Clean rooms live beside the fixture caches, are reaped after 3 days unbooted, and `--fresh` empties one first. A checkout's caches go with it: the next boot from any checkout drops those of a checkout that no longer exists.
 
 ```bash
 node $DRIVE boot --purpose "first chat" --clean-room first-chat --with-sign-ins
 node $DRIVE rpc workspaces.current '{}' --clean-room first-chat
+```
+
+`--account <file>` on `boot` signs a fixture or a clean room in as a given Instrument account and points that instance at the account's API, so a run can start as an account in a particular state instead of signing in and working up to it. The file is JSON with the API's address (`api`) and a session token on it (`token`); the platform's own tooling writes them, and how is documented there. It replaces whatever session the workspace held, and an instance already running signed in as someone else is refused rather than reused, since the API it talks to is fixed when it boots.
+
+```bash
+node $DRIVE boot --purpose "near limit" --workspace documents --account ~/.instrument/accounts/scenario-near-limit-4fa6.json
 ```
 
 An instance started from a terminal answers to the terminal's macOS privacy grants, so it usually has Full Disk Access and never sees a protected folder refuse it or ask. `boot --own-privacy` (macOS) starts Electron through a launcher that makes it responsible for its own grants, so Documents asks on first read and a Full Disk Access folder (`~/Library/Mail`) comes back refused, the way an installed app's would. Electron stays in the instance's process group, so `stop` ends it like any other. The grants belong to the dev Electron bundle (`com.github.Electron`), not a signed build, and they outlive the instance: an answer given to a prompt holds for every later `--own-privacy` run until `tccutil reset All com.github.Electron` clears it. Reading a protected folder from one opens a system prompt on the developer's screen, so say so before a run that will.
@@ -221,6 +227,20 @@ It reads an app slug, a chat and one of its tasks off the running app, so the pa
 Enabling the `Runtime` domain replays the console buffer, so a run would otherwise open by reporting whatever the window logged earlier — an older run's errors, or a person's — as its own findings. Nothing is recorded until the walk starts, and the reload happens before the enable so the buffer it clears is not the one that replays.
 
 The event subscription behind it (`app.cdp.on`) is available to any sequence; the domain that emits them still has to be enabled (`app.cdp.send("Runtime.enable")`).
+
+## Measuring the renderer
+
+Count before timing. This machine is usually busy, so a frame time from one run says little about the next, while a count of what happened does not move with load: how many commits, which components rendered and why, how many RPC messages and bytes each procedure sent. `perf-probe-page.js` records those from ahead of the renderer's first script, and two sequences install it and report per scenario:
+
+```bash
+node $DRIVE run $(dirname $DRIVE)/perf-screens.mjs --allow-reload --workspace documents
+node $DRIVE run $(dirname $DRIVE)/perf-chat-turns.mjs --allow-reload --clean-room perf \
+  --args '{"prompts":["Without using any tools, write 600 words on lighthouses."],"watch":["MessageScrollerItem"]}'
+```
+
+`perf-screens` covers boot, an idle window, a walk of the screens, and opening chats. `perf-chat-turns` streams turns into one new chat on Workers AI and reports each turn's `kbPerUpdate` and `fibersPerCommit` beside the session's size: a cost that grows with the session rather than with the update is the thing to look for. `watch` names components whose renders it explains (`prop:children`, `state`, `context-or-forced`), which is what tells a missing memo from a parent that rebuilds its children. Both need `--allow-reload`, since installing the probe reloads the window.
+
+Long animation frames come back too, and those do depend on load: compare them only between runs taken side by side, ideally alternating, and say which machine they came from. The counts are the same in a dev run and a production build, so a dev run answers render and wire questions. Load time (parse, code cache, bundle size) needs a production build, made in a worktree of your own: a build replaces the `out/` that every dev instance of its checkout runs from.
 
 ## Measuring the main thread
 

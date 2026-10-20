@@ -1,4 +1,4 @@
-import { type ChosenItem } from "@/client/atoms/drafts";
+import { type ChosenItem } from "@/shared/drafts";
 import {
   type FileTab,
   finderBesideWidthAtom,
@@ -28,6 +28,7 @@ import {
 } from "@/client/lib/computer-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
+import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn } from "@/client/lib/utils";
 import { useTheme } from "@/client/components/theme-provider";
 import { rpcClient } from "@/client/rpc/client";
@@ -62,11 +63,14 @@ import { FileAskButton } from "./file-ask-button";
 import { reachablePath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { useGroupTab } from "./group-tab";
-import { folderOf, segmentsOf } from "./host-path";
-import { hostGroupOf, useHostedPageNavigation } from "./hosted-page";
+import { folderOf, relativeHostPath, segmentsOf } from "./host-path";
+import {
+  hostGroupOf,
+  useHostedPage,
+  useHostedPageNavigation,
+} from "./hosted-page";
 import { LinkSurface } from "./link-surface";
 import { PageEditToggle } from "./page-edit";
-import { usePageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useQuickLook } from "./quick-look";
 import { useTabSurface } from "./tab-surface";
@@ -119,12 +123,11 @@ const PILE_POSES = [
  * Finder's folder as a tree at its left. Either way a row or a link in the
  * document swaps the file in the same tab.
  *
- * A page's file (HTML) is what a browser is for. In a file tab with a tree
- * it is drawn as its page beside the tree, by a guest the browser keeps as
- * a tab in a group of the file tab's own, off every strip; elsewhere this
- * tab becomes a page tab showing the file at its `file://` address, with
- * the browser's own semantics for a local file. Asked for its source, the
- * tab keeps the file and shows its text.
+ * A page's file (HTML) is what a browser is for. It is drawn as its page
+ * inside the file's viewer, by a guest at its `file://` address that the
+ * browser keeps as a tab in a group of the file tab's own, off every strip,
+ * so it has the browser's own semantics for a local file. Asked for its
+ * source, the tab keeps the file and shows its text.
  */
 export function FilesScreen({
   file,
@@ -151,10 +154,9 @@ export function FilesScreen({
   /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
   view: FileSystemView | undefined;
 }) {
-  const { browser, openPage, openScreen, rowHoldsTools, rowLead, rowTail } =
+  const { openScreen, rowField, rowHoldsTools, rowLead, rowReload, rowTail } =
     useWindow();
-  const { allTabs, close, moveToGroup, pageTakesOver, stepVisitOf } =
-    useWindowTabs();
+  const { moveToGroup, pageTakesOver, stepVisitOf } = useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
   const appTabId = useTabId();
@@ -305,13 +307,6 @@ export function FilesScreen({
       showFile(only.path, { replace: true });
     }
   };
-  // A press on empty space in the folder is the one click that puts the
-  // file away and gives the folder its width back, as the × does.
-  const onBesideEmpty = () => {
-    if (isFileOpen) {
-      closeBeside();
-    }
-  };
   // A file arriving with no layout of its own, as one opened into a tab of
   // its own, stands beside the folder its tree names, which is written into
   // its step ahead of the layout the folder writes there itself.
@@ -337,9 +332,7 @@ export function FilesScreen({
         ? `${window.api.homeDir}/${folderRoot.slice(2)}`
         : folderRoot;
   const besideSelect =
-    file?.startsWith(`${rootHostPath}/`) === true
-      ? file.slice(rootHostPath.length + 1)
-      : undefined;
+    (file && relativeHostPath(rootHostPath, file)) ?? undefined;
   const activeFile: FileTab | undefined = file
     ? { hostPath: file, name: segmentsOf(file).at(-1) ?? file }
     : undefined;
@@ -356,65 +349,31 @@ export function FilesScreen({
     activeFile !== undefined &&
     !source &&
     getFileType({ filename: activeFile.name }) === "html";
-  // In a tab with a tree the page is drawn beside it; elsewhere the tab
-  // becomes the page.
-  const pageFile =
-    isPageFile && tree === undefined ? activeFile.hostPath : undefined;
-  const opensAsPage = pageFile !== undefined;
-  // The browser is mounted by the layout and may arrive after this screen
-  // does, as it does when the window opens on a file: the page is asked for
-  // once there is a browser to show it.
-  const hasBrowser = browser !== null;
-  useEffect(() => {
-    if (pageFile !== undefined && hasBrowser) {
-      // The page takes this screen's place, so back from it skips a screen
-      // that would only hand the file over again.
-      openPage(fileUrlOf(pageFile), { replace: true });
-    }
-    // Once per file the tab arrives at; the page takes the tab over from here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageFile, hasBrowser]);
-  // The page's file beside the tree: a page tab of the file tab's own, in a
-  // group named for the tab so no strip lists it, sent to the file the tab
-  // shows and closed when the tab moves off a page's file or goes. The
-  // browser draws it into the slot the viewer gives it below.
+  // A page's file is drawn as its page inside the viewer: a page tab of the
+  // file tab's own, in a group named for the tab so no strip lists it, sent
+  // to the file the tab shows and closed when the tab moves off a page's file
+  // or goes. Shown only while this screen's tab is the one up and on screen:
+  // a tab behind, or a pane put away, keeps its page parked rather than
+  // drawn. Its reload and zoom go into the row the way a page tab's do; its
+  // menu is the file's own.
   const tabId = groupTab?.id ?? appTabId;
   const hostGroup = hostGroupOf(tabId);
-  const hostedFile =
-    isPageFile && tree !== undefined ? activeFile.hostPath : undefined;
-  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
-  const hostedTabIds = allTabs
-    .filter((tab) => tab.group === hostGroup)
-    .map((tab) => tab.id)
-    .join("\n");
-  useEffect(() => {
-    if (hostedFile === undefined || !browser) {
-      return;
-    }
-    const id = browser.openOrFocus(fileUrlOf(hostedFile), {
-      group: hostGroup,
-    });
-    // One page per file tab: the slot draws the group's first tab, so the
-    // page of the file the tree was on before goes.
-    for (const other of hostedTabIds.split("\n").filter(Boolean)) {
-      if (other !== id) {
-        close(other);
-      }
-    }
-    // Once per file hosted; the browser handle is stable once it exists.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostedFile, hostGroup, hasBrowser]);
-  // The hosted page's tab, which Edit switches the way a page tab's own
-  // View / Edit does.
-  const hostedTabId =
-    hostedFile === undefined
-      ? undefined
-      : allTabs.find((tab) => tab.group === hostGroup)?.id;
-  // The hosted tabs as they stand now, for the way out: the cleanup below
-  // runs once, long after the render that set it up.
-  const hostedTabIdsNow = useRef(hostedTabIds);
-  useEffect(() => {
-    hostedTabIdsNow.current = hostedTabIds;
+  const hostedFile = isPageFile ? activeFile.hostPath : undefined;
+  const {
+    release: releaseHosted,
+    setSlot,
+    tabId: hostedTabId,
+  } = useHostedPage({
+    group: hostGroup,
+    host: {
+      chrome: {
+        fieldInto: rowField ?? null,
+        into: null,
+        reloadInto: rowReload ?? null,
+      },
+      isActive: isActiveTab && (groupTab?.isShown ?? true),
+    },
+    url: hostedFile === undefined ? undefined : fileUrlOf(hostedFile),
   });
   // A link the page follows moves the tab: to another file, which the tab
   // shows in this one's place while the step stays in the page's own
@@ -450,10 +409,7 @@ export function FilesScreen({
       }
       // The page goes on as the tab's, so leaving this screen must not
       // close it with the rest of the pages drawn here.
-      hostedTabIdsNow.current = hostedTabIdsNow.current
-        .split("\n")
-        .filter((id) => id !== hostedTabId)
-        .join("\n");
+      releaseHosted(hostedTabId);
       if (groupTab) {
         pageTakesOver(hostedTabId, groupTab.id, step.url);
         return;
@@ -487,34 +443,6 @@ export function FilesScreen({
       });
     };
   }, [hostedTabId, hostedFile, setEditTabs]);
-  useEffect(() => {
-    if (hostedFile !== undefined) {
-      return;
-    }
-    for (const id of hostedTabIds.split("\n").filter(Boolean)) {
-      close(id);
-    }
-    // The tabs are closed as the file stops being a page's, not on every
-    // re-read of the list.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostedFile, hostedTabIds]);
-  useEffect(
-    () => () => {
-      for (const id of hostedTabIdsNow.current.split("\n").filter(Boolean)) {
-        close(id);
-      }
-    },
-    // On the way out alone.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-  // Shown only while this screen's tab is the one up and on screen: a tab
-  // behind, or a pane put away, keeps its page parked rather than drawn.
-  usePageHost(hostGroup, {
-    chrome: false,
-    into: slot,
-    isActive: isActiveTab && (groupTab?.isShown ?? true),
-  });
   // How the agent reaches the file, when a granted folder covers it: the one
   // thing the conversation is told about the file that the person is not.
   const activeMount = activeFile
@@ -639,10 +567,6 @@ export function FilesScreen({
         }
       : undefined;
 
-  if (opensAsPage) {
-    return null;
-  }
-
   const askButton = activeFile && (
     <FileAskButton name={activeFile.name} path={activeFile.hostPath} />
   );
@@ -711,6 +635,27 @@ export function FilesScreen({
       <div className="flex h-full min-h-0 flex-col">
         <div
           className="@container/beside relative flex min-h-0 flex-1 overflow-hidden"
+          // Escape puts the file away, as the × does, when nothing in the
+          // tab answered it first: a field being typed in, or a menu or
+          // Quick Look, which sit outside this element.
+          onKeyDown={(event) => {
+            if (
+              event.key !== "Escape" ||
+              !isFileOpen ||
+              event.defaultPrevented ||
+              event.altKey ||
+              event.ctrlKey ||
+              event.metaKey ||
+              event.shiftKey ||
+              !(event.target instanceof Node) ||
+              !event.currentTarget.contains(event.target) ||
+              isTypingTarget(event.target)
+            ) {
+              return;
+            }
+            event.preventDefault();
+            closeBeside();
+          }}
           ref={setLayout}
         >
           <div
@@ -730,7 +675,6 @@ export function FilesScreen({
                       isClosing,
                       isFolderShown,
                       isResizing: draggedWidth !== null,
-                      onEmpty: onBesideEmpty,
                       onPick: onBesidePick,
                       pickedInto: pickedSlot,
                       toggle: (
@@ -864,6 +808,7 @@ export function FilesScreen({
                                   // folder's own to come back.
                                   actionsInto={isPresent ? rowTail : null}
                                   actionsLead={actionsLead}
+                                  noteInto={isPresent ? rowField : null}
                                   actionsTrail={closeButton}
                                   className={FULL_BLEED}
                                   editable
@@ -936,6 +881,7 @@ export function FilesScreen({
               <FileViewer
                 actionsInto={rowTail}
                 actionsLead={actionsLead}
+                noteInto={rowField}
                 className={FULL_BLEED}
                 editable
                 file={viewerFile}
@@ -962,11 +908,13 @@ export function FilesScreen({
           <LinkSurface base={folderOf(activeFile.hostPath)}>
             <FileViewer
               actionsInto={rowTail}
-              actionsLead={askButton}
+              noteInto={rowField}
+              actionsLead={actionsLead}
               className={FULL_BLEED}
               editable
               file={viewerFile}
               key={activeFile.hostPath}
+              {...pageInSlot(false)}
               {...(source
                 ? {
                     // The tab turns back into the page, the way it arrives
@@ -990,7 +938,11 @@ export function FilesScreen({
             {...quickLook.props}
           />
         )}
-        {activeFile && <AskTray path={activeFile.hostPath} />}
+        {/* A page in Edit keeps its asks in its own dock instead. */}
+        {activeFile &&
+          !(hostedTabId !== undefined && editTabs[hostedTabId]) && (
+            <AskTray path={activeFile.hostPath} />
+          )}
       </div>
       {quickLook.dialog}
     </div>

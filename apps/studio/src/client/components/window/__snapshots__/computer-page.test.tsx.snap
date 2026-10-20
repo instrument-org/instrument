@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`words what a drop did: [], 1 skipped 1`] = `"You skipped it, so nothing changed."`;
+
+exports[`words what a drop did: [], 2 skipped 1`] = `"You skipped them, so nothing changed."`;
+
+exports[`words what a drop did: [{"how":"copied","path":"/r/a.txt","replaced":false}], 2 skipped 1`] = `"Copied “a.txt” into “Reports”"`;
+
+exports[`words what a drop did: [{"how":"moved","path":"/r/a.txt","replaced":false}], 0 skipped 1`] = `"Moved “a.txt” into “Reports”"`;
+
+exports[`words what a drop did: [{"how":"moved","path":"/r/a.txt","replaced":true},{"how":"copied","path":"/r/b","replaced":false},{"how":"moved","path":"/r/c","replaced":true}], 1 skipped 1`] = `"Moved and copied 3 items into “Reports”. The 2 items they replaced are in the Trash."`;
+
+exports[`words what a drop did: [{"how":"moved","path":"/r/a.txt","replaced":true}], 0 skipped 1`] = `"Moved “a.txt” into “Reports”. The one it replaced is in the Trash."`;

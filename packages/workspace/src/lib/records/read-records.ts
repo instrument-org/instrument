@@ -1,12 +1,12 @@
 import {
   type LogRecord,
-  type MarkRecord,
+  type SettingRecord,
   parseLogLine,
-  parseMarkLine,
+  parseSettingLine,
 } from "./record";
 
 /**
- * Reading a log or a marks file, from its start or from where the last read
+ * Reading a log or a settings file, from its start or from where the last read
  * stopped. A record is taken only from a line that ends in `\n`, parses, and
  * carries a larger `seq` than the record before it; every other whole line
  * is counted and skipped. Bytes after the last `\n` are left for the next
@@ -60,17 +60,63 @@ export function readLog(bytes: Uint8Array, cursor = FILE_START): LogRead {
     : { kind: "read", ...read };
 }
 
-/** Reads a marks file from `cursor` on; `bytes` is the file from that offset. */
-export function readMarks(
+/**
+ * Reads a settings file from `cursor` on; `bytes` is the file from that
+ * offset. A line of a field this format no longer has is read and left out,
+ * rather than counted as a line that could not be read.
+ */
+export function readSettings(
   bytes: Uint8Array,
   cursor = FILE_START,
-): RecordsRead<MarkRecord> {
-  return readLines(bytes, cursor, (text) => parseMarkLine(text));
+): RecordsRead<SettingRecord> {
+  const read = readLines(
+    bytes,
+    cursor,
+    (text) => parseSettingLine(text) ?? retiredSetting(text),
+  );
+  return {
+    ...read,
+    records: read.records.filter(
+      (line): line is ReadRecord<SettingRecord> => !("retired" in line.record),
+    ),
+  };
+}
+
+/**
+ * A `stoppedAt` line, which builds before kept a Stop on the chat's own turn
+ * as: that Stop is a `stopped` record in the session's log now. Such a line
+ * says nothing a fold uses, since a stop holds only until the next turn,
+ * and counting it as unreadable would make a file of them look damaged.
+ */
+function retiredSetting(
+  text: string,
+): { retired: true; seq: number } | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("t" in value) ||
+    (value.t !== "set" && value.t !== "mark") ||
+    !("field" in value) ||
+    value.field !== "stoppedAt" ||
+    !("seq" in value) ||
+    typeof value.seq !== "number" ||
+    !Number.isInteger(value.seq) ||
+    value.seq < 0
+  ) {
+    return undefined;
+  }
+  return { retired: true, seq: value.seq };
 }
 
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
-function readLines<R extends { seq: number }>(
+export function readLines<R extends { seq: number }>(
   bytes: Uint8Array,
   cursor: ReadCursor,
   parse: (text: string, offset: number) => R | undefined,

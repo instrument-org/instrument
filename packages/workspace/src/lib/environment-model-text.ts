@@ -44,7 +44,9 @@ export function platformGuidance(platform: string): string | undefined {
  */
 export function folderVariablesText(environment: Environment): string {
   const folders = VARIABLE_FOLDERS.map(
-    ([fact, , variable]) => `\`$${variable}\` is ${environment[fact]}`,
+    // Quoted, since a conversation's folder is named for it and can hold
+    // spaces and commas that would otherwise run into the next one.
+    ([fact, , variable]) => `\`$${variable}\` is \`${environment[fact]}\``,
   ).join(", ");
   return `On this computer ${folders}. Write a path out in full where a tool takes one, since only the shell reads a variable.`;
 }
@@ -63,10 +65,10 @@ export function environmentChangeModelNote(
   const facts = [
     change.computer && `- The computer: ${change.computer}`,
     change.timeZone && `- Time zone: ${change.timeZone}`,
-    change.homeFolder && `- The user's home folder: ${change.homeFolder}`,
+    change.homeFolder && `- The user's home folder: \`${change.homeFolder}\``,
     ...VARIABLE_FOLDERS.map(
       ([fact, name, variable]) =>
-        change[fact] && `- ${name} (\`$${variable}\`): ${change[fact]}`,
+        change[fact] && `- ${name} (\`$${variable}\`): \`${change[fact]}\``,
     ),
   ].filter((fact) => typeof fact === "string");
   if (facts.length === 0) {

@@ -134,11 +134,10 @@ describe("rg command", () => {
     expect(result.stdout.trim()).toBe("0");
   });
 
-  // Two shells' worth of rg, which a loaded machine takes past the default.
   it("walks the task again once the pipeline is over", async () => {
     const result = await run("printf '' | rg NEEDLE; rg -l NEEDLE");
     expect(result.stdout.trim()).toBe("work/a.ts");
-  }, 20_000);
+  });
 
   it("treats an explicit `-` path as the pipe", async () => {
     const result = await run("printf 'one two\\n' | rg --color=never -c two -");

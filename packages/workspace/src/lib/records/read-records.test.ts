@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { FILE_START, readLog, readMarks } from "./read-records";
-import { type LogRecord, type MarkRecord, recordLine } from "./record";
+import { FILE_START, readLog, readSettings } from "./read-records";
+import { type LogRecord, type SettingRecord, recordLine } from "./record";
 import {
   at,
   DEVICE_A,
@@ -128,15 +128,30 @@ describe("readLog", () => {
   });
 });
 
-describe("readMarks", () => {
+describe("readSettings", () => {
   it("takes marks and skips anything else", () => {
-    const read = readMarks(
+    const read = readSettings(
       bytes(recordLine(mark(0)), HEADER, recordLine(mark(1)), "{"),
     );
 
     expect(read).toMatchObject({ skipped: 1 });
     expect(read.records.map(({ record }) => record.seq)).toEqual([0, 1]);
   });
+
+  // A Stop is a `stopped` record in the session's log; the setting older
+  // files kept it as says nothing a fold uses, and is not damage.
+  it.each(["mark", "set"])(
+    "leaves out a %s line of the retired stoppedAt, without counting it skipped",
+    (t) => {
+      const stop = `{"t":"${t}","seq":1,"at":"${at(1).toISOString()}","session":"${session}","field":"stoppedAt","value":"${at(1).toISOString()}","device":"${DEVICE_A}"}\n`;
+      const read = readSettings(
+        bytes(recordLine(mark(0)), stop, recordLine(mark(2))),
+      );
+
+      expect(read).toMatchObject({ skipped: 0 });
+      expect(read.records.map(({ record }) => record.seq)).toEqual([0, 2]);
+    },
+  );
 });
 
 function readOrThrow(...args: Parameters<typeof readLog>) {
@@ -153,9 +168,9 @@ function seqs(read: ReturnType<typeof readLog>): number[] {
     : [];
 }
 
-function mark(seq: number): MarkRecord {
+function mark(seq: number): SettingRecord {
   return {
-    t: "mark",
+    t: "set",
     seq,
     at: at(seq),
     session,

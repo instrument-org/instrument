@@ -1,9 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import { withTempDir } from "../test/helpers/temp-dir";
-import { rewriteStoredPaths, settleMovedPaths } from "./rewrite-stored-paths";
+import {
+  registerStoredPaths,
+  rewriteStoredPaths,
+  settleMovedPaths,
+  type StoredPathRewrite,
+} from "./rewrite-stored-paths";
 
 const workspace = withTempDir("rewrite-stored-paths-workspace");
 const machine = withTempDir("rewrite-stored-paths-machine");
@@ -136,70 +141,62 @@ describe("Settings › Permissions", () => {
 
 describe("a topic's granted folders", () => {
   const topicFile = () => at("Topics", "Home", "TOPIC.md");
-  const legacySettings = () =>
-    at(".instrument", "topics", "Home", ".instrument", "settings.json");
 
-  it("writes them where they went, in the file the person reads", () => {
+  it("writes them where they went, in this computer's permission settings", () => {
     const now = path.join(machine.path, "work", "c", "notes");
     fs.mkdirSync(now, { recursive: true });
     write(
-      topicFile(),
-      [
-        "---",
-        "id: top_1",
-        "created: 2026-10-01T00:00:00",
-        "folders:",
-        `  - path: ${at("chats", "c", "notes")}`,
-        "  - path: /Users/someone/Deals",
-        "---",
-        "",
-        "Aisle seats.",
-      ].join("\n"),
-    );
-
-    const done = rewrite();
-
-    const written = fs.readFileSync(topicFile(), "utf8");
-    expect(written).toContain(`path: ${now}`);
-    expect(written).toContain("path: /Users/someone/Deals");
-    expect(written).toContain("Aisle seats.");
-    expect(done).toEqual([`wrote 1 path(s) where they went in ${topicFile()}`]);
-  });
-
-  it("writes nothing on the run after", () => {
-    const now = path.join(machine.path, "work", "c", "notes");
-    fs.mkdirSync(now, { recursive: true });
-    write(
-      topicFile(),
-      ["---", "id: top_1", "folders:", `  - path: ${now}`, "---", ""].join(
-        "\n",
-      ),
-    );
-
-    expect(rewrite()).toEqual([]);
-  });
-
-  // A migration can run before the topics have come out of `.instrument/`,
-  // where each was two hidden files rather than one `TOPIC.md`.
-  it("writes them in the settings an earlier build kept them in", () => {
-    const now = path.join(machine.path, "work", "c", "notes");
-    fs.mkdirSync(now, { recursive: true });
-    write(
-      legacySettings(),
+      permissionsFile(),
       JSON.stringify({
-        folders: [{ path: at("chats", "c", "notes") }],
-        id: "top_1",
+        topics: {
+          top_1: {
+            folders: [
+              {
+                addedAt: "2026-10-01T00:00:00.000Z",
+                path: at("chats", "c", "notes"),
+              },
+              {
+                addedAt: "2026-10-01T00:00:00.000Z",
+                path: "/Users/someone/Deals",
+              },
+            ],
+          },
+        },
       }),
     );
 
     const done = rewrite();
 
-    expect(JSON.parse(fs.readFileSync(legacySettings(), "utf8"))).toMatchObject(
-      { folders: [{ path: now }], id: "top_1" },
-    );
+    expect(permissions()).toMatchObject({
+      topics: {
+        top_1: {
+          folders: [{ path: now }, { path: "/Users/someone/Deals" }],
+        },
+      },
+    });
     expect(done).toEqual([
-      `wrote 1 path(s) where they went in ${legacySettings()}`,
+      `wrote 1 path(s) where they went in ${permissionsFile()}`,
     ]);
+  });
+
+  // The folders a topic's file lists are read once per computer, by the
+  // launch that moves them into the settings, and never rewritten here.
+  it("leaves a topic's file as it is", () => {
+    const listed = [
+      "---",
+      "id: top_1",
+      "folders:",
+      `  - path: ${at("chats", "c", "notes")}`,
+      "---",
+      "",
+    ].join("\n");
+    fs.mkdirSync(path.join(machine.path, "work", "c", "notes"), {
+      recursive: true,
+    });
+    write(topicFile(), listed);
+
+    expect(rewrite()).toEqual([]);
+    expect(fs.readFileSync(topicFile(), "utf8")).toBe(listed);
   });
 });
 
@@ -271,46 +268,56 @@ describe("a draft's attachments", () => {
   });
 });
 
-describe("what the caller brings", () => {
-  it("hands each one where a path is now, and keeps what it says", () => {
+describe("the stores the app registers", () => {
+  function register(name: string, store: StoredPathRewrite) {
+    onTestFinished(registerStoredPaths(name, store));
+  }
+
+  it("runs every one on a call that passes nothing for them, with the machine folder, and keeps what each says", () => {
     const now = path.join(machine.path, "work", "c", "notes");
     fs.mkdirSync(now, { recursive: true });
+    register("window", ({ machineDir, where }) => [
+      `a tab in ${machineDir} opens on ${where(at("chats", "c", "notes"))}`,
+    ]);
+    register("browser", ({ moves }) =>
+      moves.map((one) => `a recent file moved to ${one.to}`),
+    );
 
-    const done = rewriteStoredPaths({
-      also: [
-        ({ where }) => [`a tab opens on ${where(at("chats", "c", "notes"))}`],
-        ({ moves }) => moves.map((one) => `a recent file moved to ${one.to}`),
-      ],
-      machineDir: machine.path,
-      moves: [move()],
-      rootDir: workspace.path,
-    });
-
-    expect(done).toEqual([
-      `a tab opens on ${now}`,
+    expect(rewrite()).toEqual([
+      `a tab in ${machine.path} opens on ${now}`,
       `a recent file moved to ${path.join(machine.path, "work")}`,
     ]);
   });
 
-  it("carries on past one that throws, and says which", () => {
-    const done = rewriteStoredPaths({
-      also: [
-        () => {
-          throw new Error("no history here");
-        },
-        () => ["the window's tabs are where they went"],
-      ],
-      machineDir: machine.path,
-      moves: [move()],
-      rootDir: workspace.path,
-    });
+  it("runs one registered twice under a name once", () => {
+    register("window", () => ["first"]);
+    register("window", () => ["second"]);
 
-    expect(done).toMatchInlineSnapshot(`
+    expect(rewrite()).toEqual(["second"]);
+  });
+
+  it("carries on past one that throws, and says which", () => {
+    register("browser", () => {
+      throw new Error("no history here");
+    });
+    register("window", () => ["the window's tabs are where they went"]);
+
+    expect(rewrite()).toMatchInlineSnapshot(`
       [
-        "left one of the app's own stores as it is (Error: no history here)",
+        "left the app's browser store as it is (Error: no history here)",
         "the window's tabs are where they went",
       ]
     `);
+  });
+
+  it("is none outside the app, which leaves the package's own stores to rewrite", () => {
+    const now = path.join(machine.path, "work", "c", "notes");
+    fs.mkdirSync(now, { recursive: true });
+    writePermissions(at("chats", "c", "notes"));
+
+    expect(rewrite()).toEqual([
+      `wrote 3 path(s) where they went in ${permissionsFile()}`,
+    ]);
   });
 });
 

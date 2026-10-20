@@ -7,6 +7,7 @@ import {
   AbsolutePathSchema,
   RelativePathSchema,
   type WorkspaceFilePath,
+  WorkspaceFilePathSchema,
 } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { normalizePath } from "./normalize-path";
@@ -19,6 +20,11 @@ import {
   shellPath,
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
+import { getWorkspaceConfig } from "./workspace-config";
+import {
+  isInWorkspacePath,
+  workspaceHostPath,
+} from "./workspace-relative-path";
 
 /**
  * Where an earlier build showed the agent its chat's task folders, each
@@ -27,8 +33,9 @@ import {
 const OLD_TASKS_MOUNT = "/tasks";
 
 /**
- * Host path for a file a chat can reach: relative to its folder, or an absolute
- * path in a folder the user attached. Null when the path resolves outside
+ * Host path for a file a chat can reach: relative to its folder, an absolute
+ * path in a folder the user attached, or a file the person attached in the
+ * workspace, kept by its place there. Null when the path resolves outside
  * everything the chat has -- including the chat's own private dir and a symlink leading
  * out of a mount -- so a caller can fail closed.
  *
@@ -55,24 +62,58 @@ export async function resolveWorkspaceFilePath({
  * The same, for every path a surface is about to show at once, against one
  * reading of the chat's layout: a transcript names many files and each
  * would otherwise cost a read of the chat's record and settings.
+ *
+ * Each path stands alone: one that is malformed, or a Windows path
+ * (`C:\Users\sam\cat.png`) kept by a message written on Windows and read
+ * somewhere else, maps to null rather than failing the paths beside it.
  */
-export async function resolveWorkspaceFilePaths({
+export async function resolveWorkspaceFilePaths<Given extends string>({
   filePaths,
   chatId,
 }: {
-  filePaths: readonly WorkspaceFilePath[];
+  filePaths: readonly Given[];
   chatId: ChatId;
-}): Promise<Map<WorkspaceFilePath, AbsolutePath | null>> {
+}): Promise<Map<Given, AbsolutePath | null>> {
   const layout = await sessionLayout({ chatId });
   return new Map(
-    filePaths.map((filePath) => [filePath, storedPathOnDisk(layout, filePath)]),
+    filePaths.map((given) => [given, onDiskOrNull(layout, given)]),
   );
+}
+
+const WINDOWS_ABSOLUTE = /^[a-z]:[\\/]/i;
+
+function onDiskOrNull(
+  layout: WorkspaceFsLayout,
+  given: string,
+): AbsolutePath | null {
+  // A Windows path in the shell's spelling (`/c/Users/sam`) on Windows; on
+  // any other system it names nothing here and fails the parse below.
+  const spelled = WINDOWS_ABSOLUTE.test(given.trim())
+    ? shellPath(given.trim())
+    : given;
+  const parsed = WorkspaceFilePathSchema.safeParse(spelled);
+  if (!parsed.success) {
+    return null;
+  }
+  try {
+    return storedPathOnDisk(layout, parsed.data);
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Where a path a chat's messages kept is on this computer, as the person's
- * views read it back: relative to the work folder, or absolute in a folder
- * the chat reaches, held to the chat's rules.
+ * views read it back: relative to the work folder, by its place in the
+ * workspace (`workspace:/Notes/plan.md`), or absolute in a folder the chat
+ * reaches, held to the chat's rules.
+ *
+ * A path kept by its place in the workspace is a file the person attached
+ * where it lies, so it is read under the workspace's root and not held to
+ * the agent's rules: those close a workspace kept in the app's own data,
+ * which would take the person's own file off their screen. What the person's
+ * viewers may read is the file channel's to refuse, and the agent reads only
+ * through its own rules.
  *
  * A path kept before a migration moved what held it is read where it went:
  * a chat's files and its records were once one folder, so a relative path
@@ -85,15 +126,27 @@ function storedPathOnDisk(
   layout: WorkspaceFsLayout,
   stored: string,
 ): AbsolutePath | null {
+  const trimmed = stored.trim();
+  // A file kept by its place in the workspace is under the workspace's root
+  // here, wherever that root was when the message was written.
+  if (isInWorkspacePath(trimmed)) {
+    const inWorkspace = workspaceHostPath(
+      trimmed,
+      getWorkspaceConfig().rootDir,
+    );
+    return inWorkspace === null ? null : spelledOnDisk(inWorkspace);
+  }
   // A Windows path (`C:\Users\sam`) in the shell's spelling (`/c/Users/sam`),
   // which the layout resolves.
-  const spelled = shellPath(stored.trim());
+  const spelled = shellPath(trimmed);
   const found = path.posix.isAbsolute(spelled)
     ? absoluteOnDisk(layout, spelled)
     : relativeOnDisk(layout, spelled);
-  if (found === null) {
-    return null;
-  }
+  return found === null ? null : spelledOnDisk(found);
+}
+
+/** A host path as the disk spells it, when macOS spells its name another way. */
+function spelledOnDisk(found: string): AbsolutePath {
   const named =
     [found, ...nameVariants(found)].find((candidate) =>
       existsSync(candidate),

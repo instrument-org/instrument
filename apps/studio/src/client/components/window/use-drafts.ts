@@ -1,11 +1,17 @@
 import {
-  type ChosenItem,
-  type Draft,
-  draftGroupOf,
-  draftsAtom,
-  forgetDraftWords,
+  draftKeyString,
   draftSnapshotsAtom,
-} from "@/client/atoms/drafts";
+} from "@/client/atoms/prompt-value";
+import { cancelWords } from "@/client/drafts/settle-words";
+import {
+  claimDraftAtom,
+  createDraftAtom,
+  draftsAtom,
+  draftSentAtom,
+  releaseDraftAtom,
+  removeDraftAtom,
+} from "@/client/drafts/store";
+import { type ChosenItem, type Draft, draftGroupOf } from "@/shared/drafts";
 import {
   chatFiltersAtom,
   NEW_TAB_HREF,
@@ -22,7 +28,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
@@ -83,7 +89,12 @@ export function useDrafts({
   topics: Topic[];
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
-  const [drafts, setDrafts] = useAtom(draftsAtom);
+  const drafts = useAtomValue(draftsAtom);
+  const createDraft = useSetAtom(createDraftAtom);
+  const removeDraft = useSetAtom(removeDraftAtom);
+  const claimDraft = useSetAtom(claimDraftAtom);
+  const releaseDraft = useSetAtom(releaseDraftAtom);
+  const draftSent = useSetAtom(draftSentAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
@@ -186,7 +197,7 @@ export function useDrafts({
       updatedAt: now,
       words,
     };
-    setDrafts((current) => [...current, draft]);
+    createDraft(draft);
     windowTabs.openScreen(NEW_TAB_HREF, {
       select: true,
       group: draftGroupOf(draft.id),
@@ -207,19 +218,12 @@ export function useDrafts({
       typeof words === "string" ? words : "",
       chosen,
     );
-  // What a draft's composer held, and its words, are kept only as long as
-  // the draft: a composer unmounting keeps its snapshot as it goes, so a
-  // draft sent or thrown away is pruned here, after that.
+  // What a draft's composer held is kept only as long as the draft: a
+  // composer unmounting keeps its snapshot as it goes, so a draft sent or
+  // thrown away is pruned here, after that.
   const draftIds = drafts.map((draft) => draft.id).join("\n");
-  const knownDraftIds = useRef(new Set<string>());
   useEffect(() => {
     const keep = new Set(draftIds.split("\n"));
-    for (const id of knownDraftIds.current) {
-      if (!keep.has(id)) {
-        forgetDraftWords(id);
-      }
-    }
-    knownDraftIds.current = keep;
     setDraftSnapshots((current) =>
       Object.fromEntries(
         Object.entries(current).filter(([id]) => keep.has(id)),
@@ -231,7 +235,7 @@ export function useDrafts({
     // What was marked for it goes back to its file's Ask, to be sent another way.
     returnAsks({ draftId: id, kind: "draft" });
     compose.remove(draftGroupOf(id));
-    setDrafts((current) => current.filter((draft) => draft.id !== id));
+    removeDraft(id);
     windowTabs.dropGroup(draftGroupOf(id));
   };
   /**
@@ -365,14 +369,18 @@ export function useDrafts({
         toast.error("Couldn't start the chat", { cause: error });
         return;
       }
-      // The draft is pointed at its chat before anything is written to the
-      // chat: the message naming the draft is what says it was sent, so
-      // until the draft names the chat, a launch after a crash has nowhere
-      // to look for that message. A draft whose file cannot be pointed is
-      // still sent; what is lost is the chance to finish the send later.
-      await rpcClient.drafts.claim
-        .call({ chatId, draftId: id })
-        .catch(() => undefined);
+      // The draft is claimed for its chat before anything is written to the
+      // chat: from here it is the message on its way rather than a draft to
+      // list or a reply in the chat, and its file names the chat, since the
+      // message naming the draft is what says it was sent and a launch after
+      // a crash finds that message by the chat the draft names. A draft whose
+      // file cannot be written is still sent; what is lost is the chance to
+      // finish the send later. The words go with the claim, so nothing typed
+      // a beat before the press is left to be written after it.
+      cancelWords(draftKeyString({ draftId: id, scope: "draft" }));
+      await claimDraft({ chatId, id, words: send.prompt }).catch(
+        () => undefined,
+      );
       setSentWords((current) => new Map(current).set(chatId, send.prompt));
       if (opensWhole) {
         compose.remove(draftGroupOf(id));
@@ -398,6 +406,7 @@ export function useDrafts({
           viewing: await viewing,
         });
       } catch (error) {
+        releaseDraft(id);
         if (opensWhole) {
           showDraft(id);
         } else {
@@ -414,7 +423,7 @@ export function useDrafts({
       // its own copies of what was attached, so the draft's folder can go
       // with it. A launch that finds the folder still there finds that
       // message too, and takes the folder away then.
-      setDrafts((current) => current.filter((entry) => entry.id !== id));
+      draftSent(id);
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });
       // What the draft gathered becomes the chat's tabs, the pages and

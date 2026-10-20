@@ -25,9 +25,11 @@ For a command more than one implementation could answer, the shell uses the one 
 
 The order is re-checked on each uutils release and whenever a builtin is patched: run the corpus against each implementation and move a command when its scores change.
 
+The routed set came from three passes. The first corpus held only the commands models write often or that failed in the record, and those were routed where uutils scored better; a second pass added the coreutils just-bash lacks (below); a third scored the commands both just-bash and uutils have that the first had left out (`sha1sum`, `base64`, `basename`, `dirname`, `expand`, `unexpand`, `fold`, `mktemp`, `nl`, `paste`, `readlink`, `split`, `tac`). uutils answered every one of those at least as GNU does where the builtin did not, so all are routed but `mktemp`, which ties the builtin (scores in [the uutils finding](../findings/gnu-text-commands-on-bundled-uutils.md#the-commands-both-have)). Scoring another is the same corpus run.
+
 ## GNU text commands on uutils or the system
 
-The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uutils.ts` vendors them into `resources/uutils`, pinned by sha256, from [instrument-org/uutils-build](https://github.com/instrument-org/uutils-build), which builds the upstream releases with the patches listed in its README) on the platforms marked, and the just-bash builtin elsewhere, or the computer's PATH for a command just-bash lacks. Each runs as a native command: under the native sandbox, with the shell's working directory, environment, stdin and cancellation, and every argument that names an existing path is first held to the rules, so a card names the exact path a builtin would. On Windows every argument goes to uutils quoted, since it expands `*`, `?` and `[...]` in an unquoted one, and `realpath`'s backslashes become slashes. A row marked `system` runs the computer's own program from a fixed location (`/usr/bin`, `/bin` on Linux, `System32` on Windows) the same way, and the builtin answers on a computer without it.
+The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uutils.ts` vendors them into `resources/uutils`, pinned by sha256, from [instrument-org/uutils-build](https://github.com/instrument-org/uutils-build), which builds the upstream releases with the patches listed in its README) on the platforms marked, and the just-bash builtin elsewhere, or the computer's PATH for a command just-bash lacks. Each runs as a native command: under the native sandbox, with the shell's working directory, environment, stdin and cancellation, and every argument that names an existing path is first held to the rules, so a card names the exact path a builtin would. On Windows every argument goes to uutils quoted, since it expands `*`, `?` and `[...]` in an unquoted one, and the backslashes `realpath`, `readlink`, `basename` and `dirname` print become slashes. A row marked `system` runs the computer's own program from a fixed location (`/usr/bin`, `/bin` on Linux, `System32` on Windows) the same way, and the builtin answers on a computer without it.
 
 <!-- generated: native-text routes; `pnpm fix` writes this -->
 
@@ -36,6 +38,8 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 | `arch` | uutils | uutils | uutils | uutils coreutils |  |
 | `b2sum` | uutils | uutils | uutils | uutils coreutils |  |
 | `base32` | uutils | uutils | uutils | uutils coreutils |  |
+| `base64` | uutils | uutils | uutils | uutils coreutils |  |
+| `basename` | uutils | uutils | uutils | uutils coreutils |  |
 | `basenc` | uutils | uutils | uutils | uutils coreutils |  |
 | `cksum` | uutils | uutils | uutils | uutils coreutils |  |
 | `cmp` | uutils | uutils | uutils | uutils diffutils |  |
@@ -45,35 +49,45 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 | `dd` | uutils | uutils | uutils | uutils coreutils |  |
 | `df` | uutils | uutils | uutils | uutils coreutils |  |
 | `diff` | system | system | builtin | system |  |
+| `dirname` | uutils | uutils | uutils | uutils coreutils |  |
+| `expand` | uutils | uutils | uutils | uutils coreutils |  |
 | `factor` | uutils | uutils | uutils | uutils coreutils |  |
 | `file` | system | system | builtin | system |  |
 | `find` | uutils | uutils | uutils | uutils findutils |  |
 | `fmt` | uutils | uutils | uutils | uutils coreutils |  |
+| `fold` | uutils | uutils | uutils | uutils coreutils |  |
 | `grep` | uutils | uutils | uutils | uutils grep |  |
 | `head` | uutils | uutils | uutils | uutils coreutils |  |
 | `id` | uutils | uutils | PATH | uutils coreutils |  |
 | `join` | uutils | uutils | uutils | uutils coreutils |  |
 | `md5sum` | uutils | uutils | uutils | uutils coreutils |  |
+| `nl` | uutils | uutils | uutils | uutils coreutils |  |
 | `nproc` | uutils | uutils | uutils | uutils coreutils |  |
 | `numfmt` | uutils | uutils | uutils | uutils coreutils |  |
 | `od` | uutils | uutils | uutils | uutils coreutils |  |
+| `paste` | uutils | uutils | uutils | uutils coreutils |  |
 | `pr` | uutils | uutils | uutils | uutils coreutils |  |
 | `ps` | system | system | PATH | system |  |
+| `readlink` | uutils | uutils | uutils | uutils coreutils |  |
 | `realpath` | uutils | uutils | uutils | uutils coreutils |  |
 | `seq` | uutils | uutils | uutils | uutils coreutils |  |
+| `sha1sum` | uutils | uutils | uutils | uutils coreutils |  |
 | `sha224sum` | uutils | uutils | uutils | uutils coreutils |  |
 | `sha256sum` | uutils | uutils | uutils | uutils coreutils |  |
 | `sha384sum` | uutils | uutils | uutils | uutils coreutils |  |
 | `sha512sum` | uutils | uutils | uutils | uutils coreutils |  |
 | `shuf` | uutils | uutils | uutils | uutils coreutils |  |
 | `sort` | uutils | uutils | uutils | uutils coreutils |  |
+| `split` | uutils | uutils | uutils | uutils coreutils |  |
 | `stat` | uutils | uutils | builtin | uutils coreutils |  |
+| `tac` | uutils | uutils | uutils | uutils coreutils |  |
 | `tail` | uutils | uutils | uutils | uutils coreutils |  |
 | `tar` | system | system | system | system |  |
 | `tasklist` | PATH | PATH | system | system |  |
 | `top` | system | system | PATH | system |  |
 | `tsort` | uutils | uutils | uutils | uutils coreutils |  |
 | `uname` | uutils | uutils | uutils | uutils coreutils |  |
+| `unexpand` | uutils | uutils | uutils | uutils coreutils |  |
 | `uniq` | uutils | uutils | uutils | uutils coreutils |  |
 | `wc` | uutils | uutils | uutils | uutils coreutils |  |
 | `xargs` | uutils | uutils | uutils | uutils findutils | `-P`, `--max-procs`, starting `kill` |
@@ -92,7 +106,7 @@ On Windows `find` and `grep` run with `UUTILS_PATH_SEPARATOR=slash`, which the u
 
 The last column names the arguments that send one call to the builtin on every platform. uutils xargs 0.10.0 accepts `-P` but runs its commands one at a time, while the builtin runs that many at once, so an `xargs` with `-P N`, `-ON` or `--max-procs` in its options (`xargsRunsParallel`) is the builtin's. Drop the rule once a uutils release runs `-P` in parallel.
 
-`find` gets a prune of every `.instrument` folder by name and of the chat's `tasks/` by path ahead of the caller's expression, and only its start points are held to the rules as paths; each folder the sandbox refuses on the way is counted in one stderr line. Without `uutilsDir` in the workspace config (a checkout that never ran `uutils:download`, most tests) every command in the table is the builtin, or the PATH's where just-bash has none.
+Only `find`'s start points are held to the rules as paths, and it gets no prune: a chat's folder holds nothing the app keeps from the agent, and the workspace's `.instrument` is closed by the rules, which the sandbox enforces; each folder the sandbox refuses on the way is counted in one stderr line. `basename` and `dirname` hold none of their operands to the rules, since they take the names apart and never open them, so `basename ~/.ssh/config` asks nothing. `split` holds its prefix (`x`, or the second operand) to the rules as a write, since every piece it makes is the prefix with a suffix that has no `/`, so splitting into a closed folder raises the card. Without `uutilsDir` in the workspace config (a checkout that never ran `uutils:download`, most tests) every command in the table is the builtin, or the PATH's where just-bash has none.
 
 ## Other native programs
 
@@ -109,6 +123,7 @@ The last column names the arguments that send one call to the builtin on every p
 | `instrument mail`, `instrument notes`, `instrument messages` | `/usr/bin/osascript` running the app's own scripts, unwrapped for an app the person allowed | macOS |
 | `osascript` | refused by its bare name; by its path, `/usr/bin/osascript` in the profile, where no app takes its events | macOS |
 | `shortcuts` | `/usr/bin/shortcuts`, found on the PATH like any other program, after asking for Shortcuts; the profile closes the services a shortcut runs in until it is allowed | macOS |
+| `launchctl` (macOS), `schtasks` (Windows), `crontab`, `at`, `atq`, `atrm`, `batch` | refused by their bare names, so a scheduled or background job never runs outside the sandbox. macOS's boundary is the profile's `(deny job-creation)`, which holds a job started any other way; Linux's is the read-only root and non-elevating setuid; on Windows MXC's process container is expected to refuse the Task Scheduler service, unverified | all |
 | anything else on the PATH | itself | all |
 
 `du` is ours but not a process: it walks the real folders in a worker thread.
@@ -128,12 +143,15 @@ What a native command hands the shell itself, to a redirect, a builtin, or the s
 
 On Windows the bytes take one step through the app instead of going straight from program to program: the end of the producer's pipe that Node holds is opened for overlapped I/O, and a program that reads its stdin synchronously (uutils, ripgrep) can abort on it, so each consumer gets a pipe of its own and the app copies into it, still a stream with backpressure. Windows has no SIGPIPE either, so a producer whose reader stopped early complains on stderr (`write failed: 'standard output': Broken pipe`); that line is dropped and the producer reports 141, so `PIPESTATUS` and `pipefail` read as they do on macOS and Linux.
 
+Measured when streaming landed: a 34 MB `sort | uniq -c | wc -l` went from 3.6 s to 0.78 s on macOS (0.91, 0.71 and 1.8 s on the macOS VM, Linux VM and Windows PC); `rg needle tree | head` over 140 MB of matches, which had hit the 8 MB cap, took 0.11 s on macOS and Linux and 0.83 s on Windows; an endless producer into `head -3` ended in under 0.2 s rather than 23 s. The signed previews passed 21 of 21 pipe checks on macOS and Windows and 19 of 21 on Linux arm64, both misses the check script's own process-id test. Linux x64 was not run, and promotion and kill mid-pipeline were checked by tests on macOS and Windows only.
+
 `INSTRUMENT_NATIVE_PIPES=0` in the app's environment turns streaming off, which is how to compare a pipeline against the buffered path. Holding a producer's stdout unread until the consumer starts uses a private member of Node's child stdio streams (`_handle.readStop`); where it is missing, the stage falls back to the buffered path on its own, and `pipe-stage.test.ts` fails if a Node or Electron upgrade changes it.
 
 ## What stays a builtin, and why
 
-- `cat`, `ls`, `cp`, `mv`, `rm`, `touch`, `mkdir`: they act on the shell's filesystem, which hides the app's own entries (`.instrument`, `tasks/`) and holds every path to the rules as it goes; `ls` natively would list what the app hides.
+- `cat`, `ls`, `cp`, `mv`, `rm`, `touch`, `mkdir`, `ln`, `chmod`, `tee`: not for access. The shell's filesystem hides no entries, and the OS sandbox compiles the same rules (the workspace's `.instrument` closed, the chats' records in it read-only), so a native program reaches what the builtin does. What keeps them is work not yet done: every one but `cat` and `ls` writes, so routing it needs a `writes` hook naming each operand it changes (an `mv` source included), and a recursive `rm`, `cp` or `mv` is held inside the tree only by the OS sandbox, so on Windows without MXC, where a native command runs unwrapped, it would reach what only its top path was checked against. Writes into `Skills/` also reach the skill index only through the shell's filesystem. `cat` and `ls` run in loops, where a native start costs more, and `ls -l`'s columns have not been scored.
 - `tr`: it answers as GNU does on the corpus but for `tr '\0'`, and it runs in loops, where a native start per iteration costs more.
+- `mktemp`: the builtin answers all 11 of its corpus cases as GNU does, `$TMPDIR`, `-t`, `-p` and `--suffix` included, so a native start buys nothing. On Windows uutils 0.12.0 also drops the `/` before the X's of a template (`mktemp out/XXXXXX` creates `outA1b2C3` in the working folder).
 - `diff` on Windows, which has no diff of its own: uutils diffutils lacks `-r`, `-w`, `-i` and `-y` (its `cmp` is in the table).
 - `sed`: uutils sed ties the builtin and lacks `-z` in a release, and BSD sed on macOS scores below it (11 of 14 against 12).
 - `awk`: no permissive awk matches gawk; goawk fails the same cases the builtin does, and BSD awk on macOS scores below it (9 of 12 against 10).
@@ -142,14 +160,14 @@ On Windows the bytes take one step through the app instead of going straight fro
 
 ## Calls that skip the OS sandbox
 
-Starting a program under the OS sandbox costs a few milliseconds on macOS and tens of them under MXC on Windows, and a loop of `head -1 "$f"` or a pipeline of text tools pays it for every program it starts. So a call of the bundled uutils that cannot reach a file runs unwrapped (`shell-commands/unsandboxed-uutils.ts`). A uutils program reaches the disk only through a path it is given, an option that names a file, its environment, or its own files, and the rules close each of those:
+Starting a program under the OS sandbox costs a few milliseconds on macOS and tens of them under MXC on Windows, and a loop of `head -1 "$f"` or a pipeline of text tools pays it for every program it starts. So a call of the bundled uutils that cannot reach a file runs unwrapped (`shell-commands/unsandboxed-uutils.ts`). Over 3,614 recorded `bash` calls, 832 of 1,053 native text stages qualify (752 tier A, 80 tier B), 75% of the calls with a native text stage start no sandboxed text process, and 57 of the 85 loops holding one qualify; most of what is left is `find`. A uutils program reaches the disk only through a path it is given, an option that names a file, its environment, or its own files, and the rules close each of those:
 
 - **Tier A, no file.** Every option is on a closed list per command, read against the sources of the release `REVIEWED` names, and the call names no file: `| head -5`, `sort -rn`, `wc -l`, `grep -c foo`, `date +%F`, `seq 10`. Long options count only in their exact spelling, because clap takes any unambiguous prefix (`--files0` is `--files0-from`, `--comp` is `--compress-program`). Options that read or write a file (`--files0-from`, `--random-source`, `sort -o`/`-T`/`--compress-program`, `grep -f`/`-r`/`-d`/`--exclude-from`, `date -f`/`-r`, `sha256sum -c`) and anything not on the list keep the call sandboxed.
 - **Tier B, one file the shell opens.** A call that names exactly one file (`head -n 1 notes.txt`, `wc -l notes.txt`, `grep -n foo notes.txt`) runs unwrapped only when the shell can open that file for it: after every link is followed it is a regular file with one name, inside a folder the chat reaches and not one of the app's own, that the rules let the agent read (allow, not ask or hidden), with no NTFS stream; and the file opened has the device and inode that were checked, before and after. The open file becomes the program's stdin and the name leaves its arguments, so the program opens nothing. Its output is made byte for byte what it prints for the file by name: grep gets `--label=<name>`, and wc with one count gets ` <name>` after the count. Two files, a second `uniq` operand (which it writes), wc with two counts (whose width comes from the file's size), `head -v` and `grep -T` stay sandboxed, as does a stage whose stdin is the previous program's pipe, and a wc whose output goes straight to the next program.
 - **The environment is built from nothing**: locale variables that read as locale names, `TZ` only as a zone name (a path is a file the time zone library would read), `TMPDIR` set to the app's own folder for sort's spill, `NO_COLOR`, `TERM=dumb`, and `SystemRoot` on Windows. Nothing the agent exported reaches the program: no `PATH`, `DYLD_*`, `LD_*`, `POSIXLY_CORRECT` or `_POSIX2_VERSION` (they change how arguments parse, and the list is the parser that matters).
 - **The binary is the reviewed one.** Each is hashed once per launch against the sha256 `REVIEWED` holds for this target, which `download-uutils.ts` pins as well, and before each later run its identity on disk (device, inode, size, times) is compared with what was hashed. The hashes live in the app's code rather than beside the binaries, which whoever could change a binary could change too.
 
-Anything that fails a check runs sandboxed exactly as before, so the tiers change how fast a call starts, never what it prints. `find`, `xargs`, `grep -r`, `cmp`, `comm`, `join`, `dd`, `stat`, `realpath`, `df`, `diff`, `file` and `tar` always run sandboxed. In a pipeline each stage decides for itself, so unwrapped stages and wrapped ones join by the same pipes, and a stage cut off by its reader still reports 141.
+Anything that fails a check runs sandboxed exactly as before, so the tiers change how fast a call starts, never what it prints. `find`, `xargs`, `grep -r`, `cmp`, `comm`, `join`, `dd`, `stat`, `realpath`, `readlink`, `split`, `df`, `diff`, `file` and `tar` always run sandboxed, and so do `paste`, `nl`, `fold`, `tac`, `expand` and `unexpand`, whose options have not been read against the sources. In a pipeline each stage decides for itself, so unwrapped stages and wrapped ones join by the same pipes, and a stage cut off by its reader still reports 141.
 
 The workspace config's `uutilsOutsideSandbox` turns this on; Studio, `run-bash` and the eval harness set it, and a test gets the sandboxed path unless it asks. Changing the uutils release in `download-uutils.ts` fails `unsandboxed-uutils.test.ts` until the rules are read again against the new sources and `REVIEWED` is updated. On macOS `unsandboxed-uutils-canary.test.ts` runs every corpus call under a Seatbelt profile that refuses reading any file but the binaries' folder and the system's libraries and time zones, and holds its output equal to the plain run, so a release that starts reading a file of its own shows up there.
 
@@ -172,6 +190,22 @@ What it gives up: on Linux an unwrapped program loses bubblewrap's PID namespace
 On macOS every native command starts through `instrument-seatbelt` (`apps/studio/native/mac-helper/seatbelt`, built with the Mac helper): the chat's Seatbelt profile is compiled to bytecode once per set of rules, held in memory, and handed to the launcher, which applies it and execs the program, about 6 ms a start. It exits 126 without running anything when the bytecode cannot be applied. Where the launcher is missing or cannot compile a profile, the command starts through `/usr/bin/sandbox-exec`, about 22 ms a start. Linux wraps each command in bubblewrap, and Windows in MXC's launcher where its canary passed, about 55 ms a start ([windows-sandbox.md](windows-sandbox.md)).
 
 The OS sandbox refuses; it does not hide. A program it holds gets `Operation not permitted` (Seatbelt) or an empty folder (bubblewrap) for a closed path, and it still sees the app's own entries that the shell's filesystem hides, which is why `find` carries the prune above and why `ls` stays a builtin. On macOS the sandbox is consulted before macOS's own privacy check, so a folder the rules close never raises macOS's dialog; the Photos, Music and TV libraries are places for that reason.
+
+## What a session log records
+
+Every `bash` tool result carries `ran`, a list of what answered each command the shell ran and under which sandbox, so a session log shows which of the routes above a call took without reading it back out of the output. It is stored with the result and never shown to the model. The schema and the collector are in `shell-commands/command-runs.ts`; each row is one distinct answer with a `count`, so a loop that runs `wc` ten thousand times the same way is one row, and a call keeps at most 64 distinct rows.
+
+The record is not kept from the agent. A chat's records are readable to it, so it can find `ran` in its own sessions and in other chats'. That is deliberate: a row says nothing the agent could not learn from `command -v` or a refusal, and an agent stuck on a command can read which program answered it and under which sandbox.
+
+- `name`: the command as the shell dispatched it, after the `wait` alias.
+- `source`: `bundled` for a program the app ships (uutils, `rg`, `git`, the chat's `python`, `uv`, `node`, `pnpm`, `ffmpeg`, `agent-browser`), `system` for a route that runs the computer's own program (`diff`, `file`, `tar`, `ps`, `top`, `tasklist`), `path` for a program found on the PATH or named by its path, `builtin` for just-bash's TypeScript command, and `instrument` for the app's own commands that are not programs (`instrument`, `du`, `which`, `jobs`, `fg`, `kill`, the refusing stubs).
+- `program`: the program's path on this computer, when a process ran. A command that started more than one (an environment build before `python`) has a row for each.
+- `sandbox`: `seatbelt`, `bwrap` or `mxc` for what held the process; `none` where no sandbox could (Windows without MXC, the person's choice to run programs without one, no rules in force); `skipped` where the call was chosen to run outside it (the uutils calls the reviewed rules allow, a process listing, an app the person allowed, `agent-browser`, `pnpm`'s install step outside the sandbox).
+- `reason`: set when a builtin answered a name the app routes to a program: `builtin-args` for arguments the route hands back (`xargs -P`), `no-bundled-program` or `no-system-program` where the program is missing.
+
+Shell keywords, the interpreter's own builtins and what bash implements as one (`cd`, `export`, `echo`, `printf`, `test`), functions, and lookups (`type`, `command -v`, `hash`) are not runs and are not recorded.
+
+Each row is recorded where the decision is made. Our commands are wrapped as they are registered (`recordingRuns` in `create-bash-env.ts`), so a command that starts no process is a row of its own when it returns; `wrapNativeCommand` records the program and sandbox of each process a command starts; `createNativeTextCommand` records a builtin answering for its route, with the reason; and just-bash's bundled commands are told through the `onCommandStart` hook our patch adds, since just-bash keeps them private. The bash worker collects its own rows and sends them to the main thread as each new row appears and once more before its result, where they merge with the rows of the commands that run there (`agent-browser`, `instrument`, `jobs`, `fg`, `kill`). A command moved to the background reports what it had started when the call returned; rows recorded after that are not kept.
 
 ## Known divergences from GNU
 

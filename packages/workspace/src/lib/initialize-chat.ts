@@ -5,18 +5,9 @@ import path from "node:path";
 import { type ChatDir } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { type ChatSettingsUpdate } from "../schemas/chat-settings";
-import { type WorkspaceConfig } from "../types";
 import { createSession } from "./create-session";
 import { TypedError } from "./errors";
-import { getCurrentDate } from "./get-current-date";
 import { forgetChat, placeChat } from "./record-folders";
-import { updateChatSettings } from "./chat-settings";
-
-type InitialSettings = Omit<
-  ChatSettingsUpdate,
-  "chatSessionId" | "createdWithAppVersion"
->;
 
 /**
  * Makes a chat's record folder under `chats/`, holding `sessionId` as its
@@ -24,36 +15,26 @@ type InitialSettings = Omit<
  */
 export function initializeChat({
   chatId,
-  initialSettings,
   sessionId,
-  workspaceConfig,
 }: {
   chatId: ChatId;
-  initialSettings: InitialSettings;
   sessionId: StoreId.Session;
-  workspaceConfig: WorkspaceConfig;
 }) {
   return initializeRecord({
-    initialSettings: { ...initialSettings, chatSessionId: sessionId },
     place: () => placeChat(chatId, sessionId),
     chatId,
     sessionId,
-    workspaceConfig,
   });
 }
 
 async function initializeRecord({
-  initialSettings,
   place,
   chatId,
   sessionId,
-  workspaceConfig,
 }: {
-  initialSettings: Omit<ChatSettingsUpdate, "createdWithAppVersion">;
   place: () => ChatDir;
   chatId: ChatId;
   sessionId: StoreId.Session;
-  workspaceConfig: WorkspaceConfig;
 }) {
   // Lets go of the id reserved below when any later step fails, so a chat
   // that was never made does not hold its name in the index.
@@ -96,20 +77,8 @@ async function initializeRecord({
             ),
     );
 
-    const createdAt = getCurrentDate();
-
-    yield* updateChatSettings(chatId, {
-      ...initialSettings,
-      // Stamped from the start so a chat that has never been messaged still
-      // lists by when it was made rather than by whatever last touched a file
-      // beneath it.
-      createdAt,
-      createdWithAppVersion: workspaceConfig.appVersion,
-      lastActivityAt: createdAt,
-    });
-
-    // The chat's own session is made with it, so every send, wake and task
-    // finds the session its settings name already there.
+    // The chat's own session is made with it: its log's header is what says
+    // which session is the chat's own, when it began, and on which build.
     yield* await createSession({ chatId, sessionId });
 
     return ok({ chatId });

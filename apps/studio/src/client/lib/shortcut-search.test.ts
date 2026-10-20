@@ -64,6 +64,8 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "Pages: Back  ⌘[",
         "Pages: Edit Page  ⌘E",
         "Pages: Find in Page  ⌘F",
+        "Pages: Find Next  ⌘G",
+        "Pages: Find Previous  ⇧⌘G",
         "Pages: Forward  ⌘]",
         "Pages: Reload Page  ⌘R",
         "View: Actual Size  ⌘0",
@@ -71,9 +73,9 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "View: Zoom In  ⌘+",
         "View: Zoom Out  ⌘-",
         "Developer: Reload App  ⇧⌘R",
+        "Developer: Set Theme: Auto  ⇧⌘M",
         "Developer: Set Theme: Dark  ⇧⌘D",
         "Developer: Set Theme: Light  ⇧⌘L",
-        "Developer: Set Theme: System  ⇧⌘M",
       ]
     `);
   });
@@ -109,9 +111,9 @@ describe("matchShortcuts", () => {
     expect(highlighted("developer")).toMatchInlineSnapshot(`
       [
         "Reload App",
+        "Set Theme: Auto",
         "Set Theme: Dark",
         "Set Theme: Light",
-        "Set Theme: System",
       ]
     `);
   });

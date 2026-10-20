@@ -9,33 +9,10 @@ import { markChatStopped } from "../../lib/chat/chats";
 import { noteTaskStoppedOnCard } from "../../lib/chat/wake";
 import { closeAsksOf, openAsksOf } from "../../lib/chat/asks";
 import { sessionOfChat } from "../../lib/record-folders";
-import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { ChatReads } from "../../lib/chat-reads";
-import { recordChatActivity } from "../../lib/chat-settings";
-import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { base, toORPCError } from "../base";
-
-const byIdWithMessagesAndParts = base
-  .input(
-    z.object({
-      id: ChatIdSchema,
-      sessionId: StoreId.SessionSchema,
-    }),
-  )
-  .output(Session.WithMessagesAndPartsSchema)
-  .handler(async ({ errors, input }) => {
-    const { id, sessionId } = input;
-    const chatId = id;
-    const session = await ChatReads.sessionWithMessages({ chatId, sessionId });
-
-    if (session.isErr()) {
-      throw toORPCError(session.error, errors);
-    }
-
-    return session.value;
-  });
 
 // Run the agent over the session as it stands, with nothing added to it. What
 // the agent answers is the request already in the transcript, so a turn that
@@ -52,7 +29,6 @@ const run = base
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
     const { id, modelURI, sessionId } = input;
-    const chatId = id;
 
     const modelResult = await fetchModel({
       captureException: context.workspaceConfig.captureException,
@@ -74,9 +50,6 @@ const run = base
         sessionId,
       },
     });
-
-    // A settings write, which the record change feed reports: what moves the task in the list.
-    await recordChatActivity(chatId);
   });
 
 /**
@@ -155,27 +128,6 @@ const stop = base
     }
   });
 
-const toMarkdown = base
-  .input(
-    z.object({
-      frontMatter: z.record(z.string(), z.unknown()).optional(),
-      id: ChatIdSchema,
-      sessionId: StoreId.SessionSchema,
-    }),
-  )
-  .output(z.object({ markdown: z.string() }))
-  .handler(async ({ input }) => {
-    const { frontMatter, id, sessionId } = input;
-    const chatId = id;
-
-    const markdown = await getSessionMarkdown({
-      frontMatter,
-      sessionId,
-      chatId,
-    });
-    return { markdown };
-  });
-
 const contextTokens = base
   .input(
     z.object({
@@ -221,9 +173,7 @@ const live = {
 };
 
 export const session = {
-  byIdWithMessagesAndParts,
   live,
   run,
   stop,
-  toMarkdown,
 };

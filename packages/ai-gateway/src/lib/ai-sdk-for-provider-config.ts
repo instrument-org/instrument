@@ -16,6 +16,7 @@ import {
   createOpenCodeLanguageModel,
   isOpenCodeProviderConfig,
 } from "./opencode";
+import { openRouterCacheShape } from "./openrouter-cache-shape";
 import { createOpenRouterLanguageModel } from "./openrouter-language-model";
 import { repairWorkersAiStream } from "./workers-ai-stream-repair";
 
@@ -209,6 +210,7 @@ export async function createOpenRouterSDK(
     appName: APP_NAME,
     appUrl: APP_URL,
     baseURL,
+    fetch: openRouterCacheShape(),
     ...extraConfig,
   });
 }

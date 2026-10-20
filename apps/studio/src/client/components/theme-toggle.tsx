@@ -38,7 +38,7 @@ export function ThemeToggle() {
         return "Light";
       }
       case "system": {
-        return "System";
+        return "Auto";
       }
       default: {
         return "Light";

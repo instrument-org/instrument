@@ -105,6 +105,8 @@ describe("formatAcceleratorFor", () => {
         "commandMenu: ⌘ K  /  Ctrl K  /  Ctrl K",
         "editPage: ⌘ E  /  Ctrl E  /  Ctrl E",
         "findInPage: ⌘ F  /  Ctrl F  /  Ctrl F",
+        "findNext: ⌘ G  /  Ctrl G  /  Ctrl G",
+        "findPrevious: ⇧ ⌘ G  /  Ctrl Shift G  /  Ctrl Shift G",
         "forward: ⌘ ]  /  Alt →  /  Alt →",
         "goToApps: ⌃ ⌘ 4  /  Alt 4  /  Alt 4",
         "goToBrowser: ⌃ ⌘ 3  /  Alt 3  /  Alt 3",

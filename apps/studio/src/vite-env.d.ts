@@ -59,6 +59,12 @@ declare namespace NodeJS {
        * docs/findings/drag-out-does-not-cross-xwayland.md.
        */
       INSTRUMENT_OZONE_PLATFORM: string | undefined;
+      /**
+       * Where finished work goes for a workspace in the app's own data, in
+       * place of the flavor's folder in the home folder: studio-drive sets it
+       * for a fixture. See create-workspace-actor.ts.
+       */
+      INSTRUMENT_OUTPUT_FOLDER: string | undefined;
       /** Build time only: names a preview build, inlined by electron.vite.config.ts. */
       INSTRUMENT_PREVIEW_NAME: string | undefined;
       /**
@@ -78,6 +84,8 @@ declare namespace NodeJS {
       REHEARSE_WORKSPACE: string | undefined;
       /** Dev only: the port electron-vite gives the Electron child for CDP. */
       REMOTE_DEBUGGING_PORT: string | undefined;
+      /** The person's login shell, read for its PATH when the passwd entry names none. */
+      SHELL: string | undefined;
       SIGNTOOL_PATH: string | undefined;
       SKIP_MOVE_TO_APPLICATIONS: string | undefined;
       SKIP_ONBOARDING: string | undefined;

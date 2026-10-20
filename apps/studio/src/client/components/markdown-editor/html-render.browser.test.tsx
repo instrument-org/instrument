@@ -38,3 +38,32 @@ thinking: a short note.
   expect(gap).toBeGreaterThanOrEqual(0);
   expect(gap).toBeLessThan(16);
 });
+
+it("keeps a code block's own background inside an open <details>", async () => {
+  const view = await openMarkdownEditor(`\`\`\`sh
+ls
+\`\`\`
+
+<details>
+<summary>Worked for 1s</summary>
+
+\`\`\`sh
+ls -la
+\`\`\`
+
+</details>
+`);
+  const summary = view.dom.querySelector<HTMLElement>(".md-html-summary");
+  if (!summary) {
+    throw new Error("no summary drawn");
+  }
+
+  await userEvent.click(summary);
+
+  const [outside, inside] = [
+    ...view.dom.querySelectorAll<HTMLElement>(".milkdown-code-block"),
+  ];
+  expect(inside && getComputedStyle(inside).backgroundColor).toBe(
+    outside && getComputedStyle(outside).backgroundColor,
+  );
+});

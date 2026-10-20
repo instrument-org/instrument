@@ -314,12 +314,13 @@ export function bwrapArgs(
       // folder it would take at face value. A folder opened inside it keeps
       // search permission, which reaching that folder needs, and holds only
       // what opens in it: a program naming anything else there finds it
-      // missing.
+      // missing. Where each really is, since that is where it is bound: a
+      // folder named through a link can open inside this one.
       const opensInside = ordered.some(
         (other) =>
           other.access !== "none" &&
           other.depth > entry.depth &&
-          other.path.startsWith(`${entry.path}${path.sep}`),
+          hostPathWithin(real, resolveReal(other.path)) !== null,
       );
       // Read-only too, so nothing can be made in it to stand in for what it
       // closes and its mode cannot be given back; one a folder opens inside

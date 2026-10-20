@@ -13,13 +13,17 @@ import { SKILLS_FOLDER_NAME } from "../constants";
 import { type ChatId } from "../schemas/chat-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
+import {
+  resolveWorkspaceFilePath,
+  resolveWorkspaceFilePaths,
+} from "./resolve-workspace-file-path";
 import { grantFolder } from "./chat/grants";
 import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
 import { shellPath } from "./workspace-fs-layout";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
+import { inWorkspacePath } from "./workspace-relative-path";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 describe("resolveWorkspaceFilePath", () => {
@@ -86,6 +90,86 @@ describe("resolveWorkspaceFilePath", () => {
     });
 
     expect(resolved).toBe(onDisk);
+  });
+
+  // A message written on another computer, where the workspace was somewhere
+  // else, names the file by its place in the workspace, which is read under
+  // the root this computer has. The person attached it there, so the agent's
+  // rules do not take it off their screen.
+  it.each([
+    [
+      "a granted folder",
+      "Photos/cat.png",
+      () => path.join(photosRoot, "cat.png"),
+    ],
+    [
+      "a folder the chat does not reach",
+      "Unattached/cat.png",
+      () => path.join(root, "Unattached", "cat.png"),
+    ],
+  ])(
+    "resolves a file kept by its place in the workspace, in %s",
+    async (_label, inWorkspace, expected) => {
+      setWorkspaceConfig({
+        ...getWorkspaceConfig(),
+        rootDir: WorkspaceDirSchema.parse(root),
+      });
+      await fs.mkdir(path.join(root, "Unattached"), { recursive: true });
+      await fs.writeFile(path.join(root, "Unattached", "cat.png"), "secret");
+      const stored = inWorkspacePath(
+        path.posix.join("/Users/mac-user/Instrument", inWorkspace),
+        "/Users/mac-user/Instrument",
+      );
+
+      const resolved = await resolveWorkspaceFilePath({
+        filePath: WorkspaceFilePathSchema.parse(stored),
+        chatId,
+      });
+
+      expect(resolved).toBe(expected());
+    },
+  );
+
+  // The default workspace, before the person picks a folder, is in the app's
+  // own data, which the agent's rules close.
+  it("resolves a file kept by its place in a workspace in the app's data", async () => {
+    const userDataDir = path.join(root, "user-data");
+    const workspaceRoot = path.join(userDataDir, "workspace");
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(workspaceRoot),
+      userDataDir: AbsolutePathSchema.parse(userDataDir),
+    });
+    await fs.mkdir(workspaceRoot, { recursive: true });
+    await fs.writeFile(path.join(workspaceRoot, "ref-doc.md"), "# Ref");
+
+    const resolved = await resolveWorkspaceFilePath({
+      filePath: WorkspaceFilePathSchema.parse("workspace:/ref-doc.md"),
+      chatId,
+    });
+
+    expect(resolved).toBe(path.join(workspaceRoot, "ref-doc.md"));
+  });
+
+  // A message written on Windows keeps `C:\...`, and one path that names
+  // nothing here must not take the files beside it off the screen.
+  it("answers each path on its own, a malformed one with null", async () => {
+    const resolved = await resolveWorkspaceFilePaths({
+      chatId,
+      filePaths: [
+        "notes.txt",
+        String.raw`C:\Users\sam\Photos\cat.png`,
+        "/Users/sam//Photos/cat.png",
+        "workspace:/../secret.txt",
+      ],
+    });
+
+    expect(Object.fromEntries(resolved)).toEqual({
+      "/Users/sam//Photos/cat.png": null,
+      [String.raw`C:\Users\sam\Photos\cat.png`]: null,
+      "notes.txt": path.join(chatRoot, "notes.txt"),
+      "workspace:/../secret.txt": null,
+    });
   });
 
   it("resolves a workspace skill's file by its full path", async () => {

@@ -1,3 +1,4 @@
+import { ChatBubbles } from "@/client/components/chat-bubbles";
 import { ChatStream } from "@/client/components/chat-stream";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -17,6 +18,7 @@ import { Switch } from "@/client/components/ui/switch";
 import { TOOL_ICONS } from "@/client/lib/tool-display";
 import { cn } from "@/client/lib/utils";
 import {
+  BubbleProjection,
   ChatIdSchema,
   getToolNameByType,
   type ChatInfo,
@@ -44,6 +46,7 @@ import { buildFrames, type Frame, type FrameMark } from "../-transcript/frames";
 import { scenarios } from "../-transcript/scenarios";
 import {
   autoScrollAtom,
+  chatPresentationAtom,
   developerModeAtom,
   replayAtom,
   showsBottomEdgeAtom,
@@ -333,6 +336,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useAtom(speedAtom);
   const [isDeveloperMode, setIsDeveloperMode] = useAtom(developerModeAtom);
+  const [isChat, setIsChat] = useAtom(chatPresentationAtom);
   const [autoScrolls, setAutoScrolls] = useAtom(autoScrollAtom);
   const [showsBottomEdge, setShowsBottomEdge] = useAtom(showsBottomEdgeAtom);
   const [shownMs, setShownMs] = useState<number>();
@@ -423,17 +427,26 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
                       than anything the transcript drew -- and here it would put
                       the end of the transcript, and the marker that follows it,
                       somewhere below where the transcript actually stops. */}
-                  <ChatStream
-                    alwaysShowFooter
-                    isAgentRunning={frame.isAgentRunning}
-                    isDeveloperMode={isDeveloperMode}
-                    messages={frame.messages}
-                    onContinue={noop}
-                    onModelChange={noop}
-                    onRetry={noop}
-                    onRunAgain={noop}
-                    chatInfo={chatInfo}
-                  />
+                  {isChat ? (
+                    // What the chat draws: the frame through the feed's
+                    // projection, as `message.live.bubbles` would send it.
+                    <FrameBubbles
+                      frame={frame}
+                      isDeveloperMode={isDeveloperMode}
+                    />
+                  ) : (
+                    <ChatStream
+                      alwaysShowFooter
+                      isAgentRunning={frame.isAgentRunning}
+                      isDeveloperMode={isDeveloperMode}
+                      messages={frame.messages}
+                      onContinue={noop}
+                      onModelChange={noop}
+                      onRetry={noop}
+                      onRunAgain={noop}
+                      chatInfo={chatInfo}
+                    />
+                  )}
                 </Profiler>
               </MessageScrollerContent>
             </MessageScrollerViewport>
@@ -530,6 +543,12 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
             label="Dev mode"
             onChange={setIsDeveloperMode}
           />
+          <Toggle
+            checked={isChat}
+            id="transcript-chat"
+            label="Chat"
+            onChange={setIsChat}
+          />
           {/* Both of these are about watching frames land, and nothing lands
               when the transcript is simply there. */}
           {replays && (
@@ -586,5 +605,32 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
         )}
       </aside>
     </div>
+  );
+}
+
+/** A frame as the chat's bubbles draw it. */
+function FrameBubbles({
+  frame,
+  isDeveloperMode,
+}: {
+  frame: Frame;
+  isDeveloperMode: boolean;
+}) {
+  const { feed } = new BubbleProjection().update({
+    isRunning: frame.isAgentRunning,
+    messages: frame.messages,
+  });
+  return (
+    <ChatBubbles
+      chatInfo={chatInfo}
+      drafting={feed.drafting}
+      isAgentRunning={frame.isAgentRunning}
+      isDeveloperMode={isDeveloperMode}
+      messages={feed.messages}
+      onContinue={noop}
+      onModelChange={noop}
+      onRetry={noop}
+      onRunAgain={noop}
+    />
   );
 }

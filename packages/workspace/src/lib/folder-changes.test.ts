@@ -64,7 +64,6 @@ beforeEach(async () => {
     ),
   });
   await initializeTestChat({
-    initialSettings: {},
     chatId: CHAT_ID,
   });
   // What a turn is diffed against is written into the session's own log, so

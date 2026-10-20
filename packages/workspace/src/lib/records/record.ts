@@ -5,26 +5,22 @@ import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { DEVICE_ID_PATTERN, DeviceIdSchema } from "./device-id";
+import { GENERATION_PATTERN } from "./file-names";
 
 /**
  * The records of a chat as its files hold them: one JSON object per line,
  * `t`, `seq` and `at` first so a reader can tell a record by its prefix.
  *
  * A log (`<session>.<device>.jsonl`) holds one session's records from one
- * device and starts with a `session` header; a marks file
- * (`marks.<device>.jsonl`) holds the person's marks from one device and has
- * no header. `seq` counts up from 0 within a file. Dates are ISO strings on
+ * device and starts with a `session` header; a settings file
+ * (`settings.<device>.jsonl`) holds every per-chat value one device set
+ * (a session's title, star, archive, unread, topic, the chat's model) and
+ * has no header. `seq` counts up from 0 within a file. Dates are ISO strings on
  * disk and `Date`s once read, and a field that is `undefined` is left out.
  */
 
 /** The shape of records this build writes and reads, named in each header. */
 export const RECORD_FORMAT = 1;
-
-/**
- * The second of two or more logs one device wrote of a session is `.2`, then
- * `.3`; the first has no number.
- */
-export const GENERATION_PATTERN = "[2-9]|[1-9][0-9]+";
 
 /**
  * Which log of a session a `continues` entry names: the device that wrote it,
@@ -169,43 +165,53 @@ const LogRecordSchema = z.discriminatedUnion("t", [
 
 export type LogRecord = z.output<typeof LogRecordSchema>;
 
-function markSchema<F extends string, V extends z.ZodType>(field: F, value: V) {
+function settingSchema<F extends string, V extends z.ZodType>(
+  field: F,
+  value: V,
+) {
   return z.object({
-    t: z.literal("mark"),
+    t: z.literal("set"),
     ...envelope,
     session: StoreId.SessionSchema,
     field: z.literal(field),
     value,
-    /** The device whose marks file holds the mark. */
+    /** The device whose settings file holds the line. */
     device: DeviceIdSchema,
   });
 }
 
-const MarkRecordSchema = z.discriminatedUnion("field", [
-  markSchema(
+const SettingRecordSchema = z.discriminatedUnion("field", [
+  settingSchema(
     "title",
     z.object({
       text: z.string(),
-      /** Whether the title stopped being the app's to change. */
-      settled: z.boolean(),
+      /** Whether the app may still rename it: true until the person names it or the app settles it. */
+      auto: z.boolean(),
     }),
   ),
-  markSchema("starred", z.boolean()),
-  markSchema("archived", z.boolean()),
-  /** Unread, and whether the person marked it so; `null` is read. */
-  markSchema("unread", z.object({ byUser: z.boolean() }).nullable()),
+  settingSchema("starred", z.boolean()),
+  settingSchema("archived", z.boolean()),
+  /**
+   * Unread: `new` clears when the person looks at the chat, `marked` is the
+   * person's and does not. `null` is read.
+   */
+  settingSchema("unread", z.enum(["marked", "new"]).nullable()),
   /** The topic id the chat is filed under; `null` is none. */
-  markSchema("topic", z.string().nullable()),
-  /** When the person stopped the chat's own turn. */
-  markSchema("stoppedAt", DateSchema),
+  settingSchema("topic", z.string().nullable()),
+  /**
+   * The model every session of the chat runs on, as the whole model URI,
+   * set on the chat's own session. Kept as written: a URI this build cannot
+   * parse is the reader's to pass over, not a line to skip.
+   */
+  settingSchema("model", z.string().min(1)),
 ]);
 
-export type MarkRecord = z.output<typeof MarkRecordSchema>;
+export type SettingRecord = z.output<typeof SettingRecordSchema>;
 
-export type MarkField = MarkRecord["field"];
+export type SettingField = SettingRecord["field"];
 
 /** A record as the line its file holds, newline included. */
-export function recordLine(record: LogRecord | MarkRecord): string {
+export function recordLine(record: LogRecord | SettingRecord): string {
   const { at, seq, t, ...rest } = record;
   return `${JSON.stringify({ t, seq, at, ...rest }, finiteNumbers)}\n`;
 }
@@ -215,34 +221,43 @@ export function parseLogLine(text: string): LogRecord | undefined {
   return parseLine(text, LogRecordSchema);
 }
 
-/** The mark a marks file's line holds, or nothing for a line that is not one. */
-export function parseMarkLine(text: string): MarkRecord | undefined {
-  return parseLine(text, z.preprocess(fromTopicsMark, MarkRecordSchema));
+/** The setting a settings file's line holds, or nothing for a line that is not one. */
+export function parseSettingLine(text: string): SettingRecord | undefined {
+  return parseLine(text, z.preprocess(fromMark, SettingRecordSchema));
 }
 
 /**
- * A `topics` mark, from builds that filed a chat under a list of topics,
- * read as the `topic` mark it stands for: the first of them, the rest
- * dropped. The file is left as it is; the chat's next change of topic
- * writes the singular mark, which is newer and wins.
+ * A line from the marks file builds before kept (`marks.<device>.jsonl`), read
+ * as the setting it stands for: `t: "mark"` is `set`, a title's `settled` is
+ * the opposite of `auto`, an unread `{ byUser }` is `marked` or `new`, and a
+ * `topics` list is the `topic` it starts with. The file is left as it is.
  */
-function fromTopicsMark(value: unknown): unknown {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("field" in value) ||
-    value.field !== "topics" ||
-    !("value" in value) ||
-    !Array.isArray(value.value)
-  ) {
+function fromMark(value: unknown): unknown {
+  if (!isRecord(value) || value.t !== "mark") {
     return value;
   }
-  const first: unknown = value.value[0];
-  return {
-    ...value,
-    field: "topic",
-    value: typeof first === "string" ? first : null,
-  };
+  const mark: Record<string, unknown> = { ...value, t: "set" };
+  const given = mark.value;
+  switch (mark.field) {
+    case "title":
+      return isRecord(given) && typeof given.settled === "boolean"
+        ? { ...mark, value: { auto: !given.settled, text: given.text } }
+        : mark;
+    case "unread":
+      return isRecord(given)
+        ? { ...mark, value: given.byUser === true ? "marked" : "new" }
+        : mark;
+    case "topics": {
+      const first: unknown = Array.isArray(given) ? given[0] : undefined;
+      return {
+        ...mark,
+        field: "topic",
+        value: typeof first === "string" ? first : null,
+      };
+    }
+    default:
+      return mark;
+  }
 }
 
 function parseLine<S extends z.ZodType>(

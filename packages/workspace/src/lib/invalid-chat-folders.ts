@@ -9,10 +9,10 @@ import { TypedError } from "./errors";
 import { chatReadProblem } from "./chat/chats";
 import { pathExists } from "./path-exists";
 import {
+  chatSessionIn,
   chatsDir,
   forgetChat,
   sessionOfChat,
-  storedChatSession,
 } from "./record-folders";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
 
@@ -25,16 +25,15 @@ interface InvalidChatFolder {
 /** Why a folder is listed, said to the person in Settings > Storage. */
 const REASONS = {
   "bad-name": "Its folder name isn’t one a chat can use.",
-  "no-session": "Its settings don’t say which conversation is its own.",
+  "no-session": "It doesn’t have a conversation of its own.",
   "unreadable-messages": "Its messages can’t be read.",
   "unreadable-session": "Its conversation can’t be read.",
-  "unreadable-settings": "Its settings file is missing or damaged.",
 } as const;
 
 /**
  * Folders under `chats/` that the chat list leaves out: a chat whose folder
- * name is not a record id, whose settings name no session, or whose session
- * or messages cannot be read. The list skips them without a trace, so they
+ * name is not a record id, whose records hold no session of its own, or
+ * whose session or messages cannot be read. The list skips them without a trace, so they
  * are surfaced here for Settings > Storage instead of reported one by one.
  */
 export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
@@ -46,15 +45,15 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
       invalid.push({ name, reason: REASONS["bad-name"] });
       continue;
     }
-    const stored = storedChatSession(path.join(root, name));
-    if ("problem" in stored) {
-      invalid.push({ name, reason: REASONS[stored.problem] });
+    const sessionId = chatSessionIn(path.join(root, name));
+    if (sessionId === undefined) {
+      invalid.push({ name, reason: REASONS["no-session"] });
       continue;
     }
     // The records are reached through the index, which knows the chat by
     // this session once it has read the folder.
-    if (sessionOfChat(id.data) === stored.sessionId) {
-      const problem = await chatReadProblem(id.data, stored.sessionId);
+    if (sessionOfChat(id.data) === sessionId) {
+      const problem = await chatReadProblem(id.data, sessionId);
       if (problem) {
         invalid.push({ name, reason: REASONS[problem] });
       }

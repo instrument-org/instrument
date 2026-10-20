@@ -26,7 +26,7 @@ describe("topicModelNote", () => {
       Keep hotels under $200 a night.
       </topic_instructions>
 
-      Folders the work under "Travel" uses, attached to this chat: /Users/sam/Trips, /Users/sam/Receipts. Hand a task the ones its work needs.
+      Folders the work under "Travel" uses, attached to this chat: \`/Users/sam/Trips\`, \`/Users/sam/Receipts\`.
       </instrument-system-note>"
     `);
   });

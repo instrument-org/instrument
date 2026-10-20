@@ -1,15 +1,34 @@
 import { studioModalAtom } from "@/client/atoms/studio-modal";
 import { type Condition, type ReportKind } from "@/shared/problem-reports";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { getDefaultStore } from "jotai";
 
+/** One report the dialog offers to send: feedback, or a report of a problem. */
+export type ReportRequest = FeedbackRequest | ProblemReportRequest;
+
 /**
- * One report the dialog offers to send. The details and events are either
- * known already (a crash from the last session) or described by the main
- * process when the dialog opens, led by the exception `error` was captured
- * as, so what Show details shows is what is sent.
+ * Feedback the person sends of their own accord: their note, and the chat
+ * it is about when there is one, with the diagnostics, each part's files
+ * theirs to leave out.
  */
-export type ReportRequest = {
+export type FeedbackRequest = {
+  /** The chat the feedback is about; none from the Help menu or a new draft. */
+  chatId?: ChatId;
+  kind: "feedback";
+  onSent?: () => void;
+  /** Where it started: "chat-menu", "slash-command", "help-menu", ... */
+  surface: string;
+};
+
+/**
+ * A report about something that went wrong: a crash, a hang or an error. The
+ * details and events are either known already (a crash from the last
+ * session) or described by the main process when the dialog opens, led by
+ * the exception `error` was captured as, so what Show details shows is what
+ * is sent.
+ */
+export type ProblemReportRequest = {
   /** What the app found wrong that the report is about. */
   condition?: Condition;
   details?: string;
@@ -20,7 +39,7 @@ export type ReportRequest = {
   fingerprint?: string;
   focusNote?: boolean;
   intro: string;
-  kind: ReportKind;
+  kind: Exclude<ReportKind, "feedback">;
   noteLabel: string;
   /** Crashes and app errors offer to send without asking from now on. */
   offerAlwaysSend: boolean;

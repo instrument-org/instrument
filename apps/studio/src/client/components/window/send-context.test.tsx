@@ -1,4 +1,4 @@
-import { type Draft, draftGroupOf } from "@/client/atoms/drafts";
+import { type Draft, draftGroupOf } from "@/shared/drafts";
 import {
   CHATS_HREF,
   NEW_TAB_HREF,

@@ -29,11 +29,12 @@ Who you're logged in to Instrument as, your plan and its usage limits, and billi
 
 ### Providers (`providers`)
 
-The AI models Instrument can use: your ChatGPT or Claude plan, or a provider you add with your own key.
+The AI models Instrument can use: your ChatGPT, Claude or Grok plan, or a provider you add with your own key.
 
 - **Add provider** (`add-provider`): Use a model with your own key.
 - **ChatGPT account** (`chatgpt-account`): Use your ChatGPT Plus or Pro plan.
 - **Claude account** (`claude-account`): Use your Claude plan.
+- **Grok account** (`grok-account`): Use your SuperGrok or X Premium+ plan.
 
 ### Memory (`memory`)
 
@@ -118,6 +119,8 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Back: ⌘[ / Alt+←
 - Edit Page: ⌘E / Ctrl+E
 - Find in Page: ⌘F / Ctrl+F
+- Find Next: ⌘G / Ctrl+G
+- Find Previous: ⇧⌘G / Ctrl+Shift+G
 - Forward: ⌘] / Alt+→
 - Reload Page: ⌘R / Ctrl+R
 

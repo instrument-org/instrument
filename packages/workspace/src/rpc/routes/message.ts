@@ -2,7 +2,16 @@ import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { eventIterator, type } from "@orpc/server";
 import { z } from "zod";
 
+import {
+  BubbleProjection,
+  type BubbleFeedEvent,
+} from "../../lib/bubble-messages";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
+import { getChatAgentStatus } from "../../lib/get-chat-agent-status";
+import {
+  attachmentsWaitingToMove,
+  rewriteChatFolder,
+} from "../../lib/chat-folders/write-chat-folder";
 import { ChatReads } from "../../lib/chat-reads";
 import { ChatWrites } from "../../lib/chat-writes";
 import { ensureChatSession } from "../../lib/create-session";
@@ -13,7 +22,6 @@ import { newMessage } from "../../lib/new-message";
 import { attendChatArrivals } from "../../lib/records/take-arrivals";
 import { setChatTopic } from "../../lib/chat/chats";
 
-import { recordChatActivity } from "../../lib/chat-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
 import { closeQuestions } from "../../lib/chat/asks";
@@ -184,6 +192,17 @@ const create = base
         if (written.isErr()) {
           throw toORPCError(written.error, errors);
         }
+        // The chat's `CHAT.md` takes the message the person just sent,
+        // without the send waiting on it, unless what they sent is still to
+        // move into the chat's folder: the turn names each file where it is,
+        // so it starts once they are there.
+        const moving = await attachmentsWaitingToMove(chatId);
+        const rewritten = rewriteChatFolder(chatId).catch((error: unknown) => {
+          context.workspaceConfig.captureException(error);
+        });
+        if (moving) {
+          await rewritten;
+        }
         // Writing in the chat is the person's answer to whatever it asked,
         // so a question still open there is closed rather than left to be
         // answered against a turn that has moved on.
@@ -200,10 +219,6 @@ const create = base
             sessionId: message.metadata.sessionId,
           },
         });
-
-        // A settings write, which the record change feed reports: what moves
-        // the chat in the list.
-        await recordChatActivity(chatId);
 
         return { sessionId: message.metadata.sessionId };
       }),
@@ -243,7 +258,7 @@ const live = {
         // Each batch re-reads only the changed messages and splices them into
         // the snapshot, so store work per update is proportional to the
         // change, not the session. Bursts coalesce: a turn's token storm
-        // targets one message, so its part.updated events collapse into a
+        // targets one message, so its record changes collapse into a
         // single re-read + yield. Every yield is the complete sorted array.
         for await (const batch of batches) {
           for (const messageId of batch.removed) {
@@ -300,8 +315,97 @@ const live = {
     }),
 };
 
+/**
+ * What a chat's bubbles draw of a session (`bubble-messages.ts`), as it
+ * changes: the whole of it, then only the messages whose bubbles moved. A
+ * token streaming into a reply moves none, so nothing is sent for it.
+ */
+const liveBubbles = base
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(eventIterator(type<BubbleFeedEvent>()))
+  .handler(async function* ({ context, errors, input, signal }) {
+    // Subscribed before the first read, as `live.list` is, and woken by the
+    // agent too: a reply is held back only while its run is going.
+    const batches = changedMessageBatches({ ...input, agent: true }, signal);
+    const unattend = attendChatArrivals(input.id);
+    const isRunning = () =>
+      getChatAgentStatus({
+        id: input.id,
+        workspaceRef: context.workspaceRef,
+      })
+        .value.sessionActors.find(
+          (actor) => actor.sessionId === input.sessionId,
+        )
+        ?.tags.includes("agent.running") ?? false;
+
+    try {
+      const read = (only?: Set<StoreId.Message>) =>
+        ChatReads.transcript({
+          bytes: true,
+          chatId: input.id,
+          sessionId: input.sessionId,
+          ...(only ? { only } : {}),
+        });
+      const initial = await read();
+      if (initial.isErr()) {
+        throw toORPCError(initial.error, errors);
+      }
+      const snapshot = new LiveMessagesSnapshot(initial.value);
+      const projection = new BubbleProjection();
+      const first = projection.update({
+        isRunning: isRunning(),
+        messages: snapshot.toArray(),
+      });
+      if (first.event) {
+        yield first.event;
+      }
+
+      for await (const batch of batches) {
+        for (const messageId of batch.removed) {
+          snapshot.remove(messageId);
+        }
+        if (batch.updated.size > 0) {
+          const messages = await read(batch.updated);
+          if (messages.isOk()) {
+            for (const message of messages.value) {
+              snapshot.upsert(message);
+            }
+            const found = new Set(messages.value.map(({ id }) => id));
+            for (const messageId of batch.updated) {
+              if (!found.has(messageId)) {
+                snapshot.remove(messageId);
+              }
+            }
+          } else {
+            const reload = await read();
+            if (reload.isErr()) {
+              throw toORPCError(reload.error, errors);
+            }
+            snapshot.reset(reload.value);
+          }
+        }
+        const { event } = projection.update({
+          isRunning: isRunning(),
+          messages: snapshot.toArray(),
+          touched: batch.updated,
+        });
+        if (event) {
+          yield event;
+        }
+      }
+    } finally {
+      unattend();
+      await batches.return();
+    }
+  });
+
 export const message = {
   create,
   list: listWithParts,
-  live,
+  live: { ...live, bubbles: liveBubbles },
 };

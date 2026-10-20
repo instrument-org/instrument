@@ -10,9 +10,7 @@ const { stage } = vi.hoisted(() => ({
   stage: vi.fn<(input: unknown) => Promise<{ path: string; size: number }>>(),
 }));
 
-vi.mock("@/client/rpc/client", () => ({
-  rpcClient: { drafts: { stage: { call: stage } } },
-}));
+vi.mock("@/client/drafts/store", () => ({ stageIntoDraft: stage }));
 
 /** What the composer holds for bytes that arrived without a file. */
 function pasted(id: string, name: string): AttachedItem {

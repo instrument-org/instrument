@@ -10,7 +10,7 @@ import { installVenvError, runUv } from "./uv";
 // nearest virtualenv without needing pip seeded into it. `uv pip` honors
 // VIRTUAL_ENV, set by the uv env overlay.
 export const PIP_COMMAND = {
-  description: `Install Python packages via uv into the nearest \`.venv\` up to this conversation's folder, which the first install makes at its root, and where \`${PYTHON_COMMAND.name}\` runs. Use like pip, e.g. \`pip install <package>\`.`,
+  description: `Install Python packages via uv into the nearest \`.venv\` up to your work folder, which the first install makes at its root, and where \`${PYTHON_COMMAND.name}\` runs. Use like pip, e.g. \`pip install <package>\`.`,
   name: "pip",
 } as const;
 

@@ -114,13 +114,13 @@ export function askableFolder({
   // The home folder or the disk whole is never the thing to ask for.
   if (folder === rules.home || isClosedDiskRoot(folder)) {
     return {
-      refusal: `${shown(hostPath)} is directly in ${shown(folder)}, which can't be asked for whole. Work in this conversation's folder, or a folder the person names.`,
+      refusal: `${shown(hostPath)} is directly in ${shown(folder)}, which can't be asked for whole. Work in your work folder, or a folder the person names.`,
     };
   }
   // Nor is a folder that holds the app's own data, which no yes opens.
   if (holdsAppData(rules, folder)) {
     return {
-      refusal: `${shown(hostPath)} is in ${shown(folder)}, which holds ${APP_NAME}'s own data, so it can't be asked for whole. Work in this conversation's folder, or a folder the person names.`,
+      refusal: `${shown(hostPath)} is in ${shown(folder)}, which holds ${APP_NAME}'s own data, so it can't be asked for whole. Work in your work folder, or a folder the person names.`,
     };
   }
   return { folder };

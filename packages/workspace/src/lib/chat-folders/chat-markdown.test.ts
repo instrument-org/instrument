@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { type DeviceId } from "../records/device-id";
-import { logFileName, marksFileName } from "../records/file-names";
+import { logFileName, settingsFileName } from "../records/file-names";
 import { type FoldedChat, foldChat } from "../records/fold";
-import { type LogRecord, type MarkRecord, recordLine } from "../records/record";
+import {
+  type LogRecord,
+  type SettingRecord,
+  recordLine,
+} from "../records/record";
 import {
   assistantMessage,
   at,
@@ -34,7 +38,7 @@ const taskSession = sessionId(2);
 
 const ZONE = "America/New_York";
 
-function file(name: string, records: (LogRecord | MarkRecord)[]) {
+function file(name: string, records: (LogRecord | SettingRecord)[]) {
   return { bytes: Buffer.from(records.map(recordLine).join("")), name };
 }
 
@@ -196,18 +200,18 @@ function wholeChat() {
       ],
       { session: taskSession },
     ),
-    file(marksFileName(DEVICE_A), [
+    file(settingsFileName(DEVICE_A), [
       {
-        t: "mark",
+        t: "set",
         seq: 0,
         at: at(300),
         device: DEVICE_A,
         field: "title",
         session: chatSession,
-        value: { settled: true, text: "Quiet dishwashers under $900" },
+        value: { auto: false, text: "Quiet dishwashers under $900" },
       },
       {
-        t: "mark",
+        t: "set",
         seq: 1,
         at: at(300),
         device: DEVICE_A,
@@ -399,11 +403,11 @@ describe("a change the file does not report leaves it alone", () => {
   });
 
   it("renders the same file when another device marks the chat read", () => {
-    const withMark = [
+    const withSetting = [
       ...wholeChatFiles(),
-      file(marksFileName(DEVICE_B), [
+      file(settingsFileName(DEVICE_B), [
         {
-          t: "mark",
+          t: "set",
           seq: 0,
           at: at(400),
           device: DEVICE_B,
@@ -413,7 +417,9 @@ describe("a change the file does not report leaves it alone", () => {
         },
       ]),
     ];
-    expect(render(foldChat(withMark))).toBe(render(foldChat(wholeChatFiles())));
+    expect(render(foldChat(withSetting))).toBe(
+      render(foldChat(wholeChatFiles())),
+    );
   });
 
   it("renders the same file when the chat is told a standing fact again", () => {
@@ -463,15 +469,15 @@ it("leaves a record folder with no conversation of its own unrendered", () => {
 function wholeChatFiles() {
   return [
     ...foldFilesOf(),
-    file(marksFileName(DEVICE_A), [
+    file(settingsFileName(DEVICE_A), [
       {
-        t: "mark",
+        t: "set",
         seq: 0,
         at: at(300),
         device: DEVICE_A,
         field: "title",
         session: chatSession,
-        value: { settled: true, text: "Quiet dishwashers under $900" },
+        value: { auto: false, text: "Quiet dishwashers under $900" },
       },
     ]),
   ];

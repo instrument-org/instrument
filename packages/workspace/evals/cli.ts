@@ -116,8 +116,8 @@ const matchesPattern = (name: string) =>
 const patternLabel = namePatterns.join(", ");
 
 /**
- * How hard every task in the run is asked to think. Recorded on each task the
- * run creates, so the conversation and the tasks it starts all take it.
+ * How hard every task in the run is asked to think: the run's workspace
+ * config pins it, so the conversation and the tasks it starts all take it.
  */
 const reasoningEffort = values.effort
   ? z.enum(REASONING_EFFORTS).parse(values.effort)

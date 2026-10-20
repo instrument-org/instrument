@@ -97,7 +97,9 @@ export function useFileDragArea(
   resolve: ((event: SyntheticEvent) => DraggedFiles | undefined) | undefined,
 ) {
   const canDrag = Boolean(resolve && window.api.startFileDrag);
-  const gesture = useDragGesture();
+  // The Finder's rows, whose drag onto one of its folders moves them, so
+  // the drag says what it carries.
+  const gesture = useDragGesture({ isRows: true });
   // The last file the pointer was over, so crossing from a row's icon to its
   // name is not a second ask for the same drag image.
   const hoveredRef = useRef<string>(undefined);
@@ -153,7 +155,7 @@ function prepare(file: FileRef | undefined) {
  * One press at a time, from the pointer going down on a file to either the
  * drag being handed to the OS or the pointer coming back up.
  */
-function useDragGesture() {
+function useDragGesture({ isRows = false } = {}) {
   // Cancelling the dragstart keeps Blink out of a drag state, so it never
   // applies its own rule that a drag suppresses the click after it. A press and
   // release on one element is a click by every measure Blink has left, which
@@ -215,9 +217,10 @@ function useDragGesture() {
         endGesture();
         // Both set before the drag exists rather than after, so a release quick
         // enough to beat the OS still finds them.
-        trackSelfFileDrag();
+        const paths = [file.hostPath, ...(file.others ?? [])];
+        trackSelfFileDrag(isRows ? paths : []);
         draggedRef.current = true;
-        window.api.startFileDrag?.([file.hostPath, ...(file.others ?? [])]);
+        window.api.startFileDrag?.(paths);
       };
 
       gestureRef.current = {

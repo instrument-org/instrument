@@ -137,7 +137,7 @@ export default async (app, args = {}) => {
 
 /**
  * The first chat on the workspace's disk, by its folder (the id its task
- * routes take) and the session the folder's settings name; none when the
+ * routes take) and its own session, from its logs; none when the
  * workspace has no chat. Read from disk because nothing in the app lists
  * the chats in one call, and the task routes need one to stand on.
  */
@@ -158,15 +158,28 @@ async function firstChat(app) {
     return undefined;
   }
   for (const name of names) {
+    // A chat's own session is the one whose log header names no parent.
+    let logs;
     try {
-      const settings = JSON.parse(
-        readFileSync(path.join(chatsDir, name, "settings.json"), "utf8"),
+      logs = readdirSync(path.join(chatsDir, name)).filter((file) =>
+        /^ses_[0-9A-Z]{26}\.dev_[0-9A-Z]{8}\.jsonl$/.test(file),
       );
-      if (typeof settings.chatSessionId === "string") {
-        return { id: name, sessionId: settings.chatSessionId };
-      }
     } catch {
-      // A chat folder whose settings cannot be read is Storage's to list.
+      continue;
+    }
+    for (const log of logs.toSorted()) {
+      try {
+        const [first] = readFileSync(
+          path.join(chatsDir, name, log),
+          "utf8",
+        ).split("\n", 1);
+        const header = JSON.parse(first ?? "");
+        if (header.t === "session" && header.parent === undefined) {
+          return { id: name, sessionId: header.id };
+        }
+      } catch {
+        // A log whose header cannot be read is the fold's to skip.
+      }
     }
   }
   return undefined;

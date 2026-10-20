@@ -8,6 +8,11 @@ import { isToolPart } from "../src/lib/is-tool-part";
 import { SessionMessage } from "../src/schemas/session/message";
 import { ChatReads } from "../src/lib/chat-reads";
 import { chatDir, resolveChat, sessionOfChat } from "../src/lib/record-folders";
+import {
+  ChatRecords,
+  installChatRecords,
+  writingChatRecords,
+} from "../src/lib/records/chat-records";
 import { workDir } from "../src/lib/work-dir";
 import { chatModelURI } from "../src/lib/chat-settings";
 import { getUsageSummary } from "../src/lib/usage-summary";
@@ -165,6 +170,18 @@ export async function generateReport({
   // so a report generated at the end of a run keeps the machine's own config.
   if (!hasWorkspaceConfig()) {
     setWorkspaceConfig(workspaceConfig);
+  }
+  // Every read of a chat goes through the records a workspace puts in place
+  // as it opens, so a re-report puts its own there the same way. It only
+  // reads, and the process ends with the report.
+  if (!writingChatRecords()) {
+    installChatRecords(
+      new ChatRecords({
+        app: workspaceConfig.appVersion,
+        device: workspaceConfig.deviceId,
+        dirOf: chatDir,
+      }),
+    );
   }
 
   const listed = await getChatInfos({
@@ -417,6 +434,16 @@ export async function generateReport({
             ),
         ),
       );
+      // A follow-up that had to land mid-work and landed after the turn
+      // instead scored the case against a moment that never happened.
+      const missed = run?.metrics?.duringWorkMissed ?? 0;
+      if (missed > 0) {
+        assertionResults.push({
+          evidence: `${String(missed)} sent after the turn ended instead`,
+          passed: false,
+          text: "every mid-work follow-up landed while the work ran",
+        });
+      }
       const passed = assertionResults.filter((r) => r.passed).length;
       const failed = assertionResults.filter((r) => !r.passed).length;
       const total = assertionResults.length;

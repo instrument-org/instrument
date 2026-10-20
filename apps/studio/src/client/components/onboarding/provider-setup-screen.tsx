@@ -4,6 +4,7 @@ import { ChatGPTLoginButton } from "@/client/components/chatgpt-login-button";
 import { ClaudeLoginButton } from "@/client/components/claude-login-button";
 import { ExternalLink } from "@/client/components/external-link";
 import { GoogleLoginButton } from "@/client/components/google-login-button";
+import { GrokLoginButton } from "@/client/components/grok-login-button";
 import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
 import { OnboardingScreen } from "@/client/components/onboarding/screen";
 import { TermsFooter } from "@/client/components/terms-footer";
@@ -51,14 +52,17 @@ export function ProviderSetupScreen({
 
   // The sign-in holding for the browser, which alone stays on the page until
   // it finishes or is canceled.
-  const [holding, setHolding] = useState<"chatgpt" | "claude" | "google">();
+  const [holding, setHolding] = useState<
+    "chatgpt" | "claude" | "google" | "grok"
+  >();
   const holdingChange =
-    (provider: "chatgpt" | "claude" | "google") => (waiting: boolean) => {
+    (provider: "chatgpt" | "claude" | "google" | "grok") =>
+    (waiting: boolean) => {
       setHolding((current) =>
         waiting ? provider : current === provider ? undefined : current,
       );
     };
-  const shows = (provider: "chatgpt" | "claude" | "google") =>
+  const shows = (provider: "chatgpt" | "claude" | "google" | "grok") =>
     !holding || holding === provider;
 
   // Signed in to Claude already, there is no Claude plan left to add.
@@ -112,8 +116,8 @@ export function ProviderSetupScreen({
             <p className="text-sm text-foreground/80">
               {signedIn
                 ? offersClaude
-                  ? "Use the ChatGPT or Claude plan you already pay for."
-                  : "Use the ChatGPT plan you already pay for."
+                  ? "Use the ChatGPT, Claude or Grok plan you already pay for."
+                  : "Use the ChatGPT or Grok plan you already pay for."
                 : "A guided AI workspace for ambitious work"}
             </p>
           </div>
@@ -175,6 +179,15 @@ export function ProviderSetupScreen({
                   className="w-full justify-center"
                   onSuccess={onLoginSuccess}
                   onWaitingChange={holdingChange("claude")}
+                />
+              )}
+
+              {shows("grok") && (
+                <GrokLoginButton
+                  caption="Pay for SuperGrok or X Premium+? Use it here."
+                  className="w-full justify-center"
+                  onSuccess={onLoginSuccess}
+                  onWaitingChange={holdingChange("grok")}
                 />
               )}
             </>

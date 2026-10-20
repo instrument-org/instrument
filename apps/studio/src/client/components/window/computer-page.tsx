@@ -1,4 +1,4 @@
-import { type ChosenItem } from "@/client/atoms/drafts";
+import { type ChosenItem } from "@/shared/drafts";
 import {
   computerColumnWidthAtom,
   type ComputerFolderView,
@@ -75,6 +75,12 @@ import {
 import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import {
+  endOwnFileDrag,
+  isOwnFileDragOf,
+  isSelfFileDrag,
+  releaseSelfFileDrag,
+} from "@/client/lib/self-file-drag";
+import {
   cn,
   commandKeyHeld,
   currentOs,
@@ -91,6 +97,7 @@ import {
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ClipboardIcon } from "@phosphor-icons/react/Clipboard";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -138,8 +145,11 @@ import {
   joinHostPath,
   nameOf,
   parentFolderOf,
+  relativeHostPath,
   segmentsOf,
 } from "./host-path";
+import { useClashQuestions } from "./clash-dialog";
+import { createPasteTarget } from "./paste-target";
 import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
 
 /**
@@ -287,8 +297,6 @@ export function ComputerPage({
     isClosing: boolean;
     isFolderShown: boolean;
     isResizing: boolean;
-    /** A press on empty space in the folder, which puts the file away. */
-    onEmpty: () => void;
     /** Everything picked, a folder the columns stand in included, whenever it changes. */
     onPick: (picked: ChosenItem[]) => void;
     /** Where Ask and the menu for several picked go, in the file's section of the row. */
@@ -736,6 +744,20 @@ export function ComputerPage({
   // Where each thing sits on the Mac, as a terminal, a Finder window or
   // another app takes it, one to a line. The browser's own path names a place
   // inside the browser and is no use anywhere else.
+  // The things themselves, as the file manager's Copy puts them on the
+  // clipboard, so a paste here or in any other app copies them.
+  const copyFiles = async (picked: FileSystemItem[]) => {
+    const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
+    if (hostPaths.length === 0) {
+      return;
+    }
+    try {
+      await rpcClient.files.copyToClipboard.call({ paths: hostPaths });
+      focusBrowser();
+    } catch (error) {
+      fileActionFailed("Couldn't copy that", error);
+    }
+  };
   const copyPaths = async (picked: FileSystemItem[]) => {
     const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
     if (hostPaths.length === 0) {
@@ -798,7 +820,7 @@ export function ComputerPage({
             ? {
                 journalIds: undoable,
                 undo: () => {
-                  void undoTrash(undoable);
+                  void undoJournaled(undoable);
                 },
               }
             : null,
@@ -806,10 +828,165 @@ export function ComputerPage({
       }
     }
   };
-  // The toast's Undo: each of them back, the last trashed first, stopping at
-  // the first that cannot come back and saying why. One already put back
-  // another way, by ⌘Z say, is passed over quietly.
-  const undoTrash = async (journalIds: string[]) => {
+  const clashQuestions = useClashQuestions();
+  // Copies things into a folder of this computer, as a drop from outside or
+  // a paste does, or moves the Finder's own rows there, as a drop of them
+  // does. Any name already taken there is asked about first, every one
+  // before anything is touched, so stopping leaves everything as it was;
+  // then it happens in one go, with one Undo for all of it.
+  const placeInto = async (
+    mode: "copy" | "move",
+    sources: { hostPath: string; isFolder: boolean }[],
+    into: { hostPath: string; prefix: string },
+  ) => {
+    if (sources.length === 0) {
+      return;
+    }
+    const paths = sources.map((source) => source.hostPath);
+    const folderName = nameOf(into.hostPath);
+    try {
+      const { clashes } = await rpcClient.files.clashes.call({
+        folder: into.hostPath,
+        op: mode,
+        paths,
+      });
+      const resolutions =
+        clashes.length === 0
+          ? {}
+          : await clashQuestions.ask(clashes, {
+              folder: folderName,
+              verb: mode === "move" ? "moving" : "copying",
+            });
+      if (resolutions === null) {
+        focusBrowser();
+        return;
+      }
+      const route = mode === "move" ? "moveInto" : "copyInto";
+      const { failure, journalId, placed, skipped, trashed } =
+        await rpcClient.files[route].call({
+          folder: into.hostPath,
+          paths,
+          // What each Replace was shown in its way, so it replaces only that.
+          replacing: Object.fromEntries(
+            clashes.flatMap((clash) =>
+              resolutions[clash.path] === "replace"
+                ? [[clash.path, clash.with.identity]]
+                : [],
+            ),
+          ),
+          resolutions,
+        });
+      const folders = new Set(
+        sources.flatMap((source) => (source.isFolder ? [source.hostPath] : [])),
+      );
+      if (into.prefix === onScreen && placed.length > 0) {
+        selectWhenListed(
+          placed.map(
+            (each) =>
+              `${into.prefix}${nameOf(each.path)}${folders.has(each.from) ? "/" : ""}`,
+          ),
+        );
+      }
+      focusBrowser();
+      const message = placedMessage({
+        folderName,
+        placed,
+        skipped: skipped.filter((each) => each.why === "answered").length,
+      });
+      // What a Replace put in the Trash cannot be put back from here, so
+      // that toast shows where it went instead of offering Undo. Showing it
+      // is the Mac's: the Finder reveals it, or opens the Trash.
+      const [firstTrashed] = trashed;
+      if (message && firstTrashed) {
+        toast(message, {
+          action: isMacOS()
+            ? {
+                label: "Show in Trash",
+                onClick: () => {
+                  void rpcClient.files.showInTrash.call({
+                    inTrash: firstTrashed.inTrash,
+                  });
+                },
+              }
+            : undefined,
+        });
+      } else if (message) {
+        toastWithUndo(
+          message,
+          journalId === null
+            ? null
+            : {
+                journalIds: [journalId],
+                undo: () => {
+                  void undoJournaled([journalId]);
+                },
+              },
+        );
+      }
+      // Said apart from what was done, so nothing that stopped short or was
+      // passed over goes unmentioned.
+      const changed = skipped.filter((each) => each.why === "changed");
+      const [first] = changed;
+      if (first) {
+        toast(
+          changed.length === 1
+            ? `“${nameOf(first.source)}” changed before it could be put there, so it was left where it was.`
+            : `${changed.length.toString()} items changed before they could be put there, so they were left where they were.`,
+        );
+      }
+      const there = skipped.filter((each) => each.why === "already-there");
+      const [firstThere] = there;
+      if (firstThere) {
+        toast(
+          there.length === 1
+            ? `“${nameOf(firstThere.source)}” is already in “${folderName}”.`
+            : `${there.length.toString()} of these are already in “${folderName}”.`,
+        );
+      }
+      if (failure) {
+        toast.error(
+          mode === "move"
+            ? "Couldn't finish moving"
+            : "Couldn't finish copying",
+          { description: failure },
+        );
+      }
+    } catch (error) {
+      fileActionFailed(
+        mode === "move" ? "Couldn't move that" : "Couldn't copy that",
+        error,
+      );
+    } finally {
+      reread();
+    }
+  };
+  const copyInto = (
+    sources: { hostPath: string; isFolder: boolean }[],
+    into: { hostPath: string; prefix: string },
+  ) => placeInto("copy", sources, into);
+  const moveInto = (
+    sources: { hostPath: string; isFolder: boolean }[],
+    into: { hostPath: string; prefix: string },
+  ) => placeInto("move", sources, into);
+  // What a drop just put in the folder on screen, selected once the re-read
+  // lists it: until then there is no row to select.
+  const selectingWhenListed = useRef<null | readonly string[]>(null);
+  const selectWhenListed = (paths: readonly string[]) => {
+    selectingWhenListed.current = paths;
+  };
+  useEffect(() => {
+    const paths = selectingWhenListed.current;
+    const listed = new Set(items.map((item) => item.path));
+    if (paths === null || !paths.every((each) => listed.has(each))) {
+      return;
+    }
+    selectingWhenListed.current = null;
+    fileSystemRef.current?.select(paths);
+  }, [items]);
+  // The toast's Undo: each of them back, the last first, stopping at the
+  // first that cannot come back and saying why. One already put back another
+  // way, by ⌘Z say, is passed over quietly.
+  const undoJournaled = async (journalIds: string[]) => {
     let first: null | RPCOutput["files"]["undo"] = null;
     try {
       for (const journalId of journalIds.toReversed()) {
@@ -1064,6 +1241,186 @@ export function ComputerPage({
     settled,
     stepSelect,
   ]);
+
+  // Files dropped on the folder are copied into it: onto a folder's row, into
+  // that folder; onto a file's row, into the folder that lists it; anywhere
+  // else, into the folder the pointer is over (a column's own, in the
+  // columns). The folder taking it is outlined while the drag is over it,
+  // and the Finder takes the drop before anything around it can.
+  const [dropInto, setDropInto] = useState<null | string>(null);
+  const dropIntoOf = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) {
+      return current;
+    }
+    const row = target
+      .closest("[data-file-system-item]")
+      ?.getAttribute("data-file-system-item");
+    if (row !== undefined && row !== null) {
+      return itemsByPath.get(row)?.kind === "folder"
+        ? row
+        : row.slice(0, row.lastIndexOf("/", row.length - 2) + 1);
+    }
+    return (
+      target
+        .closest("[data-file-system-folder]")
+        ?.getAttribute("data-file-system-folder") || current
+    );
+  };
+  const dropHandlers = useRef({ copyInto, dropIntoOf, moveInto });
+  useEffect(() => {
+    dropHandlers.current = { copyInto, dropIntoOf, moveInto };
+  });
+  const isDropOpen = !isRecents && settled;
+  const dropHostPathOf = (prefix: string) =>
+    hostPathOf(prefix, rootHostPath ?? root);
+  const dropHostPathRef = useRef(dropHostPathOf);
+  useEffect(() => {
+    dropHostPathRef.current = dropHostPathOf;
+  });
+  useEffect(() => {
+    const browser = browserRef.current;
+    if (!browser || !isDropOpen) {
+      return;
+    }
+    let staleTimer: number | undefined;
+    const clear = () => {
+      window.clearTimeout(staleTimer);
+      setDropInto(null);
+    };
+    const over = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes("Files")) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+      setDropInto(dropHandlers.current.dropIntoOf(event.target));
+      // `dragover` repeats while the drag is over the folder, so its silence
+      // means the drag went somewhere this did not hear about.
+      window.clearTimeout(staleTimer);
+      staleTimer = window.setTimeout(clear, 1000);
+    };
+    const leave = (event: DragEvent) => {
+      if (
+        !(event.relatedTarget instanceof Node) ||
+        !browser.contains(event.relatedTarget)
+      ) {
+        clear();
+      }
+    };
+    const drop = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes("Files")) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      clear();
+      const wasSelfDrag = isSelfFileDrag();
+      releaseSelfFileDrag();
+      const prefix = dropHandlers.current.dropIntoOf(event.target);
+      const into = { hostPath: dropHostPathRef.current(prefix), prefix };
+      // Read while the drop is being dispatched: the items empty after.
+      const sources = [...event.dataTransfer.items].flatMap((item) => {
+        const file = item.kind === "file" ? item.getAsFile() : null;
+        const hostPath = file ? window.api.getFilePath(file) : "";
+        return hostPath
+          ? [
+              {
+                hostPath,
+                isFolder: item.webkitGetAsEntry()?.isDirectory ?? false,
+              },
+            ]
+          : [];
+      });
+      const isRowDrag = isOwnFileDragOf(
+        sources.map((source) => source.hostPath),
+      );
+      endOwnFileDrag();
+      // A row of this Finder let go of where it already is, or inside
+      // itself, is a drag that went nowhere, as in the Finder.
+      const kept =
+        isRowDrag || wasSelfDrag
+          ? sources.filter(
+              (source) =>
+                joinHostPath(into.hostPath, nameOf(source.hostPath)) !==
+                  source.hostPath &&
+                !`${into.hostPath}/`.startsWith(`${source.hostPath}/`),
+            )
+          : sources;
+      // The Finder's own rows move, as its own drag does, unless Option is
+      // held; everything from outside the app is copied in.
+      void (isRowDrag && !event.altKey
+        ? dropHandlers.current.moveInto(kept, into)
+        : dropHandlers.current.copyInto(kept, into));
+    };
+    browser.addEventListener("dragenter", over);
+    browser.addEventListener("dragover", over);
+    browser.addEventListener("dragleave", leave);
+    browser.addEventListener("drop", drop);
+    return () => {
+      clear();
+      browser.removeEventListener("dragenter", over);
+      browser.removeEventListener("dragover", over);
+      browser.removeEventListener("dragleave", leave);
+      browser.removeEventListener("drop", drop);
+    };
+  }, [isDropOpen]);
+
+  // A paste lands in the folder the keyboard is in: the column it is in, in
+  // the columns, and the folder on screen otherwise, or the folder a menu's
+  // Paste named. It is heard only while the keyboard is in this Finder and
+  // out of any field, since that is the only place the window sends it.
+  const [pasteTarget] = useState(() => createPasteTarget());
+  useEffect(() => {
+    const browser = browserRef.current;
+    if (!browser || !isDropOpen) {
+      return;
+    }
+    const paste = (event: ClipboardEvent) => {
+      const named = pasteTarget.take();
+      if (!event.clipboardData || isTypingTarget(event.target)) {
+        return;
+      }
+      // Read while the paste is being dispatched: the items empty after.
+      const pasted = [...event.clipboardData.items].flatMap((item) => {
+        const file = item.kind === "file" ? item.getAsFile() : null;
+        const hostPath = file ? window.api.getFilePath(file) : "";
+        return hostPath
+          ? [
+              {
+                hostPath,
+                isFolder: item.webkitGetAsEntry()?.isDirectory ?? false,
+              },
+            ]
+          : [];
+      });
+      event.preventDefault();
+      const prefix =
+        named ??
+        (event.target instanceof Element
+          ? event.target
+              .closest("[data-file-system-folder]")
+              ?.getAttribute("data-file-system-folder")
+          : undefined) ??
+        current;
+      const into = {
+        hostPath: dropHostPathRef.current(prefix || current),
+        prefix: prefix || current,
+      };
+      // The page sees only the first of several files the Finder copied, so
+      // the computer's own list comes first where there is one.
+      void rpcClient.files.clipboardFiles
+        .call()
+        .catch(() => ({ files: [] }))
+        .then(({ files }) =>
+          dropHandlers.current.copyInto(filesToPaste(files, pasted), into),
+        );
+    };
+    browser.addEventListener("paste", paste);
+    return () => {
+      browser.removeEventListener("paste", paste);
+    };
+  }, [current, isDropOpen, pasteTarget]);
 
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
@@ -1480,6 +1837,7 @@ export function ComputerPage({
     const picked = group ?? (item ? [item] : []);
     return {
       ...menuActionsForOne(item),
+      onCopy: () => void copyFiles(picked),
       onDuplicate: () => void duplicate(picked),
       onNewDraft:
         askAbout && (item || folderOnScreenPath !== undefined)
@@ -1552,6 +1910,19 @@ export function ComputerPage({
       return isApp(tab) ? "app" : "file";
     })(),
     onCopyPath: () => void copyPaths(item ? [item] : []),
+    paste:
+      folderOnScreenPath === undefined
+        ? undefined
+        : {
+            into: segmentsOf(folderOnScreenPath).at(-1) ?? folderOnScreenPath,
+            onPaste: () => {
+              afterMenu.current = () => {
+                focusBrowser();
+                pasteTarget.name(onScreen);
+                void rpcClient.files.paste.call();
+              };
+            },
+          },
     onNewFolder:
       folderOnScreenPath === undefined
         ? undefined
@@ -1956,10 +2327,19 @@ export function ComputerPage({
               }}
               ref={browserRef}
             >
+              {dropInto === current ? (
+                <div className="pointer-events-none absolute inset-1 z-10 rounded-lg ring-2 ring-brand-500 ring-inset" />
+              ) : null}
               <FileSystem
                 className="h-full rounded-none border-0"
                 columnWidth={columnWidth}
-                contextMenuPath={isMenuOpen ? (menuItem?.path ?? null) : null}
+                contextMenuPath={
+                  dropInto !== null && dropInto !== current
+                    ? dropInto
+                    : isMenuOpen
+                      ? (menuItem?.path ?? null)
+                      : null
+                }
                 defaultPath={path}
                 defaultSearch={query}
                 defaultSelectedPath={select}
@@ -2044,6 +2424,7 @@ export function ComputerPage({
                         });
                       }
                 }
+                onCopy={(picked) => void copyFiles(picked)}
                 onCopyPath={(picked) => void copyPaths(picked)}
                 onDuplicate={(picked) => void duplicate(picked)}
                 onTrash={(picked) => void trash(picked)}
@@ -2191,7 +2572,6 @@ export function ComputerPage({
                   ? {}
                   : {
                       besideWidth: beside.width,
-                      onEmptyPress: beside.onEmpty,
                     })}
                 {...(toolsInRow
                   ? {
@@ -2205,6 +2585,7 @@ export function ComputerPage({
               />
             </div>
           </ContextMenuTrigger>
+          {clashQuestions.dialog}
           <FolderMenu
             {...menuActionsFor(menuItem)}
             isRecents={isRecents}
@@ -2266,6 +2647,7 @@ function ICloudAccessBanner() {
 
 /** What a row's menus do, by the menu's own components; see `FolderMenu`. */
 type FolderMenuActions = {
+  onCopy: () => void;
   onCopyPath: () => void;
   onDuplicate: () => void;
   /** A draft with the row, or the folder its empty space is, picked to go with it; left out where no draft can be opened. */
@@ -2291,6 +2673,8 @@ type FolderMenuActions = {
   opensOutside?: "app" | "file" | undefined;
   /** Pinning a folder to the sidebar, or unpinning it; left out for anything but one folder. */
   pin?: { isPinned: boolean; onToggle: () => void } | undefined;
+  /** Files on the clipboard, copied into the folder on screen, by its name; left out where there is no folder. */
+  paste?: { into: string; onPaste: () => void } | undefined;
   /**
    * What the menu acts on, when it is several selected: what names one thing
    * (Rename, Copy Path, Quick Look, Reveal) is left off, and Open With lists
@@ -2422,6 +2806,7 @@ function FolderMenuItems({
   item,
   menuComponents,
   newFolderFirst = false,
+  onCopy,
   onCopyPath,
   onDuplicate,
   onNewDraft,
@@ -2434,6 +2819,7 @@ function FolderMenuItems({
   onShowPackageContents,
   onTrash,
   opensOutside,
+  paste,
   pin,
   group,
 }: FolderMenuActions & {
@@ -2556,6 +2942,11 @@ function FolderMenuItems({
               <Shortcut>{keys.rename}</Shortcut>
             </Item>
           ) : null}
+          <Item onClick={onCopy}>
+            <CopyIcon className="size-4" />
+            <span>Copy</span>
+            <Shortcut>{keys.copy}</Shortcut>
+          </Item>
           <Item onClick={onDuplicate}>
             <CopyIcon className="size-4" />
             <span>Duplicate</span>
@@ -2612,10 +3003,41 @@ function FolderMenuItems({
               <Separator />
             </>
           ) : null}
+          {paste ? (
+            <>
+              <PasteItem menuComponents={menuComponents} paste={paste} />
+              <Separator />
+            </>
+          ) : null}
           {emptyTail}
         </>
       )}
     </>
+  );
+}
+
+/**
+ * The folder menu's Paste, which says where the files go and is offered only
+ * while the clipboard holds some, read as the menu opens.
+ */
+function PasteItem({
+  menuComponents: { Item, Shortcut },
+  paste,
+}: {
+  menuComponents: MenuComponents;
+  paste: NonNullable<FolderMenuActions["paste"]>;
+}) {
+  const clipboard = useQuery({
+    ...rpcClient.files.clipboardHasFiles.queryOptions(),
+    gcTime: 0,
+    staleTime: 0,
+  });
+  return (
+    <Item disabled={clipboard.data?.hasFiles !== true} onClick={paste.onPaste}>
+      <ClipboardIcon className="size-4" />
+      <span>Paste into “{paste.into}”</span>
+      <Shortcut>{listingKeys(currentOs()).paste}</Shortcut>
+    </Item>
   );
 }
 
@@ -2638,18 +3060,6 @@ function combineListings(
     isPending: result.isPending,
     refusal: result.data?.kind === "refused" ? result.data : undefined,
   }));
-}
-
-/**
- * Where a path on this computer sits under a root, as the browser spells a
- * prefix (with slashes, whatever the computer); null when it is not under it.
- */
-function relativeHostPath(root: string, hostPath: string) {
-  const separator = root.includes("\\") ? "\\" : "/";
-  const base = root.endsWith(separator) ? root : `${root}${separator}`;
-  return hostPath.startsWith(base)
-    ? hostPath.slice(base.length).split(separator).join("/")
-    : null;
 }
 
 /**
@@ -2718,6 +3128,71 @@ export function fileActionFailed(title: string, error: unknown) {
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
   return typeof hostPath === "string" ? hostPath : "";
+}
+
+/**
+ * What a toast says a drop or paste did: what was moved or copied into the
+ * folder, and how many of them replaced something. Skipped ones are named
+ * only when nothing else happened. Null when there is nothing to say.
+ */
+export function placedMessage({
+  folderName,
+  placed,
+  skipped,
+}: {
+  folderName: string;
+  placed: readonly {
+    how: "copied" | "moved";
+    path: string;
+    replaced: boolean;
+  }[];
+  skipped: number;
+}) {
+  if (placed.length === 0) {
+    return skipped === 0
+      ? null
+      : `You skipped ${skipped === 1 ? "it" : "them"}, so nothing changed.`;
+  }
+
+  const moved = placed.filter((each) => each.how === "moved").length;
+  const verb =
+    moved === placed.length
+      ? "Moved"
+      : moved === 0
+        ? "Copied"
+        : "Moved and copied";
+  const replaced = placed.filter((each) => each.replaced).length;
+  const inTrash =
+    replaced === 0
+      ? ""
+      : placed.length === 1
+        ? " The one it replaced is in the Trash."
+        : replaced === 1
+          ? " The one they replaced is in the Trash."
+          : ` The ${replaced.toString()} items they replaced are in the Trash.`;
+  const [only] = placed;
+  if (placed.length === 1 && only) {
+    const name = only.path.split(/[\\/]/).at(-1) ?? only.path;
+    return `${verb} “${name}” into “${folderName}”${inTrash ? `.${inTrash}` : ""}`;
+  }
+  return `${verb} ${placed.length.toString()} items into “${folderName}”${inTrash ? `.${inTrash}` : ""}`;
+}
+
+/**
+ * What a paste in the Finder copies: the computer's own list of the files
+ * on the clipboard where it has one, else the files the paste event carried.
+ * Only files: text on the clipboard beside them, or alone, is never pasted.
+ */
+export function filesToPaste(
+  fromComputer: readonly { isFolder: boolean; path: string }[],
+  fromEvent: readonly { hostPath: string; isFolder: boolean }[],
+) {
+  return fromComputer.length > 0
+    ? fromComputer.map((file) => ({
+        hostPath: file.path,
+        isFolder: file.isFolder,
+      }))
+    : [...fromEvent];
 }
 
 /** A refusal in a line, under a folder opened in place in the list. */

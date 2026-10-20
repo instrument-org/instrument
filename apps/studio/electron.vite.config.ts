@@ -10,7 +10,6 @@ import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readPackage } from "read-pkg";
 import { build as viteBuild } from "vite";
 import { analyzer } from "vite-bundle-analyzer";
 
@@ -51,22 +50,20 @@ const monorepoNamespace = "@instrument-org";
 // Not including "components" it will be bundled by default in the client
 const monorepoPackages = ["workspace", "shared", "ai-gateway"];
 
-async function getMonorepoDeps(packageName: string) {
-  const pkg = await readPackage({
-    cwd: path.join(
-      path.dirname(fileURLToPath(import.meta.url)),
-      `../../packages/${packageName}`,
-    ),
-  });
-  return Object.keys(pkg.dependencies ?? {}).filter(
-    (dep) => !dep.startsWith(monorepoNamespace),
-  );
-}
-
-const monorepoDepsPromises = await Promise.all(
-  monorepoPackages.map(getMonorepoDeps),
-);
-const monorepoDeps = [...new Set(monorepoDepsPromises.flat())];
+// What main loads from node_modules in a packaged app instead of carrying in
+// its bundle: packages that find their own binaries, workers or WASM beside
+// themselves at runtime, and `ws`, whose native speedups are optional
+// requires. Everything else the monorepo packages use is bundled, since a
+// launch otherwise spends most of main's startup resolving modules.
+const mainKeepsExternal = [
+  "@anthropic-ai/claude-agent-sdk",
+  "@vscode/ripgrep",
+  "agent-browser",
+  "dugite",
+  "ffmpeg-ffprobe-static",
+  "just-bash",
+  "ws",
+];
 
 const mainExternalizeExclude = [
   // Monorepos packages export .ts files, which must be bundled
@@ -338,11 +335,7 @@ export default defineConfig(({ command }) => {
           exclude: mainExternalizeExclude,
           include:
             // In dev, we must include all dependencies
-            command === "serve"
-              ? []
-              : monorepoDeps.filter(
-                  (dep) => !mainExternalizeExclude.includes(dep),
-                ),
+            command === "serve" ? [] : mainKeepsExternal,
         },
         lib: {
           entry: path.join(process.cwd(), "src/electron-main/index.ts"),

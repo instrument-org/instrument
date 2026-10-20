@@ -2,17 +2,23 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { type DeviceId } from "./device-id";
-import { logFileName, marksFileName, parseRecordFileName } from "./file-names";
-import { readLog, readMarks } from "./read-records";
+import {
+  formerSettingsFileName,
+  logFileName,
+  parseRecordFileName,
+  settingsFileName,
+} from "./file-names";
+import { readLog, readSettings } from "./read-records";
 import {
   type LogRecord,
-  type MarkRecord,
+  type SettingRecord,
   RECORD_FORMAT,
   type SessionHeader,
 } from "./record";
 import {
   type LogCursor,
   type OnWrite,
+  chatRecordFormat,
   RecordWriter,
   tailHash,
   type Unsequenced,
@@ -28,9 +34,9 @@ export interface LogWriter {
   cursor(): LogCursor;
 }
 
-export interface MarksWriter {
+export interface SettingsWriter {
   readonly path: string;
-  append(record: Unsequenced<MarkRecord>): Promise<number>;
+  append(record: Unsequenced<SettingRecord>): Promise<number>;
   commit(): Promise<void>;
 }
 
@@ -45,8 +51,10 @@ export interface OpenLogOptions {
    * its fold). Written only when a log is started.
    */
   header: Header;
-  /** What the index last saw of this device's newest log of the session. */
+  /** Where this device last left its newest log of the session (`own-log-cursors.ts`). */
   last?: { cursor: LogCursor; name: string };
+  /** Told where the log stands each time its lines are synced to disk. */
+  onCommit?: (cursor: LogCursor) => void;
   /** Told of each write to the log, its header included when it starts one. */
   onWrite?: OnWrite;
 }
@@ -56,9 +64,10 @@ export interface OpenLogOptions {
  * in its newest log of the session while it recognizes it, and starts the
  * next one (`.2`, then `.3`) when:
  *
- * - The index saw the file differently: shorter than it was, or ending in
- *   other bytes. The device never writes on top of a file it does not
- *   recognize, and the new log carries on from what the index saw.
+ * - The device last left the file differently (`own-log-cursors.ts`):
+ *   shorter than it was, or ending in other bytes. The device never writes
+ *   on top of a file it does not recognize, and the new log carries on from
+ *   where it left the old one.
  * - The file's first line is not this session's header from this device.
  * - The device has read more of other devices' logs of the session than the
  *   file's header says. A header is the one place a log says what it
@@ -73,6 +82,7 @@ export async function openLog({
   dir,
   header,
   last,
+  onCommit,
   onWrite,
 }: OpenLogOptions): Promise<LogWriter> {
   await fs.mkdir(dir, { recursive: true });
@@ -87,7 +97,7 @@ export async function openLog({
         Math.max(highest, lastLog?.generation ?? 0) + 1,
       ),
       { ...header, continues: withSeen(header.continues, seen) },
-      onWrite,
+      { onCommit, onWrite },
     );
   if (last && lastLog && lastLog.generation > (newest?.generation ?? 0)) {
     // The log the index last saw is gone.
@@ -109,26 +119,50 @@ export async function openLog({
       [newest.stem]: current.lastSeq,
     });
   }
-  return new RecordWriter(path.join(dir, newest.name), "log", current, {
+  const file = path.join(dir, newest.name);
+  return new RecordWriter(file, chatRecordFormat("log", file), current, {
+    onCommit,
     onWrite,
   });
 }
 
-/** Opens this device's marks file to append to. */
-export async function openMarks(
+/**
+ * Opens this device's settings file to append to. The file builds before
+ * kept under `marks.<device>.jsonl` takes the settings name first: this
+ * device is its only writer, and its lines are read the same under either
+ * name, so a fold that already took them takes them once.
+ */
+export async function openSettingsFile(
   dir: string,
   device: DeviceId,
   { onWrite }: { onWrite?: OnWrite } = {},
-): Promise<MarksWriter> {
+): Promise<SettingsWriter> {
   await fs.mkdir(dir, { recursive: true });
-  const file = path.join(dir, marksFileName(device));
+  const file = path.join(dir, settingsFileName(device));
+  await takeFormerName(path.join(dir, formerSettingsFileName(device)), file);
   const bytes = await readIfThere(file);
   return new RecordWriter(
     file,
-    "marks",
-    { bytes, lastSeq: readMarks(bytes).cursor.lastSeq },
+    chatRecordFormat("settings", file),
+    { bytes, lastSeq: readSettings(bytes).cursor.lastSeq },
     { onWrite },
   );
+}
+
+/** Renames a file to `to` when `to` is not there yet and the file is. */
+async function takeFormerName(from: string, to: string): Promise<void> {
+  if ((await readIfThere(to)).length > 0) {
+    return;
+  }
+  try {
+    await fs.rename(from, to);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+  await syncDirectory(path.dirname(to));
 }
 
 type OwnLogName = { generation: number; name: string; stem: string };
@@ -223,7 +257,7 @@ async function startLog(
   dir: string,
   name: string,
   { continues, ...header }: Header,
-  onWrite: OnWrite | undefined,
+  told: Pick<OpenLogOptions, "onCommit" | "onWrite">,
 ): Promise<LogWriter> {
   const file = path.join(dir, name);
   // Exclusive, so a log is only ever started, never written over.
@@ -231,9 +265,9 @@ async function startLog(
   await syncDirectory(dir);
   const writer = new RecordWriter(
     file,
-    "log",
+    chatRecordFormat("log", file),
     { bytes: new Uint8Array(), lastSeq: -1 },
-    { onWrite },
+    told,
   );
   await writer.append({
     t: "session",

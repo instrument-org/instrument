@@ -5,6 +5,7 @@ import { AIProviderEditDialog } from "@/client/components/ai-provider-edit-dialo
 import { ProviderConfigListItem } from "@/client/components/provider-config-list-item";
 import { ChatGPTAccountCard } from "@/client/components/settings/chatgpt-account-card";
 import { ClaudeAccountCard } from "@/client/components/settings/claude-account-card";
+import { GrokAccountCard } from "@/client/components/settings/grok-account-card";
 import { InstrumentAccountCard } from "@/client/components/settings/instrument-account-card";
 import { useProviderSwitch } from "@/client/components/settings/provider-switch";
 import { Button } from "@/client/components/ui/button";
@@ -53,6 +54,7 @@ export function ProvidersSection({
         <InstrumentAccountCard />
         <ChatGPTAccountCard />
         <ClaudeAccountCard />
+        <GrokAccountCard />
         {providerConfigs?.map((config) => (
           <ProviderConfigListItem
             config={config}

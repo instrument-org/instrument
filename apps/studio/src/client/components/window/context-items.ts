@@ -1,4 +1,4 @@
-import { type ChosenItem, type Draft } from "@/client/atoms/drafts";
+import { type ChosenItem, type Draft } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
 import { type TabId } from "@/shared/tabs";
 import { type ChatId } from "@instrument-org/workspace/client";

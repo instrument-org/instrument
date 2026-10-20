@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { resolveWorkspaceFilePaths } from "../../../lib/resolve-workspace-file-path";
-import { WorkspaceFilePathSchema } from "../../../schemas/paths";
 import { ChatIdSchema } from "../../../schemas/chat-id";
 import { base } from "../../base";
 
@@ -10,12 +9,16 @@ import { base } from "../../base";
  * wrote. The person's side of the window works in those paths: a viewer
  * reads the bytes by one, a tab is addressed by one, and the agent's own
  * paths are translated once, here, on their way to the screen. Null for a
- * path outside everything the task can reach.
+ * path outside everything the task can reach, and for one that is no path
+ * this computer can read, each on its own. A file the person attached in the
+ * workspace (`workspace:/...`) is answered wherever the workspace is.
  */
 const hostPaths = base
   .input(
     z.object({
-      filePaths: z.array(WorkspaceFilePathSchema),
+      // Checked one by one as each is resolved, so a path that is not one
+      // of ours maps to null rather than refusing the whole surface.
+      filePaths: z.array(z.string()),
       chatId: ChatIdSchema,
     }),
   )

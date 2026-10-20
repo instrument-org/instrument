@@ -87,6 +87,7 @@ const SOURCE_IMAGE_LIMITS: Partial<
   Record<ImageGenerationProviderType, number>
 > = {
   fireworks: 1,
+  "grok-account": 1,
   together: 1,
   "x-ai": 1,
 };

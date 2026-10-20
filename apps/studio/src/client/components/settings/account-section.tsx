@@ -301,7 +301,7 @@ function PlanGroup({ status }: { status: Status }) {
                   : `Starts with your first message to ${APP_NAME}${days ? ` and runs ${days} days` : ""}.`
                 : [
                     checkoutTrialLine(offer),
-                    `${APP_NAME}'s models need a plan. Your ChatGPT or Claude account, or your own key, works without one.`,
+                    `${APP_NAME}'s models need a plan. Your ChatGPT, Claude or Grok account, or your own key, works without one.`,
                   ]
                     .filter(Boolean)
                     .join(" ")

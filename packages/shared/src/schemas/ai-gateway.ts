@@ -12,6 +12,7 @@ export const AIProviderTypeSchema = z.enum([
   "fireworks",
   "minimax",
   "google",
+  "grok-account",
   "groq",
   "huggingface",
   "jan",

@@ -43,6 +43,21 @@ export const RelativePathSchema =
 
 export type RelativePath = z.output<typeof RelativePathSchema>;
 
+/**
+ * What a stored path to a file in the workspace starts with. Behind it is
+ * the file's path from the workspace's top level, with forward slashes:
+ * `workspace:/Notes/plan.md`. A record syncs with the workspace, so a path
+ * kept this way names the same file on every computer and after the
+ * workspace moves; `workspaceHostPath` reads it against the root it has now.
+ */
+export const IN_WORKSPACE_PREFIX = "workspace:/";
+
+export const InWorkspacePathSchema = z
+  .string()
+  .startsWith(IN_WORKSPACE_PREFIX)
+  .brand("InWorkspacePath");
+export type InWorkspacePath = z.output<typeof InWorkspacePathSchema>;
+
 // A relative path that must stay within the chat's folder: rejects ".." segments.
 // Use for RPC inputs naming real files in a chat's folder, where traversal is never valid.
 export const RelativeChatPathSchema = RelativePathSchema.refine(
@@ -67,7 +82,11 @@ const AbsoluteFilePathSchema = z
     "Path must not contain traversal or invalid separators",
   );
 
-/** A path relative to the chat's folder, or an absolute path in the shell's spelling. */
+/**
+ * A path relative to the chat's folder, one kept by its place in the
+ * workspace (`IN_WORKSPACE_PREFIX`), or an absolute path in the shell's
+ * spelling.
+ */
 export const WorkspaceFilePathSchema = z.union([
   RelativeChatPathSchema,
   AbsoluteFilePathSchema,

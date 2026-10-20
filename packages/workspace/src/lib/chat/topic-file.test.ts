@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTopicFile, renderTopicFile, type TopicFile } from "./topic-file";
+import {
+  listedFolderPaths,
+  parseTopicFile,
+  renderTopicFile,
+  type TopicFile,
+} from "./topic-file";
 
 /** When the file was last written, for a topic whose front matter says no. */
 const AT = new Date("2026-10-16T18:04:11.231Z");
@@ -77,7 +82,6 @@ describe("parseTopicFile", () => {
   it("round-trips a topic with every key", () => {
     const topic: TopicFile = {
       ...KITCHEN,
-      folders: [{ path: "/Users/someone/Kitchen plans" }],
       others: { seen: ["phone"], sortsAfter: "Trips" },
       projectId: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
       retired: true,
@@ -122,21 +126,28 @@ describe("parseTopicFile", () => {
     expect(parsed?.created).toEqual(new Date("2026-09-02"));
   });
 
-  it("drops a folders list holding nothing it can use", () => {
+  // Folders are granted on one computer, in its permission settings; a
+  // `folders:` key is one this build does not read.
+  it("reads a folders list as a key it does not know, kept as written", () => {
     const parsed = parseTopicFile(
-      "---\nid: top_1\nfolders:\n  - path: ''\n  - 7\n---\n",
+      "---\nid: top_1\nfolders:\n  - path: /Users/someone/Deals\n---\n",
       { at: AT },
     );
 
-    expect(parsed?.folders).toBeUndefined();
+    expect(parsed).not.toHaveProperty("folders");
+    expect(parsed?.others).toEqual({
+      folders: [{ path: "/Users/someone/Deals" }],
+    });
   });
+});
 
-  it("reads a folder written as its path alone", () => {
-    const parsed = parseTopicFile(
-      "---\nid: top_1\nfolders:\n  - /Users/someone/Deals\n---\n",
-      { at: AT },
-    );
-
-    expect(parsed?.folders).toEqual([{ path: "/Users/someone/Deals" }]);
+describe("listedFolderPaths", () => {
+  it.each([
+    [[{ path: "/Users/someone/Deals" }], ["/Users/someone/Deals"]],
+    [["/Users/someone/Deals"], ["/Users/someone/Deals"]],
+    [[{ path: "" }, 7], []],
+    ["/Users/someone/Deals", []],
+  ])("reads %j as %j", (value, expected) => {
+    expect(listedFolderPaths(value)).toEqual(expected);
   });
 });

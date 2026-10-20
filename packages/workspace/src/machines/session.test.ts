@@ -11,7 +11,8 @@ import {
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import mockFs from "mock-fs";
-import { ok } from "neverthrow";
+import { ok, ResultAsync } from "neverthrow";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { noop, pick } from "radashi";
 import {
@@ -35,10 +36,12 @@ import {
 import { setupAgent } from "../agents/create-agent";
 import { instrumentAgent } from "../agents/instrument";
 import { type AnyAgent } from "../agents/types";
+import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../constants";
 import {
   killSessionBackgroundProcesses,
   listBackgroundProcesses,
 } from "../lib/background-processes";
+import { writeChatFolder } from "../lib/chat-folders/write-chat-folder";
 import { openAsks } from "../lib/chat/asks";
 import * as children from "../lib/chat/children";
 import * as bashEnv from "../lib/create-bash-env";
@@ -59,7 +62,12 @@ import {
 } from "../test/helpers/mock-chat-config";
 import { sessionToShorthand } from "../test/helpers/session-to-shorthand";
 import { TOOLS } from "../tools/all";
-import { sessionMachine, type SessionMachineParentEvent } from "./session";
+import {
+  sessionMachine,
+  type SessionMachineParentEvent,
+  STOP_FAILSAFE_MS,
+} from "./session";
+import { REQUEST_ABORT_BACKSTOP_MS } from "./agent";
 
 vi.mock(import("ulid"));
 vi.mock(import("../lib/session-store-storage"));
@@ -1167,24 +1175,126 @@ describe("sessionMachine", () => {
     ]);
   });
 
+  /** The one agent, finishing its turn with `onFinish` in place of its own. */
+  function agentFinishingWith(onFinish: () => Promise<void>) {
+    return setupAgent({
+      agentTools: pick(TOOLS, ["ReadFile"]),
+      name: "instrument",
+    }).create(() => ({
+      getMessages: instrumentAgent.getMessages,
+      onFinish,
+      onStart: instrumentAgent.onStart,
+      shouldContinue: instrumentAgent.shouldContinue,
+      systemPrompt: instrumentAgent.systemPrompt,
+    }));
+  }
+
+  // A quit stops every session still alive, a stopped one winding down
+  // included, and a stop that lands while the turn finishes must not run
+  // the finish again: it consumes the turn's skill changes as it reads them.
+  it("finishes a stopped turn once when the app's quit stops it again", async () => {
+    const stream = createManualModelStream();
+    let finishes = 0;
+    let releaseFinish!: () => void;
+    const finishGate = new Promise<void>((resolve) => {
+      releaseFinish = resolve;
+    });
+    const result = await createActorAndTask({
+      agent: agentFinishingWith(async () => {
+        finishes++;
+        await finishGate;
+      }),
+      aiSDKModel: new MockLanguageModelV4({
+        doStream: () =>
+          Promise.resolve({
+            rawCall: { rawPrompt: null, rawSettings: {} },
+            stream: stream.stream,
+          }),
+      }),
+    });
+    const done: unknown[] = [];
+    const unsubscribe = publisher.subscribe("session.done", (payload) => {
+      done.push(payload);
+    });
+    result.actor.start();
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Running" }));
+    const agentRef = result.actor.getSnapshot().context.agentRef;
+    if (!agentRef) {
+      throw new Error("Expected agent ref");
+    }
+    await waitFor(agentRef, (state) => state.matches("LLMStreaming"));
+
+    result.actor.send({
+      notice: { by: "user", wakesChat: false },
+      type: "stop",
+    });
+    await vi.waitFor(() => {
+      expect(finishes).toBe(1);
+    });
+    result.actor.send({
+      notice: { by: "app", wakesChat: false },
+      reason: "quit",
+      type: "stop",
+    });
+    releaseFinish();
+    await waitFor(result.actor, (state) => state.status === "done");
+    unsubscribe();
+
+    expect(finishes).toBe(1);
+    expect(done).toEqual([
+      {
+        id: result.chatId,
+        notice: { by: "user", wakesChat: false },
+        sessionId: result.sessionId,
+      },
+    ]);
+  });
+
+  // The failsafe bounds the whole stop from the moment it was asked for; a
+  // second stop pushing it out would let a turn that never winds down hold
+  // the session for as long as stops keep arriving.
+  it("keeps the stop failsafe's deadline when the chat's stop follows the user's", async () => {
+    const clock = new SimulatedClock();
+    const result = await createActorAndTask({
+      actorOptions: { clock },
+      agent: agentFinishingWith(() => new Promise<void>(noop)),
+      chunkSets: [finishChunks],
+    });
+    result.actor.start();
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Running" }));
+    const agentRef = result.actor.getSnapshot().context.agentRef;
+    if (!agentRef) {
+      throw new Error("Expected agent ref");
+    }
+    await waitFor(agentRef, (state) => state.matches("Finishing"));
+
+    result.actor.send({
+      notice: { by: "user", wakesChat: false },
+      type: "stop",
+    });
+    clock.increment(STOP_FAILSAFE_MS - 100);
+    result.actor.send({
+      notice: { by: "chat", wakesChat: false },
+      reason: "chat",
+      type: "stop",
+    });
+    clock.increment(100);
+
+    await waitFor(result.actor, (state) => state.status === "done", {
+      timeout: 1000,
+    });
+    expect(agentRef.getSnapshot().status).toBe("stopped");
+  });
+
   it("should force stop agents before the stopping failsafe completes", async () => {
+    const clock = new SimulatedClock();
     let finishOnFinish: (() => void) | undefined;
     const onFinishPromise = new Promise<void>((resolve) => {
       finishOnFinish = resolve;
     });
     const result = await createActorAndTask({
-      agent: setupAgent({
-        agentTools: pick(TOOLS, ["ReadFile"]),
-        name: "instrument",
-      }).create(() => ({
-        getMessages: instrumentAgent.getMessages,
-        onFinish: async () => {
-          await onFinishPromise;
-        },
-        onStart: instrumentAgent.onStart,
-        shouldContinue: instrumentAgent.shouldContinue,
-        systemPrompt: instrumentAgent.systemPrompt,
-      })),
+      actorOptions: { clock },
+      agent: agentFinishingWith(() => onFinishPromise),
       chunkSets: [finishChunks],
     });
     result.actor.start();
@@ -1196,6 +1306,7 @@ describe("sessionMachine", () => {
     }
 
     result.actor.send({ type: "stop" });
+    clock.increment(STOP_FAILSAFE_MS);
     await waitFor(result.actor, (state) => state.status === "done");
 
     const snapshot = result.actor.getSnapshot();
@@ -1204,6 +1315,101 @@ describe("sessionMachine", () => {
     expect(agentRef.getSnapshot().status).toBe("stopped");
 
     finishOnFinish?.();
+  });
+
+  // A turn stopped outright leaves nothing of the agent to write what its
+  // request was holding, so the session writes it before it says it is done.
+  it("writes what a force-stopped turn held as cut off before the session ends", async () => {
+    const clock = new SimulatedClock();
+    const stream = createManualModelStream();
+    const result = await createActorAndTask({
+      actorOptions: { clock },
+      agent: agentFinishingWith(() => new Promise<void>(noop)),
+      aiSDKModel: new MockLanguageModelV4({
+        doStream: () =>
+          Promise.resolve({
+            rawCall: { rawPrompt: null, rawSettings: {} },
+            stream: stream.stream,
+          }),
+      }),
+    });
+    // A save that ignores the abort, holding the request past its backstop
+    // with its reply still arriving.
+    let stuck = false;
+    const savePart = ChatWrites.savePart;
+    vi.spyOn(ChatWrites, "savePart").mockImplementation((part, chatId) => {
+      if (part.type === "text" && part.text.endsWith("held up")) {
+        stuck = true;
+        return ResultAsync.fromSafePromise(new Promise<void>(noop)).andThen(
+          () => savePart(part, chatId),
+        );
+      }
+      return savePart(part, chatId);
+    });
+    async function replyParts() {
+      const transcript = await ChatReads.transcript({
+        chatId: result.chatId,
+        sessionId: result.sessionId,
+      });
+      return transcript
+        ._unsafeUnwrap()
+        .flatMap((message) =>
+          message.role === "assistant" ? message.parts : [],
+        )
+        .flatMap((part): object[] => {
+          if (part.type === "text") {
+            return [pick(part, ["state", "text"])];
+          }
+          if (part.type === "tool-read_file") {
+            return [
+              {
+                errorText:
+                  part.state === "output-error" ? part.errorText : undefined,
+                state: part.state,
+              },
+            ];
+          }
+          return [];
+        });
+    }
+    let partsAtDone: ReturnType<typeof replyParts> | undefined;
+    const unsubscribe = publisher.subscribe("session.done", () => {
+      partsAtDone ??= replyParts();
+    });
+
+    result.actor.start();
+    stream.push({ id: "1", type: "text-start" });
+    stream.push({ delta: "Reading it", id: "1", type: "text-delta" });
+    stream.push({
+      id: "call-1",
+      toolName: "read_file",
+      type: "tool-input-start",
+    });
+    stream.push({ delta: ", held up", id: "1", type: "text-delta" });
+    await vi.waitFor(() => {
+      expect(stuck).toBe(true);
+    });
+
+    result.actor.send({
+      notice: { by: "user", wakesChat: false },
+      type: "stop",
+    });
+    clock.increment(STOP_FAILSAFE_MS);
+    await waitFor(result.actor, (state) => state.status === "done");
+    unsubscribe();
+
+    expect(await partsAtDone).toMatchInlineSnapshot(`
+      [
+        {
+          "state": "done",
+          "text": "Reading it, held up",
+        },
+        {
+          "errorText": "This action was cut off before it could run.",
+          "state": "output-error",
+        },
+      ]
+    `);
   });
 
   it("ends the turn on a chat's choose and leaves the question open", async () => {
@@ -1310,6 +1516,63 @@ describe("sessionMachine", () => {
     });
   });
 
+  // The chat's folder is written as each turn ends (`on-turn-end.ts`), from
+  // the records on disk, so the words a stopped reply had reached have to be
+  // written by then.
+  it("writes a stopped reply's words before its turn ends", async () => {
+    const stream = createManualModelStream();
+    const result = await createActorAndTask({
+      aiSDKModel: new MockLanguageModelV4({
+        doStream: () =>
+          Promise.resolve({
+            rawCall: { rawPrompt: null, rawSettings: {} },
+            stream: stream.stream,
+          }),
+      }),
+    });
+    const rootDir = MOCK_WORKSPACE_DIRS.root;
+    let transcript: Promise<string> | undefined;
+    const unsubscribe = publisher.subscribe("session.done", ({ id }) => {
+      transcript ??= writeChatFolder({
+        chatsDir: MOCK_WORKSPACE_DIRS.chats,
+        id,
+        machineDir: MOCK_WORKSPACE_DIRS.machine,
+        rootDir,
+        timeZone: "UTC",
+      }).then((written) => {
+        if (written.kind !== "written") {
+          throw new Error(`Expected a written folder, got ${written.kind}`);
+        }
+        return fs.readFile(
+          path.join(rootDir, CHATS_FOLDER_NAME, written.folder, CHAT_FILE_NAME),
+          "utf8",
+        );
+      });
+    });
+    result.actor.start();
+    stream.push({ id: "1", type: "text-start" });
+    stream.push({ delta: "Half of the answer", id: "1", type: "text-delta" });
+    // Held by the turn, which every read sees and nothing has written yet.
+    await vi.waitFor(async () => {
+      const messages = await ChatReads.transcript({
+        chatId: result.chatId,
+        sessionId: result.sessionId,
+      });
+      expect(
+        messages
+          ._unsafeUnwrap()
+          .flatMap((message) => message.parts)
+          .some((part) => part.type === "text" && part.text.length > 0),
+      ).toBe(true);
+    });
+
+    result.actor.send({ type: "stop" });
+    await waitFor(result.actor, (state) => state.status === "done");
+    unsubscribe();
+
+    await expect(transcript).resolves.toContain("Half of the answer");
+  });
+
   it("should retry and fail on timeout", async () => {
     const chunkTimeoutMs = 500;
     const session = await createAndRunTestMachine({
@@ -1362,6 +1625,123 @@ describe("sessionMachine", () => {
         </assistant>
       </session>"
     `);
+  });
+
+  // A request held up past its backstop is left behind still running, and the
+  // retry streams beside it. What the late one writes on its way out is its
+  // own reply's, never the retry's.
+  it("leaves the retry's reply arriving when the attempt before it returns late", async () => {
+    const clock = new SimulatedClock();
+    const chunkTimeoutMs = 100;
+    const retryDelayMs = 10;
+    const attempts: ReturnType<typeof createManualModelStream>[] = [];
+    const result = await createActorAndTask({
+      actorOptions: { clock },
+      aiSDKModel: new MockLanguageModelV4({
+        doStream: () => {
+          const attempt = createManualModelStream();
+          attempts.push(attempt);
+          return Promise.resolve({
+            rawCall: { rawPrompt: null, rawSettings: {} },
+            stream: attempt.stream,
+          });
+        },
+      }),
+      baseLLMRetryDelayMs: retryDelayMs,
+      llmRequestChunkTimeoutMs: chunkTimeoutMs,
+    });
+
+    // A save that ignores the abort, the way a write behind a slow disk does,
+    // holding the first request past its backstop.
+    let stuck = false;
+    let unstick!: () => void;
+    const unstuck = new Promise<void>((resolve) => {
+      unstick = resolve;
+    });
+    const savePart = ChatWrites.savePart;
+    vi.spyOn(ChatWrites, "savePart").mockImplementation((part, chatId) => {
+      if (part.type === "text" && part.text.endsWith("held up")) {
+        stuck = true;
+        return ResultAsync.fromSafePromise(unstuck).andThen(() =>
+          savePart(part, chatId),
+        );
+      }
+      return savePart(part, chatId);
+    });
+
+    async function textParts() {
+      const transcript = await ChatReads.transcript({
+        chatId: result.chatId,
+        sessionId: result.sessionId,
+      });
+      return transcript
+        ._unsafeUnwrap()
+        .flatMap((message) =>
+          message.role === "assistant" ? message.parts : [],
+        )
+        .flatMap((part) =>
+          part.type === "text" ? [pick(part, ["state", "text"])] : [],
+        );
+    }
+
+    result.actor.start();
+    await vi.waitFor(() => {
+      expect(attempts).toHaveLength(1);
+    });
+    const agentRef = result.actor.getSnapshot().context.agentRef;
+    if (!agentRef) {
+      throw new Error("Expected agent ref");
+    }
+    const [first] = attempts;
+    first?.push({ id: "1", type: "text-start" });
+    first?.push({ delta: "First attempt, ", id: "1", type: "text-delta" });
+    first?.push({ delta: "held up", id: "1", type: "text-delta" });
+    await vi.waitFor(() => {
+      expect(stuck).toBe(true);
+    });
+
+    clock.increment(chunkTimeoutMs);
+    expect(agentRef.getSnapshot().matches({ LLMStreaming: "Aborting" })).toBe(
+      true,
+    );
+    clock.increment(REQUEST_ABORT_BACKSTOP_MS);
+    await waitFor(agentRef, (state) => state.matches("RetryingWithDelay"));
+    clock.increment(retryDelayMs);
+    await vi.waitFor(() => {
+      expect(attempts).toHaveLength(2);
+    });
+    const second = attempts[1];
+    second?.push({ id: "2", type: "text-start" });
+    second?.push({ delta: "Second attempt", id: "2", type: "text-delta" });
+    await vi.waitFor(async () => {
+      expect(await textParts()).toContainEqual({
+        state: "streaming",
+        text: "Second attempt",
+      });
+    });
+
+    // The first request returns, writing its own reply as it was cut off.
+    unstick();
+    await vi.waitFor(async () => {
+      expect(await textParts()).toContainEqual({
+        state: "done",
+        text: "First attempt, held up",
+      });
+    });
+    expect(await textParts()).toEqual([
+      { state: "done", text: "First attempt, held up" },
+      { state: "streaming", text: "Second attempt" },
+    ]);
+
+    second?.push({ delta: " finished.", id: "2", type: "text-delta" });
+    second?.push({ id: "2", type: "text-end" });
+    second?.push(streamFinishChunk);
+    second?.close();
+    await waitFor(result.actor, (state) => state.status === "done");
+    expect(await textParts()).toEqual([
+      { state: "done", text: "First attempt, held up" },
+      { state: "done", text: "Second attempt finished." },
+    ]);
   });
 
   // Every step waits on something the machine did rather than on elapsed time,
@@ -1456,6 +1836,8 @@ describe("sessionMachine", () => {
       { interval: 5, timeout: 10_000 },
     );
     clock.increment(chunkTimeoutMs);
+    // The timed-out request returns before the retry waits out its backoff.
+    await waitFor(agentRef, (state) => state.matches("RetryingWithDelay"));
     clock.increment(retryDelayMs);
 
     // Second attempt: each chunk lands a tick before the deadline and pushes it
@@ -1973,23 +2355,24 @@ describe("sessionMachine", () => {
       // at the step after.
       it("moves a running command to the background and hears the message next", async () => {
         answersAsChat();
-        // A command that takes five seconds, unless stopped. The shell's
-        // own commands load from disk, which the mocked filesystem hides.
+        // A command that runs until the case ends it, so the turn can only
+        // finish by moving it to the background. The shell's own commands
+        // load from disk, which the mocked filesystem hides.
         let stopped = false;
+        let finish = () => {};
         vi.spyOn(bashEnv, "createBashEnv").mockResolvedValue({
           exec: (_command, options) =>
             new Promise((resolve, reject) => {
-              const timer = setTimeout(() => {
+              finish = () => {
                 // Only the fields the bash tool reads.
                 resolve({
                   exitCode: 0,
                   stderr: "",
                   stdout: "slept\n",
                 } as Awaited<ReturnType<bashEnv.BashRunner["exec"]>>);
-              }, 5000);
+              };
               options?.signal?.addEventListener("abort", () => {
                 stopped = true;
-                clearTimeout(timer);
                 reject(new Error("aborted"));
               });
             }),
@@ -2022,7 +2405,6 @@ describe("sessionMachine", () => {
         await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
         // Past the bash call's start, so its wait is registered.
         await new Promise((resolve) => setTimeout(resolve, 200));
-        const started = performance.now();
         result.actor.send({
           model: createMockAIGatewayModel(),
           type: "addMessage",
@@ -2031,7 +2413,6 @@ describe("sessionMachine", () => {
 
         try {
           const session = await runTestMachine(result);
-          expect(performance.now() - started).toBeLessThan(4000);
           const shorthand = sessionToShorthand(session);
           expect(shorthand).not.toContain("interrupted by a newer message");
           expect(shorthand).toContain('"movedForMessageFrom": "user"');
@@ -2046,21 +2427,19 @@ describe("sessionMachine", () => {
             ),
           ).toEqual(["running"]);
           // The turn is over and the command runs on to its own end.
-          await vi.waitFor(
-            () => {
-              expect(
-                listBackgroundProcesses(result.sessionId).map(
-                  (process) => process.status,
-                ),
-              ).toEqual(["exited"]);
-            },
-            { timeout: 10_000 },
-          );
+          finish();
+          await vi.waitFor(() => {
+            expect(
+              listBackgroundProcesses(result.sessionId).map(
+                (process) => process.status,
+              ),
+            ).toEqual(["exited"]);
+          });
           expect(stopped).toBe(false);
         } finally {
           await killSessionBackgroundProcesses(result.sessionId);
         }
-      }, 30_000);
+      });
 
       // A typed "stop" is a message like any other: it joins the turn, and
       // the agent decides what it means.

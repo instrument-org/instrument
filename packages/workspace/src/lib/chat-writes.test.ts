@@ -11,6 +11,7 @@ import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 import { withTestRecords } from "../test/helpers/with-test-records";
+import { ChatReads } from "./chat-reads";
 import { ChatWrites } from "./chat-writes";
 import {
   archiveChat,
@@ -404,6 +405,72 @@ describe("a chat written through its records", () => {
     expect(log.match(/"t":"stopped"/g)).toHaveLength(1);
   });
 
+  it("says a second stop by the same person once a turn came between", async () => {
+    const { chatId } = await startChat();
+    const task = await addChildTask(chatId, {
+      createdAt: new Date(),
+      id: StoreId.newSessionId(),
+      title: "Find hotels",
+      updatedAt: new Date(),
+    });
+    await touchTask(chatId, task.id, { stoppedBy: "user" });
+    const later = new Date(NOW.getTime() + 1000);
+    vi.setSystemTime(later);
+    (
+      await ChatWrites.saveMessageWithParts(
+        userMessage(task.id, "Look in Lisbon too."),
+        chatId,
+      )
+    )._unsafeUnwrap();
+    // The turn that message started ends on its own, and its row reads with
+    // no stop.
+    await touchTask(chatId, task.id);
+    const stoppedAgain = new Date(later.getTime() + 1000);
+    vi.setSystemTime(stoppedAgain);
+
+    await touchTask(chatId, task.id, { stoppedBy: "user" });
+
+    const read = await records.service.read(chatId);
+    expect(
+      read.chat.sessions.find(({ id }) => id === task.id)?.stopped,
+    ).toEqual({ at: stoppedAgain, by: "user" });
+    expect(
+      (await ChatReads.session({ chatId, sessionId: task.id }))._unsafeUnwrap()
+        .stoppedBy,
+    ).toBe("user");
+  });
+
+  // Stop on the chat's own turn is a `stopped` record in its log, at the
+  // moment it was pressed, which the turn's own save of its stop repeats.
+  it("writes the person's Stop on the chat's own turn once, as of when they pressed it", async () => {
+    const { chatId, sessionId } = await startChat();
+    const pressed = new Date(NOW.getTime() - 5000);
+
+    expect(await markChatStopped(chatId, pressed)).toBe(true);
+    const session = (
+      await ChatReads.session({ chatId, sessionId })
+    )._unsafeUnwrap();
+    (
+      await ChatWrites.saveSession({ ...session, stoppedBy: "user" }, chatId)
+    )._unsafeUnwrap();
+    expect(
+      await markChatStopped(chatId, new Date(pressed.getTime() - 1000)),
+    ).toBe(true);
+
+    const read = await records.service.read(chatId);
+    expect(
+      read.chat.sessions.find(({ id }) => id === sessionId)?.stopped,
+    ).toEqual({ at: pressed, by: "user" });
+    const log = await fs.readFile(
+      path.join(
+        records.dirOf(chatId),
+        `${sessionId}.${records.service.device}.jsonl`,
+      ),
+      "utf8",
+    );
+    expect(log.match(/"t":"stopped"/g)).toHaveLength(1);
+  });
+
   it("says each mark the person made, with the moment they made it", async () => {
     const { chatId } = await startChat();
     const topic = await createTopic({ name: "Travel" });
@@ -419,7 +486,7 @@ describe("a chat written through its records", () => {
     expect(listView(await records.service.read(chatId))[0]).toMatchObject({
       archivedAt: NOW,
       starredAt: NOW,
-      stoppedAt: NOW,
+      stoppedBy: "user",
       title: "Plans for the trip",
       titleSettledAt: NOW,
       topic: topic.id,

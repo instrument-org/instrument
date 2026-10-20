@@ -157,7 +157,7 @@ describe("createGitCommand arg policy", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
-      "points outside this conversation's folder",
+      "points outside your work folder",
     );
   });
 
@@ -441,7 +441,7 @@ describe("createGitCommand over folder mounts", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
-      "points outside this conversation's folder",
+      "points outside your work folder",
     );
   });
 
@@ -453,7 +453,7 @@ describe("createGitCommand over folder mounts", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
-      "points outside this conversation's folder",
+      "points outside your work folder",
     );
   });
 });

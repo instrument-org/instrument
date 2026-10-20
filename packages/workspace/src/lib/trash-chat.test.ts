@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { chatFor } from "../test/helpers/chat-record";
 import { chatTaskFor } from "../test/helpers/chat-task";
-import { updateChatRecord } from "./chat-record";
+import { recordChatFolderName } from "./chat-folders/own-folder";
 import { ChatReads } from "./chat-reads";
 import { forgetChatFolders, resolveChat, chatDir } from "./record-folders";
 import { trashChat } from "./trash-chat";
@@ -84,10 +84,11 @@ describe("trashChat", () => {
     const chat = await chatFor();
     const own = path.join(rootDir, "Chats", "A chat");
     await fs.mkdir(own, { recursive: true });
-    await updateChatRecord(chatDir(chat), (current) => ({
-      ...current.raw,
-      folder: "A chat",
-    }));
+    await recordChatFolderName(
+      getWorkspaceConfig().workspaceMachineDir,
+      chat,
+      "A chat",
+    );
 
     await trashChat({
       id: chat,
@@ -104,10 +105,11 @@ describe("trashChat", () => {
     const chat = await chatFor();
     const own = path.join(rootDir, "Chats", "A chat");
     await fs.mkdir(own, { recursive: true });
-    await updateChatRecord(chatDir(chat), (current) => ({
-      ...current.raw,
-      folder: "A chat",
-    }));
+    await recordChatFolderName(
+      getWorkspaceConfig().workspaceMachineDir,
+      chat,
+      "A chat",
+    );
 
     await trashChat({
       id: chat,

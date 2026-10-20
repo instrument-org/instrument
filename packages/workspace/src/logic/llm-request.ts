@@ -1,4 +1,4 @@
-import type { ToolSet } from "ai";
+import type { TextStreamPart, ToolSet } from "ai";
 
 import {
   activityTelemetry,
@@ -14,6 +14,7 @@ import {
   fetchAISDKModel,
   findCachedModelByProviderId,
   namesSameModel,
+  nativeSearchTools,
   providerOptionsForModel,
 } from "@instrument-org/ai-gateway";
 import { CLAUDE_ACCOUNT_PROVIDER_CONFIG } from "@instrument-org/shared";
@@ -41,11 +42,9 @@ import { cacheSessionFor } from "../lib/fork-cache-session";
 import { ChatReads } from "../lib/chat-reads";
 import { ChatWrites } from "../lib/chat-writes";
 import { turnNoteFor } from "../lib/turn-note";
-import { chatDir } from "../lib/record-folders";
-import { getChatSettings } from "../lib/chat-settings";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
-import { type SessionMessage } from "../schemas/session/message";
+import { SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -61,16 +60,18 @@ const INPUT_PARSE_INTERVAL_MS = 100;
 const INPUT_PARSE_MAX_UNPARSED_CHARS = 4096;
 
 interface LLMRequestInput {
-  /**
-   * Why the request is being let go, asked when its signal fires; the caller
-   * that let it go is the one that knows.
-   */
-  abortReason: () => SessionMessage.AbortReason;
   agent: AnyAgent;
   model: AIGatewayModel.Type;
   self: ActorRef<AnyMachineSnapshot, { type: "llmRequest.chunkReceived" }>;
   sessionId: StoreId.Session;
   stepCount: number;
+  /**
+   * Aborts the request while its caller waits for it to return: what it was
+   * holding is written on the way out, which stopping the actor would leave
+   * running after the caller has moved on. Aborted with why, an
+   * `AbortReason`; an abort that says nothing reads as `unknown`.
+   */
+  stop?: AbortSignal;
   chatId: ChatId;
 }
 
@@ -80,7 +81,13 @@ export const llmRequestLogic = fromPromise<
     parts: SessionMessagePart.Type[];
   },
   LLMRequestInput
->(async ({ input, signal }) => {
+>(async ({ input, signal: actorSignal }) => {
+  const { stop } = input;
+  const signal = stop ? AbortSignal.any([actorSignal, stop]) : actorSignal;
+  const abortReason = () =>
+    SessionMessage.AbortReasonSchema.catch("unknown").parse(
+      stop?.aborted ? stop.reason : undefined,
+    );
   // The first write that failed for lack of disk space. Once set, every later
   // write would fail the same way, so part saves stop, the stream loop ends
   // the request with a `disk-full` error, and the condition is reported once
@@ -186,7 +193,7 @@ export const llmRequestLogic = fromPromise<
     assistantMessage.metadata.error = {
       kind: "aborted",
       message: "Aborted",
-      reason: input.abortReason(),
+      reason: abortReason(),
     };
     assistantMessage.metadata.finishedAt = getCurrentDate();
     assistantMessage.metadata.finishReason = "aborted";
@@ -301,11 +308,14 @@ export const llmRequestLogic = fromPromise<
 
   if (isSignalAborted()) {
     saveAbortMessage();
-    await live?.clear();
+    await live?.clear(assistantMessage.id);
     return { message: assistantMessage, parts: await getCurrentParts() };
   }
 
   const toolCalls: Record<string, SessionMessagePart.ToolPart> = {};
+  // xAI names each page its hosted search read once as the search ends and
+  // again as the answer cites it; the message keeps one source per page.
+  const sourceURLs = new Set<string>();
   // Why each invalid tool call was rejected, read back when its `tool-error`
   // arrives: that part carries only the SDK's rendering of this error.
   const invalidToolCallErrors = new Map<string, unknown>();
@@ -332,24 +342,26 @@ export const llmRequestLogic = fromPromise<
 
     const aiSDKModel = aiSDKModelResult.value;
 
-    // Read per turn rather than captured with the session's context, because a
-    // level changed on a task takes effect on its next turn: the context
-    // baseline is immutable for the life of the session, and a request
-    // parameter is not part of it.
-    const taskSettings = await getChatSettings(chatDir(input.chatId));
-
     // A Claude account searches with Claude Code's own WebSearch, inside the
     // agent's step, rather than through our web_search tool, whose search on
     // this account is a separate Claude Code process with a model of its own
     // in front of the same WebSearch. What it finds arrives as sources.
+    // A Grok account does the same with xAI's hosted web and X search, which
+    // run on xAI's side within the response; their calls are xAI's to run
+    // and replay drops them, so only the sources they cite are kept.
+    const nativeTools = await nativeSearchTools(input.model.params.provider);
+    const ownToolNames =
+      nativeTools && new Set(Object.keys(omit(tools, [TOOL_NAMES.webSearch])));
+    const nativeCallIds = new Set<string>();
     const searchesNatively =
-      aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type;
+      aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type ||
+      nativeTools !== undefined;
     const cacheSession = cacheSessionFor({
       sessionId: input.sessionId,
       chatId: input.chatId,
     });
     const providerOptions = providerOptionsForModel(aiSDKModel, {
-      effort: taskSettings?.reasoningEffort ?? catalogEffort(input.model),
+      effort: workspaceConfig.reasoningEffort ?? catalogEffort(input.model),
       reasoning: input.model.reasoning,
     });
     if (searchesNatively) {
@@ -414,7 +426,9 @@ export const llmRequestLogic = fromPromise<
         purpose: turnPurpose(input.chatId, input.sessionId),
         sessionId: input.sessionId,
       }),
-      tools: searchesNatively ? omit(tools, [TOOL_NAMES.webSearch]) : tools,
+      tools: searchesNatively
+        ? { ...omit(tools, [TOOL_NAMES.webSearch]), ...nativeTools }
+        : tools,
     });
 
     for await (const part of result.stream) {
@@ -426,6 +440,9 @@ export const llmRequestLogic = fromPromise<
         throw storageFullError;
       }
       input.self.send({ type: "llmRequest.chunkReceived" });
+      if (isNativeSearchPart(part, ownToolNames, nativeCallIds)) {
+        continue;
+      }
       if (
         part.type === "text-start" ||
         part.type === "tool-call" ||
@@ -569,6 +586,10 @@ export const llmRequestLogic = fromPromise<
 
         case "source": {
           if (part.sourceType === "url") {
+            if (sourceURLs.has(part.url)) {
+              break;
+            }
+            sourceURLs.add(part.url);
             await writes.savePart({
               metadata: {
                 createdAt: getCurrentDate(),
@@ -919,7 +940,7 @@ export const llmRequestLogic = fromPromise<
             error.name === "TimeoutError"
               ? "timeout"
               : signal.aborted
-                ? input.abortReason()
+                ? abortReason()
                 : "unknown",
         };
         break;
@@ -1033,11 +1054,13 @@ export const llmRequestLogic = fromPromise<
       }
     }
   }
-  // The turn is over, so what it was holding is written: every part that
+  // The request is over, so what it was holding is written: every part that
   // settled is in the records already, since each write here was waited for,
-  // and whatever was still arriving is written as the turn left it, which is
-  // how a reply cut off mid-word is still a reply the person can read.
-  await live?.clear();
+  // and whatever was still arriving is written as the request left it, which
+  // is how a reply cut off mid-word is still a reply the person can read.
+  // Only this reply's: a request returning after its caller moved on to
+  // another attempt leaves that attempt's parts arriving.
+  await live?.clear(assistantMessage.id);
 
   const parts = await getCurrentParts();
   // Detection only, and after the turn has let go: a call still arriving at
@@ -1088,4 +1111,59 @@ function bareErrorMessage(error: Error): string {
     return error.message;
   }
   return error.message.replace(String(cause), bareErrorMessage(cause));
+}
+
+/**
+ * Whether a stream part belongs to a hosted search the provider ran inside the
+ * step (`nativeSearchTools`), which is neither stored nor run here. The
+ * provider marks only the call as its own, so a call is known from its first
+ * part by the tool's name, and its later parts by the id that part gave.
+ */
+function isNativeSearchPart(
+  part: TextStreamPart<ToolSet>,
+  /** The tools this app runs, undefined when nothing searches natively. */
+  ownToolNames: ReadonlySet<string> | undefined,
+  nativeCallIds: Set<string>,
+): boolean {
+  if (!ownToolNames) {
+    return false;
+  }
+  // Known by not being one of ours rather than by a list of the provider's
+  // names, so a search step it adds later is skipped too.
+  switch (part.type) {
+    case "tool-input-start": {
+      if (ownToolNames.has(part.toolName)) {
+        return false;
+      }
+      nativeCallIds.add(part.id);
+      return true;
+    }
+    case "tool-input-delta":
+    case "tool-input-end": {
+      return nativeCallIds.has(part.id);
+    }
+    case "tool-call": {
+      // Only the provider's own calls are its searches. A call the model made
+      // to a tool that does not exist goes on to be refused as one, so the
+      // model hears why, though its input was skipped.
+      if (!part.providerExecuted) {
+        nativeCallIds.delete(part.toolCallId);
+        return false;
+      }
+      if (!ownToolNames.has(part.toolName)) {
+        nativeCallIds.add(part.toolCallId);
+      }
+      return nativeCallIds.has(part.toolCallId);
+    }
+    case "tool-error":
+    case "tool-result": {
+      if (part.providerExecuted && !ownToolNames.has(part.toolName)) {
+        nativeCallIds.add(part.toolCallId);
+      }
+      return nativeCallIds.has(part.toolCallId);
+    }
+    default: {
+      return false;
+    }
+  }
 }

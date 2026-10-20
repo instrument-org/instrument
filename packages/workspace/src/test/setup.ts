@@ -14,6 +14,7 @@ import {
   mxcTestDataDir,
   mxcTestWorkFoldersDir,
 } from "./helpers/mxc-test-config";
+import { MOCK_WORKSPACE_ROOT } from "./helpers/mock-workspace-root";
 import { setWorkspaceConfig } from "../lib/workspace-config";
 import { workspaceLayout } from "../lib/workspace-layout";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
@@ -128,6 +129,7 @@ afterAll(async () => {
   for (const dir of [
     rootDir,
     machineDir,
+    MOCK_WORKSPACE_ROOT,
     mxcTestDataDir(),
     mxcTestWorkFoldersDir(),
   ]) {

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
 import { FileUpload } from "../schemas/file-upload";
@@ -15,6 +15,7 @@ import {
 } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { workspaceHostPath } from "./workspace-relative-path";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 const CONTENT = "a photo, as far as the record is concerned";
@@ -126,6 +127,27 @@ describe("writeUploadedAttachments", () => {
     await expect(attachmentsIn(recordDir)).resolves.toEqual(["photo.jpg"]);
   });
 
+  // The record syncs with the workspace, so a file in it is kept by its place
+  // there and found again on a computer where the workspace is elsewhere.
+  it("records a file in the workspace by its place there", async () => {
+    const workspaceRoot = path.join(root, "workspace");
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(workspaceRoot),
+    });
+    const file = await writeSourceFile(
+      path.join(workspaceRoot, "Notes", "Trip plan.jpg"),
+    );
+
+    const [attached] = await attach([file]);
+
+    expect(attached?.filePath).toBe("workspace:/Notes/Trip plan.jpg");
+    expect(
+      workspaceHostPath(attached?.filePath ?? "", "/Volumes/Other/Instrument"),
+    ).toBe("/Volumes/Other/Instrument/Notes/Trip plan.jpg");
+    await expect(attachmentsIn(recordDir)).resolves.toEqual([]);
+  });
+
   // Pasted bytes have no file behind them, so they are written into the
   // chat's own folder, where the person can open what they sent.
   // What the person pasted into a draft is the app's own copy, in the
@@ -163,9 +185,15 @@ describe("writeUploadedAttachments", () => {
   it("writes pasted bytes into the chat's own folder", async () => {
     const folder = path.join(root, "workspace", "Chats", "Quiet dishwashers");
     await fs.mkdir(folder, { recursive: true });
+    await fs.mkdir(getWorkspaceConfig().workspaceMachineDir, {
+      recursive: true,
+    });
     await fs.writeFile(
-      path.join(recordDir, SETTINGS_FILE_NAME),
-      JSON.stringify({ folder: "Quiet dishwashers" }),
+      path.join(
+        getWorkspaceConfig().workspaceMachineDir,
+        WORKSPACE_MACHINE_ENTRIES.chatFolders,
+      ),
+      JSON.stringify({ [path.basename(recordDir)]: "Quiet dishwashers" }),
     );
     // A workspace the person picked, so its top level is theirs and the
     // chat's folder is somewhere the agent may read what they sent.
@@ -191,15 +219,54 @@ describe("writeUploadedAttachments", () => {
     await expect(attachmentsIn(recordDir)).rejects.toThrow();
   });
 
+  it("takes no name an older upload still has in the record folder", async () => {
+    const folder = path.join(root, "workspace", "Chats", "Quiet dishwashers");
+    await fs.mkdir(folder, { recursive: true });
+    await fs.mkdir(getWorkspaceConfig().workspaceMachineDir, {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(
+        getWorkspaceConfig().workspaceMachineDir,
+        WORKSPACE_MACHINE_ENTRIES.chatFolders,
+      ),
+      JSON.stringify({ [path.basename(recordDir)]: "Quiet dishwashers" }),
+    );
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      outputDir: AbsolutePathSchema.parse(path.join(root, "workspace")),
+      rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+    });
+    await writeSourceFile(
+      path.join(recordDir, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
+      "sent before the chat had its folder",
+    );
+
+    const [attached] = await attach([pastedFile("photo.jpg")]);
+
+    // Both are `attachments/<name>` to the records, and the older one moves
+    // in beside this one.
+    expect(attached?.filePath).toBe(
+      `${CHAT_FOLDER_NAMES.attachments}/photo-1.jpg`,
+    );
+    await expect(attachmentsIn(folder)).resolves.toEqual(["photo-1.jpg"]);
+  });
+
   // Every workspace the app keeps in its own data: the folder under
   // `Chats/` is inside what the rules close to every command, so a file
   // written there is refused rather than read.
   it("writes pasted bytes into the record folder for a workspace in the app's own data", async () => {
     const folder = path.join(root, "workspace", "Chats", "Quiet dishwashers");
     await fs.mkdir(folder, { recursive: true });
+    await fs.mkdir(getWorkspaceConfig().workspaceMachineDir, {
+      recursive: true,
+    });
     await fs.writeFile(
-      path.join(recordDir, SETTINGS_FILE_NAME),
-      JSON.stringify({ folder: "Quiet dishwashers" }),
+      path.join(
+        getWorkspaceConfig().workspaceMachineDir,
+        WORKSPACE_MACHINE_ENTRIES.chatFolders,
+      ),
+      JSON.stringify({ [path.basename(recordDir)]: "Quiet dishwashers" }),
     );
     setWorkspaceConfig({
       ...getWorkspaceConfig(),

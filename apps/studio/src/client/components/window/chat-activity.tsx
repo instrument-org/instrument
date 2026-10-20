@@ -18,12 +18,16 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
+import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { XIcon } from "@phosphor-icons/react/X";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
+
+import { ChildTranscript } from "./child-tasks";
 import { useChatTasks } from "./child-tasks-query";
 import { type Chat } from "./chats";
 import { taskStoppedLine } from "./task-stopped-line";
@@ -36,14 +40,26 @@ const ELAPSED_TICK_MS = 1000;
 type RunningTask = Chat["runningTasks"][number];
 type ChatTask = NonNullable<ReturnType<typeof useChatTasks>["data"]>[number];
 
+/** The chat's own work, which the card lists ahead of its tasks. */
+export interface ChatOwnWork {
+  /** Its step while it works, or how its work ended. */
+  line?: string;
+  title: string;
+  working: boolean;
+}
+
 /**
- * The chat's tasks, running ones first, hanging from the line under the
- * chat's title. A task pressed opens beside the chat.
+ * The task card, hanging from the line under the chat's title: what the
+ * chat and its tasks did, step by step, with every phase open. With no
+ * task it opens straight onto the chat's own steps; with tasks it lists
+ * the chat first and its tasks under it, running ones first, and opens
+ * the one pressed in place. A task can still be opened beside the chat.
  */
 export function ChatTasksPopover({
   align = "end",
   chatId,
   onOpen,
+  own,
   tasks,
   trigger,
 }: {
@@ -51,29 +67,150 @@ export function ChatTasksPopover({
   chatId: ChatId;
   /** Opens a task's page, as a tab of the chat's. */
   onOpen: (sessionId: StoreId.Session) => void;
+  own: ChatOwnWork;
   tasks: RunningTask[];
   /** A button, which the popover hangs from. */
   trigger: ReactNode;
 }) {
   const [isOpen, setOpen] = useState(false);
+  const [picked, setPicked] = useState<StoreId.Session | undefined>();
   const listed = useChatTasks(chatId).data;
   const jobs = useTaskBackgroundProcesses(chatId);
+  const chatSession = useQuery({
+    ...rpcClient.workspace.chats.session.queryOptions({ input: { id: chatId } }),
+    enabled: isOpen,
+  }).data?.sessionId;
+  const hasList = (listed?.length ?? tasks.length) > 0 || jobs.length > 0;
+  const shown = picked ?? (hasList ? undefined : chatSession);
+  const task = listed?.find((each) => each.id === shown);
   return (
-    <Popover onOpenChange={setOpen} open={isOpen}>
+    <Popover
+      onOpenChange={(open) => {
+        setOpen(open);
+        if (!open) {
+          setPicked(undefined);
+        }
+      }}
+      open={isOpen}
+    >
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent align={align} className="w-80 p-1">
-        <TaskRows
-          chatId={chatId}
-          jobs={jobs}
-          listed={listed}
-          onOpen={(id) => {
-            setOpen(false);
-            onOpen(id);
-          }}
-          running={tasks}
-        />
+      <PopoverContent
+        align={align}
+        className={cn(
+          "p-1",
+          shown
+            ? "flex h-[min(70vh,40rem)] w-[min(40rem,90vw)] flex-col"
+            : "w-80",
+        )}
+      >
+        {shown ? (
+          <TaskCardSteps
+            chatId={chatId}
+            isWorking={
+              task
+                ? task.standing.kind === "running" ||
+                  task.standing.kind === "waiting"
+                : own.working
+            }
+            onBack={
+              hasList
+                ? () => {
+                    setPicked(undefined);
+                  }
+                : undefined
+            }
+            onOpenBeside={
+              task
+                ? () => {
+                    setOpen(false);
+                    onOpen(task.id);
+                  }
+                : undefined
+            }
+            sessionId={shown}
+            stoppedBy={task?.stoppedBy}
+            title={task?.title ?? own.title}
+          />
+        ) : (
+          <TaskRows
+            chatId={chatId}
+            jobs={jobs}
+            listed={listed}
+            onOpen={setPicked}
+            onOpenChat={
+              chatSession
+                ? () => {
+                    setPicked(chatSession);
+                  }
+                : undefined
+            }
+            own={own}
+            running={tasks}
+          />
+        )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/**
+ * One session's steps in the card: the chat's own or a task's, under a head
+ * that names it, with every phase open the way the card is read.
+ */
+function TaskCardSteps({
+  chatId,
+  isWorking,
+  onBack,
+  onOpenBeside,
+  sessionId,
+  stoppedBy,
+  title,
+}: {
+  chatId: ChatId;
+  isWorking: boolean;
+  /** Back to the list, where there is one. */
+  onBack?: () => void;
+  /** Opens the task as a tab of the chat's; none for the chat itself. */
+  onOpenBeside?: () => void;
+  sessionId: StoreId.Session;
+  stoppedBy?: "app" | "chat" | "user";
+  title: string;
+}) {
+  const isDeveloperMode = useTabDeveloperMode();
+  return (
+    <>
+      <div className="flex h-8 shrink-0 items-center gap-1 px-1">
+        {onBack && (
+          <Button
+            aria-label="All tasks"
+            onClick={onBack}
+            className="size-6"
+            size="icon-sm"
+            variant="ghost"
+          >
+            <CaretLeftIcon />
+          </Button>
+        )}
+        <span className="min-w-0 flex-1 truncate px-1 text-[13px] font-medium">
+          {title}
+        </span>
+        {onOpenBeside && (
+          <Button onClick={onOpenBeside} size="xs" variant="ghost">
+            Open
+          </Button>
+        )}
+      </div>
+      <div className="min-h-0 flex-1">
+        <ChildTranscript
+          chat={chatId}
+          expandGroups
+          isDeveloperMode={isDeveloperMode}
+          isWorking={isWorking}
+          sessionId={sessionId}
+          stoppedBy={stoppedBy}
+        />
+      </div>
+    </>
   );
 }
 
@@ -88,9 +225,14 @@ function TaskRows({
   jobs,
   listed,
   onOpen,
+  onOpenChat,
+  own,
   running,
 }: {
   chatId: ChatId;
+  /** Opens the chat's own steps, once its session is known. */
+  onOpenChat: (() => void) | undefined;
+  own: ChatOwnWork;
   /** What the chat and its tasks started and left running. */
   jobs: RunningBackgroundProcess[];
   /** The chat's tasks, once read. */
@@ -125,6 +267,30 @@ function TaskRows({
   );
   return (
     <div className="flex max-h-96 flex-col overflow-y-auto">
+      {onOpenChat && (
+        <>
+          <Row
+            isQuiet={!own.working}
+            mark={
+              own.working ? (
+                <PlanningDotIcon className="size-3.5" />
+              ) : (
+                <CheckIcon className="size-3.5" />
+              )
+            }
+            onOpen={onOpenChat}
+            title="This chat"
+          >
+            {own.line &&
+              (own.working ? (
+                <WorkLine task={{ step: own.line, title: own.title }} />
+              ) : (
+                <span className="min-w-0 truncate">{own.line}</span>
+              ))}
+          </Row>
+          <div className="my-1 h-px bg-border" />
+        </>
+      )}
       {atWork.length > 0 && <Heading>Running</Heading>}
       {atWork.map((task) => (
         <Row
@@ -228,7 +394,7 @@ function JobRows({
     <>
       <div className="flex items-center gap-2 pr-1 pl-2.5">
         <span className="flex-1 pt-1.5 pb-1 text-[11px] font-medium text-muted-foreground">
-          Jobs
+          Commands
         </span>
         <Button disabled={busy} onClick={stopAll} size="xs" variant="ghost">
           {jobs.length > 1 ? "Stop all" : "Stop"}
@@ -272,7 +438,7 @@ function JobRows({
             <StopProcessButton
               className="size-6"
               disabled={busy}
-              label="Stop this job"
+              label="Stop this command"
               onClick={() => {
                 stop(job.id);
               }}

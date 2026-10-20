@@ -29,6 +29,12 @@ export const autoScrollAtom = atomWithStorage(
 export const developerModeAtom = atom(false);
 
 /**
+ * Whether the transcript is drawn as a chat draws it, each reply in a bubble on
+ * a card, or as a task page does, straight on the background.
+ */
+export const chatPresentationAtom = atom(false);
+
+/**
  * Whether the transcript arrives a step at a time, or is simply there.
  *
  * Off is the finished transcript, which is what a reopened task shows and the

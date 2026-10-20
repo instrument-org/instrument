@@ -1,6 +1,6 @@
 ---
 name: transcript-digest
-description: Digest an exported Instrument transcript (a `*-transcript.md`, usually in ~/Downloads) before reading it. Use whenever someone hands over a transcript to review, asks how a run went, where its time went, whether it shows harness issues, why a task failed or stalled, or passes a chat transcript whose child tasks matter. Gives timing buckets, failed/repeated/slow calls and one line per step with line numbers, so the Markdown is read only where it matters.
+description: Digest an Instrument chat's session before reading it, from its records folder (what the app's developer-mode "Copy chat location" hands over as `records:`) or an exported `*-transcript.md`. Use whenever someone hands over a chat location or a transcript to review, asks how a run went, where its time went, whether it shows harness issues, why a task failed or stalled, or passes a chat transcript whose child tasks matter. Gives timing buckets, failed/repeated/slow calls and one line per step with line numbers, so the Markdown is read only where it matters.
 ---
 
 # Transcript digest
@@ -8,12 +8,16 @@ description: Digest an exported Instrument transcript (a `*-transcript.md`, usua
 An exported transcript runs to thousands of lines, most of them the system prompt, loaded skills, and tool output. Reading it top to bottom burns context and still misses what only shows up in aggregate: where the wall clock went, which call failed, which command ran twice, where the run stopped. The digest parses the export once and prints those facts with line numbers into the file.
 
 ```bash
-node .agents/skills/transcript-digest/scripts/digest.mjs ~/Downloads/<name>-transcript.md
-node .agents/skills/transcript-digest/scripts/digest.mjs <chat>-transcript.md --children   # plus every task the chat started
-node .agents/skills/transcript-digest/scripts/digest.mjs <file> --json                       # the same, structured
+node .agents/skills/transcript-digest/scripts/digest.mjs <records>                          # the chat's own session
+node .agents/skills/transcript-digest/scripts/digest.mjs <records> --session <session id>   # one session in it, a task's included
+node .agents/skills/transcript-digest/scripts/digest.mjs <records> --children               # plus every task the chat started
+node .agents/skills/transcript-digest/scripts/digest.mjs <name>-transcript.md               # an exported transcript
+node .agents/skills/transcript-digest/scripts/digest.mjs <file> --json                      # the same, structured
 ```
 
-No dependencies. It reads only the Markdown, so it works on a transcript from anyone's machine. `--children` is the one part that needs this Mac: it reads the chat's own records (the record folder the transcript's `chatDir` names, one `<session>.<device>.jsonl` per session per device), takes every session whose header names the chat's session as its parent, which is each task the chat started, and exports each through `script:dump-session-transcript --session` (the `session-transcript` skill). A chat whose folder is not here is reported as not found rather than failing the run.
+A chat location, as "Copy chat location" copies it, is `key: value` lines: `title`, `chat`, `session`, `records` (the chat's record folder), `work` (its work folder), the app version and build, the OS and `host`. Pass `records` and, when `session` is not the chat's own (the item was copied from a task's menu), `--session <session>`. Given a folder, the digest first renders the session to Markdown with `script:dump-session-transcript` (the `session-transcript` skill) into `$TMPDIR/transcript-digest/` and prints that file's path on its first line; the `L` numbers point into it. The records are only on the computer `host` names; on another one, ask for the transcript or run the dump there.
+
+The digest itself has no dependencies and reads only the Markdown, so it works on a transcript from anyone's machine. `--children` is the one part that needs this Mac: it reads the chat's own records (the record folder the transcript's `chatDir` names, one `<session>.<device>.jsonl` per session per device), takes every session whose header names the chat's session as its parent, which is each task the chat started, and exports each through `script:dump-session-transcript --session` (the `session-transcript` skill). A chat whose folder is not here is reported as not found rather than failing the run.
 
 ## How to use it
 

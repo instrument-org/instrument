@@ -1,6 +1,6 @@
 import {
   type PromptDraftKey,
-  promptDraftAtom,
+  storedWordsAtom,
 } from "@/client/atoms/prompt-value";
 import {
   type ImageSourceKind,
@@ -173,6 +173,20 @@ describe("Markdown links", () => {
     );
   });
 
+  // A person writes a Windows file by its drive, and a reply may link one
+  // that way: it is the same file as the shell's spelling of it.
+  it.each([
+    "C:/Users/sam/Documents/sp%20ace/notes.txt",
+    "c:/Users/sam/Documents/sp%20ace/notes.txt",
+    "<C:\\Users\\sam\\Documents\\sp ace\\notes.txt>",
+  ])("opens a link to a Windows file by its drive: %s", (href) => {
+    renderMarkdown(`[notes.txt](${href})`);
+
+    expect(screen.getByRole("button", { name: "notes.txt" }).title).toBe(
+      "/c/Users/sam/Documents/sp ace/notes.txt",
+    );
+  });
+
   it("opens a task-relative link", () => {
     renderMarkdown("Wrote [`notes.md`](output/notes.md).");
 
@@ -336,6 +350,41 @@ describe("Markdown fences", () => {
     ).toEqual(["Wrap lines", "Copy"]);
   });
 
+  // A fence that has not closed holds part of its code, and a command copied
+  // half written runs as something else once it is pasted. Only that fence
+  // waits: one that closed above it in the same reply is whole.
+  it.each([
+    ["a fence still arriving", "Run this:\n\n```sh\nrm -rf build", true],
+    ["a fence arriving inside a list", "- First:\n\n  ```sh\n  rm -rf", true],
+    [
+      "a longer fence holding a shorter one",
+      "````md\n```sh\nrm -rf build\n```",
+      true,
+    ],
+    ["a fence that just closed", "```sh\nrm -rf build\n```", false],
+    [
+      "a closed fence with prose arriving after it",
+      "```sh\nrm -rf build\n```\n\nThen rebuild",
+      false,
+    ],
+  ])("with %s, offers copying only once it closes", (_case, text, isOff) => {
+    renderWithProviders(<Markdown isStreaming markdown={text} />);
+
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Copy" }).disabled,
+    ).toBe(isOff);
+  });
+
+  // A finished reply that never closed its fence has nothing more coming, so
+  // what the block holds is all of it.
+  it("offers copying an unclosed fence once the reply has finished", () => {
+    renderWithProviders(<Markdown markdown={"```sh\nrm -rf build"} />);
+
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Copy" }).disabled,
+    ).toBe(false);
+  });
+
   it("wraps by default, and remembers nothing once toggled off", () => {
     const { container, unmount } = renderMarkdown("```\ncat log.txt\n```");
     const toggle = screen.getByRole("button", { name: "Wrap lines" });
@@ -494,39 +543,6 @@ describe("Markdown half-written constructs", () => {
 
     expect(container.querySelector("strong")).toBeNull();
     expect(container.textContent).toContain("**half written");
-  });
-});
-
-// react-markdown under the name the stylesheet looks for.
-describe("Markdown streaming words", () => {
-  const streamingWords = (markdown: string) => {
-    const { container } = renderWithProviders(
-      <Markdown isStreaming markdown={markdown} chatId={TASK_ID} />,
-    );
-    return [...container.querySelectorAll("[data-stream-word]")].map(
-      (word) => word.textContent,
-    );
-  };
-
-  it("hands every word of streaming prose to the stylesheet", () => {
-    expect(streamingWords("Reading the config")).toEqual([
-      "Reading",
-      "the",
-      "config",
-    ]);
-  });
-
-  it("leaves code alone, since the components under it read a string", () => {
-    expect(streamingWords("Run `pnpm test run` first")).toEqual([
-      "Run",
-      "first",
-    ]);
-  });
-
-  it("wraps nothing once the text has settled", () => {
-    const { container } = renderMarkdown("Reading the config");
-
-    expect(container.querySelectorAll("[data-stream-word]")).toHaveLength(0);
   });
 });
 
@@ -1101,22 +1117,13 @@ describe("Markdown while a message is still arriving", () => {
    * comparing text with the whitespace out catches anything dropped from a
    * word. What is left uncovered, a space lost between two words, is what
    * `splitMarkdownBlocks`' round-trip test rules out at the source.
-   *
-   * The word-fade spans are unwrapped first: they exist only while the text is
-   * moving, so they are a difference between the two readings by design.
    */
-  const reading = (container: HTMLElement) => {
-    const copy = container.cloneNode(true) as HTMLElement;
-    for (const span of copy.querySelectorAll("[data-stream-word]")) {
-      span.replaceWith(...span.childNodes);
-    }
-    return {
-      elements: [...copy.querySelectorAll("*")]
-        .map((element) => element.tagName.toLowerCase())
-        .join(" "),
-      text: copy.textContent.replaceAll(/\s+/g, ""),
-    };
-  };
+  const reading = (container: HTMLElement) => ({
+    elements: [...container.querySelectorAll("*")]
+      .map((element) => element.tagName.toLowerCase())
+      .join(" "),
+    text: container.textContent.replaceAll(/\s+/g, ""),
+  });
 
   // Deliberately not here: a document ending mid-construct. The two readings
   // differ on it by design -- one is repaired and one is shown as written --
@@ -1144,12 +1151,6 @@ describe("Markdown while a message is still arriving", () => {
     );
 
     expect(container.querySelector("strong")?.textContent).toBe("half writ");
-  });
-
-  it("leaves a settled message with no word spans at all", () => {
-    expect(
-      draw(documents["several paragraphs"]).querySelector("[data-stream-word]"),
-    ).toBeNull();
   });
 });
 
@@ -1278,7 +1279,7 @@ describe("Markdown file chips", () => {
     fireEvent.contextMenu(screen.getByRole("button", { name: "notes.md" }));
     fireEvent.click(await screen.findByRole("button", { name: "Add to chat" }));
 
-    expect(store.get(promptDraftAtom(draftKey))).toContain("output/notes.md");
+    expect(store.get(storedWordsAtom(draftKey))).toContain("output/notes.md");
   });
 
   // A task's own transcript has no composer under it, so there is nowhere

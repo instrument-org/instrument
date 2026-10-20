@@ -47,8 +47,8 @@ export function quitPrompt({
     const also = agentCount > 0 ? " also" : "";
     const lead =
       jobNames.length === 1
-        ? `Quitting${also} stops this job, which is still running:`
-        : `Quitting${also} stops these jobs, which are still running:`;
+        ? `Quitting${also} stops this command, which is still running:`
+        : `Quitting${also} stops these commands, which are still running:`;
     const named = jobNames.slice(0, NAMED_JOBS_MAX);
     const rest = jobNames.length - named.length;
     parts.push(

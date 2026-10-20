@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   type LogRecord,
-  type MarkRecord,
+  type SettingRecord,
   parseLogLine,
-  parseMarkLine,
+  parseSettingLine,
   recordLine,
 } from "./record";
 import {
@@ -158,7 +158,7 @@ describe("parseLogLine", () => {
       '{"t":"stopped","seq":-1,"at":"2026-10-14T12:00:00.000Z","by":"user"}',
     ],
     [
-      "a mark, which only a marks file holds",
+      "a setting, which only a settings file holds",
       recordLine(titleMark(1, "Hi", true)),
     ],
     [
@@ -184,53 +184,78 @@ describe("parseLogLine", () => {
   });
 });
 
-describe("parseMarkLine", () => {
-  it.each<[string, MarkRecord]>([
+describe("parseSettingLine", () => {
+  it.each<[string, SettingRecord]>([
     ["a title", titleMark(0, "Plans", false)],
     ["a star", mark(1, { field: "starred", value: true })],
     ["an archive", mark(2, { field: "archived", value: false })],
-    ["unread", mark(3, { field: "unread", value: { byUser: true } })],
+    ["unread", mark(3, { field: "unread", value: "marked" })],
+    ["a model", mark(7, { field: "model", value: "openai/gpt-6.1-sol" })],
     ["read", mark(4, { field: "unread", value: null })],
     ["a topic", mark(5, { field: "topic", value: "work" })],
     ["no topic", mark(5, { field: "topic", value: null })],
-    ["a stop", mark(6, { field: "stoppedAt", value: at(3) })],
   ])("reads back %s as written", (_name, record) => {
-    expect(parseMarkLine(recordLine(record))).toEqual(record);
+    expect(parseSettingLine(recordLine(record))).toEqual(record);
   });
 
-  it.each([
-    [["work", "home"], "work"],
-    [[], null],
-  ])(
-    "reads a topics mark of %j as the topic mark for its first",
-    (topics, topic) => {
-      const line = recordLine(mark(5, { field: "topic", value: "x" })).replace(
-        '"field":"topic","value":"x"',
-        `"field":"topics","value":${JSON.stringify(topics)}`,
-      );
-      expect(parseMarkLine(line)).toEqual(
-        mark(5, { field: "topic", value: topic }),
-      );
-    },
-  );
+  it.each<[string, string, SettingRecord]>([
+    [
+      "a settled title",
+      '"field":"title","value":{"text":"Plans","settled":true}',
+      titleMark(0, "Plans", true),
+    ],
+    [
+      "a title the app may change",
+      '"field":"title","value":{"text":"Plans","settled":false}',
+      titleMark(0, "Plans", false),
+    ],
+    [
+      "unread by the person",
+      '"field":"unread","value":{"byUser":true}',
+      mark(0, { field: "unread", value: "marked" }),
+    ],
+    [
+      "unread by the app",
+      '"field":"unread","value":{"byUser":false}',
+      mark(0, { field: "unread", value: "new" }),
+    ],
+    [
+      "read",
+      '"field":"unread","value":null',
+      mark(0, { field: "unread", value: null }),
+    ],
+    [
+      "a list of topics",
+      '"field":"topics","value":["work","home"]',
+      mark(0, { field: "topic", value: "work" }),
+    ],
+    [
+      "an empty list of topics",
+      '"field":"topics","value":[]',
+      mark(0, { field: "topic", value: null }),
+    ],
+  ])("reads an older mark line of %s as its setting", (_name, body, record) => {
+    const line = `{"t":"mark","seq":0,"at":"${at(0).toISOString()}","session":"${session}",${body},"device":"${DEVICE_A}"}`;
+    expect(parseSettingLine(line)).toEqual(record);
+  });
 
   it("refuses a value of another field's kind", () => {
     const line = recordLine(mark(1, { field: "starred", value: true }));
     expect(
-      parseMarkLine(line.replace('"value":true', '"value":"yes"')),
+      parseSettingLine(line.replace('"value":true', '"value":"yes"')),
     ).toBeUndefined();
   });
 });
 
-/** A mark's field and value, still paired. */
-type MarkBody<M = MarkRecord> = M extends MarkRecord
+/** A setting's field and value, still paired. */
+type MarkBody<M = SettingRecord> = M extends SettingRecord
   ? Pick<M, "field" | "value">
   : never;
 
-function mark(seq: number, body: MarkBody): MarkRecord {
-  return { t: "mark", seq, at: at(seq), session, device: DEVICE_A, ...body };
+function mark(seq: number, body: MarkBody): SettingRecord {
+  return { t: "set", seq, at: at(seq), session, device: DEVICE_A, ...body };
 }
 
-function titleMark(seq: number, text: string, settled: boolean): MarkRecord {
-  return mark(seq, { field: "title", value: { settled, text } });
+function titleMark(seq: number, text: string, settled: boolean): SettingRecord {
+  return mark(seq, { field: "title", value: { auto: !settled, text } });
 }

@@ -40,7 +40,7 @@ beforeEach(async () => {
     rootDir: WorkspaceDirSchema.parse(root),
     captureException: vi.fn(),
   });
-  await initializeTestChat({ chatId, initialSettings: {} });
+  await initializeTestChat({ chatId });
   const own = sessionOfChat(chatId);
   if (!own) throw new Error("missing chat session");
   sessionId = own;

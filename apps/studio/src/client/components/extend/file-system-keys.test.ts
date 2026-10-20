@@ -49,7 +49,7 @@ describe("listingCommandOf", () => {
     ["⌘ArrowLeft", null],
     ["⌘Enter", null],
     ["⌥Enter", null],
-    ["⌘c", null],
+    ["⌘v", null],
     ["⌥q", null],
     ["-", null],
     ["Tab", null],
@@ -111,7 +111,12 @@ describe("listingCommandOf", () => {
     expect(listingCommandOf(press(chord), os)).toEqual(command);
   });
 
-  it.each<[Os, string, { type: "copy-path" | "duplicate" } | null]>([
+  it.each<[Os, string, { type: "copy" | "copy-path" | "duplicate" } | null]>([
+    // Every file manager's Copy.
+    ["mac", "⌘c", { type: "copy" }],
+    ["windows", "⌃c", { type: "copy" }],
+    ["linux", "⌃c", { type: "copy" }],
+    ["mac", "⇧⌘c", null],
     // The Finder's Duplicate and Copy as Pathname.
     ["mac", "⌘d", { type: "duplicate" }],
     ["mac", "⌥⌘c", { type: "copy-path" }],
@@ -143,28 +148,34 @@ describe("listingKeys", () => {
     }).toMatchInlineSnapshot(`
       {
         "linux": {
+          "copy": "Ctrl+C",
           "copyPath": null,
           "duplicate": null,
           "newFolder": "Ctrl+Shift+N",
           "open": "Enter",
+          "paste": "Ctrl+V",
           "preview": "Space",
           "rename": "F2",
           "trash": "Del",
         },
         "mac": {
+          "copy": "⌘C",
           "copyPath": "⌥⌘C",
           "duplicate": "⌘D",
           "newFolder": "⇧⌘N",
           "open": "⌘O",
+          "paste": "⌘V",
           "preview": "Space",
           "rename": "↩",
           "trash": "⌘⌫",
         },
         "windows": {
+          "copy": "Ctrl+C",
           "copyPath": "Ctrl+Shift+C",
           "duplicate": null,
           "newFolder": "Ctrl+Shift+N",
           "open": "Enter",
+          "paste": "Ctrl+V",
           "preview": "Space",
           "rename": "F2",
           "trash": "Del",

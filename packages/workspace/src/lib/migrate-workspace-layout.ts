@@ -199,7 +199,7 @@ export function migrateWorkspaceLayout({
   const removedBrowserProfileCloneCount = normalizeTasks(rootDir, normalized);
   // After the task sweep, so each task an earlier version ran is in its
   // current shape when it is made into a chat.
-  const legacyTasks = migrateLegacyTasks(rootDir);
+  const legacyTasks = migrateLegacyTasks(rootDir, machineDir);
   // After the 1.x migration, which turns the projects in `projects/` into
   // topics first.
   const projectsLeft = setAsideLegacyProjectsDir({ machineDir, rootDir });

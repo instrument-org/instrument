@@ -84,7 +84,7 @@ const states = [
       on: "files",
       bar: winBar({ tabs: [{ folder: "Instrument" }], active: 0 }),
       body: filesPlace({
-        top: filesTop({ crumbs: ["studio26", "Instrument"] }),
+        top: filesTop({ crumbs: ["mac-user", "Instrument"] }),
         side: "",
         head: finderHeader({ title: "Instrument", views: finderViews("list") }),
         body: finderListView(
@@ -107,7 +107,7 @@ const states = [
       bar: winBar({ tabs: [{ file: "comparison" }], active: 0 }),
       body: filesPlace({
         top: filesTop({
-          crumbs: ["studio26", "Instrument", "pricing-comparison.html"],
+          crumbs: ["mac-user", "Instrument", "pricing-comparison.html"],
           mark: fileMark("html", "text-[14px]"),
           open: "html",
           right: fileActions(),

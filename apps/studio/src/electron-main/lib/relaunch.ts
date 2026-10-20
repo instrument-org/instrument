@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 
 import { requestQuitApproval } from "./quit";
+import { deferInstallOnQuit } from "./update";
 
 /**
  * The exit code that asks `scripts/dev-supervisor.ts` to start electron-vite
@@ -94,6 +95,12 @@ function startAgainOnExit() {
   if (process.platform !== "linux") {
     app.relaunch();
     return;
+  }
+  // The AppImage install on quit removes the image and may move the update
+  // to a versioned name, which would leave the restart nothing to start, so
+  // a staged update waits for a later quit.
+  if (process.env.APPIMAGE) {
+    deferInstallOnQuit();
   }
   const { args, file } = restartCommand({
     argv: process.argv.slice(1),

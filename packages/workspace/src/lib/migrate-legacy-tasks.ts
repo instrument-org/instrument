@@ -32,6 +32,7 @@ import {
   unusedTopicName,
   writeTopicSync,
 } from "./chat/topics";
+import { addTopicFoldersSync } from "./permissions/topic-folders";
 import { forgetChatFolders } from "./record-folders";
 import { isRecord } from "./skills";
 import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
@@ -128,6 +129,8 @@ interface StoreRow {
  * started is one to adopt, and `projects/` holding a project is one to turn
  * into a topic.
  * Synchronous and file-level, with no store open and no workspace config.
+ * A project's folders are granted under its topic in this computer's
+ * permission settings, in `machineDir`, since each names a path here.
  *
  * The chat's database and settings are written beside the task's own, the
  * folder moved among the chats under a hidden name, the task's files set
@@ -135,7 +138,10 @@ interface StoreRow {
  * chat is listed half made, and a boot cut short part way finishes the chat
  * it left.
  */
-export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
+export function migrateLegacyTasks(
+  rootDir: string,
+  machineDir: string,
+): LegacyTasksMigration {
   const migration: LegacyTasksMigration = {
     adoptedCount: 0,
     emptyCount: 0,
@@ -163,6 +169,11 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
   for (const project of projects) {
     try {
       const topic = topicForProject(rootDir, project, topics);
+      addTopicFoldersSync({
+        machineDir,
+        paths: project.folders.map((folder) => folder.path),
+        topicId: topic.id,
+      });
       if (topic.made) {
         migration.topicCount += 1;
       }
@@ -833,8 +844,7 @@ function storedValue(blob: null | Uint8Array): unknown {
 
 /**
  * The topic a project's chats carry: the one already called by its name, with
- * the project's instructions added after its own and its folders beside them,
- * or a new one made from it. Asking again for the same project changes
+ * the project's instructions added after its own, or a new one made from it. Asking again for the same project changes
  * nothing, since what it would add is already there.
  */
 function topicForProject(
@@ -857,18 +867,13 @@ function topicForProject(
       : own;
   const existing = topics[index];
   if (existing) {
-    const held = new Set((existing.folders ?? []).map((folder) => folder.path));
-    const added = project.folders.filter((folder) => !held.has(folder.path));
     const body = existing.instructions?.trim() ?? "";
     const addsInstructions =
       project.instructions !== "" && !body.includes(project.instructions);
-    if (added.length > 0 || addsInstructions || own === -1) {
+    if (addsInstructions || own === -1) {
       const next: Topic = {
         ...existing,
         projectId: existing.projectId ?? project.id,
-        ...(added.length > 0
-          ? { folders: [...(existing.folders ?? []), ...added] }
-          : {}),
         ...(addsInstructions
           ? {
               instructions: body
@@ -885,7 +890,6 @@ function topicForProject(
   const topic: Topic = {
     created: toTheSecond(new Date(project.createdAt)),
     ...(project.emoji ? { emoji: project.emoji } : {}),
-    ...(project.folders.length > 0 ? { folders: project.folders } : {}),
     id: newTopicId(project.createdAt),
     ...(project.instructions ? { instructions: project.instructions } : {}),
     name: unusedTopicName(

@@ -5,10 +5,10 @@ export function setupAgent<T extends AgentTools, U extends AgentName>(options: {
   name: U;
 }): {
   create: (
-    createAgent: (options: { agentTools: T; name: U }) => Omit<
-      Agent<T>,
-      "agentTools" | "getTools" | "name" | "toolNames"
-    >,
+    createAgent: (options: {
+      agentTools: T;
+      name: U;
+    }) => Omit<Agent<T>, "agentTools" | "getTools" | "name" | "toolNames">,
   ) => Agent<T>;
 } {
   return {

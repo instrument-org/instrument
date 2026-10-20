@@ -46,6 +46,42 @@ changed=$(git diff --name-only main...HEAD)
 [[ -n "$changed" ]] || fail "nothing on $branch that main does not already have"
 echo "land: $(git rev-list --count main..HEAD) commit(s) on $branch"
 
+# The Commits-to trailers of the commits that wrote the lines this branch
+# changes or removes, so a contract one of them made is in view before landing
+# rather than found broken by a later review. Shown, never enforced.
+node -e '
+  const { execFileSync } = require("node:child_process");
+  const git = (...args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 1 << 28 });
+  const writers = new Set();
+  // A renamed file is blamed under the name main has it by.
+  for (const entry of git("diff", "--name-status", "--diff-filter=MDR", "main...HEAD").split("\n").filter(Boolean)) {
+    const [, file, renamed = file] = entry.split("\t");
+    const hunks = git("diff", "-U0", "main...HEAD", "--", file, renamed).matchAll(/^@@ -(\d+)(?:,(\d+))? /gm);
+    for (const [, start, count = "1"] of hunks) {
+      if (count === "0") continue;
+      const blame = git("blame", "--porcelain", "-L", `${start},+${count}`, "main", "--", file);
+      for (const [, sha] of blame.matchAll(/^([0-9a-f]{40}) \d+ \d+/gm)) writers.add(sha);
+    }
+  }
+  const found = [];
+  for (const sha of writers) {
+    const [subject, ...body] = git("log", "-1", "--format=%B", sha).split("\n");
+    // A value wrapped onto unindented lines still reads as one contract.
+    let contract;
+    for (const line of [...body, ""]) {
+      if (contract !== undefined && line.trim() !== "" && !/^[\w-]+: /.test(line)) {
+        contract += " " + line.trim();
+        continue;
+      }
+      if (contract !== undefined) found.push(`  ${sha.slice(0, 9)} ${subject}\n    ${contract}`);
+      contract = line.match(/^Commits-to: (.+)$/)?.[1];
+    }
+  }
+  if (found.length > 0) {
+    console.log("land: commits whose lines this branch changes made these contracts; check it keeps them:\n" + found.join("\n"));
+  }
+'
+
 # Types across every package the branch touched, since a changed signature
 # breaks callers in files it never opened; lint over the changed files alone,
 # from the root so each resolves its own package config, since what other work

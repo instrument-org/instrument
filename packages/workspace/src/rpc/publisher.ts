@@ -3,7 +3,6 @@ import { EventPublisher } from "@orpc/server";
 import { type AppEvent } from "../lib/apps/changed";
 import { type RecordChanged } from "../lib/record-changes";
 import { type WorkspaceSnapshot } from "../machines/workspace";
-import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type StopNotice } from "../schemas/stop-notice";
@@ -35,6 +34,11 @@ export const publisher = new EventPublisher<{
    * every listener re-reads the list. Published only by `appChanged`.
    */
   "app.updated": null;
+  /**
+   * The app directory changed, because a copy our API served was taken in.
+   * Carries no payload because every listener re-reads the directory.
+   */
+  "app.catalogChanged": null;
   /**
    * A background process in this chat appeared, ended, or was removed. Carries
    * no detail because every listener re-reads the list, and deliberately not
@@ -68,10 +72,6 @@ export const publisher = new EventPublisher<{
    * every listener re-reads the folder.
    */
   "memory.changed": null;
-  "part.updated": {
-    id: ChatId;
-    part: SessionMessagePart.Type;
-  };
   /**
    * Something about one record moved: its transcript, its sessions, its
    * settings or state, its agent, or the record itself is gone. Published

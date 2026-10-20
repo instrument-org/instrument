@@ -13,6 +13,7 @@ import {
   findWithHiddenEntriesPruned,
   quietRefusedFolders,
   quoteWindowsArgument,
+  splitPrefix,
   xargsRunsParallel,
 } from "./shell-commands/native-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -142,6 +143,23 @@ describe("xargsRunsParallel", () => {
   });
 });
 
+describe("splitPrefix", () => {
+  it.each<[string[], string]>([
+    [["-l", "2", "lines.txt"], "x"],
+    [["-l", "2", "lines.txt", "part_"], "part_"],
+    [["-l2", "-d", "lines.txt", "out/p"], "out/p"],
+    [["-dl", "2", "lines.txt", "p"], "p"],
+    [["-n", "l/3", "-", "in_"], "in_"],
+    [["--lines", "4", "lines.txt", "x_"], "x_"],
+    [["--lines=4", "--numeric-suffixes=1", "lines.txt", "s"], "s"],
+    [["--additional-suffix", ".csv", "data.csv", "chunk_"], "chunk_"],
+    [["-1000", "lines.txt", "p"], "p"],
+    [["--", "-odd", "-pre"], "-pre"],
+  ])("%j writes beside %s", (args, prefix) => {
+    expect(splitPrefix(args)).toBe(prefix);
+  });
+});
+
 describe.skipIf(!vendored)("with the bundled uutils", () => {
   beforeAll(() => withUutils(UUTILS_DIR));
 
@@ -173,6 +191,24 @@ describe.skipIf(!vendored)("with the bundled uutils", () => {
     ["sha512sum a.txt | cut -c1-16", "bcdb03f1145159cc\n"],
   ])(
     "answers %s with GNU's flags, which just-bash has no command for",
+    async (command, stdout) => {
+      expect(await run(command)).toMatchObject({ exitCode: 0, stdout });
+    },
+  );
+
+  it.each([
+    ["basename /; dirname /", "/\n/\n"],
+    ["basename -z a/b | od -An -c", "   b  \\0\n"],
+    ["printf 'a,b,' | tac -s ,", "b,a,"],
+    ["paste -d '\\n' a.txt b.txt", "one\none\ntwo\n2\n"],
+    ["base64 -i a.txt | base64 -di", "one\ntwo\n"],
+    ["readlink -m x/../y | sed 's|.*/||'", "y\n"],
+    [
+      "split -l 1 --numeric-suffixes=1 a.txt part_ && cat part_02 && rm part_0*",
+      "two\n",
+    ],
+  ])(
+    "answers %s as GNU does, where the builtin does not",
     async (command, stdout) => {
       expect(await run(command)).toMatchObject({ exitCode: 0, stdout });
     },

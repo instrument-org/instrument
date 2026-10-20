@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   extendSelected,
   keepShown,
+  marqueeSelection,
   NOTHING_SELECTED,
   normalizeSelection,
   type Selection,
@@ -106,4 +107,23 @@ describe("selecting, the way the Finder does", () => {
     expect(kept.lead).toBe("c");
     expect(keepShown(selection, () => false)).toEqual(NOTHING_SELECTED);
   });
+});
+
+describe("a box dragged across the rows", () => {
+  const started = pressAll(["a", "⌘c"]);
+  it.each([
+    { mode: null, touched: ["d", "e"], selected: ["d", "e"] },
+    // Touching nothing leaves what the press itself selected.
+    { mode: null, touched: [], selected: ["a", "c"] },
+    { mode: "extend", touched: ["c", "d"], selected: ["a", "c", "d"] },
+    { mode: "toggle", touched: ["c", "d"], selected: ["a", "d"] },
+    { mode: "toggle", touched: ["a", "c"], selected: [] },
+  ] as const)(
+    "$mode over $touched selects $selected",
+    ({ mode, selected, touched }) => {
+      expect(selectedPathsOf(marqueeSelection(started, touched, mode))).toEqual(
+        selected,
+      );
+    },
+  );
 });

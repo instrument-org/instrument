@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { updateChatSettings } from "../../lib/chat-settings";
+import { setChatModel } from "../../lib/chat-settings";
 import { appRefusal } from "../../lib/permissions/apps";
 import { openAsks, recordAsk } from "../../lib/chat/asks";
 import { chatDenials } from "../../lib/permissions/denials";
@@ -128,10 +128,30 @@ it("resets every rule, and what every chat was allowed, to a new install's", asy
   expect(await readPermissionSettings()).toEqual({
     apps: [],
     chats: {},
+    topics: {},
     dangerouslyAllowEveryFolder: false,
     folders: [],
     places: {},
   });
+});
+
+it("says the rules are untouched until one differs from a new install's", async () => {
+  const context = { context: createContext() };
+  const untouched = async () =>
+    (await call(permissions.get, undefined, context)).untouched;
+
+  expect(await untouched()).toBe(true);
+  await call(permissions.setPlace, { id: "desktop", level: "allow" }, context);
+  expect(await untouched()).toBe(false);
+  await call(permissions.setPlace, { id: "desktop", level: "ask" }, context);
+  expect(await untouched()).toBe(true);
+  await updateChatPermissions("2026-10-19-pantry", (held) => ({
+    ...held,
+    denials: [
+      { deniedAt: new Date(), kind: "folder", target: "/Users/me/Pantry" },
+    ],
+  }));
+  expect(await untouched()).toBe(false);
 });
 
 describe("permissions.answer", () => {
@@ -166,11 +186,12 @@ describe("permissions.answer", () => {
   /** A chat someone has written in, with one task. */
   async function chatWithTask() {
     const chatId = await chatFor(StoreId.newSessionId());
-    const written = await updateChatSettings(chatId, {
-      modelURI: AIGatewayModelURI.Schema.parse(
+    const written = await setChatModel(
+      chatId,
+      AIGatewayModelURI.Schema.parse(
         "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
       ),
-    });
+    );
     if (written.isErr()) {
       throw written.error;
     }

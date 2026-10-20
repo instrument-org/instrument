@@ -121,14 +121,54 @@ Closing the libraries holds for every native program, `python`'s `os.walk` inclu
 
 ## find
 
-`find` is the walk models reach for even with `rg` in the bash description: in the record, 311 `find` calls in 129 app sessions against 529 `rg` in 120, and 627 against 2,084 in the evals; 29 of the `find` calls start at the home folder. It runs uutils on macOS and Linux and the builtin on Windows.
+`find` is the walk models reach for even with `rg` in the bash description: in the record, 311 `find` calls in 129 app sessions against 529 `rg` in 120, and 627 against 2,084 in the evals; 29 of the `find` calls start at the home folder. It runs uutils on every platform, on Windows with the separator patch the architecture page describes.
 
 - **Answers.** On the corpus the builtin misses `-type f` from `.`, `-printf` with `%TY-%Tm-%Td`, `-prune`, `-L` and `-type f,d`; uutils misses only `-newermt` with a time, which the builtin misses as well. The table passes 229 of 245 with `find` native against 224 with the builtin, `find`'s own cases 23 of 24 against 18, on the macOS and the Linux runs alike.
 - **Speed.** just-bash#597 (carried on the records branch as `mountable-dirents-3.6.0.diff`) reads each folder once rather than once per entry, which brings the builtin's 21,000-file `find -type f` to 135 ms on macOS (from 734) and 383 ms on Windows (from 8,423); uutils took 63 ms over 20,000 files through the shell. With the launcher a native start costs about 6 ms, so a native `find` is never the slower of the two. The builtin also stops at 20,000 entries over the home folder and 300,000 in all.
 - **Privacy dialogs.** uutils' `-prune` opens the pruned folder before skipping it, which set off macOS's Media Library dialog over `~/Movies/TV`. With the media libraries closed as places the sandbox refuses that open first: in a notarized preview, `find ~/Movies -path ~/Movies/TV -prune -o -print` and `find ~ -maxdepth 3` ran with no dialog and no request to macOS beyond the ones it answers silently.
-- **What the app hides.** The native sandbox does not hide the chat's `.instrument` folder or its `tasks/`, which the builtin never lists. The command's arguments carry a prune of every `.instrument` by name and of `tasks/` by path ahead of the caller's expression, with an explicit `-print` when the expression has no action of its own, and only the start points are held to the rules as paths.
-- **Windows** keeps the builtin: uutils prints backslashes there, which `-path '*/.*'` and `-prune` written with slashes never match, and once Windows has a sandbox each spawn will cost about 45 ms more.
+- **What the app hides.** Nothing, once the chat records moved out of the chat's folder: the workspace's `.instrument` is closed by the rules, which the sandbox enforces for `find` as for any program, so `find` gets no prune and only its start points are held to the rules as paths. Hiding it had been tidiness rather than a boundary; the sandbox protected the folder either way.
+- **Windows** first kept the builtin: uutils printed backslashes there, which `-path '*/.*'` and `-prune` written with slashes never match. The uutils-build patch read through `UUTILS_PATH_SEPARATOR=slash` fixed that, and `find` joined the Windows column (`4c0331dae`).
 - **`-newermt`.** findutils 0.10.0 parses no date; `main` parses ISO dates since 2026-08-20, unreleased, reading them as UTC where GNU reads local time.
+
+## The commands both have
+
+The first corpus left out thirteen commands both just-bash and uutils carry, so they had stayed builtins by default. A second corpus of 142 cases scores them the same way (argv, stdin from a file, `TZ=UTC`, `LC_ALL=C.UTF-8`, stdout and success against GNU), with GNU coreutils 9.12 as the reference, run as Homebrew's `g`-prefixed build on macOS; `split` and `mktemp` cases also compare the files they leave, by name and content, with the random part of a `mktemp` name masked. The record has few of these calls, so the shapes it does have are all in: `base64 -w0`, `base64 -w 0` and BSD's `base64 -i file`, `nl -ba`, `basename "$f" .pdf`, `dirname "$f"`, `readlink link`, `paste -sd,` and `mktemp -d`. The builtin was scored through the agent's shell (`run-bash`), uutils 0.12.0 directly on macOS arm64 and Windows x64, and again through the shell on macOS once routed. On Windows the routed shell printed `readlink -f`, `basename` and `dirname` paths the way the shell spells them (`/c/Users/...`), split into a subfolder, round-tripped binary through `base64 -d` to a file, and raised the card for a split into `/c/Windows`. Linux was not run; it is the same source, and scored within two cases of macOS in the first corpus.
+
+| | builtin | uutils macOS | uutils Windows | macOS's BSD tools |
+| --- | --- | --- | --- | --- |
+| all 142 | 106 | 141 | 140 | 86 of 125 |
+| `sha1sum` (9) | 6 | 9 | 9 | none |
+| `base64` (14) | 11 | 13 | 13 | 5 |
+| `paste` (14) | 11 | 14 | 14 | 11 |
+| `nl` (11) | 9 | 11 | 11 | 8 |
+| `fold` (9) | 8 | 9 | 9 | 8 |
+| `tac` (8) | 4 | 8 | 8 | none |
+| `split` (13) | 8 | 13 | 13 | 7 |
+| `readlink` (15) | 10 | 15 | 15 | 12 |
+| `mktemp` (11) | 11 | 11 | 10 | 4 |
+| `basename` (14) | 10 | 14 | 14 | 11 |
+| `dirname` (10) | 8 | 10 | 10 | 9 |
+| `expand` (8) | 6 | 8 | 8 | 6 |
+| `unexpand` (6) | 4 | 6 | 6 | 5 |
+
+Through the shell after routing, macOS answers 141, the same as uutils run directly. The Windows column counts relative paths printed with backslashes as the shell prints them, with slashes. uutils' one miss everywhere is `base64 -D`, BSD's spelling of decode, which uutils accepts and GNU refuses; that only helps a model that learned BSD flags.
+
+What the builtins get wrong, by command:
+
+- `sha1sum` refuses `--tag`, and prints its warnings and missing-file errors on stdout.
+- `base64` refuses `-i` (`--ignore-garbage`, and the `base64 -i file` models write from BSD) and decodes `@@@notbase64` to bytes with status 0, where GNU reports invalid input.
+- `paste` reads no stdin without a `-`, and takes `\n` and `\t` in `-d` literally.
+- `nl` pads an unnumbered line with a tab where GNU pads with a space, and refuses `-b pREGEX`.
+- `fold` counts a tab as fewer columns than GNU does, so it breaks lines after one elsewhere.
+- `tac` reads only its first file, refuses `-s` and `-b`, and adds a newline to a last line that has none.
+- `split` refuses `-C`, `-n l/N`, `--lines=` and `--numeric-suffixes=`, and divides `-n 3` at other byte offsets.
+- `readlink` follows a whole chain without `-f`, keeps the link's name inside a `-f` path (`dir.link/f.txt`), answers `-f` with a missing parent, and refuses `-m` and `-n`.
+- `basename /` and `dirname /` print an empty line and `.`, so a loop climbing with `dirname` until `/` never ends; `basename .txt .txt` prints nothing, `-z` ends with a newline, and a third operand is accepted.
+- `expand` keeps repeating the last interval of a tab list (`-t 2,6`) where GNU puts one space, and refuses `-4`; `unexpand -t 4` converts only leading blanks, where GNU's `-t` implies `-a`, and refuses `--first-only`.
+
+So twelve are routed on every platform (the table in [native-and-builtin-commands.md](../architecture/native-and-builtin-commands.md)), and `mktemp` stays the builtin: it ties on every case, `$TMPDIR` and `-p` included, so a native start buys nothing there, and on Windows uutils drops the `/` before the X's of `mktemp out/XXXXXX`, creating `outA1b2C3` in the working folder. `split` holds its prefix to the rules as a write before it starts, so a split into a closed folder raises the card; `basename` and `dirname` hold no operand to the rules, since they never open one. `sha1sum`, `base64`, `basename` and `dirname` joined the unsandboxed tier A rules, read against the 0.12.0 sources (sha1sum is sha256sum's front end, base64 base32's, and the other two open nothing); the rest run sandboxed.
+
+The cost is the loop one `tr` stayed for. A native `basename` in a 20-iteration loop took 130 ms through the shell on macOS against about 16 ms for a builtin command (`mktemp -u`), and 410 ms on Windows; Linux, at about 21 ms a start, lands near Windows. The record has `basename "$f"` and `dirname "$f"` in loops, so this is paid where they are used most, in exchange for the edge cases above.
 
 ## Going further
 
@@ -147,7 +187,7 @@ In the rebuilt preview on the macOS VM, a notarized app launched with the helper
 
 **Windows.** The 25 ms a start was measured inside the preview through CDP; the 7.5 ms process creation and the 14.7 ms with `windowsHide` were taken over SSH, a non-interactive logon session, and need repeating in the interactive one before anyone builds on them. Once Windows has a sandbox, MXC costs about 45 ms a spawn on top, roughly 70 ms a native command, which argues for keeping Windows' column short.
 
-**More commands.** Outside the table the corpus finds little: `tr` passes either way except `tr '\0'`, which the builtin gets wrong; `touch` would fix the builtin discarding `-t` and `-r` (#364), but it writes every operand, so each needs the write check; `printf` is the interpreter's own and cannot be shadowed; `ls` stays a builtin so the entries the app hides stay hidden. At 6 ms a start `tr` could join at a cost of about 0.12 s per 20-iteration loop; on Linux, until its start cost moves, 0.4 s.
+**More commands.** Outside the table the corpus finds little: `tr` passes either way except `tr '\0'`, which the builtin gets wrong; `touch` would fix the builtin discarding `-t` and `-r` (#364), but it writes every operand, so each needs the write check; `printf` is the interpreter's own and cannot be shadowed. `ls` once stayed a builtin so the entries the app hides stay hidden; nothing is hidden any more, so what keeps it is loop cost and unscored `ls -l` output. The commands both just-bash and uutils have that models write less often are scored [above](#the-commands-both-have). At 6 ms a start `tr` could join at a cost of about 0.12 s per 20-iteration loop; on Linux, until its start cost moves, 0.4 s.
 
 ## One name, one implementation
 
@@ -201,6 +241,8 @@ Preview builds of the first prototype (builtin first, `find` native) for macOS a
 | Haiku 5.5, builtins | 3 of 3 | 0 of 12 | 3, 4, 5 | 13, 14, 16 s | 117 to 125K |
 
 Both models answered correctly either way. GLM wrote two commands the builtins turned down and recovered from both, at a call and about 30K tokens a run; Haiku wrote none. Wall time on Workers AI is dominated by queuing, and three runs cannot separate the rest. The case measures that the routing costs nothing in answers; the benefit it buys shows in the record's 41 `sort -g` and 28 `grep -H` failures more than in one well-specified task. About $0.04 in all.
+
+A broader run compared the shell before and after the day the routing landed, six cases twice each (baseline `c0f84aeb4`, candidate `8f3d2496e`). GLM 5.3 Flash passed 12 of 12 against 10, Haiku 5.5 10 of 12 against 9, and failed bash calls fell from 17 to 15 and from 9 to 4. Most of that gain was not uutils: the same day fixed Python libraries the sandbox could not import, and ten baseline sessions hit `ModuleNotFoundError` against none. The part that was uutils is the GNU flags: the baseline turned down `sort -g` once and `grep -H` twice, the candidate neither, and after one `grep -H` refusal GLM spent 198 s wandering and failed the text-tools case, which it passed in all four candidate runs.
 
 ## What it retires
 

@@ -362,9 +362,10 @@ describe.skipIf(process.platform === "win32")(
         name: "icon.svg",
         touch: async (dir: AbsolutePath) => {
           expect(await findAppIcon(dir)).toBeUndefined();
-          await expect(writeAppIcon(dir, svgIcon, "icon.svg")).rejects.toThrow(
-            /ELOOP|symbolic link/,
-          );
+          // The write replaces the link with a file of its own.
+          await writeAppIcon(dir, svgIcon, "icon.svg");
+          const icon = path.join(dir, "icon.svg");
+          expect((await fs.lstat(icon)).isSymbolicLink()).toBe(false);
         },
       },
     ])(

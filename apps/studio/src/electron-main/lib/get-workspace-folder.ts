@@ -32,7 +32,7 @@ export function workspaceInAppData(): boolean {
 /**
  * What the app keeps for the resolved workspace that travels with it,
  * `<workspace>/.instrument/`: its identity, the person's preferences and
- * flags, their bookmarks, and the folders `workspaceLayout` names.
+ * flags, and the folders `workspaceLayout` names.
  */
 export function workspaceDataDir(): string {
   return workspaceLayout(getWorkspaceFolder()).dataDir;

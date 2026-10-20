@@ -1,13 +1,10 @@
-import {
-  chatBoxDraftsAtom,
-  type ChatBoxDrafts,
-  type Draft,
-  draftsAtom,
-} from "@/client/atoms/drafts";
+import { type ChatBoxes, chatBoxesAtom } from "@/client/drafts/chat-box";
+import { resetDrafts } from "@/client/drafts/store";
+import { type Draft } from "@/shared/drafts";
 import { renderWithProviders } from "@/tests/render";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RepliesWaiting } from "./replies-waiting";
 
@@ -22,17 +19,21 @@ function reply(id: string, daysAgo: number, words: string): Draft {
   return { chatId: CHAT, createdAt: updatedAt, id, updatedAt, words };
 }
 
-function show(drafts: Draft[], boxDrafts: ChatBoxDrafts = {}) {
+function show(drafts: Draft[], boxes: ChatBoxes = {}) {
   const onSwapIn = vi.fn();
+  resetDrafts(drafts);
   const { store } = renderWithProviders(
     <RepliesWaiting chatId={CHAT} onSwapIn={onSwapIn} />,
   );
   act(() => {
-    store.set(draftsAtom, drafts);
-    store.set(chatBoxDraftsAtom, boxDrafts);
+    store.set(chatBoxesAtom, boxes);
   });
   return { onSwapIn };
 }
+
+afterEach(() => {
+  resetDrafts();
+});
 
 /** Opens the menu the way Radix opens it, on the press rather than the click. */
 function openMenu() {

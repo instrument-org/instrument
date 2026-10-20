@@ -100,6 +100,17 @@ describe("a draft's file", () => {
     });
   });
 
+  it("writes the chat a draft is on its way into apart from the chat a reply is for", () => {
+    const written = draft({ sending: "2026-10-19-latest-tweet" });
+    expect(renderDraftFile(written)).toContain(
+      'sending: "2026-10-19-latest-tweet"',
+    );
+    expect(roundTrip(written)).toMatchObject({
+      sending: "2026-10-19-latest-tweet",
+    });
+    expect(roundTrip(written)?.chat).toBeUndefined();
+  });
+
   it("lists what was attached by its path, and what was pasted by its name", () => {
     const written = draft({
       attached: [

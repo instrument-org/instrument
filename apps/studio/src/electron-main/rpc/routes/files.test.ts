@@ -9,12 +9,62 @@ import { fileJournal, identityOf } from "@/electron-main/lib/file-journal";
 import { type InitialRPCContext } from "../context";
 import { files } from "./files";
 
-vi.mock("electron", () => ({ shell: {} }));
+// The system clipboard as what was last written to it and what it holds:
+// one item, by its formats. `pasteboard` is the Mac module's list of the
+// files on it, undefined where there is no module.
+const clipboardState = vi.hoisted(() => ({
+  holds: {} as Record<string, string>,
+  pasteboard: undefined as string[] | undefined,
+  written: [] as Record<string, string>[],
+}));
+vi.mock("electron", () => ({
+  ClipboardItem: class {
+    constructor(formats: Record<string, string>) {
+      clipboardState.written.push(formats);
+    }
+  },
+  clipboard: {
+    read: () =>
+      Promise.resolve([
+        {
+          getType: (type: string) =>
+            Promise.resolve(new Blob([clipboardState.holds[type] ?? ""])),
+          types: Object.keys(clipboardState.holds),
+        },
+      ]),
+    write: () => Promise.resolve(),
+  },
+  shell: {},
+}));
 vi.mock("@/electron-main/rpc/base", () => ({ base: os }));
+// What the app keeps by path and carries along with a move: here nothing.
+vi.mock("@/electron-main/browser-view/history-store", () => ({
+  getHistoryStore: () => ({ moveFiles: () => undefined }),
+}));
+// The record of what placing leaves under its own names, kept in memory.
+vi.mock("@/electron-main/stores/machine/state", () => {
+  const kept = new Map<string, unknown>();
+  return {
+    getMachineState: () => ({
+      get: (key: string) => kept.get(key),
+      set: (key: string, value: unknown) => kept.set(key, value),
+    }),
+  };
+});
+vi.mock("@/electron-main/stores/machine/preferences", () => ({
+  getMachinePreferences: () => ({
+    get: () => ({ pinned: [], unpinned: [] }),
+    set: () => undefined,
+  }),
+}));
 // A Finder alias resolves through the Mac module; here every alias leads to
 // whatever `aliasTargets` names for it.
 const aliasTargets = new Map<string, string>();
 vi.mock("@/electron-main/lib/mac-native", () => ({
+  caseSensitivity: () => Promise.resolve(undefined),
+  finderEntries: () => Promise.resolve([]),
+  renameExclusive: () => Promise.resolve(false),
+  pasteboardFiles: () => Promise.resolve(clipboardState.pasteboard),
   resolveAlias: (filePath: string) =>
     Promise.resolve(aliasTargets.get(filePath)),
 }));
@@ -260,4 +310,169 @@ it("links a picture below the folder in place and copies one from elsewhere besi
   ).toEqual(["notes/shots/a.png", "notes/a 2.png", "notes/a 3.png"]);
   expect(await fs.readFile(copied.path, "utf8")).toBe("outside");
   expect(await fs.readFile(pasted.path, "utf8")).toBe("bytes");
+});
+
+it("copies files to the clipboard with their names as text beside them", async () => {
+  clipboardState.written.length = 0;
+  await call(
+    files.copyToClipboard,
+    { paths: ["/Users/sam/notes.txt", "/Users/sam/pics"] },
+    options,
+  );
+
+  const [formats] = clipboardState.written;
+  expect(formats?.["text/plain"]).toBe("notes.txt\npics");
+  expect(
+    Object.keys(formats ?? {}).filter((type) => type !== "text/plain"),
+  ).toEqual(
+    process.platform === "darwin"
+      ? ['electron application/osclipboard;format="NSFilenamesPboardType"']
+      : expect.arrayContaining(["text/uri-list"]),
+  );
+});
+
+it.each([
+  ["the Mac's files", ["/a.txt"], { "text/plain": "a.txt" }, true],
+  ["text alone, on the Mac", [], { "text/plain": "a.txt" }, false],
+  [
+    "a URI list beside text, elsewhere",
+    undefined,
+    { "text/plain": "a.txt", "text/uri-list": "file:///a.txt" },
+    true,
+  ],
+  ["text alone, elsewhere", undefined, { "text/plain": "a.txt" }, false],
+] as const)(
+  "offers Paste for %s",
+  async (_case, pasteboard, holds, hasFiles) => {
+    clipboardState.pasteboard = pasteboard ? [...pasteboard] : undefined;
+    clipboardState.holds = holds;
+    expect(await call(files.clipboardHasFiles, undefined, options)).toEqual({
+      hasFiles,
+    });
+  },
+);
+
+// Placing things into a folder is planned and carried out by
+// `finder-placing`, whose own tests cover every case and every failure;
+// these cover the routes over it, with no Trash involved.
+
+/** A folder `from` holding `notes.txt` and `pics/a.jpg`, and an empty folder `into` beside it. */
+async function placeFixture() {
+  const from = path.join(dir, "from");
+  const into = path.join(dir, "into");
+  await fs.mkdir(path.join(from, "pics"), { recursive: true });
+  await fs.mkdir(into);
+  await fs.writeFile(path.join(from, "notes.txt"), "notes");
+  await fs.writeFile(path.join(from, "pics", "a.jpg"), "a");
+  return {
+    from,
+    into,
+    sources: [path.join(from, "notes.txt"), path.join(from, "pics")],
+  };
+}
+
+it("finds the names a drop would land on, but not one going back into its own folder", async () => {
+  const { from, into, sources } = await placeFixture();
+  await fs.mkdir(path.join(into, "pics"));
+
+  const { clashes } = await call(
+    files.clashes,
+    { folder: into, op: "move", paths: sources },
+    options,
+  );
+  expect(
+    clashes.map((clash) => [
+      clash.name,
+      clash.kind,
+      clash.with.by,
+      clash.with.kind,
+    ]),
+  ).toEqual([["pics", "folder", "entry", "folder"]]);
+  expect(
+    await call(
+      files.clashes,
+      { folder: from, op: "copy", paths: sources },
+      options,
+    ),
+  ).toEqual({ clashes: [] });
+});
+
+it("copies in, keeping both where answered, and one undo takes all of it back", async () => {
+  const { shell } = await import("electron");
+  shell.trashItem = (at: string) => fs.rm(at, { recursive: true });
+  const { into, sources } = await placeFixture();
+  await fs.writeFile(path.join(into, "notes.txt"), "already here");
+  const [notes] = sources;
+  if (!notes) throw new Error("no sources");
+
+  const copied = await call(
+    files.copyInto,
+    { folder: into, paths: sources, resolutions: { [notes]: "keepBoth" } },
+    options,
+  );
+
+  expect(copied.placed.map((each) => path.basename(each.path))).toEqual([
+    "notes 2.txt",
+    "pics",
+  ]);
+  expect(await call(files.undo, undefined, options)).toMatchObject({
+    kind: "copy",
+  });
+  expect(await fs.readdir(into)).toEqual(["notes.txt"]);
+});
+
+it("refuses a clash it has no answer for, touching nothing", async () => {
+  const { into, sources } = await placeFixture();
+  await fs.writeFile(path.join(into, "notes.txt"), "already here");
+
+  await expect(
+    call(files.copyInto, { folder: into, paths: sources }, options),
+  ).rejects.toMatchObject({ code: "CANNOT_PLACE" });
+  expect(await fs.readdir(into)).toEqual(["notes.txt"]);
+});
+
+it("moves the Finder's own rows on one disk, and one undo puts them back", async () => {
+  const { from, into, sources } = await placeFixture();
+
+  await call(files.moveInto, { folder: into, paths: sources }, options);
+  expect(await fs.readdir(from)).toEqual([]);
+
+  expect(await call(files.undo, undefined, options)).toMatchObject({
+    kind: "move",
+    path: sources[0],
+  });
+  expect((await fs.readdir(from)).toSorted()).toEqual(["notes.txt", "pics"]);
+  expect(await fs.readdir(into)).toEqual([]);
+});
+
+it("refuses to undo a move once something it moved has changed, and puts nothing back", async () => {
+  const { from, into, sources } = await placeFixture();
+  await call(files.moveInto, { folder: into, paths: sources }, options);
+  await fs.rename(path.join(into, "pics"), path.join(into, "photos"));
+
+  await expect(call(files.undo, undefined, options)).rejects.toThrow(
+    "“pics” has been moved or replaced since it was moved.",
+  );
+  expect(await fs.readdir(from)).toEqual([]);
+});
+
+it("leaves a row dropped on its own folder where it is, and refuses a folder into itself", async () => {
+  const { from, sources } = await placeFixture();
+
+  expect(
+    await call(files.moveInto, { folder: from, paths: sources }, options),
+  ).toEqual({
+    failure: null,
+    journalId: null,
+    placed: [],
+    skipped: [],
+    trashed: [],
+  });
+  await expect(
+    call(
+      files.moveInto,
+      { folder: path.join(from, "pics"), paths: [path.join(from, "pics")] },
+      options,
+    ),
+  ).rejects.toMatchObject({ code: "CANNOT_PLACE" });
 });

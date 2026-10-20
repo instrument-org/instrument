@@ -310,6 +310,30 @@ function utm(...args) {
   };
 }
 
+/**
+ * Starts a VM without putting its window in front of the person at the Mac.
+ * `utmctl start --hide` only closes UTM's library window and still shows the
+ * VM's display window, so UTM itself is hidden (as Cmd-H does) before the
+ * start and for a few seconds after, while the window is ordered in. Clicking
+ * UTM in the Dock shows every window again.
+ */
+async function startHidden(vm) {
+  const hide = () =>
+    spawnSync("osascript", [
+      "-l",
+      "JavaScript",
+      "-e",
+      "ObjC.import('AppKit'); var a = $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.utmapp.UTM'); a.count ? a.firstObject.hide : false",
+    ]);
+  hide();
+  // utmctl reports an error when UTM is already hidden, though the VM starts.
+  utm("start", vm, "--hide");
+  for (let i = 0; i < 6; i++) {
+    hide();
+    await sleep(500);
+  }
+}
+
 function vmStatus(vm) {
   return utm("status", vm).out;
 }
@@ -340,7 +364,7 @@ async function resetVm(host, base, vm) {
   if (!/not found|Error/u.test(vmStatus(vm))) utm("delete", vm);
   const cloned = utm("clone", base, "--name", vm);
   if (!cloned.ok) fail(`Cloning ${base} failed: ${cloned.out}`);
-  utm("start", vm, "--hide");
+  await startHidden(vm);
   for (let i = 0; i < 36; i++) {
     const probe = spawnSync(
       "ssh",

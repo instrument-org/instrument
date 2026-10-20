@@ -7,13 +7,19 @@ import {
   scheduleRefresh as scheduleChatGPTAccountRefresh,
 } from "@/electron-main/lib/chatgpt-account";
 import {
+  refreshGrokAfterWake,
+  scheduleGrokRefresh,
+} from "@/electron-main/lib/grok-account";
+import {
   keepClaudeCodeCurrent,
   refreshClaudeAccountStatus,
 } from "@/electron-main/lib/claude-account";
+import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
+import { finishPlacingLeftovers } from "@/electron-main/rpc/routes/files";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
@@ -52,7 +58,9 @@ import {
 } from "electron";
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
+import { serveDrafts } from "./drafts/serve-drafts";
 import { serveKeptState } from "./stores/workspace/kept-state";
+import { serveBookmarks } from "./bookmarks/serve-bookmarks";
 import { serveRendererExceptions } from "./lib/renderer-exceptions";
 import {
   configureAppSession,
@@ -257,6 +265,7 @@ async function bootstrapPrimaryInstance() {
   // Registered before any window exists, so no preload can ask before it answers.
   serveResolvedTheme();
   serveKeptState();
+  serveDrafts();
   serveRendererExceptions();
   servePageEditorBoot();
 
@@ -272,6 +281,9 @@ async function bootstrapPrimaryInstance() {
   // Detect whether the app was updated since the last launch so the bell can
   // say so.
   await timeBootStep("checkRecentVersionBump", checkRecentVersionBump);
+  // What a quit or crash left mid-placing in the Finder, finished before
+  // anything is placed again.
+  void finishPlacingLeftovers().catch(captureServerException);
 
   // Chosen before the workspace starts, which writes every chat record
   // under it.
@@ -280,10 +292,14 @@ async function bootstrapPrimaryInstance() {
     "createWorkspaceActor",
     () => createWorkspaceActor(deviceId),
   );
+  // Before any window, whose preload reads them as it loads.
+  await timeBootStep("serveBookmarks", () => serveBookmarks(deviceId));
 
   // A signed-in ChatGPT account's access token lasts an hour.
   scheduleChatGPTAccountRefresh();
   powerMonitor.on("resume", refreshChatGPTAccountAfterWake);
+  scheduleGrokRefresh();
+  powerMonitor.on("resume", refreshGrokAfterWake);
 
   // The Claude account is whatever the CLI says: someone installs it or signs
   // in from a terminal, then comes back to the app.

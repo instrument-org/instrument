@@ -234,7 +234,7 @@ function frontMatter(
   timeZone: string,
   topicNames: ReadonlyMap<string, string> | undefined,
 ): string {
-  const topicId = own.marks.topic?.value;
+  const topicId = own.settings.topic?.value;
   const topic = topicId ? topicNames?.get(topicId) : undefined;
   return [
     "---",

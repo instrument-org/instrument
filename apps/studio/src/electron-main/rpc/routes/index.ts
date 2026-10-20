@@ -7,13 +7,14 @@ import { auth } from "./auth";
 import { billing } from "./billing";
 import { browser } from "./browser";
 import { browsingData } from "./browsing-data";
+import { chatLocation } from "./chat-location";
 import { chatgptAccount } from "./chatgpt-account";
 import { claudeAccount } from "./claude-account";
 import { debug } from "./debug";
-import { drafts } from "./drafts";
 import { features } from "./features";
 import { files } from "./files";
 import { gateway } from "./gateway";
+import { grokAccount } from "./grok-account";
 import { history } from "./history";
 import { mac } from "./mac";
 import { notices } from "./notices";
@@ -24,7 +25,6 @@ import { problems } from "./problems";
 import { providerConfig } from "./provider-config";
 import { releases } from "./releases";
 import { syntax } from "./syntax";
-import { transcript } from "./transcript";
 import { updates } from "./updates";
 import { user } from "./user";
 import { utils } from "./utils";
@@ -39,13 +39,14 @@ export const router = {
   billing,
   browser,
   browsingData,
+  chatLocation,
   chatgptAccount,
   claudeAccount,
   debug,
-  drafts,
   features,
   files,
   gateway,
+  grokAccount,
   history,
   mac,
   notices,
@@ -56,7 +57,6 @@ export const router = {
   providerConfig,
   releases,
   syntax,
-  transcript,
   updates,
   user,
   utils,

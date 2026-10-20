@@ -104,7 +104,7 @@ describe("WriteFile - path policy", () => {
 
   it("attributes a workspace skill write to the executing session", async () => {
     mockFs({
-      "/tmp/workspace": {
+      [MOCK_WORKSPACE_DIRS.root]: {
         skills: {},
         tasks: { [chatId]: {} },
       },

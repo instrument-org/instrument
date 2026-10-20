@@ -9,7 +9,7 @@ import { withTempDir } from "../../test/helpers/temp-dir";
 import { makeActivityTable } from "../activity/store";
 import { openWorkspaceDb } from "../workspace-db";
 import { type Delivery, planDeliveries, simulateChat } from "./fake-sync";
-import { logFileName, marksFileName } from "./file-names";
+import { logFileName, settingsFileName } from "./file-names";
 import { type FoldedChat, foldChat } from "./fold";
 import { recordLine } from "./record";
 import { indexChat } from "./records-index";
@@ -141,7 +141,7 @@ function foldedSessions(chat: FoldedChat) {
     handle: session.handle ?? null,
     id: session.id,
     marks: Object.fromEntries(
-      Object.values(session.marks)
+      Object.values(session.settings)
         .toSorted((a, b) => (a.field < b.field ? -1 : 1))
         .map((mark) => [
           mark.field,
@@ -394,9 +394,9 @@ describe("indexChat", { timeout: 60_000 }, () => {
       recordLine(header(0, { device: DEVICE_A, id: session })),
     );
     fs.writeFileSync(
-      path.join(dir, marksFileName(DEVICE_B)),
+      path.join(dir, settingsFileName(DEVICE_B)),
       recordLine({
-        t: "mark",
+        t: "set",
         seq: 0,
         at: at(5),
         session,
@@ -411,7 +411,7 @@ describe("indexChat", { timeout: 60_000 }, () => {
       { starred: 1 },
     ]);
 
-    fs.rmSync(path.join(dir, marksFileName(DEVICE_B)));
+    fs.rmSync(path.join(dir, settingsFileName(DEVICE_B)));
     await indexChat(database, CHAT, dir);
     expect(dump(database)).toEqual(await rebuilt(dir));
     expect(database.prepare("SELECT starred FROM chats").all()).toEqual([

@@ -76,6 +76,7 @@ export type BellNotice = Omit<Notice, "action" | "kind"> & {
 export const SIGN_IN_ACCOUNT_NAMES = {
   "chatgpt-account": "ChatGPT",
   "claude-account": "Claude",
+  "grok-account": "Grok",
 } as const;
 
 export type SignInAccountType = keyof typeof SIGN_IN_ACCOUNT_NAMES;

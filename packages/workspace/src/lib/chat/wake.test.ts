@@ -11,7 +11,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor, writtenIn } from "../../test/helpers/chat-task";
-import { updateChatSettings } from "../chat-settings";
+import { setChatModel } from "../chat-settings";
 import { recordAsk } from "./asks";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
@@ -75,11 +75,12 @@ async function chatWithTask() {
  */
 async function chatNobodyWroteIn() {
   const chatId = await chatFor(StoreId.newSessionId());
-  const written = await updateChatSettings(chatId, {
-    modelURI: AIGatewayModelURI.Schema.parse(
+  const written = await setChatModel(
+    chatId,
+    AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
     ),
-  });
+  );
   if (written.isErr()) {
     throw written.error;
   }
@@ -169,6 +170,7 @@ describe("a stopped task", () => {
     await vi.waitFor(async () => {
       expect(await notesIn(chatId)).toHaveLength(1);
     }, 5000);
+    expect((await notesIn(chatId))[0]).not.toHaveProperty("resumable");
     expect((await notesIn(chatId))[0]).toMatchObject({
       sessionId: taskSession,
       stoppedBy: "user",
@@ -296,6 +298,7 @@ describe("a task whose request timed out", () => {
     const [event] = wakesOf(chatId);
     expect(event).toMatchObject({
       ended: "Timed out while reading the vault",
+      resumable: true,
       status: "error",
     });
     expect(event).not.toHaveProperty("stoppedBy");
@@ -339,7 +342,7 @@ describe("a task whose turn ended on a card", () => {
             I can't read /Users/me/Pantry until the person allows it.
         It cannot go on without:
             folder: /Users/me/Pantry, on the card in this chat waiting for the person's answer, which wakes it
-      Nobody typed anything; this note is why you are awake.
+      Nobody typed anything; this note is why you are awake. Give one waiting on you what you can with \`instrument task send\`, ask the user in one message for the rest, and send it their answer; weigh what it asks of them against what they asked for, and never send it back for a check the user did not ask for.
       </instrument-system-note>"
     `);
     expect(

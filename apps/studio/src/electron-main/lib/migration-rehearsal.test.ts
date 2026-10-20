@@ -1,4 +1,6 @@
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import {
+  convertChatSettingsFiles,
   giveChatsTheirFolders,
   migrateWorkspaceLayout,
   type AppConnectionStore,
@@ -158,27 +160,29 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
   );
 
   it("sets every store it converted aside, with none left where a chat is read", () => {
-    const were = [...before.keys()].filter((where) => A_STORE.test(where));
     // The workspace keeps one place for a store it is done with: the chats
     // an earlier build left empty, parked under `.pre-chats/`. A store
     // anywhere else is a chat still on its database.
+    const parked = (where: string) =>
+      where.startsWith(path.join(".instrument", ".pre-chats"));
+    const were = [...before.keys()].filter(
+      (where) => A_STORE.test(where) && !parked(where),
+    );
     const left = [...after.keys()].filter(
-      (where) =>
-        A_STORE.test(where) &&
-        !where.startsWith(path.join(".instrument", ".pre-chats")),
+      (where) => A_STORE.test(where) && !parked(where),
     );
     const setAside = [...machine.keys()].filter((where) =>
       where.includes("set-aside"),
     );
     // How many were set aside is not the count of stores that were there: a
-    // 1.x task kept a store of its own and becomes a session of the chat's,
-    // so its store is read and folded rather than set aside on its own. That
-    // nothing was lost on the way is the assertion above.
-    expect({
-      left,
-      setAside: setAside.length > 0,
-      were: were.length > 0,
-    }).toEqual({ left: [], setAside: true, were: true });
+    // 1.x task's store is converted by the 1.x migration, and a beta chat's
+    // task folders keep their own stores, which the split sets aside under
+    // `.pre-chats/` without converting them. That nothing was lost on the way
+    // is the assertion above.
+    expect({ left, setAside: setAside.length > 0 }).toEqual({
+      left: [],
+      setAside: were.length > 0,
+    });
   });
 
   it("gives every chat one folder, and no folder two chats", () => {
@@ -229,24 +233,27 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
     expect(problems).toEqual([]);
   });
 
-  it("moves what the person sent into the chat's own folder, and only there", () => {
+  it("keeps what the person sent in one place, never in both", () => {
+    // What was sent moves into the chat's own folder only where the person
+    // opens that folder, and then at the chat's next write; a workspace in
+    // the app's own data, like this clone, keeps it in the record folder.
+    // That nothing sent was lost is the assertion above.
     const claimed = chatFolderClaims();
-    const inRecords = [...after.keys()].filter((where) =>
-      where.startsWith(path.join(".instrument", "chats")),
-    );
-    const sent = inRecords.filter((where) =>
-      where.includes(`${path.sep}attachments${path.sep}`),
-    );
-    const withSomethingSent = [...claimed.values()].filter((name) =>
-      fs.existsSync(path.join(clone, "Chats", name, "attachments")),
-    );
-    expect({
-      inTheChatsOwnFolder: withSomethingSent.length > 0,
-      stillInTheRecords: sent,
-    }).toEqual({
-      inTheChatsOwnFolder: withSomethingSent.length > 0,
-      stillInTheRecords: [],
-    });
+    const inBoth = [...after.keys()]
+      .filter(
+        (where) =>
+          where.startsWith(path.join(".instrument", "chats")) &&
+          where.includes(`${path.sep}attachments${path.sep}`),
+      )
+      .filter((where) => {
+        const [, , id, , ...rest] = where.split(path.sep);
+        const name = id === undefined ? undefined : claimed.get(id);
+        return (
+          name !== undefined &&
+          fs.existsSync(path.join(clone, "Chats", name, "attachments", ...rest))
+        );
+      });
+    expect(inBoth).toEqual([]);
   });
 
   it("brings the person's own folders out of .instrument", () => {
@@ -391,11 +398,17 @@ async function runLaunchMigrations(): Promise<void> {
     workFoldersDir: path.join(machineDir, "work"),
   });
   settleWorkspaceDb({ machineDir, rootDir: clone });
-  await convertChatRecords({
+  const deviceId = newDeviceId();
+  const { converted } = await convertChatRecords({
     appVersion: "0.0.0-rehearsal",
-    deviceId: newDeviceId(),
+    deviceId,
     machineDir,
     rootDir: clone,
+  });
+  await convertChatSettingsFiles({
+    chatsDir: path.join(clone, ".instrument", "chats"),
+    deviceId,
+    machineDir,
   });
   await moveMemoriesToFolder(clone);
   await moveSkillsToFolder(clone);
@@ -403,7 +416,7 @@ async function runLaunchMigrations(): Promise<void> {
   await moveAppsToFolder(clone);
   await convertTopicsToTopicFiles(clone);
   await convertAppsToAppFiles(clone, { connections: forgottenConnections() });
-  await giveChatsTheirFolders(clone);
+  await giveChatsTheirFolders(clone, machineDir, converted);
   await settleDrafts(clone);
 }
 
@@ -421,28 +434,27 @@ function forgottenConnections(): AppConnectionStore {
   };
 }
 
-/** Each chat's id and the folder its settings say it claimed. */
+/** Each chat's id and the folder this computer recorded it claimed. */
 function chatFolderClaims(): Map<string, string> {
-  const dir = path.join(clone, ".instrument", "chats");
-  const claims = new Map<string, string>();
-  for (const id of foldersUnder(dir)) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(
-        fs.readFileSync(path.join(dir, id, "settings.json"), "utf8"),
-      );
-    } catch {
-      continue;
-    }
-    const folder =
-      typeof parsed === "object" && parsed !== null && "folder" in parsed
-        ? parsed.folder
-        : undefined;
-    if (typeof folder === "string" && folder) {
-      claims.set(id, folder);
-    }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(
+      fs.readFileSync(
+        path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.chatFolders),
+        "utf8",
+      ),
+    );
+  } catch {
+    return new Map();
   }
-  return claims;
+  if (typeof parsed !== "object" || parsed === null) {
+    return new Map();
+  }
+  return new Map(
+    Object.entries(parsed).flatMap(([id, folder]: [string, unknown]) =>
+      typeof folder === "string" && folder ? [[id, folder] as const] : [],
+    ),
+  );
 }
 
 /** A clone on macOS, a copy anywhere else. `to` must not exist. */

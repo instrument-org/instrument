@@ -10,12 +10,20 @@ import { type SessionMessagePart } from "../../../schemas/session/message-part";
 import { isToolPart } from "../../is-tool-part";
 import { blobPath, isBlobName, writeBlob } from "../blobs";
 import { type DeviceId } from "../device-id";
-import { logFileName, marksFileName, parseRecordFileName } from "../file-names";
+import {
+  logFileName,
+  settingsFileName,
+  parseRecordFileName,
+} from "../file-names";
 import { ChatFold, type FoldedSession } from "../fold";
 import { partFromRecord, partToRecord, type SaveBlob } from "../part-blobs";
-import { type LogRecord, type MarkRecord, RECORD_FORMAT } from "../record";
-import { RecordWriter, type Unsequenced } from "../record-writer";
-import { readLog, readMarks } from "../read-records";
+import { type LogRecord, type SettingRecord, RECORD_FORMAT } from "../record";
+import {
+  chatRecordFormat,
+  RecordWriter,
+  type Unsequenced,
+} from "../record-writer";
+import { readLog, readSettings } from "../read-records";
 import { syncDirectory } from "../sync-directory";
 import {
   addDifference,
@@ -28,13 +36,14 @@ import {
   type ChatDbPart,
   type ChatDbRead,
   type ChatDbSession,
+  type ChatDbSessionRow,
   readChatDb,
   TOLD_KEYS,
 } from "./read-chat-db";
 
 /**
- * Turning a chat's `chat.db` into records: a log per session, the person's
- * marks, and a blob for each file a tool returned, all from this device.
+ * Turning a chat's `chat.db` into records: a log per session, the sessions'
+ * settings, and a blob for each file a tool returned, all from this device.
  *
  * Each part is written as its row held it rather than as reading it gave, so
  * a payload this build cannot read is in the line as it was written and a
@@ -56,7 +65,7 @@ import {
  *
  * What the folder holds already decides whether the chat converts at all
  * (`recordsThere`). Records from another device are never written over. This
- * device's own are read: a log holding only its header, and marks, say no
+ * device's own are read: a log holding only its header, and settings, say no
  * more than the session rows they came from, which is what a conversion cut
  * off partway leaves. Those are removed and written again from `chat.db`, so
  * the chat ends up as a first conversion would have left it. Records holding
@@ -66,7 +75,7 @@ import {
  *
  * Each record's `at` is when the session was last updated, which is all
  * `chat.db` says of when anything was written, and is the newest record's
- * `at` a fold reads as the session's `updatedAt`. A mark's `at` is the date
+ * `at` a fold reads as the session's `updatedAt`. A setting's `at` is the date
  * `chat.db` kept for it (`starredAt`, `titleSettledAt`) where it kept one.
  */
 
@@ -83,7 +92,7 @@ interface Converted {
   blobs: number;
   /** Rows no read of `chat.db` takes, by the first segment of their key. */
   leftBehind: Record<string, number>;
-  /** The size of every log and the marks file together. */
+  /** The size of every log and the settings file together. */
   logBytes: number;
   messages: number;
   parts: number;
@@ -308,7 +317,7 @@ type RecordsThere =
   | { kind: "restating"; restating: string[] };
 
 /** The records a session row restates, which a conversion writes from it. */
-const RESTATED = new Set(["mark", "rollover", "session", "stopped", "state"]);
+const RESTATED = new Set(["rollover", "session", "set", "stopped", "state"]);
 
 /**
  * Which device wrote a record does not say whether the records hold the
@@ -346,7 +355,7 @@ async function recordsThere(
 
 /**
  * Whether every record in a file says no more than the session row it came
- * from: its header, a mark, where its context was reset, who stopped its
+ * from: its header, a setting, where its context was reset, who stopped its
  * turn, what standing facts it holds. A whole line this build cannot read counts for a
  * history, so a file holding anything unaccounted for is left alone rather
  * than written over.
@@ -359,11 +368,11 @@ async function recordsThere(
  */
 async function restatesOnly(
   file: string,
-  kind: "log" | "marks",
+  kind: "log" | "settings",
 ): Promise<boolean> {
   const bytes = await fs.readFile(file);
   const read =
-    kind === "marks" ? readMarks(bytes) : logRecordsOf(readLog(bytes));
+    kind === "settings" ? readSettings(bytes) : logRecordsOf(readLog(bytes));
   return (
     read !== undefined &&
     read.skipped === 0 &&
@@ -392,7 +401,7 @@ async function writeRecords(
   const written: Written = { messages: 0, parts: 0, refused: [] };
   const save = (bytes: Uint8Array, mediaType: string) =>
     writeBlob(work, bytes, mediaType);
-  const marks: Unsequenced<MarkRecord>[] = [];
+  const settings: Unsequenced<SettingRecord>[] = [];
   for (const entry of read.sessions) {
     const name = logFileName(entry.session.id, options.deviceId);
     written.refused.push(
@@ -402,19 +411,19 @@ async function writeRecords(
         await logRecords(chat, entry, options, save),
       )),
     );
-    marks.push(...marksOf(entry.session, options.deviceId));
+    settings.push(...settingsOf(entry.session, options.deviceId));
     written.messages += entry.messages.length;
     written.parts += entry.messages.reduce(
       (total, { parts }) => total + parts.length,
       0,
     );
   }
-  if (marks.length > 0) {
+  if (settings.length > 0) {
     written.refused.push(
       ...(await writeFile(
-        path.join(work, marksFileName(options.deviceId)),
-        "marks",
-        marks,
+        path.join(work, settingsFileName(options.deviceId)),
+        "settings",
+        settings,
       )),
     );
   }
@@ -425,10 +434,10 @@ async function writeRecords(
 /** Writes a file's records in order, syncs it, and says which it refused. */
 async function writeFile(
   file: string,
-  kind: "log" | "marks",
-  records: Unsequenced<LogRecord | MarkRecord>[],
+  kind: "log" | "settings",
+  records: Unsequenced<LogRecord | SettingRecord>[],
 ): Promise<Difference[]> {
-  const writer = new RecordWriter(file, kind, {
+  const writer = new RecordWriter(file, chatRecordFormat(kind, file), {
     bytes: new Uint8Array(),
     lastSeq: -1,
   });
@@ -456,6 +465,39 @@ async function writeFile(
 /** When the session was last updated: every record's `at`. */
 function lastUpdate(session: Session.Type): Date {
   return session.updatedAt ?? session.createdAt;
+}
+
+/**
+ * The stop a session row says, as a `stopped` record holds it: who ended a
+ * task's turn (`stoppedBy`), at the session's last update, which is all the
+ * row says of when; else the user's Stop on the chat's own turn
+ * (`stoppedAt`), at the moment it was pressed.
+ */
+function stopOf(
+  session: ChatDbSessionRow,
+): { at: Date; by: "app" | "chat" | "user" } | undefined {
+  if (session.stoppedBy !== undefined) {
+    return { at: lastUpdate(session), by: session.stoppedBy };
+  }
+  return session.stoppedAt === undefined
+    ? undefined
+    : { at: session.stoppedAt, by: "user" };
+}
+
+/**
+ * The session row as the records keep it, for comparing with what they fold
+ * to: a stop is who made it, the moment a Stop was pressed is that record's
+ * `at`, and the newest record's `at` is when the session was last updated.
+ */
+function asRecordsKeepIt(row: ChatDbSessionRow): Session.Type {
+  const stop = stopOf(row);
+  const { stoppedAt: _stoppedAt, ...session } = row;
+  const updated = lastUpdate(session);
+  return {
+    ...session,
+    ...(stop && { stoppedBy: stop.by }),
+    updatedAt: stop && stop.at > updated ? stop.at : updated,
+  };
 }
 
 /**
@@ -504,8 +546,9 @@ async function logRecords(
         : { usableTokens: session.rolledOverUnderUsableTokens }),
     });
   }
-  if (session.stoppedBy !== undefined) {
-    records.push({ t: "stopped", at, by: session.stoppedBy });
+  const stop = stopOf(session);
+  if (stop) {
+    records.push({ t: "stopped", ...stop });
   }
   for (const [what] of TOLD_KEYS) {
     if (what in state) {
@@ -537,33 +580,38 @@ async function partRecord(
 }
 
 /**
- * The person's marks on a session. A chat's own session always has a title
- * mark; a task's title is in its log's header, and is a mark only once it
+ * A session's settings. A chat's own session always has a title setting; a
+ * task's title is in its log's header, and is a setting only once it
  * settled.
  */
-function marksOf(
+function settingsOf(
   session: Session.Type,
   device: DeviceId,
-): Unsequenced<MarkRecord>[] {
+): Unsequenced<SettingRecord>[] {
   const at = lastUpdate(session);
-  const of = { t: "mark", session: session.id, device } as const;
-  const marks: Unsequenced<MarkRecord>[] = [];
+  const of = { t: "set", session: session.id, device } as const;
+  const settings: Unsequenced<SettingRecord>[] = [];
   if (session.parentId === undefined || session.titleSettledAt !== undefined) {
-    marks.push({
+    settings.push({
       ...of,
       at: session.titleSettledAt ?? at,
       field: "title",
       value: {
-        settled: session.titleSettledAt !== undefined,
+        auto: session.titleSettledAt === undefined,
         text: session.title,
       },
     });
   }
   if (session.starredAt !== undefined) {
-    marks.push({ ...of, at: session.starredAt, field: "starred", value: true });
+    settings.push({
+      ...of,
+      at: session.starredAt,
+      field: "starred",
+      value: true,
+    });
   }
   if (session.archivedAt !== undefined) {
-    marks.push({
+    settings.push({
       ...of,
       at: session.archivedAt,
       field: "archived",
@@ -571,32 +619,24 @@ function marksOf(
     });
   }
   if (session.unreadAt !== undefined) {
-    marks.push({
+    settings.push({
       ...of,
       at: session.unreadAt,
       field: "unread",
-      value: { byUser: session.unreadByUser === true },
+      value: session.unreadByUser === true ? "marked" : "new",
     });
   }
   if (session.topic !== undefined) {
-    marks.push({ ...of, at, field: "topic", value: session.topic });
+    settings.push({ ...of, at, field: "topic", value: session.topic });
   }
-  if (session.stoppedAt !== undefined) {
-    marks.push({
-      ...of,
-      at: session.stoppedAt,
-      field: "stoppedAt",
-      value: session.stoppedAt,
-    });
-  }
-  return marks;
+  return settings;
 }
 
 /** The session row a folded session stands for, as `chat.db` kept it. */
 function sessionRow(folded: FoldedSession): unknown {
-  const { marks, rollover } = folded;
-  const title = marks.title;
-  const unread = marks.unread;
+  const { rollover, settings } = folded;
+  const title = settings.title;
+  const unread = settings.unread;
   return {
     createdAt: folded.createdAt,
     id: folded.id,
@@ -607,15 +647,16 @@ function sessionRow(folded: FoldedSession): unknown {
       ? {}
       : { forkedAtMessageId: folded.forkedAt }),
     ...(folded.handle === undefined ? {} : { handle: folded.handle }),
-    ...(title?.value.settled === true ? { titleSettledAt: title.at } : {}),
-    ...(marks.starred?.value === true ? { starredAt: marks.starred.at } : {}),
-    ...(marks.archived?.value === true
-      ? { archivedAt: marks.archived.at }
+    ...(title?.value.auto === false ? { titleSettledAt: title.at } : {}),
+    ...(settings.starred?.value === true
+      ? { starredAt: settings.starred.at }
+      : {}),
+    ...(settings.archived?.value === true
+      ? { archivedAt: settings.archived.at }
       : {}),
     ...(unread?.value ? { unreadAt: unread.at } : {}),
-    ...(unread?.value?.byUser === true ? { unreadByUser: true } : {}),
-    ...(marks.topic?.value ? { topic: marks.topic.value } : {}),
-    ...(marks.stoppedAt ? { stoppedAt: marks.stoppedAt.value } : {}),
+    ...(unread?.value === "marked" ? { unreadByUser: true } : {}),
+    ...(settings.topic?.value ? { topic: settings.topic.value } : {}),
     ...(rollover === undefined
       ? {}
       : {
@@ -633,8 +674,11 @@ function sessionRow(folded: FoldedSession): unknown {
  * holds: every session, each one's messages in order, and each message's
  * parts. A conversion wrote all of them at once from one read, so it covers
  * every one; so does a chat whose every message went through the records as
- * it was written. A log a writer beside the store began part way through a
- * chat is missing the messages written before it, which is what this finds.
+ * it was written. Records may go on past `chat.db`, since a chat used after
+ * its conversion takes turns and starts tasks only there: more sessions,
+ * messages after its own, and parts beside its own. A log a writer beside
+ * the store began part way through a chat is missing the messages written
+ * before it, which is what this finds.
  *
  * Ids and their order, and no more: reading `chat.db` again stamps a call a
  * process left in flight with the moment of that read
@@ -656,7 +700,6 @@ async function sameShape(
   const folded = new Map(fold.chat().sessions.map((one) => [one.id, one]));
   for (const { messages, session } of read.sessions) {
     const mine = folded.get(session.id);
-    folded.delete(session.id);
     if (!mine) {
       addDifference(found, session.id, "a session", undefined);
       continue;
@@ -665,20 +708,21 @@ async function sameShape(
       found,
       `${session.id} messages`,
       messages.map(({ message }) => message.id),
-      mine.messages.map(({ id }) => id),
+      mine.messages.slice(0, messages.length).map(({ id }) => id),
     );
     const byId = new Map(mine.messages.map((message) => [message.id, message]));
     for (const { message, parts } of messages) {
+      const held = new Set(parts.map(({ part }) => part.metadata.id));
       addDifferences(
         found,
         `${session.id}/${message.id} parts`,
         parts.map(({ part }) => part.metadata.id),
-        byId.get(message.id)?.parts.map(({ metadata }) => metadata.id),
+        byId
+          .get(message.id)
+          ?.parts.map(({ metadata }) => metadata.id)
+          .filter((id) => held.has(id)),
       );
     }
-  }
-  for (const extra of folded.keys()) {
-    addDifference(found, extra, undefined, "a session chat.db does not hold");
   }
   return found.slice(0, MAX_DIFFERENCES);
 }
@@ -729,7 +773,7 @@ async function verify(
     addDifferences(
       found,
       session.id,
-      { ...session, updatedAt: lastUpdate(session) },
+      asRecordsKeepIt(session),
       row.success ? row.data : z.prettifyError(row.error),
     );
     addDifferences(
@@ -827,7 +871,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Moves what a converted folder holds into the chat's record folder: blobs
- * first, then logs and marks, never over a file that is there already, and
+ * first, then logs and settings, never over a file that is there already, and
  * the folder last.
  */
 async function moveIntoPlace(chatDir: string, done: string): Promise<void> {
@@ -889,9 +933,9 @@ function blobsDir(dir: string): string {
 }
 
 /** A record's place in its file, for a refusal to name. */
-function whereIs(record: Unsequenced<LogRecord | MarkRecord>): string {
+function whereIs(record: Unsequenced<LogRecord | SettingRecord>): string {
   switch (record.t) {
-    case "mark":
+    case "set":
       return `${record.session} ${record.field}`;
     case "message":
       return record.message.id;

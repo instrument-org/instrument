@@ -37,7 +37,7 @@ import {
   runStartedAt,
   said,
   treeSessions,
-  WORKSPACE,
+  workspaceFolder,
 } from "./handoff";
 
 // ---------------------------------------------------------------------------
@@ -258,7 +258,7 @@ const madeAnImage: Assertion = {
 // lease-pickup: earlier work, in a chat this one does not list
 // ---------------------------------------------------------------------------
 
-const LEASE_DIR = () => path.join(WORKSPACE, "Lease");
+const LEASE_DIR = () => path.join(workspaceFolder(), "Lease");
 
 const LEASE = `# Residential Lease: 418 Alder Street, Apt 3B
 

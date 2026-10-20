@@ -40,6 +40,7 @@ const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
   // Last, so a search from a chat on another provider spends the user's
   // plan only when nothing else can search.
   "chatgpt-account",
+  "grok-account",
   "claude-account",
 ];
 
@@ -149,6 +150,23 @@ export async function getAISDKWebSearchModel({
       };
       break;
     }
+    case "grok-account": {
+      // The subscription's token reaches xAI's hosted search over X as well
+      // as the web, so a search on the account can read posts too.
+      const sdk = await createXAISDK(config, workspaceServerURL);
+      result = {
+        model: sdk.responses(
+          isCallingModelSameProvider
+            ? callingModel.providerId
+            : lookupGrokModel(config, modelCache),
+        ),
+        tools: {
+          web_search: sdk.tools.webSearch(),
+          x_search: sdk.tools.xSearch(),
+        },
+      };
+      break;
+    }
     case "openai": {
       const sdk = await createOpenAISDK(config, workspaceServerURL);
       result = {
@@ -214,6 +232,94 @@ export async function getAISDKWebSearchModel({
   }
 
   return Result.ok({ ...result, config });
+}
+
+/**
+ * The hosted search tools a chat model on this connection runs inside its own
+ * step, in place of the `web_search` tool's separate search model. Undefined
+ * for a connection whose models search only through that tool.
+ *
+ * A Grok account's model searches the web and X on xAI's side and answers in
+ * the same response, so the search costs no second request against the plan.
+ */
+export async function nativeSearchTools(
+  providerType: AIGatewayProviderConfig.Type["type"],
+): Promise<ToolSet | undefined> {
+  if (providerType !== "grok-account") {
+    return undefined;
+  }
+  const { xaiTools } = await import("@ai-sdk/xai");
+  return {
+    web_search: xaiTools.webSearch(),
+    x_search: xaiTools.xSearch(),
+  };
+}
+
+export type XSearchOptions = NonNullable<
+  Parameters<typeof import("@ai-sdk/xai").xaiTools.xSearch>[0]
+>;
+
+/**
+ * xAI's alias for its newest non-reasoning Grok, for an account whose catalog
+ * was never read.
+ */
+const X_SEARCH_FALLBACK_MODEL = "grok-4.20-non-reasoning";
+
+/**
+ * A model that searches posts on X with xAI's hosted `x_search`, on the
+ * signed-in Grok account whatever model the chat runs on: X search is the
+ * subscription's to give, so no other connection stands in for it.
+ */
+export async function getXSearchModel({
+  configs,
+  modelCache,
+  options,
+  workspaceServerURL,
+}: {
+  configs: AIGatewayProviderConfig.Type[];
+  modelCache?: ModelCache;
+  /**
+   * xAI's own: handles without the `@` (allowed or excluded, never both),
+   * `fromDate` inclusive and `toDate` exclusive as `YYYY-MM-DD`, and whether
+   * Grok looks at the images and video in posts.
+   */
+  options: XSearchOptions;
+  workspaceServerURL: WorkspaceServerURL;
+}) {
+  const config = configs.find((candidate) => candidate.type === "grok-account");
+  if (!config) {
+    return Result.error(
+      new TypedError.NotFound("No Grok account is signed in."),
+    );
+  }
+  const sdk = await createXAISDK(config, workspaceServerURL);
+  return Result.ok({
+    config,
+    model: sdk.responses(lookupGrokModel(config, modelCache)),
+    tools: { x_search: sdk.tools.xSearch(options) },
+  });
+}
+
+/**
+ * The Grok a search runs on, read from the account's own catalog so a model
+ * xAI retires is never asked for: its newest non-reasoning model, since a
+ * search is a lookup (measured on 2026-10-19 at about 6 seconds where Grok
+ * 4.7 took 16, finding the same posts), else its default, else xAI's alias.
+ */
+function lookupGrokModel(
+  config: AIGatewayProviderConfig.Type,
+  modelCache: ModelCache | undefined,
+): string {
+  const listed = modelCache?.read(config.cacheIdentifier) ?? [];
+  const newestFirst = listed.toSorted((a, b) =>
+    (b.releasedAt ?? "").localeCompare(a.releasedAt ?? ""),
+  );
+  return (
+    newestFirst.find((model) => model.canonicalId.includes("non-reasoning"))
+      ?.providerId ??
+    newestFirst.find((model) => model.tags.includes("default"))?.providerId ??
+    X_SEARCH_FALLBACK_MODEL
+  );
 }
 
 export async function getWebSearchModel({

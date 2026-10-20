@@ -32,7 +32,15 @@ import {
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
+import { useMarkUpdated } from "@/client/components/updated-note";
 import { createPortal } from "react-dom";
 import { toast } from "@/client/lib/toast";
 
@@ -293,6 +301,13 @@ function LiveDocument({
     );
   };
 
+  // Off the session's own deps, so saying the file was updated never starts
+  // the editor over.
+  const markUpdated = useMarkUpdated();
+  const onUpdated = useEffectEvent(() => {
+    markUpdated();
+  });
+
   useEffect(() => {
     const root = rootRef.current;
     if (!root) {
@@ -318,6 +333,7 @@ function LiveDocument({
       },
       onExternalChange: (change) => {
         noteChange(change);
+        onUpdated();
       },
       onOpenLink: (target, newTab) => {
         const gestures = gesturesRef.current(target);

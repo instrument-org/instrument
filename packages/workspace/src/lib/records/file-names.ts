@@ -1,6 +1,5 @@
 import { StoreId } from "../../schemas/store-id";
 import { DEVICE_ID_PATTERN, type DeviceId, DeviceIdSchema } from "./device-id";
-import { GENERATION_PATTERN } from "./record";
 
 /**
  * The names of a chat's record files, and the copies of them a sync engine
@@ -8,7 +7,8 @@ import { GENERATION_PATTERN } from "./record";
  *
  *     <session>.<device>.jsonl        a session's log from one device
  *     <session>.<device>.2.jsonl      the device's next log of that session, then .3
- *     marks.<device>.jsonl            the person's marks from one device
+ *     settings.<device>.jsonl         every per-chat value one device set
+ *     marks.<device>.jsonl            the same, under the name builds before gave it
  *
  * A copy keeps the name and adds to it before `.jsonl`: iCloud Drive ` 2`,
  * Dropbox ` (… conflicted copy …)`, OneDrive `-<computer name>`, Syncthing
@@ -16,6 +16,12 @@ import { GENERATION_PATTERN } from "./record";
  * copy holds the same records as its original, or fewer; a fold reads it as
  * another copy of that file.
  */
+
+/**
+ * The second of two or more logs one device wrote of a session is `.2`, then
+ * `.3`; the first has no number.
+ */
+export const GENERATION_PATTERN = "[2-9]|[1-9][0-9]+";
 
 /** Which log of a session one device wrote: its id, then `.2`, `.3`. */
 export function logStem(device: DeviceId, generation: number): string {
@@ -30,7 +36,12 @@ export function logFileName(
   return `${session}.${logStem(device, generation)}.jsonl`;
 }
 
-export function marksFileName(device: DeviceId): string {
+export function settingsFileName(device: DeviceId): string {
+  return `settings.${device}.jsonl`;
+}
+
+/** What builds before named a device's settings file, read as one and renamed by its own device. */
+export function formerSettingsFileName(device: DeviceId): string {
   return `marks.${device}.jsonl`;
 }
 
@@ -43,7 +54,7 @@ export type RecordFileName =
       session: StoreId.Session;
       stem: string;
     }
-  | { copy?: string; device: DeviceId; kind: "marks" };
+  | { copy?: string; device: DeviceId; kind: "settings" };
 
 /** What a sync engine adds to a name it keeps two versions under. */
 export const COPY_PATTERN = [
@@ -64,27 +75,31 @@ export const COPY_PATTERN = [
  * 125 ms, a 102-character one minutes, on the thread that draws the window
  * and for every entry of a folder a sync engine also writes to.
  */
-const COPY_SUFFIXES = `(?:(?=(?<copy>(?:${COPY_PATTERN})+))\\k<copy>)?`;
+export const COPY_SUFFIXES = `(?:(?=(?<copy>(?:${COPY_PATTERN})+))\\k<copy>)?`;
 
 const LOG_NAME = new RegExp(
   `^(ses_[0-9A-HJKMNP-TV-Z]{26})\\.(${DEVICE_ID_PATTERN})(?:\\.(${GENERATION_PATTERN}))?${COPY_SUFFIXES}\\.jsonl$`,
 );
 
-const MARKS_NAME = new RegExp(
-  `^marks\\.(${DEVICE_ID_PATTERN})${COPY_SUFFIXES}\\.jsonl$`,
+const SETTINGS_NAME = new RegExp(
+  `^(?:settings|marks)\\.(${DEVICE_ID_PATTERN})${COPY_SUFFIXES}\\.jsonl$`,
 );
 
 /**
  * What a file in a chat's record folder is, or nothing for a file that is
- * not a log or a marks file (settings, a blob, a temporary file, a
+ * not a log or a settings file (a blob, a temporary file, a
  * placeholder for a file not downloaded).
  */
 export function parseRecordFileName(name: string): RecordFileName | undefined {
-  const marks = MARKS_NAME.exec(name);
-  if (marks) {
-    const device = DeviceIdSchema.safeParse(marks[1]);
+  const settings = SETTINGS_NAME.exec(name);
+  if (settings) {
+    const device = DeviceIdSchema.safeParse(settings[1]);
     return device.success
-      ? { kind: "marks", device: device.data, ...copyOf(marks.groups?.copy) }
+      ? {
+          kind: "settings",
+          device: device.data,
+          ...copyOf(settings.groups?.copy),
+        }
       : undefined;
   }
   const log = LOG_NAME.exec(name);

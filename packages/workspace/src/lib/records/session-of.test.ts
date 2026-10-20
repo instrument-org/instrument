@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { UNTITLED_CHAT_TITLE } from "../../constants";
-import { logFileName, marksFileName } from "./file-names";
+import { logFileName, settingsFileName } from "./file-names";
 import { foldChat } from "./fold";
-import { type LogRecord, type MarkRecord, recordLine } from "./record";
+import { type LogRecord, type SettingRecord, recordLine } from "./record";
 import { sessionOf } from "./session-of";
 import {
   assistantMessage,
@@ -17,7 +17,7 @@ import {
 } from "./test-records";
 
 /** A mark as a test writes it, before the marks file gives it its place. */
-type Mark<R = MarkRecord> = R extends unknown
+type Mark<R = SettingRecord> = R extends unknown
   ? Omit<R, "device" | "seq" | "t">
   : never;
 
@@ -38,11 +38,11 @@ function folded(
       bytes: Buffer.from(
         marks
           .map((mark, seq) =>
-            recordLine({ ...mark, device: DEVICE_A, seq, t: "mark" }),
+            recordLine({ ...mark, device: DEVICE_A, seq, t: "set" }),
           )
           .join(""),
       ),
-      name: marksFileName(DEVICE_A),
+      name: settingsFileName(DEVICE_A),
     },
   ];
   const found = foldChat(files).sessions.find(({ id }) => id === session);
@@ -66,13 +66,13 @@ describe("sessionOf", () => {
           at: at(4),
           field: "unread",
           session: chatSession,
-          value: { byUser: true },
+          value: "marked",
         },
         {
           at: at(5),
           field: "title",
           session: chatSession,
-          value: { settled: true, text: "Quarterly numbers" },
+          value: { auto: false, text: "Quarterly numbers" },
         },
         {
           at: at(6),
@@ -80,7 +80,6 @@ describe("sessionOf", () => {
           session: chatSession,
           value: "top_1",
         },
-        { at: at(7), field: "stoppedAt", session: chatSession, value: at(6) },
       ],
     );
 
@@ -89,7 +88,6 @@ describe("sessionOf", () => {
       createdAt: at(0),
       id: chatSession,
       starredAt: at(3),
-      stoppedAt: at(6),
       title: "Quarterly numbers",
       titleSettledAt: at(5),
       topic: "top_1",
@@ -110,14 +108,14 @@ describe("sessionOf", () => {
           at: at(4),
           field: "unread",
           session: chatSession,
-          value: { byUser: false },
+          value: "new",
         },
         { at: at(5), field: "unread", session: chatSession, value: null },
         {
           at: at(6),
           field: "title",
           session: chatSession,
-          value: { settled: false, text: "Untitled chat 2" },
+          value: { auto: true, text: "Untitled chat 2" },
         },
       ],
     );

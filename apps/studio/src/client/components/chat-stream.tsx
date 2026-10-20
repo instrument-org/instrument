@@ -10,22 +10,15 @@ import {
   stateNotes,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
 import { isCutOff } from "../lib/is-cut-off";
 import { useChatSession } from "../hooks/use-chat-session";
-import { chatSeparators } from "../lib/chat-separators";
 import { cn } from "../lib/utils";
-import {
-  ASSISTANT_BUBBLE,
-  ASSISTANT_BUBBLE_TAIL,
-  hasBubbleWords,
-} from "./assistant-message";
-import { FollowedBubblesContext } from "./bubble-run-context";
+import { ASSISTANT_BUBBLE, ASSISTANT_BUBBLE_TAIL } from "./assistant-message";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
-import { ChatSeparatorRow } from "./chat-separator";
 import { isDataPart } from "./chat-stream-data-parts";
 import {
   renderChatPart,
@@ -90,8 +83,6 @@ const TURN_WORDMARK_ID = "turn-wordmark";
 // The initial row has no message part of its own, so it needs a stable key as
 // empty assistant messages arrive before the first visible part.
 const PLANNING_ROW_ID = "planning";
-/** The dots at the conversation's end while it works without words. */
-const TYPING_TAIL_ID = "typing-tail";
 
 // What the agent said, held apart from what it did. 24px above a paragraph
 // written under a run of steps rather than the 8px the transcript puts between
@@ -125,17 +116,6 @@ const PROSE_GAP_IN_GROUP = "pt-3";
 const TURN_BOX = "group/assistant-turn flex flex-col gap-2";
 const SENT_BOX = "flex flex-col gap-2";
 
-// The conversation's boxes are one speaker's run of bubbles, held 4px apart so
-// the run reads as one cluster against the 16px the chat's column puts between
-// speakers (`task/chat.tsx`).
-const CHAT_TURN_BOX = "group/assistant-turn flex flex-col gap-1";
-const CHAT_SENT_BOX = "flex flex-col gap-1";
-
-// A box that goes on with the speaker of the one above it -- a second message
-// sent before the reply came, the dots under a reply already in progress -- is
-// pulled up out of the column's 16px to the 4px of the run it continues.
-const CHAT_CONTINUES_RUN = "-mt-3";
-
 interface AssistantMessageCheck {
   /**
    * The session, which is the only thing that can say whether a part is still
@@ -160,6 +140,8 @@ interface ChatStreamProps {
    * or not anything is in it -- the playback page measures exactly that.
    */
   alwaysShowFooter?: boolean;
+  /** Every group opens as it arrives, rather than starting closed. */
+  expandGroups?: boolean;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   messages: SessionMessage.WithParts[];
@@ -169,11 +151,6 @@ interface ChatStreamProps {
   onRetry: (prompt: string) => void;
   /** Sends the last message again, where there is somewhere to send it. */
   onRunAgain?: () => void;
-  /**
-   * The chat's conversation is the one thing the user talks to, so
-   * it opens no turn with the wordmark: there is nobody else it could be.
-   */
-  presentation?: "chat";
   // Wrap each turn in a MessageScrollerItem so the transcript scroller can
   // anchor turns. Only the top-level transcript sets this; nested tool-agent
   // streams render flat.
@@ -194,6 +171,7 @@ interface MessageRow {
 
 export function ChatStream({
   alwaysShowFooter = false,
+  expandGroups = false,
   isAgentRunning,
   isDeveloperMode,
   messages,
@@ -201,7 +179,6 @@ export function ChatStream({
   onModelChange,
   onRetry,
   onRunAgain,
-  presentation,
   renderAsItems = false,
   chatInfo,
 }: ChatStreamProps) {
@@ -227,6 +204,12 @@ export function ChatStream({
   const [selfOpenedRowIds, setSelfOpenedRowIds] = useState<
     ReadonlySet<StoreId.Part>
   >(() => new Set());
+
+  // The groups already opened for `expandGroups`, so one the reader shut
+  // stays shut.
+  const [seenGroupIds, setSeenGroupIds] = useState<ReadonlySet<StoreId.Part>>(
+    () => new Set(),
+  );
 
   const toggleGroup = (group: TranscriptGroupData) => {
     releaseAutoScroll();
@@ -276,11 +259,6 @@ export function ChatStream({
     (message) => message.role !== "session-context",
   );
 
-  // The conversation reads as a text chat, so it marks when it started and on
-  // what, a return after a quiet spell, and a switch of model.
-  const separators =
-    presentation === "chat" ? chatSeparators(regularMessages) : undefined;
-
   const lastMessageId = regularMessages.at(-1)?.id;
   const lastRegularMessage = regularMessages.at(-1);
   const lastAssistantMessage =
@@ -310,23 +288,12 @@ export function ChatStream({
 
   // Precomputed over the whole transcript, since a group and the run edges
   // around it both cross message boundaries.
-  // The conversation's transcript has no runs of steps to fold: its calls are
-  // not shown, and what is shown of them stands on its own as a row. A group
-  // headed by a copy of a hidden call would have no head line to shut it with.
-  const layout: TranscriptLayout =
-    presentation === "chat"
-      ? {
-          groups: new Map(),
-          rows: new Map(),
-          // The cards that ask the user draw without a row to open them.
-          selfOpeningRowIds: [],
-        }
-      : buildTranscriptLayout({
-          isAgentRunning,
-          isDeveloperMode,
-          isToolStreaming,
-          regularMessages,
-        });
+  const layout: TranscriptLayout = buildTranscriptLayout({
+    isAgentRunning,
+    isDeveloperMode,
+    isToolStreaming,
+    regularMessages,
+  });
 
   /**
    * Opens these steps, and the phases they sit in.
@@ -354,6 +321,14 @@ export function ChatStream({
   // The steps that open for themselves, taken once each. Scrolling is not
   // handed back for these: nothing the reader did opened them, so the
   // transcript goes on following its own end the way it was.
+  const arrivedGroupIds = expandGroups
+    ? [...layout.groups.keys()].filter((groupId) => !seenGroupIds.has(groupId))
+    : [];
+  if (arrivedGroupIds.length > 0) {
+    setSeenGroupIds(new Set([...seenGroupIds, ...arrivedGroupIds]));
+    setExpandedGroupIds((current) => new Set([...current, ...arrivedGroupIds]));
+  }
+
   const openingNow = layout.selfOpeningRowIds.filter(
     (rowId) => !selfOpenedRowIds.has(rowId),
   );
@@ -388,7 +363,6 @@ export function ChatStream({
     isToolStreaming,
     lastMessageId,
     onRetry,
-    presentation,
     chatInfo,
   };
 
@@ -479,16 +453,7 @@ export function ChatStream({
     );
   };
 
-  const followedBubbles = new Set<string>();
   const chatElements = buildChatElements();
-  // One set for as long as the same bubbles are followed, so a render that
-  // moves no tail re-renders no bubble: the transcript renders on every token
-  // the agent writes.
-  const followedKey = [...followedBubbles].join(" ");
-  const stableFollowedBubbles = useMemo(
-    () => new Set(followedKey.split(" ")),
-    [followedKey],
-  );
 
   function buildChatElements() {
     const elements: React.ReactNode[] = [];
@@ -507,44 +472,8 @@ export function ChatStream({
     // by the message that opened it.
     let turnRows: React.ReactNode[] = [];
     let turnId: StoreId.Message | undefined;
-    // The words the conversation last said in this turn. A model that retries
-    // a failed command says its line again before the retry, and the second
-    // copy is the same reply twice, not a second reply.
-    let lastSaidInTurn: string | undefined;
-    const turnBox = presentation === "chat" ? CHAT_TURN_BOX : TURN_BOX;
-    const sentBox = presentation === "chat" ? CHAT_SENT_BOX : SENT_BOX;
-    // Who the last box drawn belongs to, so the next one by the same speaker
-    // can join its run.
-    let lastSpeaker: "assistant" | "user" | undefined;
-    // The bubbles of the run being drawn, and of the box being built for it,
-    // by the id of the part each draws.
-    let runBubbles: string[] = [];
-    let boxBubbles: string[] = [];
-    const endRun = () => {
-      for (const id of runBubbles.slice(0, -1)) {
-        followedBubbles.add(id);
-      }
-      runBubbles = [];
-    };
-    // Draws the box just built into its speaker's run, or opens a run of its
-    // own, and answers the class that pulls a box that goes on with a run up
-    // to it.
-    const joinRun = (speaker: "assistant" | "user", opensRun = false) => {
-      const continues =
-        presentation === "chat" && lastSpeaker === speaker && !opensRun;
-      if (!continues) {
-        endRun();
-      }
-      runBubbles.push(...boxBubbles);
-      boxBubbles = [];
-      lastSpeaker = speaker;
-      return continues ? CHAT_CONTINUES_RUN : undefined;
-    };
 
     for (const [messageIndex, message] of regularMessages.entries()) {
-      if (message.role === "user") {
-        lastSaidInTurn = undefined;
-      }
       const messageRows: MessageRow[] = [];
 
       const nextMessage = regularMessages[messageIndex + 1];
@@ -558,47 +487,7 @@ export function ChatStream({
       let sentChips: SessionMessageDataPart.SentChip[] = [];
       const seenSourceIds = new Set<string>();
 
-      // The conversation's own replies land whole: while a step is still
-      // being composed its words are held back and the dots at the tail stand
-      // in, so what the user reads is what was sent, never what is being typed.
-      // A reply that was superseded before it finished is shown only in
-      // developer mode.
-      const isComposing =
-        presentation === "chat" &&
-        message.role === "assistant" &&
-        ((isAgentRunning && isLastMessage && !message.metadata.finishedAt) ||
-          (!isDeveloperMode && message.metadata.error?.kind === "aborted"));
-
-      for (const [partIndex, stored] of message.parts.entries()) {
-        // What is drawn for the part: the part itself, or the part with the
-        // words the turn already said taken off it.
-        let part = stored;
-        if (isComposing && part.type === "text") {
-          continue;
-        }
-        if (
-          presentation === "chat" &&
-          message.role === "assistant" &&
-          part.type === "text"
-        ) {
-          const said = part.text.trim();
-          if (said !== "") {
-            if (
-              lastSaidInTurn !== undefined &&
-              said.startsWith(lastSaidInTurn)
-            ) {
-              // The line again, on its own or with something after it (a
-              // files fence, once the file exists): the line stands where it
-              // was, and only what follows it is new.
-              const rest = said.slice(lastSaidInTurn.length).trim();
-              if (rest === "") {
-                continue;
-              }
-              part = { ...part, text: rest };
-            }
-            lastSaidInTurn = said;
-          }
-        }
+      for (const [partIndex, part] of message.parts.entries()) {
         const partStateNote =
           message.role === "user" && isDataPart(part)
             ? stateNote(part)
@@ -683,13 +572,6 @@ export function ChatStream({
         if (message.role === "assistant") {
           visibleAssistantContentCount++;
         }
-        if (
-          presentation === "chat" &&
-          part.type === "text" &&
-          (message.role === "user" || hasBubbleWords(part.text))
-        ) {
-          boxBubbles.push(part.metadata.id);
-        }
       }
 
       const messageElements = collectGroups({
@@ -703,7 +585,7 @@ export function ChatStream({
 
       // --- Per-message chrome ---
 
-      if (presentation !== "chat" && wordmarkMessageIds.has(message.id)) {
+      if (wordmarkMessageIds.has(message.id)) {
         messageElements.unshift(
           <TurnWordmark key={`assistant-header-${message.id}`} />,
         );
@@ -756,25 +638,8 @@ export function ChatStream({
             <SentReplyQuote key={`reply-${message.id}`} reply={replyPart} />,
           );
         }
-
-        const separator = separators?.get(message.id);
-        if (separator && messageElements.length > 0) {
-          messageElements.unshift(
-            <ChatSeparatorRow
-              key={`separator-${message.id}`}
-              separator={separator}
-            />,
-          );
-        }
       }
 
-      // A reply the conversation superseded is not an error to anyone; it
-      // is simply not shown, outside developer mode.
-      const superseded =
-        presentation === "chat" &&
-        !isDeveloperMode &&
-        message.role === "assistant" &&
-        message.metadata.error?.kind === "aborted";
       // A run of the same refusal, one per retry, reads as one: only the
       // latest is shown, outside developer mode.
       const repeatedBelow =
@@ -783,7 +648,6 @@ export function ChatStream({
       if (
         message.role === "assistant" &&
         message.metadata.error &&
-        !superseded &&
         !repeatedBelow
       ) {
         messageElements.push(
@@ -820,7 +684,6 @@ export function ChatStream({
         // on after it; while it is still the last, the task's page ends by
         // saying the same.
         if (
-          presentation !== "chat" &&
           !isLastMessage &&
           assistantMessages.some((m) =>
             m.parts.some((part) => isToolPart(part) && isCutOff(part)),
@@ -833,10 +696,7 @@ export function ChatStream({
           );
         }
 
-        if (
-          hasFooter && // The conversation's replies stand on their own: no footer of times and tokens under each.
-          presentation !== "chat"
-        ) {
+        if (hasFooter) {
           messageElements.push(
             <AssistantMessagesFooter
               alwaysVisible={alwaysShowFooter}
@@ -862,18 +722,17 @@ export function ChatStream({
         // produced nothing draws no box at all.
         if (isLastInConsecutiveAssistantGroup) {
           if (turnRows.length > 0) {
-            const joinsRun = joinRun("assistant");
             elements.push(
               renderAsItems ? (
                 <MessageScrollerItem
-                  className={cn(turnBox, joinsRun)}
+                  className={TURN_BOX}
                   key={turnId}
                   messageId={turnId}
                 >
                   {turnRows}
                 </MessageScrollerItem>
               ) : (
-                <div className={turnBox} key={turnId}>
+                <div className={TURN_BOX} key={turnId}>
                   {turnRows}
                 </div>
               ),
@@ -888,23 +747,18 @@ export function ChatStream({
         // arrival and holds it there while the reply grows into the room the
         // scroller reserves below, so the column stops moving under whatever is
         // being read.
-        //
-        // A message under a separator of its own opens a new run.
-        const joinsRun = joinRun("user", separators?.has(message.id));
         elements.push(
           renderAsItems ? (
             <MessageScrollerItem
-              className={cn(sentBox, joinsRun)}
+              className={SENT_BOX}
               key={message.id}
               messageId={message.id}
-              // The conversation keeps to its end, the way a chat does; a
-              // turn brought to the top is for reading work back.
-              scrollAnchor={presentation !== "chat"}
+              scrollAnchor
             >
               {messageElements}
             </MessageScrollerItem>
           ) : (
-            <div className={sentBox} key={message.id}>
+            <div className={SENT_BOX} key={message.id}>
               {messageElements}
             </div>
           ),
@@ -917,7 +771,7 @@ export function ChatStream({
     // so the window outlasts it. Drawn at the tail they keep one identity across
     // that whole window, and the first real row replaces the planning line in a
     // single step rather than fading a second copy in beneath it.
-    if (isAwaitingFirstRow && presentation !== "chat") {
+    if (isAwaitingFirstRow) {
       const initialRows = [
         <TurnWordmark key={TURN_WORDMARK_ID} />,
         <AwaitingFirstRow key={PLANNING_ROW_ID} />,
@@ -935,31 +789,6 @@ export function ChatStream({
         ),
       );
     }
-
-    // The conversation drafting a reply: the dots stand at its end, where the
-    // words will land, only while a step is writing words, never while it
-    // calls a tool or waits. Every other kind of working is the line under
-    // the chat's title, so the dots only ever promise a reply that is coming.
-    if (
-      presentation === "chat" &&
-      isAgentRunning &&
-      isDraftingReply(messages)
-    ) {
-      // The dots are the assistant's last bubble while they stand, so the
-      // reply above them gives its tail up to them.
-      boxBubbles.push(TYPING_TAIL_ID);
-      const joinsRun = joinRun("assistant");
-      elements.push(
-        renderAsItems ? (
-          <MessageScrollerItem className={joinsRun} key={TYPING_TAIL_ID}>
-            <TypingRow />
-          </MessageScrollerItem>
-        ) : (
-          <TypingRow key={TYPING_TAIL_ID} />
-        ),
-      );
-    }
-    endRun();
 
     return elements;
   }
@@ -992,9 +821,7 @@ export function ChatStream({
   if (renderAsItems) {
     return (
       <TranscriptExpansionContext value={expansion}>
-        <FollowedBubblesContext value={stableFollowedBubbles}>
-          <TailFirst items={chatElements} />
-        </FollowedBubblesContext>
+        <TailFirst items={chatElements} />
         {continueNode && (
           <MessageScrollerItem key="continue">
             {continueNode}
@@ -1006,27 +833,11 @@ export function ChatStream({
 
   return (
     <TranscriptExpansionContext value={expansion}>
-      <FollowedBubblesContext value={stableFollowedBubbles}>
-        <div className="flex w-full flex-col gap-2">
-          <div className="flex flex-col gap-2">{chatElements}</div>
-          {continueNode}
-        </div>
-      </FollowedBubblesContext>
+      <div className="flex w-full flex-col gap-2">
+        <div className="flex flex-col gap-2">{chatElements}</div>
+        {continueNode}
+      </div>
     </TranscriptExpansionContext>
-  );
-}
-
-/**
- * Whether the conversation's newest step is writing words the reader will
- * get: a step still open whose latest part is text. A step calling a tool,
- * thinking, or not begun yet is working, not drafting.
- */
-function isDraftingReply(messages: SessionMessage.WithParts[]): boolean {
-  const last = messages.at(-1);
-  return (
-    last?.role === "assistant" &&
-    last.metadata.finishedAt === undefined &&
-    last.parts.at(-1)?.type === "text"
   );
 }
 
@@ -1352,7 +1163,7 @@ function readTurnOpenings({
  * each turn keeps its key, so the ones already drawn are never drawn again.
  * Turns added at the end while it fills are shown as they come.
  */
-function TailFirst({ items }: { items: React.ReactNode[] }) {
+export function TailFirst({ items }: { items: React.ReactNode[] }) {
   const [hidden, setHidden] = useState(() =>
     Math.max(0, items.length - TAIL_ITEMS),
   );

@@ -10,7 +10,7 @@ describe("chatRecordsReference", () => {
   // file the records are kept in.
   it.each([
     ["log", RECORD_FILE_EXAMPLES.log],
-    ["marks", RECORD_FILE_EXAMPLES.marks],
+    ["settings", RECORD_FILE_EXAMPLES.settings],
   ] as const)("names a %s file the parser reads as one", (kind, example) => {
     const name = example
       .replace("<session>", StoreId.newSessionId())

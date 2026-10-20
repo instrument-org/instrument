@@ -104,7 +104,6 @@ describe("another device's records reaching a running app", () => {
         messages: [{ id: messageId(2), removed: false, sessionId: SESSION }],
         new: false,
         session: false,
-        settings: false,
       },
     ]);
     expect(held).toBe(true);
@@ -183,7 +182,6 @@ describe("another device's records reaching a running app", () => {
         messages: [],
         new: true,
         session: false,
-        settings: false,
       },
     ]);
   });

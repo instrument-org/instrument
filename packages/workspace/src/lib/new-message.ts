@@ -23,7 +23,7 @@ import { folderReach } from "./chat/folder-reach";
 import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
 import { chatDir, resolveChat } from "./record-folders";
-import { updateChatSettings } from "./chat-settings";
+import { setChatModel } from "./chat-settings";
 import { grantFile } from "./chat/grants";
 import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -336,7 +336,7 @@ export async function newMessage({
   // The composer sending is what picks the chat's model; a task's message
   // runs on the chat's and picks nothing.
   if (isChat) {
-    const picked = await updateChatSettings(chatId, { modelURI });
+    const picked = await setChatModel(chatId, modelURI);
     if (picked.isErr()) {
       return picked;
     }

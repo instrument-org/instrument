@@ -1,11 +1,11 @@
 import { type SessionMessage } from "../../schemas/session/message";
 import { BLOBS_FOLDER_NAME } from "./blobs";
-import { type LogRecord, type MarkField } from "./record";
+import { type LogRecord, type SettingField } from "./record";
 
 /**
  * What the chat-history skill tells the agent of a chat's records, so it can
  * search and read them itself. Keyed by the record format's own types: a record, a message role
- * or a mark the format adds or drops fails the type check here until this
+ * or a setting the format adds or drops fails the type check here until this
  * says what it is, so the agent is never told of a record that is not there.
  * The file names are checked against the parser in the test beside this.
  */
@@ -32,21 +32,23 @@ const MESSAGE_ROLES = {
   user: "the user",
 } satisfies Record<SessionMessage.Type["role"], string>;
 
-/** Every field a mark sets. */
-const MARK_FIELDS = {
+/** Every field a setting sets. */
+const SETTING_FIELDS = {
   archived: "whether it is archived",
+  model:
+    "the model the chat runs on, as a model URI, set on the chat's own session",
   starred: "whether it is starred",
-  stoppedAt: "when the user stopped its turn",
-  title: "its title, in `value.text`",
-  topic:
-    "its topic id, the `id` in the topic's `TOPIC.md`, or `null` for none. An older `topics` mark lists ids, and its first is the topic",
-  unread: "whether it is unread",
-} satisfies Record<MarkField, string>;
+  title:
+    "its title, in `value.text`; `value.auto` is true while the app may still rename it",
+  topic: "its topic id, the `id` in the topic's `TOPIC.md`, or `null` for none",
+  unread:
+    "`new` or `marked` (the user marked it) while unread, `null` once read",
+} satisfies Record<SettingField, string>;
 
 /** The names the guide gives a chat's record files, checked by its test. */
 export const RECORD_FILE_EXAMPLES = {
   log: "<session>.<device>.jsonl",
-  marks: "marks.<device>.jsonl",
+  settings: "settings.<device>.jsonl",
 } as const;
 
 /** Each entry as a bullet of its own, `depth` levels in. */
@@ -71,8 +73,8 @@ export function chatRecordsReference(): string {
     ...listed(LOG_RECORDS, 1),
     "  - A message's `role`:",
     ...listed(MESSAGE_ROLES, 2),
-    `- \`${RECORD_FILE_EXAMPLES.marks}\`: \`mark\` records, the newest of each \`field\` standing:`,
-    ...listed(MARK_FIELDS, 1),
+    `- \`${RECORD_FILE_EXAMPLES.settings}\`: \`set\` records, one per change a device made to a session, the newest of each \`session\` and \`field\` standing (\`marks.<device>.jsonl\` from older builds, with \`mark\` records, reads the same):`,
+    ...listed(SETTING_FIELDS, 1),
     `- \`${BLOBS_FOLDER_NAME}/\`: bytes a tool returned, which its part names in a \`blob\` field (\`sha256-<hex>.<ext>\`).`,
     "",
   ].join("\n");

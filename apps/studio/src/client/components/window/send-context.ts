@@ -1,4 +1,4 @@
-import { type Draft, draftGroupOf } from "@/client/atoms/drafts";
+import { type Draft, draftGroupOf } from "@/shared/drafts";
 import { type ScreenView, type WindowTab } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { type RPCOutput } from "@/client/rpc/client";

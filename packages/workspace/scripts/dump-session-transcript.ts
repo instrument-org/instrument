@@ -16,6 +16,7 @@ import {
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { ChatDirSchema } from "../src/schemas/paths";
 import { ChatIdSchema } from "../src/schemas/chat-id";
+import { chatFolderInWorkspace } from "./lib/loose-chat-folder";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 import { workspaceOfRecord } from "./lib/workspace-of-record";
 
@@ -42,7 +43,7 @@ if (!inputPath) {
   );
 }
 
-const dir = ChatDirSchema.parse(path.resolve(inputPath));
+const dir = ChatDirSchema.parse(chatFolderInWorkspace(path.resolve(inputPath)));
 
 // Chats are found by scanning the workspace's `.instrument/chats/`.
 const rootDir = workspaceOfRecord(dir);

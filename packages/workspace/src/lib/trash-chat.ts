@@ -9,6 +9,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { killChatBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
+import { forgetChatPermissions } from "./permissions/rules";
 import { recordRemoved } from "./record-changes";
 import { recordChatFolderName } from "./chat-folders/own-folder";
 import {
@@ -112,6 +113,11 @@ export async function trashChat({
           chatId,
           undefined,
         ).catch((error: unknown) => {
+          workspaceConfig.captureException(error);
+        });
+        // What it was allowed and refused goes with it: a deleted chat is
+        // not coming back, and its grants would only pile up in the file.
+        await forgetChatPermissions(chatId).catch((error: unknown) => {
           workspaceConfig.captureException(error);
         });
         if (known) {

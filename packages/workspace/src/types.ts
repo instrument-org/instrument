@@ -190,6 +190,14 @@ export interface WorkspaceConfig {
   isRefusedFile?: (hostPath: string) => Promise<boolean>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
+   * Whether the Instrument account's plan would run one of its hosted
+   * features now, as the platform last said: false while the free
+   * allowance is spent or the plan leaves it out, so the workspace asks
+   * nothing of the platform that it would refuse. Absent, or undefined for
+   * a feature not yet heard about, the feature is taken as available.
+   */
+  isHostedFeatureAvailable?: (feature: "decisions") => boolean | undefined;
+  /**
    * Who is signed in, for the agents to know whose work it is: the account's
    * email and, when the account gives one, name, or undefined while nobody is. Read when a session's
    * context is built rather than at boot, since a sign-in comes and goes;

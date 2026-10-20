@@ -18,7 +18,10 @@ import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { type WebSearchResult } from "../schemas/web-search";
+import {
+  type PlatformSearchRefusal,
+  type WebSearchResult,
+} from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
 import { activityTelemetry, recordActivity } from "./activity/record";
 import { TypedError } from "./errors";
@@ -32,6 +35,8 @@ export interface WebSearchFailure {
     | "no-search-backend"
     | "not-authenticated"
     | "payment-required";
+  /** The platform refused the search for the account's plan. */
+  refusal?: PlatformSearchRefusal;
   responseBody?: string;
 }
 
@@ -58,6 +63,12 @@ const RETRY_DELAY_MS = 250;
 export type WebSearchResults =
   | {
       kind: "excerpts";
+      /**
+       * Set when our endpoint refused the search for the account's plan and
+       * a basic search stood in: what the platform said, for the chat to
+       * say that the advanced search is paused.
+       */
+      platformRefusal?: PlatformSearchRefusal;
       sources: WebSearchResult[];
     }
   | {
@@ -161,7 +172,18 @@ export async function* webSearch({
         workspaceConfig,
       });
       // A signed-out user cannot reach our endpoint, so a keyless search gives
-      // them a working lookup; signing in is what gets them ours.
+      // them a working lookup; signing in is what gets them ours. The same
+      // goes for an account whose plan our endpoint refuses (the free
+      // allowance spent), and the result says so.
+      const refusal = platformResult.isErr()
+        ? platformResult.error.refusal
+        : undefined;
+      if (refusal) {
+        yield (
+          await searchWithKeyless({ prompt, signal, workspaceConfig })
+        ).map((results) => ({ ...results, platformRefusal: refusal }));
+        return;
+      }
       yield platformResult.isErr() &&
       platformResult.error.errorType === "not-authenticated"
         ? await searchWithKeyless({ prompt, signal, workspaceConfig })
@@ -263,6 +285,7 @@ async function requestPlatformSearch({
         response.errorType === "request-failed"
           ? "api-call"
           : response.errorType,
+      ...(response.refusal && { refusal: response.refusal }),
       responseBody: response.responseBody,
     });
   }
@@ -303,7 +326,12 @@ async function searchWithPlatform(args: {
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
   const first = await requestPlatformSearch(args);
 
-  if (first.isOk() || USER_ACTIONABLE.has(first.error.errorType)) {
+  // A refusal for the account's plan answers the same a moment later.
+  if (
+    first.isOk() ||
+    USER_ACTIONABLE.has(first.error.errorType) ||
+    first.error.refusal
+  ) {
     return first;
   }
 

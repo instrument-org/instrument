@@ -5,11 +5,13 @@ import {
   requestDecision,
   selectDecisionConfigs,
 } from "@instrument-org/ai-gateway";
+import { OUR_MODELS } from "@instrument-org/shared";
 import ms from "ms";
 import { z } from "zod";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type ActivityCall, recordActivity } from "./activity/record";
+import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 
 const AnswerSchema = z.object({
   choice: z.string().optional(),
@@ -65,16 +67,29 @@ function isRefusedByPlan(error: unknown) {
 }
 
 /**
+ * The providers a decision may be asked through, best first. The Instrument
+ * sign-in drops out while its plan says decisions would be refused (the free
+ * allowance spent, say), so nothing is sent only to be turned away.
+ */
+function decisionConfigs(configs: AIGatewayProviderConfig.Type[]) {
+  const refusedByPlan =
+    hasWorkspaceConfig() &&
+    getWorkspaceConfig().isHostedFeatureAvailable?.("decisions") === false;
+  return selectDecisionConfigs(configs).filter(
+    (config) => !refusedByPlan || config.type !== OUR_MODELS.providerType,
+  );
+}
+
+/**
  * Whether the decision model can be asked: a provider that reaches it is set
- * up, and asking hasn't just failed. What `decision.available` answers, so
- * the app knows before asking rather than finding out by trying.
+ * up, its plan would serve it, and asking hasn't just failed. What
+ * `decision.available` answers, so the app knows before asking rather than
+ * finding out by trying.
  */
 export function decisionModelAvailable(
   configs: AIGatewayProviderConfig.Type[],
 ) {
-  return (
-    selectDecisionConfigs(configs).length > 0 && Date.now() >= unreachableUntil
-  );
+  return decisionConfigs(configs).length > 0 && Date.now() >= unreachableUntil;
 }
 
 /**
@@ -111,7 +126,7 @@ export async function askDecisionModel({
   if (!decisionModelAvailable(configs)) {
     return undefined;
   }
-  const reachable = selectDecisionConfigs(configs);
+  const reachable = decisionConfigs(configs);
   const failures: string[] = [];
   let requestAtFault = false;
   let refusedByPlan = 0;

@@ -36,6 +36,7 @@ import {
   consumeSetupChanges,
 } from "../lib/setup-changes";
 import { recordSetupTold } from "../lib/setup-news";
+import { publisher } from "../rpc/publisher";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { TOOLS } from "../tools/all";
@@ -134,6 +135,11 @@ export const instrumentAgent = setupAgent({
     }
     // Told through this part, so the next message's news does not repeat it.
     await recordSetupTold({ changes, chatId, sessionId });
+    // An app written by the shell or a program never passed through `app`,
+    // so the lists of apps are told here.
+    if (changes.some((change) => change.kind === "app")) {
+      publisher.publish("app.updated", null);
+    }
 
     const result = await safeTry(async function* () {
       // This run's messages: the one it answered and the session's own after

@@ -21,6 +21,16 @@ export const SANDBOX_OFF_COPY = {
   },
 } as const;
 
+/**
+ * What the person reads in the notifications bell when Windows' sandbox can't
+ * hold the programs the agent runs, which still run.
+ */
+export const WINDOWS_SANDBOX_OFF_COPY = {
+  notice:
+    "Instrument can't use Windows' sandbox on this computer, so programs like Python scripts can reach any file you can.",
+  title: "Programs the agent runs can reach all your files",
+} as const;
+
 /** What the person reads when web pages in the browser have no sandbox. */
 export const BROWSER_SANDBOX_OFF_COPY = {
   notice:

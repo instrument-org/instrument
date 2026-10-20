@@ -281,9 +281,24 @@ describe("notices", () => {
 
     env.version = "2.0.0-beta.59";
     expect(notices.listNotices()).toHaveLength(1);
-    // Windows says so in Settings alone, as it does on every Windows computer.
+  });
+
+  it("warns loudly on Windows when its sandbox can't hold the programs, which still run", async () => {
+    const notices = await load();
     sandbox.off = "windows";
+    const [warning] = notices.listNotices();
+    expect(warning).toMatchObject({
+      action: { label: "Open Settings", settings: "Permissions" },
+      body: "Instrument can't use Windows' sandbox on this computer, so programs like Python scripts can reach any file you can.",
+      kind: "security",
+      severity: "critical",
+      title: "Programs the agent runs can reach all your files",
+    });
+    notices.dismissNotice(warning?.id ?? "");
     expect(notices.listNotices()).toEqual([]);
+
+    env.version = "2.0.0-beta.59";
+    expect(notices.listNotices()).toHaveLength(1);
   });
 
   it("quiets the warning once the person chose to run programs anyway", async () => {

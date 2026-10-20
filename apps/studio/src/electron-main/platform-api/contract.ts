@@ -26,9 +26,6 @@ export const contract = {
       ),
     ),
   },
-  root: {
-    ping: base.input(z.void()).output(z.string()),
-  },
   stripe: {
     createCheckoutSession: base
       .input(z.object({ priceId: z.string() }))

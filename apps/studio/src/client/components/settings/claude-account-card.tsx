@@ -37,7 +37,7 @@ const CLAUDE_ID = AIProviderConfigIdSchema.parse(
 /** A usage window this full is worth pointing out a way past. */
 const RUNNING_LOW_PERCENT = 80;
 
-type Status = RPCOutput["claudeAccount"]["refresh"];
+type Status = RPCOutput["claudeAccount"]["connect"]["status"];
 
 /**
  * The Claude account as a row among the providers, laid out like the ChatGPT

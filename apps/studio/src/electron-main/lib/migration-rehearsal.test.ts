@@ -175,9 +175,10 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
       where.includes("set-aside"),
     );
     // How many were set aside is not the count of stores that were there: a
-    // 1.x task kept a store of its own and becomes a session of the chat's,
-    // so its store is read and folded rather than set aside on its own. That
-    // nothing was lost on the way is the assertion above.
+    // 1.x task's store is converted by the 1.x migration, and a beta chat's
+    // task folders keep their own stores, which the split sets aside under
+    // `.pre-chats/` without converting them. That nothing was lost on the way
+    // is the assertion above.
     expect({ left, setAside: setAside.length > 0 }).toEqual({
       left: [],
       setAside: were.length > 0,

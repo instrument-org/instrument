@@ -199,7 +199,10 @@ def assert_target_cdp(status):
 def renderer_ready(status):
     return any(
         entry.get("type") == "page"
-        and re.match(r"^file://.*/resources/app\\.asar/out/renderer/", entry.get("url") or "")
+        and re.match(
+            r"^(file://.*/resources/app\\.asar/out/renderer/|[a-z][\\w+.-]*://app/index\\.html)",
+            entry.get("url") or "",
+        )
         for entry in status.get("targets") or []
     )
 `;

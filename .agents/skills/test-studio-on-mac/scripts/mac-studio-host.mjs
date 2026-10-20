@@ -219,7 +219,7 @@ else
   open -n -g -a "$app" --env DISABLE_AUTO_UPDATE_POLLING=true --args --remote-debugging-port=${CDP_PORT}
 fi
 for i in $(seq 1 $((${timeoutSeconds} * 2))); do
-  if curl -sf "http://127.0.0.1:${CDP_PORT}/json/list" 2>/dev/null | grep -q 'app.asar/out/renderer'; then
+  if curl -sf "http://127.0.0.1:${CDP_PORT}/json/list" 2>/dev/null | grep -Eq 'app\\.asar/out/renderer|://app/index\\.html'; then
     printf '{"app":%s,"port":${CDP_PORT},"reused":%s}\n' "$(json_escape "$app")" "$reused"
     exit 0
   fi

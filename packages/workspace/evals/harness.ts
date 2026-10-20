@@ -550,7 +550,7 @@ interface FollowUpTiming {
    * at the moment its next call is in flight. For a message that has to land
    * inside foreground work rather than between turns. Sent when the turn ends
    * instead, should it end first; `duringWorkMissed` in the run's metrics
-   * counts those. With `command`, the call in flight has to be a `bash` call
+   * counts those, and the report fails a run that has any. With `command`, the call in flight has to be a `bash` call
    * whose command matches it, for a message that has to land inside one
    * command in particular when a step makes several calls at once.
    */

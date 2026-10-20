@@ -182,6 +182,8 @@ The OS sandbox refuses; it does not hide. A program it holds gets `Operation not
 
 Every `bash` tool result carries `ran`, a list of what answered each command the shell ran and under which sandbox, so a session log shows which of the routes above a call took without reading it back out of the output. It is stored with the result and never shown to the model. The schema and the collector are in `shell-commands/command-runs.ts`; each row is one distinct answer with a `count`, so a loop that runs `wc` ten thousand times the same way is one row, and a call keeps at most 64 distinct rows.
 
+The record is not kept from the agent. A chat's records are readable to it, so it can find `ran` in its own sessions and in other chats'. That is deliberate: a row says nothing the agent could not learn from `command -v` or a refusal, and an agent stuck on a command can read which program answered it and under which sandbox.
+
 - `name`: the command as the shell dispatched it, after the `wait` alias.
 - `source`: `bundled` for a program the app ships (uutils, `rg`, `git`, the chat's `python`, `uv`, `node`, `pnpm`, `ffmpeg`, `agent-browser`), `system` for a route that runs the computer's own program (`diff`, `file`, `tar`, `ps`, `top`, `tasklist`), `path` for a program found on the PATH or named by its path, `builtin` for just-bash's TypeScript command, and `instrument` for the app's own commands that are not programs (`instrument`, `du`, `which`, `jobs`, `fg`, `kill`, the refusing stubs).
 - `program`: the program's path on this computer, when a process ran. A command that started more than one (an environment build before `python`) has a row for each.

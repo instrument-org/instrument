@@ -61,7 +61,7 @@ describe("buildAppUrl", () => {
 
   it.each(urlCases)("$name", ({ expected, params, path }) => {
     const result = buildAppUrl({
-      baseUrl: "https://api.example.com",
+      url: "https://api.example.com",
       params,
       path,
     });
@@ -71,7 +71,7 @@ describe("buildAppUrl", () => {
 
   it("keeps requests under a base path", () => {
     const result = buildAppUrl({
-      baseUrl: "https://example.com/api",
+      url: "https://example.com/api",
       params: {},
       path: "/pages",
     });
@@ -82,14 +82,14 @@ describe("buildAppUrl", () => {
 
   it("accepts (and encodes) valid paths with spaces and non-ASCII", () => {
     const space = buildAppUrl({
-      baseUrl: "https://api.example.com/v1",
+      url: "https://api.example.com/v1",
       params: {},
       path: "/search/my file",
     });
     expect(space._unsafeUnwrap().pathname).toBe("/v1/search/my%20file");
 
     const unicode = buildAppUrl({
-      baseUrl: "https://api.example.com/v1",
+      url: "https://api.example.com/v1",
       params: {},
       path: "/café",
     });
@@ -98,7 +98,7 @@ describe("buildAppUrl", () => {
 
   it("rejects percent-encoded traversal that escapes the base path", () => {
     const result = buildAppUrl({
-      baseUrl: "https://api.example.com/v1",
+      url: "https://api.example.com/v1",
       params: {},
       path: "/%2e%2e/outside",
     });
@@ -111,7 +111,7 @@ describe("buildAppUrl", () => {
     { name: "rejects base-path escapes", path: "/../outside" },
   ])("$name", ({ path }) => {
     const result = buildAppUrl({
-      baseUrl: "https://example.com/api",
+      url: "https://example.com/api",
       params: {},
       path,
     });

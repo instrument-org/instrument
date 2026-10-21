@@ -27,11 +27,12 @@ interface AppResponse {
  * app's configured origin; query params are appended separately.
  */
 export function buildAppUrl({
-  baseUrl,
   params,
   path,
+  url: appUrl,
 }: {
-  baseUrl: string;
+  /** The manifest's `url`, which every request starts from. */
+  url: string;
   params: Record<string, string>;
   path: string;
 }): Result<URL, AppRequestError> {
@@ -42,7 +43,7 @@ export function buildAppUrl({
     });
   }
 
-  const base = new URL(baseUrl);
+  const base = new URL(appUrl);
   const basePath = base.pathname.replace(/\/$/, "");
   const requestPath = path.startsWith("/") ? path : `/${path}`;
 
@@ -115,9 +116,9 @@ export async function performAppRequest({
   signal: AbortSignal;
 }): Promise<Result<AppResponse, AppRequestError>> {
   const urlResult = buildAppUrl({
-    baseUrl: manifest.url,
     params,
     path,
+    url: manifest.url,
   });
   if (urlResult.isErr()) {
     return err(urlResult.error);

@@ -158,10 +158,11 @@ describe("SetupHost", () => {
 
   it("finishes from the only step an update added", async () => {
     loadedWith("plan");
-    window.api.initialSetupState = {
-      ...window.api.initialSetupState!,
-      isNewStepOnly: true,
-    };
+    const loaded = window.api.initialSetupState;
+    if (!loaded) {
+      throw new Error("loadedWith sets the state");
+    }
+    window.api.initialSetupState = { ...loaded, isNewStepOnly: true };
     renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Finish" }));
     await vi.waitFor(() => {

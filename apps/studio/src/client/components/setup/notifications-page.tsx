@@ -1,4 +1,3 @@
-import { BrandMark } from "@/client/components/brand-mark";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
@@ -13,6 +12,7 @@ import {
   type NotificationsState,
 } from "./notifications-flow";
 import { type SetupPageProps } from "./setup-page-props";
+import { SampleNotification } from "./sample-notification";
 import { sendTestNotification } from "./test-notification";
 
 /**
@@ -107,31 +107,5 @@ export function NotificationsPage({
         />
       </div>
     </SetupPage>
-  );
-}
-
-/** Frame 10's picture: a notification as the system shows one, inside a window's edge. */
-function SampleNotification() {
-  return (
-    <div className="relative h-41 w-117.5 overflow-hidden">
-      <div className="absolute inset-x-0 top-0 h-49 rounded-[20px] border border-gray-400 mask-b-from-40% mask-b-to-100% opacity-75" />
-      <div className="absolute top-7.5 left-7.5 flex w-102.5 items-center gap-3 rounded-2xl bg-black/5 p-3.5 dark:bg-white/5">
-        <BrandMark size={48} />
-        <div className="min-w-0 flex-1">
-          <div className="flex justify-between text-gray-400">
-            <span className="text-[11px] font-medium tracking-[0.04em]">
-              {APP_NAME.toUpperCase()}
-            </span>
-            <span className="text-xs">now</span>
-          </div>
-          <p className="text-sm font-semibold text-foreground">
-            This is an example notification
-          </p>
-          <p className="text-sm text-gray-600 dark:text-muted-foreground">
-            {APP_NAME} will tell you when it’s done working
-          </p>
-        </div>
-      </div>
-    </div>
   );
 }

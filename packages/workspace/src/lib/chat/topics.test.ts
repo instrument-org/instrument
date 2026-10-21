@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import { utcStamp } from "../utc-stamp";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   createTopic,
@@ -130,11 +131,12 @@ describe("topic folders", () => {
     ]);
   });
 
-  it("writes the created stamp as the clock the person was reading", async () => {
+  it("writes the created stamp as ISO 8601 in UTC, to the second", async () => {
     const made = await createTopic({ name: "Shopping" });
 
     const front = await topicFile("Shopping", { stamps: false });
-    expect(front).toContain(`created: ${stampOf(made.created)}`);
+    expect(front).toMatch(/^created: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/m);
+    expect(front).toContain(`created: ${utcStamp(made.created)}`);
     // What is in hand and what is on disk are the same topic, to the second.
     expect((await listTopics())[0]?.created).toEqual(made.created);
   });
@@ -153,7 +155,7 @@ describe("topic folders", () => {
     // Two keys another client wrote, which this build has never heard of.
     await fs.writeFile(
       path.join(topicsDir(), "Trips", TOPIC_FILE_NAME),
-      `---\nid: ${made.id}\nemoji: ✈️\ncreated: ${stampOf(made.created)}\nsortsAfter: Home\nseen:\n  - phone\n---\n`,
+      `---\nid: ${made.id}\nemoji: ✈️\ncreated: ${utcStamp(made.created)}\nsortsAfter: Home\nseen:\n  - phone\n---\n`,
     );
 
     await updateTopic(made.id, { instructions: "Aisle seats." });
@@ -273,13 +275,6 @@ async function topicFile(
         .replace(/^id: .+$/m, "id: <id>")
         .replace(/^created: .+$/m, "created: <created>")
     : text;
-}
-
-/** When something happened as `created` writes it: local, to the second. */
-function stampOf(at: Date): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  const day = `${String(at.getFullYear())}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
-  return `${day} ${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
 }
 
 function tree(dir: string): string[] {

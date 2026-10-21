@@ -116,7 +116,7 @@ Only `find`'s start points are held to the rules as paths, and it gets no prune:
 | `git` | dugite's git, with our argv policy and an isolated environment | all |
 | `python`, `pip`, `uv` | the chat's virtualenv interpreter and the bundled uv | all |
 | `node` | Electron run as Node, with a `tools` global over loopback | all |
-| `pnpm`, `pnx`, `pnpx`, `npx` | the bundled pnpm (`npx` and `pnpx` are `pnpm dlx`) | all |
+| `pnpm`, `pnx`, `pnpx`, `npx` | the bundled pnpm (`npx` and `pnpx` are `pnpm dlx`, whose install takes pnpm's install step outside the sandbox where MXC holds commands) | all |
 | `ffmpeg`, `ffprobe` | `ffmpeg-ffprobe-static` | all |
 | `agent-browser` | the agent-browser CLI, spawned directly with its own flag policy rather than under the native sandbox | all |
 | `instrument calendar`, `instrument contacts` | the Mac helper (`instrument-mac`) | macOS |

@@ -1,3 +1,4 @@
+import { CopyButton } from "@/client/components/copy-button";
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
 import { formatPlanPrice } from "@/client/lib/billing";
@@ -6,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { billingScenarioPrompt, billingScenarios } from "./-billing-scenarios";
 import { getDebugRoute } from "./-debug-routes";
 
 export const Route = createFileRoute("/debug/billing")({
@@ -62,6 +64,41 @@ function RouteComponent() {
   return (
     <div className="size-full overflow-y-auto">
       <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6 text-sm">
+        <Section title="Test accounts">
+          <p className="text-xs text-muted-foreground">
+            Copy a prompt for your coding agent in the internal repo. It makes
+            an account in that state and opens a separate Studio signed in as
+            it.
+          </p>
+          <ul className="flex flex-col">
+            {billingScenarios.map((scenario) => (
+              <li
+                className="flex items-center gap-2 py-0.5"
+                data-billing-scenario={scenario.name}
+                key={scenario.name}
+              >
+                <CopyButton
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                  iconSize={14}
+                  label={`Copy the ${scenario.name} prompt`}
+                  onCopy={() =>
+                    navigator.clipboard.writeText(
+                      billingScenarioPrompt(scenario),
+                    )
+                  }
+                  tooltip="Copy prompt"
+                />
+                <span className="w-36 shrink-0 font-mono text-xs">
+                  {scenario.name}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {scenario.state}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+
         <Section title="Session">
           <Facts
             rows={[

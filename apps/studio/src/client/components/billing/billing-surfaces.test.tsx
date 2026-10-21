@@ -603,7 +603,9 @@ describe("setup's plan step", () => {
     platform.status = onFree();
     renderStep();
     expect(
-      await screen.findByText("Try Instrument free for 7 days"),
+      await screen.findByRole("heading", {
+        name: "Try Instrument free for 7 days",
+      }),
     ).toBeDefined();
     expect(screen.queryByRole("button", { name: "add an API key" })).toBeNull();
     fireEvent.click(

@@ -35,10 +35,10 @@ type PlanPage =
 /**
  * The plan, for someone signed in to Instrument with no subscription and no
  * trial running: the plan cards as the server's offer has them, a no-card
- * trial started right here, or Checkout for everything else. While no free
- * trial can start, it also offers a subscription they already pay for, or
- * an API key, instead. Answered once a trial starts, Checkout completes, or
- * another way connects.
+ * trial started right here, or Checkout for everything else. Under the
+ * cards it offers a subscription they already pay for, and while no free
+ * trial can start, an API key too. Answered once a trial starts, Checkout
+ * completes, or another way connects.
  */
 export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
   const [page, setPage] = useState<PlanPage>(
@@ -207,9 +207,9 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
               />
             )}
           </div>
-          {offer && !beta && !(showsTrial && !heldBack) && (
-            <p className="mt-6 text-sm text-muted-foreground" data-use-instead>
-              Already pay for ChatGPT, Claude or Grok?{" "}
+          {offer && !beta && (
+            <p className="mt-5 text-sm text-muted-foreground" data-use-instead>
+              Already pay for ChatGPT, Claude, or Grok?{" "}
               <InlineLink
                 onClick={() => {
                   setPage({
@@ -218,18 +218,25 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
                   });
                 }}
               >
-                Use it instead
+                Use your existing subscriptions
               </InlineLink>
-              , or{" "}
-              <InlineLink
-                onClick={() => {
-                  hold();
-                  setPage({ initial: { kind: "key" }, kind: "use-instead" });
-                }}
-              >
-                add an API key
-              </InlineLink>
-              .
+              {!(showsTrial && !heldBack) && (
+                <>
+                  , or{" "}
+                  <InlineLink
+                    onClick={() => {
+                      hold();
+                      setPage({
+                        initial: { kind: "key" },
+                        kind: "use-instead",
+                      });
+                    }}
+                  >
+                    add an API key
+                  </InlineLink>
+                  .
+                </>
+              )}
             </p>
           )}
         </SetupPage>

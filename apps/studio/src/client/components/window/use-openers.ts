@@ -163,8 +163,8 @@ export function useOpeners({
   };
   const openScreen = (href: string, options: OpenOptions = {}): void => {
     const { behind = false, group: into, newTab = false } = options;
-    // A chat named by its session, as an older reply's link or a memory
-    // saved then names it, opens at the chat that session is.
+    // A chat named by its session, as an older reply's link names it,
+    // opens at the chat that session is.
     const session = chatSessionOfHref(href);
     if (session) {
       void queryClient

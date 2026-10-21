@@ -91,7 +91,7 @@ describe("memory", () => {
       'Saved "pacific-time": You are on Pacific time and mornings are best for calls.\n',
     );
     const [memory] = await listMemories(memoryDir());
-    expect(memory?.from).toEqual({ sessionId, title: "Roofer call" });
+    expect(memory?.from).toEqual({ chatId, title: "Roofer call" });
 
     const listed = await run(["list"]);
     expect(listed.stdout).toMatch(

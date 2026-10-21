@@ -89,7 +89,7 @@ async function chatOf({
   if (session.isErr() || !session.value.title.trim()) {
     return undefined;
   }
-  return { sessionId, title: session.value.title.trim() };
+  return { chatId, title: session.value.title.trim() };
 }
 
 function day(at: number): string {

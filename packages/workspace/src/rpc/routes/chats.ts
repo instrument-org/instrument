@@ -275,7 +275,7 @@ const chatSessionRoute = base
 
 /**
  * The chat a session is, or none: for an address that names a chat by its
- * session, as a link in an older reply or a memory saved then does.
+ * session, as a link in an older reply does.
  */
 const chatOfSessionRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))

@@ -242,7 +242,7 @@ export function chatOfHref(href: string): ChatId | undefined {
 
 /**
  * The session an address names a chat by, the way addresses did before a
- * chat had an id of its own: a link in an older reply, a memory saved then.
+ * chat had an id of its own: a link in an older reply.
  * The window opens it at the chat that session is.
  */
 export function chatSessionOfHref(href: string): StoreId.Session | undefined {

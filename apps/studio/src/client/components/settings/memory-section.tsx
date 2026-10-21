@@ -20,6 +20,7 @@ import { Input } from "@/client/components/ui/input";
 import { Textarea } from "@/client/components/ui/textarea";
 import { WindowContext } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
+import { chatHref } from "@/client/components/window/window-href";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import {
   openClickGestures,
@@ -520,12 +521,12 @@ function StepNumber({ n }: { n: number }) {
 function FromChat({ from }: { from: NonNullable<Memory["from"]> }) {
   const closeSettings = useSetAtom(settingsModalAtom);
   const gestures = useOpenGestures({
-    href: `${CHATS_HREF}/${from.sessionId ?? ""}`,
+    href: from.chatId ? chatHref(from.chatId) : CHATS_HREF,
     kind: "screen",
   });
   const open = gestures.destinations.find((entry) => entry.id === "open");
 
-  if (!from.sessionId || !open) {
+  if (!from.chatId || !open) {
     return <span className="truncate">{from.title}</span>;
   }
   return (

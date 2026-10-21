@@ -8,6 +8,7 @@ import { publisher } from "../../rpc/publisher";
 import { type AbsolutePath } from "../../schemas/paths";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { MEMORY_FOLDER_NAME } from "../../constants";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { rewriteFileSync } from "../rewrite-file";
 import { isRecord, splitFrontmatter } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -50,7 +51,7 @@ export const MemorySchema = z.object({
   /** The chat it was learned in, when a chat saved it. */
   from: z
     .object({
-      sessionId: z.string().optional(),
+      chatId: ChatIdSchema.optional(),
       title: z.string(),
     })
     .optional(),
@@ -246,11 +247,11 @@ async function readMemoryFile(
     typeof record.at === "string" && !Number.isNaN(Date.parse(record.at))
       ? Date.parse(record.at)
       : modifiedAt;
-  const chat = record.chat;
+  const chat = ChatIdSchema.safeParse(record.chat);
   const from =
     typeof record.from === "string" && record.from.trim()
       ? {
-          ...(typeof chat === "string" && chat ? { sessionId: chat } : {}),
+          ...(chat.success ? { chatId: chat.data } : {}),
           title: record.from.trim(),
         }
       : undefined;
@@ -276,8 +277,8 @@ function serialize({
   const lines = ["---"];
   if (from) {
     lines.push(`from: ${JSON.stringify(from.title)}`);
-    if (from.sessionId) {
-      lines.push(`chat: ${JSON.stringify(from.sessionId)}`);
+    if (from.chatId) {
+      lines.push(`chat: ${JSON.stringify(from.chatId)}`);
     }
   }
   lines.push(`at: ${new Date(at).toISOString()}`);

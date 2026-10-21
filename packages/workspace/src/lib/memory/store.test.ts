@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import {
   forgetMemories,
@@ -50,7 +51,10 @@ describe("MemoryNameSchema", () => {
 describe("saveMemory", () => {
   it("writes a file the user can read, and lists it back", async () => {
     const saved = await saveMemory(dir, {
-      from: { sessionId: "ses_1", title: "Roofer call" },
+      from: {
+        chatId: ChatIdSchema.parse("2026-10-21-roofer-call"),
+        title: "Roofer call",
+      },
       name: "pacific-time",
       text: "You are on Pacific time and mornings are best for calls.",
     });
@@ -59,7 +63,7 @@ describe("saveMemory", () => {
     expect(saved.memory.path).toBe(path.join(dir, "pacific-time.md"));
     const file = await fs.readFile(saved.memory.path, "utf8");
     expect(file).toMatch(
-      /^---\nfrom: "Roofer call"\nchat: "ses_1"\nat: \d{4}-\d{2}-\d{2}T[^\n]+\n---\nYou are on Pacific time and mornings are best for calls.\n$/,
+      /^---\nfrom: "Roofer call"\nchat: "2026-10-21-roofer-call"\nat: \d{4}-\d{2}-\d{2}T[^\n]+\n---\nYou are on Pacific time and mornings are best for calls.\n$/,
     );
 
     const listed = await listMemories(dir);

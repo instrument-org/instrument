@@ -22,7 +22,7 @@ export function groupMemories(memories: Memory[]): MemoryGroup[] {
   let lastSource: string | undefined;
   for (const memory of memories) {
     const source = [
-      memory.from?.sessionId ?? "",
+      memory.from?.chatId ?? "",
       memory.from?.title ?? "",
       new Date(memory.at).toDateString(),
     ].join("\u0000");

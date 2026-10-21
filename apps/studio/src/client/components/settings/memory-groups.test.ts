@@ -1,4 +1,4 @@
-import { type Memory } from "@instrument-org/workspace/client";
+import { ChatIdSchema, type Memory } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import { groupMemories, memoryMatches, toggleGroup } from "./memory-groups";
@@ -13,8 +13,11 @@ const memory = (
   text = name,
 ): Memory => ({ at, from, name, path: `/m/${name}.md`, text });
 
-const IMPORT = { sessionId: "s1", title: "Import from ChatGPT" };
-const LISBON = { sessionId: "s2", title: "Lisbon trip" };
+const IMPORT = {
+  chatId: ChatIdSchema.parse("import"),
+  title: "Import from ChatGPT",
+};
+const LISBON = { chatId: ChatIdSchema.parse("lisbon"), title: "Lisbon trip" };
 
 describe("groupMemories", () => {
   it("joins neighbors from one chat on one day, and nothing else", () => {

@@ -145,7 +145,6 @@ export function WaysIn({
       return (
         <WelcomePage
           google={flows.instrument}
-          offer={offer}
           onGoogle={() => {
             connect("instrument");
           }}
@@ -167,7 +166,6 @@ export function WaysIn({
                   setPage({ kind: "welcome" });
                 }
           }
-          onKey={openKey}
           onSignIn={connect}
         />
       );
@@ -250,29 +248,24 @@ function trialDays(offer: Offer | undefined) {
 
 function WelcomePage({
   google,
-  offer,
   onGoogle,
   onKey,
   onSubscription,
 }: {
   google: ConnectFlow<void>;
-  offer: Offer | undefined;
   onGoogle: () => void;
   onKey: () => void;
   onSubscription: () => void;
 }) {
-  const trial = trialDays(offer);
   const line = google.waiting
     ? "Finish signing in with Google in your browser."
-    : trial
-      ? `New here? Try ${APP_NAME} free for ${String(trial.days)} days.${trial.cardRequired ? "" : " You won't need a card."}`
-      : undefined;
+    : undefined;
   return (
     <SetupPage
       align="center"
       footer={<TermsFooter className="px-8 pt-5 pb-6" />}
       hero={<BrandMark className="size-24 drop-shadow-md" />}
-      subtitle="Hand it the work you'd give an assistant. It gets it done on your computer and tells you when it's ready."
+      subtitle={`${APP_NAME} is a desktop app for doing your best work with AI. It works in your files and its own browser, and connects with all your favorite apps.`}
       title={`Welcome to ${APP_NAME}`}
     >
       <div className="mt-8 flex w-85 flex-col gap-2">
@@ -288,7 +281,7 @@ function WelcomePage({
           variant="brand"
           waiting={google.waiting}
         >
-          Continue with Google
+          Try for free with Google
         </BrowserHandoffButton>
         <Button
           className="h-11 w-full text-base"
@@ -311,27 +304,14 @@ function WelcomePage({
       {line && (
         <p className="mt-3 text-center text-xs text-muted-foreground">{line}</p>
       )}
-      <p className="mt-8 flex flex-wrap items-center justify-center gap-x-1.5 text-center text-xs text-muted-foreground">
-        <span className="flex items-center gap-1" aria-hidden>
-          {(["deepseek", "z-ai", "openrouter"] as const).map((type) => (
-            <AIProviderIcon
-              className="size-3.5"
-              colored
-              key={type}
-              type={type}
-            />
-          ))}
-        </span>
-        Have an API key for DeepSeek, Z.ai, OpenRouter or another provider?
-        <button
-          className="font-medium text-foreground underline underline-offset-2"
-          disabled={google.waiting}
-          onClick={onKey}
-          type="button"
-        >
-          Add a key
-        </button>
-      </p>
+      <button
+        className="mt-8 text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        disabled={google.waiting}
+        onClick={onKey}
+        type="button"
+      >
+        Or add an API provider manually
+      </button>
     </SetupPage>
   );
 }
@@ -339,12 +319,10 @@ function WelcomePage({
 function SubscriptionsPage({
   offerInstrument,
   onBack,
-  onKey,
   onSignIn,
 }: {
   offerInstrument: boolean;
   onBack?: () => void;
-  onKey: () => void;
   onSignIn: (provider: PlanProvider) => void;
 }) {
   return (
@@ -352,7 +330,7 @@ function SubscriptionsPage({
       footer={<SetupFooter next="none" onBack={onBack} />}
       subtitle={
         offerInstrument
-          ? `${APP_NAME} will use it for AI. You'll sign in on their site, and you can add a free ${APP_NAME} account after that.`
+          ? `${APP_NAME} will use it for AI. You'll sign in on their site, and you'll have the option to add a free ${APP_NAME} account after that.`
           : `${APP_NAME} will use it for AI. You'll sign in on their site.`
       }
       title="Which subscription do you have?"
@@ -378,16 +356,6 @@ function SubscriptionsPage({
           />
         ))}
       </div>
-      <p className="mt-6 text-sm text-muted-foreground">
-        Have an API key instead?{" "}
-        <button
-          className="font-medium text-foreground underline underline-offset-2"
-          onClick={onKey}
-          type="button"
-        >
-          Add a provider
-        </button>
-      </p>
     </SetupPage>
   );
 }

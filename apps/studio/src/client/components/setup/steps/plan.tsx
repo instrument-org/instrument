@@ -21,7 +21,6 @@ import { useState } from "react";
 import { SetupFooter, SetupPage } from "../kit/setup-page";
 import { type SetupPageProps } from "../setup-page-props";
 import { previewPage } from "./preview";
-import { WaysIn } from "./ways-in";
 
 type Offer = RPCOutput["billing"]["offer"];
 
@@ -29,15 +28,13 @@ type Offer = RPCOutput["billing"]["offer"];
 type PlanPage =
   | { kind: "cards" }
   | { kind: "checkout" }
-  | { days: number; endsAt?: string; kind: "trial-started" }
-  | { kind: "use-instead" };
+  | { days: number; endsAt?: string; kind: "trial-started" };
 
 /**
  * The plan, for someone signed in to Instrument with no subscription and no
  * trial running: the plan cards as the server's offer has them, a no-card
- * trial started right here, Checkout for everything else, or a
- * subscription they already pay for instead. Answered once a trial starts,
- * Checkout completes, or another way connects.
+ * trial started right here, or Checkout for everything else. Answered once
+ * a trial starts or Checkout completes.
  */
 export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
   const [page, setPage] = useState<PlanPage>(
@@ -55,19 +52,6 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
   const [trialPlan, setTrialPlan] = useState<null | string>(null);
 
   switch (page.kind) {
-    case "use-instead": {
-      return (
-        <WaysIn
-          hold={hold}
-          initial={{ kind: "subscriptions" }}
-          offerInstrument={false}
-          onDone={onContinue}
-          onLeave={() => {
-            setPage({ kind: "cards" });
-          }}
-        />
-      );
-    }
     case "trial-started": {
       return (
         <SetupPage
@@ -206,18 +190,6 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
               />
             )}
           </div>
-          <p className="mt-6 text-sm text-muted-foreground">
-            Already pay for ChatGPT, Claude or Grok?{" "}
-            <button
-              className="font-medium text-foreground underline underline-offset-2"
-              onClick={() => {
-                setPage({ kind: "use-instead" });
-              }}
-              type="button"
-            >
-              Use it instead
-            </button>
-          </p>
         </SetupPage>
       );
     }

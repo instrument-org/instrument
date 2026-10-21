@@ -42,7 +42,7 @@ describe("the note an app event wakes the chat with", () => {
       <instrument-system-note>
       You were last told about apps on another computer. Each computer has its own sign-ins and keys; on this one:
       - Connected: Linear (linear).
-      - Not connected here: Slack (slack). Each needs the user to connect it on this computer (connect_app) before its tools, requests or site work.
+      - Not connected here: Slack (slack).
       It is only so you know: answer what the user wrote.
       </instrument-system-note>"
     `);

@@ -83,11 +83,7 @@ function onThisComputer(
   return [
     "You were last told about apps on another computer. Each computer has its own sign-ins and keys; on this one:",
     `- Connected: ${connected || "none"}.`,
-    ...(not
-      ? [
-          `- Not connected here: ${not}. Each needs the user to connect it on this computer (connect_app) before its tools, requests or site work.`,
-        ]
-      : []),
+    ...(not ? [`- Not connected here: ${not}.`] : []),
   ];
 }
 

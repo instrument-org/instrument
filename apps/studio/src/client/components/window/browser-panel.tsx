@@ -553,6 +553,16 @@ export function BrowserPanel({
                 hasClosedTabs={inWindow}
                 onOpen={navigateTo}
               />
+              {inWindow && (
+                <DropdownMenuItem onSelect={toggleBookmark}>
+                  <BookmarkSimpleIcon className="size-4" />
+                  {isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={openClearBrowsingData}>
+                <BroomIcon className="size-4" />
+                Clear browsing data…
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <div className="flex items-center justify-between px-2 py-1.5">
                 <span className="text-sm">Zoom</span>
@@ -576,43 +586,6 @@ export function BrowserPanel({
                   }
                 />
               </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <DeviceMobileIcon className="size-4" />
-                  View as
-                  {emulatedDevice && (
-                    <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">
-                      {emulatedDevice.label}
-                    </span>
-                  )}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuRadioGroup
-                    onValueChange={(value) => {
-                      setEmulatedDevice(
-                        EMULATED_DEVICES.find(
-                          (device) => device.id === value,
-                        ) ?? null,
-                      );
-                    }}
-                    value={emulatedDevice?.id ?? "actual-size"}
-                  >
-                    <DropdownMenuRadioItem value="actual-size">
-                      Actual size
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuSeparator />
-                    {EMULATED_DEVICES.map((device) => (
-                      <DropdownMenuRadioItem key={device.id} value={device.id}>
-                        {device.label}
-                        <span className="ml-auto text-xs text-muted-foreground">
-                          {device.width}×{device.height}
-                        </span>
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() => {
@@ -640,34 +613,6 @@ export function BrowserPanel({
                   )}
                 </DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => {
-                  guestNow()?.reload({ ignoreCache: true });
-                }}
-              >
-                <ArrowCounterClockwiseIcon className="size-4" />
-                Hard reload
-              </DropdownMenuItem>
-              <DropdownMenuCheckboxItem
-                checked={preferences?.blockAds ?? true}
-                onCheckedChange={setBlocking}
-              >
-                <ShieldCheckIcon className="size-4" />
-                Block ads
-              </DropdownMenuCheckboxItem>
-              {onEditSource && (
-                <DropdownMenuItem onSelect={onEditSource}>
-                  <CodeIcon className="size-4" />
-                  Edit source
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              {inWindow && (
-                <DropdownMenuItem onSelect={toggleBookmark}>
-                  <BookmarkSimpleIcon className="size-4" />
-                  {isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}
-                </DropdownMenuItem>
-              )}
               <DropdownMenuItem
                 onSelect={() => {
                   const current = guestNow();
@@ -725,10 +670,63 @@ export function BrowserPanel({
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={openClearBrowsingData}>
-                <BroomIcon className="size-4" />
-                Clear browsing data…
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <DeviceMobileIcon className="size-4" />
+                  View as
+                  {emulatedDevice && (
+                    <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">
+                      {emulatedDevice.label}
+                    </span>
+                  )}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup
+                    onValueChange={(value) => {
+                      setEmulatedDevice(
+                        EMULATED_DEVICES.find(
+                          (device) => device.id === value,
+                        ) ?? null,
+                      );
+                    }}
+                    value={emulatedDevice?.id ?? "actual-size"}
+                  >
+                    <DropdownMenuRadioItem value="actual-size">
+                      Actual size
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuSeparator />
+                    {EMULATED_DEVICES.map((device) => (
+                      <DropdownMenuRadioItem key={device.id} value={device.id}>
+                        {device.label}
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {device.width}×{device.height}
+                        </span>
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuItem
+                onSelect={() => {
+                  guestNow()?.reload({ ignoreCache: true });
+                }}
+              >
+                <ArrowCounterClockwiseIcon className="size-4" />
+                Hard reload
               </DropdownMenuItem>
+              <DropdownMenuCheckboxItem
+                checked={preferences?.blockAds ?? true}
+                onCheckedChange={setBlocking}
+              >
+                <ShieldCheckIcon className="size-4" />
+                Block ads
+              </DropdownMenuCheckboxItem>
+              {onEditSource && (
+                <DropdownMenuItem onSelect={onEditSource}>
+                  <CodeIcon className="size-4" />
+                  Edit source
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onSelect={() => {
                   guestNow()?.openDevTools();

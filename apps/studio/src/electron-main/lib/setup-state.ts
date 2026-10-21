@@ -3,6 +3,7 @@ import {
   finishedRecord,
   isEveryStepAnswered,
   setupStateFrom,
+  unansweredStep,
 } from "@/electron-main/lib/setup-step";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMachineState } from "@/electron-main/stores/machine/state";
@@ -97,6 +98,19 @@ export function isSetupUp(): boolean {
 /** Records a step as answered, so setup moves past it for good. */
 export function answerSetupStep(step: SetupStep): void {
   writeRecord(answeredStep(readRecord(), step, new Date()));
+}
+
+/**
+ * Goes back from the step setup is on to the one before it, by forgetting
+ * that step's answer. Nothing happens when setup has moved on from `from`
+ * already, or has nothing to go back to.
+ */
+export function backFromSetupStep(from: SetupStep): void {
+  const state = readSetupState();
+  if (state.step !== from || state.back === null) {
+    return;
+  }
+  writeRecord(unansweredStep(readRecord(), state.back));
 }
 
 /** Records setup as finished, with every step this build knows answered. */

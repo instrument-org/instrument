@@ -69,6 +69,40 @@ export function answeredStep(
   };
 }
 
+/**
+ * The step Back returns to from `step`: the nearest one before it that was
+ * answered and would still ask something. A step settled by a fact (`way-in`)
+ * keeps no answer, so Back passes over it. None once setup has finished,
+ * since a step added later is all that is left to ask.
+ */
+export function stepBefore(
+  facts: SetupFacts,
+  record: SetupRecord,
+  step: SetupStep,
+): null | SetupStep {
+  if (record.finishedAt !== undefined) {
+    return null;
+  }
+  return (
+    SETUP_STEPS.slice(0, SETUP_STEPS.indexOf(step))
+      .toReversed()
+      .find(
+        (before) =>
+          record.answered[before] !== undefined &&
+          NEEDED[before](facts, record),
+      ) ?? null
+  );
+}
+
+/** The record with `step`'s answer forgotten, so setup asks it again. */
+export function unansweredStep(
+  record: SetupRecord,
+  step: SetupStep,
+): SetupRecord {
+  const { [step]: _forgotten, ...answered } = record.answered;
+  return { ...record, answered };
+}
+
 /** Every step not answered yet is answered as of finishing. */
 export function finishedRecord(record: SetupRecord, at: Date): SetupRecord {
   const time = at.toISOString();
@@ -95,11 +129,13 @@ export function setupStateFrom({
   skip: boolean;
 }): SetupState {
   if (skip) {
-    return { facts, isNewStepOnly: false, step: null };
+    return { back: null, facts, isNewStepOnly: false, step: null };
   }
+  const step = currentSetupStep(facts, record);
   return {
+    back: step === null ? null : stepBefore(facts, record, step),
     facts,
     isNewStepOnly: isNewStepOnly(facts, record),
-    step: currentSetupStep(facts, record),
+    step,
   };
 }

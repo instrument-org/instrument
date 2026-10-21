@@ -474,6 +474,7 @@ const SCENARIO_KEYS = new Set([
   "description",
   "folder",
   "network",
+  "notificationAnswer",
   "notifications",
   "outputFolder",
   "setup",
@@ -651,8 +652,13 @@ function prepareScenario(name, { keepTabs }) {
 
   return {
     env: {
+      // The folders setup offers, inside the scenario's own folder.
+      INSTRUMENT_SETUP_HOME: `${userDataDir}-home`,
       ...(scenario.notifications && {
         INSTRUMENT_NOTIFICATION_STATUS: scenario.notifications,
+      }),
+      ...(scenario.notificationAnswer && {
+        INSTRUMENT_NOTIFICATION_ANSWER: scenario.notificationAnswer,
       }),
       ...(scenario.network && { INSTRUMENT_NETWORK_STATUS: scenario.network }),
     },

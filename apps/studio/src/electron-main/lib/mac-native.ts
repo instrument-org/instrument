@@ -202,6 +202,28 @@ const NotificationStatusSchema = z.object({
 export type NotificationStatus = z.output<typeof NotificationStatusSchema>;
 
 /**
+ * What the prompt answered in a development build that stands in for macOS
+ * (`INSTRUMENT_NOTIFICATION_ANSWER`), which the status then reports.
+ */
+let devNotificationAnswer: "allowed" | "denied" | undefined;
+
+/**
+ * How a development build's prompt answers in place of macOS, beside
+ * `INSTRUMENT_NOTIFICATION_STATUS`: `allowed`, `denied`, or `clicked`,
+ * which is allowed with the test notification clicked as soon as it shows.
+ */
+export function devNotificationOverride():
+  | "allowed"
+  | "clicked"
+  | "denied"
+  | undefined {
+  const answer = z
+    .enum(["allowed", "clicked", "denied"])
+    .safeParse(process.env.INSTRUMENT_NOTIFICATION_ANSWER);
+  return !app.isPackaged && answer.success ? answer.data : undefined;
+}
+
+/**
  * Where the user stands on notifications: never asked, allowed, denied.
  * `unsupported` off macOS, in a build without the module, and in a dev run
  * that is not an app bundle. A development build takes
@@ -213,7 +235,7 @@ export async function notificationStatus(): Promise<NotificationStatus> {
     process.env.INSTRUMENT_NOTIFICATION_STATUS,
   );
   if (!app.isPackaged && override.success) {
-    return { status: override.data };
+    return { status: devNotificationAnswer ?? override.data };
   }
   const native = loadModule();
   if (!native) {
@@ -235,6 +257,11 @@ export async function requestNotifications(): Promise<{
   error?: string;
   granted: boolean;
 }> {
+  const devAnswer = devNotificationOverride();
+  if (devAnswer !== undefined) {
+    devNotificationAnswer = devAnswer === "denied" ? "denied" : "allowed";
+    return { granted: devNotificationAnswer === "allowed" };
+  }
   const native = loadModule();
   if (!native) {
     return { granted: false };

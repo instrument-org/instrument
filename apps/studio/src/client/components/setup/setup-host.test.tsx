@@ -9,11 +9,18 @@ import { SetupHost } from "./setup-host";
 
 // Setup's toaster reads the theme, which is not under test.
 vi.mock("@/client/components/ui/sonner", () => ({ Toaster: () => null }));
+vi.mock("@/client/components/theme-provider", () => ({
+  useTheme: () => ({ setTheme: () => {}, theme: "light" }),
+}));
 vi.mock("@/client/components/network-status/network-status-pill", () => ({
   SetupNetworkStatusPill: () => null,
 }));
 
-const rpc = vi.hoisted(() => ({ answer: vi.fn(), finish: vi.fn() }));
+const rpc = vi.hoisted(() => ({
+  answer: vi.fn(),
+  back: vi.fn(),
+  finish: vi.fn(),
+}));
 
 // The live state never answers here, so whatever setup draws comes from the
 // preload's read as the window loaded: what keeps a first launch from showing
@@ -33,11 +40,14 @@ vi.mock("@/client/rpc/client", () => {
       preferences: { live: { get: live("preferences", {}) } },
       setup: {
         answer: mutation(rpc.answer),
+        back: mutation(rpc.back),
         finish: mutation(rpc.finish),
         live: { state: live("setup") },
       },
+      user: { live: { me: live("me") } },
       utils: {
         closeWindow: mutation(() => {}),
+        events: { windowFocusChanged: live("windowFocusChanged") },
         live: { windowState: live("windowState", { maximized: false }) },
         minimizeWindow: mutation(() => {}),
         toggleMaximizeWindow: mutation(() => {}),
@@ -46,8 +56,12 @@ vi.mock("@/client/rpc/client", () => {
   };
 });
 
-function loadedWith(step: SetupState["step"]) {
+function loadedWith(
+  step: SetupState["step"],
+  back: SetupState["back"] = null,
+) {
   window.api.initialSetupState = {
+    back,
     facts: {
       folderSettled: true,
       hasInstrumentAccount: false,
@@ -64,6 +78,7 @@ function loadedWith(step: SetupState["step"]) {
 afterEach(() => {
   window.api.initialSetupState = undefined;
   rpc.answer.mockClear();
+  rpc.back.mockClear();
   rpc.finish.mockClear();
 });
 
@@ -86,10 +101,37 @@ describe("SetupHost", () => {
     });
   });
 
-  it("finishes on the last step", async () => {
+  it("offers Back only where there is a step to go back to", async () => {
+    loadedWith("plan");
+    const { unmount } = renderWithDefaultStore(<SetupHost />);
+    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
+    unmount();
+    loadedWith("plan", "welcome-back");
+    renderWithDefaultStore(<SetupHost />);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await vi.waitFor(() => {
+      expect(rpc.back.mock.calls[0]?.[0]).toEqual({ step: "plan" });
+    });
+  });
+
+  it("finishes from All set after the last step, never only answering it", async () => {
     loadedWith("look");
     renderWithDefaultStore(<SetupHost />);
-    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Instrument" }));
+    await vi.waitFor(() => {
+      expect(rpc.finish).toHaveBeenCalled();
+    });
+    expect(rpc.answer).not.toHaveBeenCalled();
+  });
+
+  it("finishes from the only step an update added", async () => {
+    loadedWith("plan");
+    window.api.initialSetupState = {
+      ...window.api.initialSetupState!,
+      isNewStepOnly: true,
+    };
+    renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Finish" }));
     await vi.waitFor(() => {
       expect(rpc.finish).toHaveBeenCalled();

@@ -1,3 +1,4 @@
+import glowSrc from "@/client/assets/setup/glow.svg";
 import { SetupNetworkStatusPill } from "@/client/components/network-status/network-status-pill";
 import { Toaster } from "@/client/components/ui/sonner";
 import { WindowControls } from "@/client/components/window-controls";
@@ -6,10 +7,11 @@ import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { SETUP_STEPS, type SetupStep } from "@/shared/setup";
 import { useMutation } from "@tanstack/react-query";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 
-import { isLastSetupStep, SETUP_PAGES } from "./setup-pages";
+import { SETUP_PAGES } from "./setup-pages";
 import { useSetupState } from "./use-setup-state";
 
 /** The toaster setup's own toasts go to (`toasterId`), the one shown over it. */
@@ -28,12 +30,20 @@ const DevPanel = lazy(() =>
  * command menu and back and forward wait until it is done.
  */
 export function SetupHost() {
-  const step = useSetupState()?.step ?? null;
+  const state = useSetupState();
+  // The step a page keeps on screen past the moment its facts settle it,
+  // until that page answers or finishes (`hold`).
+  const [held, setHeld] = useState<null | {
+    isNewStepOnly: boolean;
+    step: SetupStep;
+  }>(null);
+  const step = held?.step ?? state?.step ?? null;
   const isDeveloperMode = useDeveloperMode();
   useHoldWindow(step !== null);
   const { mutate: answer } = useMutation(
     rpcClient.setup.answer.mutationOptions(),
   );
+  const { mutate: back } = useMutation(rpcClient.setup.back.mutationOptions());
   const { mutate: finish } = useMutation(
     rpcClient.setup.finish.mutationOptions(),
   );
@@ -42,16 +52,27 @@ export function SetupHost() {
     return null;
   }
   const Page = SETUP_PAGES[step];
+  const isNewStepOnly = held?.isNewStepOnly ?? state?.isNewStepOnly ?? false;
+  // Back answers for the step setup is on, so a page held past its step
+  // has nowhere to go back to.
+  const backTo = state?.step === step ? (state.back ?? null) : null;
   return (
     <div
-      className="absolute inset-0 z-50 flex flex-col bg-ground"
+      className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-linear-to-b from-brand-50 to-gray-100 to-50% dark:from-brand-950 dark:to-background"
       data-testid="setup"
     >
+      <img
+        alt=""
+        aria-hidden
+        className="pointer-events-none absolute top-[-442px] left-1/2 h-220 w-[1123px] max-w-none -translate-x-1/2 dark:hidden"
+        draggable={false}
+        src={glowSrc}
+      />
       {/* The window's band, which drags it; the system draws the lights at
         its left on macOS, and setup draws minimize and close elsewhere. */}
       <div
         className={cn(
-          "flex shrink-0 items-center justify-end gap-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]",
+          "relative flex shrink-0 items-center justify-end gap-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]",
           isMacOS() && "pr-2",
         )}
         style={{ height: `${TOOLBAR_HEIGHT}px` }}
@@ -64,13 +85,30 @@ export function SetupHost() {
         )}
         <WindowControls />
       </div>
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         <Page
-          isLast={isLastSetupStep(step)}
+          hold={() => {
+            setHeld({ isNewStepOnly, step });
+          }}
+          // A step added after finishing is the only one left, so its way
+          // on is the end of setup.
+          isLast={isNewStepOnly || SETUP_STEPS.at(-1) === step}
+          isNewStepOnly={isNewStepOnly}
+          key={step}
+          onBack={
+            backTo === null
+              ? undefined
+              : () => {
+                  setHeld(null);
+                  back({ step });
+                }
+          }
           onContinue={() => {
+            setHeld(null);
             answer({ step });
           }}
           onFinish={() => {
+            setHeld(null);
             finish(undefined);
           }}
           step={step}

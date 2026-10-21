@@ -8,6 +8,8 @@ import {
   isEveryStepAnswered,
   isNewStepOnly,
   setupStateFrom,
+  stepBefore,
+  unansweredStep,
 } from "./setup-step";
 
 /** A first launch on a Mac nobody has asked about notifications. */
@@ -315,6 +317,7 @@ describe("setupStateFrom", () => {
     expect(setupStateFrom({ facts: NEW, record: EMPTY, skip: true }))
       .toMatchInlineSnapshot(`
       {
+        "back": null,
         "facts": {
           "folderSettled": false,
           "hasInstrumentAccount": false,
@@ -330,5 +333,36 @@ describe("setupStateFrom", () => {
     expect(
       setupStateFrom({ facts: NEW, record: EMPTY, skip: false }).step,
     ).toBe("way-in");
+  });
+});
+
+describe("stepBefore", () => {
+  const signedIn: SetupFacts = {
+    ...NEW,
+    hasInstrumentAccount: true,
+    hasInstrumentPlan: true,
+    hasUsableAI: true,
+  };
+
+  it("passes over a step a fact settled and one not needed", () => {
+    // The plan was answered before a trial made it unneeded; way-in keeps
+    // no answer at all.
+    const record = answered("plan", "model");
+    expect(stepBefore(signedIn, record, "folder")).toBe("model");
+    expect(stepBefore(signedIn, record, "model")).toBeNull();
+  });
+
+  it("goes back to an answered step that would ask again", () => {
+    const keyOnly = { ...NEW, hasUsableAI: true };
+    const record = answered("free-account");
+    expect(stepBefore(keyOnly, record, "model")).toBe("free-account");
+    expect(currentSetupStep(keyOnly, unansweredStep(record, "free-account"))).toBe(
+      "free-account",
+    );
+  });
+
+  it("has nowhere to go once setup finished", () => {
+    const record = { ...answered("model"), finishedAt: AT.toISOString() };
+    expect(stepBefore(signedIn, record, "notifications")).toBeNull();
   });
 });

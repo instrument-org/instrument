@@ -1,0 +1,232 @@
+import { AIProviderIcon } from "@/client/components/ai-provider-icon";
+import { ModelMakerIcon } from "@/client/components/model-maker-icon";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/client/components/ui/input-group";
+import { RadioGroup } from "@/client/components/ui/radio-group";
+import { Spinner } from "@/client/components/ui/spinner";
+import { connectionsOf } from "@/client/lib/model-picker-rows";
+import { rpcClient } from "@/client/rpc/client";
+import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
+import { OUR_MODELS } from "@instrument-org/shared";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+
+import { ModelGroupLabel, ModelRow } from "./kit/model-row";
+import { SetupFooter, SetupPage } from "./kit/setup-page";
+import {
+  choosableModels,
+  isShortList,
+  longListGroups,
+  makerOf,
+  recommendedModel,
+  shortList,
+} from "./model-choices";
+import { type SetupPageProps } from "./setup-page-props";
+
+/** How long the list may load before Continue becomes a skip. */
+const SLOW_LIST_MS = 10_000;
+
+const LATER =
+  "We'll use the one you pick for new chats, and you can change it any time.";
+
+/**
+ * The main model (frames 04, 28 and 29): every model the connections list,
+ * as one short list or, past a few, a searchable box that opens on
+ * suggestions. The recommended row is what the default would have been, and
+ * Continue makes the one picked the default.
+ */
+export function ModelPage({ onBack, onContinue }: SetupPageProps) {
+  const { data: list, isLoading } = useQuery(
+    rpcClient.gateway.models.live.list.experimental_liveOptions(),
+  );
+  const { data: defaultURI } = useQuery(
+    rpcClient.preferences.live.defaultModelURI.experimental_liveOptions(),
+  );
+  const { isPending, mutate: saveDefault } = useMutation(
+    rpcClient.preferences.setDefaultModelURI.mutationOptions(),
+  );
+  const models = choosableModels(list?.models ?? []);
+  const recommended = recommendedModel(models, defaultURI);
+  const [picked, setPicked] = useState<string | undefined>(undefined);
+  const chosen = picked ?? recommended?.uri;
+  const isShort = isShortList(models);
+  // A list still loading after a while offers a way on, so it never traps.
+  const [isSlow, setIsSlow] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setIsSlow(true);
+    }, SLOW_LIST_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  const connections = connectionsOf(models);
+  const [only] = connections;
+  const subtitle =
+    connections.length === 1 && only?.isOurs
+      ? `Your plan includes all of these. ${LATER}`
+      : connections.length === 1 && only
+        ? `${only.name} is connected${isShort ? "" : `, with ${String(models.length)} models ready`}. ${LATER}`
+        : LATER;
+
+  const save = () => {
+    const model = models.find((candidate) => candidate.uri === chosen);
+    if (!model) {
+      // Nothing listed to pick from: moving on leaves the default as it is.
+      onContinue();
+      return;
+    }
+    saveDefault(
+      { modelURI: model.uri },
+      {
+        onSuccess: () => {
+          onContinue();
+        },
+      },
+    );
+  };
+
+  const rowProps = (model: AIGatewayModel.Type) => ({
+    icon: <ModelIcon model={model} />,
+    id: `setup-model-${model.uri}`,
+    isRecommended: model === recommended,
+    isSelected: model.uri === chosen,
+    name: model.name.trim(),
+    sub: model.family,
+    value: model.uri,
+  });
+
+  return (
+    <SetupPage
+      footer={
+        <SetupFooter
+          next={isLoading ? "off" : models.length === 0 ? "quiet" : "primary"}
+          onBack={onBack}
+          onContinue={save}
+          pending={isPending}
+        />
+      }
+      subtitle={subtitle}
+      title="Pick your main model"
+    >
+      <RadioGroup
+        aria-label="Main model"
+        className="mt-7 gap-0"
+        onValueChange={setPicked}
+        value={chosen ?? ""}
+      >
+        {isLoading && !isSlow ? (
+          <div className="flex h-24 w-140 items-center justify-center rounded-2xl border bg-card">
+            <Spinner />
+          </div>
+        ) : models.length === 0 ? (
+          <p className="w-140 rounded-2xl border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+            Your models haven't loaded yet. You can pick one later in the reply
+            box.
+          </p>
+        ) : isShort ? (
+          <div className="flex w-140 max-w-full flex-col rounded-2xl border bg-card p-2">
+            {shortList(models, recommended).map((model, index) => (
+              <div key={model.uri}>
+                {index > 0 && (
+                  <div className="ml-13 h-px bg-gray-100 dark:bg-white/5" />
+                )}
+                <ModelRow {...rowProps(model)} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <LongList
+            count={models.length}
+            groups={(query) => longListGroups({ models, query, recommended })}
+            rowProps={rowProps}
+          />
+        )}
+      </RadioGroup>
+    </SetupPage>
+  );
+}
+
+/** Frame 28's box: search across the top, and the groups scrolling under it. */
+function LongList({
+  count,
+  groups,
+  rowProps,
+}: {
+  count: number;
+  groups: (query: string) => ReturnType<typeof longListGroups>;
+  rowProps: (model: AIGatewayModel.Type) => Parameters<typeof ModelRow>[0];
+}) {
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  // The search chord takes this page's search, as it takes the app's own.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "l"
+      ) {
+        event.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+  const shown = groups(query);
+  return (
+    <div className="flex h-95 w-140 max-w-full flex-col overflow-hidden rounded-2xl border bg-card shadow-xs">
+      <div className="border-b border-gray-100 p-2 dark:border-white/5">
+        <InputGroup className="rounded-lg bg-black/5 bg-none shadow-none dark:bg-white/5">
+          <InputGroupAddon>
+            <MagnifyingGlassIcon className="text-foreground" />
+          </InputGroupAddon>
+          <InputGroupInput
+            aria-label="Search models"
+            className="bg-none text-sm placeholder:text-gray-400"
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
+            placeholder={`Search ${String(count)} models`}
+            ref={searchRef}
+            value={query}
+          />
+        </InputGroup>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {shown.length === 0 ? (
+          <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+            No models match “{query.trim()}”.
+          </p>
+        ) : (
+          shown.map((group) => (
+            <div key={group.label}>
+              <ModelGroupLabel>{group.label}</ModelGroupLabel>
+              {group.models.map((model) => (
+                <ModelRow key={model.uri} {...rowProps(model)} />
+              ))}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ModelIcon({ model }: { model: AIGatewayModel.Type }) {
+  return model.providerId === OUR_MODELS.text.id ? (
+    <AIProviderIcon colored type={OUR_MODELS.providerType} />
+  ) : (
+    <ModelMakerIcon author={makerOf(model)} />
+  );
+}

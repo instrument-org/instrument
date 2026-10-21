@@ -11,7 +11,7 @@ import { MainModelList, useMainModelChoice } from "./model-page";
 
 function model(canonicalId: string, name: string) {
   const params = {
-    provider: "openrouter",
+    provider: "openrouter" as const,
     providerConfigId: AIProviderConfigIdSchema.parse("openrouter"),
   };
   return AIGatewayModel.Schema.parse({

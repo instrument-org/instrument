@@ -2,6 +2,7 @@ import { noteHostedRefusal } from "@/electron-main/lib/hosted-features";
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { systemCountry } from "@/electron-main/lib/system-country";
 import { getToken } from "@/electron-main/platform-api/utils";
+import { PlanRefusalResponseSchema } from "@/shared/billing";
 import {
   type PlatformSearchRefusal,
   type WebSearchClient,
@@ -13,16 +14,6 @@ import { getPlatformApiHeaders } from "./headers";
 
 const ErrorResponseSchema = z.object({
   error: z.string(),
-});
-
-// What the platform refuses a search with when the account's plan does not
-// cover it: no plan, or the free allowance spent until `resetsAt`.
-const RefusalResponseSchema = z.object({
-  error: z.object({
-    code: z.enum(["subscription-required", "usage-limit-exceeded"]),
-    reason: z.string().optional(),
-    resetsAt: z.string().optional(),
-  }),
 });
 
 export const searchWeb: WebSearchClient = async ({ input, signal }) => {
@@ -67,7 +58,7 @@ export const searchWeb: WebSearchClient = async ({ input, signal }) => {
       if (parsedError.success) {
         errorMessage = parsedError.data.error;
       }
-      const parsedRefusal = RefusalResponseSchema.safeParse(errorJson);
+      const parsedRefusal = PlanRefusalResponseSchema.safeParse(errorJson);
       if (parsedRefusal.success) {
         refusal = parsedRefusal.data.error;
       }

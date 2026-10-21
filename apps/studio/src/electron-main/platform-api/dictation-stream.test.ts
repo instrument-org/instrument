@@ -34,7 +34,7 @@ const mockPlatformApiBaseUrl = vi.mocked(platformApiBaseUrl);
  * how it was asked, and answers the way `answer` says.
  */
 async function fakeApi(
-  answer: "allowance" | "words" | ((socket: import("ws").WebSocket) => void),
+  answer: "refused" | "words" | ((socket: import("ws").WebSocket) => void),
 ) {
   const received: (number | string)[] = [];
   const asked: { headers: Record<string, unknown>; url?: string }[] = [];
@@ -42,16 +42,18 @@ async function fakeApi(
   const server = new WebSocketServer({ noServer: true });
   http.on("upgrade", (request, socket, head) => {
     asked.push({ headers: request.headers, url: request.url });
-    if (answer === "allowance") {
-      // As the API refuses before upgrading: a typed error body.
+    if (answer === "refused") {
+      // As billing refuses before upgrading: a typed error body.
       const body = JSON.stringify({
         error: {
-          code: "dictation-allowance-reached",
-          resetsAt: "2026-10-16T00:00:00.000Z",
+          code: "subscription-required",
+          message: "Choose a plan to keep going.",
+          reason: "no-plan",
+          retryable: false,
         },
       });
       socket.end(
-        `HTTP/1.1 429 Too Many Requests\r\ncontent-type: application/json\r\ncontent-length: ${body.length}\r\n\r\n${body}`,
+        `HTTP/1.1 402 Payment Required\r\ncontent-type: application/json\r\ncontent-length: ${body.length}\r\n\r\n${body}`,
       );
       return;
     }
@@ -186,8 +188,8 @@ describe("listenForDictation", () => {
     `);
   });
 
-  it("says the allowance is used up when the API refuses the socket for it", async () => {
-    api = await fakeApi("allowance");
+  it("passes on billing's refusal when the API refuses the socket for it", async () => {
+    api = await fakeApi("refused");
 
     const events = await listen([]);
 
@@ -195,13 +197,30 @@ describe("listenForDictation", () => {
       [
         {
           "failure": {
-            "kind": "allowance-reached",
-            "resetsAt": "2026-10-16T00:00:00.000Z",
+            "kind": "billing-refused",
+            "refusal": {
+              "code": "subscription-required",
+              "reason": "no-plan",
+            },
           },
           "type": "unavailable",
         },
       ]
     `);
+  });
+
+  it("passes on an end billing's limit called mid-take", async () => {
+    api = await fakeApi((socket) => {
+      socket.send(
+        JSON.stringify({ complete: true, reason: "limit", type: "end" }),
+      );
+      socket.close(1000, "");
+    });
+
+    expect(await listen([], { stop: false })).toEqual([
+      { id: "<id>", type: "open" },
+      { complete: true, reason: "limit", type: "end" },
+    ]);
   });
 
   it("reports a stream that closed before its end as lost", async () => {

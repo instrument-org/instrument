@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { type PlanRefusal } from "./billing";
+
 /**
  * Where a dictation was made, sent with it so the API can say which surfaces
  * people dictate into.
@@ -50,11 +52,12 @@ export type DictationMicrophone = z.output<typeof DictationMicrophoneSchema>;
 
 /**
  * Why a recording didn't come back as text, in the terms the app acts on:
- * whether to ask for a sign-in, keep the recording for a retry, or say when
- * dictation comes back.
+ * whether to ask for a sign-in, keep the recording for a retry, or say what
+ * billing refused it for.
  */
 export type DictationFailure =
-  | { kind: "allowance-reached"; resetsAt?: string }
+  /** Billing refused it: no plan, or a usage window spent. */
+  | { kind: "billing-refused"; refusal: PlanRefusal }
   | { kind: "canceled" }
   | { kind: "connection" }
   /** The API heard no audio in the recording. */
@@ -78,7 +81,8 @@ export type DictationResult =
  * when the stream could not open, so the take is uploaded at Stop. `text` is
  * the words so far: an interim one replaces the last interim, a final one
  * settles. `end` comes once, after Stop, saying whether the stream heard the
- * whole take; `lost` when it went away without one.
+ * whole take, and why it ended: Stop, a billing limit reached mid-take, or a
+ * failure. `lost` when it went away without one.
  */
 export type DictationStreamEvent =
   | { failure: DictationFailure; type: "unavailable" }
@@ -86,8 +90,7 @@ export type DictationStreamEvent =
   | { id: string; type: "open" }
   | {
       complete: boolean;
-      reason: "allowance" | "failed" | "stopped";
-      resetsAt?: string;
+      reason: "failed" | "limit" | "stopped";
       type: "end";
     }
   | { type: "lost" };

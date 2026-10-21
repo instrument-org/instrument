@@ -1,5 +1,6 @@
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { getToken } from "@/electron-main/platform-api/utils";
+import { PlanRefusalResponseSchema } from "@/shared/billing";
 import {
   type DictationFailure,
   type DictationLanguage,
@@ -18,22 +19,17 @@ const TRANSCRIBE_TIMEOUT_MS = 180_000;
 
 const TranscriptSchema = z.object({ text: z.string() });
 
-/** The API answers in one of two shapes: a typed error, or a plain message. */
-const ErrorSchema = z.object({
-  error: z.union([
-    z.string(),
-    z.object({
-      code: z.string(),
-      resetsAt: z.string().optional(),
-    }),
-  ]),
-});
+/** A refusal said in a plain message rather than a typed error. */
+const MessageSchema = z.object({ error: z.string() });
 
 function failed(failure: DictationFailure): DictationResult {
   return { failure, ok: false };
 }
 
-/** What a refused request means for the person, from its status and the typed error body. */
+/**
+ * What a refused request means for the person, from its status and body.
+ * Billing's refusals are read with the same schema search reads them with.
+ */
 export function dictationFailureOf(
   status: number,
   body: string,
@@ -44,7 +40,11 @@ export function dictationFailureOf(
   } catch {
     parsed = undefined;
   }
-  const error = ErrorSchema.safeParse(parsed).data?.error;
+  const refusal = PlanRefusalResponseSchema.safeParse(parsed).data?.error;
+  if (refusal) {
+    return { kind: "billing-refused", refusal };
+  }
+  const message = MessageSchema.safeParse(parsed).data?.error;
   if (status === 401) {
     return { kind: "signed-out" };
   }
@@ -52,12 +52,9 @@ export function dictationFailureOf(
     return { kind: "too-large" };
   }
   if (status === 429) {
-    return typeof error === "object" &&
-      error.code === "dictation-allowance-reached"
-      ? { kind: "allowance-reached", resetsAt: error.resetsAt }
-      : { kind: "rate-limited" };
+    return { kind: "rate-limited" };
   }
-  if (status === 400 && error === "No audio") {
+  if (status === 400 && message === "No audio") {
     return { kind: "no-audio" };
   }
   if (status === 415) {

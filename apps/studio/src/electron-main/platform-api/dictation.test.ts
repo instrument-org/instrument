@@ -119,16 +119,45 @@ describe("transcribeDictation", () => {
       429,
       {
         error: {
-          code: "dictation-allowance-reached",
-          message: "Come back later",
+          code: "usage-limit-exceeded",
+          message: "You've reached your limit",
           resetsAt: "2026-10-14T00:00:00.000Z",
           retryable: false,
+          window: "5h",
+          windows: [],
         },
       },
       {
-        kind: "allowance-reached",
-        resetsAt: "2026-10-14T00:00:00.000Z",
+        kind: "billing-refused",
+        refusal: {
+          code: "usage-limit-exceeded",
+          resetsAt: "2026-10-14T00:00:00.000Z",
+        },
       },
+    ],
+    [
+      402,
+      {
+        error: {
+          code: "subscription-required",
+          message: "Choose a plan",
+          reason: "trial-ended",
+        },
+      },
+      {
+        kind: "billing-refused",
+        refusal: { code: "subscription-required", reason: "trial-ended" },
+      },
+    ],
+    [
+      429,
+      { error: { code: "concurrency-limit", retryable: true } },
+      { kind: "rate-limited" },
+    ],
+    [
+      503,
+      { error: { code: "meter-unavailable", retryable: true } },
+      { kind: "server" },
     ],
     [
       413,

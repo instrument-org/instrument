@@ -41,7 +41,7 @@ const BillingStatusSchema = z.object({
   features: z
     .object({
       decisions: FeatureAvailabilitySchema,
-      /** Not reported yet: dictation is metered apart from the plans. */
+      /** Absent from a platform that predates dictation's metering. */
       dictation: FeatureAvailabilitySchema.optional(),
       models: FeatureAvailabilitySchema,
       search: FeatureAvailabilitySchema.extend({

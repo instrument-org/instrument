@@ -122,7 +122,7 @@ function LoginModalContent({
           heading={
             props?.reason === "dictation"
               ? {
-                  subtitle: `Dictation is free with an ${APP_NAME} account.`,
+                  subtitle: `Dictation comes with an ${APP_NAME} account.`,
                   title: "Log in to dictate",
                 }
               : undefined

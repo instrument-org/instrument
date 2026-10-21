@@ -19,8 +19,7 @@ const ServerMessageSchema = z.discriminatedUnion("type", [
   z.object({ final: z.boolean(), text: z.string(), type: z.literal("text") }),
   z.object({
     complete: z.boolean(),
-    reason: z.enum(["allowance", "failed", "stopped"]),
-    resetsAt: z.string().optional(),
+    reason: z.enum(["failed", "limit", "stopped"]),
     type: z.literal("end"),
   }),
 ]);

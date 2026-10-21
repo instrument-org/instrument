@@ -2,18 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   describeDictationProblem,
+  type DictationBilling,
   type DictationProblem,
-  resetPhrase,
 } from "./dictation-problems";
-
-// 2:30 PM on a Tuesday in New York.
-const now = new Date("2026-10-13T18:30:00.000Z");
-const timeZone = "America/New_York";
 
 describe("describeDictationProblem", () => {
   const kinds: DictationProblem["kind"][] = [
-    "allowance-reached",
-    "allowance-used-up",
     "capture-failed",
     "connection",
     "microphone-busy",
@@ -32,28 +26,22 @@ describe("describeDictationProblem", () => {
   it("says every problem in a toast, keeping the recording only where a retry is offered", () => {
     const notices = Object.fromEntries(
       kinds.map((kind) => {
-        const problem: DictationProblem =
-          kind === "allowance-reached" || kind === "allowance-used-up"
-            ? { kind, resetsAt: "2026-10-14T00:00:00.000Z" }
-            : { kind };
+        // `as`: every kind listed here needs nothing beside it.
+        const problem = { kind } as DictationProblem;
         const notice = describeDictationProblem(problem, {
           canOpenSettings: true,
-          now,
-          timeZone,
         });
         expect(notice.keepsRecording).toBe(
           notice.action === "retry" || notice.action === "sign-in",
         );
         return [
           kind,
-          `${notice.tone}: ${notice.title} / ${notice.description ?? ""}${notice.action ? ` [${notice.action}]` : ""}`,
+          `${notice.tone}: ${notice.title} / ${notice.description ?? ""}${typeof notice.action === "string" ? ` [${notice.action}]` : ""}`,
         ];
       }),
     );
     expect(notices).toMatchInlineSnapshot(`
       {
-        "allowance-reached": "info: You've used today's dictation / Your recording is safe, and you can send it at 8:00 PM. [retry]",
-        "allowance-used-up": "info: You've used today's dictation / You can dictate again at 8:00 PM.",
         "capture-failed": "error: Couldn't start recording / Something went wrong with the microphone. Try again.",
         "connection": "error: Couldn't reach Instrument / Your recording is safe. Check your connection, then try again. [retry]",
         "microphone-busy": "error: Couldn't start recording / Another app is using the microphone. Close it, then try again.",
@@ -81,14 +69,86 @@ describe("describeDictationProblem", () => {
   });
 });
 
-describe("resetPhrase", () => {
-  it.each([
-    ["later today", "2026-10-14T00:00:00.000Z", "at 8:00 PM"],
-    ["tomorrow", "2026-10-14T13:00:00.000Z", "tomorrow at 9:00 AM"],
-    ["further out", "2026-10-16T13:00:00.000Z", "on Friday at 9:00 AM"],
-    ["no time given", undefined, "tomorrow"],
-    ["a time that doesn't parse", "soon", "tomorrow"],
-  ])("%s", (_case, resetsAt, phrase) => {
-    expect(resetPhrase(resetsAt, { now, timeZone })).toBe(phrase);
+describe("billing refusals", () => {
+  const refusedAt = new Date("2026-10-13T18:30:00.000Z");
+  const spentPlan = {
+    offer: {
+      plans: [
+        { allowance: { multiple: 1, windows: [] }, key: "pro" },
+        { allowance: { multiple: 4, windows: [] }, key: "max" },
+      ],
+    },
+    refusedAt,
+    status: {
+      canSubscribe: false,
+      plan: "pro",
+      subscription: { cancelAtPeriodEnd: false, plan: "pro", status: "active" },
+      trial: { state: "ended" },
+      windows: [{ key: "5h", percentUsed: 100 }],
+    },
+    statusReadAt: refusedAt.getTime() + 1,
+    // `as`: only the fields the billing notice reads.
+  } as unknown as DictationBilling;
+
+  const cases: [string, DictationProblem, DictationBilling | undefined][] = [
+    [
+      "upload over the plan's limit",
+      { kind: "billing-refused", refusal: { code: "usage-limit-exceeded" } },
+      spentPlan,
+    ],
+    [
+      "upload with no plan",
+      {
+        kind: "billing-refused",
+        refusal: { code: "subscription-required", reason: "no-plan" },
+      },
+      undefined,
+    ],
+    [
+      "upload with a trial to start",
+      {
+        kind: "billing-refused",
+        refusal: { code: "subscription-required", reason: "trial-available" },
+      },
+      undefined,
+    ],
+    [
+      "stream refused for a failed payment",
+      {
+        kind: "billing-stopped",
+        refusal: { code: "subscription-required", reason: "payment-failed" },
+      },
+      undefined,
+    ],
+    ["take ended, billing silent", { kind: "billing-stopped" }, spentPlan],
+  ];
+
+  it("says each in billing's words, keeping only an upload's recording", () => {
+    const notices = Object.fromEntries(
+      cases.map(([name, problem, billing]) => {
+        const notice = describeDictationProblem(problem, {
+          billing,
+          canOpenSettings: true,
+        });
+        expect(notice.keepsRecording).toBe(problem.kind === "billing-refused");
+        const action =
+          typeof notice.action === "object"
+            ? `${notice.action.kind}: ${notice.action.label}`
+            : notice.action;
+        return [
+          name,
+          `${notice.title} / ${notice.description ?? ""}${action ? ` [${action}]` : ""}`,
+        ];
+      }),
+    );
+    expect(notices).toMatchInlineSnapshot(`
+      {
+        "stream refused for a failed payment": "Your payment didn't go through. / Update your card to keep going. [update-card: Update card]",
+        "take ended, billing silent": "You've reached your plan's limit for now. /  [upgrade: Upgrade]",
+        "upload over the plan's limit": "You've reached your plan's limit for now. / It resets soon. Your recording is safe, so you can send it later. [upgrade: Upgrade]",
+        "upload with a trial to start": "Start your free trial to use Instrument's models. / Your recording is safe, so you can send it later. [start-trial: Start free trial]",
+        "upload with no plan": "Instrument needs a plan. / Your recording is safe, so you can send it later. [choose-plan: Choose a plan]",
+      }
+    `);
   });
 });

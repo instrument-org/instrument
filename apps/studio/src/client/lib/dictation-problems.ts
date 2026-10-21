@@ -1,11 +1,21 @@
+import {
+  type BillingNoticeAction,
+  noticeCopy,
+  refusalNotice,
+} from "@/client/lib/billing";
+import { type RPCOutput } from "@/client/rpc/client";
+import { type PlanRefusal } from "@/shared/billing";
 import { type DictationFailure } from "@/shared/dictation";
 import { APP_NAME } from "@instrument-org/shared";
 
 /** Everything that can stop a dictation from landing as text. */
 export type DictationProblem =
   | Exclude<DictationFailure, { kind: "canceled" | "no-audio" }>
-  /** The mic was pressed with today's dictation already used up. */
-  | { kind: "allowance-used-up"; resetsAt?: string }
+  /**
+   * Billing refused the stream before the take, or ended it mid-take, so
+   * nothing is held. `refusal` is what billing said, when it said.
+   */
+  | { kind: "billing-stopped"; refusal?: PlanRefusal }
   | { kind: "capture-failed" }
   | { kind: "microphone-busy" }
   | { kind: "microphone-refused" }
@@ -15,7 +25,12 @@ export type DictationProblem =
 
 /** What a toast says about a problem, and what it offers to do next. */
 export type DictationNotice = {
-  action?: "open-settings" | "retry" | "sign-in";
+  action?:
+    | "open-settings"
+    | "retry"
+    | "sign-in"
+    /** Billing's own way forward, as the chat's billing note offers it. */
+    | { kind: BillingNoticeAction; label: string };
   description?: string;
   /** Whether the recording is held for the retry the toast offers. */
   keepsRecording: boolean;
@@ -24,67 +39,67 @@ export type DictationNotice = {
 };
 
 /**
- * When dictation comes back, in the reader's own time: a time alone for later
- * today, "tomorrow at" for tomorrow, and a weekday past that.
+ * The account as billing described it after a refusal, so the notice says
+ * what the chat's billing note would. `statusReadAt` says whether `status`
+ * was read after `refusedAt`, and only then is it trusted.
  */
-export function resetPhrase(
-  resetsAt: string | undefined,
-  { now = new Date(), timeZone }: { now?: Date; timeZone?: string } = {},
-): string {
-  const at = resetsAt === undefined ? undefined : new Date(resetsAt);
-  if (at === undefined || Number.isNaN(at.getTime())) {
-    return "tomorrow";
-  }
-  const time = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone,
-  }).format(at);
-  const dayOf = (date: Date) =>
-    new Intl.DateTimeFormat("en-US", {
-      day: "numeric",
-      month: "numeric",
-      timeZone,
-      year: "numeric",
-    }).format(date);
-  if (dayOf(at) === dayOf(now)) {
-    return `at ${time}`;
-  }
-  if (dayOf(at) === dayOf(new Date(now.getTime() + 24 * 60 * 60 * 1000))) {
-    return `tomorrow at ${time}`;
-  }
-  const weekday = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    weekday: "long",
-  }).format(at);
-  return `on ${weekday} at ${time}`;
+export type DictationBilling = {
+  offer?: RPCOutput["billing"]["offer"];
+  refusedAt: Date;
+  status?: RPCOutput["billing"]["status"];
+  statusReadAt: number;
+};
+
+/**
+ * A billing refusal in the words the chat's billing note uses for it. A
+ * refusal billing didn't describe reads as a spent usage window, without
+ * the reset time it would have named, and is never taken as lifted.
+ */
+function describeBillingRefusal(
+  refusal: PlanRefusal | undefined,
+  kept: boolean,
+  billing: DictationBilling | undefined,
+): DictationNotice {
+  const now = billing?.refusedAt ?? new Date();
+  const notice = refusalNotice({
+    now,
+    offer: billing?.offer,
+    refusal: refusal ?? { code: "usage-limit-exceeded" },
+    refusedAt: now,
+    status: billing?.status,
+    statusReadAt: refusal ? (billing?.statusReadAt ?? 0) : 0,
+  });
+  const copy = notice
+    ? noticeCopy(notice, now)
+    : { title: "Couldn't transcribe that" };
+  const { action } = copy;
+  const line = refusal ? copy.line : undefined;
+  return {
+    action: action?.kind === "continue" ? (kept ? "retry" : undefined) : action,
+    description: kept
+      ? [line, "Your recording is safe, so you can send it later."]
+          .filter(Boolean)
+          .join(" ")
+      : line,
+    keepsRecording: kept,
+    title: copy.title,
+    tone: "info",
+  };
 }
 
 export function describeDictationProblem(
   problem: DictationProblem,
   {
+    billing,
     canOpenSettings,
-    now,
-    timeZone,
-  }: { canOpenSettings: boolean; now?: Date; timeZone?: string },
+  }: { billing?: DictationBilling; canOpenSettings: boolean },
 ): DictationNotice {
   switch (problem.kind) {
-    case "allowance-reached": {
-      return {
-        action: "retry",
-        description: `Your recording is safe, and you can send it ${resetPhrase(problem.resetsAt, { now, timeZone })}.`,
-        keepsRecording: true,
-        title: "You've used today's dictation",
-        tone: "info",
-      };
+    case "billing-refused": {
+      return describeBillingRefusal(problem.refusal, true, billing);
     }
-    case "allowance-used-up": {
-      return {
-        description: `You can dictate again ${resetPhrase(problem.resetsAt, { now, timeZone })}.`,
-        keepsRecording: false,
-        title: "You've used today's dictation",
-        tone: "info",
-      };
+    case "billing-stopped": {
+      return describeBillingRefusal(problem.refusal, false, billing);
     }
     case "capture-failed": {
       return {

@@ -1,8 +1,17 @@
 import { openLogin } from "@/client/atoms/login-modal";
+import { openPlanSheet } from "@/client/atoms/plan-sheet";
+import { useStartTrial } from "@/client/components/billing/use-start-trial";
+import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
+import {
+  type BillingNoticeAction,
+  featurePause,
+  upgradePlan,
+} from "@/client/lib/billing";
 import { MicCapture, MicrophoneError } from "@/client/lib/dictation-capture";
 import { resolveMicrophone } from "@/client/lib/dictation-microphone";
 import {
   describeDictationProblem,
+  type DictationBilling,
   type DictationProblem,
 } from "@/client/lib/dictation-problems";
 import { playDictationCue } from "@/client/lib/dictation-sounds";
@@ -13,9 +22,9 @@ import {
   type DictationStreamEvent,
   type DictationSurface,
 } from "@/shared/dictation";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { safe } from "@orpc/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 /** A recording stops itself here. */
@@ -180,6 +189,9 @@ export function useDictation({
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
+  const queryClient = useQueryClient();
+  const openLink = useOpenExternalLink();
+  const startTrial = useStartTrial();
 
   // Read when a recording starts, not when this rendered.
   const latest = useRef({ hasToken, onText, preferences });
@@ -244,12 +256,85 @@ export function useDictation({
     ]);
   };
 
-  const report = (problem: DictationProblem, retry?: () => void) => {
+  /**
+   * The account as billing describes it now, read after a refusal so its
+   * toast says what the chat's billing note would.
+   */
+  const readBilling = async (): Promise<DictationBilling> => {
+    const refusedAt = new Date();
+    const [status, offer] = await Promise.all([
+      queryClient
+        .fetchQuery({
+          ...rpcClient.billing.status.queryOptions(),
+          staleTime: 0,
+        })
+        .catch(() => undefined),
+      queryClient
+        .fetchQuery(rpcClient.billing.offer.queryOptions())
+        .catch(() => undefined),
+    ]);
+    return { offer, refusedAt, status, statusReadAt: Date.now() };
+  };
+
+  const actOnBilling = (
+    kind: BillingNoticeAction,
+    billing: DictationBilling | undefined,
+  ) => {
+    switch (kind) {
+      case "choose-plan": {
+        openPlanSheet();
+        break;
+      }
+      case "start-trial": {
+        startTrial.mutate(undefined);
+        break;
+      }
+      case "contact-support": {
+        openLink(SUPPORT_URL);
+        break;
+      }
+      case "continue": {
+        break;
+      }
+      case "update-card": {
+        void safe(rpcClient.billing.openPortal.call());
+        break;
+      }
+      case "upgrade": {
+        openPlanSheet({
+          preselect: upgradePlan(billing?.offer, billing?.status)?.key,
+        });
+        break;
+      }
+      default: {
+        kind satisfies never;
+      }
+    }
+  };
+
+  const report = (
+    problem: DictationProblem,
+    retry?: () => void,
+    billing?: DictationBilling,
+  ) => {
     const notice = describeDictationProblem(problem, {
+      billing,
       canOpenSettings: isMacOS(),
     });
-    const action =
-      notice.action === "retry" && retry
+    const billingAction =
+      typeof notice.action === "object" ? notice.action : undefined;
+    const action = billingAction
+      ? {
+          label: billingAction.label,
+          onClick: (event: { preventDefault: () => void }) => {
+            // A toast holding the recording stays up for its Try again.
+            if (notice.keepsRecording && retry) {
+              event.preventDefault();
+            }
+            actOnBilling(billingAction.kind, billing);
+          },
+        }
+      : notice.action === "retry" && retry
         ? { label: "Try again", onClick: retry }
         : notice.action === "sign-in" && retry
           ? {
@@ -269,6 +354,10 @@ export function useDictation({
             : undefined;
     const options = {
       action,
+      // Billing's way forward leads; the held recording is sent from beside it.
+      ...(billingAction &&
+        notice.keepsRecording &&
+        retry && { cancel: { label: "Try again", onClick: retry } }),
       description: notice.description,
       // A toast that holds a recording stays until it is answered.
       ...(notice.keepsRecording && { duration: Number.POSITIVE_INFINITY }),
@@ -326,7 +415,37 @@ export function useDictation({
     kept.current = notice.keepsRecording
       ? { audio, deliver, onLanded }
       : undefined;
+    if (problem.kind === "billing-refused") {
+      const billing = await readBilling();
+      report(problem, retryKept, billing);
+      return;
+    }
     report(problem, retryKept);
+  };
+
+  /**
+   * Says why billing ended a take mid-stream. The stream's end names no
+   * refusal, so billing's status for dictation says what it was.
+   */
+  const reportLimit = async () => {
+    const billing = await readBilling();
+    const pause = featurePause(billing.status, "dictation", billing.refusedAt);
+    const code = pause?.code;
+    report(
+      {
+        kind: "billing-stopped",
+        ...((code === "subscription-required" ||
+          code === "usage-limit-exceeded") && {
+          refusal: {
+            code,
+            reason: pause?.reason,
+            resetsAt: pause?.resetsAt?.toISOString(),
+          },
+        }),
+      },
+      undefined,
+      billing,
+    );
   };
 
   // Only from rest: a retry while another take records or lands would set
@@ -393,8 +512,8 @@ export function useDictation({
           if (finish(text, current.deliver)) {
             onLanded?.();
           }
-          if (end.reason === "allowance") {
-            report({ kind: "allowance-used-up", resetsAt: end.resetsAt });
+          if (end.reason === "limit") {
+            void reportLimit();
           }
           return;
         }
@@ -465,17 +584,21 @@ export function useDictation({
             case "unavailable": {
               stream.status = "unavailable";
               const { failure } = event;
-              if (
-                session.current === current &&
-                (failure.kind === "allowance-reached" ||
-                  failure.kind === "signed-out")
-              ) {
-                cancel();
-                report(
-                  failure.kind === "signed-out"
-                    ? failure
-                    : { kind: "allowance-used-up", resetsAt: failure.resetsAt },
-                );
+              if (session.current === current) {
+                if (failure.kind === "signed-out") {
+                  cancel();
+                  report(failure);
+                } else if (failure.kind === "billing-refused") {
+                  cancel();
+                  const { refusal } = failure;
+                  void readBilling().then((billing) => {
+                    report(
+                      { kind: "billing-stopped", refusal },
+                      undefined,
+                      billing,
+                    );
+                  });
+                }
               }
               break;
             }
@@ -492,8 +615,8 @@ export function useDictation({
             }
             case "end": {
               end = event;
-              // The allowance ran out mid-take: what was heard lands.
-              if (event.reason === "allowance" && session.current === current) {
+              // Billing ended the take: what was heard lands.
+              if (event.reason === "limit" && session.current === current) {
                 stop();
               }
               break;

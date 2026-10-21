@@ -12,13 +12,18 @@ import {
 } from "./use-dictation";
 
 const mocks = vi.hoisted(() => ({
+  billingStatus: {} as Record<string, unknown>,
   feed: vi.fn(),
   finish: vi.fn(),
   listen: vi.fn(),
   recording: vi.fn(),
+  startTrial: vi.fn(),
   hasToken: true,
+  offer: {} as Record<string, unknown>,
   open: vi.fn(),
+  openLink: vi.fn(),
   openLogin: vi.fn(),
+  openPlanSheet: vi.fn(),
   playCue: vi.fn(),
   preferences: {} as Record<string, unknown>,
   toast: { dismiss: vi.fn(), error: vi.fn(), info: vi.fn() },
@@ -36,6 +41,21 @@ vi.mock(import("@/client/rpc/client"), () => ({
             queryKey: ["hasToken"],
           }),
         },
+      },
+    },
+    billing: {
+      offer: {
+        queryOptions: () => ({
+          queryFn: () => Promise.resolve(mocks.offer),
+          queryKey: ["offer"],
+        }),
+      },
+      openPortal: { call: vi.fn() },
+      status: {
+        queryOptions: () => ({
+          queryFn: () => Promise.resolve(mocks.billingStatus),
+          queryKey: ["status"],
+        }),
       },
     },
     dictation: {
@@ -74,6 +94,16 @@ vi.mock(import("@/client/lib/dictation-sounds"), () => ({
 vi.mock(import("@/client/atoms/login-modal"), () => ({
   openLogin: mocks.openLogin,
 }));
+vi.mock(import("@/client/atoms/plan-sheet"), () => ({
+  openPlanSheet: mocks.openPlanSheet,
+}));
+vi.mock(import("@/client/components/billing/use-start-trial"), () => ({
+  // `as`: the hook only calls `mutate`.
+  useStartTrial: () => ({ mutate: mocks.startTrial }) as never,
+}));
+vi.mock(import("@/client/hooks/use-open-external-link"), () => ({
+  useOpenExternalLink: () => mocks.openLink,
+}));
 vi.mock(import("@/client/lib/dictation-capture"), () => ({
   MicCapture: { open: mocks.open } as never,
   // `as`: the hook only checks `instanceof`.
@@ -83,8 +113,50 @@ vi.mock(import("@/client/lib/dictation-capture"), () => ({
 /** A toast call's options, which carry the action the test presses. */
 function toastOptions(call: unknown[] | undefined) {
   // `as`: mock calls are untyped; these are the options the hook passes.
-  return call?.[1] as { action: { label: string; onClick: () => void } };
+  return call?.[1] as {
+    action: {
+      label: string;
+      onClick: (event?: { preventDefault: () => void }) => void;
+    };
+    cancel?: { label: string; onClick: () => void };
+    description?: string;
+  };
 }
+
+/** A paid account with a bigger plan on offer and its usage window spent. */
+const SPENT_PLAN = {
+  billingStatus: {
+    canSubscribe: false,
+    plan: "pro",
+    subscription: { cancelAtPeriodEnd: false, plan: "pro", status: "active" },
+    trial: { state: "ended" },
+    windows: [{ key: "5h", percentUsed: 100 }],
+  },
+  offer: {
+    plans: [
+      { allowance: { multiple: 1, windows: [] }, key: "pro" },
+      { allowance: { multiple: 4, windows: [] }, key: "max" },
+    ],
+  },
+};
+
+/** A free account billing refuses dictation for until it has a plan. */
+const NEEDS_PLAN = {
+  billingStatus: {
+    canSubscribe: true,
+    features: {
+      dictation: {
+        available: false,
+        code: "subscription-required",
+        reason: "no-plan",
+      },
+    },
+    plan: "free",
+    trial: { state: "ended" },
+    windows: [],
+  },
+  offer: { plans: [] },
+};
 
 /** A recording whose length and stop are the test's to decide. */
 function fakeCapture(lengthMs = 3000) {
@@ -163,6 +235,8 @@ async function startRecording(result: {
 }
 
 beforeEach(() => {
+  mocks.billingStatus = {};
+  mocks.offer = {};
   mocks.hasToken = true;
   mocks.preferences = {};
   // No live stream unless a test opens one, so the take is uploaded at Stop.
@@ -481,12 +555,57 @@ describe("useDictation", () => {
     });
   });
 
-  it("keeps the take when the allowance runs out mid-day", async () => {
+  it("keeps a take billing refused, offers its upgrade, and Try Again sends it", async () => {
+    Object.assign(mocks, SPENT_PLAN);
     mocks.open.mockResolvedValue(fakeCapture());
     mocks.transcribe.mockResolvedValueOnce({
       failure: {
-        kind: "allowance-reached",
-        resetsAt: "2099-01-01T00:00:00.000Z",
+        kind: "billing-refused",
+        refusal: { code: "usage-limit-exceeded" },
+      },
+      ok: false,
+    });
+    const { onText, result } = setup();
+    await startRecording(result);
+
+    act(() => {
+      result.current.stop();
+    });
+    await waitFor(() => {
+      expect(mocks.toast.info).toHaveBeenCalled();
+    });
+    const [title] = mocks.toast.info.mock.calls[0] ?? [];
+    const options = toastOptions(mocks.toast.info.mock.calls[0]);
+    expect(title).toBe("You've reached your plan's limit for now.");
+    expect(options.description).toBe(
+      "It resets soon. Your recording is safe, so you can send it later.",
+    );
+    expect(options.action.label).toBe("Upgrade");
+    expect(options.cancel?.label).toBe("Try again");
+
+    // Upgrading leaves the toast up, so the take can still be sent.
+    const preventDefault = vi.fn();
+    act(() => {
+      options.action.onClick({ preventDefault });
+    });
+    expect(mocks.openPlanSheet).toHaveBeenCalledWith({ preselect: "max" });
+    expect(preventDefault).toHaveBeenCalled();
+
+    act(() => {
+      options.cancel?.onClick();
+    });
+    await waitFor(() => {
+      expect(onText).toHaveBeenCalledWith("Hello there.");
+    });
+  });
+
+  it("offers a plan for a take billing refused for having none", async () => {
+    Object.assign(mocks, NEEDS_PLAN);
+    mocks.open.mockResolvedValue(fakeCapture());
+    mocks.transcribe.mockResolvedValueOnce({
+      failure: {
+        kind: "billing-refused",
+        refusal: { code: "subscription-required", reason: "no-plan" },
       },
       ok: false,
     });
@@ -499,12 +618,15 @@ describe("useDictation", () => {
     await waitFor(() => {
       expect(mocks.toast.info).toHaveBeenCalled();
     });
+    const options = toastOptions(mocks.toast.info.mock.calls[0]);
     expect(mocks.toast.info.mock.calls[0]?.[0]).toBe(
-      "You've used today's dictation",
+      "Instrument needs a plan.",
     );
-    expect(toastOptions(mocks.toast.info.mock.calls[0]).action.label).toBe(
-      "Try again",
-    );
+    expect(options.action.label).toBe("Choose a plan");
+    act(() => {
+      options.action.onClick({ preventDefault: vi.fn() });
+    });
+    expect(mocks.openPlanSheet).toHaveBeenCalledWith();
   });
 
   it("asks a signed-out person to log in instead of recording", async () => {
@@ -691,16 +813,12 @@ describe("useDictation with a live stream", () => {
     expect(mocks.finish).not.toHaveBeenCalled();
   });
 
-  it("lands what was heard when the allowance runs out mid-take, and says so", async () => {
+  it("lands what was heard when billing ends the take, and says why from billing's status", async () => {
+    Object.assign(mocks, NEEDS_PLAN);
     const { onText, result, stream } = await startLive(["Book a table."]);
 
     act(() => {
-      stream.send({
-        complete: true,
-        reason: "allowance",
-        resetsAt: "2026-10-16T00:00:00.000Z",
-        type: "end",
-      });
+      stream.send({ complete: true, reason: "limit", type: "end" });
       stream.close();
     });
 
@@ -709,12 +827,18 @@ describe("useDictation with a live stream", () => {
     });
     expect(result.current.phase.kind).toBe("idle");
     expect(mocks.transcribe).not.toHaveBeenCalled();
-    expect(mocks.toast.info.mock.calls.at(-1)?.[0]).toBe(
-      "You've used today's dictation",
-    );
+    await waitFor(() => {
+      expect(mocks.toast.info.mock.calls.at(-1)?.[0]).toBe(
+        "Instrument needs a plan.",
+      );
+    });
+    const options = toastOptions(mocks.toast.info.mock.calls.at(-1));
+    expect(options.action.label).toBe("Choose a plan");
+    expect(options.cancel).toBeUndefined();
   });
 
-  it("throws the take away when the stream is refused for the allowance", async () => {
+  it("throws the take away when billing refuses the stream, and says why", async () => {
+    Object.assign(mocks, NEEDS_PLAN);
     const capture = fakeCapture();
     mocks.open.mockResolvedValue(capture);
     const stream = fakeStream();
@@ -723,7 +847,10 @@ describe("useDictation with a live stream", () => {
 
     act(() => {
       stream.send({
-        failure: { kind: "allowance-reached", resetsAt: undefined },
+        failure: {
+          kind: "billing-refused",
+          refusal: { code: "subscription-required", reason: "no-plan" },
+        },
         type: "unavailable",
       });
       stream.close();
@@ -734,6 +861,11 @@ describe("useDictation with a live stream", () => {
     });
     expect(capture.cancel).toHaveBeenCalled();
     expect(mocks.transcribe).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mocks.toast.info.mock.calls.at(-1)?.[0]).toBe(
+        "Instrument needs a plan.",
+      );
+    });
   });
 });
 

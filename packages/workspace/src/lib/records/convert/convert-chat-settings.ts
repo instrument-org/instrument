@@ -9,10 +9,6 @@ import { parallel } from "radashi";
 import { ChatIdSchema } from "../../../schemas/chat-id";
 import { ChatDirSchema } from "../../../schemas/paths";
 import { chatStatePath } from "../../chat-dir-utils";
-import {
-  chatFolderNames,
-  recordChatFolderName,
-} from "../../chat-folders/own-folder";
 import { readJsonRecord, updateJsonRecord } from "../../json-record-file";
 import { ChatPermissionsSchema } from "../../permissions/rules";
 import { type DeviceId } from "../device-id";
@@ -27,8 +23,6 @@ import { openSettingsFile } from "../open-log";
  *
  * - The model (`modelURI`) becomes a `model` setting on the chat's own
  *   session, in this device's settings file, unless a device already set one.
- * - The name of the chat's folder under `Chats/` (`folder`) is recorded in
- *   this computer's machine folder, unless it already has one for the chat.
  * - What was allowed and refused in the chat (`grants`, `appGrants`,
  *   `denials`) goes into this computer's `permissions.json`, unless it
  *   already answers for the chat: each names something on this computer.
@@ -141,15 +135,6 @@ export async function convertChatSettings(
     carried.push("its model");
   }
   const id = ChatIdSchema.safeParse(path.basename(dir));
-  if (
-    id.success &&
-    typeof settings.folder === "string" &&
-    settings.folder !== "" &&
-    chatFolderNames(machineDir).get(id.data) === undefined
-  ) {
-    await recordChatFolderName(machineDir, id.data, settings.folder);
-    carried.push("its folder's name");
-  }
   if (id.success && (await carryPermissions(machineDir, id.data, settings))) {
     carried.push("what it allowed");
   }

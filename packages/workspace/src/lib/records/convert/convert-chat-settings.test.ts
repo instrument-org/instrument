@@ -7,7 +7,6 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { withTempDir } from "../../../test/helpers/temp-dir";
-import { chatFolderNames } from "../../chat-folders/own-folder";
 import { logFileName, settingsFileName } from "../file-names";
 import { foldChatInFolder } from "../fold-folder";
 import { recordLine } from "../record";
@@ -78,27 +77,6 @@ describe("convertChatSettings", () => {
     expect(await convertChatSettings(dir, OPTIONS)).toEqual({
       kind: "nothing",
     });
-  });
-
-  it("records the folder's name on this computer, unless it has one", async () => {
-    const dir = await chatWith(JSON.stringify({ folder: "Trip plans" }));
-
-    expect(await convertChatSettings(dir, OPTIONS)).toEqual({
-      carried: ["its folder's name"],
-      kind: "converted",
-    });
-    expect(chatFolderNames(machine.path).get("a-chat")).toBe("Trip plans");
-
-    // A device on an older build writes the file again.
-    await fs.writeFile(
-      path.join(dir, SETTINGS_FILE_NAME),
-      JSON.stringify({ folder: "Older name" }),
-    );
-    expect(await convertChatSettings(dir, OPTIONS)).toEqual({
-      carried: [],
-      kind: "converted",
-    });
-    expect(chatFolderNames(machine.path).get("a-chat")).toBe("Trip plans");
   });
 
   it("leaves a model another device already set", async () => {

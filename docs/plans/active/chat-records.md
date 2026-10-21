@@ -87,7 +87,7 @@ What leaves `settings.json` and does not come here:
 - `state.browserTabs` and the rest of a device's state are in `state.<device>.json`; what a chat allowed and refused is in the machine folder's `permissions.json`.
 - `reasoningEffort` was in the schema, in none of the 688 files on disk, and surfaced nowhere; it goes. An eval's `--effort` pins it for the whole run in the workspace config instead.
 
-At launch, after the database converter, each chat's `settings.json` is carried once (`convert-chat-settings.ts`): the model onto the chat's own session unless a device already set one, the folder name and the permissions into the machine folder unless it already answers for the chat, a state an earlier build kept there into this device's state file, and then the file is removed. A chat still on its `chat.db` keeps the file, which names its session until its records do; a file that cannot be read is left in place, and nothing reads it.
+At launch, after the database converter, each chat's `settings.json` is carried once (`convert-chat-settings.ts`): the model onto the chat's own session unless a device already set one, the permissions into the machine folder unless it already answers for the chat, a state an earlier build kept there into this device's state file, and then the file is removed. A chat still on its `chat.db` keeps the file, which names its session until its records do; a file that cannot be read is left in place, and nothing reads it.
 
 ## The device id
 

@@ -31,6 +31,7 @@ import { type ReactNode, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 
 import { SetupFooter, SetupPage } from "../kit/setup-page";
+import { SetupRow } from "../kit/setup-row";
 import { BrandTile, WayCard } from "../kit/way-card";
 
 type PlanProvider = Exclude<ConnectProvider, "instrument">;
@@ -356,34 +357,25 @@ function SubscriptionsPage({
       }
       title="Which subscription do you have?"
     >
-      <div className="mt-8 w-115 max-w-full divide-y overflow-hidden rounded-2xl border bg-card">
+      <div className="mt-8 flex w-115 max-w-full flex-col gap-2">
         {PLAN_PROVIDERS.map((provider) => (
-          <div
-            className="flex items-center gap-3.5 py-3 pr-4 pl-3"
-            data-subscription={provider}
+          <SetupRow
+            end={
+              <Button
+                className="rounded-full px-4"
+                onClick={() => {
+                  onSignIn(provider);
+                }}
+                size="sm"
+              >
+                Sign in
+              </Button>
+            }
+            icon={<SubscriptionMark provider={provider} />}
             key={provider}
-          >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-[11px] border bg-card">
-              <SubscriptionMark className="size-5" provider={provider} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground">
-                {CONNECT_NAMES[provider]}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {SUBSCRIPTION_LINES[provider]}
-              </p>
-            </div>
-            <Button
-              className="rounded-full px-4"
-              onClick={() => {
-                onSignIn(provider);
-              }}
-              size="sm"
-            >
-              Sign in
-            </Button>
-          </div>
+            line={SUBSCRIPTION_LINES[provider]}
+            title={CONNECT_NAMES[provider]}
+          />
         ))}
       </div>
       <p className="mt-6 text-sm text-muted-foreground">

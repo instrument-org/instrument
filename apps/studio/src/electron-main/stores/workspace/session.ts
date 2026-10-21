@@ -1,10 +1,15 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
+import {
+  decodeKeyFile,
+  encodeKeyFile,
+  KEY_FILE_EXTENSION,
+  KEY_STORE_NAMES,
+  keyFileName,
+} from "@/electron-main/lib/key-file";
 import { buildDefaultPlatformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { platformApiOriginOf } from "@/shared/platform-api-server";
-import { is } from "@electron-toolkit/utils";
-import { safeStorage } from "electron";
 import Store from "electron-store";
 import fs from "node:fs";
 import path from "node:path";
@@ -55,9 +60,6 @@ function buildDefaultOrigin(): string {
 
 let SESSION_STORE: null | Store<SessionState> = null;
 
-const SESSION_FILE_NAME = is.dev ? "session-dev" : "session";
-const SESSION_FILE_EXTENSION = is.dev ? "json" : "json.enc";
-
 // Set while reading a file that carries keys the schema does not know, or an
 // earlier build's one token, so the store is rewritten once in today's shape.
 let REWRITE_ON_OPEN = false;
@@ -95,7 +97,7 @@ export function readBearerTokensIn(keysDir: string): Record<string, string> {
   let value: string;
   try {
     value = fs.readFileSync(
-      path.join(keysDir, `${SESSION_FILE_NAME}.${SESSION_FILE_EXTENSION}`),
+      path.join(keysDir, keyFileName(KEY_STORE_NAMES.session)),
       "utf8",
     );
   } catch {
@@ -113,14 +115,7 @@ export function readBearerTokensIn(keysDir: string): Record<string, string> {
 /** A session file's JSON: plaintext in dev, safeStorage ciphertext otherwise. */
 function decodeSessionFile(value: string): unknown {
   try {
-    if (is.dev) {
-      return JSON.parse(value);
-    }
-    if (!safeStorage.isEncryptionAvailable()) {
-      logger.error("Encryption is not available");
-      return undefined;
-    }
-    return JSON.parse(safeStorage.decryptString(Buffer.from(value, "base64")));
+    return JSON.parse(decodeKeyFile(value));
   } catch (error) {
     logger.error(error);
     return undefined;
@@ -135,20 +130,15 @@ export const getSessionStore = (): Store<SessionState> => {
         const decoded = decodeSessionFile(value);
         return decoded === undefined ? {} : parseSessionState(decoded);
       },
-      fileExtension: SESSION_FILE_EXTENSION,
-      name: SESSION_FILE_NAME,
+      fileExtension: KEY_FILE_EXTENSION,
+      name: KEY_STORE_NAMES.session,
       serialize: (value) => {
-        if (is.dev) {
-          return JSON.stringify(value);
-        }
-
-        if (!safeStorage.isEncryptionAvailable()) {
+        const encoded = encodeKeyFile(JSON.stringify(value));
+        if (encoded === undefined) {
           logger.error("Encryption is not available");
           return "";
         }
-
-        const json = JSON.stringify(value);
-        return safeStorage.encryptString(json).toString("base64");
+        return encoded;
       },
     });
 

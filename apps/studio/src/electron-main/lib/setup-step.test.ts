@@ -2,6 +2,7 @@ import { type SetupFacts, type SetupRecord, SETUP_STEPS } from "@/shared/setup";
 import { describe, expect, it } from "vitest";
 
 import {
+  answeredByFolderChange,
   answeredStep,
   currentSetupStep,
   finishedRecord,
@@ -312,6 +313,45 @@ describe("the record", () => {
   });
 });
 
+describe("a workspace setup opened or moved", () => {
+  // A new person connected ChatGPT, chose a model and opened a folder that
+  // already holds a workspace with chats. After the restart the facts are
+  // that workspace's: used before, with the accounts carried over.
+  const OPENED: SetupFacts = {
+    ...NEW,
+    folderSettled: true,
+    hasUsableAI: true,
+    usedBefore: true,
+  };
+  const BEFORE_OPEN = answered("free-account", "model");
+
+  it("greets them again without the folder change answering Welcome back", () => {
+    expect(currentSetupStep(OPENED, BEFORE_OPEN)).toBe("welcome-back");
+  });
+
+  it("lands on the step after the folder", () => {
+    expect(
+      currentSetupStep(OPENED, answeredByFolderChange(BEFORE_OPEN, AT)),
+    ).toBe("notifications");
+  });
+
+  it("keeps a Welcome back answered earlier, and answers the folder", () => {
+    const earlier = answeredStep(
+      EMPTY,
+      "welcome-back",
+      new Date("2026-10-01T00:00:00.000Z"),
+    );
+    expect(answeredByFolderChange(earlier, AT)).toMatchInlineSnapshot(`
+      {
+        "answered": {
+          "folder": "2026-10-21T12:00:00.000Z",
+          "welcome-back": "2026-10-01T00:00:00.000Z",
+        },
+      }
+    `);
+  });
+});
+
 describe("setupStateFrom", () => {
   it("hides setup under SKIP_ONBOARDING without changing the facts", () => {
     expect(setupStateFrom({ facts: NEW, record: EMPTY, skip: true }))
@@ -356,9 +396,9 @@ describe("stepBefore", () => {
     const keyOnly = { ...NEW, hasUsableAI: true };
     const record = answered("free-account");
     expect(stepBefore(keyOnly, record, "model")).toBe("free-account");
-    expect(currentSetupStep(keyOnly, unansweredStep(record, "free-account"))).toBe(
-      "free-account",
-    );
+    expect(
+      currentSetupStep(keyOnly, unansweredStep(record, "free-account")),
+    ).toBe("free-account");
   });
 
   it("has nowhere to go once setup finished", () => {

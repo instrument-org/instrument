@@ -70,6 +70,27 @@ export function answeredStep(
 }
 
 /**
+ * The record once setup's folder step has opened or moved a workspace and
+ * the app is restarting into it: the folder answered, and Welcome back too,
+ * since the person got past it to reach the folder. A workspace with chats
+ * opened from there would otherwise greet them again after the restart.
+ */
+export function answeredByFolderChange(
+  record: SetupRecord,
+  at: Date,
+): SetupRecord {
+  const time = at.toISOString();
+  return {
+    ...record,
+    answered: {
+      "welcome-back": time,
+      ...record.answered,
+      folder: time,
+    },
+  };
+}
+
+/**
  * The step Back returns to from `step`: the nearest one before it that was
  * answered and would still ask something. A step settled by a fact (`way-in`)
  * keeps no answer, so Back passes over it. None once setup has finished,

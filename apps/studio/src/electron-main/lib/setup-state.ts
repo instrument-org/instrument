@@ -1,4 +1,5 @@
 import {
+  answeredByFolderChange,
   answeredStep,
   finishedRecord,
   isEveryStepAnswered,
@@ -106,6 +107,22 @@ export function isSetupUp(): boolean {
 /** Records a step as answered, so setup moves past it for good. */
 export function answerSetupStep(step: SetupStep): void {
   writeRecord(answeredStep(readRecord(), step, new Date()));
+}
+
+/**
+ * Whether setup is on its folder step, where opening or moving a workspace
+ * is the answer to it.
+ */
+export function isSetupOnFolderStep(): boolean {
+  return isSetupUp() && readSetupState().step === "folder";
+}
+
+/**
+ * Records the folder step as answered by a workspace setup opened or moved,
+ * with Welcome back answered too, so the restart lands on the step after.
+ */
+export function answerSetupFolderChange(): void {
+  writeRecord(answeredByFolderChange(readRecord(), new Date()));
 }
 
 /**

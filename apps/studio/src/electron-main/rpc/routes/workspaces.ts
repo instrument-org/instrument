@@ -4,9 +4,18 @@ import {
   getUserDataDir,
   workspaceInAppData,
   workspaceKeysDir,
+  workspaceMachineDir,
 } from "@/electron-main/lib/get-workspace-folder";
 import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
 import { refreshSetupFacts } from "@/electron-main/lib/setup-facts";
+import {
+  answerSetupFolderChange,
+  isSetupOnFolderStep,
+} from "@/electron-main/lib/setup-state";
+import {
+  carrySignIns,
+  macClaudeKeychain,
+} from "@/electron-main/lib/sign-in-carry";
 import {
   createWorkspace,
   keysDirOf,
@@ -36,7 +45,10 @@ import {
 import { FolderRefusalSchema } from "@/shared/workspace-folder-refusal";
 import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
-import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
+import {
+  getDefaultModelURI,
+  isDeveloperMode,
+} from "@/electron-main/stores/workspace/preferences";
 import {
   platformApiBaseUrl,
   platformApiOrigin,
@@ -299,7 +311,9 @@ function setupFolders() {
   const home = app.isPackaged ? undefined : process.env.INSTRUMENT_SETUP_HOME;
   return {
     inDocuments: path.join(
-      home === undefined ? app.getPath("documents") : path.join(home, "Documents"),
+      home === undefined
+        ? app.getPath("documents")
+        : path.join(home, "Documents"),
       HOME_FOLDERS.instrument,
     ),
     inHome: path.join(home ?? app.getPath("home"), HOME_FOLDERS.instrument),
@@ -424,7 +438,11 @@ const move = base
       unmake();
       return verdict;
     }
+    const fromSetup = isSetupOnFolderStep();
     const request = () => {
+      if (fromSetup) {
+        answerSetupFolderChange();
+      }
       requestWorkspaceMove({
         target: input.path,
         userDataDir: getUserDataDir(),
@@ -451,7 +469,9 @@ const move = base
  * holds one, in place of this one, which stays where it is: checked for a
  * place no workspace can be, registered and made the one to open, then the
  * app restarted. A place the person is only warned of was shown to them
- * when they picked it (`checkFolder`), so it opens.
+ * when they picked it (`checkFolder`), so it opens. Opened from setup's
+ * folder step, it takes along the sign-ins and main model made in setup,
+ * which are this workspace's, and setup picks up after the folder step.
  */
 const open = base
   .input(z.object({ path: z.string() }))
@@ -489,7 +509,12 @@ const open = base
     if (registered === undefined) {
       return { outcome: "not-a-workspace" as const };
     }
+    const fromSetup = isSetupOnFolderStep();
     const choose = () => {
+      if (fromSetup) {
+        carryIntoOpened({ id: registered.id, path: input.path });
+        answerSetupFolderChange();
+      }
       updateRegistry(getUserDataDir(), (registry) => ({
         ...registry,
         active: registered.id,
@@ -501,6 +526,25 @@ const open = base
     }
     return { outcome: await relaunchApp({ beforeRestart: choose }) };
   });
+
+/** The sign-ins and main model made in setup, into the workspace it opens. */
+function carryIntoOpened(workspace: { id: string; path: string }) {
+  try {
+    const done = carrySignIns({
+      fromMachineDir: workspaceMachineDir(),
+      keychain: process.platform === "darwin" ? macClaudeKeychain : undefined,
+      model: getDefaultModelURI(),
+      userDataDir: getUserDataDir(),
+      workspace,
+    });
+    logger.info("Carried setup's sign-ins into the opened workspace", {
+      done,
+    });
+  } catch (error) {
+    // The workspace still opens, signed out where nothing came along.
+    logger.error("Couldn't carry setup's sign-ins", error);
+  }
+}
 
 export const workspaces = {
   checkFolder,

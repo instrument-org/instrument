@@ -210,6 +210,25 @@ describe("seedWorkspace", () => {
     ) as Record<string, unknown>;
     expect(settings.parentTaskId).toBeUndefined();
     expect(typeof settings.pinnedAt).toBe("string");
+    // Its conversation is the database 1.x kept, which the boot migration reads.
+    expect(
+      (
+        await fs.readdir(
+          path.join(userDataDir, "workspace", "tasks", at(seeded, 0).id),
+          { recursive: true },
+        )
+      ).toSorted(),
+    ).toMatchInlineSnapshot(`
+      [
+        ".instrument",
+        ".instrument/settings.json",
+        ".instrument/task.db",
+        "output",
+        "output/red-and-blue-squares.pdf",
+        "work",
+        "work/make_squares_pdf.py",
+      ]
+    `);
   });
 
   // The caller clears the directory first; if it ever stops doing that, the

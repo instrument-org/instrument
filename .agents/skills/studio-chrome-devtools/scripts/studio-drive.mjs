@@ -218,18 +218,18 @@ const INSTANCE_FLAG = WORKSPACE
 
 // --- seeded workspaces -------------------------------------------------
 
-/**
- * Build (or reuse) the workspace this boot will run against, and hand back the
- * directory to point `ELECTRON_USER_DATA_DIR` at. The seeder is idempotent and
- * fast, so calling it on every boot is cheaper than reasoning about whether the
- * fixture has changed since last time.
- */
-function prepareWorkspace(name, { fresh, keepTabs }) {
-  reapStaleWorkspaces();
-
+/** Where a fixture's workspace is seeded: its userData, and the home beside it. */
+function fixtureDirs(name) {
   const userDataDir = path.join(WORKSPACE_CACHE_ROOT, name);
-  mkdirSync(WORKSPACE_CACHE_ROOT, { recursive: true });
+  // What the instance gets as INSTRUMENT_DATA_HOME: its chats' work folders
+  // and their own folders, beside its data and never in the developer's
+  // home, so they are reaped and rebuilt with it.
+  return { home: `${userDataDir}-home`, userDataDir };
+}
 
+/** Runs the seeder for a fixture and answers its JSON summary. */
+function runSeeder(name, flags) {
+  const { home, userDataDir } = fixtureDirs(name);
   let output;
   try {
     output = execFileSync(
@@ -238,9 +238,11 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
         "workspace:seed",
         "--out",
         userDataDir,
+        "--home",
+        home,
         "--fixture",
         name,
-        ...(fresh ? ["--fresh"] : []),
+        ...flags,
       ],
       {
         cwd: REPO_ROOT,
@@ -257,7 +259,34 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
   if (start === -1) {
     fail(`The seeder printed no summary for "${name}":\n${output}`);
   }
-  const result = JSON.parse(output.slice(start));
+  return JSON.parse(output.slice(start));
+}
+
+/** Records that a fixture was used, since reaping goes by mtime. */
+function touchFixture(name) {
+  const { home, userDataDir } = fixtureDirs(name);
+  for (const dir of [userDataDir, home, `${userDataDir}-output`]) {
+    try {
+      utimesSync(dir, new Date(), new Date());
+    } catch {
+      // Not made yet, which the next seed does.
+    }
+  }
+}
+
+/**
+ * Build (or reuse) the workspace this boot will run against, and hand back the
+ * directory to point `ELECTRON_USER_DATA_DIR` at. The seeder is idempotent and
+ * fast, so calling it on every boot is cheaper than reasoning about whether the
+ * fixture has changed since last time.
+ */
+function prepareWorkspace(name, { fresh, keepTabs }) {
+  reapStaleWorkspaces();
+
+  const { home, userDataDir } = fixtureDirs(name);
+  mkdirSync(WORKSPACE_CACHE_ROOT, { recursive: true });
+
+  const result = runSeeder(name, fresh ? ["--fresh"] : []);
 
   // Where its agents put finished work. Not in its application data, which
   // the agent's rules close, and not the flavor's folder in the home folder,
@@ -271,10 +300,9 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
 
   // Reaping goes by mtime, so record that this workspace was used even when the
   // seeder had nothing to do and the app writes nothing before it is killed.
-  utimesSync(userDataDir, new Date(), new Date());
-  utimesSync(outputDir, new Date(), new Date());
+  touchFixture(name);
 
-  reapWorkArtifacts(userDataDir);
+  reapWorkArtifacts(home);
 
   // The window's tabs, panes and chat groups live in the layout.json of the
   // workspace's machine folder, which the seeder never writes, so without this
@@ -287,7 +315,7 @@ function prepareWorkspace(name, { fresh, keepTabs }) {
     rmSync(path.join(machineDir, "window", "layout.json"), { force: true });
   }
 
-  return { outputDir, tasks: result.tasks, userDataDir };
+  return { home, outputDir, tasks: result.tasks, userDataDir };
 }
 
 // --- clean rooms -------------------------------------------------------
@@ -406,6 +434,11 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
         {
           color: "purple",
           createdBy: { kind: "agent", purpose },
+          // A blank workspace is in the format this build keeps
+          // (WORKSPACE_FORMAT_VERSION in Studio's workspaces.ts), so the
+          // launch moves nothing of the person's out of it. Developer mode,
+          // which the dev panel and `rpc` need, is a dev build's default.
+          formatVersion: 2,
           name: `Clean room: ${name}`,
           settingsVersion: 1,
         },
@@ -413,12 +446,10 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
         2,
       )}\n`,
     );
-    // Developer mode on from the start, so the dev panel and `rpc` work.
-    writeFileSync(
-      path.join(privateDir, "preferences.json"),
-      `${JSON.stringify({ developerMode: true })}\n`,
-    );
   }
+  // What the instance gets as INSTRUMENT_DATA_HOME, as for a fixture.
+  const home = `${dir}-home`;
+  mkdirSync(home, { recursive: true });
 
   if (withSignIns) {
     // Into the settings folder until the app has opened the clean room once,
@@ -450,7 +481,9 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
 
   // Reaping goes by mtime, as for fixtures.
   utimesSync(dir, new Date(), new Date());
-  return { dir };
+  utimesSync(home, new Date(), new Date());
+  reapWorkArtifacts(home);
+  return { dir, home };
 }
 
 // --- accounts --------------------------------------------------------
@@ -606,8 +639,8 @@ function reapOlderThan(
  * transcript never creates these, so a workspace only used for driving stays in
  * the low megabytes and this finds nothing.
  */
-function reapWorkArtifacts(userDataDir) {
-  for (const workDir of workDirs(userDataDir)) {
+function reapWorkArtifacts(home) {
+  for (const workDir of workDirs(home)) {
     for (const name of WORK_ARTIFACT_NAMES) {
       const dir = path.join(workDir, name);
       try {
@@ -622,11 +655,12 @@ function reapWorkArtifacts(userDataDir) {
 }
 
 /**
- * Every chat's work folder in the application data: `work/<chat id>/` in each
- * workspace's machine folder, `machine/<local id>/` (WORKSPACE_MACHINE_ENTRIES
- * in the shared package). A chat's tasks work in its folder.
+ * Every chat's work folder under a home the instance was given
+ * (INSTRUMENT_DATA_HOME): `<data folder>/work/<workspace>/<chat id>/`, the
+ * data folder being the flavor's (`.instrument-dev` for a dev build;
+ * HOME_FOLDERS in the shared package). A chat's tasks work in its folder.
  */
-function workDirs(userDataDir) {
+function workDirs(home) {
   const children = (dir) => {
     try {
       return readdirSync(dir, { withFileTypes: true })
@@ -636,12 +670,41 @@ function workDirs(userDataDir) {
       return [];
     }
   };
-  return children(path.join(userDataDir, "machine")).flatMap((machineDir) =>
-    children(path.join(machineDir, "work")),
-  );
+  return children(home)
+    .filter((dir) => path.basename(dir).startsWith("."))
+    .flatMap((dataDir) => children(path.join(dataDir, "work")))
+    .flatMap(children);
 }
 
 // --- lifecycle ---------------------------------------------------------
+
+/**
+ * Whether the app answering on `port` runs this checkout's code: a dev
+ * renderer loads its dependencies from the checkout's own folder, by its
+ * path.
+ */
+async function servesThisCheckout(port) {
+  let cdp;
+  try {
+    cdp = await openCdp(`http://127.0.0.1:${port}`);
+    const sources = await evaluate(
+      cdp,
+      'performance.getEntriesByType("resource").map((entry) => entry.name)',
+    );
+    const own = `/@fs${REPO_ROOT.split(path.sep).join("/")}/`;
+    return sources.some((source) => {
+      try {
+        return decodeURIComponent(new URL(source).pathname).startsWith(own);
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  } finally {
+    cdp?.close();
+  }
+}
 
 async function cmdBoot(
   explicitPort,
@@ -671,6 +734,15 @@ async function cmdBoot(
   const account = accountFile ? readAccount(accountFile) : undefined;
   const existing = readSession(INSTANCE);
   if (existing && (await isPortLive(existing.port))) {
+    // The port comes from a hash with a few hundred values, so a live one
+    // may be another checkout's instance that took it after this one's
+    // stopped. Reused only once it is seen to run this checkout's code.
+    if (!(await servesThisCheckout(existing.port))) {
+      fail(
+        `Port ${existing.port} answers, but not with this checkout's app, so the instance recorded for it is gone.\n` +
+          `Delete its record, ${sessionFile(INSTANCE)}, rather than running stop, which signals the recorded process. Then boot with --port to pick another port.`,
+      );
+    }
     // Which API an instance talks to is fixed when its dev server starts.
     if ((existing.account?.file ?? undefined) !== account?.file) {
       fail(
@@ -714,6 +786,17 @@ async function cmdBoot(
           `${existing.hot ? "with" : "without"} main/preload hot reload. Stop it first to boot the other way.`,
       );
     }
+    if (WORKSPACE) {
+      // The seed the instance has open must still be what the fixture and
+      // the seeder build, or the run drives a workspace nobody committed.
+      if (!runSeeder(WORKSPACE, ["--check"]).current) {
+        fail(
+          `The fixture "${WORKSPACE}" or the seeder changed since the instance on port ${existing.port} was seeded.\n` +
+            `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot again to reseed it.`,
+        );
+      }
+      touchFixture(WORKSPACE);
+    }
     return { ...existing, reused: true };
   }
 
@@ -736,10 +819,12 @@ async function cmdBoot(
     ? prepareWorkspace(WORKSPACE, { fresh, keepTabs })
     : undefined;
   if (CLEAN_ROOM && fresh) {
-    rmSync(path.join(CLEAN_ROOMS_ROOT, CLEAN_ROOM), {
-      force: true,
-      recursive: true,
-    });
+    for (const dir of [
+      path.join(CLEAN_ROOMS_ROOT, CLEAN_ROOM),
+      path.join(CLEAN_ROOMS_ROOT, `${CLEAN_ROOM}-home`),
+    ]) {
+      rmSync(dir, { force: true, recursive: true });
+    }
   }
   const cleanRoom = CLEAN_ROOM
     ? prepareCleanRoom(CLEAN_ROOM, { purpose, withSignIns })
@@ -810,6 +895,7 @@ async function cmdBoot(
         // and never reveals the main one, which reads as a hang.
         ...(workspace && {
           ELECTRON_USER_DATA_DIR: workspace.userDataDir,
+          INSTRUMENT_DATA_HOME: workspace.home,
           INSTRUMENT_OUTPUT_FOLDER: workspace.outputDir,
           SKIP_ONBOARDING: "true",
         }),
@@ -817,6 +903,7 @@ async function cmdBoot(
         // opening the workspace it had. Signed out, onboarding would hide the
         // main window exactly as it would for a fixture.
         ...(cleanRoom && {
+          INSTRUMENT_DATA_HOME: cleanRoom.home,
           INSTRUMENT_WORKSPACE: cleanRoom.dir,
           ...(!withSignIns && !account && { SKIP_ONBOARDING: "true" }),
         }),

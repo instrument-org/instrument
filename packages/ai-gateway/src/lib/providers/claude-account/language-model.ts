@@ -192,6 +192,7 @@ function streamStep({
           // Before the step starts, so it runs on the model now asked for.
           await session.useModel(modelId);
           if (plan.kind === "cold") {
+            session.noteGiven(rest, { newTurn: true });
             const how = await coldStart(session, rest);
             // A replay re-sends the history uncached and loses what Claude
             // Code's own tools found, so each one says why it happened.
@@ -208,6 +209,7 @@ function streamStep({
               );
             }
           } else if (plan.kind === "resume") {
+            session.noteGiven(plan.messages, { newTurn: true });
             await session.replay(frames);
           } else {
             await session.continueWith(

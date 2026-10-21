@@ -1,4 +1,7 @@
-import { type LanguageModelV4ToolResultPart } from "@ai-sdk/provider";
+import {
+  type LanguageModelV4Message,
+  type LanguageModelV4ToolResultPart,
+} from "@ai-sdk/provider";
 import {
   type HookCallbackMatcher,
   type HookEvent,
@@ -11,6 +14,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { expect, it, vi } from "vitest";
 
+import { transientPrintsOf } from "./continuation";
 import { ClaudeCodeSession } from "./session";
 
 /** What the fake Claude Code below was started with, and what it was sent. */
@@ -191,3 +195,38 @@ it.each([
     session.close();
   },
 );
+
+it("remembers the notes it was given since its turn began", () => {
+  const session = new ClaudeCodeSession(
+    "chat",
+    {
+      builtInTools: [],
+      configDir: undefined,
+      effort: undefined,
+      executablePath: "claude",
+      modelId: "claude-haiku-5.5",
+      systemPrompt: "",
+      tools: [],
+    },
+    () => {},
+  );
+  const note = (text: string): LanguageModelV4Message => ({
+    content: [{ text, type: "text" }],
+    providerOptions: { instrument: { transient: true } },
+    role: "user",
+  });
+  const said: LanguageModelV4Message = {
+    content: [{ text: "hi", type: "text" }],
+    role: "user",
+  };
+  session.noteGiven([said, note("budget")], { newTurn: true });
+  session.noteGiven([note("rollover")], { newTurn: false });
+  expect(session.notesGiven).toEqual(
+    new Set(transientPrintsOf([note("budget"), note("rollover")])),
+  );
+  session.noteGiven([said, note("budget, later")], { newTurn: true });
+  expect(session.notesGiven).toEqual(
+    new Set(transientPrintsOf([note("budget, later")])),
+  );
+  session.close();
+});

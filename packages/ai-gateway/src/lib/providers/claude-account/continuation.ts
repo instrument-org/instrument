@@ -12,8 +12,8 @@ export type Continuation =
       results: LanguageModelV4ToolResultPart[];
       /**
        * Messages that came in after the results, as a task finishing does
-       * when the step before handed work off: read in the same turn, once
-       * the results are in.
+       * when the step before handed work off, and the notes that come with
+       * them: read in the same turn, once the results are in.
        */
       followedBy: LanguageModelV4Message[];
     }
@@ -62,15 +62,36 @@ function fingerprintOf(message: LanguageModelV4Message) {
 }
 
 /**
+ * The fingerprints of the transient messages among `messages`, which a
+ * process notes as the notes it has been given.
+ */
+export function transientPrintsOf(messages: LanguageModelV4Message[]) {
+  return messages.filter(isTransient).map(fingerprintOf);
+}
+
+/**
  * How a request follows from what a Claude Code session saw, or why it does
  * not and the session has to start over from our transcript. It follows
  * when every message the session saw opens the request unchanged, then the
  * reply it gave, then either the results of the tools that reply called
  * (and anything said since) or a new turn, which may be transient messages
  * alone.
+ *
+ * Transient notes go with tool results too, as they do for every other
+ * provider, which reads them after the results: what a context budget or
+ * rollover asks of the model applies mid-turn. Claude Code keeps every note
+ * it is given, where another provider is sent only the latest, so one this
+ * process was already given since its turn began (`notesGiven`, by
+ * fingerprint) is not sent again: a rollover notice, repeated on every
+ * request with the handoff notes in it, would otherwise pile up a copy per
+ * step.
  */
 export function continuationOf(
-  session: { awaitingToolCallIds: string[]; seen: string[] },
+  session: {
+    awaitingToolCallIds: string[];
+    notesGiven?: ReadonlySet<string>;
+    seen: string[];
+  },
   kept: LanguageModelV4Message[],
   keptPrints: string[],
   transient: LanguageModelV4Message[],
@@ -118,12 +139,14 @@ export function continuationOf(
     const missing = session.awaitingToolCallIds.filter(
       (id) => !answered.has(id),
     );
+    const notes = transient.filter(
+      (message) => session.notesGiven?.has(fingerprintOf(message)) !== true,
+    );
     return missing.length === 0
       ? {
           kind: "tool-results",
           results: parts,
-          followedBy:
-            followedBy.length > 0 ? [...followedBy, ...transient] : [],
+          followedBy: [...followedBy, ...notes],
         }
       : restart(
           `results answer ${parts.length} calls and leave ${missing.length} of ${session.awaitingToolCallIds.length} unanswered`,

@@ -1,4 +1,7 @@
-import { type LanguageModelV4FunctionTool } from "@ai-sdk/provider";
+import {
+  type LanguageModelV4FunctionTool,
+  type LanguageModelV4Message,
+} from "@ai-sdk/provider";
 import {
   type EffortLevel,
   query,
@@ -20,7 +23,7 @@ import {
   historyFrameTaken,
   type MessageSource,
 } from "./cli-messages";
-import { type Continuation } from "./continuation";
+import { type Continuation, transientPrintsOf } from "./continuation";
 import { claudeCodeEnvironment } from "./environment";
 import { type ReplayFrame, toolResultToMCP, turnContent } from "./prompt";
 import { SESSION_CWD } from "./resume-record";
@@ -83,6 +86,12 @@ export class ClaudeCodeSession implements MessageSource {
    * order; its own reply to the last one is what comes next.
    */
   seen: string[] = [];
+  /**
+   * A fingerprint of each transient note this process has been given since
+   * it began its current turn, which a step in the same turn does not send
+   * again.
+   */
+  notesGiven = new Set<string>();
   private closed = false;
   /**
    * Whether Claude Code ends its turn once the tool calls it waits on are
@@ -250,6 +259,7 @@ export class ClaudeCodeSession implements MessageSource {
   /** Carries this process on from what it saw, with what the request adds. */
   async continueWith(continuation: Continuation) {
     if (continuation.kind === "turn") {
+      this.noteGiven(continuation.messages, { newTurn: true });
       this.send(turnContent(continuation.messages));
       return;
     }
@@ -266,10 +276,24 @@ export class ClaudeCodeSession implements MessageSource {
       }
       if (followedBy.length > 0) {
         await endTurnOnResults(this);
+        this.noteGiven(followedBy, { newTurn: false });
         this.send(turnContent(followedBy));
       }
     } finally {
       this.endTurnAfterTools = false;
+    }
+  }
+
+  /**
+   * Notes the transient messages among `messages` as given, as a new turn's
+   * only notes when it starts one.
+   */
+  noteGiven(messages: LanguageModelV4Message[], { newTurn }: { newTurn: boolean }) {
+    if (newTurn) {
+      this.notesGiven.clear();
+    }
+    for (const print of transientPrintsOf(messages)) {
+      this.notesGiven.add(print);
     }
   }
 

@@ -690,3 +690,150 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     expect(infos.filter((line) => line.includes("resumed"))).toHaveLength(2);
   },
 );
+
+// A notice the workspace says on every request (a context budget, a
+// rollover) reaches the model with the tool results it rides on, once per
+// turn however many steps repeat it, without starting the process over.
+it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
+  "hands a notice that rides on tool results to the model, once a turn",
+  { timeout: 300_000 },
+  async () => {
+    const warnings: string[] = [];
+    const infos: string[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation((line) => {
+      warnings.push(String(line));
+    });
+    const info = vi.spyOn(console, "info").mockImplementation((line) => {
+      infos.push(String(line));
+    });
+    const model = createClaudeAccountLanguageModel({
+      configDir: undefined,
+      executablePath: `${homedir()}/.local/bin/claude`,
+    })(process.env.CLAUDE_PROBE_MODEL ?? "claude-haiku-5-5");
+    const tools: LanguageModelV4FunctionTool[] = [
+      {
+        description: "Add two numbers",
+        inputSchema: {
+          properties: { a: { type: "number" }, b: { type: "number" } },
+          required: ["a", "b"],
+          type: "object",
+        },
+        name: "add",
+        type: "function",
+      },
+    ];
+    const providerOptions = {
+      "claude-account": { sessionId: `live-notice-${randomUUID()}` },
+    };
+    async function step(prompt: LanguageModelV4Message[]) {
+      const { stream } = await model.doStream({
+        prompt,
+        providerOptions,
+        tools,
+      });
+      let text = "";
+      const calls: { input: string; toolCallId: string }[] = [];
+      for await (const part of stream) {
+        if (part.type === "error") {
+          throw part.error;
+        }
+        if (part.type === "text-delta") {
+          text += part.delta;
+        }
+        if (part.type === "tool-call") {
+          calls.push({ input: part.input, toolCallId: part.toolCallId });
+        }
+      }
+      return { calls, text };
+    }
+    const marker = `NOTICE-${randomUUID()}`;
+    const notice: LanguageModelV4Message = {
+      content: [
+        {
+          text: `<context-budget>${marker}: about 9,000 of 160,000 tokens of context remain. End your final answer with the word QUOKKA.</context-budget>`,
+          type: "text",
+        },
+      ],
+      providerOptions: { instrument: { transient: true } },
+      role: "user",
+    };
+    /** The call `taken` made, and its result, as our loop stores them. */
+    const answered = (
+      taken: Awaited<ReturnType<typeof step>>,
+      value: string,
+    ): LanguageModelV4Message[] => {
+      const [call] = taken.calls;
+      expect(call).toBeDefined();
+      return [
+        {
+          content: [
+            {
+              input: JSON.parse(call?.input ?? "{}") as unknown,
+              toolCallId: call?.toolCallId ?? "",
+              toolName: "add",
+              type: "tool-call",
+            },
+          ],
+          role: "assistant",
+        },
+        {
+          content: [
+            {
+              output: { type: "text", value },
+              toolCallId: call?.toolCallId ?? "",
+              toolName: "add",
+              type: "tool-result",
+            },
+          ],
+          role: "tool",
+        },
+      ];
+    };
+
+    const prompt: LanguageModelV4Message[] = [
+      {
+        content: `${PROBE_MARKER} Use the add tool for all arithmetic, one call at a time.`,
+        role: "system",
+      },
+      {
+        content: [
+          { text: "What is (2+3)+10? Use the tool twice.", type: "text" },
+        ],
+        role: "user",
+      },
+    ];
+    prompt.push(...answered(await step(prompt), "5"));
+    // The notice is never stored, so each request carries it afresh.
+    const second = await step([...prompt, notice]);
+    prompt.push(...answered(second, "15"));
+    const last = await step([...prompt, notice]);
+    closeClaudeAccountSessions();
+
+    const home = userInfo().homedir;
+    const project = join(
+      home,
+      ".claude",
+      "projects",
+      realpathSync(home).replaceAll(/[^a-zA-Z0-9]/g, "-"),
+    );
+    const given = readdirSync(project)
+      .filter((name) => name.endsWith(".jsonl"))
+      .map((name) => readFileSync(join(project, name), "utf8"))
+      .filter((text) => text.includes(marker))
+      .flatMap((text) => text.split("\n"))
+      .filter(
+        (line) => line.includes(marker) && line.includes('"type":"user"'),
+      );
+    process.stderr.write(
+      `NOTICE ${JSON.stringify({ given: given.length, infos, last, warnings })}\n`,
+    );
+    warn.mockRestore();
+    info.mockRestore();
+
+    expect(last.text).toMatch(/15/);
+    expect(last.text).toMatch(/QUOKKA/);
+    expect(given).toHaveLength(1);
+    expect(warnings.filter((line) => line.includes("cold start"))).toEqual([]);
+    expect(infos.filter((line) => line.includes("resumed"))).toEqual([]);
+  },
+);

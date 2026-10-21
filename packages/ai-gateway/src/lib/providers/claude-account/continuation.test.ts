@@ -8,6 +8,7 @@ import {
   planStep,
   splitPrompt,
   tailAfter,
+  transientPrintsOf,
 } from "./continuation";
 import { type ResumeRecord } from "./resume-record";
 
@@ -176,7 +177,10 @@ describe("continuationOf", () => {
     });
   });
 
-  it("continues with tool results while a notice rides along", () => {
+  // A context budget or rollover notice rides on every request, and the
+  // model has to read it mid-turn, after the results, as every other
+  // provider's does.
+  it("continues with tool results and the notice that rides along", () => {
     const first = [system, user("one"), notice("80%")];
     const next = [
       system,
@@ -185,8 +189,35 @@ describe("continuationOf", () => {
       toolResult("t1"),
       notice("81%"),
     ];
-    expect(continuation(after(first, ["t1"]), next)).toMatchObject({
+    expect(continuation(after(first, ["t1"]), next)).toEqual({
+      followedBy: [notice("81%")],
       kind: "tool-results",
+      results: toolResult("t1").content,
+    });
+  });
+
+  // Claude Code keeps every note it is given, so the same rollover notice
+  // with the same handoff notes, said on every step, would pile up a copy
+  // per step.
+  it("leaves out a notice the process was already given this turn", () => {
+    const rollover = notice("<context-rollover>notes</context-rollover>");
+    const first = [system, user("one"), rollover];
+    const given = {
+      ...after(first, ["t1"]),
+      notesGiven: new Set(transientPrintsOf([rollover])),
+    };
+    const { kept, keptPrints, transient } = splitPrompt([
+      system,
+      user("one"),
+      callsTool("t1"),
+      toolResult("t1"),
+      rollover,
+      notice("81%"),
+    ]);
+    expect(continuationOf(given, kept, keptPrints, transient)).toEqual({
+      followedBy: [notice("81%")],
+      kind: "tool-results",
+      results: toolResult("t1").content,
     });
   });
 

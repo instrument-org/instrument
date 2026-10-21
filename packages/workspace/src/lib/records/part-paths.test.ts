@@ -17,6 +17,7 @@ function chosen(path: string, mount?: string): SessionMessagePart.Type {
       chosen: [
         { kind: "file", name: "plan.md", path, ...(mount && { mount }) },
       ],
+      screen: "chat",
     },
     metadata,
     type: "data-viewContext",

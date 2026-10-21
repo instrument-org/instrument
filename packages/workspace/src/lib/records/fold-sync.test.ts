@@ -324,11 +324,6 @@ function messageIdsOf(model: SessionModel | undefined): StoreId.Message[] {
 
 /** What a session's own records come to, written the generator's way. */
 function expectedOf(model: SessionModel) {
-  const state = Object.fromEntries(
-    [...model.state]
-      .filter(([, value]) => value !== null && value !== undefined)
-      .toSorted(([a], [b]) => (a < b ? -1 : 1)),
-  );
   return {
     messages: messageIdsOf(model).map((id) => ({
       ...model.messages.get(id),
@@ -337,14 +332,14 @@ function expectedOf(model: SessionModel) {
         .toSorted((a, b) => (a.metadata.id < b.metadata.id ? -1 : 1)),
     })),
     rollover: model.rollover,
+    sites: model.sites,
     stopped: model.stopped,
-    state,
   };
 }
 
 function written(session: FoldedSession) {
-  const { messages, rollover, stopped, state } = session;
-  return { messages, rollover, stopped, state };
+  const { messages, rollover, sites, stopped } = session;
+  return { messages, rollover, sites, stopped };
 }
 
 /** The winning setting of each field: settled titles first, then the newest, then the larger device id. */

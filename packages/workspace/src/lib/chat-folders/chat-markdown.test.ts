@@ -422,7 +422,7 @@ describe("a change the file does not report leaves it alone", () => {
     );
   });
 
-  it("renders the same file when the chat is told a standing fact again", () => {
+  it("renders the same file when the session's browser went somewhere new", () => {
     const state = [
       ...wholeChatFiles(),
       log(
@@ -433,7 +433,7 @@ describe("a change the file does not report leaves it alone", () => {
             device: DEVICE_B,
             id: chatSession,
           }),
-          { t: "state", seq: 1, at: at(500), value: ["/tmp"], what: "browser" },
+          { t: "sites", seq: 1, at: at(500), visited: ["example.com"] },
         ],
         { generation: 2 },
       ),

@@ -119,10 +119,6 @@ const PartSchema = z
     message: "A part names itself, its message, its session and its date",
   });
 
-const StateWhatSchema = z.enum(["browser"]);
-
-export type StateWhat = z.output<typeof StateWhatSchema>;
-
 const LogRecordSchema = z.discriminatedUnion("t", [
   SessionHeaderSchema,
   z.object({ t: z.literal("message"), ...envelope, message: MessageSchema }),
@@ -148,12 +144,14 @@ const LogRecordSchema = z.discriminatedUnion("t", [
     by: z.enum(["app", "chat", "user"]),
   }),
   z.object({
-    t: z.literal("state"),
+    t: z.literal("sites"),
     ...envelope,
-    /** Which standing fact this record sets. */
-    what: StateWhatSchema,
-    /** The fact's value, as its own module writes it; `null` clears it. */
-    value: z.unknown(),
+    /**
+     * The hosts the session's browser has been on, oldest first, each once,
+     * as of `at`, when it last went somewhere new: the sites a chat shows its
+     * work used. The whole list each time, the newest record standing.
+     */
+    visited: z.array(z.string()),
   }),
 ]);
 

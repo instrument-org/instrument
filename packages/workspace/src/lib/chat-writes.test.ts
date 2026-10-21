@@ -25,7 +25,7 @@ import {
 import { addChildTask, touchTask } from "./chat/children";
 import { createTopic } from "./chat/topics";
 import { createSession } from "./create-session";
-import { getBrowserState, recordVisitedHosts } from "./browser-state";
+import { recordVisitedHosts } from "./browser-state";
 import {
   conversationView,
   listView,
@@ -79,11 +79,6 @@ async function startChat(): Promise<{
   const chatId = await chatFor(sessionId);
   (await createSession({ chatId, sessionId }))._unsafeUnwrap();
   return { chatId, sessionId };
-}
-
-/** What a value reads as once a log has carried it: every date an ISO string. */
-function asRecorded(value: unknown): unknown {
-  return JSON.parse(JSON.stringify(value));
 }
 
 function userMessage(
@@ -495,7 +490,7 @@ describe("a chat written through its records", () => {
     ).toBeUndefined();
   });
 
-  it("says what a session was last told", async () => {
+  it("says which sites a session's browser has been on", async () => {
     const { chatId, sessionId } = await startChat();
     (
       await recordVisitedHosts({
@@ -505,9 +500,8 @@ describe("a chat written through its records", () => {
       })
     )._unsafeUnwrap();
 
-    const state = (await records.service.read(chatId)).chat.sessions[0]?.state;
-    expect(state?.browser).toEqual(
-      asRecorded((await getBrowserState(chatId, sessionId))._unsafeUnwrap()),
-    );
+    expect(
+      (await records.service.read(chatId)).chat.sessions[0]?.sites,
+    ).toEqual(["example.com"]);
   });
 });

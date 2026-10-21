@@ -1,5 +1,4 @@
 import { err, ok, type Result, ResultAsync, safeTry } from "neverthrow";
-import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -17,52 +16,22 @@ import { getWorkspaceConfig } from "./workspace-config";
  */
 export const BLANK_PAGE_URL = "about:blank";
 
-const BrowserStateSchema = z.object({
-  // Read from the chat's records this is the ISO string JSON holds, and from
-  // a store written by an older build a Date; both are this instant.
-  lastUsedAt: z.coerce.date(),
-  /**
-   * The hosts this session's browser has been on, oldest first, each once,
-   * the newest visit moving its host to the end. What a chat shows as the
-   * sites its work used: the pages themselves are too many to keep and too
-   * many to draw, and a host is the mark a person recognizes.
-   */
-  visitedHosts: z.array(z.string()).default([]),
-});
-
-type BrowserState = z.output<typeof BrowserStateSchema>;
-
-/** What a session's browser state reads back as, or none where it does not read. */
-export function browserStateOf(value: unknown): BrowserState | undefined {
-  const parsed = BrowserStateSchema.safeParse(value);
-  return parsed.success ? parsed.data : undefined;
-}
-
 /** How many hosts a session remembers; a long crawl keeps its newest. */
 const VISITED_HOSTS_MAX = 40;
 
 /** The hosts with one more visit at the end, that host said once. */
-function withVisit(hosts: string[] | undefined, url: string): string[] {
+function withVisit(hosts: string[], url: string): string[] {
   let host: string;
   try {
     host = new URL(url).hostname;
   } catch {
-    return hosts ?? [];
+    return hosts;
   }
   if (host === "") {
-    return hosts ?? [];
+    return hosts;
   }
-  const rest = (hosts ?? []).filter((known) => known !== host);
+  const rest = hosts.filter((known) => known !== host);
   return [...rest, host].slice(-VISITED_HOSTS_MAX);
-}
-
-export function getBrowserState(chatId: ChatId, sessionId: StoreId.Session) {
-  return ChatReads.state({
-    chatId,
-    schema: z.unknown(),
-    sessionId,
-    what: "browser",
-  }).map((held) => (held === undefined ? undefined : browserStateOf(held)));
 }
 
 /**
@@ -94,9 +63,11 @@ export function navigateTarget({
 }
 
 /**
- * Add the hosts of pages a session's work is on to what it has visited: a
- * chat's task works in tabs of the chat, opened behind whatever the user has
- * up, so the hosts are what is the session's to record.
+ * Add the hosts of pages a session's work is on to what it has visited, its
+ * `sites` record: a chat's task works in tabs of the chat, opened behind
+ * whatever the user has up, so the hosts are what is the session's to
+ * record. A host is kept rather than a page: the pages are too many to keep
+ * and too many to draw, and a host is the mark a person recognizes.
  */
 export function recordVisitedHosts({
   sessionId,
@@ -108,8 +79,8 @@ export function recordVisitedHosts({
   urls: string[];
 }) {
   return safeTry(async function* () {
-    const current = yield* getBrowserState(chatId, sessionId);
-    const known = new Set(current?.visitedHosts);
+    const current = yield* ChatReads.sites({ chatId, sessionId });
+    const known = new Set(current);
     // Every command runs through here with every tab it holds, so only a host
     // the session has not been on is worth a write; one it has been on stays
     // where its first visit put it. A blank page or a file has no host.
@@ -120,16 +91,11 @@ export function recordVisitedHosts({
     if (fresh.length === 0) {
       return ok(undefined);
     }
-    let visitedHosts = current?.visitedHosts ?? [];
+    let visited = current;
     for (const url of fresh) {
-      visitedHosts = withVisit(visitedHosts, url);
+      visited = withVisit(visited, url);
     }
-    const state = BrowserStateSchema.parse({
-      ...current,
-      lastUsedAt: new Date(),
-      visitedHosts,
-    });
-    yield* ChatWrites.state(chatId, sessionId, "browser", state);
+    yield* ChatWrites.sites(chatId, sessionId, visited);
     return ok(undefined);
   });
 }

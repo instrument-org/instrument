@@ -80,9 +80,7 @@ export function addDifferences(
  * not one, which `addDifferences` reads as the same value.
  *
  * For a value a schema has already read back, which is what makes the answer
- * mean anything: a part, once `partFromRecord` has run. A told value has no
- * schema here, so a date in one is the ISO string JSON holds and its own
- * reader's to coerce; `browser-state.ts` is the one that had to learn to.
+ * mean anything: a part, once `partFromRecord` has run.
  */
 export function datesKept(
   found: Difference[],

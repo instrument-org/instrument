@@ -11,7 +11,6 @@ import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { ChatReads } from "../chat-reads";
 import { listApps } from "../apps/store";
-import { getBrowserState } from "../browser-state";
 import { ChatWrites } from "../chat-writes";
 import { cappedTitle } from "../chat-folders/folder-name";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
@@ -738,10 +737,8 @@ function filedHostsOf(
   sessionId: StoreId.Session,
 ): Promise<string[]> {
   return filedHosts(chatId, sessionId, async () => {
-    const browser = await getBrowserState(chatId, sessionId);
-    return browser.isOk()
-      ? kept(browser.value?.visitedHosts ?? [])
-      : unkept([]);
+    const sites = await ChatReads.sites({ chatId, sessionId });
+    return sites.isOk() ? kept(sites.value) : unkept([]);
   });
 }
 

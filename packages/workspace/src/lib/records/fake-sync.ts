@@ -17,7 +17,6 @@ import {
   RECORD_FORMAT,
   recordLine,
   type SessionHeader,
-  type StateWhat,
 } from "./record";
 import { type Unsequenced } from "./record-writer";
 import { type Random } from "./seeded-random";
@@ -58,8 +57,8 @@ export interface SessionModel {
   parts: Map<string, SessionMessagePart.Type>;
   retracted: Set<string>;
   rollover?: { after: StoreId.Message; usableTokens?: number };
+  sites?: string[];
   stopped?: { at: Date; by: "app" | "chat" | "user" };
-  state: Map<StateWhat, unknown>;
   /** Newest `at` of any record in the session's logs. */
   updatedAt: number;
 }
@@ -133,8 +132,6 @@ class Device {
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
-const STATE_FACTS: StateWhat[] = ["browser"];
-
 /** How many things the devices do between them in one simulated chat. */
 const STEPS = 40;
 
@@ -169,7 +166,6 @@ export function simulateChat(random: Random): SimulatedChat {
       messages: new Map(),
       parts: new Map(),
       retracted: new Set(),
-      state: new Map(),
       updatedAt: 0,
       ...fields,
     });
@@ -476,10 +472,9 @@ export function simulateChat(random: Random): SimulatedChat {
         break;
     }
     return {
-      t: "state",
+      t: "sites",
       at: when,
-      what: random.pick(STATE_FACTS),
-      value: random.chance(0.2) ? null : { at: tick },
+      visited: random.chance(0.2) ? [] : [`site-${tick}.example`],
     };
   }
 
@@ -554,8 +549,8 @@ export function simulateChat(random: Random): SimulatedChat {
       case "stopped":
         model.stopped = { at: record.at, by: record.by };
         break;
-      case "state":
-        model.state.set(record.what, record.value);
+      case "sites":
+        model.sites = record.visited;
         break;
     }
   }

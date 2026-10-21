@@ -117,7 +117,7 @@ describe("foldChat", () => {
     }
   });
 
-  it("keeps the newest rollover, stop and each thing state, and drops what was cleared", () => {
+  it("keeps the newest rollover, stop and sites", () => {
     const [session] = foldChat([
       log(DEVICE_A, [
         HEADER_A,
@@ -131,23 +131,17 @@ describe("foldChat", () => {
         },
         { t: "stopped", seq: 3, at: at(3), by: "app" },
         { t: "stopped", seq: 4, at: at(4), by: "user" },
-        { t: "state", seq: 5, at: at(5), what: "browser", value: ["/a"] },
-        {
-          t: "state",
-          seq: 6,
-          at: at(6),
-          what: "browser",
-          value: null,
-        },
-        { t: "state", seq: 7, at: at(7), what: "browser", value: ["/a", "/b"] },
-        { t: "state", seq: 8, at: at(8), what: "browser", value: ["/c"] },
+        { t: "sites", seq: 5, at: at(5), visited: ["a.example"] },
+        { t: "sites", seq: 6, at: at(6), visited: [] },
+        { t: "sites", seq: 7, at: at(7), visited: ["a.example", "b.example"] },
+        { t: "sites", seq: 8, at: at(8), visited: ["c.example"] },
       ]),
     ]).sessions;
 
     expect(session).toMatchObject({
       rollover: { after: messageId(2), usableTokens: 9 },
       stopped: { at: at(4), by: "user" },
-      state: { browser: ["/c"] },
+      sites: ["c.example"],
       updatedAt: at(8),
     });
   });
@@ -509,7 +503,7 @@ describe("ChatFold", () => {
         partRecord(3, text(1, 1, "hello again")),
         { t: "retract", seq: 4, at: at(4), messages: [messageId(9)], why: "x" },
         messageRecord(5, user(2)),
-        { t: "state", seq: 6, at: at(6), what: "browser", value: 3 },
+        { t: "sites", seq: 6, at: at(6), visited: ["example.com"] },
       ]),
       log(DEVICE_B, [
         header(0, {

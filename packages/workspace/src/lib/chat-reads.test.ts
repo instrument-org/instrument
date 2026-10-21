@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { z } from "zod";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ChatId } from "../schemas/chat-id";
@@ -400,49 +399,22 @@ describe("the transcript a chat is drawn and told from", () => {
   });
 });
 
-describe("the standing facts a session was told", () => {
-  const schema = z.array(z.object({ path: z.string() }));
-
-  it("reads back what the session was last told, and not an earlier one", async () => {
+describe("the sites a session's browser has been on", () => {
+  it("reads back the newest list", async () => {
     const { chatId, sessionId } = await startChat();
     await writeTurn(chatId, sessionId);
-    await ChatWrites.state(chatId, sessionId, "browser", [{ path: "/a" }]);
-    await ChatWrites.state(chatId, sessionId, "browser", [{ path: "/b" }]);
+    await ChatWrites.sites(chatId, sessionId, ["a.example"]);
+    await ChatWrites.sites(chatId, sessionId, ["a.example", "b.example"]);
 
     expect(
-      (
-        await ChatReads.state({
-          chatId,
-          schema,
-          sessionId,
-          what: "browser",
-        })
-      )._unsafeUnwrap(),
-    ).toEqual([{ path: "/b" }]);
+      (await ChatReads.sites({ chatId, sessionId }))._unsafeUnwrap(),
+    ).toEqual(["a.example", "b.example"]);
   });
 
-  it.each([
-    { name: "one never told", state: undefined },
-    { name: "one told it no longer holds", state: null },
-  ])("answers nothing for $name", async ({ state }) => {
-    const { chatId, sessionId } = await startChat();
-    await writeTurn(chatId, sessionId);
-    if (state === null) {
-      await ChatWrites.state(chatId, sessionId, "browser", [{ path: "/a" }]);
-      await ChatWrites.state(chatId, sessionId, "browser", undefined);
-    }
-
-    expect(
-      (
-        await ChatReads.state({ chatId, schema, sessionId, what: "browser" })
-      )._unsafeUnwrap(),
-    ).toBeUndefined();
-  });
-
-  it("gives a task what its chat was told before it forked", async () => {
+  it("gives a task its own, not its chat's", async () => {
     const { chatId, sessionId } = await startChat();
     const { asked } = await writeTurn(chatId, sessionId);
-    await ChatWrites.state(chatId, sessionId, "browser", [{ path: "/a" }]);
+    await ChatWrites.sites(chatId, sessionId, ["a.example"]);
     const task = await addChildTask(chatId, {
       createdAt: new Date(),
       forkedAtMessageId: asked.id,
@@ -452,31 +424,7 @@ describe("the standing facts a session was told", () => {
     });
 
     expect(
-      (
-        await ChatReads.state({
-          chatId,
-          schema,
-          sessionId: task.id,
-          what: "browser",
-        })
-      )._unsafeUnwrap(),
-    ).toEqual([{ path: "/a" }]);
-  });
-
-  it("answers nothing for a fact written in a shape this build cannot read", async () => {
-    const { chatId, sessionId } = await startChat();
-    await writeTurn(chatId, sessionId);
-    await ChatWrites.state(chatId, sessionId, "browser", { folders: "/a" });
-
-    expect(
-      (
-        await ChatReads.state({
-          chatId,
-          schema,
-          sessionId,
-          what: "browser",
-        })
-      )._unsafeUnwrap(),
-    ).toBeUndefined();
+      (await ChatReads.sites({ chatId, sessionId: task.id }))._unsafeUnwrap(),
+    ).toEqual([]);
   });
 });

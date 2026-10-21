@@ -1,5 +1,4 @@
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
-import { type z } from "zod";
 
 import { type ChatId } from "../schemas/chat-id";
 import { type Session } from "../schemas/session";
@@ -8,10 +7,9 @@ import { type StoreId } from "../schemas/store-id";
 import { TypedError } from "./errors";
 import { type ChatRead, writingChatRecords } from "./records/chat-records";
 import { type FoldedSession, type FoldedSettings } from "./records/fold";
-import { type StateWhat } from "./records/record";
 import { sessionOf } from "./records/session-of";
 import {
-  stateView,
+  sitesView,
   contextTokensView,
   conversationView,
   everyMessageView,
@@ -147,31 +145,15 @@ export namespace ChatReads {
     return read(chatId).map((chat) => contextTokensView(chat, sessionId));
   }
 
-  /**
-   * One standing fact the app keeps about a session: the sites its browser
-   * used. Written as a record when it changes, and read back here.
-   */
-  export function state<Schema extends z.ZodType>({
+  /** The hosts the session's browser has been on, oldest first: the sites its work used. */
+  export function sites({
     chatId,
-    schema,
     sessionId,
-    what,
   }: {
     chatId: ChatId;
-    schema: Schema;
     sessionId: StoreId.Session;
-    what: StateWhat;
-  }): ResultAsync<undefined | z.output<Schema>, Failure> {
-    return read(chatId).map((chat) => {
-      const held = stateView(chat, sessionId, what);
-      if (held === undefined || held === null) {
-        return undefined;
-      }
-      const parsed = schema.safeParse(held);
-      // A fact this build cannot read is one the agent is told again in
-      // full, which is what a missing one does: the record stays as written.
-      return parsed.success ? parsed.data : undefined;
-    });
+  }): ResultAsync<string[], Failure> {
+    return read(chatId).map((chat) => sitesView(chat, sessionId));
   }
 
   /**

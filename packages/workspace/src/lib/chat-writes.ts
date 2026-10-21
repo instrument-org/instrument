@@ -12,7 +12,6 @@ import {
   type SettingChange,
   writingChatRecords,
 } from "./records/chat-records";
-import { type StateWhat } from "./records/record";
 
 /**
  * What a chat is written through: its records, and nothing beside them.
@@ -108,20 +107,14 @@ export namespace ChatWrites {
     );
   }
 
-  /**
-   * What one of the session's standing facts has now been set to: the
-   * folders it can reach, the apps it is connected to, the browser's tabs,
-   * the memories it was given, the processes it left running. `undefined`
-   * says it has been told nothing, so the next message tells it the whole.
-   */
-  export function state(
+  /** The hosts the session's browser has been on now, the whole list. */
+  export function sites(
     chatId: ChatId,
     sessionId: StoreId.Session,
-    what: StateWhat,
-    value: unknown,
+    visited: string[],
   ): ResultAsync<void, TypedError.Storage> {
     return records(chatId).andThen((writing) =>
-      wrote(writing.state(chatId, sessionId, what, value ?? null), undefined),
+      wrote(writing.sites(chatId, sessionId, visited), undefined),
     );
   }
 

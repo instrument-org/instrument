@@ -38,7 +38,6 @@ import {
   type ChatDbSession,
   type ChatDbSessionRow,
   readChatDb,
-  TOLD_KEYS,
 } from "./read-chat-db";
 
 /**
@@ -317,7 +316,7 @@ type RecordsThere =
   | { kind: "restating"; restating: string[] };
 
 /** The records a session row restates, which a conversion writes from it. */
-const RESTATED = new Set(["rollover", "session", "set", "stopped", "state"]);
+const RESTATED = new Set(["rollover", "session", "set", "sites", "stopped"]);
 
 /**
  * Which device wrote a record does not say whether the records hold the
@@ -502,11 +501,12 @@ function asRecordsKeepIt(row: ChatDbSessionRow): Session.Type {
 
 /**
  * A session's log: its header, each message followed by its parts, then
- * where its context was last reset, who stopped it, and its standing facts.
+ * where its context was last reset, who stopped it, and the sites its
+ * browser had been on.
  */
 async function logRecords(
   chat: ChatId,
-  { messages, session, state }: ChatDbSession,
+  { messages, session, sites }: ChatDbSession,
   { app, deviceId }: ConvertOptions,
   save: SaveBlob,
 ): Promise<Unsequenced<LogRecord>[]> {
@@ -550,10 +550,8 @@ async function logRecords(
   if (stop) {
     records.push({ t: "stopped", ...stop });
   }
-  for (const [what] of TOLD_KEYS) {
-    if (what in state) {
-      records.push({ t: "state", at, what, value: state[what] });
-    }
+  if (sites !== undefined) {
+    records.push({ t: "sites", at, visited: sites });
   }
   return records;
 }
@@ -762,7 +760,7 @@ async function verify(
   }
   const folded = new Map(fold.chat().sessions.map((one) => [one.id, one]));
   const load = (name: string) => fs.readFile(blobPath(work, name));
-  for (const { messages, session, state } of read.sessions) {
+  for (const { messages, session, sites } of read.sessions) {
     const mine = folded.get(session.id);
     folded.delete(session.id);
     if (!mine) {
@@ -818,7 +816,7 @@ async function verify(
         );
       }
     }
-    addDifferences(found, `${session.id} state`, state, mine.state);
+    addDifferences(found, `${session.id} sites`, sites, mine.sites);
   }
   for (const extra of folded.keys()) {
     addDifference(found, extra, undefined, "a session chat.db does not hold");

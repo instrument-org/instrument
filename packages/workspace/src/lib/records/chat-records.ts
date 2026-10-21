@@ -41,7 +41,6 @@ import {
   type SettingField,
   type SettingRecord,
   type SessionHeader,
-  type StateWhat,
 } from "./record";
 import { type Unsequenced } from "./record-writer";
 import { sessionOf } from "./session-of";
@@ -171,8 +170,8 @@ interface PendingSession {
   parts: Map<StoreId.Part, Queued<SessionMessagePart.Type>>;
   retracted: Map<StoreId.Message, number>;
   rollover?: Queued<NonNullable<FoldedSession["rollover"]>>;
+  sites?: Queued<string[]>;
   stopped?: Queued<NonNullable<FoldedSession["stopped"]>>;
-  state: Map<StateWhat, Queued<unknown>>;
 }
 
 /** One file this process appends to, and how far its writes reach. */
@@ -639,12 +638,11 @@ export class ChatRecords {
     });
   }
 
-  /** What the session was last told of one standing fact; `null` clears it. */
-  state(
+  /** The hosts the session's browser has been on, the whole list. */
+  sites(
     chatId: ChatId,
     sessionId: StoreId.Session,
-    what: StateWhat,
-    value: unknown,
+    visited: string[],
   ): Promise<void> {
     return this.#with(chatId, (chat) => {
       const at = this.#now();
@@ -652,14 +650,14 @@ export class ChatRecords {
         at,
         changed: () => recordChanged(chat.id, "session"),
         hold: (session, ticket) => {
-          session.state.set(what, { ticket, value });
+          session.sites = { ticket, value: visited };
           return (held) => {
-            if (held.state.get(what)?.ticket === ticket) {
-              held.state.delete(what);
+            if (held.sites?.ticket === ticket) {
+              delete held.sites;
             }
           };
         },
-        record: () => ({ t: "state", at, what, value }),
+        record: () => ({ t: "sites", at, visited }),
       });
     });
   }
@@ -1421,7 +1419,6 @@ function pendingOf(chat: OpenChat, sessionId: StoreId.Session): PendingSession {
     messages: new Map(),
     parts: new Map(),
     retracted: new Map(),
-    state: new Map(),
   };
   chat.pending.set(sessionId, session);
   return session;
@@ -1440,12 +1437,12 @@ function unhold(
   if (
     !session.header &&
     !session.rollover &&
+    !session.sites &&
     !session.stopped &&
     session.settings.size === 0 &&
     session.messages.size === 0 &&
     session.parts.size === 0 &&
-    session.retracted.size === 0 &&
-    session.state.size === 0
+    session.retracted.size === 0
   ) {
     chat.pending.delete(sessionId);
   }
@@ -1793,7 +1790,6 @@ function startedSession(
     messages: [],
     ...(parent !== undefined && { parent }),
     settings: {},
-    state: {},
     ...(title !== undefined && { title }),
     updatedAt: at,
     writtenBy: new Map(),
@@ -1848,14 +1844,6 @@ function overlaid(
     messages.delete(id);
     writtenBy.delete(id);
   }
-  const state = { ...session.state };
-  for (const [what, { value }] of queued.state) {
-    if (value === null || value === undefined) {
-      delete state[what];
-    } else {
-      state[what] = value;
-    }
-  }
   let settings = session.settings;
   for (const { value } of queued.settings.values()) {
     settings = withSetting(settings, value);
@@ -1865,8 +1853,8 @@ function overlaid(
     settings,
     messages: [...messages.values()].toSorted((a, b) => byId(a.id, b.id)),
     ...(queued.rollover && { rollover: queued.rollover.value }),
+    ...(queued.sites && { sites: queued.sites.value }),
     ...(queued.stopped && { stopped: queued.stopped.value }),
-    state,
     updatedAt: new Date(Math.max(session.updatedAt.getTime(), queued.at)),
     writtenBy,
   };

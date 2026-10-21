@@ -17,7 +17,6 @@ import {
   type SettingField,
   type SettingRecord,
   type SessionHeader,
-  type StateWhat,
 } from "./record";
 
 /**
@@ -79,9 +78,9 @@ export interface FoldedSession {
    * after it, which the conversation says.
    */
   stopped?: { at: Date; by: "app" | "chat" | "user" };
+  /** The hosts the session's browser has been on, from its newest `sites` record. */
+  sites?: string[];
   title?: string;
-  /** What the session was last told of each, leaving out what was cleared. */
-  state: Partial<Record<StateWhat, unknown>>;
   /** When the session's newest record was written. */
   updatedAt: Date;
   /**
@@ -118,8 +117,8 @@ interface SessionState {
   rollover?: Newest<NonNullable<FoldedSession["rollover"]>>;
   /** The highest `seq` of each log, of any record and of records after its header. */
   seqs: Map<string, { data: number; last: number }>;
+  sites?: Newest<string[]>;
   stopped?: Newest<NonNullable<FoldedSession["stopped"]>>;
-  state: Map<StateWhat, Newest<unknown>>;
   updatedAt: number;
 }
 
@@ -347,8 +346,8 @@ export class ChatFold {
           place,
         );
         break;
-      case "state":
-        keepNewest(session.state, record.what, record.value, place);
+      case "sites":
+        session.sites = newer(session.sites, record.visited, place);
         break;
     }
   }
@@ -409,7 +408,6 @@ export class ChatFold {
       parts: new Map(),
       retracted: new Set(),
       seqs: new Map(),
-      state: new Map(),
       updatedAt: 0,
     };
     this.#sessions.set(id, session);
@@ -499,13 +497,6 @@ function folded(
   session: SessionState,
   settings: SettingState,
 ): FoldedSession {
-  const state: FoldedSession["state"] = {};
-  for (const what of [...session.state.keys()].toSorted()) {
-    const value = session.state.get(what)?.value;
-    if (value !== null && value !== undefined) {
-      state[what] = value;
-    }
-  }
   const { messages, writtenBy } = messagesOf(session);
   return {
     app: header.app,
@@ -523,9 +514,9 @@ function folded(
     messages,
     ...(header.parent === undefined ? {} : { parent: header.parent }),
     ...(session.rollover && { rollover: session.rollover.value }),
+    ...(session.sites && { sites: session.sites.value }),
     ...(session.stopped && { stopped: session.stopped.value }),
     ...(header.title === undefined ? {} : { title: header.title }),
-    state,
     updatedAt: new Date(session.updatedAt),
     writtenBy,
   };

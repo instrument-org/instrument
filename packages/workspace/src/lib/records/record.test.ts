@@ -125,18 +125,8 @@ describe("parseLogLine", () => {
     ],
     ["a stop", { at: at(1), by: "chat", seq: 6, t: "stopped" }],
     [
-      "something told",
-      {
-        at: at(1),
-        seq: 7,
-        t: "state",
-        value: [{ path: "/a" }],
-        what: "browser",
-      },
-    ],
-    [
-      "something cleared",
-      { at: at(1), seq: 8, t: "state", value: null, what: "browser" },
+      "the sites a browser went to",
+      { at: at(1), seq: 7, t: "sites", visited: ["example.com"] },
     ],
   ])("reads back %s as written", (_name, record) => {
     expect(parseLogLine(recordLine(record))).toEqual(record);

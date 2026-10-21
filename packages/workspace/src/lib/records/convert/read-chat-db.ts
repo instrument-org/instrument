@@ -21,7 +21,6 @@ import { StorageKey } from "../../storage-key";
 import { runStoreMigrations } from "../../store-migrations";
 import { STORE_TABLE } from "../../store-table";
 import { type WrappedStorage, wrapStorage } from "../../wrap-storage";
-import { type StateWhat } from "../record";
 
 /**
  * Reading a chat's `chat.db` as the store read it, for turning it into
@@ -71,8 +70,8 @@ const ChatDbSessionRowSchema = Session.Schema.extend({
 export interface ChatDbSession {
   messages: ChatDbMessage[];
   session: ChatDbSessionRow;
-  /** What the session was last told of each, as its module wrote it. */
-  state: Partial<Record<StateWhat, unknown>>;
+  /** The hosts the session's browser had been on, oldest first. */
+  sites?: string[];
 }
 
 export type ChatDbRead =
@@ -92,11 +91,10 @@ export type ChatDbRead =
   /** The store could not have read the chat either. */
   | { error: string; kind: "unreadable" };
 
-/** The key of each standing fact a session holds, as the store kept it. */
-export const TOLD_KEYS: readonly (readonly [
-  StateWhat,
-  (session: StoreId.Session) => string,
-])[] = [["browser", StorageKey.browserState]];
+/** The browser's state as the store kept it, of which the hosts are kept. */
+const BrowserStateSchema = z.object({
+  visitedHosts: z.array(z.string()).default([]),
+});
 
 /** Rows the store keeps for itself, which are no part of the chat. */
 const BOOKKEEPING = new Set(["__canary__", "__migration_version__"]);
@@ -193,7 +191,7 @@ async function readStorage(storage: WrappedStorage): Promise<ChatDbRead> {
     sessions.push({
       messages: await readMessages(storage, id, taken),
       session,
-      state: await readState(storage, id, taken),
+      ...(await readSites(storage, id, taken)),
     });
   }
   const leftBehind: Record<string, number> = {};
@@ -279,28 +277,22 @@ async function readParts(
 }
 
 /**
- * What a session was last told of each thing, decoded but not parsed: the
- * value its module wrote, which that module's own schema reads. A row that
- * does not decode, or holds nothing, is as good as none, as it was to the
- * module.
+ * The hosts a session's browser had been on. A row that does not decode or
+ * read is as good as none, as it was to the module that wrote it.
  */
-async function readState(
+async function readSites(
   storage: WrappedStorage,
   sessionId: StoreId.Session,
   taken: Set<string>,
-): Promise<ChatDbSession["state"]> {
-  const state: ChatDbSession["state"] = {};
-  for (const [what, keyOf] of TOLD_KEYS) {
-    const key = keyOf(sessionId);
-    const value = decode(await need(storage.getItemRaw(key), key));
-    if (value !== undefined) {
-      taken.add(key);
-    }
-    if (value !== undefined && value !== null) {
-      state[what] = value;
-    }
+): Promise<Pick<ChatDbSession, "sites">> {
+  const key = StorageKey.browserState(sessionId);
+  const value = decode(await need(storage.getItemRaw(key), key));
+  if (value === undefined) {
+    return {};
   }
-  return state;
+  taken.add(key);
+  const parsed = BrowserStateSchema.safeParse(value);
+  return parsed.success ? { sites: parsed.data.visitedHosts } : {};
 }
 
 /** The ids under a key, sorted as the store sorted them. */

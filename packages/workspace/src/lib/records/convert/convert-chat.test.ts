@@ -240,8 +240,6 @@ async function recordKinds(file: string): Promise<string[]> {
     switch (record.t) {
       case "part":
         return `part ${record.part.type}`;
-      case "state":
-        return `state ${record.what}`;
       default:
         return record.t;
     }
@@ -335,7 +333,7 @@ describe("convertChat", () => {
         "part tool-bash",
         "rollover",
         "stopped",
-        "state browser",
+        "sites",
       ]
     `);
     expect(
@@ -412,14 +410,9 @@ describe("convertChat", () => {
               "value": "marked",
             },
           },
-          "state": {
-            "browser": {
-              "lastUsedAt": "2026-10-14T12:01:10.000Z",
-              "visitedHosts": [
-                "example.com",
-              ],
-            },
-          },
+          "sites": [
+            "example.com",
+          ],
           "stopped": {
             "at": 2026-10-14T12:00:50.000Z,
             "by": "user",
@@ -463,7 +456,6 @@ describe("convertChat", () => {
           "id": "ses_01K7A000000000000000000002",
           "parent": "ses_01K7A000000000000000000001",
           "settings": {},
-          "state": {},
           "stopped": {
             "at": 2026-10-14T12:01:30.000Z,
             "by": "user",

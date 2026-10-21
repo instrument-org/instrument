@@ -7,7 +7,6 @@ import { contextRolloverBoundaryInForce } from "../apply-context-rollover";
 import { isToolPart } from "../is-tool-part";
 import { type ChatRead } from "./chat-records";
 import { historyOf } from "./fold";
-import { type StateWhat } from "./record";
 import { type LoadBlob, partFromRecord } from "./part-blobs";
 import { sessionOf } from "./session-of";
 
@@ -276,23 +275,12 @@ export async function everyMessageView(
  * What the session's context meter shows: the input tokens the last reply
  * that reported any was built from. Zero where no reply has reported one.
  */
-/**
- * What the session was last told of one standing fact, or nothing where it
- * was never told or was told it no longer holds. A task reads its chat's
- * along with its own, so a fact set before the task forked is still its own
- * starting point.
- */
-export function stateView(
+/** The hosts the session's own browser has been on, oldest first. */
+export function sitesView(
   read: ChatRead,
   sessionId: StoreId.Session,
-  what: StateWhat,
-): unknown {
-  const sessions = read.chat.sessions;
-  const session = sessions.find(({ id }) => id === sessionId);
-  const parent = session?.parent
-    ? sessions.find(({ id }) => id === session.parent)
-    : undefined;
-  return session?.state[what] ?? parent?.state[what];
+): string[] {
+  return read.chat.sessions.find(({ id }) => id === sessionId)?.sites ?? [];
 }
 
 export function contextTokensView(

@@ -93,7 +93,6 @@ describe("screenPresentation", () => {
   it.each([
     ["a debug tool", "/debug/components", "Components"],
     ["a component page", "/debug/components/colors", "Colors"],
-    ["an onboarding screen", "/debug/components/onboarding/login", "Log in"],
   ])("names %s", (_, href, title) => {
     expect(screenPresentation(href, CONTEXT).title).toBe(title);
   });
@@ -102,11 +101,10 @@ describe("screenPresentation", () => {
   // screen with no name here fails rather than reading as "Tab". The chat and a
   // site's page are named by the tab strip itself, from the window's tabs.
   const NAMED_BY_THE_STRIP = new Set(["/sites/$id"]);
-  // Every full path but the root and the onboarding window's, which no tab
-  // stands on.
+  // Every full path but the root, which no tab stands on.
   const routes = new Set(
     Array.from(
-      routeTreeSource.matchAll(/fullPath: '(\/(?!onboarding)[^']+)'/g),
+      routeTreeSource.matchAll(/fullPath: '(\/[^']+)'/g),
       ([, path = ""]) => path,
     ),
   );

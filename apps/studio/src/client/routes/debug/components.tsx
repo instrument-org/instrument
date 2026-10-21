@@ -24,11 +24,7 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 
-import {
-  componentPages,
-  getDebugRoute,
-  onboardingScreens,
-} from "./-debug-routes";
+import { componentPages, getDebugRoute } from "./-debug-routes";
 import { scenarios } from "./-transcript/scenarios";
 
 export const Route = createFileRoute("/debug/components")({
@@ -41,18 +37,12 @@ export const Route = createFileRoute("/debug/components")({
 function RouteComponent() {
   const { pathname } = useLocation();
   const search = useSearch({ strict: false });
-  const onboardingPage = componentPages.find(
-    (page) => page.id === "onboarding",
-  );
   const transcriptPage = componentPages.find(
     (page) => page.id === "transcript",
   );
   const defaultScenarioId = scenarios[0]?.id;
   const activeScenarioId = search.scenario ?? defaultScenarioId;
   const isTranscriptRoute = pathname === transcriptPage?.to;
-  const isOnboardingRoute =
-    onboardingPage !== undefined &&
-    pathname.startsWith(onboardingPage.to + "/");
 
   return (
     <SidebarProvider
@@ -65,7 +55,6 @@ function RouteComponent() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {componentPages.map((page) => {
-                  const isOnboardingPage = page.id === "onboarding";
                   const isTranscriptPage = page.id === "transcript";
                   const pageSearch =
                     isTranscriptPage && defaultScenarioId
@@ -111,29 +100,6 @@ function RouteComponent() {
                                       to={transcriptPage.to}
                                     >
                                       <span>{scenario.name}</span>
-                                    </InternalLink>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              ))}
-                            </SidebarMenuSub>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      )}
-                      {isOnboardingPage && (
-                        <Collapsible open={isOnboardingRoute}>
-                          <CollapsibleContent>
-                            <SidebarMenuSub>
-                              {onboardingScreens.map((screen) => (
-                                <SidebarMenuSubItem key={screen.id}>
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    isActive={pathname === screen.to}
-                                  >
-                                    <InternalLink
-                                      allowOpenNewTab={false}
-                                      to={screen.to}
-                                    >
-                                      <span>{screen.label}</span>
                                     </InternalLink>
                                   </SidebarMenuSubButton>
                                 </SidebarMenuSubItem>

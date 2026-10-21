@@ -11,7 +11,6 @@ import {
 } from "@/electron-main/lib/quit";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { systemRegionArguments } from "@/electron-main/lib/system-country";
-import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { studioURL } from "@/electron-main/lib/urls";
 import { bindAppWindowChords } from "@/electron-main/menus/app-window";
 import { bindShortcutAccelerators } from "@/electron-main/menus/shortcuts";
@@ -20,7 +19,6 @@ import {
   getAppZoom,
   getWindowState,
 } from "@/electron-main/stores/workspace/window-state";
-import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
 import {
   isDrivenInstance,
   isHeldOffScreen,
@@ -65,19 +63,6 @@ let pendingAsks: AppWindowAsk[] = [];
  */
 let isTakingAsks = false;
 
-/**
- * Whether the window is open but held off screen, loading behind onboarding so
- * it is ready the moment onboarding is done. Asks wait for it to come on
- * screen rather than going to a page nobody can see.
- */
-let isWarming = false;
-
-/** Settles once the window has painted, and so can go on screen. */
-let painted: Promise<void> = Promise.resolve();
-
-/** Whether the window comes on screen maximized, as it was last left. */
-let showsMaximized = false;
-
 export function getAppWindow(): BrowserWindow | null {
   return appWindow && !appWindow.isDestroyed() ? appWindow : null;
 }
@@ -114,31 +99,16 @@ export function openAppScreen(href: string) {
 /**
  * The app window: the inbox of chats, the tasks they started, and the tabs
  * the user and the agents open. Its renderer hosts every task's browser guest.
- *
- * `hidden` opens it off screen to warm behind onboarding
- * ({@link warmAppWindowBehind}); opening it again without puts it on screen.
- * `onShow` runs once the window is on screen, for a window it replaces. Not
- * the window's own `show` event, which macOS ties to occlusion and does not
- * send while the display sleeps.
  */
-export function openAppWindow({
-  hidden = false,
-  onShow,
-}: { hidden?: boolean; onShow?: () => void } = {}): BrowserWindow {
+export function openAppWindow(): BrowserWindow {
   if (appWindow && !appWindow.isDestroyed()) {
-    if (isWarming && !hidden) {
-      revealAppWindow(onShow);
-    } else if (!isWarming) {
-      if (!isHeldOffScreen(appWindow)) {
-        appWindow.focus();
-      }
-      onShow?.();
+    if (!isHeldOffScreen(appWindow)) {
+      appWindow.focus();
     }
     return appWindow;
   }
 
   const remembered = rememberedAppWindowState();
-  showsMaximized = remembered.isMaximized;
 
   appWindow = new BrowserWindow({
     ...remembered.bounds,
@@ -199,13 +169,11 @@ export function openAppWindow({
   setTrafficLightForZoom(appWindow, getAppZoom());
 
   const window = appWindow;
-  painted = new Promise((resolve) => {
-    showWhenReady(window, resolve);
+  showWhenReady(window, () => {
+    if (!window.isDestroyed()) {
+      putOnScreen(window, { maximized: remembered.isMaximized });
+    }
   });
-  isWarming = hidden;
-  if (!hidden) {
-    revealAppWindow(onShow);
-  }
 
   // Where closing the last window the user can see quits the app, the
   // running-work warning has to happen here, while the window still exists.
@@ -306,46 +274,6 @@ export function openAppWindow({
   return appWindow;
 }
 
-/**
- * Opens the app window off screen once onboarding has painted, so it loads
- * while the person goes through onboarding instead of after it, and is ready
- * to take onboarding's place the moment they finish. After onboarding's own
- * first paint, so the two pages do not compete for it. Onboarding closed
- * without finishing takes the waiting window with it, which is then the last
- * window and quits the app.
- */
-export function warmAppWindowBehind(onboarding: BrowserWindow) {
-  onboarding.webContents.once("did-finish-load", () => {
-    if (!onboarding.isDestroyed() && !getAppWindow()) {
-      openAppWindow({ hidden: true });
-    }
-  });
-  onboarding.once("closed", () => {
-    if (isWarming) {
-      appWindow?.destroy();
-    }
-  });
-}
-
-/** Puts the window on screen once it has painted, with what waited for it. */
-function revealAppWindow(onShow?: () => void) {
-  isWarming = false;
-  void painted.then(() => {
-    const window = getAppWindow();
-    if (!window) {
-      return;
-    }
-    putOnScreen(window, { maximized: showsMaximized });
-    onShow?.();
-    // What was asked while it waited off screen, for a page already listening.
-    if (isTakingAsks) {
-      for (const ask of takePendingAppWindowAsks()) {
-        publisher.publish("window.command", ask);
-      }
-    }
-  });
-}
-
 /** Where the app window opens: where it was left, or its first-time shape. */
 export function rememberedAppWindowState() {
   return getWindowState("app", {
@@ -365,11 +293,6 @@ export function waitingAppWindowAsks(): readonly AppWindowAsk[] {
 /** What was asked of the window while it was opening, once, then nothing. */
 export function takePendingAppWindowAsks(): AppWindowAsk[] {
   isTakingAsks = true;
-  // A page warming off screen is listening, but what waits is for the window
-  // the person sees; it is handed over when the window comes on screen.
-  if (isWarming) {
-    return [];
-  }
   const asks = pendingAsks;
   pendingAsks = [];
   return asks;
@@ -383,7 +306,7 @@ export function updateAppWindowBackgroundColor() {
 
 function askAppWindow(ask: AppWindowAsk) {
   const window = getAppWindow();
-  if (window && !isWarming) {
+  if (window) {
     if (!isHeldOffScreen(window)) {
       window.focus();
     }
@@ -397,14 +320,8 @@ function askAppWindow(ask: AppWindowAsk) {
   pendingAsks.push(ask);
   publisher.publish("window.asks-waiting", null);
   // An ask that launched the app arrives before it is ready to make a window;
-  // boot opens this one itself, and the ask waits for it. So does one made
-  // before onboarding is finished, including its steps after the provider is
-  // set up: finishing it opens this window, which then takes it.
-  if (
-    app.isReady() &&
-    !isSetupUp() &&
-    !getOnboardingWindow()
-  ) {
+  // boot opens this one itself, and the ask waits for it.
+  if (app.isReady()) {
     openAppWindow();
   }
 }

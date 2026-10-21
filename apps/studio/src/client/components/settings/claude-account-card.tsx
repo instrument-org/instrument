@@ -67,7 +67,7 @@ export function ClaudeAccountCard() {
   const wasSigningIn = useRef(false);
 
   // A sign-in this card started has finished: the account is connected, as
-  // from onboarding, so its recommended model becomes the default.
+  // from setup, so its recommended model becomes the default.
   useEffect(() => {
     if (status?.signingIn) {
       wasSigningIn.current = true;

@@ -23,9 +23,8 @@ function start() {
   if (!rootElement) {
     return;
   }
-  // The app window hosts its tabs in this one web contents
-  // (AppWindow). The onboarding web contents uses the single-router
-  // App.
+  // The app window hosts its tabs in this one web contents (AppWindow).
+  // Outside it (a debug page in a browser, a test) the single-router App.
   const isAppWindow = window.api.windowType === "app";
 
   let root = globalThis.__studioRoot;

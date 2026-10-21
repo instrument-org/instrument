@@ -65,11 +65,6 @@ export const componentPages = [
     to: "/debug/components/file-icons",
   },
   {
-    id: "onboarding",
-    label: "Onboarding",
-    to: "/debug/components/onboarding",
-  },
-  {
     id: "alerts",
     label: "Alerts",
     to: "/debug/components/alerts",
@@ -91,32 +86,8 @@ export const componentPages = [
   },
 ] as const;
 
-export const onboardingScreens = [
-  {
-    id: "login",
-    label: "Log in",
-    to: "/debug/components/onboarding/login",
-  },
-  {
-    id: "providers",
-    label: "Add provider",
-    to: "/debug/components/onboarding/providers",
-  },
-  {
-    id: "complete",
-    label: "Complete",
-    to: "/debug/components/onboarding/complete",
-  },
-  {
-    id: "theme",
-    label: "Pick a theme",
-    to: "/debug/components/onboarding/theme",
-  },
-] as const;
-
 type ComponentPageId = (typeof componentPages)[number]["id"];
 type DebugRouteId = (typeof debugNavigationRoutes)[number]["id"];
-type OnboardingScreenId = (typeof onboardingScreens)[number]["id"];
 
 /**
  * What a tab standing on a debug page is called, read off its path alone so
@@ -125,11 +96,7 @@ type OnboardingScreenId = (typeof onboardingScreens)[number]["id"];
  */
 export function debugPageTitle(pathname: string): string {
   const path = pathname.replace(/\/$/, "");
-  const page = [
-    ...debugNavigationRoutes,
-    ...componentPages,
-    ...onboardingScreens,
-  ].find((item) => item.to === path);
+  const page = [...debugNavigationRoutes, ...componentPages].find((item) => item.to === path);
   return page?.label ?? "Debug";
 }
 
@@ -147,12 +114,4 @@ export function getDebugRoute(id: DebugRouteId) {
     throw new Error(`Unknown debug route: ${id}`);
   }
   return route;
-}
-
-export function getOnboardingScreen(id: OnboardingScreenId) {
-  const screen = onboardingScreens.find((item) => item.id === id);
-  if (!screen) {
-    throw new Error(`Unknown onboarding screen: ${id}`);
-  }
-  return screen;
 }

@@ -1,4 +1,4 @@
-import { OnboardingZoomRoot } from "@/client/components/onboarding/zoom-root";
+import { WindowZoomRoot } from "@/client/components/window/window-zoom-root";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import { queryClient, router } from "@/client/router";
@@ -17,9 +17,9 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <IconContext.Provider value={ICON_CONTEXT_VALUE}>
-        <OnboardingZoomRoot>
+        <WindowZoomRoot>
           <RouterProvider router={router} />
-        </OnboardingZoomRoot>
+        </WindowZoomRoot>
       </IconContext.Provider>
     </QueryClientProvider>
   );

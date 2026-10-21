@@ -27,7 +27,6 @@ describe("an address with a value its route no longer knows", () => {
       "/files?root=~&path=Documents%2F&view=list",
       { path: "Documents/", root: "~", view: "list" },
     ],
-    ["/onboarding/theme?success=maybe", {}],
   ])("opens %s at the default", (href, search) => {
     expect(searchAt(href)).toEqual({ error: undefined, search });
   });

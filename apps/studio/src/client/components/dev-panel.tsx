@@ -39,7 +39,6 @@ import {
 import { SHORTCUTS } from "@/shared/shortcuts";
 import { PORTS } from "@instrument-org/shared";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { BugIcon } from "@phosphor-icons/react/Bug";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { EraserIcon } from "@phosphor-icons/react/Eraser";
@@ -97,10 +96,6 @@ export function DevPanel() {
     rpcClient.features.setEnabled.mutationOptions(),
   );
 
-  const { mutate: openOnboarding } = useMutation(
-    rpcClient.debug.openOnboarding.mutationOptions(),
-  );
-
   const { mutate: simulateUpdateDownload } = useMutation(
     rpcClient.debug.trigger.testDownloadNotification.mutationOptions(),
   );
@@ -154,8 +149,8 @@ export function DevPanel() {
     "manage" | "new" | null
   >(null);
 
-  const { mutate: skipOnboarding } = useMutation(
-    rpcClient.debug.skipOnboarding.mutationOptions(),
+  const { mutate: skipSetup } = useMutation(
+    rpcClient.setup.finish.mutationOptions(),
   );
 
   const { data: currentWorkspace } = useQuery(
@@ -281,23 +276,19 @@ export function DevPanel() {
                 )}
               </div>
               <MenubarSeparator />
-              {/* Past the first-run screens without a provider, which is a
-                  state worth seeing too. Here rather than on those screens, so
-                  their layout stays the one people get. */}
-              {window.api.windowType === "onboarding" && (
-                <>
-                  <MenubarItem
-                    className={itemClassName}
-                    onSelect={() => {
-                      skipOnboarding();
-                    }}
-                  >
-                    <FastForwardIcon className="size-3" />
-                    Skip onboarding
-                  </MenubarItem>
-                  <MenubarSeparator />
-                </>
-              )}
+              {/* Past setup without answering it, which is a state worth
+                  seeing too. Here rather than on setup's pages, so their
+                  layout stays the one people get. */}
+              <MenubarItem
+                className={itemClassName}
+                onSelect={() => {
+                  skipSetup();
+                }}
+              >
+                <FastForwardIcon className="size-3" />
+                Skip setup
+              </MenubarItem>
+              <MenubarSeparator />
               <MenubarItem
                 className={itemClassName}
                 onSelect={() => {
@@ -346,15 +337,6 @@ export function DevPanel() {
                   <MenubarLabel className={sectionLabelClassName}>
                     Show
                   </MenubarLabel>
-                  <MenubarItem
-                    className={itemClassName}
-                    onSelect={() => {
-                      openOnboarding();
-                    }}
-                  >
-                    <AppWindowIcon className="size-3" />
-                    Onboarding window
-                  </MenubarItem>
                   <MenubarItem
                     className={itemClassName}
                     onSelect={() => {

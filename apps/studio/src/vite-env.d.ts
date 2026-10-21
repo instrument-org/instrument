@@ -51,6 +51,8 @@ declare namespace NodeJS {
       INSTRUMENT_CONTEXT_LENGTH_OVERRIDE: string | undefined;
       /** Dev only: set by scripts/dev-supervisor.mjs, which restarts electron-vite on request. */
       INSTRUMENT_DEV_SUPERVISOR: string | undefined;
+      /** `0` switches workspaces by restarting the app rather than in place (`live-workspace-switch.ts`). */
+      INSTRUMENT_LIVE_WORKSPACE_SWITCH: string | undefined;
       /**
        * Development builds only: pins the network status the window's corner
        * shows, `offline` or `instrument-unreachable`. See

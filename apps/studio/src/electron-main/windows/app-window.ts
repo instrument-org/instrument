@@ -228,12 +228,17 @@ export function openAppWindow(): BrowserWindow {
   });
 
   appWindow.on("closed", () => {
-    appWindow = null;
-    isSetupSized = false;
-    asks.stopTaking();
+    // A window closed for a switch of workspace may hear this once the next
+    // one is already open, which this must leave alone.
+    const switched = closedForSwitch.has(window);
+    if (appWindow === window) {
+      appWindow = null;
+      isSetupSized = false;
+      asks.stopTaking();
+    }
     publisher.publish("window.focus-changed", null);
     // The window is already out of the list by now, so nothing to exclude.
-    if (quitsWithLastWindow && !hasVisibleWindowOtherThan(null)) {
+    if (quitsWithLastWindow && !switched && !hasVisibleWindowOtherThan(null)) {
       app.quit();
     }
   });
@@ -291,6 +296,34 @@ export function openAppWindow(): BrowserWindow {
   });
 
   return appWindow;
+}
+
+/** The windows closed for a switch of workspace, which opens the next one's window. */
+const closedForSwitch = new WeakSet<BrowserWindow>();
+
+/**
+ * Closes the app window for a switch of workspace: at once, asking nothing
+ * (the switch asked), and without the close counting as the last window's,
+ * which outside macOS would quit the app. Resolves once it is closed.
+ */
+export async function closeAppWindowForSwitch(): Promise<void> {
+  const window = getAppWindow();
+  if (!window) {
+    return;
+  }
+  closedForSwitch.add(window);
+  appWindow = null;
+  isSetupSized = false;
+  asks.stopTaking();
+  // Resolved once it is gone, so what its close saves (its size and place)
+  // lands in the workspace it showed.
+  const closed = new Promise<void>((resolve) => {
+    window.once("closed", () => {
+      resolve();
+    });
+  });
+  window.destroy();
+  await closed;
 }
 
 /** Where the app window opens: where it was left, or its first-time shape. */

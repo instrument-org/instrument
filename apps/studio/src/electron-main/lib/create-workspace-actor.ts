@@ -40,9 +40,11 @@ import {
   BACKGROUND_PROCESS_TEARDOWN_MS,
   type ChatRecordsSplit,
   closeAllAgentBrowserSessions,
+  closeWorkspace,
   convertAppsToAppFiles,
   convertChatSettingsFiles,
   type DeviceId,
+  type WorkspaceConfig,
   ensurePythonBase,
   giveChatsTheirFolders,
   moveAppsToFolder,
@@ -77,7 +79,10 @@ import path from "node:path";
 import { noop } from "radashi";
 import { createActor, fromPromise } from "xstate";
 
-import { createBrowserViewManager } from "../browser-view/manager";
+import {
+  createBrowserViewManager,
+  getBrowserViewManager,
+} from "../browser-view/manager";
 import { appConnectionStore } from "../stores/workspace/app-connections";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
@@ -102,6 +107,8 @@ import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { quitPrompt, runningJobNames } from "./quit-prompt";
 import { getRegistryDir } from "./registry-dir";
+import { type RunningWorkspace, runningWorkspace } from "./running-workspace";
+import { currentWorkspaceScope } from "./workspace-scope";
 import { quitExitCode } from "./relaunch";
 import { getRuntimeDir, removeFormerRuntime } from "./runtime-dir";
 import { windowsDriveNames } from "./windows-drives";
@@ -124,7 +131,9 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/system-skills",
 );
-export async function createWorkspaceActor(deviceId: DeviceId) {
+export async function createWorkspaceActor(
+  deviceId: DeviceId,
+): Promise<RunningWorkspace> {
   const rootDir = getWorkspaceFolder();
 
   // Which database a chat opens is settled for every workspace, before
@@ -290,7 +299,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       webSearch: searchWeb,
     },
   });
-  attachChats(actor);
+  const detachChats = attachChats(actor);
   actor.start();
 
   const snapshot = actor.getSnapshot();
@@ -306,7 +315,8 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   rememberAppsDir(workspaceConfig.appsDir);
   // What another device writes into the chats folder reaches the app while
   // it runs: the folder is watched, and looked at whenever the window comes
-  // forward and every minute while it is in front.
+  // forward and every minute while it is in front (`followForeground`).
+  const scope = currentWorkspaceScope();
   void startRecordArrivals({
     chatsDir: workspaceConfig.chatsDir,
     device: deviceId,
@@ -315,49 +325,58 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
     },
   }).then((arrivals) => {
     arrivals.setForeground(BrowserWindow.getFocusedWindow() !== null);
-    app.on("browser-window-focus", () => {
-      arrivals.setForeground(true);
-    });
-    app.on("browser-window-blur", () => {
-      // After the focus moving to another of the app's windows lands.
-      setTimeout(() => {
-        if (BrowserWindow.getFocusedWindow() === null) {
-          arrivals.setForeground(false);
-        }
-      });
-    });
-  });
-  // In the background: a shell builds its mounts per command, so the bundled
-  // skills appear in the shell for the first command after this lands. What
-  // the runtime folder replaced goes once its skills are in place, the `bin`
-  // links having been made before the workspace started.
-  prepareBundledSkills(workspaceConfig)
-    .catch((error: unknown) => {
-      logger.warn("Could not prepare the bundled skills", error);
-    })
-    .then(() => removeFormerRuntime())
-    .catch((error: unknown) => {
-      logger.warn("Could not remove the former runtime folders", error);
-    });
-  // In the background too, so the first chart or spreadsheet a chat makes
-  // finds its packages already there. Until it lands, `python` has what
-  // `pip` installed; offline, the next chat's first Python use tries again.
-  void ensurePythonBase().then((failure) => {
-    if (failure) {
-      logger.warn("Could not install the base Python packages", failure);
+    if (!scope.closed) {
+      scope.value(ARRIVALS, () => arrivals);
     }
   });
+  // The runtime folder's, which every workspace shares: once per process.
+  if (!preparedRuntime) {
+    preparedRuntime = true;
+    prepareRuntime(workspaceConfig);
+  }
 
+  const running: RunningWorkspace = {
+    actor,
+    close: async () => {
+      browserViewManager.teardown();
+      stopWatchingFolders?.();
+      stopWatchingFolders = undefined;
+      await closeWorkspace({
+        detach: detachChats,
+        onError: captureServerException,
+        workspaceRef: actor,
+      });
+    },
+    deviceId,
+    workspaceConfig,
+  };
+  return running;
+}
+
+/**
+ * The quit's prompt and teardown, which reach the workspace running when the
+ * quit comes, and `before-quit`. Once per process, at boot, before any
+ * window exists.
+ */
+export function startWorkspaceQuit() {
   // Warn before stopping in-flight agents and the jobs chats left running.
   // Fails open so a count error never blocks quitting.
   const confirmQuitWithRunningWork = async (): Promise<boolean> => {
+    const running = runningWorkspace();
     let count = 0;
     try {
-      ({ count } = await call(
-        workspaceRouter.chats.agentStatus.aliveAgentCount,
-        undefined,
-        { context: { workspaceConfig, workspaceRef: actor } },
-      ));
+      if (running) {
+        ({ count } = await call(
+          workspaceRouter.chats.agentStatus.aliveAgentCount,
+          undefined,
+          {
+            context: {
+              workspaceConfig: running.workspaceConfig,
+              workspaceRef: running.actor,
+            },
+          },
+        ));
+      }
     } catch (error) {
       captureServerException(error);
       return true;
@@ -398,7 +417,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           logger.info(`Quit teardown: ${stage}`);
         },
         exit: () => {
-          actor.stop();
+          runningWorkspace()?.actor.stop();
           // app.exit skips everything after it, so what the windows wrote in
           // the last moments goes to disk here.
           flushKeptState();
@@ -411,7 +430,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         },
         reveal: ensureForegroundWindowVisible,
         teardownBrowserViews: () => {
-          browserViewManager.teardown();
+          getBrowserViewManager()?.teardown();
         },
       },
       actors: {
@@ -433,7 +452,10 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           // them, so quitting is what ends them. The tasks at work are
           // stopped and their chats told first, while what each has running
           // can still be named.
-          await interruptTasksForQuit(actor)
+          const running = runningWorkspace();
+          await (
+            running ? interruptTasksForQuit(running.actor) : Promise.resolve()
+          )
             .catch((error: unknown) => {
               captureServerException(error);
             })
@@ -467,11 +489,58 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
     e.preventDefault();
     requestQuit();
   });
+}
 
-  return {
-    actor,
-    workspaceConfig,
-  };
+/** Whether the runtime folder's skills and base Python were started on. */
+let preparedRuntime = false;
+
+/**
+ * In the background: a shell builds its mounts per command, so the bundled
+ * skills appear in the shell for the first command after this lands. What
+ * the runtime folder replaced goes once its skills are in place, the `bin`
+ * links having been made before the workspace started. The base Python too,
+ * so the first chart or spreadsheet a chat makes finds its packages already
+ * there. Until it lands, `python` has what `pip` installed; offline, the
+ * next chat's first Python use tries again.
+ */
+function prepareRuntime(workspaceConfig: WorkspaceConfig) {
+  prepareBundledSkills(workspaceConfig)
+    .catch((error: unknown) => {
+      logger.warn("Could not prepare the bundled skills", error);
+    })
+    .then(() => removeFormerRuntime())
+    .catch((error: unknown) => {
+      logger.warn("Could not remove the former runtime folders", error);
+    });
+  void ensurePythonBase().then((failure) => {
+    if (failure) {
+      logger.warn("Could not install the base Python packages", failure);
+    }
+  });
+}
+
+type RecordArrivals = Awaited<ReturnType<typeof startRecordArrivals>>;
+
+/** The record arrivals of a workspace, kept in its scope. */
+const ARRIVALS = {};
+
+/**
+ * Tells the open workspace's record arrivals whether a window of the app is
+ * in front. Once per process; it reaches whichever workspace is open.
+ */
+export function followForeground() {
+  const arrivals = () => currentWorkspaceScope().peek<RecordArrivals>(ARRIVALS);
+  app.on("browser-window-focus", () => {
+    arrivals()?.setForeground(true);
+  });
+  app.on("browser-window-blur", () => {
+    // After the focus moving to another of the app's windows lands.
+    setTimeout(() => {
+      if (BrowserWindow.getFocusedWindow() === null) {
+        arrivals()?.setForeground(false);
+      }
+    });
+  });
 }
 
 /**

@@ -347,7 +347,7 @@ function InstrumentFolder() {
         } else if (moved.kind === "on-next-launch") {
           toast.info(`Quit ${APP_NAME} and open it again to move your folder.`);
         }
-        if (moved.kind !== "relaunching") {
+        if (moved.kind !== "relaunching" && moved.kind !== "switching") {
           setPicked(null);
           setRestarting(false);
         }
@@ -366,7 +366,7 @@ function InstrumentFolder() {
           `Quit ${APP_NAME} and open it again to switch to that folder.`,
         );
       }
-      if (outcome !== "relaunching") {
+      if (outcome !== "relaunching" && outcome !== "switching") {
         setPicked(null);
         setRestarting(false);
       }

@@ -121,6 +121,17 @@ The running half (`RunningWorkspace`: actor, config, device, browser view manage
 | A sign-in in flight lands in the next workspace | The account sign-in and app OAuth callbacks write through the store open at the time they finish; the prompt does not count them. Left as a known gap |
 | A failure leaves the process half closed | Every failure from step 4 on restarts the app |
 
+## What it changes in setup
+
+Setup's folder step opens or moves the workspace through these routes, so the live switch takes the restart out of it:
+
+- Simpler: the notice pages that say the app is about to restart, putting the window back where it was after the restart, and setup picking up after the folder step across a relaunch (the answered steps are still recorded before the switch, so a fallback restart lands in the same place).
+- Unchanged: carrying setup's sign-ins and main model into a workspace it opens (`lib/sign-in-carry.ts`), since they are the workspace's; and the restart itself, which stays the fallback.
+
+## Open questions
+
+- **Sign-ins per computer.** The keys, the ChatGPT, Grok and Claude accounts and the Instrument session are each workspace's, in `machine/<local id>/keys/`, which is why setup carries them into a workspace it opens. Kept per computer instead, switching or reinstalling would bring them along and the carry-over would go, at the cost of two workspaces on one computer not being able to use different accounts. Not decided here; the live switch works either way.
+
 ## Not in this plan
 
 - Two workspace windows at once. The scope and the running workspace are looked up, so it is a lookup per window away, but the window, the RPC context and the browser are still one per process.

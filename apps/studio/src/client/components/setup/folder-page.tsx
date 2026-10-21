@@ -97,6 +97,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
         const opened = await rpcClient.workspaces.open.call({ path });
         if (
           opened.outcome === "relaunching" ||
+          opened.outcome === "switching" ||
           opened.outcome === "unsupported"
         ) {
           onContinue();
@@ -108,7 +109,11 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
           create: how.create,
           path,
         });
-        if (moved.kind === "relaunching" || moved.kind === "on-next-launch") {
+        if (
+          moved.kind === "relaunching" ||
+          moved.kind === "switching" ||
+          moved.kind === "on-next-launch"
+        ) {
           onContinue();
           return;
         }

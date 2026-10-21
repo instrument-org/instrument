@@ -2,27 +2,19 @@
 
 import "@/electron-main/setup-environment"; // This must be imported first
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
-import {
-  refreshAfterWake as refreshChatGPTAccountAfterWake,
-  scheduleRefresh as scheduleChatGPTAccountRefresh,
-} from "@/electron-main/lib/chatgpt-account";
-import {
-  refreshGrokAfterWake,
-  scheduleGrokRefresh,
-} from "@/electron-main/lib/grok-account";
+import { refreshAfterWake as refreshChatGPTAccountAfterWake } from "@/electron-main/lib/chatgpt-account";
+import { refreshGrokAfterWake } from "@/electron-main/lib/grok-account";
 import {
   keepClaudeCodeCurrent,
   refreshClaudeAccountStatus,
 } from "@/electron-main/lib/claude-account";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
-import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { setupStateKnown } from "@/electron-main/lib/setup-state";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { finishPlacingLeftovers } from "@/electron-main/rpc/routes/files";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
-import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
   getAppWindow,
   openAppFile,
@@ -69,11 +61,11 @@ import {
 } from "./lib/app-session";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { timeBootStep } from "./lib/boot-timing";
-import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import {
-  chooseLaunchDeviceId,
-  describeLaunchDevice,
-} from "./lib/launch-device-id";
+  followForeground,
+  startWorkspaceQuit,
+} from "./lib/create-workspace-actor";
+import { startWorkspace } from "./lib/start-workspace";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
@@ -295,31 +287,16 @@ async function bootstrapPrimaryInstance() {
   // anything is placed again.
   void finishPlacingLeftovers().catch(captureServerException);
 
-  // Chosen before the workspace starts, which writes every chat record
-  // under it.
-  const deviceId = await timeBootStep("chooseDeviceId", chooseLaunchDeviceId);
-  void describeLaunchDevice(deviceId);
-  const { actor: workspaceRef, workspaceConfig } = await timeBootStep(
-    "createWorkspaceActor",
-    () => createWorkspaceActor(deviceId),
-  );
-  // Before any window, whose preload reads them as it loads.
-  await timeBootStep("serveBookmarks", () => serveBookmarks(deviceId));
-
-  // A signed-in ChatGPT account's access token lasts an hour.
-  scheduleChatGPTAccountRefresh();
+  await startWorkspace();
+  // Once per process: they reach whichever workspace is running.
+  serveBookmarks();
+  startWorkspaceQuit();
+  followForeground();
   powerMonitor.on("resume", refreshChatGPTAccountAfterWake);
-  scheduleGrokRefresh();
   powerMonitor.on("resume", refreshGrokAfterWake);
 
   // The Claude account is whatever the CLI says: someone installs it or signs
   // in from a terminal, then comes back to the app.
-  // A workspace with no model chosen yet runs on the subscription it found.
-  void refreshClaudeAccountStatus().then(async (found) => {
-    if (found.kind === "signed-in" && !getDefaultModelURI()) {
-      await setClaudeAccountDefaultModel();
-    }
-  });
   void keepClaudeCodeCurrent();
   app.on("browser-window-focus", () => {
     void refreshClaudeAccountStatus();
@@ -330,8 +307,6 @@ async function bootstrapPrimaryInstance() {
     // running; elsewhere no window means the app is quitting.
     canRevealChat: () => !quitsWithLastWindow || getAppWindow() !== null,
     revealChat,
-    workspaceConfig,
-    workspaceRef,
   });
 
   const updater = createStudioAppUpdater({
@@ -350,11 +325,7 @@ async function bootstrapPrimaryInstance() {
   watchMainThreadStalls();
 
   await timeBootStep("initializeRPC", () => {
-    initializeRPC({
-      appUpdater: updater,
-      workspaceConfig,
-      workspaceRef,
-    });
+    initializeRPC({ appUpdater: updater });
   });
 
   // The window opens at setup's size or its own, so it waits for setup's

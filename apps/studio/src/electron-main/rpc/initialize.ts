@@ -1,13 +1,10 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import {
-  type WorkspaceActorRef,
-  type WorkspaceConfig,
-} from "@instrument-org/workspace/electron";
 import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
 
 import { breadcrumbRPC } from "../lib/breadcrumbs";
+import { runningWorkspace } from "../lib/running-workspace";
 import { captureServerException } from "../lib/capture-server-exception";
 import { trackRPCForStalls } from "../lib/main-thread-stalls";
 import { type AppUpdaterHandle } from "../lib/create-app-updater";
@@ -53,14 +50,15 @@ const handler = new RPCHandler<InitialRPCContext>(router, {
   ],
 });
 
+/**
+ * Answers each window's port handshake with the whole router, its context
+ * the workspace running when the port is made: a window opened after a
+ * switch reaches the workspace it opened on.
+ */
 export function initializeRPC({
   appUpdater,
-  workspaceConfig,
-  workspaceRef,
 }: {
   appUpdater: AppUpdaterHandle;
-  workspaceConfig: WorkspaceConfig;
-  workspaceRef: WorkspaceActorRef;
 }) {
   ipcMain.on("start-orpc-server", (event) => {
     // The port handshake is the renderer's one route to the whole router, so
@@ -81,13 +79,18 @@ export function initializeRPC({
     }
 
     const webContentsId = event.sender.id;
+    const running = runningWorkspace();
+    if (!running) {
+      logger.scope("rpc").error("No workspace is running to answer RPC");
+      return;
+    }
 
     handler.upgrade(serverPort, {
       context: {
         appUpdater,
         webContentsId,
-        workspaceConfig,
-        workspaceRef,
+        workspaceConfig: running.workspaceConfig,
+        workspaceRef: running.actor,
       },
     });
     serverPort.start();

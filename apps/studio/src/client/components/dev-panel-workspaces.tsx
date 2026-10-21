@@ -223,7 +223,10 @@ export function NewWorkspaceDialog({
               onSettled: (result) => {
                 // Still here means the app is not restarting: the prompt was
                 // declined or this run cannot restart itself.
-                if (result?.outcome !== "relaunching") {
+                if (
+                  result?.outcome !== "relaunching" &&
+                  result?.outcome !== "switching"
+                ) {
                   setOpening(false);
                   onOpenChange(false);
                 }
@@ -438,7 +441,10 @@ export function SwitchWorkspaceDialog({
               setRestarting(true);
               switchTo(target, {
                 onSettled: (result) => {
-                  if (result?.outcome !== "relaunching") {
+                  if (
+                    result?.outcome !== "relaunching" &&
+                    result?.outcome !== "switching"
+                  ) {
                     setRestarting(false);
                     onOpenChange(false);
                   }

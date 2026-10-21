@@ -6,7 +6,11 @@ import {
   workspaceKeysDir,
   workspaceMachineDir,
 } from "@/electron-main/lib/get-workspace-folder";
-import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
+import {
+  switchesLive,
+  switchWorkspace,
+} from "@/electron-main/lib/live-workspace-switch";
+import { canRelaunch } from "@/electron-main/lib/relaunch";
 import { refreshSetupFacts } from "@/electron-main/lib/setup-facts";
 import {
   answerSetupFolderChange,
@@ -201,7 +205,9 @@ const create = devOnly
 const switchTo = devOnly
   .input(z.object({ id: z.string() }))
   .output(
-    z.object({ outcome: z.enum(["canceled", "relaunching", "unsupported"]) }),
+    z.object({
+      outcome: z.enum(["canceled", "relaunching", "switching", "unsupported"]),
+    }),
   )
   .handler(async ({ errors, input }) => {
     const resolved = getResolvedWorkspace();
@@ -222,13 +228,13 @@ const switchTo = devOnly
         active: input.id,
       }));
     };
-    // A build that cannot restart itself opens the chosen workspace the next
-    // time it is started by hand.
-    if (!canRelaunch()) {
+    // A build that cannot restart itself, and does not switch in place,
+    // opens the chosen workspace the next time it is started by hand.
+    if (!switchesLive() && !canRelaunch()) {
       choose();
       return { outcome: "unsupported" as const };
     }
-    return { outcome: await relaunchApp({ beforeRestart: choose }) };
+    return { outcome: await switchWorkspace({ choose }) };
   });
 
 const remove = devOnly
@@ -396,10 +402,11 @@ const checkFolder = base
 
 /**
  * Move the Instrument folder to a folder the person picked: checked again,
- * recorded for the next launch, and the app restarted to make it with
- * nothing open (`workspace-move.ts`). A folder it cannot move to answers
- * as `checkFolder` would; a restart the person declines over running
- * agents records nothing. With `create`, a folder not there yet is made
+ * recorded, and made with nothing open (`workspace-move.ts`), by closing the
+ * workspace and opening it again where it went (`switchWorkspace`), or by a
+ * restart where that cannot happen. A folder it cannot move to answers as
+ * `checkFolder` would; a switch the person declines over running agents
+ * records nothing. With `create`, a folder not there yet is made
  * first (the better folder `checkFolder` offered), and taken away again,
  * still empty, when nothing is recorded to move into it.
  */
@@ -409,7 +416,12 @@ const move = base
     z.union([
       NotMovableSchema,
       z.object({
-        kind: z.enum(["canceled", "on-next-launch", "relaunching"]),
+        kind: z.enum([
+          "canceled",
+          "on-next-launch",
+          "relaunching",
+          "switching",
+        ]),
       }),
     ]),
   )
@@ -451,13 +463,13 @@ const move = base
       // A recorded move settles setup's folder step.
       refreshSetupFacts();
     };
-    // A build that cannot restart itself makes the move the next time it is
-    // started by hand.
-    if (!canRelaunch()) {
+    // A build that cannot restart itself, and does not switch in place,
+    // makes the move the next time it is started by hand.
+    if (!switchesLive() && !canRelaunch()) {
       request();
       return { kind: "on-next-launch" as const };
     }
-    const outcome = await relaunchApp({ beforeRestart: request });
+    const outcome = await switchWorkspace({ choose: request });
     if (outcome === "canceled") {
       unmake();
     }
@@ -467,8 +479,8 @@ const move = base
 /**
  * Open the Instrument folder in a folder the person picked that already
  * holds one, in place of this one, which stays where it is: checked for a
- * place no workspace can be, registered and made the one to open, then the
- * app restarted. A place the person is only warned of was shown to them
+ * place no workspace can be, registered and made the one to open, then
+ * switched to (`switchWorkspace`). A place the person is only warned of was shown to them
  * when they picked it (`checkFolder`), so it opens. Opened from setup's
  * folder step, it takes along the sign-ins and main model made in setup,
  * which are this workspace's, and setup picks up after the folder step.
@@ -482,6 +494,7 @@ const open = base
           "canceled",
           "not-a-workspace",
           "relaunching",
+          "switching",
           "unsupported",
         ]),
       }),
@@ -520,11 +533,11 @@ const open = base
         active: registered.id,
       }));
     };
-    if (!canRelaunch()) {
+    if (!switchesLive() && !canRelaunch()) {
       choose();
       return { outcome: "unsupported" as const };
     }
-    return { outcome: await relaunchApp({ beforeRestart: choose }) };
+    return { outcome: await switchWorkspace({ choose }) };
   });
 
 /** The sign-ins and main model made in setup, into the workspace it opens. */

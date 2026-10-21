@@ -30,6 +30,8 @@ import {
   readWorkspaceIdentity,
   type ResolvedWorkspace,
   resolveWorkspace,
+  markWorkspaceOpen,
+  releaseOpenMark,
   updateRegistry,
   workspaceMachineDirOf,
   writeWorkspaceIdentity,
@@ -775,6 +777,28 @@ describe("finishPendingMove", () => {
       from: workspace.path,
       to: picked,
     });
+  });
+
+  // A live switch makes the move in the process that had the workspace
+  // open, once it has closed everything there: its own mark is no other
+  // process holding it.
+  it("moves a workspace this process had open, and keeps it marked open", () => {
+    markWorkspaceOpen(machineDir());
+    requestWorkspaceMove({ target: picked, userDataDir, workspace });
+
+    const { workspace: moved } = finish();
+
+    expect(moved.path).toBe(picked);
+    expect(
+      readRegistry(userDataDir).workspaces[0]?.pendingMove,
+    ).toBeUndefined();
+    expect(
+      fs.readFileSync(
+        path.join(machineDir(), WORKSPACE_MACHINE_ENTRIES.openMark),
+        "utf8",
+      ),
+    ).toBe(process.pid.toString());
+    releaseOpenMark(machineDir());
   });
 
   it("opens the whole copy a launch cut short made while another process holds the workspace, deleting nothing", () => {

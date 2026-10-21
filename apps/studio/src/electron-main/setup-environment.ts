@@ -9,7 +9,6 @@ import { app } from "electron";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
-import { getUserDataDir } from "./lib/get-workspace-folder";
 import {
   LAUNCH_OVERRIDES_FILENAME,
   readLaunchOverrides,
@@ -19,29 +18,10 @@ import {
   OZONE_PLATFORMS,
   resolveOzonePlatform,
 } from "./lib/ozone-platform";
-import {
-  migrateMachineSettings,
-  migrateWorkspaceSettings,
-} from "./lib/settings-migration";
 import { registerAppStoredPaths } from "./lib/app-stored-paths";
-import { cleanUpMachineData } from "./lib/machine-cleanups";
-import { moveMachineData } from "./lib/machine-data-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
-import { settleWorkFolders } from "./lib/work-folders";
-import { finishPendingMove } from "./lib/workspace-move";
-import { settlePlatformApiServer } from "./platform-api/base-url";
-import { getMachinePreferences } from "./stores/machine/preferences";
-import {
-  inspectWorkspaceFolder,
-  setWorkspaceRefusal,
-} from "./lib/workspace-refusal";
-import {
-  markWorkspaceOpen,
-  releaseOpenMark,
-  renameMachineFolder,
-  resolveWorkspace,
-  setResolvedWorkspace,
-} from "./lib/workspaces";
+import { openWorkspace, releaseWorkspaceOpenMark } from "./lib/open-workspace";
+import { setWorkspaceRefusal } from "./lib/workspace-refusal";
 
 // V8 keeps 10 frames by default, which an async call through the workspace
 // uses up before reaching the code that started it. As many as an event keeps.
@@ -117,116 +97,20 @@ if (is.dev && platform.isMacOS) {
 initializeElectronLogging();
 installAISDKWarningLogger();
 
-/**
- * Settles which workspace this process runs, makes a move to a folder the
- * person picked, brings its settings up to this build, and moves what is
- * this computer's own into its machine folder, before any store opens:
- * every workspace store reads its folder from the resolved workspace when it
- * is first asked for.
- */
-function openWorkspace() {
-  // First, before a move, a launch migration or a folder found moved by hand
-  // writes a stored path where it went: each of those writes every store
-  // registered here.
-  registerAppStoredPaths();
-  const userDataDir = getUserDataDir();
-  // Before the workspace resolves, which takes a path inside this folder.
-  for (const step of renameMachineFolder(userDataDir)) {
-    logger.info(`Machine folder: ${step}`);
-  }
-  const resolved = resolveWorkspace({
-    pin: process.env.INSTRUMENT_WORKSPACE,
-    userDataDir,
-  });
-  for (const problem of resolved.problems) {
-    logger.warn(problem);
-  }
-  const { done: moveSteps, workspace } = finishPendingMove({
-    userDataDir,
-    workspace: resolved.workspace,
-  });
-  for (const step of moveSteps) {
-    logger.info(`Workspace move: ${step}`);
-  }
-  logger.info(
-    `Workspace ${workspace.id}${workspace.pinned ? " (pinned)" : ""}: ${workspace.path}`,
-  );
-  // A folder made by a newer build, one that cannot be read, or one in a
-  // place no workspace can be is not opened: the boot says so in a window of
-  // its own and starts nothing else.
-  const refusal = inspectWorkspaceFolder({ userDataDir, workspace });
-  if (refusal) {
-    logger.warn(
-      refusal.kind === "newer"
-        ? `Not opening ${workspace.path}: a newer build made it`
-        : refusal.kind === "misplaced"
-          ? `Not opening ${workspace.path}: no workspace can be there (${refusal.reason})`
-          : `Not opening ${workspace.path}: it is ${refusal.why === "denied" ? "not readable" : "missing"}`,
-    );
-    setWorkspaceRefusal(refusal);
-    return;
-  }
-  for (const step of [
-    ...migrateMachineSettings(userDataDir),
-    ...migrateWorkspaceSettings({
-      packaged: app.isPackaged,
-      userDataDir,
-      workspace,
-    }),
-  ]) {
-    logger.info(`Settings migration: ${step}`);
-  }
-  // After the machine settings migration, which writes the store this reads,
-  // and before anything asks the platform API: the server stays the same for
-  // the life of the process. A launch for one server names it in
-  // `INSTRUMENT_PLATFORM_API` (`studio-drive.mjs boot --account`), over the
-  // choice in Settings, which it leaves as it was; only a development build
-  // honors it.
-  const launchServer = process.env.INSTRUMENT_PLATFORM_API;
-  settlePlatformApiServer(
-    launchServer
-      ? { custom: launchServer }
-      : getMachinePreferences().get("platformApiServer"),
-  );
-
-  // After the settings migration, which brings what predates workspaces into
-  // the folder this takes it from.
-  const moved = moveMachineData({ userDataDir, workspace });
-  for (const step of moved.done) {
-    logger.info(`Machine data: ${step}`);
-  }
-  for (const step of cleanUpMachineData({
-    machineDir: moved.machineDir,
-    userDataDir,
-    workspace,
-  })) {
-    logger.info(`Machine cleanup: ${step}`);
-  }
-  // After the cleanups, and before any store opens: the paths it moves are
-  // written into the window's and the browser's stores (`registerAppStoredPaths`).
-  const work = settleWorkFolders({
-    machineDir: moved.machineDir,
-    userDataDir,
-    workspace,
-  });
-  for (const step of work.done) {
-    logger.info(`Work folders: ${step}`);
-  }
-  setResolvedWorkspace({
-    ...workspace,
-    machineDir: moved.machineDir,
-    workFoldersDir: work.workFoldersDir,
-  });
-
-  markWorkspaceOpen(moved.machineDir);
-  // On process exit rather than `will-quit`: the quit teardown ends in
-  // `app.exit`, which skips `will-quit`.
-  process.on("exit", () => {
-    releaseOpenMark(moved.machineDir);
-  });
+// First, before a move, a launch migration or a folder found moved by hand
+// writes a stored path where it went: each of those writes every store
+// registered here.
+registerAppStoredPaths();
+// A folder made by a newer build, one that cannot be read, or one in a place
+// no workspace can be is not opened: the boot says so in a window of its own
+// and starts nothing else.
+const opened = openWorkspace({ atLaunch: true });
+if (opened.kind === "refused") {
+  setWorkspaceRefusal(opened.refusal);
 }
-
-openWorkspace();
+// On process exit rather than `will-quit`: the quit teardown ends in
+// `app.exit`, which skips `will-quit`.
+process.on("exit", releaseWorkspaceOpenMark);
 
 // Suppress Unstorage dB0 experimental warning
 // Remove when stable https://github.com/unjs/unstorage/blob/main/src/drivers/db0.ts

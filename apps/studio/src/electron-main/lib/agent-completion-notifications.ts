@@ -1,3 +1,4 @@
+import { runningWorkspace } from "@/electron-main/lib/running-workspace";
 import { logger } from "@/electron-main/lib/electron-logger";
 import {
   type AgentCompletionNotificationMode,
@@ -82,8 +83,6 @@ export function showAgentCompletionTestNotification() {
 export function startAgentCompletionNotifications({
   canRevealChat,
   revealChat,
-  workspaceConfig,
-  workspaceRef,
 }: {
   /** Whether a click can bring the chat up: a window to bring forward, or one it opens. */
   canRevealChat: () => boolean;
@@ -93,8 +92,6 @@ export function startAgentCompletionNotifications({
    * answer that from here would pull every window's machinery in behind them.
    */
   revealChat: (id: ChatId) => void;
-  workspaceConfig: WorkspaceConfig;
-  workspaceRef: WorkspaceActorRef;
 }) {
   async function showNotification({
     id,
@@ -107,7 +104,15 @@ export function startAgentCompletionNotifications({
       return;
     }
 
-    const context = { workspaceConfig, workspaceRef };
+    // The workspace whose session ended, read before anything is awaited.
+    const running = runningWorkspace();
+    if (!running) {
+      return;
+    }
+    const context = {
+      workspaceConfig: running.workspaceConfig,
+      workspaceRef: running.actor,
+    };
 
     let body: string | undefined;
     try {

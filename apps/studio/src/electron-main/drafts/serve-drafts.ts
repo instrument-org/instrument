@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import {
   DRAFTS_CHANNEL,
@@ -8,20 +9,27 @@ import { BrowserWindow, ipcMain } from "electron";
 
 import { createDraftStore } from "./draft-store";
 
-let STORE: null | ReturnType<typeof createDraftStore> = null;
-
-function getStore() {
-  if (STORE) {
-    return STORE;
-  }
-  STORE = createDraftStore({
-    onChange: tellWindows,
-    rootDir: getWorkspaceFolder(),
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  });
-  STORE.load();
-  return STORE;
-}
+/**
+ * The drafts of the workspace open now, read from its `Drafts/` and watched
+ * there, the watch stopped as the workspace closes.
+ */
+const getStore = perWorkspace(
+  () => {
+    const store = createDraftStore({
+      onChange: tellWindows,
+      rootDir: getWorkspaceFolder(),
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+    store.load();
+    const stopWatching = store.watch(() => {
+      store.reconcile();
+    });
+    return { stopWatching, store };
+  },
+  ({ stopWatching }) => {
+    stopWatching();
+  },
+);
 
 function tellWindows(snapshot: DraftsSnapshot) {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -32,6 +40,14 @@ function tellWindows(snapshot: DraftsSnapshot) {
 }
 
 /**
+ * Opens the drafts of the workspace open now, before its first window, so a
+ * change made in a file manager before one opens is watched for.
+ */
+export function openDrafts() {
+  getStore();
+}
+
+/**
  * Answers the windows about the drafts: all of them, synchronously, for a
  * preload that is loading; each batch of ops a window sends, answered once it
  * is on disk; and bytes pasted into a draft. Every change, whichever window
@@ -39,20 +55,17 @@ function tellWindows(snapshot: DraftsSnapshot) {
  * exists.
  */
 export function serveDrafts() {
-  getStore().watch(() => {
-    getStore().reconcile();
-  });
   ipcMain.on(DRAFTS_CHANNEL.load, (event) => {
-    event.returnValue = getStore().snapshot();
+    event.returnValue = getStore().store.snapshot();
   });
   ipcMain.handle(DRAFTS_CHANNEL.apply, (_event, batch: unknown) => {
     if (!isBatch(batch)) {
       throw new Error("Not a batch of draft changes");
     }
-    getStore().apply(batch);
+    getStore().store.apply(batch);
   });
   ipcMain.handle(DRAFTS_CHANNEL.stage, (_event, request: unknown) => {
-    return getStore().stage(request);
+    return getStore().store.stage(request);
   });
 }
 

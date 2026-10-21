@@ -21,13 +21,13 @@ const PERKS: { icon: ReactNode; line: string; tint: string; title: string }[] =
     {
       icon: <MicrophoneIcon />,
       line: `Talk to ${APP_NAME} rather than typing`,
-      tint: "bg-cyan-100 text-cyan-900 dark:bg-cyan-900/50 dark:text-cyan-200",
+      tint: "bg-[#d3edf1] text-[#1f5e69] dark:bg-[#1f5e69]/40 dark:text-[#bfe6ec]",
       title: "Dictation",
     },
     {
       icon: <SparkleIcon />,
       line: "Topics for new chats, and search that finds a chat by what it's about",
-      tint: "bg-blue-100 text-blue-900 dark:bg-blue-900/50 dark:text-blue-200",
+      tint: "bg-[#dbe3ee] text-[#2e4a66] dark:bg-[#2e4a66]/40 dark:text-[#c9d6e6]",
       title: "Smart suggestions",
     },
   ];

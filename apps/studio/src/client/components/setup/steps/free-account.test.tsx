@@ -1,0 +1,84 @@
+import { type ConnectResult } from "@/client/hooks/use-connect-flow";
+import { renderWithDefaultStore } from "@/tests/render";
+import { fireEvent, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+import { FreeAccountStep } from "./free-account";
+
+const calls = vi.hoisted(() => [] as string[]);
+
+// Google's sign-in, as a button that answers with what the test names.
+vi.mock("@/client/components/connect-button", () => ({
+  ConnectButton: ({
+    onResult,
+  }: {
+    onResult: (result: ConnectResult) => void;
+  }) => (
+    <>
+      <button
+        onClick={() => {
+          onResult({ outcome: { kind: "ready" } });
+        }}
+        type="button"
+      >
+        Google ready
+      </button>
+      <button
+        onClick={() => {
+          onResult({ outcome: { kind: "sign-up-refused" } });
+        }}
+        type="button"
+      >
+        Google refused
+      </button>
+    </>
+  ),
+}));
+vi.mock("@/client/rpc/client", () => ({
+  rpcClient: {
+    setup: {
+      answer: {
+        call: ({ step }: { step: string }) => {
+          calls.push(`answer ${step}`);
+          return Promise.resolve();
+        },
+      },
+    },
+  },
+}));
+
+function renderStep() {
+  calls.length = 0;
+  renderWithDefaultStore(
+    <FreeAccountStep
+      hold={() => {}}
+      isLast={false}
+      isNewStepOnly={false}
+      onContinue={() => calls.push("continue")}
+      onFinish={() => {}}
+      step="free-account"
+    />,
+  );
+}
+
+describe("FreeAccountStep", () => {
+  it("answers the plan before going on, once Google signs in", async () => {
+    renderStep();
+    fireEvent.click(screen.getByRole("button", { name: "Google ready" }));
+    await vi.waitFor(() => {
+      expect(calls).toEqual(["answer plan", "continue"]);
+    });
+  });
+
+  it("stays put when the account isn't made", () => {
+    renderStep();
+    fireEvent.click(screen.getByRole("button", { name: "Google refused" }));
+    expect(calls).toEqual([]);
+  });
+
+  it("goes on with Not now, leaving the plan alone", () => {
+    renderStep();
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+    expect(calls).toEqual(["continue"]);
+  });
+});

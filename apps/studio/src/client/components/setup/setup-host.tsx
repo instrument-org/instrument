@@ -33,8 +33,11 @@ export function SetupHost() {
   const state = useSetupState();
   // The step a page keeps on screen past the moment its facts settle it,
   // until that page answers or finishes (`hold`).
-  const [held, setHeld] = useState<null | SetupStep>(null);
-  const step = held ?? state?.step ?? null;
+  const [held, setHeld] = useState<null | {
+    isNewStepOnly: boolean;
+    step: SetupStep;
+  }>(null);
+  const step = held?.step ?? state?.step ?? null;
   const isDeveloperMode = useDeveloperMode();
   useHoldWindow(step !== null);
   const { mutate: answer } = useMutation(
@@ -49,8 +52,10 @@ export function SetupHost() {
     return null;
   }
   const Page = SETUP_PAGES[step];
-  const isNewStepOnly = state?.isNewStepOnly ?? false;
-  const backTo = held === null ? (state?.back ?? null) : null;
+  const isNewStepOnly = held?.isNewStepOnly ?? state?.isNewStepOnly ?? false;
+  // Back answers for the step setup is on, so a page held past its step
+  // has nowhere to go back to.
+  const backTo = state?.step === step ? (state.back ?? null) : null;
   return (
     <div
       className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-linear-to-b from-brand-50 to-gray-100 to-50% dark:from-brand-950 dark:to-background"
@@ -83,7 +88,7 @@ export function SetupHost() {
       <div className="relative flex min-h-0 flex-1 flex-col">
         <Page
           hold={() => {
-            setHeld(step);
+            setHeld({ isNewStepOnly, step });
           }}
           // A step added after finishing is the only one left, so its way
           // on is the end of setup.
@@ -94,6 +99,7 @@ export function SetupHost() {
             backTo === null
               ? undefined
               : () => {
+                  setHeld(null);
                   back({ step });
                 }
           }

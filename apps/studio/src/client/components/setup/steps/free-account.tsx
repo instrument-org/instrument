@@ -8,7 +8,7 @@ import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { type ReactNode } from "react";
 
 import { SetupFooter, SetupPage } from "../kit/setup-page";
-import { type SetupPageProps } from "../setup-pages";
+import { type SetupPageProps } from "../setup-page-props";
 
 const PERKS: { icon: ReactNode; line: string; tint: string; title: string }[] =
   [

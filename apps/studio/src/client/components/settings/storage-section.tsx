@@ -224,10 +224,10 @@ function UnrecognizedFolders() {
 }
 
 type FolderVerdict = RPCOutput["workspaces"]["checkFolder"];
-type MoveRefusal = Extract<FolderVerdict, { kind: "refused" }>["reason"];
+export type MoveRefusal = Extract<FolderVerdict, { kind: "refused" }>["reason"];
 
 /** Why a folder the person picked can't take their Instrument folder, said to them. */
-const REFUSALS: Record<MoveRefusal, string> = {
+export const REFUSALS: Record<MoveRefusal, string> = {
   home: folderRefusalSentence("home"),
   "other-workspace": folderRefusalSentence("other-workspace"),
   "own-data": folderRefusalSentence("own-data"),

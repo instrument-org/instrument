@@ -21,8 +21,8 @@ export function BrandTile({
       className={cn(
         "relative flex shrink-0 items-center justify-center border bg-card shadow-xs",
         size === 64
-          ? "size-16 rounded-[17px] [&>svg]:size-10 [&>span:not([data-badge])]:size-10"
-          : "size-12 rounded-xl [&>svg]:size-7.5 [&>span:not([data-badge])]:size-7.5",
+          ? "size-16 rounded-[17px] [&>span:not([data-badge])]:size-10 [&>svg]:size-10"
+          : "size-12 rounded-xl [&>span:not([data-badge])]:size-7.5 [&>svg]:size-7.5",
       )}
     >
       {children}

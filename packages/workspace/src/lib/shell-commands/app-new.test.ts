@@ -344,7 +344,12 @@ describe("app test and the guide skeleton", () => {
         "app new outlook --name 'Outlook' --api https://graph.microsoft.com/v1.0 --auth oauth --test /me";
       expect((await app("catalog", "outlook")).stdout).toContain(line);
 
-      const result = await app(...line.split(" ").slice(1).map((word) => word.replaceAll("'", "")));
+      const result = await app(
+        ...line
+          .split(" ")
+          .slice(1)
+          .map((word) => word.replaceAll("'", "")),
+      );
 
       expect(result.stdout).toContain(
         "Ask the user to sign in with connect_app; the app connects on its own when they do.",
@@ -356,6 +361,64 @@ describe("app test and the guide skeleton", () => {
     } finally {
       resetServedAppCatalog();
     }
+  });
+
+  describe("a second account of a Microsoft Graph product", () => {
+    const graphApp = (slug: string, ...rest: string[]) =>
+      app(
+        "new",
+        slug,
+        "--name",
+        "Microsoft",
+        "--api",
+        "https://graph.microsoft.com/v1.0",
+        "--auth",
+        "oauth",
+        "--test",
+        "/me",
+        ...rest,
+      );
+    const serviceOf = async (slug: string) => {
+      const loaded = await loadApp(getWorkspaceConfig().appsDir, slug);
+      return loaded.isOk() ? loaded.value.manifest.service : undefined;
+    };
+
+    beforeEach(() => {
+      serveRegisteredClient(
+        ["outlook", "onedrive", "teams"],
+        "registered-microsoft-client",
+      );
+    });
+
+    afterEach(() => {
+      resetServedAppCatalog();
+    });
+
+    it.each([
+      ["outlook-2", "outlook"],
+      ["onedrive-2", "onedrive"],
+    ])("reads %s as %s from its slug", async (slug, service) => {
+      const result = await graphApp(slug);
+
+      expect(result.exitCode).toBe(0);
+      expect(await serviceOf(slug)).toBe(service);
+    });
+
+    it("asks for the service when the slug names none of the API's", async () => {
+      const result = await graphApp("work-mail");
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain(
+        "https://graph.microsoft.com/v1.0 serves several of the directory's services (",
+      );
+      expect(result.stderr).toContain("Pass --service");
+      expect(await serviceOf("work-mail")).toBeUndefined();
+
+      expect((await graphApp("work-mail", "--service", "teams")).exitCode).toBe(
+        0,
+      );
+      expect(await serviceOf("work-mail")).toBe("teams");
+    });
   });
 
   it("refuses an API sign-in the directory has no client for", async () => {

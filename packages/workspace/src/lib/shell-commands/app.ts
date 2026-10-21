@@ -119,7 +119,7 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       to prefer, an API base) and how each is reached (a sign-in, a key). Words
       filter by name, domain, or category, the services they name first. With
       no words, the whole directory one line each; add a word for the detail.
-  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package> | --web <url>) [--sign-in <url>] [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--mac-app <bundle-id>] [--test <path>] [--force]
+  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package> | --web <url>) [--sign-in <url>] [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--mac-app <bundle-id>] [--test <path>] [--service <directory-slug>] [--force]
       Write the app's ${APP_FILE_NAME} in the apps folder, from the directory's entry
       for the service when it has one: the setup as front matter over the
       guide. <slug> is the \`id\` in it, which every ${APP_COMMAND.name} subcommand names the
@@ -139,7 +139,9 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       app on this Mac, --mac-app takes that app's bundle identifier
       (\`plutil -extract CFBundleIdentifier raw /Applications/Drafts.app/Contents/Info.plist\`
       prints it), and the app is drawn
-      with that app's icon. --web names a service worked on its own site in
+      with that app's icon. --service names the directory's entry the app is
+      for, when its slug and address leave that open (one API serving several
+      services). --web names a service worked on its own site in
       ${APP_NAME}'s browser, for one with no sign-in the card can open: the
       user signs in there (at --sign-in, when the login page is not the
       url), and a task works the site in a tab. Refuses to overwrite
@@ -238,6 +240,7 @@ const runApp = defineSubcommands<AppCommandContext>({
         "mcp",
         "name",
         "runtime",
+        "service",
         "sign-in",
         "test",
         "web",
@@ -807,6 +810,68 @@ async function runList() {
   return ok(`${lines.join("\n")}\n`);
 }
 
+/**
+ * The directory's entry an app being written is for: the one `--service`
+ * names, else the one its slug names, with a second account's `-2` left off
+ * when that entry has the endpoint, else the one entry with the endpoint, or
+ * the site a web app is on. An endpoint several entries share (Microsoft
+ * Graph is Outlook, OneDrive and Teams) never picks one of them, since each
+ * signs in for its own scopes: the agent is asked to name the service.
+ */
+function newAppEntry({
+  endpoint,
+  service,
+  slug,
+  web,
+}: {
+  endpoint: string | undefined;
+  service: string | undefined;
+  slug: string;
+  web: string | undefined;
+}): AppCatalogEntry | undefined {
+  const catalog = getAppCatalog();
+  if (service !== undefined) {
+    const named = catalog.find((candidate) => candidate.slug === service);
+    if (named === undefined) {
+      throw new Error(
+        `--service takes a directory slug, and "${service}" is not one. \`${APP_COMMAND.name} catalog <words>\` finds it.`,
+      );
+    }
+    return named;
+  }
+  const bySlug = catalog.find((candidate) => candidate.slug === slug);
+  if (bySlug) {
+    return bySlug;
+  }
+  const normalized = endpoint?.replace(/\/+$/, "");
+  const reaches = (candidate: AppCatalogEntry) =>
+    candidate.interfaces.some(
+      (surface) => surface.endpoint?.replace(/\/+$/, "") === normalized,
+    );
+  const base = slug.replace(/-\d+$/, "");
+  const byBase =
+    base === slug || normalized === undefined
+      ? undefined
+      : catalog.find(
+          (candidate) => candidate.slug === base && reaches(candidate),
+        );
+  if (byBase) {
+    return byBase;
+  }
+  if (normalized !== undefined) {
+    const sharing = catalog.filter(reaches);
+    if (sharing.length > 1) {
+      throw new Error(
+        `${normalized} serves several of the directory's services (${sharing.map((candidate) => candidate.slug).join(", ")}), and the slug "${slug}" names none of them. Pass --service with the one this app is for.`,
+      );
+    }
+    if (sharing[0]) {
+      return sharing[0];
+    }
+  }
+  return web === undefined ? undefined : catalogEntryAt(web);
+}
+
 async function runNew(input: SubcommandInput) {
   const force = input.has("force");
   const rawSlug = input.positional[0];
@@ -828,9 +893,12 @@ async function runNew(input: SubcommandInput) {
   // The service it reaches, by slug, endpoint, or the site a web app is on,
   // and the apps already here for it: a second account of a service is
   // another app of that service, under the service's name.
-  const entry =
-    findCatalogEntry(slug, mcp ?? api) ??
-    (web === undefined ? undefined : catalogEntryAt(web));
+  const entry = newAppEntry({
+    endpoint: mcp ?? api,
+    service: input.value("service")?.trim(),
+    slug,
+    web,
+  });
   const appsDir = getWorkspaceConfig().appsDir;
   const siblings =
     entry === undefined

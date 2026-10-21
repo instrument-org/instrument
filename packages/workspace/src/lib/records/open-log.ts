@@ -3,7 +3,6 @@ import path from "node:path";
 
 import { type DeviceId } from "./device-id";
 import {
-  formerSettingsFileName,
   logFileName,
   parseRecordFileName,
   settingsFileName,
@@ -126,12 +125,7 @@ export async function openLog({
   });
 }
 
-/**
- * Opens this device's settings file to append to. The file builds before
- * kept under `marks.<device>.jsonl` takes the settings name first: this
- * device is its only writer, and its lines are read the same under either
- * name, so a fold that already took them takes them once.
- */
+/** Opens this device's settings file to append to. */
 export async function openSettingsFile(
   dir: string,
   device: DeviceId,
@@ -139,7 +133,6 @@ export async function openSettingsFile(
 ): Promise<SettingsWriter> {
   await fs.mkdir(dir, { recursive: true });
   const file = path.join(dir, settingsFileName(device));
-  await takeFormerName(path.join(dir, formerSettingsFileName(device)), file);
   const bytes = await readIfThere(file);
   return new RecordWriter(
     file,
@@ -147,22 +140,6 @@ export async function openSettingsFile(
     { bytes, lastSeq: readSettings(bytes).cursor.lastSeq },
     { onWrite },
   );
-}
-
-/** Renames a file to `to` when `to` is not there yet and the file is. */
-async function takeFormerName(from: string, to: string): Promise<void> {
-  if ((await readIfThere(to)).length > 0) {
-    return;
-  }
-  try {
-    await fs.rename(from, to);
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-      return;
-    }
-    throw error;
-  }
-  await syncDirectory(path.dirname(to));
 }
 
 type OwnLogName = { generation: number; name: string; stem: string };

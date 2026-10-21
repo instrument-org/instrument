@@ -21,3 +21,7 @@ The gap is accepted, with no compatibility path for the previous build. The rena
 - During a staggered upgrade, a computer on the previous build shows chats without the labels another computer set. Upgrading it restores them.
 - Readers keep taking `marks.<device>.jsonl` and `t: "mark"` lines as settings until no device writes them, which the chat records document ([chat-records.md](../architecture/chat-records.md)).
 - A later change to a stored shape that synced devices share does not get the same allowance once 2.0 has users who upgrade on their own schedule.
+
+## Note, 2026-10-21
+
+The reader for `marks.<device>.jsonl` and `t: "mark"` lines has been removed. Marks were never in a released build (the records format came after v2.0.0-beta.61), so only development builds ever wrote them, and the consequence above about readers taking them no longer holds.

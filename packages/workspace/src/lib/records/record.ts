@@ -215,41 +215,7 @@ export function parseLogLine(text: string): LogRecord | undefined {
 
 /** The setting a settings file's line holds, or nothing for a line that is not one. */
 export function parseSettingLine(text: string): SettingRecord | undefined {
-  return parseLine(text, z.preprocess(fromMark, SettingRecordSchema));
-}
-
-/**
- * A line from the marks file builds before kept (`marks.<device>.jsonl`), read
- * as the setting it stands for: `t: "mark"` is `set`, a title's `settled` is
- * the opposite of `auto`, an unread `{ byUser }` is `marked` or `new`, and a
- * `topics` list is the `topic` it starts with. The file is left as it is.
- */
-function fromMark(value: unknown): unknown {
-  if (!isRecord(value) || value.t !== "mark") {
-    return value;
-  }
-  const mark: Record<string, unknown> = { ...value, t: "set" };
-  const given = mark.value;
-  switch (mark.field) {
-    case "title":
-      return isRecord(given) && typeof given.settled === "boolean"
-        ? { ...mark, value: { auto: !given.settled, text: given.text } }
-        : mark;
-    case "unread":
-      return isRecord(given)
-        ? { ...mark, value: given.byUser === true ? "marked" : "new" }
-        : mark;
-    case "topics": {
-      const first: unknown = Array.isArray(given) ? given[0] : undefined;
-      return {
-        ...mark,
-        field: "topic",
-        value: typeof first === "string" ? first : null,
-      };
-    }
-    default:
-      return mark;
-  }
+  return parseLine(text, SettingRecordSchema);
 }
 
 function parseLine<S extends z.ZodType>(

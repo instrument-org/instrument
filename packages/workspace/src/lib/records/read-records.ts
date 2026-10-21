@@ -101,7 +101,7 @@ function retiredSetting(
     typeof value !== "object" ||
     value === null ||
     !("t" in value) ||
-    (value.t !== "set" && value.t !== "mark") ||
+    value.t !== "set" ||
     !("field" in value) ||
     value.field !== "stoppedAt" ||
     !("seq" in value) ||

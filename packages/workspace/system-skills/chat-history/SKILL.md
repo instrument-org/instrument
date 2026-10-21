@@ -10,6 +10,6 @@ Every chat's records, this one's included, are in `$INSTRUMENT_CHATS`, read-only
 - Search them with your own tools. `rg -il '<words>' "$INSTRUMENT_CHATS"` names the chats a word is in, and the folder each file is in is that chat's id.
 - A record is one line, often a long one: `rg -o '.{0,120}<words>.{0,120}'` shows what is around a match, and `jq` reads a record whole.
 - A message whose `role` is `session-context` is what the app told the agent at the start of every chat, so a match there says nothing about the conversation.
-- A chat's title is in its `settings.<device>.jsonl` (`marks.<device>.jsonl` in an older chat). The newest chats are first in `ls -t "$INSTRUMENT_CHATS"`.
+- A chat's title is in its `settings.<device>.jsonl`. The newest chats are first in `ls -t "$INSTRUMENT_CHATS"`.
 - When an answer comes from another chat, link that chat in the reply, as `[the user's words for it](instrument://chat/<id>)`, so the user can open it.
 - Another chat's work is that chat's to steer: read it, and change nothing of it.

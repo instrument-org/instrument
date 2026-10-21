@@ -29,7 +29,6 @@ describe("record file names", () => {
     [`${log}.2.jsonl`, logName(2)],
     [`${log}.12.jsonl`, logName(12)],
     [`settings.${DEVICE_A}.jsonl`, { device: DEVICE_A, kind: "settings" }],
-    [`marks.${DEVICE_A}.jsonl`, { device: DEVICE_A, kind: "settings" }],
   ])("reads %s", (name, expected) => {
     expect(parseRecordFileName(name)).toEqual(expected);
   });

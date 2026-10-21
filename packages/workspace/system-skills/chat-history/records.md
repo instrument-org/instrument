@@ -15,7 +15,7 @@ A chat's folder holds JSON Lines files, one record per line, with `t` naming the
     - `session-context`: what the app told you at the start, the same in every chat and no part of the conversation
     - `system`: a note the app added for you
     - `user`: the user
-- `settings.<device>.jsonl`: `set` records, one per change a device made to a session, the newest of each `session` and `field` standing (`marks.<device>.jsonl` from older builds, with `mark` records, reads the same):
+- `settings.<device>.jsonl`: `set` records, one per change a device made to a session, the newest of each `session` and `field` standing:
   - `archived`: whether it is archived
   - `model`: the model the chat runs on, as a model URI, set on the chat's own session
   - `starred`: whether it is starred

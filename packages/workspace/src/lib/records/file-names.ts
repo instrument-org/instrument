@@ -8,7 +8,6 @@ import { DEVICE_ID_PATTERN, type DeviceId, DeviceIdSchema } from "./device-id";
  *     <session>.<device>.jsonl        a session's log from one device
  *     <session>.<device>.2.jsonl      the device's next log of that session, then .3
  *     settings.<device>.jsonl         every per-chat value one device set
- *     marks.<device>.jsonl            the same, under the name builds before gave it
  *
  * A copy keeps the name and adds to it before `.jsonl`: iCloud Drive ` 2`,
  * Dropbox ` (… conflicted copy …)`, OneDrive `-<computer name>`, Syncthing
@@ -38,11 +37,6 @@ export function logFileName(
 
 export function settingsFileName(device: DeviceId): string {
   return `settings.${device}.jsonl`;
-}
-
-/** What builds before named a device's settings file, read as one and renamed by its own device. */
-export function formerSettingsFileName(device: DeviceId): string {
-  return `marks.${device}.jsonl`;
 }
 
 export type RecordFileName =
@@ -82,7 +76,7 @@ const LOG_NAME = new RegExp(
 );
 
 const SETTINGS_NAME = new RegExp(
-  `^(?:settings|marks)\\.(${DEVICE_ID_PATTERN})${COPY_SUFFIXES}\\.jsonl$`,
+  `^settings\\.(${DEVICE_ID_PATTERN})${COPY_SUFFIXES}\\.jsonl$`,
 );
 
 /**

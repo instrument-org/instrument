@@ -74,7 +74,7 @@ export function chatRecordsReference(): string {
     ...listed(LOG_RECORDS, 1),
     "  - A message's `role`:",
     ...listed(MESSAGE_ROLES, 2),
-    `- \`${RECORD_FILE_EXAMPLES.settings}\`: \`set\` records, one per change a device made to a session, the newest of each \`session\` and \`field\` standing (\`marks.<device>.jsonl\` from older builds, with \`mark\` records, reads the same):`,
+    `- \`${RECORD_FILE_EXAMPLES.settings}\`: \`set\` records, one per change a device made to a session, the newest of each \`session\` and \`field\` standing:`,
     ...listed(SETTING_FIELDS, 1),
     `- \`${BLOBS_FOLDER_NAME}/\`: bytes a tool returned, which its part names in a \`blob\` field (\`sha256-<hex>.<ext>\`).`,
     "",

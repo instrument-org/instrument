@@ -4,11 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { withTempDir } from "../../test/helpers/temp-dir";
-import {
-  formerSettingsFileName,
-  logFileName,
-  settingsFileName,
-} from "./file-names";
+import { logFileName, settingsFileName } from "./file-names";
 import { openLog, openSettingsFile } from "./open-log";
 import { readLog, readSettings } from "./read-records";
 import { chatRecordFormat, RecordWriter, tailHash } from "./record-writer";
@@ -278,34 +274,6 @@ describe("openSettingsFile", () => {
     const second = await openSettingsFile(dir.path, DEVICE_A);
     await expect(second.append({ ...star, value: false })).resolves.toBe(1);
 
-    const read = readSettings(
-      await fs.readFile(path.join(dir.path, settingsFileName(DEVICE_A))),
-    );
-    expect(read.records.map(({ record }) => record.value)).toEqual([
-      true,
-      false,
-    ]);
-  });
-
-  it("takes over this device's marks file under the settings name, carrying its seq on", async () => {
-    const mark = `{"t":"mark","seq":0,"at":"${at(1).toISOString()}","session":"${session}","field":"starred","value":true,"device":"${DEVICE_A}"}\n`;
-    await fs.writeFile(
-      path.join(dir.path, formerSettingsFileName(DEVICE_A)),
-      mark,
-    );
-    const writer = await openSettingsFile(dir.path, DEVICE_A);
-    await expect(
-      writer.append({
-        t: "set",
-        at: at(2),
-        session,
-        field: "starred",
-        value: false,
-        device: DEVICE_A,
-      }),
-    ).resolves.toBe(1);
-
-    expect(await fs.readdir(dir.path)).toEqual([settingsFileName(DEVICE_A)]);
     const read = readSettings(
       await fs.readFile(path.join(dir.path, settingsFileName(DEVICE_A))),
     );

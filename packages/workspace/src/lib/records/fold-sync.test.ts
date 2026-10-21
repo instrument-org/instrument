@@ -281,7 +281,7 @@ describe("the fold, over a fake sync engine", { timeout: 30_000 }, () => {
         ),
         name: random.pick([
           first ?? "x",
-          `marks.dev_ZZZZZZZ${index}.jsonl`,
+          `settings.dev_ZZZZZZZ${index}.jsonl`,
           siblingOf(first),
           "settings.json",
         ]),

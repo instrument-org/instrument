@@ -10,7 +10,7 @@ export const DEVICE_ID_PATTERN = "dev_[0-9A-HJKMNP-TV-Z]{8}";
 
 /**
  * One install of the app on one machine: the only writer of every log and
- * marks file whose name carries it.
+ * settings file whose name carries it.
  */
 export const DeviceIdSchema = z
   .string()

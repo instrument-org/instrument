@@ -1,3 +1,4 @@
+import { splitFrontMatter } from "@instrument-org/shared";
 import { parse as parseYaml } from "yaml";
 
 import { AGENT_MESSAGE_LANGUAGE } from "../constants";
@@ -49,15 +50,8 @@ const HEADER_LINE = /^([a-z]+):(.*)$/i;
  * matter says `message:`. Other front matter is a document's own.
  */
 export function isMessageDocument(source: string): boolean {
-  const text = source.replaceAll("\r\n", "\n");
-  if (!text.startsWith("---\n")) {
-    return false;
-  }
-  const end = text.indexOf("\n---", 4);
-  if (end === -1) {
-    return false;
-  }
-  return readFrontMatter(text.slice(4, end)).message !== undefined;
+  const split = splitFrontMatter(source);
+  return split.ok && readFrontMatter(split.block).message !== undefined;
 }
 
 /**

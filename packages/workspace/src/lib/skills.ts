@@ -1,4 +1,4 @@
-import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { APP_NAME_SLUG, splitFrontMatter } from "@instrument-org/shared";
 import { type Dirent } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -191,10 +191,6 @@ export const BUNDLED_SOURCE_IDS = new Set<SkillSourceId>([
 
 /** A skill as its own directory describes it, before aliases are made unique. */
 type DiscoveredSkill = Omit<SkillInfo, "qualifiedName">;
-
-type FrontmatterSplit =
-  | { block: string; body: string; ok: true }
-  | { ok: false; reason: "no-frontmatter" | "unterminated" };
 
 export async function findSkill(
   workspaceConfig: Pick<
@@ -406,9 +402,9 @@ export async function listSkillFiles(
  * which one happened.
  */
 export function parseFrontmatter(raw: string): FrontmatterResult {
-  const split = splitFrontmatter(raw);
+  const split = splitFrontMatter(raw);
   if (!split.ok) {
-    return split;
+    return { ok: false, reason: split.reason };
   }
 
   let data: unknown;
@@ -442,7 +438,7 @@ export function parseFrontmatter(raw: string): FrontmatterResult {
     typeof record.name === "string" ? record.name.trim() : undefined;
 
   return {
-    body: split.body.trim(),
+    body: split.body.replaceAll("\r\n", "\n").trim(),
     compatibility:
       typeof record.compatibility === "string"
         ? record.compatibility
@@ -500,44 +496,6 @@ export function resolveSkillName(
   }
 
   return { suggestions: [] };
-}
-
-/**
- * Separate the YAML block from the body without a library.
- *
- * The block keeps the newline that follows the opening `---`, so a YAML error's
- * line number matches the line in the file.
- *
- * CRLF is normalized before the fence is located, not after the block is cut.
- * The closing fence matches as `\n---`, which claims the `\n` of the final
- * CRLF and strands its `\r` on the last line of the block. YAML reads that
- * stray `\r` as a second scalar once the value it follows is quoted, so a
- * CRLF-encoded skill whose last frontmatter line is `description: "..."` is
- * rejected as unparsable and never discovered.
- */
-export function splitFrontmatter(raw: string): FrontmatterSplit {
-  // A leading byte-order mark would hide the opening fence.
-  const text = (raw.startsWith("\uFEFF") ? raw.slice(1) : raw).replaceAll(
-    "\r\n",
-    "\n",
-  );
-
-  // The fence has to open the file, and `----` is a horizontal rule.
-  if (!text.startsWith("---") || text.charAt(3) === "-") {
-    return { ok: false, reason: "no-frontmatter" };
-  }
-
-  const rest = text.slice(3);
-  const end = rest.indexOf("\n---");
-  if (end === -1) {
-    return { ok: false, reason: "unterminated" };
-  }
-
-  return {
-    block: rest.slice(0, end),
-    body: rest.slice(end + "\n---".length),
-    ok: true,
-  };
 }
 
 /**

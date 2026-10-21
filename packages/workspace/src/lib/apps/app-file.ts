@@ -1,7 +1,9 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import { validateFolderName } from "../project-folder-name";
-import { isRecord, splitFrontmatter } from "../skills";
+import { splitFrontMatter } from "@instrument-org/shared";
+
+import { isRecord } from "../skills";
 import {
   type AppManifest,
   AppManifestSchema,
@@ -91,7 +93,7 @@ export type AppFileRead =
  * app, so it is read as nothing and listed nowhere.
  */
 export function parseAppFile(text: string): AppFileRead {
-  const split = splitFrontmatter(text);
+  const split = splitFrontMatter(text);
   if (!split.ok) {
     return { kind: "none" };
   }
@@ -104,7 +106,9 @@ export function parseAppFile(text: string): AppFileRead {
     // saying it is broken.
     return { kind: "none" };
   }
-  return appFileOf(isRecord(parsed) ? parsed : {}, { guide: split.body });
+  return appFileOf(isRecord(parsed) ? parsed : {}, {
+    guide: split.body.replaceAll("\r\n", "\n"),
+  });
 }
 
 /**

@@ -1,3 +1,4 @@
+import { splitFrontMatter } from "@instrument-org/shared";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -47,10 +48,9 @@ export function installedAgentBrowser(): { coreDir: string; version: string } {
 
 /** The installed core guide as shipped, frontmatter removed, sections and all. */
 export function upstreamCoreGuide(coreDir: string): string {
-  return readFileSync(path.join(coreDir, "SKILL.md"), "utf8").replace(
-    /^---\n[\s\S]*?\n---\n+/,
-    "",
-  );
+  return splitFrontMatter(
+    readFileSync(path.join(coreDir, "SKILL.md"), "utf8"),
+  ).body.replace(/^\n+/, "");
 }
 
 /** The guide and its references as the agent reads them, from an installed release. */

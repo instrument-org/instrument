@@ -10,7 +10,9 @@ import { AbsolutePathSchema } from "../../schemas/paths";
 import { MEMORY_FOLDER_NAME } from "../../constants";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { rewriteFileSync } from "../rewrite-file";
-import { isRecord, splitFrontmatter } from "../skills";
+import { splitFrontMatter } from "@instrument-org/shared";
+
+import { isRecord } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /**
@@ -225,7 +227,7 @@ async function readMemoryFile(
     return undefined;
   }
   const name = fileName.slice(0, -FILE_EXTENSION.length);
-  const split = splitFrontmatter(raw);
+  const split = splitFrontMatter(raw);
   // A file the user wrote by hand has no frontmatter, and it is a memory all
   // the same: its text, dated by the file.
   if (!split.ok) {
@@ -239,7 +241,7 @@ async function readMemoryFile(
     data = {};
   }
   const record = isRecord(data) ? data : {};
-  const text = split.body.trim();
+  const text = split.body.replaceAll("\r\n", "\n").trim();
   if (!text) {
     return undefined;
   }
@@ -301,7 +303,7 @@ function othersIn(held: string | undefined): Record<string, unknown> {
   if (held === undefined) {
     return {};
   }
-  const split = splitFrontmatter(held);
+  const split = splitFrontMatter(held);
   if (!split.ok) {
     return {};
   }

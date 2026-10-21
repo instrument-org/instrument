@@ -1,6 +1,8 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
-import { isRecord, splitFrontmatter } from "../skills";
+import { splitFrontMatter } from "@instrument-org/shared";
+
+import { isRecord } from "../skills";
 
 /**
  * A draft as its file holds it: `DRAFT.md`, plain YAML front matter over the
@@ -106,7 +108,7 @@ export function parseDraftFile(
   text: string,
   { at }: { at: Date },
 ): DraftFile | undefined {
-  const split = splitFrontmatter(text);
+  const split = splitFrontMatter(text);
   if (!split.ok) {
     return undefined;
   }
@@ -148,7 +150,7 @@ export function parseDraftFile(
       ? { topic: front.topic }
       : {}),
     updated: updated ?? at,
-    words: bodyWords(split.body),
+    words: bodyWords(split.body.replaceAll("\r\n", "\n")),
   };
 }
 
@@ -218,15 +220,12 @@ export function isEmptyDraft(draft: DraftFile): boolean {
 }
 
 /**
- * The words under the front matter. The renderer writes the closing fence,
- * one blank line, the words and a closing newline, so exactly those three
+ * The words under the front matter. The renderer writes one blank line under
+ * the closing fence, the words and a closing newline, so exactly those two
  * are taken off again and anything the person typed is left alone.
  */
 function bodyWords(body: string): string {
-  const afterFence = body.startsWith("\n") ? body.slice(1) : body;
-  const afterBlank = afterFence.startsWith("\n")
-    ? afterFence.slice(1)
-    : afterFence;
+  const afterBlank = body.startsWith("\n") ? body.slice(1) : body;
   return afterBlank.endsWith("\n") ? afterBlank.slice(0, -1) : afterBlank;
 }
 

@@ -2,7 +2,9 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
 
 import { utcStamp } from "../utc-stamp";
-import { isRecord, splitFrontmatter } from "../skills";
+import { splitFrontMatter } from "@instrument-org/shared";
+
+import { isRecord } from "../skills";
 
 /**
  * A topic as its file holds it: `TOPIC.md`, plain YAML front matter over the
@@ -86,7 +88,7 @@ export function parseTopicFile(
   text: string,
   { at }: { at: Date },
 ): TopicFile | undefined {
-  const split = splitFrontmatter(text);
+  const split = splitFrontMatter(text);
   if (!split.ok) {
     return undefined;
   }
@@ -98,7 +100,7 @@ export function parseTopicFile(
   }
   return topicFileOf(isRecord(parsed) ? parsed : {}, {
     at,
-    instructions: split.body,
+    instructions: split.body.replaceAll("\r\n", "\n"),
   });
 }
 

@@ -17,7 +17,7 @@ import {
 import { codeHighlighting } from "@/client/components/code-editor/theme";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { rpcClient } from "@/client/rpc/client";
-import { splitFrontMatter } from "@/shared/front-matter";
+import { splitFrontMatter } from "@instrument-org/shared";
 import { Crepe } from "@milkdown/crepe";
 import {
   commandsCtx,

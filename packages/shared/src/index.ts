@@ -2,6 +2,7 @@ export * from "./add-ref";
 export * from "./chat-title";
 export * from "./constants";
 export * from "./file-extensions";
+export * from "./front-matter";
 export * from "./instrument-link";
 export * from "./folder-paths";
 export * from "./is-network-error";

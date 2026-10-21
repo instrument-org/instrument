@@ -1,8 +1,5 @@
-import {
-  frontMatterTitle,
-  isMapping,
-  splitFrontMatter,
-} from "@/shared/front-matter";
+import { frontMatterTitle, isMapping } from "@/shared/front-matter";
+import { splitFrontMatter } from "@instrument-org/shared";
 import {
   BrowserWindow,
   type CallbackResponse,

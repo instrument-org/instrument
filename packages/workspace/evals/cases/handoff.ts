@@ -14,6 +14,7 @@
  * other's files. Run each case in a process of its own with its own
  * `INSTRUMENT_EVAL_HOME`, which `evals/handoff-matrix.ts` does.
  */
+import { splitFrontMatter } from "@instrument-org/shared";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
@@ -556,8 +557,6 @@ export async function treeSessions(ctx: Context) {
   return [...ctx.sessions, ...children.flatMap((child) => child.sessions)];
 }
 
-const FRONT_MATTER = /^---\n[\s\S]*?\n---\n/;
-
 /**
  * The email the user was shown before asking for it to be saved: the body of
  * the last message card in those replies, or else the last file written
@@ -575,7 +574,7 @@ async function draftShown(ctx: Context, before: number) {
     )
     .at(-1);
   if (card !== undefined) {
-    return { draft: card.replace(FRONT_MATTER, ""), from: "a message card" };
+    return { draft: splitFrontMatter(card).body, from: "a message card" };
   }
   const written = (await treeSessions(ctx))
     .flatMap((session) => session.messages)
@@ -596,7 +595,7 @@ async function draftShown(ctx: Context, before: number) {
     .toSorted((a, b) => a.at - b.at)
     .at(-1);
   if (written) {
-    return { draft: written.content.replace(FRONT_MATTER, ""), from: "a file" };
+    return { draft: splitFrontMatter(written.content).body, from: "a file" };
   }
   const longest = replies.toSorted((a, b) => b.text.length - a.text.length)[0];
   return longest ? { draft: longest.text, from: "a reply" } : undefined;

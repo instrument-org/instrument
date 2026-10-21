@@ -22,7 +22,7 @@ import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
 import { isMermaidLanguage } from "@/client/lib/mermaid";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { splitFrontMatter } from "@/shared/front-matter";
+import { splitFrontMatter } from "@instrument-org/shared";
 import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,

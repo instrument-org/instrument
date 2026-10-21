@@ -62,6 +62,9 @@ interface PublisherEvents {
   // The ChatGPT account's sign-in state changed: signed in or out, a sign-in
   // started or ended, or a token was refreshed.
   "chatgpt-account.updated": null;
+  // Something setup reads changed, or a step was answered: the window and
+  // the renderer read `readSetupState` again.
+  "setup.updated": null;
   // The Grok account signed in or out, a sign-in started or ended, or its
   // token was refreshed.
   "grok-account.updated": null;

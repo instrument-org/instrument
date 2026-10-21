@@ -24,6 +24,7 @@ import { preferences } from "./preferences";
 import { problems } from "./problems";
 import { providerConfig } from "./provider-config";
 import { releases } from "./releases";
+import { setup } from "./setup";
 import { syntax } from "./syntax";
 import { updates } from "./updates";
 import { user } from "./user";
@@ -56,6 +57,7 @@ export const router = {
   problems,
   providerConfig,
   releases,
+  setup,
   syntax,
   updates,
   user,

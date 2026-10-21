@@ -127,6 +127,25 @@ export function promptDraftRefAtom(key: PromptDraftKey) {
   return promptDraftRefFamily(draftKeyString(key));
 }
 
+/**
+ * A composer going away lets go of its draft, unless another tab's composer
+ * for the same draft has since become the live one: that one keeps it, so
+ * words written into the draft still reach the editor the person is using.
+ */
+export const releasePromptDraftRefAtom = atom(
+  null,
+  (
+    get,
+    set,
+    { editor, keyed }: { editor: null | PromptEditorRef; keyed: string },
+  ) => {
+    const ref = promptDraftRefFamily(keyed);
+    if (get(ref) === editor) {
+      set(ref, null);
+    }
+  },
+);
+
 /** Drop a transient draft so re-opening the surface starts from its prefill. */
 export function removeTransientDraft(id: string) {
   transientDraftFamily.remove(id);

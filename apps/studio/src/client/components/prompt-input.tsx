@@ -93,6 +93,7 @@ import {
   draftKeyString,
   type PromptDraftKey,
   promptDraftRefAtom,
+  releasePromptDraftRefAtom,
   removeTransientDraft,
   storedWordsAtom,
   typedWordsAtom,
@@ -307,6 +308,7 @@ export const PromptInput = ({
     [draftKeyed],
   );
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
+  const releaseInputRef = useSetAtom(releasePromptDraftRefAtom);
   const appendDictation = useSetAtom(appendDictationToPromptAtom);
   const shownDraft = useRef(draftKeyed);
   useLayoutEffect(() => {
@@ -489,11 +491,12 @@ export const PromptInput = ({
     isModelProblem || (variant === "pill" && note?.holdsSend === true);
 
   useEffect(() => {
-    setInputRef(promptEditorRef.current);
+    const editor = promptEditorRef.current;
+    setInputRef(editor);
     return () => {
-      setInputRef(null);
+      releaseInputRef({ editor, keyed: draftKeyed });
     };
-  }, [setInputRef]);
+  }, [setInputRef, releaseInputRef, draftKeyed]);
 
   // A transient draft belongs to the surface that mounted it, so drop it when
   // that surface goes away or re-keys. Without this it would outlive the page

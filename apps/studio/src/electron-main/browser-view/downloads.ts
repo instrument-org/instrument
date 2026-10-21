@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import type { DownloadItem, Session } from "electron";
+import type { DownloadItem, Session, WebContents } from "electron";
 
 import { app } from "electron";
 import fs from "node:fs";
@@ -25,6 +25,43 @@ export function applyDownloadBehavior(
   return {};
 }
 
+// The addresses a person picked Save Image As… (or Video, or Audio) for in a
+// page's menu, by the id of the guest the menu was raised in. Each is taken by
+// the download it starts.
+const askedSaves = new Map<number, Set<string>>();
+
+/**
+ * Downloads `url` from the guest the way a browser's Save Image As… does:
+ * through the session's `will-download` like any other download, so it goes
+ * on the download list, but asking the person where to put it.
+ */
+export function saveAsFromPage(guest: WebContents, url: string) {
+  const urls = askedSaves.get(guest.id) ?? new Set<string>();
+  urls.add(url);
+  askedSaves.set(guest.id, urls);
+  guest.downloadURL(url);
+}
+
+// Whether the download is one the person asked to save as, which it then
+// stops being. A redirect leaves the address asked for first in the chain.
+function takeAskedSave(webContentsId: number, item: DownloadItem) {
+  const urls = askedSaves.get(webContentsId);
+  if (!urls) {
+    return false;
+  }
+  const url = [item.getURLChain()[0], item.getURL()].find(
+    (candidate) => candidate !== undefined && urls.has(candidate),
+  );
+  if (url === undefined) {
+    return false;
+  }
+  urls.delete(url);
+  if (urls.size === 0) {
+    askedSaves.delete(webContentsId);
+  }
+  return true;
+}
+
 // The guest session's one will-download listener. Every guest shares the
 // session, so the event names only the contents a download came from, and the
 // guest registry says which tab's entry that is. With a path the agent
@@ -34,7 +71,8 @@ export function applyDownloadBehavior(
 // Without one, the download is the person's own, from a click in the browser
 // panel, and lands in their Downloads folder under its own name, or wherever
 // they say when that folder takes no file. Only a download from a contents no
-// tab's entry owns is canceled.
+// tab's entry owns is canceled. One the person picked Save Image As… for asks
+// them where it goes, whatever the agent authorized.
 export function routeGuestDownloads(
   session: Session,
   registry: Pick<GuestRegistry, "documentOf" | "entryOf">,
@@ -63,7 +101,9 @@ export function routeGuestDownloads(
     item.once("done", () => {
       entry.downloadsRunning -= 1;
     });
-    if (entry.authorizedDownloadPath) {
+    if (takeAskedSave(webContents.id, item)) {
+      askWhereToSave(item);
+    } else if (entry.authorizedDownloadPath) {
       saveForAgent(entry, item, entry.authorizedDownloadPath, stillOwned);
     } else {
       saveForPerson(item);
@@ -194,6 +234,12 @@ function saveForAgent(
   });
 }
 
+// No save path and no cancel is what puts the system's question up.
+function askWhereToSave(item: DownloadItem) {
+  item.setSaveDialogOptions({ defaultPath: item.getFilename() });
+  trackDownload(item, null, { asked: true });
+}
+
 // Where a download from any other browser goes, without a chooser: the
 // person's Downloads folder, and onto the browser's download list, which the
 // window shows. A name already taken gets the `-2`, `-3` suffix the rest of
@@ -208,8 +254,7 @@ function saveForAgent(
 function saveForPerson(item: DownloadItem) {
   const dir = personDownloadsDir();
   if (!dir) {
-    item.setSaveDialogOptions({ defaultPath: item.getFilename() });
-    trackDownload(item, null, { asked: true });
+    askWhereToSave(item);
     return;
   }
   const savePath = path.join(dir, availableFilename(dir, item.getFilename()));

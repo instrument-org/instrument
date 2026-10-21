@@ -9,6 +9,7 @@ import {
 } from "electron";
 import { noop } from "radashi";
 
+import { saveAsFromPage } from "./downloads";
 import { isFileUrl, isHttpUrl } from "./window-open-policy";
 
 /**
@@ -44,6 +45,7 @@ function contextMenuTemplate(
 ): MenuItemConstructorOptions[] {
   const { editFlags } = params;
   const items: MenuItemConstructorOptions[] = [
+    ...spellingItems(guest, params),
     {
       click: () => {
         places.step("back");
@@ -73,9 +75,7 @@ function contextMenuTemplate(
     // decline, and the only one for a link that opens no tab at all -- a
     // download target, a form-driven link. Offered only for what the guest
     // can actually navigate to: the web, and a file a local page links to.
-    const isOpenable =
-      (isHttpUrl(url) || isFileUrl(url)) && places.mayOpen(url);
-    if (isOpenable) {
+    if (isOpenable(url, places)) {
       items.push({
         click: () => {
           void guest.loadURL(url).catch(noop);
@@ -111,6 +111,8 @@ function contextMenuTemplate(
     );
   }
 
+  items.push(...mediaItems(guest, params, places));
+
   if (params.isEditable || params.selectionText) {
     items.push(
       { enabled: editFlags.canCut, label: "Cut", role: "cut" },
@@ -135,5 +137,95 @@ function contextMenuTemplate(
     );
   }
 
+  return items;
+}
+
+// Whether the guest can show the address itself: the web, and a file a local
+// page links to, where the page may send a tab.
+function isOpenable(url: string, places: GuestLinkPlaces) {
+  return (isHttpUrl(url) || isFileUrl(url)) && places.mayOpen(url);
+}
+
+// A misspelled word's replacements at the top of the menu, as a browser puts
+// them, then the word added to the dictionary so it stops being marked.
+function spellingItems(
+  guest: WebContents,
+  { dictionarySuggestions, misspelledWord }: ContextMenuParams,
+): MenuItemConstructorOptions[] {
+  if (!misspelledWord) {
+    return [];
+  }
+  const suggestions: MenuItemConstructorOptions[] =
+    dictionarySuggestions.length > 0
+      ? dictionarySuggestions.map((suggestion) => ({
+          click: () => {
+            guest.replaceMisspelling(suggestion);
+          },
+          label: suggestion,
+        }))
+      : [{ enabled: false, label: "No Guesses Found" }];
+  return [
+    ...suggestions,
+    { type: "separator" },
+    {
+      click: () => {
+        guest.session.addWordToSpellCheckerDictionary(misspelledWord);
+      },
+      label: "Add to Dictionary",
+    },
+    { type: "separator" },
+  ];
+}
+
+const MEDIA_NOUNS = { audio: "Audio", image: "Image", video: "Video" };
+
+// What a browser offers over an image, a video or an audio player, in its
+// order, below the items for a link the media sits in.
+function mediaItems(
+  guest: WebContents,
+  { hasImageContents, mediaType, srcURL, x, y }: ContextMenuParams,
+  places: GuestLinkPlaces,
+): MenuItemConstructorOptions[] {
+  if (
+    !srcURL ||
+    (mediaType !== "image" && mediaType !== "video" && mediaType !== "audio")
+  ) {
+    return [];
+  }
+  const noun = MEDIA_NOUNS[mediaType];
+  const items: MenuItemConstructorOptions[] = [];
+  const { openInNewTab } = places;
+  if (openInNewTab && isOpenable(srcURL, places)) {
+    items.push({
+      click: () => {
+        openInNewTab(srcURL);
+      },
+      label: `Open ${noun} in New Tab`,
+    });
+  }
+  items.push({
+    click: () => {
+      saveAsFromPage(guest, srcURL);
+    },
+    label: `Save ${noun} As…`,
+  });
+  if (mediaType === "image") {
+    items.push({
+      click: () => {
+        guest.copyImageAt(x, y);
+      },
+      enabled: hasImageContents,
+      label: "Copy Image",
+    });
+  }
+  items.push(
+    {
+      click: () => {
+        void clipboard.writeText(srcURL);
+      },
+      label: `Copy ${noun} Address`,
+    },
+    { type: "separator" },
+  );
   return items;
 }

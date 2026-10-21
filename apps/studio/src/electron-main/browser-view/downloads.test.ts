@@ -16,6 +16,7 @@ import {
   applyDownloadBehavior,
   captureDownloadWillBeginGuid,
   routeGuestDownloads,
+  saveAsFromPage,
 } from "./downloads";
 import { type BrowserEntry, createEntry } from "./entry";
 
@@ -79,6 +80,7 @@ interface FakeItem extends EventEmitter {
   getSavePath: () => string;
   getTotalBytes: () => number;
   getURL: () => string;
+  getURLChain: () => string[];
   /** Where the transfer is writing, which the person's own pick also sets. */
   savePath: string;
   setSaveDialogOptions: ReturnType<typeof vi.fn>;
@@ -118,6 +120,7 @@ function makeFakeItem({
     getSavePath: () => item.savePath,
     getTotalBytes: () => 1024,
     getURL: () => url,
+    getURLChain: () => [url],
     on: emitter.on.bind(emitter),
     savePath: "",
     setSaveDialogOptions: vi.fn(),
@@ -341,6 +344,55 @@ describe("routeGuestDownloads", () => {
       (item as unknown as EventEmitter).emit("done", {}, "completed");
 
       expect(onEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("an image the person picked Save Image As… for", () => {
+    it("asks where it goes and lists it, even with the agent's folder set", () => {
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      entry.authorizedDownloadPath = "/tmp/dl";
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      routeGuestDownloads(session, lookupIn(entries));
+      const url = "https://example.com/cat.jpg";
+      const guest = { downloadURL: vi.fn(), id: ++webContentsCounter };
+      entry.webContents = guest as unknown as WebContents;
+
+      saveAsFromPage(entry.webContents, url);
+      const item = makeFakeItem({ filename: "cat.jpg", url });
+      trigger(item, entry);
+
+      expect(guest.downloadURL).toHaveBeenCalledWith(url);
+      expect(item.setSavePath).not.toHaveBeenCalled();
+      expect(item.setSaveDialogOptions).toHaveBeenCalledWith({
+        defaultPath: "cat.jpg",
+      });
+      expect(entry.authorizedDownloadPath).toBe("/tmp/dl");
+      expect(listDownloads()[0]).toMatchObject({
+        filename: "cat.jpg",
+        state: "progressing",
+      });
+    });
+
+    it("asks only once, so the next download of it lands as usual", () => {
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      routeGuestDownloads(session, lookupIn(entries));
+      const url = "https://example.com/cat.jpg";
+      const guest = { downloadURL: vi.fn(), id: ++webContentsCounter };
+      entry.webContents = guest as unknown as WebContents;
+
+      saveAsFromPage(entry.webContents, url);
+      trigger(makeFakeItem({ filename: "cat.jpg", url }), entry);
+      const again = makeFakeItem({ filename: "cat.jpg", url });
+      trigger(again, entry);
+
+      expect(again.setSavePath).toHaveBeenCalledWith(
+        path.join(home.downloads, "cat.jpg"),
+      );
     });
   });
 

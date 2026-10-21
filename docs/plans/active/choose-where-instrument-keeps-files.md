@@ -54,7 +54,7 @@ The last two are what this plan still owes. The last one matters most for a fold
 
 ## Changing the location later
 
-Settings › Storage moves the Instrument folder: the app restarts and moves it before anything opens, and a path stored into the old place is read back in the new one (`moved-paths.json`). Finished work the old output folder holds stays where it is.
+Settings › Storage moves the Instrument folder: the app restarts and moves it before anything opens, and a path stored into the old place is written where it went. Finished work the old output folder holds stays where it is.
 
 Picking a folder works the way it does in Obsidian: the person picks it and it is used. Only a folder the app would break in is refused: the home folder itself, the app's own files, and a folder in or around another Instrument folder. Anywhere riskier (Documents itself, a temporary or sign-in folder, a system folder, the apps' data, a disk's top) is a warning the person can go past. For the home folder, a folder around it, and Documents, Desktop or Downloads themselves, the main choice is a new `Instrument` folder inside (`~/Instrument`, `~/Documents/Instrument`), made when it is not there yet, and the dialog says when that folder already has files or is already an Instrument folder. The onboarding step offers the same.
 

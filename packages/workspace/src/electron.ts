@@ -172,7 +172,6 @@ export {
   type PathMove,
   registerStoredPaths,
   rewriteStoredPaths,
-  settleMovedPaths,
 } from "./lib/rewrite-stored-paths";
 export {
   chatOutputFolder,

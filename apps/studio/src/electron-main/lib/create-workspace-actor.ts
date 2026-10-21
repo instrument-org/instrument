@@ -57,7 +57,6 @@ import {
   convertTopicsToTopicFiles,
   prepareBundledSkills,
   settleDrafts,
-  settleMovedPaths,
   moveTopicFolders,
   renameChatDatabases,
   setBashWorkerFactory,
@@ -186,11 +185,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // And the drafts move out to `Drafts/`, where a send the app was
   // interrupted partway through is finished from the records just converted.
   await settleWorkspaceDrafts(rootDir);
-  // Once every folder is where this build keeps it, the drafts included, the
-  // record of moves an earlier build kept is written into the files holding
-  // those paths and goes: a stored path says where its folder is rather than
-  // being looked up on every read.
-  takeInMovedPaths(rootDir);
   // Every folder of the six that is there now is one the app made, so it is
   // recorded as one to expect, and the check runs once before the watch does.
   // After the sweeps, so a workspace that just gained its folders records them
@@ -479,26 +473,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
  * before the workspace opens it. Every workspace, wherever it is kept; a
  * failure must not block boot.
  */
-/**
- * The moves an earlier build kept in `moved-paths.json`, written into
- * everything holding those paths, once: the folder rules, the topics, the
- * drafts, the Files tabs the window is left on and the person's recent files.
- * Never blocks the launch: a file that cannot be read takes nothing in and
- * goes.
- */
-function takeInMovedPaths(rootDir: string) {
-  try {
-    for (const step of settleMovedPaths({
-      machineDir: workspaceMachineDir(),
-      rootDir,
-    })) {
-      logger.info(`Stored paths: ${step}`);
-    }
-  } catch (error) {
-    captureServerException(error);
-  }
-}
-
 /**
  * Records which of the six folders the workspace's top level has, and watches
  * for one going away, so the bell can say so.

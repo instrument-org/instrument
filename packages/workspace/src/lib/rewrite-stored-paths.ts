@@ -116,44 +116,6 @@ export function rewriteStoredPaths({
   return done;
 }
 
-/**
- * Takes in the record of moves an earlier build kept, `moved-paths.json`,
- * which every read of a stored path went through: the paths it holds are
- * written where they went, once, and the file goes.
- *
- * Runs at launch once the workspace is in the shape this build reads, since
- * the files being rewritten are in their final places by then. A boot that
- * finds no record does nothing.
- */
-export function settleMovedPaths({
-  machineDir,
-  rootDir,
-}: {
-  machineDir: string;
-  rootDir: string;
-}): string[] {
-  const file = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.movedPaths);
-  const read = readJsonRecordSync(file);
-  if (read.kind !== "read") {
-    // Missing, or a file this cannot read: either way nothing can be
-    // followed through it, and a record nothing reads does not stay.
-    fs.rmSync(file, { force: true });
-    return [];
-  }
-  const moves = Array.isArray(read.record.moves)
-    ? read.record.moves.flatMap((move: unknown) =>
-        isRecord(move) &&
-        typeof move.from === "string" &&
-        typeof move.to === "string"
-          ? [{ from: move.from, to: move.to }]
-          : [],
-      )
-    : [];
-  const done = rewriteStoredPaths({ machineDir, moves, rootDir });
-  fs.rmSync(file, { force: true });
-  return [...done, `took in and removed ${file}`];
-}
-
 /** Settings › Permissions, every path it holds where that path is now. */
 function rewritePermissions({
   done,

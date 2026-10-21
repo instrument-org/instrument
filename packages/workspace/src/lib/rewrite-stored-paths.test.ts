@@ -6,7 +6,6 @@ import { withTempDir } from "../test/helpers/temp-dir";
 import {
   registerStoredPaths,
   rewriteStoredPaths,
-  settleMovedPaths,
   type StoredPathRewrite,
 } from "./rewrite-stored-paths";
 
@@ -318,43 +317,5 @@ describe("the stores the app registers", () => {
     expect(rewrite()).toEqual([
       `wrote 3 path(s) where they went in ${permissionsFile()}`,
     ]);
-  });
-});
-
-describe("the record of moves an earlier build kept", () => {
-  const movedPathsFile = () => path.join(machine.path, "moved-paths.json");
-
-  function settle() {
-    return settleMovedPaths({
-      machineDir: machine.path,
-      rootDir: workspace.path,
-    });
-  }
-
-  it("is taken in, written into the files holding those paths, and goes", () => {
-    const now = path.join(machine.path, "work", "c", "notes");
-    fs.mkdirSync(now, { recursive: true });
-    writePermissions(at("chats", "c", "notes"));
-    write(movedPathsFile(), JSON.stringify({ moves: [move()] }));
-
-    const done = settle();
-
-    expect(permissions()).toMatchObject({ folders: [{ path: now }] });
-    expect(fs.existsSync(movedPathsFile())).toBe(false);
-    expect(done).toEqual([
-      `wrote 3 path(s) where they went in ${permissionsFile()}`,
-      `took in and removed ${movedPathsFile()}`,
-    ]);
-  });
-
-  it("says nothing on the boot after, and on an install that never had one", () => {
-    expect(settle()).toEqual([]);
-  });
-
-  it("goes when it cannot be read, since nothing can be followed through it", () => {
-    write(movedPathsFile(), "{ not json");
-
-    expect(settle()).toEqual([]);
-    expect(fs.existsSync(movedPathsFile())).toBe(false);
   });
 });

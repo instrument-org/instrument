@@ -63,7 +63,19 @@ interface RecordArrivalsOptions {
   sweepMs?: number;
   /** Whether to watch at all; off in tests that drive `look` themselves. */
   watch?: boolean;
+  /** Starts a folder's watch: `fs.watch`, or a test's own to fire events by hand. */
+  watchFs?: WatchFs;
 }
+
+/** The part of `fs.watch` a watch here uses. */
+type WatchFs = (
+  dir: string,
+  options: { recursive: boolean },
+  listener: (event: string, filename: null | string) => void,
+) => {
+  close(): void;
+  on(event: "error", listener: (error: Error) => void): unknown;
+};
 
 /** What the last look saw of one file. */
 interface Seen {
@@ -94,6 +106,7 @@ export class RecordArrivals {
   #sweepTimer: ReturnType<typeof setInterval> | undefined;
   readonly #sweepMs: number;
   readonly #watch: boolean;
+  readonly #watchFs: WatchFs;
   #stopWatch: (() => void) | undefined;
 
   constructor({
@@ -105,6 +118,7 @@ export class RecordArrivals {
     settleMs = SETTLE_MS,
     sweepMs = SWEEP_MS,
     watch = true,
+    watchFs = fs.watch,
   }: RecordArrivalsOptions) {
     this.#chatsDir = chatsDir;
     this.#device = device;
@@ -114,6 +128,7 @@ export class RecordArrivals {
     this.#settleMs = settleMs;
     this.#sweepMs = sweepMs;
     this.#watch = watch;
+    this.#watchFs = watchFs;
   }
 
   /**
@@ -408,9 +423,9 @@ export class RecordArrivals {
     recursive: boolean,
     onEvent: (filename: null | string) => void,
   ): () => void {
-    let watcher: fs.FSWatcher;
+    let watcher: ReturnType<WatchFs>;
     try {
-      watcher = fs.watch(dir, { recursive }, (_event, filename) => {
+      watcher = this.#watchFs(dir, { recursive }, (_event, filename) => {
         onEvent(filename);
       });
     } catch (error) {

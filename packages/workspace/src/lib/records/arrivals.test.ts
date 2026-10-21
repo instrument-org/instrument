@@ -227,49 +227,70 @@ describe("another device's records reaching a running app", () => {
     await fresh.dispose();
   });
 
-  it.runIf(process.platform === "darwin" || process.platform === "win32")(
-    "looks at a chat when its folder changes, and not for this device's own files",
-    async () => {
-      await otherDeviceStarted();
-      const watching = new RecordArrivals({
-        chatsDir,
-        device: DEVICE_A,
-        onArrival: (arrival) => {
-          arrived.push(arrival);
-        },
-        settleMs: 20,
-      });
-      await watching.start();
-      try {
-        await fs.writeFile(
-          path.join(recordsDir(), logFileName(SESSION, DEVICE_A)),
-          lines(header(0, { device: DEVICE_A, id: SESSION })),
-        );
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        expect(arrived).toEqual([]);
-
-        await fs.appendFile(
-          path.join(recordsDir(), logFileName(SESSION, DEVICE_B)),
-          lines(
-            messageRecord(2, assistantMessage(SESSION, messageId(2), at(2))),
-          ),
-        );
-
-        await vi.waitFor(
-          () => {
-            expect(arrived.map(({ messages }) => messages)).toEqual([
-              [{ id: messageId(2), removed: false, sessionId: SESSION }],
-            ]);
-          },
-          { timeout: 15_000 },
-        );
-      } finally {
-        watching.stop();
+  // The watch is handed in and fired by hand: a real one reports late, or
+  // misses a write made while it is still starting, on a loaded machine.
+  it("looks at a chat when its folder changes, and not for this device's own files", async () => {
+    await otherDeviceStarted();
+    const watches: {
+      dir: string;
+      listener: (event: string, filename: null | string) => void;
+      recursive: boolean;
+    }[] = [];
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const watching = new RecordArrivals({
+      chatsDir,
+      device: DEVICE_A,
+      onArrival: (arrival) => {
+        arrived.push(arrival);
+      },
+      platform: "darwin",
+      settleMs: 20,
+      watchFs: (dir, { recursive }, listener) => {
+        watches.push({ dir, listener, recursive });
+        return { close: () => undefined, on: () => undefined };
+      },
+    });
+    await watching.start();
+    const look = vi.spyOn(watching, "look");
+    /** Fires the chats folder's watch for one of the chat's files, as the system names it, and waits out the look it starts. */
+    async function changed(name: string) {
+      for (const { listener } of watches) {
+        listener("change", path.join(CHAT, name));
       }
-    },
-    // A real watch on a loaded machine can take seconds to report.
-    20_000,
-  );
+      vi.advanceTimersByTime(20);
+      await Promise.all(
+        look.mock.results.flatMap((result) =>
+          result.type === "return" ? [result.value] : [],
+        ),
+      );
+    }
+    try {
+      expect(watches.map(({ dir, recursive }) => ({ dir, recursive }))).toEqual(
+        [{ dir: chatsDir, recursive: true }],
+      );
+
+      await fs.writeFile(
+        path.join(recordsDir(), logFileName(SESSION, DEVICE_A)),
+        lines(header(0, { device: DEVICE_A, id: SESSION })),
+      );
+      await changed(logFileName(SESSION, DEVICE_A));
+      expect(look).not.toHaveBeenCalled();
+
+      await fs.appendFile(
+        path.join(recordsDir(), logFileName(SESSION, DEVICE_B)),
+        lines(messageRecord(2, assistantMessage(SESSION, messageId(2), at(2)))),
+      );
+      await changed(logFileName(SESSION, DEVICE_B));
+
+      expect(look.mock.calls).toEqual([[[CHAT]]]);
+      expect(arrived.map(({ messages }) => messages)).toEqual([
+        [{ id: messageId(2), removed: false, sessionId: SESSION }],
+      ]);
+    } finally {
+      watching.stop();
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("a held chat over a fake sync engine", { timeout: 30_000 }, () => {

@@ -200,9 +200,15 @@ afterEach(() => {
 });
 
 describe("useDictation", () => {
-  it("tells the app it is recording until Stop, so quitting can ask", async () => {
+  it("tells the app it is recording until the words land, so quitting can ask", async () => {
+    let transcribed: (value: unknown) => void = () => undefined;
+    mocks.transcribe.mockReturnValueOnce(
+      new Promise((resolve) => {
+        transcribed = resolve;
+      }),
+    );
     mocks.open.mockResolvedValue(fakeCapture());
-    const { result } = setup();
+    const { onText, result } = setup();
     await startRecording(result);
     const signal = (
       mocks.recording.mock.calls[0]?.[1] as { signal: AbortSignal } | undefined
@@ -211,6 +217,31 @@ describe("useDictation", () => {
 
     act(() => {
       result.current.stop();
+    });
+    await waitFor(() => {
+      expect(mocks.transcribe).toHaveBeenCalled();
+    });
+    expect(result.current.phase.kind).toBe("transcribing");
+    expect(signal?.aborted).toBe(false);
+
+    await act(async () => {
+      transcribed({ durationSeconds: 3, ok: true, text: "Hello there." });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(onText).toHaveBeenCalledWith("Hello there.");
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it("lets quitting go ahead as soon as Cancel throws the take away", async () => {
+    mocks.open.mockResolvedValue(fakeCapture());
+    const { result } = setup();
+    await startRecording(result);
+    const signal = (
+      mocks.recording.mock.calls[0]?.[1] as { signal: AbortSignal } | undefined
+    )?.signal;
+
+    act(() => {
+      result.current.cancel();
     });
 
     expect(signal?.aborted).toBe(true);
@@ -352,6 +383,43 @@ describe("useDictation", () => {
       await Promise.resolve();
     });
     expect(capture.cancel).toHaveBeenCalled();
+    expect(result.current.phase.kind).toBe("idle");
+  });
+
+  it("opens no microphone for a start canceled while microphones were listed", async () => {
+    mocks.preferences = {
+      dictationMicrophone: { deviceId: "gone", label: "Desk mic" },
+    };
+    let listed: (value: MediaDeviceInfo[]) => void = () => undefined;
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        enumerateDevices: () =>
+          new Promise((resolve) => {
+            listed = resolve;
+          }),
+      },
+    });
+    const { result } = setup();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    act(() => {
+      result.current.start();
+    });
+    await waitFor(() => {
+      expect(result.current.phase.kind).toBe("starting");
+    });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+
+    act(() => {
+      result.current.cancel();
+    });
+    await act(async () => {
+      listed([]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.open).not.toHaveBeenCalled();
+    expect(mocks.toast.info).not.toHaveBeenCalled();
     expect(result.current.phase.kind).toBe("idle");
   });
 

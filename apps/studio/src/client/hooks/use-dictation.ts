@@ -352,7 +352,6 @@ export function useDictation({
     if (session.current?.ticker !== undefined) {
       clearInterval(session.current.ticker);
     }
-    session.current?.release?.();
     setMicStream(undefined);
   };
 
@@ -381,34 +380,40 @@ export function useDictation({
       pressed,
       ...(streaming && { live: true }),
     });
-    void capture.stop().then(async (audio) => {
-      if (length < MIN_RECORDING_MS) {
-        clearLive();
-        setPhase({ kind: "idle" });
-        report({ kind: "too-short" });
-        return;
-      }
-      const end = stream && streaming ? await finishLive(stream) : undefined;
-      if (stream && end?.complete) {
-        const text = stream.finals.join(" ");
-        clearLive();
-        setPhase({ kind: "idle" });
-        kept.current = undefined;
-        toast.dismiss(toastId);
-        if (finish(text, current.deliver)) {
-          onLanded?.();
+    void capture
+      .stop()
+      .then(async (audio) => {
+        if (length < MIN_RECORDING_MS) {
+          clearLive();
+          setPhase({ kind: "idle" });
+          report({ kind: "too-short" });
+          return;
         }
-        if (end.reason === "allowance") {
-          report({ kind: "allowance-used-up", resetsAt: end.resetsAt });
+        const end = stream && streaming ? await finishLive(stream) : undefined;
+        if (stream && end?.complete) {
+          const text = stream.finals.join(" ");
+          clearLive();
+          setPhase({ kind: "idle" });
+          kept.current = undefined;
+          toast.dismiss(toastId);
+          if (finish(text, current.deliver)) {
+            onLanded?.();
+          }
+          if (end.reason === "allowance") {
+            report({ kind: "allowance-used-up", resetsAt: end.resetsAt });
+          }
+          return;
         }
-        return;
-      }
-      // The stream missed some of the take, or never had it: the whole
-      // recording is transcribed instead, as it would be without one.
-      stream?.abort.abort();
-      setPhase({ kind: "transcribing", pressed });
-      return transcribe(audio, current.deliver, onLanded);
-    });
+        // The stream missed some of the take, or never had it: the whole
+        // recording is transcribed instead, as it would be without one.
+        stream?.abort.abort();
+        setPhase({ kind: "transcribing", pressed });
+        return transcribe(audio, current.deliver, onLanded);
+      })
+      .finally(() => {
+        // Quitting asks until the words have landed or the take has failed.
+        current.release?.();
+      });
   };
 
   const cancel = () => {
@@ -418,6 +423,7 @@ export function useDictation({
     }
     current.ended = true;
     stopTicker();
+    current.release?.();
     current.capture?.cancel();
     session.current = undefined;
     clearLive();
@@ -607,6 +613,11 @@ export function useDictation({
       .enumerateDevices()
       .then((all) => all.filter((device) => device.kind === "audioinput"))
       .catch(() => []);
+    if (current.ended) {
+      // Canceled while the microphones were listed: the microphone stays closed.
+      giveUp();
+      return;
+    }
     const chosen = prefs?.dictationMicrophone;
     const microphone = resolveMicrophone(chosen, devices);
     if (microphone.missing && chosen) {

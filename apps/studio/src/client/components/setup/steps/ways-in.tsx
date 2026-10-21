@@ -20,6 +20,7 @@ import { type ConnectFlow } from "@/client/hooks/use-connect-flow";
 import {
   CONNECT_NAMES,
   connectPageCopy,
+  instrumentWayCopy,
   noCreditsPageCopy,
 } from "@/client/lib/connect-copy";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -270,13 +271,6 @@ export function WaysIn({
 }
 
 /** The free trial's length, when the offer has one this account can start. */
-function trialDays(offer: Offer | undefined) {
-  const trial = offer?.trial;
-  return trial && trial.available !== false && trial.mode !== "intro"
-    ? { cardRequired: trial.cardRequired, days: trial.days }
-    : undefined;
-}
-
 function WelcomePage({
   google,
   onGoogle,
@@ -630,7 +624,7 @@ function OtherWays({
   onConnect: (provider: ConnectProvider) => void;
   providers: PlanProvider[];
 }) {
-  const trial = trialDays(offer);
+  const instrument = instrumentWayCopy(offer);
   return (
     <SetupRowList className="mt-8">
       {offerInstrument && (
@@ -645,17 +639,15 @@ function OtherWays({
               variant="brand"
               waiting={flows.instrument.waiting}
             >
-              {trial ? (instrumentLabel ?? "Start free trial") : "Sign in"}
+              {instrument.isTrial
+                ? (instrumentLabel ?? instrument.action)
+                : instrument.action}
             </BrowserHandoffButton>
           }
           icon={<BrandMark className="size-12 shrink-0" />}
           inList
-          line={
-            trial
-              ? `Sign in with Google and get ${String(trial.days)} days free.${trial.cardRequired ? "" : " No card needed."}`
-              : "Sign in with Google and choose a plan."
-          }
-          title={trial ? `Try ${APP_NAME} free` : APP_NAME}
+          line={instrument.line}
+          title={instrument.title}
         />
       )}
       {providers.map((provider) => (

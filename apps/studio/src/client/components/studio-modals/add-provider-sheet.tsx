@@ -1,5 +1,5 @@
 import { AddProviderForm } from "@/client/components/add-provider/form";
-import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
+import { BrandMark } from "@/client/components/brand-mark";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { ClaudeSignInCode } from "@/client/components/claude-sign-in-code";
 import {
@@ -22,6 +22,7 @@ import {
   CONNECT_NAMES,
   CONNECT_PLANS,
   connectPageCopy,
+  instrumentWayCopy,
 } from "@/client/lib/connect-copy";
 import { showConnectToast } from "@/client/lib/connect-toast";
 import { cn } from "@/client/lib/utils";
@@ -30,7 +31,6 @@ import {
   type ConnectOutcome,
   type ConnectProvider,
 } from "@/shared/connect-outcome";
-import { APP_NAME } from "@instrument-org/shared";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { ClockIcon } from "@phosphor-icons/react/Clock";
 import { KeyIcon } from "@phosphor-icons/react/Key";
@@ -267,6 +267,11 @@ function ConnectRow({
   waitingLine: ReactNode;
 }) {
   const isTrial = provider === "instrument";
+  const { data: offer } = useQuery({
+    ...rpcClient.billing.offer.queryOptions(),
+    enabled: isTrial,
+  });
+  const instrument = instrumentWayCopy(offer);
   return (
     <div
       className="rounded-xl border border-border bg-card px-4 py-3"
@@ -275,21 +280,20 @@ function ConnectRow({
       <div className="flex items-center gap-3">
         <div className="flex size-8 shrink-0 items-center justify-center">
           {isTrial ? (
-            <BrandLeafIcon className="size-5 text-brand-600 dark:text-brand-400" />
+            <BrandMark className="size-8" />
           ) : (
             <ConnectIcon className="size-5" provider={provider} />
           )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">
-            {title ??
-              (isTrial ? `Try ${APP_NAME} free` : CONNECT_NAMES[provider])}
+            {title ?? (isTrial ? instrument.title : CONNECT_NAMES[provider])}
           </p>
           <p className="text-xs text-muted-foreground">
             {flow.waiting
               ? waitingLine
               : isTrial
-                ? "Create an account to enjoy a free trial."
+                ? instrument.line
                 : CONNECT_PLANS[provider]}
           </p>
         </div>
@@ -307,7 +311,7 @@ function ConnectRow({
             variant={isTrial ? "default" : "outline"}
             waiting={flow.waiting}
           >
-            {isTrial ? "Continue with Google" : "Continue"}
+            {isTrial ? instrument.action : "Continue"}
           </BrowserHandoffButton>
         )}
       </div>

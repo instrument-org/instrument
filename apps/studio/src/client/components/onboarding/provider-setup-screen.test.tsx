@@ -8,6 +8,14 @@ const status = vi.hoisted(() => ({ kind: "signed-in" }));
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
+    billing: {
+      offer: {
+        queryOptions: () => ({
+          queryKey: ["offer"],
+          queryFn: () => Promise.resolve({ plans: [], trial: null }),
+        }),
+      },
+    },
     providerConfig: {
       live: {
         list: {

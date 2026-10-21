@@ -282,11 +282,11 @@ function cardsCopy(
     return trial.cardRequired || trial.mode === "card"
       ? {
           subtitle: checkoutTrialLine(offer),
-          title: `Try ${APP_NAME} free for ${days} days`,
+          title: <TrialTitle days={days} />,
         }
       : {
           subtitle: `No card needed. Your trial includes a set amount of AI usage, and if you use it all before the ${days} days are up, the trial ends early.`,
-          title: `Try ${APP_NAME} free for ${days} days`,
+          title: <TrialTitle days={days} />,
         };
   }
   return {
@@ -298,6 +298,32 @@ function cardsCopy(
       .join(" "),
     title: "Choose a plan",
   };
+}
+
+/** "Try Instrument free for 7 days", with a marker scratch under the days. */
+function TrialTitle({ days }: { days: string }) {
+  return (
+    <>
+      Try {APP_NAME} free for{" "}
+      <span className="relative isolate inline-block whitespace-nowrap">
+        {days} days
+        <svg
+          aria-hidden
+          className="absolute -bottom-2 -left-[4%] -z-10 h-4.5 w-[108%] rotate-2 text-brand-100 dark:text-brand-800"
+          fill="none"
+          preserveAspectRatio="none"
+          viewBox="0 0 102 18"
+        >
+          <path
+            d="M3 13.5C24 8.5 52 5 76 5.5c9 .2 16 1.4 23 3.2"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="5"
+          />
+        </svg>
+      </span>
+    </>
+  );
 }
 
 /** The beta offer's one plan, free for its months through Checkout. */

@@ -2,7 +2,7 @@ import { AddProviderForm } from "@/client/components/add-provider/form";
 import { BrandMark } from "@/client/components/brand-mark";
 import { ConnectButton } from "@/client/components/connect-button";
 import { type ConnectResult } from "@/client/hooks/use-connect-flow";
-import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
+import { instrumentWayCopy } from "@/client/lib/connect-copy";
 import { OnboardingScreen } from "@/client/components/onboarding/screen";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { rpcClient } from "@/client/rpc/client";
@@ -42,19 +42,18 @@ export function ProviderSetupScreen({
   const { data: claudeStatus } = useQuery(
     rpcClient.claudeAccount.live.status.experimental_liveOptions(),
   );
+  const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
+  const instrument = instrumentWayCopy(offer);
 
   // The sign-in holding for the browser, which alone stays on the page until
   // it finishes or is canceled.
   const [holding, setHolding] = useState<ConnectProvider>();
-  const holdingChange =
-    (provider: ConnectProvider) =>
-    (waiting: boolean) => {
-      setHolding((current) =>
-        waiting ? provider : current === provider ? undefined : current,
-      );
-    };
-  const shows = (provider: ConnectProvider) =>
-    !holding || holding === provider;
+  const holdingChange = (provider: ConnectProvider) => (waiting: boolean) => {
+    setHolding((current) =>
+      waiting ? provider : current === provider ? undefined : current,
+    );
+  };
+  const shows = (provider: ConnectProvider) => !holding || holding === provider;
   // Ready goes on; any other answer stays here, said under its button, so
   // another way in is one press away.
   const landed = (result: ConnectResult) => {
@@ -116,7 +115,7 @@ export function ProviderSetupScreen({
                 ? offersClaude
                   ? "Use the ChatGPT, Claude or Grok plan you already pay for."
                   : "Use the ChatGPT or Grok plan you already pay for."
-                : "A guided AI workspace for ambitious work"}
+                : `${APP_NAME} is a desktop app for doing your best work with AI. It works in your files and its own browser, and connects with all your favorite apps.`}
             </p>
           </div>
         </div>
@@ -125,12 +124,11 @@ export function ProviderSetupScreen({
           {!signedIn && shows("instrument") && (
             <ConnectButton
               caption={
-                <div className="flex items-center justify-center gap-x-2">
-                  <BrandLeafIcon className="size-3" />
-                  <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
-                    Create an account to enjoy a free trial
+                instrument.isTrial && (
+                  <p className="text-center text-xs leading-4.5 text-muted-foreground">
+                    {instrument.line}
                   </p>
-                </div>
+                )
               }
               className="w-full justify-center"
               onResult={landed}

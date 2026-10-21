@@ -35,10 +35,10 @@ type PlanPage =
 /**
  * The plan, for someone signed in to Instrument with no subscription and no
  * trial running: the plan cards as the server's offer has them, a no-card
- * trial started right here, or Checkout for everything else. While no free
- * trial can start, it also offers a subscription they already pay for, or
- * an API key, instead. Answered once a trial starts, Checkout completes, or
- * another way connects.
+ * trial started right here, or Checkout for everything else. Under the
+ * cards it offers a subscription they already pay for, and while no free
+ * trial can start, an API key too. Answered once a trial starts, Checkout
+ * completes, or another way connects.
  */
 export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
   const [page, setPage] = useState<PlanPage>(
@@ -207,9 +207,9 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
               />
             )}
           </div>
-          {offer && !beta && !(showsTrial && !heldBack) && (
-            <p className="mt-6 text-sm text-muted-foreground" data-use-instead>
-              Already pay for ChatGPT, Claude or Grok?{" "}
+          {offer && !beta && (
+            <p className="mt-5 text-sm text-muted-foreground" data-use-instead>
+              Already pay for ChatGPT, Claude, or Grok?{" "}
               <InlineLink
                 onClick={() => {
                   setPage({
@@ -218,18 +218,25 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
                   });
                 }}
               >
-                Use it instead
+                Use your existing subscriptions
               </InlineLink>
-              , or{" "}
-              <InlineLink
-                onClick={() => {
-                  hold();
-                  setPage({ initial: { kind: "key" }, kind: "use-instead" });
-                }}
-              >
-                add an API key
-              </InlineLink>
-              .
+              {!(showsTrial && !heldBack) && (
+                <>
+                  , or{" "}
+                  <InlineLink
+                    onClick={() => {
+                      hold();
+                      setPage({
+                        initial: { kind: "key" },
+                        kind: "use-instead",
+                      });
+                    }}
+                  >
+                    add an API key
+                  </InlineLink>
+                  .
+                </>
+              )}
             </p>
           )}
         </SetupPage>
@@ -275,11 +282,11 @@ function cardsCopy(
     return trial.cardRequired || trial.mode === "card"
       ? {
           subtitle: checkoutTrialLine(offer),
-          title: `Try ${APP_NAME} free for ${days} days`,
+          title: <TrialTitle days={days} />,
         }
       : {
           subtitle: `No card needed. Your trial includes a set amount of AI usage, and if you use it all before the ${days} days are up, the trial ends early.`,
-          title: `Try ${APP_NAME} free for ${days} days`,
+          title: <TrialTitle days={days} />,
         };
   }
   return {
@@ -291,6 +298,32 @@ function cardsCopy(
       .join(" "),
     title: "Choose a plan",
   };
+}
+
+/** "Try Instrument free for 7 days", with a marker scratch under the days. */
+function TrialTitle({ days }: { days: string }) {
+  return (
+    <>
+      Try {APP_NAME} free for{" "}
+      <span className="relative isolate inline-block whitespace-nowrap">
+        {days} days
+        <svg
+          aria-hidden
+          className="absolute -bottom-2 -left-[4%] -z-10 h-4.5 w-[108%] rotate-2 text-brand-100 dark:text-brand-800"
+          fill="none"
+          preserveAspectRatio="none"
+          viewBox="0 0 102 18"
+        >
+          <path
+            d="M3 13.5C24 8.5 52 5 76 5.5c9 .2 16 1.4 23 3.2"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="5"
+          />
+        </svg>
+      </span>
+    </>
+  );
 }
 
 /** The beta offer's one plan, free for its months through Checkout. */

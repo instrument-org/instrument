@@ -574,7 +574,9 @@ describe("setup's plan step", () => {
       expect(await screen.findByText("Choose a plan")).toBeDefined();
       expect(screen.queryByText(/paused|aren't available/)).toBeNull();
       fireEvent.click(
-        await screen.findByRole("button", { name: "Use it instead" }),
+        await screen.findByRole("button", {
+          name: "Use your existing subscriptions",
+        }),
       );
       expect(
         document.querySelector("[data-ways-in]")?.getAttribute("data-ways-in"),
@@ -596,14 +598,22 @@ describe("setup's plan step", () => {
     ).toBe("key");
   });
 
-  it("offers only the trial while one can start", async () => {
+  it("offers a subscription but no key while a trial can start", async () => {
     platform.offer = OFFER_WITH_TRIAL;
     platform.status = onFree();
     renderStep();
     expect(
-      await screen.findByText("Try Instrument free for 7 days"),
+      await screen.findByRole("heading", {
+        name: "Try Instrument free for 7 days",
+      }),
     ).toBeDefined();
-    expect(screen.queryByRole("button", { name: "Use it instead" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "add an API key" })).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Use your existing subscriptions" }),
+    );
+    expect(
+      document.querySelector("[data-ways-in]")?.getAttribute("data-ways-in"),
+    ).toBe("subscriptions");
   });
 });
 

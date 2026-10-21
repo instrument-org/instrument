@@ -68,7 +68,7 @@ describe("planAccountStop", () => {
     {
       line: "I couldn't start on this. ChatGPT says this account can't be used in other apps without a paid plan.",
       name: "ChatGPT with no paid plan",
-      note: "This ChatGPT account can't be used here. It needs a paid ChatGPT plan.",
+      note: "Your ChatGPT account doesn't have a paid plan.",
       turn: stoppedTurn({
         body: { code: "subscription_sharing_user_not_eligible" },
         classification: "auth",
@@ -78,7 +78,7 @@ describe("planAccountStop", () => {
     {
       line: "I couldn't start on this. Grok says this account doesn't have SuperGrok or X Premium+.",
       name: "a Grok account with no plan",
-      note: "Your Grok account doesn't have a plan Instrument can use.",
+      note: "Your Grok account doesn't have a paid plan.",
       turn: stoppedTurn({ classification: "auth", provider: "grok-account" }),
     },
     {
@@ -90,7 +90,7 @@ describe("planAccountStop", () => {
     {
       line: "I couldn't start on this. ChatGPT says this account can't be used in other apps without a paid plan.",
       name: "ChatGPT with plan access left out",
-      note: "This ChatGPT account can't be used here. It needs a paid ChatGPT plan.",
+      note: "Your ChatGPT account doesn't have a paid plan.",
       turn: stoppedTurn({
         body: { code: "chatpass_v2_scope_not_authorized" },
         classification: "auth",

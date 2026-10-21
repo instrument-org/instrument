@@ -1,4 +1,3 @@
-import glowSrc from "@/client/assets/setup/glow.svg";
 import { SetupNetworkStatusPill } from "@/client/components/network-status/network-status-pill";
 import { Toaster } from "@/client/components/ui/sonner";
 import { WindowControls } from "@/client/components/window-controls";
@@ -55,15 +54,12 @@ export function SetupHost() {
   const backTo = state?.step === step ? (state.back ?? null) : null;
   return (
     <div
-      className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-linear-to-b from-brand-50 to-gray-100 to-50% dark:from-brand-950 dark:to-background"
+      className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-linear-to-b from-setup-ground-top to-setup-ground-bottom to-50%"
       data-testid="setup"
     >
-      <img
-        alt=""
+      <div
         aria-hidden
-        className="pointer-events-none absolute top-[-442px] left-1/2 h-220 w-[1123px] max-w-none -translate-x-1/2 dark:hidden"
-        draggable={false}
-        src={glowSrc}
+        className="pointer-events-none absolute top-[-442px] left-1/2 h-220 w-[1123px] -translate-x-1/2 bg-[radial-gradient(closest-side,var(--color-setup-glow),transparent_74%)]"
       />
       {/* The window's band, which drags it; the system draws the lights at
         its left on macOS, and setup draws minimize and close elsewhere. */}

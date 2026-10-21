@@ -68,6 +68,7 @@ import {
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { createNotesCommand, NOTES_COMMAND } from "./shell-commands/notes";
 import {
+  bundledTextRouteNames,
   createNativeTextCommand,
   nativeTextRoutes,
   routeProgram,
@@ -746,14 +747,52 @@ const CHAT_COMMAND_LINES = [
   `  ${TAB_COMMAND.name} - ${TAB_COMMAND.description}`,
 ];
 
-export function createBashDescription() {
-  const allowedCommandNames = [
-    ...new Set([
-      ...getCommandNames(),
-      // The GNU text commands the bundled uutils add beside the builtins.
-      ...nativeTextRoutes().map((route) => route.name),
-    ]),
+/**
+ * The commands the bash tool's description lists: the shell's builtins and
+ * the GNU text commands the build's uutils add on every platform. The same
+ * on every computer a build runs on, since a tool definition is part of the
+ * prefix a provider caches; what one computer adds is in
+ * {@link computerCommandsText}.
+ */
+function describedCommandNames(): string[] {
+  return [
+    ...new Set([...getCommandNames(), ...bundledTextRouteNames()]),
   ].filter((name) => !BROKEN_COMMANDS.has(name));
+}
+
+/**
+ * What this computer's shell has beyond the bash tool's description: the
+ * commands only its platform, or a program of its own, answers (`ps`, `top`,
+ * `tasklist`), and on a Mac the `instrument` commands for its apps. Told in
+ * the session's system information and in a note when it changes, so the
+ * tool definition stays the same on every computer. Empty when there are
+ * none.
+ */
+export function computerCommandsText(): string {
+  const listed = new Set(describedCommandNames());
+  const added = [
+    ...new Set(
+      nativeTextRoutes()
+        .map((route) => route.name)
+        .filter((name) => !listed.has(name)),
+    ),
+  ].sort();
+  const apps = macAppSubcommands();
+  return [
+    added.length > 0 &&
+      `Your shell on this computer also has ${added.map((name) => `\`${name}\``).join(", ")}.`,
+    apps.length > 0 &&
+      [
+        `\`${INSTRUMENT_COMMAND.name}\` also has these commands for this Mac's own apps:`,
+        ...apps.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+      ].join("\n"),
+  ]
+    .filter((line) => typeof line === "string")
+    .join("\n");
+}
+
+export function createBashDescription() {
+  const allowedCommandNames = describedCommandNames();
 
   const namedOnly = allowedCommandNames
     .filter((name) => !(name in DESCRIBED_COMMANDS))
@@ -765,10 +804,13 @@ export function createBashDescription() {
 
   const customLines = [
     `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
-    ...customCommandDefs()
-      .filter((cmd) => cmd.listInDescription)
-      .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
-    ...macAppSubcommands().map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+    // Every computer's: a command one platform or build lacks is never listed.
+    ...ALL_CUSTOM_COMMAND_DEFS.filter(
+      (cmd) =>
+        cmd.listInDescription &&
+        cmd.platforms === undefined &&
+        cmd.available === undefined,
+    ).map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     `  ${X_COMMAND.name} - ${X_COMMAND.description}`,
     ...CHAT_COMMAND_LINES,

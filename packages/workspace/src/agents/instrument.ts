@@ -22,6 +22,7 @@ import { buildAppsContextText } from "../lib/apps/context";
 import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildFoldersText } from "../lib/build-folders-text";
 import { ChatReads } from "../lib/chat-reads";
+import { chatModelURI } from "../lib/chat-settings";
 import { ChatWrites } from "../lib/chat-writes";
 import { folderReach } from "../lib/chat/folder-reach";
 import { endOfTurnNote } from "../lib/end-of-turn-checks";
@@ -122,7 +123,10 @@ export const instrumentAgent = setupAgent({
           })
         : `You reach none of the user's folders yet. Reaching for one shows the person a card; folders allowed later are announced on the message they arrive with.`;
 
-    const environment = currentEnvironment(chatId);
+    const environment = await currentEnvironment(
+      chatId,
+      await chatModelURI(chatId),
+    );
     const userMessage = createContextMessage({
       agentName: name,
       environment,

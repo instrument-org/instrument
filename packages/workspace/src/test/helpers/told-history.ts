@@ -21,7 +21,7 @@ export async function writeBaseline(
 ): Promise<void> {
   const message = createContextMessage({
     agentName: "instrument",
-    environment: currentEnvironment(chatId),
+    environment: await currentEnvironment(chatId),
     now: new Date(),
     sessionId,
     textParts: ["The baseline."],

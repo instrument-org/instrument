@@ -1,3 +1,7 @@
+import {
+  AIGatewayModelURI,
+  imageParametersDescription,
+} from "@instrument-org/ai-gateway";
 import { ok, safeTry } from "neverthrow";
 import os from "node:os";
 
@@ -27,12 +31,25 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
  * are the same folder; a change to it between turns is told as any other
  * move of a folder is. Without a chat, as for the window, it is the
  * Instrument folder.
+ *
+ * The image options are for the image model `runsOn` would pick among the
+ * providers connected now: the chat's model, which every session of it runs
+ * on. Switching models already starts a new cache, and connecting a
+ * provider is told as a change.
  */
-export function currentEnvironment(chatId?: ChatId): Environment {
+export async function currentEnvironment(
+  chatId?: ChatId,
+  runsOn?: AIGatewayModelURI.Type,
+): Promise<Environment> {
+  // Imported when asked: the shell's module reaches this one through the
+  // commands that send a task a message.
+  const { computerCommandsText } = await import("./create-bash-env");
   return {
     appsFolder: shellPath(getWorkspaceConfig().appsDir),
+    commands: computerCommandsText(),
     computer: getSystemInfo(),
     homeFolder: shellPath(os.homedir()),
+    imageOptions: imageOptionsFor(runsOn),
     outputFolder: shellPath(
       chatId === undefined ? outputFolderPath() : chatOutputFolder(chatId),
     ),
@@ -40,6 +57,22 @@ export function currentEnvironment(chatId?: ChatId): Environment {
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     workspaceSkillsFolder: shellPath(getWorkspaceSkillsDir()),
   };
+}
+
+/** What `generate_image` takes for the image model `runsOn` would pick. */
+function imageOptionsFor(runsOn: AIGatewayModelURI.Type | undefined) {
+  const parsed =
+    runsOn === undefined ? undefined : AIGatewayModelURI.parse(runsOn);
+  return imageParametersDescription({
+    callingModel: {
+      params: {
+        providerConfigId: parsed?.ok
+          ? parsed.value.params.providerConfigId
+          : undefined,
+      },
+    },
+    configs: getWorkspaceConfig().getAIProviderConfigs(),
+  });
 }
 
 /** Each fact of `current` that differs from `told`, or undefined when none does. */
@@ -90,10 +123,13 @@ export function lastToldEnvironment(
 export function detectEnvironmentChange({
   chatId,
   messageId,
+  runsOn,
   sessionId,
 }: {
   chatId: ChatId;
   messageId: StoreId.Message;
+  /** The model the chat runs on as of this message. */
+  runsOn: AIGatewayModelURI.Type | undefined;
   sessionId: StoreId.Session;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
@@ -106,7 +142,7 @@ export function detectEnvironmentChange({
       const change =
         told === undefined
           ? undefined
-          : environmentChange(told, currentEnvironment(chatId));
+          : environmentChange(told, await currentEnvironment(chatId, runsOn));
       if (change === undefined) {
         return ok(undefined);
       }

@@ -1,4 +1,3 @@
-import { imageParametersDescription } from "@instrument-org/ai-gateway";
 import { imageSize } from "image-size";
 import mime from "mime-types";
 import ms from "ms";
@@ -67,7 +66,7 @@ export const GenerateImage = setupTool({
       .optional()
       .meta({
         description:
-          "Optional model-specific image parameters (e.g. quality, aspect ratio). The tool description lists which parameters and values the currently selected image model supports; unsupported entries are ignored.",
+          "Optional model-specific image parameters (e.g. quality, aspect ratio). Your system information lists which parameters and values the selected image model supports, and a later note says when they change; unsupported entries are ignored.",
       }),
     [INPUT_PARAMS.prompt]: z.string().meta({
       description: "Detailed description of the image to generate",
@@ -109,7 +108,7 @@ export const GenerateImage = setupTool({
     }),
   ]),
 }).create({
-  description: ({ model }) => dedent`
+  description: dedent`
     AI image synthesis and semantic image editing. This is not the general tool for creating image files.
 
     Calls a metered, nondeterministic external AI image model and can take tens of seconds to several minutes.
@@ -127,10 +126,7 @@ export const GenerateImage = setupTool({
 
     IMPORTANT: When the user asks to create new images "based on", "using", or "from" existing images, always pass those images as ${INPUT_PARAMS.sourceImages} for img2img conditioning. Do not re-describe them from scratch in the ${INPUT_PARAMS.prompt} alone.
 
-    ${imageParametersDescription({
-      callingModel: model,
-      configs: getWorkspaceConfig().getAIProviderConfigs(),
-    })}
+    The ${INPUT_PARAMS.parameters} the selected image model takes (its size, quality and the like) are in your system information, or in the latest note that changed them.
   `,
   async *execute({ input, partId, model, sessionId, signal, chatId }) {
     const files = await sessionToolFs({ chatId, partId, sessionId });

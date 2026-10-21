@@ -13,6 +13,7 @@ import { DEVELOPER_TOOLS_EVALS } from "./developer-tools";
 import { DOCUMENT_DESIGN_EVALS } from "./document-design";
 import { FILES_FENCE_EVALS } from "./files-fence";
 import { HANDOFF_EVALS } from "./handoff";
+import { IMAGE_OPTIONS_EVALS } from "./image-options";
 import { IMAGE_REGION_EVALS } from "./image-region";
 import { INTERRUPTION_EVALS } from "./interruptions";
 import { INSTRUMENT_GUIDE_EVALS } from "./instrument-guide";
@@ -59,6 +60,7 @@ export const EVALS = [
   ...DOCUMENT_DESIGN_EVALS,
   ...FILES_FENCE_EVALS,
   ...HANDOFF_EVALS,
+  ...IMAGE_OPTIONS_EVALS,
   ...IMAGE_REGION_EVALS,
   ...INTERRUPTION_EVALS,
   ...INSTRUMENT_GUIDE_EVALS,

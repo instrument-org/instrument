@@ -3,6 +3,7 @@ import {
   type Environment,
   type EnvironmentChange,
 } from "../schemas/environment";
+import { TOOL_NAMES } from "../tools/name";
 import { systemNote } from "./system-note";
 
 /** The folders the system prompt names by variable, and what each is called. */
@@ -52,6 +53,20 @@ export function folderVariablesText(environment: Environment): string {
 }
 
 /**
+ * What the session's system information says about the commands only this
+ * computer's shell has and the image options, beside the computer itself.
+ */
+export function computerToolsText(environment: Environment): string {
+  return [
+    environment.commands,
+    environment.imageOptions !== undefined &&
+      `For \`${TOOL_NAMES.generateImage}\`: ${environment.imageOptions}`,
+  ]
+    .filter((line) => typeof line === "string" && line !== "")
+    .join("\n");
+}
+
+/**
  * Tells the model which facts about its computer changed since the session's
  * system information was written: the chat moved to another computer, the OS
  * updated, the time zone or a folder moved.
@@ -70,6 +85,12 @@ export function environmentChangeModelNote(
       ([fact, name, variable]) =>
         change[fact] && `- ${name} (\`$${variable}\`): \`${change[fact]}\``,
     ),
+    change.commands !== undefined &&
+      (change.commands === ""
+        ? "- Your shell has only the commands the bash tool lists."
+        : `- Commands beyond the bash tool's list:\n${change.commands}`),
+    change.imageOptions !== undefined &&
+      `- For \`${TOOL_NAMES.generateImage}\`: ${change.imageOptions}`,
   ].filter((fact) => typeof fact === "string");
   if (facts.length === 0) {
     return null;

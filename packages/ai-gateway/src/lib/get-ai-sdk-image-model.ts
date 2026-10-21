@@ -91,13 +91,14 @@ export async function getImageModel({
 }
 
 // Human-readable description of the parameters the selected image model
-// supports, for the generate_image tool. Falls back to "no parameters" when no
-// image provider resolves.
+// supports, for the agent's system information. Falls back to "no
+// parameters" when no image provider resolves. Only the calling model's
+// provider config decides it, so a model URI is enough to ask.
 export function imageParametersDescription({
   callingModel,
   configs,
 }: {
-  callingModel: AIGatewayModel.Type;
+  callingModel: CallingModel;
   configs: AIGatewayProviderConfig.Type[];
 }): string {
   const [selected] = selectImageProviderConfigs({ callingModel, configs });
@@ -117,7 +118,7 @@ export function selectImageProviderConfigs({
   callingModel,
   configs,
 }: {
-  callingModel: AIGatewayModel.Type;
+  callingModel: CallingModel;
   configs: AIGatewayProviderConfig.Type[];
 }): (AIGatewayProviderConfig.Type & { type: ImageGenerationProviderType })[] {
   const preferredProviderConfig = configs.find(
@@ -132,6 +133,18 @@ export function selectImageProviderConfigs({
     providerTypePriority: PROVIDER_TYPE_PRIORITY,
   });
 }
+
+/**
+ * What of the calling model picks its image provider: its provider config,
+ * where there is a model to ask about.
+ */
+type CallingModel = {
+  params: {
+    providerConfigId:
+      | AIGatewayModel.Type["params"]["providerConfigId"]
+      | undefined;
+  };
+};
 
 async function getAISDKImageModel({
   config,

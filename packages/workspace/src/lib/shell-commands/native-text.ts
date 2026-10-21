@@ -645,6 +645,18 @@ export function routeProgram(route: NativeTextRoute): string | undefined {
     : uutilsProgram(route.binary);
 }
 
+/**
+ * The commands the build's own uutils answer on every platform: the same
+ * list wherever it runs, for a tool description that may not differ between
+ * computers. A route only one platform has, or one the computer's own
+ * program answers, is that computer's to tell.
+ */
+export function bundledTextRouteNames(): string[] {
+  return NATIVE_TEXT_ROUTES.filter(
+    (route) => route.binary !== "system" && route.platforms === undefined,
+  ).map((route) => route.name);
+}
+
 /** The routes this platform and build answer natively. */
 export function nativeTextRoutes(): NativeTextRoute[] {
   return NATIVE_TEXT_ROUTES.filter(

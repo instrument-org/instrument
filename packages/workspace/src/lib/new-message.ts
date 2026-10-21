@@ -24,7 +24,7 @@ import { folderReach } from "./chat/folder-reach";
 import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
 import { chatDir, resolveChat } from "./record-folders";
-import { setChatModel } from "./chat-settings";
+import { chatModelURI, setChatModel } from "./chat-settings";
 import { grantFile } from "./chat/grants";
 import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -234,9 +234,12 @@ export async function newMessage({
   // The session context names the computer it started on and is never
   // rewritten, so a chat that moved to another computer, or whose computer
   // changed under it, is told here instead.
+  // The chat's model as of this message: the one the composer sent with,
+  // which picks it, or for a task the chat's.
   const environmentChange = await detectEnvironmentChange({
     chatId,
     messageId,
+    runsOn: isChat ? modelURI : await chatModelURI(chatId),
     sessionId,
   });
   if (environmentChange.isErr()) {

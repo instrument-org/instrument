@@ -11,9 +11,21 @@ import { z } from "zod";
 export const EnvironmentSchema = z.object({
   /** Where the workspace's apps are, behind `$INSTRUMENT_APPS`. */
   appsFolder: z.string(),
+  /**
+   * What this computer's shell has beyond the bash tool's list, as
+   * `computerCommandsText` words it; empty for nothing. Absent on a baseline
+   * written before it was told, which the next note then tells.
+   */
+  commands: z.string().optional(),
   /** The OS and its version, as `getSystemInfo` names them. */
   computer: z.string(),
   homeFolder: z.string(),
+  /**
+   * The options `generate_image` takes for the image model the chat's model
+   * picks among the connected providers, as `imageParametersDescription`
+   * words them. Absent on a baseline written before it was told.
+   */
+  imageOptions: z.string().optional(),
   /** Where finished work goes, behind `$INSTRUMENT_OUTPUT`. */
   outputFolder: z.string(),
   /** `process.platform`, which decides the shell guidance a computer gets. */

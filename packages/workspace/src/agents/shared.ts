@@ -2,6 +2,7 @@ import { dedent, sift } from "radashi";
 
 import { contextDateKey, formatContextDate } from "../lib/context-date";
 import {
+  computerToolsText,
   folderVariablesText,
   platformGuidance,
 } from "../lib/environment-model-text";
@@ -129,6 +130,7 @@ export function getSystemInfoText({
     The user's computer: ${environment.computer}. You run on it: their files and apps belong to this system, and so does anything you write for them to run.${guidance === undefined ? "" : ` ${guidance}`}
     Your shell: an emulated POSIX shell with GNU coreutils spellings, whatever the user's computer is. Reach for \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here. ${network}
     ${folderVariablesText(environment)}
+    ${computerToolsText(environment)}
     Current date: ${formatContextDate(contextDateKey(now))} -- the day this session started. A session that runs past midnight is told the new date on the turn it happens; until then, this is today.
     Time zone: ${environment.timeZone}, the computer's and so a fair guide to where the user is. This session started at ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} local time; \`date\` in your shell gives the time now.
     </system_info>

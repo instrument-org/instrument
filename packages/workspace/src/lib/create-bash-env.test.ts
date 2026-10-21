@@ -10,7 +10,8 @@ import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 describe("createBashDescription", () => {
-  // Pinned so the description holds the macOS-only commands wherever it runs.
+  // Pinned to a Mac, whose platform adds the most commands of its own, none
+  // of which may reach the description.
   beforeEach(() => {
     vi.stubGlobal("process", { ...process, platform: "darwin" });
   });
@@ -21,7 +22,15 @@ describe("createBashDescription", () => {
 
   // The commands a Mac chat is told it has, by name. Their wording is the
   // prompt's, edited where it is written, so only the set is pinned here.
-  it("names the builtins and specialized commands a Mac chat has", () => {
+  // A tool definition is in the prefix a provider caches, so it reads the
+  // same on every computer a build runs on.
+  it("reads the same on every platform", () => {
+    const onMac = createBashDescription();
+    vi.stubGlobal("process", { ...process, platform: "win32" });
+    expect(createBashDescription()).toBe(onMac);
+  });
+
+  it("names the builtins and specialized commands every computer has", () => {
     const description = createBashDescription();
     const builtins = /^Available commands \(.*?\): (.*)$/m.exec(
       description,
@@ -37,18 +46,26 @@ describe("createBashDescription", () => {
         {
           "builtins": [
             "alias",
+            "arch",
             "awk",
+            "b2sum",
+            "base32",
             "base64",
             "basename",
+            "basenc",
             "bash",
             "cat",
             "chmod",
+            "cksum",
             "clear",
+            "cmp",
             "column",
             "comm",
             "cp",
             "cut",
             "date",
+            "dd",
+            "df",
             "diff",
             "dirname",
             "du",
@@ -57,10 +74,12 @@ describe("createBashDescription", () => {
             "env",
             "expand",
             "expr",
+            "factor",
             "false",
             "fgrep",
             "file",
             "find",
+            "fmt",
             "fold",
             "grep",
             "gunzip",
@@ -78,13 +97,16 @@ describe("createBashDescription", () => {
             "mktemp",
             "mv",
             "nl",
+            "nproc",
+            "numfmt",
             "od",
             "paste",
+            "pr",
             "printenv",
             "printf",
-            "ps",
             "pwd",
             "readlink",
+            "realpath",
             "rev",
             "rm",
             "rmdir",
@@ -92,7 +114,11 @@ describe("createBashDescription", () => {
             "seq",
             "sh",
             "sha1sum",
+            "sha224sum",
             "sha256sum",
+            "sha384sum",
+            "sha512sum",
+            "shuf",
             "sleep",
             "sort",
             "split",
@@ -104,12 +130,13 @@ describe("createBashDescription", () => {
             "tee",
             "time",
             "timeout",
-            "top",
             "touch",
             "tr",
             "tree",
             "true",
+            "tsort",
             "unalias",
+            "uname",
             "unexpand",
             "uniq",
             "wc",
@@ -135,9 +162,6 @@ describe("createBashDescription", () => {
             "python",
             "pip",
             "validate-skill",
-            "instrument mail",
-            "instrument messages",
-            "instrument notes",
             "jobs",
             "fg",
             "kill",

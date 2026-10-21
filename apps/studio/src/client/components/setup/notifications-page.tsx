@@ -114,7 +114,7 @@ export function NotificationsPage({
 function SampleNotification() {
   return (
     <div className="relative h-41 w-117.5 overflow-hidden">
-      <div className="absolute inset-x-0 top-0 h-49 rounded-[20px] border border-gray-400 opacity-75 mask-b-from-40% mask-b-to-100%" />
+      <div className="absolute inset-x-0 top-0 h-49 rounded-[20px] border border-gray-400 mask-b-from-40% mask-b-to-100% opacity-75" />
       <div className="absolute top-7.5 left-7.5 flex w-102.5 items-center gap-3 rounded-2xl bg-black/5 p-3.5 dark:bg-white/5">
         <BrandMark size={48} />
         <div className="min-w-0 flex-1">

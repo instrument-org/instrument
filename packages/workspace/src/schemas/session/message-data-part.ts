@@ -668,6 +668,12 @@ export namespace SessionMessageDataPart {
     kind: z.enum(["app", "folder"]),
     /** The folder's path, or the app's name. */
     target: z.string(),
+    /**
+     * Where the yes went when it was not to Instrument's own rules: Windows'
+     * ransomware protection, which now lets the app's programs change the
+     * folder.
+     */
+    through: z.literal("windows-protection").optional(),
   });
 
   export type PermissionAnswerDataPart = z.output<

@@ -497,11 +497,13 @@ export function PermissionAnswerNote({
         <ShieldCheckIcon className="size-3.5 shrink-0" />
       )}
       <span>
-        {data.answer === "allowed"
-          ? `You allowed ${shown} in this chat.`
-          : data.answer === "always"
-            ? `You allowed ${shown} for every chat.`
-            : `You didn’t allow ${shown} in this chat.`}
+        {data.answer !== "declined" && data.through === "windows-protection"
+          ? `Windows now lets Instrument change ${shown}.`
+          : data.answer === "allowed"
+            ? `You allowed ${shown} in this chat.`
+            : data.answer === "always"
+              ? `You allowed ${shown} for every chat.`
+              : `You didn’t allow ${shown} in this chat.`}
       </span>
       {data.answer === "always" ? (
         // Where an answer for every chat is taken back.

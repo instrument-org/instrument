@@ -529,7 +529,14 @@ function settle(
     }
     await wakeAskers(
       {
-        data: { answer: decision, kind: ask.kind, target: ask.target },
+        data: {
+          answer: decision,
+          kind: ask.kind,
+          target: ask.target,
+          ...(ask.status === "windows-blocked" && {
+            through: "windows-protection" as const,
+          }),
+        },
         type: "data-permissionAnswer",
       },
       workspaceRef,

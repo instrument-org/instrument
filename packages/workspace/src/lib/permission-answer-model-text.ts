@@ -1,3 +1,5 @@
+import { APP_NAME } from "@instrument-org/shared";
+
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { systemNote } from "./system-note";
 
@@ -12,6 +14,8 @@ export function permissionAnswerModelNote(
   const said =
     data.answer === "declined"
       ? `The person said not now to ${what}. Carry on without it, and say in a line what you skipped because of it.`
-      : `The person allowed ${what}${data.answer === "always" ? " for every chat" : " in this chat"}. Run again what needed it.`;
+      : data.through === "windows-protection"
+        ? `The person let ${APP_NAME} through Windows ransomware protection for ${what}. Run again what needed it.`
+        : `The person allowed ${what}${data.answer === "always" ? " for every chat" : " in this chat"}. Run again what needed it.`;
   return systemNote`${said}`;
 }

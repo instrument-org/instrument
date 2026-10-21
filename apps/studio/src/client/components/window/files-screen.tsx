@@ -27,6 +27,7 @@ import {
   getComputerThumbnailUrl,
 } from "@/client/lib/computer-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
+import { COMPUTER_FILE_REFUSAL_HEADER } from "@/shared/computer-file-refusal";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn } from "@/client/lib/utils";
@@ -56,6 +57,7 @@ import {
   BESIDE_MOTION_CLASSNAME,
   ComputerPage,
   type FolderOnScreen,
+  NotPermitted,
   RECENTS_ROOT,
 } from "./computer-page";
 import { useWindow } from "./context";
@@ -510,8 +512,12 @@ export function FilesScreen({
   // tab; beside its folder, it slides away and leaves the folder. The app's
   // own data goes the same way, which the channel forbids. Asked as the file
   // opens and again whenever its watch says it went, so trashing it from the
-  // folder beside it, or moving a folder above it, puts it away.
+  // folder beside it, or moving a folder above it, puts it away. A file
+  // macOS refuses stays, showing the ways past the refusal in place of the
+  // viewer, and is asked again once the person picks its folder.
   const isFileGone = useWatchedFileGone(file);
+  const [macosRefused, setMacosRefused] = useState<string | null>(null);
+  const [askedAgain, setAskedAgain] = useState(0);
   useEffect(() => {
     if (!file) {
       return;
@@ -534,6 +540,13 @@ export function FilesScreen({
             leaveFile();
           }
         };
+        const refusedByMacos =
+          response.status === 403 &&
+          response.headers.get(COMPUTER_FILE_REFUSAL_HEADER) === "system";
+        setMacosRefused(refusedByMacos ? file : null);
+        if (refusedByMacos) {
+          return;
+        }
         if (response.status === 403) {
           toast(`Instrument keeps “${name}” private`, {
             description:
@@ -552,9 +565,24 @@ export function FilesScreen({
     return () => {
       controller.abort();
     };
-    // Once per file the tab shows, and once more if it goes.
+    // Once per file the tab shows, once more if it goes, and again after a
+    // pick that may have let the app in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file, isFileGone]);
+  }, [file, isFileGone, askedAgain]);
+  const refusedView =
+    activeFile && macosRefused === activeFile.hostPath ? (
+      <NotPermitted
+        onGranted={() => {
+          setAskedAgain((count) => count + 1);
+        }}
+        refusal={{
+          display: folderOf(activeFile.hostPath),
+          kind: "refused",
+          path: folderOf(activeFile.hostPath),
+          reason: "system",
+        }}
+      />
+    ) : null;
   // Watched, so the viewer shows the file as it is rather than as it was
   // opened: a write lands in the open tab.
   const activeFileUrl = useWatchedFileUrl(activeFile?.hostPath);
@@ -803,19 +831,21 @@ export function FilesScreen({
                               </>
                             ) : (
                               <div className="relative size-full">
-                                <FileViewer
-                                  // Its actions leave the row with it, for the
-                                  // folder's own to come back.
-                                  actionsInto={isPresent ? rowTail : null}
-                                  actionsLead={actionsLead}
-                                  noteInto={isPresent ? rowField : null}
-                                  actionsTrail={closeButton}
-                                  className={FULL_BLEED}
-                                  editable
-                                  file={viewerFile}
-                                  key={activeFile.hostPath}
-                                  {...pageInSlot(isFolderShown)}
-                                />
+                                {refusedView ?? (
+                                  <FileViewer
+                                    // Its actions leave the row with it, for the
+                                    // folder's own to come back.
+                                    actionsInto={isPresent ? rowTail : null}
+                                    actionsLead={actionsLead}
+                                    noteInto={isPresent ? rowField : null}
+                                    actionsTrail={closeButton}
+                                    className={FULL_BLEED}
+                                    editable
+                                    file={viewerFile}
+                                    key={activeFile.hostPath}
+                                    {...pageInSlot(isFolderShown)}
+                                  />
+                                )}
                                 {/* A page in Edit keeps its asks in its own dock instead. */}
                                 {!(
                                   hostedTabId !== undefined &&
@@ -878,16 +908,18 @@ export function FilesScreen({
                 rowLead,
               )}
             <div className="relative min-h-0 min-w-0 flex-1">
-              <FileViewer
-                actionsInto={rowTail}
-                actionsLead={actionsLead}
-                noteInto={rowField}
-                className={FULL_BLEED}
-                editable
-                file={viewerFile}
-                key={activeFile.hostPath}
-                {...pageInSlot(isTreeOpen)}
-              />
+              {refusedView ?? (
+                <FileViewer
+                  actionsInto={rowTail}
+                  actionsLead={actionsLead}
+                  noteInto={rowField}
+                  className={FULL_BLEED}
+                  editable
+                  file={viewerFile}
+                  key={activeFile.hostPath}
+                  {...pageInSlot(isTreeOpen)}
+                />
+              )}
               {/* A page in Edit keeps its asks in its own dock instead. */}
               {!(hostedTabId !== undefined && editTabs[hostedTabId]) && (
                 <AskTray path={activeFile.hostPath} />
@@ -906,25 +938,27 @@ export function FilesScreen({
           // Where the file sits on the Mac is the row above, which every tab
           // wears, so the viewer is the whole of the tab.
           <LinkSurface base={folderOf(activeFile.hostPath)}>
-            <FileViewer
-              actionsInto={rowTail}
-              noteInto={rowField}
-              actionsLead={actionsLead}
-              className={FULL_BLEED}
-              editable
-              file={viewerFile}
-              key={activeFile.hostPath}
-              {...pageInSlot(false)}
-              {...(source
-                ? {
-                    // The tab turns back into the page, the way it arrives
-                    // at a page's file from anywhere.
-                    onLeaveSource: () => {
-                      router.history.push(fileHref(activeFile.hostPath));
-                    },
-                  }
-                : {})}
-            />
+            {refusedView ?? (
+              <FileViewer
+                actionsInto={rowTail}
+                noteInto={rowField}
+                actionsLead={actionsLead}
+                className={FULL_BLEED}
+                editable
+                file={viewerFile}
+                key={activeFile.hostPath}
+                {...pageInSlot(false)}
+                {...(source
+                  ? {
+                      // The tab turns back into the page, the way it arrives
+                      // at a page's file from anywhere.
+                      onLeaveSource: () => {
+                        router.history.push(fileHref(activeFile.hostPath));
+                      },
+                    }
+                  : {})}
+              />
+            )}
           </LinkSurface>
         ) : (
           <ComputerPage

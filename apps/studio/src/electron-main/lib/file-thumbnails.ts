@@ -146,6 +146,11 @@ export async function fileThumbnail(
         ));
     await fs.mkdir(deps.dir, { recursive: true });
     if (!image || image.isEmpty()) {
+      // A file macOS refuses the app has a picture once the person lets the
+      // app in, which the marker would hide until the file next changed.
+      if (!isFolder && (await isRefusedByMacos(hostPath))) {
+        return null;
+      }
       await fs.writeFile(none, "");
       return null;
     }
@@ -164,6 +169,21 @@ export async function fileThumbnail(
   });
   inFlight.set(key, request);
   return request;
+}
+
+/** Whether macOS's privacy controls keep the app from opening the file. */
+async function isRefusedByMacos(hostPath: string): Promise<boolean> {
+  if (process.platform !== "darwin") {
+    return false;
+  }
+  return fs.open(hostPath, "r").then(
+    async (handle) => {
+      await handle.close();
+      return false;
+    },
+    (error: unknown) =>
+      error instanceof Error && "code" in error && error.code === "EPERM",
+  );
 }
 
 const renderedInFlight = new Map<

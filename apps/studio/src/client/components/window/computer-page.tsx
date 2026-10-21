@@ -3285,7 +3285,7 @@ export function refusalLine(reason: ComputerRefusal["reason"]) {
  * and what guards it is the app's own permission, so the way in is to open it
  * in its app. The app's own data has no way in from here at all.
  */
-function NotPermitted({
+export function NotPermitted({
   onGranted,
   refusal,
 }: {

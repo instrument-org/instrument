@@ -8,6 +8,8 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { COMPUTER_FILE_REFUSAL_HEADER } from "@/shared/computer-file-refusal";
+
 import { resolveAlias } from "./mac-native";
 import { isRecordPath, isRefusedByName, isRefusedFile } from "./refused-files";
 import {
@@ -132,7 +134,10 @@ app.all("/*", async (c) => {
   // channel, not the origin. The two range headers are what a partial reader
   // needs to see to know slices are answered and how long the whole is.
   c.header("Access-Control-Allow-Origin", "*");
-  c.header("Access-Control-Expose-Headers", "Accept-Ranges, Content-Range");
+  c.header(
+    "Access-Control-Expose-Headers",
+    `Accept-Ranges, Content-Range, ${COMPUTER_FILE_REFUSAL_HEADER}`,
+  );
   // Forbidden rather than not found, and readable by the renderer, so the
   // file tab that asked can say the file is kept closed rather than gone.
   if (isRefusedByName(asked) || (await isRefusedFile(hostPath))) {
@@ -174,6 +179,23 @@ app.all("/*", async (c) => {
     c.header("Cache-Control", cacheControl);
     c.header("Content-Type", "image/png");
     return c.body(new Uint8Array(drawn.png));
+  }
+  // macOS answers a file's stat in a folder it refuses the app, so the
+  // refusal only shows when the file is opened, which would be partway
+  // through a 200. Opened first, it is a 403 that says whose refusal it is.
+  if (process.platform === "darwin") {
+    const refused = await fs.open(hostPath, "r").then(
+      async (handle) => {
+        await handle.close();
+        return false;
+      },
+      (error: unknown) =>
+        error instanceof Error && "code" in error && error.code === "EPERM",
+    );
+    if (refused) {
+      c.header(COMPUTER_FILE_REFUSAL_HEADER, "system");
+      return c.body(null, 403);
+    }
   }
   const result = await serveStaticFile(c, {
     filePath: hostPath,

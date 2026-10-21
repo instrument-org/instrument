@@ -1,0 +1,21 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="52" height="64" viewBox="0 0 52 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Frame">
+<rect width="52" height="64" rx="5" fill="url(#paint0_linear_0_308)"/>
+<circle id="Ellipse" cx="16" cy="17.8" r="5" fill="#FFF5DE"/>
+<g id="Frame_2" clip-path="url(#clip0_0_308)">
+<path id="Vector" d="M0 39.4667C8.32 33.0667 16.64 34.1333 24.96 38.4C33.28 42.6667 41.6 43.7333 52 36.2667V64H0V39.4667Z" fill="#D99262"/>
+<path id="Vector_2" d="M0 45.8667C10.4 39.4667 21.84 41.6 31.2 44.8C40.56 48 44.72 48 52 43.7333V64H0V45.8667Z" fill="#B8693F"/>
+</g>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_308" x1="26" y1="0" x2="26" y2="64" gradientUnits="userSpaceOnUse">
+<stop stop-color="#9CC2E3"/>
+<stop offset="0.42" stop-color="#DDE3E2"/>
+<stop offset="0.62" stop-color="#F5D7A6"/>
+<stop offset="1" stop-color="#ECB684"/>
+</linearGradient>
+<clipPath id="clip0_0_308">
+<rect width="52" height="32" fill="white" transform="translate(0 32)"/>
+</clipPath>
+</defs>
+</svg>

@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="190" height="190" viewBox="0 0 190 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Folder back">
+<path id="Vector" d="M8.90625 54.1797V33.3984C8.90625 27.4609 11.875 24.4922 17.8125 24.4922H53.8086C56.5299 24.4922 58.7565 25.6055 60.4883 27.832L64.9414 33.3984C66.1784 34.8828 68.0339 35.625 70.5078 35.625H172.188C178.125 35.625 181.094 38.5938 181.094 44.5312V153.633C181.094 160.56 177.63 164.023 170.703 164.023H19.2969C12.3698 164.023 8.90625 160.56 8.90625 153.633V54.1797Z" fill="url(#paint0_linear_0_305)" stroke-width="0.742188" stroke="#126F68"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_305" x1="8.90625" y1="24.4922" x2="8.90625" y2="164.023" gradientUnits="userSpaceOnUse">
+<stop stop-color="#36B5AD"/>
+<stop offset="1" stop-color="#0B625B"/>
+</linearGradient>
+</defs>
+</svg>

@@ -49,7 +49,7 @@ const PLAN_PROVIDERS: PlanProvider[] = ["chatgpt", "claude", "grok"];
 const SUBSCRIPTION_LINES: Record<PlanProvider, string> = {
   chatgpt: "Plus, Pro or another paid plan",
   claude: "Pro, Max or another paid plan",
-  grok: "SuperGrok or another paid plan",
+  grok: "SuperGrok or X Premium+. Pay through X? Sign in with your X account.",
 };
 
 /** A page of the ways in. Kept in the step's own state, never saved. */

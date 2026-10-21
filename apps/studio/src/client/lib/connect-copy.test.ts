@@ -75,7 +75,7 @@ describe("connectPageCopy", () => {
           "title": "Couldn't sign in to Grok",
         },
         "no-plan": {
-          "subtitle": "Instrument only works with paid Grok plans. Upgrade and try again, or pick another way in.",
+          "subtitle": "Instrument works with SuperGrok or X Premium+. If you pay through X, link your X account at accounts.x.ai. Upgrade and try again, or pick another way in.",
           "title": "Your Grok account doesn't have a paid plan",
         },
         "out-of-usage": {

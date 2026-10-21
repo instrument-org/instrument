@@ -36,8 +36,9 @@ A commit that adds, drops, or reverses a rule for how an agent behaves (its prom
 
 `scripts/seed-workspace.ts` builds a throwaway app workspace from a committed
 description in `fixtures/workspaces/` at the **repo root** (this package's own
-`fixtures/` is something else), for `ELECTRON_USER_DATA_DIR`.
-`scripts/record-fixture-session.ts` captures a real chat (with every task in it, each a session in its `chat.db`) or a lone 1.x task folder into one.
+`fixtures/` is something else), for `ELECTRON_USER_DATA_DIR` and
+`INSTRUMENT_DATA_HOME`.
+`scripts/record-fixture-session.ts` captures a real chat (with every task in it, each a session in its records) or a lone 1.x task folder into one.
 
 ```bash
 pnpm workspace:seed --list                                # from the repo root
@@ -46,8 +47,11 @@ pnpm --filter @instrument-org/workspace script:record-fixture-session <chat-dir>
 pnpm --filter @instrument-org/workspace script:record-fixture-session <task-dir> --fixture <name> --task <key>
 ```
 
-The seeder goes through `initializeChat` and `Store`, never the filesystem: a
-seeder that lays out `.instrument/chats/<id>/` itself would keep producing
-workspaces the app can no longer read once storage changes.
+The seeder writes a chat through `placeChat` and `ChatWrites`, and settles
+work folders with `claimWorkFolders`, never laying out `.instrument/chats/<id>/`
+itself: a seeder that did would keep producing workspaces the app can no longer
+read once storage changes. Studio's `seeded-workspaces.test.ts` guards that,
+by running the launch steps over every fixture and reading it back through
+the app's readers (`scripts/lib/fixture-workspaces.ts`).
 
 The repo-root `fixtures/workspaces/README.md` covers what a fixture holds and how to add one.

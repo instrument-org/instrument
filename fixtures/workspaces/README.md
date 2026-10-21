@@ -1,56 +1,58 @@
 # Seeded workspaces
 
-A committed description of an app workspace, and the inputs it needs. `pnpm workspace:seed` builds one on disk; pointing `ELECTRON_USER_DATA_DIR` at the result boots Studio against it. So a scripted run, a repro, or a screenshot pass works from a known workspace instead of whatever the developer happened to do last.
+A committed description of an app workspace, and the inputs it needs. `pnpm workspace:seed` builds one on disk; pointing `ELECTRON_USER_DATA_DIR` at the result, and `INSTRUMENT_DATA_HOME` at the home beside it, boots Studio against it. So a scripted run, a repro, or a screenshot pass works from a known workspace instead of whatever the developer happened to do last.
 
 ```text
 committed here                            built on demand, never committed
 ──────────────                            ────────────────────────────────
 documents/
-  manifest.yaml     ── the chats, ──┐
-                       the settings │
-  chats/                            │
-    red-and-blue-squares/           ├──▶  <userDataDir>/
-      session.json  ── the chat     │       workspace/.instrument/chats/red-and-blue-squares/
-      files/        ── its folders' │         chat.db  (the chat and its tasks)
-      tasks/                        │         settings.json
-        generated-pdf/              │       machine/default/work/
-          session.json ── the task  │         red-and-blue-squares/
-          files/                  ──┘           work/red-blue-squares.pdf
-                                            folders/Instrument/…
-                                            preferences.json
+  manifest.yaml     ── the chats, ──┐     <out>/  (ELECTRON_USER_DATA_DIR)
+                       the settings │       workspace/.instrument/
+  chats/                            │         workspace.json  (layout version)
+    red-and-blue-squares/           │         chats/red-and-blue-squares/
+      session.json  ── the chat     │           <session>.<device>.jsonl  (the chat and its tasks)
+      files/        ── its folders' │           settings.<device>.jsonl
+      tasks/                        ├──▶      devices/<device>/device.json
+        generated-pdf/              │       machine/default/
+          session.json ── the task  │         preferences.json, permissions.json
+          files/                  ──┘         work-folders.json
+                                          <out>-home/  (INSTRUMENT_DATA_HOME)
+                                            .instrument-dev/work/documents-<suffix>/
+                                              red-and-blue-squares/work/red-blue-squares.pdf
+                                            Instrument/red-blue-squares/…
 ```
 
-A fixture describes what the app makes today: **chats**, each with the tasks it started inside it. A top-level `tasks:` entry is a task no chat owns, which is what a 1.x build made and what boot now makes into a chat; `legacy-tasks` is the fixture for that migration, and nothing else wants one.
+A fixture describes what the app makes today: **chats**, each with the tasks it started inside it. A top-level `tasks:` entry is a task no chat owns, which is what a 1.x build made: the seeder writes it under `tasks/<key>/` with its conversation in a 1.x `task.db`, and the launch makes it into a chat under a name of its own, by its title. `legacy-tasks` is the fixture for that migration, and nothing else wants one. A fixture holds chats or 1.x tasks, never both, since no workspace does.
 
 ## Using one
 
 ```bash
 pnpm workspace:seed --list
-pnpm workspace:seed --out <dir> --fixture documents [--fresh]
+pnpm workspace:seed --out <dir> --fixture documents [--home <dir>] [--fresh | --check]
 ```
 
-Idempotent: a workspace whose contents already match the fixture is left alone, so calling it before every run is cheap. Anything else is cleared and rebuilt, since seeding on top of a workspace built from an older description would keep the stale tasks and hand the new ones fallback ids. `--fresh` forces that rebuild. Either way it refuses to clear a directory it did not create.
+Idempotent: a workspace built from the fixture's current contents by the current seeder is left alone, so calling it before every run is cheap. Anything else is cleared and rebuilt, since seeding on top of a workspace built from an older description would keep the stale chats. `--fresh` forces that rebuild, and `--check` only says whether one is needed. `--home` is the folder that stands for the home folder, `<out>-home` unless named: the chats' work folders and their granted folders go there, outside the app's data. Either way it refuses to clear a directory it did not create.
 
 Usually you want `studio-drive` to do all of it:
 
 ```bash
 node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs boot --purpose "document viewer" --workspace documents
-node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs goto /tasks/generated-pdf --workspace documents
+node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs goto /chats/red-and-blue-squares --workspace documents
 ```
 
-It seeds into the OS cache directory keyed by checkout, sets `SKIP_ONBOARDING`, points the fixture's output folder at a folder beside it (`INSTRUMENT_OUTPUT_FOLDER`) so its agents never write into your real `~/Instrument Dev`, and picks a port of its own. Pass `--workspace` to every command of that run, not just `boot`: it selects the instance. Workspaces nobody has driven for two weeks are dropped at the next boot, and installed dependencies inside a task go sooner; both cost a reseed, which is seconds.
+It seeds into the OS cache directory keyed by checkout, sets `SKIP_ONBOARDING`, points the fixture's output folder at a folder beside it (`INSTRUMENT_OUTPUT_FOLDER`) and its home at `<fixture>-home` (`INSTRUMENT_DATA_HOME`) so its agents never write into your real `~/Instrument Dev` or `~/.instrument-dev/work`, and picks a port of its own. Pass `--workspace` to every command of that run, not just `boot`: it selects the instance. Workspaces nobody has driven for 3 days are dropped at the next boot, and so are dependencies installed in a chat's work folder; both cost a reseed, which is seconds.
 
 ## What belongs in a fixture, and what does not
 
 Three kinds of thing, and they want opposite treatment.
 
-**The task database is never committed.** It is binary, it embeds whatever it was captured from, and it rots silently the first time the schema moves. It is rebuilt on demand by the seeder, through the app's own libraries, which is what makes a fixture survive a migration.
+**A chat's records are never committed.** They embed whatever they were captured from, and they rot silently the first time the format moves. They are rebuilt on demand by the seeder, through the app's own libraries, which is what makes a fixture survive a migration.
 
 **Input files are committed as ordinary files** under a task's `files/`, or a chat's for the files in its folders. They are inert: no schema, nothing to migrate. Regenerating them would be worse and often impossible — the point of a fixture named `weird.pdf` is that someone found a real file that broke something, and a generator cannot reproduce that.
 
 **Conversations are recorded from a real run**, committed as `session.json`, and replayed on seed. Never hand-authored, and never regenerated by asking a model. A chat and its tasks are recorded together, so the chat's transcript names its tasks by the keys they are seeded under.
 
-**A chat's folders are made, not committed as paths.** A task today hands its result over in one of the user's folders (`/mnt/Instrument/…`), not inside itself. The manifest declares each folder by its mount name and the files in it; the seeder makes it under `<userDataDir>/folders/<mount>/` and grants it to the chat and to the tasks the manifest says were handed it. The recorded grants, which name the recording machine's paths, are dropped by the recorder.
+**A chat's folders are made, not committed as paths.** A task today hands its result over in one of the user's folders (`/mnt/Instrument/…`), not inside itself. The manifest declares each folder by its mount name and the files in it; the seeder makes it under `<home>/<mount>/`, outside the app's data, as a person's own folders are, and grants it to the chat. The recorded grants, which name the recording machine's paths, are dropped by the recorder.
 
 ## Adding a fixture
 
@@ -64,7 +66,7 @@ Three kinds of thing, and they want opposite treatment.
 
    Records the chat and every task in it, renaming each recorded id to its key wherever a transcript names it; a task's key is its recorded id unless `--task-key` names one. It drops the persisted system-prompt snapshots and the recorded folder grants, and refuses to write a transcript containing machine-local paths, the chat's folders included. `--task <key>` with a task directory or an export `.zip` records one task no chat owns, for a 1.x fixture.
 
-3. Copy the files the transcripts refer to into `files/`: a task's own under `chats/<chat>/tasks/<task>/files/`, and what it handed over into a folder under `chats/<chat>/files/`. Declare each in the manifest. Every file a transcript names has to be one the seeded workspace really holds, or a chip opens nothing.
+3. Copy the files the transcripts refer to into `files/`: what a task made in the chat's work folder under `chats/<chat>/tasks/<task>/files/`, and what it handed over into a folder under `chats/<chat>/files/`. Declare each in the manifest. Every file a transcript names has to be one the seeded workspace really holds, or a chip opens nothing.
 4. Write `manifest.yaml`:
 
    ```yaml
@@ -91,17 +93,17 @@ Three kinds of thing, and they want opposite treatment.
                to: work/red-blue-squares.pdf
    ```
 
-5. `pnpm workspace:seed --out <dir> --fixture <name> --fresh`, then boot against it.
+5. `pnpm workspace:seed --out <dir> --fixture <name> --fresh`, then boot against it. The guard, `apps/studio/src/electron-main/lib/seeded-workspaces.test.ts`, seeds every fixture, runs the launch's steps over it and reads it back through the app's readers, so a fixture the app cannot show fails there.
 
 Prefer a few fixtures covering distinct surface families over one per surface. A fixture that exists only to make a single screenshot reproducible is probably not worth the upkeep.
 
 ## Notes on the details
 
-**Settings are per workspace, and that is the point.** Redirecting `userData` moves the preferences, feature flags and provider config too, so a fixture can pin the settings a surface needs. Declare only what the fixture depends on and let the rest fall through to the app's defaults; a fixture that pins every setting breaks every time a default changes. Keys are written verbatim into `<store>.json` and validated by the app on load.
+**Settings are per workspace, and that is the point.** A fixture can pin the preferences and feature flags a surface needs. Declare only what the fixture depends on and let the rest fall through to the app's defaults; a fixture that pins every setting breaks every time a default changes. Keys are written verbatim into `<store>.json` in the workspace's machine folder and validated by the app on load.
 
 **A seeded workspace has no provider credentials, and must not:** they cannot be committed. Replayed transcripts do not need one. A fixture that needs a live model would need a secret in CI, which is a good reason to keep one out of the first pass.
 
-**Timestamps are anchored to seed time.** The whole transcript shifts so its last message lands `agedMinutes` before now, preserving the recorded spacing, so relative dates read the way they did when captured. Anything asserting on pixels still has to mask them.
+**Timestamps are anchored to seed time.** The whole transcript shifts so its last message lands `agedMinutes` before now, preserving the recorded spacing, so relative dates read the way they did when captured. Anything asserting on pixels still has to mask them. A task is forked at the last of its chat's recorded messages before it started, so it reads the chat's messages up to there as its history, as a forked task does.
 
 **Tool calls are not re-executed.** The recorded outputs stand, and the artifacts a tool would have written come from `files/`. Re-running them would need the whole runtime and a model, which seeding deliberately does without.
 

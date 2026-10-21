@@ -2,8 +2,10 @@ import { BrandMark } from "@/client/components/brand-mark";
 import { useTheme } from "@/client/components/theme-provider";
 import { Button } from "@/client/components/ui/button";
 import { useLiveUser } from "@/client/hooks/use-live-user";
+import { applyThemeClass } from "@/client/lib/initial-theme";
 import { cn } from "@/client/lib/utils";
 import { APP_NAME } from "@instrument-org/shared";
+import { useReducedMotion } from "motion/react";
 import { useState } from "react";
 
 import { SetupFooter, SetupPage } from "./kit/setup-page";
@@ -31,6 +33,20 @@ export function LookPage({
 }: SetupPageProps) {
   const { setTheme, theme } = useTheme();
   const [isAllSet, setIsAllSet] = useState(false);
+  const isReduced = useReducedMotion() ?? false;
+  // The pick shows at once, cross-fading from the theme before unless motion
+  // is reduced; the preference lands after and applies the same class.
+  const pick = (value: ThemeOption) => {
+    const show = () => {
+      applyThemeClass(value);
+    };
+    if (isReduced || value === theme) {
+      show();
+    } else {
+      document.startViewTransition(show);
+    }
+    setTheme(value);
+  };
 
   return (
     <SetupPageSwitch
@@ -67,7 +83,7 @@ export function LookPage({
                 key={option.value}
                 label={option.label}
                 onSelect={() => {
-                  setTheme(option.value);
+                  pick(option.value);
                 }}
                 value={option.value}
               />

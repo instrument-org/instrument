@@ -1,6 +1,7 @@
 /// <reference types="electron-vite/node" />
 
-import "@/electron-main/setup-environment"; // This must be imported first
+import "@/electron-main/thread-pool"; // Before anything starts the pool
+import "@/electron-main/setup-environment"; // This must be imported next
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
 import {
   refreshAfterWake as refreshChatGPTAccountAfterWake,

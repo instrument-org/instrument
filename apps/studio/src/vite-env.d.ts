@@ -112,6 +112,8 @@ declare namespace NodeJS {
       SystemRoot: string | undefined;
       TARGET_PLATFORM: string | undefined;
       /** Set by a Wayland compositor. The signal Chromium reads for `auto`. */
+      /** How many threads Node's file I/O pool has; read once, when the pool starts (`thread-pool.ts`). */
+      UV_THREADPOOL_SIZE: string | undefined;
       WAYLAND_DISPLAY: string | undefined;
       WIN_CERT_PATH: string | undefined;
       WIN_GCP_KMS_KEY_VERSION: string | undefined;

@@ -1,9 +1,6 @@
+import { filePathOfInstrumentLink } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
-import {
-  filePathOfInstrumentLink,
-  instrumentLinkOf,
-  instrumentUrlOf,
-} from "@/shared/instrument-link";
+import { instrumentLinkOf, instrumentUrlOf } from "@/shared/instrument-link";
 
 /**
  * Something in the app that a click can open, named the way the surface

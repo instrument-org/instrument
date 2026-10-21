@@ -1,4 +1,8 @@
-import { APP_NAME_SLUG, APP_PROTOCOL } from "@instrument-org/shared";
+import {
+  APP_NAME_SLUG,
+  APP_PROTOCOL,
+  filePathOfInstrumentLink,
+} from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
 import remarkGfm from "remark-gfm";
@@ -157,10 +161,8 @@ function readTarget(
   if (parsed && SCHEMES.has(parsed.protocol)) {
     const noun = parsed.host.toLowerCase();
     if (noun === "file") {
-      // `instrument://file//Users/sam/a.md` and `instrument://file/Users/sam/a.md`
-      // both name the absolute path.
-      const filePath = decoded(parsed.pathname).replace(/^\/+/u, "/");
-      return filePath === "/"
+      const filePath = filePathOfInstrumentLink(href);
+      return filePath === undefined
         ? { opens: "nothing" }
         : { opens: "file", path: filePath };
     }

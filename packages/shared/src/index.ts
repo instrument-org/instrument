@@ -2,6 +2,7 @@ export * from "./add-ref";
 export * from "./chat-title";
 export * from "./constants";
 export * from "./file-extensions";
+export * from "./file-link";
 export * from "./folder-paths";
 export * from "./is-network-error";
 export * from "./listen-with-port-fallback";

@@ -219,7 +219,7 @@ else
   open -n -g -a "$app" --env DISABLE_AUTO_UPDATE_POLLING=true --args --remote-debugging-port=${CDP_PORT}
 fi
 for i in $(seq 1 $((${timeoutSeconds} * 2))); do
-  if curl -sf "http://127.0.0.1:${CDP_PORT}/json/list" 2>/dev/null | grep -q 'app.asar/out/renderer'; then
+  if curl -sf "http://127.0.0.1:${CDP_PORT}/json/list" 2>/dev/null | grep -Eq 'app\\.asar/out/renderer|://app/index\\.html'; then
     printf '{"app":%s,"port":${CDP_PORT},"reused":%s}\n' "$(json_escape "$app")" "$reused"
     exit 0
   fi
@@ -310,28 +310,51 @@ function utm(...args) {
   };
 }
 
+/** Hides UTM, as Cmd-H does; its windows come back from the Dock. */
+function hideUtm() {
+  spawnSync("osascript", [
+    "-l",
+    "JavaScript",
+    "-e",
+    "ObjC.import('AppKit'); var a = $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.utmapp.UTM'); a.count ? a.firstObject.hide : false",
+  ]);
+}
+
+/**
+ * Has UTM running from an ordinary launch before any command that changes a
+ * VM. utmctl launches a stopped UTM hidden, and UTM 4.7.5 launched hidden
+ * ignores every such command, with no error, until its main window has been
+ * shown once (utmapp/UTM#7949). A background launch shows the window behind
+ * the app in front, and it is hidden right after.
+ */
+async function wakeUtm() {
+  if (spawnSync("pgrep", ["-x", "UTM"]).status === 0) return;
+  spawnSync("open", ["-g", "-a", "UTM"]);
+  await sleep(5000);
+  hideUtm();
+}
+
 /**
  * Starts a VM without putting its window in front of the person at the Mac.
  * `utmctl start --hide` only closes UTM's library window and still shows the
- * VM's display window, so UTM itself is hidden (as Cmd-H does) before the
- * start and for a few seconds after, while the window is ordered in. Clicking
- * UTM in the Dock shows every window again.
+ * VM's display window, so UTM itself is hidden before the start and for a few
+ * seconds after, while the window is ordered in. A start UTM ignored fails
+ * here rather than as an SSH timeout minutes later.
  */
 async function startHidden(vm) {
-  const hide = () =>
-    spawnSync("osascript", [
-      "-l",
-      "JavaScript",
-      "-e",
-      "ObjC.import('AppKit'); var a = $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.utmapp.UTM'); a.count ? a.firstObject.hide : false",
-    ]);
-  hide();
+  await wakeUtm();
+  hideUtm();
   // utmctl reports an error when UTM is already hidden, though the VM starts.
   utm("start", vm, "--hide");
   for (let i = 0; i < 6; i++) {
-    hide();
+    hideUtm();
     await sleep(500);
   }
+  for (let i = 0; i < 30 && vmStatus(vm) !== "started"; i++) await sleep(1000);
+  if (vmStatus(vm) !== "started")
+    fail(
+      `UTM did not start ${vm}. A UTM launched hidden ignores VM commands until its window has been shown once (utmapp/UTM#7949): open UTM from the Dock, then run this again.`,
+    );
 }
 
 function vmStatus(vm) {
@@ -351,6 +374,7 @@ async function resetVm(host, base, vm) {
     fail(
       `--vm must name the clone, not the base: resetting ${vm} would delete the clean copy.`,
     );
+  await wakeUtm();
   if (vmStatus(base) !== "stopped")
     fail(`${base} must stay stopped; it is the clean copy.`);
   // The clone is thrown away, so it is powered off rather than shut down.
@@ -361,9 +385,17 @@ async function resetVm(host, base, vm) {
     if (vmStatus(vm) !== "stopped")
       fail(`${vm} did not stop within 30 seconds, so it was not deleted.`);
   }
-  if (!/not found|Error/u.test(vmStatus(vm))) utm("delete", vm);
+  if (!/not found|Error/u.test(vmStatus(vm))) {
+    utm("delete", vm);
+    // A delete UTM ignored would leave the old clone to be started again.
+    if (!/not found|Error/u.test(vmStatus(vm)))
+      fail(
+        `UTM did not delete ${vm}. A UTM launched hidden ignores VM commands until its window has been shown once (utmapp/UTM#7949): open UTM from the Dock, then run this again.`,
+      );
+  }
   const cloned = utm("clone", base, "--name", vm);
-  if (!cloned.ok) fail(`Cloning ${base} failed: ${cloned.out}`);
+  if (!cloned.ok || vmStatus(vm) !== "stopped")
+    fail(`Cloning ${base} failed: ${cloned.out}`);
   await startHidden(vm);
   for (let i = 0; i < 36; i++) {
     const probe = spawnSync(

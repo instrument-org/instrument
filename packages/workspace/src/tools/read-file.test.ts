@@ -10,7 +10,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { FFMPEG_PATH } from "../lib/ffmpeg";
 import { measureImage } from "../lib/render-image";
 import { grantFolder } from "../lib/chat/grants";
-import { disposeSessionsStoreStorage } from "../lib/session-store-storage";
 import { shellPath } from "../lib/workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
@@ -986,8 +985,6 @@ describe("ReadFile Unicode path fallbacks", () => {
   });
 
   afterEach(async () => {
-    // Windows refuses to remove the folder while the chat's database is open.
-    await disposeSessionsStoreStorage(tmpTaskConfig);
     await fs.rm(tmpDir, { force: true, recursive: true });
   });
 

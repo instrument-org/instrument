@@ -27,7 +27,7 @@ import {
 } from "@/client/components/extend/file-system";
 import { listingKeys } from "@/client/components/extend/file-system-keys";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
+import { outputFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { IconWithFallback } from "@/client/components/icon-with-fallback";
@@ -88,7 +88,7 @@ import {
   osConventions,
 } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { fileHref, folderHref } from "@/shared/computer-href";
+import { COMPUTER_ROOT, fileHref, folderHref } from "@/shared/computer-href";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { folderNameFromPath } from "@instrument-org/shared";
 import {
@@ -105,6 +105,7 @@ import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
+import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
@@ -136,6 +137,7 @@ import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useWindow } from "./context";
 import { FileThumbnail } from "./file-thumbnail";
+import { ComputerOverview } from "./computer-overview";
 import { FolderMark } from "./folder-mark";
 import { FolderNameMenu } from "./folder-name-menu";
 import { GlyphButton } from "./glyph-button";
@@ -355,6 +357,9 @@ export function ComputerPage({
   // The recents stand where a root folder stands, and are listed the way a
   // folder is, so everything the browser does to a folder it does to them.
   const isRecents = root === RECENTS_ROOT;
+  // The disks stand where a root folder stands too, and are no folder.
+  const isComputer = root === COMPUTER_ROOT;
+  const isFolderless = isRecents || isComputer;
   const recents = useRecentFiles({
     enabled: isRecents,
     refetchInterval: refreshInterval,
@@ -470,7 +475,7 @@ export function ComputerPage({
 
   const listings = useQueries({
     combine: combineListings,
-    queries: isRecents
+    queries: isFolderless
       ? []
       : prefixes.map((prefix) =>
           rpcClient.workspace.computer.list.queryOptions({
@@ -563,7 +568,7 @@ export function ComputerPage({
             return {
               ...stamps,
               ...(entry.path === instrumentPath
-                ? { glyphSrc: OUTPUT_FOLDER_GLYPH_URL }
+                ? { glyphSrc: outputFolderGlyphUrl() }
                 : {}),
               hasChildren: true,
               kind: "folder",
@@ -1025,7 +1030,7 @@ export function ComputerPage({
   const settled = loaded.root === root;
   // The recents are rooted nowhere, so no place in the list is the one open.
   // A root under `~` is the same folder spelled out below the home folder.
-  const rootHostPath = isRecents
+  const rootHostPath = isFolderless
     ? undefined
     : root === "~"
       ? homePath
@@ -1097,7 +1102,7 @@ export function ComputerPage({
   // The folder standing on screen, by its path: the listing's own once it has
   // arrived, the root the sidebar resolved until then. The recents are a list
   // rather than a folder, and have none.
-  const folderOnScreenPath = isRecents
+  const folderOnScreenPath = isFolderless
     ? undefined
     : (currentListing?.path ?? hostPathOf(onScreen, rootHostPath ?? root));
   /** A draft with the rows picked to go with it, or with the folder on screen when there are none. */
@@ -1751,7 +1756,11 @@ export function ComputerPage({
   };
   // Up from the top of the tab's tree (⌘↑, or Alt+↑ off the Mac).
   const leaveRoot = () => {
-    const search = rootParentSearch(rootHostPath, view);
+    const search = rootParentSearch(rootHostPath, view, {
+      isDisk: places.data?.volumes.some(
+        (volume) => volume.kind === "drive" && volume.path === rootHostPath,
+      ),
+    });
     if (search) {
       // A file open beside the folder stays open while it goes up.
       void navigate({
@@ -1995,15 +2004,17 @@ export function ComputerPage({
   });
   const rootName = isRecents
     ? "Recents"
-    : root === "~"
-      ? folderNameFromPath(homePath)
-      : (places.data.volumes.find((volume) => volume.path === root)?.name ??
-        segmentsOf(root).at(-1) ??
-        "Root");
+    : isComputer
+      ? osConventions().computer
+      : root === "~"
+        ? folderNameFromPath(homePath)
+        : (places.data.volumes.find((volume) => volume.path === root)?.name ??
+          segmentsOf(root).at(-1) ??
+          "Root");
   // The folder on screen, which is the only row the sidebar marks: a place
   // walked down out of is no longer where the user is, so nothing is marked
   // until a folder is one of the places itself.
-  const folderHostPath = isRecents
+  const folderHostPath = isFolderless
     ? undefined
     : (currentListing?.path ?? hostPathOf(onScreen, rootHostPath ?? root));
   const onPlacesKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
@@ -2136,17 +2147,27 @@ export function ComputerPage({
       />
       <PlaceList
         label="Locations"
-        menu={placeMenu}
+        menu={(place) =>
+          place === COMPUTER_ROOT ? undefined : placeMenu(place)
+        }
         onOpenInNewTab={openPlaceInNewTab}
         onOpen={(folder) => {
           rootTo(folder);
         }}
-        places={places.data.volumes.map((volume) => ({
-          icon: <FolderMark size="large" path={volume.path} />,
-          isActive: folderHostPath === volume.path,
-          name: volume.name,
-          path: volume.path,
-        }))}
+        places={[
+          {
+            icon: <MonitorIcon className="size-4 text-muted-foreground" />,
+            isActive: isComputer,
+            name: osConventions().computer,
+            path: COMPUTER_ROOT,
+          },
+          ...places.data.volumes.map((volume) => ({
+            icon: <FolderMark size="large" path={volume.path} />,
+            isActive: folderHostPath === volume.path,
+            name: volume.name,
+            path: volume.path,
+          })),
+        ]}
       />
     </>
   );
@@ -2298,317 +2319,356 @@ export function ComputerPage({
           </nav>
         </StudioSidebarRail>
       )}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <ContextMenu onOpenChange={setIsMenuOpen}>
-          <ContextMenuTrigger asChild>
-            <div
-              className="relative min-h-0 flex-1"
-              // A middle click on a row opens it in a tab of its own, waiting
-              // behind, the way Open in New Tab does: a double-click is what
-              // opens one here, since a single click selects.
-              onAuxClick={(event) => {
-                if (event.button !== 1 || !(event.target instanceof Element)) {
-                  return;
-                }
-                const itemPath = event.target
-                  .closest("[data-file-system-item]")
-                  ?.getAttribute("data-file-system-item");
-                const item = items.find((entry) => entry.path === itemPath);
-                if (item) {
-                  event.preventDefault();
-                  menuActionsFor(item).onOpenInNewTab();
-                }
-              }}
-              // The middle button's own answer is to scroll; here it opens.
-              onMouseDown={(event) => {
-                if (event.button === 1) {
-                  event.preventDefault();
-                }
-              }}
-              ref={browserRef}
-            >
-              {dropInto === current ? (
-                <div className="pointer-events-none absolute inset-1 z-10 rounded-lg ring-2 ring-brand-500 ring-inset" />
-              ) : null}
-              <FileSystem
-                className="h-full rounded-none border-0"
-                columnWidth={columnWidth}
-                contextMenuPath={
-                  dropInto !== null && dropInto !== current
-                    ? dropInto
-                    : isMenuOpen
-                      ? (menuItem?.path ?? null)
-                      : null
-                }
-                defaultPath={path}
-                defaultSearch={query}
-                defaultSelectedPath={select}
-                // Every row here is a thing on this computer, and drags out of
-                // the window as one: to the desktop, a Finder window, another
-                // app. What lands there is the OS's copy; nothing here moves.
-                emptyState={
-                  isRecents
-                    ? {
-                        description:
-                          "Files you open in Instrument show up here, so you can get back to them quickly.",
-                        title: "No recent files yet",
-                      }
-                    : undefined
-                }
-                getHostPath={(item) => hostPathOfItem(item) || undefined}
-                items={items}
-                key={`${root}#${openings}`}
-                listColumns={listColumns}
-                listColumnWidths={listColumnWidths}
-                loadChildren={async ({ path: prefix }) => {
-                  // The recents are one flat list of files; nothing on it opens.
-                  if (isRecents) {
-                    return { items: [] };
-                  }
-                  setLoaded((previous) =>
-                    previous.root === root && previous.prefixes.includes(prefix)
-                      ? previous
-                      : {
-                          prefixes:
-                            previous.root === root
-                              ? [...previous.prefixes, prefix]
-                              : [...prefixesOf(path), prefix],
-                          root,
-                        },
-                  );
-                  // A listing read ahead on hover, and still fresh, is the
-                  // answer as it stands rather than a second read.
-                  await queryClient.fetchQuery({
-                    ...rpcClient.workspace.computer.list.queryOptions({
-                      input: { id: WINDOW_ID, path: hostPathOf(prefix) },
-                    }),
-                    staleTime: REFRESH_MS,
-                  });
-                  // The entries arrive through `items`, re-read on the clock
-                  // above, so the browser is handed none of its own to hold.
-                  return { items: [] };
-                }}
-                // The selection walks the folder under Quick Look, which holds
-                // the keyboard itself: a row taking it back would be taking it
-                // out of the panel the user is looking at.
-                moveFocusWithSelection={!quickLookOpen}
-                onColumnWidthChange={setColumnWidth}
-                onFileOpen={openFile}
-                onOpenSeveral={(several) => {
-                  openSeveral(several);
-                }}
-                onItemContextMenu={(item) => {
-                  setMenuItem(item ?? undefined);
-                }}
-                onListColumnsChange={setListColumns}
-                onListColumnWidthsChange={setListColumnWidths}
-                onPathChange={setCurrent}
-                onOpenFolderChange={isRecents ? undefined : changeOpenFolder}
-                onRenameCommit={rename}
-                onSearchChange={setSearchText}
-                onSelectionChange={(item, all) => {
-                  setSelectedPath(item?.path ?? null);
-                  setSelectedPaths(all.map((each) => each.path));
-                }}
-                onGroupChange={groupBy}
-                onShowHiddenFilesChange={setShowHiddenFiles}
-                onSortChange={sortBy}
-                onLeaveRoot={isRecents ? undefined : leaveRoot}
-                onNewFolder={
-                  folderOnScreenPath === undefined
-                    ? undefined
-                    : () => {
-                        void newFolderIn({
-                          hostPath: folderOnScreenPath,
-                          prefix: onScreen,
-                        });
-                      }
-                }
-                onCopy={(picked) => void copyFiles(picked)}
-                onCopyPath={(picked) => void copyPaths(picked)}
-                onDuplicate={(picked) => void duplicate(picked)}
-                onTrash={(picked) => void trash(picked)}
-                openFolders={isRecents ? undefined : openFolders}
-                onViewChange={(next) => {
-                  setDefaultView(next);
-                  keepLook({
-                    group: shown.group,
-                    sort: shown.sort,
-                    view: next,
-                  });
-                  // The step on screen takes the new layout rather than a
-                  // new step being made for it, the way the Finder's does.
-                  void navigate({
-                    replace: true,
-                    search: (previous) => ({ ...previous, view: next }),
-                    to: "/files",
-                  });
-                }}
-                pendingFolders={pendingFolders}
-                // Resting on a folder reads it ahead, so opening it in place
-                // is the listing already in hand.
-                prefetchChildren={(prefix) => {
-                  if (isRecents) {
+      {isComputer ? (
+        <ComputerOverview
+          {...(rowLead
+            ? {}
+            : {
+                header: (
+                  <div className="flex h-12 shrink-0 items-center gap-0.5 border-b bg-muted/40 px-2">
+                    <span className="flex items-center pr-1">
+                      {placesToggle}
+                    </span>
+                    <span className="ml-1.5 truncate text-sm font-semibold">
+                      {rootName}
+                    </span>
+                  </div>
+                ),
+              })}
+          clouds={places.data.volumes.filter(
+            (volume) => volume.kind === "cloud",
+          )}
+          // The system's own folders as it lists them, not the sidebar as
+          // the person has pinned it.
+          folders={places.data.pinned.filter(
+            (place) => place.kind === "home" || place.kind === "folder",
+          )}
+          home={homePath}
+          menu={(place) => placeMenu(place)}
+          onOpen={(place) => {
+            rootTo(place === homePath ? "~" : place);
+          }}
+          onOpenInNewTab={openPlaceInNewTab}
+          refreshInterval={refreshInterval}
+        />
+      ) : (
+        <div className="flex min-w-0 flex-1 flex-col">
+          <ContextMenu onOpenChange={setIsMenuOpen}>
+            <ContextMenuTrigger asChild>
+              <div
+                className="relative min-h-0 flex-1"
+                // A middle click on a row opens it in a tab of its own, waiting
+                // behind, the way Open in New Tab does: a double-click is what
+                // opens one here, since a single click selects.
+                onAuxClick={(event) => {
+                  if (
+                    event.button !== 1 ||
+                    !(event.target instanceof Element)
+                  ) {
                     return;
                   }
-                  void queryClient.prefetchQuery({
-                    ...rpcClient.workspace.computer.list.queryOptions({
-                      input: { id: WINDOW_ID, path: hostPathOf(prefix) },
-                    }),
-                    staleTime: REFRESH_MS,
-                  });
+                  const itemPath = event.target
+                    .closest("[data-file-system-item]")
+                    ?.getAttribute("data-file-system-item");
+                  const item = items.find((entry) => entry.path === itemPath);
+                  if (item) {
+                    event.preventDefault();
+                    menuActionsFor(item).onOpenInNewTab();
+                  }
                 }}
-                ref={fileSystemRef}
-                renderFileStage={(file) => {
-                  const tab = fileTabOf(file);
-                  // A picture at its own size: the thumbnail the rows and
-                  // tiles use is too small for a pane this wide.
-                  if (
-                    tab &&
-                    file.url &&
-                    getFileType({
-                      filename: tab.name,
-                      mimeType: file.contentType,
-                    }) === "image"
-                  ) {
-                    return (
-                      <StagePicture fallbackAspect={4 / 3} src={file.url} />
-                    );
+                // The middle button's own answer is to scroll; here it opens.
+                onMouseDown={(event) => {
+                  if (event.button === 1) {
+                    event.preventDefault();
                   }
-                  // An app's icon at the size the grid already holds, which
-                  // is more than the pane draws it at, and bare.
-                  if (tab && file.previewImageUrl && file.previewIsIcon) {
-                    return (
-                      <StagePicture
-                        bare
-                        fallbackAspect={1}
-                        src={file.previewImageUrl}
-                      />
-                    );
+                }}
+                ref={browserRef}
+              >
+                {dropInto === current ? (
+                  <div className="pointer-events-none absolute inset-1 z-10 rounded-lg ring-2 ring-brand-500 ring-inset" />
+                ) : null}
+                <FileSystem
+                  className="h-full rounded-none border-0"
+                  columnWidth={columnWidth}
+                  contextMenuPath={
+                    dropInto !== null && dropInto !== current
+                      ? dropInto
+                      : isMenuOpen
+                        ? (menuItem?.path ?? null)
+                        : null
                   }
-                  // Anything else the system draws is drawn here as the grid
-                  // draws it, by the system, larger: the one picture of a
-                  // file wherever it is shown.
-                  if (tab && file.previewImageUrl) {
-                    const larger = new URL(file.previewImageUrl);
-                    larger.searchParams.set("thumbnail", "1024");
-                    return (
-                      <StagePicture
-                        fallbackAspect={
-                          file.contentType?.startsWith("image/")
-                            ? 4 / 3
-                            : PAGE_ASPECT
+                  defaultPath={path}
+                  defaultSearch={query}
+                  defaultSelectedPath={select}
+                  // Every row here is a thing on this computer, and drags out of
+                  // the window as one: to the desktop, a Finder window, another
+                  // app. What lands there is the OS's copy; nothing here moves.
+                  emptyState={
+                    isRecents
+                      ? {
+                          description:
+                            "Files you open in Instrument show up here, so you can get back to them quickly.",
+                          title: "No recent files yet",
                         }
-                        src={larger.href}
-                      />
-                    );
+                      : undefined
                   }
-                  // Text the system has no picture of (code, mostly) reads as
-                  // a thumbnail of the document in its viewer.
-                  if (!tab || !isTextLike(file)) {
-                    return null;
-                  }
-                  return (
-                    <FileThumbnail
-                      hostPath={tab.hostPath}
-                      key={tab.hostPath}
-                      name={tab.name}
-                      url={file.url}
-                      version={file.updatedAt}
-                    />
-                  );
-                }}
-                {...(rowLead
-                  ? {}
-                  : {
-                      renderHeaderLead: () => (
-                        <span className="flex items-center pr-1">
-                          {placesToggle}
-                        </span>
-                      ),
-                    })}
-                renderHeaderActions={() => (
-                  <FolderOverflowMenu
-                    {...menuActionsFor(selectedItem)}
-                    item={selectedItem}
-                    onClosed={afterMenuClosed}
-                  />
-                )}
-                renderHeaderPrimary={
-                  askAbout && (selectedItem || folderOnScreenPath !== undefined)
-                    ? askButton
-                    : undefined
-                }
-                // Where the folder's contents would be: the whole browser for
-                // the folder on screen, its column's place beside the folder
-                // above it in the columns, a line under it in the list.
-                renderUnreadable={(prefix, place) => {
-                  const refusal = refusalOf(prefix);
-                  if (!refusal) {
-                    return null;
-                  }
-                  if (place === "inline") {
-                    return refusalLine(refusal.reason);
-                  }
-                  return (
-                    <NotPermitted
-                      key={refusal.path}
-                      onGranted={(granted) => {
-                        reread();
-                        if (granted !== refusal.path) {
-                          rootTo(granted);
-                        }
-                      }}
-                      refusal={refusal}
-                    />
-                  );
-                }}
-                selectedPath={selectedPath}
-                showHiddenFiles={showHiddenFiles}
-                group={shown.group}
-                sort={shown.sort}
-                title={rootName}
-                {...(beside === undefined
-                  ? {}
-                  : {
-                      besideWidth: beside.width,
-                    })}
-                {...(toolsInRow
-                  ? {
-                      toolbarInto: {
-                        lead: rowTools,
-                        ...(isBesideOpen ? {} : { tail: rowTail ?? null }),
-                      },
+                  getHostPath={(item) => hostPathOfItem(item) || undefined}
+                  items={items}
+                  key={`${root}#${openings}`}
+                  listColumns={listColumns}
+                  listColumnWidths={listColumnWidths}
+                  loadChildren={async ({ path: prefix }) => {
+                    // The recents are one flat list of files; nothing on it opens.
+                    if (isRecents) {
+                      return { items: [] };
                     }
-                  : {})}
-                view={view}
-              />
-            </div>
-          </ContextMenuTrigger>
-          {clashQuestions.dialog}
-          <FolderMenu
-            {...menuActionsFor(menuItem)}
-            isRecents={isRecents}
-            item={menuItem}
-            onClosed={afterMenuClosed}
-            onSortKey={(key) => {
-              sortBy(
-                key === shown.sort.key
-                  ? shown.sort
-                  : {
-                      direction:
-                        SORT_BY.find((option) => option.key === key)
-                          ?.direction ?? "asc",
-                      key,
-                    },
-              );
-            }}
-            // Grouped, the groups are the order, as in the toolbar's menu.
-            {...(shown.group === null ? { sort: shown.sort } : {})}
-          />
-        </ContextMenu>
-        {currentListing?.appFoldersLocked && <ICloudAccessBanner />}
-      </div>
+                    setLoaded((previous) =>
+                      previous.root === root &&
+                      previous.prefixes.includes(prefix)
+                        ? previous
+                        : {
+                            prefixes:
+                              previous.root === root
+                                ? [...previous.prefixes, prefix]
+                                : [...prefixesOf(path), prefix],
+                            root,
+                          },
+                    );
+                    // A listing read ahead on hover, and still fresh, is the
+                    // answer as it stands rather than a second read.
+                    await queryClient.fetchQuery({
+                      ...rpcClient.workspace.computer.list.queryOptions({
+                        input: { id: WINDOW_ID, path: hostPathOf(prefix) },
+                      }),
+                      staleTime: REFRESH_MS,
+                    });
+                    // The entries arrive through `items`, re-read on the clock
+                    // above, so the browser is handed none of its own to hold.
+                    return { items: [] };
+                  }}
+                  // The selection walks the folder under Quick Look, which holds
+                  // the keyboard itself: a row taking it back would be taking it
+                  // out of the panel the user is looking at.
+                  moveFocusWithSelection={!quickLookOpen}
+                  onColumnWidthChange={setColumnWidth}
+                  onFileOpen={openFile}
+                  onOpenSeveral={(several) => {
+                    openSeveral(several);
+                  }}
+                  onItemContextMenu={(item) => {
+                    setMenuItem(item ?? undefined);
+                  }}
+                  onListColumnsChange={setListColumns}
+                  onListColumnWidthsChange={setListColumnWidths}
+                  onPathChange={setCurrent}
+                  onOpenFolderChange={isRecents ? undefined : changeOpenFolder}
+                  onRenameCommit={rename}
+                  onSearchChange={setSearchText}
+                  onSelectionChange={(item, all) => {
+                    setSelectedPath(item?.path ?? null);
+                    setSelectedPaths(all.map((each) => each.path));
+                  }}
+                  onGroupChange={groupBy}
+                  onShowHiddenFilesChange={setShowHiddenFiles}
+                  onSortChange={sortBy}
+                  onLeaveRoot={isRecents ? undefined : leaveRoot}
+                  onNewFolder={
+                    folderOnScreenPath === undefined
+                      ? undefined
+                      : () => {
+                          void newFolderIn({
+                            hostPath: folderOnScreenPath,
+                            prefix: onScreen,
+                          });
+                        }
+                  }
+                  onCopy={(picked) => void copyFiles(picked)}
+                  onCopyPath={(picked) => void copyPaths(picked)}
+                  onDuplicate={(picked) => void duplicate(picked)}
+                  onTrash={(picked) => void trash(picked)}
+                  openFolders={isRecents ? undefined : openFolders}
+                  onViewChange={(next) => {
+                    setDefaultView(next);
+                    keepLook({
+                      group: shown.group,
+                      sort: shown.sort,
+                      view: next,
+                    });
+                    // The step on screen takes the new layout rather than a
+                    // new step being made for it, the way the Finder's does.
+                    void navigate({
+                      replace: true,
+                      search: (previous) => ({ ...previous, view: next }),
+                      to: "/files",
+                    });
+                  }}
+                  pendingFolders={pendingFolders}
+                  // Resting on a folder reads it ahead, so opening it in place
+                  // is the listing already in hand.
+                  prefetchChildren={(prefix) => {
+                    if (isRecents) {
+                      return;
+                    }
+                    void queryClient.prefetchQuery({
+                      ...rpcClient.workspace.computer.list.queryOptions({
+                        input: { id: WINDOW_ID, path: hostPathOf(prefix) },
+                      }),
+                      staleTime: REFRESH_MS,
+                    });
+                  }}
+                  ref={fileSystemRef}
+                  renderFileStage={(file) => {
+                    const tab = fileTabOf(file);
+                    // A picture at its own size: the thumbnail the rows and
+                    // tiles use is too small for a pane this wide.
+                    if (
+                      tab &&
+                      file.url &&
+                      getFileType({
+                        filename: tab.name,
+                        mimeType: file.contentType,
+                      }) === "image"
+                    ) {
+                      return (
+                        <StagePicture fallbackAspect={4 / 3} src={file.url} />
+                      );
+                    }
+                    // An app's icon at the size the grid already holds, which
+                    // is more than the pane draws it at, and bare.
+                    if (tab && file.previewImageUrl && file.previewIsIcon) {
+                      return (
+                        <StagePicture
+                          bare
+                          fallbackAspect={1}
+                          src={file.previewImageUrl}
+                        />
+                      );
+                    }
+                    // Anything else the system draws is drawn here as the grid
+                    // draws it, by the system, larger: the one picture of a
+                    // file wherever it is shown.
+                    if (tab && file.previewImageUrl) {
+                      const larger = new URL(file.previewImageUrl);
+                      larger.searchParams.set("thumbnail", "1024");
+                      return (
+                        <StagePicture
+                          fallbackAspect={
+                            file.contentType?.startsWith("image/")
+                              ? 4 / 3
+                              : PAGE_ASPECT
+                          }
+                          src={larger.href}
+                        />
+                      );
+                    }
+                    // Text the system has no picture of (code, mostly) reads as
+                    // a thumbnail of the document in its viewer.
+                    if (!tab || !isTextLike(file)) {
+                      return null;
+                    }
+                    return (
+                      <FileThumbnail
+                        hostPath={tab.hostPath}
+                        key={tab.hostPath}
+                        name={tab.name}
+                        url={file.url}
+                        version={file.updatedAt}
+                      />
+                    );
+                  }}
+                  {...(rowLead
+                    ? {}
+                    : {
+                        renderHeaderLead: () => (
+                          <span className="flex items-center pr-1">
+                            {placesToggle}
+                          </span>
+                        ),
+                      })}
+                  renderHeaderActions={() => (
+                    <FolderOverflowMenu
+                      {...menuActionsFor(selectedItem)}
+                      item={selectedItem}
+                      onClosed={afterMenuClosed}
+                    />
+                  )}
+                  renderHeaderPrimary={
+                    askAbout &&
+                    (selectedItem || folderOnScreenPath !== undefined)
+                      ? askButton
+                      : undefined
+                  }
+                  // Where the folder's contents would be: the whole browser for
+                  // the folder on screen, its column's place beside the folder
+                  // above it in the columns, a line under it in the list.
+                  renderUnreadable={(prefix, place) => {
+                    const refusal = refusalOf(prefix);
+                    if (!refusal) {
+                      return null;
+                    }
+                    if (place === "inline") {
+                      return refusalLine(refusal.reason);
+                    }
+                    return (
+                      <NotPermitted
+                        key={refusal.path}
+                        onGranted={(granted) => {
+                          reread();
+                          if (granted !== refusal.path) {
+                            rootTo(granted);
+                          }
+                        }}
+                        refusal={refusal}
+                      />
+                    );
+                  }}
+                  selectedPath={selectedPath}
+                  showHiddenFiles={showHiddenFiles}
+                  group={shown.group}
+                  sort={shown.sort}
+                  title={rootName}
+                  {...(beside === undefined
+                    ? {}
+                    : {
+                        besideWidth: beside.width,
+                      })}
+                  {...(toolsInRow
+                    ? {
+                        toolbarInto: {
+                          lead: rowTools,
+                          ...(isBesideOpen ? {} : { tail: rowTail ?? null }),
+                        },
+                      }
+                    : {})}
+                  view={view}
+                />
+              </div>
+            </ContextMenuTrigger>
+            {clashQuestions.dialog}
+            <FolderMenu
+              {...menuActionsFor(menuItem)}
+              isRecents={isRecents}
+              item={menuItem}
+              onClosed={afterMenuClosed}
+              onSortKey={(key) => {
+                sortBy(
+                  key === shown.sort.key
+                    ? shown.sort
+                    : {
+                        direction:
+                          SORT_BY.find((option) => option.key === key)
+                            ?.direction ?? "asc",
+                        key,
+                      },
+                );
+              }}
+              // Grouped, the groups are the order, as in the toolbar's menu.
+              {...(shown.group === null ? { sort: shown.sort } : {})}
+            />
+          </ContextMenu>
+          {currentListing?.appFoldersLocked && <ICloudAccessBanner />}
+        </div>
+      )}
     </div>
   );
 }
@@ -3071,10 +3131,16 @@ function combineListings(
 export function rootParentSearch(
   rootHostPath: string | undefined,
   view: FileSystemView,
+  /** Whether the root is the top of a disk, though a folder is above it: `/Volumes/Backup`. */
+  { isDisk = false }: { isDisk?: boolean | undefined } = {},
 ) {
-  const above = rootHostPath && parentFolderOf(rootHostPath);
-  if (!rootHostPath || !above) {
+  if (!rootHostPath) {
     return undefined;
+  }
+  // Up from the top of a disk is the computer, every disk side by side.
+  const above = parentFolderOf(rootHostPath);
+  if (above === null || isDisk) {
+    return { path: "", root: COMPUTER_ROOT, view };
   }
   return {
     path: "",

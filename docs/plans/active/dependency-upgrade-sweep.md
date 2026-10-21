@@ -54,6 +54,8 @@ Risk: medium, because it is the build. Validation: unsigned mac and Windows buil
 
 ### @parcel/watcher 2.5.1 to 2.6.0
 
+Superseded: `@parcel/watcher` is no longer a dependency. The person's folders are watched with Node's own `fs.watch` and a regular read (`packages/workspace/src/lib/folder-watch.ts`).
+
 2.6.0 landed 2026-07-20 and carries the fix for the crash we worked around: "fix SEGV due to improper ordering of static destructors" (#208) rewrites the `DirTree` cache as a function-local static, which is the standard fix for a destructor-order crash at process exit. Our workaround is [63f33c3af](https://github.com/instrument-org/instrument/commit/63f33c3af) "stop task file watchers before quit to fix parcel-watcher abort". The workaround is still worth keeping, but the underlying abort should stop happening.
 
 It also switches glob matching from micromatch to picomatch `^4.0.4`, which drops the vulnerable `picomatch@2.3.1` out of our tree (see Tier 2), and adds `RegExp` support in `ignore`, which is a better fit for the two ignore dialects in `workspace-skill-watcher` than glob strings.

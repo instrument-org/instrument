@@ -1,18 +1,13 @@
-import { type GitError } from "dugite";
-
 export namespace TypedError {
   const PREFIX = "workspace";
   export type Type =
     | APICall
     | Conflict
-    | DependencyInstall
     | FileSystem
-    | Git
     | InvalidInput
     | NotFound
     | Parse
     | ProviderLimitation
-    | ShimNotFound
     | Storage
     | Unknown;
 
@@ -33,25 +28,8 @@ export namespace TypedError {
     readonly type = `${PREFIX}-conflict-error`;
   }
 
-  export class DependencyInstall extends Error {
-    readonly type = `${PREFIX}-dependency-install-error`;
-  }
-
   export class FileSystem extends Error {
     readonly type = `${PREFIX}-filesystem-error`;
-  }
-
-  export class Git extends Error {
-    readonly dugiteCode?: GitError;
-    readonly type = `${PREFIX}-git-error`;
-
-    constructor(
-      message: string,
-      options?: { cause?: unknown; dugiteCode?: GitError },
-    ) {
-      super(message, { cause: options?.cause });
-      this.dugiteCode = options?.dugiteCode;
-    }
   }
 
   /**
@@ -73,10 +51,6 @@ export namespace TypedError {
 
   export class ProviderLimitation extends Error {
     readonly type = `${PREFIX}-provider-limitation-error`;
-  }
-
-  export class ShimNotFound extends Error {
-    readonly type = `${PREFIX}-shim-not-found-error`;
   }
 
   export class Storage extends Error {

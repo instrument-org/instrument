@@ -23,7 +23,7 @@ import {
   terminateSubprocessTree,
 } from "../subprocess-tree";
 import { getWorkspaceConfig } from "../workspace-config";
-import { recordWorkspaceSkillMutation } from "../workspace-skill-index";
+import { recordSetupTouch } from "../setup-changes";
 import {
   fromWireError,
   type FromWorker,
@@ -279,9 +279,9 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       }
       return;
     }
-    case "skill-mutation": {
+    case "setup-touch": {
       instance.pending.get(message.id)?.inContext(() => {
-        recordWorkspaceSkillMutation(message.skillPath);
+        recordSetupTouch(message.touch);
       });
       return;
     }

@@ -121,6 +121,11 @@ export const ChatSchema = z.object({
    * ask's own first words, which a row need not repeat under the ask.
    */
   titled: z.boolean(),
+  /**
+   * Whether the title's words are the name the app gave the chat rather than
+   * one the user typed, which the window sweeps in when it changes on screen.
+   */
+  titleByApp: z.boolean(),
   /** The topic's id, from the session record; absent when it is filed under none. */
   topic: z.string().optional(),
   /** Whether something in the chat has not been looked at: the mark on its session record. */
@@ -563,6 +568,7 @@ async function chatFor(
     sessionId: session.id,
     state,
     title: shownTitle(session.title, root),
+    titleByApp: session.titleByApp === true,
     titled: !isUntitledChatSessionTitle(session.title),
     ...(session.topic ? { topic: session.topic } : {}),
     unread: session.unreadAt !== undefined,

@@ -108,14 +108,11 @@ export const GITHUB_ORG = "instrument-org";
 export const APP_REPO_URL = `https://github.com/${GITHUB_ORG}/${APP_REPO_NAME}`;
 export const APP_DOMAIN = "tryinstrument.com";
 export const APP_URL = `https://${APP_DOMAIN}`;
-export const FAUX_STUDIO_URL = `https://studio.${APP_DOMAIN}`;
 // Bug reports are filed as discussions in the triage category, not as issues.
 // The category is deep-linked rather than routed through the chooser so a
 // report started from inside the app cannot land in a category that never asks
 // for the version, platform, and model it needs.
 export const BUG_REPORT_URL = `${APP_REPO_URL}/discussions/new?category=issue-triage`;
-export const REGISTRY_REPO_NAME = "registry";
-export const REGISTRY_REPO_URL = `https://github.com/${GITHUB_ORG}/${REGISTRY_REPO_NAME}`;
 export const RELEASE_NOTES_URL = `${APP_REPO_URL}/releases`;
 // What Settings › Permissions links to on Windows, where programs the agent
 // runs are not yet held to the list. Kept to this one constant so the link
@@ -126,13 +123,9 @@ export const WINDOWS_SANDBOX_URL = `${APP_REPO_URL}/blob/main/docs/architecture/
 export const SANDBOX_OFF_URL = `${APP_REPO_URL}/blob/main/docs/architecture/native-sandbox-off.md`;
 // What the notice for web pages running without Chromium's sandbox links to.
 export const BROWSER_SANDBOX_OFF_URL = `${SANDBOX_OFF_URL}#when-web-pages-have-no-sandbox`;
-export const SKILLS_MARKETPLACE_URL = "https://skills.sh";
-export const X_HANDLE = "@tryinstrument";
-export const X_URL = `https://x.com/${X_HANDLE}`;
 export const SUPPORT_URL = `https://${APP_DOMAIN}/support`;
 export const MANUAL_DOWNLOAD_URL = `${APP_URL}/download`;
 export const AI_GATEWAY_API_KEY_NOT_NEEDED = "NOT_NEEDED";
-export const CONTACT_EMAIL = `support@${APP_DOMAIN}`;
 // Identity every commit the agent makes is authored and committed under, so a
 // repository's history never attributes agent work to the user.
 export const GIT_AGENT_EMAIL = `agent@${APP_DOMAIN}`;

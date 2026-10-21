@@ -8,6 +8,7 @@ import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { type ComponentProps } from "react";
 
 import { type ChatRename } from "./use-chat-rename";
+import { type TitleArrival } from "./use-title-arrival";
 
 // The field's own padding plus the sparkle inside it, less the title's caret,
 // so a width built from the measured title fits the same text without
@@ -96,10 +97,15 @@ export function ChatTitleField({
  * are the menu trigger's, which it stands in for.
  */
 export function ChatTitleButton({
+  arrival,
   className,
   title,
   ...props
-}: Omit<ComponentProps<"button">, "title"> & { title: string }) {
+}: Omit<ComponentProps<"button">, "title"> & {
+  /** The sweep a new name arrives under, which goes on the text and not on the hover surface around it. */
+  arrival?: TitleArrival;
+  title: string;
+}) {
   // The hover surface is pulled back out by its own padding, so what sits
   // beside the title stays measured from the text rather than from the fill.
   // Held to the rename field's widest, so a long title truncates there
@@ -113,7 +119,12 @@ export function ChatTitleButton({
       )}
       type="button"
     >
-      <span className="min-w-0 truncate">{title}</span>
+      <span
+        className={cn("min-w-0 truncate", arrival?.className)}
+        onAnimationEnd={arrival?.onAnimationEnd}
+      >
+        {title}
+      </span>
       <CaretDownIcon className="size-3 shrink-0 text-muted-foreground" />
     </button>
   );

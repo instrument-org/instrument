@@ -204,7 +204,7 @@ describe("indexedByRecords", () => {
     ]);
   });
 
-  it("starts over for another release", async () => {
+  it("keeps its rows for another release", async () => {
     let derived = 0;
     const derive = () => {
       derived += 1;
@@ -213,6 +213,6 @@ describe("indexedByRecords", () => {
     await nextLaunch()(chatId, SESSION, derive);
     setWorkspaceConfig({ ...getWorkspaceConfig(), appVersion: "99.0.0" });
     await nextLaunch()(chatId, SESSION, derive);
-    expect(derived).toBe(2);
+    expect(derived).toBe(1);
   });
 });

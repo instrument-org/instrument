@@ -7,7 +7,10 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { chatFor } from "../test/helpers/chat-record";
 import { chatTaskFor } from "../test/helpers/chat-task";
 import { recordChatFolderName } from "./chat-folders/own-folder";
+import { grantFolder } from "./chat/grants";
 import { ChatReads } from "./chat-reads";
+import { setDenied } from "./permissions/denials";
+import { readPermissionSettings } from "./permissions/rules";
 import { forgetChatFolders, resolveChat, chatDir } from "./record-folders";
 import { trashChat } from "./trash-chat";
 import { workDir } from "./work-dir";
@@ -78,6 +81,27 @@ describe("trashChat", () => {
     expect(
       (await ChatReads.session({ chatId: otherChat, sessionId: other })).isOk(),
     ).toBe(true);
+  });
+
+  it("forgets what the chat was allowed and refused, and only that chat's", async () => {
+    const chat = await chatFor();
+    const otherChat = await chatFor(
+      undefined,
+      ChatIdSchema.parse("2026-09-24-other"),
+    );
+    const notes = path.join(rootDir, "Notes");
+    await grantFolder({ chatId: chat, path: notes, source: "card" });
+    await setDenied(chat, "folder", path.join(rootDir, "Taxes"), true);
+    await grantFolder({ chatId: otherChat, path: notes, source: "card" });
+
+    await trashChat({
+      id: chat,
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef,
+    });
+
+    const { chats } = await readPermissionSettings();
+    expect(Object.keys(chats)).toEqual([otherChat]);
   });
 
   it("leaves the chat's own folder alone unless the person asked for it", async () => {

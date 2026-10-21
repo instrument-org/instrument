@@ -9,7 +9,7 @@ vi.mock("./open-external", () => ({
 }));
 
 vi.mock("./urls", () => ({
-  studioURL: () => "file:///Applications/Instrument.app/renderer/index.html",
+  studioURL: () => "instrument://app/index.html",
 }));
 
 const { guardNavigation, isStudioURL } = await import("./guard-navigation");
@@ -45,22 +45,20 @@ function fakeContents() {
 
 describe("isStudioURL", () => {
   it.each([
-    [
-      "the renderer itself",
-      "file:///Applications/Instrument.app/renderer/index.html",
-      true,
-    ],
+    ["the renderer itself", "instrument://app/index.html", true],
     // A hash route is a same-document navigation the window never asks about,
     // but it must read as the app either way.
-    [
-      "a hash route",
-      "file:///Applications/Instrument.app/renderer/index.html#/tasks/1",
-      true,
-    ],
+    ["a hash route", "instrument://app/index.html#/tasks/1", true],
     ["a web page", "https://mermaid.js.org/", false],
-    // Same "null" origin as the packaged renderer, so only the path tells them
-    // apart.
-    ["another file on disk", "file:///Users/someone/.ssh/id_rsa", false],
+    ["one of the renderer's own assets", "instrument://app/assets/a.js", false],
+    // A parser gives every host of a custom scheme the same "null" origin, so
+    // the host is what tells these apart.
+    [
+      "another host of the app scheme",
+      "instrument://computer-token/index.html",
+      false,
+    ],
+    ["a file on disk", "file:///Users/someone/.ssh/id_rsa", false],
     ["a scheme that runs something", "javascript:alert(1)", false],
     ["nonsense", "not a url", false],
   ])("%s -> %s", (_case, url, expected) => {
@@ -77,9 +75,7 @@ describe("guardNavigation", () => {
     const window = fakeContents();
     guardNavigation(window.contents as never);
 
-    expect(
-      window.go("file:///Applications/Instrument.app/renderer/index.html"),
-    ).toBe(false);
+    expect(window.go("instrument://app/index.html")).toBe(false);
     expect(openExternal).not.toHaveBeenCalled();
   });
 

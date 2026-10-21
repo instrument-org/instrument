@@ -56,6 +56,7 @@ import {
   protocol,
   session,
 } from "electron";
+import module from "node:module";
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
 import { serveDrafts } from "./drafts/serve-drafts";
@@ -107,8 +108,12 @@ if (gotTheLock) {
   protocol.registerSchemesAsPrivileged([
     {
       privileges: {
-        // The renderer's origin is never this scheme, so the document viewers
-        // fetching their WASM from it is always a cross-origin request.
+        // The built renderer is served from this scheme (`app-protocol.ts`),
+        // and Chromium keeps V8's compiled code for a custom scheme's scripts
+        // only when it opts in. Development loads from the dev server.
+        codeCache: true,
+        // The renderer's origin is one host of this scheme, so the document
+        // viewers fetching their WASM from another is a cross-origin request.
         // Chromium rejects those for custom schemes unless the scheme itself
         // opts in, regardless of the response's CORS headers.
         corsEnabled: true,
@@ -356,6 +361,14 @@ async function bootstrapPrimaryInstance() {
   setTimeout(() => {
     void warmCommonFileOpenTargets();
   }, 1500);
+
+  // What the compile cache (`boot.ts`) gathered while booting reaches disk
+  // here rather than at exit, so it does not depend on how the process ends.
+  // Not sooner: the first write after an update takes a couple hundred
+  // milliseconds of this thread, which the window's own files are served from.
+  setTimeout(() => {
+    void timeBootStep("flushCompileCache", () => module.flushCompileCache());
+  }, 5000);
 
   // Nothing waits on this. It resolves once the GPU process has finished
   // reporting, which is the only point at which the answer is worth writing

@@ -21,7 +21,11 @@ export function AppEventNote({
         >
           <InstrumentGlyph className="size-3.5 shrink-0" />
           <span>
-            {event.event === "connected"
+            {event.event === "added"
+              ? `${event.name} set up`
+              : event.event === "changed"
+                ? `${event.name} changed`
+                : event.event === "connected"
               ? `${event.name} connected`
               : event.event === "declined"
                 ? `${event.name} not connected`

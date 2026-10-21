@@ -110,7 +110,7 @@ function getSaveMediaAsItems({
  * a `file://` link is a local path an agent emitted in markdown, and a link to
  * an in-app route is a bare pathname the browser resolves against the renderer
  * document, so it comes back as a dev-server URL or a nonexistent
- * `file:///skills/foo`. Both share the page's origin; anything genuinely
+ * `<scheme>://app/skills/foo`. Both share the page's origin; anything genuinely
  * external doesn't.
  */
 function isCopyableLink({

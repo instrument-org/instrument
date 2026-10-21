@@ -27,7 +27,6 @@ import { CHAT_DB_FILE_NAME, TASKS_DIR_NAME } from "../../src/constants";
 import { initializeChat } from "../../src/lib/initialize-chat";
 import { newChatId } from "../../src/lib/new-chat-id";
 import { resolvePathWithinChatDir } from "../../src/lib/resolve-path-within-chat-dir";
-import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { ChatWrites } from "../../src/lib/chat-writes";
 import {
   ChatRecords,
@@ -343,12 +342,6 @@ async function seedTask({
     );
   }
 
-  // Open SQLite handles are cached by task id, and a fixture's ids are the same
-  // in every workspace built from it. Drop any handle held over from an earlier
-  // seed so this one cannot write through a database belonging to another
-  // workspace.
-  await disposeSessionsStoreStorage(id);
-
   const latest = Math.max(
     ...collectTimestamps(session).map((date) => date.getTime()),
   );
@@ -395,10 +388,6 @@ async function seedTask({
     dir: isChat ? workDir(id) : chatDir(id),
     files,
   });
-
-  // Every task holds an open SQLite handle in a module-level cache. Release it
-  // so the WAL is flushed and the process can exit on its own.
-  await disposeSessionsStoreStorage(id);
 
   if (!isChat) {
     await keepRecordsPrivate(chatDir(id));
@@ -458,7 +447,6 @@ async function seedChatTask({
     throw result.error;
   }
   await copyFixtureFiles({ dir: workDir(chatId), files });
-  await disposeSessionsStoreStorage(chatId);
   return rebased.session.id;
 }
 

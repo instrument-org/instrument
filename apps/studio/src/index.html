@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <!--
-      A packaged build loads from `file://`, which sends no referrer; dev loads
-      from `http://localhost`, which would. No referrer at all keeps the two
-      alike, and some hosts (Google's account pictures among them) refuse a
-      request that names localhost as where it came from.
+      No referrer at all, so a packaged build (on the app's own scheme) and dev
+      (on `http://localhost`) send the same thing, and some hosts (Google's
+      account pictures among them) refuse a request that names localhost as
+      where it came from.
     -->
     <meta name="referrer" content="no-referrer" />
     <!-- Filled in for the build flavor's own scheme by `content-security-policy.ts`. -->

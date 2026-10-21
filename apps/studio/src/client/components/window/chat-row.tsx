@@ -44,6 +44,7 @@ import { TopicMark } from "./topic-mark";
 import { TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
 import { useChatRename } from "./use-chat-rename";
+import { useTitleArrival } from "./use-title-arrival";
 
 /** How long the corner's bar stays after the topic list closes: the list's exit animation. */
 const PICKER_LEAVE_MS = 250;
@@ -137,6 +138,7 @@ export function ChatRow({
   };
   const isUnseen = chat.unread;
   const rename = useChatRename(chat);
+  const titleArrival = useTitleArrival(chat);
   // The menu hands focus back to the row as it closes, which would land
   // after the field took it and blur the rename shut.
   const isStartingRename = useRef(false);
@@ -189,7 +191,9 @@ export function ChatRow({
           isUnseen
             ? "font-semibold text-foreground"
             : "font-medium text-foreground/85",
+          titleArrival.className,
         )}
+        onAnimationEnd={titleArrival.onAnimationEnd}
       >
         <FuzzyHighlight
           ranges={wordRanges(chat.title, search)}

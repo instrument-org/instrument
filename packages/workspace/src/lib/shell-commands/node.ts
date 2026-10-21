@@ -28,7 +28,7 @@ import { workDir } from "../work-dir";
 const BLOCKED_FLAGS = new Set(["--interactive", "-i"]);
 const BLOCKED_FLAG_PREFIXES = ["--inspect", "--debug", "--watch"];
 
-async function execNode(
+export async function execNode(
   chatId: ChatId,
   args: string[],
   ctx: NodeContext,

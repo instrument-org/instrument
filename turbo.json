@@ -7,7 +7,6 @@
   "globalEnv": ["INSTRUMENT_BASH_WORKER"],
   "globalPassThroughEnv": [
     "GOMAXPROCS",
-    "INSTRUMENT_ACTIVITY_HEADINGS",
     "INSTRUMENT_EVAL_HOME",
     "USERPROFILE",
     "VITEST_MAX_WORKERS"

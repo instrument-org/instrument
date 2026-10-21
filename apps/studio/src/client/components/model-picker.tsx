@@ -962,7 +962,7 @@ function FailedConnection({
             if (isOurs) {
               openSettings({ tab: "General" });
             } else {
-              openSettings({ showNewProviderDialog: false, tab: "Providers" });
+              openSettings({ tab: "Providers" });
             }
           }}
           size="sm"

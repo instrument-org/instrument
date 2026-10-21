@@ -3,7 +3,10 @@ import fs from "node:fs/promises";
 import { type ChatId } from "../../schemas/chat-id";
 import { getWorkspaceConfig } from "../workspace-config";
 import { renameChatFolder } from "./chat-folder";
-import { rewriteChatFolder } from "./write-chat-folder";
+import {
+  inChatFolderOrder,
+  rewriteChatFolderInOrder,
+} from "./write-chat-folder";
 import { chatFolderNames, recordChatFolderName } from "./own-folder";
 
 /**
@@ -35,21 +38,26 @@ export async function followTitle(
   title: string,
 ): Promise<void> {
   try {
-    const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
-    const from = chatFolderNames(workspaceMachineDir).get(chatId);
-    if (from === undefined) {
-      return;
-    }
-    const folder = await renameChatFolder({ from, rootDir, title });
-    if (folder.name !== from) {
-      await recordChatFolderName(workspaceMachineDir, chatId, folder.name);
-    }
-    // The transcript was written when the turn ended, which is before a
-    // title settled from that turn landed; its front matter names the chat.
-    // A folder the person took away is left for the chat's next change.
-    if (await exists(folder.path)) {
-      await rewriteChatFolder(chatId);
-    }
+    // In the folder's order, from reading the recorded name to recording the
+    // new one, so a write of the folder never sees the move half done.
+    await inChatFolderOrder(chatId, async () => {
+      const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
+      const from = chatFolderNames(workspaceMachineDir).get(chatId);
+      if (from === undefined) {
+        return;
+      }
+      const folder = await renameChatFolder({ from, rootDir, title });
+      if (folder.name !== from) {
+        await recordChatFolderName(workspaceMachineDir, chatId, folder.name);
+      }
+      // The transcript was written when the turn ended, which is before a
+      // title settled from that turn landed; its front matter names the
+      // chat. A folder the person took away is left for the chat's next
+      // change.
+      if (await exists(folder.path)) {
+        await rewriteChatFolderInOrder(chatId);
+      }
+    });
   } catch (error) {
     getWorkspaceConfig().captureException(error);
   }

@@ -77,21 +77,6 @@ async function addGrant(
   return { ...granted, path: wanted };
 }
 
-/** Takes a folder's grant away from a chat, by its path. */
-export async function revokeGrant({
-  chatId,
-  path,
-}: {
-  chatId: ChatId;
-  path: string;
-}): Promise<void> {
-  const wanted = AbsolutePathSchema.parse(path);
-  await updateChatPermissions(chatId, (held) => ({
-    ...held,
-    grants: held.grants.filter((grant) => !isGrantOf(grant, wanted)),
-  }));
-}
-
 /** Whether a stored grant is of a folder, by the path it has. */
 function isGrantOf(grant: ChatGrant, folder: string): boolean {
   return grant.path === folder;

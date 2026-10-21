@@ -14,7 +14,6 @@ import {
   forgetChat,
   sessionOfChat,
 } from "./record-folders";
-import { disposeSessionsStoreStorage } from "./session-store-storage";
 
 interface InvalidChatFolder {
   /** The folder's name under `chats/`. */
@@ -66,8 +65,7 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
  * Sends one folder the scan reports to the OS trash, with the work folder of
  * the same name where there is one. Only a name the scan reports right now is
  * taken, which keeps a chat the list can show, and any path out of `chats/`,
- * out of reach. A chat whose store was opened has it closed first, and leaves
- * the index once its folder is gone.
+ * out of reach. A chat leaves the index once its folder is gone.
  */
 export async function trashInvalidChatFolder(
   name: string,
@@ -82,12 +80,6 @@ export async function trashInvalidChatFolder(
   const recordId = ChatIdSchema.safeParse(name);
   return ResultAsync.fromPromise(
     (async () => {
-      if (recordId.success) {
-        const disposed = await disposeSessionsStoreStorage(recordId.data);
-        if (disposed.isErr()) {
-          throw disposed.error;
-        }
-      }
       const work = AbsolutePathSchema.parse(
         path.join(workspaceConfig.workFoldersDir, name),
       );

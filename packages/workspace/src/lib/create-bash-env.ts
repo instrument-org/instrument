@@ -22,6 +22,12 @@ import { type StoreId } from "../schemas/store-id";
 import { TOOL_NAMES } from "../tools/name";
 import { bashWorkerEnabled, createRemoteBash } from "./bash-worker/client";
 import { shellPathReady } from "./login-shell-path";
+import { recordSetupTouch } from "./setup-changes";
+import {
+  type SetupSnapshot,
+  setupTouchesBetween,
+  snapshotSetup,
+} from "./setup-snapshot";
 import {
   AGENT_BROWSER_COMMAND,
   agentBrowserCommandDescription,
@@ -116,6 +122,7 @@ import {
 } from "./shell-commands/validate-skill";
 import {
   type CommandRun,
+  currentCommandRuns,
   recordCommandRun,
   runDispatched,
 } from "./shell-commands/command-runs";
@@ -1083,6 +1090,11 @@ export async function createLocalBashEnv({
   const exec = bash.exec.bind(bash);
   bash.exec = async (...execArgs) => {
     refusals.clear();
+    // What the person's skills, apps, topics and memories are before the
+    // call, so what a program it runs changes there is seen: a program writes
+    // to the disk directly, where the shell's own commands are recorded as
+    // they write (`setup-changes.ts`).
+    const setupBefore = await snapshotSetup();
     let result: Awaited<ReturnType<typeof exec>>;
     try {
       result = await withNativeReach(reach, () => exec(...execArgs));
@@ -1093,6 +1105,8 @@ export async function createLocalBashEnv({
         error.message = `${error.message}\n${[...refusals].join("\n")}`;
       }
       throw error;
+    } finally {
+      await recordProgramSetupChanges(setupBefore);
     }
     if (refusals.size === 0) {
       return result;
@@ -1106,4 +1120,25 @@ export async function createLocalBashEnv({
   };
 
   return bash;
+}
+
+/**
+ * What a call's programs changed in the person's setup, compared against
+ * before the call, recorded for the turn that ran it. Only when a program ran:
+ * the shell's own commands are recorded as they write, and a call that ran
+ * none credits the turn with nothing it did not record. A change that landed
+ * while the program ran is the program's as far as anyone can tell, so one
+ * another chat made in the same moment is told to both chats.
+ */
+async function recordProgramSetupChanges(before: SetupSnapshot) {
+  const runs = currentCommandRuns()?.rows();
+  const ranProgram =
+    runs === undefined ||
+    runs.some((run) => run.program !== undefined && run.source !== "builtin");
+  if (!ranProgram) {
+    return;
+  }
+  for (const touch of setupTouchesBetween(before, await snapshotSetup())) {
+    recordSetupTouch(touch);
+  }
 }

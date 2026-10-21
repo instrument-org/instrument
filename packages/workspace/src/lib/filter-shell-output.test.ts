@@ -1,9 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   filterShellOutput,
   shellSpelledSlashedPaths,
-  shouldFilterDebuggerMessage,
 } from "./filter-shell-output";
 
 describe("filterShellOutput", () => {
@@ -148,47 +147,6 @@ PATH=/c/a;/c/Program Files/b;/d/c
     `);
   });
 });
-describe("shouldFilterDebuggerMessage", () => {
-  const originalEnv = process.env.NODE_ENV;
-
-  beforeEach(() => {
-    process.env.NODE_ENV = originalEnv;
-  });
-
-  it("filters debugger attached message in development", () => {
-    process.env.NODE_ENV = "development";
-    expect(shouldFilterDebuggerMessage("Debugger attached.")).toBe(true);
-  });
-
-  it("filters waiting for debugger message in development", () => {
-    process.env.NODE_ENV = "development";
-    expect(
-      shouldFilterDebuggerMessage("Waiting for the debugger to disconnect..."),
-    ).toBe(true);
-  });
-
-  it("filters debugger messages in test environment", () => {
-    process.env.NODE_ENV = "test";
-    expect(shouldFilterDebuggerMessage("Debugger attached.")).toBe(true);
-    expect(
-      shouldFilterDebuggerMessage("Waiting for the debugger to disconnect..."),
-    ).toBe(true);
-  });
-
-  it("does not filter debugger messages in production", () => {
-    process.env.NODE_ENV = "production";
-    expect(shouldFilterDebuggerMessage("Debugger attached.")).toBe(false);
-    expect(
-      shouldFilterDebuggerMessage("Waiting for the debugger to disconnect..."),
-    ).toBe(false);
-  });
-
-  it("does not filter other messages", () => {
-    process.env.NODE_ENV = "development";
-    expect(shouldFilterDebuggerMessage("Some other message")).toBe(false);
-  });
-});
-
 describe("shellSpelledSlashedPaths", () => {
   it("respells the drive on a path printed with slashes", () => {
     const output = `C:/Users/sam/Docs/note.md:NEEDLE here

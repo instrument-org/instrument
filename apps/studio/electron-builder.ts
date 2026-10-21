@@ -146,11 +146,6 @@ const config: Configuration = {
   },
   extraResources: [
     {
-      filter: ["**/*.json"],
-      from: "../../registry/api",
-      to: "registry/api",
-    },
-    {
       filter: ["**/*"],
       from: "../../registry/skills",
       to: "registry/skills",

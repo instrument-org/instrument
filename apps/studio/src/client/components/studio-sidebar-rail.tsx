@@ -43,7 +43,6 @@ export function StudioSidebarRail({
   label = "Resize sidebar",
   onCollapse,
   panelClassName,
-  side = "left",
   widthAtom,
 }: {
   bounds: RailBounds;
@@ -54,8 +53,6 @@ export function StudioSidebarRail({
   label?: string;
   onCollapse: () => void;
   panelClassName?: string;
-  /** Which edge of the window it hangs from; the handle is on the other. */
-  side?: "left" | "right";
   /** Where its width is kept. */
   widthAtom: WritableAtom<number, [number], void>;
 }) {
@@ -63,12 +60,10 @@ export function StudioSidebarRail({
   const setStoredWidth = useSetAtom(widthAtom);
   const clampWidth = (value: number) =>
     Math.min(bounds.max, Math.max(bounds.min, Math.round(value)));
-  // The panel slides out toward its own edge.
-  const away = side === "left" ? -1 : 1;
 
   const layoutWidth = useMotionValue(isOpen ? storedWidth : 0);
   const panelWidth = useMotionValue(storedWidth);
-  const panelX = useMotionValue(isOpen ? 0 : away * storedWidth);
+  const panelX = useMotionValue(isOpen ? 0 : -storedWidth);
   const opacity = useMotionValue(isOpen ? 1 : 0);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -126,7 +121,7 @@ export function StudioSidebarRail({
       const width = currentStoredWidth();
       layoutWidth.set(isOpen ? width : 0);
       panelWidth.set(width);
-      panelX.set(isOpen ? 0 : away * width);
+      panelX.set(isOpen ? 0 : -width);
       opacity.set(isOpen ? 1 : 0);
       return;
     }
@@ -149,7 +144,7 @@ export function StudioSidebarRail({
     } else {
       controls.push(
         animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION),
-        animate(panelX, away * panelWidth.get(), RAIL_SLIDE_TRANSITION),
+        animate(panelX, -panelWidth.get(), RAIL_SLIDE_TRANSITION),
         animate(opacity, 0, RAIL_FADE_TRANSITION),
       );
     }
@@ -160,7 +155,7 @@ export function StudioSidebarRail({
       }
       widthAnimationsRef.current = [];
     };
-  }, [away, isOpen, layoutWidth, opacity, panelWidth, panelX]);
+  }, [isOpen, layoutWidth, opacity, panelWidth, panelX]);
 
   return (
     <motion.div
@@ -174,7 +169,7 @@ export function StudioSidebarRail({
         <motion.div
           className={cn(
             "absolute inset-y-0 flex h-full flex-col border-border bg-sidebar select-none",
-            side === "left" ? "left-0 border-r" : "right-0 border-l",
+            "left-0 border-r",
             panelClassName,
           )}
           // Put away while closed, so nothing clipped out of sight takes the
@@ -189,13 +184,9 @@ export function StudioSidebarRail({
         <ResizeHandle
           anchor={() => {
             const rect = containerRef.current?.getBoundingClientRect();
-            return side === "left" ? rect?.left : rect?.right;
+            return rect?.left;
           }}
-          className={
-            side === "left"
-              ? "right-0 translate-x-1/2"
-              : "left-0 -translate-x-1/2"
-          }
+          className="right-0 translate-x-1/2"
           collapse={
             bounds.collapse === undefined
               ? undefined
@@ -206,18 +197,14 @@ export function StudioSidebarRail({
                     draggingRef.current = false;
                     const frozenWidth = panelWidth.get();
                     void animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION);
-                    void animate(
-                      panelX,
-                      away * frozenWidth,
-                      RAIL_SLIDE_TRANSITION,
-                    );
+                    void animate(panelX, -frozenWidth, RAIL_SLIDE_TRANSITION);
                     void animate(opacity, 0, RAIL_FADE_TRANSITION);
                     onCollapse();
                   },
                 }
           }
           getWidth={() => panelWidth.get()}
-          grows={side === "left" ? "right" : "left"}
+          grows="right"
           label={label}
           max={bounds.max}
           min={bounds.min}

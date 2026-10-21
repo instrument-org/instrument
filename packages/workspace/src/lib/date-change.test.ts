@@ -8,8 +8,6 @@ import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { ChatWrites } from "./chat-writes";
 import { detectDateChange } from "./date-change";
 
-vi.mock(import("./session-store-storage"));
-
 /**
  * Local wall-clock, not an ISO instant: the correction is about the calendar
  * date the user is on, so a fixture written in UTC would land on a different

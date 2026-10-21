@@ -4,7 +4,6 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ChatWrites } from "../lib/chat-writes";
-import { disposeSessionsStoreStorage } from "../lib/session-store-storage";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -36,7 +35,6 @@ describe("bash attaches the agent-browser skill", () => {
   });
 
   afterEach(async () => {
-    await disposeSessionsStoreStorage(chatId);
     await fs.rm(root, { force: true, recursive: true });
   });
 

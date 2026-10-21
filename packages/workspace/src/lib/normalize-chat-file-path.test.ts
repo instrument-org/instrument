@@ -22,6 +22,12 @@ describe("normalizeChatFilePath", () => {
       false,
     ],
     [String.raw`work\report.html`, String.raw`work\report.html`, false],
+    [
+      String.raw`\\nas\photos\2024\shot.png`,
+      "//nas/photos/2024/shot.png",
+      true,
+    ],
+    [String.raw`\\nas\photos\..\x`, "//nas/photos/../x", false],
   ])("%s -> %s (addressable: %s)", (path, normalized, addressable) => {
     expect(normalizeChatFilePath(path)).toBe(normalized);
     expect(isAddressableChatFilePath(normalizeChatFilePath(path))).toBe(

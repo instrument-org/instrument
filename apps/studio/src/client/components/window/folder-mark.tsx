@@ -1,10 +1,12 @@
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
+import { outputFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useOutputFolder } from "@/client/lib/output-folder";
 import { expandHomePath, isHomeDir } from "@instrument-org/shared";
+import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
+import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { HouseIcon } from "@phosphor-icons/react/House";
@@ -38,6 +40,9 @@ export function FolderMark({
   if (path === "") {
     return <ClockCounterClockwiseIcon className={iconClassName} />;
   }
+  if (path === COMPUTER_ROOT) {
+    return <MonitorIcon className={iconClassName} />;
+  }
   const hostPath = expandHomePath(path, home);
   if (isHomeDir(hostPath, home)) {
     return <HouseIcon className={iconClassName} />;
@@ -58,7 +63,7 @@ export function FolderMark({
         "w-auto shrink-0",
         { large: "h-3.5", row: "h-5", small: "h-3" }[size],
       )}
-      {...(hostPath === outputFolder ? { src: OUTPUT_FOLDER_GLYPH_URL } : {})}
+      {...(hostPath === outputFolder ? { src: outputFolderGlyphUrl() } : {})}
     />
   );
 }

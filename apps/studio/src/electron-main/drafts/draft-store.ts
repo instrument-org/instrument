@@ -18,10 +18,7 @@ import {
   renderDraftFile,
   writeDraftFile,
 } from "@instrument-org/workspace/drafts";
-import {
-  afterFolderAppears,
-  isFolder,
-} from "@instrument-org/workspace/electron";
+import { watchFolder } from "@instrument-org/workspace/electron";
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -45,8 +42,6 @@ const StageRequestSchema = z.object({
     ),
 }) satisfies z.ZodType<DraftStageRequest>;
 
-/** How long a burst of changes on disk is gathered before the folder is read again. */
-const WATCH_SETTLE_MS = 150;
 
 /** Where a draft's file is, and what this store last wrote there or read from it. */
 interface OnDisk {
@@ -374,45 +369,16 @@ export function createDraftStore({
     },
 
     /**
-     * Calls back when the drafts folder changes, gathered over a beat. This
-     * store's own writes call back too; {@link reconcile} is what tells them
-     * apart. A workspace with no drafts has no folder, so the watch starts
-     * when the first draft makes it.
+     * Calls back when what the drafts folder holds changes. This store's own
+     * writes call back too; {@link reconcile} is what tells them apart. A
+     * workspace with no drafts has no folder, and the first draft's making
+     * it is a change.
      */
     watch(changed: () => void): () => void {
-      const root = draftsFolderDir(rootDir);
-      let watcher: fs.FSWatcher | undefined;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const settle = () => {
-        clearTimeout(timer);
-        timer = setTimeout(changed, WATCH_SETTLE_MS);
-      };
-      const start = () => {
-        try {
-          watcher = fs.watch(root, { recursive: true }, settle);
-          watcher.on("error", (error) => {
-            logger.warn(`Stopped watching drafts in ${root}`, error);
-            watcher?.close();
-          });
-        } catch (error) {
-          logger.warn(`Could not watch drafts in ${root}`, error);
-        }
-      };
-      let stopWaiting: (() => void) | undefined;
-      if (isFolder(root)) {
-        start();
-      } else {
-        stopWaiting = afterFolderAppears(root, () => {
-          start();
-          // Whatever arrived with the folder came before the watch did.
-          settle();
-        });
-      }
-      return () => {
-        stopWaiting?.();
-        clearTimeout(timer);
-        watcher?.close();
-      };
+      return watchFolder(draftsFolderDir(rootDir), {
+        depth: 1,
+        onChange: changed,
+      });
     },
   };
 }

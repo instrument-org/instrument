@@ -7,6 +7,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { isConnected } from "./apps/connection";
 import { listApps } from "./apps/store";
+import { folderFingerprint } from "./folder-fingerprint";
 import { ChatReads } from "./chat-reads";
 import { ChatWrites } from "./chat-writes";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -15,6 +16,8 @@ const ChatAppsBaselineSchema = z.record(
   z.string(),
   z.object({
     connected: z.boolean(),
+    /** What its folder held (`folder-fingerprint.ts`); missing in a baseline from an earlier build. */
+    fingerprint: z.string().optional(),
     name: z.string(),
     web: z.string().optional(),
   }),
@@ -28,14 +31,17 @@ export async function currentChatApps(): Promise<ChatAppsBaseline> {
   const { apps } = await listApps(appsDir);
   const connections = await config.connections.list();
   return Object.fromEntries(
-    apps.map((app) => [
-      app.slug,
-      {
-        connected: isConnected(connections[app.slug], app.manifestHash),
-        name: app.name,
-        ...(app.manifest.type === "web" ? { web: app.manifest.url } : {}),
-      },
-    ]),
+    await Promise.all(
+      apps.map(async (app): Promise<[string, ChatAppsBaseline[string]]> => [
+        app.slug,
+        {
+          connected: isConnected(connections[app.slug], app.manifestHash),
+          fingerprint: await folderFingerprint(app.dir),
+          name: app.name,
+          ...(app.manifest.type === "web" ? { web: app.manifest.url } : {}),
+        },
+      ]),
+    ),
   );
 }
 
@@ -104,8 +110,9 @@ export function detectChatAppChanges({
 /**
  * What changed between two readings of the apps, as the events a chat is
  * told: an app gone is removed, one that lost its connection is
- * disconnected, one that gained it is connected. An app set up but not yet
- * connected is the conversation's own doing and says nothing.
+ * disconnected, one that gained it is connected, a new one not connected yet
+ * is added, and one whose folder holds something else is changed. What the
+ * conversation's own turn did is in the baseline already (`recordAppsTold`).
  */
 export function appEventsBetween(
   before: ChatAppsBaseline,
@@ -123,10 +130,19 @@ export function appEventsBetween(
         slug,
         ...(now.web ? { web: now.web } : {}),
       });
+    } else if (
+      was.fingerprint !== undefined &&
+      now.fingerprint !== undefined &&
+      was.fingerprint !== now.fingerprint &&
+      was.connected === now.connected
+    ) {
+      events.push({ event: "changed", name: now.name, slug });
     }
   }
   for (const [slug, now] of Object.entries(after)) {
-    if (now.connected && before[slug]?.connected !== true) {
+    if (!now.connected && before[slug] === undefined) {
+      events.push({ event: "added", name: now.name, slug });
+    } else if (now.connected && before[slug]?.connected !== true) {
       events.push({
         event: "connected",
         name: now.name,
@@ -136,4 +152,44 @@ export function appEventsBetween(
     }
   }
   return events;
+}
+
+/**
+ * Takes what the conversation's own turn did to apps (by their folders'
+ * names) into the baseline, so the next message does not tell the agent
+ * what it did itself. Only those apps: a change made elsewhere meanwhile is
+ * still news. Nothing where the session has no baseline yet.
+ */
+export async function recordAppsTold({
+  chatId,
+  names,
+  sessionId,
+}: {
+  chatId: ChatId;
+  names: readonly string[];
+  sessionId: StoreId.Session;
+}): Promise<void> {
+  if (names.length === 0) {
+    return;
+  }
+  const stored = await ChatReads.state({
+    chatId,
+    schema: ChatAppsBaselineSchema,
+    sessionId,
+    what: "apps",
+  });
+  if (stored.isErr() || stored.value === undefined) {
+    return;
+  }
+  const current = await currentChatApps();
+  const own = new Set(names);
+  const told = Object.fromEntries(
+    Object.entries(stored.value).filter(([, app]) => !own.has(app.name)),
+  );
+  for (const [slug, app] of Object.entries(current)) {
+    if (own.has(app.name)) {
+      told[slug] = app;
+    }
+  }
+  await setChatAppsBaseline(chatId, sessionId, told);
 }

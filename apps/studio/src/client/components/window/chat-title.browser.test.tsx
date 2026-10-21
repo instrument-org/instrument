@@ -73,6 +73,7 @@ function chat(): Chat {
     starred: false,
     state: "idle",
     title: TITLE,
+    titleByApp: true,
     titled: true,
     unread: false,
     unreadByUser: false,

@@ -17,6 +17,8 @@ describe("isChatFileHref", () => {
     ["c:/Users/sam/chart.png", true],
     [String.raw`C:\Users\sam\chart.png`, true],
     ["C:%5CUsers%5Csam%5Cchart.png", true],
+    [String.raw`\\nas\photos\chart.png`, true],
+    ["%5C%5Cnas%5Cphotos%5Cchart.png", true],
   ])("%s -> %s", (href, expected) => {
     expect(isChatFileHref(href)).toBe(expected);
   });

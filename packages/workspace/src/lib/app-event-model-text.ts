@@ -18,6 +18,12 @@ export function appEventModelNote(
     // period the clause around it ends with is already there.
     const detail = event.detail?.replace(/\.$/, "");
     switch (event.event) {
+      case "added": {
+        return `- ${event.name} (${event.slug}) was set up outside this conversation, so your list of apps does not show it. \`${APP_COMMAND.name} list\` says where it stands.`;
+      }
+      case "changed": {
+        return `- ${event.name} (${event.slug}) was changed outside this conversation: what you read of its setup or guide is out of date.`;
+      }
       case "connected": {
         if (event.web !== undefined) {
           return `- The user says they are signed in to ${event.name} (${event.slug}) on the web, in ${APP_NAME}'s browser. It is connected. Work it there: open ${event.web} in a tab, where the sign-in holds, or use a tab already open there. No \`${APP_COMMAND.name}\` call reaches it.${nameIt(event)}`;

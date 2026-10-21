@@ -14,6 +14,7 @@ import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
 import { osConventions } from "@/client/lib/utils";
+import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { FolderMark } from "./folder-mark";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
@@ -227,6 +228,9 @@ function chatTitleOf(
  * how the row writes it; the recents are no folder at all.
  */
 function folderPathOf({ path, root }: ComputerTab) {
+  if (root === COMPUTER_ROOT) {
+    return COMPUTER_ROOT;
+  }
   return root === RECENTS_ROOT ? "" : joinHostPath(root, path);
 }
 
@@ -241,6 +245,9 @@ function folderTitle(
 ) {
   if (tab.root === RECENTS_ROOT) {
     return "Recents";
+  }
+  if (tab.root === COMPUTER_ROOT) {
+    return osConventions().computer;
   }
   const home = window.api.homeDir;
   const path = folderPathOf(tab);

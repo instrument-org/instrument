@@ -4,27 +4,19 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { TASKS_DIR_NAME } from "../constants";
 import { SessionMessage } from "../schemas/session/message";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
-import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { withChatDb } from "../test/helpers/chat-db";
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../constants";
-import { isToolPart } from "./is-tool-part";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
-import {
-  disposeSessionsStoreStorage,
-  getSessionsStoreStorage,
-} from "./session-store-storage";
+import { sweepInterruptedToolCalls } from "./interrupted-tool-calls";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
-import { chatDir } from "./record-folders";
 
-const id = ChatIdSchema.parse("interrupted-tool-calls-test");
 const createdAt = new Date("2025-01-01T00:00:00.000Z");
 
-let chatId: ChatId;
+let file: string;
 let root: string;
 let sessionId: StoreId.Session;
 
@@ -32,13 +24,11 @@ beforeEach(async () => {
   root = await fs.mkdtemp(
     path.join(os.tmpdir(), "interrupted-tool-calls-test-"),
   );
-  chatId = createMockChatConfigForDir(path.join(root, TASKS_DIR_NAME, id));
-  await fs.mkdir(chatDir(chatId), { recursive: true });
+  file = path.join(root, "chat.db");
   sessionId = StoreId.newSessionId();
 });
 
 afterEach(async () => {
-  await disposeSessionsStoreStorage(id);
   await fs.rm(root, { force: true, recursive: true });
 });
 
@@ -58,29 +48,32 @@ function assistantMessage(
   };
 }
 
-/** Closes the database, which is what a process ending does to it. */
-async function endProcess() {
-  unwrap(await disposeSessionsStoreStorage(id));
+/** Sweeps the database, as the converter does on its way through one. */
+async function sweep() {
+  await withChatDb(file, async (storage) => {
+    unwrap(await sweepInterruptedToolCalls({ storage }));
+  });
 }
 
-async function readParts(message: SessionMessage.Type) {
-  const storage = unwrap(await getSessionsStoreStorage(chatId));
-  const keys = unwrap(
-    await storage.getKeys(
-      StorageKey.parts(message.metadata.sessionId, message.id),
-    ),
-  );
-  return Promise.all(
-    keys.map(async (key) =>
-      (
-        await getParsedStorageItem(
-          key,
-          SessionMessagePart.CoercedSchema,
-          storage,
-        )
-      )._unsafeUnwrap(),
-    ),
-  );
+function readParts(message: SessionMessage.Type) {
+  return withChatDb(file, async (storage) => {
+    const keys = unwrap(
+      await storage.getKeys(
+        StorageKey.parts(message.metadata.sessionId, message.id),
+      ),
+    );
+    return Promise.all(
+      keys.map(async (key) =>
+        (
+          await getParsedStorageItem(
+            key,
+            SessionMessagePart.CoercedSchema,
+            storage,
+          )
+        )._unsafeUnwrap(),
+      ),
+    );
+  });
 }
 
 /**
@@ -92,29 +85,30 @@ async function seed(
   message: SessionMessage.Type,
   parts: SessionMessagePart.Type[],
 ) {
-  const storage = unwrap(await getSessionsStoreStorage(chatId));
-  (
-    await setParsedStorageItem(
-      StorageKey.message(message.metadata.sessionId, message.id),
-      message,
-      SessionMessage.Schema,
-      storage,
-    )
-  )._unsafeUnwrap();
-  for (const part of parts) {
+  await withChatDb(file, async (storage) => {
     (
       await setParsedStorageItem(
-        StorageKey.part(
-          part.metadata.sessionId,
-          part.metadata.messageId,
-          part.metadata.id,
-        ),
-        part,
-        SessionMessagePart.CoercedSchema,
+        StorageKey.message(message.metadata.sessionId, message.id),
+        message,
+        SessionMessage.Schema,
         storage,
       )
     )._unsafeUnwrap();
-  }
+    for (const part of parts) {
+      (
+        await setParsedStorageItem(
+          StorageKey.part(
+            part.metadata.sessionId,
+            part.metadata.messageId,
+            part.metadata.id,
+          ),
+          part,
+          SessionMessagePart.CoercedSchema,
+          storage,
+        )
+      )._unsafeUnwrap();
+    }
+  });
 }
 
 // request_folder: a tool whose input and output are small enough to spell out
@@ -184,7 +178,7 @@ describe("sweepInterruptedToolCalls", () => {
     async (state) => {
       const message = assistantMessage();
       await seed(message, [toolPart(message, state)]);
-      await endProcess();
+      await sweep();
 
       const [part] = await readParts(message);
 
@@ -211,7 +205,7 @@ describe("sweepInterruptedToolCalls", () => {
       type: "text",
     };
     await seed(message, [finished, errored, text]);
-    await endProcess();
+    await sweep();
 
     const parts = await readParts(message);
 
@@ -234,7 +228,7 @@ describe("sweepInterruptedToolCalls", () => {
     await seed(answered, [toolPart(answered, "output-available")]);
     await seed(running, [toolPart(running, "input-available")]);
     await seed(unanswered, []);
-    await endProcess();
+    await sweep();
 
     const [part] = await readParts(running);
 
@@ -246,7 +240,7 @@ describe("sweepInterruptedToolCalls", () => {
     const childMessage = assistantMessage(StoreId.newSessionId());
     await seed(rootMessage, [toolPart(rootMessage, "input-available")]);
     await seed(childMessage, [toolPart(childMessage, "input-streaming")]);
-    await endProcess();
+    await sweep();
 
     const [rootPart] = await readParts(rootMessage);
     const [childPart] = await readParts(childMessage);
@@ -255,44 +249,15 @@ describe("sweepInterruptedToolCalls", () => {
     expect(childPart).toMatchObject({ state: "output-error" });
   });
 
-  it("runs on open, before the first read", async () => {
+  it("is unchanged by a second sweep", async () => {
     const message = assistantMessage();
     await seed(message, [toolPart(message, "input-available")]);
-    await endProcess();
-
-    // The first thing this process does with the task.
-    const storage = unwrap(await getSessionsStoreStorage(chatId));
-    const keys = unwrap(await storage.getKeys("parts"));
-    const stored = unwrap(await storage.getItemRaw<string>(keys[0] ?? ""));
-
-    expect(stored).toContain('"output-error"');
-  });
-
-  it("is unchanged by a second open", async () => {
-    const message = assistantMessage();
-    await seed(message, [toolPart(message, "input-available")]);
-    await endProcess();
+    await sweep();
     const [swept] = await readParts(message);
-    await endProcess();
+    await sweep();
 
     const [again] = await readParts(message);
 
     expect(again).toEqual(swept);
-  });
-
-  it("does not touch a call a live run is executing", async () => {
-    const message = assistantMessage();
-    // Written after this process opened the task: the run that owns it is
-    // this process's own, and only its finish may settle it.
-    await seed(message, [toolPart(message, "input-available")]);
-
-    const parts = await readParts(message);
-
-    expect(parts.filter(isToolPart).map((part) => part.state))
-      .toMatchInlineSnapshot(`
-        [
-          "input-available",
-        ]
-      `);
   });
 });

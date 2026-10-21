@@ -27,8 +27,6 @@ import { chatTaskFor } from "../../test/helpers/chat-task";
 import { type WorkspaceRPCContext } from "../base";
 import { permissions } from "./permissions";
 
-vi.mock(import("../../lib/session-store-storage"));
-
 // What macOS answers a look inside a folder, which a test sets.
 const macos = vi.hoisted(() => ({
   look: undefined as

@@ -41,11 +41,25 @@ describe("appEventsBetween", () => {
         },
       ],
     ],
-    // Set up by the conversation and still waiting on the user: its own doing.
+    // The conversation's own turns are in the baseline (`recordAppsTold`),
+    // so one that turns up here was set up elsewhere.
     [
       "an app set up, not yet connected",
       {},
       { notion: { connected: false, name: "Notion" } },
+      [{ event: "added", name: "Notion", slug: "notion" }],
+    ],
+    [
+      "an app whose folder changed",
+      { linear: { connected: true, fingerprint: "a", name: "Linear" } },
+      { linear: { connected: true, fingerprint: "b", name: "Linear" } },
+      [{ event: "changed", name: "Linear", slug: "linear" }],
+    ],
+    // A baseline from before folders were fingerprinted says nothing changed.
+    [
+      "an app read before fingerprints",
+      { linear: { connected: true, name: "Linear" } },
+      { linear: { connected: true, fingerprint: "b", name: "Linear" } },
       [],
     ],
     [

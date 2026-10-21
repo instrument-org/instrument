@@ -11,7 +11,6 @@ import {
   resolveChat,
   sessionOfChat,
 } from "../../lib/record-folders";
-import { disposeSessionsStoreStorage } from "../../lib/session-store-storage";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -40,12 +39,10 @@ vi.mock(import("../../lib/workspace-actor-ref"), () => ({
 }));
 
 let root: string;
-let opened: ChatId[];
 
 beforeEach(() => {
   createMockChatConfig(ChatIdSchema.parse(`storage-${Date.now()}`));
   root = fs.mkdtempSync(path.join(os.tmpdir(), "storage-route-"));
-  opened = [];
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
@@ -63,9 +60,6 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  for (const id of opened) {
-    await disposeSessionsStoreStorage(id);
-  }
   fs.rmSync(root, { force: true, recursive: true });
 });
 
@@ -82,7 +76,6 @@ function createContext(): WorkspaceRPCContext {
 async function readableChat(named: string): Promise<ChatId> {
   const sessionId = StoreId.newSessionId();
   const id = await chatFor(sessionId, ChatIdSchema.parse(named));
-  opened.push(id);
   const saved = await ChatWrites.saveSession(
     { createdAt: new Date(), id: sessionId, title: named },
     id,

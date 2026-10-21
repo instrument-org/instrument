@@ -56,6 +56,12 @@ export type FoldedSettings = {
 export interface FoldedSession {
   /** The app version that began the session, from the header of its first log. */
   app: string;
+  /**
+   * The newest title the app gave the session. The app writes every name it
+   * gives as a title it may still change, and settles one with a second
+   * line of the same words; the user's rename is one settled line.
+   */
+  appTitle?: string;
   chat: ChatId;
   createdAt: Date;
   /** Whether two devices each carried the session on past what the other had read; `messages` holds both. */
@@ -119,6 +125,9 @@ interface SessionState {
 
 type SettingState = {
   [F in SettingField]?: Newest<Extract<SettingRecord, { field: F }>>;
+} & {
+  /** The words of the newest title line the app may still change. */
+  appTitle?: Newest<string>;
 };
 
 interface FileState {
@@ -340,6 +349,13 @@ export class ChatFold {
     switch (record.field) {
       case "title":
         settings.title = newer(settings.title, record, place);
+        if (record.value.auto) {
+          settings.appTitle = newer(
+            settings.appTitle,
+            record.value.text,
+            place,
+          );
+        }
         break;
       case "starred":
         settings.starred = newer(settings.starred, record, place);
@@ -392,7 +408,7 @@ export class ChatFold {
  * `seq`), then by `at`, then by log, then by its line, so a copy of a record
  * sorts where the record does and two records never tie.
  */
-export function logPlace(
+function logPlace(
   header: SessionHeader,
   stem: string,
   record: LogRecord,
@@ -413,7 +429,7 @@ export function logPlace(
  * that settled after one the app may still change, then the newest `at`,
  * then the larger device id.
  */
-export function settingPlace(record: SettingRecord, line: string): Place {
+function settingPlace(record: SettingRecord, line: string): Place {
   const settled = record.field === "title" && !record.value.auto ? 1 : 0;
   return [
     settled,
@@ -478,6 +494,7 @@ function folded(
   const { messages, writtenBy } = messagesOf(session);
   return {
     app: header.app,
+    ...(settings.appTitle && { appTitle: settings.appTitle.value }),
     chat: header.chat,
     createdAt: header.createdAt,
     forked: isForked(
@@ -557,7 +574,7 @@ function made<M extends SettingRecord>({
  * from nothing. Every log of a session repeats the same session fields, so
  * any header stands in until that log is read.
  */
-export function rootHeader(
+function rootHeader(
   headers: ReadonlyMap<string, SessionHeader>,
 ): SessionHeader | undefined {
   let root: { header: SessionHeader; place: Place } | undefined;
@@ -575,7 +592,7 @@ export function rootHeader(
  * Whether two logs each hold records past what the other's writer had read
  * of it: two devices that carried the session on side by side.
  */
-export function isForked(
+function isForked(
   headers: ReadonlyMap<string, SessionHeader>,
   /** The highest `seq` after its header in each log. */
   dataSeqs: ReadonlyMap<string, number>,

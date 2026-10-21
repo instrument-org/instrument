@@ -76,6 +76,11 @@ export namespace Session {
     stoppedBy: z.enum(["app", "chat", "user"]).optional(),
     title: z.string(),
     /**
+     * Whether the title's words are a name the app gave rather than one the
+     * user typed. Read from the settings, never written.
+     */
+    titleByApp: z.boolean().optional(),
+    /**
      * When the chat's title stopped being the app's to change: its one
      * automatic rename, once its first exchange settled, or the user naming
      * it, by hand or from the conversation. After it, only the user renames

@@ -62,7 +62,6 @@ interface PublisherEvents {
   "grok-account.updated": null;
   // What the Claude Code CLI on this computer says about its sign-in changed.
   "claude-account.updated": null;
-  "debug.browser-view-manager.updated": null;
   "exceptions.updated": null;
   // Whether the platform API answers changed (development builds only).
   "platform-api.reachability.updated": null;
@@ -70,10 +69,6 @@ interface PublisherEvents {
   "model-routes.updated": null;
   "preferences.updated": null;
   "provider-config.updated": null;
-  "server-exception": {
-    message: string;
-    stack?: string;
-  };
   "session.apiBearerToken.updated": null;
   "updates.status": { status: AppUpdaterStatus };
   "updates.trigger-check": null;

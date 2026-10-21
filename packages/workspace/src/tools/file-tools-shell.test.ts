@@ -9,7 +9,6 @@ import { folderReach } from "../lib/chat/folder-reach";
 import { createLocalBashEnv } from "../lib/create-bash-env";
 import { updatePermissionSettings } from "../lib/permissions/rules";
 import { chatDir } from "../lib/record-folders";
-import { disposeSessionsStoreStorage } from "../lib/session-store-storage";
 import { workDir } from "../lib/work-dir";
 import { shellPath } from "../lib/workspace-fs-layout";
 import {
@@ -105,9 +104,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // Windows removes no file a process holds open.
-  await disposeSessionsStoreStorage(chatId);
-  await disposeSessionsStoreStorage(other);
   await fs.rm(root, { force: true, recursive: true });
 });
 

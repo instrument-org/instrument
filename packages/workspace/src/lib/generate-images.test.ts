@@ -142,7 +142,7 @@ describe("generateBufferedImage parameter mapping", () => {
   });
 });
 
-async function collectStream() {
+async function collectStream(signal = new AbortController().signal) {
   const chunks = [];
   for await (const chunk of generateImageStream({
     callingModel: {} as never,
@@ -151,7 +151,7 @@ async function collectStream() {
     count: 1,
     prompt: "a cat",
     sessionId: SESSION_ID,
-    signal: new AbortController().signal,
+    signal,
     workspaceConfig,
     workspaceServerURL: "http://localhost" as never,
   })) {
@@ -229,5 +229,49 @@ describe("generateImageStream", () => {
     const chunks = await collectStream();
 
     expect(chunks.at(-1)?.isErr()).toBe(true);
+    expect(workspaceConfig.captureException).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [
+      "throws",
+      function* () {
+        yield* [];
+        throw new DOMException("This operation was aborted", "AbortError");
+      },
+    ],
+    [
+      "yields an error event",
+      function* () {
+        yield { message: "This operation was aborted", type: "error" };
+      },
+    ],
+  ])(
+    "ends without capturing when the stream %s after its own signal fires",
+    async (_, stream) => {
+      mockImageModel(OUR_MODELS.providerType);
+      vi.mocked(streamOpenRouterImage).mockImplementation(stream as never);
+      const controller = new AbortController();
+      controller.abort();
+
+      const chunks = await collectStream(controller.signal);
+
+      expect(chunks.at(-1)?.isErr()).toBe(true);
+      expect(workspaceConfig.captureException).not.toHaveBeenCalled();
+    },
+  );
+
+  it("ends without capturing when the buffered call is stopped", async () => {
+    mockImageModel("openai");
+    vi.mocked(generateImage).mockRejectedValue(
+      new DOMException("This operation was aborted", "AbortError"),
+    );
+    const controller = new AbortController();
+    controller.abort();
+
+    const chunks = await collectStream(controller.signal);
+
+    expect(chunks.at(-1)?.isErr()).toBe(true);
+    expect(workspaceConfig.captureException).not.toHaveBeenCalled();
   });
 });

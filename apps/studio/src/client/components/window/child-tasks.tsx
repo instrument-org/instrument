@@ -1,7 +1,7 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { ChatStream } from "@/client/components/chat-stream";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { SystemFolderIcon } from "@/client/components/icons/folder-glyph";
 import { ModelPreview } from "@/client/components/tasks-data-table/model-preview";
 import {
   MessageScroller,
@@ -263,7 +263,7 @@ function TaskBrief({
           key={folder.id}
           title={`${folder.path} · ${folder.access}`}
         >
-          <MacFolderIcon className="size-4 shrink-0" />
+          <SystemFolderIcon className="size-4 shrink-0" />
           <span className="truncate font-medium">
             {folderLabel(folder.path)}
           </span>

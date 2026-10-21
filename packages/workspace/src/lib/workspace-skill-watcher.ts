@@ -1,171 +1,23 @@
-import type { AsyncSubscription } from "@parcel/watcher";
-
-import { noop } from "radashi";
-
 import { publisher } from "../rpc/publisher";
-import { afterFolderAppears, isFolder } from "./folder-appears";
-import {
-  NATIVE_WATCHER_BACKEND,
-  type NativeWatcherApi,
-} from "./native-watcher-backend";
-import { SKILL_ARTIFACT_WATCHER_IGNORE } from "./skill-artifact-ignore";
-import { getWorkspaceConfig } from "./workspace-config";
+import { watchFolder } from "./folder-watch";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
-const DEBOUNCE_MS = 150;
-
-interface WatcherEntry {
-  /** The subscription made once the folder turned up, while it is being made. */
-  appeared: Promise<void>;
-  debounceTimer: null | ReturnType<typeof setTimeout>;
-  disposed: boolean;
-  init: Promise<void>;
-  refCount: number;
-  stopWaiting: (() => void) | null;
-  subscription: AsyncSubscription | null;
-}
-
-let ACTIVE: undefined | WatcherEntry;
-let PARCEL_PROMISE: Promise<NativeWatcherApi | undefined> | undefined;
-
 /**
- * Keeps one process-level watcher alive while any client subscribes to skill
- * changes. Transcript attribution is deliberately separate and session-owned.
+ * Tells everyone listing skills when the workspace's own skills change on
+ * disk, whoever changed them: the agent, the person in their files, another
+ * program. Each skill's folder is watched, so a `SKILL.md` saved is heard at
+ * once; deeper files are found by the folder's regular read.
  */
 export async function startWatchingWorkspaceSkills(): Promise<
   () => Promise<void>
 > {
-  const existing = ACTIVE;
-  if (existing) {
-    existing.refCount += 1;
-    await existing.init;
-    return () => release(existing);
-  }
-
-  const entry: WatcherEntry = {
-    appeared: Promise.resolve(),
-    debounceTimer: null,
-    disposed: false,
-    init: Promise.resolve(),
-    refCount: 1,
-    stopWaiting: null,
-    subscription: null,
+  const stop = watchFolder(getWorkspaceSkillsDir(), {
+    depth: 1,
+    onChange: () => {
+      publisher.publish("skill.changed", null);
+    },
+  });
+  return async () => {
+    stop();
   };
-  ACTIVE = entry;
-  entry.init = initialize(entry);
-  await entry.init;
-  return () => release(entry);
-}
-
-/** Stops the native subscription before the Node environment is torn down. */
-export async function stopWorkspaceSkillWatcher(): Promise<void> {
-  const entry = ACTIVE;
-  if (!entry) {
-    return;
-  }
-  ACTIVE = undefined;
-  entry.disposed = true;
-  entry.stopWaiting?.();
-  if (entry.debounceTimer) {
-    clearTimeout(entry.debounceTimer);
-  }
-  await entry.init.catch(noop);
-  await entry.appeared.catch(noop);
-  await entry.subscription?.unsubscribe().catch(noop);
-  entry.subscription = null;
-}
-
-async function initialize(entry: WatcherEntry) {
-  const skillsDir = getWorkspaceSkillsDir();
-  if (isFolder(skillsDir)) {
-    await subscribe(entry, skillsDir);
-    return;
-  }
-  // A workspace with no skills has no folder until the first one is made.
-  entry.stopWaiting = afterFolderAppears(skillsDir, () => {
-    entry.appeared = subscribe(entry, skillsDir).then(() => {
-      if (!isDisposed(entry)) {
-        publisher.publish("skill.changed", null);
-      }
-    });
-  });
-}
-
-async function subscribe(entry: WatcherEntry, skillsDir: string) {
-  try {
-    const parcel = await loadParcelWatcher();
-    if (!parcel || isDisposed(entry)) {
-      return;
-    }
-    const subscription = await parcel.subscribe(
-      skillsDir,
-      (error, events) => {
-        if (error) {
-          getWorkspaceConfig().captureException(error);
-          return;
-        }
-        if (events.length === 0 || isDisposed(entry)) {
-          return;
-        }
-        if (entry.debounceTimer) {
-          clearTimeout(entry.debounceTimer);
-        }
-        entry.debounceTimer = setTimeout(() => {
-          entry.debounceTimer = null;
-          if (!isDisposed(entry)) {
-            publisher.publish("skill.changed", null);
-          }
-        }, DEBOUNCE_MS);
-      },
-      {
-        backend: NATIVE_WATCHER_BACKEND,
-        ignore: SKILL_ARTIFACT_WATCHER_IGNORE,
-      },
-    );
-    if (isDisposed(entry)) {
-      await subscription.unsubscribe().catch(noop);
-      return;
-    }
-    entry.subscription = subscription;
-  } catch (error) {
-    getWorkspaceConfig().captureException(error);
-  }
-}
-
-function isDisposed(entry: WatcherEntry) {
-  return entry.disposed;
-}
-
-async function loadParcelWatcher(): Promise<NativeWatcherApi | undefined> {
-  PARCEL_PROMISE ??= (async () => {
-    try {
-      const mod = await import("@parcel/watcher");
-      return (mod as { default?: NativeWatcherApi }).default ?? mod;
-    } catch (error) {
-      getWorkspaceConfig().captureException(error);
-      return;
-    }
-  })();
-  return PARCEL_PROMISE;
-}
-
-async function release(entry: WatcherEntry) {
-  entry.refCount -= 1;
-  if (entry.refCount > 0) {
-    return;
-  }
-  entry.disposed = true;
-  if (ACTIVE === entry) {
-    ACTIVE = undefined;
-  }
-  entry.stopWaiting?.();
-  if (entry.debounceTimer) {
-    clearTimeout(entry.debounceTimer);
-  }
-  await entry.init;
-  await entry.appeared;
-  await entry.subscription?.unsubscribe().catch((error: unknown) => {
-    getWorkspaceConfig().captureException(error);
-  });
-  entry.subscription = null;
 }

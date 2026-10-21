@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import { serveRegisteredClient } from "../../test/helpers/serve-registered-client";
 import {
   appCatalogEntriesHash,
+  catalogApiSignInClient,
   builtInAppCatalogRevision,
   catalogEntryAt,
   catalogEntryForApp,
@@ -12,6 +14,7 @@ import {
   applyServedAppCatalog,
 } from "./catalog";
 import seed from "./catalog-seed.json";
+import { catalogWayIn } from "./way-in";
 
 describe("catalogEntryAt", () => {
   it.each([
@@ -51,6 +54,87 @@ describe("a Google product the directory gives no client", () => {
   ])("still needs a client at %s", (endpoint) => {
     expect(catalogEndpointNeedsClient(endpoint)).toBe(true);
     expect(catalogRegisteredClient(endpoint)).toBeUndefined();
+  });
+});
+
+describe("Microsoft Graph's sign-in", () => {
+  const graph = "https://graph.microsoft.com/v1.0";
+  const entry = (slug: string) => {
+    const found = getAppCatalog().find((candidate) => candidate.slug === slug);
+    if (!found) {
+      throw new Error(`No ${slug} in the directory`);
+    }
+    return found;
+  };
+
+  afterEach(() => {
+    resetServedAppCatalog();
+  });
+
+  // The client is served only to admins; everyone else keeps the web.
+  it.each(["outlook", "onedrive", "teams"])(
+    "leaves %s on the web without the client",
+    (slug) => {
+      expect(catalogWayIn(entry(slug)).kind).toBe("web");
+      expect(
+        catalogApiSignInClient(slug, { service: slug, type: "api", url: graph }),
+      ).toBeUndefined();
+    },
+  );
+
+  it.each(["outlook", "onedrive", "teams"])(
+    "signs %s in to Graph with the client",
+    (slug) => {
+      serveRegisteredClient(slug, "microsoft-client");
+      expect(catalogWayIn(entry(slug))).toEqual({
+        auth: "oauth",
+        endpoint: graph,
+        kind: "api",
+        test: "/me",
+      });
+    },
+  );
+
+  it("gives each product of one API its own scopes and relay route", () => {
+    serveRegisteredClient(["outlook", "onedrive", "teams"], "microsoft-client");
+    const signIns = ["outlook", "onedrive", "teams"].map((service) =>
+      catalogApiSignInClient(`${service}-2`, {
+        service,
+        type: "api",
+        url: `${graph}/`,
+      }),
+    );
+    expect(signIns).toMatchInlineSnapshot(`
+      [
+        {
+          "authorizationEndpoint": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+          "authorizationParams": {
+            "prompt": "select_account",
+          },
+          "clientId": "microsoft-client",
+          "scope": "offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite",
+          "service": "outlook",
+        },
+        {
+          "authorizationEndpoint": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+          "authorizationParams": {
+            "prompt": "select_account",
+          },
+          "clientId": "microsoft-client",
+          "scope": "offline_access User.Read Files.ReadWrite.All",
+          "service": "onedrive",
+        },
+        {
+          "authorizationEndpoint": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+          "authorizationParams": {
+            "prompt": "select_account",
+          },
+          "clientId": "microsoft-client",
+          "scope": "offline_access User.Read Chat.ReadWrite ChatMessage.Send Team.ReadBasic.All Channel.ReadBasic.All ChannelMessage.Send",
+          "service": "teams",
+        },
+      ]
+    `);
   });
 });
 

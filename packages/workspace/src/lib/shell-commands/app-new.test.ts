@@ -315,6 +315,8 @@ describe("app test and the guide skeleton", () => {
     ["hubspot", "--web https://app.hubspot.com"],
     // Slack, until the directory gives it a client, goes to the web too.
     ["slack", "--web https://app.slack.com"],
+    // So does Outlook, whose Microsoft Graph sign-in needs Instrument's client.
+    ["outlook", "--web https://outlook.office.com"],
     // One that wants a sign-in gets the card, not --auth none.
     ["semgrep", "--mcp https://mcp.semgrep.ai/mcp\n"],
   ])("sets %s up the way it actually connects", async (slug, line) => {
@@ -333,6 +335,47 @@ describe("app test and the guide skeleton", () => {
     } finally {
       resetServedAppCatalog();
     }
+  });
+
+  it("signs in to Microsoft Graph once the directory gives a client", async () => {
+    serveRegisteredClient("outlook", "registered-microsoft-client");
+    try {
+      const line =
+        "app new outlook --name 'Outlook' --api https://graph.microsoft.com/v1.0 --auth oauth --test /me";
+      expect((await app("catalog", "outlook")).stdout).toContain(line);
+
+      const result = await app(...line.split(" ").slice(1).map((word) => word.replaceAll("'", "")));
+
+      expect(result.stdout).toContain(
+        "Ask the user to sign in with connect_app; the app connects on its own when they do.",
+      );
+      expect(
+        (await loadApp(getWorkspaceConfig().appsDir, "outlook"))._unsafeUnwrap()
+          .manifest,
+      ).toMatchObject({ auth: { kind: "oauth" }, service: "outlook" });
+    } finally {
+      resetServedAppCatalog();
+    }
+  });
+
+  it("refuses an API sign-in the directory has no client for", async () => {
+    const result = await app(
+      "new",
+      "teams",
+      "--name",
+      "Microsoft Teams",
+      "--api",
+      "https://graph.microsoft.com/v1.0",
+      "--auth",
+      "oauth",
+      "--test",
+      "/me",
+    );
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain(
+      "signs in to an API only with a client the directory has for its service, and it has none for https://graph.microsoft.com/v1.0 as teams",
+    );
   });
 
   it("puts the directory's key test in the set-up line", async () => {

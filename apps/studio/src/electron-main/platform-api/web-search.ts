@@ -1,3 +1,4 @@
+import { noteHostedRefusal } from "@/electron-main/lib/hosted-features";
 import { systemCountry } from "@/electron-main/lib/system-country";
 import { getToken } from "@/electron-main/platform-api/utils";
 import {
@@ -74,6 +75,17 @@ export const searchWeb: WebSearchClient = async ({ input, signal }) => {
       }
     } catch {
       // Preserve the status-based message when the server did not return JSON.
+    }
+    // A refusal for the plan is news about what runs, so the status is read
+    // again, and the next search is routed by it.
+    if (refusal) {
+      noteHostedRefusal({
+        at: Date.now(),
+        code: refusal.code,
+        details: {},
+        path: "search",
+        status: response.status,
+      });
     }
     return {
       errorMessage,

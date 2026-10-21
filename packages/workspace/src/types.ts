@@ -198,6 +198,13 @@ export interface WorkspaceConfig {
    */
   isHostedFeatureAvailable?: (feature: "decisions") => boolean | undefined;
   /**
+   * Whether a search from a model on the person's own provider goes through
+   * the platform's search first: true only while signed in, the platform's
+   * switch for it is on, and its plan would run search, as it last said.
+   * Absent or false, such a model searches through its provider.
+   */
+  isPlatformSearchForEveryModel?: () => boolean;
+  /**
    * Who is signed in, for the agents to know whose work it is: the account's
    * email and, when the account gives one, name, or undefined while nobody is. Read when a session's
    * context is built rather than at boot, since a sign-in comes and goes;

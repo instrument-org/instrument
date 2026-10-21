@@ -311,8 +311,9 @@ export function useChatNote({
     }
   }
 
-  // A search our endpoint refused while the free allowance is spent ran on a
-  // basic search instead; the chat says so quietly, until the reset.
+  // A search our endpoint refused while the free allowance is spent ran on
+  // another search instead (a basic one, or the model's own provider's); the
+  // chat says so quietly, until the reset.
   const searchPause = isSignedIn
     ? lastSearchPause(messages, status, now)
     : undefined;

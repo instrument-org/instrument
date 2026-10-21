@@ -5,6 +5,7 @@ vi.mock("../platform-api/utils", () => ({ getToken: () => token.value }));
 
 const {
   isHostedFeatureAvailable,
+  isPlatformSearchForEveryModel,
   noteHostedRefusal,
   recordHostedFeatures,
   setHostedFeaturesReader,
@@ -53,6 +54,83 @@ describe("hosted features", () => {
 
     expect(isHostedFeatureAvailable("decisions", NOW)).toBeUndefined();
   });
+
+  it.each([
+    {
+      expected: true,
+      forEveryModel: true,
+      search: "available",
+      signedIn: true,
+    },
+    {
+      expected: false,
+      forEveryModel: false,
+      search: "available",
+      signedIn: true,
+    },
+    {
+      expected: false,
+      forEveryModel: undefined,
+      search: "available",
+      signedIn: true,
+    },
+    { expected: false, forEveryModel: true, search: "spent", signedIn: true },
+    {
+      expected: true,
+      forEveryModel: true,
+      search: "spent until now",
+      signedIn: true,
+    },
+    {
+      expected: false,
+      forEveryModel: true,
+      search: "plan only",
+      signedIn: true,
+    },
+    { expected: false, forEveryModel: true, search: "unread", signedIn: true },
+    {
+      expected: false,
+      forEveryModel: true,
+      search: "available",
+      signedIn: false,
+    },
+  ] as const)(
+    "sends every model's search to the platform: $expected while $search, switch $forEveryModel, signed in $signedIn",
+    ({ expected, forEveryModel, search, signedIn }) => {
+      const availability = {
+        available: { available: true },
+        "plan only": {
+          available: false,
+          code: "subscription-required",
+          reason: "no-plan",
+        },
+        spent: {
+          available: false,
+          code: "usage-limit-exceeded",
+          resetsAt: RESET,
+        },
+        "spent until now": {
+          available: false,
+          code: "usage-limit-exceeded",
+          resetsAt: new Date(NOW).toISOString(),
+        },
+        unread: undefined,
+      }[search];
+      recordHostedFeatures(
+        availability && {
+          search: {
+            ...availability,
+            ...(forEveryModel !== undefined && { forEveryModel }),
+          },
+        },
+      );
+      if (!signedIn) {
+        token.value = null;
+      }
+
+      expect(isPlatformSearchForEveryModel(NOW)).toBe(expected);
+    },
+  );
 
   it("reads the status again after a plan refusal, at most every 30 seconds", () => {
     const read = vi.fn(() => Promise.resolve());

@@ -5,7 +5,9 @@ import { getToken } from "../platform-api/utils";
 
 type HostedFeature = "decisions" | "dictation" | "models" | "search";
 
-type Features = Partial<Record<HostedFeature, FeatureAvailability>>;
+type Features = Partial<Record<HostedFeature, FeatureAvailability>> & {
+  search?: { forEveryModel?: boolean };
+};
 
 /** The least time between the status reads a refusal asks for. */
 const REFUSAL_READ_GAP_MS = 30_000;
@@ -54,6 +56,21 @@ export function isHostedFeatureAvailable(
     ? Date.parse(availability.resetsAt)
     : Number.NaN;
   return availability.code === "usage-limit-exceeded" && resetsAt <= now;
+}
+
+/**
+ * Whether a search from a model on the person's own provider should go
+ * through the platform's search: signed in, the platform's switch for it on,
+ * and search available, as the last status read for this sign-in said.
+ * False whenever any of that is unknown, so a missing or stale read leaves
+ * the provider's search in place.
+ */
+export function isPlatformSearchForEveryModel(now = Date.now()) {
+  return (
+    Boolean(getToken()) &&
+    last?.features.search?.forEveryModel === true &&
+    isHostedFeatureAvailable("search", now) === true
+  );
 }
 
 /**

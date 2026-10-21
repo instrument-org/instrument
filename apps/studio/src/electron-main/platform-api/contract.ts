@@ -44,7 +44,14 @@ const BillingStatusSchema = z.object({
       /** Not reported yet: dictation is metered apart from the plans. */
       dictation: FeatureAvailabilitySchema.optional(),
       models: FeatureAvailabilitySchema,
-      search: FeatureAvailabilitySchema,
+      search: FeatureAvailabilitySchema.extend({
+        /**
+         * Whether searches from a model on the person's own provider go
+         * through the platform too while search is available. Absent from
+         * a platform that predates it, and then taken as false.
+         */
+        forEveryModel: z.boolean().optional(),
+      }),
     })
     .optional(),
   plan: z.string(),

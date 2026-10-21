@@ -38,10 +38,7 @@ import {
   shellPath,
   shellPathOfHostSpelling,
 } from "./workspace-fs-layout";
-import {
-  beginSkillChangeTracking,
-  consumeSkillChanges,
-} from "./workspace-skill-index";
+import { beginSetupChangeTracking, consumeSetupChanges } from "./setup-changes";
 
 describe("buildBashFs", () => {
   let tmpDir: string;
@@ -480,6 +477,87 @@ describe("buildBashFs", () => {
     await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
     expect(existsSync(gone)).toBe(false);
   });
+
+  // `~/walk-work` granted, leading into a closed `~/Documents`: the grant's
+  // own spelling reaches the folder it opens, and nothing else in Documents.
+  describe.skipIf(process.platform === "win32")(
+    "a granted link into a closed folder",
+    () => {
+      async function linkedBash() {
+        const home = path.join(await fs.realpath(tmpDir), "home");
+        const documents = path.join(home, "Documents");
+        const target = path.join(documents, "walk-work");
+        const link = path.join(home, "walk-work");
+        await fs.mkdir(target, { recursive: true });
+        await fs.writeFile(path.join(target, "notes.txt"), "walk notes");
+        await fs.writeFile(path.join(documents, "secret.txt"), "secret");
+        await fs.symlink(target, link);
+        const folder = (id: string, folderPath: string) => ({
+          access: "read-write" as const,
+          id: MountedFolder.IdSchema.parse(id),
+          path: AbsolutePathSchema.parse(folderPath),
+        });
+        const layout = buildWorkspaceFsLayout({
+          folders: {
+            home: folder("home-id", home),
+            link: folder("link-id", link),
+          },
+          rules: {
+            dangerouslyAllowEveryFolder: false,
+            home,
+            rules: [
+              { level: "allow", path: home, source: "system" },
+              { level: "ask", path: documents, source: "place" },
+              { level: "allow", path: link, source: "grant" },
+            ],
+          },
+          chatHostRoot: WorkDirSchema.parse(chatRoot),
+        });
+        const bash = new Bash({
+          cwd: layout.chat.shellRoot,
+          fs: await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 }),
+        });
+        return { bash, documents, link: shellPath(link), target };
+      }
+
+      it.each([
+        ["cd", (link: string) => `cd ${link} && cat notes.txt`, "walk notes"],
+        ["cat", (link: string) => `cat ${link}/notes.txt`, "walk notes"],
+        ["ls", (link: string) => `ls ${link}`, "notes.txt\n"],
+      ])("reads through the link with %s", async (_, command, stdout) => {
+        const { bash, link } = await linkedBash();
+        const result = await bash.exec(command(link));
+        expect(result.stderr).toBe("");
+        expect(result.stdout).toBe(stdout);
+        expect(result.exitCode).toBe(0);
+      });
+
+      it("writes through the link into the folder it leads to", async () => {
+        const { bash, link, target } = await linkedBash();
+        const result = await bash.exec(`echo hi > ${link}/new.txt`);
+        expect(result.exitCode).toBe(0);
+        await expect(
+          fs.readFile(path.join(target, "new.txt"), "utf8"),
+        ).resolves.toBe("hi\n");
+      });
+
+      it("opens nothing else in the closed folder", async () => {
+        const { bash, documents, link, target } = await linkedBash();
+        await fs.symlink(
+          path.join(documents, "secret.txt"),
+          path.join(target, "secret.txt"),
+        );
+        for (const secret of [
+          `${shellPath(documents)}/secret.txt`,
+          `${link}/secret.txt`,
+        ]) {
+          const result = await bash.exec(`cat ${secret}`);
+          expect(result.stdout).toBe("");
+          expect(result.exitCode).not.toBe(0);
+        }
+      });
+    },
+  );
 });
 
 describe("buildBashFs skills mount", () => {
@@ -543,7 +621,7 @@ describe("buildBashFs skills mount", () => {
       id: ChatIdSchema.parse("skills-mount-test"),
       sessionId: StoreId.newSessionId(),
     };
-    await beginSkillChangeTracking(turn);
+    beginSetupChangeTracking(turn);
 
     await withTurnContext(turn, () =>
       bash.exec(
@@ -551,9 +629,9 @@ describe("buildBashFs skills mount", () => {
       ),
     );
 
-    await expect(consumeSkillChanges(turn)).resolves.toMatchObject({
-      created: ["tracked"],
-    });
+    await expect(consumeSetupChanges(turn)).resolves.toEqual([
+      { change: "added", kind: "skill", name: "tracked" },
+    ]);
   });
 
   it("provisions the mount when the workspace has no skills dir yet", async () => {

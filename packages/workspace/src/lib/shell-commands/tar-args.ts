@@ -50,18 +50,25 @@ export function tarWithDashedOptions(
 }
 
 /**
- * What a tar command line asks for: its mode, the archive it names (`-f`)
- * and the folders it changes into (`-C`). Read from dashed options only, so
- * an old-style first argument goes through tarWithDashedOptions first.
+ * What a tar command line asks for: its mode, the archive it names (`-f`),
+ * the folders it changes into (`-C`), and whether what it extracts goes to
+ * stdout (`-O`, `--to-stdout`). Read from dashed options only, so an
+ * old-style first argument goes through tarWithDashedOptions first.
  */
 function tarOptions(
   args: string[],
   platform: NodeJS.Platform = process.platform,
-): { archives: string[]; folders: string[]; mode: string | undefined } {
+): {
+  archives: string[];
+  folders: string[];
+  mode: string | undefined;
+  toStdout: boolean;
+} {
   const values = valueFlags(platform);
   const archives: string[] = [];
   const folders: string[] = [];
   let mode: string | undefined;
+  let toStdout = false;
   for (let index = 0; index < args.length; index++) {
     const arg = args[index] ?? "";
     if (arg === "--") {
@@ -70,6 +77,7 @@ function tarOptions(
     if (arg.startsWith("--")) {
       const [name = "", inline] = arg.split(/=(.*)/s);
       mode = LONG_MODES[name] ?? mode;
+      toStdout ||= name === "--to-stdout";
       if (name === "--file" || name === "--directory") {
         const value = inline ?? args[index + 1];
         if (inline === undefined) {
@@ -89,6 +97,7 @@ function tarOptions(
       if (MODES.includes(letter)) {
         mode = letter;
       }
+      toStdout ||= letter === "O";
       if (values.includes(letter)) {
         // The rest of the cluster is its value, or else the next argument.
         let value = arg.slice(at + 1);
@@ -105,17 +114,22 @@ function tarOptions(
       }
     }
   }
-  return { archives, folders, mode };
+  return { archives, folders, mode, toStdout };
 }
 
 /**
  * What a tar command writes: the archive it creates or adds to, or the
- * folder it extracts into, the working directory when it names none. `-`
- * is stdout or stdin, not a path.
+ * folder it extracts into, the working directory when it names none, and
+ * nothing for an extract to stdout. `-` is stdout or stdin, not a path.
  */
 export function tarWrites(args: string[]): string[] {
-  const { archives, folders, mode } = tarOptions(tarWithDashedOptions(args));
+  const { archives, folders, mode, toStdout } = tarOptions(
+    tarWithDashedOptions(args),
+  );
   if (mode === "x") {
+    if (toStdout) {
+      return [];
+    }
     return folders.length > 0 ? folders : ["."];
   }
   return mode !== undefined && "Acru".includes(mode)

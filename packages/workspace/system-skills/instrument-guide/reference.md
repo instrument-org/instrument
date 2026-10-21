@@ -20,9 +20,10 @@ Your account, how Instrument looks, notifications, updates, and the diagnostic l
 
 ### Memory (`memory`)
 
-What Instrument remembers about you, which you can search, forget, or add to from another AI.
+What Instrument remembers about you, one file per memory, which you can search, open, forget, or add to from another AI.
 
 - **Import from another AI** (`memory-import`): Bring in what another AI knows about you.
+- **Memory folder** (`memory-folder`): Open the folder of your memories, where each one is a file you can read or change.
 
 ### Permissions (`permissions`)
 

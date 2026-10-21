@@ -57,30 +57,38 @@ export function loadChildren(root) {
   const tasks = sessions
     .filter((s) => s.parent && s.parent === chatSession)
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
-  // One cached export per task, overwritten on each run, so the path the
-  // digest prints stays valid for reading the child's transcript directly.
-  const cache = path.join(process.env.TMPDIR ?? "/tmp", "transcript-digest");
-  fs.mkdirSync(cache, { recursive: true });
   return tasks.map((task) => {
     const id = task.handle ? `${task.handle} ${task.id}` : task.id;
-    const md = path.join(cache, `${task.id}.md`);
-    execFileSync(
-      "pnpm",
-      [
-        "--silent",
-        "--filter",
-        "@instrument-org/workspace",
-        "run",
-        "script:dump-session-transcript",
-        chatDir,
-        "--session",
-        task.id,
-        "--output",
-        md,
-      ],
-      { cwd: REPO, stdio: "ignore" },
-    );
+    const md = exportSession(chatDir, task.id);
     const p = parseTranscript(md);
     return { id, file: md, p, a: analyze(p) };
   });
+}
+
+/**
+ * Renders one session of the chat in `chatDir` (its own, when `sessionId` is
+ * absent) with script:dump-session-transcript, and returns the file. One
+ * cached export per session, overwritten on each run, so the path the digest
+ * prints stays valid for reading the transcript directly.
+ */
+export function exportSession(chatDir, sessionId) {
+  const cache = path.join(process.env.TMPDIR ?? "/tmp", "transcript-digest");
+  fs.mkdirSync(cache, { recursive: true });
+  const md = path.join(cache, `${sessionId ?? path.basename(chatDir)}.md`);
+  execFileSync(
+    "pnpm",
+    [
+      "--silent",
+      "--filter",
+      "@instrument-org/workspace",
+      "run",
+      "script:dump-session-transcript",
+      path.resolve(chatDir),
+      ...(sessionId ? ["--session", sessionId] : []),
+      "--output",
+      md,
+    ],
+    { cwd: REPO, stdio: "ignore" },
+  );
+  return md;
 }

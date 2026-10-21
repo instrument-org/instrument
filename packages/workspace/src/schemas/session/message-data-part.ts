@@ -25,7 +25,8 @@ export namespace SessionMessageDataPart {
     "fromChat",
     "intent",
     "jobEvent",
-    "skillChanges",
+    "setupChanges",
+    "setupNews",
     "skillMentions",
     "maxSteps",
     "memory",
@@ -90,7 +91,8 @@ export namespace SessionMessageDataPart {
     permissionAnswer: "event",
     questionAnswer: "event",
     reply: "event",
-    skillChanges: "event",
+    setupChanges: "event",
+    setupNews: "diff",
     skillMentions: "event",
     taskEvent: "event",
     topic: "state",
@@ -332,20 +334,51 @@ export namespace SessionMessageDataPart {
   export type ReplyDataPart = z.output<typeof ReplyDataPartSchema>;
 
   /**
-   * Skills the agent installed or revised during the turn, detected by diffing
-   * the workspace skills directory across the turn. Attached to the turn's last
-   * assistant message so the chat can offer a way into a skill the agent just
-   * wrote. Names are directory names, which is how the skills routes address
-   * them. Deletions are deliberately not carried: there would be nowhere to go.
+   * What a turn did to the person's setup: the skills, apps and memories it
+   * added, changed or removed, read off the turn's own writes
+   * (`setup-changes.ts`), so each is the turn's doing and none is another
+   * chat's or the person's. Attached to the turn's last assistant message,
+   * where the chat tells the person, and where the skill catalog's
+   * correction for the model comes from.
    */
-  export const SkillChangesDataPartSchema = z.object({
-    created: z.array(z.string()),
-    updated: z.array(z.string()),
+  export const SetupChangesDataPartSchema = z.object({
+    changes: z
+      .array(
+        z.object({
+          change: z.enum(["added", "changed", "removed"]),
+          kind: z.enum(["app", "memory", "skill", "topic"]),
+          name: z.string(),
+        }),
+      )
+      .min(1),
   });
 
-  export type SkillChangesDataPart = z.output<
-    typeof SkillChangesDataPartSchema
+  export type SetupChangesDataPart = z.output<
+    typeof SetupChangesDataPartSchema
   >;
+
+  /**
+   * The workspace's skills that changed since this session last heard, by
+   * anyone: another chat, the person, a program. Carried on the user's
+   * message so the agent works from what is there now: its skill catalog was
+   * written when the session began. Apps have their own (`data-appEvent`). A change the session's own
+   * turn made is not repeated here; `setupChanges` told it already.
+   */
+  export const SetupNewsDataPartSchema = z.object({
+    changes: z
+      .array(
+        z.object({
+          // A removal is not news: calling for what is gone comes back not
+          // found, beside what there is.
+          change: z.enum(["added", "changed"]),
+          kind: z.enum(["skill"]),
+          name: z.string(),
+        }),
+      )
+      .min(1),
+  });
+
+  export type SetupNewsDataPart = z.output<typeof SetupNewsDataPartSchema>;
 
   /**
    * Skills the user named in their message. Recorded so the model is told what
@@ -439,6 +472,12 @@ export namespace SessionMessageDataPart {
            * not finished.
            */
           needs: z.array(z.string()).optional(),
+          /**
+           * Whether sending the task on picks its turn up again: true when
+           * the step limit, the output limit, a model error, or a timeout
+           * ended it, which nobody decided. Absent for a stop.
+           */
+          resumable: z.boolean().optional(),
           /**
            * What the child left running in the background as its turn ended:
            * a server it started on purpose, or a scan it never stopped. Absent
@@ -578,6 +617,8 @@ export namespace SessionMessageDataPart {
           /** A line of detail: how many tools, what went wrong. */
           detail: z.string().optional(),
           event: z.enum([
+            "added",
+            "changed",
             "connected",
             "declined",
             "disconnected",
@@ -1036,7 +1077,8 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.outputLimit]: OutputLimitDataPartSchema,
     [NameSchema.enum.reply]: ReplyDataPartSchema,
-    [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
+    [NameSchema.enum.setupChanges]: SetupChangesDataPartSchema,
+    [NameSchema.enum.setupNews]: SetupNewsDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,

@@ -1,5 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import {
+  BubbleProjection,
   ChatIdSchema,
   type SessionMessage,
   StoreId,
@@ -9,6 +10,7 @@ import { act, fireEvent, screen } from "@testing-library/react";
 import { noop } from "radashi";
 import { describe, expect, it, vi } from "vitest";
 
+import { ChatBubbles } from "./chat-bubbles";
 import { ChatStream } from "./chat-stream";
 import { FileOpenContext } from "./file-open-context";
 import { ReplyContext } from "./reply-context";
@@ -167,6 +169,9 @@ function chatStream(
     renderAsItems = false,
   }: RenderOptions = {},
 ) {
+  if (presentation === "chat") {
+    return chatBubbles(messages, { isAgentRunning, isDeveloperMode });
+  }
   const stream = (
     <TranscriptScrollContext value={releaseAutoScroll ?? noop}>
       <ChatStream
@@ -178,7 +183,6 @@ function chatStream(
         onModelChange={vi.fn()}
         onRetry={vi.fn()}
         onRunAgain={vi.fn()}
-        {...(presentation ? { presentation } : {})}
         renderAsItems={renderAsItems}
         chatInfo={chatInfo}
       />
@@ -348,6 +352,44 @@ function read({
         toolCallId: StoreId.ToolCallSchema.parse(`call-r${partCounter}`),
         type: "tool-read_file",
       };
+}
+
+/**
+ * The conversation as the chat draws it: the messages through the feed's
+ * projection, as `message.live.bubbles` sends them, then the bubbles.
+ */
+function chatBubbles(
+  messages: unknown[],
+  {
+    isAgentRunning,
+    isDeveloperMode,
+  }: { isAgentRunning: boolean; isDeveloperMode: boolean },
+) {
+  const { feed } = new BubbleProjection().update({
+    isRunning: isAgentRunning,
+    messages: stampPhases(messages) as SessionMessage.WithParts[],
+  });
+  return (
+    <TooltipProvider>
+      <MessageScrollerProvider>
+        <MessageScroller>
+          <MessageScrollerViewport>
+            <MessageScrollerContent>
+              <ChatBubbles
+                chatInfo={chatInfo}
+                drafting={feed.drafting}
+                isAgentRunning={isAgentRunning}
+                isDeveloperMode={isDeveloperMode}
+                messages={feed.messages}
+                onContinue={vi.fn()}
+                onRetry={vi.fn()}
+              />
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+        </MessageScroller>
+      </MessageScrollerProvider>
+    </TooltipProvider>
+  );
 }
 
 function renderMessages(messages: unknown[], options?: RenderOptions) {
@@ -1176,7 +1218,7 @@ describe("ChatStream and a reasoning block that never wrote anything", () => {
 // The conversation's replies are one bubble per line said. A model that
 // retries a failed command says its line again before the retry, so the
 // same words landed twice in one turn; the second copy is not shown.
-describe("ChatStream in the conversation, and a line said twice in one turn", () => {
+describe("ChatBubbles, and a line said twice in one turn", () => {
   it("draws the line once within a turn, and again in the next turn", () => {
     renderMessages(
       [
@@ -1241,7 +1283,7 @@ describe("ChatStream in the conversation, and a line said twice in one turn", ()
   });
 });
 
-describe("ChatStream in the conversation, and a reply", () => {
+describe("ChatBubbles, and a reply", () => {
   it("draws what a reply answers over the user's words", () => {
     const replied = prose("Want me to book the 7:30 or the 8:15?");
     renderMessages(
@@ -1299,7 +1341,7 @@ describe("ChatStream in the conversation, and a reply", () => {
   });
 });
 
-describe("ChatStream and what a message went with", () => {
+describe("ChatBubbles and what a message went with", () => {
   it("draws the chips a message was sent with over its words, and only those", () => {
     const { container } = renderMessages(
       [
@@ -1447,7 +1489,7 @@ describe("ChatStream and what a message went with", () => {
 
 // The dots promise a reply: they stand only while a step is writing words,
 // and every other kind of working is said under the chat's title instead.
-describe("ChatStream in the conversation, and the typing dots", () => {
+describe("ChatBubbles, and the typing dots", () => {
   it.each<[string, unknown[], boolean]>([
     ["the turn just sent", [userMessage("Check the listing")], false],
     [

@@ -125,6 +125,7 @@ const StateWhatSchema = z.enum([
   "folders",
   "memory",
   "processes",
+  "setup",
 ]);
 
 export type StateWhat = z.output<typeof StateWhatSchema>;

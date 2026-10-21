@@ -37,8 +37,6 @@ import { publisher } from "../publisher";
 import { permissions } from "./permissions";
 import { session } from "./session";
 
-vi.mock(import("../../lib/session-store-storage"));
-
 // Whether a session has a turn running is the workspace machine's to say,
 // which a test has none of: none is, so a wake would start one, and no task
 // is at work.

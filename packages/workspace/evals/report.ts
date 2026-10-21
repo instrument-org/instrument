@@ -434,6 +434,16 @@ export async function generateReport({
             ),
         ),
       );
+      // A follow-up that had to land mid-work and landed after the turn
+      // instead scored the case against a moment that never happened.
+      const missed = run?.metrics?.duringWorkMissed ?? 0;
+      if (missed > 0) {
+        assertionResults.push({
+          evidence: `${String(missed)} sent after the turn ended instead`,
+          passed: false,
+          text: "every mid-work follow-up landed while the work ran",
+        });
+      }
       const passed = assertionResults.filter((r) => r.passed).length;
       const failed = assertionResults.filter((r) => !r.passed).length;
       const total = assertionResults.length;

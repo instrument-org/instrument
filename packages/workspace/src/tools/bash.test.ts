@@ -37,6 +37,26 @@ describe("BashTool", () => {
       `);
     });
 
+    it("leaves what answered each command out of the model's view", () => {
+      const output = {
+        ...BASE_OUTPUT,
+        command: "sort a",
+        commands: ["sort"],
+        output: "a\n",
+      };
+      const view = (
+        ran?: { count: number; name: string; source: "bundled" }[],
+      ) =>
+        BashTool.toModelOutput({
+          input: { command: "sort a", yieldMs: 1000 },
+          output: { ...output, ...(ran ? { ran } : {}) },
+          toolCallId: "1",
+        });
+      expect(view([{ count: 1, name: "sort", source: "bundled" }])).toEqual(
+        view(),
+      );
+    });
+
     it("announces a trailing `&` the way a shell announces a job", () => {
       const result = BashTool.toModelOutput({
         input: { command: "pnpm dev &", yieldMs: 1000 },

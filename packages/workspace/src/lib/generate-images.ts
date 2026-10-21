@@ -227,7 +227,12 @@ export async function generateBufferedImage({
         cause: generationError,
         responseBody,
       });
-      if (!NoImageGeneratedError.isInstance(generationError)) {
+      // A stop through the call's own signal is the person's choice, not a
+      // failure to report.
+      if (
+        !NoImageGeneratedError.isInstance(generationError) &&
+        !signal.aborted
+      ) {
         workspaceConfig.captureException(error);
       }
       return error;
@@ -377,7 +382,9 @@ async function* streamViaOpenRouter(args: {
   });
   const fail = (message: string, responseBody?: string) => {
     const error = new TypedError.APICall(message, { responseBody });
-    args.workspaceConfig.captureException(error);
+    if (!args.signal.aborted) {
+      args.workspaceConfig.captureException(error);
+    }
     return err(error);
   };
 

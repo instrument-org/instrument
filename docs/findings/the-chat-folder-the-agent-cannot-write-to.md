@@ -10,7 +10,7 @@ In a chat on the Windows host, with the branch's layout in place:
 
 ```
 $ echo "OUT=$INSTRUMENT_OUTPUT"
-OUT=/c/Users/cubetop/AppData/Roaming/Instrument (Dev)/workspace/Chats/Snow poem on Windows
+OUT=/c/Users/windows-user/AppData/Roaming/Instrument (Dev)/workspace/Chats/Snow poem on Windows
 
 $ echo hi >> "$INSTRUMENT_OUTPUT/ticks.txt"
 bash: .../workspace/Chats/Snow poem on Windows/ticks.txt: Permission denied

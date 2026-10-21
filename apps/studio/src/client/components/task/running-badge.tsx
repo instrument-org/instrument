@@ -27,7 +27,7 @@ export function RunningBadge({
         className,
       )}
     >
-      {count} {count === 1 ? "job" : "jobs"} running
+      {count} {count === 1 ? "command" : "commands"} running
     </span>
   );
 }

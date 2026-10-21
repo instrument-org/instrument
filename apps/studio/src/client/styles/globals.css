@@ -924,26 +924,6 @@ body {
   );
 }
 
-/* A native <details> that expands and collapses smoothly. `interpolate-size` is
- * set on the element rather than the document so animating to `auto` stays scoped
- * to this widget, and `allow-discrete` carries the content-visibility flip across
- * the transition instead of snapping it at the start. */
-@utility details-animated {
-  interpolate-size: allow-keywords;
-
-  &::details-content {
-    block-size: 0;
-    overflow: hidden;
-    transition:
-      block-size 200ms ease-out,
-      content-visibility 200ms allow-discrete;
-  }
-
-  &[open]::details-content {
-    block-size: auto;
-  }
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50 scrollbar-thin scrollbar-color;
@@ -1039,50 +1019,6 @@ a.cursor-pointer {
   }
 }
 
-/* `shine`, driving a mask instead of a background, so the same band can sweep
-* an icon. Text takes the highlight through `background-clip`, which only ever
-* paints glyphs; an SVG has to be lit by revealing a brighter copy of itself. */
-@keyframes shine-mask {
-  0% {
-    mask-position: 100%;
-  }
-  100% {
-    mask-position: -100%;
-  }
-}
-
-/* Each word of a message still streaming in; see `rehype-animate-words`, which
- * is what puts the attribute there and only while the text is still growing.
- *
- * Long and eased out rather than short and linear. Tokens arrive in bursts of
- * wildly varying size, and at a couple of hundred milliseconds each burst reads
- * as its own slab landing; held this long the fades overlap far enough to read
- * as one wash settling, which is what removes the appearance of chunking
- * without holding a single word back from the page. The curve front-loads the
- * opacity so a word is legible in a fraction of the time it takes to finish.
- *
- * Opacity alone. Hundreds of words are in flight at once on a fast model, and
- * anything else worth animating here either moves the text or, as a filter
- * would, puts every one of them on its own compositing layer for the duration. */
-[data-stream-word] {
-  animation: stream-word-in 800ms ease-out both;
-}
-
-@keyframes stream-word-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-stream-word] {
-    animation: none;
-  }
-}
-
 /* A heading the reader just jumped to; see `flashJumpTarget`, which puts the
  * class there and takes it off when the animation ends.
  *
@@ -1130,8 +1066,8 @@ a.cursor-pointer {
   }
 }
 
-/* A task's name arriving in place of the one before it; see `useTitleArrival`,
- * which puts the class there and only for a name the reader did not type.
+/* A chat's name arriving in place of the one before it; see `useTitleArrival`,
+ * which puts the class there and only for a name the app gave.
  *
  * A mask rather than a plain fade. The old name leaves the moment the new one
  * is committed, so a fade of the whole line starts from an empty row and the
@@ -1686,35 +1622,6 @@ a.cursor-pointer {
     animation: planning-dot-shockwave-ring 1.5s ease-out infinite;
     pointer-events: none;
     will-change: transform, opacity;
-  }
-
-  /* `brand-shiny-text` for an icon: the same traveling highlight on the same
-   * 3s period. Two copies of the icon stacked in a cell -- the base, and a
-   * brighter one revealed only where the band is, since a highlight brighter
-   * than what it crosses cannot be painted by dimming, which is all a mask can
-   * do on its own.
-   *
-   * One base in both modes, where the word needs two. The word's pair exists
-   * because thin glyph strokes at the light base fall to 2.3:1 on the dark
-   * surface; an icon is a filled shape carrying several times that ink, so the
-   * brighter of the two already clears 3:1 against the light surface and 5.4:1
-   * against the dark one. Taking the word's light base as well would only make
-   * the icon read as a heavy dark blob beside the gray icons it sits with,
-   * which is the same ink difference working the other way. */
-  .brand-shiny-icon {
-    color: #2e9e79;
-  }
-
-  .brand-shiny-icon-highlight {
-    color: #55e8bb;
-    mask-image: linear-gradient(
-      270deg,
-      transparent 24.14%,
-      black 34.66%,
-      transparent 60.34%
-    );
-    mask-size: 200% 100%;
-    animation: shine-mask 3s linear infinite;
   }
 }
 

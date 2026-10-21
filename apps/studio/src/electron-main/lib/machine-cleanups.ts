@@ -14,6 +14,7 @@ import childProcess from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import { pathWithin } from "./path-identity";
 import {
   CURRENT_SETTINGS_VERSION,
   MACHINE_PREFERENCES_NAME,
@@ -107,7 +108,7 @@ function steps(where: {
     [
       "remove the browser's own downloads folder",
       (done) => {
-        removeDownloadsFallback(where.workspace, done);
+        removeDownloadsFallback(where, done);
       },
     ],
     [
@@ -300,8 +301,21 @@ function readJsonObject(file: string): Record<string, unknown> | undefined {
  * Removed only while it is empty. Anything in it is a file the person
  * downloaded, which is theirs: the folder stays with those files in it, and
  * goes on the launch after they have moved or deleted the last one.
+ *
+ * Only in a workspace in the app's own data, where the browser made it. In a
+ * picked folder the top level is the person's, and on a disk that ignores
+ * case their own `Downloads` answers to the name.
  */
-function removeDownloadsFallback(workspace: ResolvedWorkspace, done: string[]) {
+function removeDownloadsFallback(
+  {
+    userDataDir,
+    workspace,
+  }: { userDataDir: string; workspace: ResolvedWorkspace },
+  done: string[],
+) {
+  if (!pathWithin(workspace.path, userDataDir)) {
+    return;
+  }
   const dir = path.join(workspace.path, CHAT_FOLDER_NAMES.downloads);
   try {
     if (fs.readdirSync(dir).length > 0) {

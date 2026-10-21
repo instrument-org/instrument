@@ -46,7 +46,8 @@ import {
 } from "react";
 import { toast } from "@/client/lib/toast";
 
-import { ChatStream, TypingRow } from "../chat-stream";
+import { ChatBubbles } from "../chat-bubbles";
+import { TypingRow } from "../chat-stream";
 import { ComposerDraftContext } from "../composer-draft-context";
 import { ModelChangeNote } from "../model-change-note";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
@@ -73,6 +74,7 @@ import {
   pendingPrompt,
   unsettledPrompts,
 } from "./pending-prompts";
+import { bubbleFeedOptions } from "./bubble-feed-query";
 import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 
 // How long a submitted prompt follows the transcript on its own before the
@@ -189,16 +191,10 @@ export function ChatConversation({
   }
 
   const messagesQuery = useQuery(
-    rpcClient.workspace.message.live.list.experimental_liveOptions({
-      input: {
-        id,
-        sessionId: selectedSessionId,
-      },
-      retry: 1,
-    }),
+    bubbleFeedOptions({ id, sessionId: selectedSessionId }),
   );
 
-  const messages = messagesQuery.data ?? [];
+  const messages = messagesQuery.data?.messages ?? [];
   // What was sent and is not stored yet, drawn after what is: see PendingPrompt.
   const [pending, setPending] = useState<PendingPrompt[]>([]);
   const unsettled = unsettledPrompts(pending, messages);
@@ -614,6 +610,8 @@ export function ChatConversation({
                     <NoMessages />
                   ) : (
                     <TranscriptStream
+                      chatInfo={chatInfo}
+                      drafting={messagesQuery.data?.drafting ?? false}
                       isAgentRunning={isAgentRunning || runTurn.isPending}
                       isDeveloperMode={isDeveloperMode}
                       messages={shownMessages}
@@ -624,8 +622,6 @@ export function ChatConversation({
                       }}
                       onRetry={handleRetry}
                       onRunAgain={() => handleRunAgain()}
-                      presentation="chat"
-                      chatInfo={chatInfo}
                     />
                   )}
                   {pendingModelChange && (
@@ -719,17 +715,14 @@ function SentPrompt({
   );
 }
 
-// The transcript, wired to the scroller it is drawn in. ChatStream also renders
-// outside one (nested tool-agent streams) where useMessageScroller throws, so
-// reading the scroll commands is this wrapper's job rather than its own.
-function TranscriptStream(
-  props: Omit<ComponentProps<typeof ChatStream>, "renderAsItems">,
-) {
+// The conversation, wired to the scroller it is drawn in: what a bubble opens
+// (a long table, a code block) hands following the end back through it.
+function TranscriptStream(props: ComponentProps<typeof ChatBubbles>) {
   const { releaseAutoScroll } = useMessageScroller();
 
   return (
     <TranscriptScrollContext value={releaseAutoScroll}>
-      <ChatStream {...props} renderAsItems />
+      <ChatBubbles {...props} />
     </TranscriptScrollContext>
   );
 }

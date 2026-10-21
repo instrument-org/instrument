@@ -28,8 +28,6 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { chats } from "./chats";
 import { permissions } from "./permissions";
 
-vi.mock(import("../../lib/session-store-storage"));
-
 vi.mock(import("@instrument-org/ai-gateway"), async (importOriginal) => ({
   ...(await importOriginal()),
   fetchModel: () => Promise.resolve({ ok: true, value: {} } as never),

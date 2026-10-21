@@ -8,14 +8,17 @@ export function folderOf(hostPath: string) {
 }
 
 /**
- * The folder a folder sits in, or null at the top of a disk (`/`, `C:\`),
- * which nothing is above. A Windows drive's top keeps its backslash, as the
- * drive is written.
+ * The folder a folder sits in, or null at the top of a disk (`/`, `C:\`) or
+ * of a network share (`\\server\share`), which nothing is above. A Windows
+ * drive's top keeps its backslash, as the drive is written.
  */
 export function parentFolderOf(hostPath: string): null | string {
   const names = segmentsOf(hostPath);
   if (separatorOf(hostPath) === "\\") {
     const above = names.slice(0, -1);
+    if (hostPath.startsWith("\\\\")) {
+      return above.length < 2 ? null : `\\\\${above.join("\\")}`;
+    }
     if (above.length === 0) {
       return null;
     }
@@ -68,6 +71,18 @@ export function joinHostPath(base: string, ...below: string[]) {
 /** What a thing is called: the last name along its path, whichever way the path is spelled. */
 export function nameOf(hostPath: string) {
   return segmentsOf(hostPath).at(-1) ?? hostPath;
+}
+
+/**
+ * Where a path on this computer sits under a root, as the browser spells a
+ * prefix (with slashes, whatever the computer); null when it is not under it.
+ */
+export function relativeHostPath(root: string, hostPath: string) {
+  const separator = root.includes("\\") ? "\\" : "/";
+  const base = root.endsWith(separator) ? root : `${root}${separator}`;
+  return hostPath.startsWith(base)
+    ? hostPath.slice(base.length).split(separator).join("/")
+    : null;
 }
 
 /** Every name along a path, in order, whichever way the path is spelled. */

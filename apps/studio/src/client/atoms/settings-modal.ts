@@ -17,17 +17,13 @@ interface SettingsModalState {
   providerUsage?: "claude-account";
   /** Open the General tab's diagnostic log viewer over Settings. */
   diagnosticLog?: boolean;
-  /** The memory to bring into view on the Memory tab, by its name, for a link to one. */
+  /** A memory a link named, by its name, which the Memory tab says is gone when no file has it. */
   memory?: string;
-  // Deep-link the Providers tab straight to the add-provider dialog.
-  showNewProviderDialog?: boolean;
   /**
    * The setting to bring into view and light, by the name a link gives it: a
    * row's id, a page's name, or words to search for (`settingsTargetOf`).
    */
   setting?: string;
-  /** The skill to open on the Skills tab, by the name a task loads it by, for a link to one. */
-  skill?: string;
   tab?: SettingsTab;
 }
 

@@ -295,7 +295,7 @@ async function searchOnce({
   });
   if (!resolved.ok) {
     throw new Error(
-      "there is no Grok account to search X with: none is signed in, or xAI refused the one that is. The user can sign in with Grok, or see why it was refused, under Settings › Providers.",
+      "there is no Grok account to search X with: none is signed in, or xAI refused the one that is. The user can sign in with Grok, or see why it was refused, under [Grok account](instrument://settings/grok-account).",
     );
   }
   const { config, model, tools } = resolved.value;
@@ -401,13 +401,13 @@ function refusal(error: unknown): string {
       error.statusCode === 429 &&
       NO_ALLOWANCE_PATTERN.test(`${error.message}\n${detail}`)
     ) {
-      return "the Grok account has no Grok subscription, so xAI allows it no requests. It needs SuperGrok or X Premium+; Settings › Providers shows each account's plan.";
+      return "the Grok account has no Grok subscription, so xAI allows it no requests. It needs SuperGrok or X Premium+; [Grok account](instrument://settings/grok-account) in Settings shows its plan.";
     }
     if (error.statusCode === 429) {
       return `the Grok account hit its usage limit; try again later. xAI said: ${detail}`;
     }
     if (error.statusCode === 401 || error.statusCode === 403) {
-      return `xAI refused the Grok account (${String(error.statusCode)}). Its plan may not include this, or signing in again under Settings › Providers may help. xAI said: ${detail}`;
+      return `xAI refused the Grok account (${String(error.statusCode)}). Its plan may not include this, or signing in again under [Grok account](instrument://settings/grok-account) may help. xAI said: ${detail}`;
     }
     return `X search failed (${String(error.statusCode ?? "no status")}): ${detail}`;
   }

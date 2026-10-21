@@ -1,4 +1,5 @@
 import {
+  type ProblemReportRequest,
   type ReportRequest,
   reportDialogAtom,
 } from "@/client/atoms/report-dialog";
@@ -14,7 +15,8 @@ import {
 import { Textarea } from "@/client/components/ui/textarea";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useModalBack } from "@/client/hooks/use-modal-back";
-import { describeReport } from "@/client/lib/problem-reports";
+import { describeReport, SENT_CLOSE_MS } from "@/client/lib/problem-reports";
+import { FeedbackDialogContent } from "./feedback-dialog";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
@@ -23,9 +25,6 @@ import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useEffect, useId, useState } from "react";
-
-/** How long the thank-you stays before the dialog closes on its own. */
-const SENT_CLOSE_MS = 1600;
 
 /**
  * The one report dialog, modeled on the Mac's own problem report: the
@@ -69,7 +68,15 @@ export function StandaloneReportDialog({
       }}
       open={isOpen}
     >
-      {content !== null && (
+      {content?.kind === "feedback" && (
+        <FeedbackDialogContent
+          key={openKey}
+          onClose={onClose}
+          onExitComplete={onExitComplete}
+          request={content}
+        />
+      )}
+      {content !== null && content.kind !== "feedback" && (
         <ReportDialogContent
           key={openKey}
           onClose={onClose}
@@ -88,7 +95,7 @@ function ReportDialogContent({
 }: {
   onClose: () => void;
   onExitComplete: () => void;
-  request: ReportRequest;
+  request: ProblemReportRequest;
 }) {
   const noteId = useId();
   const [note, setNote] = useState("");

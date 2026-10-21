@@ -145,10 +145,6 @@ export function SettingsModal() {
       {content !== null && activeTab !== undefined && (
         <SettingsModalContent
           activeTab={activeTab}
-          // One-shot: honored only for the initial Providers section. Switching
-          // sections drops it (onSelectTab sets `{ tab }` alone), so revisiting
-          // Providers doesn't reopen add-provider.
-          autoAddProvider={content.showNewProviderDialog ?? false}
           key={openKey}
           onExitComplete={onExitComplete}
           onSelectTab={(tab) => {
@@ -178,13 +174,11 @@ function tabOfSetting(setting: string | undefined) {
 
 function SettingsModalContent({
   activeTab,
-  autoAddProvider,
   onExitComplete,
   onSelectTab,
   setting,
 }: {
   activeTab: SettingsTab;
-  autoAddProvider: boolean;
   onExitComplete: () => void;
   onSelectTab: (tab: SettingsTab) => void;
   /** The setting a link opened Settings at, which this open starts at. */
@@ -381,10 +375,7 @@ function SettingsModalContent({
             </Sidebar>
             <SidebarInset className="min-w-0 overflow-y-auto" ref={contentRef}>
               <div className="flex flex-1 flex-col gap-4 p-6">
-                <SettingsSectionBody
-                  autoAddProvider={autoAddProvider}
-                  tab={activeTab}
-                />
+                <SettingsSectionBody tab={activeTab} />
               </div>
             </SidebarInset>
           </SidebarProvider>
@@ -524,13 +515,7 @@ function useFlashSetting(
   }, [contentRef, jump]);
 }
 
-function SettingsSectionBody({
-  autoAddProvider,
-  tab,
-}: {
-  autoAddProvider: boolean;
-  tab: SettingsTab;
-}) {
+function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
   switch (tab) {
     case "Activity": {
       return <ActivitySection />;
@@ -551,7 +536,7 @@ function SettingsSectionBody({
       return <PermissionsSection />;
     }
     case "Providers": {
-      return <ProvidersSection autoOpenAddProvider={autoAddProvider} />;
+      return <ProvidersSection />;
     }
     case "Skills": {
       return <SkillsSection />;

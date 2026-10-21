@@ -1,23 +1,28 @@
+import { openReportDialog } from "@/client/atoms/report-dialog";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
-import { useTranscriptActions } from "@/client/components/task/transcript-actions";
+import { useCopyChatLocation } from "@/client/components/task/copy-chat-location";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import { showInFolderLabel, showChatFolder } from "@/client/lib/show-in-files";
 import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
-import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 
 /**
  * The menu beside a task's name, for what someone looking over its shoulder can
  * do with the run itself rather than with anything in it: open the folder it
- * worked in, or in developer mode save its transcript.
+ * worked in, in developer mode copy where its records are, or send feedback
+ * about the chat it belongs to, every task included.
  */
 export function TaskMenu({
   sessionId,
@@ -27,7 +32,7 @@ export function TaskMenu({
   sessionId: StoreId.Session | undefined;
   chatId: ChatId;
 }) {
-  const transcript = useTranscriptActions({ id: chatId, sessionId });
+  const copyChatLocation = useCopyChatLocation();
   const isDeveloperMode = useTabDeveloperMode();
 
   return (
@@ -47,18 +52,18 @@ export function TaskMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="bottom">
-        {/* Saves without opening anything: the transcript is on its way
-          somewhere else, and the path lands on the clipboard for it. */}
         {isDeveloperMode && (
           <DropdownMenuItem
             disabled={!sessionId}
             onSelect={() => {
-              transcript.save("markdown");
+              if (sessionId) {
+                copyChatLocation({ id: chatId, sessionId });
+              }
             }}
             variant="developer"
           >
-            <ArrowLineDownIcon className="size-4" />
-            Save transcript
+            <CopyIcon className="size-4" />
+            Copy chat location
           </DropdownMenuItem>
         )}
         {/* The chat's output folder, where the task's deliverables land. */}
@@ -69,6 +74,15 @@ export function TaskMenu({
         >
           <ShowInFolderIcon className="size-4" kind="folder" />
           {showInFolderLabel("folder")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={() => {
+            openReportDialog(feedbackReport({ chatId, surface: "task-menu" }));
+          }}
+        >
+          <ChatTextIcon className="size-4" />
+          Send feedback…
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

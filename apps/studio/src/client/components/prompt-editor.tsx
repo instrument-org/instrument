@@ -20,6 +20,10 @@ import {
 } from "@/client/components/ui/popover";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
 import { type AppMention as AppMentionRef } from "@/client/lib/app-mention";
+import {
+  type ComposerCommand,
+  matchComposerCommands,
+} from "@/client/lib/app-commands";
 import { matchComposerActions } from "@/client/lib/composer-action-search";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { cn } from "@/client/lib/utils";
@@ -116,10 +120,12 @@ export interface PromptEditorRef {
   setValue: (text: string) => void;
 }
 
-// What a slash offers, in the order it offers it: the things the composer can
-// be given first, then the apps that can be named, then the skills that can
-// be run.
+// What a slash offers, in the order it offers it: the app's own commands
+// first, only for a slash that starts the box, then the things the composer
+// can be given, then the apps that can be named, then the skills that can be
+// run.
 type MenuEntry =
+  | { command: ComposerCommand; name: string; type: "command" }
   | { action: ComposerAction; labelRanges: null | number[]; type: "action" }
   | { app: ComposerApp; labelRanges: null | number[]; type: "app" }
   | { match: SkillMatch<ComposerSkill>; type: "skill" };
@@ -138,11 +144,23 @@ interface TokenChip {
 const SKILL_MENU_LIMIT = 50;
 
 const menuEntries = (
-  actions: ComposerAction[],
-  skills: ComposerSkill[],
-  apps: ComposerApp[],
-  query: string,
+  {
+    actions,
+    apps,
+    commands,
+    skills,
+  }: {
+    actions: ComposerAction[];
+    apps: ComposerApp[];
+    commands: ComposerCommand[];
+    skills: ComposerSkill[];
+  },
+  { atStart, query }: { atStart: boolean; query: string },
 ): MenuEntry[] => [
+  ...(atStart ? matchComposerCommands(commands, query) : []).map((match) => ({
+    ...match,
+    type: "command" as const,
+  })),
   ...matchComposerActions(actions, query).map((match) => ({
     ...match,
     type: "action" as const,
@@ -167,17 +185,18 @@ const menuEntries = (
 ];
 
 // Chooses an entry against the range the slash opened. A skill or an app
-// becomes a token in the document; an action leaves nothing behind, because
-// the slash was the way in rather than something the prompt was meant to keep.
+// becomes a token in the document; an action or a command leaves nothing
+// behind, because the slash was the way in rather than something the prompt
+// was meant to keep.
 const applyMenuEntry = (
   view: EditorView,
   range: { from: number; to: number },
   entry: MenuEntry,
 ) => {
-  if (entry.type === "action") {
+  if (entry.type === "action" || entry.type === "command") {
     view.dispatch(view.state.tr.delete(range.from, range.to));
     view.focus();
-    entry.action.onSelect();
+    (entry.type === "action" ? entry.action : entry.command).onSelect();
     return;
   }
   const node =
@@ -206,6 +225,7 @@ export function PromptEditor({
   apps,
   autoFocus,
   bounds,
+  commands = [],
   defaultValue,
   disabled,
   onChange,
@@ -222,6 +242,8 @@ export function PromptEditor({
   autoFocus: boolean;
   /** The composer box a typed slash opens its menu against. */
   bounds: HTMLElement | null;
+  /** What the app does when a slash naming it starts the box. */
+  commands?: ComposerCommand[];
   /** Read once, when the document is built. Later changes are ignored. */
   defaultValue: string;
   disabled: boolean;
@@ -238,8 +260,9 @@ export function PromptEditor({
   // The view below is built once, so its callbacks read the props as they
   // stand through these rather than as the build captured them.
   const currentSkills = useEffectEvent(() => skills);
-  const currentEntries = useEffectEvent((query: string) =>
-    menuEntries(actions, skills, apps, query),
+  const currentEntries = useEffectEvent(
+    (range: { atStart: boolean; query: string }) =>
+      menuEntries({ actions, apps, commands, skills }, range),
   );
   const onChangeEvent = useEffectEvent(onChange);
   const onPasteEvent = useEffectEvent(onPaste);
@@ -280,7 +303,9 @@ export function PromptEditor({
   useLayoutEffect(() => {
     defaultValueRef.current = defaultValue;
   });
-  const entries = menu ? menuEntries(actions, skills, apps, menu.query) : [];
+  const entries = menu
+    ? menuEntries({ actions, apps, commands, skills }, menu)
+    : [];
   // Where the apps and the skills start, so the rule that names each is drawn
   // once and only when there is something above it to separate them from.
   const firstAppIndex = entries.findIndex((entry) => entry.type === "app");
@@ -362,7 +387,7 @@ export function PromptEditor({
         }
         const { index, menu: activeMenu } = slashMenuOf(view.state);
         if (activeMenu) {
-          const entriesNow = currentEntries(activeMenu.query);
+          const entriesNow = currentEntries(activeMenu);
           if (
             entriesNow.length > 0 &&
             (event.key === "ArrowDown" || event.key === "ArrowUp")
@@ -673,9 +698,11 @@ export function PromptEditor({
             key={
               entry.type === "skill"
                 ? `skill:${entry.match.skill.id}`
-                : entry.type === "app"
-                  ? `app:${entry.app.slug}`
-                  : `action:${entry.action.id}`
+                : entry.type === "command"
+                  ? `command:${entry.command.id}`
+                  : entry.type === "app"
+                    ? `app:${entry.app.slug}`
+                    : `action:${entry.action.id}`
             }
           >
             {index === firstAppIndex && firstAppIndex > 0 && (
@@ -700,6 +727,8 @@ export function PromptEditor({
             >
               {entry.type === "skill" ? (
                 <SkillMenuRow match={entry.match} />
+              ) : entry.type === "command" ? (
+                <CommandMenuRow command={entry.command} name={entry.name} />
               ) : entry.type === "app" ? (
                 <AppMenuRow app={entry.app} ranges={entry.labelRanges} />
               ) : (
@@ -760,5 +789,26 @@ function MenuEntryButton({
     >
       {children}
     </button>
+  );
+}
+
+// An app command as the slash menu lists it: the name as typed, what it does,
+// and that it is the app's own rather than a skill.
+function CommandMenuRow({
+  command,
+  name,
+}: {
+  command: ComposerCommand;
+  name: string;
+}) {
+  return (
+    <>
+      <command.icon className="size-4 shrink-0 text-foreground" />
+      <span className="shrink-0 text-sm font-medium">/{name}</span>
+      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+        {command.description}
+      </span>
+      <span className="shrink-0 text-xs text-muted-foreground/70">App</span>
+    </>
   );
 }

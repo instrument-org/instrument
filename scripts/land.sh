@@ -53,8 +53,10 @@ node -e '
   const { execFileSync } = require("node:child_process");
   const git = (...args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 1 << 28 });
   const writers = new Set();
-  for (const file of git("diff", "--name-only", "--diff-filter=MD", "main...HEAD").split("\n").filter(Boolean)) {
-    const hunks = git("diff", "-U0", "main...HEAD", "--", file).matchAll(/^@@ -(\d+)(?:,(\d+))? /gm);
+  // A renamed file is blamed under the name main has it by.
+  for (const entry of git("diff", "--name-status", "--diff-filter=MDR", "main...HEAD").split("\n").filter(Boolean)) {
+    const [, file, renamed = file] = entry.split("\t");
+    const hunks = git("diff", "-U0", "main...HEAD", "--", file, renamed).matchAll(/^@@ -(\d+)(?:,(\d+))? /gm);
     for (const [, start, count = "1"] of hunks) {
       if (count === "0") continue;
       const blame = git("blame", "--porcelain", "-L", `${start},+${count}`, "main", "--", file);

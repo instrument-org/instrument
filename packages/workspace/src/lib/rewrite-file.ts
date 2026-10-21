@@ -30,8 +30,12 @@ export function rewriteFileSync(
   for (let attempt = 1; ; attempt++) {
     const current = readIfThere(file);
     try {
+      // Created new (`wx`), so a link left at the temp name is never written
+      // through.
+      fs.rmSync(temporary, { force: true });
       fs.writeFileSync(temporary, render(current), {
         encoding: "utf8",
+        flag: "wx",
         flush: true,
       });
       if (attempt < ATTEMPTS && readIfThere(file) !== current) {

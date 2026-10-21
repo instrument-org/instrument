@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   type AbsolutePath,
@@ -18,8 +18,6 @@ import {
 } from "./invalid-chat-folders";
 import { chatDir, forgetChatFolders } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
-
-vi.mock(import("./session-store-storage"));
 
 let root: string;
 let trashed: string[];

@@ -19,7 +19,6 @@ import {
 } from "./execute-tool-call";
 
 vi.mock(import("ulid"));
-vi.mock(import("../lib/session-store-storage"));
 vi.mock(import("../lib/get-current-date"));
 vi.mock(import("../lib/execa-node-for-chat"), () => ({
   execaNodeForChat: vi.fn(),
@@ -232,6 +231,13 @@ describe("executeToolCallMachine", () => {
             "omittedBytes": 0,
             "output": "mocked stdout
         mocked stderr",
+            "ran": [
+              {
+                "count": 1,
+                "name": "pnpm",
+                "source": "bundled",
+              },
+            ],
           },
           "preliminary": false,
           "state": "output-available",
@@ -287,6 +293,13 @@ describe("executeToolCallMachine", () => {
             "omittedBytes": 0,
             "output": "pnpm: Shell command failed
         ",
+            "ran": [
+              {
+                "count": 1,
+                "name": "pnpm",
+                "source": "bundled",
+              },
+            ],
           },
           "preliminary": false,
           "state": "output-available",
@@ -342,6 +355,13 @@ describe("executeToolCallMachine", () => {
             "omittedBytes": 0,
             "output": "mocked stdout
         mocked stderr",
+            "ran": [
+              {
+                "count": 1,
+                "name": "pnpm",
+                "source": "bundled",
+              },
+            ],
           },
           "preliminary": false,
           "state": "output-available",
@@ -623,6 +643,52 @@ describe("executeToolCallMachine", () => {
       const stored = await readStoredPart(part.metadata.id);
       expect(stored).toMatchObject({ state: "output-available" });
       expect(stored).not.toHaveProperty("errorText");
+    });
+
+    // A preliminary output lives only in the turn's memory, so the record
+    // under it still waits on an answer the stop says will never come.
+    it("finalizes a call that had only offered a preliminary output", async () => {
+      const part = createShellCommandPart("sleep 30");
+      await ChatWrites.savePart(part, taskConfig);
+      (
+        await ChatWrites.updatePart(
+          {
+            chatId: taskConfig,
+            messageId: part.metadata.messageId,
+            partId: part.metadata.id,
+            sessionId,
+          },
+          () =>
+            ({
+              ...part,
+              output: {
+                command: "sleep 30",
+                commands: ["sleep"],
+                durationMs: 0,
+                exitCode: 0,
+                output: "",
+                spillFilePath: undefined,
+              },
+              preliminary: true,
+              state: "output-available",
+            }) as SessionMessagePart.ToolPart,
+        )
+      )._unsafeUnwrap();
+
+      await saveStoppedToolCallPart({
+        part,
+        reason: "manual",
+        chatId: taskConfig,
+      });
+      await ChatWrites.landed(taskConfig);
+
+      const stored = await readStoredPart(part.metadata.id);
+      expect(stored).toMatchObject({
+        errorText: "This action was stopped by you.",
+        state: "output-error",
+      });
+      expect(stored).not.toHaveProperty("output");
+      expect(stored).not.toHaveProperty("preliminary", true);
     });
   });
 });

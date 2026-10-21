@@ -11,6 +11,7 @@ Newest first. A struck-through entry has been superseded.
 | Date | Decision |
 | --- | --- |
 | 2026-10-19 | [Accept that a computer on the previous build stops seeing chat settings from an upgraded one](2026-10-19-accept-the-staggered-upgrade-gap-for-chat-settings.md) |
+| 2026-10-20 | [A chat's grant outlasts a later change in Settings](2026-10-20-a-chat-grant-outlasts-a-settings-change.md) |
 | 2026-10-17 | [Accept that a program under MXC can rename `.git` to write its hooks](2026-10-17-accept-the-git-rename-gap.md) |
 | 2026-10-15 | [A chat's start is written once, and what changes is told after it](2026-10-15-a-chats-start-is-written-once.md) |
 | 2026-10-15 | [Stay in the Dock when the last window closes, on macOS](2026-10-15-stay-in-the-dock-when-the-last-window-closes.md) |

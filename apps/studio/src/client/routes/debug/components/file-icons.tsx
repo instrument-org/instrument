@@ -8,7 +8,10 @@ import {
   FILE_TYPE_ALIASES,
   FILE_TYPE_GLYPHS,
 } from "@/client/components/extend/file-type-glyphs";
-import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import {
+  folderGlyphUrl,
+  outputFolderGlyphUrl,
+} from "@/client/components/icons/folder-glyph";
 import { Input } from "@/client/components/ui/input";
 import { EXTENSION_MAP } from "@/client/lib/file-extension-to-language";
 import { getBuiltInSpriteSheet } from "@pierre/trees";
@@ -338,30 +341,38 @@ function RouteComponent() {
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-medium">Folders</h2>
           <p className="text-xs text-muted-foreground">
-            The app draws folders two ways. The file browser uses the first one,
-            and folder cards and chips in a chat use the second.
+            Every folder is drawn the way the system the app runs on draws one.
+            These are all three, whichever system this is.
           </p>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
-            <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-              <div className="flex items-center gap-2">
-                <FileSystemFolderGlyph className="h-3.5 w-auto" />
-                <FileSystemFolderGlyph className="h-9 w-auto" />
-                <FileSystemFolderGlyph className="h-13 w-auto drop-shadow-sm" />
+            {(["mac", "windows", "linux"] as const).map((os) => (
+              <div
+                className="flex flex-col gap-2 rounded-lg border border-border p-3"
+                key={os}
+              >
+                <div className="flex items-center gap-2">
+                  <FileSystemFolderGlyph
+                    className="h-3.5 w-auto"
+                    src={folderGlyphUrl(os)}
+                  />
+                  <FileSystemFolderGlyph
+                    className="h-9 w-auto"
+                    src={folderGlyphUrl(os)}
+                  />
+                  <FileSystemFolderGlyph
+                    className="h-13 w-auto drop-shadow-sm"
+                    src={folderGlyphUrl(os)}
+                  />
+                  <FileSystemFolderGlyph
+                    className="h-13 w-auto drop-shadow-sm"
+                    src={outputFolderGlyphUrl(os)}
+                  />
+                </div>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  {os} · icons/folder-glyph.tsx
+                </span>
               </div>
-              <span className="font-mono text-[11px] text-muted-foreground">
-                FileSystemFolderGlyph · extend/file-system.tsx
-              </span>
-            </div>
-            <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-              <div className="flex items-center gap-2">
-                <MacFolderIcon className="size-4" />
-                <MacFolderIcon className="size-5" />
-                <MacFolderIcon className="size-9" />
-              </div>
-              <span className="font-mono text-[11px] text-muted-foreground">
-                MacFolderIcon · icons/mac-folder.tsx
-              </span>
-            </div>
+            ))}
           </div>
         </section>
 

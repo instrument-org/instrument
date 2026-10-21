@@ -2,7 +2,12 @@ import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { eventIterator, type } from "@orpc/server";
 import { z } from "zod";
 
+import {
+  BubbleProjection,
+  type BubbleFeedEvent,
+} from "../../lib/bubble-messages";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
+import { getChatAgentStatus } from "../../lib/get-chat-agent-status";
 import {
   attachmentsWaitingToMove,
   rewriteChatFolder,
@@ -253,7 +258,7 @@ const live = {
         // Each batch re-reads only the changed messages and splices them into
         // the snapshot, so store work per update is proportional to the
         // change, not the session. Bursts coalesce: a turn's token storm
-        // targets one message, so its part.updated events collapse into a
+        // targets one message, so its record changes collapse into a
         // single re-read + yield. Every yield is the complete sorted array.
         for await (const batch of batches) {
           for (const messageId of batch.removed) {
@@ -310,8 +315,97 @@ const live = {
     }),
 };
 
+/**
+ * What a chat's bubbles draw of a session (`bubble-messages.ts`), as it
+ * changes: the whole of it, then only the messages whose bubbles moved. A
+ * token streaming into a reply moves none, so nothing is sent for it.
+ */
+const liveBubbles = base
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(eventIterator(type<BubbleFeedEvent>()))
+  .handler(async function* ({ context, errors, input, signal }) {
+    // Subscribed before the first read, as `live.list` is, and woken by the
+    // agent too: a reply is held back only while its run is going.
+    const batches = changedMessageBatches({ ...input, agent: true }, signal);
+    const unattend = attendChatArrivals(input.id);
+    const isRunning = () =>
+      getChatAgentStatus({
+        id: input.id,
+        workspaceRef: context.workspaceRef,
+      })
+        .value.sessionActors.find(
+          (actor) => actor.sessionId === input.sessionId,
+        )
+        ?.tags.includes("agent.running") ?? false;
+
+    try {
+      const read = (only?: Set<StoreId.Message>) =>
+        ChatReads.transcript({
+          bytes: true,
+          chatId: input.id,
+          sessionId: input.sessionId,
+          ...(only ? { only } : {}),
+        });
+      const initial = await read();
+      if (initial.isErr()) {
+        throw toORPCError(initial.error, errors);
+      }
+      const snapshot = new LiveMessagesSnapshot(initial.value);
+      const projection = new BubbleProjection();
+      const first = projection.update({
+        isRunning: isRunning(),
+        messages: snapshot.toArray(),
+      });
+      if (first.event) {
+        yield first.event;
+      }
+
+      for await (const batch of batches) {
+        for (const messageId of batch.removed) {
+          snapshot.remove(messageId);
+        }
+        if (batch.updated.size > 0) {
+          const messages = await read(batch.updated);
+          if (messages.isOk()) {
+            for (const message of messages.value) {
+              snapshot.upsert(message);
+            }
+            const found = new Set(messages.value.map(({ id }) => id));
+            for (const messageId of batch.updated) {
+              if (!found.has(messageId)) {
+                snapshot.remove(messageId);
+              }
+            }
+          } else {
+            const reload = await read();
+            if (reload.isErr()) {
+              throw toORPCError(reload.error, errors);
+            }
+            snapshot.reset(reload.value);
+          }
+        }
+        const { event } = projection.update({
+          isRunning: isRunning(),
+          messages: snapshot.toArray(),
+          touched: batch.updated,
+        });
+        if (event) {
+          yield event;
+        }
+      }
+    } finally {
+      unattend();
+      await batches.return();
+    }
+  });
+
 export const message = {
   create,
   list: listWithParts,
-  live,
+  live: { ...live, bubbles: liveBubbles },
 };

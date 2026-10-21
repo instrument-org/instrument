@@ -1,4 +1,3 @@
-import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { TOOL_NAMES } from "../tools/name";
 import { systemNote } from "./system-note";
 
@@ -13,9 +12,10 @@ import { systemNote } from "./system-note";
  * catalog back in the request on every skill edit -- the cost the snapshot
  * exists to avoid.
  */
-export function skillChangesModelNote(
-  data: SessionMessageDataPart.SkillChangesDataPart,
-): null | string {
+export function skillChangesModelNote(data: {
+  created: string[];
+  updated: string[];
+}): null | string {
   const created = [...data.created].sort();
   // A skill created and then revised in the same stretch is news as a creation;
   // saying both would describe one skill twice.

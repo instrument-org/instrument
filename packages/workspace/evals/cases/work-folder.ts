@@ -137,29 +137,20 @@ export const leavesChatsToConversations: Assertion = {
       .join("\n");
     const { rootDir } = getWorkspaceConfig();
     const records = workspaceLayout(rootDir).chatsDir;
+    // Which folder is a chat's own is the records' to say, as the app reads it.
     const own = new Set(
       fs.readdirSync(records).flatMap((id) => {
-        try {
-          const settings: unknown = JSON.parse(
-            fs.readFileSync(path.join(records, id, "settings.json"), "utf8"),
-          );
-          return typeof settings === "object" &&
-            settings !== null &&
-            "folder" in settings &&
-            typeof settings.folder === "string"
-            ? [settings.folder]
-            : [];
-        } catch {
-          return [];
-        }
+        const folder = chatOwnFolder(path.join(records, id));
+        return folder === undefined ? [] : [path.basename(folder)];
       }),
     );
-    const stray = fs
-      .readdirSync(path.join(rootDir, CHATS_FOLDER_NAME))
-      .filter(
-        (entry) =>
-          !entry.startsWith(".") && !own.has(entry) && named.includes(entry),
-      );
+    const stray = fs.readdirSync(path.join(rootDir, CHATS_FOLDER_NAME)).filter(
+      (entry) =>
+        !entry.startsWith(".") &&
+        !own.has(entry) &&
+        // A whole path segment, so "…and" is not found inside "…and 3".
+        [`/${entry}/`, `/${entry}"`].some((segment) => named.includes(segment)),
+    );
     return {
       evidence:
         stray.length > 0

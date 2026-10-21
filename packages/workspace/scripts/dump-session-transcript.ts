@@ -8,9 +8,15 @@ import { TASKS_DIR_NAME } from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { ChatReads } from "../src/lib/chat-reads";
 import { chatStartedWithApp } from "../src/lib/chat-info";
+import { chatDir } from "../src/lib/record-folders";
+import {
+  ChatRecords,
+  installChatRecords,
+} from "../src/lib/records/chat-records";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { ChatDirSchema } from "../src/schemas/paths";
 import { ChatIdSchema } from "../src/schemas/chat-id";
+import { chatFolderInWorkspace } from "./lib/loose-chat-folder";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 import { workspaceOfRecord } from "./lib/workspace-of-record";
 
@@ -37,17 +43,25 @@ if (!inputPath) {
   );
 }
 
-const dir = ChatDirSchema.parse(path.resolve(inputPath));
+const dir = ChatDirSchema.parse(chatFolderInWorkspace(path.resolve(inputPath)));
 
 // Chats are found by scanning the workspace's `.instrument/chats/`.
 const rootDir = workspaceOfRecord(dir);
 
 const folderName = path.basename(dir);
 const id = ChatIdSchema.parse(folderName);
-setWorkspaceConfig(
-  createStubWorkspaceConfig({
-    rootDir,
-    tasksDir: path.join(rootDir, TASKS_DIR_NAME),
+const workspaceConfig = createStubWorkspaceConfig({
+  rootDir,
+  tasksDir: path.join(rootDir, TASKS_DIR_NAME),
+});
+setWorkspaceConfig(workspaceConfig);
+// Every read of a chat goes through the records a workspace puts in place as
+// it opens; this script opens none, so it puts its own there. It only reads.
+installChatRecords(
+  new ChatRecords({
+    app: workspaceConfig.appVersion,
+    device: workspaceConfig.deviceId,
+    dirOf: chatDir,
   }),
 );
 const chatId = id;

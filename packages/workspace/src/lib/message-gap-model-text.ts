@@ -6,9 +6,8 @@ import { systemNote } from "./system-note";
 /**
  * Tells the model the user went away and came back.
  *
- * Says the gap and stops there. What it means for a promise left unstarted is
- * the agent's own instructions, the same way the date correction states a date
- * and leaves the rest alone.
+ * Says the gap and what it means for work the agent owed from before it:
+ * the note is read at the one moment that matters.
  */
 export function messageGapModelNote(
   data: SessionMessageDataPart.MessageGapDataPart,
@@ -21,6 +20,6 @@ export function messageGapModelNote(
   );
 
   return systemNote`
-    The user last wrote in this chat about ${gap} ago. Anything since was you and your tasks.
+    The user last wrote in this chat about ${gap} ago. Anything since was you and your tasks. Answer what they say now, and offer what you owed them from before in a sentence.
   `;
 }

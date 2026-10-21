@@ -31,6 +31,7 @@ import {
   shellPathOfHostSpelling,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
+import { recordBuiltinAnswered } from "./command-runs";
 import { binaryStdout, mapStreams, shimOutput } from "./exec-shim";
 import { runNative } from "./pipe-stage";
 import { tarProgramArgs, tarWrites, tarWritesStdout } from "./tar-args";
@@ -73,6 +74,11 @@ interface NativeTextRoute {
    */
   printsPaths?: boolean;
   /**
+   * Its operands are names it only takes apart and never opens (`basename`,
+   * `dirname`), so none is held to the rules as a path.
+   */
+  opensNothing?: boolean;
+  /**
    * Arguments the program accepts but does not honor, which send the call
    * to the builtin; `args` is how the generated table names them.
    */
@@ -111,6 +117,52 @@ function sortOutput(args: string[]): string[] {
     }
   });
   return out;
+}
+
+/** split's short options that take a value, joined or the next argument. */
+const SPLIT_SHORT_VALUE = /[abClnt]/;
+
+/** split's long options that take the next argument when not joined by `=`. */
+const SPLIT_LONG_VALUE = new Set([
+  "--additional-suffix",
+  "--bytes",
+  "--filter",
+  "--io-blksize",
+  "--line-bytes",
+  "--lines",
+  "--number",
+  "--separator",
+  "--suffix-length",
+]);
+
+/**
+ * The prefix split names its pieces by (`split [OPTION]... [FILE [PREFIX]]`,
+ * `x` by default): each piece is the prefix with a suffix that holds no
+ * separator, so it is written where the prefix is.
+ */
+export function splitPrefix(args: string[]): string {
+  const operands: string[] = [];
+  let onlyOperands = false;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index] ?? "";
+    if (onlyOperands || arg === "-" || !arg.startsWith("-")) {
+      operands.push(arg);
+    } else if (arg === "--") {
+      onlyOperands = true;
+    } else if (arg.startsWith("--")) {
+      if (!arg.includes("=") && SPLIT_LONG_VALUE.has(arg)) {
+        index++;
+      }
+    } else if (!/^-\d+$/.test(arg)) {
+      // A cluster ends at the first letter taking a value: the rest of the
+      // cluster is that value, or else the next argument is.
+      const at = arg.slice(1).search(SPLIT_SHORT_VALUE);
+      if (at !== -1 && at === arg.length - 2) {
+        index++;
+      }
+    }
+  }
+  return operands[1] ?? "x";
 }
 
 /** xargs' long options that take the next argument as their value. */
@@ -185,7 +237,9 @@ function scanXargs(args: string[]): { command?: string; parallel: boolean } {
 
 /**
  * Not here, so the builtin answers: `tr` (ties the builtin and runs in
- * loops), `diff`, `sed` and `awk` (the uutils ones fail cases the builtins
+ * loops), `mktemp` (ties the builtin, and on Windows uutils 0.12.0 drops the
+ * `/` before the X's of `dir/XXXXXX`, creating `dirXXXXXX` in the working
+ * folder), `diff`, `sed` and `awk` (the uutils ones fail cases the builtins
  * pass).
  */
 const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
@@ -213,6 +267,32 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   },
   // uutils builds `stat` for Unix only.
   { binary: "coreutils", name: "stat", platforms: UNIX },
+  { binary: "coreutils", name: "sha1sum" },
+  { binary: "coreutils", name: "base64" },
+  { binary: "coreutils", name: "paste" },
+  { binary: "coreutils", name: "nl" },
+  { binary: "coreutils", name: "fold" },
+  { binary: "coreutils", name: "tac" },
+  { binary: "coreutils", name: "expand" },
+  { binary: "coreutils", name: "unexpand" },
+  {
+    binary: "coreutils",
+    name: "split",
+    writes: (args) => [splitPrefix(args)],
+  },
+  { binary: "coreutils", name: "readlink", printsPaths: true },
+  {
+    binary: "coreutils",
+    name: "basename",
+    opensNothing: true,
+    printsPaths: true,
+  },
+  {
+    binary: "coreutils",
+    name: "dirname",
+    opensNothing: true,
+    printsPaths: true,
+  },
   // just-bash has no command by these names, so without uutils they fall to
   // the computer's PATH: the BSD ones on macOS, and on Windows usually none.
   // Only commands that print are here; the ones that change the system
@@ -335,24 +415,6 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
 /** find's own options before its start points. */
 const FIND_LEADING = /^-(?:[HLP]|D|O\d?)$/;
 
-/** The actions that stop find adding its own -print. */
-const FIND_ACTIONS = new Set([
-  "-delete",
-  "-exec",
-  "-execdir",
-  "-fls",
-  "-fprint",
-  "-fprint0",
-  "-fprintf",
-  "-ls",
-  "-ok",
-  "-okdir",
-  "-print",
-  "-print0",
-  "-printf",
-  "-quit",
-]);
-
 /** A find command line split into its options, start points and expression. */
 function splitFind(args: string[]): {
   expression: string[];
@@ -377,40 +439,6 @@ function splitFind(args: string[]): {
     index += 1;
   }
   return { expression: args.slice(index), options, starts };
-}
-
-/**
- * find's arguments with the entries the app hides pruned before the
- * caller's expression runs: every `.instrument` folder by name, and each
- * `pathsToPrune` (the chat's `tasks/` as each start point spells it). The
- * shell's own find never lists them, and the native sandbox does not hide
- * them. An expression with no action of its own gets an explicit -print, so
- * the pruned folder is not printed by the one find would add.
- */
-export function findWithHiddenEntriesPruned(
-  args: string[],
-  pathsToPrune: string[],
-): string[] {
-  const { expression, options, starts } = splitFind(args);
-  const pruned = [
-    "-name",
-    ".instrument",
-    ...pathsToPrune.flatMap((each) => ["-o", "-path", each]),
-  ];
-  const acts = expression.some((arg) => FIND_ACTIONS.has(arg));
-  return [
-    ...options,
-    ...starts,
-    "(",
-    ...pruned,
-    ")",
-    "-prune",
-    "-o",
-    "(",
-    ...(expression.length > 0 ? expression : ["-true"]),
-    ")",
-    ...(acts ? [] : ["-print"]),
-  ];
 }
 
 /**
@@ -608,6 +636,9 @@ function operandRefusal(
   layout: WorkspaceFsLayout,
   resolvePath: (arg: string) => string,
 ): string | undefined {
+  if (route.opensNothing === true) {
+    return undefined;
+  }
   const roots = [layout.chat, ...otherFolders(layout)].map(
     (folder) => folder.shellRoot,
   );
@@ -734,6 +765,13 @@ export function createNativeTextCommand(
   const command = defineCommand(route.name, async (args, ctx) => {
     const program = routeProgram(route);
     if (program === undefined || route.builtinFor?.matches(args) === true) {
+      recordBuiltinAnswered(
+        program !== undefined
+          ? "builtin-args"
+          : route.binary === "system"
+            ? "no-system-program"
+            : "no-bundled-program",
+      );
       return ctx.origCommand
         ? await ctx.origCommand(args)
         : {

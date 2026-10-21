@@ -1,10 +1,9 @@
 import path from "node:path";
 
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { foldChatInFolder } from "../records/fold-folder";
 import {
   type DraftOnDisk,
-  findDraft,
   readDrafts,
   removeDraft,
   writeDraftFile,
@@ -36,38 +35,6 @@ export interface DraftsFinished {
   finished: string[];
   /** Each draft left to be sent again, with why it could not be read as sent. */
   left: { id: string; reason: string }[];
-}
-
-/**
- * Marks a draft as on its way into a chat, and waits for the file. The first
- * step of a send: until the draft names the chat it is going into, nothing
- * at the next launch knows where to look for the message that would say it
- * was sent, so a crash between this and the append would strand it. A draft
- * that opens a chat of its own stays one: `sending` is not `chat`, so a send
- * that never landed leaves it a new chat's draft rather than a reply.
- *
- * The app's draft store does this as part of its claim; this is the same step
- * on the folder alone, for whatever sends a draft without the app's store.
- */
-export function pointDraftAtChat({
-  chatId,
-  draftId,
-  rootDir,
-}: {
-  chatId: ChatId;
-  draftId: string;
-  rootDir: string;
-}): DraftOnDisk | undefined {
-  const found = findDraft(rootDir, draftId);
-  if (!found) {
-    return undefined;
-  }
-  if (found.draft.sending === chatId) {
-    return found;
-  }
-  const pointed = { ...found.draft, sending: chatId, updated: new Date() };
-  writeDraftFile(found.file, pointed);
-  return { ...found, draft: pointed };
 }
 
 /**

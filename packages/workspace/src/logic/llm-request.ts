@@ -44,7 +44,7 @@ import { ChatWrites } from "../lib/chat-writes";
 import { turnNoteFor } from "../lib/turn-note";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
-import { type SessionMessage } from "../schemas/session/message";
+import { SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -60,16 +60,18 @@ const INPUT_PARSE_INTERVAL_MS = 100;
 const INPUT_PARSE_MAX_UNPARSED_CHARS = 4096;
 
 interface LLMRequestInput {
-  /**
-   * Why the request is being let go, asked when its signal fires; the caller
-   * that let it go is the one that knows.
-   */
-  abortReason: () => SessionMessage.AbortReason;
   agent: AnyAgent;
   model: AIGatewayModel.Type;
   self: ActorRef<AnyMachineSnapshot, { type: "llmRequest.chunkReceived" }>;
   sessionId: StoreId.Session;
   stepCount: number;
+  /**
+   * Aborts the request while its caller waits for it to return: what it was
+   * holding is written on the way out, which stopping the actor would leave
+   * running after the caller has moved on. Aborted with why, an
+   * `AbortReason`; an abort that says nothing reads as `unknown`.
+   */
+  stop?: AbortSignal;
   chatId: ChatId;
 }
 
@@ -79,7 +81,13 @@ export const llmRequestLogic = fromPromise<
     parts: SessionMessagePart.Type[];
   },
   LLMRequestInput
->(async ({ input, signal }) => {
+>(async ({ input, signal: actorSignal }) => {
+  const { stop } = input;
+  const signal = stop ? AbortSignal.any([actorSignal, stop]) : actorSignal;
+  const abortReason = () =>
+    SessionMessage.AbortReasonSchema.catch("unknown").parse(
+      stop?.aborted ? stop.reason : undefined,
+    );
   // The first write that failed for lack of disk space. Once set, every later
   // write would fail the same way, so part saves stop, the stream loop ends
   // the request with a `disk-full` error, and the condition is reported once
@@ -185,7 +193,7 @@ export const llmRequestLogic = fromPromise<
     assistantMessage.metadata.error = {
       kind: "aborted",
       message: "Aborted",
-      reason: input.abortReason(),
+      reason: abortReason(),
     };
     assistantMessage.metadata.finishedAt = getCurrentDate();
     assistantMessage.metadata.finishReason = "aborted";
@@ -300,7 +308,7 @@ export const llmRequestLogic = fromPromise<
 
   if (isSignalAborted()) {
     saveAbortMessage();
-    await live?.clear();
+    await live?.clear(assistantMessage.id);
     return { message: assistantMessage, parts: await getCurrentParts() };
   }
 
@@ -932,7 +940,7 @@ export const llmRequestLogic = fromPromise<
             error.name === "TimeoutError"
               ? "timeout"
               : signal.aborted
-                ? input.abortReason()
+                ? abortReason()
                 : "unknown",
         };
         break;
@@ -1046,11 +1054,13 @@ export const llmRequestLogic = fromPromise<
       }
     }
   }
-  // The turn is over, so what it was holding is written: every part that
+  // The request is over, so what it was holding is written: every part that
   // settled is in the records already, since each write here was waited for,
-  // and whatever was still arriving is written as the turn left it, which is
-  // how a reply cut off mid-word is still a reply the person can read.
-  await live?.clear();
+  // and whatever was still arriving is written as the request left it, which
+  // is how a reply cut off mid-word is still a reply the person can read.
+  // Only this reply's: a request returning after its caller moved on to
+  // another attempt leaves that attempt's parts arriving.
+  await live?.clear(assistantMessage.id);
 
   const parts = await getCurrentParts();
   // Detection only, and after the turn has let go: a call still arriving at

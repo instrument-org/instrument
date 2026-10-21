@@ -9,6 +9,8 @@ import { type AbsolutePath, type ChatDir } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { type BashEnvOptions } from "../create-bash-env";
+import { type SetupTouch } from "../setup-changes";
+import { type CommandRun } from "../shell-commands/command-runs";
 import { type VenvError } from "../venv";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 
@@ -67,8 +69,13 @@ export type FromWorker =
       error: SerializedError;
       type: "capture-exception";
     }
-  | { id: number; skillPath: string; type: "skill-mutation" }
+  | { id: number; touch: SetupTouch; type: "setup-touch" }
   | { id: number; result: WireResult; type: "result" }
+  /**
+   * What answered each command so far, whole: sent when a run adds a row,
+   * and once more before the exec's result or error.
+   */
+  | { id: number; rows: CommandRun[]; type: "ran" }
   | { id: number; seq: number; text: string; type: "chunk" }
   | {
       /** The exec that started it, whose run on main is told its pid. */
@@ -104,6 +111,8 @@ export type ToWorker =
        * reads the index itself.
        */
       chat: { dir: ChatDir; id: ChatId } | undefined;
+      /** Main's PATH as the command starts, which the login shell's read may have changed since the worker started. */
+      path: string | undefined;
       /** Whether main has a background run's sink to stream native output into. */
       stream: boolean;
       type: "exec";

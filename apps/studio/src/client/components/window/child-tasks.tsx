@@ -1,7 +1,7 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { ChatStream } from "@/client/components/chat-stream";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { SystemFolderIcon } from "@/client/components/icons/folder-glyph";
 import { ModelPreview } from "@/client/components/tasks-data-table/model-preview";
 import {
   MessageScroller,
@@ -47,11 +47,16 @@ const noop = () => {
  */
 export function ChildTranscript({
   chat,
+  expandGroups = false,
+  isDeveloperMode = false,
   isWorking,
   sessionId,
   stoppedBy,
 }: {
   chat: ChatId;
+  /** Every phase open as it arrives, the way the task card is read. */
+  expandGroups?: boolean;
+  isDeveloperMode?: boolean;
   isWorking: boolean;
   sessionId: StoreId.Session;
   /** Who stopped its last turn, which the transcript ends by saying. */
@@ -102,8 +107,9 @@ export function ChildTranscript({
                 {/* Task paths are placed on the computer through the task's own layout before navigation. */}
                 <FileOpenContext value={openFile}>
                   <ChatStream
+                    expandGroups={expandGroups}
                     isAgentRunning={isWorking}
-                    isDeveloperMode={false}
+                    isDeveloperMode={isDeveloperMode}
                     messages={messages.data}
                     onContinue={noop}
                     onRetry={noop}
@@ -257,7 +263,7 @@ function TaskBrief({
           key={folder.id}
           title={`${folder.path} · ${folder.access}`}
         >
-          <MacFolderIcon className="size-4 shrink-0" />
+          <SystemFolderIcon className="size-4 shrink-0" />
           <span className="truncate font-medium">
             {folderLabel(folder.path)}
           </span>

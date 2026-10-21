@@ -124,12 +124,63 @@ describe("sessionOf", () => {
       createdAt: at(0),
       id: chatSession,
       title: "Untitled chat 2",
+      titleByApp: true,
       updatedAt: at(0),
     });
     expect(
       sessionOf(folded([header(0, { device: DEVICE_A, id: chatSession })]))
         .title,
     ).toBe(UNTITLED_CHAT_TITLE);
+  });
+
+  it.each([
+    {
+      case: "the app's name",
+      expected: true,
+      lines: [{ auto: true, text: "Sailing card for dad" }],
+    },
+    {
+      case: "the app's name once it settled it",
+      expected: true,
+      lines: [
+        { auto: true, text: "Sailing card for dad" },
+        { auto: false, text: "Sailing card for dad" },
+      ],
+    },
+    {
+      case: "the person's rename of an unsettled title",
+      expected: false,
+      lines: [
+        { auto: true, text: "Sailing card for dad" },
+        { auto: false, text: "Dad's card" },
+      ],
+    },
+    {
+      case: "the person's rename of a settled title",
+      expected: false,
+      lines: [
+        { auto: true, text: "Sailing card for dad" },
+        { auto: false, text: "Sailing card for dad" },
+        { auto: false, text: "Dad's card" },
+      ],
+    },
+    {
+      case: "the person's name with nothing from the app",
+      expected: false,
+      lines: [{ auto: false, text: "Dad's card" }],
+    },
+  ])("says whether the title is the app's: $case", ({ expected, lines }) => {
+    const session = folded(
+      [header(0, { device: DEVICE_A, id: chatSession })],
+      lines.map((value, index) => ({
+        at: at(index + 1),
+        field: "title",
+        session: chatSession,
+        value,
+      })),
+    );
+
+    expect(sessionOf(session).titleByApp === true).toBe(expected);
   });
 
   it("reads a task's fork, rollover and stop, which holds until a turn starts after it", () => {

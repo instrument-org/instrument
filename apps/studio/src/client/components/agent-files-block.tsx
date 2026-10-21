@@ -27,7 +27,7 @@ import { FileTypeIcon } from "./extend/file-system";
 import { FolderRowCard } from "./file-preview-card";
 import { FilesGrid, ROW_CARD_GRID } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
-import { MacFolderIcon } from "./icons/mac-folder";
+import { SystemFolderIcon } from "./icons/folder-glyph";
 import { MarkdownChatContext } from "./markdown-chat-context";
 import { MessageCard } from "./message-card";
 
@@ -306,7 +306,7 @@ function FolderLine({ onClick, path }: { onClick: () => void; path: string }) {
       onContextMenu={onContextMenu}
       type="button"
     >
-      <MacFolderIcon className="size-4 shrink-0" />
+      <SystemFolderIcon className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate">{nameOfPath(path)}</span>
       <span className="shrink-0 text-[10px] text-muted-foreground">Folder</span>
       <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />

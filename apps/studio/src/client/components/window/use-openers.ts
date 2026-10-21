@@ -201,14 +201,32 @@ export function useOpeners({
       appTabs.go(chatHref(chat), { behind, newTab });
       return;
     }
-    const { kind } = matchScreen(href);
-    if (kind === "chat" || kind === "chatLink" || kind === "chatOfSession") {
+    const screen = matchScreen(href);
+    // A memory is a file, and opens as one wherever its link was; a name no
+    // file has any more is said in Settings, over the memories there are.
+    if (screen.kind === "memory") {
+      void safe(
+        rpcClient.workspace.memory.locate.call({ name: screen.name }),
+      ).then(([error, hostPath]) => {
+        if (error || hostPath === null) {
+          openLinkAddress(href);
+        } else {
+          openScreen(fileHref(hostPath), options);
+        }
+      });
+      return;
+    }
+    if (
+      screen.kind === "chat" ||
+      screen.kind === "chatLink" ||
+      screen.kind === "chatOfSession"
+    ) {
       // A chat's address that names none of the chats here: a screen
       // at it would be a chat with nothing in it.
       sayNoChat();
       return;
     }
-    // A memory, a skill, a setting or a named screen opens where it lives,
+    // A skill, a setting or a named screen opens where it lives,
     // which is a route of its own only for some named screens.
     const route = openLinkAddress(href);
     if (route === undefined) {

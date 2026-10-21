@@ -704,7 +704,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           spell: (spelled) => spelled,
         }),
       ).toBe(
-        `${JSON.stringify(paths.appFiles)} is in ${JSON.stringify(paths.appFiles)}, which holds Instrument's own data, so it can't be asked for whole. Work in this conversation's folder, or a folder the person names.`,
+        `${JSON.stringify(paths.appFiles)} is in ${JSON.stringify(paths.appFiles)}, which holds Instrument's own data, so it can't be asked for whole. Work in your work folder, or a folder the person names.`,
       );
     });
   });

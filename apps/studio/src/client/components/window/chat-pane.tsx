@@ -1,4 +1,5 @@
 import { type Draft } from "@/shared/drafts";
+import { openTopicDetails } from "@/client/atoms/topic-details-modal";
 import { chatFiltersAtom } from "@/client/atoms/window";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
@@ -96,12 +97,6 @@ export function ChatPane({
   const createTopic = useMutation(
     rpcClient.workspace.topics.create.mutationOptions(afterTopicChange),
   );
-  const updateTopic = useMutation(
-    rpcClient.workspace.topics.update.mutationOptions(afterTopicChange),
-  );
-  const retireTopic = useMutation(
-    rpcClient.workspace.topics.retire.mutationOptions(afterTopicChange),
-  );
   const setChatTopic = useSetChatTopic();
 
   const [filters, setFilters] = useAtom(chatFiltersAtom);
@@ -168,10 +163,6 @@ export function ChatPane({
     forChat?: Chat;
     name?: string;
   }>();
-  // The topic whose details are open, by id, so a re-read of the list does
-  // not close the dialog under the user.
-  const [editingId, setEditingId] = useState<string>();
-  const editingTopic = topics.find((topic) => topic.id === editingId);
   // The chat whose row asked to delete it, by id, so a re-read of the list
   // does not close the dialog under the user.
   const [deletingId, setDeletingId] = useState<string>();
@@ -188,14 +179,14 @@ export function ChatPane({
           setNewTopic({});
         }}
         onTopicDetails={(topic) => {
-          setEditingId(topic.id);
+          openTopicDetails(topic.id);
         }}
         topics={topics}
       />
       {chosenTopic && (
         <TopicBanner
           onDetails={(topic) => {
-            setEditingId(topic.id);
+            openTopicDetails(topic.id);
           }}
           // Back to the chats, as picking Chats in the head is: the search
           // is its own thing and stays as it was.
@@ -305,35 +296,6 @@ export function ChatPane({
         )}
         taken={topics.flatMap((topic) => (topic.emoji ? [topic.emoji] : []))}
       />
-      {editingTopic && (
-        <TopicDialog
-          mode="edit"
-          onChange={(edits) => {
-            if (Object.keys(edits).length === 0) {
-              return;
-            }
-            updateTopic.mutate({ ...edits, topicId: editingTopic.id });
-          }}
-          // Deleting retires the topic: the tag goes from the column and from
-          // the filter if it was the one chosen; the chats keep everything.
-          onDelete={() => {
-            retireTopic.mutate({ topicId: editingTopic.id });
-            if (filters.topics.includes(editingTopic.id)) {
-              setFilters({ ...filters, topics: [] });
-            }
-          }}
-          onOpenChange={(open) => {
-            if (!open) {
-              setEditingId(undefined);
-            }
-          }}
-          open
-          otherNames={topics.flatMap((topic) =>
-            topic.id === editingTopic.id ? [] : [topic.name],
-          )}
-          topic={editingTopic}
-        />
-      )}
     </div>
   );
 }

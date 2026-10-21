@@ -43,6 +43,7 @@ import { TopicMark } from "./topic-mark";
 import { TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
 import { useChatRename } from "./use-chat-rename";
+import { useTitleArrival } from "./use-title-arrival";
 
 /** How long the corner's bar stays after the topic list closes: the list's exit animation. */
 const PICKER_LEAVE_MS = 250;
@@ -136,6 +137,7 @@ export function ChatRow({
   };
   const isUnseen = chat.unread;
   const rename = useChatRename(chat);
+  const titleArrival = useTitleArrival(chat);
   // The menu hands focus back to the row as it closes, which would land
   // after the field took it and blur the rename shut.
   const isStartingRename = useRef(false);
@@ -188,7 +190,9 @@ export function ChatRow({
           isUnseen
             ? "font-semibold text-foreground"
             : "font-medium text-foreground/85",
+          titleArrival.className,
         )}
+        onAnimationEnd={titleArrival.onAnimationEnd}
       >
         <FuzzyHighlight
           ranges={wordRanges(chat.title, search)}
@@ -377,6 +381,8 @@ export function ChatRow({
         <ContextMenuSeparator />
         {groups.files.map(item)}
         <ContextMenuSeparator />
+        {groups.feedback.map(item)}
+        <ContextMenuSeparator />
         {groups.put.map(item)}
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={onDelete} variant="destructive">
@@ -491,11 +497,12 @@ function HoldsInChat({
 }
 
 /**
- * The agent's latest line: the step while it works, in brand; the question
- * while it waits, behind an amber glyph with the words themselves in gray;
- * that the user stopped it, behind a stop mark, until the next turn starts;
- * and the last reply's first words otherwise, in muted. Nothing when an idle
- * chat has said nothing yet. One line that truncates.
+ * The agent's latest line: the step while it works, in brand; that its turn
+ * stopped on an error, behind a red warning glyph; the question while it
+ * waits, behind an amber glyph with the words themselves in gray; and
+ * otherwise, a chat the user stopped included, the last reply's first words,
+ * in muted. Nothing when an idle or stopped chat has said nothing yet. One
+ * line that truncates.
  */
 function Peek({
   chat,

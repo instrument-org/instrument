@@ -56,8 +56,6 @@ import { llmRequestLogic } from "./llm-request";
 
 vi.mock(import("ulid"));
 
-vi.mock(import("../lib/session-store-storage"));
-
 vi.mock(import("../lib/get-current-date"));
 vi.mock(import("../lib/turn-note"), async (importOriginal) => {
   const original = await importOriginal();
@@ -235,6 +233,9 @@ describe("llmRequestLogic", () => {
       taskConfig,
     );
 
+    // Aborted the way the agent machine aborts a request it waits for, with
+    // why: its one stop here.
+    const requestStop = new AbortController();
     const machine = setup({
       actors: { llmRequest: llmRequestLogic },
       types: {
@@ -248,7 +249,11 @@ describe("llmRequestLogic", () => {
             throw new Error(`Unknown event ${event.type}`);
           },
         },
-        stop: ".Stopped",
+        stop: {
+          actions: () => {
+            requestStop.abort("manual");
+          },
+        },
       },
       states: {
         Done: { type: "final" },
@@ -256,8 +261,6 @@ describe("llmRequestLogic", () => {
         Start: {
           invoke: {
             input: () => ({
-              // What the machine says let a request go: its one stop here.
-              abortReason: () => "manual" as const,
               agent: {
                 agentTools: {},
                 getMessages,
@@ -275,6 +278,7 @@ describe("llmRequestLogic", () => {
               } as unknown as AnyActorRef,
               sessionId,
               stepCount: 1,
+              stop: requestStop.signal,
               chatId: taskConfig,
             }),
             onDone: "Done",
@@ -286,7 +290,6 @@ describe("llmRequestLogic", () => {
             src: "llmRequest",
           },
         },
-        Stopped: { type: "final" },
       },
     });
 
@@ -3133,6 +3136,83 @@ describe("llmRequestLogic", () => {
         },
         "role": "user",
       }
+    `);
+  });
+
+  // The step after a reply the output limit cut off is told to carry on
+  // from the cut without repeating it, and the call the cut caught
+  // mid-input answers that it never ran, so carrying on includes making it.
+  it("reads a call the output limit cut off as never run, beside the note to carry on", async () => {
+    const testMachine = await createTestMachine({
+      chunks: [
+        { id: "1", type: "text-start" },
+        { delta: "Reading the plan.", id: "1", type: "text-delta" },
+        { id: "1", type: "text-end" },
+        { id: "2", toolName: "read_file", type: "tool-input-start" },
+        { delta: '{"filePath": "./pl', id: "2", type: "tool-input-delta" },
+      ],
+      finishReason: "length",
+    });
+
+    await runTestMachine(testMachine);
+    await runTestMachine(testMachine);
+    expect(prompts[1]?.slice(1)).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "providerOptions": undefined,
+              "text": "Reading the plan.",
+              "type": "text",
+            },
+            {
+              "input": {
+                "filePath": "./pl",
+              },
+              "providerExecuted": undefined,
+              "providerOptions": undefined,
+              "toolCallId": "2",
+              "toolName": "read_file",
+              "type": "tool-call",
+            },
+          ],
+          "providerOptions": undefined,
+          "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "output": {
+                "type": "error-text",
+                "value": "The output limit cut this call off before its input was complete, so it did not run. Call it again.",
+              },
+              "providerOptions": undefined,
+              "toolCallId": "2",
+              "toolName": "read_file",
+              "type": "tool-result",
+            },
+          ],
+          "providerOptions": undefined,
+          "role": "tool",
+        },
+        {
+          "content": [
+            {
+              "text": "
+      <instrument-system-note>
+      Your last reply was cut off at the output limit, mid-word. Carry on from exactly where it stops, without repeating what is already there and without starting over. Write less at a time.
+      </instrument-system-note>",
+              "type": "text",
+            },
+          ],
+          "providerOptions": {
+            "instrument": {
+              "transient": true,
+            },
+          },
+          "role": "user",
+        },
+      ]
     `);
   });
 

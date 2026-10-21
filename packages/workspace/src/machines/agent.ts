@@ -11,7 +11,6 @@ import {
   enqueueActions,
   type ErrorActorEvent,
   fromPromise,
-  raise,
   setup,
 } from "xstate";
 
@@ -23,6 +22,7 @@ import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
+import { isArriving } from "../lib/records/arriving";
 import {
   MAX_OUTPUT_LIMIT_REPLIES,
   outputLimitRun,
@@ -73,7 +73,6 @@ type AgentMachineEvent =
   // children are spawned under ids made at runtime.
   | DoneActorEvent<unknown, ToolCallActorId>
   | ErrorActorEvent<unknown, ToolCallActorId>
-  | { error: Error; type: "error" }
   /**
    * A message that arrived while this turn runs. Held until the next point
    * between steps, then written into the transcript so the next request sees
@@ -83,13 +82,23 @@ type AgentMachineEvent =
    */
   | { reason?: StopReason; type: "stop" }
   | { saved?: boolean; type: "steer"; value: SessionMessage.UserWithParts }
-  | { type: "executeToolCalls" }
-  | { type: "llmRequest.chunkReceived" }
-  | { type: "retry" };
+  | { type: "llmRequest.chunkReceived" };
 
 type AgentResult = Result<void, "agent-error:unknown">;
 
 type ParentActorRef = ActorRef<AnyMachineSnapshot, AgentParentEvent>;
+
+/**
+ * How long an aborted request has to return before the turn goes on without
+ * it. The model stream itself ends the moment its abort fires, and what the
+ * request does after that (writing the reply as it was cut off, reading its
+ * parts back) is disk work that takes milliseconds, so a request reaches this
+ * only when something it awaits ignores the abort: a model lookup on the
+ * network, a write stuck behind a slow disk. Seconds rather than a fraction
+ * of one, so a slow disk still gets its writes in before the turn's end reads
+ * them, and few enough that a stop never looks stuck.
+ */
+export const REQUEST_ABORT_BACKSTOP_MS = 3000;
 
 export const agentMachine = setup({
   actions: {
@@ -101,19 +110,19 @@ export const agentMachine = setup({
 
     /**
      * A tool part of this run still in `input-*` when the run ends has no
-     * writer left: the stream that saved it is gone, queued calls are never
-     * re-executed on resume, and model-message conversion filters `input-*`
-     * parts out entirely, so the part would sit unresolved in the transcript
-     * forever and the resumed model would lose the record of having made the
-     * call. That covers queued siblings of a stopped call, parts an aborted
-     * stream saved before the machine left `LLMStreaming` (they reach no
-     * context array), pending interactive calls, and parts left by an errored
-     * stream attempt. `Finishing` runs this on the paths that can strand one,
-     * after `onFinish`. A stop gives the whole of `Finishing` about a second
-     * before the session force-stops this actor, and the two have different
-     * stakes in that budget: skill changes are consumed as `onFinish` reads
-     * them, so a run that misses it loses them, while a sweep that misses
-     * leaves parts exactly as they were without it.
+     * writer left: the stream that saved it is gone, and queued calls are
+     * never re-executed on resume, so the part would sit unresolved in the
+     * transcript forever, and the resumed model would read only the general
+     * answer model-message conversion gives such a call rather than who
+     * stopped it. That covers queued siblings of a stopped call, calls an aborted,
+     * failed or retried attempt saved (they reach no queue), pending
+     * interactive calls, and the calls of a request the machine stopped
+     * waiting for. `Finishing` runs this on the paths that can strand one,
+     * after `onFinish`. A stop gives the turn `STOP_FAILSAFE_MS` before the
+     * session force-stops this actor, and the two have different stakes in
+     * that budget: skill changes are consumed as `onFinish` reads them, so a
+     * run that misses it loses them, while a sweep that misses leaves parts
+     * exactly as they were without it.
      */
     finalizeDanglingToolCalls: fromPromise<
       void,
@@ -161,10 +170,10 @@ export const agentMachine = setup({
       const danglingParts: SessionMessagePart.ToolPart[] = [];
       for (const message of runMessages.value) {
         for (const part of message.parts) {
+          // A preliminary output is the turn's memory, not an answer.
           if (
             isToolPart(part) &&
-            (part.state === "input-available" ||
-              part.state === "input-streaming")
+            (part.state === "input-available" || isArriving(part))
           ) {
             danglingParts.push(part);
           }
@@ -183,6 +192,10 @@ export const agentMachine = setup({
         ),
       );
     }),
+
+    landRecords: fromPromise<void, { chatId: ChatId }>(({ input }) =>
+      ChatWrites.landed(input.chatId),
+    ),
 
     llmRequestLogic,
 
@@ -400,6 +413,7 @@ export const agentMachine = setup({
 
   delays: {
     llmRequestChunkTimeoutMs: ({ context }) => context.llmRequestChunkTimeoutMs,
+    requestAbortBackstop: REQUEST_ABORT_BACKSTOP_MS,
     retryBackoff: ({ context }) => {
       return context.baseLLMRetryDelayMs * Math.pow(2, context.retryCount - 1);
     },
@@ -418,8 +432,15 @@ export const agentMachine = setup({
       outputLimitContinuations: number;
       parentMessageId: StoreId.Message;
       parentRef: ParentActorRef;
-      /** The request in flight went past its chunk timeout, which lets it go; cleared as each starts. */
-      requestTimedOut: boolean;
+      /**
+       * An attempt ended without handing its calls to the queue, so some of
+       * this run's tool parts may still read `input-*` and the finish sweeps.
+       */
+      partsLeftBehind: boolean;
+      /** Aborts the request in flight, with why, while the machine waits for it; one per request. */
+      requestStop?: AbortController;
+      /** The attempt in flight timed out or failed in a way another attempt can fix; cleared as each starts. */
+      retryable: boolean;
       retryCount: number;
       /** Children of `ExecutingToolCalls` that have not finished yet. */
       runningToolCallActorIds: ToolCallActorId[];
@@ -433,11 +454,6 @@ export const agentMachine = setup({
       stopReason?: StopReason;
       chatId: ChatId;
       toolCallQueue: SessionMessagePart.ToolPartInputAvailable[];
-      // Streams whose tool parts no queue has taken over: raised when a
-      // request starts and lowered when that request's own end hands its parts
-      // to the queues, so an attempt the machine walked away from stays
-      // counted for the rest of the run.
-      unaccountedStreamCount: number;
     },
     events: {} as AgentMachineEvent,
     input: {} as {
@@ -464,7 +480,8 @@ export const agentMachine = setup({
     outputLimitContinuations: 0,
     parentMessageId: input.parentMessageId,
     parentRef: input.parentRef,
-    requestTimedOut: false,
+    partsLeftBehind: false,
+    retryable: false,
     retryCount: 0,
     runningToolCallActorIds: [],
     savedSteerIds: [],
@@ -473,7 +490,6 @@ export const agentMachine = setup({
     stepCount: 0,
     chatId: input.chatId,
     toolCallQueue: [],
-    unaccountedStreamCount: 0,
   }),
   id: "agent",
   initial: "Starting",
@@ -486,9 +502,6 @@ export const agentMachine = setup({
           self,
         });
       },
-    },
-    error: {
-      target: ".Finishing",
     },
     steer: {
       actions: assign({
@@ -522,6 +535,7 @@ export const agentMachine = setup({
           value: { error: context.error },
         });
       },
+      on: { stop: {} },
     },
 
     /**
@@ -597,6 +611,15 @@ export const agentMachine = setup({
 
     Finishing: {
       initial: "RunningOnFinish",
+      // Already finishing: a stop says why, for the sweep, and runs nothing
+      // again, since `onFinish` consumes what it reads.
+      on: {
+        stop: {
+          actions: assign({
+            stopReason: ({ event }) => event.reason ?? "manual",
+          }),
+        },
+      },
       states: {
         FinalizingDanglingToolCalls: {
           invoke: {
@@ -606,23 +629,36 @@ export const agentMachine = setup({
               stopReason: context.stopReason,
               chatId: context.chatId,
             }),
-            onDone: "#agent.Done",
-            onError: { actions: "assignEventError", target: "#agent.Done" },
+            onDone: "LandingRecords",
+            onError: { actions: "assignEventError", target: "LandingRecords" },
             src: "finalizeDanglingToolCalls",
+          },
+        },
+        /**
+         * The turn is over once what it wrote is in the chat's files, so
+         * everything that hears `agent.done` (the session's end, and the
+         * wake, retitle, unread mark and CHAT.md it starts) reads all of it.
+         */
+        LandingRecords: {
+          invoke: {
+            input: ({ context }) => ({ chatId: context.chatId }),
+            onDone: "#agent.Done",
+            onError: "#agent.Done",
+            src: "landRecords",
           },
         },
         MaybeFinalizingDanglingToolCalls: {
           always: [
             {
-              // Every stream of this run handed its tool parts to the queues,
+              // Every attempt of this run handed its tool parts to the queues,
               // both queues are drained, and no stop cut a call short, so
               // nothing of this run is left in `input-*` and the sweep would
               // buy the turn nothing for the read it costs.
               guard: ({ context }) =>
-                context.unaccountedStreamCount === 0 &&
+                !context.partsLeftBehind &&
                 context.stopReason === undefined &&
                 context.toolCallQueue.length === 0,
-              target: "#agent.Done",
+              target: "LandingRecords",
             },
             { target: "FinalizingDanglingToolCalls" },
           ],
@@ -647,106 +683,135 @@ export const agentMachine = setup({
       },
     },
 
+    /**
+     * One request to the model, and every way out of it waits for the request
+     * to return: a stop or the chunk timeout aborts it through `requestStop`,
+     * with why, and the machine leaves once it has returned, so what it was
+     * holding is written before anything after it reads the records.
+     */
     LLMStreaming: {
       entry: assign({
-        requestTimedOut: false,
-        unaccountedStreamCount: ({ context }) =>
-          context.unaccountedStreamCount + 1,
+        requestStop: () => new AbortController(),
+        retryable: false,
       }),
-      initial: "PendingTimeout",
+      initial: "Streaming",
       invoke: {
-        input: ({ context, self }) => {
-          return {
-            // Asked as the request is let go, by which point whatever let it
-            // go has been recorded: a stop, or its chunk timeout.
-            abortReason: () => {
-              const { requestTimedOut, stopReason } =
-                self.getSnapshot().context;
-              return stopReason ?? (requestTimedOut ? "timeout" : "unknown");
-            },
-            agent: context.agent,
-            model: context.model,
-            self,
-            sessionId: context.sessionId,
-            stepCount: context.stepCount,
-            chatId: context.chatId,
-          };
-        },
-        onDone: {
-          actions: [
-            raise(({ event: { output } }) => {
-              const { message } = output;
-
-              const errorAction = getErrorAction(message);
-              if (errorAction.type !== "continue") {
-                return errorAction;
-              }
-
-              return { type: "executeToolCalls" };
-            }),
-            assign(({ context, event: { output } }) => {
-              const { message, parts } = output;
-              if (getErrorAction(message).type !== "continue") {
-                return {};
-              }
-
-              const toolCallQueue = parts.filter(
+        input: ({ context, self }) => ({
+          agent: context.agent,
+          model: context.model,
+          self,
+          sessionId: context.sessionId,
+          stepCount: context.stepCount,
+          stop: context.requestStop?.signal,
+          chatId: context.chatId,
+        }),
+        onDone: [
+          {
+            // A reply the model finished: its calls run next.
+            actions: assign(({ event: { output } }) => ({
+              retryCount: 0,
+              toolCallQueue: output.parts.filter(
                 (part): part is SessionMessagePart.ToolPartInputAvailable =>
                   isToolPart(part) && part.state === "input-available",
-              );
-
-              return {
-                toolCallQueue,
-                unaccountedStreamCount: context.unaccountedStreamCount - 1,
-              };
+              ),
+            })),
+            guard: ({ context, event: { output } }) =>
+              context.requestStop?.signal.aborted !== true &&
+              getErrorAction(output.message).type === "continue",
+            target: "MaybeExecutingToolCalls",
+          },
+          {
+            // An abort of ours already says why. Otherwise the reply's error
+            // does: one another attempt can fix, or one where the request
+            // ended itself in a way no retry helps (its own abort, a full
+            // disk, a refused credential).
+            actions: assign(({ context, event: { output } }) => {
+              if (context.requestStop?.signal.aborted) {
+                return {};
+              }
+              const action = getErrorAction(output.message).type;
+              if (action === "retry") {
+                return { retryable: true };
+              }
+              return action === "stop" ? { stopReason: "manual" as const } : {};
             }),
-          ],
-        },
-        onError: { actions: "assignEventError", target: "Finishing" },
+            target: "MaybeRetrying",
+          },
+        ],
+        onError: { actions: "assignEventError", target: "MaybeRetrying" },
         src: "llmRequestLogic",
       },
       on: {
-        executeToolCalls: {
-          actions: assign({ retryCount: 0 }),
-          target: "MaybeExecutingToolCalls",
-        },
-        retry: [
-          {
-            actions: assign({
-              retryCount: ({ context }) => context.retryCount + 1,
-            }),
-            guard: ({ context }) => {
-              // The initial request spends one of the attempts, and XState runs
-              // guards before the transition's actions, so `retryCount` is
-              // still the number of retries already made.
-              const attemptsSoFar = context.retryCount + 1;
-              return attemptsSoFar < context.maxAttemptCount;
+        stop: {
+          actions: [
+            assign({ stopReason: ({ event }) => event.reason ?? "manual" }),
+            ({ context, event }) => {
+              context.requestStop?.abort(event.reason ?? "manual");
             },
-            target: "RetryingWithDelay",
-          },
-          {
-            target: "Finishing",
-          },
-        ],
+          ],
+          target: ".Aborting",
+        },
       },
       states: {
-        PendingTimeout: {
+        /**
+         * Aborted, and waiting for the request to return. A request that
+         * never does is left behind after `REQUEST_ABORT_BACKSTOP_MS`, still
+         * writing on its own, and the finish sweeps whatever it left.
+         */
+        Aborting: {
+          after: { requestAbortBackstop: "#agent.MaybeRetrying" },
+          on: {
+            "llmRequest.chunkReceived": {},
+            stop: {
+              actions: assign({
+                stopReason: ({ event }) => event.reason ?? "manual",
+              }),
+            },
+          },
+        },
+        Streaming: {
           after: {
             llmRequestChunkTimeoutMs: {
               actions: [
-                assign({ requestTimedOut: true }),
-                raise({ type: "retry" }),
+                assign({ retryable: true }),
+                ({ context }) => {
+                  context.requestStop?.abort("timeout");
+                },
               ],
+              target: "Aborting",
             },
           },
           on: {
-            "llmRequest.chunkReceived": "ResettingTimeout",
+            // Starts the chunk timeout over.
+            "llmRequest.chunkReceived": { reenter: true, target: "Streaming" },
           },
         },
-        ResettingTimeout: {
-          always: "PendingTimeout",
-        },
       },
+    },
+
+    /**
+     * Where an attempt that handed nothing to the queue goes: tried again when
+     * another attempt can help and one is left, and otherwise the turn ends.
+     */
+    MaybeRetrying: {
+      always: [
+        {
+          // An error the failed attempt threw is not the turn's once another
+          // attempt runs: only the last attempt's error says how it ended.
+          actions: assign({
+            error: undefined,
+            retryCount: ({ context }) => context.retryCount + 1,
+          }),
+          guard: ({ context }) =>
+            context.stopReason === undefined &&
+            context.retryable &&
+            // The first request spent one of the attempts.
+            context.retryCount + 1 < context.maxAttemptCount,
+          target: "RetryingWithDelay",
+        },
+        { target: "Finishing" },
+      ],
+      entry: assign({ partsLeftBehind: true }),
     },
 
     MaybeContinuing: {

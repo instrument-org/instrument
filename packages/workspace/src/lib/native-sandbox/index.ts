@@ -13,6 +13,7 @@ import {
   bwrapState,
 } from "./bwrap";
 import { type MxcCommand, mxcLaunch, mxcPolicyFor, mxcState } from "./mxc";
+import { recordProgramStart } from "../shell-commands/command-runs";
 import { currentReach, type NativeReach } from "./reach";
 import { seatbeltAvailable, seatbeltCommand, seatbeltState } from "./seatbelt";
 
@@ -36,19 +37,6 @@ export {
   seatbeltProfile,
   withInstallerClosed,
 } from "./seatbelt";
-
-/**
- * Whether native commands run under a system sandbox here, or would once a
- * probe that gave no answer gets one; false only where the system said none
- * can be made.
- */
-export function nativeSandboxEnforced(): boolean {
-  return (
-    seatbeltState() !== "unavailable" ||
-    bwrapState() !== "unavailable" ||
-    mxcState() !== "unavailable"
-  );
-}
 
 /**
  * Why no system sandbox holds native commands here, by what the system
@@ -167,6 +155,29 @@ export function wrapNativeCommand(
   args: readonly string[],
   /** Null runs the command unwrapped, for an app the person allowed. */
   reach: NativeReach | null | undefined = currentReach(),
+): WrappedCommand {
+  const wrapped = wrap(file, args, reach);
+  // A program a shell command starts is wrapped here, so this is where the
+  // call's record learns what held it.
+  recordProgramStart(
+    file,
+    reach === null
+      ? "skipped"
+      : wrapped.kind === "unwrapped"
+        ? "none"
+        : wrapped.kind === "mxc"
+          ? "mxc"
+          : process.platform === "darwin"
+            ? "seatbelt"
+            : "bwrap",
+  );
+  return wrapped;
+}
+
+function wrap(
+  file: string,
+  args: readonly string[],
+  reach: NativeReach | null | undefined,
 ): WrappedCommand {
   const unwrapped: WrappedCommand = {
     args: [...args],

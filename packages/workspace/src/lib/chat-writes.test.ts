@@ -405,6 +405,41 @@ describe("a chat written through its records", () => {
     expect(log.match(/"t":"stopped"/g)).toHaveLength(1);
   });
 
+  it("says a second stop by the same person once a turn came between", async () => {
+    const { chatId } = await startChat();
+    const task = await addChildTask(chatId, {
+      createdAt: new Date(),
+      id: StoreId.newSessionId(),
+      title: "Find hotels",
+      updatedAt: new Date(),
+    });
+    await touchTask(chatId, task.id, { stoppedBy: "user" });
+    const later = new Date(NOW.getTime() + 1000);
+    vi.setSystemTime(later);
+    (
+      await ChatWrites.saveMessageWithParts(
+        userMessage(task.id, "Look in Lisbon too."),
+        chatId,
+      )
+    )._unsafeUnwrap();
+    // The turn that message started ends on its own, and its row reads with
+    // no stop.
+    await touchTask(chatId, task.id);
+    const stoppedAgain = new Date(later.getTime() + 1000);
+    vi.setSystemTime(stoppedAgain);
+
+    await touchTask(chatId, task.id, { stoppedBy: "user" });
+
+    const read = await records.service.read(chatId);
+    expect(
+      read.chat.sessions.find(({ id }) => id === task.id)?.stopped,
+    ).toEqual({ at: stoppedAgain, by: "user" });
+    expect(
+      (await ChatReads.session({ chatId, sessionId: task.id }))._unsafeUnwrap()
+        .stoppedBy,
+    ).toBe("user");
+  });
+
   // Stop on the chat's own turn is a `stopped` record in its log, at the
   // moment it was pressed, which the turn's own save of its stop repeats.
   it("writes the person's Stop on the chat's own turn once, as of when they pressed it", async () => {

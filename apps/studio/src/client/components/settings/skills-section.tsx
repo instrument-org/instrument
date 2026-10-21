@@ -1,6 +1,5 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
-import { SkillDetail } from "@/client/components/skills/skill-detail";
 import { SkillList } from "@/client/components/skills/skill-list";
 import {
   AlertDialog,
@@ -13,86 +12,39 @@ import {
   AlertDialogTitle,
 } from "@/client/components/ui/alert-dialog";
 import { Button } from "@/client/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { WindowContext } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
-import { useModalBack } from "@/client/hooks/use-modal-back";
+import { showInFolder } from "@/client/lib/show-in-files";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
-import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import { useContext, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 /** The system skill that knows how a skill is packaged, placed and checked. */
 const SKILL_CREATOR = skillMentionToken("skill-creator");
 
-type Skill = RPCOutput["workspace"]["skill"]["byName"];
+type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 
 /**
- * The skills a task can load, and one of them: a list that opens a skill's
- * page in place, with a way back. Making a skill and changing one are asks
- * like any other, so both open a draft with the start of the sentence in it
- * and close Settings, since the draft is written on the window under it.
+ * The skills a task can load. A skill is a folder, so a row opens that
+ * folder in Files, where it can be read, changed, or handed to a chat.
+ * Making a skill is an ask like any other: it opens a draft with the start
+ * of the sentence in it and closes Settings, since the draft is written on
+ * the window under it.
  */
 export function SkillsSection() {
-  // The skill a link asked for opens in place of the list, and a later link
-  // while Settings is up opens the one it names.
-  const named = useAtomValue(settingsModalAtom)?.skill;
-  const [openName, setOpenName] = useState<null | string>(named ?? null);
-  const [seenNamed, setSeenNamed] = useState(named);
-  if (named !== seenNamed) {
-    setSeenNamed(named);
-    if (named !== undefined) {
-      setOpenName(named);
-    }
-  }
   const ask = useAsk();
-  // Back from a skill returns to the list rather than closing Settings.
-  useModalBack(() => {
-    setOpenName(null);
-  }, openName !== null);
-
-  if (openName !== null) {
-    return (
-      <div className="space-y-6">
-        <button
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            setOpenName(null);
-          }}
-          type="button"
-        >
-          <ArrowLeftIcon className="size-4" />
-          All skills
-        </button>
-        <SkillDetail
-          actions={(skill) =>
-            skill.editable ? (
-              <SkillActions
-                onDeleted={() => {
-                  setOpenName(null);
-                }}
-                onEdit={
-                  ask
-                    ? () => {
-                        ask(
-                          `Use ${SKILL_CREATOR} to change ${skillMentionToken(skill.id)} so that `,
-                        );
-                      }
-                    : undefined
-                }
-                skill={skill}
-              />
-            ) : null
-          }
-          name={openName}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8">
       <div className="flex items-start gap-4" {...settingAnchor("new-skill")}>
@@ -114,24 +66,17 @@ export function SkillsSection() {
         ) : null}
       </div>
       <SkillList
+        menu={(skill) => (skill.editable ? <SkillMenu skill={skill} /> : null)}
         onOpen={(skill) => {
-          setOpenName(skill.id);
+          void showInFolder(skill.path, { kind: "folder" });
         }}
       />
     </div>
   );
 }
 
-/** Edit and Delete, for a skill of the workspace's own. */
-function SkillActions({
-  onDeleted,
-  onEdit,
-  skill,
-}: {
-  onDeleted: () => void;
-  onEdit: (() => void) | undefined;
-  skill: Skill;
-}) {
+/** The "⋯" on a row of the workspace's own skills, the ones it can delete. */
+function SkillMenu({ skill }: { skill: Skill }) {
   const queryClient = useQueryClient();
   const remove = useMutation(
     rpcClient.workspace.skill.remove.mutationOptions(),
@@ -146,28 +91,32 @@ function SkillActions({
       });
       setConfirming(false);
       toast.success(`Deleted “${skill.title}”`);
-      onDeleted();
     } catch (error) {
       toast.error(`Couldn't delete “${skill.title}”`, { cause: error });
     }
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
-      <Button
-        onClick={() => {
-          setConfirming(true);
-        }}
-        size="sm"
-        variant="ghost"
-      >
-        Delete
-      </Button>
-      {onEdit ? (
-        <GlyphButton onClick={onEdit} size="sm">
-          Edit skill
-        </GlyphButton>
-      ) : null}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="icon-sm" variant="ghost">
+            <DotsThreeIcon className="size-4" weight="bold" />
+            <span className="sr-only">{`More for ${skill.title}`}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onSelect={() => {
+              setConfirming(true);
+            }}
+            variant="destructive"
+          >
+            <TrashIcon className="size-4" />
+            <span>Delete…</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <AlertDialog onOpenChange={setConfirming} open={isConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -194,7 +143,7 @@ function SkillActions({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 

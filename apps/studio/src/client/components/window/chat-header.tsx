@@ -44,6 +44,7 @@ import { type RowAction } from "./row-shell";
 import { TopicMark } from "./topic-mark";
 import { TopicPicker } from "./topic-picker";
 import { type ChatRename, useChatRename } from "./use-chat-rename";
+import { useTitleArrival } from "./use-title-arrival";
 
 /**
  * The head over a chat's conversation, wherever the chat is shown: beside
@@ -251,6 +252,7 @@ function ChatHeading({
 }) {
   const filed = topics.find((entry) => entry.id === chat.topic);
   const chatRename = useChatRename(chat);
+  const titleArrival = useTitleArrival(chat);
   // The title's width as renaming begins, which the field opens at, read
   // in layout px (offsetWidth, not a rect) since the app scales with CSS zoom.
   const [titleButton, setTitleButton] = useState<HTMLButtonElement | null>(
@@ -293,6 +295,7 @@ function ChatHeading({
             topicMenu={{ onNew: onNewTopic, onPick: pickTopic, topics }}
             trigger={
               <ChatTitleButton
+                arrival={titleArrival}
                 className={titleClassName}
                 ref={setTitleButton}
                 title={chat.title}
@@ -468,6 +471,8 @@ function ChatMenu({
         )}
         <DropdownMenuSeparator />
         {groups.files.map(item)}
+        <DropdownMenuSeparator />
+        {groups.feedback.map(item)}
         <DropdownMenuSeparator />
         {groups.put.map((action) =>
           action.id === "archive"

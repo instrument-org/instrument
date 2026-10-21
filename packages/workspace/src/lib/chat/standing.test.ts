@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
@@ -8,8 +8,6 @@ import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { ChatWrites } from "../chat-writes";
 import { touchTask } from "./children";
 import { taskStanding } from "./standing";
-
-vi.mock(import("../session-store-storage"));
 
 let counter = 0;
 const freshChat = () =>

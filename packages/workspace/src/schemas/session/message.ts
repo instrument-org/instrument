@@ -32,11 +32,15 @@ import { jobEventModelNote } from "../../lib/job-event-model-text";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { outputLimitModelNote } from "../../lib/output-limit-model-text";
 import { memoryModelNote } from "../../lib/memory-model-text";
+import { setupNewsModelNote } from "../../lib/setup-news-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { stateNotes } from "../../lib/state-notes";
-import { withStoppedToolCallModelText } from "../../lib/stopped-tool-call-model-text";
+import {
+  withStoppedToolCallModelText,
+  withUnansweredToolCallResult,
+} from "../../lib/stopped-tool-call-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
 import { workspaceHostPath } from "../../lib/workspace-relative-path";
 import { TOOL_NAMES } from "../../tools/name";
@@ -59,7 +63,7 @@ export namespace SessionMessage {
    * chat's, a newer message superseding the reply, the app quitting), its
    * chunk timeout, or nothing the session could name.
    */
-  const AbortReasonSchema = z.enum([
+  export const AbortReasonSchema = z.enum([
     "chat",
     "manual",
     "quit",
@@ -401,28 +405,30 @@ export namespace SessionMessage {
         pendingOutputLimitNote = outputLimitModelNote(outputLimitPart.data);
       }
 
-      const skillChangesPart = message.parts.find(
+      const setupChangesPart = message.parts.find(
         (
           part,
         ): part is SessionMessagePart.DataPart & {
-          type: "data-skillChanges";
-        } => part.type === "data-skillChanges",
+          type: "data-setupChanges";
+        } => part.type === "data-setupChanges",
       );
-      if (skillChangesPart) {
-        for (const name of skillChangesPart.data.created) {
-          pendingSkillChanges.created.add(name);
-        }
-        for (const name of skillChangesPart.data.updated) {
-          pendingSkillChanges.updated.add(name);
+      // The catalog's correction names the skills there are now; one the turn
+      // removed is not in the catalog's way, so the model is not told.
+      for (const item of setupChangesPart?.data.changes ?? []) {
+        if (item.kind === "skill" && item.change === "added") {
+          pendingSkillChanges.created.add(item.name);
+        } else if (item.kind === "skill" && item.change === "changed") {
+          pendingSkillChanges.updated.add(item.name);
         }
       }
 
       const filteredParts = message.parts
+        .map(withUnansweredToolCallResult)
         .filter(
           (part) =>
-            // Must filter or the AI SDK will throw an error in toModelMessages
+            // A call still in input-* (one the provider ran and never
+            // answered) makes the AI SDK throw in toModelMessages.
             !isToolPart(part) ||
-            // If the state is input-*, AI SDK errors in converting to model messages
             part.state === "output-available" ||
             part.state === "output-error",
         )
@@ -622,6 +628,7 @@ const USER_TURN_NOTES = [
   noted("workspaceInstructions", stated),
   noted("topic", stated),
   noted("memory", ({ data }) => memoryModelNote(data)),
+  noted("setupNews", ({ data }) => setupNewsModelNote(data)),
 ];
 
 /**

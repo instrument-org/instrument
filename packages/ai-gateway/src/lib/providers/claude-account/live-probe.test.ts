@@ -444,3 +444,100 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     expect(infos.filter((line) => line.includes("forked"))).toHaveLength(1);
   },
 );
+
+// A call the user stopped comes back as a failed result, with what was said
+// next after it, as the user's.
+it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
+  "ends the turn on a failed tool result and takes the message after it",
+  { timeout: 180_000 },
+  async () => {
+    const model = createClaudeAccountLanguageModel({
+      configDir: undefined,
+      executablePath: `${homedir()}/.local/bin/claude`,
+    })("claude-haiku-4-5");
+    const tools: LanguageModelV4FunctionTool[] = [
+      {
+        description: "Wait the given number of seconds",
+        inputSchema: {
+          properties: { seconds: { type: "number" } },
+          required: ["seconds"],
+          type: "object",
+        },
+        name: "wait",
+        type: "function",
+      },
+    ];
+    const providerOptions = {
+      "claude-account": { sessionId: `live-stopped-${randomUUID()}` },
+    };
+    async function step(prompt: LanguageModelV4Message[]) {
+      const { stream } = await model.doStream({
+        prompt,
+        providerOptions,
+        tools,
+      });
+      let text = "";
+      const calls: { input: string; toolCallId: string }[] = [];
+      for await (const part of stream) {
+        if (part.type === "error") {
+          throw part.error;
+        }
+        if (part.type === "text-delta") {
+          text += part.delta;
+        }
+        if (part.type === "tool-call") {
+          calls.push({ input: part.input, toolCallId: part.toolCallId });
+        }
+      }
+      return { calls, text };
+    }
+    const prompt: LanguageModelV4Message[] = [
+      { content: `${PROBE_MARKER} Use the wait tool to wait.`, role: "system" },
+      {
+        content: [{ text: "Wait 120 seconds with the tool.", type: "text" }],
+        role: "user",
+      },
+    ];
+    const first = await step(prompt);
+    const [call] = first.calls;
+    expect(call).toBeDefined();
+    prompt.push(
+      {
+        content: [
+          {
+            input: JSON.parse(call?.input ?? "{}") as unknown,
+            toolCallId: call?.toolCallId ?? "",
+            toolName: "wait",
+            type: "tool-call",
+          },
+        ],
+        role: "assistant",
+      },
+      {
+        content: [
+          {
+            output: {
+              type: "error-text",
+              value:
+                "The user stopped this. Do not run it again unless they ask.",
+            },
+            toolCallId: call?.toolCallId ?? "",
+            toolName: "wait",
+            type: "tool-result",
+          },
+        ],
+        role: "tool",
+      },
+      {
+        content: [
+          { text: "What happened? Answer without any tool.", type: "text" },
+        ],
+        role: "user",
+      },
+    );
+    const asked = await step(prompt);
+    process.stderr.write(`STOPPED ${JSON.stringify(asked)}\n`);
+    closeClaudeAccountSessions();
+    expect(asked.text.toLowerCase()).toMatch(/stop/);
+  },
+);

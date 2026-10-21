@@ -13,6 +13,12 @@ describe("isChatFileHref", () => {
     ["HTTPS://example.com/chart.png", false],
     ["mailto:someone@example.com", false],
     ["data:text/plain,hi", false],
+    ["C:/Users/sam/chart.png", true],
+    ["c:/Users/sam/chart.png", true],
+    [String.raw`C:\Users\sam\chart.png`, true],
+    ["C:%5CUsers%5Csam%5Cchart.png", true],
+    [String.raw`\\nas\photos\chart.png`, true],
+    ["%5C%5Cnas%5Cphotos%5Cchart.png", true],
   ])("%s -> %s", (href, expected) => {
     expect(isChatFileHref(href)).toBe(expected);
   });
@@ -37,6 +43,13 @@ describe("chatFilePathFromHref", () => {
 
   it("keeps a truncated escape sequence", () => {
     expect(chatFilePathFromHref("output/100%2.png")).toBe("output/100%2.png");
+  });
+
+  it.each([
+    "C:/Users/sam/sp%20ace/notes.txt",
+    "C:%5CUsers%5Csam%5Csp%20ace%5Cnotes.txt",
+  ])("reads a Windows drive link as the shell's spelling: %s", (href) => {
+    expect(chatFilePathFromHref(href)).toBe("/c/Users/sam/sp ace/notes.txt");
   });
 
   it("decodes an escaped separator into a path segment", () => {

@@ -10,7 +10,8 @@ import { base } from "../../base";
  * reads the bytes by one, a tab is addressed by one, and the agent's own
  * paths are translated once, here, on their way to the screen. Null for a
  * path outside everything the task can reach, and for one that is no path
- * this computer can read, each on its own.
+ * this computer can read, each on its own. A file the person attached in the
+ * workspace (`workspace:/...`) is answered wherever the workspace is.
  */
 const hostPaths = base
   .input(

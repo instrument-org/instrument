@@ -28,7 +28,7 @@ function baseMetadata() {
 }
 
 describe("SessionMessage.toModelMessages", () => {
-  it("excludes tool parts in input-available (preliminary) state", async () => {
+  it("leaves out a call the provider ran and never answered", async () => {
     const { messageId, messageMetadata, partMetadata } = baseMetadata();
 
     const messages: SessionMessage.WithParts[] = [
@@ -82,7 +82,7 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  it("excludes tool parts in input-streaming (preliminary) state", async () => {
+  it("answers a call of ours the turn left without a result as stopped", async () => {
     const { messageId, messageMetadata, partMetadata } = baseMetadata();
 
     const messages: SessionMessage.WithParts[] = [
@@ -128,8 +128,29 @@ describe("SessionMessage.toModelMessages", () => {
               "text": "Thinking...",
               "type": "text",
             },
+            {
+              "input": undefined,
+              "providerExecuted": false,
+              "toolCallId": "call_456",
+              "toolName": "read_file",
+              "type": "tool-call",
+            },
           ],
           "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "output": {
+                "type": "error-text",
+                "value": "This call was stopped before it returned: it never ran, or was interrupted while it ran.",
+              },
+              "toolCallId": "call_456",
+              "toolName": "read_file",
+              "type": "tool-result",
+            },
+          ],
+          "role": "tool",
         },
       ]
     `);
@@ -915,7 +936,7 @@ describe("SessionMessage.toModelMessages", () => {
                 },
                 {
                   filename: "old.md",
-                  filePath: "/Users/jeremy/Instrument/Notes/old.md",
+                  filePath: "/Users/mac-user/Instrument/Notes/old.md",
                   mimeType: "text/markdown",
                   modifiedAt: 1_718_198_400_000,
                   size: 120,
@@ -946,7 +967,7 @@ describe("SessionMessage.toModelMessages", () => {
       .toMatchInlineSnapshot(`
         [
           "- \`/home/alex/Instrument/Notes/plan.md\` (120B)",
-          "- \`/Users/jeremy/Instrument/Notes/old.md\` (120B)",
+          "- \`/Users/mac-user/Instrument/Notes/old.md\` (120B)",
         ]
       `);
     expect(
@@ -958,7 +979,7 @@ describe("SessionMessage.toModelMessages", () => {
     ).toMatchInlineSnapshot(`
       [
         "- \`/c/Users/alex/Instrument/Notes/plan.md\` (120B)",
-        "- \`/Users/jeremy/Instrument/Notes/old.md\` (120B)",
+        "- \`/Users/mac-user/Instrument/Notes/old.md\` (120B)",
       ]
     `);
   });
@@ -1123,14 +1144,21 @@ describe("SessionMessage.toModelMessages", () => {
 
     const messages: SessionMessage.WithParts[] = [
       messageOf("assistant", (metadata) => ({
-        data: { created: ["pdf-report"], updated: [] },
+        data: {
+          changes: [{ change: "added", kind: "skill", name: "pdf-report" }],
+        },
         metadata,
-        type: "data-skillChanges",
+        type: "data-setupChanges",
       })),
       messageOf("assistant", (metadata) => ({
-        data: { created: ["pdf-report"], updated: ["chart-builder"] },
+        data: {
+          changes: [
+            { change: "changed", kind: "skill", name: "chart-builder" },
+            { change: "added", kind: "skill", name: "pdf-report" },
+          ],
+        },
         metadata,
-        type: "data-skillChanges",
+        type: "data-setupChanges",
       })),
       messageOf("user", (metadata) => ({
         metadata,

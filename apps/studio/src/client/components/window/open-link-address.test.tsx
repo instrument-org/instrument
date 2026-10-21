@@ -1,5 +1,6 @@
 // A link address names something that lives outside the tabs, so however it
-// reaches them, no tab stands at it.
+// reaches them, no tab stands at it: a skill's address opens its folder in a
+// tab of its own, the way Files shows any folder.
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { shortcutGuideModalAtom } from "@/client/atoms/shortcut-guide-modal";
 import { TabIdSchema } from "@/shared/tabs";
@@ -8,12 +9,17 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { createStore, getDefaultStore, Provider } from "jotai";
 import { type ReactNode } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { skillHref } from "./tab-location";
 import { appTabsAtom, useAppTabs } from "./app-tabs";
 import { openLinkAddress } from "./open-link-address";
 import { useWindowTabs, windowTabsAtom } from "./window-tabs";
+
+const { showSkillFolder } = vi.hoisted(() => ({
+  showSkillFolder: vi.fn<(name: string) => Promise<void>>(),
+}));
+vi.mock("@/client/lib/show-in-files", () => ({ showSkillFolder }));
 
 const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
 const TAB = TabIdSchema.parse("tab");
@@ -21,15 +27,11 @@ const TAB = TabIdSchema.parse("tab");
 afterEach(() => {
   getDefaultStore().set(settingsModalAtom, null);
   getDefaultStore().set(shortcutGuideModalAtom, null);
+  showSkillFolder.mockReset();
 });
 
 describe("openLinkAddress", () => {
   it.each([
-    [
-      "a skill",
-      "/skills/agents%3Ahandoff",
-      { skill: "agents:handoff", tab: "Skills" },
-    ],
     ["a memory", "/memory/roofs", { memory: "roofs", tab: "Memory" }],
     ["a setting", "/settings/theme", { setting: "theme" }],
   ])(
@@ -39,6 +41,14 @@ describe("openLinkAddress", () => {
       expect(getDefaultStore().get(settingsModalAtom)).toEqual(settings);
     },
   );
+
+  it("opens a skill's folder and leaves no address for a tab", async () => {
+    expect(openLinkAddress("/skills/agents%3Ahandoff")).toBeUndefined();
+    await vi.waitFor(() => {
+      expect(showSkillFolder).toHaveBeenCalledWith("agents:handoff");
+    });
+    expect(getDefaultStore().get(settingsModalAtom)).toBeNull();
+  });
 
   it("opens a named dialog over the window", () => {
     expect(openLinkAddress("/screen/shortcuts")).toBeUndefined();
@@ -88,7 +98,7 @@ describe("a skill's address handed straight to the tabs", () => {
   it.each([
     ["a tab of the window's own", "open"],
     ["the tab up", "navigate"],
-  ] as const)("opens Settings on the skill rather than %s", (_case, how) => {
+  ] as const)("opens the skill's folder rather than %s", async (_case, how) => {
     const { result, store } = renderTabs();
     act(() => {
       result.current.app[how](skillHref("handoff"));
@@ -96,15 +106,14 @@ describe("a skill's address handed straight to the tabs", () => {
     expect(store.get(appTabsAtom).tabs.map((tab) => tab.pathname)).toEqual([
       `/chats/${CHAT}`,
     ]);
-    expect(getDefaultStore().get(settingsModalAtom)).toEqual({
-      skill: "handoff",
-      tab: "Skills",
+    await vi.waitFor(() => {
+      expect(showSkillFolder).toHaveBeenCalledWith("handoff");
     });
   });
 
   it.each(["openScreen", "openOrFocusScreen"] as const)(
-    "opens Settings on the skill rather than a chat's tab (%s)",
-    (how) => {
+    "opens the skill's folder rather than a chat's tab (%s)",
+    async (how) => {
       const { result, store } = renderTabs();
       let id: string | undefined;
       act(() => {
@@ -112,9 +121,8 @@ describe("a skill's address handed straight to the tabs", () => {
       });
       expect(id).toBeUndefined();
       expect(store.get(windowTabsAtom).tabs).toEqual([]);
-      expect(getDefaultStore().get(settingsModalAtom)).toEqual({
-        skill: "handoff",
-        tab: "Skills",
+      await vi.waitFor(() => {
+        expect(showSkillFolder).toHaveBeenCalledWith("handoff");
       });
     },
   );

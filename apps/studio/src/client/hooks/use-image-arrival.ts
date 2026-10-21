@@ -58,8 +58,7 @@ type Phase = "arriving" | "pending" | "settled";
  * favicon service, a thumbnail is an asset-origin fetch and a decode. The row
  * around it has already drawn, so what the reader sees is a reserved gap
  * snapping full. Held at zero until the load event and then eased in, the same
- * moment reads as the image arriving -- a slower cousin of the wash a message's
- * words arrive under (`stream-word-in` in `globals.css`).
+ * moment reads as the image arriving.
  *
  * Compose the returned `className` onto the `<img>` and call `onLoad` from its
  * load handler. The element must already hold its own space -- a sized box, an

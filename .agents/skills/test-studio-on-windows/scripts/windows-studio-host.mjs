@@ -184,7 +184,9 @@ function launchedPageFunction() {
   return `function Get-LaunchedPage($cdp, [string] $rendererUrl) {
   if (-not $cdp.live) { return $null }
   $pages = @($cdp.targets | Where-Object { $_.type -eq 'page' })
-  if (@($pages | Where-Object { $_.url -like $rendererUrl }).Count -gt 0) { return 'app' }
+  # A build serves the renderer from its app scheme's app host; earlier ones
+  # loaded it from the asar's out/renderer, which $rendererUrl names.
+  if (@($pages | Where-Object { $_.url -like $rendererUrl -or $_.url -like '*://app/index.html*' }).Count -gt 0) { return 'app' }
   if (@($pages | Where-Object { $_.url -like 'data:text/html*' }).Count -gt 0) { return 'refusal' }
   return $null
 }`;
@@ -1055,7 +1057,7 @@ function Get-TaskStatus($target, [string] $kind) {
   if ($kind -eq 'installed') {
     $expectedWorkingDirectory = Split-Path -Parent $profile.installed.executable
     $ownerMatches = $cdp.live -and [string]::Equals($cdp.owner.executablePath, $profile.installed.executable, [StringComparison]::OrdinalIgnoreCase)
-    $rendererReady = @($cdp.targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'file:///*/resources/app.asar/out/renderer/*' }).Count -gt 0
+    $rendererReady = @($cdp.targets | Where-Object { $_.type -eq 'page' -and ($_.url -like 'file:///*/resources/app.asar/out/renderer/*' -or $_.url -like '*://app/index.html*') }).Count -gt 0
     $userAgentMatches = $cdp.live -and $cdp.userAgent -like '*Instrument/*' -and $cdp.userAgent -notlike '*Instrument(Dev)/*'
     $commandConfigured = $arguments.IndexOf($profile.installed.executable, [StringComparison]::OrdinalIgnoreCase) -ge 0
   } else {

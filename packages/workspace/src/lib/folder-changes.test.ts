@@ -7,7 +7,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { grantFolder, revokeGrant } from "./chat/grants";
+import { grantFolder } from "./chat/grants";
 import { detectFolderChanges } from "./folder-changes";
 import { setFoldersBaseline } from "./folders-baseline";
 import { sessionOfChat } from "./record-folders";
@@ -91,9 +91,7 @@ describe("detectFolderChanges", () => {
   it("reports a removal beside a folder granted since", async () => {
     const gone = path.join(rootDir, "Old");
     await fs.mkdir(gone);
-    await grantFolder({ chatId: CHAT_ID, path: gone, source: "card" });
     await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
-    await revokeGrant({ chatId: CHAT_ID, path: gone });
 
     const changes = await changesSince([{ path: gone }]);
 

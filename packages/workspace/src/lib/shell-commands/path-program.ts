@@ -26,6 +26,7 @@ import {
   mapStreams,
   shimOutput,
 } from "./exec-shim";
+import { quoteWindowsArgument } from "./native-text";
 import { runNative } from "./pipe-stage";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
@@ -227,6 +228,29 @@ async function programApp(hostPath: string): Promise<MacApp | undefined> {
 }
 
 /**
+ * `cmd.exe` running a batch file, the way Node's `shell: true` hands cmd a
+ * line: the whole of it after `/c` in one pair of quotes, which `/s` strips,
+ * so it goes verbatim. The path is quoted, so a space or `&` in it is cmd's
+ * literal. Each argument is quoted as a program's C runtime reads it back,
+ * then `&|<>^%` and its own quotes are escaped with `^`: an escaped quote
+ * opens no quoted stretch, so cmd reads every caret and runs nothing in an
+ * argument, and the batch file gets the argument whole.
+ */
+export function batchFileLaunch(
+  comspec: string,
+  hostPath: string,
+  args: readonly string[],
+): [string, string[]] {
+  const line = [
+    `"${hostPath}"`,
+    ...args.map((arg) =>
+      quoteWindowsArgument(arg).replaceAll(/[&|<>^%"]/g, "^$&"),
+    ),
+  ].join(" ");
+  return [comspec, ["/d", "/s", "/c", `"${line}"`]];
+}
+
+/**
  * The program at `hostPath` as a native command: in the shell's working
  * directory, with the environment and sandbox every native command gets.
  * One that acts through one of the person's apps first asks for the app,
@@ -251,11 +275,13 @@ function createPathProgramCommand(
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
     // cmd.exe runs a batch file; CreateProcess cannot.
-    const [file, fileArgs] = /\.(?:bat|cmd)$/i.test(hostPath)
-      ? [
+    const batch = /\.(?:bat|cmd)$/i.test(hostPath);
+    const [file, fileArgs] = batch
+      ? batchFileLaunch(
           hostEnv("COMSPEC") ?? "cmd.exe",
-          ["/d", "/s", "/c", hostPath, ...hostPathArgs(args)],
-        ]
+          hostPath,
+          hostPathArgs(args),
+        )
       : [hostPath, hostPathArgs(args)];
     const programEnv = {
       ...getWorkspaceConfig().nodeExecEnv,
@@ -274,6 +300,7 @@ function createPathProgramCommand(
         cancelSignal: ctx.signal,
         cwd: hostCwd,
         env: programEnv,
+        ...(batch ? { windowsVerbatimArguments: true } : {}),
         ...(stdin ? { input: stdin } : { stdin: "ignore" as const }),
       },
       (result) => ({

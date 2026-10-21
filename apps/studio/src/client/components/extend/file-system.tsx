@@ -52,7 +52,14 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
 import { useFindTarget } from "@/client/hooks/use-find-target";
-import { cn, commandKeyHeld, currentOs, isMacOS } from "@/client/lib/utils";
+import { folderGlyphUrl } from "@/client/components/icons/folder-glyph";
+import {
+  cn,
+  commandKeyHeld,
+  currentOs,
+  isMacOS,
+  isWindows,
+} from "@/client/lib/utils";
 import {
   createFileTreeIconResolver,
   getBuiltInSpriteSheet,
@@ -155,11 +162,6 @@ export type FileSystemFileItem = {
    */
   previewImageUrls?: null | string[];
   /**
-   * Total page count when it exceeds `previewImageUrls.length`; the pager
-   * loads the remaining pages on demand via `loadPreviewImageUrl`.
-   */
-  previewPageCount?: number;
-  /**
    * When the person last opened this file, for a list that is a log of what
    * they opened rather than a folder. Sortable, and nothing else: a file's own
    * dates say when it was made and changed, which is a different question and
@@ -170,7 +172,6 @@ export type FileSystemFileItem = {
   /** The Kind column's text, where the system names it: "Application". */
   typeName?: string;
   updatedAt?: string;
-  /** Optional if already public/presigned. Otherwise resolved via `getFileUrl`. */
   url?: string;
 };
 export type FileSystemItem = FileSystemFileItem | FileSystemFolderItem;
@@ -202,8 +203,6 @@ export type FileSystemProps = {
   defaultSearch?: string;
   /** The item selected on opening, by path, e.g. `"invoices/march.pdf"`. */
   defaultSelectedPath?: string;
-  /** The order the browser opens in, when name ascending is the wrong one. */
-  defaultSort?: FileSystemSortState;
   defaultView?: FileSystemView;
   /**
    * What the browser says when there is nothing to list and nothing is
@@ -212,8 +211,6 @@ export type FileSystemProps = {
    * empty folder says that.
    */
   emptyState?: { description: string; title: string };
-  /** Resolve a URL (e.g. presigned) for a file without one. */
-  getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
   /**
    * Where an item lives on this computer, for dragging it out of the window
    * and into another app the way a row in the Finder drags. Left out, nothing
@@ -253,14 +250,6 @@ export type FileSystemProps = {
    */
   prefetchChildren?: (folderPath: string) => void;
   /**
-   * Lazily render a page thumbnail beyond the eagerly provided
-   * `previewImageUrls` (the pager calls this as pages come into view).
-   */
-  loadPreviewImageUrl?: (
-    file: FileSystemFileItem,
-    pageIndex: number,
-  ) => Promise<null | string>;
-  /**
    * Whether the selection takes the keyboard with it as it moves. False while
    * something outside holds focus and walks the selection from there, so the
    * rows never pull focus out of it.
@@ -283,8 +272,6 @@ export type FileSystemProps = {
    * key is nobody's here.
    */
   onDuplicate?: (items: FileSystemItem[]) => void;
-  /** A press on empty space past the rows or tiles, which the view answers by letting go of the selection (or, in the columns, going back to the column's folder). */
-  onEmptyPress?: () => void;
   /**
    * Called on file open (double-click), replacing the built-in behavior. By
    * default PDF, DOCX, PPTX, XLSX, and image files open in a viewer dialog and
@@ -351,10 +338,6 @@ export type FileSystemProps = {
    */
   onTrash?: (items: FileSystemItem[]) => void;
   onViewChange?: (view: FileSystemView) => void;
-  /** Controls drawn under a selected file's name in the columns view's preview pane. */
-  renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
-  /** Custom preview node for files without `previewImageUrl`. */
-  renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
   /** What the columns view shows in its preview pane for a selected file, when something other than its icon. */
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
   /** Controls drawn at the head of the toolbar, before the folder's name: back and forward. */
@@ -378,11 +361,6 @@ export type FileSystemProps = {
    * folder narrowed beside an open file.
    */
   toolbarInto?: { lead: HTMLElement | null; tail?: HTMLElement | null };
-  /**
-   * What the columns view shows past the last column while no file is
-   * selected, given the folder that column lists.
-   */
-  renderTrailing?: (folderPath: string) => React.ReactNode;
   /**
    * What stands where a folder's contents would, for a folder the caller
    * cannot list (the system refused the read), given the folder; null for one
@@ -408,7 +386,7 @@ export type FileSystemProps = {
   showHiddenFiles?: boolean;
   /**
    * The order the rows are in, when the caller holds it. Left out, the
-   * browser keeps its own, opening in `defaultSort`.
+   * browser keeps its own, opening by name ascending.
    */
   sort?: FileSystemSortState;
   /** What a caller can ask of the browser itself. */
@@ -720,13 +698,19 @@ function compareEntryNames(
     sensitivity: "base",
   });
 }
-function formatByteSize(size: number | undefined) {
+/**
+ * A size the way the system's file manager writes it: File Explorer counts a
+ * kilobyte as 1024 bytes, and the Finder and GNOME's Files as 1000, so a disk
+ * reads the same here as there.
+ */
+export function formatByteSize(size: number | undefined) {
   if (size === undefined) return null;
-  if (size < 1000) return `${size} bytes`;
+  const step = isWindows() ? 1024 : 1000;
+  if (size < step) return `${size} bytes`;
   const units = ["KB", "MB", "GB", "TB"];
   let value = size;
   for (const unit of units) {
-    value /= 1000;
+    value /= step;
     if (value < 1000 || unit === "TB") {
       return `${value >= 100 ? Math.round(value) : value.toFixed(value >= 10 ? 1 : 2).replace(/\.?0+$/, "")} ${unit}`;
     }
@@ -1103,11 +1087,9 @@ function folderHasChildren(index: FileSystemIndex, folder: FolderEntry) {
 }
 // The folder glyph as one SVG source, drawn from a data URL wherever a folder
 // is.
-const FOLDER_GLYPH_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 50" width="64" height="50"><defs><linearGradient id="fs-folder-back" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3dabf5"/><stop offset="1" stop-color="#1d84dd"/></linearGradient><linearGradient id="fs-folder-front" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7accfb"/><stop offset="1" stop-color="#37a0ef"/></linearGradient></defs><path d="M5 10c0-3.31 2.69-6 6-6h10.9c1.6 0 3.13.7 4.18 1.9l1.5 1.73a3.5 3.5 0 0 0 2.64 1.22H54c2.76 0 5 2.24 5 5V40c0 3.87-3.13 7-7 7H12c-3.87 0-7-3.13-7-7V10Z" fill="url(#fs-folder-back)"/><path d="M5 15.5h54V40c0 3.87-3.13 7-7 7H12c-3.87 0-7-3.13-7-7V15.5Z" fill="url(#fs-folder-front)"/></svg>`;
-const FOLDER_GLYPH_DATA_URL = `data:image/svg+xml,${encodeURIComponent(FOLDER_GLYPH_SVG)}`;
 export function FileSystemFolderGlyph({
   className,
-  src = FOLDER_GLYPH_DATA_URL,
+  src,
 }: {
   className?: string;
   src?: string;
@@ -1119,7 +1101,7 @@ export function FileSystemFolderGlyph({
       aria-hidden="true"
       className={className}
       draggable={false}
-      src={src}
+      src={src ?? folderGlyphUrl()}
     />
   );
 }
@@ -1345,27 +1327,15 @@ export function FileTypeGlyph({
 function FileVisual({
   className,
   file,
-  loadPreviewImageUrl,
   pageable = false,
-  pageUrlCache,
   previewAspectRatio,
   previewClassName,
-  renderFilePreview,
   style,
 }: {
   className?: string;
   file: FileEntry;
-  loadPreviewImageUrl?: (
-    file: FileSystemFileItem,
-    pageIndex: number,
-  ) => Promise<null | string>;
   /** Show a hover pager over multi-page thumbnails. */
   pageable?: boolean;
-  /**
-   * Shared `"path#pageIndex"` → URL cache so pages fetched by one pager
-   * (gallery stage, columns preview) are reused by every other instance.
-   */
-  pageUrlCache?: Map<string, string>;
   /**
    * The shape to draw the preview in, width over height, when neither the
    * file nor the loaded image says. A file's own `previewAspectRatio` wins;
@@ -1373,70 +1343,21 @@ function FileVisual({
    */
   previewAspectRatio?: number;
   previewClassName?: string;
-  renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
   style?: React.CSSProperties;
 }) {
   const previewUrls = filePreviewUrls(file);
-  const canLoadLazily = pageable && Boolean(loadPreviewImageUrl);
-  const totalPages = Math.max(
-    previewUrls.length,
-    canLoadLazily ? (file.previewPageCount ?? 0) : 0,
-  );
+  const totalPages = previewUrls.length;
   const [pageIndex, setPageIndex] = React.useState(0);
-  const [lazyPageUrls, setLazyPageUrls] = React.useState<
-    Record<number, string>
-  >({});
   const clampedPageIndex = Math.min(pageIndex, Math.max(totalPages - 1, 0));
-  const previewUrl =
-    previewUrls[clampedPageIndex] ??
-    lazyPageUrls[clampedPageIndex] ??
-    pageUrlCache?.get(`${file.path}#${clampedPageIndex}`) ??
-    null;
+  const previewUrl = previewUrls[clampedPageIndex] ?? null;
   const naturalAspectRatio = useNaturalAspectRatio(previewUrl);
   const resolvedAspectRatio =
     file.previewAspectRatio ?? naturalAspectRatio ?? previewAspectRatio;
-  const isLazyPagePending =
-    canLoadLazily && !previewUrl && clampedPageIndex < totalPages;
-  const fileRef = React.useRef(file);
-  React.useEffect(() => {
-    fileRef.current = file;
-  });
   const [previousFilePath, setPreviousFilePath] = React.useState(file.path);
   if (!Object.is(previousFilePath, file.path)) {
     setPreviousFilePath(file.path);
     setPageIndex(0);
-    setLazyPageUrls({});
   }
-  // Keyed by path (not object identity) so manifest churn doesn't re-request
-  // the page already being loaded.
-  React.useEffect(() => {
-    if (!isLazyPagePending || !loadPreviewImageUrl) return;
-    let isCurrent = true;
-    void loadPreviewImageUrl(fileRef.current, clampedPageIndex)
-      .then((url) => {
-        // Cache even when stale (page flipped away mid-load): the fetch is
-        // done, so let the next visit use it.
-        if (url) pageUrlCache?.set(`${file.path}#${clampedPageIndex}`, url);
-        if (isCurrent && url) {
-          setLazyPageUrls((previous) => ({
-            ...previous,
-            [clampedPageIndex]: url,
-          }));
-        }
-      })
-      .catch(() => {});
-    return () => {
-      isCurrent = false;
-    };
-  }, [
-    clampedPageIndex,
-    file.path,
-    isLazyPagePending,
-    loadPreviewImageUrl,
-    pageUrlCache,
-  ]);
-  const customPreview =
-    !previewUrl && !isLazyPagePending ? renderFilePreview?.(file) : null;
   const showPager = pageable && totalPages > 1;
   const isIcon = file.previewIsIcon === true;
   const thumbnail = (
@@ -1449,21 +1370,16 @@ function FileVisual({
         isIcon && "rounded-none shadow-none",
       )}
       file={{ name: file.name, type: file.contentType ?? "" }}
-      isLoading={isLazyPagePending}
       previewAspectRatio={resolvedAspectRatio}
       // Previews are drawn on white, as a page is. The white is the image's
       // own backing so it arrives with the image; on the box it would sit
       // under the loading placeholder and show through as the image fades in.
       previewClassName={cn(!isIcon && "[&>img]:bg-white", previewClassName)}
       previewContent={
-        previewUrl || isLazyPagePending
-          ? undefined
-          : (customPreview ?? <FileGenericPreview file={file} />)
+        previewUrl ? undefined : <FileGenericPreview file={file} />
       }
       previewImageUrl={previewUrl ?? undefined}
-      previewUnavailableContent={
-        customPreview ?? <FileGenericPreview file={file} />
-      }
+      previewUnavailableContent={<FileGenericPreview file={file} />}
       style={showPager ? undefined : style}
     />
   );
@@ -1537,7 +1453,6 @@ function FittedFileVisual({
   className,
   file,
   pageClassName,
-  renderFilePreview,
 }: {
   /** The room the thumbnail has, in rem. */
   box: { height: number; width: number };
@@ -1545,7 +1460,6 @@ function FittedFileVisual({
   file: FileEntry;
   /** The width of a thumbnail drawn as a page. */
   pageClassName: string;
-  renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
 }) {
   const aspectRatio = useFileAspectRatio(file);
   return (
@@ -1553,7 +1467,6 @@ function FittedFileVisual({
       className={cn(className, aspectRatio === undefined && pageClassName)}
       file={file}
       previewAspectRatio={0.78}
-      renderFilePreview={renderFilePreview}
       style={
         aspectRatio === undefined
           ? undefined
@@ -1680,8 +1593,7 @@ const MARQUEE_SLOP_PX = 4;
  * drawn (`shape: "run"`). The view says what is reached (`hitTest`, given the
  * box and both its ends in the coordinates of `containerRef`, the element its
  * rows are laid out in) and draws `overlay` over its scroll area; the press
- * itself keeps whatever the view did with it, and `onRelease` runs for one
- * that never moved, so a plain press behaves as it always has.
+ * itself keeps whatever the view did with it.
  */
 function useMarquee({
   containerRef,
@@ -1709,13 +1621,10 @@ function useMarquee({
     event: React.PointerEvent,
     {
       onBegin,
-      onRelease,
       order,
     }: {
       /** The box began, before it touches anything. */
       onBegin?: () => void;
-      /** A press that never moved far enough to be a box. */
-      onRelease?: () => void;
       /** The rows the box can reach, in the order the view draws them. */
       order?: () => readonly string[];
     } = {},
@@ -1823,8 +1732,6 @@ function useMarquee({
         setTimeout(() => {
           claimedClickRef.current = false;
         });
-      } else {
-        onRelease?.();
       }
     };
     window.addEventListener("pointermove", onMove);
@@ -1874,10 +1781,8 @@ export function FileSystem({
   defaultPath = "",
   defaultSearch = "",
   defaultSelectedPath,
-  defaultSort,
   defaultView = "icons",
   emptyState,
-  getFileUrl,
   getHostPath,
   group: groupProp,
   items,
@@ -1885,13 +1790,11 @@ export function FileSystem({
   listColumns: listColumnsProp,
   listColumnWidths: listColumnWidthsProp,
   loadChildren,
-  loadPreviewImageUrl,
   moveFocusWithSelection = true,
   onColumnWidthChange,
   onCopy,
   onCopyPath,
   onDuplicate,
-  onEmptyPress,
   onFileOpen,
   onItemContextMenu,
   onListColumnsChange,
@@ -1912,13 +1815,10 @@ export function FileSystem({
   openFolders,
   prefetchChildren,
   ref,
-  renderFileActions,
-  renderFilePreview,
   renderFileStage,
   renderHeaderActions,
   renderHeaderPrimary,
   renderHeaderLead,
-  renderTrailing,
   renderUnreadable,
   selectedPath: selectedPathProp,
   showHiddenFiles: showHiddenFilesProp,
@@ -2005,9 +1905,7 @@ export function FileSystem({
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
   const searchQuery = normalizeSearchQuery(searchInput);
   const isSearching = searchQuery.length > 0;
-  const [internalSort, setInternalSort] = React.useState(
-    defaultSort ?? DEFAULT_SORT,
-  );
+  const [internalSort, setInternalSort] = React.useState(DEFAULT_SORT);
   const sort = sortProp ?? internalSort;
   const setSort = (next: FileSystemSortState) => {
     setInternalSort(next);
@@ -2397,15 +2295,6 @@ export function FileSystem({
     kind: FileSystemViewerKind;
     url: string;
   }>(null);
-  // Component-lifetime caches shared by every view and the open dialog:
-  // resolved (e.g. presigned) URLs keyed by path, and lazily loaded page
-  // thumbnails keyed by `"path#pageIndex"`. Each resolution happens once no
-  // matter how often the user revisits a file or switches views; stable
-  // URLs also keep the browser's HTTP cache valid for fetched content.
-  // Lazy state (never set) rather than refs: the Maps are passed down
-  // during render, which the rules of React disallow for ref reads.
-  const [resolvedUrlCache] = React.useState(() => new Map<string, string>());
-  const [pageUrlCache] = React.useState(() => new Map<string, string>());
   // The keep-alive preview pool. Recently shown documents stay mounted so
   // returning to one — in the gallery stage or the viewer dialog — skips
   // the download and parse work instead of repeating it behind a spinner.
@@ -2601,30 +2490,20 @@ export function FileSystem({
   };
   const openFile = React.useCallback(
     (file: FileEntry) => {
-      void (async () => {
-        let url = file.url ?? resolvedUrlCache.get(file.path) ?? null;
-        if (!url && getFileUrl) {
-          try {
-            url = await getFileUrl(file);
-            if (url) resolvedUrlCache.set(file.path, url);
-          } catch {
-            url = null;
-          }
-        }
-        if (onFileOpen) {
-          onFileOpen(file, url);
-          return;
-        }
-        const kind = viewerKindForFile(file);
-        if (kind && url) {
-          // Pool the file so the dialog reuses an already-mounted preview
-          // (and the gallery inherits the live viewer after it closes).
-          poolStagePath(file.path);
-          setOpenedFile({ file, kind, url });
-        }
-      })();
+      const url = file.url ?? null;
+      if (onFileOpen) {
+        onFileOpen(file, url);
+        return;
+      }
+      const kind = viewerKindForFile(file);
+      if (kind && url) {
+        // Pool the file so the dialog reuses an already-mounted preview
+        // (and the gallery inherits the live viewer after it closes).
+        poolStagePath(file.path);
+        setOpenedFile({ file, kind, url });
+      }
     },
-    [getFileUrl, onFileOpen, poolStagePath, resolvedUrlCache],
+    [onFileOpen, poolStagePath],
   );
   // A double-click or ⌘O on one of several selected opens all of them, the
   // way the Finder does.
@@ -3057,16 +2936,13 @@ export function FileSystem({
     draggable: dragArea.draggable,
     enabledListColumns: listColumns,
     entries: currentEntries,
-    getFileUrl,
     grouping,
     index: sortedIndex,
     listColumnWidths,
     loadingFolders,
-    loadPreviewImageUrl,
     menuTargetPath: contextMenuPath,
     moveFocusWithSelection,
     onColumnWidthChange,
-    onEmptyPress,
     onExpandFolder: ensureChildren,
     onFolderHover: prefetchChildren,
     onItemContextMenu: onItemContextMenu ? claimContextMenu : undefined,
@@ -3079,15 +2955,11 @@ export function FileSystem({
     marquee,
     onListedCount: setListedCount,
     onSortColumnClick: toggleSortColumn,
-    pageUrlCache,
     poolStagePath,
     registerStageHost,
     renamingPath,
-    renderFileActions,
-    renderFilePreview,
     renderFileStage,
     renderNameField,
-    renderTrailing,
     renderUnreadable,
     rootTitle: title,
     rowGestures,
@@ -3370,28 +3242,7 @@ export function FileSystem({
           </div>
         </div>
       )}
-      <div
-        className="relative min-h-0 flex-1"
-        // Where no view is drawn (a folder that is empty, unreadable or still
-        // being read, or a search that found nothing) the whole of it is
-        // empty space, as the views' own empty space is; what is pressable
-        // in it keeps its press.
-        onPointerDown={
-          isViewShown || !onEmptyPress
-            ? undefined
-            : (event) => {
-                if (
-                  event.button === 0 &&
-                  !(
-                    event.target instanceof Element &&
-                    event.target.closest("a, button, input")
-                  )
-                ) {
-                  onEmptyPress();
-                }
-              }
-        }
-      >
+      <div className="relative min-h-0 flex-1">
         {currentUnreadable !== null ? (
           currentUnreadable
         ) : isLoadingCurrentFolder && currentEntries.length === 0 ? (
@@ -3507,14 +3358,9 @@ export function FileSystem({
           return createPortal(
             <FileSystemGalleryStage
               file={file}
-              getFileUrl={getFileUrl}
-              loadPreviewImageUrl={loadPreviewImageUrl}
-              pageUrlCache={pageUrlCache}
-              renderFilePreview={renderFilePreview}
               toolbarActions={
                 isOpenedInDialog ? viewerCloseToolbarAction : undefined
               }
-              urlCache={resolvedUrlCache}
               variant={isOpenedInDialog ? "dialog" : "stage"}
             />,
             container,
@@ -3807,21 +3653,15 @@ type FileSystemViewProps = {
   draggable: boolean;
   enabledListColumns: FileSystemListColumn[];
   entries: FileSystemEntry[];
-  getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
   /** Each row's group, where the rows are grouped: headings go between groups. */
   grouping: Grouping | null;
   index: FileSystemIndex;
   listColumnWidths: Partial<Record<FileSystemListColumn, number>>;
   loadingFolders: Set<string>;
-  loadPreviewImageUrl?: (
-    file: FileSystemFileItem,
-    pageIndex: number,
-  ) => Promise<null | string>;
   /** The row a context menu is open on, outlined rather than selected. */
   menuTargetPath: null | string;
   moveFocusWithSelection: boolean;
   onColumnWidthChange?: (columnWidth: number) => void;
-  onEmptyPress?: () => void;
   /** A folder opened in place in the list, whose contents are needed now. */
   onExpandFolder: (folderPath: string) => void;
   /** A folder the pointer rests on, whose contents may be wanted next. */
@@ -3843,20 +3683,15 @@ type FileSystemViewProps = {
   /** How many items the list draws, those in folders opened in place included. */
   onListedCount: (count: number) => void;
   onSortColumnClick: (key: FileSystemSortKey) => void;
-  /** `"path#pageIndex"` → thumbnail URL, shared by every pager. */
-  pageUrlCache: Map<string, string>;
   /** Admits a file into the root-owned keep-alive preview pool. */
   poolStagePath: (path: string) => void;
   /** Mounts/unmounts the gallery host element for a pooled path. */
   registerStageHost: (path: string, element: HTMLElement | null) => void;
   /** The row whose name is being typed over, which draws `renderNameField` in place of its name. */
   renamingPath: null | string;
-  renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
-  renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
   /** The name field for the row being renamed, with the view's own spacing. */
   renderNameField: RenderNameField;
-  renderTrailing?: (folderPath: string) => React.ReactNode;
   renderUnreadable?: FileSystemProps["renderUnreadable"];
   /** The label of the folder the browser opened at. */
   rootTitle: string;
@@ -4040,54 +3875,6 @@ function FileSystemEmptyState({
     </div>
   );
 }
-// Resolves a display URL for a file: its own `url`, else via `getFileUrl`.
-// Keyed by path/url (not object identity) so manifest churn — e.g. thumbnails
-// streaming in — doesn't re-trigger presign calls for the same file. An
-// optional `cache` shared across mounts serves revisited files synchronously:
-// no repeat presign round-trip (and no loading flash), and the stable URL
-// keeps the browser's HTTP cache valid for already-fetched content.
-function useResolvedFileUrl(
-  file: FileEntry | null,
-  getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string,
-  cache?: Map<string, string>,
-) {
-  const [state, setState] = React.useState<{
-    isResolving: boolean;
-    url: null | string;
-  }>(() => ({
-    isResolving: false,
-    url: file ? (file.url ?? cache?.get(file.path) ?? null) : null,
-  }));
-  const fileRef = React.useRef(file);
-  React.useEffect(() => {
-    fileRef.current = file;
-  });
-  const filePath = file?.path ?? null;
-  const fileUrl = file?.url ?? null;
-  React.useEffect(() => {
-    const currentFile = fileRef.current;
-    const knownUrl =
-      fileUrl ?? (filePath ? (cache?.get(filePath) ?? null) : null);
-    if (!currentFile || knownUrl || !getFileUrl) {
-      setState({ isResolving: false, url: knownUrl });
-      return;
-    }
-    let isCurrent = true;
-    setState({ isResolving: true, url: null });
-    void Promise.resolve(getFileUrl(currentFile))
-      .then((url) => {
-        if (url) cache?.set(currentFile.path, url);
-        if (isCurrent) setState({ isResolving: false, url });
-      })
-      .catch(() => {
-        if (isCurrent) setState({ isResolving: false, url: null });
-      });
-    return () => {
-      isCurrent = false;
-    };
-  }, [cache, filePath, fileUrl, getFileUrl]);
-  return state;
-}
 // Returns `value` once it has stopped changing for `delay` ms. Gallery
 // navigation scrubs past files quickly; heavy previews (document viewers,
 // presigned URL resolution) only kick in for the file the user lands on.
@@ -4251,11 +4038,9 @@ function FileSystemIconsView({
   menuTargetPath,
   moveFocusWithSelection,
   onItemContextMenu,
-  onEmptyPress,
   onOpen,
   onSelect,
   renamingPath,
-  renderFilePreview,
   renderNameField,
   rowGestures,
   selectedEntry,
@@ -4465,7 +4250,6 @@ function FileSystemIconsView({
             className="rounded-sm shadow-xs"
             file={entry}
             pageClassName="w-12"
-            renderFilePreview={renderFilePreview}
           />
         )}
       </span>
@@ -4552,7 +4336,6 @@ function FileSystemIconsView({
             !event.target.closest("[data-file-system-item], input")
           ) {
             onSelect(null);
-            onEmptyPress?.();
           }
         },
         // A press past the tiles that drags draws a box, which starts from
@@ -4992,7 +4775,6 @@ function FileSystemListView({
   onListColumnsChange,
   listingNavRef,
   onListColumnWidthsChange,
-  onEmptyPress,
   onOpen,
   onSelect,
   onSelectEntries,
@@ -5365,10 +5147,7 @@ function FileSystemListView({
                 }
                 const isPlain = selectionModeOf(event) === null;
                 if (isPlain) onSelect(null);
-                marqueeDrag.start(
-                  event,
-                  isPlain && onEmptyPress ? { onRelease: onEmptyPress } : {},
-                );
+                marqueeDrag.start(event);
               },
               onScroll: (event) => {
                 setTopRow(
@@ -5666,24 +5445,18 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     grouping,
     index,
     loadingFolders,
-    loadPreviewImageUrl,
     menuTargetPath,
     moveFocusWithSelection,
     onColumnWidthChange,
-    onEmptyPress,
     onFolderHover,
     onItemContextMenu,
     listingNavRef,
     marquee,
     onOpen,
     onSelect,
-    pageUrlCache,
     renamingPath,
-    renderFileActions,
-    renderFilePreview,
     renderFileStage,
     renderNameField,
-    renderTrailing,
     renderUnreadable,
     rootTitle,
     rowGestures,
@@ -5872,7 +5645,6 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                   : null
               }
               onFolderHover={onFolderHover}
-              onEmptyPress={onEmptyPress}
               onItemContextMenu={onItemContextMenu}
               onOpen={onOpen}
               onResize={setColumnWidth}
@@ -5972,11 +5744,8 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                   <FileVisual
                     className="w-full"
                     file={selectedFile}
-                    loadPreviewImageUrl={loadPreviewImageUrl}
                     pageable
-                    pageUrlCache={pageUrlCache}
                     previewAspectRatio={0.78}
-                    renderFilePreview={renderFilePreview}
                   />
                 )}
               </div>
@@ -5989,11 +5758,6 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                   {selectedFileSize ? ` - ${selectedFileSize}` : null}
                 </div>
               </div>
-              {renderFileActions ? (
-                <div className="flex justify-center">
-                  {renderFileActions(selectedFile)}
-                </div>
-              ) : null}
               <FileSystemInformation entry={selectedFile} index={index} />
             </div>
           </InlineScrollArea2>
@@ -6003,13 +5767,8 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
               const entry = index.files.get(path) ?? index.folders.get(path);
               return entry ? [entry] : [];
             })}
-            renderFilePreview={renderFilePreview}
             renderFileStage={renderFileStage}
           />
-        ) : renderTrailing ? (
-          <div className="min-w-52 flex-1 contain-inline-size">
-            {renderTrailing(columnPaths.at(-1) ?? "")}
-          </div>
         ) : null}
       </InlineScrollAreaContent>
     </InlineScrollArea2>
@@ -6034,7 +5793,6 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   isLoading,
   marquee,
   menuTargetChildPath,
-  onEmptyPress,
   onFolderHover,
   onItemContextMenu,
   onOpen,
@@ -6060,7 +5818,6 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   isLoading: boolean;
   marquee: MarqueeControl;
   menuTargetChildPath: null | string;
-  onEmptyPress?: () => void;
   onFolderHover?: (folderPath: string) => void;
   onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   onOpen: (entry: FileSystemEntry) => void;
@@ -6167,7 +5924,6 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
             const isPlain = selectionModeOf(event) === null;
             if (isPlain) onSelect(ownFolder);
             marqueeDrag.start(event, {
-              ...(isPlain && onEmptyPress ? { onRelease: onEmptyPress } : {}),
               order: () => entries.map((entry) => entry.path),
             });
           },
@@ -6347,11 +6103,9 @@ const STACK_POSES = [
  */
 function FileSystemSelectionStack({
   entries,
-  renderFilePreview,
   renderFileStage,
 }: {
   entries: FileSystemEntry[];
-  renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
 }) {
   const shown = entries.slice(-STACK_POSES.length);
@@ -6411,7 +6165,6 @@ function FileSystemSelectionStack({
                         box={{ height: 20, width: 15 }}
                         file={entry}
                         pageClassName="w-60"
-                        renderFilePreview={renderFilePreview}
                       />
                     )}
                   </div>
@@ -6534,37 +6287,17 @@ type InlineScrollAreaProps = React.ComponentProps<
 // stage between them keeps the viewer instance.
 function FileSystemGalleryStage({
   file,
-  getFileUrl,
-  loadPreviewImageUrl,
-  pageUrlCache,
-  renderFilePreview,
-  urlCache,
 }: {
   file: FileEntry;
-  getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
-  loadPreviewImageUrl?: (
-    file: FileSystemFileItem,
-    pageIndex: number,
-  ) => Promise<null | string>;
-  pageUrlCache?: Map<string, string>;
-  renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
   /** Rendered in the viewer toolbar in the `"dialog"` variant. */
   toolbarActions?: React.ReactNode;
-  urlCache: Map<string, string>;
   /** `"stage"` is toolbar-less in a bordered tile; `"dialog"` shows the full viewer chrome. */
   variant?: "dialog" | "stage";
 }) {
   const viewerKind = viewerKindForFile(file);
   // Only viewer-backed stages need a URL; thumbnail stages render from the
-  // manifest's preview images, so selecting them never triggers a presign.
-  const { isResolving, url } = useResolvedFileUrl(
-    viewerKind ? file : null,
-    getFileUrl,
-    urlCache,
-  );
-  if (viewerKind && isResolving) {
-    return <InlineSpinner className="size-6 text-muted-foreground" />;
-  }
+  // manifest's preview images.
+  const url = viewerKind ? (file.url ?? null) : null;
   if (viewerKind === "image" && url) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- Image file previews render caller-provided URLs that may be object or presigned URLs.
@@ -6579,11 +6312,8 @@ function FileSystemGalleryStage({
     <FileVisual
       className="w-56 max-w-full"
       file={file}
-      loadPreviewImageUrl={loadPreviewImageUrl}
       pageable
-      pageUrlCache={pageUrlCache}
       previewAspectRatio={0.78}
-      renderFilePreview={renderFilePreview}
     />
   );
 }
@@ -6600,7 +6330,6 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
     onSelect,
     poolStagePath,
     registerStageHost,
-    renderFilePreview,
     renderFileStage,
     rowGestures,
     selectedEntry,
@@ -6768,7 +6497,6 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
                       className="rounded-sm"
                       file={entry}
                       pageClassName="w-9"
-                      renderFilePreview={renderFilePreview}
                     />
                   )}
                 </button>
@@ -6830,7 +6558,6 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
                   className="shrink-0 rounded-sm"
                   file={activeFile}
                   pageClassName="w-9"
-                  renderFilePreview={renderFilePreview}
                 />
               ) : (
                 <FileSystemFolderGlyph

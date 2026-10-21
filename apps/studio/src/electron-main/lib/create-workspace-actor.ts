@@ -59,7 +59,6 @@ import {
   settleWorkspaceDb,
   startRecordArrivals,
   stopRecordArrivals,
-  stopWorkspaceSkillWatcher,
   chatRecords,
   warmBashWorker,
   workspaceMachine,
@@ -93,7 +92,6 @@ import {
   workspaceDbFileOf,
   workspaceLayoutMarks,
 } from "./workspaces";
-import { storedPathRewrites } from "./workspace-move";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
@@ -251,10 +249,15 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       },
       // A folder the person picked is where their finished work goes too,
       // and only the app's own data ever held 1.x tasks.
+      // `INSTRUMENT_OUTPUT_FOLDER` is a driven fixture's own folder, set by
+      // studio-drive, so its agents never write into the developer's real
+      // Instrument folder.
       ...(inAppData
         ? {
             legacyTasks: true,
-            outputDir: unchosenOutputFolder(getUserDataDir()),
+            outputDir: process.env.INSTRUMENT_OUTPUT_FOLDER
+              ? path.resolve(process.env.INSTRUMENT_OUTPUT_FOLDER)
+              : unchosenOutputFolder(getUserDataDir()),
           }
         : { outputDir: rootDir }),
       // Passwords and sign-ins stay out of every native command's reach.
@@ -418,22 +421,16 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         }),
         closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
         stopServices: fromPromise(async () => {
-          // @parcel/watcher aborts the process (SIGABRT) if a live subscription
-          // is torn down while Node frees the environment, so stop the skills
-          // watcher and await its unsubscribe before app.exit.
-          await Promise.all([
-            stopWorkspaceSkillWatcher().catch(noop),
-            // Agent-started servers and watchers outlive the turn that started
-            // them, so quitting is what ends them. The tasks at work are
-            // stopped and their chats told first, while what each has running
-            // can still be named.
-            interruptTasksForQuit(actor)
-              .catch((error: unknown) => {
-                captureServerException(error);
-              })
-              .then(() => killAllBackgroundProcesses())
-              .catch(noop),
-          ]);
+          // Agent-started servers and watchers outlive the turn that started
+          // them, so quitting is what ends them. The tasks at work are
+          // stopped and their chats told first, while what each has running
+          // can still be named.
+          await interruptTasksForQuit(actor)
+            .catch((error: unknown) => {
+              captureServerException(error);
+            })
+            .then(() => killAllBackgroundProcesses())
+            .catch(noop);
           stopRecordArrivals();
           // Last, so the stops the tasks just wrote are on disk: every chat's
           // records are landed and synced before the process goes.
@@ -484,7 +481,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
 function takeInMovedPaths(rootDir: string) {
   try {
     for (const step of settleMovedPaths({
-      also: storedPathRewrites(workspaceMachineDir()),
       machineDir: workspaceMachineDir(),
       rootDir,
     })) {

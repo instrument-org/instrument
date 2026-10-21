@@ -104,14 +104,6 @@ describe("the sandbox probe on macOS", () => {
     expect(execFileSync).toHaveBeenCalledTimes(2);
     expect(nativeSandboxOff()).toBe("did-not-start");
   });
-
-  it("says the sandbox is enforced while a probe has no answer", async () => {
-    const { nativeSandboxEnforced } = await import("./index");
-    execFileSync.mockImplementation(() =>
-      failure({ code: "ETIMEDOUT", signal: "SIGTERM", status: null }),
-    );
-    expect(nativeSandboxEnforced()).toBe(true);
-  });
 });
 
 describe("the sandbox probe on Linux", () => {

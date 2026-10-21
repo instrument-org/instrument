@@ -53,8 +53,8 @@ describe("workspaceHostPath", () => {
     ["D:\\", String.raw`D:\Notes\plan.md`],
   ])("reads a path written on a Mac under %s", (root, expected) => {
     const stored = inWorkspacePath(
-      "/Users/jeremy/Instrument/Notes/plan.md",
-      "/Users/jeremy/Instrument",
+      "/Users/mac-user/Instrument/Notes/plan.md",
+      "/Users/mac-user/Instrument",
     );
     expect(workspaceHostPath(stored ?? "", root)).toBe(expected);
   });

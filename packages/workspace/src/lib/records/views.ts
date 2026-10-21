@@ -47,7 +47,7 @@ const CONVERSATION_PARTS = new Set<string>([
   "data-modelChange",
   "data-permissionAnswer",
   "data-reply",
-  "data-skillChanges",
+  "data-setupChanges",
   "data-viewContext",
   "text",
   `tool-${TOOL_NAMES.choose}`,

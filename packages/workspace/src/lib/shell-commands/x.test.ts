@@ -236,7 +236,7 @@ describe("instrument x search", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatchInlineSnapshot(`
-      "instrument x: there is no Grok account to search X with: none is signed in, or xAI refused the one that is. The user can sign in with Grok, or see why it was refused, under Settings › Providers.
+      "instrument x: there is no Grok account to search X with: none is signed in, or xAI refused the one that is. The user can sign in with Grok, or see why it was refused, under [Grok account](instrument://settings/grok-account).
       "
     `);
   });
@@ -263,7 +263,7 @@ describe("instrument x search", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatchInlineSnapshot(`
-      "instrument x: xAI refused the Grok account (403). Its plan may not include this, or signing in again under Settings › Providers may help. xAI said: You have either run out of available resources or do not have an active Grok subscription.
+      "instrument x: xAI refused the Grok account (403). Its plan may not include this, or signing in again under [Grok account](instrument://settings/grok-account) may help. xAI said: You have either run out of available resources or do not have an active Grok subscription.
       "
     `);
   });

@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Create or revise a reusable agent skill from a user's workflow, domain knowledge, or tool instructions. Use whenever a user wants to create, capture, package, edit, or turn something into a skill.
+description: Create, revise, or install a reusable agent skill, from a user's workflow, domain knowledge, tool instructions, or a skill published elsewhere. Use whenever a user wants to create, capture, package, edit, or turn something into a skill, or to install one from a link (skills.sh, a GitHub repository, a gist) or with `npx skills`.
 ---
 
 # Skill Creator
@@ -18,6 +18,16 @@ Skills live in the workspace's own skills folder, which your instructions name, 
 5. Write the package to `<name>/` in the workspace's skills folder. Check whether that directory already exists first. If it does, stop and ask whether to revise that existing skill or choose another name; revising is fine, silently replacing the wrong skill is not.
 6. Run `validate-skill <name>` and fix what it reports. A skill with broken frontmatter fails silently by never appearing at all, so this is the only confirmation that what you wrote is a skill.
 7. Tell the user the skill name and that it is available from Skills and the prompt slash menu.
+
+## Installing a skill from elsewhere
+
+Skills published on the web are written for other agents, and their install steps name those agents' folders: `~/.claude/skills`, `.claude/skills`, `~/.codex/skills`, `.agents/skills`, `.cursor/skills` and the like. Here every one of those means the workspace's skills folder. Install into it and nowhere else, so the skill shows in Skills and loads by name.
+
+- A skills.sh page or a GitHub link names a repository and a folder in it: clone the repository with `git clone --depth 1` into your work folder, find the folder holding the skill's `SKILL.md`, and copy that folder whole into the workspace's skills folder.
+- `npx skills add <owner/repo> -s <name>` (the skills command line tool, which most install instructions use) knows no folder of ours. Run it in a scratch folder with `-a universal --copy -y`, which writes `.agents/skills/<name>/` there, then copy that folder into the workspace's skills folder.
+- A skill whose `SKILL.md` only hands off to another skill ("call the grilling skill") needs that one too: install both.
+- Keep the files as published, including extra frontmatter keys and an `agents/` folder another tool reads. Then run `validate-skill <name>` as below.
+- A folder with that name already in the workspace's skills folder is the same question as in step 5: ask before replacing it.
 
 ## Package design
 

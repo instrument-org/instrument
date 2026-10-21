@@ -550,7 +550,7 @@ interface FollowUpTiming {
    * at the moment its next call is in flight. For a message that has to land
    * inside foreground work rather than between turns. Sent when the turn ends
    * instead, should it end first; `duringWorkMissed` in the run's metrics
-   * counts those. With `command`, the call in flight has to be a `bash` call
+   * counts those, and the report fails a run that has any. With `command`, the call in flight has to be a `bash` call
    * whose command matches it, for a message that has to land inside one
    * command in particular when a step makes several calls at once.
    */
@@ -872,9 +872,39 @@ export async function runEvals(
         }
         return role;
       };
-      const partUpdates = publisher.subscribe("part.updated", {
-        signal: abortController.signal,
-      });
+      // Every part of a message the run's records say moved, read back with
+      // what the turn still holds in memory, so a call shows as in flight
+      // while it runs. Parts are read again on each change to their message,
+      // which the handling below takes, since it keys what it records by call
+      // and by mark.
+      const partUpdates = (async function* () {
+        for await (const change of publisher.subscribe("record.changed", {
+          signal: abortController.signal,
+        })) {
+          if (
+            change.id !== id ||
+            change.kind !== "messages" ||
+            change.message === undefined ||
+            change.message.removed ||
+            change.message.sessionId !== sessionId
+          ) {
+            continue;
+          }
+          const read = await ChatReads.transcript({
+            chatId: id,
+            only: new Set([change.message.id]),
+            sessionId,
+          });
+          if (read.isErr()) {
+            continue;
+          }
+          for (const message of read.value) {
+            for (const part of message.parts) {
+              yield { id, part };
+            }
+          }
+        }
+      })();
 
       // A model handed an unrecoverable input can keep trying to recover from
       // it, and nothing in the loop is wrong enough to stop it: each attempt is

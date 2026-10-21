@@ -1,12 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { ChatReads } from "./chat-reads";
 import { ensureChatSession } from "./create-session";
 import { sessionOfChat } from "./record-folders";
-
-vi.mock(import("./session-store-storage"));
 
 describe("ensureChatSession", () => {
   it("writes the session a chat's settings name when the chat has none, once", async () => {

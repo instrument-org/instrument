@@ -216,15 +216,6 @@ export const THIRD_PARTY_COMPONENTS: ThirdPartyComponent[] = [
     version: packageVersion,
   },
   {
-    files: ["LICENSE"],
-    id: "parcel-watcher",
-    license: () => "MIT",
-    name: "@parcel/watcher",
-    origin: { from: "studio", package: "@parcel/watcher" },
-    ships: ["node_modules/@parcel/watcher"],
-    version: packageVersion,
-  },
-  {
     files: ["LICENSE", "LICENSE.pdfium"],
     id: "pdfium",
     license: () => "MIT AND BSD-3-Clause",

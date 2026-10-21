@@ -33,8 +33,9 @@ import {
 const OLD_TASKS_MOUNT = "/tasks";
 
 /**
- * Host path for a file a chat can reach: relative to its folder, or an absolute
- * path in a folder the user attached. Null when the path resolves outside
+ * Host path for a file a chat can reach: relative to its folder, an absolute
+ * path in a folder the user attached, or a file the person attached in the
+ * workspace, kept by its place there. Null when the path resolves outside
  * everything the chat has -- including the chat's own private dir and a symlink leading
  * out of a mount -- so a caller can fail closed.
  *
@@ -107,6 +108,13 @@ function onDiskOrNull(
  * workspace (`workspace:/Notes/plan.md`), or absolute in a folder the chat
  * reaches, held to the chat's rules.
  *
+ * A path kept by its place in the workspace is a file the person attached
+ * where it lies, so it is read under the workspace's root and not held to
+ * the agent's rules: those close a workspace kept in the app's own data,
+ * which would take the person's own file off their screen. What the person's
+ * viewers may read is the file channel's to refuse, and the agent reads only
+ * through its own rules.
+ *
  * A path kept before a migration moved what held it is read where it went:
  * a chat's files and its records were once one folder, so a relative path
  * under `attachments/` the work folder does not hold is the file the person
@@ -121,21 +129,41 @@ function storedPathOnDisk(
   const trimmed = stored.trim();
   // A file kept by its place in the workspace is under the workspace's root
   // here, wherever that root was when the message was written.
-  const inWorkspace = isInWorkspacePath(trimmed)
-    ? workspaceHostPath(trimmed, getWorkspaceConfig().rootDir)
-    : undefined;
-  if (inWorkspace === null) {
-    return null;
+  if (isInWorkspacePath(trimmed)) {
+    const inWorkspace = workspaceHostPath(
+      trimmed,
+      getWorkspaceConfig().rootDir,
+    );
+    return inWorkspace === null ? null : spelledOnDisk(inWorkspace);
   }
   // A Windows path (`C:\Users\sam`) in the shell's spelling (`/c/Users/sam`),
   // which the layout resolves.
-  const spelled = shellPath(inWorkspace ?? trimmed);
+  const spelled = shellPath(trimmed);
   const found = path.posix.isAbsolute(spelled)
     ? absoluteOnDisk(layout, spelled)
     : relativeOnDisk(layout, spelled);
-  if (found === null) {
+  return found === null ? null : spelledOnDisk(found);
+}
+
+/**
+ * A relative path the work folder does not have, read from the workspace's
+ * top level when a file is there and the chat may read it: an agent that
+ * worked in `Skills/` names what it made as `Skills/<name>/SKILL.md`. The
+ * work folder is asked first, so a path it has keeps meaning that file.
+ */
+function inWorkspaceRoot(
+  layout: WorkspaceFsLayout,
+  relative: string,
+): AbsolutePath | null {
+  const inRoot = path.join(getWorkspaceConfig().rootDir, relative);
+  if (![inRoot, ...nameVariants(inRoot)].some((each) => existsSync(each))) {
     return null;
   }
+  return resolveReadOnlyHostPath(layout, shellPath(inRoot));
+}
+
+/** A host path as the disk spells it, when macOS spells its name another way. */
+function spelledOnDisk(found: string): AbsolutePath {
   const named =
     [found, ...nameVariants(found)].find((candidate) =>
       existsSync(candidate),
@@ -170,13 +198,12 @@ function relativeOnDisk(
   if (inWork === null) {
     return null;
   }
-  const { record } = layout;
-  if (
-    !record ||
-    existsSync(inWork) ||
-    relative.split("/")[0] !== CHAT_FOLDER_NAMES.attachments
-  ) {
+  if (existsSync(inWork)) {
     return inWork;
+  }
+  const { record } = layout;
+  if (!record || relative.split("/")[0] !== CHAT_FOLDER_NAMES.attachments) {
+    return inWorkspaceRoot(layout, relative) ?? inWork;
   }
   // What the person sent, kept by its path in the folder the chat's files
   // and records once shared.

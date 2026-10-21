@@ -96,6 +96,38 @@ const linksTo = (address: string): Assertion => {
   };
 };
 
+const linksToOneOf = (addresses: string[]): Assertion => {
+  const text = `linked one of ${addresses.join(", ")}`;
+  return {
+    check: ({ sessions }) => {
+      const reply = replyText(sessions);
+      return result(
+        addresses.some((address) => reply.includes(`](${address})`)),
+        text,
+        JSON.stringify(reply.slice(0, 600)),
+      );
+    },
+    text,
+  };
+};
+
+const triedX: Assertion = {
+  check: ({ sessions }) => {
+    const text = "tried instrument x before answering";
+    const runs = bashCommands(sessions).filter((command) =>
+      /\binstrument x\b/.test(command),
+    );
+    return result(
+      runs.length > 0,
+      text,
+      runs.length > 0
+        ? runs.join(" | ").slice(0, 400)
+        : `never ran it: ${bashCommands(sessions).join(" | ").slice(0, 400)}`,
+    );
+  },
+  text: "tried instrument x before answering",
+};
+
 const withoutATask: Assertion = {
   check: ({ sessions }) => {
     const text = "answered without starting a task";
@@ -134,5 +166,34 @@ export const INSTRUMENT_GUIDE_EVALS = [
     kind: "chat",
     name: "instrument-guide-links-a-screen",
     prompt: "Where can I see which of my services are hooked up?",
+  }),
+
+  defineEval({
+    // Whether the user's own plan works here is the guide's to answer, and
+    // a model answering from what it knows of other apps says no.
+    assertions: [
+      linksToOneOf([
+        "instrument://settings/claude-account",
+        "instrument://settings/providers",
+      ]),
+      withoutATask,
+    ],
+    kind: "chat",
+    name: "instrument-guide-own-claude-plan",
+    prompt:
+      "I already pay for Claude. Can I use that subscription in here instead?",
+  }),
+
+  defineEval({
+    // The run has no Grok account, so the command fails and its error links
+    // the setting; the reply should pass that link on.
+    assertions: [
+      triedX,
+      linksTo("instrument://settings/grok-account"),
+      withoutATask,
+    ],
+    kind: "chat",
+    name: "x-search-without-grok-links-sign-in",
+    prompt: "Search X for what people are saying about the new Pixel launch.",
   }),
 ];

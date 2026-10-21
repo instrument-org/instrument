@@ -231,7 +231,7 @@ function errnoMessage(error: unknown, shown: string): string {
       return `${shown}: Not a directory. Part of the path is a file.`;
     }
     case "EROFS": {
-      return `${shown} is on a read-only file system. Write in this conversation's folder, or a folder the person names.`;
+      return `${shown} is on a read-only file system. Write in your work folder, or a folder the person names.`;
     }
     default: {
       return `${shown}: ${message}`;

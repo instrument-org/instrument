@@ -6,6 +6,7 @@ import path from "node:path";
 
 import {
   pageThumbnailsDirOf,
+  takeInUnfinished,
   workspaceSettingsDirOf,
 } from "./settings-migration";
 import {
@@ -126,6 +127,17 @@ export function moveMachineData({
     if (holder !== null) {
       done.push(
         `left the machine data where it is while process ${holder.toString()} has the workspace open`,
+      );
+      return { done, machineDir };
+    }
+    // What a take-in that stopped partway left in the settings folder is
+    // half of what it brings in. Moved now, the rest would land there on
+    // the take-in's retry after this move had finished, where nothing reads
+    // it; left, it moves with the rest once the take-in finishes, over what
+    // the stores write in the meantime.
+    if (takeInUnfinished(workspace.path)) {
+      done.push(
+        "left the machine data where it is until the settings take-in finishes",
       );
       return { done, machineDir };
     }

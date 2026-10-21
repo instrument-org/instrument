@@ -176,9 +176,9 @@ function buildMessage(
       // did or said. It draws a card of its own and is never a step.
       case "note": {
         return {
-          data: { created: [label], updated: [] },
+          data: { changes: [{ change: "added", kind: "skill", name: label }] },
           metadata,
-          type: "data-skillChanges",
+          type: "data-setupChanges",
         };
       }
       case "prose": {

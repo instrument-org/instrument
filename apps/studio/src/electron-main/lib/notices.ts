@@ -19,6 +19,7 @@ import { type Condition } from "@/shared/problem-reports";
 import {
   BROWSER_SANDBOX_OFF_COPY,
   SANDBOX_OFF_COPY,
+  WINDOWS_SANDBOX_OFF_COPY,
 } from "@/shared/sandbox-off";
 import { modelNameFromURI, readModelURI } from "@instrument-org/ai-gateway";
 import { APP_NAME, BROWSER_SANDBOX_OFF_URL } from "@instrument-org/shared";
@@ -146,7 +147,9 @@ export function listNotices(now = Date.now()): BellNotice[] {
     all.push(updatedNotice(updated));
   }
   const off = nativeSandboxOff();
-  if (off && off !== "windows") {
+  if (off === "windows") {
+    all.push(windowsSandboxOffNotice());
+  } else if (off) {
     all.push(sandboxOffNotice(off));
   }
   if (chromiumSandboxOff()) {
@@ -216,6 +219,24 @@ function sandboxOffNotice(
     publishedAt: LAUNCHED_AT,
     severity: allowed ? "info" : "critical",
     title: copy.title,
+  };
+}
+
+/**
+ * The notice for programs the agent runs having no sandbox on Windows, where
+ * they run anyway. It is critical, so it toasts and stays until closed, and
+ * its id carries the build, so a dismissed one comes back with the next
+ * update while Windows' sandbox still can't hold them.
+ */
+function windowsSandboxOffNotice(): Omit<BellNotice, "seen"> {
+  return {
+    action: { label: "Open Settings", settings: "Permissions" },
+    body: WINDOWS_SANDBOX_OFF_COPY.notice,
+    id: `sandbox-off-windows-${app.getVersion()}`,
+    kind: "security",
+    publishedAt: LAUNCHED_AT,
+    severity: "critical",
+    title: WINDOWS_SANDBOX_OFF_COPY.title,
   };
 }
 

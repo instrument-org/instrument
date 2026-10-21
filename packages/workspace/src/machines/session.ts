@@ -32,6 +32,7 @@ import {
   agentMachine,
   type AgentMachineActorRef,
   type AgentParentEvent,
+  REQUEST_ABORT_BACKSTOP_MS,
 } from "./agent";
 import { type StopNotice } from "../schemas/stop-notice";
 import { type StopReason } from "./execute-tool-call";
@@ -43,6 +44,16 @@ import { type StopReason } from "./execute-tool-call";
  * and the person's yes is cheaper than another thousand steps.
  */
 const UNATTENDED_STEPS = 500;
+
+/**
+ * How long a stop waits for the agent to wind down on its own before it is
+ * stopped outright, from the first stop. A request that ignores its abort
+ * holds the agent for `REQUEST_ABORT_BACKSTOP_MS`, and the turn still has
+ * its finish to run after that (`onFinish`, the sweep of calls left open,
+ * its writes landing), which takes well under a second on a working disk, so
+ * the margin is the second it gets plus one for a disk that is slow.
+ */
+export const STOP_FAILSAFE_MS = REQUEST_ABORT_BACKSTOP_MS + 2000;
 
 export type SessionMachineParentEvent = {
   type: "session.done";
@@ -139,6 +150,14 @@ export const sessionMachine = setup({
   actors: {
     agentMachine,
 
+    cutOffTurn: fromPromise<
+      void,
+      { chatId: ChatId; sessionId: StoreId.Session }
+    >(async ({ input: { chatId, sessionId } }) => {
+      await ChatWrites.cutOffTurn(chatId, sessionId);
+      await ChatWrites.landed(chatId);
+    }),
+
     // Where a turn that brings no message of its own begins: everything the
     // agent writes from here lands after the newest message already stored, so
     // that message is the boundary the turn is measured from. Undefined when
@@ -217,6 +236,9 @@ export const sessionMachine = setup({
         }
       }
     }),
+  },
+  delays: {
+    stopFailsafe: STOP_FAILSAFE_MS,
   },
   guards: {
     isAgentRefActive: ({ context }) =>
@@ -424,12 +446,33 @@ export const sessionMachine = setup({
       states: {
         AgentDone: { type: "final" },
 
+        /**
+         * The agent was stopped outright, so nothing of it is left to write
+         * what its turn still held: that is written here, as cut off, and
+         * the session ends once it and every write before it have landed.
+         */
+        CuttingOffTurn: {
+          invoke: {
+            input: ({ context }) => ({
+              chatId: context.chatId,
+              sessionId: context.sessionId,
+            }),
+            onDone: "AgentDone",
+            onError: { actions: "assignEventError", target: "AgentDone" },
+            src: "cutOffTurn",
+          },
+          on: {
+            stop: {
+              actions: ["rememberStopNotice", "holdQueuedOnPersonsStop"],
+            },
+          },
+        },
+
         Stopping: {
           after: {
-            // Failsafe if the agent does not stop itself promptly.
-            1000: {
+            stopFailsafe: {
               actions: ["forceStopAgent", "clearAgentRef"],
-              target: "AgentDone",
+              target: "CuttingOffTurn",
             },
           },
           always: [{ guard: "isAgentRefActive" }, { target: "AgentDone" }],
@@ -437,6 +480,12 @@ export const sessionMachine = setup({
             "agent.done": {
               actions: "clearAgentRef",
               target: "AgentDone",
+            },
+            // The agent is already winding down, so a later stop only says
+            // whose it was and what it holds, and the failsafe keeps the
+            // deadline the first stop set.
+            stop: {
+              actions: ["rememberStopNotice", "holdQueuedOnPersonsStop"],
             },
           },
         },

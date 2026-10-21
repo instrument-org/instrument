@@ -13,7 +13,6 @@ export interface WorkspaceRPCContext {
 const ORPC_ERRORS = {
   FILE_SYSTEM_ERROR: {},
   GATEWAY_FETCH_ERROR: {},
-  GIT_ERROR: {},
   INVALID_INPUT: {},
   NOT_FOUND: {},
   PARSE_ERROR: {},
@@ -52,9 +51,6 @@ export function toORPCError(
     case "workspace-filesystem-error": {
       return orpcErrors.FILE_SYSTEM_ERROR(options);
     }
-    case "workspace-git-error": {
-      return orpcErrors.GIT_ERROR(options);
-    }
     case "workspace-invalid-input-error": {
       return orpcErrors.INVALID_INPUT(options);
     }
@@ -68,9 +64,7 @@ export function toORPCError(
     case "gateway-verification-failed-error":
     case "workspace-api-call-error":
     case "workspace-conflict-error":
-    case "workspace-dependency-install-error":
     case "workspace-provider-limitation-error":
-    case "workspace-shim-not-found-error":
     case "workspace-unknown-error": {
       return orpcErrors.UNKNOWN(options);
     }

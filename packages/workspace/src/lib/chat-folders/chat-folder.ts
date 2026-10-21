@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../../constants";
 import { syncDirectory } from "../records/sync-directory";
-import { claimFolderNamed, safeName } from "./folder-name";
+import { claimFolderNamed, isTakenError, safeName } from "./folder-name";
 
 /**
  * A chat's own folder, the one a person opens: `Chats/<title>/`, holding its
@@ -97,6 +97,26 @@ export async function renameChatFolder({
     // A folder the person took away is not followed: the chat keeps the name
     // it had, and its next change makes a folder again under the new title.
     return { name: from, path: path.join(chats, from) };
+  }
+  // A change of capitals only: a disk that ignores case, as a Mac's does,
+  // already counts the folder as holding the new name, so claiming it fails
+  // and would number it. The folder is renamed straight to it, unless a
+  // disk that keeps case has another folder there.
+  const named = safeName(title);
+  if (named.toLowerCase() === from.normalize("NFC").toLowerCase()) {
+    const to = path.join(chats, named);
+    try {
+      await fs.rename(path.join(chats, from), to);
+      await syncDirectory(chats);
+      return { name: named, path: to };
+    } catch (error) {
+      if (isMissing(error)) {
+        return { name: from, path: path.join(chats, from) };
+      }
+      if (!isTakenError(error)) {
+        throw error;
+      }
+    }
   }
   // The new name is claimed first, by making the folder, so nothing else can
   // take it between the look and the rename; the claim is then dropped and

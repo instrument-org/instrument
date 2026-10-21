@@ -19,7 +19,6 @@ import { type BrowserTargetId, browserTargetOf } from "../../types";
 import { chatDir } from "../record-folders";
 import { sessionLayout } from "../session-layout";
 import { getChatState, setChatState } from "../chat-record";
-import { disposeSessionsStoreStorage } from "../session-store-storage";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAgentBrowserCommand } from "./agent-browser";
 
@@ -157,9 +156,6 @@ beforeEach(async () => {
 afterEach(async () => {
   stopAnswering();
   vi.resetAllMocks();
-  // Windows deletes no file a process holds open, so the chat's database is
-  // closed first.
-  await disposeSessionsStoreStorage(CHAT_ID);
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 

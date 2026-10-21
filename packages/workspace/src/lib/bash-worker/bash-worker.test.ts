@@ -23,6 +23,7 @@ import {
 } from "../create-bash-env";
 import { resolveChat, chatDir } from "../record-folders";
 import { workDir } from "../work-dir";
+import { CommandRuns, withCommandRuns } from "../shell-commands/command-runs";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import {
   SubprocessTreeTerminationError,
@@ -34,9 +35,9 @@ import { shellPath } from "../workspace-fs-layout";
 import { workspaceLayout } from "../workspace-layout";
 import { getWorkspaceSkillsDir } from "../workspace-skills-dir";
 import {
-  beginSkillChangeTracking,
-  consumeSkillChanges,
-} from "../workspace-skill-index";
+  beginSetupChangeTracking,
+  consumeSetupChanges,
+} from "../setup-changes";
 import { createRemoteBash, setBashWorkerFactory } from "./client";
 import { fromWireError, type FromWorker, toWireError } from "./protocol";
 
@@ -175,6 +176,27 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     expect(remote.exitCode).toBe(onMain.exitCode);
   });
 
+  it("records what answered each command, in the worker and on main", async () => {
+    const runs = new CommandRuns();
+    await withCommandRuns(runs, () =>
+      remoteBash().exec("for i in 1 2; do cat /dev/null; done; jobs; jobs"),
+    );
+    expect(runs.rows()).toMatchInlineSnapshot(`
+      [
+        {
+          "count": 2,
+          "name": "cat",
+          "source": "builtin",
+        },
+        {
+          "count": 2,
+          "name": "jobs",
+          "source": "instrument",
+        },
+      ]
+    `);
+  });
+
   it("runs an `instrument` subcommand on the main thread", async () => {
     const bashOptions = options();
     const local = await createLocalBashEnv(bashOptions);
@@ -202,7 +224,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   it("credits a skill written from the shell to the turn that wrote it", async () => {
     const bashOptions = options();
     const turn = { id: chatId, sessionId: bashOptions.sessionId };
-    await beginSkillChangeTracking(turn);
+    beginSetupChangeTracking(turn);
     const skill = `${shellPath(getWorkspaceSkillsDir())}/tracked`;
 
     await withTurnContext(turn, () =>
@@ -211,10 +233,30 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
       ),
     );
 
-    await expect(consumeSkillChanges(turn)).resolves.toMatchObject({
-      created: ["tracked"],
-    });
+    await expect(consumeSetupChanges(turn)).resolves.toEqual([
+      { change: "added", kind: "skill", name: "tracked" },
+    ]);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "finds programs on the PATH main has when the command starts",
+    async () => {
+      // The login shell's PATH reaches main after the worker has started.
+      const bin = path.join(root, "later-bin");
+      await fs.mkdir(bin, { recursive: true });
+      await fs.writeFile(path.join(bin, "zz-later"), "#!/bin/sh\n", {
+        mode: 0o755,
+      });
+      const before = process.env.PATH;
+      process.env.PATH = `${bin}:${before ?? ""}`;
+      try {
+        const result = await remoteBash().exec("which zz-later");
+        expect(result.stdout).toBe(`${path.join(bin, "zz-later")}\n`);
+      } finally {
+        process.env.PATH = before;
+      }
+    },
+  );
 
   it("finds a chat made after the worker started", async () => {
     const made = await chatFor();

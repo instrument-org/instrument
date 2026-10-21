@@ -29,9 +29,13 @@ describe("slash menu", () => {
   });
 
   it.each([
-    ["/", { from: 1, query: "", to: 2 }],
-    ["Use /pd", { from: 5, query: "pd", to: 8 }],
-    ["Use /claude:pdf", { from: 5, query: "claude:pdf", to: 16 }],
+    ["/", { atStart: true, from: 1, query: "", to: 2 }],
+    [" /bu", { atStart: true, from: 2, query: "bu", to: 5 }],
+    ["Use /pd", { atStart: false, from: 5, query: "pd", to: 8 }],
+    [
+      "Use /claude:pdf",
+      { atStart: false, from: 5, query: "claude:pdf", to: 16 },
+    ],
     ["a/b", null],
     ["Use /pd now", null],
   ])("reads %j as %j", (text, menu) => {

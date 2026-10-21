@@ -10,7 +10,6 @@ import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readPackage } from "read-pkg";
 import { build as viteBuild } from "vite";
 import { analyzer } from "vite-bundle-analyzer";
 
@@ -51,22 +50,20 @@ const monorepoNamespace = "@instrument-org";
 // Not including "components" it will be bundled by default in the client
 const monorepoPackages = ["workspace", "shared", "ai-gateway"];
 
-async function getMonorepoDeps(packageName: string) {
-  const pkg = await readPackage({
-    cwd: path.join(
-      path.dirname(fileURLToPath(import.meta.url)),
-      `../../packages/${packageName}`,
-    ),
-  });
-  return Object.keys(pkg.dependencies ?? {}).filter(
-    (dep) => !dep.startsWith(monorepoNamespace),
-  );
-}
-
-const monorepoDepsPromises = await Promise.all(
-  monorepoPackages.map(getMonorepoDeps),
-);
-const monorepoDeps = [...new Set(monorepoDepsPromises.flat())];
+// What main loads from node_modules in a packaged app instead of carrying in
+// its bundle: packages that find their own binaries, workers or WASM beside
+// themselves at runtime, and `ws`, whose native speedups are optional
+// requires. Everything else the monorepo packages use is bundled, since a
+// launch otherwise spends most of main's startup resolving modules.
+const mainKeepsExternal = [
+  "@anthropic-ai/claude-agent-sdk",
+  "@vscode/ripgrep",
+  "agent-browser",
+  "dugite",
+  "ffmpeg-ffprobe-static",
+  "just-bash",
+  "ws",
+];
 
 const mainExternalizeExclude = [
   // Monorepos packages export .ts files, which must be bundled
@@ -204,9 +201,8 @@ function copyVendorAssets(): Plugin {
       from: require.resolve("@tailwindcss/browser"),
       to: path.join(resourcesDir, "tailwind-browser.js"),
     },
-    // The renderer runs from `file://` in production, where `fetch()` of
-    // bundled assets is blocked, so these are served over the app protocol
-    // from `resources/` instead of being emitted into the renderer bundle.
+    // Served over the app protocol's vendor host from `resources/`
+    // (`client/lib/document-viewers.ts`).
     {
       from: require.resolve("@embedpdf/pdfium/pdfium.wasm"),
       to: path.join(vendorDir, "pdfium.wasm"),
@@ -338,19 +334,18 @@ export default defineConfig(({ command }) => {
           exclude: mainExternalizeExclude,
           include:
             // In dev, we must include all dependencies
-            command === "serve"
-              ? []
-              : monorepoDeps.filter(
-                  (dep) => !mainExternalizeExclude.includes(dep),
-                ),
+            command === "serve" ? [] : mainKeepsExternal,
         },
         lib: {
-          entry: path.join(process.cwd(), "src/electron-main/index.ts"),
+          // `boot.ts` turns on the compile cache before it loads `index.ts`,
+          // and is what `out/main/index.js` (package.json's `main`) runs.
+          entry: {
+            index: path.join(process.cwd(), "src/electron-main/boot.ts"),
+          },
         },
         rollupOptions: {
           // node-liblzma and @mongodb-js/zstd are optional dependencies of just-bash that fail to build in CI.
-          // @parcel/watcher (and its per-platform native bindings) must load from node_modules at runtime, never bundled.
-          external: ["node-liblzma", "@mongodb-js/zstd", /^@parcel\/watcher/],
+          external: ["node-liblzma", "@mongodb-js/zstd"],
           // Rolldown's default region comments name each module by id, and a
           // `?nodeWorker` import's id carries its importer's absolute path,
           // which would ship the build machine's checkout path in the bundle.

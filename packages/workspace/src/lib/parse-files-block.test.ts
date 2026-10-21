@@ -37,6 +37,14 @@ describe("parseFilesBlock", () => {
     expect(parseFilesBlock(content)).toEqual(["output/a.png"]);
   });
 
+  it.each([
+    String.raw`C:\Users\sam\sp ace\notes.txt`,
+    "C:/Users/sam/sp ace/notes.txt",
+    "- `c:\\Users\\sam\\sp ace\\notes.txt`",
+  ])("reads a Windows drive path as the shell's spelling: %s", (content) => {
+    expect(parseFilesBlock(content)).toEqual(["/c/Users/sam/sp ace/notes.txt"]);
+  });
+
   it("drops a repeated path", () => {
     expect(parseFilesBlock("output/a.png\noutput/a.png"))
       .toMatchInlineSnapshot(`

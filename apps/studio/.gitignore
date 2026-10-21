@@ -24,6 +24,9 @@ resources/mxc/
 # Document-viewer WASM binaries (copied from node_modules by the main build)
 resources/vendor/
 
+# Tailwind's browser build (copied from node_modules by the main build)
+resources/tailwind-browser.js
+
 # Turbo
 .turbo
 

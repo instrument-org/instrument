@@ -214,6 +214,14 @@ export async function resolvePort({ port, workspace } = {}) {
  */
 const isAppWindow = (target) => !target.url.includes("#/onboarding");
 
+/**
+ * The renderer's page: the dev server's `/renderer/`, a build from before the
+ * app scheme served it (`file://.../out/renderer/`), or the app scheme's
+ * `app` host, which a build serves it from now (`renderer-host.ts`).
+ */
+const isRendererURL = (url) =>
+  url.includes("/renderer/") || /^[a-z][\w+.-]*:\/\/app\/index\.html/.test(url);
+
 async function pickTarget(origin, page = "app") {
   let list;
   try {
@@ -235,7 +243,7 @@ async function pickTarget(origin, page = "app") {
     return refusal ?? fail("No window refusing the workspace is open.");
   }
   const pages = list.filter(
-    (t) => t.type === "page" && t.url.includes("/renderer/"),
+    (t) => t.type === "page" && isRendererURL(t.url),
   );
   const wanted = pages.find((target) =>
     page === "onboarding" ? !isAppWindow(target) : isAppWindow(target),

@@ -6,6 +6,7 @@ import { parallel, sort } from "radashi";
 import { type ChatDir } from "../schemas/paths";
 import { type ChatInfo } from "../schemas/chat-info";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { type StoreId } from "../schemas/store-id";
 import { TypedError } from "./errors";
 import { getChatDirTimestamps } from "./chat-dir-timestamps";
 import { isChatId } from "./is-chat-id";
@@ -100,6 +101,28 @@ export async function chatTitle(chatId: ChatId): Promise<string | undefined> {
   }
   const session = await ChatReads.session({ chatId, sessionId });
   return session.isOk() ? session.value.title : undefined;
+}
+
+/**
+ * Every session of a chat as its records have them, the chat's own first and
+ * then its tasks: each one's id, title and the session it was started from.
+ * Empty for a chat with no records to read.
+ */
+export async function chatSessions(
+  chatId: ChatId,
+): Promise<
+  { id: StoreId.Session; parentId?: StoreId.Session; title: string }[]
+> {
+  const sessions = await ChatReads.sessions({
+    chatId,
+    includeChildSessions: true,
+  });
+  if (sessions.isErr()) {
+    return [];
+  }
+  return sort(sessions.value, (session) => (session.parentId ? 1 : 0)).map(
+    ({ id, parentId, title }) => ({ id, parentId, title }),
+  );
 }
 
 /** The order the list asks for, over a set already read. */

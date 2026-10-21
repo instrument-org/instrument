@@ -4,8 +4,6 @@ import { describe, expect, it } from "vitest";
 import {
   chatOfTasksList,
   locationCrumbs,
-  memoryOfHref,
-  skillOfHref,
   type TabLocation,
   tasksHref,
   tasksOfHref,
@@ -288,33 +286,6 @@ describe("locationCrumbs", () => {
         "Instrument",
       ]
     `);
-  });
-});
-
-describe("memoryOfHref", () => {
-  it.each([
-    ["/memory/no-stevia", "no-stevia"],
-    ["/memory/no-stevia?from=link", "no-stevia"],
-    ["/memory", undefined],
-    ["/memory/", undefined],
-    ["/memory/no-stevia/edit", undefined],
-    ["/tasks/no-stevia", undefined],
-  ])("reads %s as %s", (href, name) => {
-    expect(memoryOfHref(href)).toBe(name);
-  });
-});
-
-describe("skillOfHref", () => {
-  it.each([
-    ["/skills/create-page", "create-page"],
-    ["/skills/workspace%3Atdd", "workspace:tdd"],
-    ["/skills/instrument:create-page", "instrument:create-page"],
-    ["/skills", undefined],
-    ["/skills/", undefined],
-    ["/skills/create-page/files", undefined],
-    ["/memory/create-page", undefined],
-  ])("reads %s as %s", (href, name) => {
-    expect(skillOfHref(href)).toBe(name);
   });
 });
 

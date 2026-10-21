@@ -97,11 +97,12 @@ export interface LiveTurn {
 /** A session's running turn, as its writer holds it. */
 export interface Live {
   /**
-   * Ends the turn, writing whatever it still holds as cut off: the words a
-   * reply had reached, and a call whose input never finished arriving, as
-   * interrupted. A turn that settled everything has nothing to write here.
+   * Ends one reply of the turn, or with no id the whole turn, writing
+   * whatever it still holds as cut off: the words a reply had reached, and a
+   * call whose input never finished arriving, as interrupted. A reply that
+   * settled everything has nothing to write here.
    */
-  clear(): Promise<void>;
+  clear(messageId?: StoreId.Message): Promise<void>;
   /** Takes a part out of the turn's memory, for one appended another way. */
   forget(partId: StoreId.Part): void;
   setMessage(message: SessionMessage.Type): void;
@@ -303,6 +304,19 @@ export class ChatRecords {
     );
   }
 
+  /**
+   * Waits until every write of the chat already asked for has landed or
+   * failed, so whatever reads the chat next finds them in its files. Writes
+   * asked for after the call are not waited for.
+   */
+  async landed(chatId: ChatId): Promise<void> {
+    const entry = this.#chats.get(chatId);
+    const chat = entry && (entry.open ?? (await entry.ready?.catch(noop)));
+    if (chat) {
+      await Promise.allSettled(chat.writes);
+    }
+  }
+
   /** The chat as it stands: its fold with what is pending over it, and its running turns. */
   read(chatId: ChatId): Promise<ChatRead> {
     return this.#with(chatId, (chat) => ({
@@ -414,13 +428,13 @@ export class ChatRecords {
         saved.rolledOverUnderUsableTokens,
       );
     }
-    // Against the stop itself rather than the session as it reads, which
-    // leaves a stop behind once a turn starts after it: a row written then
-    // still carries the stop it was last saved with, and saying so again
-    // would stop the session a second time.
+    // Against the session as it reads, whose stop a turn after it retires:
+    // a row re-saved with the stop it still reads with says nothing new, and
+    // a row read once a turn retired the stop carries none, so a stop that
+    // differs is a new one, even by whoever made the last.
     if (
       saved.stoppedBy !== undefined &&
-      known?.stopped?.by !== saved.stoppedBy
+      (known ? sessionOf(known).stoppedBy : undefined) !== saved.stoppedBy
     ) {
       await this.stopped(chatId, saved.id, saved.stoppedBy);
     }
@@ -700,14 +714,28 @@ export class ChatRecords {
       }
     };
     return {
-      clear: async () => {
+      clear: async (messageId) => {
         const state = this.#live.get(chatId)?.get(sessionId);
         if (!state) {
           return;
         }
-        const held = [...state.parts.values()];
-        drop();
-        for (const id of messagesOfTurn(state)) {
+        const ends = (id: StoreId.Message) =>
+          messageId === undefined || id === messageId;
+        const held = [...state.parts.values()].filter((part) =>
+          ends(part.metadata.messageId),
+        );
+        const ended = new Set(held.map((part) => part.metadata.messageId));
+        for (const part of held) {
+          state.parts.delete(part.metadata.id);
+        }
+        if (state.message && ends(state.message.id)) {
+          ended.add(state.message.id);
+          delete state.message;
+        }
+        if (!state.message && state.parts.size === 0) {
+          drop();
+        }
+        for (const id of ended) {
           this.#liveChanged(chatId, sessionId, id);
         }
         // Whatever arrived and never settled is written as the turn left it,
@@ -939,7 +967,6 @@ export class ChatRecords {
         .then(() => caughtUp(chat, existing))
         .catch(noop);
     const header = behind ? undefined : this.#header(chat, sessionId);
-    let opened: LogWriter | undefined;
     const file: FileState<LogWriter> = {
       end: 0,
       writer: Promise.resolve(behind)
@@ -952,23 +979,20 @@ export class ChatRecords {
             dir: chat.dir,
             header: header ?? this.#header(chat, sessionId),
             ...(last && { last }),
+            // Kept once the lines are on disk, so the row never says more
+            // than a crash leaves of the file.
+            onCommit: (cursor) => {
+              if (file.name !== undefined) {
+                keepOwnLogCursor(chat.id, sessionId, file.name, cursor);
+              }
+            },
             onWrite: (bytes, offset) => {
               wrote(chat, file, bytes, offset);
-              if (opened && file.name !== undefined) {
-                keepOwnLogCursor(
-                  chat.id,
-                  sessionId,
-                  file.name,
-                  opened.cursor(),
-                );
-              }
             },
           });
         })
         .then(async (writer) => {
           file.name = path.basename(writer.path);
-          opened = writer;
-          keepOwnLogCursor(chat.id, sessionId, file.name, writer.cursor());
           // A log this opened was started with its header before its name was known.
           await caughtUp(chat, file);
           return writer;
@@ -1692,13 +1716,6 @@ async function recordFiles(dir: string): Promise<string[]> {
     }
     throw error;
   }
-}
-
-function messagesOfTurn(state: LiveState): Set<StoreId.Message> {
-  return new Set([
-    ...(state.message ? [state.message.id] : []),
-    ...[...state.parts.values()].map((part) => part.metadata.messageId),
-  ]);
 }
 
 /** The fold with what is queued over it, sessions only queued so far included. */

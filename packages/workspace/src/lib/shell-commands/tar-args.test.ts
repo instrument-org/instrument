@@ -32,6 +32,10 @@ describe("tarWrites", () => {
     [["-xf", "a.tar", "-Cout"], ["out"]],
     [["tzf", "a.tgz"], []],
     [["czf", "-", "d"], []],
+    [["-xOf", "a.tar", "m"], []],
+    [["xOf", "a.tar", "m"], []],
+    [["-x", "-O", "-f", "a.tar", "-C", "x"], []],
+    [["--extract", "--to-stdout", "--file=a.tar"], []],
   ])("%j writes %j", (args, expected) => {
     expect(tarWrites(args)).toEqual(expected);
   });

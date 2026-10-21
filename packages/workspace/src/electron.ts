@@ -80,6 +80,7 @@ export {
   isKnownCdpMethod,
 } from "./lib/cdp-methods";
 export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
+export { startLoginShellPath } from "./lib/login-shell-path";
 export { findAvailableName } from "./lib/find-available-name";
 export {
   type LayoutMarkStore,
@@ -144,7 +145,11 @@ export { runtimeLayout } from "./lib/runtime-dir";
 export { ensurePythonBase } from "./lib/python-base";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";
 export { WINDOW_ID } from "./schemas/window-id";
-export { appListChanges, sessionEnds } from "./lib/host-events";
+export {
+  appCatalogChanges,
+  appListChanges,
+  sessionEnds,
+} from "./lib/host-events";
 export { FILES_FENCE } from "./lib/parse-files-block";
 
 export { getBrowserSessionDir } from "./lib/chat-dir-utils";
@@ -164,9 +169,9 @@ export {
 } from "./lib/move-entry";
 export {
   type PathMove,
+  registerStoredPaths,
   rewriteStoredPaths,
   settleMovedPaths,
-  type StoredPathRewrite,
 } from "./lib/rewrite-stored-paths";
 export {
   chatOutputFolder,
@@ -174,10 +179,9 @@ export {
   instrumentFolderUnchosen,
   outputFolderPath,
 } from "./lib/chat/output-folder";
-export { afterFolderAppears, isFolder } from "./lib/folder-appears";
+export { watchFolder } from "./lib/folder-watch";
 export { placePaths, startupPaths } from "./lib/permissions/places";
-export { chatStartedWithApp, chatTitle } from "./lib/chat-info";
-export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
+export { chatSessions, chatStartedWithApp, chatTitle } from "./lib/chat-info";
 export { serveStaticFile } from "./logic/server/serve-static";
 export {
   type WorkspaceActorRef,

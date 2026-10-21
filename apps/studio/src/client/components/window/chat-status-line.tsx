@@ -52,9 +52,9 @@ const DONE = "Done";
  * jobs the chat and its tasks left running after a middle dot, still and in
  * muted gray, since a job running is not the agent at work. While anything
  * runs, its dot turns into a Stop when pointed at, which ends the chat's turn
- * and every task's. Pressed anywhere else, it lists the chat's tasks and
- * jobs; with neither it is only a line. Nothing at all in a chat that has
- * only talked and left nothing running.
+ * and every task's. Pressed anywhere else, it opens the task card: the
+ * chat's own steps, or with tasks or jobs, those to pick from. Nothing at
+ * all in a chat that has only talked and left nothing running.
  */
 export function ChatStatusLine({
   chat,
@@ -110,39 +110,40 @@ export function ChatStatusLine({
   ) : (
     <StatusMark tone={line.tone} />
   );
-  const opens = Boolean(listed?.length) || jobs > 0;
+  // Pressed, the line opens the task card: the chat's own steps, or its
+  // tasks to pick from.
   return (
     <div
       aria-live="polite"
-      className={cn(
-        "group/line flex max-w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[12px] leading-5",
-        (opens || line?.tone === "run") &&
-          "hover:bg-accent has-data-[state=open]:bg-accent",
-      )}
+      className="group/line flex max-w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[12px] leading-5 hover:bg-accent has-data-[state=open]:bg-accent"
     >
       {mark}
-      {opens ? (
-        <ChatTasksPopover
-          align="center"
-          chatId={chat.id}
-          onOpen={onOpenTask}
-          tasks={chat.runningTasks}
-          trigger={
-            <button className="flex min-w-0 items-center gap-1.5" type="button">
-              {text}
-            </button>
-          }
-        />
-      ) : (
-        text
-      )}
+      <ChatTasksPopover
+        align="center"
+        chatId={chat.id}
+        onOpen={onOpenTask}
+        own={{
+          line:
+            line?.tone === "run" || line?.tone === "done"
+              ? line.text
+              : undefined,
+          title: chat.title,
+          working: chat.state === "working",
+        }}
+        tasks={chat.runningTasks}
+        trigger={
+          <button className="flex min-w-0 items-center gap-1.5" type="button">
+            {text}
+          </button>
+        }
+      />
     </div>
   );
 }
 
 /** How many jobs the chat and its tasks left running, said after the line's state. */
 function jobsRunning(count: number) {
-  return `${count} ${count === 1 ? "job" : "jobs"} running`;
+  return `${count} ${count === 1 ? "command" : "commands"} running`;
 }
 
 /**

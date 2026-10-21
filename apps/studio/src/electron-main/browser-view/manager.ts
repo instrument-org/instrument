@@ -20,7 +20,6 @@ import { noop } from "radashi";
 import { applyProductBrandedMetadata } from "../lib/user-agent";
 import { pageEditorPreloadPath } from "../page-editor/sessions";
 import { isDrivenInstance } from "../windows/on-screen";
-import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
 import { captureDownloadWillBeginGuid } from "./downloads";
@@ -443,15 +442,12 @@ export function createBrowserViewManager(): BrowserViewManager {
     guest.once("did-finish-load", () => {
       advanceEntry(entry, "loadSettled");
       ensureDebuggerAttached(entry);
-      attachDevHooks(entry);
       entry.attach.resolve();
       // The guest is now attached; re-publish so subscribers (the UI's live
       // view) flip this target from pending to live.
       notifyEntriesChanged();
     });
     void guest.loadURL("about:blank");
-
-    notifyDebugChange();
   }
 
   function bindHost(host: WebContents) {
@@ -911,11 +907,9 @@ function markNavigated(entry: BrowserEntry, url: string) {
   notifyEntriesChanged();
 }
 
-// Single notify for any change to the entry set: refresh the debug snapshot and
-// publish the new desired-targets set so the renderer pool reconciles its
-// guests. Called at every add (createTarget) and removal (destroyEntry /
-// handleDetach) site.
+// Single notify for any change to the entry set: publish the new
+// desired-targets set so the renderer pool reconciles its guests. Called at
+// every add (createTarget) and removal (destroyEntry / handleDetach) site.
 function notifyEntriesChanged() {
-  notifyDebugChange();
   publisher.publish("browser.targets-changed", null);
 }

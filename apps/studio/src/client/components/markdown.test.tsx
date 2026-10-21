@@ -10,7 +10,13 @@ import {
 } from "@/client/lib/image-policy";
 import { renderWithProviders } from "@/tests/render";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { Profiler } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
@@ -170,6 +176,30 @@ describe("Markdown links", () => {
 
     expect(screen.getByRole("button", { name: "Open the file" }).title).toBe(
       "/c/Users/sam/show/2024",
+    );
+  });
+
+  // A person writes a Windows file by its drive, and a reply may link one
+  // that way: it is the same file as the shell's spelling of it.
+  it.each([
+    "C:/Users/sam/Documents/sp%20ace/notes.txt",
+    "c:/Users/sam/Documents/sp%20ace/notes.txt",
+    "<C:\\Users\\sam\\Documents\\sp ace\\notes.txt>",
+  ])("opens a link to a Windows file by its drive: %s", (href) => {
+    renderMarkdown(`[notes.txt](${href})`);
+
+    expect(screen.getByRole("button", { name: "notes.txt" }).title).toBe(
+      "/c/Users/sam/Documents/sp ace/notes.txt",
+    );
+  });
+
+  // Markdown reads `\\` in a link as one backslash, so a share reaches the
+  // link only with its backslashes doubled.
+  it("opens a link to a file on a network share by its shell path", () => {
+    renderMarkdown(String.raw`[shot.png](<\\\\nas\\photos\\shot.png>)`);
+
+    expect(screen.getByRole("button", { name: "shot.png" }).title).toBe(
+      "//nas/photos/shot.png",
     );
   });
 
@@ -484,6 +514,23 @@ describe("Markdown images", () => {
     expect(screen.queryByRole("button", { name: /The chart/ })).toBeNull();
   });
 
+  // A person writes a Windows image by its drive, and it is the same file as
+  // the shell's spelling the reply's other images use.
+  it.each([String.raw`C:\Users\sam\shot.png`, "C:/Users/sam/shot.png"])(
+    "draws an image named by its drive: %s",
+    (src) => {
+      const bySpelling = (markdown: string) =>
+        renderMarkdown(markdown)
+          .container.querySelector("img")
+          ?.getAttribute("src");
+      const shell = bySpelling("![shot](/c/Users/sam/shot.png)");
+      cleanup();
+
+      expect(shell).toBeTruthy();
+      expect(bySpelling(`![shot](${src})`)).toBe(shell);
+    },
+  );
+
   // A reply routinely names the file it is still writing, so mid-turn a miss
   // says nothing about whether the image will be there.
   it("says nothing of an image the reply has not finished writing", () => {
@@ -529,39 +576,6 @@ describe("Markdown half-written constructs", () => {
 
     expect(container.querySelector("strong")).toBeNull();
     expect(container.textContent).toContain("**half written");
-  });
-});
-
-// react-markdown under the name the stylesheet looks for.
-describe("Markdown streaming words", () => {
-  const streamingWords = (markdown: string) => {
-    const { container } = renderWithProviders(
-      <Markdown isStreaming markdown={markdown} chatId={TASK_ID} />,
-    );
-    return [...container.querySelectorAll("[data-stream-word]")].map(
-      (word) => word.textContent,
-    );
-  };
-
-  it("hands every word of streaming prose to the stylesheet", () => {
-    expect(streamingWords("Reading the config")).toEqual([
-      "Reading",
-      "the",
-      "config",
-    ]);
-  });
-
-  it("leaves code alone, since the components under it read a string", () => {
-    expect(streamingWords("Run `pnpm test run` first")).toEqual([
-      "Run",
-      "first",
-    ]);
-  });
-
-  it("wraps nothing once the text has settled", () => {
-    const { container } = renderMarkdown("Reading the config");
-
-    expect(container.querySelectorAll("[data-stream-word]")).toHaveLength(0);
   });
 });
 
@@ -1136,22 +1150,13 @@ describe("Markdown while a message is still arriving", () => {
    * comparing text with the whitespace out catches anything dropped from a
    * word. What is left uncovered, a space lost between two words, is what
    * `splitMarkdownBlocks`' round-trip test rules out at the source.
-   *
-   * The word-fade spans are unwrapped first: they exist only while the text is
-   * moving, so they are a difference between the two readings by design.
    */
-  const reading = (container: HTMLElement) => {
-    const copy = container.cloneNode(true) as HTMLElement;
-    for (const span of copy.querySelectorAll("[data-stream-word]")) {
-      span.replaceWith(...span.childNodes);
-    }
-    return {
-      elements: [...copy.querySelectorAll("*")]
-        .map((element) => element.tagName.toLowerCase())
-        .join(" "),
-      text: copy.textContent.replaceAll(/\s+/g, ""),
-    };
-  };
+  const reading = (container: HTMLElement) => ({
+    elements: [...container.querySelectorAll("*")]
+      .map((element) => element.tagName.toLowerCase())
+      .join(" "),
+    text: container.textContent.replaceAll(/\s+/g, ""),
+  });
 
   // Deliberately not here: a document ending mid-construct. The two readings
   // differ on it by design -- one is repaired and one is shown as written --
@@ -1179,12 +1184,6 @@ describe("Markdown while a message is still arriving", () => {
     );
 
     expect(container.querySelector("strong")?.textContent).toBe("half writ");
-  });
-
-  it("leaves a settled message with no word spans at all", () => {
-    expect(
-      draw(documents["several paragraphs"]).querySelector("[data-stream-word]"),
-    ).toBeNull();
   });
 });
 

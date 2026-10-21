@@ -22,7 +22,7 @@ import {
   readDrafts,
   writeDraftFile,
 } from "./draft-folder";
-import { finishSentDrafts, pointDraftAtChat } from "./send";
+import { finishSentDrafts } from "./send";
 
 /**
  * A send, step by step, with the app stopped between each: the person must
@@ -67,6 +67,21 @@ function waitingDraft(more: Partial<DraftFile> = {}) {
   });
   fs.writeFileSync(path.join(made.dir, "sink.png"), "the bytes");
   return made;
+}
+
+/**
+ * Step 2 of a send: the draft names the chat it is going into, as the app's
+ * draft store writes it when it claims the draft.
+ */
+function pointAtChat(draftId: string) {
+  const found = findDraft(rootDir, draftId);
+  if (found) {
+    writeDraftFile(found.file, {
+      ...found.draft,
+      sending: CHAT,
+      updated: new Date(),
+    });
+  }
 }
 
 /**
@@ -120,7 +135,7 @@ describe("a send stopped between its steps", () => {
 
   it("leaves the draft to be sent again when it stops before the message", async () => {
     const made = waitingDraft();
-    pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
+    pointAtChat("d1");
 
     const finished = await finishSentDrafts({ chatsDir: chatsDir(), rootDir });
 
@@ -141,7 +156,7 @@ describe("a send stopped between its steps", () => {
 
   it("finishes the send when it stops after the message, before the folder goes", async () => {
     const made = waitingDraft();
-    pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
+    pointAtChat("d1");
     messageNaming("d1");
 
     expect(await finishSentDrafts({ chatsDir: chatsDir(), rootDir })).toEqual({
@@ -154,7 +169,7 @@ describe("a send stopped between its steps", () => {
 
   it("has nothing left to do when the send finished", async () => {
     waitingDraft();
-    pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
+    pointAtChat("d1");
     messageNaming("d1");
     await finishSentDrafts({ chatsDir: chatsDir(), rootDir });
 
@@ -168,7 +183,7 @@ describe("a send stopped between its steps", () => {
   it("comes to the same place however often a launch runs it", async () => {
     waitingDraft();
     waitingDraft({ id: "d2", words: "And a quiet fridge." });
-    pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
+    pointAtChat("d1");
     messageNaming("d1");
 
     const once = await finishSentDrafts({ chatsDir: chatsDir(), rootDir });
@@ -188,7 +203,7 @@ describe("finishing the sends a launch finds", () => {
     waitingDraft({ id: "d2", words: "Queued for after." });
     waitingDraft({ id: "d3", words: "And this one too." });
     for (const id of ["d1", "d2", "d3"]) {
-      pointDraftAtChat({ chatId: CHAT, draftId: id, rootDir });
+      pointAtChat(id);
     }
     messageNaming("d2");
 
@@ -200,7 +215,7 @@ describe("finishing the sends a launch finds", () => {
 
   it("leaves a draft whose chat holds another draft's message", async () => {
     waitingDraft();
-    pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
+    pointAtChat("d1");
     messageNaming("some-other-draft");
 
     expect(
@@ -211,7 +226,7 @@ describe("finishing the sends a launch finds", () => {
 
   it("leaves a draft whose chat has messages from no draft at all", async () => {
     waitingDraft();
-    pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
+    pointAtChat("d1");
     messageNaming(undefined);
 
     expect(
@@ -222,7 +237,7 @@ describe("finishing the sends a launch finds", () => {
 
   it("leaves a draft whose chat was deleted, so it can be salvaged", async () => {
     waitingDraft();
-    pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
+    pointAtChat("d1");
 
     const finished = await finishSentDrafts({ chatsDir: chatsDir(), rootDir });
 
@@ -243,7 +258,7 @@ describe("finishing the sends a launch finds", () => {
 
   it("says so and leaves the draft where its chat's records cannot be read", async () => {
     waitingDraft();
-    pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
+    pointAtChat("d1");
     const dir = path.join(chatsDir(), CHAT);
     fs.mkdirSync(path.dirname(dir), { recursive: true });
     // A folder's place taken by a file is the shape of a record folder this
@@ -274,24 +289,6 @@ describe("finishing the sends a launch finds", () => {
       ]
     `);
     expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
-  });
-
-  it("points a draft at its chat once, and says the same thing asked again", async () => {
-    waitingDraft();
-    const first = pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
-    const again = pointDraftAtChat({ chatId: CHAT, draftId: "d1", rootDir });
-
-    expect(first?.draft.sending).toBe(CHAT);
-    // A new chat's draft stays one: it is on its way, not a reply.
-    expect(first?.draft.chat).toBeUndefined();
-    expect(again?.file).toBe(first?.file);
-    expect(again?.draft.words).toBe(WORDS);
-  });
-
-  it("says nothing was pointed where the draft is not there", async () => {
-    expect(
-      pointDraftAtChat({ chatId: CHAT, draftId: "gone", rootDir }),
-    ).toBeUndefined();
   });
 });
 

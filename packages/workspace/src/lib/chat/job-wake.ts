@@ -55,12 +55,15 @@ const stopped = new Set<StoreId.Session>();
  * quit) is never news, and each process is reported once: the wake marks it
  * told before it is sent, so the turn it starts cannot start another.
  */
-export function startJobWake(workspaceRef: WorkspaceActorRef): void {
+export function startJobWake(
+  workspaceRef: WorkspaceActorRef,
+  { debounceMs = JOB_WAKE_DEBOUNCE_MS }: { debounceMs?: number } = {},
+): void {
   void (async () => {
     for await (const { id, sessionId } of publisher.subscribe(
       "backgroundProcess.settled",
     )) {
-      schedule(id, sessionId, workspaceRef);
+      schedule(id, sessionId, workspaceRef, debounceMs);
     }
   })();
   void (async () => {
@@ -72,7 +75,7 @@ export function startJobWake(workspaceRef: WorkspaceActorRef): void {
       } else {
         stopped.delete(sessionId);
       }
-      schedule(id, sessionId, workspaceRef);
+      schedule(id, sessionId, workspaceRef, debounceMs);
     }
   })();
 }
@@ -81,6 +84,7 @@ function schedule(
   chatId: ChatId,
   sessionId: StoreId.Session,
   workspaceRef: WorkspaceActorRef,
+  debounceMs: number,
 ) {
   clearTimeout(pending.get(sessionId)?.timer);
   const timer = setTimeout(() => {
@@ -88,7 +92,7 @@ function schedule(
     deliver(chatId, sessionId, workspaceRef).catch((error: unknown) => {
       getWorkspaceConfig().captureException(error);
     });
-  }, JOB_WAKE_DEBOUNCE_MS);
+  }, debounceMs);
   timer.unref();
   pending.set(sessionId, { chatId, timer });
 }

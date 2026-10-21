@@ -58,7 +58,7 @@ export async function turnsOf(ctx: {
   });
 }
 
-export async function linksIn(
+async function linksIn(
   messages: SessionMessage.WithParts[],
   chatId: ChatId,
 ): Promise<{ broken: string[]; files: number }> {
@@ -183,7 +183,7 @@ async function firingsIn(ctx: {
 }
 
 /** Fails whenever the check fired, so a run's table counts the firings. */
-export const assertCheckDidNotFire: Assertion = {
+const assertCheckDidNotFire: Assertion = {
   check: async (ctx) => {
     const text = "The end-of-turn link check did not fire";
     const firings = await firingsIn(ctx);
@@ -209,7 +209,7 @@ export const assertCheckDidNotFire: Assertion = {
  * nothing, flagged links that opened all along. One whose step ran something
  * is left to the transcript, since that step may have made them open.
  */
-export const assertNoFalseFiring: Assertion = {
+const assertNoFalseFiring: Assertion = {
   check: async (ctx) => {
     const text = "No firing flagged links that opened";
     const firings = await firingsIn(ctx);

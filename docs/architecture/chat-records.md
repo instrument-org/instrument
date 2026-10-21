@@ -42,6 +42,8 @@ A part still arriving is never a record: text or reasoning being streamed, a cal
 
 A tool's returned bytes go to a blob and the part keeps the blob's name, media type and size (`part-blobs.ts`), so a log stays text and the same image returned twice is stored once.
 
+A path the app puts in a part (the folders a chat was granted, what was on screen or chosen when a message was sent, the file a question was about, the files a task named) is kept by its place in the workspace when it is in it, `workspace:/Chats/Plan/plan.md`, and at its own absolute path when it is not (`part-paths.ts`). `ChatRecords` writes them that way and its fold reads them back as this computer's host paths, so every reader sees a path it can open, and the same record names the same file on a computer that keeps the workspace somewhere else. A file the person attached keeps its own form (`attachments.files`), and the agent's words and tool calls keep the paths it wrote.
+
 ## Reading
 
 `ChatReads` (`lib/chat-reads.ts`) answers every read, from one `ChatRead`: the fold, the writes still on their way to disk over it, and the running turn beside them. A process with no records in place holds no chat at all and is told so rather than left to assume.

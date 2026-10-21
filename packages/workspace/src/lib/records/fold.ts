@@ -148,6 +148,21 @@ export class ChatFold {
   /** Every record folded so far, so a copy of one folds once. */
   #seen = new Set<string>();
   #sessions = new Map<string, SessionState>();
+  readonly #readPart: (
+    part: SessionMessagePart.Type,
+  ) => SessionMessagePart.Type;
+
+  /**
+   * `readPart` turns a part as its log keeps it into the part a reader is
+   * handed (`part-paths.ts`); none hands it over as kept.
+   */
+  constructor(
+    readPart: (part: SessionMessagePart.Type) => SessionMessagePart.Type = (
+      part,
+    ) => part,
+  ) {
+    this.#readPart = readPart;
+  }
 
   /** Where the next read of a file starts: the file's start until it has been read. */
   cursor(name: string): ReadCursor {
@@ -304,7 +319,7 @@ export class ChatFold {
         keepNewest(
           session.parts,
           record.part.metadata.id,
-          { device: header.device, value: record.part },
+          { device: header.device, value: this.#readPart(record.part) },
           place,
         );
         break;

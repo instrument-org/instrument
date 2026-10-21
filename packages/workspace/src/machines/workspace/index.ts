@@ -323,6 +323,7 @@ export const workspaceMachine = setup({
         device: workspaceConfig.deviceId,
         dirOf: chatDir,
         onError: workspaceConfig.captureException,
+        workspaceRoot: workspaceConfig.rootDir,
       }),
     );
     registerActivityTelemetry();

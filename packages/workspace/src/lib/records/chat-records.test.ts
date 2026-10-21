@@ -700,3 +700,60 @@ describe("ChatRecords", () => {
     }
   });
 });
+
+describe("paths into the workspace", () => {
+  function folderChanges(added: string[]): SessionMessagePart.Type {
+    return {
+      data: { added: added.map((folder) => ({ path: folder })), removed: [] },
+      metadata: {
+        createdAt: at(2),
+        id: partId(3),
+        messageId: messageId(1),
+        sessionId: chatSession,
+      },
+      type: "data-folderChanges",
+    };
+  }
+
+  function onComputer(device: typeof DEVICE_A, workspaceRoot: string) {
+    return new ChatRecords({
+      app: "0.0.0-test",
+      device,
+      dirOf: records.dirOf,
+      fsync: false,
+      workspaceRoot,
+    });
+  }
+
+  // Two computers keep one workspace in folders of different names: what one
+  // wrote of the workspace is where the other keeps it.
+  it("are kept by their place in it, and read as this computer's", async () => {
+    const mac = onComputer(DEVICE_A, "/Users/sam/Instrument");
+    await mac.startSession(CHAT, { createdAt: at(0), id: chatSession });
+    await mac.appendMessage(
+      CHAT,
+      userMessage(chatSession, messageId(1), at(1)),
+    );
+    await mac.appendPart(
+      CHAT,
+      folderChanges(["/Users/sam/Instrument/Chats/Plan", "/Users/sam/Code"]),
+    );
+    await mac.dispose();
+
+    const log = await fs.readFile(
+      path.join(records.dirOf(CHAT), logFileName(chatSession, DEVICE_A)),
+      "utf8",
+    );
+    expect(log).toContain('"workspace:/Chats/Plan"');
+    expect(log).toContain('"/Users/sam/Code"');
+
+    const other = onComputer(DEVICE_B, "/home/sam/work");
+    const read = await other.read(CHAT);
+    await other.dispose();
+    const part = read.chat.sessions[0]?.messages[0]?.parts[0];
+    expect(part?.type === "data-folderChanges" && part.data.added).toEqual([
+      { path: "/home/sam/work/Chats/Plan" },
+      { path: "/Users/sam/Code" },
+    ]);
+  });
+});

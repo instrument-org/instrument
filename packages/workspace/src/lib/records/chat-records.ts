@@ -35,6 +35,7 @@ import {
 } from "./open-log";
 import { keepOwnLogCursor, ownLogCursor } from "./own-log-cursors";
 import { type LoadBlob, partToRecord } from "./part-blobs";
+import { localPart, portablePart } from "./part-paths";
 import {
   type LogRecord,
   type SettingField,
@@ -140,6 +141,12 @@ export interface ChatRecordsOptions {
   now?: () => Date;
   /** Told of what fails where no caller is waiting: a sweep's writes, a sync on the way out. */
   onError?: (error: unknown) => void;
+  /**
+   * The workspace's folder on this computer, which a part's paths into it
+   * are kept by their place in (`part-paths.ts`). None keeps every path as
+   * it is given.
+   */
+  workspaceRoot?: string;
 }
 
 /** How often a turn in memory says it changed, at most. */
@@ -227,6 +234,7 @@ export class ChatRecords {
   #throttles = new Map<string, LiveThrottle>();
   #ticket = 0;
   #uses = 0;
+  readonly #workspaceRoot: string | undefined;
 
   constructor({
     app,
@@ -236,7 +244,9 @@ export class ChatRecords {
     keepUnpinned = KEEP_UNPINNED,
     now = getCurrentDate,
     onError = noop,
+    workspaceRoot,
   }: ChatRecordsOptions) {
+    this.#workspaceRoot = workspaceRoot;
     this.#app = app;
     this.device = device;
     this.#dirOf = dirOf;
@@ -244,6 +254,14 @@ export class ChatRecords {
     this.#keepUnpinned = keepUnpinned;
     this.#now = now;
     this.#onError = onError;
+  }
+
+  /** A fold that reads a part's paths into the workspace as this computer's. */
+  #newFold(): ChatFold {
+    const root = this.#workspaceRoot;
+    return new ChatFold(
+      root === undefined ? undefined : (part) => localPart(part, root),
+    );
   }
 
   /** Folds the chat if it is not yet, and keeps it until released. */
@@ -362,7 +380,7 @@ export class ChatRecords {
       refold = (await grownInto(chat, name)) === "shrank";
     }
     if (refold) {
-      const fold = new ChatFold();
+      const fold = this.#newFold();
       for (const name of await recordFiles(chat.dir)) {
         fold.add(name, await fs.readFile(path.join(chat.dir, name)));
       }
@@ -846,8 +864,11 @@ export class ChatRecords {
       record: async () => ({
         t: "part",
         at,
-        part: await partToRecord(part, (bytes, mediaType) =>
-          writeBlob(chat.dir, bytes, mediaType),
+        part: await partToRecord(
+          this.#workspaceRoot === undefined
+            ? part
+            : portablePart(part, this.#workspaceRoot),
+          (bytes, mediaType) => writeBlob(chat.dir, bytes, mediaType),
         ),
       }),
     });
@@ -1126,7 +1147,7 @@ export class ChatRecords {
 
   async #load(chatId: ChatId, entry: ChatEntry): Promise<OpenChat> {
     const dir = this.#dirOf(chatId);
-    const fold = new ChatFold();
+    const fold = this.#newFold();
     for (const name of await recordFiles(dir)) {
       fold.add(name, await fs.readFile(path.join(dir, name)));
     }
@@ -1351,6 +1372,7 @@ export function chatRecords(): ChatRecords {
       onError: (error) => {
         config.captureException(error);
       },
+      workspaceRoot: config.rootDir,
     });
   }
   return made;

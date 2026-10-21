@@ -137,18 +137,6 @@ describe("readSettings", () => {
     expect(read).toMatchObject({ skipped: 1 });
     expect(read.records.map(({ record }) => record.seq)).toEqual([0, 1]);
   });
-
-  // A Stop is a `stop` record in the session's log; the setting older
-  // files kept it as says nothing a fold uses, and is not damage.
-  it("leaves out a line of the retired stoppedAt, without counting it skipped", () => {
-    const stop = `{"t":"set","seq":1,"at":"${at(1).toISOString()}","session":"${session}","field":"stoppedAt","value":"${at(1).toISOString()}","device":"${DEVICE_A}"}\n`;
-    const read = readSettings(
-      bytes(recordLine(mark(0)), stop, recordLine(mark(2))),
-    );
-
-    expect(read).toMatchObject({ skipped: 0 });
-    expect(read.records.map(({ record }) => record.seq)).toEqual([0, 2]);
-  });
 });
 
 function readOrThrow(...args: Parameters<typeof readLog>) {

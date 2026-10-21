@@ -1,7 +1,6 @@
 import { parallel } from "radashi";
 
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
-import { readTopicsSync } from "../chat/topics";
 import { workspaceLayout } from "../workspace-layout";
 import { type ChatFolderWrite, writeChatFolder } from "./write-chat-folder";
 
@@ -39,9 +38,6 @@ export async function giveChatsTheirFolders(
     return [];
   }
   const chatsDir = workspaceLayout(rootDir).chatsDir;
-  const topicNames = new Map(
-    readTopicsSync(rootDir).map((topic) => [topic.id, topic.name]),
-  );
   return parallel({ limit: CHATS_AT_ONCE }, ids.toSorted(), async (id) => ({
     id,
     ...(await writeChatFolder({
@@ -49,7 +45,6 @@ export async function giveChatsTheirFolders(
       id,
       machineDir,
       rootDir,
-      topicNames,
     })),
   }));
 }

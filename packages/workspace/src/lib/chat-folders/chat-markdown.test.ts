@@ -53,7 +53,6 @@ function render(chat: FoldedChat) {
     chat,
     id: CHAT,
     rootDir: "/Users/someone/Workspace",
-    topicNames: new Map([["top_1", "Kitchen"]]),
   });
 }
 
@@ -224,14 +223,12 @@ it("renders a chat whole", () => {
   expect(render(wholeChat())).toMatchInlineSnapshot(`
     "---
     title: "Quiet dishwashers under $900"
-    chat: records-test
+    chat: instrument://chat/records-test
     created: 2026-10-14T12:00:00Z
-    topic: Kitchen
+    topic: top_1
     ---
 
-    [Open this chat in Instrument](instrument://chat/records-test)
-
-    *This is a copy of the chat that you can read and search anywhere. Instrument updates it after each reply, so any changes you make here will be replaced.*
+    [Open this chat in Instrument](instrument://chat/records-test). This file is a copy of the chat that Instrument keeps up to date, so changes you make here won't last.
 
     ## Wednesday, October 14, 2026
 

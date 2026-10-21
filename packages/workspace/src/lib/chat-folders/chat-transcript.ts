@@ -1,4 +1,4 @@
-import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { APP_NAME_SLUG, chatIdNamedBy } from "@instrument-org/shared";
 
 import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../../constants";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
@@ -19,7 +19,10 @@ export function chatLinkedInText(head: string): ChatId | undefined {
   // The key first, since that is where the chat is named; the link after it
   // for a file written before the key was, which is every folder the update
   // made and any a person is holding from an older build.
-  const named = CHAT_KEY.exec(head)?.[1] ?? CHAT_LINK.exec(head)?.[1];
+  const key = CHAT_KEY.exec(head)?.[1];
+  const named =
+    (key === undefined ? undefined : chatIdNamedBy(key)) ??
+    CHAT_LINK.exec(head)?.[1];
   if (named === undefined) {
     return undefined;
   }

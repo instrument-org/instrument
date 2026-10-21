@@ -90,6 +90,24 @@ export function filePathOfInstrumentLink(url: string): string | undefined {
   return path === "/" ? undefined : path;
 }
 
+/** A chat's address, which is how a file names the chat it belongs to. */
+export function chatAddressOf(id: string): string {
+  return `${APP_NAME_SLUG}://chat/${id}`;
+}
+
+/**
+ * The chat id a file's `chat:` names: the chat's address, or a bare id,
+ * which reads the same. Undefined for an address of anything else.
+ */
+export function chatIdNamedBy(value: string): string | undefined {
+  const named = value.trim();
+  if (!isInstrumentAddress(named)) {
+    return named === "" ? undefined : named;
+  }
+  const link = instrumentLinkOf(named);
+  return link?.kind === "chat" ? link.name : undefined;
+}
+
 /** What an address names inside the app, or undefined for one that names nothing here. */
 export function instrumentLinkOf(url: string): InstrumentLink | undefined {
   if (!URL.canParse(url)) {

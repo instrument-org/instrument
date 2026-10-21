@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  chatAddressOf,
+  chatIdNamedBy,
   filePathOfInstrumentLink,
   instrumentLinkOf,
   instrumentUrlOf,
@@ -150,5 +152,20 @@ describe("filePathOfInstrumentLink", () => {
     ["https://file/Users/sam/a.md", undefined],
   ])("%s", (url, path) => {
     expect(filePathOfInstrumentLink(url)).toBe(path);
+  });
+});
+
+describe("chatIdNamedBy", () => {
+  it.each([
+    [
+      "an address",
+      chatAddressOf("2026-10-14-quiet-7k3q"),
+      "2026-10-14-quiet-7k3q",
+    ],
+    ["a bare id", " 2026-10-14-quiet-7k3q ", "2026-10-14-quiet-7k3q"],
+    ["another kind's address", "instrument://memory/no-stevia", undefined],
+    ["nothing", "  ", undefined],
+  ])("reads %s", (_name, value, id) => {
+    expect(chatIdNamedBy(value)).toBe(id);
   });
 });

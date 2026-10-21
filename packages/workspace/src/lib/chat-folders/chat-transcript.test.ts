@@ -20,10 +20,13 @@ it.each([
   expect(isChatTranscript(hostPath, text)).toBe(expected);
 });
 
-it("reads the chat from the front matter's key before the link", () => {
-  expect(
-    chatLinkedInText(
-      "---\ntitle: Kyoto\nchat: 2026-09-16-kyoto\n---\n\n[Open](instrument://chat/2026-09-16-other)\n",
-    ),
-  ).toBe("2026-09-16-kyoto");
-});
+it.each(["instrument://chat/2026-09-16-kyoto", "2026-09-16-kyoto"])(
+  "reads the chat from the front matter's key before the link: %s",
+  (named) => {
+    expect(
+      chatLinkedInText(
+        `---\ntitle: Kyoto\nchat: ${named}\n---\n\n[Open](instrument://chat/2026-09-16-other)\n`,
+      ),
+    ).toBe("2026-09-16-kyoto");
+  },
+);

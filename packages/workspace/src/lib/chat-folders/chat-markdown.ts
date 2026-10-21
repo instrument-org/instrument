@@ -1,4 +1,4 @@
-import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
+import { APP_NAME, chatAddressOf } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -49,11 +49,6 @@ export interface ChatMarkdownInput {
   id: ChatId;
   /** The workspace, which the files the work touched are named from. */
   rootDir: string;
-  /**
-   * Each topic's name by its id, for the front matter. A topic the workspace
-   * no longer has is left out rather than named by its id.
-   */
-  topicNames?: ReadonlyMap<string, string>;
 }
 
 /** How much of one line of reasoning or of an instruction the file keeps. */
@@ -135,17 +130,15 @@ export function renderChatMarkdown({
   chat,
   id,
   rootDir,
-  topicNames,
 }: ChatMarkdownInput): string | undefined {
   const own = ownSession(chat);
   if (!own) {
     return undefined;
   }
   const blocks: string[] = [
-    frontMatter(own, id, topicNames),
-    `[Open this chat in ${APP_NAME}](${APP_NAME_SLUG}://chat/${id})`,
+    frontMatter(own, id),
     // The file is rewritten from the records at the end of every turn.
-    `*This is a copy of the chat that you can read and search anywhere. ${APP_NAME} updates it after each reply, so any changes you make here will be replaced.*`,
+    `[Open this chat in ${APP_NAME}](${chatAddressOf(id)}). This file is a copy of the chat that ${APP_NAME} keeps up to date, so changes you make here won't last.`,
   ];
   const work = workLines(chat, own.id, rootDir);
   let taken = 0;
@@ -228,19 +221,14 @@ function ownSession(chat: FoldedChat): FoldedSession | undefined {
  * thumbnail name the conversation, and so the name survives the person
  * moving the folder. `topic` is singular: a chat is filed under one.
  */
-function frontMatter(
-  own: FoldedSession,
-  id: ChatId,
-  topicNames: ReadonlyMap<string, string> | undefined,
-): string {
-  const topicId = own.settings.topic?.value;
-  const topic = topicId ? topicNames?.get(topicId) : undefined;
+function frontMatter(own: FoldedSession, id: ChatId): string {
+  const topic = own.settings.topic?.value;
   return [
     "---",
     `title: ${yamlScalar(titleOf(own))}`,
-    `chat: ${id}`,
+    `chat: ${chatAddressOf(id)}`,
     `created: ${utcStamp(own.createdAt)}`,
-    ...(topic === undefined ? [] : [`topic: ${yamlScalar(topic)}`]),
+    ...(topic ? [`topic: ${yamlScalar(topic)}`] : []),
     "---",
   ].join("\n");
 }

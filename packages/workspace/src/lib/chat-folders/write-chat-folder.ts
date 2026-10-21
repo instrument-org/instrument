@@ -9,7 +9,6 @@ import {
 import { type ChatId } from "../../schemas/chat-id";
 import { type ChatDir, ChatDirSchema } from "../../schemas/paths";
 import { chatFolderTheyOpen } from "../chat/output-folder";
-import { readTopicsSync } from "../chat/topics";
 import { createWriteQueue } from "../create-write-queue";
 import { foldChatInFolder } from "../records/fold-folder";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -81,9 +80,6 @@ export function rewriteChatFolder(id: ChatId): Promise<void> {
 /**
  * `rewriteChatFolder` for work already running in the chat's folder order
  * (`inChatFolderOrder`), which would otherwise wait on itself.
- *
- * The renderer needs the topics by name, read here rather than held, so a
- * topic renamed since shows under its new name.
  */
 export async function rewriteChatFolderInOrder(id: ChatId): Promise<void> {
   const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
@@ -92,9 +88,6 @@ export async function rewriteChatFolderInOrder(id: ChatId): Promise<void> {
     id,
     machineDir: workspaceMachineDir,
     rootDir,
-    topicNames: new Map(
-      readTopicsSync(rootDir).map((topic) => [topic.id, topic.name]),
-    ),
   });
   if (written.kind === "failed") {
     getWorkspaceConfig().captureException(
@@ -205,13 +198,11 @@ export async function writeChatFolder({
   id,
   machineDir,
   rootDir,
-  topicNames,
 }: {
   chatsDir: string;
   id: ChatId;
   machineDir: string;
   rootDir: string;
-  topicNames?: ReadonlyMap<string, string>;
 }): Promise<ChatFolderWrite> {
   const names = chatFolderNames(machineDir);
   const named = names.get(id);
@@ -224,7 +215,6 @@ export async function writeChatFolder({
     machineDir,
     named,
     rootDir,
-    topicNames,
   });
 }
 
@@ -236,7 +226,6 @@ async function writeFolder({
   machineDir,
   named,
   rootDir,
-  topicNames,
 }: {
   /** The folder under `Chats/` this chat is to take as its own, if any. */
   adopt: string | undefined;
@@ -246,7 +235,6 @@ async function writeFolder({
   /** The name this computer last recorded for the chat's folder. */
   named: string | undefined;
   rootDir: string;
-  topicNames?: ReadonlyMap<string, string>;
 }): Promise<ChatFolderWrite> {
   try {
     const dir = chatDirOf(chatsDir, id);
@@ -255,7 +243,6 @@ async function writeFolder({
       chat,
       id,
       rootDir,
-      topicNames,
     });
     if (markdown === undefined) {
       return { kind: "no-conversation" };

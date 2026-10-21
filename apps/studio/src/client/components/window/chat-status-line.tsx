@@ -17,7 +17,7 @@ import { useMutation } from "@tanstack/react-query";
 
 import { ChatTasksPopover } from "./chat-activity";
 import { useChatTasks } from "./child-tasks-query";
-import { type Chat } from "./chats";
+import { type Chat, LIMITED } from "./chats";
 
 /**
  * What the line under a chat's title says, and in which voice. `stopped` is
@@ -30,12 +30,6 @@ type StatusLine = {
 
 /** Said while the chat works and nothing has named the step yet. */
 const WORKING = "Instrument is working";
-
-/**
- * Said once a usage limit stopped the chat's last turn, which is not an error:
- * the note over its reply box says what to do.
- */
-export const LIMITED = "Stopped at a usage limit";
 
 /**
  * Said with the check once the chat's own work is done. A step's label is

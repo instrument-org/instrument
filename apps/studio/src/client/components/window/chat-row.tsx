@@ -32,9 +32,14 @@ import { type ReactNode, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { chatMenuGroups } from "./chat-actions";
-import { LIMITED } from "./chat-status-line";
 import { ChatTitleField } from "./chat-title";
-import { activityLabel, type Chat, type Topic, wordRanges } from "./chats";
+import {
+  activityLabel,
+  type Chat,
+  LIMITED,
+  type Topic,
+  wordRanges,
+} from "./chats";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { HoldMarks } from "./hold-marks";
 import { RowActionBar } from "./row-action-bar";

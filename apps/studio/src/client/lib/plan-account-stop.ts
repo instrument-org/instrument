@@ -110,12 +110,12 @@ export function lastPlanAccountStop({
   return stop && { messageId: last.id, stop };
 }
 
-export function planAccountName(provider: PlanAccountProvider) {
+function planAccountName(provider: PlanAccountProvider) {
   return provider === "chatgpt-account" ? "ChatGPT" : "Claude";
 }
 
 /** "3:40 PM", "tomorrow at 9:12 AM", "Monday at 9:12 AM", "November 5". */
-export function describeReset(resetsAt: Date, now: Date) {
+function describeReset(resetsAt: Date, now: Date) {
   return describeWhen(resetsAt, now).replace(/^at /, "");
 }
 

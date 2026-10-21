@@ -18,6 +18,7 @@ import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { ChatReads } from "./chat-reads";
 import { isToolPart } from "./is-tool-part";
 import { getUsageSummaryFromMessages } from "./usage-summary-compute";
+import { utcStamp } from "./utc-stamp";
 
 interface MessageRenderInfo {
   assistantMetadata?: SessionMessage.Assistant["metadata"];
@@ -87,6 +88,7 @@ export function buildSessionFrontMatter(
     activeDurationMs: usage.activeMs,
     aiGenerationDurationMs: usage.msToFinish,
     assistantMessageCount: assistantMessages.length,
+    created: utcStamp(session.createdAt),
     messageCount: session.messages.length,
     ...(modelsServed.length > 0 ? { modelsServed } : {}),
     modelsUsed: [...modelMap.values()].sort((a, b) =>
@@ -95,9 +97,8 @@ export function buildSessionFrontMatter(
       ),
     ),
     parentSessionId: session.parentId,
-    sessionCreatedAt: session.createdAt.toISOString(),
     sessionId: session.id,
-    sessionTitle: session.title,
+    title: session.title,
     toolCallCount,
     usage: {
       cacheReadTokens: usage.inputTokenDetails.cacheReadTokens,

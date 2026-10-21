@@ -2,7 +2,7 @@
 // drawn: the editor, the viewer's properties panel, and a file's thumbnail.
 
 /** The keys whose value names a document, in the order files tend to use. */
-const TITLE_KEYS = ["title", "name", "taskName", "sessionTitle"];
+const TITLE_KEYS = ["title", "name"];
 
 /** Whether parsed front matter is a mapping, the one shape drawn as properties. */
 export const isMapping = (value: unknown): value is Record<string, unknown> =>

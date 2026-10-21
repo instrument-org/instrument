@@ -201,16 +201,16 @@ function childTurns(c) {
   }
   return turns.map((t, i) => ({
     at: t.at,
-    html: `<div class="child"><p class="childhead">Task · ${esc(c.p.meta.taskName)}${turns.length > 1 ? ` · turn ${i + 1}` : ""}</p>${t.parts.map((b) => (b.kind === "you" ? `<p class="brief"><b>Brief</b> ${esc(short(b.text, 400))}</p>` : block(b))).join("\n")}</div>`,
+    html: `<div class="child"><p class="childhead">Task · ${esc(c.p.meta.title)}${turns.length > 1 ? ` · turn ${i + 1}` : ""}</p>${t.parts.map((b) => (b.kind === "you" ? `<p class="brief"><b>Brief</b> ${esc(short(b.text, 400))}</p>` : block(b))).join("\n")}</div>`,
   }));
 }
 
 const m = root.p.meta;
 const firstAsk = root.a.timeline.find((e) => e.kind === "user")?.say ?? "";
 const name =
-  m.taskName === "Instrument"
+  m.title === "Instrument"
     ? `Chat: ${short(firstAsk.replace(/\s+/g, " "), 60)}`
-    : m.taskName;
+    : m.title;
 const all = [root, ...children];
 const totalWork = all.reduce(
   (s, l) => s + l.a.steps.reduce((x, e) => x + e.wall, 0),
@@ -233,7 +233,7 @@ const served = [
 ].join(", ");
 
 const body = `<div class="wrap">
-<p class="kicker">${esc([m.currentAppVersion, served].filter(Boolean).join(" · "))}</p>
+<p class="kicker">${esc([m.app, served].filter(Boolean).join(" · "))}</p>
 <h1 class="h">${esc(name)}</h1>
 <p class="lead">${dur(totalWork)} of work, ${actions} actions${fails ? `, <span class="badtxt">${fails} failed</span>` : ""}${children.length ? `, ${children.length} ${children.length === 1 ? "task" : "tasks"} started` : ""}.</p>
 <div class="chat">${conversation(root, children.flatMap(childTurns))}</div>

@@ -3,6 +3,7 @@ import "./lib/define-globals-apply";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import { chatAddressOf } from "@instrument-org/shared";
 
 import { TASKS_DIR_NAME } from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
@@ -98,10 +99,10 @@ if (!rootSession) {
 
 const markdown = await getSessionMarkdown({
   frontMatter: {
+    chat: chatAddressOf(chatId),
     source: dir,
     sourceType: "task-directory",
-    taskCreatedWithAppVersion: (await chatStartedWithApp(chatId)) ?? "unknown",
-    taskName: rootSessions[0]?.title ?? folderName,
+    startedWithApp: (await chatStartedWithApp(chatId)) ?? "unknown",
     transcriptGeneratedAt: new Date().toISOString(),
   },
   sessionId: rootSession.id,

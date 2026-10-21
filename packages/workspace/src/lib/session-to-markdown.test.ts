@@ -358,6 +358,7 @@ describe("session diagnostics", () => {
         "activeDurationMs": 2000,
         "aiGenerationDurationMs": 2000,
         "assistantMessageCount": 1,
+        "created": "2026-07-24T10:00:00Z",
         "messageCount": 4,
         "modelsUsed": [
           {
@@ -366,9 +367,8 @@ describe("session diagnostics", () => {
           },
         ],
         "parentSessionId": undefined,
-        "sessionCreatedAt": "2026-07-24T10:00:00.000Z",
         "sessionId": "ses_01J00000000000000000000000",
-        "sessionTitle": "Debug session",
+        "title": "Debug session",
         "toolCallCount": 1,
         "usage": {
           "cacheReadTokens": 40,

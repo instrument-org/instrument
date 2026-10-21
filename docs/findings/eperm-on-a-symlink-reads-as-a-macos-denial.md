@@ -25,7 +25,7 @@ We never pass it, so we take the default. That is the right default and we shoul
 
 ## Why it still costs us
 
-**The message collides with our own guidance.** `build-attached-folders-text.ts` puts this in every session that has an attached folder:
+**The message collides with our own guidance.** The attached-folders prompt of the time (since removed; the rule that replaced it is the Folders line of `agents/instrument.ts`) put this in every session that had an attached folder:
 
 > `EPERM` or "Operation not permitted" inside one of these means macOS refused Instrument the folder when it asked the user. Stop and say so rather than trying again; they can allow Instrument under System Settings, Privacy & Security, Files and Folders.
 

@@ -1,23 +1,23 @@
-# The macOS folder ask holds a listing, not a write
+# The macOS folder ask holds a listing and a read, not a write
 
-**Status:** observed on macOS 27 with an installed beta build, and worked around in `task new`. The mechanism inside macOS is not established; the behavior is. Workaround checked against the code 2026-10-02. Since then `task new` hands no folders (every task is a fork that reaches its chat's) and held tasks are gone: the look and the wait below now live in `task folder --add` (`requireFoldersOnDisk` and `awaitAnswers` in `task-args.ts`), which refuses with the reason when the answer has not come, so the held-task section describes removed behavior.
+**Status:** observed on macOS 27 with installed signed builds, first with a beta and since with a preview probed as the app itself (its binary run as Node from a launchd job, so its own privacy grants apply). The mechanism inside macOS is not established; the behavior is. The app works with it in `lib/permissions/macos.ts`.
 
-## What happened
+## What macOS does
 
-A chat handed a task `--folder <home>/Desktop:rw` on a Mac where Instrument had never been asked about the Desktop. `task new` looks inside each folder it hands over (`requireReadable` in `lib/shell-commands/task-args.ts`), which is what raises the system's "Instrument would like to access files in your Desktop folder" dialog. The TCC log (`/usr/bin/log show --predicate 'process == "tccd"'`) placed the request, attributed to Instrument's main process, at 10:51:51.09, and the user's Allow at 10:52:02.78. The task's `cp attachments/cat.md <Desktop>/cat.md` ran at 10:51:54, exited 0 in 7 ms, and the file appeared on the Desktop while the dialog was still up. No second TCC request was logged for the write.
+While Instrument has never been asked about a folder macOS guards (Desktop, Documents, Downloads, iCloud Drive, a disk under `/Volumes`):
 
-A probe run afterwards as the same app identity, with the Desktop grant reset (`tccutil reset SystemPolicyDesktopFolder <bundle id>`), agreed: the directory listing never returned (it kept the process from exiting), while creating a file, `stat`ing it, and reading an existing file by path all answered at once. That probe was launched over ssh and left no TCC request in the log, but the Desktop dialog was on the Mac's screen, and outlived the probe after it was killed.
+- `stat` of the folder or of a file in it answers at once, before and after the person's answer, whatever it is.
+- Creating a new file in it succeeds at once, while the prompt is still up. A denial afterwards does not undo it.
+- Listing the folder (`opendir`, `readdir`, `ls`), and reading an existing file in it by its path, both wait for the person's answer and settle the moment they give it: Allow lets them through, Don't Allow fails them with `EPERM` there and then.
 
-## What it means
+After a denial, listings and reads fail with `EPERM` at once, and nothing asks again; only the folder panel (a pick sets `com.apple.macl`, which lasts across relaunches) or System Settings lets the app back in.
 
-- A listing (`opendir`, `readdir`, `ls`) waits on the user's answer, and settles the moment they give it. That is the one deterministic signal of the answer an app gets.
-- A file addressed by its path is not held. Work started before the answer writes into the folder whatever the user then says.
-- A denial does not undo anything already written; it only refuses what comes after.
+While one prompt is up, a listing of the same folder by any of the app's processes waits too, a bystander included, and a listing of a second guarded folder waits in line and gets its own prompt once the first is answered. A listing of a folder macOS does not guard answers at once. A wait holds one of Node's file threads but not the JS thread.
 
-## What `task new` does about it
+The prompt is a window owned by `UserNotificationCenter`, and so are the prompts for Automation (another app's Apple Events) and for Reminders and Calendar. Its owner is readable from the window list without Screen Recording permission, so "macOS is asking" is told by that window being on screen while a look into a guarded folder waits, never by how long the look takes: a slow disk or an iCloud folder still downloading waits too.
 
-The look is given 750 ms, which only tells whether macOS is asking at all. One that answers in that time either lets the task start or refuses the command with the reason. One still waiting is the dialog, already on the user's screen, so the command waits up to 20 seconds more for the answer, less whatever the call's yield leaves (`ANSWER_WAIT_MS` and `awaitAnswers` in `task-args.ts`). An answer inside the wait is reported as what it is: the task starts and the command says so, or the command refuses with the reason and nothing is created.
+## Where the app uses this
 
-Only a look still unanswered after that makes a held task (`holdTask` in `lib/task-hold.ts`): it exists but has not started, and the command tells the chat that macOS is asking so it can tell the user to answer. While it is held, `task show` and `task list` read `waiting: macOS is asking the user about "Desktop" (38s)`, `task send` queues behind the brief, `task stop` (or the stop in Studio) cancels the start so it never runs, and Studio's task card and task page say "Waiting for you to allow access to Desktop". A refusal after the wait starts the task with the reason added to its brief, so the refusal reaches the chat the way any finish does, without the work being done. The hold lives in memory: after a restart the task is never started, and stays as it was made, with nothing said.
-
-`task folder --add` on a task already running does not hold anything: the folder is added when the command returns, whatever the answer.
+- `listFolder` (`lib/chat/folder-look.ts`) and `lookAsTheApp` (`lib/permissions/macos.ts`) look inside a folder as the app: an Allow on a folder card runs one, and so does `ask_permission` for a folder the rules already allow.
+- `watchMacosPrompt` and `watchForMacosAsking` watch for the prompt's window only while such a look waits, and raise the chat's "Your Mac is asking" card when it shows. The card settles on the look's answer: open closes it, `EPERM` turns it into the refused card.
+- A refusal counts as macOS's only when a look at the containing folder is refused too (`rules-fs.ts`), since a file's own flags or owner fail with `EPERM` as well.

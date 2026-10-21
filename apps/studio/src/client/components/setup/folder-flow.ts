@@ -67,6 +67,34 @@ export function folderAction({
   }
 }
 
+/** What the page says about a folder as soon as it is on screen. */
+export type FoundNote =
+  | { chats: number; kind: "earlier" }
+  | { items: number; kind: "exists"; moving: number };
+
+/**
+ * The note for what a folder already has, from what Continue would do with
+ * it (`folderAction`, before any note was seen): an Instrument folder's chats,
+ * or a folder's own things, with the chats a move would bring in beside them
+ * (`moving`). None for a folder with nothing to say.
+ */
+export function foundNote(
+  action: FolderAction,
+  moving: number,
+): FoundNote | null {
+  switch (action.type) {
+    case "earlier": {
+      return { chats: action.chats, kind: "earlier" };
+    }
+    case "exists": {
+      return { items: action.items, kind: "exists", moving };
+    }
+    default: {
+      return null;
+    }
+  }
+}
+
 /** "1 item", "214 items". */
 export function count(n: number, noun: string): string {
   return `${String(n)} ${noun}${n === 1 ? "" : "s"}`;

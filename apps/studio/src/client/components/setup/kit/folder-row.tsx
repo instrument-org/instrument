@@ -95,8 +95,10 @@ export function FolderNote({
           {icon}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground">{title}</p>
-          <p className="text-xs text-gray-600 dark:text-muted-foreground">
+          <p className="text-sm font-medium text-pretty text-foreground">
+            {title}
+          </p>
+          <p className="text-xs/4.5 text-pretty text-gray-600 dark:text-muted-foreground">
             {line}
           </p>
         </div>

@@ -9,7 +9,6 @@ import {
   signOutOfChatGPT,
   verifyAccounts,
 } from "@/electron-main/lib/chatgpt-account";
-import { setChatGPTAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
@@ -66,18 +65,6 @@ const signIn = base
     },
   );
 
-/**
- * Makes the account's everyday model the default when it is the only account
- * signed in, and answers with the model's name. Apart from `signIn` because it
- * reads the plan's catalog, which can take seconds, and the sign-in itself is
- * done before that.
- */
-const chooseDefaultModel = base
-  .input(z.object({ accountId: z.string() }))
-  .handler(async ({ input }) => ({
-    name: await setChatGPTAccountDefaultModel(input),
-  }));
-
 const signOut = base
   .input(z.object({ accountId: z.string() }))
   .handler(async ({ input }) => {
@@ -95,7 +82,6 @@ const cancelSignIn = base.handler(() => {
 
 export const chatgptAccount = {
   cancelSignIn,
-  chooseDefaultModel,
   live,
   signIn,
   signOut,

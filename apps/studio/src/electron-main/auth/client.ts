@@ -71,7 +71,13 @@ type InstrumentSignInResult =
       >;
     };
 
-const signIns = createLoopbackSignIn<InstrumentSignInResult>({});
+/** How long a Google sign-in waits on the browser before it gives up. */
+const SIGN_IN_TIMEOUT_MS = 5 * 60 * 1000;
+
+const signIns = createLoopbackSignIn<InstrumentSignInResult>({
+  timedOut: () => new Error("Google sign-in timed out"),
+  timeoutMs: SIGN_IN_TIMEOUT_MS,
+});
 
 /**
  * Hand the API's redirect to the Google sign-in waiting for it. Resolves once
@@ -138,7 +144,9 @@ export async function signInSocial(): Promise<
     } catch (error) {
       throw new Error("Login failed", { cause: error });
     }
-    void setDefaultModel({ replacing: "anything" });
+    // Instrument's models become the default only when nothing is chosen:
+    // someone who came in on a plan or a key keeps the model they picked.
+    void setDefaultModel({ replacing: "nothing" });
     return { email, outcome: "signed-in" };
   });
   return result.outcome;

@@ -8,7 +8,6 @@ import {
   signInWithGrok,
   signOutOfGrok,
 } from "@/electron-main/lib/grok-account";
-import { setGrokAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
@@ -55,16 +54,6 @@ const signIn = base.handler(
   },
 );
 
-/**
- * Makes the account's default model the default when it is the only Grok
- * account, and answers with the model's name.
- */
-const chooseDefaultModel = base
-  .input(z.object({ accountId: z.string() }))
-  .handler(async ({ input }) => ({
-    name: await setGrokAccountDefaultModel(input),
-  }));
-
 const signOut = base
   .input(z.object({ accountId: z.string() }))
   .handler(async ({ input }) => {
@@ -89,7 +78,6 @@ const checkSubscription = base
 export const grokAccount = {
   cancelSignIn,
   checkSubscription,
-  chooseDefaultModel,
   live,
   signIn,
   signOut,

@@ -25,8 +25,9 @@ import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { type RPCOutput, rpcClient } from "@/client/rpc/client";
 import { AIProviderConfigIdSchema, APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useRef, useState } from "react";
-import { toast } from "@/client/lib/toast";
+import { useChatGPTConnect } from "@/client/hooks/use-connect";
+import { showConnectToast } from "@/client/lib/connect-toast";
+import { type ReactNode, useState } from "react";
 
 const USAGE_URL = "https://chatgpt.com/settings/usage";
 
@@ -51,12 +52,11 @@ export function ChatGPTAccountCard() {
     rpcClient.chatgptAccount.live.status.experimental_liveOptions(),
   );
   const openLink = useOpenExternalLink();
-  const [waiting, setWaiting] = useState<null | string>(null);
-  // Counts presses, so a sign-in that settles after a newer one started
-  // leaves the buttons to the newer one.
-  const attempts = useRef(0);
+  const flow = useChatGPTConnect();
+  // Which button opened the browser, while the flow is under way.
+  const [pressed, setPressed] = useState<string>(NEW_ACCOUNT);
+  const waiting = flow.waiting ? pressed : null;
 
-  const signIn = useMutation(rpcClient.chatgptAccount.signIn.mutationOptions());
   const signOut = useMutation(
     rpcClient.chatgptAccount.signOut.mutationOptions(),
   );
@@ -66,50 +66,15 @@ export function ChatGPTAccountCard() {
     null,
   );
 
-  const continueWithChatGPT = async (accountId?: string) => {
-    const attempt = ++attempts.current;
-    setWaiting(accountId ?? NEW_ACCOUNT);
-    const result = await signIn
-      .mutateAsync({ accountId })
-      .catch((error: unknown) => ({
-        error: error instanceof Error ? error.message : "Sign-in failed",
-        outcome: "failed" as const,
-      }));
-    if (attempt !== attempts.current) {
-      return;
-    }
-    setWaiting(null);
-    if (result.outcome === "failed") {
-      toast.error("Couldn't sign in with ChatGPT", { cause: result.error });
-      return;
-    }
-    // Declined, canceled, or signed in without the plan, which the account's
-    // row says.
-    const { account } = result;
-    if (result.outcome !== "signed-in" || !account) {
-      return;
-    }
-    // Said as soon as the sign-in lands; the model it picks follows in
-    // the same toast once the plan's catalog is read. The model is said
-    // because the change lands in the model picker, which may not be on
-    // screen, and the settings window may already be closed.
-    const title = `Signed in to ${account.label}`;
-    const id = toast.success(title);
-    const { name } = await rpcClient.chatgptAccount.chooseDefaultModel
-      .call({ accountId: account.id })
-      .catch(() => ({ name: undefined }));
-    toast.success(title, {
-      description: name
-        ? `New chats use ${name} from your plan.`
-        : "Its models are in the model picker.",
-      id,
+  const continueWithChatGPT = (accountId?: string) => {
+    setPressed(accountId ?? NEW_ACCOUNT);
+    void flow.start(accountId ? { accountId } : undefined).then((result) => {
+      if (result) {
+        showConnectToast(result, "chatgpt");
+      }
     });
   };
-  const cancelSignIn = () => {
-    attempts.current++;
-    setWaiting(null);
-    void rpcClient.chatgptAccount.cancelSignIn.call();
-  };
+  const cancelSignIn = flow.cancel;
 
   const accounts = status?.accounts ?? [];
   const providerSwitch = useProviderSwitch();
@@ -128,7 +93,7 @@ export function ChatGPTAccountCard() {
       );
     },
     onSignIn: () => {
-      void continueWithChatGPT(account.id);
+      continueWithChatGPT(account.id);
     },
     onSignOut: () => {
       setConfirmingSignOut(account);
@@ -138,7 +103,7 @@ export function ChatGPTAccountCard() {
   const addAnother = (
     <DropdownMenuItem
       onSelect={() => {
-        void continueWithChatGPT();
+        continueWithChatGPT();
       }}
     >
       Add another account
@@ -181,7 +146,9 @@ export function ChatGPTAccountCard() {
               </h3>
               {waiting === NEW_ACCOUNT ? (
                 <p className="text-sm text-muted-foreground">
-                  Finish signing in with ChatGPT in your browser.
+                  {flow.phase === "checking"
+                    ? "Checking your ChatGPT plan."
+                    : "Finish signing in with ChatGPT in your browser."}
                 </p>
               ) : single ? (
                 <p className="truncate text-sm text-muted-foreground">
@@ -201,7 +168,7 @@ export function ChatGPTAccountCard() {
               <BrowserHandoffButton
                 onCancel={cancelSignIn}
                 onStart={() => {
-                  void continueWithChatGPT();
+                  continueWithChatGPT();
                 }}
                 waiting={waiting === NEW_ACCOUNT}
               >

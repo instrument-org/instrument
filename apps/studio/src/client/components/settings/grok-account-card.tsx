@@ -22,10 +22,11 @@ import {
 } from "@/client/components/settings/provider-switch";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput, rpcClient } from "@/client/rpc/client";
-import { toast } from "@/client/lib/toast";
+import { useGrokConnect } from "@/client/hooks/use-connect";
+import { showConnectToast } from "@/client/lib/connect-toast";
 import { AIProviderConfigIdSchema, APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 type Account = NonNullable<
   Exclude<RPCOutput["grokAccount"]["signIn"], { outcome: "failed" }>["account"]
@@ -41,62 +42,25 @@ export function GrokAccountCard() {
   const { data: status } = useQuery(
     rpcClient.grokAccount.live.status.experimental_liveOptions(),
   );
-  const [waiting, setWaiting] = useState(false);
+  const flow = useGrokConnect();
+  const { waiting } = flow;
   const [confirmingSignOut, setConfirmingSignOut] = useState<Account | null>(
     null,
   );
-  // Counts presses, so a sign-in that settles after a newer one started
-  // leaves the button to the newer one.
-  const attempts = useRef(0);
-  const signIn = useMutation(rpcClient.grokAccount.signIn.mutationOptions());
   const signOut = useMutation(rpcClient.grokAccount.signOut.mutationOptions());
   const checkSubscription = useMutation(
     rpcClient.grokAccount.checkSubscription.mutationOptions(),
   );
   const providerSwitch = useProviderSwitch();
 
-  const continueWithGrok = async () => {
-    const attempt = ++attempts.current;
-    setWaiting(true);
-    const result = await signIn.mutateAsync({}).catch((error: unknown) => ({
-      error: error instanceof Error ? error.message : "Sign-in failed",
-      outcome: "failed" as const,
-    }));
-    if (attempt !== attempts.current) {
-      return;
-    }
-    setWaiting(false);
-    if (result.outcome === "failed") {
-      toast.error("Couldn't sign in with Grok", { cause: result.error });
-      return;
-    }
-    const { account } = result;
-    if (result.outcome !== "signed-in" || !account) {
-      return;
-    }
-    if (account.state === "no-subscription") {
-      toast.error(`${account.label} doesn’t have a Grok plan`, {
-        description: "You need SuperGrok or X Premium+ to use it here.",
-      });
-      return;
-    }
-    const title = `Signed in to ${account.label}`;
-    const id = toast.success(title);
-    const { name } = await rpcClient.grokAccount.chooseDefaultModel
-      .call({ accountId: account.id })
-      .catch(() => ({ name: undefined }));
-    toast.success(title, {
-      description: name
-        ? `New chats use ${name} from your subscription.`
-        : "Its models are in the model picker.",
-      id,
+  const continueWithGrok = () => {
+    void flow.start().then((result) => {
+      if (result) {
+        showConnectToast(result, "grok");
+      }
     });
   };
-  const cancelSignIn = () => {
-    attempts.current++;
-    setWaiting(false);
-    void rpcClient.grokAccount.cancelSignIn.call();
-  };
+  const cancelSignIn = flow.cancel;
 
   const accounts = status?.accounts ?? [];
   const pending = status?.pending;
@@ -115,18 +79,14 @@ export function GrokAccountCard() {
         enabled,
       );
     },
-    onSignIn: () => {
-      void continueWithGrok();
-    },
+    onSignIn: continueWithGrok,
     onSignOut: () => {
       setConfirmingSignOut(account);
     },
   });
   const addAnother = (
     <DropdownMenuItem
-      onSelect={() => {
-        void continueWithGrok();
-      }}
+      onSelect={continueWithGrok}
     >
       Add another account
     </DropdownMenuItem>
@@ -159,7 +119,9 @@ export function GrokAccountCard() {
               </h3>
               {waiting ? (
                 <p className="text-sm text-muted-foreground">
-                  {pending ? (
+                  {flow.phase === "checking" ? (
+                    "Checking your Grok plan."
+                  ) : pending ? (
                     <>
                       Enter{" "}
                       <span className="font-mono font-medium text-foreground select-all">
@@ -188,9 +150,7 @@ export function GrokAccountCard() {
             {accounts.length === 0 || waiting ? (
               <BrowserHandoffButton
                 onCancel={cancelSignIn}
-                onStart={() => {
-                  void continueWithGrok();
-                }}
+                onStart={continueWithGrok}
                 waiting={waiting}
               >
                 {accounts.length === 0

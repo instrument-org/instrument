@@ -390,6 +390,41 @@ export async function openClaudeSignIn(): Promise<{
 }
 
 /**
+ * Sign in to Claude and wait for it to end: at once when Claude Code is
+ * signed in already, otherwise once the browser sign-in finishes, is
+ * canceled or runs out, with the account read back from Claude Code. Answers
+ * why the sign-in could not start, if it could not.
+ */
+export async function signInToClaude(): Promise<{
+  error: string | undefined;
+  status: ClaudeAccountStatus;
+}> {
+  const before = await refreshClaudeAccountStatus({ force: true });
+  if (before.kind === "signed-in") {
+    return { error: undefined, status: before };
+  }
+  const { error } = await openClaudeSignIn();
+  const status = claudeAccountStatus();
+  if (error !== undefined || status.kind === "not-installed") {
+    return {
+      error:
+        error ??
+        (status.install?.state === "failed"
+          ? `Claude Code didn't install: ${status.install.failed}`
+          : "Claude Code didn't install."),
+      status,
+    };
+  }
+  await waitFor(signIn, (snapshot) => snapshot.matches("idle"), {
+    timeout: Infinity,
+  });
+  return {
+    error: undefined,
+    status: await refreshClaudeAccountStatus({ force: true }),
+  };
+}
+
+/**
  * Hand the waiting sign-in the code Anthropic's page showed on another
  * device. The code goes straight to Claude Code, which alone can exchange it,
  * and is never logged or kept. Answers why it was refused, if it was.

@@ -1,6 +1,4 @@
 import { openLogin } from "@/client/atoms/login-modal";
-import { rpcClient } from "@/client/rpc/client";
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Button } from "../ui/button";
@@ -22,12 +20,9 @@ export function ToolCapabilityFailure({
   retryMessage: string;
 }) {
   const [providerAdded, setProviderAdded] = useState(false);
-  const { data: hasToken } = useQuery(
-    rpcClient.auth.live.hasToken.experimental_liveOptions(),
-  );
 
   function openProviderGuard() {
-    openLogin(hasToken ? { reason: "provider-required" } : undefined, () => {
+    openLogin(undefined, () => {
       setProviderAdded(true);
     });
   }

@@ -6,7 +6,7 @@ import {
   type ProviderSetupPage,
   ProviderSetupScreen,
 } from "@/client/components/onboarding/provider-setup-screen";
-import { OnboardingSuccessScreen } from "@/client/components/onboarding/success-screen";
+import { AddProviderSheet } from "@/client/components/studio-modals/add-provider-sheet";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -16,19 +16,17 @@ import {
 } from "@/client/components/ui/dialog";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
-import { useLoginSocial } from "@/client/hooks/use-login-social";
+import { showConnectToast } from "@/client/lib/connect-toast";
 import { SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtom } from "jotai";
 import { useState } from "react";
 
-type Page = "success" | ProviderSetupPage;
-
-const FIXED_HEIGHT_PAGES = new Set<Page>(["success", "welcome"]);
-
 /**
- * App-wide login / add-provider modal, mounted once at the window root.
+ * App-wide login / add-provider modal, mounted once at the window root: the
+ * Add a provider sheet, or, for callers that mean Instrument itself, its
+ * Google sign-in.
  * Reads `loginModalAtom` (opened via `openLogin`); traps tab navigation while
  * open. Finishing the flow fires the caller's `onCompleted`; dismissing does not.
  */
@@ -62,6 +60,9 @@ export function LoginModal() {
         <LoginModalContent
           key={openKey}
           onComplete={complete}
+          onDismiss={() => {
+            setState(null);
+          }}
           onExitComplete={onExitComplete}
           props={content.props}
         />
@@ -72,18 +73,17 @@ export function LoginModal() {
 
 function LoginModalContent({
   onComplete,
+  onDismiss,
   onExitComplete,
   props,
 }: {
   onComplete: () => void;
+  onDismiss: () => void;
   onExitComplete: () => void;
   props?: LoginModalProps;
 }) {
-  const { error, login } = useLoginSocial();
-  // When the caller only needs a provider (not a login), the first page
-  // offers the accounts to add and leaves out signing in to Instrument.
-  const providerOnly = props?.reason === "provider-required";
-  const [page, setPage] = useState<Page>("welcome");
+  const [page, setPage] = useState<ProviderSetupPage>("welcome");
+  const instrumentOnly = props?.instrumentOnly === true;
 
   return (
     <DialogContent
@@ -91,10 +91,10 @@ function LoginModalContent({
       className={cn(
         `w-full gap-0 overflow-hidden border-0 p-0 shadow-2xl outline-none
         focus:outline-none focus-visible:outline-none`,
-        FIXED_HEIGHT_PAGES.has(page) && "h-[640px]",
-        page === "add-provider" ? SHARED.subtleGradient : SHARED.brandGradient,
+        instrumentOnly && page === "welcome" && "h-[640px]",
+        instrumentOnly ? SHARED.brandGradient : "bg-background",
       )}
-      maxWidth="472px"
+      maxWidth={instrumentOnly ? "472px" : "560px"}
       onExitComplete={onExitComplete}
       // Radix auto-focuses the first focusable element on open, painting a
       // focus ring the user never asked for. Prevent it (the focus trap still
@@ -106,7 +106,9 @@ function LoginModalContent({
       // icon) that reads better against its gradient card.
       showCloseButton={false}
     >
-      <DialogTitle className="sr-only">Log in</DialogTitle>
+      <DialogTitle className="sr-only">
+        {instrumentOnly ? "Log in" : "Add an AI provider"}
+      </DialogTitle>
       <div className="absolute top-3 right-3 z-10">
         <DialogClose asChild>
           <Button aria-label="Close" type="button" variant="outline">
@@ -114,24 +116,19 @@ function LoginModalContent({
           </Button>
         </DialogClose>
       </div>
-      {page === "success" ? (
-        <OnboardingSuccessScreen onContinue={onComplete} />
-      ) : (
+      {instrumentOnly ? (
         <ProviderSetupScreen
-          error={error}
-          instrumentOnly={props?.instrumentOnly}
-          onBack={() => {
-            setPage("welcome");
-          }}
+          instrumentOnly
           onContinue={onComplete}
-          onLogin={login}
-          onLoginSuccess={() => {
-            setPage("success");
+          onLoginSuccess={(result) => {
+            showConnectToast(result, "instrument");
+            onComplete();
           }}
           onPageChange={setPage}
           page={page}
-          signedIn={providerOnly}
         />
+      ) : (
+        <AddProviderSheet onComplete={onComplete} onDone={onDismiss} />
       )}
     </DialogContent>
   );

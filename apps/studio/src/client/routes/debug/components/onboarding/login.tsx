@@ -1,5 +1,4 @@
 import { OnboardingLayout } from "@/client/components/onboarding/layout";
-import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { ProviderSetupScreen } from "@/client/components/onboarding/provider-setup-screen";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { noop } from "radashi";
@@ -14,10 +13,6 @@ export const Route = createFileRoute("/debug/components/onboarding/login")({
   }),
 });
 
-// Never settles, so a press shows the button waiting on the browser until
-// it is canceled.
-const waitForever = () => new Promise<SignInOutcome>(noop);
-
 function RouteComponent() {
   const navigate = useNavigate();
   // Onboarding sends the manual provider link to its own screen, so this one
@@ -31,7 +26,6 @@ function RouteComponent() {
           <ProviderSetupScreen
             onAddProvider={addProvider}
             onContinue={noop}
-            onLogin={waitForever}
             onLoginSuccess={noop}
             onPageChange={noop}
             page="welcome"
@@ -39,19 +33,6 @@ function RouteComponent() {
         </OnboardingLayout>
       </OnboardingWindowFrame>
 
-      <OnboardingWindowFrame>
-        <OnboardingLayout variant="brand">
-          <ProviderSetupScreen
-            error={new Error("Login failed")}
-            onAddProvider={addProvider}
-            onContinue={noop}
-            onLogin={waitForever}
-            onLoginSuccess={noop}
-            onPageChange={noop}
-            page="welcome"
-          />
-        </OnboardingLayout>
-      </OnboardingWindowFrame>
     </div>
   );
 }

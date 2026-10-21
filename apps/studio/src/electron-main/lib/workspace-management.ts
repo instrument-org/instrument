@@ -107,7 +107,7 @@ export function createWorkspace({
     }
     dir = path.join(createdWorkspacesDir(userDataDir), id);
     fs.mkdirSync(dir, { recursive: true });
-    populateWorkspace({ color, developerMode, dir, name });
+    populateWorkspace({ color, dir, name });
     return {
       ...current,
       workspaces: [...current.workspaces, { id, path: dir }],
@@ -118,6 +118,10 @@ export function createWorkspace({
     userDataDir,
     workspace: { id, path: dir },
   });
+  writeJsonAtomic(
+    path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.preferences),
+    { developerMode },
+  );
   if (copySignInsFrom) {
     copySignIns(copySignInsFrom, machineDir);
   }
@@ -401,26 +405,16 @@ function openMarkDirOf(
 
 function populateWorkspace({
   color,
-  developerMode,
   dir,
   id,
   name,
 }: {
   color: WorkspaceIdentity["color"];
-  /** Developer mode to start with; none leaves the preferences at their defaults. */
-  developerMode?: boolean;
   dir: string;
   /** The workspace's own id, for one that carries on another's. */
   id?: string;
   name: string;
 }) {
-  if (developerMode !== undefined) {
-    writeJsonAtomic(
-      path.join(workspaceLayout(dir).dataDir, "preferences.json"),
-      { developerMode },
-    );
-  }
-
   // Already at the current settings version, format and layout: there is
   // nothing legacy in a workspace made by this build, so no migration or
   // layout sweep ever runs on it.

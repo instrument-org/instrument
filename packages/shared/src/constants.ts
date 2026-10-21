@@ -187,6 +187,12 @@ export const WORKSPACE_MACHINE_ENTRIES = {
   owner: "owner.json",
   /** Settings › Permissions, whose folder rules name this computer's paths. */
   permissions: "permissions.json",
+  /**
+   * What the person chose for the workspace on this computer: theme,
+   * developer mode, notifications, the default model, the experimental
+   * flags.
+   */
+  preferences: "preferences.json",
   /** What the app remembers about the workspace on this computer. */
   state: "state.json",
   /** The window's size and place, and where the person left off in it. */

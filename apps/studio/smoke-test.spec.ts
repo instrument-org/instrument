@@ -488,10 +488,10 @@ describe("Studio Smoke Test", () => {
     const requiredPaths = [
       path.join(tempUserDataDir, "runtime", "bin"),
       path.join(tempUserDataDir, "machine-state.json"),
-      path.join(workspaceDataDir, "preferences.json"),
       path.join(workspaceDataDir, "workspace.json"),
       // The default workspace's machine folder, named by its local id.
       path.join(tempUserDataDir, "machine", "default", "owner.json"),
+      path.join(tempUserDataDir, "machine", "default", "preferences.json"),
     ];
 
     for (const filePath of requiredPaths) {

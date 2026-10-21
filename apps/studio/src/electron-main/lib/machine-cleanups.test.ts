@@ -233,12 +233,59 @@ describe("the files no build reads any more", () => {
   });
 });
 
+describe("the preferences kept in the workspace", () => {
+  const dataDir = () =>
+    path.join(defaultWorkspacePath(userDataDir), ".instrument");
+  const moved = () => path.join(machineDir(), "preferences.json");
+
+  it("moves them into this computer's folder", () => {
+    write(
+      path.join(dataDir(), "preferences.json"),
+      JSON.stringify({ theme: "dark" }),
+    );
+
+    const done = clean();
+
+    expect(JSON.parse(fs.readFileSync(moved(), "utf8"))).toEqual({
+      theme: "dark",
+    });
+    expect(fs.existsSync(path.join(dataDir(), "preferences.json"))).toBe(false);
+    expect(done).toContain(
+      `moved ${path.join(dataDir(), "preferences.json")} to ${moved()}`,
+    );
+  });
+
+  // Another computer sharing the workspace put the file back, or never took
+  // it out: what this computer already chose stays.
+  it("keeps this computer's own and drops the workspace's", () => {
+    write(moved(), JSON.stringify({ theme: "light" }));
+    write(
+      path.join(dataDir(), "preferences.json"),
+      JSON.stringify({ theme: "dark" }),
+    );
+
+    clean();
+
+    expect(JSON.parse(fs.readFileSync(moved(), "utf8"))).toEqual({
+      theme: "light",
+    });
+    expect(fs.existsSync(path.join(dataDir(), "preferences.json"))).toBe(false);
+  });
+
+  it("has nothing left to say on the boot after", () => {
+    write(path.join(dataDir(), "preferences.json"), "{}");
+    clean();
+
+    expect(clean()).toEqual([]);
+  });
+});
+
 describe("the feature flags kept in a file of their own", () => {
   const dataDir = () =>
     path.join(defaultWorkspacePath(userDataDir), ".instrument");
   const preferences = () =>
     JSON.parse(
-      fs.readFileSync(path.join(dataDir(), "preferences.json"), "utf8"),
+      fs.readFileSync(path.join(machineDir(), "preferences.json"), "utf8"),
     ) as Record<string, unknown>;
 
   it("merges them into the preferences and takes the file away", () => {
@@ -259,7 +306,7 @@ describe("the feature flags kept in a file of their own", () => {
     });
     expect(fs.existsSync(path.join(dataDir(), "features.json"))).toBe(false);
     expect(done).toContain(
-      `merged 1 feature flag into ${path.join(dataDir(), "preferences.json")}`,
+      `merged 1 feature flag into ${path.join(machineDir(), "preferences.json")}`,
     );
   });
 

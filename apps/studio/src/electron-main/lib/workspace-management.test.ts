@@ -71,14 +71,11 @@ describe("createWorkspace", () => {
     });
     const { id, path: dir } = created;
     expect(id).toBe("byok-only");
-    expect(entriesOf(workspaceLayout(dir).dataDir)).toEqual([
-      "preferences.json",
-      "workspace.json",
-    ]);
+    expect(entriesOf(workspaceLayout(dir).dataDir)).toEqual(["workspace.json"]);
     expect(
       JSON.parse(
         fs.readFileSync(
-          path.join(workspaceLayout(dir).dataDir, "preferences.json"),
+          path.join(machineDirOf(created), "preferences.json"),
           "utf8",
         ),
       ),
@@ -96,7 +93,10 @@ describe("createWorkspace", () => {
     expect(machineDirOf(created)).toBe(
       path.join(userDataDir, "machine", "byok-only"),
     );
-    expect(entriesOf(machineDirOf(created))).toEqual(["owner.json"]);
+    expect(entriesOf(machineDirOf(created))).toEqual([
+      "owner.json",
+      "preferences.json",
+    ]);
     expect(readRegistry(userDataDir).workspaces.map((w) => w.id)).toEqual([
       "default",
       "byok-only",
@@ -135,7 +135,6 @@ describe("createWorkspace", () => {
       ),
     ).toEqual({ hasCompletedProviderSetup: true });
     expect(entriesOf(workspaceLayout(created.path).dataDir)).toEqual([
-      "preferences.json",
       "workspace.json",
     ]);
   });

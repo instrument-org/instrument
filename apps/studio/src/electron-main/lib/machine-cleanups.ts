@@ -112,9 +112,15 @@ function steps(where: {
       },
     ],
     [
+      "move preferences.json into this computer's folder",
+      (done) => {
+        movePreferencesToMachine(where, done);
+      },
+    ],
+    [
       "merge features.json into preferences.json",
       (done) => {
-        mergeFeaturesIntoPreferences(where.workspace, done);
+        mergeFeaturesIntoPreferences(where, done);
       },
     ],
     [
@@ -232,10 +238,44 @@ function fileStats(file: string): boolean {
 }
 
 /**
+ * The workspace's preferences, out of its `.instrument/` and into this
+ * computer's folder for it. Every device sharing the workspace rewrote the
+ * one file whole, and what it holds (theme, developer mode, the default
+ * model, the flags) is one computer's choice. Before any store opens, so
+ * the preferences read the moved file rather than writing their defaults.
+ *
+ * A file this computer already has wins, and the workspace's copy goes
+ * either way, so a second computer that opens the workspace later starts at
+ * the defaults.
+ */
+function movePreferencesToMachine(
+  {
+    machineDir,
+    workspace,
+  }: { machineDir: string; workspace: ResolvedWorkspace },
+  done: string[],
+) {
+  const from = path.join(
+    workspaceLayout(workspace.path).dataDir,
+    "preferences.json",
+  );
+  if (!fileStats(from)) {
+    return;
+  }
+  const stored = readJsonObject(from);
+  const to = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.preferences);
+  if (stored && !fileStats(to)) {
+    writeJsonAtomic(to, stored);
+    done.push(`moved ${from} to ${to}`);
+  }
+  fs.rmSync(from, { force: true });
+}
+
+/**
  * The experimental flags, out of a `features.json` of their own and into
  * `preferences.json` beside the rest of what the person chose for the
- * workspace. Before any store opens, so the preferences read the merged
- * file rather than writing their defaults over it.
+ * workspace on this computer. Before any store opens, so the preferences
+ * read the merged file rather than writing their defaults over it.
  *
  * A flag the file holds wins over one already under `features` in the
  * preferences, since the preferences had none before this; a flag this
@@ -243,7 +283,10 @@ function fileStats(file: string): boolean {
  * old file goes only once the merged preferences are written.
  */
 function mergeFeaturesIntoPreferences(
-  workspace: ResolvedWorkspace,
+  {
+    machineDir,
+    workspace,
+  }: { machineDir: string; workspace: ResolvedWorkspace },
   done: string[],
 ) {
   const dataDir = workspaceLayout(workspace.path).dataDir;
@@ -263,7 +306,10 @@ function mergeFeaturesIntoPreferences(
         : [],
     ),
   );
-  const preferencesFile = path.join(dataDir, "preferences.json");
+  const preferencesFile = path.join(
+    machineDir,
+    WORKSPACE_MACHINE_ENTRIES.preferences,
+  );
   const preferences = readJsonObject(preferencesFile) ?? {};
   const features = preferences.features;
   writeJsonAtomic(preferencesFile, {

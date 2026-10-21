@@ -1,5 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { workspaceDataDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceMachineDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   type FeatureName,
@@ -36,8 +36,10 @@ function featuresAllOff(): Features {
 }
 
 /**
- * What a person chose for this workspace, kept in it so the choices travel
- * with it. Machine-wide choices are in `machine/preferences.ts`.
+ * What a person chose for this workspace on this computer, kept in its
+ * machine folder: another computer, or another person sharing the
+ * workspace, makes choices of its own. Machine-wide choices are in
+ * `machine/preferences.ts`.
  */
 export const WorkspacePreferencesSchema = z.object({
   agentCompletionNotifications:
@@ -84,7 +86,7 @@ export const getWorkspacePreferences = (): Store<WorkspacePreferences> => {
   if (STORE === null) {
     const defaults = WorkspacePreferencesSchema.parse({});
     STORE = new Store<WorkspacePreferences>({
-      cwd: workspaceDataDir(),
+      cwd: workspaceMachineDir(),
       defaults,
       deserialize: (value) => {
         const parsed = WorkspacePreferencesSchema.safeParse(JSON.parse(value));

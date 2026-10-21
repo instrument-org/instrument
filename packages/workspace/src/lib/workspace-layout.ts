@@ -106,8 +106,8 @@ export function workspaceLayout(workspaceDir: string) {
     appsDir: path.join(workspaceDir, APPS_FOLDER_NAME),
     chatsDir: entry(WORKSPACE_DATA_ENTRIES.chats),
     /**
-     * What the app keeps that travels with the workspace: `workspace.json`,
-     * `preferences.json`, `features.json`, and every folder below.
+     * What the app keeps that travels with the workspace: `workspace.json`
+     * and every folder below.
      */
     dataDir,
     devicesDir: entry(WORKSPACE_DATA_ENTRIES.devices),

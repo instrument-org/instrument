@@ -18,12 +18,12 @@ import {
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
+import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { finishPlacingLeftovers } from "@/electron-main/rpc/routes/files";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import {
   getAppWindow,
   openAppFile,
@@ -467,10 +467,7 @@ function openOnboarding() {
 }
 
 function shouldShowOnboarding(): boolean {
-  if (process.env.SKIP_ONBOARDING === "true") {
-    return false;
-  }
-  return !getWorkspaceState().get("hasCompletedProviderSetup");
+  return isSetupUp();
 }
 
 // Closing the last window quits outside macOS, where the window's own close

@@ -1786,21 +1786,25 @@ a.cursor-pointer {
   }
 }
 
-/* Setup's pages (`SetupPageSwitch`): the body of a later page slides in a
- * short way from the right as it fades in, while the one before slides a
- * short way left as it fades out, the other way round for Back. Only
- * transform and opacity move, so the compositor runs it whatever the main
- * thread is doing, and the body has its own layer only while it moves. With
- * reduced motion the pages only cross-fade. */
+/* Setup's pages (`SetupPageSwitch`), one after the other: the body of the
+ * page before fades out and slides a short way left, and only once it is
+ * gone does the next one fade in from a short way right, the other way round
+ * for Back. The page coming waits out the leaving one's 120ms at opacity 0,
+ * so the two never show at once. Only transform and opacity move, so the
+ * compositor runs it whatever the main thread is doing, and the body has its
+ * own layer only while it moves. With reduced motion the pages only fade,
+ * in the same order. */
 [data-page-motion] {
   will-change: transform, opacity;
-  animation-duration: 200ms;
+  animation-delay: 120ms;
+  animation-duration: 160ms;
   animation-fill-mode: both;
   animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 [data-page-motion^="out"] {
-  animation-duration: 160ms;
+  animation-delay: 0ms;
+  animation-duration: 120ms;
   animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
 }
 
@@ -1832,28 +1836,28 @@ a.cursor-pointer {
 @keyframes setup-page-in-forward {
   from {
     opacity: 0;
-    transform: translate3d(32px, 0, 0);
+    transform: translate3d(16px, 0, 0);
   }
 }
 
 @keyframes setup-page-in-back {
   from {
     opacity: 0;
-    transform: translate3d(-32px, 0, 0);
+    transform: translate3d(-16px, 0, 0);
   }
 }
 
 @keyframes setup-page-out-forward {
   to {
     opacity: 0;
-    transform: translate3d(-32px, 0, 0);
+    transform: translate3d(-16px, 0, 0);
   }
 }
 
 @keyframes setup-page-out-back {
   to {
     opacity: 0;
-    transform: translate3d(32px, 0, 0);
+    transform: translate3d(16px, 0, 0);
   }
 }
 

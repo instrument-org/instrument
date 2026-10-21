@@ -3,16 +3,14 @@ import { usePlanCheckout } from "@/client/components/billing/use-plan-checkout";
 import { useStartTrial } from "@/client/components/billing/use-start-trial";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { Button } from "@/client/components/ui/button";
-import { Card } from "@/client/components/ui/card";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import {
-  allowanceLabel,
   checkoutTrialLine,
   describeDay,
-  formatAmount,
   isTrialHeldBack,
 } from "@/client/lib/billing";
+import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
@@ -150,7 +148,12 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
             subtitle={copy.subtitle}
             title={copy.title}
           >
-            <div className="mt-8 w-170 max-w-full">
+            <div
+              className={cn(
+                "mt-8 max-w-full",
+                beta && betaPlan ? "w-85" : "w-170",
+              )}
+            >
               {!offer ? (
                 error ? (
                   <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
@@ -170,15 +173,16 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
                   </div>
                 )
               ) : beta && betaPlan ? (
-                <BetaCard
-                  isBusy={checkout.isOpening}
-                  months={beta.months}
-                  onClaim={() => {
+                <PlanCards
+                  beta={beta}
+                  busyPlan={checkout.isOpening ? betaPlan.key : null}
+                  offer={offer}
+                  onChoose={(plan) => {
                     hold();
-                    checkout.start(betaPlan.key, { offer: "beta" });
+                    checkout.start(plan.key, { offer: "beta" });
                     setPage({ kind: "checkout" });
                   }}
-                  plan={betaPlan}
+                  status={status}
                 />
               ) : (
                 <PlanCards
@@ -209,7 +213,7 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
                 />
               )}
             </div>
-            {offer && !beta && (
+            {offer && (
               <p
                 className="mt-5 text-sm text-muted-foreground"
                 data-use-instead
@@ -290,9 +294,11 @@ function cardsCopy(
   const beta = offer?.beta;
   const betaPlan = beta && offer.plans.find((plan) => plan.key === beta.plan);
   if (beta && betaPlan) {
+    const months =
+      beta.months === 1 ? "a month" : `${String(beta.months)} months`;
     return {
-      subtitle: `Thanks for testing ${APP_NAME}. Your first ${String(beta.months)} months of ${betaPlan.name} are free, and you'll finish in your browser.`,
-      title: `${betaPlan.name} is on us for ${String(beta.months)} months`,
+      subtitle: `Thanks for testing ${APP_NAME}. No card needed. You'll finish in your browser.`,
+      title: `${betaPlan.name} is on us for ${months}`,
     };
   }
   const trial = offer?.trial;
@@ -342,49 +348,5 @@ function TrialTitle({ days }: { days: string }) {
         </svg>
       </span>
     </>
-  );
-}
-
-/** The beta offer's one plan, free for its months through Checkout. */
-function BetaCard({
-  isBusy,
-  months,
-  onClaim,
-  plan,
-}: {
-  isBusy: boolean;
-  months: number;
-  onClaim: () => void;
-  plan: Offer["plans"][number];
-}) {
-  const amount = formatAmount(plan.price);
-  return (
-    <Card
-      className="mx-auto w-80 max-w-full gap-0 border border-brand-500/60 p-4"
-      data-plan-card={plan.key}
-    >
-      <span className="text-sm font-medium">{plan.name}</span>
-      <div className="mt-1 flex items-baseline gap-1">
-        <span className="text-2xl font-semibold tracking-tight">Free</span>
-        <span className="text-xs text-muted-foreground">
-          for {months} months
-          {amount &&
-            `, then ${amount}${plan.price?.interval ? ` / ${plan.price.interval}` : ""}`}
-        </span>
-      </div>
-      <div className="mt-3 flex items-center justify-between text-xs">
-        <span className="text-muted-foreground">AI usage</span>
-        <span className="font-medium">{allowanceLabel(plan)}</span>
-      </div>
-      <Button
-        className="mt-4 w-full"
-        disabled={isBusy}
-        onClick={onClaim}
-        size="sm"
-        variant="brand"
-      >
-        Claim your free months
-      </Button>
-    </Card>
   );
 }

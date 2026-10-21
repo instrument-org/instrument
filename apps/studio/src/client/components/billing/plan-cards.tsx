@@ -36,9 +36,12 @@ type Status = RPCOutput["billing"]["status"];
  * the plan's features as the offer gives them.
  * The cards share a row and stack when it is too narrow for them.
  *
- * The same component is setup's plan step and the app's plan sheet.
+ * The same component is setup's plan step and the app's plan sheet. With
+ * `beta`, setup's beta offer, it shows that plan's card alone, free for the
+ * offer's months and then at its price, with a button that claims them.
  */
 export function PlanCards({
+  beta,
   busyPlan,
   offer,
   onChoose,
@@ -46,6 +49,8 @@ export function PlanCards({
   status,
   trial = false,
 }: {
+  /** The beta offer's free months of one plan, which the cards narrow to. */
+  beta?: { months: number; plan: string };
   /** The plan whose button is working (opening Checkout, switching). */
   busyPlan?: null | string;
   offer: Offer;
@@ -79,15 +84,19 @@ export function PlanCards({
     actions.find(
       ({ action, plan }) => plan.key === preselect && isChoosable(action),
     ) ?? actions.find(({ action }) => isChoosable(action));
+  const shown = beta
+    ? actions.filter(({ plan }) => plan.key === beta.plan)
+    : actions;
 
   return (
     <div className="flex flex-wrap gap-3" data-plan-cards>
-      {actions.map(({ action, note, plan }) => (
+      {shown.map(({ action, note, plan }) => (
         <PlanCard
           action={action}
+          freeMonths={beta?.months}
           isBusy={busyPlan === plan.key}
           isHeaviest={most > least && plan.allowance.multiple === most}
-          isLeading={leading?.plan.key === plan.key}
+          isLeading={beta !== undefined || leading?.plan.key === plan.key}
           key={plan.key}
           makers={planMakers(plan)}
           meter={allowanceMeter(plan, offer.plans)}
@@ -119,6 +128,7 @@ function planMakers(plan: OfferPlan): string[] {
 
 function PlanCard({
   action,
+  freeMonths,
   isBusy,
   isHeaviest,
   isLeading,
@@ -129,6 +139,8 @@ function PlanCard({
   plan,
 }: {
   action: PlanCardAction;
+  /** The beta offer's free months: the card is priced and claimed as those. */
+  freeMonths: number | undefined;
   isBusy: boolean;
   /** The plan with the most AI usage, tinted in the brand's green. */
   isHeaviest: boolean;
@@ -142,14 +154,20 @@ function PlanCard({
 }) {
   const amount = formatAmount(plan.price);
   const isCurrent = action === "current" || action === "keep";
-  const label = {
-    current: "",
-    keep: `Keep ${plan.name}`,
-    scheduled: "",
-    subscribe: amount ? `Subscribe for ${amount}` : "Subscribe",
-    switch: `Switch to ${plan.name}`,
-    trial: "Start free trial",
-  }[action];
+  const label =
+    freeMonths === undefined
+      ? {
+          current: "",
+          keep: `Keep ${plan.name}`,
+          scheduled: "",
+          subscribe: amount ? `Subscribe for ${amount}` : "Subscribe",
+          switch: `Switch to ${plan.name}`,
+          trial: "Start free trial",
+        }[action]
+      : freeMonths === 1
+        ? "Claim your free month"
+        : `Claim ${String(freeMonths)} free months`;
+  const interval = plan.price?.interval;
 
   return (
     <Card
@@ -176,17 +194,38 @@ function PlanCard({
         </span>
         {isCurrent && <Badge variant="outline">Your plan</Badge>}
       </div>
-      {amount && (
-        <div className="flex items-baseline gap-1">
-          <span className="text-4xl font-semibold tracking-tight">
-            {amount}
-          </span>
-          {plan.price?.interval && (
+      {freeMonths !== undefined ? (
+        <div className="flex flex-col gap-0.5" data-plan-price>
+          <div className="flex items-baseline gap-1">
+            <span className="text-4xl font-semibold tracking-tight">
+              {plan.price
+                ? formatAmount({ ...plan.price, unitAmount: 0 })
+                : "Free"}
+            </span>
             <span className="text-sm text-gray-400 dark:text-gray-500">
-              / {plan.price.interval}
+              for {freeMonths} {freeMonths === 1 ? "month" : "months"}
+            </span>
+          </div>
+          {amount && (
+            <span className="text-sm text-muted-foreground">
+              then {amount}
+              {interval && `/${interval}`}
             </span>
           )}
         </div>
+      ) : (
+        amount && (
+          <div className="flex items-baseline gap-1">
+            <span className="text-4xl font-semibold tracking-tight">
+              {amount}
+            </span>
+            {interval && (
+              <span className="text-sm text-gray-400 dark:text-gray-500">
+                / {interval}
+              </span>
+            )}
+          </div>
+        )
       )}
       <div className="flex flex-col gap-4 rounded-xl bg-black/5 px-3.5 py-2.5 text-sm dark:bg-white/5">
         <div className="flex flex-col gap-2">

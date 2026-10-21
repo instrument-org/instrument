@@ -4,11 +4,13 @@ import { folderOf, nameOf } from "@/client/components/window/host-path";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { useQuery } from "@tanstack/react-query";
+import { folderWarningSentence } from "@/shared/workspace-folder-refusal";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { FolderLocation, FolderNote } from "./kit/folder-row";
 import { SetupFooter, SetupPage } from "./kit/setup-page";
+import { SetupPageSwitch } from "./kit/setup-page-switch";
 import { PackedFolder } from "./folder-illustration";
 import { count, folderAction } from "./folder-flow";
 import { type SetupPageProps } from "./setup-page-props";
@@ -18,7 +20,8 @@ import { useSetupState } from "./use-setup-state";
 type Note =
   | { chats: number; kind: "earlier" }
   | { items: number; kind: "exists"; moving: number }
-  | { kind: "denied" };
+  | { kind: "denied" }
+  | { kind: "unfinished" };
 
 /**
  * Where the Instrument folder lives (frames 05 to 09). Documents is
@@ -36,13 +39,16 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   const [busy, setBusy] = useState(false);
   const [moving, setMoving] = useState(false);
 
-  if (moving) {
-    return <MovingPage usedBefore={usedBefore} />;
-  }
-  if (!folder) {
-    return <SetupPage title="Where should your Instrument folder live?" />;
-  }
-  const target = picked ?? folder.inDocuments;
+  // The folder on screen: the one picked, or the one in Documents setup
+  // suggests, once the current folder has loaded.
+  const target = picked ?? folder?.inDocuments;
+  // A risky place (Documents itself, a temporary folder) is said under it,
+  // and Continue can still go past it.
+  const { data: targetCheck } = useQuery(
+    rpcClient.workspaces.checkFolder.queryOptions({
+      input: target === undefined ? skipToken : { path: target },
+    }),
+  );
 
   const pick = (path: string) => {
     setPicked(path);
@@ -51,6 +57,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
 
   /** Moves into `path` (or opens it), restarting the app. */
   const go = async (
+    current: { inDocuments: string; inHome: string },
     path: string,
     how: { create: boolean; type: "move" } | { type: "open" },
   ) => {
@@ -77,9 +84,14 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
           return;
         }
         if (moved.kind === "refused") {
-          if (moved.reason === "unwritable" && path === folder.inDocuments) {
+          if (moved.reason === "unfinished") {
             setMoving(false);
-            setPicked(folder.inHome);
+            setNote({ kind: "unfinished" });
+            return;
+          }
+          if (moved.reason === "unwritable" && path === current.inDocuments) {
+            setMoving(false);
+            setPicked(current.inHome);
             setNote({ kind: "denied" });
             return;
           }
@@ -95,6 +107,9 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   };
 
   const proceed = async () => {
+    if (!folder || target === undefined) {
+      return;
+    }
     setBusy(true);
     try {
       const [verdict, summary] = await Promise.all([
@@ -112,7 +127,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
       switch (action.type) {
         case "move":
         case "open": {
-          await go(target, action);
+          await go(folder, target, action);
           return;
         }
         case "exists": {
@@ -139,6 +154,10 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
               description: REFUSALS.unwritable,
             });
           }
+          return;
+        }
+        case "unfinished": {
+          setNote({ kind: "unfinished" });
           return;
         }
         case "refused": {
@@ -173,64 +192,96 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   };
 
   const showFolder = () => {
-    void rpcClient.utils.openFolder.call({ folderPath: target });
+    if (target !== undefined) {
+      void rpcClient.utils.openFolder.call({ folderPath: target });
+    }
   };
 
+  const warning = targetCheck?.warning;
   return (
-    <SetupPage
-      footer={
-        <SetupFooter
-          onBack={onBack}
-          onContinue={() => {
-            void proceed();
-          }}
-          pending={busy}
-        />
-      }
-      hero={<PackedFolder />}
-      subtitle={`This is where ${APP_NAME} keeps your chats, topics and the files it makes`}
-      title="Where should your Instrument folder live?"
-    >
-      <div className="mt-8">
-        <FolderLocation
-          onChange={() => {
-            void choose(folderOf(target));
-          }}
-          path={target}
-        >
-          {note?.kind === "denied" && (
-            <FolderNote
-              action={{
-                label: "Fix",
-                onClick: () => {
-                  void choose(folderOf(folder.inDocuments));
-                },
+    <SetupPageSwitch depth={moving ? 1 : 0} page={moving ? "moving" : "folder"}>
+      {moving ? (
+        <MovingPage usedBefore={usedBefore} />
+      ) : (
+        <SetupPage
+          footer={
+            <SetupFooter
+              onBack={onBack}
+              next={target === undefined ? "off" : "primary"}
+              onContinue={() => {
+                void proceed();
               }}
-              line="Most users place their Instrument folder in Documents. If you don't allow access, we'll place it in your home folder instead."
-              title={`${APP_NAME} was denied access to your Documents folder.`}
+              pending={busy}
             />
-          )}
-          {note?.kind === "exists" && (
-            <FolderNote
-              action={{ label: "Show folder", onClick: showFolder }}
-              line={
-                note.moving > 0
-                  ? `It has ${count(note.items, "item")}. We'll move your ${count(note.moving, "chat")} in beside them.`
-                  : `It has ${count(note.items, "item")}. We'll keep everything in it and add your chats and files alongside.`
+          }
+          hero={<PackedFolder />}
+          subtitle={`This is where ${APP_NAME} keeps your chats, topics and the files it makes`}
+          title="Where should your Instrument folder live?"
+        >
+          <div className="mt-8">
+            <FolderLocation
+              onChange={
+                target === undefined
+                  ? undefined
+                  : () => {
+                      void choose(folderOf(target));
+                    }
               }
-              title={`There's already a folder called ${nameOf(target)} here.`}
-            />
-          )}
-          {note?.kind === "earlier" && (
-            <FolderNote
-              action={{ label: "Show folder", onClick: showFolder }}
-              line="We'll open them, so you can pick up where you left off."
-              title={`This folder already has ${count(note.chats, "chat")} from ${APP_NAME}.`}
-            />
-          )}
-        </FolderLocation>
-      </div>
-    </SetupPage>
+              path={target}
+            >
+              {note?.kind === "denied" && (
+                <FolderNote
+                  action={{
+                    label: "Fix",
+                    onClick: () => {
+                      if (folder) {
+                        void choose(folderOf(folder.inDocuments));
+                      }
+                    },
+                  }}
+                  line="Most users place their Instrument folder in Documents. If you don't allow access, we'll place it in your home folder instead."
+                  title={`${APP_NAME} was denied access to your Documents folder.`}
+                />
+              )}
+              {note?.kind === "exists" && (
+                <FolderNote
+                  action={{ label: "Show folder", onClick: showFolder }}
+                  line={
+                    note.moving > 0
+                      ? `It has ${count(note.items, "item")}. We'll move your ${count(note.moving, "chat")} in beside them.`
+                      : `It has ${count(note.items, "item")}. We'll keep everything in it and add your chats and files alongside.`
+                  }
+                  title={`There's already a folder called ${nameOf(target ?? "")} here.`}
+                />
+              )}
+              {note?.kind === "earlier" && (
+                <FolderNote
+                  action={{ label: "Show folder", onClick: showFolder }}
+                  line="We'll open them, so you can pick up where you left off."
+                  title={`This folder already has ${count(note.chats, "chat")} from ${APP_NAME}.`}
+                />
+              )}
+              {note?.kind === "unfinished" && (
+                <FolderNote
+                  action={{
+                    label: "Keep it where it is for now",
+                    onClick: onContinue,
+                  }}
+                  line={`Quit and reopen ${APP_NAME}, then try again. Or keep your folder where it is for now, and move it later in Settings.`}
+                  title={`${APP_NAME} is still updating your folder from an earlier version.`}
+                />
+              )}
+              {note === null && warning !== undefined && (
+                <FolderNote
+                  line={folderWarningSentence(warning)}
+                  title={`This might not be the best place for your ${APP_NAME} folder.`}
+                />
+              )}
+            </FolderLocation>
+          </div>
+        </SetupPage>
+      )}
+    </SetupPageSwitch>
   );
 }
 

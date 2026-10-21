@@ -66,6 +66,17 @@ describe("validateSkill", () => {
     expect(await rulesFor({ "SKILL.md": good })).toMatchInlineSnapshot(`[]`);
   });
 
+  it("knows the keys skill-creator tells agents to keep", async () => {
+    expect(
+      await rulesFor({
+        "SKILL.md": good.replace(
+          "---\n\n",
+          "argument-hint: <file>\ncontext: fork\n---\n\n",
+        ),
+      }),
+    ).toEqual([]);
+  });
+
   it("reports a directory that is not a skill", async () => {
     expect(await rulesFor({ "notes.md": "hi" })).toMatchInlineSnapshot(`
       [

@@ -34,7 +34,9 @@ export const SKILL_LIMITS = {
  */
 const KNOWN_FRONTMATTER_KEYS = new Set([
   "allowed-tools",
+  "argument-hint",
   "compatibility",
+  "context",
   "description",
   "disable-model-invocation",
   "license",

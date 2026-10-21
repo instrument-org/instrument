@@ -6,6 +6,7 @@ import {
   workspaceKeysDir,
 } from "@/electron-main/lib/get-workspace-folder";
 import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
+import { refreshSetupFacts } from "@/electron-main/lib/setup-facts";
 import {
   createWorkspace,
   keysDirOf,
@@ -35,7 +36,6 @@ import {
 import { FolderRefusalSchema } from "@/shared/workspace-folder-refusal";
 import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
-import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import {
   platformApiBaseUrl,
@@ -375,7 +375,7 @@ const move = base
         workspace,
       });
       // A recorded move settles setup's folder step.
-      publisher.publish("setup.updated", null);
+      refreshSetupFacts();
     };
     // A build that cannot restart itself makes the move the next time it is
     // started by hand.

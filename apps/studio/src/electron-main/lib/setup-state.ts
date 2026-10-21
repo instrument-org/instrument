@@ -41,11 +41,18 @@ function isSkipped() {
   return process.env.SKIP_ONBOARDING === "true";
 }
 
+// Held in memory, since the window asks on every key press and the store
+// reads its file on every get. Only this module writes it.
+let record: SetupRecord | undefined;
+
 function readRecord(): SetupRecord {
-  return getMachineState().get("setup");
+  record ??= getMachineState().get("setup");
+  return record;
 }
 
-function changed() {
+function writeRecord(next: SetupRecord) {
+  record = next;
+  getMachineState().set("setup", next);
   publisher.publish("setup.updated", null);
 }
 
@@ -89,18 +96,15 @@ export function isSetupUp(): boolean {
 
 /** Records a step as answered, so setup moves past it for good. */
 export function answerSetupStep(step: SetupStep): void {
-  getMachineState().set("setup", answeredStep(readRecord(), step, new Date()));
-  changed();
+  writeRecord(answeredStep(readRecord(), step, new Date()));
 }
 
 /** Records setup as finished, with every step this build knows answered. */
 export function finishSetup(): void {
-  getMachineState().set("setup", finishedRecord(readRecord(), new Date()));
-  changed();
+  writeRecord(finishedRecord(readRecord(), new Date()));
 }
 
 /** Forgets every answer, so setup runs again as though it never had. */
 export function resetSetup(): void {
-  getMachineState().set("setup", { answered: {} });
-  changed();
+  writeRecord({ answered: {} });
 }

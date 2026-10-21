@@ -37,6 +37,7 @@ import { type ReactNode, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 
 import { BrandTile } from "../kit/brand-tile";
+import { SetupPageSwitch } from "../kit/setup-page-switch";
 import { SetupFooter, SetupPage } from "../kit/setup-page";
 import { SetupRow, SetupRowList } from "../kit/setup-row";
 import { WelcomeBurst } from "../welcome-burst";
@@ -150,125 +151,142 @@ export function WaysIn({
     setPage(waitedFrom);
   };
 
-  switch (page.kind) {
-    case "welcome": {
-      return (
-        <WelcomePage
-          google={flows.instrument}
-          onGoogle={() => {
-            connect("instrument");
-          }}
-          onKey={openKey}
-          onSubscription={() => {
-            setPage({ kind: "subscriptions" });
-          }}
-        />
-      );
+  const shown = (): ReactNode => {
+    switch (page.kind) {
+      case "welcome": {
+        return (
+          <WelcomePage
+            google={flows.instrument}
+            onGoogle={() => {
+              connect("instrument");
+            }}
+            onKey={openKey}
+            onSubscription={() => {
+              setPage({ kind: "subscriptions" });
+            }}
+          />
+        );
+      }
+      case "subscriptions": {
+        return (
+          <SubscriptionsPage
+            offerInstrument={offerInstrument}
+            onBack={
+              initial.kind === "subscriptions"
+                ? onLeave
+                : () => {
+                    setPage({ kind: "welcome" });
+                  }
+            }
+            onSignIn={connect}
+          />
+        );
+      }
+      case "waiting": {
+        const { provider } = page;
+        const flow = flows[provider];
+        const claudeStatus = flows.claude.status;
+        const line =
+          flow.phase === "checking"
+            ? `Checking your ${CONNECT_NAMES[provider]} plan`
+            : provider === "grok"
+              ? grokWaitingLine(flows.grok.userCode ?? page.previewCode)
+              : provider === "claude" &&
+                  (claudeStatus?.install?.state === "downloading" ||
+                    claudeStatus?.finishing)
+                ? claudeWaitingLine(claudeStatus)
+                : `Waiting for ${CONNECT_NAMES[provider]}…`;
+        const claudeLink =
+          provider === "claude" &&
+          flows.claude.phase === "signing-in" &&
+          flows.claude.status?.signingIn
+            ? flows.claude.status.signInLink
+            : undefined;
+        return (
+          <WaitingPage
+            below={
+              claudeLink && (
+                <ClaudeSignInCode
+                  className="mt-4 w-100 text-center"
+                  link={claudeLink}
+                />
+              )
+            }
+            line={line}
+            onCancel={() => {
+              leaveWait(provider);
+            }}
+            provider={provider}
+          />
+        );
+      }
+      case "outcome": {
+        return (
+          <OutcomePage
+            flows={flows}
+            offer={offer}
+            offerInstrument={offerInstrument}
+            onBack={() => {
+              setPage(waitedFrom);
+            }}
+            onConnect={connect}
+            onContinue={onDone}
+            onKey={openKey}
+            outcome={page.outcome}
+            provider={page.provider}
+          />
+        );
+      }
+      case "key": {
+        return (
+          <KeyPage
+            onAdded={onDone}
+            onBack={
+              keyFrom.kind === "key" && onLeave
+                ? onLeave
+                : () => {
+                    setPage(keyFrom);
+                  }
+            }
+            onNoCredits={(providerId) => {
+              setPage({ kind: "no-credits", providerId });
+            }}
+          />
+        );
+      }
+      case "no-credits": {
+        return (
+          <NoCreditsPage
+            flows={flows}
+            offer={offer}
+            offerInstrument={offerInstrument}
+            onBack={() => {
+              setPage({ kind: "key" });
+            }}
+            onConnect={connect}
+            onCredited={onDone}
+            providerId={page.providerId}
+          />
+        );
+      }
     }
-    case "subscriptions": {
-      return (
-        <SubscriptionsPage
-          offerInstrument={offerInstrument}
-          onBack={
-            initial.kind === "subscriptions"
-              ? onLeave
-              : () => {
-                  setPage({ kind: "welcome" });
-                }
-          }
-          onSignIn={connect}
-        />
-      );
-    }
-    case "waiting": {
-      const { provider } = page;
-      const flow = flows[provider];
-      const claudeStatus = flows.claude.status;
-      const line =
-        flow.phase === "checking"
-          ? `Checking your ${CONNECT_NAMES[provider]} plan`
-          : provider === "grok"
-            ? grokWaitingLine(flows.grok.userCode ?? page.previewCode)
-            : provider === "claude" &&
-                (claudeStatus?.install?.state === "downloading" ||
-                  claudeStatus?.finishing)
-              ? claudeWaitingLine(claudeStatus)
-              : `Waiting for ${CONNECT_NAMES[provider]}…`;
-      const claudeLink =
-        provider === "claude" &&
-        flows.claude.phase === "signing-in" &&
-        flows.claude.status?.signingIn
-          ? flows.claude.status.signInLink
-          : undefined;
-      return (
-        <WaitingPage
-          below={
-            claudeLink && (
-              <ClaudeSignInCode
-                className="mt-4 w-100 text-center"
-                link={claudeLink}
-              />
-            )
-          }
-          line={line}
-          onCancel={() => {
-            leaveWait(provider);
-          }}
-          provider={provider}
-        />
-      );
-    }
-    case "outcome": {
-      return (
-        <OutcomePage
-          flows={flows}
-          offer={offer}
-          offerInstrument={offerInstrument}
-          onBack={() => {
-            setPage(waitedFrom);
-          }}
-          onConnect={connect}
-          onContinue={onDone}
-          onKey={openKey}
-          outcome={page.outcome}
-          provider={page.provider}
-        />
-      );
-    }
-    case "key": {
-      return (
-        <KeyPage
-          onAdded={onDone}
-          onBack={
-            keyFrom.kind === "key" && onLeave
-              ? onLeave
-              : () => {
-                  setPage(keyFrom);
-                }
-          }
-          onNoCredits={(providerId) => {
-            setPage({ kind: "no-credits", providerId });
-          }}
-        />
-      );
-    }
-    case "no-credits": {
-      return (
-        <NoCreditsPage
-          flows={flows}
-          offer={offer}
-          offerInstrument={offerInstrument}
-          onBack={() => {
-            setPage({ kind: "key" });
-          }}
-          onConnect={connect}
-          onCredited={onDone}
-          providerId={page.providerId}
-        />
-      );
-    }
-  }
+  };
+  return (
+    <SetupPageSwitch depth={WAYS_IN_DEPTH[page.kind]} page={page.kind}>
+      {shown()}
+    </SetupPageSwitch>
+  );
 }
+
+/** How far into the ways in each page is, so going to a shallower one reads as Back. */
+const WAYS_IN_DEPTH: Record<WaysInPage["kind"], number> = {
+  key: 1,
+  "no-credits": 2,
+  outcome: 3,
+  subscriptions: 1,
+  waiting: 2,
+  welcome: 0,
+};
 
 /** The free trial's length, when the offer has one this account can start. */
 function WelcomePage({

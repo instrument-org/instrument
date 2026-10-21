@@ -92,6 +92,7 @@ function loadedWith(step: SetupState["step"], back: SetupState["back"] = null) {
       hasInstrumentAccount: false,
       hasInstrumentPlan: false,
       hasUsableAI: false,
+      isCheckingPlan: false,
       notificationsAskable: false,
       usedBefore: false,
     },

@@ -89,6 +89,9 @@ function checkAccountsAtLaunch(): void {
  */
 let planRead: undefined | { hasPlan: boolean; token: string };
 
+/** The sign-in a billing status read last finished for, answered or not. */
+let planTriedFor: string | undefined;
+
 /** The notification status last read; `unknown` until the first read answers. */
 let notifications: NotificationStatus["status"] = "unknown";
 
@@ -106,6 +109,7 @@ function readSetupFacts(): SetupFacts {
     hasInstrumentAccount: hasToken(),
     hasInstrumentPlan:
       token !== undefined && planRead?.token === token && planRead.hasPlan,
+    isCheckingPlan: token !== undefined && planTriedFor !== token,
     hasUsableAI: accountAnswers.hasUsableAI(getAllAIProviderConfigs()),
     notificationsAskable:
       notifications === "not-asked" || notifications === "provisional",
@@ -139,6 +143,8 @@ async function refreshPlanFact(): Promise<void> {
     };
   } catch {
     // Unknown: offline, or the API answered nothing usable.
+  } finally {
+    planTriedFor = token;
   }
 }
 

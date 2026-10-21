@@ -40,7 +40,11 @@ let planRead: undefined | { hasPlan: boolean; token: string };
 /** The notification status last read; `unknown` until the first read answers. */
 let notifications: NotificationStatus["status"] = "unknown";
 
-/** The facts as they stand, from what main holds now. Never waits. */
+/**
+ * The facts as they stand, read from the stores and the disk. Read again
+ * only when an input changes (`refreshSetupFacts`), since the window asks
+ * on every key press.
+ */
 function readSetupFacts(): SetupFacts {
   const workspace = getResolvedWorkspace();
   const token = getToken();
@@ -104,7 +108,11 @@ const SETTLE_DEADLINE_MS = 3000;
 
 let settled: Promise<void> | undefined;
 
-function changed() {
+let facts: SetupFacts | undefined;
+
+/** Reads the facts again and tells setup's readers. */
+export function refreshSetupFacts(): void {
+  facts = readSetupFacts();
   publisher.publish("setup.updated", null);
 }
 
@@ -116,7 +124,7 @@ function settle(): Promise<void> {
         claudeAccountStatusKnown(),
         refreshPlanFact(),
         refreshNotificationFact(),
-      ].map((read) => read.then(changed, changed)),
+      ].map((read) => read.then(refreshSetupFacts, refreshSetupFacts)),
     );
     await Promise.race([
       reads,
@@ -129,7 +137,7 @@ function settle(): Promise<void> {
 /** Reads the notification status again, after something may have changed it. */
 export async function refreshNotificationsForSetup(): Promise<void> {
   await refreshNotificationFact();
-  changed();
+  refreshSetupFacts();
 }
 
 /**
@@ -143,11 +151,11 @@ export function startSetupFacts(): void {
     "grok-account.updated",
     "provider-config.updated",
   ] as const) {
-    publisher.subscribe(event, changed);
+    publisher.subscribe(event, refreshSetupFacts);
   }
   publisher.subscribe("session.apiBearerToken.updated", () => {
-    changed();
-    void refreshPlanFact().then(changed);
+    refreshSetupFacts();
+    void refreshPlanFact().then(refreshSetupFacts);
   });
-  provideSetupFacts({ read: readSetupFacts, settle });
+  provideSetupFacts({ read: () => (facts ??= readSetupFacts()), settle });
 }

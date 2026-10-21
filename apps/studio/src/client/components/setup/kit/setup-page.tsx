@@ -2,13 +2,17 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { Button } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { motion, useReducedMotion } from "motion/react";
 import { type ReactNode } from "react";
+
+import { pageVariants, usePageArrival } from "./setup-page-switch";
 
 /**
  * One page of setup, as Figma draws every one: an optional picture over a
  * serif title and a gray line under it, the page's own content, and the
  * footer at the window's foot. The body scrolls on its own when the window
- * is zoomed past what fits, and the footer stays put.
+ * is zoomed past what fits, and the footer stays put. Inside a
+ * `SetupPageSwitch` the body slides in and out as setup moves.
  */
 export function SetupPage({
   align = "top",
@@ -30,9 +34,18 @@ export function SetupPage({
   subtitle?: ReactNode;
   title: ReactNode;
 }) {
+  const { arrives, direction } = usePageArrival();
+  const isReduced = useReducedMotion() ?? false;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-17">
+      <motion.div
+        animate="center"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-17"
+        custom={direction}
+        exit="exit"
+        initial={arrives ? "enter" : false}
+        variants={pageVariants(isReduced)}
+      >
         {/* Clear of the window's band, which lies over the page. */}
         <div className="shrink-0" style={{ height: `${TOOLBAR_HEIGHT}px` }} />
         <div
@@ -53,8 +66,11 @@ export function SetupPage({
           )}
           {children}
         </div>
+      </motion.div>
+      {/* Marked so a page leaving hides its footer at once. */}
+      <div className="contents" data-setup-footer>
+        {footer}
       </div>
-      {footer}
     </div>
   );
 }

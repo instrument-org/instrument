@@ -54,6 +54,16 @@ describe("folderAction", () => {
     });
   });
 
+  it("offers to leave a folder an earlier build is still updating where it is", () => {
+    expect(
+      folderAction({
+        seen: null,
+        summary: null,
+        verdict: { kind: "refused", reason: "unfinished" },
+      }),
+    ).toEqual({ type: "unfinished" });
+  });
+
   it("passes on any other refusal with its reason", () => {
     expect(
       folderAction({
@@ -65,6 +75,9 @@ describe("folderAction", () => {
   });
 
   it("counts in words", () => {
-    expect([count(1, "chat"), count(12, "chat")]).toEqual(["1 chat", "12 chats"]);
+    expect([count(1, "chat"), count(12, "chat")]).toEqual([
+      "1 chat",
+      "12 chats",
+    ]);
   });
 });

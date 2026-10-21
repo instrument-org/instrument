@@ -285,7 +285,7 @@ export function useCommandMenuRows({
       [
         { icon: <SunIcon />, label: "Light", value: "light" },
         { icon: <MoonIcon />, label: "Dark", value: "dark" },
-        { icon: <MonitorIcon />, label: "Auto", value: "system" },
+        { icon: <MonitorIcon />, label: "System", value: "system" },
       ] as const
     ).map(({ icon, label, value }) => ({
       detail: theme === value ? "Current" : undefined,

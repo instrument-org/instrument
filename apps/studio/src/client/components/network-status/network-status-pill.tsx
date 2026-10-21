@@ -6,7 +6,6 @@ import {
 } from "@/client/components/ui/hover-card";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type NetworkStatus } from "@/shared/network-status";
 import { CheckIcon } from "@phosphor-icons/react/Check";
@@ -38,24 +37,20 @@ function StatusIcon({ status }: { status: Shown }) {
   );
 }
 
+/** What setup's pill says: there is no app to fall back on yet, so offline asks to connect. */
+const SETUP_LABELS: Record<Shown, string> = {
+  offline: "You're offline. Connect to continue.",
+  "instrument-unreachable": "Can't reach Instrument",
+};
+
 /**
  * Setup's word that the computer is offline or Instrument's servers don't
- * answer, for its top-right corner. Absent while online; it says nothing
- * about where it sits, so the screen that mounts it places it.
+ * answer, for its top-right corner, opening the app's card. Absent while
+ * online; it says nothing about where it sits, so the screen that mounts it
+ * places it.
  */
-export function SetupNetworkStatusPill({ className }: { className?: string }) {
-  const status = useNetworkStatus()?.status;
-  if (!status || status === "online") {
-    return null;
-  }
-  return (
-    <Badge className={cn(PILL_CLASS, className)} role="status">
-      <StatusIcon status={status} />
-      {status === "offline"
-        ? "You're offline. Connect to continue."
-        : "Can't reach Instrument"}
-    </Badge>
-  );
+export function SetupNetworkStatusPill() {
+  return <NetworkStatusIndicator labels={SETUP_LABELS} />;
 }
 
 /**
@@ -64,7 +59,15 @@ export function SetupNetworkStatusPill({ className }: { className?: string }) {
  * away by itself. In developer mode the unreachable card also names the API
  * server it expected, and in a development build the command that starts it.
  */
-export function NetworkStatusIndicator() {
+export function NetworkStatusIndicator({
+  labels = {
+    "instrument-unreachable": "Can't reach Instrument",
+    offline: "Offline",
+  },
+}: {
+  /** What the pill says for each status. */
+  labels?: Record<Shown, string>;
+}) {
   const data = useNetworkStatus();
   const isDeveloperMode = useDeveloperMode();
   const [open, setOpen] = useState(false);
@@ -73,7 +76,6 @@ export function NetworkStatusIndicator() {
     return null;
   }
   const { platformApiBaseUrl, status } = data;
-  const label = status === "offline" ? "Offline" : "Can't reach Instrument";
 
   return (
     <HoverCard
@@ -88,7 +90,7 @@ export function NetworkStatusIndicator() {
             buttons are carved out of it to take the pointer. */}
           <button onClick={() => setOpen(true)} type="button">
             <StatusIcon status={status} />
-            {label}
+            {labels[status]}
           </button>
         </Badge>
       </HoverCardTrigger>

@@ -1,6 +1,6 @@
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { Button } from "@/client/components/ui/button";
-import { nameOf } from "@/client/components/window/host-path";
+import { folderOf, nameOf } from "@/client/components/window/host-path";
 import { displayPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
@@ -10,9 +10,11 @@ import { SetupRowButton } from "./setup-row";
 
 /**
  * Where the Instrument folder will be: "Location" over a card with the
- * folder's path, from the home folder's own name, and Change at its end.
- * A note about the folder (`FolderNote`) goes inside the card, under the
- * path.
+ * folder's own name, where it is under that from the home folder's own
+ * name, and Change at its end. A long location gives way from its start,
+ * so the folders nearest the name stay. Without a `path` yet the card
+ * keeps its place with blank lines. A note about the folder (`FolderNote`)
+ * goes inside the card, under the path.
  */
 export function FolderLocation({
   children,
@@ -21,21 +23,35 @@ export function FolderLocation({
 }: {
   children?: ReactNode;
   onChange?: () => void;
-  path: string;
+  path?: string;
 }) {
-  const shown = displayPath(path);
-  const name = nameOf(path);
-  const parent = shown.endsWith(name) ? shown.slice(0, -name.length) : "";
+  const location = path === undefined ? undefined : displayPath(folderOf(path));
   return (
     <div className="flex w-140 max-w-full flex-col gap-1.5">
       <p className="pl-4 text-xs font-medium text-muted-foreground">Location</p>
       <div className="overflow-hidden rounded-2xl border bg-card">
         <div className="flex items-center gap-3 px-4 py-3">
           <FileSystemFolderGlyph className="h-5.75 w-7.5 shrink-0" />
-          <p className="flex min-w-0 flex-1 text-sm font-medium" title={shown}>
-            <span className="truncate text-muted-foreground">{parent}</span>
-            <span className="shrink-0 text-foreground">{name}</span>
-          </p>
+          {path === undefined ? (
+            <span aria-hidden className="flex flex-1 flex-col gap-1.5 py-0.5">
+              <span className="h-3.5 w-28 rounded-xs bg-muted" />
+              <span className="h-3 w-48 rounded-xs bg-muted/70" />
+            </span>
+          ) : (
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-sm font-medium text-foreground">
+                {nameOf(path)}
+              </span>
+              {/* Right to left only to put the ellipsis at the start; the
+                path itself reads left to right. */}
+              <span
+                className="truncate text-left text-xs text-muted-foreground [direction:rtl]"
+                title={displayPath(path)}
+              >
+                <bdi dir="ltr">{location}</bdi>
+              </span>
+            </span>
+          )}
           {onChange && (
             <Button
               className="h-9 px-1 text-brand-700 dark:text-brand-300"

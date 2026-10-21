@@ -7,6 +7,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { useState } from "react";
 
 import { SetupFooter, SetupPage } from "./kit/setup-page";
+import { SetupPageSwitch } from "./kit/setup-page-switch";
 import { type SetupPageProps } from "./setup-page-props";
 
 type ThemeOption = "dark" | "light" | "system";
@@ -14,7 +15,7 @@ type ThemeOption = "dark" | "light" | "system";
 const THEMES: { label: string; value: ThemeOption }[] = [
   { label: "Light", value: "light" },
   { label: "Dark", value: "dark" },
-  { label: "Auto", value: "system" },
+  { label: "System", value: "system" },
 ];
 
 /**
@@ -31,44 +32,50 @@ export function LookPage({
   const { setTheme, theme } = useTheme();
   const [isAllSet, setIsAllSet] = useState(false);
 
-  if (isAllSet) {
-    return <AllSetPage onFinish={onFinish} />;
-  }
   return (
-    <SetupPage
-      align="center"
-      footer={
-        <SetupFooter
-          onBack={onBack}
-          onContinue={() => {
-            if (isLast) {
-              setIsAllSet(true);
-            } else {
-              onContinue();
-            }
-          }}
-        />
-      }
-      subtitle="You can change this any time in Settings"
-      title="Pick a theme"
+    <SetupPageSwitch
+      depth={isAllSet ? 1 : 0}
+      page={isAllSet ? "all-set" : "look"}
     >
-      <div
-        className="mt-8 flex items-center gap-5 rounded-[32px] border-2 border-white/30 bg-white/30 p-6 dark:border-white/5 dark:bg-white/5"
-        role="radiogroup"
-      >
-        {THEMES.map((option) => (
-          <ThemeOptionButton
-            isSelected={theme === option.value}
-            key={option.value}
-            label={option.label}
-            onSelect={() => {
-              setTheme(option.value);
-            }}
-            value={option.value}
-          />
-        ))}
-      </div>
-    </SetupPage>
+      {isAllSet ? (
+        <AllSetPage onFinish={onFinish} />
+      ) : (
+        <SetupPage
+          align="center"
+          footer={
+            <SetupFooter
+              onBack={onBack}
+              onContinue={() => {
+                if (isLast) {
+                  setIsAllSet(true);
+                } else {
+                  onContinue();
+                }
+              }}
+            />
+          }
+          subtitle="You can change this any time in Settings"
+          title="Pick a theme"
+        >
+          <div
+            className="mt-8 flex items-center gap-5 rounded-[32px] border-2 border-white/30 bg-white/30 p-6 dark:border-white/5 dark:bg-setup-tile"
+            role="radiogroup"
+          >
+            {THEMES.map((option) => (
+              <ThemeOptionButton
+                isSelected={theme === option.value}
+                key={option.value}
+                label={option.label}
+                onSelect={() => {
+                  setTheme(option.value);
+                }}
+                value={option.value}
+              />
+            ))}
+          </div>
+        </SetupPage>
+      )}
+    </SetupPageSwitch>
   );
 }
 
@@ -96,7 +103,7 @@ function ThemeOptionButton({
           "rounded-2xl p-1.25 group-focus-visible:outline-[3px] group-focus-visible:outline-ring/50 group-focus-visible:[outline-style:solid]",
           isSelected
             ? "border-4 border-brand-500 p-1"
-            : "bg-card shadow-xs dark:bg-white/10",
+            : "bg-setup-tile shadow-xs",
         )}
       >
         <span className="relative block h-37.5 w-58 overflow-hidden rounded-[11px]">
@@ -185,7 +192,8 @@ function AppPicture({ dark }: { dark: boolean }) {
 
 /**
  * The last page (frame 15): one line and one button, which finishes setup.
- * The first name only when the Instrument account gave one.
+ * The first name only when the Instrument account gave one. Its words rise
+ * in as it arrives.
  */
 function AllSetPage({ onFinish }: { onFinish: () => void }) {
   const { data: user } = useLiveUser();
@@ -193,6 +201,7 @@ function AllSetPage({ onFinish }: { onFinish: () => void }) {
   return (
     <SetupPage
       align="center"
+      className="setup-rise-in"
       footer={<SetupFooter back={false} next="none" />}
       hero={<BrandMark className="mb-4" size={88} />}
       title={firstName ? `You're all set, ${firstName}` : "You're all set"}

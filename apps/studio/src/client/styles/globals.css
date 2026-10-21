@@ -122,6 +122,13 @@ body {
   --color-vignette-edge: var(--vignette-edge);
   --color-vignette-banner-top: var(--vignette-banner-top);
   --color-vignette-banner-bottom: var(--vignette-banner-bottom);
+  --color-setup-tile: var(--setup-tile);
+  --color-setup-perk-search: var(--setup-perk-search);
+  --color-setup-perk-search-ink: var(--setup-perk-search-ink);
+  --color-setup-perk-dictation: var(--setup-perk-dictation);
+  --color-setup-perk-dictation-ink: var(--setup-perk-dictation-ink);
+  --color-setup-perk-suggestions: var(--setup-perk-suggestions);
+  --color-setup-perk-suggestions-ink: var(--setup-perk-suggestions-ink);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
@@ -258,6 +265,15 @@ body {
   --vignette-edge: rgb(10 13 18 / 0.06);
   --vignette-banner-top: #cddff2;
   --vignette-banner-bottom: #eaf0f7;
+  /* Setup's tiles over its ground (the free account's perks, the themes to
+     pick), and the tinted wells of the perks' icons with their icons' ink. */
+  --setup-tile: var(--card);
+  --setup-perk-search: #c8fae5;
+  --setup-perk-search-ink: var(--foreground);
+  --setup-perk-dictation: #c8ecef;
+  --setup-perk-dictation-ink: var(--foreground);
+  --setup-perk-suggestions: #c5d8e8;
+  --setup-perk-suggestions-ink: var(--foreground);
   --background: var(--gray-50);
   --foreground: var(--gray-950);
   --card: #ffffff;
@@ -418,6 +434,13 @@ body {
   --vignette-edge: rgb(255 255 255 / 0.08);
   --vignette-banner-top: color-mix(in oklab, #cddff2 30%, var(--gray-800));
   --vignette-banner-bottom: color-mix(in oklab, #eaf0f7 12%, var(--gray-800));
+  --setup-tile: rgb(255 255 255 / 0.04);
+  --setup-perk-search: color-mix(in oklab, #3fd8a0 18%, transparent);
+  --setup-perk-search-ink: #c8fae5;
+  --setup-perk-dictation: color-mix(in oklab, #3cc3cf 18%, transparent);
+  --setup-perk-dictation-ink: #c8ecef;
+  --setup-perk-suggestions: color-mix(in oklab, #6c9fd0 22%, transparent);
+  --setup-perk-suggestions-ink: #c5d8e8;
   --foreground: #ffffff;
   --card: var(--gray-800);
   --card-foreground: #ffffff;
@@ -1720,23 +1743,12 @@ a.cursor-pointer {
   }
 }
 
-/* Setup's pictures that are drawn as a fixed light picture in both themes
-   (the packed folder): the vignette tokens at their light values. */
-@utility vignettes-light {
-  --vignette-paper: #ffffff;
-  --vignette-paper-muted: var(--gray-50);
-  --vignette-band: var(--gray-100);
-  --vignette-head: var(--brand-50);
-  --vignette-ink: var(--gray-300);
-  --vignette-ink-faint: var(--gray-200);
-  --vignette-edge: rgb(10 13 18 / 0.06);
-}
-
 /* Welcome's picture (Neil's welcome burst): the app icon scales in, then six
- * pages spring out from behind it to their tilts, once. Each page sets
- * where it starts (`--burst-x`, `--burst-y`), its tilt (`--burst-rotate`)
- * and when it leaves (`--burst-delay`); with reduced motion it sits at its
- * end from the start. */
+ * pages spring out from behind it to their tilts, once; the folder page's
+ * packed folder springs its pages up out of the folder the same way. Each
+ * page sets where it starts (`--burst-x`, `--burst-y`), its tilt
+ * (`--burst-rotate`) and when it leaves (`--burst-delay`); with reduced
+ * motion it sits at its end from the start. */
 @utility welcome-burst-page {
   transform: translate(0, 0) scale(1) rotate(var(--burst-rotate));
   @media (prefers-reduced-motion: no-preference) {
@@ -1771,6 +1783,25 @@ a.cursor-pointer {
   }
   to {
     transform: translate(0, 0) scale(1) rotate(var(--burst-rotate));
+  }
+}
+
+/* All set's words fading and rising in as the page arrives, once; with
+ * reduced motion they are there from the start. */
+@utility setup-rise-in {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: setup-rise-in 500ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+  }
+}
+
+@keyframes setup-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

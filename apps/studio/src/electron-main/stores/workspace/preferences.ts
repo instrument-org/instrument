@@ -54,9 +54,25 @@ export const WorkspacePreferencesSchema = z.object({
    * The experimental features the developer panel turns on. Here rather than
    * in a `features.json` of its own: a flag is one of the person's choices
    * for the workspace like the rest of these, and one file is one read, one
-   * write and one event.
+   * write and one event. Read flag by flag, so a file from a build with
+   * fewer flags keeps the ones it has, and one this build does not know is
+   * dropped.
    */
-  features: FeaturesSchema.catch(() => featuresAllOff()),
+  features: z
+    .record(z.string(), z.unknown())
+    .catch({})
+    .transform((stored) =>
+      FeaturesSchema.parse({
+        ...featuresAllOff(),
+        ...Object.fromEntries(
+          Object.entries(stored).filter(
+            ([name, value]) =>
+              FeatureNameSchema.safeParse(name).success &&
+              typeof value === "boolean",
+          ),
+        ),
+      }),
+    ),
   theme: z.enum(["light", "dark", "system"]).catch("system"),
 });
 

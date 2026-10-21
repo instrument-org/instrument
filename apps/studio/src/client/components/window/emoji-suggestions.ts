@@ -33,25 +33,34 @@ export function useEmojiSuggestions(
   all: Emoji[] | undefined,
   {
     debounceMs = 150,
+    personal,
   }: {
     /** How long typing has to pause before the text is asked about. */
     debounceMs?: number;
-  } = {},
+    /**
+     * Whether `text` is the person's own (a topic's name) rather than words
+     * typed into the picker's search; see `useDecision`.
+     */
+    personal: boolean;
+  },
 ) {
-  const [settled, setSettled] = useState(text.trim());
+  const [{ personal: settledPersonal, text: settled }, setSettled] = useState({
+    personal,
+    text: text.trim(),
+  });
   // Emptied at once rather than after the pause, so text that is gone (a
   // cleared field, a form opened afresh) is never answered for.
   if (!text.trim() && settled !== "") {
-    setSettled("");
+    setSettled({ personal, text: "" });
   }
   useEffect(() => {
     const timer = setTimeout(() => {
-      setSettled(text.trim());
+      setSettled({ personal, text: text.trim() });
     }, debounceMs);
     return () => {
       clearTimeout(timer);
     };
-  }, [debounceMs, text]);
+  }, [debounceMs, personal, text]);
 
   const questions = useMemo(() => (all ? questionsFor(all) : undefined), [all]);
   const byUnicode = useMemo(
@@ -71,6 +80,9 @@ export function useEmojiSuggestions(
       previousText !== "" &&
       (settled.startsWith(previousText) || previousText.startsWith(settled)),
     activity: { purpose: "emoji-suggestion", surface: "topics" },
+    // Personal while either the text asked about or the text on screen is,
+    // so a name settling behind a search typed over it is never sent.
+    personal: personal || settledPersonal,
     key: ["emoji-suggestions", settled],
   });
 

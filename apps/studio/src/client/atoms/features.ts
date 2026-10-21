@@ -6,6 +6,7 @@ import { atom } from "jotai";
 
 const defaultFeatures: Features = {
   context_ring: false,
+  suggestions_from_your_chats: false,
 };
 
 async function listen(

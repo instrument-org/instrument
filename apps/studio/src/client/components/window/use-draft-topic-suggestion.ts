@@ -75,6 +75,8 @@ export function useDraftTopicSuggestion({
         }
       : undefined,
     activity: { purpose: "topic-suggestion", surface: "draft" },
+    // The draft's words and the person's topics.
+    personal: true,
     key: ["draft-topic", settled, criteria],
   });
 

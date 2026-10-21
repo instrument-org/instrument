@@ -1,3 +1,4 @@
+import { featuresAtom } from "@/client/atoms/features";
 import { rpcClient, type RPCInput, type RPCOutput } from "@/client/rpc/client";
 import {
   type QueryKey,
@@ -5,6 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
 import ms from "ms";
 
 export type DecisionAsk = Omit<
@@ -49,6 +51,13 @@ export function useDecisionModelAvailable(enabled: boolean) {
  * answers come back as one. `checkAvailable` reads
  * whether the model can answer ahead of the first ask (a search box being
  * typed in), so the answer is known before it is needed.
+ *
+ * `personal` says whether the ask carries the person's own content (chat
+ * titles, a draft, a topic's name) rather than only words typed into a
+ * search over the app's own lists. A personal ask is sent only while the
+ * `suggestions_from_your_chats` flag is on; with it off the caller sees the
+ * model as out of reach, and nothing is asked, the availability check
+ * included.
  */
 export function useDecision({
   ask,
@@ -56,6 +65,7 @@ export function useDecision({
   keepPrevious,
   key,
   activity,
+  personal,
 }: {
   ask: DecisionAsk | DecisionAsk[] | undefined;
   checkAvailable?: boolean;
@@ -67,8 +77,14 @@ export function useDecision({
   keepPrevious?: (previousKey: QueryKey) => boolean;
   key: QueryKey;
   activity: DecisionActivity;
+  personal: boolean;
 }) {
-  const available = useDecisionModelAvailable(checkAvailable);
+  const { suggestions_from_your_chats: personalAllowed } =
+    useAtomValue(featuresAtom);
+  const allowed = !personal || personalAllowed;
+  const reachable = useDecisionModelAvailable(allowed && checkAvailable);
+  // Another caller's check may be cached; it says nothing about this ask.
+  const available = allowed ? reachable : false;
   const queryClient = useQueryClient();
   const sending = ask !== undefined && available === true;
   const query = useQuery<DecisionAnswer>({

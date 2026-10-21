@@ -90,7 +90,8 @@ export function EmojiGrid({
       ? words
       : ""
     : (context?.trim() ?? "");
-  const related = useEmojiSuggestions(about, all);
+  // Without a query, what is asked about is the name being marked.
+  const related = useEmojiSuggestions(about, all, { personal: !words });
   // No place is drawn for suggestions no model could give.
   const relatedSection =
     about && related.available ? (

@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-export const FeatureNameSchema = z.enum(["context_ring"]);
+export const FeatureNameSchema = z.enum([
+  "context_ring",
+  "suggestions_from_your_chats",
+]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
 
 export const FeaturesSchema = z.record(FeatureNameSchema, z.boolean());
@@ -21,5 +24,11 @@ export const FEATURE_METADATA: Record<
     description:
       "Show a context window usage ring in the prompt input for the active session.",
     title: "Context Ring",
+  },
+  suggestions_from_your_chats: {
+    code: "s",
+    description:
+      "The decision model reads your chat titles, drafts, and topic names to find chats by meaning, file drafts and chats under topics, and suggest an emoji for a topic's name.",
+    title: "Suggestions From Your Chats",
   },
 };

@@ -172,6 +172,8 @@ function useMeaningFallback({
         : undefined,
     checkAvailable,
     activity: { purpose: "settings-search", surface: "settings" },
+    // The search's words over the app's own settings.
+    personal: false,
     key: [
       "settings-search",
       settled,

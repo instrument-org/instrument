@@ -78,6 +78,8 @@ export function useChatSearchFallback({
         : undefined,
     checkAvailable: active,
     activity: { purpose: "chat-search", surface: "chats" },
+    // The titles of the person's chats.
+    personal: true,
     key: [
       "chat-search",
       settled,

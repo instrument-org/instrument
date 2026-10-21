@@ -96,6 +96,8 @@ export function useTopicBackfill({
       previousName !== "" &&
       (settled.startsWith(previousName) || previousName.startsWith(settled)),
     activity: { purpose: "topic-backfill", surface: "topics" },
+    // The person's chats and the topic's name.
+    personal: true,
     key: [
       "topic-backfill",
       settled,

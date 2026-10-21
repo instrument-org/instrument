@@ -465,6 +465,7 @@ function TopicForm({
     all,
     {
       debounceMs: 400,
+      personal: true,
     },
   );
   const [best] = suggestions;

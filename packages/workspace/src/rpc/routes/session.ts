@@ -7,7 +7,8 @@ import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { isWorking } from "../../lib/chat/activity";
 import { markChatStopped } from "../../lib/chat/chats";
 import { noteTaskStoppedOnCard } from "../../lib/chat/wake";
-import { closeAsksOf, openAsksOf } from "../../lib/chat/asks";
+import { closeAsksOf } from "../../lib/chat/asks";
+import { openAsksOf, openQuestions } from "../../lib/chat/open-asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { ChatReads } from "../../lib/chat-reads";
 import { StoreId } from "../../schemas/store-id";
@@ -72,10 +73,14 @@ const stop = base
     // lands on it.
     const pressedAt = new Date();
     const chatSessionId = sessionOfChat(input.id);
-    const stopsOwnTurn =
+    const reachesChat =
       chatSessionId !== undefined &&
-      (input.sessionId === undefined || input.sessionId === chatSessionId) &&
-      isWorking(input.id, chatSessionId);
+      (input.sessionId === undefined || input.sessionId === chatSessionId);
+    const stopsOwnTurn = reachesChat && isWorking(input.id, chatSessionId);
+    // A question the chat asked closes with the Stop, which its record says,
+    // so a chat waiting on one is marked stopped even with no turn to end.
+    const closesQuestions =
+      reachesChat && (await openQuestions(input.id)).length > 0;
     // A task whose turn ended with a card still up has no turn for the stop
     // to end, so nothing would say it stopped; read before its cards go.
     const waitingOnCard =
@@ -114,7 +119,9 @@ const stop = base
       closeAsksOf(input.id, input.sessionId),
       // The chat says the user stopped it until a turn starts after the
       // Stop, however far its turn had got, before it began included.
-      stopsOwnTurn ? markChatStopped(input.id, pressedAt) : undefined,
+      stopsOwnTurn || closesQuestions
+        ? markChatStopped(input.id, pressedAt)
+        : undefined,
     ]);
     // Not waited on, as a turn's end is not: its note waits out the
     // processes the stop ends.

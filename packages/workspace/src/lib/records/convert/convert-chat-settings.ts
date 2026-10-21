@@ -219,7 +219,12 @@ async function carryState(
       wrote = true;
       return {
         ...rest,
-        ...(asks !== undefined && { waitingOn: asks }),
+        // A question the agent asked is read from the chat's records.
+        ...(asks !== undefined && {
+          waitingOn: Array.isArray(asks)
+            ? asks.filter((ask) => !isRecord(ask) || ask.kind !== "question")
+            : asks,
+        }),
       };
     },
   );

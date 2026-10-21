@@ -35,7 +35,7 @@ import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { FFMPEG_PATH, FFPROBE_PATH } from "../../src/lib/ffmpeg";
 import { gitBinaryPath, gitSubprocessEnv } from "../../src/lib/git";
 import { isToolPart } from "../../src/lib/is-tool-part";
-import { openAsks } from "../../src/lib/chat/asks";
+import { openAsks } from "../../src/lib/chat/open-asks";
 import { updatePermissionSettings } from "../../src/lib/permissions/rules";
 import { workDir } from "../../src/lib/work-dir";
 import { type ChatId } from "../../src/schemas/chat-id";

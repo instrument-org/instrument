@@ -26,7 +26,11 @@ import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
-import { closeQuestion, openAsks, openAsksOf } from "../../lib/chat/asks";
+import {
+  answerQuestion,
+  openAsks,
+  openAsksOf,
+} from "../../lib/chat/open-asks";
 import { wakeAskers } from "../../lib/chat/wake";
 import { AskSchema } from "../../schemas/chat-state";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
@@ -329,7 +333,12 @@ const liveAsksRoute = base
         changes: [
           recordChanges(
             signal,
-            (change) => change.id === input.id && change.kind === "state",
+            // A card is this device's state; a question is in the records.
+            (change) =>
+              change.id === input.id &&
+              (change.kind === "state" ||
+                change.kind === "messages" ||
+                change.kind === "session"),
           ),
         ],
         read: () => openAsks(input.id),
@@ -352,7 +361,31 @@ const answerQuestionRoute = base
   )
   .output(z.void())
   .handler(async ({ context, input }) => {
-    const question = await closeQuestion(input.id, input.askId);
+    // The answer written onto the call is what closes the question, and what
+    // the card draws.
+    const question = await answerQuestion(
+      input.id,
+      input.askId,
+      async ({ askers, messageId }) => {
+        for (const { partId, sessionId } of askers) {
+          if (!partId) {
+            continue;
+          }
+          const written = await ChatWrites.updatePart(
+            { chatId: input.id, messageId, partId, sessionId },
+            (part) =>
+              part.type === "tool-choose" &&
+              part.state === "output-available" &&
+              "asked" in part.output
+                ? { ...part, output: { ...part.output, answer: input.answer } }
+                : part,
+          );
+          if (written.isErr()) {
+            throw written.error;
+          }
+        }
+      },
+    );
     if (!question) {
       throw new ORPCError("NOT_FOUND", {
         message: "That question was already answered.",
@@ -362,24 +395,6 @@ const answerQuestionRoute = base
       question.askers.map(async ({ partId, sessionId }) => {
         if (!partId) {
           return;
-        }
-        // On the call too, so the card draws the answer from its own part.
-        const written = await ChatWrites.updatePart(
-          {
-            chatId: input.id,
-            messageId: question.messageId,
-            partId,
-            sessionId,
-          },
-          (part) =>
-            part.type === "tool-choose" &&
-            part.state === "output-available" &&
-            "asked" in part.output
-              ? { ...part, output: { ...part.output, answer: input.answer } }
-              : part,
-        );
-        if (written.isErr()) {
-          context.workspaceConfig.captureException(written.error);
         }
         await wakeAskers(
           {

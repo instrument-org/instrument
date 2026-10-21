@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { openAsks } from "../lib/chat/asks";
+import { openAsks } from "../lib/chat/open-asks";
 import { grantFolder } from "../lib/chat/grants";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";

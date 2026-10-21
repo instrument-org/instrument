@@ -38,7 +38,7 @@ import { isTypedByUser } from "../src/lib/typed-by-user";
 import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
-import { openAsks } from "../src/lib/chat/asks";
+import { openAsks } from "../src/lib/chat/open-asks";
 import { ChatReads } from "../src/lib/chat-reads";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";

@@ -36,7 +36,7 @@ import path from "node:path";
 import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../../src/constants";
 import { getChatState } from "../../src/lib/chat-record";
 import { listChildTasks } from "../../src/lib/chat/children";
-import { openAsks } from "../../src/lib/chat/asks";
+import { openAsks } from "../../src/lib/chat/open-asks";
 import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";

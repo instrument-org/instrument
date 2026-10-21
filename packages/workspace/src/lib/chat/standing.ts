@@ -9,7 +9,8 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
-import { cardLine, openAsksOf } from "./asks";
+import { cardLine } from "./asks";
+import { openAsksOf } from "./open-asks";
 import { ChatReads } from "../chat-reads";
 import {
   type Derived,

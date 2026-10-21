@@ -18,7 +18,7 @@ import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { APP_FILE_NAME } from "../apps/app-file";
 import { chatRecords } from "../records/chat-records";
-import { recordAsk, recordQuestion } from "./asks";
+import { recordAsk } from "./asks";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { recordChanged, recordRemoved } from "../record-changes";
 import { ChatReads } from "../chat-reads";
@@ -143,6 +143,7 @@ async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
     input: { choices: ["Yes", "No"], question: "Which one?" },
     metadata: {
       ...partMetadata({ messageId, sessionId }),
+      createdAt: at(5),
       endedAt: at(5),
     },
     output: { asked: true as const },
@@ -168,21 +169,6 @@ async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
     await chatFor(sessionId),
   );
   expect(saved.isOk()).toBe(true);
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(at(5));
-  try {
-    await recordQuestion(
-      {
-        chatId: await chatFor(sessionId),
-        messageId,
-        partId: part.metadata.id,
-        sessionId,
-      },
-      "Which one?",
-    );
-  } finally {
-    vi.useRealTimers();
-  }
 }
 
 /** A finished reply, with words and whatever tool calls it made. */

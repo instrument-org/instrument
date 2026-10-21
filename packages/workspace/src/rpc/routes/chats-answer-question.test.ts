@@ -6,12 +6,8 @@ import path from "node:path";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { setChatModel } from "../../lib/chat-settings";
-import {
-  closeQuestions,
-  openAsks,
-  recordAsk,
-  recordQuestion,
-} from "../../lib/chat/asks";
+import { recordAsk } from "../../lib/chat/asks";
+import { openAsks } from "../../lib/chat/open-asks";
 import { ChatReads } from "../../lib/chat-reads";
 import { ChatWrites } from "../../lib/chat-writes";
 import { ensureChatSession } from "../../lib/create-session";
@@ -25,6 +21,7 @@ import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
+import { writeMessage } from "../../test/helpers/told-history";
 import { chats } from "./chats";
 import { permissions } from "./permissions";
 
@@ -112,11 +109,8 @@ async function chatAsking() {
   if (saved.isErr()) {
     throw saved.error;
   }
-  const askId = await recordQuestion(
-    { chatId, messageId, partId, sessionId },
-    "Which one?",
-  );
-  return { askId, chatId, messageId, partId, sessionId };
+  // A question is named by its call.
+  return { askId: partId, chatId, messageId, partId, sessionId };
 }
 
 it("closes the question, writes the answer onto the call, and wakes the chat with it", async () => {
@@ -184,8 +178,37 @@ it("keeps a permission answer from closing a question", async () => {
 it("closes the chat's questions when the person writes instead, and leaves its permission cards", async () => {
   const { chatId, sessionId } = await chatAsking();
   await recordAsk({ chatId, sessionId }, "folder", "/Users/me/Pantry");
+  expect((await openAsks(chatId)).map((ask) => ask.kind).toSorted()).toEqual([
+    "folder",
+    "question",
+  ]);
 
-  await closeQuestions(chatId);
+  await writeMessage(chatId, sessionId, "user", [
+    { state: "done", text: "Tea, please.", type: "text" },
+  ]);
 
   expect((await openAsks(chatId)).map((ask) => ask.kind)).toEqual(["folder"]);
+});
+
+it("keeps the question open past a note no one typed", async () => {
+  const { chatId, sessionId } = await chatAsking();
+
+  await writeMessage(chatId, sessionId, "user", [
+    {
+      data: { answer: "allowed", kind: "folder", target: "/Users/me/Pantry" },
+      type: "data-permissionAnswer",
+    },
+  ]);
+
+  expect((await openAsks(chatId)).map((ask) => ask.kind)).toEqual(["question"]);
+});
+
+it("closes the chat's questions when the person stops it", async () => {
+  const { chatId, sessionId } = await chatAsking();
+
+  (
+    await ChatWrites.stopped(chatId, sessionId, "person", new Date())
+  )._unsafeUnwrap();
+
+  expect(await openAsks(chatId)).toEqual([]);
 });

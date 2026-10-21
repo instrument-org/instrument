@@ -5,7 +5,8 @@ import { expect, it } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { cardLine, closeAsk, openAsks, recordAsk } from "./asks";
+import { cardLine, closeAsk, recordAsk } from "./asks";
+import { openAsks } from "./open-asks";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { rulesFor } from "../permissions/rules";
 

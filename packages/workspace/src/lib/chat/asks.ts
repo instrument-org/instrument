@@ -1,12 +1,8 @@
 import { ulid } from "ulid";
 
 import { type ChatId } from "../../schemas/chat-id";
-import {
-  type Ask,
-  type PermissionAsk,
-  type QuestionAsk,
-} from "../../schemas/chat-state";
-import { StoreId } from "../../schemas/store-id";
+import { type Ask, type PermissionAsk } from "../../schemas/chat-state";
+import { type StoreId } from "../../schemas/store-id";
 import { getChatState, updateChatState } from "../chat-record";
 import { getCurrentDate } from "../get-current-date";
 import { chatDir } from "../record-folders";
@@ -39,10 +35,7 @@ export async function recordAsk(
   };
   await updateChatState(chatDir(asker.chatId), (state) => {
     const asks = state.waitingOn;
-    const open = asks.find(
-      (ask): ask is PermissionAsk =>
-        ask.kind !== "question" && ask.kind === kind && ask.target === target,
-    );
+    const open = asks.find((ask) => ask.kind === kind && ask.target === target);
     if (!open) {
       return {
         waitingOn: [
@@ -69,60 +62,16 @@ export async function recordAsk(
   });
 }
 
-/**
- * Records a question the chat's agent asked with `choose`, so the card under
- * the call takes an answer for as long as it stays open. Every question is a
- * card of its own, however it is worded. Answers the ask's id.
- */
-export async function recordQuestion(
-  asker: Asker & { messageId: StoreId.Message; partId: StoreId.Part },
-  question: string,
-): Promise<string> {
-  const id = ulid();
-  await updateChatState(chatDir(asker.chatId), (state) => ({
-    waitingOn: [
-      ...state.waitingOn,
-      {
-        askedAt: getCurrentDate(),
-        askers: [{ partId: asker.partId, sessionId: asker.sessionId }],
-        id,
-        kind: "question",
-        messageId: asker.messageId,
-        question,
-      },
-    ],
-  }));
-  return id;
-}
-
-/**
- * Takes the chat's open questions off it, answering none: the person wrote
- * in the chat instead, which is their answer to whatever was asked.
- */
-export async function closeQuestions(chatId: ChatId): Promise<void> {
-  // Most messages find nothing to close, and are not worth a write.
-  if (!(await openAsks(chatId)).some((ask) => ask.kind === "question")) {
-    return;
-  }
-  await updateChatState(chatDir(chatId), (state) => ({
-    waitingOn: state.waitingOn.filter((ask) => ask.kind !== "question"),
-  }));
-}
-
-/** The chat's open asks, oldest first. */
-export async function openAsks(chatId: ChatId): Promise<Ask[]> {
-  const state = await getChatState(chatDir(chatId));
-  return state.waitingOn;
-}
-
-/** The chat's open asks a session is on, waiting to be woken with the answer, oldest first. */
-export async function openAsksOf(
+/** The chat's open permission cards, oldest first: this computer's. */
+export async function openPermissionAsks(
   chatId: ChatId,
-  sessionId: StoreId.Session,
-): Promise<Ask[]> {
-  return (await openAsks(chatId)).filter((ask) =>
-    ask.askers.some((asker) => asker.sessionId === sessionId),
-  );
+): Promise<PermissionAsk[]> {
+  return (await getChatState(chatDir(chatId))).waitingOn;
+}
+
+/** Asks oldest first. */
+export function sortAsks<T extends Ask>(asks: T[]): T[] {
+  return asks.toSorted((a, b) => a.askedAt.getTime() - b.askedAt.getTime());
 }
 
 /**
@@ -140,10 +89,7 @@ export function closeAsk(
   chatId: ChatId,
   askId: string,
 ): Promise<PermissionAsk | undefined> {
-  return closeWhere(
-    chatId,
-    (ask): ask is PermissionAsk => ask.id === askId && ask.kind !== "question",
-  );
+  return closeWhere(chatId, (ask): ask is PermissionAsk => ask.id === askId);
 }
 
 /**
@@ -157,28 +103,17 @@ export async function refusedByMacos(
 ): Promise<void> {
   await updateChatState(chatDir(chatId), (state) => ({
     waitingOn: state.waitingOn.map((ask) =>
-      ask.id === askId && ask.kind !== "question"
+      ask.id === askId
         ? { ...ask, allowed, status: "macos-refused" as const }
         : ask,
     ),
   }));
 }
 
-/** Takes an answered question off the chat, and answers what it was. */
-export function closeQuestion(
+/** Takes the card that matches off the chat. */
+async function closeWhere<Closed extends PermissionAsk>(
   chatId: ChatId,
-  askId: string,
-): Promise<QuestionAsk | undefined> {
-  return closeWhere(
-    chatId,
-    (ask): ask is QuestionAsk => ask.id === askId && ask.kind === "question",
-  );
-}
-
-/** Takes the ask that matches off the chat, so no answer closes the other kind. */
-async function closeWhere<Closed extends Ask>(
-  chatId: ChatId,
-  matches: (ask: Ask) => ask is Closed,
+  matches: (ask: PermissionAsk) => ask is Closed,
 ): Promise<Closed | undefined> {
   let closed: Closed | undefined;
   await updateChatState(chatDir(chatId), (state) => {
@@ -195,7 +130,8 @@ async function closeWhere<Closed extends Ask>(
  * Stop ends what the session waited on them for, and an answer would start
  * it again. A card another session still waits on stays up for that one,
  * and one nobody is left on goes. A later ask for the same thing, by any
- * session, raises a card of its own.
+ * session, raises a card of its own. A question is closed by the Stop's own
+ * record (`openQuestionsIn`).
  */
 export async function closeAsksOf(
   chatId: ChatId,
@@ -204,7 +140,9 @@ export async function closeAsksOf(
   const stays = (asker: Ask["askers"][number]) =>
     sessionId !== undefined && asker.sessionId !== sessionId;
   // Most stops find nothing to close, and are not worth a write.
-  if ((await openAsks(chatId)).every((ask) => ask.askers.every(stays))) {
+  if (
+    (await openPermissionAsks(chatId)).every((ask) => ask.askers.every(stays))
+  ) {
     return;
   }
   await updateChatState(chatDir(chatId), (state) => ({

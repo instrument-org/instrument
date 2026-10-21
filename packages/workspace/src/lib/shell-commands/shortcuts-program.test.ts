@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { openAsks } from "../chat/asks";
+import { openAsks } from "../chat/open-asks";
 import { createLocalBashEnv } from "../create-bash-env";
 import { seatbeltAvailable } from "../native-sandbox";
 import { grantApp } from "../permissions/apps";

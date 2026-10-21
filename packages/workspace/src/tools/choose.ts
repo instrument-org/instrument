@@ -2,7 +2,6 @@ import ms from "ms";
 import { ok } from "neverthrow";
 import { z } from "zod";
 
-import { recordQuestion } from "../lib/chat/asks";
 import { sessionRole } from "../lib/chat/children";
 import { executeError } from "../lib/execute-error";
 import { SessionMessageDataPart } from "../schemas/session/message-data-part";
@@ -15,11 +14,12 @@ const NoteSchema = z.string().trim().min(1).optional();
  * Ask the user a closed question.
  *
  * The call puts the question on a card under it and returns at once, so no
- * turn waits on the user: the question stays open on the chat (`asks`) until
- * they pick one of the choices, write their own answer, or skip it, and the
- * answer wakes the chat as a `data-questionAnswer`, the way a permission
- * card's does, and is written onto the call for the card. Writing in the
- * chat instead closes it unanswered.
+ * turn waits on the user: the call itself is the open question
+ * (`openQuestionsIn`) until they pick one of the choices, write their own
+ * answer, or skip it, and the answer wakes the chat as a
+ * `data-questionAnswer`, the way a permission card's does, and is written
+ * onto the call, which closes it. Writing in the chat instead closes it
+ * unanswered.
  *
  * The answered outputs are what a call returned when the turn waited on the
  * card, which transcripts from then still hold.
@@ -51,7 +51,7 @@ export const Choose = setupTool({
 }).create({
   description:
     "Put a question with multiple choice options to the user on a card in the chat. The card shows them your question and its choices, with a row for an answer in their own words, a note, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. It returns at once, and their answer reaches you later as a message of its own. If what you do next depends on the answer, end your turn here.",
-  execute: async ({ chatId, input, messageId, partId, sessionId }) => {
+  execute: async ({ chatId, sessionId }) => {
     // A task runs the chat's agent, questions included, where nobody sees a
     // card.
     if (sessionRole(chatId, sessionId) !== "chat") {
@@ -59,10 +59,6 @@ export const Choose = setupTool({
         "You are running in the background, where nobody sees a question: only the chat asks the user. Do what you can, and end your last message with a needs fence naming what you need.",
       );
     }
-    await recordQuestion(
-      { chatId, messageId, partId, sessionId },
-      input.question,
-    );
     return ok({ asked: true as const });
   },
   readOnly: true,

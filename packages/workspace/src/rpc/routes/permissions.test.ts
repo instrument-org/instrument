@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setChatModel } from "../../lib/chat-settings";
 import { appRefusal } from "../../lib/permissions/apps";
-import { openAsks, recordAsk } from "../../lib/chat/asks";
+import { recordAsk } from "../../lib/chat/asks";
+import { openAsks } from "../../lib/chat/open-asks";
 import { chatDenials } from "../../lib/permissions/denials";
 import {
   readPermissionSettings,

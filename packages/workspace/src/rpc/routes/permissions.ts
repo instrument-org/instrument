@@ -21,7 +21,8 @@ import {
   updatePermissionSettings,
 } from "../../lib/permissions/rules";
 import { appBundleId, grantApp } from "../../lib/permissions/apps";
-import { closeAsk, openAsks, refusedByMacos } from "../../lib/chat/asks";
+import { closeAsk, refusedByMacos } from "../../lib/chat/asks";
+import { openAsks } from "../../lib/chat/open-asks";
 import { grantFolder } from "../../lib/chat/grants";
 import { setDenied } from "../../lib/permissions/denials";
 import { wakeAskers } from "../../lib/chat/wake";

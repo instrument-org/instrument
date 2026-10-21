@@ -4,7 +4,7 @@ import { parallel, unique } from "radashi";
 import { z } from "zod";
 
 import { publisher } from "../../rpc/publisher";
-import { type Ask } from "../../schemas/chat-state";
+import { type Ask, type QuestionAsk } from "../../schemas/chat-state";
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -16,7 +16,8 @@ import { ChatWrites } from "../chat-writes";
 import { cappedTitle } from "../chat-folders/folder-name";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
-import { cardLine, openAsks } from "./asks";
+import { cardLine, openPermissionAsks, sortAsks } from "./asks";
+import { openQuestionsIn } from "./open-asks";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByRecords, kept, unkept } from "../workspace-index";
@@ -424,6 +425,8 @@ interface ChatDigest {
   spoken?: { at: number; text: string };
   /** The chat's own newest labeled step, in any turn, and when its message was sent. */
   lastStep?: { at: number; text: string };
+  /** The questions the chat's agent asked that are still open (`openQuestionsIn`). */
+  questions: QuestionAsk[];
   /** The step the chat's current turn is on, from its own calls since the newest message that started a turn. */
   stepInTurn?: string;
   /** Whether the user stopped the chat's own turn, and no turn has started since. */
@@ -525,7 +528,12 @@ async function chatFor(
     ownWorking,
     state,
     working,
-  } = stateOf(chatId, digest, filed, await openAsks(chatId));
+  } = stateOf(
+    chatId,
+    digest,
+    filed,
+    sortAsks([...(await openPermissionAsks(chatId)), ...digest.questions]),
+  );
   const ask = state === "working" ? undefined : anyAsk;
 
   const [lead] = runningTasks;
@@ -728,6 +736,7 @@ function digestOf(
       },
     }),
     ...(lastStep && { lastStep }),
+    questions: openQuestionsIn(messages, stop),
     ...(stepInTurn !== undefined && { stepInTurn }),
     stopped,
   };

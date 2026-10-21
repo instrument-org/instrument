@@ -78,7 +78,9 @@ export type PermissionAsk = z.output<typeof PermissionAskSchema>;
 /**
  * A question the chat's agent put to the person with `choose`, drawn as the
  * card under that call until they answer it, which wakes the chat with the
- * answer. Its one asker is the chat's own session, by the call's part.
+ * answer. Its one asker is the chat's own session, by the call's part, whose
+ * id is the question's. Read from the chat's records (`openQuestionsIn`),
+ * never kept in a state file.
  */
 const QuestionAskSchema = z.object({
   askedAt: z.coerce.date(),
@@ -103,12 +105,13 @@ export type Ask = z.output<typeof AskSchema>;
 
 // Where this device left off in a chat, in its own `state.<device>.json`.
 // Read on open, and across chats only by the chat list for its open cards,
-// through `openAsks`.
+// through `openPermissionAsks`.
 export const StoredChatStateSchema = z.object({
   browserTabs: z.array(HeldTabSchema).default([]),
-  // What the agent is waiting on the person to answer, oldest first. One
-  // that will not parse costs the chat its open cards alone.
-  waitingOn: z.array(AskSchema).catch([]).default([]),
+  // The folders and apps the agent is waiting on the person to allow,
+  // oldest first: this computer's to grant. One that will not parse costs
+  // the chat its open cards alone.
+  waitingOn: z.array(PermissionAskSchema).catch([]).default([]),
 });
 
 export type ChatState = z.output<typeof StoredChatStateSchema>;

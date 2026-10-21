@@ -42,7 +42,7 @@ import {
   listBackgroundProcesses,
 } from "../lib/background-processes";
 import { writeChatFolder } from "../lib/chat-folders/write-chat-folder";
-import { openAsks } from "../lib/chat/asks";
+import { openAsks } from "../lib/chat/open-asks";
 import * as children from "../lib/chat/children";
 import * as bashEnv from "../lib/create-bash-env";
 import * as recordFolders from "../lib/record-folders";
@@ -1503,6 +1503,8 @@ describe("sessionMachine", () => {
         </assistant>
       </session>"
     `);
+    // The open question is read from the chat's own session.
+    vi.spyOn(recordFolders, "sessionOfChat").mockReturnValue(result.sessionId);
     expect(
       (await openAsks(ChatIdSchema.parse(chatFolder))).map((ask) =>
         ask.kind === "question" ? ask.question : ask.target,

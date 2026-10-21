@@ -51,6 +51,7 @@ export async function writeMessage(
   role: "assistant" | "user",
   parts: (
     | Omit<SessionMessagePart.DataPart, "metadata">
+    | Omit<SessionMessagePart.TextPart, "metadata">
     | SessionMessagePart.Type
     | undefined
   )[],

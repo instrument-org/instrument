@@ -42,6 +42,9 @@ ba = "ba"
 FO = "FO"
 # xargs' `-P` with its count attached, written `-PN`.
 PN = "PN"
+# Web Audio's own names, which the platform spells the British way.
+AnalyserNode = "AnalyserNode"
+createAnalyser = "createAnalyser"
 
 [default.extend-words]
 # AsyncLocalStorage, as the comments that compare against it write it.

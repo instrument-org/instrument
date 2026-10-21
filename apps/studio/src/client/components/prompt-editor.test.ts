@@ -2,6 +2,7 @@ import { EditorState, TextSelection } from "prosemirror-state";
 import { describe, expect, it } from "vitest";
 
 import {
+  appendDictated,
   deleteTokenBackward,
   promptDocFromText,
   promptSchema,
@@ -74,5 +75,75 @@ describe("app mentions", () => {
     });
     expect(handled).toBe(true);
     expect(next && promptTextFromDoc(next.doc)).toBe("Check ");
+  });
+});
+
+describe("appendDictated", () => {
+  it.each([
+    [
+      "an empty box takes the words in its only line",
+      "",
+      "Hello there.",
+      "[Hello there.](dictated:)",
+    ],
+    [
+      "written text gets them after a space on its line",
+      "Draft this.",
+      "Then send it.",
+      "Draft this. [Then send it.](dictated:)",
+    ],
+    [
+      "a box ending on a fresh line is written on",
+      "Draft this\n",
+      "Then send it.",
+      "Draft this\n[Then send it.](dictated:)",
+    ],
+    [
+      "several dictated lines stay several",
+      "Draft",
+      "One\nTwo",
+      "Draft [One](dictated:)\n[Two](dictated:)",
+    ],
+    [
+      "a skill already in the box is left as its token",
+      "Use [$release](skill:release)",
+      "now",
+      "Use [$release](skill:release) [now](dictated:)",
+    ],
+  ])("%s", (_case, existing, dictated, expected) => {
+    const state = stateWithCaretAtEnd(existing);
+    const next = state.apply(appendDictated(state, dictated));
+    expect(promptTextFromDoc(next.doc)).toBe(expected);
+  });
+
+  it.each([
+    [
+      "dictated words between typed ones",
+      "Typed [then said](dictated:) and typed",
+    ],
+    ["a line that is all dictated", "[All said.](dictated:)"],
+    ["two dictated runs on a line", "[One](dictated:) and [two](dictated:)"],
+  ])("reads and writes %s unchanged", (_case, text) => {
+    expect(promptTextFromDoc(promptDocFromText(text))).toBe(text);
+  });
+
+  it("leaves words typed after dictated ones unmarked", () => {
+    const state = stateWithCaretAtEnd("");
+    const said = state.apply(appendDictated(state, "Said"));
+    const typed = said.apply(
+      said.tr.insertText(" typed", said.doc.content.size - 1),
+    );
+    expect(promptTextFromDoc(typed.doc)).toBe("[Said](dictated:) typed");
+  });
+
+  it("keeps the caret where it was typing", () => {
+    const doc = promptDocFromText("Draft this");
+    const state = EditorState.create({
+      doc,
+      schema: promptSchema,
+      selection: TextSelection.create(doc, 3),
+    });
+    const next = state.apply(appendDictated(state, "More."));
+    expect(next.selection.from).toBe(3);
   });
 });

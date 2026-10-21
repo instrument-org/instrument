@@ -20,6 +20,40 @@
   margin: 0;
 }
 
+/* The words being heard, where they will land: at the end of the last line,
+   the stretch still being heard fainter, then a short bar marking the spot.
+   Not part of the text, so the caret never enters it. */
+.prompt-editor .dictation-words {
+  user-select: none;
+}
+
+.prompt-editor .dictation-interim {
+  color: var(--muted-foreground);
+}
+
+.prompt-editor .dictation-landing {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  background: var(--brand-500);
+  animation: dictation-landing 1.2s ease-in-out infinite;
+}
+
+@keyframes dictation-landing {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prompt-editor .dictation-landing {
+    animation: none;
+  }
+}
+
 /* An empty ProseMirror paragraph is not `:empty`: the view appends a trailing
    `<br>` hack so the block stays focusable, so match that shape too. */
 .prompt-editor:has(p:only-child:empty)::before,

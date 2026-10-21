@@ -16,6 +16,7 @@ import { Button } from "../ui/button";
 export type ProviderSetupPage = "add-provider" | "welcome";
 
 export function ProviderSetupScreen({
+  heading,
   instrumentOnly,
   onAddProvider,
   onBack,
@@ -25,6 +26,8 @@ export function ProviderSetupScreen({
   page,
   signedIn,
 }: {
+  /** In place of the sign-in page's own title and line under it, for a sign-in a feature asked for. */
+  heading?: { subtitle: string; title: string };
   instrumentOnly?: boolean;
   onAddProvider?: () => void;
   onBack?: () => void;
@@ -108,14 +111,17 @@ export function ProviderSetupScreen({
 
           <div className="flex flex-col items-center gap-2 text-center">
             <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground">
-              {signedIn ? "Add an AI provider" : `Log in to ${APP_NAME}`}
+              {signedIn
+                ? "Add an AI provider"
+                : (heading?.title ?? `Log in to ${APP_NAME}`)}
             </h1>
             <p className="text-sm text-foreground/80">
               {signedIn
                 ? offersClaude
                   ? "Use the ChatGPT, Claude or Grok plan you already pay for."
                   : "Use the ChatGPT or Grok plan you already pay for."
-                : `${APP_NAME} is a desktop app for doing your best work with AI. It works in your files and its own browser, and connects with all your favorite apps.`}
+                : (heading?.subtitle ??
+                  `${APP_NAME} is a desktop app for doing your best work with AI. It works in your files and its own browser, and connects with all your favorite apps.`)}
             </p>
           </div>
         </div>

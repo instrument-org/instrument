@@ -19,6 +19,7 @@ import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { showConnectToast } from "@/client/lib/connect-toast";
 import { SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
+import { APP_NAME } from "@instrument-org/shared";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtom } from "jotai";
 import { useState } from "react";
@@ -118,6 +119,14 @@ function LoginModalContent({
       </div>
       {instrumentOnly ? (
         <ProviderSetupScreen
+          heading={
+            props?.reason === "dictation"
+              ? {
+                  subtitle: `Dictation is free with an ${APP_NAME} account.`,
+                  title: "Log in to dictate",
+                }
+              : undefined
+          }
           instrumentOnly
           onContinue={onComplete}
           onLoginSuccess={(result) => {

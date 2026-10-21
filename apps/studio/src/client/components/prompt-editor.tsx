@@ -28,7 +28,8 @@ import { matchComposerActions } from "@/client/lib/composer-action-search";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { cn } from "@/client/lib/utils";
 import { baseKeymap, splitBlock } from "prosemirror-commands";
-import { history, redo, undo } from "prosemirror-history";
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
+import { closeHistory, history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { Slice } from "prosemirror-model";
 import {
@@ -53,8 +54,10 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { dictationKey, dictationPlugin } from "./prompt-editor-dictation";
 import {
   appOfNode,
+  appendDictated,
   deleteTokenBackward,
   deleteTokenForward,
   promptDocFromPastedText,
@@ -82,6 +85,7 @@ const editorAttributes = (placeholder?: string) => ({
 
 const editorPlugins = () => [
   slashMenuPlugin(),
+  dictationPlugin(),
   history(),
   keymap({
     Backspace: deleteTokenBackward,
@@ -108,6 +112,8 @@ const editorPlugins = () => [
  * mirroring the text stays accurate without a round trip back through props.
  */
 export interface PromptEditorRef {
+  /** Put dictated words at the end, after a space on the last line. */
+  appendDictation: (text: string) => void;
   clear: () => void;
   focus: () => void;
   getValue: () => string;
@@ -227,6 +233,8 @@ export function PromptEditor({
   bounds,
   commands = [],
   defaultValue,
+  dictating = false,
+  dictatingWords,
   disabled,
   onChange,
   onPaste,
@@ -246,6 +254,16 @@ export function PromptEditor({
   commands?: ComposerCommand[];
   /** Read once, when the document is built. Later changes are ignored. */
   defaultValue: string;
+  /**
+   * Someone is dictating into the box: a mark at the end of the words
+   * shows where theirs will land. The box stays editable meanwhile.
+   */
+  dictating?: boolean;
+  /**
+   * The words being heard, shown after the mark where they will land, the
+   * stretch still being heard fainter. Left out where they show elsewhere.
+   */
+  dictatingWords?: { interim: string; settled: string };
   disabled: boolean;
   onChange: (value: string) => void;
   onPaste: (event: ClipboardEvent) => boolean;
@@ -343,8 +361,11 @@ export function PromptEditor({
       attributes: editorAttributes(initialProps.placeholder),
       clipboardTextParser: (text) =>
         Slice.maxOpen(promptDocFromPastedText(text, currentSkills()).content),
+      // Copied words leave as they read: dictated ones without their mark.
       clipboardTextSerializer: (slice) =>
-        promptTextFromDoc(promptSchema.nodes.doc.create(null, slice.content)),
+        stripDictatedMarks(
+          promptTextFromDoc(promptSchema.nodes.doc.create(null, slice.content)),
+        ),
       dispatchTransaction: (transaction) => {
         const nextState = view.state.apply(transaction);
         view.updateState(nextState);
@@ -524,6 +545,30 @@ export function PromptEditor({
     }
   }, [disabled]);
 
+  const settledWords = dictatingWords?.settled;
+  const interimWords = dictatingWords?.interim;
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+    view.dispatch(
+      view.state.tr.setMeta(dictationKey, {
+        dictating,
+        words: dictating
+          ? { interim: interimWords ?? "", settled: settledWords ?? "" }
+          : undefined,
+      }),
+    );
+    // Follow the words being heard as they grow past what the box shows,
+    // without moving the caret.
+    if (dictating) {
+      view.dom
+        .querySelector(".dictation-landing")
+        ?.scrollIntoView({ block: "nearest" });
+    }
+  }, [dictating, settledWords, interimWords]);
+
   // Navigating between skills reuses this view, so the placeholder has to track
   // the prop rather than the value captured when the view was constructed.
   useEffect(() => {
@@ -596,6 +641,20 @@ export function PromptEditor({
   };
 
   useImperativeHandle(ref, () => ({
+    appendDictation: (text) => {
+      const view = viewRef.current;
+      if (!view) {
+        return;
+      }
+      // Its own undo step, apart from typing that just came before it.
+      const tr = closeHistory(appendDictated(view.state, text));
+      // Someone typing while the words were transcribed keeps their caret;
+      // otherwise it goes after the words, ready to carry on from them.
+      if (!view.hasFocus()) {
+        tr.setSelection(TextSelection.atEnd(tr.doc)).scrollIntoView();
+      }
+      view.dispatch(tr);
+    },
     clear: () => {
       replaceDocument("");
     },

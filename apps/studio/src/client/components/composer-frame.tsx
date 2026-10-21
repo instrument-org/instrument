@@ -22,6 +22,7 @@ export function ComposerFrame({
   actions,
   actionsInto,
   attachments,
+  below,
   children,
   extras,
   layout,
@@ -42,6 +43,11 @@ export function ComposerFrame({
    * words. Nothing is drawn until the element exists.
    */
   actionsInto?: HTMLElement | null;
+  /**
+   * A pill's row under its words, while something needs the room beside
+   * them; `leading` moves to its left end.
+   */
+  below?: React.ReactNode;
   /** Attached files, above the editor. Absent when nothing is attached. */
   attachments?: React.ReactNode;
   /** The editor. Fills the row it is given and scrolls past it. */
@@ -139,7 +145,12 @@ export function ComposerFrame({
           </div>
         ) : null}
         <div className="flex min-h-7 w-full items-end gap-1.5">
-          <div className="flex shrink-0 items-center self-end">{leading}</div>
+          {/* With a row below, the leading control moves down to it, so it
+              stays at the box's bottom left; its room here stays, so the
+              words keep their width. */}
+          <div className="flex shrink-0 items-center self-end">
+            {below ? <span aria-hidden="true" className="w-7" /> : leading}
+          </div>
           {/* `min-w-0`: a pasted link is one word as wide as a paragraph. */}
           {/* One 20px line box for the words and the placeholder alike, which
               the 4px above and below center in the row's 28px: the editor's own
@@ -160,6 +171,15 @@ export function ComposerFrame({
             {trailing}
           </div>
         </div>
+        {below ? (
+          <div
+            className="flex items-center justify-between gap-1.5 pt-1"
+            data-slot="composer-below"
+          >
+            <div className="flex shrink-0 items-center">{leading}</div>
+            {below}
+          </div>
+        ) : null}
       </div>
     );
   }

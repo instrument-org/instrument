@@ -9,6 +9,8 @@ import {
 import { flushWords, settleWords } from "@/client/drafts/settle-words";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
 import { type ChatId } from "@instrument-org/workspace/client";
+import { appendDictatedText } from "@/client/lib/dictation-text";
+import { dictatedToken } from "@instrument-org/shared/dictated-text";
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
 import { isEqual } from "radashi";
@@ -166,5 +168,32 @@ export const appendToPromptAtom = atom(
     }
     editor.focus();
     editor.insertText(text);
+  },
+);
+
+/**
+ * Dictated words for a draft: at the end, after a space on its last line,
+ * whether or not its composer is still up. A composer that
+ * went away while the words were being transcribed gets them in its stored
+ * value, which is what it is built from when it comes back.
+ */
+export const appendDictationToPromptAtom = atom(
+  null,
+  (get, set, { key, text }: { key: PromptDraftKey; text: string }) => {
+    const editor = get(promptDraftRefAtom(key));
+    if (editor) {
+      editor.appendDictation(text);
+      return;
+    }
+    // Marked as dictated, as the composer marks them, so the model still
+    // hears they were spoken once the draft comes back.
+    flushWords(draftKeyString(key));
+    set(commitWordsAtom, {
+      key,
+      words: appendDictatedText(
+        get(storedWordsAtom(key)),
+        dictatedToken(text.trim()),
+      ),
+    });
   },
 );

@@ -12,7 +12,12 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import { Textarea } from "@/client/components/ui/textarea";
+import {
+  DictatedTextarea,
+  useDictatedText,
+} from "@/client/components/dictation-controls";
+import { isDictating } from "@/client/hooks/use-dictation";
+import { REPORT_NOTE_MAX_LENGTH } from "@/shared/problem-reports";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { describeReport, SENT_CLOSE_MS } from "@/client/lib/problem-reports";
@@ -99,6 +104,12 @@ function ReportDialogContent({
 }) {
   const noteId = useId();
   const [note, setNote] = useState("");
+  const noteDictation = useDictatedText({
+    maxLength: REPORT_NOTE_MAX_LENGTH,
+    onChange: setNote,
+    surface: "report",
+    value: note,
+  });
   const [showDetails, setShowDetails] = useState(false);
   const [showData, setShowData] = useState(false);
   const [alwaysSend, setAlwaysSend] = useState(false);
@@ -181,10 +192,11 @@ function ReportDialogContent({
         <label className="text-xs font-medium" htmlFor={noteId}>
           {request.noteLabel}
         </label>
-        <Textarea
+        <DictatedTextarea
           autoFocus={request.focusNote}
           id={noteId}
-          maxLength={5000}
+          dictation={noteDictation}
+          maxLength={REPORT_NOTE_MAX_LENGTH}
           onChange={(event) => {
             setNote(event.target.value);
           }}
@@ -260,7 +272,12 @@ function ReportDialogContent({
           Don't Send
         </Button>
         <Button
-          disabled={details === undefined || send.isPending}
+          // Waits for dictated words, so the note goes with them.
+          disabled={
+            details === undefined ||
+            send.isPending ||
+            isDictating(noteDictation.phase)
+          }
           onClick={() => {
             send.mutate();
           }}

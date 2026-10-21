@@ -90,7 +90,7 @@ export interface DraftSend {
 const BAR_MARKS = 4;
 
 /** The most the words take before they scroll, whatever the window could give them. */
-const WORDS_MAX_HEIGHT = 400;
+const WORDS_MAX_HEIGHT = 192;
 
 /** A docked window's height, in layout px, however long the words run: they scroll inside it, and Expand is there for more room. */
 const COMPOSE_HEIGHT = 640;

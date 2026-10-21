@@ -906,7 +906,7 @@ export const PromptInput = ({
     });
   };
 
-  // Send pressed while recording waits for the words, then sends them with
+  // Enter pressed while recording waits for the words, then sends them with
   // whatever else is in the box. It goes on the render that has them, since
   // the send reads the draft as rendered.
   const sendWhenLanded = useRef(false);
@@ -919,13 +919,6 @@ export const PromptInput = ({
       submitLanded();
     }
   }, [value]);
-  const canSendWhileRecording =
-    dictation.phase.kind === "recording" &&
-    !isLoading &&
-    Boolean(modelURI && selectedModel);
-  const sendPressed =
-    dictation.phase.kind === "transcribing" &&
-    dictation.phase.pressed === "send";
   // The Send button and Enter alike. While recording, the words are
   // transcribed and appended first; while the mic opens or the words are on
   // their way, nothing goes, so a send never leaves them behind.
@@ -1118,11 +1111,11 @@ export const PromptInput = ({
                   <Button
                     aria-label="Send"
                     className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
-                    disabled={dictating ? !canSendWhileRecording : !canSubmit}
+                    disabled={!canSubmit}
                     onClick={send}
                     variant="brand"
                   >
-                    {isLoading || sendPressed ? (
+                    {isLoading ? (
                       <Spinner className="size-5" delay={0} />
                     ) : (
                       <ArrowUpIcon className="size-5" />
@@ -1320,11 +1313,11 @@ export const PromptInput = ({
                 <Button
                   aria-label="Send"
                   className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
-                  disabled={dictating ? !canSendWhileRecording : !canSubmit}
+                  disabled={!canSubmit}
                   onClick={send}
                   variant="brand"
                 >
-                  {isLoading || sendPressed ? (
+                  {isLoading ? (
                     <Spinner className="size-4" delay={0} />
                   ) : (
                     <ArrowUpIcon className="size-4" />

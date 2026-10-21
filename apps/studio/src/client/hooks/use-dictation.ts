@@ -96,11 +96,10 @@ export type DictationPhase =
   | { kind: "recording" }
   | { kind: "starting" }
   /**
-   * `pressed` is the control that ended the recording, which carries the
-   * spinner. `live` while the stream settles its last words, rather than
-   * the whole take being transcribed.
+   * `live` while the stream settles its last words, rather than the whole
+   * take being transcribed.
    */
-  | { kind: "transcribing"; live?: true; pressed: "send" | "stop" };
+  | { kind: "transcribing"; live?: true };
 
 export type Dictation = {
   /** Throws the recording away. Only while starting or recording. */
@@ -113,7 +112,7 @@ export type Dictation = {
   start: () => void;
   /**
    * Ends the recording and sends it to be transcribed. `onLanded` runs once the
-   * words have landed, which is how Send while recording sends.
+   * words have landed, which is how Enter while recording sends.
    */
   stop: (options?: { onLanded?: () => void }) => void;
 };
@@ -339,10 +338,7 @@ export function useDictation({
       return;
     }
     busy.current = true;
-    setPhase({
-      kind: "transcribing",
-      pressed: take.onLanded ? "send" : "stop",
-    });
+    setPhase({ kind: "transcribing" });
     void transcribe(take.audio, take.deliver, take.onLanded).finally(() => {
       busy.current = false;
     });
@@ -372,12 +368,10 @@ export function useDictation({
     playCue("stop");
     session.current = undefined;
     const length = capture.elapsedMs();
-    const pressed = onLanded ? "send" : "stop";
     const stream = current.live;
     const streaming = stream?.status === "live";
     setPhase({
       kind: "transcribing",
-      pressed,
       ...(streaming && { live: true }),
     });
     void capture
@@ -407,7 +401,7 @@ export function useDictation({
         // The stream missed some of the take, or never had it: the whole
         // recording is transcribed instead, as it would be without one.
         stream?.abort.abort();
-        setPhase({ kind: "transcribing", pressed });
+        setPhase({ kind: "transcribing" });
         return transcribe(audio, current.deliver, onLanded);
       })
       .finally(() => {

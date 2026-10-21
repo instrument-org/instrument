@@ -273,10 +273,7 @@ describe("useDictation", () => {
     act(() => {
       result.current.stop();
     });
-    expect(result.current.phase).toEqual({
-      kind: "transcribing",
-      pressed: "stop",
-    });
+    expect(result.current.phase).toEqual({ kind: "transcribing" });
     await waitFor(() => {
       expect(onText).toHaveBeenCalledWith("Hello there.");
     });
@@ -294,10 +291,7 @@ describe("useDictation", () => {
     act(() => {
       result.current.stop({ onLanded: () => order.push("send") });
     });
-    expect(result.current.phase).toEqual({
-      kind: "transcribing",
-      pressed: "send",
-    });
+    expect(result.current.phase).toEqual({ kind: "transcribing" });
     await waitFor(() => {
       expect(order).toEqual(["words", "send"]);
     });
@@ -639,7 +633,6 @@ describe("useDictation with a live stream", () => {
     expect(result.current.phase).toEqual({
       kind: "transcribing",
       live: true,
-      pressed: "stop",
     });
     await waitFor(() => {
       expect(mocks.finish).toHaveBeenCalledWith({ id: "s1" });
@@ -749,7 +742,7 @@ describe("sendDuringDictation", () => {
     [{ kind: "idle" }, "send"],
     [{ kind: "recording" }, "stop-then-send"],
     [{ kind: "starting" }, "wait"],
-    [{ kind: "transcribing", pressed: "stop" }, "wait"],
+    [{ kind: "transcribing" }, "wait"],
   ])("Enter or Send while %j does %s", (phase, action) => {
     expect(sendDuringDictation(phase)).toBe(action);
   });

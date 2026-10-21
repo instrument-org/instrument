@@ -1487,6 +1487,48 @@ describe("ChatBubbles and what a message went with", () => {
   });
 });
 
+// A developer card shows the note the model got, and a path in that note was
+// spelled for the shell on the computer that wrote it. These run as a Mac
+// (`window-stubs.ts`), reading a message a Windows computer wrote.
+describe("ChatStream's developer card for what was on screen", () => {
+  const onScreen = (file: { agentPath?: string; path: string }) =>
+    renderMessages(
+      [
+        {
+          ...userMessage("Sum this"),
+          parts: [
+            prose("Sum this"),
+            {
+              data: {
+                file: { ...file, name: "q1.csv" },
+                screen: "file",
+                url: "/computer",
+              },
+              metadata: metadata(),
+              type: "data-viewContext",
+            },
+          ],
+        },
+      ],
+      { isDeveloperMode: true },
+    ).container.textContent;
+
+  it("names the file as the shell on the writing computer spelled it", () => {
+    expect(
+      onScreen({
+        agentPath: "/c/Users/windows-user/Reports/q1.csv",
+        path: String.raw`C:\Users\windows-user\Reports\q1.csv`,
+      }),
+    ).toContain("showed the file `/c/Users/windows-user/Reports/q1.csv` open");
+  });
+
+  it("spells a path from before the shell's spelling was kept for this computer", () => {
+    expect(onScreen({ path: "/Users/mac-user/Reports/q1.csv" })).toContain(
+      "showed the file `/Users/mac-user/Reports/q1.csv` open",
+    );
+  });
+});
+
 // The dots promise a reply: they stand only while a step is writing words,
 // and every other kind of working is said under the chat's title instead.
 describe("ChatBubbles, and the typing dots", () => {

@@ -21,12 +21,13 @@ type Note = FoundNote | { kind: "denied" } | { kind: "unfinished" };
 
 /**
  * Where the Instrument folder lives (frames 05 to 09). Documents is
- * suggested, and nothing touches it until Continue, which is when a Mac that
- * guards Documents asks. A refusal falls back to the home folder with a note
+ * suggested, and nothing is made there until Continue, which is when a Mac
+ * that guards Documents asks. A refusal falls back to the home folder with a note
  * and Fix; a folder with things in it, or one that is already an Instrument
  * folder, says so as soon as it is on screen, and Continue goes on past it.
- * Moving restarts the app, so the page says that first and holds the step on
- * screen meanwhile.
+ * Moving the folder, or opening one that is already an Instrument folder,
+ * restarts the app, so the page says that first and holds the step on screen
+ * meanwhile.
  */
 export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   const { data: folder } = useQuery(rpcClient.workspaces.folder.queryOptions());
@@ -34,7 +35,8 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   const [picked, setPicked] = useState<null | string>(null);
   const [note, setNote] = useState<Note | null>(null);
   const [busy, setBusy] = useState(false);
-  const [moving, setMoving] = useState(false);
+  // What Continue is doing to the folder while the app restarts for it.
+  const [moving, setMoving] = useState<"move" | "open" | null>(null);
 
   // The folder on screen: the one picked, or the one in Documents setup
   // suggests, once the current folder has loaded.
@@ -89,7 +91,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
     how: { create: boolean; type: "move" } | { type: "open" },
   ) => {
     hold();
-    setMoving(true);
+    setMoving(how.type);
     try {
       if (how.type === "open") {
         const opened = await rpcClient.workspaces.open.call({ path });
@@ -112,12 +114,12 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
         }
         if (moved.kind === "refused") {
           if (moved.reason === "unfinished") {
-            setMoving(false);
+            setMoving(null);
             setNote({ kind: "unfinished" });
             return;
           }
           if (moved.reason === "unwritable" && path === current.inDocuments) {
-            setMoving(false);
+            setMoving(null);
             setPicked(current.inHome);
             setNote({ kind: "denied" });
             return;
@@ -130,7 +132,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
     } catch (error) {
       toast.error(`${APP_NAME} couldn’t move your folder`, { cause: error });
     }
-    setMoving(false);
+    setMoving(null);
   };
 
   const proceed = async () => {
@@ -226,9 +228,12 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
 
   const warning = targetCheck?.warning;
   return (
-    <SetupPageSwitch depth={moving ? 1 : 0} page={moving ? "moving" : "folder"}>
-      {moving ? (
-        <MovingPage usedBefore={usedBefore} />
+    <SetupPageSwitch
+      depth={moving === null ? 0 : 1}
+      page={moving === null ? "folder" : "moving"}
+    >
+      {moving !== null ? (
+        <MovingPage how={moving} usedBefore={usedBefore} />
       ) : (
         <SetupPage
           footer={
@@ -312,14 +317,33 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   );
 }
 
-/** What shows while the move restarts the app: the restart is said before it happens. */
-function MovingPage({ usedBefore }: { usedBefore: boolean }) {
+/**
+ * What shows while the move, or the open of a folder that is already an
+ * Instrument folder, restarts the app: the restart is said before it happens.
+ */
+function MovingPage({
+  how,
+  usedBefore,
+}: {
+  how: "move" | "open";
+  usedBefore: boolean;
+}) {
   return (
     <SetupPage
       align="center"
       hero={<Spinner className="size-6 text-muted-foreground" />}
-      subtitle={`${APP_NAME} restarts once to finish, then picks up right here.`}
-      title={usedBefore ? "Moving your chats" : "Setting up your folder"}
+      subtitle={
+        how === "open"
+          ? `${APP_NAME} restarts once to open it, then picks up right here.`
+          : `${APP_NAME} restarts once to finish, then picks up right here.`
+      }
+      title={
+        how === "open"
+          ? "Opening your folder"
+          : usedBefore
+            ? "Moving your chats"
+            : "Setting up your folder"
+      }
     />
   );
 }

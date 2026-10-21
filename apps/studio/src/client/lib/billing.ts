@@ -525,10 +525,13 @@ export function accountNotice(
     return { kind: "trial-ended" };
   }
   const models = status.features?.models;
+  // A trial held back is said only once a turn is refused for it; before
+  // that, the note offers a plan.
   if (status.plan === "free" && models && !models.available) {
     return {
       kind: "plan-required",
-      ...(models.reason && { reason: models.reason }),
+      ...(models.reason &&
+        !isTrialHeldBackReason(models.reason) && { reason: models.reason }),
     };
   }
   if (!canUseHostedModels(status)) {

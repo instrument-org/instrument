@@ -703,6 +703,26 @@ describe("the free allowance", () => {
     });
   });
 
+  // Before any refusal the note offers a plan, and says nothing of trials.
+  it.each(["trial-capacity", "trial-paused"])(
+    "leaves %s out of the note before any refusal",
+    (reason) => {
+      const status: Status = {
+        ...onFree(),
+        features: {
+          decisions: { available: true },
+          models: { available: false, code: "subscription-required", reason },
+          search: { available: true },
+        },
+      };
+      const notice = accountNotice(status, { ...offer, trial: null });
+      expect(notice).toEqual({ kind: "plan-required" });
+      expect(notice && noticeCopy(notice, NOW).title).toBe(
+        "Instrument needs a plan.",
+      );
+    },
+  );
+
   it.each([
     { expected: undefined, feature: "decisions", status: onFree() },
     {

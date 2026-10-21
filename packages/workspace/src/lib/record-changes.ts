@@ -10,7 +10,7 @@ import { bumpChatGeneration } from "./chat-generation";
  *
  * - `messages`: a message or part of its transcript was written or removed.
  * - `session`: a session record, something a session keeps beside its
- *   transcript (its browser state, the baselines a turn is diffed against),
+ *   transcript (the sites its browser went to, who stopped its turn),
  *   or one of its settings (title, star, archive, unread, topic, model).
  * - `settings`: what this computer allows in it, the folders and apps
  *   granted or refused there (`permissions.json`).

@@ -12,7 +12,7 @@ Supersedes the backing-store phases of [conversation-storage.md](conversation-st
 - One log file per session per device, and one settings file per device. Every file has exactly one writer: the device its name carries.
 - A change is a new line, never an edit. The newest snapshot of a message or part wins.
 - Only settled records are written. Streaming deltas are never persisted, and there is no journal for them; a crash mid-reply loses the unfinished part, which then reads as interrupted.
-- Live data (a tool call's `activity` while its input streams, the task page's streaming text) stays in memory and goes to the window only. A card the person has not answered is the exception: it is kept under `waitingOn` in this device's state file for the chat (`state.<device>.json`), because the chat list reads every chat's open asks, and because a card is a question that has to be there again after a relaunch.
+- Live data (a tool call's `activity` while its input streams, the task page's streaming text) stays in memory and goes to the window only. A permission card the person has not answered is the exception: it is kept under `waitingOn` in this device's state file for the chat (`state.<device>.json`), because what it grants is this computer's, the chat list reads every chat's open asks, and a card has to be there again after a relaunch. A question the agent asked with `choose` is read from the log instead: its call, with no answer on it and nothing the person wrote or stopped since.
 - Images and every other binary a tool returns become blobs named by their hash in the chat's `blobs/`, which travel with the chat.
 - Big command output stays on this computer, in `work/<chat>/.tool-output/`, as today; the log keeps its head, tail and path.
 - One SQLite database per workspace on this computer, `workspace.db`: the index and the activity log.
@@ -78,7 +78,7 @@ A field set to the value it already holds writes nothing, so the file grows only
 
 What builds before wrote reads as settings: `marks.<device>.jsonl` is a settings file, a `mark` line a `set` line, a `settled` title the inverse of `auto`, an unread `{ byUser }` `"marked"` or `"new"`, and a `topics` list the topic it starts with. A device takes its own marks file over under the new name the first time it opens it to write, since it is that file's only writer; another device's keeps its name until that device does the same, and its bytes are unchanged, so a fold that already took them takes them once.
 
-`stoppedAt` goes. A stop is a `stopped` record in the session log, which carries `by: app | chat | user` and sits in order with the conversation, where a fact about a turn belongs. Stop on the chat's own turn writes one through `ChatRecords.stopped` at the moment it was pressed (`markChatStopped`), unless a user's stop from that moment on is already there, and the turn's own later save of its stop compares against the known stop, so the log carries one. The chat reads as stopped while that record's `at` is at or after the newest message that started a turn. The database converter writes a `stoppedAt` it finds as a `stopped` record by the user at that moment. A `stoppedAt` line an older settings file holds is read and left out: a stop matters only until the next turn, every one of those is long past, and a settings line has no place among a session log's records.
+`stoppedAt` goes. A stop is a `stop` record in the session log, which carries `by: person | agent | app` and sits in order with the conversation, where a fact about a turn belongs. Stop on the chat's own turn writes one through `ChatRecords.stopped` at the moment it was pressed (`markChatStopped`), unless a person's stop from that moment on is already there, and the turn's own later save of its stop compares against the known stop, so the log carries one. The chat reads as stopped while that record's `at` is at or after the newest message that started a turn. The database converter writes a `stoppedAt` it finds as a `stop` record by the person at that moment. A `stoppedAt` line an older settings file holds is read and left out: a stop matters only until the next turn, every one of those is long past, and a settings line has no place among a session log's records.
 
 The model is stored whole, `openai/gpt-6.1-sol?provider=chatgpt-account&providerConfigId=01M4RQ…`, and matched loosely on read: the exact configuration if this computer has it, otherwise any configuration of that provider, otherwise the workspace default. Storing less would break the person who has two accounts with one provider, and requiring an exact match would break every second computer, since the configuration id names a row that is this machine's.
 
@@ -109,17 +109,19 @@ Every line is one JSON object, keys in this order so a reader can skip by prefix
 | `session` | `format`, `id`, `chat`, `createdAt`, `device`, `app`; a task adds `parent`, `forkedAt`, `handle`, `title`; every log after the first adds `continues: {<log stem>: <seq>}`, how far its writer had read each earlier log of the session (a stem is `dev_X` or `dev_X.2`) | First line of every log. A file whose first line is not a header is refused, not repaired. | the immutable half of `sessions:<s>` |
 | `message` | `message: {id, role, metadata}`, today's `SessionMessage` | Newest snapshot per id wins. Messages ordered by id (ULID), as today. | `messages:<s>:<m>` |
 | `part` | `part`, today's part with `base64Data` swapped for `blob`, `mediaType`, `bytes` | Newest snapshot per part id wins. Parts ordered by id under their message. | `parts:<s>:<m>:<p>` |
-| `retract` | `messages: [ids]`, `why` | Drops those messages and their parts from the fold. Ids are never reused. | `removeMessage` |
+| `retract` | `messages: [ids]` | Drops those messages and their parts from the fold. Ids are never reused. | `removeMessage` |
 | `rollover` | `after`, `usableTokens` | Newest wins; same meaning as `rolledOverAfterMessageId` today. | two session fields |
-| `stopped` | `by: user, chat or app` | Applies until a message that starts a turn follows it. | `stoppedBy` |
-| `state` | `what: folders, apps, memory, processes or browser`, `value` | Newest per `what` wins; `null` clears. | the five baseline keys and `browser-state:<s>` |
+| `stop` | `by: person, agent or app` | Applies until a message that starts a turn follows it. | `stoppedBy` |
+| `sites` | `visited: [hosts]`, the whole list | Newest wins. | `browser-state:<s>` |
 | `set` (settings file only, no header) | `session`, `field`, `value`, `device`. Values as [the chat's own settings](#the-chats-own-settings) lists them | Across every device's settings file, newest `at` per (session, field) wins, ties going to the larger device id. A title the app may still rename never beats one that settled. The winning line's `at` is when it was set (today's `starredAt`, `archivedAt`, `unreadAt`, `titleSettledAt`). | the mark half of `sessions:<s>`, and `settings.json` |
 
 A session's history is its own logs; a task's is its parent's fold up to `forkedAt` (by message id, never by byte offset), then its own logs.
 
 Records from several logs of one session are ordered by place: the sum of the header's `continues` plus the record's own `seq`, ties going to `at`, then the log, then a hash of the line. That holds because a device that has read another device's newer records starts its next log with a header saying so, rather than appending to the old one. Two logs that each hold records past what the other's writer had read of that session are a fork: the fold keeps both continuations and flags the session. Its display is outside v1. A record is known by its log, place, `seq` and line hash, so an identical copy from a sync conflict folds once and a copy whose bytes differ keeps both.
 
-Dates inside `state` values and tool outputs come back as ISO strings; their readers coerce them.
+Dates inside tool outputs come back as ISO strings; their readers coerce them.
+
+What a session was last told of what changes under it (its folders, apps, memory, skills, background processes, computer) is not a record: the baseline's metadata holds the picture it began with and each note since carries what it brought the model up to, so it is read from the session's history (`last-told.ts`). The five baseline keys `chat.db` kept are left behind.
 
 ## Writing
 
@@ -144,9 +146,10 @@ Dates inside `state` values and tool outputs come back as ISO strings; their rea
 | A tool call runs | Read-modify-write at each state | `input-available` (before anything runs) and the final output are part lines. Input streaming and preliminary output stay in memory. |
 | A step finishes | Message row overwritten with usage and finish reason | A second message line for the same id |
 | Title, star, archive, unread, topic, model | Fields on the session row, through `saveMark`; the model in `settings.json` | A `set` line in this device's settings file |
-| Stop on the chat's own turn | `stoppedAt` on the session row | A `stopped` record in the session's log, at the moment Stop was pressed |
+| Stop on the chat's own turn | `stoppedAt` on the session row | A `stop` record in the session's log, at the moment Stop was pressed |
 | `updatedAt` every turn | Session row rewritten | Not stored: the newest record's `at` |
-| Baselines and browser hosts | Keys replaced whole | A `state` line per change |
+| Baselines | Keys replaced whole | Nothing: read from the notes in the session's history |
+| Browser hosts | Key replaced whole | A `sites` line per new host |
 | Rollover | Two session fields and a part on the newest message | A `rollover` line and the same `data-contextRollover` part line |
 | System prompt changes | Session-context messages deleted and written again | `retract` for the old ones, then new message and part lines |
 | A task starts | A session row with `parentId` and `forkedAtMessageId` | A new log whose header names `parent` and `forkedAt` |

@@ -84,7 +84,7 @@ export function readSettings(
 
 /**
  * A `stoppedAt` line, which builds before kept a Stop on the chat's own turn
- * as: that Stop is a `stopped` record in the session's log now. Such a line
+ * as: that Stop is a `stop` record in the session's log now. Such a line
  * says nothing a fold uses, since a stop holds only until the next turn,
  * and counting it as unreadable would make a file of them look damaged.
  */

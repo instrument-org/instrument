@@ -138,7 +138,7 @@ describe("readSettings", () => {
     expect(read.records.map(({ record }) => record.seq)).toEqual([0, 1]);
   });
 
-  // A Stop is a `stopped` record in the session's log; the setting older
+  // A Stop is a `stop` record in the session's log; the setting older
   // files kept it as says nothing a fold uses, and is not damage.
   it.each(["mark", "set"])(
     "leaves out a %s line of the retired stoppedAt, without counting it skipped",

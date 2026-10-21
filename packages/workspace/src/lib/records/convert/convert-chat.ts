@@ -468,7 +468,7 @@ function lastUpdate(session: Session.Type): Date {
 }
 
 /**
- * The stop a session row says, as a `stopped` record holds it: who ended a
+ * The stop a session row says, as a `stop` record holds it: who ended a
  * task's turn (`stoppedBy`), at the session's last update, which is all the
  * row says of when; else the user's Stop on the chat's own turn
  * (`stoppedAt`), at the moment it was pressed.

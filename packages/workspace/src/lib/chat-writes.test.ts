@@ -429,7 +429,7 @@ describe("a chat written through its records", () => {
     ).toBe("person");
   });
 
-  // Stop on the chat's own turn is a `stopped` record in its log, at the
+  // Stop on the chat's own turn is a `stop` record in its log, at the
   // moment it was pressed, which the turn's own save of its stop repeats.
   it("writes the person's Stop on the chat's own turn once, as of when they pressed it", async () => {
     const { chatId, sessionId } = await startChat();

@@ -351,7 +351,7 @@ export async function setChatTopic(
 
 /**
  * Records that the user stopped the chat's own turn at `at`, the moment they
- * pressed Stop, as a `stopped` record in its session's log: the chat reads as
+ * pressed Stop, as a `stop` record in its session's log: the chat reads as
  * stopped until a turn starts after it. A user's stop already there from
  * that moment on (the turn's own, saved as it ended) is that stop, and
  * nothing more is written.

@@ -68,16 +68,19 @@ describe("ask_permission", () => {
             "state": "refused",
           },
           "~/Desktop/Trips/2026": {
+            "agentTarget": "~/Desktop",
             "kind": "folder",
             "state": "asked",
             "target": "~/Desktop",
           },
           "~/Desktop/copy.md": {
+            "agentTarget": "~/Desktop",
             "kind": "folder",
             "state": "asked",
             "target": "~/Desktop",
           },
           "~/Music/Loops": {
+            "agentTarget": "~/Music",
             "kind": "folder",
             "state": "asked",
             "target": "~/Music",

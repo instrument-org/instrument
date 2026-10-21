@@ -111,9 +111,18 @@ export namespace SessionMessageDataPart {
   // gone. The standing folder
   // list lives in the session context, which is written once and rebuilt at
   // most hourly, so this is what gets a change to the model the same turn.
+  const ChangedFolderSchema = z.object({
+    /**
+     * The folder as the agent's shell spelled it when the note was written,
+     * which is what the model is told. Absent on a note written before it
+     * was kept.
+     */
+    agentPath: z.string().optional(),
+    path: z.string(),
+  });
   const FolderChangesDataPartSchema = z.object({
-    added: z.array(z.object({ path: z.string() })),
-    removed: z.array(z.object({ path: z.string() })),
+    added: z.array(ChangedFolderSchema),
+    removed: z.array(ChangedFolderSchema),
   });
 
   export type FolderChangesDataPart = z.output<
@@ -824,6 +833,8 @@ export namespace SessionMessageDataPart {
     chosen: z
       .array(
         z.object({
+          /** Its path as the agent's shell spelled it when the message was stored, which the model is told. */
+          agentPath: z.string().optional(),
           kind: z.enum(["file", "folder"]),
           mount: z.string().optional(),
           name: z.string(),
@@ -834,6 +845,8 @@ export namespace SessionMessageDataPart {
     /** A file open on This Mac, as the person writes its path. */
     file: z
       .object({
+        /** Its path as the agent's shell spelled it when the message was stored, which the model is told. */
+        agentPath: z.string().optional(),
         /** Its path when a granted folder covers it, which the chat lists as sent. */
         mount: z.string().optional(),
         name: z.string(),

@@ -45,7 +45,10 @@ function chosenNote(data: ViewContext, shellPath: ShellPath) {
     return "";
   }
   const named = chosen
-    .map((entry) => `the ${entry.kind} \`${shellPath(entry.path)}\``)
+    .map(
+      (entry) =>
+        `the ${entry.kind} \`${entry.agentPath ?? shellPath(entry.path)}\``,
+    )
     .join("; ");
   return systemNote`
     They chose to send ${chosen.length === 1 ? "this" : "these"} with the message: ${named}. "This", "these" and "it" refer to ${chosen.length === 1 ? "it" : "them"} first, then to what was on screen.
@@ -93,7 +96,7 @@ function fileNote(data: ViewContext, shellPath: ShellPath) {
     ? ` It sits in \`${data.folder.display}\`, which "this folder" means.`
     : "";
   return systemNote`
-    When the user sent this, the folder view showed the file \`${shellPath(file.path)}\` open. "This file", "this" and "it" refer to it.${folder}
+    When the user sent this, the folder view showed the file \`${file.agentPath ?? shellPath(file.path)}\` open. "This file", "this" and "it" refer to it.${folder}
   `;
 }
 

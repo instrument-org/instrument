@@ -133,4 +133,31 @@ describe("viewContextModelNote", () => {
       </instrument-system-note>"
     `);
   });
+
+  // Stored as the shell spelled them when the message was sent, so a chat
+  // sent from Windows reads the same on a Mac.
+  it("names files by the path the message stored for the agent", () => {
+    const windows = (hostPath: string) =>
+      `/c/${hostPath.slice(3).replaceAll("\\", "/")}`;
+    const data = {
+      chosen: [
+        {
+          agentPath: "/c/Users/sam/a.txt",
+          kind: "file" as const,
+          name: "a.txt",
+          path: "C:\\Users\\sam\\a.txt",
+        },
+      ],
+      file: {
+        agentPath: "/c/Users/sam/b.txt",
+        name: "b.txt",
+        path: "C:\\Users\\sam\\b.txt",
+      },
+      screen: "file" as const,
+    };
+    const onMac = viewContextModelNote(data);
+    expect(onMac).toContain("`/c/Users/sam/b.txt`");
+    expect(onMac).toContain("`/c/Users/sam/a.txt`");
+    expect(viewContextModelNote(data, windows)).toBe(onMac);
+  });
 });

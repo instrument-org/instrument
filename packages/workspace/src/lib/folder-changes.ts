@@ -9,6 +9,7 @@ import { ChatReads } from "./chat-reads";
 import { chatGrants } from "./chat/grants";
 import { folderReach } from "./chat/folder-reach";
 import { baselineRecorded, partsAfter } from "./last-told";
+import { shellPath } from "./shell-path";
 
 /**
  * The granted folders the session's model was last told it reaches: what its
@@ -98,8 +99,12 @@ export function detectFolderChanges({
         return ok(undefined);
       }
 
+      // Spelled now, as the shell spells them on this computer, so the note
+      // reads the same wherever the chat is read later.
+      const spelled = (folders: ToldFolders) =>
+        folders.map(({ path }) => ({ agentPath: shellPath(path), path }));
       return ok({
-        data: { added, removed },
+        data: { added: spelled(added), removed: spelled(removed) },
         metadata: {
           createdAt: new Date(),
           id: StoreId.newPartId(),

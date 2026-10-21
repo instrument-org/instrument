@@ -54,6 +54,8 @@ export const AskPermission = setupTool({
   name: "ask_permission",
   outputSchema: z.discriminatedUnion("state", [
     z.object({
+      /** The target as the agent's shell spelled it when asked, which the model is told. */
+      agentTarget: z.string().optional(),
       kind: z.enum(["app", "folder"]),
       state: z.literal("asked"),
       /** The folder's absolute path, or the app's name, as the card names it. */
@@ -84,11 +86,7 @@ export const AskPermission = setupTool({
       const asker = { chatId, partId, reason: input.reason, sessionId };
       const macos = await decided.macos(asker);
       if (macos !== undefined) {
-        return ok({
-          kind: input.kind,
-          state: "asked" as const,
-          target: macos,
-        });
+        return ok(askedFor(input.kind, macos));
       }
     }
     if (decided.state !== "ask") {
@@ -103,11 +101,7 @@ export const AskPermission = setupTool({
       input.kind,
       decided.target,
     );
-    return ok({
-      kind: input.kind,
-      state: "asked" as const,
-      target: decided.target,
-    });
+    return ok(askedFor(input.kind, decided.target));
   },
   readOnly: true,
   timeoutMs: ms("10 seconds"),
@@ -116,7 +110,7 @@ export const AskPermission = setupTool({
       case "asked": {
         return {
           type: "text",
-          value: `The user now sees a card asking for ${JSON.stringify(shellPath(output.target))}. Their answer reaches you as a message of its own.`,
+          value: `The user now sees a card asking for ${JSON.stringify(output.agentTarget ?? shellPath(output.target))}. Their answer reaches you as a message of its own.`,
         };
       }
       case "allowed": {
@@ -131,6 +125,19 @@ export const AskPermission = setupTool({
     }
   },
 });
+
+/**
+ * The output for a card raised: a folder also as the shell spells it now,
+ * which is what the model is told on every later request.
+ */
+function askedFor(kind: "app" | "folder", target: string) {
+  return {
+    ...(kind === "folder" && { agentTarget: shellPath(target) }),
+    kind,
+    state: "asked" as const,
+    target,
+  };
+}
 
 type Decided =
   | { message: string; state: "refused" }

@@ -93,6 +93,8 @@ export const LoadSkill = setupTool({
       // the skill's own, a skill the app ships in the runtime folder, or a
       // Node skill's built copy beside its packages.
       skillDir: z.string(),
+      /** `skillDir` as the agent's shell spelled it when loaded, which the model is told. */
+      skillFolder: z.string().optional(),
       skillName: z.string(),
       state: z.literal("success"),
       truncated: z.boolean(),
@@ -176,6 +178,7 @@ export const LoadSkill = setupTool({
       name: skill.id,
       origin,
       skillDir,
+      skillFolder: shellPath(skillDir),
       skillName: skill.name,
       state: "success" as const,
       truncated,
@@ -205,7 +208,7 @@ export const LoadSkill = setupTool({
     }
 
     const skill = `$${FOLDER_VARIABLES.skill}`;
-    const skillPath = shellPath(output.skillDir);
+    const skillPath = output.skillFolder ?? shellPath(output.skillDir);
     const locationSection = `This skill's folder is \`${skillPath}\`, which the shell names \`${skill}\` until you load another skill.`;
 
     const contentSection = output.contentTruncated

@@ -23,6 +23,20 @@ describe("folderChangesModelNote", () => {
     `);
   });
 
+  it("names a folder at the path the note stored for the agent", () => {
+    expect(
+      folderChangesModelNote({
+        added: [
+          {
+            agentPath: "/c/Users/sam/Projects",
+            path: "C:\\Users\\sam\\Projects",
+          },
+        ],
+        removed: [],
+      }),
+    ).toContain('- "Projects" at `/c/Users/sam/Projects`');
+  });
+
   it("describes removed folders", () => {
     expect(
       folderChangesModelNote({

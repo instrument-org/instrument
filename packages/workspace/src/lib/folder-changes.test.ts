@@ -88,7 +88,7 @@ describe("detectFolderChanges", () => {
 
     const changes = await changesSince([]);
 
-    expect(changes?.added).toEqual([{ path: downloads }]);
+    expect(changes?.added).toEqual([{ agentPath: downloads, path: downloads }]);
   });
 
   it("reports a removal beside a folder granted since", async () => {
@@ -98,8 +98,8 @@ describe("detectFolderChanges", () => {
 
     const changes = await changesSince([{ path: gone }]);
 
-    expect(changes?.added).toEqual([{ path: downloads }]);
-    expect(changes?.removed).toEqual([{ path: gone }]);
+    expect(changes?.added).toEqual([{ agentPath: downloads, path: downloads }]);
+    expect(changes?.removed).toEqual([{ agentPath: gone, path: gone }]);
   });
 
   it("reports nothing when the folders are as the model last saw them", async () => {
@@ -118,7 +118,9 @@ describe("detectFolderChanges", () => {
 
   it("counts a folder the last note told as told", async () => {
     await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
-    expect((await changesSince([]))?.added).toEqual([{ path: downloads }]);
+    expect((await changesSince([]))?.added).toEqual([
+      { agentPath: downloads, path: downloads },
+    ]);
 
     expect(await detect()).toBeUndefined();
   });

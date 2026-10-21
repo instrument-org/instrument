@@ -124,7 +124,7 @@ export async function newMessage({
 
   if (viewing) {
     parts.push({
-      data: await withTabHolders(chatId, viewing),
+      data: withAgentPaths(await withTabHolders(chatId, viewing)),
       metadata: {
         createdAt,
         id: StoreId.newPartId(),
@@ -412,6 +412,28 @@ function topicFolderPaths(
     );
     return reached ? [shellPath(reached.path)] : [];
   });
+}
+
+/**
+ * What the user had on screen, with each file and folder it names also as
+ * the agent's shell spells it on this computer: stored with the message, so
+ * the note says the same thing wherever the chat is read later.
+ */
+function withAgentPaths(
+  viewing: SessionMessageDataPart.ViewContextDataPart,
+): SessionMessageDataPart.ViewContextDataPart {
+  return {
+    ...viewing,
+    ...(viewing.chosen && {
+      chosen: viewing.chosen.map((entry) => ({
+        ...entry,
+        agentPath: shellPath(entry.path),
+      })),
+    }),
+    ...(viewing.file && {
+      file: { ...viewing.file, agentPath: shellPath(viewing.file.path) },
+    }),
+  };
 }
 
 /**

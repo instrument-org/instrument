@@ -7,7 +7,9 @@ import { shellPath } from "./workspace-fs-layout";
  * What changed about the folders granted in the chat since the model last
  * looked.
  *
- * Each folder is named the way the user names it, with its path beside it.
+ * Each folder is named the way the user names it, with its path beside it
+ * as the shell spelled it when the note was written; a note from before that
+ * was kept is spelled for this computer.
  */
 export function folderChangesModelNote(
   data: SessionMessageDataPart.FolderChangesDataPart,
@@ -18,7 +20,7 @@ export function folderChangesModelNote(
     const added = data.added
       .map(
         (folder) =>
-          `- "${folderLabel(folder.path)}" at \`${shellPath(folder.path)}\``,
+          `- "${folderLabel(folder.path)}" at \`${folder.agentPath ?? shellPath(folder.path)}\``,
       )
       .join("\n");
     lines.push(
@@ -30,7 +32,7 @@ export function folderChangesModelNote(
     const removed = data.removed
       .map(
         (folder) =>
-          `- "${folderLabel(folder.path)}" at \`${shellPath(folder.path)}\``,
+          `- "${folderLabel(folder.path)}" at \`${folder.agentPath ?? shellPath(folder.path)}\``,
       )
       .join("\n");
     lines.push(

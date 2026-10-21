@@ -96,19 +96,26 @@ describe("quietRefusedFolders", () => {
     );
   });
 
+  const refusals = [
+    "Error: /Users/sam/Desktop: Operation not permitted (os error 1)",
+    "Error: /Users/sam/shared: Permission denied (os error 13)",
+    "Error: /Users/sam/.ssh: Operation not permitted (os error 1)",
+    "",
+  ].join("\n");
+
+  it("leaves a refusal the rules allow as find said it off macOS", () => {
+    expect(quietRefusedFolders(refusals, closed, spell, "linux"))
+      .toMatchInlineSnapshot(`
+      "Error: /Users/sam/Desktop: Operation not permitted (os error 1)
+      Error: /Users/sam/shared: Permission denied (os error 13)
+      find: left out 1 folder the person keeps closed
+      "
+    `);
+  });
+
   it("names a folder macOS refused instead of blaming the person", () => {
-    expect(
-      quietRefusedFolders(
-        [
-          "Error: /Users/sam/Desktop: Operation not permitted (os error 1)",
-          "Error: /Users/sam/shared: Permission denied (os error 13)",
-          "Error: /Users/sam/.ssh: Operation not permitted (os error 1)",
-          "",
-        ].join("\n"),
-        closed,
-        spell,
-      ),
-    ).toMatchInlineSnapshot(`
+    expect(quietRefusedFolders(refusals, closed, spell, "darwin"))
+      .toMatchInlineSnapshot(`
       "Error: /Users/sam/shared: Permission denied (os error 13)
       find: macOS itself refused "/Users/sam/Desktop", not the person's settings. If the work needs it, ask for "/Users/sam/Desktop" with ask_permission: its card shows them how to let Instrument in. Never suggest Full Disk Access.
       find: left out 1 folder the person keeps closed

@@ -540,14 +540,16 @@ const FIND_REFUSED =
  * one line instead: over the home folder that is a line per closed entry,
  * dozens of them, where the shell's own find passes them quietly. A folder
  * the rules allow that was refused anyway with "Operation not permitted" is
- * macOS's own refusal, which the person did not choose, so it is named
- * rather than counted among theirs; "Permission denied" there is the
- * account's, which find's own line already says.
+ * macOS's own refusal on a Mac, which the person did not choose, so it is
+ * named rather than counted among theirs; "Permission denied" there is the
+ * account's, which find's own line already says, and so is either one off
+ * macOS.
  */
 export function quietRefusedFolders(
   stderr: string,
   closed: (hostPath: string) => boolean,
   spell: (hostPath: string) => string,
+  platform: NodeJS.Platform = process.platform,
 ): string {
   let left = 0;
   const macos: string[] = [];
@@ -560,7 +562,7 @@ export function quietRefusedFolders(
       left++;
       return false;
     }
-    if (refused.why === "Operation not permitted") {
+    if (platform === "darwin" && refused.why === "Operation not permitted") {
       macos.push(spell(refused.path));
       return false;
     }

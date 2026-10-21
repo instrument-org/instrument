@@ -1,0 +1,5 @@
+description: A beta tester's first launch of this build. Chats in a workspace in the app's own data, signed in to ChatGPT, finished work in the folder an earlier build used in Documents, and no setup record. Setup opens on Welcome back.
+workspace: documents
+outputFolder: documents
+signIns: [chatgpt]
+notifications: not-asked

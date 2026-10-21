@@ -4,6 +4,7 @@ import {
   type OAuthClientInformationFull,
   type OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
+import { err } from "neverthrow";
 import http from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +13,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type AppManifest, AppSlugSchema } from "./manifest";
 import { createMemoryAppsConfig } from "./memory-config";
 import { beginMcpOAuth } from "./mcp/oauth-flow";
+import { withAppMcpClient } from "./mcp/run";
 import { type McpOAuthStore } from "./mcp/oauth-provider";
 import { type OriginBound } from "./origin-bound";
 import { loadApp, writeAppFolder } from "./store";
@@ -22,6 +24,13 @@ import { runAppTest } from "./test-app";
 vi.mock("node:dns/promises", () => ({
   default: { lookup: vi.fn() },
 }));
+
+// The real client by default; a test that needs a server's failure stands one
+// in for a single call.
+vi.mock("./mcp/run", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./mcp/run")>();
+  return { ...actual, withAppMcpClient: vi.fn(actual.withAppMcpClient) };
+});
 
 const KEY = "sekret-key-0123";
 const ACCESS_TOKEN = "oauth-access-0123";
@@ -294,6 +303,42 @@ describe("an MCP app's sign-in", () => {
     expect(
       await getWorkspaceConfig().apps.connections.get(slug),
     ).not.toMatchObject({ status: "connected" });
+  });
+});
+
+describe("a local MCP server that fails to start", () => {
+  const slug = "local-mcp";
+  const manifest = {
+    auth: { envVar: "SERVICE_TOKEN", kind: "env" },
+    package: "service-mcp",
+    runtime: "node",
+    type: "mcp-local",
+  } satisfies AppManifest;
+
+  it("reports its stderr without the key it was handed", async () => {
+    useApps(
+      createMemoryAppsConfig({
+        credentials: {
+          [slug]: { origin: "node-package:service-mcp", value: KEY },
+        },
+      }),
+    );
+    await writeApp(slug, "Local", manifest);
+    vi.mocked(withAppMcpClient).mockResolvedValueOnce(
+      err({
+        message: `MCP server closed the connection. stderr: invalid token ${KEY}`,
+        reason: "connect",
+      }),
+    );
+
+    const report = await testApp(slug);
+
+    expect(report.checks.find((check) => check.name === "canary")).toEqual({
+      detail:
+        "MCP server closed the connection. stderr: invalid token [REDACTED]",
+      name: "canary",
+      status: "fail",
+    });
   });
 });
 

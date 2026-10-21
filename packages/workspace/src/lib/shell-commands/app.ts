@@ -38,6 +38,7 @@ import {
 import {
   credentialMovedMessage,
   lookupAppCredential,
+  redactorFor,
   requireAppCredential,
 } from "../apps/credential-origin";
 import { callMcpTool, listMcpTools } from "../apps/mcp/client";
@@ -422,20 +423,6 @@ function ok(stdout: string) {
   return { exitCode: 0, stderr: "", stdout };
 }
 
-/** Whatever authenticates the app, taken out of anything the agent will read. */
-async function redactorFor(app: AppInfo, credential: null | string) {
-  const oauthTokens =
-    app.manifest.type === "mcp" && app.manifest.auth.kind === "oauth"
-      ? (await getWorkspaceConfig().apps.oauth?.store.getTokens(app.slug))
-          ?.value
-      : undefined;
-  return (text: string) => {
-    let out = redactCredential(text, credential);
-    out = redactCredential(out, oauthTokens?.access_token ?? null);
-    return redactCredential(out, oauthTokens?.refresh_token ?? null);
-  };
-}
-
 /**
  * The app a subcommand names. With `connected`,
  * only one whose connection record is current, so a call never goes out on a
@@ -502,7 +489,7 @@ async function callAppTool({
   }
   const params = args();
   const credential = await requireAppCredential(app.slug, manifest);
-  const redact = await redactorFor(app, credential);
+  const redact = await redactorFor(app.slug, app.manifest, credential);
   const result = await withAppMcpClient({
     credential,
     manifest,
@@ -1180,7 +1167,7 @@ async function runTools(
     );
   }
   const credential = await requireAppCredential(app.slug, manifest);
-  const redact = await redactorFor(app, credential);
+  const redact = await redactorFor(app.slug, app.manifest, credential);
   const result = await withAppMcpClient({
     credential,
     manifest,

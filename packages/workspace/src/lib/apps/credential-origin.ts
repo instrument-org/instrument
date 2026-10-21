@@ -2,6 +2,7 @@ import { APP_COMMAND } from "../shell-commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type AppManifest } from "./manifest";
 import { credentialOrigin } from "./origin-bound";
+import { redactCredential } from "./request";
 
 /**
  * The words that send the agent back to the user when a secret is stored for
@@ -73,4 +74,21 @@ export async function requireAppCredential(
       return found.value;
     }
   }
+}
+
+/** Whatever authenticates the app, taken out of anything the agent will read. */
+export async function redactorFor(
+  slug: string,
+  manifest: AppManifest,
+  credential: null | string,
+) {
+  const oauthTokens =
+    manifest.type === "mcp" && manifest.auth.kind === "oauth"
+      ? (await getWorkspaceConfig().apps.oauth?.store.getTokens(slug))?.value
+      : undefined;
+  return (text: string) => {
+    let out = redactCredential(text, credential);
+    out = redactCredential(out, oauthTokens?.access_token ?? null);
+    return redactCredential(out, oauthTokens?.refresh_token ?? null);
+  };
 }

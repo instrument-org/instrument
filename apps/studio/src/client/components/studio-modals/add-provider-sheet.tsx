@@ -25,6 +25,11 @@ import {
   instrumentWayCopy,
 } from "@/client/lib/connect-copy";
 import { showConnectToast } from "@/client/lib/connect-toast";
+import {
+  MAIN_MODEL_TITLE,
+  MainModelList,
+  useMainModelChoice,
+} from "@/client/components/setup/model-page";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -45,7 +50,9 @@ const PLAN_PROVIDERS: PlanProvider[] = ["chatgpt", "claude", "grok"];
 type View =
   | { kind: "answer"; outcome: ConnectOutcome; provider: ConnectProvider }
   | { kind: "key" }
-  | { kind: "list" };
+  | { kind: "list" }
+  /** A way in connected or a key was added: the main model, as setup asks it. */
+  | { kind: "model" };
 
 /**
  * The Add a provider sheet: the plans people already pay for (ChatGPT,
@@ -53,7 +60,9 @@ type View =
  * Each plan connects right in its row, through the same flow as setup; an
  * answer other than ready takes the sheet over, in setup's words, with the
  * other ways in beside it and a way to try again. Signed out of Instrument,
- * its free trial is offered too.
+ * its free trial is offered too. Once one connects, or a key is added, the
+ * sheet asks for the main model the way setup does, which is where the
+ * default for new chats changes.
  */
 export function AddProviderSheet({
   onComplete,
@@ -86,7 +95,7 @@ export function AddProviderSheet({
     }
     if (outcome.kind === "ready") {
       showConnectToast(result, provider);
-      onComplete();
+      setView({ kind: "model" });
       return;
     }
     setView({ kind: "answer", outcome, provider });
@@ -132,6 +141,10 @@ export function AddProviderSheet({
   );
   const trialRow = hasToken === false && rowFor("instrument");
 
+  if (view.kind === "model") {
+    return <ModelView onDone={onComplete} />;
+  }
+
   if (view.kind === "key") {
     return (
       <div className="px-8 pt-8 pb-8">
@@ -139,7 +152,9 @@ export function AddProviderSheet({
           onBack={() => {
             setView({ kind: "list" });
           }}
-          onSuccess={onComplete}
+          onSuccess={() => {
+            setView({ kind: "model" });
+          }}
           providers={providerConfigs ?? []}
           submitLabel="Add"
         />
@@ -224,6 +239,41 @@ export function AddProviderSheet({
           }}
         />
       </div>
+    </SheetFrame>
+  );
+}
+
+/**
+ * Setup's main model step in the sheet: the same list and line, with Skip
+ * leaving the default where it is and Done making the one picked the
+ * default for new chats.
+ */
+function ModelView({ onDone }: { onDone: () => void }) {
+  const choice = useMainModelChoice();
+  return (
+    <SheetFrame
+      footer={
+        <>
+          <Button onClick={onDone} variant="ghost">
+            Skip
+          </Button>
+          <Button
+            disabled={choice.isLoading || choice.isSaving}
+            onClick={() => {
+              choice.save(onDone);
+            }}
+            variant="brand"
+          >
+            Done
+          </Button>
+        </>
+      }
+    >
+      <h2 className="font-serif text-[22px] font-medium text-foreground">
+        {MAIN_MODEL_TITLE}
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">{choice.subtitle}</p>
+      <MainModelList choice={choice} className="mt-6" />
     </SheetFrame>
   );
 }

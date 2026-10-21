@@ -34,6 +34,8 @@ const SLOW_LIST_MS = 10_000;
 const LATER =
   "We'll use the one you pick for new chats, and you can change it any time.";
 
+export const MAIN_MODEL_TITLE = "Pick your main model";
+
 /**
  * The main model (frames 04, 28 and 29): every model the connections list,
  * as one short list or, past a few, a searchable box that opens on
@@ -41,6 +43,42 @@ const LATER =
  * Continue makes the one picked the default.
  */
 export function ModelPage({ onBack, onContinue }: SetupPageProps) {
+  const choice = useMainModelChoice();
+  return (
+    <SetupPage
+      footer={
+        <SetupFooter
+          next={
+            choice.isLoading
+              ? "off"
+              : choice.models.length === 0
+                ? "quiet"
+                : "primary"
+          }
+          onBack={onBack}
+          onContinue={() => {
+            choice.save(onContinue);
+          }}
+          pending={choice.isSaving}
+        />
+      }
+      subtitle={choice.subtitle}
+      title={MAIN_MODEL_TITLE}
+    >
+      <MainModelList choice={choice} className="mt-7" />
+    </SetupPage>
+  );
+}
+
+type MainModelChoice = ReturnType<typeof useMainModelChoice>;
+
+/**
+ * The main model's choice, wherever it is asked (setup's model step, the
+ * Add a provider sheet once a provider connects): the models to pick from,
+ * the one recommended and the one picked, the line under the title, and
+ * `save`, which makes the one picked the default for new chats.
+ */
+export function useMainModelChoice() {
   const { data: list, isLoading } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
@@ -75,23 +113,40 @@ export function ModelPage({ onBack, onContinue }: SetupPageProps) {
         ? `${only.name} is connected${isShort ? "" : `, with ${String(models.length)} models ready`}. ${LATER}`
         : LATER;
 
-  const save = () => {
+  /** Makes the one picked the default, then `onDone`. */
+  const save = (onDone: () => void) => {
     const model = models.find((candidate) => candidate.uri === chosen);
     if (!model) {
       // Nothing listed to pick from: moving on leaves the default as it is.
-      onContinue();
+      onDone();
       return;
     }
-    saveDefault(
-      { modelURI: model.uri },
-      {
-        onSuccess: () => {
-          onContinue();
-        },
-      },
-    );
+    saveDefault({ modelURI: model.uri }, { onSuccess: onDone });
   };
 
+  return {
+    chosen,
+    isLoading,
+    isSaving: isPending,
+    isShort,
+    isSlow,
+    models,
+    recommended,
+    save,
+    setPicked,
+    subtitle,
+  };
+}
+
+/** The models to pick the main one from, as one short list or the searchable box. */
+export function MainModelList({
+  choice,
+  className,
+}: {
+  choice: MainModelChoice;
+  className?: string;
+}) {
+  const { chosen, isLoading, isShort, isSlow, models, recommended } = choice;
   const rowProps = (model: AIGatewayModel.Type) => ({
     icon: <ModelIcon model={model} />,
     id: `setup-model-${model.uri}`,
@@ -101,64 +156,50 @@ export function ModelPage({ onBack, onContinue }: SetupPageProps) {
     sub: model.family,
     value: model.uri,
   });
-
   return (
-    <SetupPage
-      footer={
-        <SetupFooter
-          next={isLoading ? "off" : models.length === 0 ? "quiet" : "primary"}
-          onBack={onBack}
-          onContinue={save}
-          pending={isPending}
-        />
-      }
-      subtitle={subtitle}
-      title="Pick your main model"
+    <RadioGroup
+      aria-label="Main model"
+      className={cn("grid-cols-[minmax(0,1fr)] gap-0", className)}
+      onValueChange={choice.setPicked}
+      value={chosen ?? ""}
     >
-      <RadioGroup
-        aria-label="Main model"
-        className="mt-7 gap-0"
-        onValueChange={setPicked}
-        value={chosen ?? ""}
-      >
-        {isLoading && !isSlow ? (
-          <div className="flex h-24 w-140 items-center justify-center rounded-2xl border bg-card">
-            <Spinner />
-          </div>
-        ) : models.length === 0 ? (
-          <p className="w-140 rounded-2xl border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-            Your models haven't loaded yet. You can pick one later in the reply
-            box.
-          </p>
-        ) : isShort ? (
-          <div className="flex w-140 max-w-full flex-col rounded-2xl border bg-card p-2">
-            {shortList(models, recommended).map((model, index, shown) => (
-              <div key={model.uri}>
-                {/* A rule between rows, left blank beside the picked one,
-                  whose own fill sets it apart. */}
-                {index > 0 && (
-                  <div
-                    className={cn(
-                      "ml-13 h-px",
-                      model.uri !== chosen &&
-                        shown[index - 1]?.uri !== chosen &&
-                        "bg-gray-100 dark:bg-white/5",
-                    )}
-                  />
-                )}
-                <ModelRow {...rowProps(model)} />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <LongList
-            count={models.length}
-            groups={(query) => longListGroups({ models, query, recommended })}
-            rowProps={rowProps}
-          />
-        )}
-      </RadioGroup>
-    </SetupPage>
+      {isLoading && !isSlow ? (
+        <div className="flex h-24 w-140 max-w-full items-center justify-center rounded-2xl border bg-card">
+          <Spinner />
+        </div>
+      ) : models.length === 0 ? (
+        <p className="w-140 max-w-full rounded-2xl border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+          Your models haven't loaded yet. You can pick one later in the reply
+          box.
+        </p>
+      ) : isShort ? (
+        <div className="flex w-140 max-w-full flex-col rounded-2xl border bg-card p-2">
+          {shortList(models, recommended).map((model, index, shown) => (
+            <div key={model.uri}>
+              {/* A rule between rows, left blank beside the picked one,
+                whose own fill sets it apart. */}
+              {index > 0 && (
+                <div
+                  className={cn(
+                    "ml-13 h-px",
+                    model.uri !== chosen &&
+                      shown[index - 1]?.uri !== chosen &&
+                      "bg-gray-100 dark:bg-white/5",
+                  )}
+                />
+              )}
+              <ModelRow {...rowProps(model)} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <LongList
+          count={models.length}
+          groups={(query) => longListGroups({ models, query, recommended })}
+          rowProps={rowProps}
+        />
+      )}
+    </RadioGroup>
   );
 }
 

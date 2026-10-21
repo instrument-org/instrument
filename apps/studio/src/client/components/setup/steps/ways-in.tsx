@@ -19,6 +19,7 @@ import {
 import { type ConnectFlow } from "@/client/hooks/use-connect-flow";
 import {
   CONNECT_NAMES,
+  CONNECT_PLANS,
   connectPageCopy,
   instrumentWayCopy,
   noCreditsPageCopy,
@@ -45,13 +46,6 @@ import { WelcomeBurst } from "../welcome-burst";
 type PlanProvider = Exclude<ConnectProvider, "instrument">;
 
 const PLAN_PROVIDERS: PlanProvider[] = ["chatgpt", "claude", "grok"];
-
-/** The plans each subscription counts, as the subscription list says them. */
-const SUBSCRIPTION_LINES: Record<PlanProvider, string> = {
-  chatgpt: "Plus, Pro or another paid plan",
-  claude: "Pro, Max or another paid plan",
-  grok: "SuperGrok or X Premium+. Pay through X? Sign in with your X account.",
-};
 
 /** A page of the ways in. Kept in the step's own state, never saved. */
 export type WaysInPage =
@@ -414,7 +408,7 @@ function SubscriptionRow({
         </BrandTile>
       }
       inList
-      line={SUBSCRIPTION_LINES[provider]}
+      line={CONNECT_PLANS[provider]}
       title={CONNECT_NAMES[provider]}
     />
   );

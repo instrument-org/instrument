@@ -18,7 +18,6 @@ import {
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
-import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { finishPlacingLeftovers } from "@/electron-main/rpc/routes/files";
@@ -30,14 +29,9 @@ import {
   openAppScreen,
   openAppWindow,
   updateAppWindowBackgroundColor,
-  warmAppWindowBehind,
 } from "@/electron-main/windows/app-window";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
-import {
-  openOnboardingWindow,
-  updateOnboardingWindowBackgroundColor,
-} from "@/electron-main/windows/onboarding";
 import { showHeldWindows } from "@/electron-main/windows/on-screen";
 import { revealChat } from "@/electron-main/windows/reveal-chat";
 import {
@@ -361,11 +355,7 @@ async function bootstrapPrimaryInstance() {
     });
   });
 
-  if (shouldShowOnboarding()) {
-    openOnboarding();
-  } else {
-    openAppWindow();
-  }
+  openAppWindow();
 
   // Let the initial window render before running the best-effort cache warmup.
   setTimeout(() => {
@@ -406,11 +396,7 @@ async function bootstrapPrimaryInstance() {
     // The Dock icon brings a window back once every window is closed. A
     // hidden window drawing a file's picture is not one to come back to.
     if (!getForegroundWindow()) {
-      if (shouldShowOnboarding()) {
-        openOnboarding();
-      } else {
-        openAppWindow();
-      }
+      openAppWindow();
     }
   });
   app.on("open-url", (event, url) => {
@@ -441,10 +427,6 @@ function focusForegroundWindow() {
   if (!app.isReady()) {
     return;
   }
-  if (shouldShowOnboarding()) {
-    openOnboarding();
-    return;
-  }
   ensureForegroundWindowVisible();
 }
 
@@ -461,15 +443,6 @@ function handleDeepLink(url: string) {
   }
 }
 
-/** Onboarding, with the app window loading off screen behind it. */
-function openOnboarding() {
-  warmAppWindowBehind(openOnboardingWindow());
-}
-
-function shouldShowOnboarding(): boolean {
-  return isSetupUp();
-}
-
 // Closing the last window quits outside macOS, where the window's own close
 // handler has already asked about running work. On macOS the app stays in the
 // Dock with its work going, and Cmd+Q asks.
@@ -480,6 +453,5 @@ app.on("window-all-closed", () => {
 });
 
 function applyThemeToWindows() {
-  updateOnboardingWindowBackgroundColor();
   updateAppWindowBackgroundColor();
 }

@@ -113,7 +113,7 @@ const changePlan = authenticated
 
 /**
  * Starts the free trial, the only way it starts, when the person picks it
- * (onboarding, the plan sheet, a refused chat); answers the billing status
+ * (setup, the plan sheet, a refused chat); answers the billing status
  * with the trial's end date.
  */
 const startTrial = authenticated.handler(async () => {

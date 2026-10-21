@@ -6,9 +6,8 @@ import { createContext, type ReactNode, useContext } from "react";
  * Layout px of window chrome across the top of the window that floating content
  * has to stay out of.
  *
- * Zero unless a window says otherwise, because most of what renders this app
- * has no such band: the onboarding window draws no toolbar, and a component
- * rendered on its own in a test has no window around it at all.
+ * Zero unless a window says otherwise: a component rendered on its own in a
+ * test has no window around it at all.
  */
 const ChromeInsetContext = createContext(0);
 

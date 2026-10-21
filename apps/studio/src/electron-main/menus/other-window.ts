@@ -60,7 +60,7 @@ export function createOtherWindowViewMenu({
       { type: "separator" as const },
       // Custom CSS `zoom` (not Electron's native page zoom), so these windows
       // share the app's zoom mechanism and persisted level. See
-      // OnboardingZoomRoot. Rendered out of the app's own zoom, the app
+      // WindowZoomRoot. Rendered out of the app's own zoom, the app
       // leaves embedded web content untouched and independent of it.
       {
         ...WINDOW_MENU_SHORTCUTS.actualSize,

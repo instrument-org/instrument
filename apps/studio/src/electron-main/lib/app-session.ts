@@ -31,7 +31,7 @@ export function configureAppSession(ses: Session): void {
 let appSession: null | Session = null;
 
 /**
- * The Chromium profile the app and onboarding windows run on, one per
+ * The Chromium profile the app window runs on, one per
  * workspace on this computer, so two workspaces never share cookies or
  * caches. What the windows keep across launches is not here but in files the
  * main process owns (`stores/workspace/kept-state.ts`). The in-app browser

@@ -55,7 +55,7 @@ declare global {
       // The two-letter country the OS region names, which dates and numbers
       // are formatted by. Absent outside Electron or when the OS names none.
       systemRegion?: string;
-      windowType?: "app" | "onboarding";
+      windowType?: "app";
     };
     electron: ElectronAPI;
   }

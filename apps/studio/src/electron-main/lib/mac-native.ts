@@ -23,7 +23,7 @@ import { z } from "zod";
  * - The helper (`instrument-mac`), run as a child, answers about data:
  *   Calendar, Reminders, Contacts. macOS asks on the app's behalf, so a
  *   grant covers both the agent's `instrument calendar`/`contacts` commands and the
- *   onboarding page that asks ahead of them.
+ *   setup page that asks ahead of them.
  *
  * To add a capability: a block in `FUNCTIONS` (native/mac-helper/addon/
  * addon.m) or a command in the helper (native/mac-helper/Sources), a typed

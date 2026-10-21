@@ -111,9 +111,8 @@ describe("floating content and the window chrome", () => {
     expect(await topOf("menu")).toBeGreaterThanOrEqual(TOOLBAR_HEIGHT - 1);
   });
 
-  // The band belongs to the window that draws one. Nothing else reserves it:
-  // not the onboarding window, which has no toolbar, and not a component
-  // rendered on its own.
+  // The band belongs to the window that draws one. Nothing else reserves it,
+  // not a component rendered on its own.
   it("takes the whole window where no chrome claims a band", async () => {
     await renderInBrowser(
       <LowInTheWindow>

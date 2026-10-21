@@ -10,17 +10,17 @@ import { type ReactNode, useEffect } from "react";
 const RECONNECT_DELAY_MS = 500;
 
 /**
- * Drives a window's zoom: the onboarding window's and the app window's. This
+ * Drives the app window's zoom, and the router's outside it (a debug page in
+ * a browser, a test). This
  * subscribes to the main-process command stream the View menu's zoom items
  * publish on, then renders the shared {@link ZoomRoot} so zoom uses the CSS
  * `zoom` mechanism (clamped range, portalled-popover compensation via
  * `useAppZoomStyle`) rather than Electron's native page zoom, and reports the
  * level back for the window's macOS traffic lights. `zoomAtom` is
- * `localStorage`-backed at the same origin, so a zoom set in one window is
- * already applied when the other mounts (and syncs live via storage events
- * while both are open).
+ * `localStorage`-backed, so the level set last is applied as the window
+ * mounts.
  */
-export function OnboardingZoomRoot({ children }: { children: ReactNode }) {
+export function WindowZoomRoot({ children }: { children: ReactNode }) {
   const setZoom = useSetAtom(zoomAtom);
 
   useSyncZoom();

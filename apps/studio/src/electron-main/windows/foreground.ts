@@ -1,14 +1,11 @@
 import { getAppWindow } from "@/electron-main/windows/app-window";
-import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
 import { isHeldOffScreen } from "@/electron-main/windows/on-screen";
 import { type BrowserWindow } from "electron";
 
 /**
  * The window the app comes forward as when something outside it asks: a deep
  * link, a sign-in that finished in the browser, a second launch.
- *
- * First run owns the screen while the onboarding window is up; after that it
- * is the app window.
+ * It is the app window, setup included, which draws over it.
  *
  * A read of the windows that already exist, and nothing more. Putting one on
  * screen is `ensureForegroundWindowVisible`, which lives apart because it
@@ -16,10 +13,6 @@ import { type BrowserWindow } from "electron";
  * costs nothing and is done from all over the main process.
  */
 export function getForegroundWindow(): BrowserWindow | null {
-  const onboardingWindow = getOnboardingWindow();
-  if (onboardingWindow && !onboardingWindow.isDestroyed()) {
-    return onboardingWindow;
-  }
   return getAppWindow();
 }
 

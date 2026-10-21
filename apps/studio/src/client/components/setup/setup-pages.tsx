@@ -2,6 +2,9 @@ import { type SetupStep } from "@/shared/setup";
 import { type ComponentType } from "react";
 
 import { SetupFooter, SetupPage } from "./kit/setup-page";
+import { FreeAccountStep } from "./steps/free-account";
+import { PlanStep } from "./steps/plan";
+import { WayInStep } from "./steps/way-in";
 
 /** What every setup page is handed. */
 export type SetupPageProps = {
@@ -27,12 +30,12 @@ export type SetupPageProps = {
 /** The page for each step. A step's own page replaces its placeholder here. */
 export const SETUP_PAGES: Record<SetupStep, ComponentType<SetupPageProps>> = {
   folder: PlaceholderPage,
-  "free-account": PlaceholderPage,
+  "free-account": FreeAccountStep,
   look: PlaceholderPage,
   model: PlaceholderPage,
   notifications: PlaceholderPage,
-  plan: PlaceholderPage,
-  "way-in": PlaceholderPage,
+  plan: PlanStep,
+  "way-in": WayInStep,
   "welcome-back": PlaceholderPage,
 };
 

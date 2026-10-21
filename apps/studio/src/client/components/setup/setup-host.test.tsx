@@ -13,6 +13,34 @@ vi.mock("@/client/components/network-status/network-status-pill", () => ({
   SetupNetworkStatusPill: () => null,
 }));
 
+// The host under test, not the steps' own pages: each step draws its name
+// and the host's ways on.
+vi.mock("./setup-pages", async () => {
+  const { SETUP_STEPS } = await import("@/shared/setup");
+  const { SetupFooter, SetupPage } = await import("./kit/setup-page");
+  const Page = ({
+    isLast,
+    onBack,
+    onContinue,
+    onFinish,
+    step,
+  }: import("./setup-pages").SetupPageProps) => (
+    <SetupPage
+      footer={
+        <SetupFooter
+          label={isLast ? "Finish" : "Continue"}
+          onBack={onBack}
+          onContinue={isLast ? onFinish : onContinue}
+        />
+      }
+      title={step}
+    />
+  );
+  return {
+    SETUP_PAGES: Object.fromEntries(SETUP_STEPS.map((step) => [step, Page])),
+  };
+});
+
 const rpc = vi.hoisted(() => ({
   answer: vi.fn(),
   back: vi.fn(),
@@ -51,10 +79,7 @@ vi.mock("@/client/rpc/client", () => {
   };
 });
 
-function loadedWith(
-  step: SetupState["step"],
-  back: SetupState["back"] = null,
-) {
+function loadedWith(step: SetupState["step"], back: SetupState["back"] = null) {
   window.api.initialSetupState = {
     back,
     facts: {

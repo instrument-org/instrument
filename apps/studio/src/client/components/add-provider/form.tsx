@@ -69,11 +69,14 @@ export function AddProviderForm({
   onBack,
   onSuccess,
   providers,
+  showTitle = true,
   submitLabel = "Save",
 }: {
   onBack?: () => void;
   onSuccess: () => void;
   providers: ClientAIProviderConfig[];
+  /** Off where the page around the form has the title already (setup). */
+  showTitle?: boolean;
   submitLabel?: string;
 }) {
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
@@ -288,11 +291,13 @@ export function AddProviderForm({
         void handleSave();
       }}
     >
-      <div className="mb-4 flex flex-col gap-2 text-center">
-        <h2 className="font-serif text-xl leading-tight font-medium">
-          Add an AI provider
-        </h2>
-      </div>
+      {showTitle && (
+        <div className="mb-4 flex flex-col gap-2 text-center">
+          <h2 className="font-serif text-xl leading-tight font-medium">
+            Add an AI provider
+          </h2>
+        </div>
+      )}
       <div className="flex flex-col gap-y-3 py-3">
         <div className="flex flex-col gap-y-1">
           <Label>Provider</Label>

@@ -278,8 +278,13 @@ function noPlanTitle(provider: ConnectProvider) {
 }
 
 function noPlanReason(provider: ConnectProvider) {
-  return provider === "instrument"
-    ? `This account doesn't have an ${APP_NAME} plan.`
+  if (provider === "instrument") {
+    return `This account doesn't have an ${APP_NAME} plan.`;
+  }
+  // Grok's plan can be paid through X, which counts only once the X
+  // account is linked to the xAI account that signed in.
+  return provider === "grok"
+    ? `${APP_NAME} works with SuperGrok or X Premium+. If you pay through X, link your X account at accounts.x.ai.`
     : `${APP_NAME} only works with paid ${CONNECT_NAMES[provider]} plans.`;
 }
 

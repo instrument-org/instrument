@@ -3,6 +3,8 @@ import type { AuthInfo, WebContents } from "electron";
 
 import type { GuestSignIn } from "@/shared/browser";
 
+import { isPotentiallyTrustworthy } from "@/shared/potentially-trustworthy";
+
 /** What a person typed into a site's sign-in dialog. */
 export interface Credentials {
   password: string;
@@ -160,6 +162,19 @@ export function signInSiteOf(authInfo: AuthInfo, url: string): string {
 }
 
 /**
+ * Whether Chromium's own sign-in dialog would leave out its "not private"
+ * line (`LoginHandler::GetDialogStrings`): the address it names is
+ * potentially trustworthy, the page's for a site and the proxy's for a proxy.
+ * Electron does not say which scheme a proxy speaks, so a proxy is taken as
+ * plain http, trustworthy only on localhost.
+ */
+export function isSignInTrustworthy(authInfo: AuthInfo, url: string): boolean {
+  return isPotentiallyTrustworthy(
+    authInfo.isProxy ? `http://${authInfo.host}:${authInfo.port}/` : url,
+  );
+}
+
+/**
  * Asks the person for a guest's sign-ins and decides its certificate
  * errors. A sign-in still waiting is answered with nothing when the guest
  * starts another page, stops loading, or goes, since Chromium has given up
@@ -181,9 +196,9 @@ export function guardGuestSecurity(
         guestId,
         proxy: authInfo.isProxy,
         realm: authInfo.realm,
-        secure: URL.parse(details.url)?.protocol === "https:",
         site: signInSiteOf(authInfo, details.url),
         targetId,
+        trustworthy: isSignInTrustworthy(authInfo, details.url),
       },
       (credentials) => {
         if (credentials) {

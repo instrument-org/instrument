@@ -54,7 +54,7 @@ export function SignInSheet({ signIn }: { signIn: GuestSignIn }) {
               ? `Sign in to the proxy at ${signIn.site}`
               : `Sign in to ${signIn.site}`}
           </p>
-          {!signIn.secure && (
+          {!signIn.trustworthy && (
             <p className="text-sm text-muted-foreground">
               Your connection to this site isn’t private, so someone could see
               what you type.

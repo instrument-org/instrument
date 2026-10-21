@@ -16,6 +16,12 @@ describe("pageConnection", () => {
     ["http://127.0.0.1:3000/", "local"],
     ["http://127.4.5.6/", "local"],
     ["http://[::1]:8000/", "local"],
+    ["http://localhost.:5173/", "local"],
+    ["http://APP.LOCALHOST./", "local"],
+    ["http://127.1/", "local"],
+    ["http://[0:0::1]/", "local"],
+    ["http://localhost.example.com/", "insecure"],
+    ["http://[::ffff:127.0.0.1]/", "insecure"],
   ])("%s is %s", (url, expected) => {
     expect(pageConnection(url)).toBe(expected);
   });
@@ -23,6 +29,8 @@ describe("pageConnection", () => {
   it.each([
     ["https://expired.badssl.com/", "certificate"],
     ["https://expired.badssl.com:8443/", "secure"],
+    // Localhost with a certificate let through still says Not secure:
+    // security_state.cc rates any certificate error DANGEROUS first.
     ["https://localhost:8444/", "certificate"],
     ["http://expired.badssl.com/", "insecure"],
   ])("%s with a certificate let through is %s", (url, expected) => {

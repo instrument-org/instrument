@@ -54,11 +54,14 @@ export interface GuestSignIn {
   /** A proxy between the guest and the site asked, rather than the site. */
   proxy: boolean;
   realm: string;
-  /** Whether what is typed goes over an encrypted connection. */
-  secure: boolean;
   /** The host the sign-in is for, with its port when not the default. */
   site: string;
   targetId: BrowserTargetId;
+  /**
+   * Whether the address asking is potentially trustworthy in Chromium's
+   * terms (https, or localhost), where its dialog says nothing of privacy.
+   */
+  trustworthy: boolean;
 }
 
 /**

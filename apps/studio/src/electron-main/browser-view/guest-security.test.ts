@@ -8,6 +8,7 @@ import {
   createCertificateExceptions,
   createSignInRequests,
   guardGuestSecurity,
+  isSignInTrustworthy,
   signInSiteOf,
 } from "./guest-security";
 
@@ -16,9 +17,9 @@ const signInFrom = (guestId: number) => ({
   guestId,
   proxy: false,
   realm: "Staging",
-  secure: true,
   site: "example.com",
   targetId: tab,
+  trustworthy: true,
 });
 
 describe("sign-in requests", () => {
@@ -33,9 +34,9 @@ describe("sign-in requests", () => {
           "id": "1",
           "proxy": false,
           "realm": "Staging",
-          "secure": true,
           "site": "example.com",
           "targetId": "tab-1",
+          "trustworthy": true,
         },
       ]
     `);
@@ -115,6 +116,61 @@ describe("certificate exceptions", () => {
   });
 });
 
+describe("localhost, as Chromium treats it", () => {
+  // Chromium shows its certificate interstitial on localhost too: only the
+  // --allow-insecure-localhost switch skips it (SSLManager::OnCertError).
+  it.each([
+    "https://localhost:8443/",
+    "https://127.0.0.1/",
+    "https://[::1]/",
+    "https://app.localhost/",
+  ])("refuses a bad certificate on %s until Continue", (url) => {
+    const exceptions = createCertificateExceptions(vi.fn());
+    expect(exceptions.decide(7, url, "sha256/A", true)).toBe(false);
+    expect(exceptions.allowRefused(7, url)).toBe(true);
+    expect(exceptions.decide(7, url, "sha256/A", true)).toBe(true);
+  });
+
+  // LoginHandler::GetDialogStrings leaves "not private" out for a
+  // potentially trustworthy address, localhost over plain http included.
+  const site = (url: string): AuthInfo => {
+    const { hostname, port } = new URL(url);
+    return {
+      host: hostname,
+      isProxy: false,
+      port: Number(port) || 80,
+      realm: "",
+      scheme: "basic",
+    };
+  };
+  it.each([
+    ["http://localhost:8471/", true],
+    ["http://localhost.:8471/", true],
+    ["http://127.0.0.1:8471/", true],
+    ["http://127.4.5.6/", true],
+    ["http://[::1]:8471/", true],
+    ["http://app.localhost/", true],
+    ["https://example.com/", true],
+    ["http://example.com/", false],
+    ["http://192.168.1.10/", false],
+    ["http://localhost.example.com/", false],
+  ])("a sign-in at %s is trustworthy: %s", (url, expected) => {
+    expect(isSignInTrustworthy(site(url), url)).toBe(expected);
+  });
+
+  it.each([
+    ["localhost", true],
+    ["proxy.example", false],
+  ])("a proxy at %s is trustworthy: %s", (host, expected) => {
+    expect(
+      isSignInTrustworthy(
+        { host, isProxy: true, port: 3128, realm: "", scheme: "basic" },
+        "https://example.com/",
+      ),
+    ).toBe(expected);
+  });
+});
+
 describe("signInSiteOf", () => {
   const info = (over: Partial<AuthInfo>): AuthInfo => ({
     host: "example.com",
@@ -175,9 +231,9 @@ describe("guardGuestSecurity", () => {
     expect(event.preventDefault).toHaveBeenCalled();
     const [request] = signIns.list();
     expect(request).toMatchObject({
-      secure: false,
       site: "intranet.example",
       targetId: tab,
+      trustworthy: false,
     });
     signIns.answer(request?.id ?? "", { password: "pw", username: "sam" });
     expect(callback).toHaveBeenCalledExactlyOnceWith("sam", "pw");

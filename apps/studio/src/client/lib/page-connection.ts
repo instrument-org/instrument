@@ -1,3 +1,5 @@
+import { isLocalhost } from "@/shared/potentially-trustworthy";
+
 /**
  * What a page's address says about its connection, in the terms a browser's
  * address field speaks them: nothing for an encrypted page or one that never
@@ -10,7 +12,9 @@
  *
  * An https page on a site whose refused certificate the person let through
  * (`certificateExceptions`, hosts with their port) is `certificate`:
- * encrypted, but to whoever holds that certificate.
+ * encrypted, but to whoever holds that certificate. Localhost is no
+ * exception there: Chromium rates any page with a certificate error as
+ * dangerous (`HasMajorCertificateError` in `security_state.cc`).
  */
 export type PageConnection = "certificate" | "insecure" | "local" | "secure";
 
@@ -32,16 +36,5 @@ export function pageConnection(
   if (parsed.protocol !== "http:") {
     return "secure";
   }
-  return isLoopback(parsed.hostname) ? "local" : "insecure";
-}
-
-/** Chromium's loopback names: `localhost` and its subdomains, 127.0.0.0/8, and ::1. */
-function isLoopback(hostname: string) {
-  const host = hostname.toLowerCase();
-  return (
-    host === "localhost" ||
-    host.endsWith(".localhost") ||
-    /^127(?:\.\d{1,3}){3}$/.test(host) ||
-    host === "[::1]"
-  );
+  return isLocalhost(parsed) ? "local" : "insecure";
 }

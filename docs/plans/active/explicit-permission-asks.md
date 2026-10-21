@@ -61,7 +61,7 @@ The system prompt's folders line ("Changing anything in it … shows them a card
 
 ## Checks
 
-- The macOS check, in a dev build answering with its own privacy grants rather than the terminal's: `studio-drive boot --own-privacy`, reset between runs with `tccutil reset All com.github.Electron`.
+- The macOS check, in a dev build answering with its own privacy grants rather than the terminal's: `studio-drive boot --own-privacy`, reset between runs with `tccutil reset All <the clone's bundle identifier>` (`devBundleId` in `apps/studio/scripts/dev-supervisor.ts`).
 - Unit: the tool's target normalization (`it.each` over home, a disk root, app data, a sign-in folder, a file in Desktop, an already-allowed folder, a declined one), the hand-off in `shouldContinueAfterHandingOff`, and each refusal's note.
 - Evals on Haiku 5.5, three repeats each, rewriting the `ASKED` checks in `evals/cases/permissions.ts` to look for the call:
   - `cp` into Desktop (a builtin refusal).

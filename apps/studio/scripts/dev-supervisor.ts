@@ -69,7 +69,13 @@ let stopping = false;
  * bundle is only linker-signed, with no Info.plist bound and no sealed
  * resources, so it fails `codesign -v` and macOS refuses its request to
  * notify without ever asking. The clone's ad-hoc signature verifies, so macOS
- * asks once for com.github.Electron, and every clone shares that answer.
+ * asks once for the clone's bundle identifier.
+ *
+ * That identifier is the clone's own (`devBundleId`): macOS hands a click on
+ * a notification to the app with the identifier that posted it, and with
+ * every clone on com.github.Electron it could open another checkout's copy
+ * instead. So each one has its own notification answer and Settings row, and
+ * its own privacy grants under `--own-privacy`.
  */
 function namedElectron(name: string) {
   if (process.platform !== "darwin") {
@@ -84,16 +90,27 @@ function namedElectron(name: string) {
       path.join(electronDir, "dist/version"),
       "utf8",
     ).trim();
+    const bundleId = devBundleId(name);
     const bundle = path.resolve(
       import.meta.dirname,
       "../node_modules/.cache/dev-electron",
       version,
+      bundleId,
       `${name.replaceAll(/[/:]/g, "-")}.app`,
     );
     const executable = path.join(bundle, "Contents/MacOS/Electron");
     if (existsSync(executable)) {
       return executable;
     }
+    // The clone an earlier layout kept straight under the version, on
+    // com.github.Electron, which macOS would still offer a click to.
+    rmSync(
+      path.join(path.dirname(path.dirname(bundle)), path.basename(bundle)),
+      {
+        force: true,
+        recursive: true,
+      },
+    );
     // Built aside and moved into place, so a second supervisor starting at the
     // same moment never launches a half-made bundle.
     const building = `${bundle}.${process.pid}`;
@@ -104,6 +121,13 @@ function namedElectron(name: string) {
     for (const key of ["CFBundleName", "CFBundleDisplayName"]) {
       execFileSync("plutil", ["-replace", key, "-string", name, plist]);
     }
+    execFileSync("plutil", [
+      "-replace",
+      "CFBundleIdentifier",
+      "-string",
+      bundleId,
+      plist,
+    ]);
     execFileSync("codesign", ["--force", "--sign", "-", building], {
       stdio: "ignore",
     });
@@ -120,6 +144,20 @@ function namedElectron(name: string) {
     );
     return;
   }
+}
+
+/**
+ * A dev clone's bundle identifier: Electron's, then the checkout's folder
+ * name and the instance's, so no two clones on the computer share one.
+ */
+function devBundleId(name: string) {
+  const part = (words: string) =>
+    words
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/g, "-")
+      .replaceAll(/^-|-$/g, "");
+  const checkout = path.basename(path.resolve(import.meta.dirname, "../../.."));
+  return `com.github.Electron.${part(checkout)}.${part(name)}`;
 }
 
 ensureMacBridge();

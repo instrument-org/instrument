@@ -519,7 +519,7 @@ function PlanAccountNote({
                         setting: "claude-account",
                         tab: "Providers",
                       }
-                    : { setting: "chatgpt-account", tab: "Providers" },
+                    : { setting: stop.provider, tab: "Providers" },
                 );
               }}
             >

@@ -2,7 +2,6 @@ import { displayLocale } from "@/client/lib/display-locale";
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { dismissedModelOffersAtom } from "@/client/atoms/dismissed-model-offers";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
-import { openSettings } from "@/client/atoms/settings-modal";
 import { openLogin } from "@/client/atoms/login-modal";
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { type ComposerApp } from "@/client/components/app-mention";
@@ -22,6 +21,7 @@ import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { useSignInAgain } from "@/client/hooks/use-sign-in-again";
 import {
   type DroppedFolder,
   useFileDropRegion,
@@ -350,7 +350,14 @@ export const PromptInput = ({
     routes: modelsData?.routes,
     signedOut: new Set(signedOutAccounts?.map((account) => account.id)),
   });
-  const modelNotice = noticeFor(modelStatus);
+  const signInAgain = useSignInAgain();
+  const notice = noticeFor(modelStatus);
+  // While the sign-in it started waits on the browser, the action cancels it.
+  const modelNotice =
+    notice?.action?.kind === "sign-in" &&
+    signInAgain.waiting(notice.action.account)
+      ? { ...notice, action: { ...notice.action, label: "Cancel" } }
+      : notice;
   // Counts the sends the notice refused, for the row to flash at each one.
   const [noticeNudge, setNoticeNudge] = useState(0);
   const addProvider = () => {
@@ -371,7 +378,11 @@ export const PromptInput = ({
         break;
       }
       case "sign-in": {
-        openSettings({ setting: action.account });
+        if (signInAgain.waiting(action.account)) {
+          signInAgain.cancel(action.account);
+          break;
+        }
+        signInAgain.signIn(action.account, action.accountId);
         break;
       }
       case "switch": {

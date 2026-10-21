@@ -13,7 +13,7 @@ function showAsks(
   asks: {
     kind?: "app" | "folder";
     reason?: string;
-    status?: "macos-refused" | "open";
+    status?: "macos-asking" | "macos-private" | "macos-refused" | "open";
     target: string;
   }[],
 ) {
@@ -154,5 +154,42 @@ describe("PermissionAsksFoot", () => {
         "Don’t allow",
       ]
     `);
+  });
+
+  const buttons = () =>
+    screen
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label") ?? button.textContent);
+
+  it("offers only System Settings for an app macOS refused", async () => {
+    showAsks([{ kind: "app", status: "macos-refused", target: "Reminders" }]);
+
+    expect(
+      await screen.findByText(
+        "Your Mac prevented Instrument from using Reminders",
+      ),
+    ).toBeDefined();
+    expect(buttons()).toEqual(["Open System Settings", "Don’t allow"]);
+  });
+
+  it("points at macOS's own window while it asks, with nothing to answer here", async () => {
+    showAsks([{ status: "macos-asking", target: "/Users/sam/Downloads" }]);
+
+    expect(
+      await screen.findByText("Your Mac is asking about “Downloads”"),
+    ).toBeDefined();
+    expect(
+      screen.getByText("Choose Allow in the window your Mac opened."),
+    ).toBeDefined();
+    expect(buttons()).toEqual(["Show in Finder: Downloads", "Don’t allow"]);
+  });
+
+  it("says a folder only its own app opens is private, with no way in", async () => {
+    showAsks([{ status: "macos-private", target: "/Users/sam/Library/Mail" }]);
+
+    expect(
+      await screen.findByText("Your Mac keeps “Mail” private"),
+    ).toBeDefined();
+    expect(buttons()).toEqual(["Show in Finder: Mail", "OK"]);
   });
 });

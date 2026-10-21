@@ -11,6 +11,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { openSettings } from "@/client/atoms/settings-modal";
+import { privacyPaneForApp } from "@/client/lib/privacy-pane";
 import { cn } from "@/client/lib/utils";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
@@ -121,8 +122,23 @@ function PermissionAskCard({
   const busy = answer.isPending || declineAll.isPending;
   const isFolder = ask.kind === "folder";
   const refused = ask.status === "macos-refused";
+  const asking = ask.status === "macos-asking";
+  const isPrivate = ask.status === "macos-private";
+  const name = askTargetName(ask.kind, ask.target);
   // What the agent said it needs this for, from the first to ask.
   const reason = ask.askers[0]?.reason;
+  // A card waiting on macOS's own prompt settles once the person answers it,
+  // whoever raised it: the look that waits on the answer runs from here too.
+  const retry = useMutation(
+    rpcClient.workspace.permissions.retry.mutationOptions(),
+  );
+  useEffect(() => {
+    if (asking) {
+      retry.mutate({ askId: ask.id, id: chatId });
+    }
+    // Once a card starts asking; the look waits as long as the prompt does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asking, ask.id]);
   const holds = isFolder ? signInLine(ask.target) : undefined;
   const pending = answer.isPending ? answer.variables.decision : undefined;
   const choice = (decision: Decision) => ({
@@ -137,20 +153,13 @@ function PermissionAskCard({
     <div
       className={cn(
         "relative rounded-2xl border bg-card p-3 shadow-xs",
-        refused
+        refused || isPrivate
           ? "border-warning-300 dark:border-warning-700"
           : "border-border",
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium">
-          {refused
-            ? // oxlint-disable-next-line studio/no-os-words -- macOS alone refuses a folder this way
-              `Your Mac prevented Instrument from accessing ${askTargetName(ask.kind, ask.target)}`
-            : isFolder
-              ? "Can Instrument use this folder?"
-              : "Can Instrument use this app?"}
-        </p>
+        <p className="text-sm font-medium">{cardTitle(ask, name)}</p>
         {stack.length > 1 ? (
           <div className="-mt-1 -mr-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
             {`1 of ${stack.length}`}
@@ -174,10 +183,16 @@ function PermissionAskCard({
           </div>
         ) : null}
       </div>
-      {reason || refused ? (
+      {asking || isPrivate ? (
         <p className="mt-0.5 text-[13px] text-muted-foreground">
-          {reason ??
-            `Instrument needs access to ${askTargetName(ask.kind, ask.target)} to finish your task.`}
+          {asking
+            ? // oxlint-disable-next-line studio/no-os-words -- macOS alone asks this way
+              "Choose Allow in the window your Mac opened."
+            : "Only the app it belongs to can open it, so Instrument can’t read it."}
+        </p>
+      ) : reason || refused ? (
+        <p className="mt-0.5 text-[13px] text-muted-foreground">
+          {reason ?? `Instrument needs access to ${name} to finish your task.`}
         </p>
       ) : null}
       {isFolder ? (
@@ -204,7 +219,7 @@ function PermissionAskCard({
       <div className="mt-3 flex items-center gap-2 @max-md/asks:flex-col @max-md/asks:items-stretch @max-md/asks:gap-1.5">
         {refused ? (
           <MacFixes ask={ask} busy={busy} chatId={chatId} />
-        ) : (
+        ) : asking || isPrivate ? null : (
           <>
             <AnswerButton {...choice("allowed")}>
               Allow in this chat
@@ -219,20 +234,46 @@ function PermissionAskCard({
           className="ml-auto text-muted-foreground @max-md/asks:ml-0"
           variant="ghost"
         >
-          Don’t allow
+          {isPrivate ? "OK" : "Don’t allow"}
         </AnswerButton>
       </div>
     </div>
   );
 }
 
-// oxlint-disable studio/no-os-words -- a folder is refused by macOS alone, so this shows only there
+// oxlint-disable studio/no-os-words -- macOS alone asks, refuses or keeps things private this way, so these show only there
+/** What a card asks, or says macOS is doing about what it asks for. */
+function cardTitle(ask: Ask, name: string): string {
+  switch (ask.status) {
+    case "macos-asking":
+      return `Your Mac is asking about ${name}`;
+    case "macos-private":
+      return `Your Mac keeps ${name} private`;
+    case "macos-refused":
+      return ask.kind === "folder"
+        ? `Your Mac prevented Instrument from accessing ${name}`
+        : `Your Mac prevented Instrument from using ${name}`;
+    default:
+      return ask.kind === "folder"
+        ? "Can Instrument use this folder?"
+        : "Can Instrument use this app?";
+  }
+}
+
+/** The pane of Privacy & Security where what a card asks for is allowed. */
+function privacyPane(ask: Ask) {
+  return ask.kind === "folder"
+    ? ("FilesAndFolders" as const)
+    : privacyPaneForApp(ask.target);
+}
+
 /**
- * The two ways past a folder macOS refused after the person allowed it: pick
- * it in the Mac's own panel, which is a lasting grant, or turn it on in System
- * Settings. While Settings is open the card waits the way a sign-in does,
- * trying the folder again each time the window comes back, until it opens
- * (and the card goes) or the person cancels.
+ * The ways past a folder or app macOS refused after the person allowed it:
+ * for a folder, pick it in the Mac's own panel, which is a lasting grant;
+ * for either, turn it on in its pane of System Settings. While Settings is
+ * open the card waits the way a sign-in does, asking again each time the
+ * window comes back, until macOS lets the app in (and the card goes) or the
+ * person cancels.
  */
 function MacFixes({
   ask,
@@ -248,7 +289,7 @@ function MacFixes({
     rpcClient.workspace.permissions.retry.mutationOptions(onAnswerError),
   );
   const systemSettings = useMutation(
-    rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
+    rpcClient.features.openPrivacySettings.mutationOptions(),
   );
   const tryAgain = () => {
     retry.mutate({ askId: ask.id, id: chatId });
@@ -273,17 +314,20 @@ function MacFixes({
       tryAgain();
     }
   };
+  const isFolder = ask.kind === "folder";
   return (
     <>
-      <AnswerButton
-        disabled={busy || retry.isPending || inSettings}
-        onClick={() => {
-          void choose();
-        }}
-        pending={retry.isPending && !inSettings}
-      >
-        Allow
-      </AnswerButton>
+      {isFolder ? (
+        <AnswerButton
+          disabled={busy || retry.isPending || inSettings}
+          onClick={() => {
+            void choose();
+          }}
+          pending={retry.isPending && !inSettings}
+        >
+          Allow
+        </AnswerButton>
+      ) : null}
       <Button
         className="relative"
         disabled={busy}
@@ -292,11 +336,11 @@ function MacFixes({
             setInSettings(false);
             return;
           }
-          systemSettings.mutate(undefined);
+          systemSettings.mutate({ pane: privacyPane(ask) });
           setInSettings(true);
         }}
         size="sm"
-        variant="outline"
+        variant={isFolder ? "outline" : "default"}
       >
         {/* The label stays in place, unseen, under the waiting state, so
         the button keeps its width and nothing beside it moves. */}

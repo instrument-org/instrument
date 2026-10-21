@@ -44,6 +44,7 @@ import { FoldersMark } from "@/client/components/window/folder-mark";
 import { isInside, nameOf } from "@/client/components/window/host-path";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { displayPath } from "@/client/lib/path-utils";
+import { privacyPaneForApp } from "@/client/lib/privacy-pane";
 import { isLinux, isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
@@ -125,6 +126,16 @@ export function PermissionsSection() {
   const { data: view } = useQuery(
     rpcClient.workspace.permissions.get.queryOptions(),
   );
+  // What macOS keeps out of what the person allowed, asked again as the
+  // window comes back from System Settings.
+  const { data: macos } = useQuery({
+    ...rpcClient.workspace.permissions.macos.queryOptions(),
+    refetchOnWindowFocus: "always",
+  });
+  const blockedByMacos = (path: string) =>
+    (macos?.folders ?? []).some(
+      (root) => isInside(path, root) || isInside(root, path),
+    );
   const refresh = async () => {
     await queryClient.invalidateQueries({
       queryKey: rpcClient.workspace.permissions.key(),
@@ -219,6 +230,9 @@ export function PermissionsSection() {
         }
         indent={indent}
         key={folder.path}
+        {...(folder.level === "allow" && blockedByMacos(folder.path)
+          ? { note: <BlockedByMacos pane="FilesAndFolders" /> }
+          : {})}
         menu={[
           {
             icon: <MinusCircleIcon className="size-4" />,
@@ -356,6 +370,9 @@ export function PermissionsSection() {
         >
           {places.map((place) => [
             <PlaceRow
+              blocked={
+                place.level === "allow" && place.paths.some(blockedByMacos)
+              }
               home={view.home}
               key={place.id}
               onSelect={(level) => {
@@ -385,8 +402,11 @@ export function PermissionsSection() {
                 <span className="flex w-7 shrink-0 justify-center">
                   <AppWindowIcon className="size-6 text-muted-foreground" />
                 </span>
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  {app.name}
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm">{app.name}</span>
+                  {app.level === "allow" && macos?.apps.includes(app.name) ? (
+                    <BlockedByMacos pane={privacyPaneForApp(app.name)} />
+                  ) : null}
                 </span>
                 <LevelSelect
                   label={app.name}
@@ -571,11 +591,48 @@ function EveryChatCanUse({
   );
 }
 
+// oxlint-disable-next-line studio/no-os-words -- macOS alone keeps a folder or app from the app this way, so this shows only there
+/** The line under a row macOS keeps out though the person allowed it, with the way to its pane. */
+function BlockedByMacos({
+  pane,
+}: {
+  pane:
+    | "Automation"
+    | "Calendars"
+    | "Contacts"
+    | "FilesAndFolders"
+    | "Reminders";
+}) {
+  const open = useMutation(
+    rpcClient.features.openPrivacySettings.mutationOptions(),
+  );
+  return (
+    <span className="mt-0.5 flex items-center gap-1.5 text-xs text-warning-700 dark:text-warning-300">
+      <ShieldWarningIcon className="size-3.5 shrink-0" />
+      {/* oxlint-disable-next-line studio/no-os-words -- shown only on a Mac */}
+      <span>Your Mac is blocking this.</span>
+      <button
+        className="font-medium underline underline-offset-2"
+        onClick={() => {
+          open.mutate({ pane });
+        }}
+        type="button"
+      >
+        {/* oxlint-disable-next-line studio/no-os-words -- shown only on a Mac */}
+        Open System Settings
+      </button>
+    </span>
+  );
+}
+
 function PlaceRow({
+  blocked,
   home,
   onSelect,
   place,
 }: {
+  /** Whether macOS keeps the place from the app though the person allowed it. */
+  blocked: boolean;
   home: string;
   onSelect: (level: Level) => void;
   place: Place;
@@ -689,6 +746,7 @@ function PlaceRow({
       }
       {...(details.line === undefined ? {} : { line: details.line })}
       {...(details.mark === undefined ? {} : { mark: details.mark })}
+      {...(blocked ? { note: <BlockedByMacos pane="FilesAndFolders" /> } : {})}
       name={details.name}
       path={path}
     />

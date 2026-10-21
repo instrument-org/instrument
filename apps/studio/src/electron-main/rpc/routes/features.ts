@@ -18,19 +18,31 @@ const setEnabled = base
   });
 
 /**
- * The Files and Folders pane, where a folder the Mac refused this app is
- * granted after the fact. The system asks once, at the first read of a
- * protected folder, and never again for that folder: the pane's row is the
- * only way back once the ask was declined.
+ * A pane of Privacy & Security, where what the Mac refused this app is
+ * allowed after the fact: Files and Folders for a protected folder, the
+ * app's own pane for Calendars, Reminders or Contacts, and Automation for an
+ * app the app controls. The system asks once and never again, so the pane's
+ * row is the only way back once the ask was declined.
  */
-const openFilesAndFoldersSettings = base
+const openPrivacySettings = base
+  .input(
+    z.object({
+      pane: z.enum([
+        "Automation",
+        "Calendars",
+        "Contacts",
+        "FilesAndFolders",
+        "Reminders",
+      ]),
+    }),
+  )
   .output(z.object({ opened: z.boolean() }))
-  .handler(async () => {
+  .handler(async ({ input }) => {
     if (process.platform !== "darwin") {
       return { opened: false };
     }
     await shell.openExternal(
-      "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders",
+      `x-apple.systempreferences:com.apple.preference.security?Privacy_${input.pane}`,
     );
     return { opened: true };
   });
@@ -48,6 +60,6 @@ const live = {
 
 export const features = {
   live,
-  openFilesAndFoldersSettings,
+  openPrivacySettings,
   setEnabled,
 };

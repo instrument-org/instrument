@@ -2682,7 +2682,7 @@ export function ComputerPage({
  */
 function ICloudAccessBanner() {
   const openSettings = useMutation(
-    rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
+    rpcClient.features.openPrivacySettings.mutationOptions(),
   );
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-4 py-3 text-xs text-muted-foreground">
@@ -2693,7 +2693,7 @@ function ICloudAccessBanner() {
       </p>
       <Button
         onClick={() => {
-          openSettings.mutate(undefined);
+          openSettings.mutate({ pane: "FilesAndFolders" });
         }}
         size="sm"
         variant="outline"
@@ -3311,7 +3311,7 @@ export function NotPermitted({
     },
   });
   const openSettings = useMutation(
-    rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
+    rpcClient.features.openPrivacySettings.mutationOptions(),
   );
   const openInApp = useMutation(rpcClient.utils.openPath.mutationOptions());
   const isSystem = refusal.reason === "system";
@@ -3386,7 +3386,7 @@ export function NotPermitted({
             </Button>
             <Button
               onClick={() => {
-                openSettings.mutate(undefined);
+                openSettings.mutate({ pane: "FilesAndFolders" });
               }}
               size="sm"
               variant="outline"

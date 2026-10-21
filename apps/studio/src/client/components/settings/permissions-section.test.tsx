@@ -176,4 +176,30 @@ describe("PermissionsSection", () => {
       );
     },
   );
+
+  it("says where macOS blocks what the person allowed, and nowhere else", async () => {
+    const { queryClient } = renderWithProviders(<PermissionsSection />);
+    queryClient.setQueryData(rpcClient.workspace.permissions.get.queryKey(), {
+      ...NO_PLACES,
+      apps: [
+        { addedAt: new Date(0), level: "allow", name: "Reminders" },
+        { addedAt: new Date(0), level: "allow", name: "Notes" },
+      ],
+      folders: [
+        {
+          addedAt: new Date(0),
+          level: "allow",
+          path: "/Users/sam/Desktop/Pricing",
+        },
+        { addedAt: new Date(0), level: "allow", path: "/Users/sam/Projects" },
+      ],
+    } satisfies View);
+    queryClient.setQueryData(rpcClient.workspace.permissions.macos.queryKey(), {
+      apps: ["Reminders"],
+      folders: ["/Users/sam/Desktop"],
+    });
+
+    await screen.findByText("Pricing");
+    expect(screen.getAllByText("Your Mac is blocking this.")).toHaveLength(2);
+  });
 });

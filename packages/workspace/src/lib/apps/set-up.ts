@@ -1,5 +1,9 @@
 import { getWorkspaceConfig } from "../workspace-config";
-import { getAppCatalog } from "./catalog";
+import {
+  catalogEntryForApp,
+  getAppCatalog,
+  serviceManifestFields,
+} from "./catalog";
 import { appChanged } from "./changed";
 import { recordConnection } from "./connection";
 import { AppManifestSchema, type AppSlug, AppSlugSchema } from "./manifest";
@@ -43,10 +47,19 @@ export async function setUpFromDirectory({
   }
   const way = catalogWayIn(entry);
   const name = entry.name;
+  const { appsDir } = getWorkspaceConfig();
+  const present = (await listApps(appsDir)).apps;
+  const fields = serviceManifestFields(entry, {
+    anotherAccount: present.some(
+      (app) => catalogEntryForApp(app.slug, app.manifest)?.slug === entry.slug,
+    ),
+    web: way.kind === "web",
+  });
   const candidate: unknown =
     way.kind === "mcp"
       ? {
           auth: parseAuth(way.auth, "mcp"),
+          ...fields,
           type: "mcp",
           url: way.endpoint,
         }
@@ -55,18 +68,20 @@ export async function setUpFromDirectory({
             auth: { kind: "none" },
             package: way.package,
             runtime: way.runtime,
+            ...fields,
             type: "mcp-local",
           }
         : way.kind === "api" && way.test !== undefined
           ? {
               auth: parseAuth(way.auth, "api"),
+              ...fields,
               test: { path: way.test },
               type: "api",
               url: way.endpoint,
             }
           : way.kind === "web"
             ? {
-                ...(way.signIn ? { signIn: way.signIn } : {}),
+                ...fields,
                 type: "web",
                 url: way.url,
               }
@@ -80,10 +95,7 @@ export async function setUpFromDirectory({
     return { kind: "agent" };
   }
 
-  const { appsDir } = getWorkspaceConfig();
-  const taken = new Set(
-    (await listApps(appsDir)).apps.map((app) => String(app.slug)),
-  );
+  const taken = new Set(present.map((app) => String(app.slug)));
   const slug = AppSlugSchema.parse(nextFreeSlug(entry.slug, taken));
   await writeAppFolder({ appsDir, guide, manifest, name, slug });
 

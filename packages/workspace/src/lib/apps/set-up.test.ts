@@ -54,6 +54,20 @@ describe("setUpFromDirectory", () => {
     });
   });
 
+  it("starts another account's sign-in on the vendor's page for adding one", async () => {
+    await setUpFromDirectory({ slug: "google-drive" });
+    await setUpFromDirectory({ slug: "google-drive" });
+
+    expect(await manifestOf("google-drive")).toMatchObject({
+      service: "google-drive",
+      signIn: expect.stringContaining("/ServiceLogin?"),
+    });
+    expect(await manifestOf("google-drive-2")).toMatchObject({
+      service: "google-drive",
+      signIn: expect.stringContaining("/AddSession?"),
+    });
+  });
+
   it("starts a web app's sign-in on the directory's sign-in page", async () => {
     await setUpFromDirectory({ slug: "pagerduty" });
 

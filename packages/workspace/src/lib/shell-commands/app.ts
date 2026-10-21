@@ -19,6 +19,7 @@ import {
   getAppCatalog,
   searchAppCatalog,
   searchAppCatalogByMeaning,
+  serviceManifestFields,
 } from "../apps/catalog";
 import {
   describeConnection,
@@ -855,16 +856,15 @@ async function runNew(input: SubcommandInput) {
     );
   }
   // A web app the directory knows starts its sign-in where the directory
-  // says, so the card opens the sign-in and not a signed-out home page; a
-  // second account starts at the vendor's page for adding one, since its
-  // sign-in goes straight to the account already signed in.
-  const signIn =
-    input.value("sign-in")?.trim() ??
-    (web === undefined
+  // says, so the card opens the sign-in and not a signed-out home page.
+  const fromDirectory =
+    entry === undefined
       ? undefined
-      : siblings.length > 0
-        ? (entry?.addAccount ?? entry?.signIn)
-        : entry?.signIn);
+      : serviceManifestFields(entry, {
+          anotherAccount: siblings.length > 0,
+          web: web !== undefined,
+        });
+  const signIn = input.value("sign-in")?.trim() ?? fromDirectory?.signIn;
   if (signIn && !web) {
     throw new Error(
       "--sign-in goes with --web: only a web app signs in on a page of its own.",
@@ -902,7 +902,7 @@ async function runNew(input: SubcommandInput) {
       "--mac-app goes with --local: only a server that runs on this machine drives a Mac app.",
     );
   }
-  const service = entry ? { service: entry.slug } : {};
+  const service = fromDirectory ? { service: fromDirectory.service } : {};
   const candidate: unknown = web
     ? { ...service, ...(signIn ? { signIn } : {}), type: "web", url: web }
     : local

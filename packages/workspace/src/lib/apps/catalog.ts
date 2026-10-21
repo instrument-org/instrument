@@ -435,6 +435,24 @@ export function catalogEntryForApp(
   );
 }
 
+/**
+ * What an app's manifest records of the directory service it is an app of:
+ * the service, and for a web app the page its sign-in opens. Another account
+ * of a service already here signs in at the vendor's page for adding one,
+ * since its sign-in page goes straight to the account already signed in.
+ */
+export function serviceManifestFields(
+  entry: AppCatalogEntry,
+  { anotherAccount, web }: { anotherAccount: boolean; web: boolean },
+): { service: string; signIn?: string } {
+  const signIn = web
+    ? anotherAccount
+      ? (entry.addAccount ?? entry.signIn)
+      : entry.signIn
+    : undefined;
+  return { service: entry.slug, ...(signIn ? { signIn } : {}) };
+}
+
 /** The directory: the one our API served when there is one, else the built-in. */
 export function getAppCatalog(): AppCatalogEntry[] {
   return served?.entries ?? builtInCatalog().entries;

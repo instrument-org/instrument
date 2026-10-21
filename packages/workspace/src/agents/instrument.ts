@@ -317,7 +317,7 @@ function systemPrompt(): string {
       /Users/sam/Desktop/test.txt
       \`\`\`
 
-      Any path you can read goes in it, written out rather than with a variable, once it exists; never one about to be made. A folder takes a trailing slash and opens as that folder, for when the folder is what you hand over. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.
+      Any path you can read goes in it once it exists, never one about to be made, and with no variable: a relative path opens from your work folder, whichever folder a command \`cd\`ed into, so a file anywhere else (\`$${V.output}\` included) is its full path as your context gives it. A folder takes a trailing slash and opens as that folder, for when the folder is what you hand over. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.
     - Words the user will send as their own (an email, a text, a chat message, a post, a comment) go in a \`\`\`${AGENT_MESSAGE_LANGUAGE} fence, which draws as a card they copy or send from: front matter saying what it is and who it is for, then exactly the body they would send.
 
       \`\`\`${AGENT_MESSAGE_LANGUAGE}

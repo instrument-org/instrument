@@ -26,14 +26,17 @@ export const CONNECT_NAMES: Record<ConnectProvider, string> = {
   instrument: APP_NAME,
 };
 
-/** The plans each way in runs on, as a person reads them. */
+/**
+ * The plans each subscription counts, as setup's subscription list and the
+ * Add a provider sheet say them.
+ */
 export const CONNECT_PLANS: Record<
   Exclude<ConnectProvider, "instrument">,
   string
 > = {
-  chatgpt: "Plus or Pro",
-  claude: "Pro or Max",
-  grok: "SuperGrok or X Premium+",
+  chatgpt: "Plus, Pro or another paid plan",
+  claude: "Pro, Max or another paid plan",
+  grok: "SuperGrok or X Premium+. Pay through X? Sign in with your X account.",
 };
 
 interface Context {

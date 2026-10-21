@@ -208,7 +208,10 @@ export function grokWaitingLine(userCode: string | undefined): ReactNode {
   );
 }
 
-/** The mark of a way in: Google's for Instrument, each service's own else. */
+/**
+ * The mark of a way in: Google's for Instrument, each service's own else,
+ * in its brand's colors where it has them.
+ */
 export function ConnectIcon({
   className,
   provider,
@@ -221,6 +224,7 @@ export function ConnectIcon({
   ) : (
     <AIProviderIcon
       className={className}
+      colored
       type={
         provider === "chatgpt"
           ? "chatgpt-account"

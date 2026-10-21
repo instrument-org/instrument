@@ -1,6 +1,6 @@
 # Plan: switch, open and move workspaces without restarting
 
-Status: phase 1 (this inventory) written; phase 2 under way. Related: [workspace-layout.md](workspace-layout.md) (the workspace as a folder you pick, and its "two workspaces in one process" note), [choose-where-instrument-keeps-files.md](choose-where-instrument-keeps-files.md) (the setup folder step that calls these routes).
+Status: built. `switch`, `open` and `move` close the workspace and open the next in process, falling back to the restart on any failure (`INSTRUMENT_LIVE_WORKSPACE_SWITCH=0` keeps the restart). Not yet checked: an agent turn after a switch, a switch while a turn runs, Windows and Linux, and the fallback itself.
 
 `workspaces.switch`, `workspaces.open` and `workspaces.move` (`apps/studio/src/electron-main/rpc/routes/workspaces.ts`) record the choice and restart the app (`relaunchApp`), because the main process opens one workspace at boot and much of it hangs off that workspace for the life of the process. This plan closes what is open for one workspace and opens the next in the same process, so the three routes answer without a restart, and falls back to the restart when anything in the live path fails.
 

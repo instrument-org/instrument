@@ -8,24 +8,22 @@ interface ModelChipProps {
   modelId?: string;
   /**
    * The model that answered, on a turn where the provider served something
-   * other than what was asked for. The requested name stays and is struck
-   * through, because what was chosen and what answered are both facts about
-   * the turn and the reader picked one of them.
+   * other than what was asked for. It takes the requested name's place; the
+   * chip's card says what was asked for.
    *
-   * One mark rather than two: a provider can only substitute within its own
-   * catalog, so both names carry the same one and drawing it twice would say
-   * the models came from different places.
+   * The requested model's mark stays: a provider can only substitute within
+   * its own catalog, so the one that answered carries the same one.
    */
-  replacedBy?: string;
+  answeredBy?: string;
 }
 
 export function ModelChip({
   aiGatewayModel,
+  answeredBy,
   className = "",
   modelId,
-  replacedBy,
 }: ModelChipProps) {
-  const displayName = aiGatewayModel?.name ?? modelId;
+  const displayName = answeredBy ?? aiGatewayModel?.name ?? modelId;
   const provider = aiGatewayModel?.params.provider;
 
   if (!displayName) {
@@ -41,16 +39,7 @@ export function ModelChip({
         />
       )}
       <span className="truncate text-xs text-muted-foreground">
-        {replacedBy ? (
-          <>
-            <span className="text-muted-foreground/50 line-through">
-              {displayName}
-            </span>{" "}
-            {replacedBy}
-          </>
-        ) : (
-          displayName
-        )}
+        {displayName}
       </span>
     </div>
   );

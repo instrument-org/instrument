@@ -30,7 +30,7 @@ export function ModelRow({
     <label
       className={cn(
         "flex h-12 w-full shrink-0 items-center gap-3.5 rounded-xl px-4",
-        isSelected ? "bg-brand-50 dark:bg-brand-900/60" : "hover:bg-muted/60",
+        isSelected ? "bg-setup-picked" : "hover:bg-muted/60",
       )}
       htmlFor={id}
     >

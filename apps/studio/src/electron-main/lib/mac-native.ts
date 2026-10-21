@@ -189,7 +189,8 @@ function loadModule(): MacModule | null {
 
 /**
  * The identifier macOS files this app's settings under: the build's own in a
- * packaged app, Electron's (`com.github.Electron`) in a development run.
+ * packaged app, the dev Electron clone's own (`com.github.Electron.…`) in a
+ * development run.
  * Undefined off macOS and in a build without the module.
  */
 export async function bundleIdentifier(): Promise<string | undefined> {

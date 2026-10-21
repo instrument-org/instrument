@@ -110,7 +110,7 @@ function SetupScreen({
   const Page = SETUP_PAGES[step];
   return (
     <div
-      className="absolute inset-0 flex flex-col overflow-hidden bg-linear-to-b from-setup-ground-top to-setup-ground-bottom to-50%"
+      className="absolute inset-0 flex flex-col overflow-hidden bg-linear-to-b from-setup-ground-top to-setup-ground-bottom to-50% dark:to-100%"
       data-testid="setup"
     >
       <div

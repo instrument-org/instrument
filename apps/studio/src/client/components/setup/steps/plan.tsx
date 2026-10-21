@@ -14,15 +14,19 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { SetupFooter, SetupPage } from "../kit/setup-page";
 import { SetupPageSwitch } from "../kit/setup-page-switch";
 import { type SetupPageProps } from "../setup-page-props";
+import { useSetupState } from "../use-setup-state";
 import { previewPage } from "./preview";
 import { WaysIn, type WaysInPage } from "./ways-in";
 
 type Offer = RPCOutput["billing"]["offer"];
+
+/** How long the account check may take before the plans show anyway. */
+const SLOW_CHECK_MS = 10_000;
 
 /** The plan step's pages, kept in its own state. */
 type PlanPage =
@@ -53,6 +57,18 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
   const startTrial = useStartTrial();
   // The card whose Start free trial was pressed, busy while the trial starts.
   const [trialPlan, setTrialPlan] = useState<null | string>(null);
+  // Until the account's billing status is read, the plans may not be asked
+  // at all (a subscriber's sign-in moves setup past them), so they wait.
+  const isCheckingPlan = useSetupState()?.facts.isCheckingPlan ?? false;
+  const [isCheckSlow, setIsCheckSlow] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setIsCheckSlow(true);
+    }, SLOW_CHECK_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   const shown = (): ReactNode => {
     switch (page.kind) {
@@ -127,6 +143,16 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
         );
       }
       case "cards": {
+        if (isCheckingPlan && !isCheckSlow) {
+          return (
+            <SetupPage
+              align="center"
+              footer={<SetupFooter next="none" onBack={onBack} />}
+              hero={<Spinner className="size-5 text-muted-foreground" />}
+              title="Checking your account…"
+            />
+          );
+        }
         const trial = offer?.trial;
         const noCardTrial =
           trial?.available !== false &&

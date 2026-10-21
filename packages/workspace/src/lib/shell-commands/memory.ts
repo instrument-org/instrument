@@ -88,10 +88,7 @@ function ok(text: string) {
 }
 
 /** Where a memory was learned, by the chat's title as it is now, and when. */
-function origin(
-  memory: Memory,
-  titles: ReadonlyMap<ChatId, string>,
-): string {
+function origin(memory: Memory, titles: ReadonlyMap<ChatId, string>): string {
   const title = memory.chat && titles.get(memory.chat);
   return title ? `from "${title}" · ${day(memory.at)}` : day(memory.at);
 }

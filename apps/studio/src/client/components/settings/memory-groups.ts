@@ -21,10 +21,9 @@ export function groupMemories(memories: Memory[]): MemoryGroup[] {
   const groups: MemoryGroup[] = [];
   let lastSource: string | undefined;
   for (const memory of memories) {
-    const source = [
-      memory.chat ?? "",
-      new Date(memory.at).toDateString(),
-    ].join("\u0000");
+    const source = [memory.chat ?? "", new Date(memory.at).toDateString()].join(
+      "\u0000",
+    );
     const group = groups.at(-1);
     if (group && source === lastSource) {
       group.memories.push(memory);

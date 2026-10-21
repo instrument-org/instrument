@@ -207,7 +207,8 @@ async function carryState(
   if (!isRecord(state)) {
     return false;
   }
-  const { appGuidesRead, asks, ...rest } = state;
+  // The app guides handed are read from the chat's history, not kept.
+  const { appGuidesRead: _handed, asks, ...rest } = state;
   let wrote = false;
   await updateJsonRecord(
     chatStatePath(ChatDirSchema.parse(dir), deviceId),
@@ -219,7 +220,6 @@ async function carryState(
       return {
         ...rest,
         ...(asks !== undefined && { waitingOn: asks }),
-        ...(appGuidesRead !== undefined && { appGuidesShown: appGuidesRead }),
       };
     },
   );

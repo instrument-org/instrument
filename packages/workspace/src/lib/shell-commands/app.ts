@@ -8,6 +8,7 @@ import { isPlainObject } from "radashi";
 import { appChanged } from "../apps/changed";
 import { recordSetupTouch } from "../setup-changes";
 import { type ChatId } from "../../schemas/chat-id";
+import { type StoreId } from "../../schemas/store-id";
 import {
   type AppCatalogEntry,
   catalogEndpointNeedsClient,
@@ -57,8 +58,8 @@ import { checkAppIcon, writeAppIcon } from "../apps/icon";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
 import { catalogWayIn, parseAuth } from "../apps/way-in";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
-import { chatDir } from "../record-folders";
-import { getChatState, setChatState } from "../chat-record";
+import { ChatReads } from "../chat-reads";
+import { rolledOverAfter } from "../last-told";
 import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
@@ -80,8 +81,10 @@ export { APP_COMMAND } from "./app-command";
 
 /** What `app` needs from the `bash` call it runs inside. */
 export interface AppCommandContext {
-  /** The task the call belongs to: which apps it may reach, and whose state the guide gate lives in. */
+  /** The chat the call belongs to: which apps it may reach. */
   chatId: ChatId;
+  /** The session running the call, whose history says which guides it has. */
+  sessionId: StoreId.Session;
 }
 
 /** The apps folder as the shell spells it. */
@@ -207,8 +210,7 @@ const runApp = defineSubcommands<AppCommandContext>({
     }),
     guide: subcommand({
       positional: 1,
-      run: ({ positional }, context, { stdin }) =>
-        runGuide(positional, context, stdin),
+      run: ({ positional }, _context, { stdin }) => runGuide(positional, stdin),
     }),
     icon: subcommand({
       positional: 2,
@@ -387,13 +389,33 @@ function jsonFrom(
   return parsed as Record<string, unknown>;
 }
 
-async function markGuideRead(chatId: ChatId, slug: string) {
-  const dir = chatDir(chatId);
-  const state = await getChatState(dir);
-  const read = state.appGuidesShown;
-  if (!read.includes(slug)) {
-    await setChatState(dir, { appGuidesShown: [...read, slug] });
+/**
+ * Whether the session's model has the guide in front of it: a shell call in
+ * the window it is sent printed it or wrote it. Read from the session's
+ * history, so it travels with the chat, a rollover that cut it hands it over
+ * again, and so does an edit to it since.
+ */
+async function guideInHistory(
+  { chatId, sessionId }: AppCommandContext,
+  guide: string,
+): Promise<boolean> {
+  const history = await ChatReads.history({ chatId, sessionId });
+  if (history.isErr()) {
+    return false;
   }
+  const text = guide.trim();
+  const after = rolledOverAfter(history.value, sessionId);
+  return history.value.some(
+    (message) =>
+      (after === undefined || message.id > after) &&
+      message.parts.some(
+        (part) =>
+          part.type === "tool-bash" &&
+          part.state === "output-available" &&
+          (part.output.output.includes(text) ||
+            part.input.command.includes(text)),
+      ),
+  );
 }
 
 function ok(stdout: string) {
@@ -698,11 +720,7 @@ async function runDisconnect(args: string[]) {
   );
 }
 
-async function runGuide(
-  args: string[],
-  context: AppCommandContext,
-  stdin: ByteString,
-) {
+async function runGuide(args: string[], stdin: ByteString) {
   const app = await requireApp(args[0], { connected: false });
   const written = subprocessStdin(stdin)?.toString("utf8").trim();
   if (written) {
@@ -720,7 +738,6 @@ async function runGuide(
       `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}.`,
     );
   }
-  await markGuideRead(context.chatId, app.slug);
   return ok(`${guide.trimEnd()}\n`);
 }
 
@@ -1084,16 +1101,14 @@ async function runRequest(
     );
   }
   // The guide is the app's only documentation, so it enters the context
-  // before the first real request in this task.
-  const state = await getChatState(chatDir(context.chatId));
-  if (!state.appGuidesShown.includes(app.slug)) {
-    const guide = await readAppGuide(app.dir);
-    if (guide === null) {
-      throw new Error(
-        `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}: the endpoints and conventions a request needs.`,
-      );
-    }
-    await markGuideRead(context.chatId, app.slug);
+  // before the first real request the session makes.
+  const guide = await readAppGuide(app.dir);
+  if (guide === null) {
+    throw new Error(
+      `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}: the endpoints and conventions a request needs.`,
+    );
+  }
+  if (!(await guideInHistory(context, guide))) {
     return ok(
       `Before the first request to "${app.slug}", its guide. Read it, then repeat the request.\n\n${guide.trimEnd()}\n`,
     );

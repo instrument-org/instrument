@@ -170,7 +170,7 @@ describe("convertChatSettings", () => {
       JSON.parse(
         await fs.readFile(path.join(dir, `state.${DEVICE_A}.json`), "utf8"),
       ),
-    ).toEqual({ appGuidesShown: ["mail"], browserTabs: [] });
+    ).toEqual({ browserTabs: [] });
   });
 
   it("leaves a chat with no records of its own for a later launch", async () => {

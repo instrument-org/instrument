@@ -2,6 +2,7 @@ import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { StoreId } from "../../schemas/store-id";
 import { getAppCatalog, searchAppCatalog } from "../apps/catalog";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { truncateMiddle } from "../truncate-buffer";
@@ -11,7 +12,7 @@ import { createAppCommand } from "./app";
 const chatId = ChatIdSchema.parse("app-catalog-task");
 
 async function catalog(...words: string[]) {
-  const result = await createAppCommand({ chatId }).execute(
+  const result = await createAppCommand({ chatId, sessionId: StoreId.newSessionId() }).execute(
     ["catalog", ...words],
     createCommandContext({
       cwd: "/Users/sam/chat",

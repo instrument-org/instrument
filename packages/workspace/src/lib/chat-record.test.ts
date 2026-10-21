@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { type HeldTab } from "../schemas/chat-state";
+import { StoreId } from "../schemas/store-id";
+import { BrowserTargetIdSchema } from "../types";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { chatDir } from "./record-folders";
 import { getChatState, setChatState } from "./chat-record";
@@ -36,6 +39,22 @@ async function writeJson(file: string, record: unknown): Promise<void> {
   await fs.writeFile(file, JSON.stringify(record, null, 2), "utf8");
 }
 
+/** A tab the chat holds, as the state file keeps one. */
+function heldTab(): HeldTab {
+  return {
+    id: BrowserTargetIdSchema.parse(StoreId.newSessionId()),
+    inWindow: true,
+    openedBy: "handed",
+  };
+}
+
+const tabA = heldTab();
+const tabB = heldTab();
+const tabC = heldTab();
+const tabD = heldTab();
+const tabE = heldTab();
+const tabF = heldTab();
+
 async function readJson(file: string): Promise<unknown> {
   return JSON.parse(await fs.readFile(file, "utf8"));
 }
@@ -43,17 +62,16 @@ async function readJson(file: string): Promise<unknown> {
 describe("this device's state", () => {
   it("answers empty for a chat with no state file", async () => {
     await expect(getChatState(chatDir(chatId))).resolves.toEqual({
-      appGuidesShown: [],
       browserTabs: [],
       waitingOn: [],
     });
   });
 
   it("is written to this device's own file", async () => {
-    await setChatState(chatDir(chatId), { appGuidesShown: ["linear"] });
+    await setChatState(chatDir(chatId), { browserTabs: [tabA] });
 
     expect(await readJson(statePath())).toEqual({
-      appGuidesShown: ["linear"],
+      browserTabs: [tabA],
     });
   });
 
@@ -75,18 +93,17 @@ describe("this device's state", () => {
     };
     await writeJson(statePath(other), theirs);
 
-    await setChatState(chatDir(chatId), { appGuidesShown: ["github"] });
-    await writeJson(statePath(other), { ...theirs, appGuidesShown: ["x"] });
-    await setChatState(chatDir(chatId), { appGuidesShown: ["github", "y"] });
+    await setChatState(chatDir(chatId), { browserTabs: [tabB] });
+    await writeJson(statePath(other), { ...theirs, browserTabs: [tabC] });
+    await setChatState(chatDir(chatId), { browserTabs: [tabB, tabD] });
 
     expect(await getChatState(chatDir(chatId))).toEqual({
-      appGuidesShown: ["github", "y"],
-      browserTabs: [],
+      browserTabs: [tabB, tabD],
       waitingOn: [],
     });
     expect(await readJson(statePath(other))).toEqual({
       ...theirs,
-      appGuidesShown: ["x"],
+      browserTabs: [tabC],
     });
   });
 
@@ -94,7 +111,6 @@ describe("this device's state", () => {
     await writeJson(statePath(), { browserTabs: "not a list at all" });
 
     expect(await getChatState(chatDir(chatId))).toEqual({
-      appGuidesShown: [],
       browserTabs: [],
       waitingOn: [],
     });
@@ -103,10 +119,10 @@ describe("this device's state", () => {
   it("carries forward a field it cannot read", async () => {
     await writeJson(statePath(), { futureNested: "keep me" });
 
-    await setChatState(chatDir(chatId), { appGuidesShown: ["after"] });
+    await setChatState(chatDir(chatId), { browserTabs: [tabE] });
 
     expect(await readJson(statePath())).toEqual({
-      appGuidesShown: ["after"],
+      browserTabs: [tabE],
       futureNested: "keep me",
     });
   });
@@ -115,7 +131,7 @@ describe("this device's state", () => {
     await fs.writeFile(statePath(), '{ "browserTabs": [', "utf8");
 
     await expect(
-      setChatState(chatDir(chatId), { appGuidesShown: ["refused"] }),
+      setChatState(chatDir(chatId), { browserTabs: [tabF] }),
     ).rejects.toThrow(/unreadable/);
 
     expect(await fs.readFile(statePath(), "utf8")).toBe('{ "browserTabs": [');

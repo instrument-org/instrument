@@ -9,6 +9,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { StoreId } from "../../schemas/store-id";
 import { serveRegisteredClient } from "../../test/helpers/serve-registered-client";
 import { resetServedAppCatalog } from "../apps/catalog";
 import { createMemoryAppsConfig } from "../apps/memory-config";
@@ -44,7 +45,7 @@ async function app(...args: string[]) {
 }
 
 async function appWithStdin(stdin: string | undefined, ...args: string[]) {
-  return createAppCommand({ chatId }).execute(
+  return createAppCommand({ chatId, sessionId: StoreId.newSessionId() }).execute(
     args,
     createCommandContext({
       cwd: CHAT_FOLDER,
@@ -408,7 +409,7 @@ describe("app icon", () => {
   async function setIcon(slug: string, file: string, svg: string) {
     const taskFs = new InMemoryFs();
     await taskFs.writeFile(`${CHAT_FOLDER}/${file}`, svg);
-    return createAppCommand({ chatId }).execute(
+    return createAppCommand({ chatId, sessionId: StoreId.newSessionId() }).execute(
       ["icon", slug, file],
       createCommandContext({
         cwd: CHAT_FOLDER,

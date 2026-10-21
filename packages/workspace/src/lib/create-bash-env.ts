@@ -928,7 +928,7 @@ export async function createLocalBashEnv({
   const instrumentCommand = createInstrumentCommand({
     missing: role === "chat" ? {} : CHAT_ONLY_SUBCOMMANDS,
     subcommands: [
-      { ...APP_COMMAND, command: createAppCommand({ chatId }) },
+      { ...APP_COMMAND, command: createAppCommand({ chatId, sessionId }) },
       { ...X_COMMAND, command: createXCommand({ chatId, sessionId }) },
       ...(role === "chat"
         ? [

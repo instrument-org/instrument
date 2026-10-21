@@ -68,7 +68,7 @@ describe("the record writer on the feed", () => {
     await fs.mkdir(chatDir(chatId), { recursive: true });
     const changes = recordChanges(undefined, (change) => change.id === chatId);
 
-    await setChatState(chatDir(chatId), { appGuidesShown: [] });
+    await setChatState(chatDir(chatId), { browserTabs: [] });
     expect((await changes.next()).value).toEqual([
       { id: chatId, kind: "state" },
     ]);

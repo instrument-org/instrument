@@ -104,7 +104,7 @@ export function configureGuestSession(profileDir: string): Session {
         };
         const allowed = mayEnterFullScreen(asked);
         log.info(
-          `full screen ${allowed ? "granted" : "refused"} guest=${wc.id} role=${record?.role ?? "none"} inFullScreen=${record?.htmlFullScreen ?? false} shown=${asked.shown} windowFocused=${asked.windowFocused} inputAgoMs=${record?.userInputAt ? Date.now() - record.userInputAt : "never"}`,
+          `full screen ${allowed ? "granted" : "refused"} guest=${wc.id} role=${record?.role ?? "none"} inFullScreen=${String(record?.htmlFullScreen ?? false)} shown=${String(asked.shown)} windowFocused=${String(asked.windowFocused)} inputAgoMs=${record?.userInputAt ? Date.now() - record.userInputAt : "never"}`,
         );
         callback(allowed);
         return;

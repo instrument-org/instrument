@@ -1,13 +1,13 @@
 import { registerInPageCommandMenu } from "@/client/atoms/command-menu";
-import { Command, CommandInput } from "@/client/components/ui/command";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import {
   COMMAND_MENU_PLACEHOLDER,
+  CommandMenuField,
   CommandMenuList,
   useCommandMenuRows,
 } from "./command-menu";
@@ -24,11 +24,12 @@ export function NewTabPage() {
   const isActive = useIsActiveTab();
   const [words, setWords] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const listId = useId();
 
   const {
     isBang,
-    pick,
     rows,
+    selection,
     words: shown,
   } = useCommandMenuRows({
     active: isActive,
@@ -61,28 +62,28 @@ export function NewTabPage() {
         <Greeting />
       </h1>
       <div className="flex h-100 min-h-40 w-full max-w-160 shrink flex-col overflow-hidden rounded-2xl border bg-card shadow-sm">
-        <Command
-          className="bg-card"
-          loop
-          onValueChange={pick.onValueChange}
-          shouldFilter={false}
-          value={pick.value}
-        >
-          <CommandInput
+        <div className="flex size-full flex-col overflow-hidden rounded-md bg-card text-popover-foreground">
+          <CommandMenuField
             className="text-sm"
             containerClassName="h-12 shrink-0 border-b px-4"
+            listId={listId}
             onValueChange={setWords}
             placeholder={COMMAND_MENU_PLACEHOLDER}
             ref={inputRef}
+            rows={rows}
+            selection={selection}
             value={words}
           />
           <CommandMenuList
-            className="max-h-none! min-h-0 flex-1 overflow-hidden!"
+            className="min-h-0 flex-1"
             isBang={isBang}
+            itemClassName="py-1.5"
+            listId={listId}
             rows={rows}
+            selection={selection}
             words={shown}
           />
-        </Command>
+        </div>
       </div>
       <p className="mt-4 shrink-0 text-[13px] text-muted-foreground">
         Press{" "}

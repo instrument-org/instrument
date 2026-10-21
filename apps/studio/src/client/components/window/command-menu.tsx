@@ -16,13 +16,14 @@ import { folderOf, homeRelative } from "@/client/components/window/host-path";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { useTheme } from "@/client/components/theme-provider";
+import { CommandShortcut } from "@/client/components/ui/command";
 import {
-  CommandDialog,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandShortcut,
-} from "@/client/components/ui/command";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
 import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { PLACES } from "@/client/components/window/app-rail";
@@ -54,7 +55,7 @@ import {
 } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { iconHostOf } from "@/client/lib/favicon-url";
-import { osConventions } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import {
   bareAddress,
   isSearchWords,
@@ -93,7 +94,18 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
 import { unique } from "radashi";
-import { type ReactNode, useDeferredValue, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type Ref,
+  useDeferredValue,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { displayHostPath } from "@instrument-org/shared";
 import { toast } from "@/client/lib/toast";
 
@@ -167,7 +179,8 @@ export type CommandMenuSurface = "dialog" | "page";
  *
  * The rows follow the words a beat behind while typing, so the field keeps
  * up with the keys; `words` in the result is what the rows are for, and
- * `pick` is the row Return runs, for the menu's `Command` to hold.
+ * `selection` is the row Return runs and the keys that move it, for the
+ * field and the list to share.
  */
 export function useCommandMenuRows({
   active,
@@ -187,8 +200,8 @@ export function useCommandMenuRows({
   words: string;
 }): {
   isBang: boolean;
-  pick: { onValueChange: (id: string) => void; value: string };
   rows: Row[];
+  selection: Selection;
   words: string;
 } {
   const words = useDeferredValue(typed);
@@ -778,23 +791,195 @@ export function useCommandMenuRows({
         ],
   );
 
-  // The row Return runs: the first for each new search, and one picked by a
-  // key or the pointer for as long as it is listed. cmdk's own pick moves to
-  // the first row only when the rows it already shows change, and these
-  // arrive a beat after the words, so words pasted whole would otherwise
-  // leave it on a row the empty menu had and the new rows do not.
-  const [picked, setPicked] = useState<{ id: string; words: string }>();
-  const ids = rows.flatMap((row) => (row.type === "item" ? [row.id] : []));
-  const pick = {
-    onValueChange: (id: string) => {
-      setPicked({ id, words });
-    },
-    value:
-      picked?.words === words && ids.includes(picked.id)
-        ? picked.id
-        : (ids[0] ?? ""),
+  const selection = useSelection({
+    loop: isPage,
+    rows,
+    typed,
+    words,
+  });
+  return { isBang, rows, selection, words };
+}
+
+/** The row Return runs, and what the field and the list do to move it. */
+interface Selection {
+  /** The row Return runs: the one picked for these words, else the first. */
+  id: string | undefined;
+  /** Whether the pick came from a key, which the list scrolls to follow. */
+  isKeyed: boolean;
+  /** The field's keys: the arrows move the pick, Return runs it. */
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+  /** The pointer moving over a row picks it; a move to where it already was does not. */
+  onPointerMove: (id: string, event: MouseEvent) => void;
+}
+
+/**
+ * Which row Return runs, kept by the menu rather than read off the list on
+ * screen, so it answers to the words alone. Each new search starts on its
+ * first row, which is what the words name. A key or the pointer picks
+ * another for as long as those words stand and the row is listed. The
+ * pointer picks only by moving: the rows changing under a pointer at rest
+ * make the browser send a move to the place it already was, and that leaves
+ * the pick where it is. Return pressed
+ * before the rows have caught up with the words waits for them, so it runs
+ * a row for what was typed rather than for the letters before it.
+ */
+function useSelection({
+  loop,
+  rows,
+  typed,
+  words,
+}: {
+  /** Whether the arrows go round from one end to the other. */
+  loop: boolean;
+  rows: Row[];
+  /** The words in the field, which `words` follows a beat behind. */
+  typed: string;
+  /** The words the rows are for. */
+  words: string;
+}): Selection {
+  const [picked, setPicked] = useState<{
+    id: string;
+    isKeyed: boolean;
+    words: string;
+  }>();
+  // The words Return was pressed for before the rows had caught up.
+  const returnFor = useRef<string>(undefined);
+  // Where the pointer last moved to on the list, across searches.
+  const pointer = useRef<{ x: number; y: number }>(undefined);
+  const items = rows.filter((row) => row.type === "item");
+  const ids = items.map((item) => item.id);
+  const id =
+    picked?.words === words && ids.includes(picked.id) ? picked.id : ids[0];
+
+  const runPicked = () => {
+    items.find((item) => item.id === id)?.run();
   };
-  return { isBang, pick, rows, words };
+  const runWaiting = useEffectEvent(() => {
+    if (returnFor.current === words) {
+      returnFor.current = undefined;
+      runPicked();
+    }
+  });
+  useEffect(() => {
+    runWaiting();
+  }, [words]);
+
+  const step = (event: KeyboardEvent<HTMLInputElement>) => {
+    const { ctrlKey, key } = event;
+    if (key === "ArrowDown" || (ctrlKey && (key === "n" || key === "j"))) {
+      return 1;
+    }
+    if (key === "ArrowUp" || (ctrlKey && (key === "p" || key === "k"))) {
+      return -1;
+    }
+    return 0;
+  };
+
+  return {
+    id,
+    isKeyed: id !== undefined && id === picked?.id && picked.isKeyed,
+    onKeyDown: (event) => {
+      if (event.nativeEvent.isComposing) {
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (words === typed) {
+          runPicked();
+        } else {
+          returnFor.current = typed;
+        }
+        return;
+      }
+      const by = step(event);
+      if (by === 0 || ids.length === 0) {
+        return;
+      }
+      event.preventDefault();
+      const at = id === undefined ? -1 : ids.indexOf(id);
+      // Cmd with an arrow goes to that end of the list.
+      const next = event.metaKey
+        ? by > 0
+          ? ids.length - 1
+          : 0
+        : loop
+          ? (at + by + ids.length) % ids.length
+          : Math.max(0, Math.min(ids.length - 1, at + by));
+      const nextId = ids[next];
+      if (nextId !== undefined) {
+        setPicked({ id: nextId, isKeyed: true, words });
+      }
+    },
+    onPointerMove: (rowId, event) => {
+      const last = pointer.current;
+      pointer.current = { x: event.screenX, y: event.screenY };
+      const hasMoved =
+        last !== undefined &&
+        (last.x !== event.screenX || last.y !== event.screenY);
+      if (!hasMoved || rowId === id) {
+        return;
+      }
+      setPicked({ id: rowId, isKeyed: false, words });
+    },
+  };
+}
+
+/**
+ * The menu's field, which keeps the caret while the list under it answers
+ * the keys: the arrows move the row picked and Return runs it.
+ */
+export function CommandMenuField({
+  className,
+  containerClassName,
+  listId,
+  onValueChange,
+  placeholder,
+  ref,
+  rows,
+  selection,
+  value,
+}: {
+  className?: string;
+  containerClassName?: string;
+  /** The list the field drives, which names the row picked. */
+  listId: string;
+  onValueChange: (value: string) => void;
+  placeholder: string;
+  ref?: Ref<HTMLInputElement>;
+  rows: Row[];
+  selection: Selection;
+  value: string;
+}) {
+  const at = rows.findIndex(
+    (row) => row.type === "item" && row.id === selection.id,
+  );
+  return (
+    <div className={cn("flex h-9 items-center gap-2 px-3", containerClassName)}>
+      <MagnifyingGlassIcon className="size-4 shrink-0 opacity-50" />
+      <input
+        aria-activedescendant={at === -1 ? undefined : `${listId}-${at}`}
+        aria-autocomplete="list"
+        aria-controls={listId}
+        aria-expanded
+        autoComplete="off"
+        autoCorrect="off"
+        className={cn(
+          "flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground",
+          className,
+        )}
+        onChange={(event) => {
+          onValueChange(event.currentTarget.value);
+        }}
+        onKeyDown={selection.onKeyDown}
+        placeholder={placeholder}
+        ref={ref}
+        role="combobox"
+        spellCheck={false}
+        type="text"
+        value={value}
+      />
+    </div>
+  );
 }
 
 /**
@@ -804,27 +989,48 @@ export function useCommandMenuRows({
 export function CommandMenuList({
   className,
   isBang,
+  itemClassName,
+  listId,
   rows,
+  selection,
   words,
 }: {
   className: string;
   isBang: boolean;
+  /** The rows' padding, which the dialog sets a touch roomier than the page. */
+  itemClassName: string;
+  listId: string;
   rows: Row[];
+  selection: Selection;
   words: string;
 }) {
   return (
-    <CommandList className={className}>
+    // A press on a row must not take the caret from the field.
+    <div
+      aria-label="Suggestions"
+      className={cn("overflow-hidden", className)}
+      id={listId}
+      onMouseDown={(event) => {
+        event.preventDefault();
+      }}
+      role="listbox"
+    >
       {rows.length > 0 ? (
         // A list of its own per search: a fresh scroller starts at the top,
-        // where cmdk's pick of the first row then lands, rather than at
-        // wherever the last search's list was scrolled to.
-        <ResultRows key={words} rows={rows} />
+        // where the first row is picked.
+        <ResultRows
+          itemClassName={itemClassName}
+          key={words}
+          listId={listId}
+          rows={rows}
+          selection={selection}
+        />
       ) : words !== "" && !(isBang && words.length < 3) ? (
         <div className="flex h-full flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
           Nothing matches “{words}”
         </div>
       ) : null}
-    </CommandList>
+    </div>
   );
 }
 
@@ -838,6 +1044,7 @@ export function CommandMenu({
 }) {
   const [open, setOpen] = useAtom(commandMenuOpenAtom);
   const [search, setSearch] = useState("");
+  const listId = useId();
 
   const close = () => {
     setOpen(false);
@@ -848,7 +1055,7 @@ export function CommandMenu({
   };
   useModalBack(close, open);
 
-  const { isBang, pick, rows, words } = useCommandMenuRows({
+  const { isBang, rows, selection, words } = useCommandMenuRows({
     active: open,
     // A row's action, run once the menu is out of the way.
     done: (run) => () => {
@@ -862,8 +1069,7 @@ export function CommandMenu({
   });
 
   return (
-    <CommandDialog
-      description="Search for anything, or type an address."
+    <Dialog
       onOpenChange={(value) => {
         if (value) {
           setOpen(true);
@@ -871,25 +1077,40 @@ export function CommandMenu({
           close();
         }
       }}
-      onValueChange={pick.onValueChange}
       open={open}
-      shouldFilter={false}
-      showCloseButton={false}
-      title="Command menu"
-      value={pick.value}
     >
-      <CommandInput
-        onValueChange={setSearch}
-        placeholder={COMMAND_MENU_PLACEHOLDER}
-        value={search}
-      />
-      <CommandMenuList
-        className="h-96 max-h-none! overflow-hidden!"
-        isBang={isBang}
-        rows={rows}
-        words={words}
-      />
-    </CommandDialog>
+      <DialogHeader className="sr-only">
+        <DialogTitle>Command menu</DialogTitle>
+        <DialogDescription>
+          Search for anything, or type an address.
+        </DialogDescription>
+      </DialogHeader>
+      <DialogContent
+        className="overflow-hidden rounded-2xl p-0"
+        showCloseButton={false}
+      >
+        <div className="flex size-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground">
+          <CommandMenuField
+            containerClassName="h-10"
+            listId={listId}
+            onValueChange={setSearch}
+            placeholder={COMMAND_MENU_PLACEHOLDER}
+            rows={rows}
+            selection={selection}
+            value={search}
+          />
+          <CommandMenuList
+            className="h-96"
+            isBang={isBang}
+            itemClassName="py-2"
+            listId={listId}
+            rows={rows}
+            selection={selection}
+            words={words}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -897,20 +1118,41 @@ export function CommandMenu({
  * Every section in one virtualized, single-scroll region, so a workspace with
  * thousands of chats keeps the menu a normal height and a quick render.
  */
-function ResultRows({ rows }: { rows: Row[] }) {
+function ResultRows({
+  itemClassName,
+  listId,
+  rows,
+  selection,
+}: {
+  itemClassName: string;
+  listId: string;
+  rows: Row[];
+  selection: Selection;
+}) {
   const parentRef = useRef<HTMLDivElement>(null);
   // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 36),
     getScrollElement: () => parentRef.current,
-    // Rows on the first render, before the scroller is measured, so cmdk
-    // finds the top row there when it picks one for the new search.
+    // Rows on the first render, before the scroller is measured.
     initialRect: { height: 512, width: 0 },
     // Layout px, not the on-screen rect: the menu sits inside CSS `zoom`.
     measureElement: (el) => el.offsetHeight,
     overscan: 8,
   });
+
+  // A row picked by a key is brought into view; the first row brings its
+  // section's heading with it. One the pointer picked is already there.
+  const at = rows.findIndex(
+    (row) => row.type === "item" && row.id === selection.id,
+  );
+  const firstItem = rows.findIndex((row) => row.type === "item");
+  useEffect(() => {
+    if (selection.isKeyed && at !== -1) {
+      virtualizer.scrollToIndex(at === firstItem ? 0 : at);
+    }
+  }, [at, firstItem, selection.isKeyed, virtualizer]);
 
   return (
     <div className="h-full overflow-y-auto p-1" ref={parentRef}>
@@ -941,7 +1183,20 @@ function ResultRows({ rows }: { rows: Row[] }) {
                   Looking through your chats…
                 </div>
               ) : (
-                <CommandItem onSelect={row.run} value={row.id}>
+                <div
+                  aria-selected={row.id === selection.id}
+                  className={cn(
+                    "relative flex cursor-default items-center gap-2 rounded-sm px-3 text-sm outline-hidden select-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
+                    itemClassName,
+                  )}
+                  data-selected={row.id === selection.id}
+                  id={`${listId}-${virtualItem.index}`}
+                  onClick={row.run}
+                  onMouseMove={(event) => {
+                    selection.onPointerMove(row.id, event);
+                  }}
+                  role="option"
+                >
                   <span className="flex size-4 shrink-0 items-center justify-center opacity-60">
                     {row.icon}
                   </span>
@@ -953,17 +1208,16 @@ function ResultRows({ rows }: { rows: Row[] }) {
                       </span>
                     ) : null}
                   </span>
-                  {row.chord === undefined ? (
-                    // Return runs the row picked, so it says so.
-                    <CommandShortcut className="hidden in-data-[selected=true]:inline">
-                      {osConventions().returnKey}
-                    </CommandShortcut>
-                  ) : (
+                  {row.chord === undefined ? null : (
                     <CommandShortcut>
                       {formatAcceleratorText(row.chord)}
                     </CommandShortcut>
                   )}
-                </CommandItem>
+                  {/* Return runs the row picked, so it says so, whichever row that is. */}
+                  <CommandShortcut className="hidden in-data-[selected=true]:inline">
+                    {osConventions().returnKey}
+                  </CommandShortcut>
+                </div>
               )}
             </div>
           );

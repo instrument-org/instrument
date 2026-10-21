@@ -96,6 +96,67 @@ describe("the row Return runs after a paste", () => {
   });
 });
 
+describe("the row Return runs while typing", () => {
+  it.each([
+    [
+      "the command menu",
+      async () => {
+        const store = createStore();
+        store.set(commandMenuOpenAtom, true);
+        await renderInBrowser(
+          <CommandMenu openPage={opened.page} openScreen={() => undefined} />,
+          { store },
+        );
+      },
+    ],
+    [
+      "a new tab",
+      async () => {
+        await renderInBrowser(<NewTabPage />);
+      },
+    ],
+  ])("in %s is for every letter typed", async (_where, render) => {
+    await render();
+    const field = page.getByRole("combobox");
+    await expect.element(page.getByText("Go to")).toBeVisible();
+
+    // Return straight after the last letter, before the rows can follow.
+    await userEvent.type(field, "example.com{Enter}");
+    expect(opened.page).toHaveBeenLastCalledWith("https://example.com/");
+  });
+
+  it("stays on the first row when the rows change under a resting pointer", async () => {
+    await renderInBrowser(<NewTabPage />);
+    await expect.element(page.getByText("Go to")).toBeVisible();
+    const first = page.getByRole("option").first();
+    const last = page.getByRole("option").last();
+    await expect.element(first).toHaveAttribute("aria-selected", "true");
+    const moveTo = (x: number, y: number) => {
+      const at = {
+        bubbles: true,
+        clientX: x,
+        clientY: y,
+        screenX: x,
+        screenY: y,
+      };
+      last.element().dispatchEvent(new PointerEvent("pointermove", at));
+      last.element().dispatchEvent(new MouseEvent("mousemove", at));
+    };
+
+    // The pointer came to rest over the last row before these rows were
+    // drawn, and the browser says so again once they are.
+    moveTo(40, 40);
+    moveTo(40, 40);
+    // A pick the moves made would be drawn by now.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await expect.element(first).toHaveAttribute("aria-selected", "true");
+
+    // A pointer that moves picks the row it is over.
+    moveTo(42, 40);
+    await expect.element(last).toHaveAttribute("aria-selected", "true");
+  });
+});
+
 describe("the menu's icons", () => {
   it("asks for no icon for an address being typed", async () => {
     await renderInBrowser(<NewTabPage />);

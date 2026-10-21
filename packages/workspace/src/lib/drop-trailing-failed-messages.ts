@@ -31,3 +31,45 @@ export function dropTrailingFailedMessages(
 
   return end === messages.length ? messages : messages.slice(0, end);
 }
+
+/**
+ * Drop each failed attempt at a step that a retry then finished.
+ *
+ * The retry was sent without the attempt (`dropTrailingFailedMessages`), so
+ * the reply it finished follows the step's input directly, and that is the
+ * conversation the model had. Sending the attempt between them afterwards
+ * puts a reply in front of every later request that no request ever showed
+ * the model, two assistant turns in a row, and a model keeping its own copy of
+ * the conversation (a Claude account's Claude Code) finds what it saw changed.
+ *
+ * A failure is retried when the next message that is not another failure is
+ * a finished reply rather than the user's. A reply the user stopped is not a
+ * failure here: the model wrote it, and a turn after it may build on it.
+ */
+export function dropRetriedFailedMessages(
+  messages: SessionMessage.WithParts[],
+): SessionMessage.WithParts[] {
+  const retried = new Set<SessionMessage.WithParts>();
+  let attempts: SessionMessage.WithParts[] = [];
+  for (const message of messages) {
+    if (message.role !== "assistant") {
+      attempts = [];
+    } else if (
+      message.metadata.error &&
+      message.metadata.error.kind !== "aborted"
+    ) {
+      attempts.push(message);
+    } else if (!message.metadata.error && message.metadata.finishedAt) {
+      for (const attempt of attempts) {
+        retried.add(attempt);
+      }
+      attempts = [];
+    } else {
+      attempts = [];
+    }
+  }
+
+  return retried.size === 0
+    ? messages
+    : messages.filter((message) => !retried.has(message));
+}

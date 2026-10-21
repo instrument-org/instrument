@@ -484,6 +484,40 @@ describe("planStep", () => {
     ).resolves.toEqual(resumed([user("two"), reply("half a"), user("three")]));
   });
 
+  // A step that failed partway is retried without its half, so the process
+  // that finished the retry saw the step's input, then its own reply. Later
+  // requests leave the half out as well, and that process carries on; one
+  // that still sent it would read as two replies in a row and start cold.
+  it("continues the process that finished a retried step", async () => {
+    const retried = after(chat);
+    await expect(
+      planStep(
+        { live: retried, parentRecord: refuse, record: refuse },
+        splitPrompt(answered),
+      ),
+    ).resolves.toEqual({
+      continuation: { kind: "turn", messages: [user("two")] },
+      kind: "live",
+      session: retried,
+    });
+
+    const withHalf = [...chat, reply("half a"), reply("a"), user("two")];
+    await expect(
+      planStep(
+        { live: retried, parentRecord: refuse, record: found(record(chat)) },
+        splitPrompt(withHalf),
+      ),
+    ).resolves.toMatchInlineSnapshot(`
+      {
+        "kind": "cold",
+        "why": {
+          "detail": "no tool results awaited, the reply is followed by assistant, user; its transcript: the reply its record ends on is followed by another assistant message",
+          "tag": "restart",
+        },
+      }
+    `);
+  });
+
   // A turn that came from another provider or computer, which the live
   // process cannot take as a continuation, still goes onto its transcript.
   it("resumes the live process's transcript when the live process cannot take the request", async () => {

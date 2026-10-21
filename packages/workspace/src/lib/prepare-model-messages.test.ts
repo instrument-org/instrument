@@ -482,6 +482,31 @@ describe("prepareModelMessages", () => {
         ]
       `);
     });
+
+    it("leaves a failed half out once its retry finished, and keeps it stored", async () => {
+      await save(userMessage("do something"));
+      await save(failedMessage());
+      const retry = assistantMessage("the whole answer");
+      await save({
+        ...retry,
+        metadata: { ...retry.metadata, finishedAt: new Date() },
+      });
+      await save(userMessage("and then"));
+
+      const messages = await prepare();
+
+      expect(JSON.stringify(messages)).not.toContain("half a sen");
+      expect(messages.map((message) => message.role)).toMatchInlineSnapshot(`
+        [
+          "system",
+          "user",
+          "assistant",
+          "user",
+        ]
+      `);
+      const stored = await ChatReads.transcript({ chatId, sessionId });
+      expect(JSON.stringify(stored._unsafeUnwrap())).toContain("half a sen");
+    });
   });
 
   describe("session context", () => {

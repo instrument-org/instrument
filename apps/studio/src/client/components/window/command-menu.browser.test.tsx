@@ -95,3 +95,23 @@ describe("the row Return runs after a paste", () => {
     expect(opened.page).toHaveBeenLastCalledWith("https://example.org/");
   });
 });
+
+describe("the menu's icons", () => {
+  it("asks for no icon for an address being typed", async () => {
+    await renderInBrowser(<NewTabPage />);
+    const asked: string[] = [];
+    const watch = new MutationObserver(() => {
+      for (const image of document.querySelectorAll("img")) {
+        asked.push(image.src);
+      }
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
+    const field = page.getByRole("combobox");
+    await userEvent.type(field, "never-visited.org");
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toMatchTextContent("never-visited.org");
+    watch.disconnect();
+    expect(asked.filter((src) => src.includes("site-icon"))).toEqual([]);
+  });
+});

@@ -53,6 +53,7 @@ import {
   webSearchUrl,
 } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
+import { iconHostOf } from "@/client/lib/favicon-url";
 import { osConventions } from "@/client/lib/utils";
 import {
   bareAddress,
@@ -87,6 +88,7 @@ import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
@@ -395,6 +397,9 @@ export function useCommandMenuRows({
   const isSearch = words !== "" && !isBang;
   const typedPath = isSearch ? typedPathHere(words) : undefined;
   const site = isSearch && !typedPath ? siteFromWords(words) : undefined;
+  const isKnownSite =
+    site !== undefined &&
+    pages.some((page) => iconHostOf(page.url) === iconHostOf(site.url));
   // A path pressed Return on that led nowhere, kept until the words change:
   // it answers that Return alone, so the same words typed again later are
   // looked for again.
@@ -682,7 +687,14 @@ export function useCommandMenuRows({
                   items: [
                     {
                       detail: isPage ? "Open in this tab" : "Open in a new tab",
-                      icon: <PageFavicon url={site.url} />,
+                      // An address being typed is no site anyone has been to
+                      // yet, and asking for its icon would send every host
+                      // the letters spell out along the way.
+                      icon: isKnownSite ? (
+                        <PageFavicon url={site.url} />
+                      ) : (
+                        <GlobeIcon />
+                      ),
                       id: `open:${site.url}`,
                       label: words,
                       ranges: null,

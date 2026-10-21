@@ -33,6 +33,7 @@ import {
   type TabLocation,
   taskHref,
 } from "@/client/components/window/tab-location";
+import { iconHostOf } from "@/client/lib/favicon-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import {
@@ -57,6 +58,7 @@ import { COMPUTER_ROOT, fileHref } from "@/shared/computer-href";
 import { displayHostPath, expandHomePath } from "@instrument-org/shared";
 import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
@@ -630,6 +632,16 @@ function useRows({
     ],
     (page) => page.url,
   );
+  // A site's icon is asked for only once the window has been there. An
+  // address still being typed, or one the engine suggests, would send every
+  // host it spells out on the way to the icon service.
+  const visitedHosts = new Set(pages.map((page) => iconHostOf(page.url)));
+  const siteIcon = (url: string) =>
+    visitedHosts.has(iconHostOf(url)) ? (
+      <PageFavicon url={url} />
+    ) : (
+      <GlobeIcon className="size-4" />
+    );
   // What the engine would finish the words as, asked once typing pauses
   // rather than on every letter, and never for a path or an address.
   const wantsSuggestions = mode === "web" && isSearchWords(words);
@@ -707,7 +719,7 @@ function useRows({
         ? {
             detail: known?.title,
             fill: whole,
-            icon: <PageFavicon url={site.url} />,
+            icon: siteIcon(site.url),
             id: "site",
             name: whole,
             run: () => {
@@ -743,7 +755,7 @@ function useRows({
             return {
               fill: suggestion,
               icon: suggestedSite ? (
-                <PageFavicon url={suggestedSite.url} />
+                siteIcon(suggestedSite.url)
               ) : (
                 <MagnifyingGlassIcon className="size-4" />
               ),

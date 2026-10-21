@@ -23,7 +23,20 @@ afterAll(async () => {
 });
 
 describe("notificationSettingsTarget", () => {
-  it("opens System Settings at the app's row on macOS", async () => {
+  it("opens System Settings at the running app's row on macOS", async () => {
+    expect(
+      await notificationSettingsTarget({
+        bundleId: "com.github.Electron",
+        env: {},
+        platform: "darwin",
+      }),
+    ).toEqual({
+      kind: "url",
+      url: "x-apple.systempreferences:com.apple.preference.notifications?id=com.github.Electron",
+    });
+  });
+
+  it("opens the build's row on macOS when the app's own is unknown", async () => {
     expect(
       await notificationSettingsTarget({ env: {}, platform: "darwin" }),
     ).toEqual({

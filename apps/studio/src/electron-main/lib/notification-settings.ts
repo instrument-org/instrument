@@ -1,4 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
+import { bundleIdentifier } from "@/electron-main/lib/mac-native";
 import { APP_BUNDLE_ID } from "@instrument-org/shared";
 import { shell } from "electron";
 import { spawn } from "node:child_process";
@@ -19,15 +20,19 @@ type NotificationSettingsTarget =
  * The system's notification settings, or none where no page can be opened
  * reliably. macOS won't let an app prompt for notification permission, so
  * its settings pane is the best on offer to someone who isn't seeing
- * notifications; the `?id=` bundle hint selects this app's row (honored on
- * Ventura and later, otherwise it lands on the Notifications list). Windows
- * has one address for every app. On Linux only GNOME has a page to open, and
- * its Settings app refuses to start under any other desktop.
+ * notifications; the `?id=` hint selects the row of `bundleId`, the running
+ * app's own, which in a development run is Electron's rather than the
+ * build's (honored on Ventura and later, otherwise it lands on the
+ * Notifications list). Windows has one address for every app. On Linux only
+ * GNOME has a page to open, and its Settings app refuses to start under any
+ * other desktop.
  */
 export async function notificationSettingsTarget({
+  bundleId,
   env,
   platform,
 }: {
+  bundleId?: string;
   env: { PATH?: string; XDG_CURRENT_DESKTOP?: string };
   platform: NodeJS.Platform;
 }): Promise<NotificationSettingsTarget | undefined> {
@@ -35,7 +40,7 @@ export async function notificationSettingsTarget({
     case "darwin": {
       return {
         kind: "url",
-        url: `x-apple.systempreferences:com.apple.preference.notifications?id=${APP_BUNDLE_ID}`,
+        url: `x-apple.systempreferences:com.apple.preference.notifications?id=${bundleId ?? APP_BUNDLE_ID}`,
       };
     }
     case "win32": {
@@ -60,6 +65,7 @@ export async function notificationSettingsTarget({
 /** Opens the system's notification settings, and says whether there were any to open. */
 export async function openNotificationSettings(): Promise<boolean> {
   const target = await notificationSettingsTarget({
+    bundleId: await bundleIdentifier(),
     env: process.env,
     platform: process.platform,
   });

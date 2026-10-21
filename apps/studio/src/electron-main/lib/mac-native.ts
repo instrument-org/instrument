@@ -80,6 +80,7 @@ interface MacModule {
   requestNotifications: () => Promise<string>;
   automationStatus: (bundleId: string, request: string) => Promise<string>;
   promptOnScreen: () => Promise<string>;
+  bundleIdentifier: () => Promise<string>;
 }
 
 /** The Mac's own apps whose data has privacy settings of its own, by bundle id. */
@@ -271,6 +272,21 @@ function loadModule(): MacModule | null {
       : null;
   }
   return macModule;
+}
+
+/**
+ * The identifier macOS files this app's settings under: the build's own in a
+ * packaged app, Electron's (`com.github.Electron`) in a development run.
+ * Undefined off macOS and in a build without the module.
+ */
+export async function bundleIdentifier(): Promise<string | undefined> {
+  const native = loadModule();
+  if (!native) {
+    return undefined;
+  }
+  return z
+    .object({ bundleId: z.string().optional() })
+    .parse(JSON.parse(await native.bundleIdentifier())).bundleId;
 }
 
 const NotificationStatusSchema = z.object({

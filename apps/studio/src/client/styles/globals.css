@@ -1720,23 +1720,12 @@ a.cursor-pointer {
   }
 }
 
-/* Setup's pictures that are drawn as a fixed light picture in both themes
-   (the packed folder): the vignette tokens at their light values. */
-@utility vignettes-light {
-  --vignette-paper: #ffffff;
-  --vignette-paper-muted: var(--gray-50);
-  --vignette-band: var(--gray-100);
-  --vignette-head: var(--brand-50);
-  --vignette-ink: var(--gray-300);
-  --vignette-ink-faint: var(--gray-200);
-  --vignette-edge: rgb(10 13 18 / 0.06);
-}
-
 /* Welcome's picture (Neil's welcome burst): the app icon scales in, then six
- * pages spring out from behind it to their tilts, once. Each page sets
- * where it starts (`--burst-x`, `--burst-y`), its tilt (`--burst-rotate`)
- * and when it leaves (`--burst-delay`); with reduced motion it sits at its
- * end from the start. */
+ * pages spring out from behind it to their tilts, once; the folder page's
+ * packed folder springs its pages up out of the folder the same way. Each
+ * page sets where it starts (`--burst-x`, `--burst-y`), its tilt
+ * (`--burst-rotate`) and when it leaves (`--burst-delay`); with reduced
+ * motion it sits at its end from the start. */
 @utility welcome-burst-page {
   transform: translate(0, 0) scale(1) rotate(var(--burst-rotate));
   @media (prefers-reduced-motion: no-preference) {

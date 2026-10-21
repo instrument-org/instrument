@@ -6,8 +6,7 @@ import { type CSSProperties, type ReactNode } from "react";
 /**
  * Figma's Illustration/Vignette pieces: the little pages setup's pictures
  * are made of, at their size in the 560-wide pictures. They take their
- * colors from the `--vignette-*` tokens, so they follow the theme unless a
- * picture sets `vignettes-light`.
+ * colors from the `--vignette-*` tokens, so they follow the theme.
  */
 
 /** A sheet: a green header row over a grid with one cell picked. */

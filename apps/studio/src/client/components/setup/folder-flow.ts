@@ -15,6 +15,8 @@ type Summary = RPCOutput["workspaces"]["summary"];
  *   first, and the next Continue opens it.
  * - `denied`: the system refused it, which in Documents means the person
  *   said no to the prompt (frame 07); fall back to the home folder.
+ * - `unfinished`: the folder is still being updated from an earlier build,
+ *   so it can't move this launch; the page offers to leave it where it is.
  * - `refused`: somewhere the folder can't go, with why.
  *
  * `seen` is the note already shown for this folder, so the second Continue
@@ -26,7 +28,8 @@ export type FolderAction =
   | { items: number; type: "exists" }
   | { reason: Extract<Verdict, { kind: "refused" }>["reason"]; type: "refused" }
   | { type: "denied" }
-  | { type: "open" };
+  | { type: "open" }
+  | { type: "unfinished" };
 
 export function folderAction({
   seen,
@@ -55,6 +58,9 @@ export function folderAction({
       }
       if (verdict.reason === "unwritable") {
         return { type: "denied" };
+      }
+      if (verdict.reason === "unfinished") {
+        return { type: "unfinished" };
       }
       return { reason: verdict.reason, type: "refused" };
     }

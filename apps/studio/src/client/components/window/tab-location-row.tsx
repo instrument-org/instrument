@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { AppIcon } from "@/client/components/window/app-icon";
+import { FoldingTrail } from "@/client/components/window/folding-trail";
 import {
   lookAtAtom,
   type LookTarget,
@@ -46,14 +47,7 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import {
-  Fragment,
-  type ReactNode,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { Fragment, type ReactNode, useState } from "react";
 
 import {
   type LocationCrumb,
@@ -275,80 +269,6 @@ function Field({ location }: { location: TabLocation }) {
     home: window.api.homeDir,
     ...(places.data ? { volumes: places.data.volumes } : {}),
   });
-  const path = useRef<HTMLSpanElement>(null);
-  // Past the point where even shortened names fit, the end of the path is
-  // what stays in view and its head scrolls off to the left: the place you
-  // are at is the part that has to be readable. Offsets are read against the
-  // box itself, which is why it is the positioned one.
-  const trail = crumbs.map((crumb) => crumb.label).join("/");
-  useEffect(() => {
-    const box = path.current;
-    if (!box) {
-      return;
-    }
-    const showHere = () => {
-      const here = box.lastElementChild;
-      if (here instanceof HTMLElement) {
-        box.scrollLeft = Math.min(
-          here.offsetLeft,
-          box.scrollWidth - box.clientWidth,
-        );
-      }
-    };
-    showHere();
-    // Again whenever the box changes size, which is the pane being dragged
-    // narrower: the path that fit a moment ago has to give up its head.
-    const observer = new ResizeObserver(showHere);
-    observer.observe(box);
-    return () => {
-      observer.disconnect();
-    };
-  }, [trail]);
-  // How many of the folders after the first stand folded into one "…" menu.
-  // The middle of the path gives way first, the way a folder window's path
-  // bar gives it up, so the first part, the folder the place is in and the
-  // place itself keep their whole names for as long as the box holds them;
-  // past that, the parts left shorten as they always did. Measured off a
-  // copy of the path at its natural width, drawn out of sight.
-  const natural = useRef<HTMLSpanElement>(null);
-  const [folded, setFolded] = useState(0);
-  useLayoutEffect(() => {
-    const box = path.current;
-    const copy = natural.current;
-    if (!box || !copy) {
-      return;
-    }
-    const fit = () => {
-      const widthOf = (selector: string) =>
-        [...copy.querySelectorAll<HTMLElement>(selector)].map(
-          (part) => part.offsetWidth,
-        );
-      const labels = widthOf("[data-crumb]");
-      const separator = widthOf("[data-separator]")[0] ?? 0;
-      const more = widthOf("[data-more]")[0] ?? 0;
-      const foldable = Math.max(0, labels.length - 3);
-      const widthWith = (count: number) =>
-        labels.reduce(
-          (sum, width, index) =>
-            index >= 1 && index <= count ? sum : sum + width,
-          0,
-        ) +
-        separator * (labels.length - count - 1) +
-        (count > 0 ? separator + more : 0);
-      let count = 0;
-      while (count < foldable && widthWith(count) > box.clientWidth + 1) {
-        count += 1;
-      }
-      setFolded(count);
-    };
-    fit();
-    const observer = new ResizeObserver(fit);
-    observer.observe(box);
-    return () => {
-      observer.disconnect();
-    };
-  }, [trail]);
-
   if (location.kind === "newTab") {
     return (
       <>
@@ -436,81 +356,66 @@ function Field({ location }: { location: TabLocation }) {
       </Fragment>
     );
   };
-  const hidden = crumbs.slice(1, 1 + folded);
   return (
     <>
       {locationMark(location)}
       {/* The parts pulled out to the box's own edge, so the place reads from
           where it read before there was anything to press. */}
-      <span
-        className="relative -mx-1 scrollbar-hide flex min-w-0 flex-1 items-center overflow-x-auto"
-        ref={path}
-      >
-        {crumbs.slice(0, 1).map(crumbAt)}
-        {hidden.length > 0 ? (
-          <>
-            {separator}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  aria-label="Folders along the path"
-                  className="shrink-0 cursor-default rounded px-1 py-0.5 text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
-                  type="button"
-                >
-                  <DotsThreeIcon className="size-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-48">
-                {hidden.map((crumb, index) => {
-                  const open = crumb.to
-                    ? gesturesFor(crumb.to).destinations.find(
-                        (destination) => destination.id === "open",
-                      )
-                    : undefined;
-                  return (
-                    <DropdownMenuItem
-                      disabled={!open}
-                      key={`${index}:${crumb.label}`}
-                      onSelect={() => {
-                        open?.run();
-                      }}
-                    >
-                      {crumb.path === undefined ? null : (
-                        <FolderMark size="large" path={crumb.path} />
-                      )}
-                      <span className="min-w-0 truncate">{crumb.label}</span>
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        ) : null}
-        {crumbs
-          .slice(1 + folded)
-          .map((crumb, index) => crumbAt(crumb, index + 1 + folded))}
-        {/* The whole path at its natural width, out of sight, for the parts
-            that fold to be measured against. */}
-        <span
-          aria-hidden
-          className="pointer-events-none invisible absolute top-0 left-0 flex w-max items-center"
-          ref={natural}
-        >
-          {crumbs.map((crumb, index) => (
-            <span
-              className="px-1"
-              data-crumb=""
-              key={`${index}:${crumb.label}`}
-            >
-              {crumb.label}
-            </span>
-          ))}
-          <span data-separator="">{separator}</span>
-          <span className="px-1 py-0.5" data-more="">
+      <FoldingTrail
+        className="-mx-1 flex-1"
+        fold={(indexes) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label="Folders along the path"
+                className="shrink-0 cursor-default rounded px-1 py-0.5 text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
+                type="button"
+              >
+                <DotsThreeIcon className="size-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-48">
+              {indexes.map((at) => {
+                const crumb = crumbs[at];
+                if (!crumb) {
+                  return null;
+                }
+                const open = crumb.to
+                  ? gesturesFor(crumb.to).destinations.find(
+                      (destination) => destination.id === "open",
+                    )
+                  : undefined;
+                return (
+                  <DropdownMenuItem
+                    disabled={!open}
+                    key={`${at}:${crumb.label}`}
+                    onSelect={() => {
+                      open?.run();
+                    }}
+                  >
+                    {crumb.path === undefined ? null : (
+                      <FolderMark size="large" path={crumb.path} />
+                    )}
+                    <span className="min-w-0 truncate">{crumb.label}</span>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        foldMark={
+          <span className="px-1 py-0.5">
             <DotsThreeIcon className="size-4" />
           </span>
-        </span>
-      </span>
+        }
+        labelClassName="px-1"
+        labels={crumbs.map((crumb) => crumb.label)}
+        part={(at) => {
+          const crumb = crumbs[at];
+          return crumb ? crumbAt(crumb, at) : null;
+        }}
+        separator={separator}
+      />
     </>
   );
 }

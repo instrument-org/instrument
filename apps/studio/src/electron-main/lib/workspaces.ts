@@ -259,14 +259,15 @@ export function unchosenOutputFolder(
  * use put its finished work.
  */
 function usedBefore(userDataDir: string): boolean {
+  return workspaceHasChats(defaultWorkspacePath(userDataDir));
+}
+
+/** Whether a workspace holds a chat, which a person made by using it. */
+export function workspaceHasChats(workspacePath: string): boolean {
   try {
-    return (
-      fs.readdirSync(
-        workspaceLayout(defaultWorkspacePath(userDataDir)).chatsDir,
-      ).length > 0
-    );
+    return fs.readdirSync(workspaceLayout(workspacePath).chatsDir).length > 0;
   } catch {
-    // No workspace of its own yet, or none this account can read.
+    // No workspace there yet, or none this account can read.
     return false;
   }
 }

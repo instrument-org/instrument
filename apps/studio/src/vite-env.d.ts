@@ -65,6 +65,8 @@ declare namespace NodeJS {
        * for a fixture. See create-workspace-actor.ts.
        */
       INSTRUMENT_OUTPUT_FOLDER: string | undefined;
+      /** Dev only: the notification status the Mac bridge answers in place of macOS's (`notificationStatus`). */
+      INSTRUMENT_NOTIFICATION_STATUS: string | undefined;
       /**
        * Development builds only: the platform API this launch talks to, over
        * the build's and the one chosen in Settings. See setup-environment.ts.

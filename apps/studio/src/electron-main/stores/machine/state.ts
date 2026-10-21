@@ -2,6 +2,7 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { noteUpdate } from "@/electron-main/lib/notices";
 import { MACHINE_STATE_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { SetupRecordSchema } from "@/shared/setup";
 import { KEY_FOLDER_NAMES } from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import Store from "electron-store";
@@ -49,6 +50,12 @@ const MachineStateSchema = z.object({
     )
     .optional()
     .catch(undefined),
+  /**
+   * The steps of setup answered on this computer, and when it finished
+   * (`lib/setup-state.ts`). Machine-wide, so a second workspace does not
+   * run setup again.
+   */
+  setup: SetupRecordSchema.catch({ answered: {} }),
 });
 
 type MachineState = z.output<typeof MachineStateSchema>;

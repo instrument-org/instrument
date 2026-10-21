@@ -55,9 +55,12 @@ export interface SetupFacts {
 /**
  * What setup keeps: when each step was answered, and when setup finished.
  * Kept per computer, so a second workspace doesn't run setup again.
+ * Finishing records every step this build knows as answered, so a step a
+ * later build adds is the only one unanswered. Keyed by any name, so a step
+ * from a newer build survives a run of an older one.
  */
 export const SetupRecordSchema = z.object({
-  answered: z.partialRecord(SetupStepSchema, z.string()).catch({}),
+  answered: z.record(z.string(), z.string()).catch({}),
   finishedAt: z.string().optional().catch(undefined),
 });
 

@@ -204,9 +204,17 @@ export type NotificationStatus = z.output<typeof NotificationStatusSchema>;
 /**
  * Where the user stands on notifications: never asked, allowed, denied.
  * `unsupported` off macOS, in a build without the module, and in a dev run
- * that is not an app bundle.
+ * that is not an app bundle. A development build takes
+ * `INSTRUMENT_NOTIFICATION_STATUS` in its place, so a scenario can set what
+ * macOS would say.
  */
 export async function notificationStatus(): Promise<NotificationStatus> {
+  const override = NotificationStatusSchema.shape.status.safeParse(
+    process.env.INSTRUMENT_NOTIFICATION_STATUS,
+  );
+  if (!app.isPackaged && override.success) {
+    return { status: override.data };
+  }
   const native = loadModule();
   if (!native) {
     return { status: "unsupported" };

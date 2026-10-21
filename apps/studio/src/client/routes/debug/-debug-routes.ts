@@ -11,6 +11,12 @@ export const debugNavigationRoutes = [
     title: "Debug billing",
     to: "/debug/billing",
   },
+  {
+    id: "trial-modes",
+    label: "Trial modes",
+    title: "Debug trial modes",
+    to: "/debug/trial-modes",
+  },
 ] as const;
 
 export const componentPages = [
@@ -96,7 +102,9 @@ type DebugRouteId = (typeof debugNavigationRoutes)[number]["id"];
  */
 export function debugPageTitle(pathname: string): string {
   const path = pathname.replace(/\/$/, "");
-  const page = [...debugNavigationRoutes, ...componentPages].find((item) => item.to === path);
+  const page = [...debugNavigationRoutes, ...componentPages].find(
+    (item) => item.to === path,
+  );
   return page?.label ?? "Debug";
 }
 

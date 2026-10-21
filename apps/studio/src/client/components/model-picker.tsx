@@ -1004,7 +1004,7 @@ function FailedConnection({
  * trial first while it can start. Picking one stays possible; the chat says
  * the same if a message is sent on it.
  */
-function PlanNeeded() {
+export function PlanNeeded() {
   const { data: status, isSignedIn } = useBillingStatus();
   const { data: offer } = useQuery({
     ...rpcClient.billing.offer.queryOptions(),

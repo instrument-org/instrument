@@ -19,7 +19,7 @@ Provider configs (which carry the API keys) originate in Studio's main-process s
 
 ## The library
 
-The package has four entry points (`package.json` `exports`): the root [`index.ts`](../../packages/ai-gateway/src/index.ts), `./client` (a handful of schema types for the renderer), `./model-cache`, and `./schemas` — the Zod schemas without the provider stack, because importing the root pulls in every AI SDK provider at around a second of module evaluation that a test runner pays per file. Grouped by job:
+The package has five entry points (`package.json` `exports`): the root [`index.ts`](../../packages/ai-gateway/src/index.ts), `./client` (a handful of schema types for the renderer), `./context-windows` (the windows providers reported while serving a model, which the context budget reads ahead of the catalog's), `./model-cache`, and `./schemas` — the Zod schemas without the provider stack, because importing the root pulls in every AI SDK provider at around a second of module evaluation that a test runner pays per file. Grouped by job:
 
 - **Model discovery** — `fetch-model`, `fetch-model-results`, `fetch-ai-sdk-model`, backed by the per-provider fetchers in `lib/fetch-models/` (one file per provider; adding a provider means adding a file there). Results are cached via `model-cache` (Studio persists this to disk as `diskModelCache`).
 - **Provider config & selection** — `select-provider-configs`, `providers/metadata`, `verify-api-key`, `providers/fetch-credits`, `reasoning-effort`.

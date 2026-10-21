@@ -3,6 +3,7 @@ import {
   type LanguageModelV4StreamPart,
   type LanguageModelV4Usage,
 } from "@ai-sdk/provider";
+import { type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
@@ -16,6 +17,7 @@ export type StepSession = Pick<
   ClaudeCodeSession,
   | "awaitingToolCallIds"
   | "builtInTools"
+  | "contextWindow"
   | "forkPoint"
   | "leaf"
   | "messages"
@@ -46,8 +48,8 @@ export async function pumpStep(
   let messageId: string = randomUUID();
   let messageModel: string | undefined;
   let stopReason: string | null = null;
-  // Counted per API message, from its start and its closing delta, and summed
-  // across the messages one step can span (a built-in search runs several).
+  // Counted per API message, from its start and its closing delta. One step
+  // can span several (a built-in search answers its results in another).
   let stepUsage: AnthropicUsage = {};
   let messageUsage: AnthropicUsage = {};
   // Until the reply starts, each user-side entry Claude Code reports (a tool
@@ -110,6 +112,7 @@ export async function pumpStep(
         break;
       }
       case "result": {
+        session.contextWindow = contextWindowOf(message, messageModel);
         finish(finishReasonOf(stopReason));
         return;
       }
@@ -283,7 +286,7 @@ export async function pumpStep(
             break;
           }
           case "message_stop": {
-            stepUsage = addUsage(stepUsage, messageUsage);
+            stepUsage = addMessageUsage(stepUsage, messageUsage);
             messageUsage = {};
             if (stopReason === "tool_use" && toolCallIds.length > 0) {
               session.awaitingToolCallIds = toolCallIds;
@@ -348,12 +351,45 @@ function mergeUsage(
   return merged;
 }
 
-function addUsage(a: AnthropicUsage, b: AnthropicUsage): AnthropicUsage {
-  const sum: AnthropicUsage = {};
-  for (const field of USAGE_FIELDS) {
-    sum[field] = (a[field] ?? 0) + (b[field] ?? 0);
+/**
+ * A step's usage once another of its API messages has finished. Each message
+ * sends the whole conversation so far, so the step's input is the last one's,
+ * which already holds every earlier one's: summing them would count the
+ * history once per message. Output is new in each, so it adds up.
+ */
+function addMessageUsage(
+  step: AnthropicUsage,
+  message: AnthropicUsage,
+): AnthropicUsage {
+  return {
+    cache_creation_input_tokens: message.cache_creation_input_tokens,
+    cache_read_input_tokens: message.cache_read_input_tokens,
+    input_tokens: message.input_tokens,
+    output_tokens: (step.output_tokens ?? 0) + (message.output_tokens ?? 0),
+  };
+}
+
+/**
+ * The context window Claude Code ran the step's model in, from the per-model
+ * totals its turn's result carries, keyed by the model each served. Absent
+ * from a result that names no such model, as a turn that failed before the
+ * model answered.
+ */
+function contextWindowOf(
+  result: Extract<SDKMessage, { type: "result" }>,
+  model: string | undefined,
+) {
+  if (model === undefined) {
+    return undefined;
   }
-  return sum;
+  // Typed as always there, but a recorded result or an older CLI's has none.
+  const totals: Partial<typeof result.modelUsage> = result.modelUsage ?? {};
+  const usage =
+    totals[model] ??
+    Object.values(totals).find((entry) => entry?.canonicalModel === model);
+  return usage !== undefined && usage.contextWindow > 0
+    ? usage.contextWindow
+    : undefined;
 }
 
 function usageOf(usage: AnthropicUsage): LanguageModelV4Usage {

@@ -48,9 +48,20 @@ export function scrubMessage(message: SDKMessage): unknown {
       };
     }
     case "result": {
+      // Of the per-model totals, only the window each model ran in.
+      const modelUsage = Object.fromEntries(
+        Object.entries(message.modelUsage).map(([model, usage]) => [
+          model,
+          {
+            canonicalModel: usage.canonicalModel,
+            contextWindow: usage.contextWindow,
+          },
+        ]),
+      );
       return message.subtype === "success"
         ? {
             is_error: message.is_error,
+            modelUsage,
             result: message.result,
             subtype: message.subtype,
             type: "result",
@@ -58,6 +69,7 @@ export function scrubMessage(message: SDKMessage): unknown {
         : {
             errors: message.errors,
             is_error: message.is_error,
+            modelUsage,
             subtype: message.subtype,
             type: "result",
           };
@@ -101,6 +113,7 @@ export async function replayStep(step: RecordedStep) {
   const session: StepSession = {
     awaitingToolCallIds: [],
     builtInTools: new Set(step.builtInTools),
+    contextWindow: undefined,
     forkPoint: undefined,
     leaf: undefined,
     messages: {
@@ -127,5 +140,9 @@ export async function replayStep(step: RecordedStep) {
   for await (const part of stream) {
     parts.push(part);
   }
-  return { awaitingToolCallIds: session.awaitingToolCallIds, parts };
+  return {
+    awaitingToolCallIds: session.awaitingToolCallIds,
+    contextWindow: session.contextWindow,
+    parts,
+  };
 }

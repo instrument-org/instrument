@@ -11,6 +11,7 @@ import { type EffortLevel } from "@anthropic-ai/claude-agent-sdk";
 import { createHash, randomUUID } from "node:crypto";
 
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
+import { noteReportedContextLength } from "../../reported-context-windows";
 import {
   coldStartReason,
   planStep,
@@ -68,14 +69,23 @@ export function closeClaudeAccountSessions() {
 export function createClaudeAccountLanguageModel({
   configDir,
   executablePath,
+  providerConfigId,
 }: {
   configDir: string | undefined;
   executablePath: string;
+  /** The connection the account is, which a reported window is noted under. */
+  providerConfigId: string;
 }) {
   return (modelId: string): LanguageModelV4 => {
     const doStream = (options: LanguageModelV4CallOptions) =>
       Promise.resolve({
-        stream: streamStep({ configDir, executablePath, modelId, options }),
+        stream: streamStep({
+          configDir,
+          executablePath,
+          modelId,
+          options,
+          providerConfigId,
+        }),
       });
     return {
       doGenerate: async (options) => collect(await doStream(options)),
@@ -93,11 +103,13 @@ function streamStep({
   executablePath,
   modelId,
   options,
+  providerConfigId,
 }: {
   configDir: string | undefined;
   executablePath: string;
   modelId: string;
   options: LanguageModelV4CallOptions;
+  providerConfigId: string;
 }) {
   const key = sessionKeyOf(options);
   const parentKey = parentKeyOf(options);
@@ -219,6 +231,14 @@ function streamStep({
             );
           }
           await pumpStep(session, controller);
+          if (session.contextWindow !== undefined) {
+            // Claude Code's own word on the window, which the context budget
+            // reads in place of the catalog's from the next request on.
+            noteReportedContextLength(
+              { params: { providerConfigId }, providerId: modelId },
+              session.contextWindow,
+            );
+          }
         } finally {
           session.endStep();
         }

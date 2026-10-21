@@ -1,4 +1,5 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import { reportedContextLength } from "@instrument-org/ai-gateway/context-windows";
 
 /**
  * Shrink every model's context window to this many tokens.
@@ -15,17 +16,23 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
  */
 const OVERRIDE_ENV_VAR = "INSTRUMENT_CONTEXT_LENGTH_OVERRIDE";
 
+/**
+ * The window a request to `model` runs in: the one its provider reported while
+ * serving it, which a catalog listing no window (or one older than the
+ * provider's answer) cannot know, else the catalog's.
+ */
 export function effectiveContextLength(
   model: AIGatewayModel.Type,
 ): number | undefined {
-  if (model.contextLength === undefined) {
+  const contextLength = reportedContextLength(model) ?? model.contextLength;
+  if (contextLength === undefined) {
     return undefined;
   }
 
   const override = Number(process.env[OVERRIDE_ENV_VAR]);
   if (Number.isFinite(override) && override > 0) {
-    return Math.min(model.contextLength, Math.floor(override));
+    return Math.min(contextLength, Math.floor(override));
   }
 
-  return model.contextLength;
+  return contextLength;
 }

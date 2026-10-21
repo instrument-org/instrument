@@ -12,6 +12,7 @@ import { RelativePathSchema } from "../schemas/paths";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
+import { noteReportedContextLength } from "@instrument-org/ai-gateway/context-windows";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { ChatReads } from "./chat-reads";
@@ -959,6 +960,43 @@ describe("prepareModelMessages", () => {
         expect(JSON.stringify(stored._unsafeUnwrap())).not.toContain(
           "<context-budget>",
         );
+      });
+    });
+
+    describe("a model whose provider reported its window", () => {
+      // A Claude account's catalog row, which lists the model's window as
+      // Claude Code last reported it, or none at all.
+      const reportingModel = (contextLength?: number) =>
+        createMockAIGatewayModel({
+          contextLength,
+          providerConfigId: `reporting-${StoreId.newSessionId()}`,
+        });
+
+      it("budgets against the reported window where the catalog has none", async () => {
+        const model = reportingModel();
+        await save(userMessage("First question"));
+        await save(assistantMessageWithUsage("getting full", 700));
+        expect(noticeIn(await prepare(model))).toBeUndefined();
+
+        noteReportedContextLength(model, 1000);
+
+        expect(noticeIn(await prepare(model))).toContain(
+          "tokens of context remain",
+        );
+      });
+
+      it("rolls over against the reported window rather than the catalog's", async () => {
+        const model = reportingModel(1_000_000);
+        noteReportedContextLength(model, 1000);
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+
+        const texts = modelTexts(await prepare(model));
+
+        expect(await storedBoundary()).toBeDefined();
+        expect(texts.some((text) => text.includes("turn 0"))).toBe(false);
       });
     });
 

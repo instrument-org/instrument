@@ -43,6 +43,7 @@ export async function aiSDKForProviderConfig(
     return createClaudeAccountLanguageModel({
       configDir: config.configDir,
       executablePath: config.executablePath,
+      providerConfigId: config.id,
     });
   }
 

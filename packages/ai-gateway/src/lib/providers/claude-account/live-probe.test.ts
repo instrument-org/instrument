@@ -105,6 +105,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
       executablePath: `${homedir()}/.local/bin/claude`,
+      providerConfigId: "claude-account",
     })("claude-haiku-4-5");
     const calls: string[] = [];
     const tools = {
@@ -197,6 +198,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
       executablePath: `${homedir()}/.local/bin/claude`,
+      providerConfigId: "claude-account",
     })("claude-haiku-4-5");
     const tools: LanguageModelV4FunctionTool[] = [
       {
@@ -360,6 +362,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
       executablePath: `${homedir()}/.local/bin/claude`,
+      providerConfigId: "claude-account",
     })("claude-haiku-4-5");
     const tools: LanguageModelV4FunctionTool[] = [
       {
@@ -454,6 +457,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
       executablePath: `${homedir()}/.local/bin/claude`,
+      providerConfigId: "claude-account",
     })("claude-haiku-4-5");
     const tools: LanguageModelV4FunctionTool[] = [
       {
@@ -561,6 +565,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
       executablePath: `${homedir()}/.local/bin/claude`,
+      providerConfigId: "claude-account",
     })(process.env.CLAUDE_PROBE_MODEL ?? "claude-haiku-5-5");
     const tools: LanguageModelV4FunctionTool[] = [
       {
@@ -709,6 +714,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
       executablePath: `${homedir()}/.local/bin/claude`,
+      providerConfigId: "claude-account",
     })(process.env.CLAUDE_PROBE_MODEL ?? "claude-haiku-5-5");
     const tools: LanguageModelV4FunctionTool[] = [
       {

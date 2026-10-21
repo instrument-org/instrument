@@ -368,10 +368,12 @@ it.skipIf(!live)(
       main: createClaudeAccountLanguageModel({
         configDir: undefined,
         executablePath,
+        providerConfigId: "claude-account",
       })(modelId),
       switched: createClaudeAccountLanguageModel({
         configDir: undefined,
         executablePath,
+        providerConfigId: "claude-account",
       })(switchModelId),
     };
     const reports: StepReport[] = [];

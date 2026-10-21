@@ -133,6 +133,7 @@ export async function getAISDKWebSearchModel({
         model: createClaudeAccountLanguageModel({
           configDir: config.configDir,
           executablePath: config.executablePath,
+          providerConfigId: config.id,
         })(callingModel.providerId),
         providerOptions: {
           "claude-account": { builtInTools: ["WebSearch"] },

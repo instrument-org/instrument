@@ -203,4 +203,64 @@ describe("recorded Claude Code steps", () => {
       ]
     `);
   });
+  it("counts a step's input once however many API messages it spans", async () => {
+    // The search's own message, then the one answering its results, which
+    // resends everything the first one had.
+    const [step] = fixture("native-web-search");
+    if (!step) {
+      throw new Error("The fixture has no step.");
+    }
+    const { parts } = await replayStep(step);
+    const finish = parts.find((part) => part.type === "finish");
+    expect(finish?.type === "finish" && finish.usage).toMatchInlineSnapshot(`
+      {
+        "inputTokens": {
+          "cacheRead": 1344,
+          "cacheWrite": 821,
+          "noCache": 2,
+          "total": 2167,
+        },
+        "outputTokens": {
+          "reasoning": undefined,
+          "text": undefined,
+          "total": 395,
+        },
+      }
+    `);
+  });
+
+  it("reads the window Claude Code ran the step's model in", async () => {
+    const [step] = fixture("text-and-thinking");
+    if (!step) {
+      throw new Error("The fixture has no step.");
+    }
+    const withTotals = {
+      ...step,
+      messages: step.messages.map((message) =>
+        isResult(message)
+          ? {
+              ...message,
+              modelUsage: {
+                // A helper call on another model, whose window is not this step's.
+                "claude-haiku-5-5": { contextWindow: 200_000 },
+                "claude-haiku-4-5-20251001": { contextWindow: 1_000_000 },
+              },
+            }
+          : message,
+      ),
+    };
+
+    expect((await replayStep(withTotals)).contextWindow).toBe(1_000_000);
+    // A recorded result carries no totals, and so no window.
+    expect((await replayStep(step)).contextWindow).toBeUndefined();
+  });
 });
+
+function isResult(message: unknown): message is { type: "result" } {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    "type" in message &&
+    message.type === "result"
+  );
+}

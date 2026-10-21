@@ -8,11 +8,26 @@ import { canonicalizeAnthropicModelId } from "../../canonicalize-model-id";
 import { TypedError } from "../../errors";
 import { generateModelName } from "../../generate-model-name";
 import { getModelFeatures } from "../../get-model-features";
+import { reportedContextLength } from "../../reported-context-windows";
 import { getProviderMetadata } from "../metadata";
 import { ClaudeCodeSession } from "./session";
 
 /** The CLI's short names, which stand for whichever model is current. */
 const ALIASES = new Set(["haiku", "opus", "sonnet"]);
+
+/**
+ * The window each model runs in, as Claude Code reports it in a turn's
+ * per-model totals (`modelUsage[model].contextWindow`). The CLI lists no
+ * window, so this stands in until the model has finished a turn, after which
+ * Claude Code's own report replaces it. A model missing here has no window
+ * until then.
+ */
+const CONTEXT_WINDOWS: Record<string, number> = {
+  "claude-fable-5.1": 1_000_000,
+  "claude-haiku-5.5": 1_000_000,
+  "claude-opus-5.5": 1_000_000,
+  "claude-sonnet-5.5": 1_000_000,
+};
 
 /**
  * The models the user's plan offers, as the signed-in CLI lists them. Read
@@ -84,6 +99,9 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
           {
             author,
             canonicalId,
+            contextLength:
+              reportedContextLength({ params, providerId }) ??
+              CONTEXT_WINDOWS[canonicalId],
             features: getModelFeatures(canonicalId),
             name: generateModelName(canonicalId),
             params,

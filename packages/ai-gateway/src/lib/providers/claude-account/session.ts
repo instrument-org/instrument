@@ -78,6 +78,11 @@ export class ClaudeCodeSession implements MessageSource {
   readonly messages: AsyncIterator<SDKMessage, void>;
   /** The built-in tools this process runs itself, which our loop never sees. */
   readonly builtInTools: ReadonlySet<string>;
+  /**
+   * The context window Claude Code said it ran this step's model in, which
+   * only the result ending a turn reports.
+   */
+  contextWindow: number | undefined;
   modelId: string;
   /** The plan's usage as the CLI last reported it, which it does not repeat every turn. */
   rateLimit: SDKRateLimitInfo | undefined;
@@ -238,6 +243,7 @@ export class ClaudeCodeSession implements MessageSource {
   beginStep(seen: string[]) {
     this.busy = true;
     this.awaitingToolCallIds = [];
+    this.contextWindow = undefined;
     this.forkPoint = undefined;
     this.leaf = undefined;
     this.seen = seen;

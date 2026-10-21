@@ -1,6 +1,8 @@
 import { os } from "@orpc/server";
 import ms from "ms";
 
+import { currentWorkspaceScope, perWorkspace } from "../../lib/workspace-scope";
+
 interface CacheEntry<T> {
   expiresAt: number;
   value: T;
@@ -43,10 +45,13 @@ class TTLCache<T> {
   }
 }
 
-const cache = new TTLCache<unknown>();
+/** The workspace's answers: a provider id can name another account in the next workspace. */
+const cacheInScope = perWorkspace(() => new TTLCache<unknown>());
 
 setInterval(() => {
-  cache.cleanup();
+  if (!currentWorkspaceScope().closed) {
+    cacheInScope().cleanup();
+  }
 }, ms("10 minutes"));
 
 export const cacheMiddleware = os
@@ -57,6 +62,7 @@ export const cacheMiddleware = os
 
     // One lookup, not has()/get(): both re-check the expiry independently, so a
     // clock crossing `expiresAt` between them served `undefined` as a hit.
+    const cache = cacheInScope();
     const cached = cache.get(cacheKey);
     if (cached !== undefined) {
       return output(cached);

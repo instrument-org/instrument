@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
 import { screen } from "electron";
 import Store from "electron-store";
@@ -42,20 +43,18 @@ const MIN_VISIBLE_PX = 100;
 // taller than the work area. Restore just under it instead.
 const MAX_UNMAXIMIZED_WORK_AREA_FRACTION = 0.8;
 
-let STORE: null | Store<StoredWindowState> = null;
-
 /**
  * Its own file rather than a key of the workspace's `state` store: a moved or
  * resized window writes here every time it settles, and nothing should hear
  * about that but the next launch.
  */
-function getStore(): Store<StoredWindowState> {
-  STORE ??= new Store<StoredWindowState>({
-    cwd: workspaceWindowDir(),
-    name: "window-state",
-  });
-  return STORE;
-}
+const getStore = perWorkspace(
+  (): Store<StoredWindowState> =>
+    new Store<StoredWindowState>({
+      cwd: workspaceWindowDir(),
+      name: "window-state",
+    }),
+);
 
 /** Work areas measured from a maximized window, by display id. */
 const learnedWorkAreas = new Map<number, { height: number; width: number }>();

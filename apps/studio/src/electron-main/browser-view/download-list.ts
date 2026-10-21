@@ -1,5 +1,6 @@
 import type { DownloadItem } from "electron";
 
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   type BrowserDownload,
@@ -13,7 +14,10 @@ const KEEP = 100;
 // every chunk it writes.
 const PROGRESS_INTERVAL_MS = 250;
 
-let downloads: BrowserDownload[] | null = null;
+// The list of the workspace open now, read from its store on first use.
+const held = perWorkspace((): { list: BrowserDownload[] | null } => ({
+  list: null,
+}));
 // The transfers still running, for a cancel to reach.
 const running = new Map<string, DownloadItem>();
 let progressTimer: null | ReturnType<typeof setTimeout> = null;
@@ -21,14 +25,15 @@ let progressTimer: null | ReturnType<typeof setTimeout> = null;
 // The list as last saved. A download that was running when the app last quit
 // stopped with it, so it reads as failed.
 function list(): BrowserDownload[] {
-  downloads ??= getDownloadsStore()
+  const box = held();
+  box.list ??= getDownloadsStore()
     .get("downloads")
     .map((download) =>
       download.state === "progressing" || download.state === "interrupted"
         ? { ...download, state: "failed" as const }
         : download,
     );
-  return downloads;
+  return box.list;
 }
 
 function changed() {
@@ -50,7 +55,7 @@ function progressed() {
 }
 
 function update(id: string, patch: Partial<BrowserDownload>) {
-  downloads = list().map((download) =>
+  held().list = list().map((download) =>
     download.id === id ? { ...download, ...patch } : download,
   );
 }
@@ -80,7 +85,7 @@ export function trackDownload(
   };
   const finished = list().filter((entry) => !running.has(entry.id));
   const dropped = new Set(finished.slice(KEEP - 1).map((entry) => entry.id));
-  downloads = [download, ...list().filter((entry) => !dropped.has(entry.id))];
+  held().list = [download, ...list().filter((entry) => !dropped.has(entry.id))];
   changed();
   if (!savePath && !asked) {
     return;
@@ -136,12 +141,12 @@ export function removeDownload(id: string) {
   if (running.has(id)) {
     return;
   }
-  downloads = list().filter((download) => download.id !== id);
+  held().list = list().filter((download) => download.id !== id);
   changed();
 }
 
 /** Takes every finished download off the list, keeping the running ones. */
 export function clearDownloads() {
-  downloads = list().filter((download) => running.has(download.id));
+  held().list = list().filter((download) => running.has(download.id));
   changed();
 }

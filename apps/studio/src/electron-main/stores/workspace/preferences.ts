@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceMachineDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -80,34 +81,34 @@ export const WorkspacePreferencesSchema = z.object({
 
 type WorkspacePreferences = z.output<typeof WorkspacePreferencesSchema>;
 
-let STORE: null | Store<WorkspacePreferences> = null;
+/** Opened once for each workspace, in its scope (`perWorkspace`). */
+const storeInScope = perWorkspace((): Store<WorkspacePreferences> => {
+  const defaults = WorkspacePreferencesSchema.parse({});
+  const store = new Store<WorkspacePreferences>({
+    cwd: workspaceMachineDir(),
+    defaults,
+    deserialize: (value) => {
+      const parsed = WorkspacePreferencesSchema.safeParse(JSON.parse(value));
+
+      if (parsed.success) {
+        return parsed.data;
+      }
+
+      logger.error("Failed to parse workspace preferences", parsed.error);
+
+      return defaults;
+    },
+    name: "preferences",
+  });
+
+  store.onDidAnyChange(() => {
+    publisher.publish("preferences.updated", null);
+  });
+  return store;
+});
 
 export const getWorkspacePreferences = (): Store<WorkspacePreferences> => {
-  if (STORE === null) {
-    const defaults = WorkspacePreferencesSchema.parse({});
-    STORE = new Store<WorkspacePreferences>({
-      cwd: workspaceMachineDir(),
-      defaults,
-      deserialize: (value) => {
-        const parsed = WorkspacePreferencesSchema.safeParse(JSON.parse(value));
-
-        if (parsed.success) {
-          return parsed.data;
-        }
-
-        logger.error("Failed to parse workspace preferences", parsed.error);
-
-        return defaults;
-      },
-      name: "preferences",
-    });
-
-    STORE.onDidAnyChange(() => {
-      publisher.publish("preferences.updated", null);
-    });
-  }
-
-  return STORE;
+  return storeInScope();
 };
 
 export function getDefaultModelURI(): AIGatewayModelURI.Type | undefined {

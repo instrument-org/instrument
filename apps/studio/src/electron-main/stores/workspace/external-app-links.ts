@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import Store from "electron-store";
@@ -18,25 +19,26 @@ const ExternalAppLinksSchema = z.object({
 
 type ExternalAppLinks = z.output<typeof ExternalAppLinksSchema>;
 
-let STORE: null | Store<ExternalAppLinks> = null;
+/** Opened once for each workspace, in its scope (`perWorkspace`). */
+const storeInScope = perWorkspace((): Store<ExternalAppLinks> => {
+  const defaults = ExternalAppLinksSchema.parse({});
+  const store = new Store<ExternalAppLinks>({
+    cwd: workspaceBrowserDir(),
+    defaults,
+    deserialize: (value) => {
+      const parsed = ExternalAppLinksSchema.safeParse(JSON.parse(value));
+      if (parsed.success) {
+        return parsed.data;
+      }
+      logger.error("Failed to parse external app links", parsed.error);
+      return defaults;
+    },
+    name: "external-app-links",
+  });
+  return store;
+});
 
 /** The sites that open another app's links without asking first. */
 export const getExternalAppLinksStore = (): Store<ExternalAppLinks> => {
-  if (STORE === null) {
-    const defaults = ExternalAppLinksSchema.parse({});
-    STORE = new Store<ExternalAppLinks>({
-      cwd: workspaceBrowserDir(),
-      defaults,
-      deserialize: (value) => {
-        const parsed = ExternalAppLinksSchema.safeParse(JSON.parse(value));
-        if (parsed.success) {
-          return parsed.data;
-        }
-        logger.error("Failed to parse external app links", parsed.error);
-        return defaults;
-      },
-      name: "external-app-links",
-    });
-  }
-  return STORE;
+  return storeInScope();
 };

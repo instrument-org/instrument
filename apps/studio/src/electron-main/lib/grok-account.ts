@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { noteSignedOut } from "@/electron-main/lib/notices";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
@@ -119,8 +120,6 @@ const StoreSchema = z.object({
 });
 type StoreShape = z.output<typeof StoreSchema>;
 
-let STORE: null | Store<StoreShape> = null;
-
 export type GrokAccountState = "no-subscription" | "signed-in" | "signed-out";
 
 export interface GrokAccountStatus {
@@ -239,8 +238,8 @@ function labelFor(
   return position > 0 ? `${label} (${String(position + 1)})` : label;
 }
 
-function registrations(): Registration[] {
-  return Object.values(getStore().get("registrations")).toSorted(
+function registrations(store = getStore()): Registration[] {
+  return Object.values(store.get("registrations")).toSorted(
     (a, b) => a.addedAt - b.addedAt,
   );
 }
@@ -249,41 +248,45 @@ function registrationById(id: string): Registration | undefined {
   return getStore().get("registrations")[id];
 }
 
-function getStore(): Store<StoreShape> {
-  if (!STORE) {
-    const defaults: StoreShape = { registrations: {} };
-    STORE = new Store<StoreShape>({
-      cwd: workspaceKeysDir(),
-      defaults,
-      deserialize: (value) => {
-        try {
-          return StoreSchema.parse(JSON.parse(decodeKeyFile(value)));
-        } catch (error) {
-          log.error("Failed to read the Grok account store", error);
-          return defaults;
-        }
-      },
-      fileExtension: KEY_FILE_EXTENSION,
-      name: KEY_STORE_NAMES.grokAccount,
-      serialize: (value) => {
-        // Without a keyring nothing is written, as the ChatGPT account's
-        // store does: a sign-in then lasts until the app quits.
-        const encoded = encodeKeyFile(JSON.stringify(value));
-        if (encoded === undefined) {
-          log.error("Encryption is not available");
-          return "";
-        }
-        return encoded;
-      },
-    });
-    STORE.onDidAnyChange(() => {
-      publisher.publish("grok-account.updated", null);
-      publisher.publish("provider-config.updated", null);
-      noteSignedOutAccounts();
-    });
+/** Opened once for each workspace, in its scope (`perWorkspace`). */
+const storeInScope = perWorkspace((): Store<StoreShape> => {
+  const defaults: StoreShape = { registrations: {} };
+  const store = new Store<StoreShape>({
+    cwd: workspaceKeysDir(),
+    defaults,
+    deserialize: (value) => {
+      try {
+        return StoreSchema.parse(JSON.parse(decodeKeyFile(value)));
+      } catch (error) {
+        log.error("Failed to read the Grok account store", error);
+        return defaults;
+      }
+    },
+    fileExtension: KEY_FILE_EXTENSION,
+    name: KEY_STORE_NAMES.grokAccount,
+    serialize: (value) => {
+      // Without a keyring nothing is written, as the ChatGPT account's
+      // store does: a sign-in then lasts until the app quits.
+      const encoded = encodeKeyFile(JSON.stringify(value));
+      if (encoded === undefined) {
+        log.error("Encryption is not available");
+        return "";
+      }
+      return encoded;
+    },
+  });
+  store.onDidAnyChange(() => {
+    publisher.publish("grok-account.updated", null);
+    publisher.publish("provider-config.updated", null);
     noteSignedOutAccounts();
-  }
-  return STORE;
+  });
+  // Through the store just made: the scope holds it only once this returns.
+  noteSignedOutAccounts(store);
+  return store;
+});
+
+function getStore(): Store<StoreShape> {
+  return storeInScope();
 }
 
 /**
@@ -291,8 +294,8 @@ function getStore(): Store<StoreShape> {
  * account, so one kept without its tokens is one whose session ended without
  * the person asking.
  */
-function noteSignedOutAccounts() {
-  const all = registrations();
+function noteSignedOutAccounts(store = getStore()) {
+  const all = registrations(store);
   noteSignedOut(
     GROK_ACCOUNT_PROVIDER_CONFIG.type,
     all
@@ -738,9 +741,21 @@ const UNUSABLE_REFRESH_CODES = new Set([
  * Each account's grant (chatgpt-grant.ts), which holds its refresh clock and
  * runs one refresh at a time, since the refresh token rotates.
  */
-const grants = new Map<string, Actor<typeof grantMachine>>();
+/**
+ * Each account's grant, by its id, for the workspace open now: a workspace
+ * closing stops its grants, so none refreshes into the next one's store.
+ */
+const grantsInScope = perWorkspace(
+  () => new Map<string, Actor<typeof grantMachine>>(),
+  (grants) => {
+    for (const grant of grants.values()) {
+      grant.stop();
+    }
+  },
+);
 
 function grantOf(id: string): Actor<typeof grantMachine> {
+  const grants = grantsInScope();
   const existing = grants.get(id);
   if (existing) {
     return existing;

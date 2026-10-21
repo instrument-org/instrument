@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceMachineDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -20,30 +21,30 @@ const WorkspaceStateSchema = z.object({
 
 type WorkspaceState = z.output<typeof WorkspaceStateSchema>;
 
-let STORE: null | Store<WorkspaceState> = null;
+/** Opened once for each workspace, in its scope (`perWorkspace`). */
+const storeInScope = perWorkspace((): Store<WorkspaceState> => {
+  const defaults = WorkspaceStateSchema.parse({});
+  const store = new Store<WorkspaceState>({
+    cwd: workspaceMachineDir(),
+    defaults,
+    deserialize: (value) => {
+      const parsed = WorkspaceStateSchema.safeParse(JSON.parse(value));
+
+      if (parsed.success) {
+        return parsed.data;
+      }
+
+      logger.error("Failed to parse workspace state", parsed.error);
+
+      return defaults;
+    },
+    name: "state",
+  });
+  return store;
+});
 
 const getWorkspaceState = (): Store<WorkspaceState> => {
-  if (STORE === null) {
-    const defaults = WorkspaceStateSchema.parse({});
-    STORE = new Store<WorkspaceState>({
-      cwd: workspaceMachineDir(),
-      defaults,
-      deserialize: (value) => {
-        const parsed = WorkspaceStateSchema.safeParse(JSON.parse(value));
-
-        if (parsed.success) {
-          return parsed.data;
-        }
-
-        logger.error("Failed to parse workspace state", parsed.error);
-
-        return defaults;
-      },
-      name: "state",
-    });
-  }
-
-  return STORE;
+  return storeInScope();
 };
 
 /** This computer's model routes for the workspace, as `fetchModel` and the models list read them. */

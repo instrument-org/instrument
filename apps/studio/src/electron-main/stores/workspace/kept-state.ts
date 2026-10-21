@@ -1,3 +1,7 @@
+import {
+  currentWorkspaceScope,
+  perWorkspace,
+} from "@/electron-main/lib/workspace-scope";
 import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
 import {
   isKeptFile,
@@ -205,16 +209,17 @@ function readObject(file: string): Record<string, unknown> {
   return {};
 }
 
-let STORE: null | ReturnType<typeof createKeptStateStore> = null;
-
 /**
  * Where the person left off and how they like things laid out are this
- * computer's, whose screens and paths they are measured against.
+ * computer's, whose screens and paths they are measured against. What waits
+ * to be written goes to disk as the workspace closes.
  */
-function getStore() {
-  STORE ??= createKeptStateStore(() => workspaceWindowDir());
-  return STORE;
-}
+const getStore = perWorkspace(
+  () => createKeptStateStore(() => workspaceWindowDir()),
+  (store) => {
+    store.flush();
+  },
+);
 
 /** One kept value, for the main process's own use of what a window keeps. */
 export function getKeptState(file: KeptFile, key: string): unknown {
@@ -223,7 +228,9 @@ export function getKeptState(file: KeptFile, key: string): unknown {
 
 /** Writes what is still waiting, at once. The quit calls it on its way out. */
 export function flushKeptState() {
-  STORE?.flush();
+  if (!currentWorkspaceScope().closed) {
+    getStore().flush();
+  }
 }
 
 /**

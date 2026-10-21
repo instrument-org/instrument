@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import {
@@ -57,8 +58,6 @@ function withTokensByOrigin(
 function buildDefaultOrigin(): string {
   return platformApiOriginOf(buildDefaultPlatformApiBaseUrl());
 }
-
-let SESSION_STORE: null | Store<SessionState> = null;
 
 // Set while reading a file that carries keys the schema does not know, or an
 // earlier build's one token, so the store is rewritten once in today's shape.
@@ -122,40 +121,42 @@ function decodeSessionFile(value: string): unknown {
   }
 }
 
-export const getSessionStore = (): Store<SessionState> => {
-  if (SESSION_STORE === null) {
-    SESSION_STORE = new Store<SessionState>({
-      cwd: workspaceKeysDir(),
-      deserialize: (value) => {
-        const decoded = decodeSessionFile(value);
-        return decoded === undefined ? {} : parseSessionState(decoded);
-      },
-      fileExtension: KEY_FILE_EXTENSION,
-      name: KEY_STORE_NAMES.session,
-      serialize: (value) => {
-        const encoded = encodeKeyFile(JSON.stringify(value));
-        if (encoded === undefined) {
-          logger.error("Encryption is not available");
-          return "";
-        }
-        return encoded;
-      },
-    });
+/** Opened once for each workspace, in its scope (`perWorkspace`). */
+const storeInScope = perWorkspace((): Store<SessionState> => {
+  const store = new Store<SessionState>({
+    cwd: workspaceKeysDir(),
+    deserialize: (value) => {
+      const decoded = decodeSessionFile(value);
+      return decoded === undefined ? {} : parseSessionState(decoded);
+    },
+    fileExtension: KEY_FILE_EXTENSION,
+    name: KEY_STORE_NAMES.session,
+    serialize: (value) => {
+      const encoded = encodeKeyFile(JSON.stringify(value));
+      if (encoded === undefined) {
+        logger.error("Encryption is not available");
+        return "";
+      }
+      return encoded;
+    },
+  });
 
-    // Reading the store parses it; writing back what was read leaves the file
-    // holding only the known keys, with every token under its origin.
-    const current = SESSION_STORE.store;
-    if (REWRITE_ON_OPEN) {
-      SESSION_STORE.store = current;
-      REWRITE_ON_OPEN = false;
-    }
-
-    SESSION_STORE.onDidChange("apiBearerTokens", () => {
-      publisher.publish("session.apiBearerToken.updated", null);
-    });
+  // Reading the store parses it; writing back what was read leaves the file
+  // holding only the known keys, with every token under its origin.
+  const current = store.store;
+  if (REWRITE_ON_OPEN) {
+    store.store = current;
+    REWRITE_ON_OPEN = false;
   }
 
-  return SESSION_STORE;
+  store.onDidChange("apiBearerTokens", () => {
+    publisher.publish("session.apiBearerToken.updated", null);
+  });
+  return store;
+});
+
+export const getSessionStore = (): Store<SessionState> => {
+  return storeInScope();
 };
 
 /** The bearer token of the sign-in to the server at `origin`, if there is one. */

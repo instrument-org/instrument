@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import { is } from "@electron-toolkit/utils";
@@ -27,7 +28,6 @@ interface OAuthFlowRecord {
 // Encrypted at rest through safeStorage (plaintext only in dev), like the
 // credentials store. Tokens and client secrets live only here, never in an
 // app's folder or the model's context.
-let STORE: null | Store<AppOAuthStoreShape> = null;
 
 function getFlow(slug: string): OAuthFlowRecord {
   return getStore().get("flows")[slug] ?? {};
@@ -46,47 +46,50 @@ function withOrigin<T>(
     : undefined;
 }
 
+/** Opened once for each workspace, in its scope (`perWorkspace`). */
+const storeInScope = perWorkspace((): Store<AppOAuthStoreShape> => {
+  const defaults: AppOAuthStoreShape = { flows: {} };
+  const store = new Store<AppOAuthStoreShape>({
+    cwd: workspaceKeysDir(),
+    defaults,
+    deserialize: (value) => {
+      if (is.dev) {
+        return JSON.parse(value) as AppOAuthStoreShape;
+      }
+      if (!safeStorage.isEncryptionAvailable()) {
+        logger.error("Encryption is not available");
+        return defaults;
+      }
+      try {
+        const decrypted = safeStorage.decryptString(
+          Buffer.from(value, "base64"),
+        );
+        return JSON.parse(decrypted) as AppOAuthStoreShape;
+      } catch (error) {
+        logger.error("Failed to decrypt the app OAuth store", error);
+        return defaults;
+      }
+    },
+    fileExtension: is.dev ? "json" : "json.enc",
+    name: "app-oauth",
+    serialize: (value) => {
+      if (is.dev) {
+        return JSON.stringify(value);
+      }
+      if (!safeStorage.isEncryptionAvailable()) {
+        logger.error("Encryption is not available");
+        throw new Error("Encryption is not available");
+      }
+      return safeStorage
+        .encryptString(JSON.stringify(value))
+        .toString("base64");
+    },
+  });
+  return store;
+});
+
 function getStore(): Store<AppOAuthStoreShape> {
-  if (!STORE) {
-    const defaults: AppOAuthStoreShape = { flows: {} };
-    STORE = new Store<AppOAuthStoreShape>({
-      cwd: workspaceKeysDir(),
-      defaults,
-      deserialize: (value) => {
-        if (is.dev) {
-          return JSON.parse(value) as AppOAuthStoreShape;
-        }
-        if (!safeStorage.isEncryptionAvailable()) {
-          logger.error("Encryption is not available");
-          return defaults;
-        }
-        try {
-          const decrypted = safeStorage.decryptString(
-            Buffer.from(value, "base64"),
-          );
-          return JSON.parse(decrypted) as AppOAuthStoreShape;
-        } catch (error) {
-          logger.error("Failed to decrypt the app OAuth store", error);
-          return defaults;
-        }
-      },
-      fileExtension: is.dev ? "json" : "json.enc",
-      name: "app-oauth",
-      serialize: (value) => {
-        if (is.dev) {
-          return JSON.stringify(value);
-        }
-        if (!safeStorage.isEncryptionAvailable()) {
-          logger.error("Encryption is not available");
-          throw new Error("Encryption is not available");
-        }
-        return safeStorage
-          .encryptString(JSON.stringify(value))
-          .toString("base64");
-      },
-    });
-  }
-  return STORE;
+  return storeInScope();
 }
 
 // Rewrite a flow record with the given keys removed (an undefined spread would

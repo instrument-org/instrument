@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import {
@@ -47,54 +48,54 @@ const ProviderConfigsStoreSchema = z
 
 type ProviderConfigsStore = z.output<typeof ProviderConfigsStoreSchema>;
 
-let PROVIDER_CONFIGS_STORE: null | Store<ProviderConfigsStore> = null;
+/** Opened once for each workspace, in its scope (`perWorkspace`). */
+const storeInScope = perWorkspace((): Store<ProviderConfigsStore> => {
+  const defaultStore: ProviderConfigsStore = {
+    disabled: [],
+    providers: [],
+  };
+
+  const store = new Store<ProviderConfigsStore>({
+    cwd: workspaceKeysDir(),
+    defaults: defaultStore,
+    deserialize: (value) => {
+      let jsonData: unknown;
+      try {
+        jsonData = JSON.parse(decodeKeyFile(value));
+      } catch (error) {
+        logger.error("Failed to decrypt or parse JSON", error);
+        return defaultStore;
+      }
+
+      const parsed = ProviderConfigsStoreSchema.safeParse(jsonData);
+
+      if (parsed.success) {
+        return parsed.data;
+      }
+
+      logger.error("Failed to parse provider configs", parsed.error);
+      return defaultStore;
+    },
+    fileExtension: KEY_FILE_EXTENSION,
+    name: KEY_STORE_NAMES.providerConfigs,
+    serialize: (value) => {
+      const encoded = encodeKeyFile(JSON.stringify(value));
+      if (encoded === undefined) {
+        logger.error("Encryption is not available");
+        return "";
+      }
+      return encoded;
+    },
+  });
+
+  store.onDidAnyChange(() => {
+    publisher.publish("provider-config.updated", null);
+  });
+  return store;
+});
 
 export const getProviderConfigsStore = (): Store<ProviderConfigsStore> => {
-  if (!PROVIDER_CONFIGS_STORE) {
-    const defaultStore: ProviderConfigsStore = {
-      disabled: [],
-      providers: [],
-    };
-
-    PROVIDER_CONFIGS_STORE = new Store<ProviderConfigsStore>({
-      cwd: workspaceKeysDir(),
-      defaults: defaultStore,
-      deserialize: (value) => {
-        let jsonData: unknown;
-        try {
-          jsonData = JSON.parse(decodeKeyFile(value));
-        } catch (error) {
-          logger.error("Failed to decrypt or parse JSON", error);
-          return defaultStore;
-        }
-
-        const parsed = ProviderConfigsStoreSchema.safeParse(jsonData);
-
-        if (parsed.success) {
-          return parsed.data;
-        }
-
-        logger.error("Failed to parse provider configs", parsed.error);
-        return defaultStore;
-      },
-      fileExtension: KEY_FILE_EXTENSION,
-      name: KEY_STORE_NAMES.providerConfigs,
-      serialize: (value) => {
-        const encoded = encodeKeyFile(JSON.stringify(value));
-        if (encoded === undefined) {
-          logger.error("Encryption is not available");
-          return "";
-        }
-        return encoded;
-      },
-    });
-
-    PROVIDER_CONFIGS_STORE.onDidAnyChange(() => {
-      publisher.publish("provider-config.updated", null);
-    });
-  }
-
-  return PROVIDER_CONFIGS_STORE;
+  return storeInScope();
 };
 
 /** The connections turned off, which `getAIProviderConfigs` leaves out. */

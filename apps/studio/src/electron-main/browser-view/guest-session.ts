@@ -19,35 +19,33 @@ import {
 } from "./local-file-policy";
 import { guestWindowOpenHandler } from "./window-open-policy";
 
-let configured: null | { dir: string; session: Session } = null;
+/** Each browser profile set up in this process, by its folder: one per workspace opened. */
+const configured = new Map<string, Session>();
 
 /**
- * The workspace's browser session, which every task guest and every window a
- * guest's page opens runs in, set up the first time it is asked for and
- * handed back as it is after that. Everything the session does for a page is
- * registered here, once: the guest registry that tells its contents apart,
- * the permission policy, the user agent, the local-file rule and ad blocking
- * (one request listener between them), ad blocking's CSP filters and the
- * passkey refusal (one headers listener between them), downloads, and the
- * page editor.
+ * A workspace's browser session, which every task guest and every window a
+ * guest's page opens runs in, set up the first time its profile is asked for
+ * and handed back as it is after that. Everything the session does for a
+ * page is registered here, once per session: the guest registry that tells
+ * its contents apart, the permission policy, the user agent, the local-file
+ * rule and ad blocking (one request listener between them), ad blocking's
+ * CSP filters and the passkey refusal (one headers listener between them),
+ * downloads, and the page editor.
  *
- * A process opens one workspace, so it has one browser profile; a second
- * folder asked for would be a second profile, which nothing here expects.
+ * Each workspace has a profile of its own, so a process that opens another
+ * workspace sets up another session; a workspace opened again gets the one
+ * it had.
  */
 export function configureGuestSession(profileDir: string): Session {
-  if (configured) {
-    if (configured.dir !== profileDir) {
-      throw new Error(
-        `The browser session is already open at ${configured.dir}, not ${profileDir}`,
-      );
-    }
-    return configured.session;
+  const existing = configured.get(profileDir);
+  if (existing) {
+    return existing;
   }
   // session.fromPath requires the directory to exist (Chromium opens the
   // profile in place), and the workspace's .instrument dir is made lazily.
   fs.mkdirSync(profileDir, { recursive: true });
   const guestSession = session.fromPath(profileDir, { cache: true });
-  configured = { dir: profileDir, session: guestSession };
+  configured.set(profileDir, guestSession);
 
   // Before any contents exists in the session, so each one has a record from
   // its first navigation on. Every window in the session but a tab's guest is

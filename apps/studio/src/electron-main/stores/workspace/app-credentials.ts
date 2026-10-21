@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import { is } from "@electron-toolkit/utils";
@@ -24,67 +25,67 @@ const AppCredentialsStoreSchema = z
 
 type AppCredentialsStore = z.output<typeof AppCredentialsStoreSchema>;
 
-let APP_CREDENTIALS_STORE: null | Store<AppCredentialsStore> = null;
+/** Opened once for each workspace, in its scope (`perWorkspace`). */
+const storeInScope = perWorkspace((): Store<AppCredentialsStore> => {
+  const defaultStore: AppCredentialsStore = { credentials: {} };
 
-const getAppCredentialsStore = (): Store<AppCredentialsStore> => {
-  if (!APP_CREDENTIALS_STORE) {
-    const defaultStore: AppCredentialsStore = { credentials: {} };
-
-    APP_CREDENTIALS_STORE = new Store<AppCredentialsStore>({
-      cwd: workspaceKeysDir(),
-      defaults: defaultStore,
-      deserialize: (value) => {
-        if (is.dev) {
-          const parsed = AppCredentialsStoreSchema.safeParse(JSON.parse(value));
-          if (parsed.success) {
-            return parsed.data;
-          }
-          logger.error("Failed to parse app credentials", parsed.error);
-          return defaultStore;
-        }
-
-        if (!safeStorage.isEncryptionAvailable()) {
-          logger.error("Encryption is not available");
-          return defaultStore;
-        }
-
-        let jsonData: unknown;
-        try {
-          const decryptedValue = safeStorage.decryptString(
-            Buffer.from(value, "base64"),
-          );
-          jsonData = JSON.parse(decryptedValue);
-        } catch (error) {
-          logger.error("Failed to decrypt or parse JSON", error);
-          return defaultStore;
-        }
-
-        const parsed = AppCredentialsStoreSchema.safeParse(jsonData);
+  const store = new Store<AppCredentialsStore>({
+    cwd: workspaceKeysDir(),
+    defaults: defaultStore,
+    deserialize: (value) => {
+      if (is.dev) {
+        const parsed = AppCredentialsStoreSchema.safeParse(JSON.parse(value));
         if (parsed.success) {
           return parsed.data;
         }
         logger.error("Failed to parse app credentials", parsed.error);
         return defaultStore;
-      },
-      fileExtension: is.dev ? "json" : "json.enc",
-      name: "app-credentials",
-      serialize: (value) => {
-        if (is.dev) {
-          return JSON.stringify(value);
-        }
+      }
 
-        if (!safeStorage.isEncryptionAvailable()) {
-          logger.error("Encryption is not available");
-          throw new Error("Encryption is not available");
-        }
+      if (!safeStorage.isEncryptionAvailable()) {
+        logger.error("Encryption is not available");
+        return defaultStore;
+      }
 
-        const json = JSON.stringify(value);
-        return safeStorage.encryptString(json).toString("base64");
-      },
-    });
-  }
+      let jsonData: unknown;
+      try {
+        const decryptedValue = safeStorage.decryptString(
+          Buffer.from(value, "base64"),
+        );
+        jsonData = JSON.parse(decryptedValue);
+      } catch (error) {
+        logger.error("Failed to decrypt or parse JSON", error);
+        return defaultStore;
+      }
 
-  return APP_CREDENTIALS_STORE;
+      const parsed = AppCredentialsStoreSchema.safeParse(jsonData);
+      if (parsed.success) {
+        return parsed.data;
+      }
+      logger.error("Failed to parse app credentials", parsed.error);
+      return defaultStore;
+    },
+    fileExtension: is.dev ? "json" : "json.enc",
+    name: "app-credentials",
+    serialize: (value) => {
+      if (is.dev) {
+        return JSON.stringify(value);
+      }
+
+      if (!safeStorage.isEncryptionAvailable()) {
+        logger.error("Encryption is not available");
+        throw new Error("Encryption is not available");
+      }
+
+      const json = JSON.stringify(value);
+      return safeStorage.encryptString(json).toString("base64");
+    },
+  });
+  return store;
+});
+
+const getAppCredentialsStore = (): Store<AppCredentialsStore> => {
+  return storeInScope();
 };
 
 export function getAppCredential(slug: string): null | StoredAppCredential {

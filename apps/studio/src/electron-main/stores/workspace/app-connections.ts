@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import {
@@ -23,26 +24,27 @@ const AppConnectionsStoreSchema = z
 
 type AppConnectionsStoreShape = z.output<typeof AppConnectionsStoreSchema>;
 
-let STORE: null | Store<AppConnectionsStoreShape> = null;
+/** Opened once for each workspace, in its scope (`perWorkspace`). */
+const storeInScope = perWorkspace((): Store<AppConnectionsStoreShape> => {
+  const defaults: AppConnectionsStoreShape = { connections: {} };
+  const store = new Store<AppConnectionsStoreShape>({
+    cwd: workspaceKeysDir(),
+    defaults,
+    deserialize: (value) => {
+      const parsed = AppConnectionsStoreSchema.safeParse(JSON.parse(value));
+      if (parsed.success) {
+        return parsed.data;
+      }
+      logger.error("Failed to parse app connections", parsed.error);
+      return defaults;
+    },
+    name: "app-connections",
+  });
+  return store;
+});
 
 function getStore(): Store<AppConnectionsStoreShape> {
-  if (!STORE) {
-    const defaults: AppConnectionsStoreShape = { connections: {} };
-    STORE = new Store<AppConnectionsStoreShape>({
-      cwd: workspaceKeysDir(),
-      defaults,
-      deserialize: (value) => {
-        const parsed = AppConnectionsStoreSchema.safeParse(JSON.parse(value));
-        if (parsed.success) {
-          return parsed.data;
-        }
-        logger.error("Failed to parse app connections", parsed.error);
-        return defaults;
-      },
-      name: "app-connections",
-    });
-  }
-  return STORE;
+  return storeInScope();
 }
 
 export const appConnectionStore: AppConnectionStore = {

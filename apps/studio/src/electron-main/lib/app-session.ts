@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { is } from "@electron-toolkit/utils";
 import { session, type Session } from "electron";
@@ -28,8 +29,6 @@ export function configureAppSession(ses: Session): void {
   registerAppProtocol(ses);
 }
 
-let appSession: null | Session = null;
-
 /**
  * The Chromium profile the app window runs on, one per
  * workspace on this computer, so two workspaces never share cookies or
@@ -41,15 +40,23 @@ function appSessionDir(): string {
   return path.join(workspaceBrowserDir(), "app-session");
 }
 
-export function getAppSession(): Session {
-  if (appSession === null) {
-    const dir = appSessionDir();
-    fs.mkdirSync(dir, { recursive: true });
-    appSession = session.fromPath(dir);
+/**
+ * The app sessions already configured. Electron hands back the same session
+ * for a folder asked for again, a workspace opened a second time, which must
+ * not register its handlers twice.
+ */
+const configuredAppSessions = new WeakSet<Session>();
+
+export const getAppSession = perWorkspace((): Session => {
+  const dir = appSessionDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const appSession = session.fromPath(dir);
+  if (!configuredAppSessions.has(appSession)) {
+    configuredAppSessions.add(appSession);
     configureAppSession(appSession);
   }
   return appSession;
-}
+});
 
 /** Longer than the quit teardown, so only a predecessor that is stuck is outwaited. */
 const PREVIOUS_DEV_INSTANCE_WAIT_MS = 30_000;

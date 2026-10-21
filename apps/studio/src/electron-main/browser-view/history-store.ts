@@ -1,4 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { EventPublisher } from "@orpc/server";
 import fs from "node:fs";
@@ -457,15 +458,14 @@ export function createHistoryStore(file: string) {
 /** What the history of one workspace is called in its browser folder. */
 const HISTORY_FILE_NAME = "history.db";
 
-let opened: HistoryStore | undefined;
-
-/** The history of the workspace this process runs, opened on first use. */
-export function getHistoryStore(): HistoryStore {
-  opened ??= createHistoryStore(
-    path.join(workspaceBrowserDir(), HISTORY_FILE_NAME),
-  );
-  return opened;
-}
+/** The history of the workspace open now, opened on first use and closed with it. */
+export const getHistoryStore = perWorkspace(
+  (): HistoryStore =>
+    createHistoryStore(path.join(workspaceBrowserDir(), HISTORY_FILE_NAME)),
+  (store) => {
+    store.close();
+  },
+);
 
 /**
  * The person's recent files where a move the app made took them: a row under

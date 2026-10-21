@@ -1,3 +1,4 @@
+import { perWorkspace } from "@/electron-main/lib/workspace-scope";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import Store from "electron-store";
@@ -33,25 +34,26 @@ const DownloadsSchema = z.object({
 
 type Downloads = z.output<typeof DownloadsSchema>;
 
-let STORE: null | Store<Downloads> = null;
+/** Opened once for each workspace, in its scope (`perWorkspace`). */
+const storeInScope = perWorkspace((): Store<Downloads> => {
+  const defaults = DownloadsSchema.parse({});
+  const store = new Store<Downloads>({
+    cwd: workspaceBrowserDir(),
+    defaults,
+    deserialize: (value) => {
+      const parsed = DownloadsSchema.safeParse(JSON.parse(value));
+      if (parsed.success) {
+        return parsed.data;
+      }
+      logger.error("Failed to parse browser downloads", parsed.error);
+      return defaults;
+    },
+    name: "downloads",
+  });
+  return store;
+});
 
 /** The in-app browser's download list, newest first. */
 export const getDownloadsStore = (): Store<Downloads> => {
-  if (STORE === null) {
-    const defaults = DownloadsSchema.parse({});
-    STORE = new Store<Downloads>({
-      cwd: workspaceBrowserDir(),
-      defaults,
-      deserialize: (value) => {
-        const parsed = DownloadsSchema.safeParse(JSON.parse(value));
-        if (parsed.success) {
-          return parsed.data;
-        }
-        logger.error("Failed to parse browser downloads", parsed.error);
-        return defaults;
-      },
-      name: "downloads",
-    });
-  }
-  return STORE;
+  return storeInScope();
 };

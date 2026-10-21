@@ -2,10 +2,15 @@
 //
 //   pnpm workspace:seed --out <dir> --fixture documents
 //   pnpm workspace:seed --out <dir> --fixture documents --fresh
+//   pnpm workspace:seed --out <dir> --fixture documents --check
 //   pnpm workspace:seed --list
 //
 // Idempotent, and cheap enough to run before every boot: a workspace whose
-// marker matches the fixtures' current contents is left alone. Prints a JSON
+// marker matches the fixtures' current contents and the seeder's own is left
+// alone. `--home` is the folder standing for the home folder, where the
+// chats' work folders and their own folders go (`<out>-home` unless named),
+// which the instance booted on it gets as `INSTRUMENT_DATA_HOME`. `--check`
+// changes nothing and says whether the workspace is current. Prints a JSON
 // summary on stdout (`studio-drive.mjs boot --purpose <purpose> --workspace`
 // reads it), so progress goes to stderr.
 
@@ -26,10 +31,21 @@ import {
 
 const MARKER_FILE_NAME = ".seeded-workspace.json";
 
+/**
+ * The seeder's own source, which decides the layout it writes: a change to it
+ * has to reseed a workspace built by the one before, as a fixture's does.
+ */
+const SEEDER_SOURCES = [
+  path.join(import.meta.dirname, "lib", "seed-workspace.ts"),
+  path.join(import.meta.dirname, "lib", "workspace-fixture.ts"),
+];
+
 const { values } = parseArgs({
   options: {
+    check: { default: false, type: "boolean" },
     fixture: { multiple: true, type: "string" },
     fresh: { default: false, type: "boolean" },
+    home: { type: "string" },
     list: { default: false, type: "boolean" },
     out: { type: "string" },
   },
@@ -59,12 +75,16 @@ function assertNoDuplicateTaskKeys(loaded: WorkspaceFixture[]) {
 }
 
 /**
- * A content hash over everything committed for these fixtures. Cheaper and more
- * honest than an mtime check: editing a manifest or re-recording a transcript
- * has to force a reseed, and nothing else should.
+ * A content hash over everything committed for these fixtures and the
+ * seeder's own source. Cheaper and more honest than an mtime check: editing a
+ * manifest, re-recording a transcript or changing what the seeder writes has
+ * to force a reseed, and nothing else should.
  */
 async function digestFixtures(loaded: WorkspaceFixture[]): Promise<string> {
   const hash = createHash("sha256");
+  for (const file of SEEDER_SOURCES) {
+    hash.update(await fs.readFile(file));
+  }
   for (const fixture of loaded) {
     hash.update(fixture.name);
     for (const file of await listFilesRecursively(fixture.dir)) {
@@ -97,7 +117,7 @@ async function main() {
 
   if (!values.out) {
     throw new TypeError(
-      "Usage: pnpm workspace:seed --out <dir> --fixture <name> [--fixture <name>] [--fresh]",
+      "Usage: pnpm workspace:seed --out <dir> --fixture <name> [--fixture <name>] [--home <dir>] [--fresh | --check]",
     );
   }
 
@@ -107,6 +127,7 @@ async function main() {
   }
 
   const userDataDir = path.resolve(values.out);
+  const home = path.resolve(values.home ?? `${userDataDir}-home`);
   const fixtures = await Promise.all(fixtureNames.map(loadWorkspaceFixture));
 
   assertNoDuplicateTaskKeys(fixtures);
@@ -114,9 +135,14 @@ async function main() {
   const digest = await digestFixtures(fixtures);
 
   const marker = await readMarker(userDataDir);
-  if (!values.fresh && marker?.digest === digest) {
+  const current = marker?.digest === digest && marker.home === home;
+  if (values.check) {
+    report({ current, home, tasks: marker?.tasks ?? [], userDataDir });
+    return;
+  }
+  if (!values.fresh && current) {
     process.stderr.write(`Workspace already seeded at ${userDataDir}\n`);
-    report({ reused: true, tasks: marker.tasks, userDataDir });
+    report({ home, reused: true, tasks: marker.tasks, userDataDir });
     return;
   }
 
@@ -125,24 +151,32 @@ async function main() {
   // ones fallback folder names, which is the one thing a fixture's ids must not
   // do: they are how a driving script addresses a task.
   await removeSeededWorkspace(userDataDir);
+  await removeSeededWorkspace(home);
   await fs.mkdir(userDataDir, { recursive: true });
+  await fs.mkdir(home, { recursive: true });
 
   // Claim the directory before filling it. A seed interrupted part-way would
   // otherwise leave tasks behind with no marker, and every later run --
   // including the `--fresh` that is supposed to be the recovery -- would refuse
   // to clear a directory it could no longer tell it had created. The claim
   // carries no digest, so it never reads as a finished seed.
-  await writeMarker(userDataDir, { fixtures: fixtureNames, tasks: [] });
+  await writeMarker(userDataDir, { fixtures: fixtureNames, home, tasks: [] });
+  await writeMarker(home, { fixtures: fixtureNames, home, tasks: [] });
 
   const tasks = [];
   for (const fixture of fixtures) {
     process.stderr.write(`Seeding ${fixture.name}...\n`);
-    tasks.push(...(await seedWorkspace({ fixture, userDataDir })));
+    tasks.push(...(await seedWorkspace({ fixture, home, userDataDir })));
   }
 
-  await writeMarker(userDataDir, { digest, fixtures: fixtureNames, tasks });
+  await writeMarker(userDataDir, {
+    digest,
+    fixtures: fixtureNames,
+    home,
+    tasks,
+  });
 
-  report({ reused: false, tasks, userDataDir });
+  report({ home, reused: false, tasks, userDataDir });
 }
 
 async function readMarker(dir: string) {
@@ -152,6 +186,7 @@ async function readMarker(dir: string) {
       // Absent while a seed is in flight, so an interrupted run never reads as
       // a finished one.
       digest?: string;
+      home?: string;
       tasks: SeededTask[];
     };
   } catch {
@@ -160,9 +195,10 @@ async function readMarker(dir: string) {
 }
 
 /**
- * Only ever deletes a directory this script created. `--out` ends up in
- * `ELECTRON_USER_DATA_DIR`, and the obvious typo there is a real application
- * data directory holding someone's actual tasks.
+ * Only ever deletes a directory this script created, which it marks first.
+ * `--out` ends up in `ELECTRON_USER_DATA_DIR` and `--home` in
+ * `INSTRUMENT_DATA_HOME`, and the obvious typo in either is a real folder
+ * holding someone's actual work.
  */
 async function removeSeededWorkspace(dir: string) {
   let entries: string[];
@@ -182,7 +218,10 @@ async function removeSeededWorkspace(dir: string) {
 }
 
 function report(result: {
-  reused: boolean;
+  /** For `--check`: whether the workspace is what a seed would build now. */
+  current?: boolean;
+  home: string;
+  reused?: boolean;
   tasks: SeededTask[];
   userDataDir: string;
 }) {
@@ -194,6 +233,7 @@ async function writeMarker(
   marker: {
     digest?: string;
     fixtures: string[];
+    home: string;
     tasks: SeededTask[];
   },
 ) {

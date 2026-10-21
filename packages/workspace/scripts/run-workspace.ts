@@ -20,6 +20,7 @@ import { type ChatId } from "../src/client";
 import { workspaceMachine } from "../src/electron";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { defaultTaskName } from "../src/lib/default-task-name";
+import { claimWorkFolders } from "../src/lib/work-folders";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { type StoreId } from "../src/schemas/store-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
@@ -133,7 +134,13 @@ const actor = createActor(workspaceMachine, {
     runtimeDir: path.resolve("../../../workspace.local/runtime"),
     userDataDir: path.resolve("../../../workspace.local/machine"),
     workspaceMachineDir: path.resolve("../../../workspace.local/machine"),
-    workFoldersDir: path.resolve("../../../workspace.local/machine/work"),
+    // Settled as a launch settles them: in the home folder's data folder, or
+    // under INSTRUMENT_DATA_HOME.
+    workFoldersDir: claimWorkFolders({
+      label: () => "workspace-local",
+      machineDir: path.resolve("../../../workspace.local/machine"),
+      workspaceId: () => undefined,
+    }).workFoldersDir,
     systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
     trashItem: () => Promise.reject(new Error("Not implemented")),
     uvBinPath: await execa({ reject: false })`which uv`.then(

@@ -2,13 +2,16 @@ import { noopModelCache } from "@instrument-org/ai-gateway";
 import path from "node:path";
 
 import { createMemoryAppsConfig } from "../../src/lib/apps/memory-config";
-import { workspaceLayout } from "../../src/lib/workspace-layout";
+import {
+  homeDataLayout,
+  workspaceLayout,
+} from "../../src/lib/workspace-layout";
 import {
   AbsolutePathSchema,
   WorkspaceDirSchema,
 } from "../../src/schemas/paths";
 import { unavailableWebSearchClient } from "../../src/schemas/web-search";
-import { createStubBrowserConfig } from "../../src/test/helpers/mock-chat-config";
+import { createStubBrowserConfig } from "../../src/test/helpers/stub-browser-config";
 import { type WorkspaceConfig } from "../../src/types";
 import { newDeviceId } from "../../src/lib/records/device-id";
 
@@ -55,8 +58,13 @@ export function createStubWorkspaceConfig({
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
     webSearch: unavailableWebSearchClient,
+    // In a home folder's data folder, apart from the machine folder, where a
+    // launch settles them.
     workFoldersDir: AbsolutePathSchema.parse(
-      path.join(absoluteRootDir, "machine", "work"),
+      path.join(
+        homeDataLayout(path.join(absoluteRootDir, "home")).workDir,
+        "workspace",
+      ),
     ),
     userDataDir: AbsolutePathSchema.parse(
       path.join(absoluteRootDir, "machine"),

@@ -17,7 +17,6 @@ import {
 import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { noop } from "radashi";
 
 import { TASKS_DIR_NAME } from "../../constants";
 import { createMemoryAppsConfig } from "../../lib/apps/memory-config";
@@ -32,9 +31,10 @@ import {
   unavailableWebSearchClient,
   type WebSearchClient,
 } from "../../schemas/web-search";
-import { type BrowserConfig, type WorkspaceConfig } from "../../types";
+import { type WorkspaceConfig } from "../../types";
 import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 import { mxcTestConfig } from "./mxc-test-config";
+import { createStubBrowserConfig } from "./stub-browser-config";
 import { MOCK_WORKSPACE_ROOT } from "./mock-workspace-root";
 import { forgetChat, placeChat } from "../../lib/record-folders";
 import { StoreId } from "../../schemas/store-id";
@@ -214,23 +214,4 @@ export function createMockChatConfigForDir(
   return id;
 }
 
-export function createStubBrowserConfig(): BrowserConfig {
-  return {
-    closeTarget: () => Promise.resolve(),
-    createTarget: () => Promise.resolve(),
-    contentBlocking: () => ({ task: true, workspace: true }),
-    getTargetMeta: () => null,
-    hasNoWindow: false,
-    isGuestBusy: () => false,
-    getTargetUrl: (): string | undefined => {
-      // No guest is ever live here, so there is no address to report.
-      return;
-    },
-    listTargets: () => Promise.resolve([]),
-    onTargetDestroyed: () => noop,
-    sendCommand: () => Promise.resolve({}),
-    setAgentFileRoots: noop,
-    stopScreencast: noop,
-    subscribeEvents: () => noop,
-  };
-}
+export { createStubBrowserConfig } from "./stub-browser-config";

@@ -8,9 +8,9 @@ import { ChatReads } from "../../src/lib/chat-reads";
 import { writingChatRecords } from "../../src/lib/records/chat-records";
 import { chatDir, sessionOfChat } from "../../src/lib/record-folders";
 import { folderReach } from "../../src/lib/chat/folder-reach";
+import { workDir } from "../../src/lib/work-dir";
 import { ChatIdSchema, type ChatId } from "../../src/schemas/chat-id";
 import { StoreId } from "../../src/schemas/store-id";
-import { SubdomainPartSchema } from "../../src/schemas/subdomain-part";
 import { type SeededTask, seedWorkspace } from "./seed-workspace";
 import {
   listFixtureNames,
@@ -47,11 +47,17 @@ function at<T>(items: readonly T[], index: number): T {
 async function readSeededSession(seeded: SeededTask) {
   if (seeded.chat !== undefined) {
     const sessionId = StoreId.SessionSchema.parse(seeded.id);
-    const loaded = await ChatReads.sessionWithMessages({
-      chatId: seeded.chat,
-      sessionId,
-    });
-    return { session: loaded._unsafeUnwrap(), sessionIds: [sessionId] };
+    const loaded = (
+      await ChatReads.sessionWithMessages({
+        chatId: seeded.chat,
+        sessionId,
+      })
+    )._unsafeUnwrap();
+    // Its own transcript, without the chat's messages it inherits.
+    const messages = loaded.messages.filter(
+      (message) => message.metadata.sessionId === sessionId,
+    );
+    return { session: { ...loaded, messages }, sessionIds: [sessionId] };
   }
   const chatId = ChatIdSchema.parse(seeded.id);
   const sessions = await ChatReads.sessions({ chatId });
@@ -63,6 +69,9 @@ async function readSeededSession(seeded: SeededTask) {
   return { session: loaded._unsafeUnwrap(), sessionIds };
 }
 
+/** The folder standing for the home folder beside a seeded userData. */
+const homeOf = (userDataDir: string) => `${userDataDir}-home`;
+
 async function seedInto(
   userDataDir: string,
   { fixtures = ["documents"], now }: { fixtures?: string[]; now?: Date } = {},
@@ -72,7 +81,12 @@ async function seedInto(
   for (const name of fixtures) {
     const fixture = await loadWorkspaceFixture(name);
     loaded.push(fixture);
-    const records = await seedWorkspace({ fixture, now, userDataDir });
+    const records = await seedWorkspace({
+      fixture,
+      home: homeOf(userDataDir),
+      now,
+      userDataDir,
+    });
     opened.push(...records.flatMap((record) => recordOf(record)));
     seeded.push(...records);
   }
@@ -163,11 +177,11 @@ describe("seedWorkspace", () => {
     expect(await fs.readdir(chatDir(chatId))).not.toContain("tasks");
   });
 
-  it("makes the chat's folders beside the workspace, granted to the chat", async () => {
+  it("makes the chat's folders in the home folder, granted to the chat", async () => {
     const { chat, seeded, userDataDir } = await seedIntoTempDir();
 
     const folder = at(chat.folders, 0);
-    const made = path.join(userDataDir, "folders", folder.mount);
+    const made = path.join(homeOf(userDataDir), folder.mount);
     for (const file of folder.files) {
       expect(await fs.readFile(path.join(made, file.to))).toEqual(
         await fs.readFile(file.from),
@@ -178,7 +192,7 @@ describe("seedWorkspace", () => {
     expect(Object.values(reach).map((mounted) => mounted.path)).toContain(made);
   });
 
-  it("seeds a task no chat owns as 1.x left it, with a pin as a raw settings key", async () => {
+  it("seeds a task no chat owns as 1.x left it, in a task.db with a pin as a raw settings key", async () => {
     const userDataDir = await fs.mkdtemp(
       path.join(os.tmpdir(), "instrument-seed-test-"),
     );
@@ -210,6 +224,33 @@ describe("seedWorkspace", () => {
     ) as Record<string, unknown>;
     expect(settings.parentTaskId).toBeUndefined();
     expect(typeof settings.pinnedAt).toBe("string");
+    await expect(
+      fs.access(
+        path.join(
+          userDataDir,
+          "workspace",
+          "tasks",
+          at(seeded, 0).id,
+          ".instrument",
+          "task.db",
+        ),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("refuses a fixture with both 1.x tasks and chats", async () => {
+    const documents = await loadWorkspaceFixture("documents");
+    const legacy = await loadWorkspaceFixture("legacy-tasks");
+    const userDataDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "instrument-seed-test-"),
+    );
+    await expect(
+      seedWorkspace({
+        fixture: { ...documents, tasks: legacy.tasks },
+        home: homeOf(userDataDir),
+        userDataDir,
+      }),
+    ).rejects.toThrow(/both 1\.x tasks and chats/);
   });
 
   // The caller clears the directory first; if it ever stops doing that, the
@@ -223,11 +264,11 @@ describe("seedWorkspace", () => {
     );
   });
 
-  it("puts the app's stores beside the workspace, not inside it", async () => {
+  it("puts the workspace's stores in its machine folder, not inside it", async () => {
     const { userDataDir } = await seedIntoTempDir();
 
     const preferences = await fs.readFile(
-      path.join(userDataDir, "preferences.json"),
+      path.join(userDataDir, "machine", "default", "preferences.json"),
       "utf8",
     );
     expect(JSON.parse(preferences)).toEqual({ developerMode: true });
@@ -245,20 +286,20 @@ describe("seedWorkspace", () => {
     const second = {
       ...legacy,
       settings: { preferences: { theme: "dark" } },
-      tasks: legacy.tasks.map((task) => ({
-        ...task,
-        task: {
-          ...task.task,
-          key: SubdomainPartSchema.parse("second-fixture-task"),
-        },
-      })),
+      tasks: [],
     };
-    const seeded = await seedWorkspace({ fixture: second, userDataDir });
-    opened.push(...seeded.flatMap((task) => recordOf(task)));
+    await seedWorkspace({
+      fixture: second,
+      home: homeOf(userDataDir),
+      userDataDir,
+    });
 
     expect(
       JSON.parse(
-        await fs.readFile(path.join(userDataDir, "preferences.json"), "utf8"),
+        await fs.readFile(
+          path.join(userDataDir, "machine", "default", "preferences.json"),
+          "utf8",
+        ),
       ),
     ).toEqual({ developerMode: true, theme: "dark" });
   });
@@ -269,8 +310,9 @@ describe("seedWorkspace", () => {
     if (!filedIn) {
       throw new Error("the task was seeded in no chat");
     }
-    // Where the app keeps the work folder of a chat in the first workspace.
-    const dir = path.join(userDataDir, "machine", "default", "work", filedIn);
+    // In the home folder's data folder, where a launch settles work folders.
+    const dir = workDir(filedIn);
+    expect(dir.startsWith(`${homeOf(userDataDir)}${path.sep}`)).toBe(true);
 
     expect(chatTask.files.length).toBeGreaterThan(0);
     for (const file of chatTask.files) {
@@ -301,6 +343,30 @@ describe("seedWorkspace", () => {
       // whatever the run that produced the transcript was called.
       expect(session.title).toBe(at(seeded, index).name);
     }
+  });
+
+  it("starts the chat's session before its first message, and its task where it forked", async () => {
+    const { seeded, userDataDir } = await seedIntoTempDir();
+
+    const { session } = await readSeededSession(at(seeded, 0));
+    expect(session.createdAt.getTime()).toBeLessThanOrEqual(
+      at(session.messages, 0).metadata.createdAt.getTime(),
+    );
+    const { session: task } = await readSeededSession(at(seeded, 1));
+    expect(session.messages.map((message) => message.id)).toContain(
+      task.forkedAtMessageId,
+    );
+
+    // The device that wrote the records says what it is.
+    const devices = workspaceLayout(
+      path.join(userDataDir, "workspace"),
+    ).devicesDir;
+    const [device = ""] = await fs.readdir(devices);
+    expect(
+      JSON.parse(
+        await fs.readFile(path.join(devices, device, "device.json"), "utf8"),
+      ),
+    ).toMatchObject({ name: "Fixture seeder" });
   });
 
   it("mints new ids rather than reusing the recorded ones", async () => {

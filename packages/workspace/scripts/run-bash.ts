@@ -49,6 +49,7 @@ import {
   setWorkspaceConfig,
 } from "../src/lib/workspace-config";
 import { setUpSkill } from "../src/tools/load-skill";
+import { claimWorkFolders } from "../src/lib/work-folders";
 import { workspaceLayout } from "../src/lib/workspace-layout";
 import { MountedFolder } from "../src/schemas/mounted-folder";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
@@ -134,7 +135,13 @@ const layout = workspaceLayout(rootDir);
 const chatsDir = args.chatsDir ? path.resolve(args.chatsDir) : layout.chatsDir;
 // Outside the workspace, as the app keeps this computer's folder for it.
 const machineDir = path.resolve(os.tmpdir(), "instrument-bash-repl-machine");
-const workFoldersDir = path.join(machineDir, "work");
+// Settled as a launch settles them, in a home folder of the REPL's own.
+const { workFoldersDir } = claimWorkFolders({
+  home: path.resolve(os.tmpdir(), "instrument-bash-repl-home"),
+  label: () => "bash-repl",
+  machineDir,
+  workspaceId: () => undefined,
+});
 
 const runtimeDir = path.join(rootDir, "runtime");
 const repoRoot = path.resolve(import.meta.dirname, "../../..");

@@ -51,7 +51,7 @@ const FixtureChatTaskSchema = z.object({
 });
 
 // One of the user's folders a chat was granted, which the seeder makes as a
-// real folder beside the workspace: where a task today hands over what it made,
+// real folder in the home folder, outside the app's data: where a task hands over what it made,
 // as `/mnt/<mount>/…`, rather than inside its own folder.
 const FixtureFolderSchema = z.object({
   // Paths inside the chat's `files/` dir, and where each lands in the folder.
@@ -85,7 +85,7 @@ const FixtureChatSchema = z.object({
   tasks: FixtureChatTaskSchema.array().default([]),
 });
 
-// Anything the app persists under `userData`, keyed by store file name. Only
+// The workspace's stores in its machine folder, keyed by store file name. Only
 // what a fixture actually depends on belongs here: a fixture that pins every
 // setting breaks every time a default moves. Values are written verbatim and
 // validated by the app's own store schemas at load, which is the only place

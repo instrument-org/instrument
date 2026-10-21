@@ -88,8 +88,10 @@ describe.runIf(process.platform === "darwin")("findSkills on macOS", () => {
     ]);
     // Nothing inside Documents was opened, which is what puts macOS's prompt up.
     expect(
-      readFile.mock.calls.filter(([file]) =>
-        String(file).startsWith(path.join(home, "Documents")),
+      readFile.mock.calls.filter(
+        ([file]) =>
+          typeof file === "string" &&
+          file.startsWith(path.join(home, "Documents")),
       ),
     ).toEqual([]);
   });

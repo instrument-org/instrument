@@ -122,6 +122,9 @@ export function createMcpOAuthProvider({
               throw error;
             },
           ));
+  // The tokens this provider last read or saved: the only ones it may
+  // invalidate, since newer ones in the store came from another caller.
+  let known: OAuthTokens | undefined;
 
   return {
     clientInformation: async () =>
@@ -142,12 +145,22 @@ export function createMcpOAuthProvider({
     // The SDK calls this when a grant fails (e.g. a refresh token was revoked),
     // then retries -- so clearing the bad tokens lets the retry fall through to
     // a fresh browser authorization instead of looping on the dead token.
+    // Tokens another caller saved since this one read its own are left for
+    // the retry to use: they are what a concurrent refresh just obtained.
     invalidateCredentials: async (invalidateScope) => {
       if (invalidateScope === "all" || invalidateScope === "client") {
         await store.clearClientInformation(slug);
       }
       if (invalidateScope === "all" || invalidateScope === "tokens") {
-        await store.clearTokens(slug);
+        const stored = (await store.getTokens(slug))?.value;
+        if (
+          stored === undefined ||
+          (stored.access_token === known?.access_token &&
+            stored.refresh_token === known.refresh_token)
+        ) {
+          await store.clearTokens(slug);
+        }
+        known = undefined;
       }
       if (invalidateScope === "all" || invalidateScope === "verifier") {
         await store.clearTransient(slug);
@@ -177,7 +190,10 @@ export function createMcpOAuthProvider({
         value: info as OAuthClientInformationFull,
       }),
     saveCodeVerifier: (verifier) => store.saveCodeVerifier(slug, verifier),
-    saveTokens: (tokens) => store.saveTokens(slug, { origin, value: tokens }),
+    saveTokens: (tokens) => {
+      known = tokens;
+      return store.saveTokens(slug, { origin, value: tokens });
+    },
     // Always mint a fresh state per authorization -- never reuse a stored one,
     // so state stays single-use (its CSRF purpose) and a stale value can't make
     // a later begin misfire.
@@ -189,7 +205,10 @@ export function createMcpOAuthProvider({
       await store.saveState(slug, state);
       return state;
     },
-    tokens: async () => boundTo(await store.getTokens(slug), origin),
+    tokens: async () => {
+      known = boundTo(await store.getTokens(slug), origin);
+      return known;
+    },
   };
 }
 

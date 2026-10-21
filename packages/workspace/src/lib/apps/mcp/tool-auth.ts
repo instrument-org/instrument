@@ -6,7 +6,11 @@ import {
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type McpAppManifest } from "../manifest";
 import { credentialOrigin } from "../origin-bound";
-import { createMcpOAuthProvider, mcpSignInClient } from "./oauth-provider";
+import {
+  createMcpOAuthProvider,
+  mcpSignInClient,
+  type McpOAuthStore,
+} from "./oauth-provider";
 
 /**
  * The OAuth provider an `app` command uses to reach an OAuth MCP app. It reads
@@ -14,6 +18,11 @@ import { createMcpOAuthProvider, mcpSignInClient } from "./oauth-provider";
  * cannot start a sign-in, since a command cannot open a browser and wait, so
  * `redirectToAuthorization` throws, which surfaces as an unauthorized error
  * that tells the agent to ask the user to sign in again.
+ *
+ * It never finishes an authorization either, so the PKCE state and verifier
+ * the SDK writes on the way to that throw stay with this provider rather than
+ * in the store's slot for the app, where a sign-in the user has open keeps
+ * the verifier its callback needs.
  *
  * Undefined for non-OAuth apps and when no OAuth store is configured
  * (headless and test contexts); callers treat the latter as "sign-in is not
@@ -46,6 +55,29 @@ export function mcpAuthProviderForCommand(
     origin: credentialOrigin(manifest),
     scope: manifest.auth.scope ?? signIn.scope,
     slug,
-    store: oauth.store,
+    store: withOwnTransient(oauth.store),
   });
+}
+
+/** The store, with PKCE material kept in memory for one provider alone. */
+function withOwnTransient(store: McpOAuthStore): McpOAuthStore {
+  const own: { state?: string; verifier?: string } = {};
+  return {
+    ...store,
+    clearTransient: () => {
+      delete own.state;
+      delete own.verifier;
+      return Promise.resolve();
+    },
+    getCodeVerifier: () => Promise.resolve(own.verifier),
+    getState: () => Promise.resolve(own.state),
+    saveCodeVerifier: (_slug, verifier) => {
+      own.verifier = verifier;
+      return Promise.resolve();
+    },
+    saveState: (_slug, state) => {
+      own.state = state;
+      return Promise.resolve();
+    },
+  };
 }

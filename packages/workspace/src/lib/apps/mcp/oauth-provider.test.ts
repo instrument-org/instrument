@@ -174,6 +174,36 @@ describe("createMcpOAuthProvider", () => {
     });
   });
 
+  it("leaves tokens another caller saved after this one read its own", async () => {
+    const store = inMemoryStore();
+    const first = createMcpOAuthProvider({
+      ...base,
+      openAuthorization: vi.fn(),
+      store,
+    });
+    await first.saveTokens({
+      access_token: "at-1",
+      refresh_token: "rt-1",
+      token_type: "Bearer",
+    });
+    const second = createMcpOAuthProvider({
+      ...base,
+      openAuthorization: vi.fn(),
+      store,
+    });
+    expect(await second.tokens()).toMatchObject({ refresh_token: "rt-1" });
+    // The first caller's refresh rotated the token; the second's refresh with
+    // rt-1 is refused, and the SDK invalidates what it read.
+    await first.saveTokens({
+      access_token: "at-2",
+      refresh_token: "rt-2",
+      token_type: "Bearer",
+    });
+    await second.invalidateCredentials?.("tokens");
+
+    expect(await second.tokens()).toMatchObject({ refresh_token: "rt-2" });
+  });
+
   it("throws a clear error when the code verifier is missing", async () => {
     const provider = createMcpOAuthProvider({
       ...base,

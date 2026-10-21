@@ -232,6 +232,38 @@ describe("listSkillFiles", () => {
 });
 
 describe("skill discovery", () => {
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "skips a source it can't read and keeps the others",
+    async () => {
+      const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-refused-"));
+      temporaryDirs.push(root);
+      const home = path.join(root, "home");
+      const refused = path.join(home, ".claude", "skills");
+      await writeSkill(path.join(refused, "review"), "Claude");
+      await writeSkill(path.join(home, ".codex", "skills", "notes"), "Codex");
+      await fs.chmod(refused, 0o000);
+      try {
+        const skills = await findSkills(
+          getSkillSources(
+            {
+              registryDir: AbsolutePathSchema.parse(
+                path.join(root, "registry"),
+              ),
+              rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+              systemSkillsDir: AbsolutePathSchema.parse(
+                path.join(root, "system"),
+              ),
+            },
+            AbsolutePathSchema.parse(home),
+          ),
+        );
+        expect(skills.map((skill) => skill.id)).toEqual(["codex:notes"]);
+      } finally {
+        await fs.chmod(refused, 0o755);
+      }
+    },
+  );
+
   it("keeps a skill ID stable when a higher-ranked namesake appears", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "skills-identity-"));
     temporaryDirs.push(root);

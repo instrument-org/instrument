@@ -1,4 +1,5 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { type Dirent } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -651,7 +652,7 @@ async function findSkillsInDir(
     return [];
   }
 
-  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const entries = await listSource(dir);
   const skills: DiscoveredSkill[] = [];
 
   for (const entry of entries) {
@@ -694,6 +695,43 @@ async function findSkillsInDir(
   }
 
   return skills;
+}
+
+/**
+ * How long a source's listing may take before this pass goes on without it.
+ * A listing of a folder macOS guards waits for the person's answer to the
+ * system's prompt, and that answer must not hold a chat's first turn.
+ */
+const SOURCE_LOOK_MS = 1000;
+
+/**
+ * A source's entries, or none when it can't be read: a home folder's skills
+ * folder is often a link into Documents or iCloud Drive, which macOS may
+ * refuse, or be asking about, and one unreadable source must not take the
+ * other sources' skills, or the chat they are read for, with it.
+ */
+async function listSource(dir: AbsolutePath): Promise<Dirent[]> {
+  let timer: NodeJS.Timeout | undefined;
+  const listed = await Promise.race([
+    fs.readdir(dir, { withFileTypes: true }).then(
+      (entries) => ({ entries }),
+      (error: unknown) => ({ error }),
+    ),
+    new Promise<{ waiting: true }>((resolve) => {
+      timer = setTimeout(() => {
+        resolve({ waiting: true });
+      }, SOURCE_LOOK_MS);
+    }),
+  ]).finally(() => {
+    clearTimeout(timer);
+  });
+  if ("entries" in listed) {
+    return listed.entries;
+  }
+  console.warn(
+    `Skipping the skills in ${dir}: ${"waiting" in listed ? "its listing hasn't answered, which is macOS asking the person about the folder" : String(listed.error)}`,
+  );
+  return [];
 }
 
 async function isDirectorySymlink(candidate: AbsolutePath) {

@@ -65,6 +65,11 @@ declare namespace NodeJS {
        * for a fixture. See create-workspace-actor.ts.
        */
       INSTRUMENT_OUTPUT_FOLDER: string | undefined;
+      /**
+       * Development builds only: the platform API this launch talks to, over
+       * the build's and the one chosen in Settings. See setup-environment.ts.
+       */
+      INSTRUMENT_PLATFORM_API: string | undefined;
       /** Build time only: names a preview build, inlined by electron.vite.config.ts. */
       INSTRUMENT_PREVIEW_NAME: string | undefined;
       /**

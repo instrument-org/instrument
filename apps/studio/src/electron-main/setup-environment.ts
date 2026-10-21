@@ -178,8 +178,16 @@ function openWorkspace() {
   }
   // After the machine settings migration, which writes the store this reads,
   // and before anything asks the platform API: the server stays the same for
-  // the life of the process.
-  settlePlatformApiServer(getMachinePreferences().get("platformApiServer"));
+  // the life of the process. A launch for one server names it in
+  // `INSTRUMENT_PLATFORM_API` (`studio-drive.mjs boot --account`), over the
+  // choice in Settings, which it leaves as it was; only a development build
+  // honors it.
+  const launchServer = process.env.INSTRUMENT_PLATFORM_API;
+  settlePlatformApiServer(
+    launchServer
+      ? { custom: launchServer }
+      : getMachinePreferences().get("platformApiServer"),
+  );
 
   // After the settings migration, which brings what predates workspaces into
   // the folder this takes it from.

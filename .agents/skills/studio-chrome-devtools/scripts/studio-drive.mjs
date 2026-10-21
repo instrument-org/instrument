@@ -303,9 +303,11 @@ const SIGN_IN_FILES = ["session-dev.json", "providers.json"];
 
 /**
  * The app's folder on this computer for the workspace at `workspaceDir`, where
- * its keys, browser profiles and window state are: `workspaces-data/<local
- * id>/` in the application data, by the id the registry there gives it
- * (workspaceMachineDirOf in Studio). Undefined while it is not registered.
+ * its keys, browser profiles and window state are: `machine/<local id>/` in
+ * the application data, by the id the registry there gives it
+ * (workspaceMachineDirOf in Studio), or `workspaces-data/<local id>/` while
+ * no build since that folder's rename has opened it. Undefined while it is
+ * not registered.
  */
 function workspaceMachineDir(userDataDir, workspaceDir) {
   let registry;
@@ -321,9 +323,12 @@ function workspaceMachineDir(userDataDir, workspaceDir) {
       typeof candidate?.path === "string" &&
       path.resolve(userDataDir, candidate.path) === path.resolve(workspaceDir),
   );
-  return typeof entry?.id === "string"
-    ? path.join(userDataDir, "workspaces-data", entry.id)
-    : undefined;
+  if (typeof entry?.id !== "string") {
+    return undefined;
+  }
+  const current = path.join(userDataDir, "machine", entry.id);
+  const former = path.join(userDataDir, "workspaces-data", entry.id);
+  return !existsSync(current) && existsSync(former) ? former : current;
 }
 
 function readIdentity(workspaceDir) {
@@ -494,7 +499,7 @@ function signInAs(account, userDataDir, workspaceDir) {
   mkdirSync(keysDir, { recursive: true });
   writeFileSync(
     path.join(keysDir, "session-dev.json"),
-    `${JSON.stringify({ apiBearerToken: account.token })}\n`,
+    `${JSON.stringify({ apiBearerTokens: { [new URL(account.api).origin]: account.token } })}\n`,
     { mode: 0o600 },
   );
   let state = {};
@@ -610,7 +615,7 @@ function reapWorkArtifacts(userDataDir) {
 
 /**
  * Every chat's work folder in the application data: `work/<chat id>/` in each
- * workspace's machine folder, `workspaces-data/<local id>/` (WORKSPACE_MACHINE_ENTRIES
+ * workspace's machine folder, `machine/<local id>/` (WORKSPACE_MACHINE_ENTRIES
  * in the shared package). A chat's tasks work in its folder.
  */
 function workDirs(userDataDir) {
@@ -623,8 +628,8 @@ function workDirs(userDataDir) {
       return [];
     }
   };
-  return children(path.join(userDataDir, "workspaces-data")).flatMap(
-    (machineDir) => children(path.join(machineDir, "work")),
+  return children(path.join(userDataDir, "machine")).flatMap((machineDir) =>
+    children(path.join(machineDir, "work")),
   );
 }
 
@@ -807,9 +812,13 @@ async function cmdBoot(
           INSTRUMENT_WORKSPACE: cleanRoom.dir,
           ...(!withSignIns && !account && { SKIP_ONBOARDING: "true" }),
         }),
-        // The account's API in place of the build's; electron-vite takes a
-        // variable already in the environment over the .env files.
-        ...(account && { MAIN_VITE_APP_API_BASE_URL: account.api }),
+        // The account's API, over the build's (electron-vite takes a variable
+        // already in the environment over the .env files) and over the server
+        // chosen in Settings, which every dev instance on the machine shares.
+        ...(account && {
+          INSTRUMENT_PLATFORM_API: account.api,
+          MAIN_VITE_APP_API_BASE_URL: account.api,
+        }),
       },
       stdio: ["ignore", log, log],
     },

@@ -8,8 +8,7 @@ import {
   AGENT_BROWSER_GUIDE_NAME,
   agentBrowserGuide,
 } from "./agent-browser-guide";
-import { applyContextRollover } from "./apply-context-rollover";
-import { ChatReads } from "./chat-reads";
+import { readModelWindow } from "./model-window";
 import { SKILL_ORIGINS } from "./skill-provenance";
 import { truncateSkillContent } from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -33,35 +32,26 @@ export type BrowserSkill = z.output<typeof BrowserSkillSchema>;
  * The instructions to attach to a bash result that ran `agent-browser`, or
  * nothing when the model can already see them.
  *
- * Read against the history the model is actually sent: a context rollover
- * drops every assistant turn before its boundary, the earlier delivery or
- * `load_skill` call with them, so the next browser command brings the
- * instructions back. A new session starts with none and gets them the same
- * way. Best effort throughout, since a missing attachment costs a `load_skill`
- * call and a failed bash result costs the command.
+ * Read against the history the model is actually sent (`modelWindow`): a
+ * context rollover drops every assistant turn before its boundary, the
+ * earlier delivery or `load_skill` call with them, so the next browser
+ * command brings the instructions back. A new session starts with none and
+ * gets them the same way. Best effort throughout, since a missing attachment
+ * costs a `load_skill` call and a failed bash result costs the command.
  */
 export async function browserSkillToDeliver({
   sessionId,
   chatId,
+  usable,
 }: {
   sessionId: StoreId.Session;
   chatId: ChatId;
+  /** What the model the call answers to may use of its window. */
+  usable: number | undefined;
 }): Promise<BrowserSkill | undefined> {
   try {
-    const [messages, session] = await Promise.all([
-      ChatReads.modelHistory({ chatId, sessionId }),
-      ChatReads.session({ chatId, sessionId }),
-    ]);
-    if (messages.isErr()) {
-      return undefined;
-    }
-    const window = applyContextRollover({
-      messages: messages.value,
-      rolledOverAfterMessageId: session.isOk()
-        ? session.value.rolledOverAfterMessageId
-        : undefined,
-    });
-    if (browserSkillInWindow(window)) {
+    const messages = await readModelWindow({ chatId, sessionId, usable });
+    if (messages === undefined || browserSkillInWindow(messages)) {
       return undefined;
     }
     return loadBrowserSkill();

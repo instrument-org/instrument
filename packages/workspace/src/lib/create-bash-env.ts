@@ -724,6 +724,11 @@ export interface BashEnvOptions {
    * shell names `INSTRUMENT_SKILL_DIR` (`lastLoadedSkillDir`).
    */
   loadedSkillDir?: string;
+  /**
+   * What the model the call answers to may use of its window
+   * (`usableContextTokens`), which says whether a rollover boundary binds.
+   */
+  usable?: number;
 }
 
 /** What callers of `createBashEnv` get, wherever the interpreter runs. */
@@ -894,6 +899,7 @@ export async function createLocalBashEnv({
   sessionId,
   standIn,
   chatId,
+  usable,
   invokeTool = appToolHook,
 }: BashEnvOptions & {
   /**
@@ -933,7 +939,10 @@ export async function createLocalBashEnv({
   const instrumentCommand = createInstrumentCommand({
     missing: role === "chat" ? {} : CHAT_ONLY_SUBCOMMANDS,
     subcommands: [
-      { ...APP_COMMAND, command: createAppCommand({ chatId, sessionId }) },
+      {
+        ...APP_COMMAND,
+        command: createAppCommand({ chatId, sessionId, usable }),
+      },
       { ...X_COMMAND, command: createXCommand({ chatId, sessionId }) },
       ...(role === "chat"
         ? [

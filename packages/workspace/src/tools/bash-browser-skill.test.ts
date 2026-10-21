@@ -3,7 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { addChildTask } from "../lib/chat/children";
 import { ChatWrites } from "../lib/chat-writes";
+import { sessionOfChat } from "../lib/record-folders";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -38,11 +40,14 @@ describe("bash attaches the agent-browser skill", () => {
     await fs.rm(root, { force: true, recursive: true });
   });
 
-  async function bash(command: string) {
+  async function bash(
+    command: string,
+    { asked = model, session = sessionId } = {},
+  ) {
     const result = await runTool(BashTool, {
       input: { command, yieldMs: 30_000 },
-      model,
-      sessionId,
+      model: asked,
+      sessionId: session,
       signal: new AbortController().signal,
       chatId,
     });
@@ -90,13 +95,17 @@ describe("bash attaches the agent-browser skill", () => {
     return message;
   }
 
-  async function saveSession(rolledOverAfterMessageId?: StoreId.Message) {
+  async function saveSession(
+    rolledOverAfterMessageId?: StoreId.Message,
+    rolledOverUnderUsableTokens?: number,
+  ) {
     (
       await ChatWrites.saveSession(
         {
           createdAt,
           id: sessionId,
           rolledOverAfterMessageId,
+          rolledOverUnderUsableTokens,
           title: "Browsing",
         },
         chatId,
@@ -128,6 +137,44 @@ describe("bash attaches the agent-browser skill", () => {
     expect((await bash("agent-browser --help")).browserSkill).toBeUndefined();
 
     await saveSession(carried.id);
+    expect((await bash("agent-browser --help")).browserSkill).toBeDefined();
+  });
+
+  it("attaches it to a task forked after the chat rolled over past the turn that carried it", async () => {
+    // The chat's own session, which a task carries on from.
+    const chatSession = sessionOfChat(chatId);
+    if (!chatSession) {
+      throw new Error("the mock chat has no session of its own");
+    }
+    sessionId = chatSession;
+    await saveSession();
+    await record(await bash("agent-browser --help"));
+    const later = await record(await bash("echo later"));
+    await saveSession(later.id);
+    const task = await addChildTask(chatId, {
+      createdAt,
+      forkedAtMessageId: later.id,
+      id: StoreId.newSessionId(),
+      rolledOverAfterMessageId: later.id,
+      title: "Forked",
+      updatedAt: createdAt,
+    });
+
+    expect(
+      (await bash("agent-browser --help", { session: task.id })).browserSkill,
+    ).toBeDefined();
+  });
+
+  it("counts the turn before a rollover as carrying it for a model whose window lifts the boundary", async () => {
+    await saveSession();
+    await record(await bash("agent-browser --help"));
+    const later = await record(await bash("echo later"));
+    await saveSession(later.id, 1000);
+
+    const roomy = createMockAIGatewayModel({ contextLength: 200_000 });
+    expect(
+      (await bash("agent-browser --help", { asked: roomy })).browserSkill,
+    ).toBeUndefined();
     expect((await bash("agent-browser --help")).browserSkill).toBeDefined();
   });
 

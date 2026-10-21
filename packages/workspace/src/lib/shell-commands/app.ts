@@ -60,8 +60,11 @@ import { checkAppIcon, writeAppIcon } from "../apps/icon";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
 import { catalogWayIn, parseAuth } from "../apps/way-in";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
-import { ChatReads } from "../chat-reads";
-import { rolledOverAfter } from "../last-told";
+import {
+  appGuideHandedOver,
+  recordAppGuideHandOff,
+} from "../apps/guide-hand-off";
+import { readModelWindow } from "../model-window";
 import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
@@ -87,6 +90,8 @@ export interface AppCommandContext {
   chatId: ChatId;
   /** The session running the call, whose history says which guides it has. */
   sessionId: StoreId.Session;
+  /** What the model the call answers to may use of its window (`usableContextTokens`). */
+  usable?: number;
 }
 
 /** The apps folder as the shell spells it. */
@@ -392,32 +397,18 @@ function jsonFrom(
 }
 
 /**
- * Whether the session's model has the guide in front of it: a shell call in
- * the window it is sent printed it or wrote it. Read from the session's
- * history, so it travels with the chat, a rollover that cut it hands it over
- * again, and so does an edit to it since.
+ * Whether the session's model has the app's guide in front of it: a shell
+ * call in the window it is sent handed this guide over (`guide-hand-off.ts`).
+ * Read from the session's history, so it travels with the chat, a rollover
+ * that cut it hands it over again, and so does an edit to it since.
  */
-async function guideInHistory(
-  { chatId, sessionId }: AppCommandContext,
+async function guideInWindow(
+  { chatId, sessionId, usable }: AppCommandContext,
+  app: string,
   guide: string,
 ): Promise<boolean> {
-  const history = await ChatReads.history({ chatId, sessionId });
-  if (history.isErr()) {
-    return false;
-  }
-  const text = guide.trim();
-  const after = rolledOverAfter(history.value, sessionId);
-  return history.value.some(
-    (message) =>
-      (after === undefined || message.id > after) &&
-      message.parts.some(
-        (part) =>
-          part.type === "tool-bash" &&
-          part.state === "output-available" &&
-          (part.output.output.includes(text) ||
-            part.input.command.includes(text)),
-      ),
-  );
+  const messages = await readModelWindow({ chatId, sessionId, usable });
+  return messages !== undefined && appGuideHandedOver(messages, app, guide);
 }
 
 function ok(stdout: string) {
@@ -713,6 +704,10 @@ async function runGuide(args: string[], stdin: ByteString) {
   const written = subprocessStdin(stdin)?.toString("utf8").trim();
   if (written) {
     writeAppGuide(app.dir, written);
+    const stored = await readAppGuide(app.dir);
+    if (stored !== null) {
+      recordAppGuideHandOff({ app: app.slug, guide: stored });
+    }
     const left = guidePlaceholdersLeft(app.manifest, written);
     return ok(
       left.length > 0
@@ -726,7 +721,9 @@ async function runGuide(args: string[], stdin: ByteString) {
       `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}.`,
     );
   }
-  return ok(`${guide.trimEnd()}\n`);
+  const printed = `${guide.trimEnd()}\n`;
+  recordAppGuideHandOff({ app: app.slug, guide, printed });
+  return ok(printed);
 }
 
 async function runIcon(args: string[], ctx: SubcommandShell) {
@@ -1095,10 +1092,10 @@ async function runRequest(
       `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}: the endpoints and conventions a request needs.`,
     );
   }
-  if (!(await guideInHistory(context, guide))) {
-    return ok(
-      `Before the first request to "${app.slug}", its guide. Read it, then repeat the request.\n\n${guide.trimEnd()}\n`,
-    );
+  if (!(await guideInWindow(context, app.slug, guide))) {
+    const printed = `Before the first request to "${app.slug}", its guide. Read it, then repeat the request.\n\n${guide.trimEnd()}\n`;
+    recordAppGuideHandOff({ app: app.slug, guide, printed });
+    return ok(printed);
   }
   const params = Object.fromEntries(
     input.all("param").map((param) => {

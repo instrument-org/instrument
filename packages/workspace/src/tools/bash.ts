@@ -7,6 +7,12 @@ import { z } from "zod";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
+import {
+  AppGuideHandOffSchema,
+  appGuidesShown,
+  type RecordedAppGuide,
+  withAppGuideHandOffs,
+} from "../lib/apps/guide-hand-off";
 import { ampersandUse } from "../lib/background-ampersand";
 import {
   type BackgroundProcessInfo,
@@ -15,7 +21,9 @@ import {
   rememberForegroundPrograms,
   startBackgroundRun,
 } from "../lib/background-processes";
+import { usableContextTokens } from "../lib/context-budget";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
+import { effectiveContextLength } from "../lib/effective-context-length";
 import {
   BrowserSkillSchema,
   browserSkillToDeliver,
@@ -205,6 +213,11 @@ export const BashTool = setupTool({
   }),
   name: "bash",
   outputSchema: z.object({
+    /**
+     * The apps whose guides the call's `app` commands handed the model whole,
+     * each with a digest of the guide as it was (`guide-hand-off.ts`).
+     */
+    appGuides: z.array(AppGuideHandOffSchema).optional(),
     /** Set when a trailing `&` sent the command to the background. */
     backgrounded: z.boolean().optional(),
     /**
@@ -252,7 +265,7 @@ export const BashTool = setupTool({
   // Built per call: the command list it renders describes capabilities that a
   // feature flag can turn on and off while the app is running.
   description: () => createBashDescription(),
-  async execute({ input, partId, sessionId, signal, chatId }) {
+  async execute({ input, model, partId, sessionId, signal, chatId }) {
     const ampersand = ampersandUse(input.command);
     if (ampersand === "refused") {
       return ok({
@@ -270,6 +283,7 @@ export const BashTool = setupTool({
     // The chat's own commands are its conversation's: a task of the chat's
     // runs in the same folder with a task's shell.
     const role = sessionRole(chatId, sessionId) ?? "task";
+    const usable = usableContextTokens(effectiveContextLength(model));
     const bash = await createBashEnv({
       folders,
       callPartId: partId,
@@ -281,12 +295,14 @@ export const BashTool = setupTool({
       remainingYieldMs: () => yieldMs - (performance.now() - startedAt),
       sessionId,
       chatId,
+      usable,
     });
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
     let commands: string[] = [];
     const browserFollowUp = new BrowserFollowUp();
     const handOffs: HandOff[] = [];
+    const appGuides: RecordedAppGuide[] = [];
     const commandRuns = new CommandRuns();
     const ran = () => {
       const rows = commandRuns.rows();
@@ -301,8 +317,10 @@ export const BashTool = setupTool({
         try {
           const result = await withCommandRuns(commandRuns, () =>
             withHandOffs(handOffs, () =>
-              withBrowserFollowUp(browserFollowUp, () =>
-                bash.exec(input.command, { signal: runSignal }),
+              withAppGuideHandOffs(appGuides, () =>
+                withBrowserFollowUp(browserFollowUp, () =>
+                  bash.exec(input.command, { signal: runSignal }),
+                ),
               ),
             ),
           );
@@ -443,10 +461,12 @@ export const BashTool = setupTool({
 
     const pageAfter = await browserFollowUp.take(signal);
     const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
-      ? await browserSkillToDeliver({ sessionId, chatId })
+      ? await browserSkillToDeliver({ sessionId, chatId, usable })
       : undefined;
+    const guidesShown = appGuidesShown(appGuides, outcome.output);
 
     return ok({
+      ...(guidesShown.length > 0 ? { appGuides: guidesShown } : {}),
       ...(browserSkill ? { browserSkill } : {}),
       command: input.command,
       commands,

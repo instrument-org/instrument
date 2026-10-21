@@ -12,7 +12,6 @@ import { ChatReads } from "./chat-reads";
 import { chatAttachmentsDir } from "./chat-dir-utils";
 import {
   applyContextRollover,
-  contextRolloverBoundaryInForce,
   contextRolloverWouldReclaim,
 } from "./apply-context-rollover";
 import {
@@ -35,6 +34,7 @@ import {
   readHandoffNotes,
 } from "./handoff-notes";
 import { modelChangeSincePreviousTurn } from "./model-change";
+import { modelWindow } from "./model-window";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { chatDir } from "./record-folders";
@@ -138,16 +138,13 @@ export async function prepareModelMessages({
   // Asked on every request rather than read straight off the session, so a
   // boundary drawn when a smaller model ran out stops narrowing the history
   // once a model with room for it is the one being asked.
-  let rolledOverAfterMessageId = contextRolloverBoundaryInForce({
-    rolledOverAfterMessageId: session?.rolledOverAfterMessageId,
-    rolledOverUnderUsableTokens: session?.rolledOverUnderUsableTokens,
+  const sent = modelWindow({
+    messages: allNonContextMessages,
+    session,
     usable,
   });
-
-  let nonContextMessages = applyContextRollover({
-    messages: allNonContextMessages,
-    rolledOverAfterMessageId,
-  });
+  let rolledOverAfterMessageId = sent.after;
+  let nonContextMessages = sent.messages;
 
   let budget = computeContextBudget({
     contextLength,

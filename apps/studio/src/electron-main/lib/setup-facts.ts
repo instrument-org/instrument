@@ -24,6 +24,8 @@ import { getToken, hasToken } from "@/electron-main/platform-api/utils";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type ConnectOutcome } from "@/shared/connect-outcome";
 import { type SetupFacts } from "@/shared/setup";
+import { app } from "electron";
+import { z } from "zod";
 
 /**
  * Each ChatGPT, Claude and Grok account's last check, for whether setup has
@@ -31,11 +33,26 @@ import { type SetupFacts } from "@/shared/setup";
  * signed out.
  */
 const accountAnswers = createSetupAccountAnswers({
-  check: (input) => checkAccount(input),
+  check: (input) => {
+    const pinned = devAccountCheck();
+    return pinned ? Promise.resolve(pinned) : checkAccount(input);
+  },
   onChange: () => {
     refreshSetupFacts();
   },
 });
+
+/**
+ * What setup's launch checks answer in a development build that pins it
+ * (`INSTRUMENT_ACCOUNT_CHECK`), so a scenario's stand-in sign-in, whose
+ * token any real request refuses, can read as ready or as having no plan.
+ */
+function devAccountCheck(): ConnectOutcome | undefined {
+  const kind = z
+    .enum(["no-plan", "out-of-usage", "ready", "signed-out"])
+    .safeParse(process.env.INSTRUMENT_ACCOUNT_CHECK);
+  return !app.isPackaged && kind.success ? { kind: kind.data } : undefined;
+}
 
 /**
  * Hands setup the answer a sign-in's own account check came back with, so

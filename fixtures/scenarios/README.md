@@ -17,6 +17,7 @@ workspace: documents # optional: a fixture from fixtures/workspaces/ to seed; no
 outputFolder: documents # optional: finished work in a stand-in for the folder in Documents an earlier build used
 folder: move-pending # optional: app-data (the default), or a move recorded for this launch to make
 signIns: [chatgpt] # optional: sentinel sign-ins that count as connected and fail any real request
+accountCheck: ready # optional: what setup's launch check of each signed-in account answers (INSTRUMENT_ACCOUNT_CHECK): ready, no-plan, out-of-usage, signed-out
 notifications: not-asked # optional: what macOS says (INSTRUMENT_NOTIFICATION_STATUS)
 notificationAnswer: clicked # optional: how the prompt answers (INSTRUMENT_NOTIFICATION_ANSWER): allowed, denied, or clicked, allowed with the test notification clicked
 network: offline # optional: the network status (INSTRUMENT_NETWORK_STATUS)
@@ -28,7 +29,7 @@ setup: # optional: setup's record; none means setup never ran
 
 Everything a scenario writes stays inside its own folders in studio-drive's cache, never the real home folder: `outputFolder: documents` is a folder named `Documents/Instrument` beside the scenario's application data, and a move goes to an `Instrument` folder there.
 
-`notifications`, `notificationAnswer` and `network` take effect only in a development build. `notifications` is any status the Mac bridge answers: `not-asked`, `provisional`, `allowed`, `denied`, `unknown`, `unsupported`.
+`accountCheck`, `notifications`, `notificationAnswer` and `network` take effect only in a development build. Without `accountCheck`, a sentinel sign-in's launch check is refused like any real request, so it reads as signed out. `notifications` is any status the Mac bridge answers: `not-asked`, `provisional`, `allowed`, `denied`, `unknown`, `unsupported`.
 
 ## The scenarios
 

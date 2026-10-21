@@ -2,4 +2,5 @@ description: A beta tester's first launch of this build. Chats in a workspace in
 workspace: documents
 outputFolder: documents
 signIns: [chatgpt]
+accountCheck: ready
 notifications: not-asked

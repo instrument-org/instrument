@@ -78,6 +78,7 @@ interface MacModule {
   resolveAlias: (path: string) => Promise<string>;
   notificationStatus: () => Promise<string>;
   requestNotifications: () => Promise<string>;
+  bundleIdentifier: () => Promise<string>;
 }
 
 let macModule: MacModule | null | undefined;
@@ -186,6 +187,21 @@ function loadModule(): MacModule | null {
   return macModule;
 }
 
+/**
+ * The identifier macOS files this app's settings under: the build's own in a
+ * packaged app, Electron's (`com.github.Electron`) in a development run.
+ * Undefined off macOS and in a build without the module.
+ */
+export async function bundleIdentifier(): Promise<string | undefined> {
+  const native = loadModule();
+  if (!native) {
+    return undefined;
+  }
+  return z
+    .object({ bundleId: z.string().optional() })
+    .parse(JSON.parse(await native.bundleIdentifier())).bundleId;
+}
+
 const NotificationStatusSchema = z.object({
   /** Whether banners show, when the user has allowed them at all. */
   alerts: z.boolean().optional(),
@@ -208,6 +224,12 @@ export type NotificationStatus = z.output<typeof NotificationStatusSchema>;
 let devNotificationAnswer: "allowed" | "denied" | undefined;
 
 /**
+ * Whether a development build has put the request to macOS itself, after
+ * which macOS's own status is the answer, not `INSTRUMENT_NOTIFICATION_STATUS`.
+ */
+let devAskedMacOS = false;
+
+/**
  * How a development build's prompt answers in place of macOS, beside
  * `INSTRUMENT_NOTIFICATION_STATUS`: `allowed`, `denied`, or `clicked`,
  * which is allowed with the test notification clicked as soon as it shows.
@@ -228,13 +250,13 @@ export function devNotificationOverride():
  * `unsupported` off macOS, in a build without the module, and in a dev run
  * that is not an app bundle. A development build takes
  * `INSTRUMENT_NOTIFICATION_STATUS` in its place, so a scenario can set what
- * macOS would say.
+ * macOS would say, until it puts the request to macOS itself.
  */
 export async function notificationStatus(): Promise<NotificationStatus> {
   const override = NotificationStatusSchema.shape.status.safeParse(
     process.env.INSTRUMENT_NOTIFICATION_STATUS,
   );
-  if (!app.isPackaged && override.success) {
+  if (!app.isPackaged && override.success && !devAskedMacOS) {
     return { status: devNotificationAnswer ?? override.data };
   }
   const native = loadModule();
@@ -266,6 +288,7 @@ export async function requestNotifications(): Promise<{
   if (!native) {
     return { granted: false };
   }
+  devAskedMacOS = true;
   const answer = z
     .union([
       z.object({ granted: z.boolean() }),

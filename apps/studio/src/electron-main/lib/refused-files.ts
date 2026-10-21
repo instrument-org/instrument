@@ -8,8 +8,8 @@ import {
   homeDataLayout,
   PERSON_FOLDERS_IN_DATA_DIR,
 } from "@instrument-org/workspace/layout";
+import { dataHome } from "@instrument-org/workspace/work-folders";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import { getUserDataDir } from "./get-workspace-folder";
@@ -62,7 +62,7 @@ const FOLD_CASE = process.platform === "darwin" || process.platform === "win32";
  * has open wherever it is, and every chat's work folder.
  */
 export function userDataViewRule({
-  home = os.homedir(),
+  home = dataHome(),
   userDataDir,
   workspaceDir,
 }: {

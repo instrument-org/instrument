@@ -54,6 +54,12 @@ declare namespace NodeJS {
       /** `0` keeps every pipeline stage on the buffered path, for comparing it with streaming between native commands. */
       INSTRUMENT_NATIVE_PIPES: string | undefined;
       /**
+       * The folder standing for the home folder where every workspace's work
+       * folders go: studio-drive sets it for a seeded or clean-room instance.
+       * See packages/workspace/src/lib/work-folders.ts.
+       */
+      INSTRUMENT_DATA_HOME: string | undefined;
+      /**
        * Linux only: which display protocol Electron talks. `x11`, `wayland`, or
        * `auto`; anything else is ignored. See
        * docs/findings/drag-out-does-not-cross-xwayland.md.

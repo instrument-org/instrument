@@ -19,6 +19,7 @@
     "./electron": "./src/electron.ts",
     "./host-path": "./src/lib/host-path.ts",
     "./layout": "./src/lib/workspace-layout.ts",
+    "./work-folders": "./src/lib/work-folders.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

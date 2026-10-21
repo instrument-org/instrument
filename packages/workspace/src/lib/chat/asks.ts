@@ -23,14 +23,19 @@ export interface Asker {
  * answered for, so the chat shows the card. One card per thing: asking again
  * while the card is up raises nothing new, and another session that asks
  * joins the card, to be woken with its answer too. `macos` raises it, or
- * turns the card already up, into one about macOS's own answer, for a thing
- * the person's rules already allow. Answers the card's id.
+ * turns the card already up, into one about the system's own answer (macOS,
+ * or Windows' ransomware protection, with the `programs` it blocked), for a
+ * thing the person's rules already allow. Answers the card's id.
  */
 export async function recordAsk(
   asker: Asker & { reason?: string },
   kind: PermissionAsk["kind"],
   target: string,
-  macos?: { allowed: "allowed" | "always"; status: MacosAskStatus },
+  macos?: {
+    allowed: "allowed" | "always";
+    programs?: string[];
+    status: MacosAskStatus;
+  },
 ): Promise<string> {
   const joining = {
     ...(asker.partId && { partId: asker.partId }),
@@ -101,9 +106,14 @@ export function cardLine(card: Ask): string {
     return card.question.trim() || "Waiting for you to answer";
   }
   const name = askTargetName(card.kind, card.target);
-  return card.status === "macos-asking"
-    ? `Your Mac is asking about ${name}`
-    : `Waiting for your OK to use ${name}`;
+  switch (card.status) {
+    case "macos-asking":
+      return `Your Mac is asking about ${name}`;
+    case "windows-blocked":
+      return `Windows is blocking changes to ${name}`;
+    default:
+      return `Waiting for your OK to use ${name}`;
+  }
 }
 
 /** Takes an answered permission card off the chat, and answers what it was. */

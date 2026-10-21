@@ -76,6 +76,11 @@ import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
 import { closedAppServices } from "./permissions/apps";
+import {
+  awaitOurBlocks,
+  protectionBlocks,
+  reportBlocks,
+} from "./permissions/windows-protection";
 import { getWorkspaceConfig } from "./workspace-config";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 import {
@@ -1095,6 +1100,7 @@ export async function createLocalBashEnv({
     // to the disk directly, where the shell's own commands are recorded as
     // they write (`setup-changes.ts`).
     const setupBefore = await snapshotSetup();
+    const startedAt = new Date();
     let result: Awaited<ReturnType<typeof exec>>;
     try {
       result = await withNativeReach(reach, () => exec(...execArgs));
@@ -1107,6 +1113,18 @@ export async function createLocalBashEnv({
       throw error;
     } finally {
       await recordProgramSetupChanges(setupBefore);
+    }
+    // A write Windows' ransomware protection blocked fails as a missing
+    // file, whatever wrote it: a call that failed while it blocks is asked
+    // of Defender's own log for a block of one of its programs.
+    if (result.exitCode !== 0 && (await protectionBlocks())) {
+      const ran = (currentCommandRuns()?.rows() ?? []).flatMap((run) =>
+        run.program === undefined ? [] : [run.program],
+      );
+      const blocks = await awaitOurBlocks({ ran, since: startedAt });
+      if (blocks.length > 0) {
+        refusals.add(await reportBlocks(blocks, layout.rules.asker, shellPath));
+      }
     }
     if (refusals.size === 0) {
       return result;

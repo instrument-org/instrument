@@ -77,6 +77,13 @@ export type FromWorker =
    */
   | { asker: Asker; id: string; root: string; type: "macos-watch" }
   | { id: string; type: "macos-unwatch" }
+  /** Programs Windows' ransomware protection kept out of `folder`, which the chat's card says. */
+  | {
+      asker: Asker;
+      folder: string;
+      programs: string[];
+      type: "windows-protection-block";
+    }
   /** What a read or listing learned of macOS's answer for a folder, for Settings. */
   | {
       answer: "allowed" | "denied";

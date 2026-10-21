@@ -27,6 +27,7 @@ import {
   noteMacosFolderAnswer,
   watchForMacosAsking,
 } from "../permissions/macos";
+import { raiseProtectionCard } from "../permissions/windows-protection";
 import { recordSetupTouch } from "../setup-changes";
 import {
   fromWireError,
@@ -306,6 +307,14 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
     }
     case "macos-folder-answer": {
       noteMacosFolderAnswer(message.hostPath, message.answer);
+      return;
+    }
+    case "windows-protection-block": {
+      await raiseProtectionCard(
+        message.asker,
+        message.folder,
+        message.programs,
+      );
       return;
     }
     case "tool": {

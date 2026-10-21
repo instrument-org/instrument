@@ -20,6 +20,7 @@ import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
 import { setMacosForwarder } from "../permissions/macos";
+import { setProtectionForwarder } from "../permissions/windows-protection";
 import { setSetupTouchForwarder } from "../setup-changes";
 import {
   fromWireError,
@@ -109,6 +110,9 @@ setMacosForwarder({
   watch: (id, asker, root) => {
     post({ asker, id, root, type: "macos-watch" });
   },
+});
+setProtectionForwarder((asker, folder, programs) => {
+  post({ asker, folder, programs, type: "windows-protection-block" });
 });
 setSubprocessTreeObserver({
   settled: (pid) => {

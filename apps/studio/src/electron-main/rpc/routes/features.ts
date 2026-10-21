@@ -47,6 +47,20 @@ const openPrivacySettings = base
     return { opened: true };
   });
 
+/**
+ * Windows Security's page for letting a program through ransomware
+ * protection, where a program it blocked is allowed by hand.
+ */
+const openRansomwareProtection = base
+  .output(z.object({ opened: z.boolean() }))
+  .handler(async () => {
+    if (process.platform !== "win32") {
+      return { opened: false };
+    }
+    await shell.openExternal("windowsdefender://allowappthroughfolder/");
+    return { opened: true };
+  });
+
 const live = {
   getAll: base.output(eventIterator(FeaturesSchema)).handler(async function* ({
     signal,
@@ -61,5 +75,6 @@ const live = {
 export const features = {
   live,
   openPrivacySettings,
+  openRansomwareProtection,
   setEnabled,
 };

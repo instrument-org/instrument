@@ -64,15 +64,30 @@ const PermissionAskSchema = z.object({
   id: z.string(),
   kind: z.enum(["app", "folder"]),
   /**
+   * The programs Windows' ransomware protection kept out of the folder, by
+   * their paths, which the card's Allow lets through: on a
+   * `windows-blocked` card only.
+   */
+  programs: z.array(z.string()).optional(),
+  /**
    * What the card waits on once the person's yes is given: `open`, their
    * answer; `macos-asking`, their answer to macOS's own prompt, which the
    * look inside waits on; `macos-refused`, macOS keeping the app out, where
    * the card offers the Mac's folder panel (a folder) and System Settings
    * until a retry gets in or the person declines; `macos-private`, a folder
-   * only its own app may open, which the card says and offers no way into.
+   * only its own app may open, which the card says and offers no way into;
+   * `windows-blocked`, Windows' ransomware protection keeping the app's
+   * programs from changing the folder, where the card lets them through
+   * with an administrator's yes or opens Windows Security.
    */
   status: z
-    .enum(["macos-asking", "macos-private", "macos-refused", "open"])
+    .enum([
+      "macos-asking",
+      "macos-private",
+      "macos-refused",
+      "open",
+      "windows-blocked",
+    ])
     .default("open"),
   /** The folder's absolute path, or the app's name. */
   target: z.string(),

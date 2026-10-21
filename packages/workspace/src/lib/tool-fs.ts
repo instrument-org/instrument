@@ -8,6 +8,12 @@ import { type ExecuteError, executeError } from "./execute-error";
 import { formatBytes } from "./format-bytes";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
+import {
+  awaitOurBlocks,
+  BLOCK_EVENT_WAIT_MS,
+  protectionBlocks,
+  reportBlocks,
+} from "./permissions/windows-protection";
 import { sessionLayout } from "./session-layout";
 import { SANDBOX_MAX_BYTES, shellFs } from "./shell-fs";
 import {
@@ -104,7 +110,9 @@ export async function toolFs(layout: WorkspaceFsLayout): Promise<ToolFs> {
     failure: async (error, resolved) => {
       const notes = [...refusals].join("\n");
       refusals.clear();
-      return executeError(notes || errnoMessage(error, shown(resolved)));
+      const message = notes || errnoMessage(error, shown(resolved));
+      const blocked = notes ? "" : await protectionNote(layout, resolved);
+      return executeError(blocked ? `${message}\n${blocked}` : message);
     },
     fs,
     hostPath: async (resolved) => hostPathOf(await fs.realpath(resolved)),
@@ -185,6 +193,28 @@ export function nameVariants(resolved: string): string[] {
   return [...new Set([amPm, nfd, curly, nfdCurly])].filter(
     (variant) => variant !== resolved,
   );
+}
+
+/**
+ * What Windows' ransomware protection did to a write of the app's into
+ * `resolved` that just failed, as Defender logged it: the note the agent
+ * hears, once the card is up, or nothing where it blocked nothing (and on
+ * every other system).
+ */
+async function protectionNote(
+  layout: WorkspaceFsLayout,
+  resolved: string,
+): Promise<string> {
+  if (!(await protectionBlocks())) {
+    return "";
+  }
+  const blocks = await awaitOurBlocks({
+    path: hostPathOf(resolved),
+    since: new Date(Date.now() - BLOCK_EVENT_WAIT_MS),
+  });
+  return blocks.length === 0
+    ? ""
+    : reportBlocks(blocks, layout.rules.asker, shellPath);
 }
 
 /** Whether an operation failed because nothing is at the path. */

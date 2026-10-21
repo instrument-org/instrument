@@ -350,7 +350,7 @@ describe("permissions.answer", () => {
         { askId: card?.id ?? "", id: chatId },
         { context: context() },
       ),
-    ).rejects.toThrow("That request isn't waiting on macOS.");
+    ).rejects.toThrow("That request isn't waiting on the system.");
   });
 
   describe.runIf(process.platform === "darwin")("on macOS", () => {

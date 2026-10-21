@@ -124,6 +124,7 @@ function PermissionAskCard({
   const refused = ask.status === "macos-refused";
   const asking = ask.status === "macos-asking";
   const isPrivate = ask.status === "macos-private";
+  const blocked = ask.status === "windows-blocked";
   const name = askTargetName(ask.kind, ask.target);
   // What the agent said it needs this for, from the first to ask.
   const reason = ask.askers[0]?.reason;
@@ -153,7 +154,7 @@ function PermissionAskCard({
     <div
       className={cn(
         "relative rounded-2xl border bg-card p-3 shadow-xs",
-        refused || isPrivate
+        refused || isPrivate || blocked
           ? "border-warning-300 dark:border-warning-700"
           : "border-border",
       )}
@@ -183,12 +184,14 @@ function PermissionAskCard({
           </div>
         ) : null}
       </div>
-      {asking || isPrivate ? (
+      {asking || isPrivate || blocked ? (
         <p className="mt-0.5 text-[13px] text-muted-foreground">
           {asking
             ? // oxlint-disable-next-line studio/no-os-words -- macOS alone asks this way
               "Choose Allow in the window your Mac opened."
-            : "Only the app it belongs to can open it, so Instrument can’t read it."}
+            : blocked
+              ? "Ransomware protection only lets programs it trusts change this folder."
+              : "Only the app it belongs to can open it, so Instrument can’t read it."}
         </p>
       ) : reason || refused ? (
         <p className="mt-0.5 text-[13px] text-muted-foreground">
@@ -219,6 +222,8 @@ function PermissionAskCard({
       <div className="mt-3 flex items-center gap-2 @max-md/asks:flex-col @max-md/asks:items-stretch @max-md/asks:gap-1.5">
         {refused ? (
           <MacFixes ask={ask} busy={busy} chatId={chatId} />
+        ) : blocked ? (
+          <WindowsFixes ask={ask} busy={busy} chatId={chatId} />
         ) : asking || isPrivate ? null : (
           <>
             <AnswerButton {...choice("allowed")}>
@@ -253,6 +258,8 @@ function cardTitle(ask: Ask, name: string): string {
       return ask.kind === "folder"
         ? `Your Mac prevented Instrument from accessing ${name}`
         : `Your Mac prevented Instrument from using ${name}`;
+    case "windows-blocked":
+      return `Windows is blocking Instrument from changing ${name}`;
     default:
       return ask.kind === "folder"
         ? "Can Instrument use this folder?"
@@ -354,6 +361,82 @@ function MacFixes({
           </span>
         ) : null}
       </Button>
+    </>
+  );
+}
+// oxlint-enable studio/no-os-words
+
+// oxlint-disable studio/no-os-words -- Windows' ransomware protection blocks this way, so these show only there
+/**
+ * The ways past Windows' ransomware protection keeping the app's programs
+ * out of a folder: let exactly those through, behind Windows' own prompt
+ * for an administrator's yes, which wakes the chat to try again; or allow
+ * them by hand in Windows Security, then try again.
+ */
+function WindowsFixes({
+  ask,
+  busy,
+  chatId,
+}: {
+  ask: Ask;
+  busy: boolean;
+  chatId: ChatId;
+}) {
+  const [inSecurity, setInSecurity] = useState(false);
+  const allow = useMutation(
+    rpcClient.workspace.permissions.allowThroughProtection.mutationOptions({
+      ...onAnswerError,
+      onSuccess: ({ outcome }) => {
+        if (outcome === "failed") {
+          toast.error(
+            "Windows didn’t take the change. Try Windows Security instead.",
+          );
+        }
+      },
+    }),
+  );
+  const retry = useMutation(
+    rpcClient.workspace.permissions.retry.mutationOptions(onAnswerError),
+  );
+  const security = useMutation(
+    rpcClient.features.openRansomwareProtection.mutationOptions(),
+  );
+  const working = busy || allow.isPending || retry.isPending;
+  return (
+    <>
+      <AnswerButton
+        disabled={working}
+        onClick={() => {
+          allow.mutate({ askId: ask.id, id: chatId });
+        }}
+        pending={allow.isPending}
+      >
+        Allow
+      </AnswerButton>
+      {inSecurity ? (
+        <AnswerButton
+          disabled={working}
+          onClick={() => {
+            retry.mutate({ askId: ask.id, id: chatId });
+          }}
+          pending={retry.isPending}
+          variant="outline"
+        >
+          Try again
+        </AnswerButton>
+      ) : (
+        <AnswerButton
+          disabled={working}
+          onClick={() => {
+            security.mutate(undefined);
+            setInSecurity(true);
+          }}
+          pending={false}
+          variant="outline"
+        >
+          Open Windows Security
+        </AnswerButton>
+      )}
     </>
   );
 }

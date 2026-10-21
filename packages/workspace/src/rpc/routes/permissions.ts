@@ -34,6 +34,7 @@ import {
   macosRefusedFolders,
   watchMacosPrompt,
 } from "../../lib/permissions/macos";
+import { allowThroughProtection } from "../../lib/permissions/windows-protection";
 import { grantFolder } from "../../lib/chat/grants";
 import { setDenied } from "../../lib/permissions/denials";
 import { wakeAskers } from "../../lib/chat/wake";
@@ -353,16 +354,48 @@ const retry = base
   .handler(async ({ context, input }) => {
     const ask = await openPermissionAsk(input.id, input.askId);
     if (
-      (ask.status !== "macos-refused" && ask.status !== "macos-asking") ||
+      (ask.status !== "macos-refused" &&
+        ask.status !== "macos-asking" &&
+        ask.status !== "windows-blocked") ||
       !ask.allowed
     ) {
       throw new ORPCError("BAD_REQUEST", {
-        message: "That request isn't waiting on macOS.",
+        message: "That request isn't waiting on the system.",
       });
     }
     await settle(input.id, ask, ask.allowed, context.workspaceRef, {
       wakesOnlyIfPrompted: ask.status === "macos-asking",
     });
+  });
+
+/**
+ * Lets the programs Windows' ransomware protection blocked, and the app
+ * itself, through it, behind Windows' own prompt for an administrator's
+ * yes, then wakes the askers to try again. A prompt the person declines
+ * leaves the card as it was.
+ */
+const allowThroughProtectionRoute = base
+  .input(z.object({ askId: z.string(), id: ChatIdSchema }))
+  .output(z.object({ outcome: z.enum(["allowed", "canceled", "failed"]) }))
+  .handler(async ({ context, input }) => {
+    const ask = await openPermissionAsk(input.id, input.askId);
+    if (ask.status !== "windows-blocked" || process.platform !== "win32") {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "That request isn't waiting on ransomware protection.",
+      });
+    }
+    const outcome = await allowThroughProtection([
+      ...new Set([...(ask.programs ?? []), process.execPath]),
+    ]);
+    if (outcome === "allowed") {
+      await settle(
+        input.id,
+        ask,
+        ask.allowed ?? "allowed",
+        context.workspaceRef,
+      );
+    }
+    return { outcome };
   });
 
 /** Says not now to every permission card the chat has open. */
@@ -544,6 +577,7 @@ async function macosKeepsOut(
 }
 
 export const permissions = {
+  allowThroughProtection: allowThroughProtectionRoute,
   answer,
   declineAll,
   macos,

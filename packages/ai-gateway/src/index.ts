@@ -19,6 +19,7 @@ export {
   runsClaudeCode,
 } from "./lib/providers/claude-account/release";
 export { claudeCodeEnvironment } from "./lib/providers/claude-account/environment";
+export { closeClaudeAccountSessions } from "./lib/providers/claude-account/language-model";
 export {
   type ClaudeCodeSignIn,
   startClaudeCodeSignIn,

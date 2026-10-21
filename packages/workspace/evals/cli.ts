@@ -569,7 +569,7 @@ switch (subcommand) {
       });
       removePreparedSkills(workspaceRootDir);
       if (process.env.APP_CLAUDE_CODE_PATH) {
-        removeClaudeAccountLeftovers();
+        await removeClaudeAccountLeftovers();
       }
 
       printSummary({ outputDir, rollup, workspaceRootDir });

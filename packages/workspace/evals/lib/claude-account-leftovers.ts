@@ -1,3 +1,5 @@
+import { closeClaudeAccountSessions } from "@instrument-org/ai-gateway";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -11,8 +13,14 @@ import path from "node:path";
  * then, the records by the transcripts they name. A record is named for a
  * hash of its session, which a run cannot recompute after the fact, while
  * the transcripts are all in one folder only this run used.
+ *
+ * Claude Code writes the end of each session (its title, its cost) into the
+ * transcript as its process exits, so the processes are closed and waited
+ * for first; a folder removed while one still runs is written again.
  */
-export function removeClaudeAccountLeftovers(home = os.homedir()) {
+export async function removeClaudeAccountLeftovers(home = os.homedir()) {
+  closeClaudeAccountSessions();
+  await claudeProcessesGone();
   const config = path.join(os.userInfo().homedir, ".claude");
   const project = path.join(
     config,
@@ -34,6 +42,34 @@ export function removeClaudeAccountLeftovers(home = os.homedir()) {
     }
   }
   fs.rmSync(project, { force: true, recursive: true });
+}
+
+/** How long the closed processes get to exit before the folder goes anyway. */
+const EXIT_WAIT_MS = 10_000;
+
+/** Until no Claude Code this process started is still running. */
+async function claudeProcessesGone() {
+  const deadline = Date.now() + EXIT_WAIT_MS;
+  while (Date.now() < deadline && claudeChildren() > 0) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
+function claudeChildren(): number {
+  try {
+    return execFileSync("ps", ["-A", "-o", "ppid=,command="], {
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter((line) => {
+        const [ppid, ...command] = line.trim().split(/\s+/);
+        return (
+          Number(ppid) === process.pid && command.join(" ").includes("claude")
+        );
+      }).length;
+  } catch {
+    return 0;
+  }
 }
 
 function readdirOrEmpty(dir: string): string[] {

@@ -382,7 +382,7 @@ async function main() {
     }
   }
   if (process.env.APP_CLAUDE_CODE_PATH) {
-    removeClaudeAccountLeftovers();
+    await removeClaudeAccountLeftovers();
   }
   const resultsDir = path.join(import.meta.dirname, "..", "eval-results.local");
   await fs.mkdir(resultsDir, { recursive: true });

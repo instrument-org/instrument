@@ -15,7 +15,7 @@ import { studioURL } from "@/electron-main/lib/urls";
 import { bindAppWindowChords } from "@/electron-main/menus/app-window";
 import { bindShortcutAccelerators } from "@/electron-main/menus/shortcuts";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
+import { isSetupUp } from "@/electron-main/lib/setup-state";
 import {
   getAppZoom,
   getWindowState,
@@ -402,7 +402,7 @@ function askAppWindow(ask: AppWindowAsk) {
   // set up: finishing it opens this window, which then takes it.
   if (
     app.isReady() &&
-    getWorkspaceState().get("hasCompletedProviderSetup") &&
+    !isSetupUp() &&
     !getOnboardingWindow()
   ) {
     openAppWindow();

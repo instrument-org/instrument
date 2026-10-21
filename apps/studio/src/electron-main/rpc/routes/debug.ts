@@ -4,13 +4,13 @@ import {
   isQuitGuardForcedInDev,
   setQuitGuardForcedInDev,
 } from "@/electron-main/lib/quit";
+import { finishSetup } from "@/electron-main/lib/setup-state";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { simulateChromiumSandboxOff } from "@/electron-main/lib/chromium-sandbox";
 import { noteUpdate } from "@/electron-main/lib/notices";
 import { simulateSandboxOff } from "@instrument-org/workspace/electron";
 import { openPathOnComputer } from "@/electron-main/lib/open-path";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { openAppWindow } from "@/electron-main/windows/app-window";
 import {
   closeOnboardingWindow,
@@ -257,7 +257,7 @@ async function openFolder(folderPath: string) {
  * app window with no provider and no account is a state worth seeing too.
  */
 const skipOnboarding = devOnly.input(z.void()).handler(() => {
-  getWorkspaceState().set("hasCompletedProviderSetup", true);
+  finishSetup();
   // Opened before the onboarding window closes, which quits the app when it
   // leaves no window behind.
   openAppWindow();

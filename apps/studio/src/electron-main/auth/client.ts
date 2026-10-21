@@ -12,7 +12,6 @@ import {
   forgetSessionToken,
   setSessionToken,
 } from "@/electron-main/stores/workspace/session";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { createAuthClient } from "better-auth/client";
 import { createHash, randomBytes } from "node:crypto";
@@ -133,7 +132,6 @@ export async function signInSocial(): Promise<
       }
       const signedIn = await exchangeDesktopSignIn({ codeVerifier, token });
       setSessionToken(platformApiOrigin(), signedIn.token);
-      getWorkspaceState().set("hasCompletedProviderSetup", true);
       email = signedIn.user.email;
     } catch (error) {
       throw new Error("Login failed", { cause: error });

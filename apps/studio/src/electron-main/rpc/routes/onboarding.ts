@@ -1,3 +1,4 @@
+import { finishSetup } from "@/electron-main/lib/setup-state";
 import { base } from "@/electron-main/rpc/base";
 import {
   openAppWindow,
@@ -10,6 +11,7 @@ import {
 import { screen } from "electron";
 
 const complete = base.handler(() => {
+  finishSetup();
   // Onboarding grows into the app window's frame while that window loads
   // behind it, hidden; the app window then takes its place, so the one window
   // seems to become the other. It opens before onboarding closes, which quits

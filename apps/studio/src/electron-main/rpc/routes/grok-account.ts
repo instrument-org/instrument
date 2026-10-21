@@ -11,7 +11,6 @@ import {
 import { setGrokAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { z } from "zod";
 
@@ -38,9 +37,6 @@ const signIn = base.handler(
   > => {
     try {
       const result = await signInWithGrok();
-      if (result.account?.state === "signed-in") {
-        getWorkspaceState().set("hasCompletedProviderSetup", true);
-      }
       return result;
     } catch (error) {
       captureServerException(

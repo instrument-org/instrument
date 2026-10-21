@@ -38,6 +38,10 @@ function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function listOf(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
 function objectOf(value: unknown): JsonObject {
   return isObject(value) ? value : {};
 }
@@ -75,16 +79,16 @@ export function mergeProviderConfigs(
   target: JsonObject,
   source: JsonObject,
 ): JsonObject {
-  const own = Array.isArray(target.providers) ? target.providers : [];
+  const own = listOf(target.providers);
   const ownIds = new Set(own.map(idOf));
-  const added = (
-    Array.isArray(source.providers) ? source.providers : []
-  ).filter((entry) => idOf(entry) !== undefined && !ownIds.has(idOf(entry)));
+  const added = listOf(source.providers).filter(
+    (entry) => idOf(entry) !== undefined && !ownIds.has(idOf(entry)),
+  );
   const addedIds = new Set(added.map(idOf));
-  const disabled = Array.isArray(target.disabled) ? target.disabled : [];
-  const disabledAdded = (
-    Array.isArray(source.disabled) ? source.disabled : []
-  ).filter((id) => addedIds.has(id) && !disabled.includes(id));
+  const disabled = listOf(target.disabled);
+  const disabledAdded = listOf(source.disabled).filter(
+    (id) => addedIds.has(id) && !disabled.includes(id),
+  );
   return {
     ...withKeysAdded(target, source),
     disabled: [...disabled, ...disabledAdded],
@@ -322,15 +326,16 @@ function connectionIdsIn(
   };
   const ids = new Set<unknown>();
   const providers = read(KEY_STORE_NAMES.providerConfigs);
-  const disabled = Array.isArray(providers.disabled) ? providers.disabled : [];
-  for (const entry of Array.isArray(providers.providers)
-    ? providers.providers
-    : []) {
+  const disabled = listOf(providers.disabled);
+  for (const entry of listOf(providers.providers)) {
     if (!disabled.includes(idOf(entry))) {
       ids.add(idOf(entry));
     }
   }
-  for (const name of [KEY_STORE_NAMES.chatgptAccount, KEY_STORE_NAMES.grokAccount]) {
+  for (const name of [
+    KEY_STORE_NAMES.chatgptAccount,
+    KEY_STORE_NAMES.grokAccount,
+  ]) {
     for (const registration of Object.values(
       objectOf(read(name).registrations),
     )) {

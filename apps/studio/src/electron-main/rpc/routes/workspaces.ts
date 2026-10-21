@@ -311,7 +311,9 @@ function setupFolders() {
   const home = app.isPackaged ? undefined : process.env.INSTRUMENT_SETUP_HOME;
   return {
     inDocuments: path.join(
-      home === undefined ? app.getPath("documents") : path.join(home, "Documents"),
+      home === undefined
+        ? app.getPath("documents")
+        : path.join(home, "Documents"),
       HOME_FOLDERS.instrument,
     ),
     inHome: path.join(home ?? app.getPath("home"), HOME_FOLDERS.instrument),

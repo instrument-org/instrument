@@ -60,7 +60,6 @@ function buildDefaultOrigin(): string {
 
 let SESSION_STORE: null | Store<SessionState> = null;
 
-
 // Set while reading a file that carries keys the schema does not know, or an
 // earlier build's one token, so the store is rewritten once in today's shape.
 let REWRITE_ON_OPEN = false;

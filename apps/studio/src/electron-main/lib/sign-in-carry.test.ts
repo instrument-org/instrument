@@ -227,7 +227,10 @@ describe("carrySignIns", () => {
     const model = AIGatewayModelURI.fromModel({
       author: "openai",
       canonicalId: AIGatewayModelURI.CanonicalIdSchema.parse("gpt-5"),
-      params: { provider: "openai", providerConfigId: AIProviderConfigIdSchema.parse("k1") },
+      params: {
+        provider: "openai",
+        providerConfigId: AIProviderConfigIdSchema.parse("k1"),
+      },
     });
     write(
       path.join(fromMachineDir, "keys", "providers.json.enc"),
@@ -268,9 +271,8 @@ describe("carrySignIns", () => {
         "set the main model chosen in setup",
       ]
     `);
-    expect(
-      decrypted(path.join(to, "keys", "providers.json.enc")),
-    ).toMatchInlineSnapshot(`
+    expect(decrypted(path.join(to, "keys", "providers.json.enc")))
+      .toMatchInlineSnapshot(`
       {
         "disabled": [],
         "providers": [
@@ -281,9 +283,8 @@ describe("carrySignIns", () => {
         ],
       }
     `);
-    expect(
-      decrypted(path.join(to, "keys", "chatgpt-account.json.enc")),
-    ).toMatchInlineSnapshot(`
+    expect(decrypted(path.join(to, "keys", "chatgpt-account.json.enc")))
+      .toMatchInlineSnapshot(`
       {
         "registrations": {
           "a": {
@@ -311,10 +312,10 @@ describe("carrySignIns", () => {
     expect(items[claudeKeychainService(path.join(to, "claude-account"))]).toBe(
       "our claude",
     );
-    expect(
-      JSON.parse(fs.readFileSync(path.join(to, "preferences.json"), "utf8"))
-        .defaultModelURI,
-    ).toBe(model);
+    const preferences: unknown = JSON.parse(
+      fs.readFileSync(path.join(to, "preferences.json"), "utf8"),
+    );
+    expect(preferences).toMatchObject({ defaultModelURI: model });
   });
 
   it("keeps the opened workspace's Claude account and a model it can run", () => {
@@ -342,7 +343,10 @@ describe("carrySignIns", () => {
       model: AIGatewayModelURI.fromModel({
         author: "openai",
         canonicalId: AIGatewayModelURI.CanonicalIdSchema.parse("gpt-5"),
-        params: { provider: "openai", providerConfigId: AIProviderConfigIdSchema.parse("k1") },
+        params: {
+          provider: "openai",
+          providerConfigId: AIProviderConfigIdSchema.parse("k1"),
+        },
       }),
       userDataDir,
       workspace,

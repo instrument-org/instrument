@@ -71,6 +71,12 @@ declare namespace NodeJS {
        * for a fixture. See create-workspace-actor.ts.
        */
       INSTRUMENT_OUTPUT_FOLDER: string | undefined;
+      /**
+       * Dev only: what setup's launch account checks answer (`ready`,
+       * `no-plan`, `out-of-usage`, `signed-out`) in place of a real check.
+       * See electron-main/lib/setup-facts.ts.
+       */
+      INSTRUMENT_ACCOUNT_CHECK: string | undefined;
       /** Dev only: the notification status the Mac bridge answers in place of macOS's (`notificationStatus`). */
       INSTRUMENT_NOTIFICATION_STATUS: string | undefined;
       /**

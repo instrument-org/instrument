@@ -471,6 +471,7 @@ const CHATGPT_PLAN_SCOPE = "chatgpt.tokens.use.direct";
 
 /** The keys a scenario may set, so a typo fails rather than doing nothing. */
 const SCENARIO_KEYS = new Set([
+  "accountCheck",
   "description",
   "folder",
   "network",
@@ -661,6 +662,9 @@ function prepareScenario(name, { keepTabs }) {
         INSTRUMENT_NOTIFICATION_ANSWER: scenario.notificationAnswer,
       }),
       ...(scenario.network && { INSTRUMENT_NETWORK_STATUS: scenario.network }),
+      ...(scenario.accountCheck && {
+        INSTRUMENT_ACCOUNT_CHECK: scenario.accountCheck,
+      }),
     },
     outputDir,
     userDataDir,

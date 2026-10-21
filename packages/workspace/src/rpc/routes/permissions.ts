@@ -538,9 +538,9 @@ async function macosKeepsOut(
     { request: true },
   );
   const watched = watchMacosPrompt(standing, onAsking);
-  const answer = await standing;
+  const standingAnswer = await standing;
   await watched;
-  return answer === "denied" ? "macos-refused" : undefined;
+  return standingAnswer === "denied" ? "macos-refused" : undefined;
 }
 
 export const permissions = {

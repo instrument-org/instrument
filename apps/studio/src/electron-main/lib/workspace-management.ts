@@ -367,24 +367,14 @@ function isDirectory(dir: string) {
   }
 }
 
-/**
- * Copy the sign-ins in a keys folder into a new workspace's machine folder,
- * which then counts its providers as set up.
- */
+/** Copy the sign-ins in a keys folder into a new workspace's machine folder. */
 function copySignIns(fromDir: string, machineDir: string) {
   const keysDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.keys);
-  let copied = 0;
   for (const file of SIGN_IN_FILES) {
     if (fs.existsSync(path.join(fromDir, file))) {
       fs.mkdirSync(keysDir, { recursive: true });
       fs.copyFileSync(path.join(fromDir, file), path.join(keysDir, file));
-      copied++;
     }
-  }
-  if (copied > 0) {
-    writeJsonAtomic(path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.state), {
-      hasCompletedProviderSetup: true,
-    });
   }
 }
 

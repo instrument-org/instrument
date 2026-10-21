@@ -111,15 +111,11 @@ describe("settings migration", () => {
         developerMode: true,
         theme: "dark",
       });
-      expect(read(path.join(settings, "state.json"))).toEqual({
-        hasCompletedProviderSetup: true,
-      });
       expect(fs.readdirSync(settings).toSorted()).toEqual(
         [
           "app-connections.json",
           "features.json",
           "preferences.json",
-          "state.json",
           "window-state.json",
           ...(flavor === "dev"
             ? ["providers.json", "session-dev.json"]

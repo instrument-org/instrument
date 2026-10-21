@@ -42,9 +42,8 @@ export const CURRENT_SETTINGS_VERSION = 2;
 export const MACHINE_PREFERENCES_NAME = "machine-preferences";
 export const MACHINE_STATE_NAME = "machine-state";
 
-/** The legacy root files whose keys split between the two halves. */
+/** The legacy root file whose keys split between the two halves. */
 const LEGACY_PREFERENCES = "preferences.json";
-const LEGACY_APP_STATE = "app-state.json";
 
 const MACHINE_PREFERENCE_KEYS = ["releaseChannel"];
 const MACHINE_STATE_KEYS_FROM_PREFERENCES = [
@@ -57,7 +56,6 @@ const WORKSPACE_PREFERENCE_KEYS = [
   "developerMode",
   "theme",
 ];
-const WORKSPACE_STATE_KEYS = ["hasCompletedProviderSetup"];
 
 /**
  * Root files that belong wholly to the default workspace, copied as they are.
@@ -468,17 +466,10 @@ function takeInLegacyRootFiles({
 }) {
   const settingsDir = workspaceSettingsDirOf(workspacePath);
   const legacyPreferencesPath = path.join(userDataDir, LEGACY_PREFERENCES);
-  const legacyAppStatePath = path.join(userDataDir, LEGACY_APP_STATE);
 
   writeIfAbsent(
     path.join(settingsDir, "preferences.json"),
     pick(readObject(legacyPreferencesPath), WORKSPACE_PREFERENCE_KEYS),
-    done,
-    overwrite,
-  );
-  writeIfAbsent(
-    path.join(settingsDir, "state.json"),
-    pick(readObject(legacyAppStatePath), WORKSPACE_STATE_KEYS),
     done,
     overwrite,
   );

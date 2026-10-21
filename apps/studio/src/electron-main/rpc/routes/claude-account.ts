@@ -11,7 +11,6 @@ import {
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import {
   AIProviderConfigIdSchema,
   CLAUDE_ACCOUNT_PROVIDER_CONFIG,
@@ -59,16 +58,15 @@ const signOut = base.handler(async () => {
 });
 
 /**
- * Uses the Claude account Claude Code is signed in to, when it is: setup is
- * done, and the model Claude Code recommends becomes the default. Answers the
- * status either way, and the model's name when one was chosen.
+ * Uses the Claude account Claude Code is signed in to, when it is: the
+ * model Claude Code recommends becomes the default. Answers the status
+ * either way, and the model's name when one was chosen.
  */
 const connect = base.handler(async () => {
   const status = await refreshClaudeAccountStatus({ force: true });
   if (status.kind !== "signed-in") {
     return { modelName: undefined, status };
   }
-  getWorkspaceState().set("hasCompletedProviderSetup", true);
   return { modelName: await setClaudeAccountDefaultModel(), status };
 });
 

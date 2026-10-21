@@ -129,11 +129,6 @@ describe("createWorkspace", () => {
       "providers.json",
       "session-dev.json",
     ]);
-    expect(
-      JSON.parse(
-        fs.readFileSync(path.join(machineDirOf(created), "state.json"), "utf8"),
-      ),
-    ).toEqual({ hasCompletedProviderSetup: true });
     expect(entriesOf(workspaceLayout(created.path).dataDir)).toEqual([
       "workspace.json",
     ]);

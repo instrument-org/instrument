@@ -82,14 +82,20 @@ export function useMainModelChoice() {
   const { data: list, isLoading } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
-  const { data: defaultURI } = useQuery(
+  const { data: defaultURI, isPending: isDefaultPending } = useQuery(
     rpcClient.preferences.live.defaultModelURI.experimental_liveOptions(),
   );
   const { isPending, mutate: saveDefault } = useMutation(
     rpcClient.preferences.setDefaultModelURI.mutationOptions(),
   );
+  // The default as the choice opened, read once: saving the pick makes it
+  // the default, which must not make it Recommended or move it to the top.
+  const [entry, setEntry] = useState<{ defaultURI: typeof defaultURI }>();
+  if (entry === undefined && !isDefaultPending) {
+    setEntry({ defaultURI });
+  }
   const models = choosableModels(list?.models ?? []);
-  const recommended = recommendedModel(models, defaultURI);
+  const recommended = recommendedModel(models, entry?.defaultURI);
   const [picked, setPicked] = useState<string | undefined>(undefined);
   const chosen = picked ?? recommended?.uri;
   const isShort = isShortList(models);

@@ -30,7 +30,29 @@ describe("dictated text", () => {
     );
   });
 
-  it.each(["items[0]", "a ] b", "back\\slash"])(
+  it("reads a [ typed before a token as typed text", () => {
+    const wire = `Fill in [ ${dictatedToken("the missing value")}`;
+    expect(wire).toMatchInlineSnapshot(
+      `"Fill in [ [the missing value](dictated:)"`,
+    );
+    expect(splitDictatedText(wire)).toMatchInlineSnapshot(`
+      [
+        {
+          "dictated": false,
+          "text": "Fill in [ ",
+        },
+        {
+          "dictated": true,
+          "text": "the missing value",
+        },
+      ]
+    `);
+    expect(stripDictatedMarks(wire)).toMatchInlineSnapshot(
+      `"Fill in [ the missing value"`,
+    );
+  });
+
+  it.each(["items[0]", "a ] b", "back\\slash", "[bracketed]", "a [ b", "]["])(
     "keeps %s whole through the wire form",
     (words) => {
       const wire = `x ${dictatedToken(words)} y`;

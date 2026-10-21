@@ -2,9 +2,10 @@
 // reads or writes it: the composer that marks words a person dictated, the
 // transcript and lists that show them as plain words, and the workspace that
 // tells the model they were spoken. The composer writes `[words](dictated:)`.
-// A `]` or `\` in the words is escaped with a `\`, so the label holds any
-// text the person dictated or edited into it.
-const DICTATED_PATTERN = /\[((?:\\.|[^\]\\\n])+)\]\(dictated:\)/g;
+// A `[`, `]` or `\` in the words is escaped with a `\`, so the label holds
+// any text the person dictated or edited into it, and an unescaped `[` in the
+// typed text before a token never reads as the start of one.
+const DICTATED_PATTERN = /\[((?:\\.|[^[\]\\\n])+)\]\(dictated:\)/g;
 
 const unescape = (label: string) => label.replaceAll(/\\(.)/g, "$1");
 
@@ -15,7 +16,7 @@ export function dictatedToken(text: string) {
   return text
     .split("\n")
     .map((line) =>
-      line ? `[${line.replaceAll(/[\\\]]/g, "\\$&")}](dictated:)` : line,
+      line ? `[${line.replaceAll(/[[\\\]]/g, "\\$&")}](dictated:)` : line,
     )
     .join("\n");
 }

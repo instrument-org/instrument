@@ -1,7 +1,7 @@
 /**
  * Billing end to end, driven through a real Studio instance against a local
- * API: a fresh user's trial starts on their first hosted request, runs out
- * into 402 subscription-required, Stripe Checkout (test mode, card 4242)
+ * API: a fresh user starts on the free allowance, Start free trial starts
+ * the trial, which runs out into 402 subscription-required, Stripe Checkout (test mode, card 4242)
  * subscribes them to the lower plan, the webhook flips their status, the 5h window
  * fills into 429 usage-limit-exceeded with Retry-After, an operator reset
  * reopens it, billing.changePlan moves them to the higher plan, and the
@@ -600,12 +600,12 @@ async function main() {
       await studioRpc(app, "billing.dev.setDevToken", { token });
       const current = await status();
       assert(
-        current.plan === "trial" && current.trial.state === "available",
+        current.plan === "free" && current.trial.state === "available",
         JSON.stringify(current),
       );
       const page = await capturePage(app, "trial-available");
       assert(
-        page.status.plan === "trial",
+        page.status.plan === "free",
         `page plan ${String(page.status.plan)}`,
       );
       assert(
@@ -644,7 +644,11 @@ async function main() {
     },
   );
 
-  await step("first hosted request starts the trial", async () => {
+  await step("Start free trial starts the trial", async () => {
+    const started = StatusSchema.parse(
+      await studioRpc(app, "billing.startTrial"),
+    );
+    assert(started.trial.state === "active", JSON.stringify(started.trial));
     if (flags["real-calls"]) {
       // A real model call through Studio's chat path, settled from the
       // upstream's inline cost.
@@ -913,6 +917,7 @@ async function main() {
             !current.subscription &&
               current.canSubscribe &&
               (current.plan === "none" ||
+                current.plan === "free" ||
                 (current.plan === "trial" && current.trial.state === "ended")),
             JSON.stringify(current),
           );

@@ -33,7 +33,7 @@ pnpm --filter @instrument-org/workspace run script:query-chat-db <workspace>/.in
   --format table
 ```
 
-The first argument can be a chat's folder or the database itself. A chat's record folder (`.instrument/chats/<id>/` in the workspace) resolves to its `chat.db`, or for a folder an earlier build left, to `.instrument/chat.db`; a set-aside copy is named by its path. A chat's tasks have no database of their own: each is a session in its chat's store, so query the chat's.
+The first argument can be a chat's folder or the database itself. A chat's record folder (`.instrument/chats/<id>/` in the workspace) resolves to its `chat.db`; a set-aside copy is named by its path. A chat's tasks have no database of their own: each is a session in its chat's store, so query the chat's.
 
 The tool accepts one read-only `SELECT`, `WITH`, `EXPLAIN`, or `PRAGMA` statement. It opens the database read-only and denies SQLite operations other than reads. Use `--file query.sql` for a multi-line query, `--format json` for machine-readable output, or `--schema` to inspect available tables and indexes.
 

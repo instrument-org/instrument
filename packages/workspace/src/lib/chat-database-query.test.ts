@@ -55,19 +55,6 @@ describe("queryChatDatabase", () => {
     ]);
   });
 
-  it("finds the database in the .instrument/ of a folder from before records moved apart", async () => {
-    const older = path.join(rootDir, "older");
-    await fs.mkdir(path.join(older, ".instrument"), { recursive: true });
-    await fs.copyFile(
-      databasePath,
-      path.join(older, ".instrument", CHAT_DB_FILE_NAME),
-    );
-
-    expect(resolveChatDatabasePath(older)).toBe(
-      path.join(older, ".instrument", CHAT_DB_FILE_NAME),
-    );
-  });
-
   it("rejects write statements", () => {
     expect(() =>
       queryChatDatabase({

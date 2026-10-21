@@ -99,10 +99,10 @@ export function buildAppUrl({
  * callers additionally redact it from the body before showing the agent.
  */
 export async function performAppRequest({
-  body,
+  body: requestBody,
   credential,
   manifest,
-  method,
+  method: requestMethod,
   params,
   path,
   signal,
@@ -128,6 +128,8 @@ export async function performAppRequest({
 
   let url = urlResult.value;
   let authenticated = true;
+  let method = requestMethod;
+  let body = requestBody;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const hopValid = await validateHopUrl(url);
@@ -185,6 +187,17 @@ export async function performAppRequest({
         if (manifest.auth.kind === "query") {
           next.searchParams.delete(manifest.auth.param);
         }
+      }
+      // Fetch's rules: a 303 asks for the result with GET (HEAD stays HEAD),
+      // and a 301 or 302 answering a POST is followed as a GET, both without
+      // the body. A 307 or 308 repeats the request as it was.
+      if (
+        (response.status === 303 && method !== "GET" && method !== "HEAD") ||
+        ((response.status === 301 || response.status === 302) &&
+          method === "POST")
+      ) {
+        method = "GET";
+        body = undefined;
       }
       url = next;
       continue;

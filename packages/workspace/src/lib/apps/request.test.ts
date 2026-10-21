@@ -304,6 +304,45 @@ describe("performAppRequest", () => {
     expect(headers.get("authorization")).toBe(expected);
   });
 
+  // Fetch's redirect rules: 303 drops to GET without the body, 301/302 do so
+  // for a POST, and 307/308 repeat the request as sent.
+  it.each([
+    { method: "POST", status: 301, after: ["GET", undefined] },
+    { method: "POST", status: 302, after: ["GET", undefined] },
+    { method: "PUT", status: 302, after: ["PUT", '{"a":1}'] },
+    { method: "PUT", status: 303, after: ["GET", undefined] },
+    { method: "DELETE", status: 303, after: ["GET", undefined] },
+    { method: "POST", status: 307, after: ["POST", '{"a":1}'] },
+    { method: "PATCH", status: 308, after: ["PATCH", '{"a":1}'] },
+  ])(
+    "follows a $status after $method as $after",
+    async ({ after, method, status }) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(null, { headers: { location: "/moved" }, status }),
+        )
+        .mockResolvedValueOnce(Response.json({ ok: true }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      await performAppRequest({
+        body: '{"a":1}',
+        credential: null,
+        manifest: publicManifest(),
+        method,
+        params: {},
+        path: "/items",
+        signal: AbortSignal.timeout(1000),
+      });
+
+      const second = fetchMock.mock.calls[1]?.[1] as RequestInit;
+      expect([second.method, second.body]).toEqual(after);
+      expect(new Headers(second.headers).has("content-type")).toBe(
+        after[1] !== undefined,
+      );
+    },
+  );
+
   it("allows a hostname that resolves to a public address", async () => {
     vi.stubGlobal(
       "fetch",

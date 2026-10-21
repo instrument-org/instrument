@@ -1,3 +1,4 @@
+import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
@@ -208,7 +209,8 @@ export function bindAppWindowChords(webContents: WebContents) {
     codeEditorFocused = false;
   });
   webContents.on("before-input-event", (event, input) => {
-    if (input.type !== "keyDown") {
+    // Setup is drawn over the app, which none of these may reach behind it.
+    if (input.type !== "keyDown" || isSetupUp()) {
       return;
     }
     const pressed = WINDOW_CHORDS.find(({ accelerator }) =>

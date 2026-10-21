@@ -22,10 +22,15 @@ import { debounce } from "radashi";
  *
  * The caller says which events mean the window moved: they differ per window,
  * and the ones that also drive window chrome belong with the chrome.
+ *
+ * `isHeld` keeps everything from being saved while it is true, close and quit
+ * included: a window at a shape of the app's choosing (setup's) is not where
+ * the person left it.
  */
 export function trackWindowBounds(
-  window: BrowserWindow,
+  window: TrackedWindow,
   name: WindowStateName,
+  { isHeld = () => false }: { isHeld?: () => boolean } = {},
 ) {
   // The size and position to come back to, which is the window's own only
   // while it is normal: maximize, fullscreen, minimize and bogus cross-display
@@ -33,6 +38,9 @@ export function trackWindowBounds(
   let lastVisibleBounds: WindowBounds = window.getBounds();
 
   const save = () => {
+    if (isHeld()) {
+      return;
+    }
     try {
       // A minimized window reports neither usable bounds nor, on Windows and
       // Linux, the maximized state it will come back to, so leave the state the
@@ -97,7 +105,13 @@ export function trackWindowBounds(
   };
 }
 
-function isWindowNormal(window: BrowserWindow) {
+/** What tracking asks of a window, so a test can hand it a stand-in. */
+type TrackedWindow = Pick<
+  BrowserWindow,
+  "getBounds" | "isFullScreen" | "isMaximized" | "isMinimized"
+> & { on(event: "close" | "closed", listener: () => void): unknown };
+
+function isWindowNormal(window: TrackedWindow) {
   return (
     !window.isMaximized() && !window.isMinimized() && !window.isFullScreen()
   );

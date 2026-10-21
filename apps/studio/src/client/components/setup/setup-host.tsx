@@ -1,3 +1,4 @@
+import { SetupNetworkStatusPill } from "@/client/components/network-status/network-status-pill";
 import { Toaster } from "@/client/components/ui/sonner";
 import { WindowControls } from "@/client/components/window-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -8,7 +9,6 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { useMutation } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
 
-import { SetupNetworkPillSlot } from "./setup-network-pill-slot";
 import { isLastSetupStep, SETUP_PAGES } from "./setup-pages";
 import { useSetupState } from "./use-setup-state";
 
@@ -56,7 +56,7 @@ export function SetupHost() {
         )}
         style={{ height: `${TOOLBAR_HEIGHT}px` }}
       >
-        <SetupNetworkPillSlot />
+        <SetupNetworkStatusPill />
         {isDeveloperMode && (
           <Suspense fallback={null}>
             <DevPanel />

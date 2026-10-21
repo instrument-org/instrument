@@ -47,7 +47,8 @@ import {
   removeIfEmptySync,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
-import { shell } from "electron";
+import { HOME_FOLDERS } from "@instrument-org/shared";
+import { app, shell } from "electron";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -289,6 +290,23 @@ const register = devOnly
   });
 
 /**
+ * The folders setup offers. A development build given
+ * `INSTRUMENT_SETUP_HOME` (studio-drive's scenarios) offers them inside it,
+ * so pressing Continue never makes a folder in the developer's own
+ * Documents.
+ */
+function setupFolders() {
+  const home = app.isPackaged ? undefined : process.env.INSTRUMENT_SETUP_HOME;
+  return {
+    inDocuments: path.join(
+      home === undefined ? app.getPath("documents") : path.join(home, "Documents"),
+      HOME_FOLDERS.instrument,
+    ),
+    inHome: path.join(home ?? app.getPath("home"), HOME_FOLDERS.instrument),
+  };
+}
+
+/**
  * Where the person's Instrument folder is: still in the app's own data, or a
  * folder they picked; and the folder the picker suggests for it.
  */
@@ -297,6 +315,10 @@ const folder = base
     z.object({
       inAppData: z.boolean(),
       path: z.string(),
+      /** The folder setup suggests first: one named for the build in Documents. */
+      inDocuments: z.string(),
+      /** Where setup puts it when Documents is refused: one named for the build in the home folder. */
+      inHome: z.string(),
       /** Set by `INSTRUMENT_WORKSPACE`, which keeps it where it is. */
       pinned: z.boolean(),
       suggested: z.string(),
@@ -306,9 +328,43 @@ const folder = base
     const workspace = getResolvedWorkspace();
     return {
       inAppData: workspaceInAppData(),
+      ...setupFolders(),
       path: workspace.path,
       pinned: workspace.pinned,
       suggested: instrumentFolderUnchosen(),
+    };
+  });
+
+/**
+ * What a folder already has in it, for setup to say before it saves there:
+ * its entries (file managers' own records aside), and the chats of the
+ * Instrument folder it is, if it is one. Null where it isn't there or can't
+ * be read.
+ */
+const summary = base
+  .input(z.object({ path: z.string() }))
+  .output(z.object({ chats: z.number(), items: z.number() }).nullable())
+  .handler(({ input }) => {
+    if (!path.isAbsolute(input.path)) {
+      return null;
+    }
+    let names: string[];
+    try {
+      names = fs.readdirSync(input.path);
+    } catch {
+      return null;
+    }
+    let chats = 0;
+    try {
+      chats = fs.readdirSync(workspaceLayout(input.path).chatsDir).length;
+    } catch {
+      // Not an Instrument folder, or one with no chats yet.
+    }
+    return {
+      chats,
+      items: names.filter(
+        (name) => ![".DS_Store", "desktop.ini", "Thumbs.db"].includes(name),
+      ).length,
     };
   });
 
@@ -457,5 +513,6 @@ export const workspaces = {
   register,
   remove,
   sizes,
+  summary,
   switch: switchTo,
 };

@@ -9,6 +9,9 @@ import { SetupHost } from "./setup-host";
 
 // Setup's toaster reads the theme, which is not under test.
 vi.mock("@/client/components/ui/sonner", () => ({ Toaster: () => null }));
+vi.mock("@/client/components/theme-provider", () => ({
+  useTheme: () => ({ setTheme: () => {}, theme: "light" }),
+}));
 vi.mock("@/client/components/network-status/network-status-pill", () => ({
   SetupNetworkStatusPill: () => null,
 }));
@@ -41,8 +44,10 @@ vi.mock("@/client/rpc/client", () => {
         finish: mutation(rpc.finish),
         live: { state: live("setup") },
       },
+      user: { live: { me: live("me") } },
       utils: {
         closeWindow: mutation(() => {}),
+        events: { windowFocusChanged: live("windowFocusChanged") },
         live: { windowState: live("windowState", { maximized: false }) },
         minimizeWindow: mutation(() => {}),
         toggleMaximizeWindow: mutation(() => {}),
@@ -97,22 +102,36 @@ describe("SetupHost", () => {
   });
 
   it("offers Back only where there is a step to go back to", async () => {
-    loadedWith("model");
+    loadedWith("plan");
     const { unmount } = renderWithDefaultStore(<SetupHost />);
     expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
     unmount();
-    loadedWith("model", "free-account");
+    loadedWith("plan", "welcome-back");
     renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     await vi.waitFor(() => {
-      expect(rpc.back.mock.calls[0]?.[0]).toEqual({ step: "model" });
+      expect(rpc.back.mock.calls[0]?.[0]).toEqual({ step: "plan" });
     });
   });
 
-  it("finishes on the last step", async () => {
+  it("finishes from All set after the last step, never only answering it", async () => {
     loadedWith("look");
     renderWithDefaultStore(<SetupHost />);
-    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Instrument" }));
+    await vi.waitFor(() => {
+      expect(rpc.finish).toHaveBeenCalled();
+    });
+    expect(rpc.answer).not.toHaveBeenCalled();
+  });
+
+  it("finishes from the only step an update added", async () => {
+    loadedWith("plan");
+    window.api.initialSetupState = {
+      ...window.api.initialSetupState!,
+      isNewStepOnly: true,
+    };
+    renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Finish" }));
     await vi.waitFor(() => {
       expect(rpc.finish).toHaveBeenCalled();

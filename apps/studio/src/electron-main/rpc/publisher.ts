@@ -101,6 +101,7 @@ interface PublisherEvents {
     | "reportProblem"
     | "previousChat"
     | "previousTab"
+    | "printPage"
     | "reloadPage"
     | "reopenTab"
     | "search"

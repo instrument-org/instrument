@@ -18,6 +18,7 @@ import { type BrowserTargetId } from "@instrument-org/workspace/client";
 export type PageChord =
   | "back"
   | "forward"
+  | "printPage"
   | "reloadPage"
   | "zoomIn"
   | "zoomOut"
@@ -30,11 +31,13 @@ export type PageChord =
  * - history and zoom mean the page on screen that holds the keyboard, as
  *   they would in a browser; with the caret anywhere else they are the
  *   window's.
- * - reload means that page too, and otherwise the page the person is looking
- *   at, since the window itself has nothing to reload but every tab at once.
+ * - reload and print mean that page too, and otherwise the page the person
+ *   is looking at, since the window itself has nothing to reload but every
+ *   tab at once, and nothing of its own to print.
  */
 export function pageForChord(chord: PageChord): BrowserTargetId | null {
   switch (chord) {
+    case "printPage":
     case "reloadPage": {
       return pageHoldingKeyboard() ?? foregroundBrowser()?.targetId ?? null;
     }
@@ -62,6 +65,11 @@ export function runPageChord(chord: PageChord): boolean {
     case "forward": {
       stepPage(target, chord);
       return true;
+    }
+    case "printPage": {
+      const guest = getGuest(target);
+      guest?.print();
+      return guest !== null;
     }
     case "reloadPage": {
       const guest = getGuest(target);

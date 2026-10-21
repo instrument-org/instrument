@@ -12,6 +12,10 @@ import {
 } from "@/electron-main/browser-view/download-list";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import {
+  savePageAs,
+  sharePage,
+} from "@/electron-main/browser-view/page-actions";
+import {
   capturePageThumbnail,
   forgetPageThumbnails,
   keepOnlyPageThumbnails,
@@ -225,6 +229,26 @@ const downloads = {
   }),
 };
 
+/** What a page's menu asks of the main process. */
+const page = {
+  /** Asks where, then saves the page, by its guest's contents id. */
+  saveAs: base
+    .input(z.object({ webContentsId: z.number() }))
+    .handler(({ context, input }) =>
+      savePageAs({
+        callerId: context.webContentsId,
+        webContentsId: input.webContentsId,
+      }),
+    ),
+  /** False where the system has no share menu (off the Mac). */
+  share: base
+    .input(z.object({ url: z.string().min(1) }))
+    .output(z.object({ shown: z.boolean() }))
+    .handler(({ context, input }) => ({
+      shown: sharePage({ callerId: context.webContentsId, url: input.url }),
+    })),
+};
+
 /** The engine's answer: the words asked about, then what it would finish them as. */
 const SuggestionsSchema = z.tuple(
   [z.string(), z.array(z.string())],
@@ -273,6 +297,7 @@ export const browser = {
   downloads,
   events,
   live,
+  page,
   rememberPageIcon,
   searchSuggestions,
   setEmulatedDevice,

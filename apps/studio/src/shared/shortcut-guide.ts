@@ -70,6 +70,7 @@ const WINDOW_GROUPS: Record<
   nextTab: "Tabs",
   previousChat: "Chats",
   previousTab: "Tabs",
+  printPage: "Pages",
   quit: "General",
   reloadPage: "Pages",
   reopenTab: "Tabs",

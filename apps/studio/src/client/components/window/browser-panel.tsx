@@ -3,6 +3,7 @@ import { orderAfter } from "@/shared/bookmarks";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
 import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
 import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
+import { BrowserHistoryMenu } from "@/client/components/window/browser-history-menu";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { Delayed } from "@/client/components/ui/delayed";
@@ -69,7 +70,7 @@ import { segmentsOf } from "@/client/components/window/host-path";
 import { type TypedPath } from "@/client/lib/typed-path";
 import { fileHref } from "@/shared/computer-href";
 import { displayHostPath } from "@instrument-org/shared";
-import { cn } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";
@@ -91,6 +92,10 @@ import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DeviceMobileIcon } from "@phosphor-icons/react/DeviceMobile";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
+import { ExportIcon } from "@phosphor-icons/react/Export";
+import { FloppyDiskIcon } from "@phosphor-icons/react/FloppyDisk";
+import { PrinterIcon } from "@phosphor-icons/react/Printer";
+import { TerminalWindowIcon } from "@phosphor-icons/react/TerminalWindow";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
@@ -269,6 +274,8 @@ export function BrowserPanel({
   const openExternalLink = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions(),
   );
+  const savePage = useMutation(rpcClient.browser.page.saveAs.mutationOptions());
+  const sharePage = useMutation(rpcClient.browser.page.share.mutationOptions());
   const { mutate: openBrowser, status: openStatus } = useMutation(
     rpcClient.workspace.browser.open.mutationOptions(),
   );
@@ -542,6 +549,11 @@ export function BrowserPanel({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
+              <BrowserHistoryMenu
+                hasClosedTabs={inWindow}
+                onOpen={navigateTo}
+              />
+              <DropdownMenuSeparator />
               <div className="flex items-center justify-between px-2 py-1.5">
                 <span className="text-sm">Zoom</span>
                 <ZoomStepperControl
@@ -604,6 +616,19 @@ export function BrowserPanel({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() => {
+                  guestNow()?.print();
+                }}
+              >
+                <PrinterIcon className="size-4" />
+                Print…
+                <DropdownMenuShortcut>
+                  {formatAcceleratorText(
+                    WINDOW_SHORTCUTS.printPage.accelerator,
+                  )}
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
                   find.openFind();
                 }}
               >
@@ -645,6 +670,17 @@ export function BrowserPanel({
               )}
               <DropdownMenuItem
                 onSelect={() => {
+                  const current = guestNow();
+                  if (current) {
+                    savePage.mutate({ webContentsId: current.webContentsId });
+                  }
+                }}
+              >
+                <FloppyDiskIcon className="size-4" />
+                Save page as…
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
                   const url = currentUrl();
                   if (url) {
                     void navigator.clipboard.writeText(url);
@@ -654,6 +690,19 @@ export function BrowserPanel({
                 <CopyIcon className="size-4" />
                 Copy URL
               </DropdownMenuItem>
+              {isMacOS() && (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    const url = currentUrl();
+                    if (url) {
+                      sharePage.mutate({ url });
+                    }
+                  }}
+                >
+                  <ExportIcon className="size-4" />
+                  Share…
+                </DropdownMenuItem>
+              )}
               {/* In a row of the window's the app is the address field's own
                   button, and the menu names it too, with the others that
                   could open a page's file. */}
@@ -679,6 +728,14 @@ export function BrowserPanel({
               <DropdownMenuItem onSelect={openClearBrowsingData}>
                 <BroomIcon className="size-4" />
                 Clear browsing data…
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  guestNow()?.openDevTools();
+                }}
+              >
+                <TerminalWindowIcon className="size-4" />
+                Developer tools
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

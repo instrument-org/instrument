@@ -51,6 +51,7 @@ describe("pageForChord", () => {
     ["zoomOut", TYPED_IN, null],
     ["zoomReset", TYPED_IN, null],
     ["reloadPage", TYPED_IN, LOOKED_AT],
+    ["printPage", TYPED_IN, LOOKED_AT],
   ])(
     "%s means %s, and %s with the caret in the window",
     (chord, typing, caretInWindow) => {
@@ -94,6 +95,15 @@ describe("runPageChord", () => {
     expect(runPageChord("reloadPage")).toBe(true);
     expect(getGuest).toHaveBeenCalledWith(LOOKED_AT);
     expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it("prints the page looked at when the caret is in the window", () => {
+    const print = vi.fn();
+    getGuest.mockReturnValue({ print });
+    where({ keyboard: null, looking: LOOKED_AT });
+    expect(runPageChord("printPage")).toBe(true);
+    expect(getGuest).toHaveBeenCalledWith(LOOKED_AT);
+    expect(print).toHaveBeenCalledOnce();
   });
 
   it("leaves a chord to the window when it means no page, or one not ready", () => {

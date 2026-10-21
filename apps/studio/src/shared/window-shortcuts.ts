@@ -65,6 +65,7 @@ export const WINDOW_SHORTCUTS = {
   nextTab: { accelerator: "Ctrl+Tab", label: "Show Next Tab" },
   previousChat: { accelerator: chatChord("Up"), label: "Previous Chat" },
   previousTab: { accelerator: "Ctrl+Shift+Tab", label: "Show Previous Tab" },
+  printPage: { accelerator: "CmdOrCtrl+P", label: "Print…" },
   reloadPage: { accelerator: "CmdOrCtrl+R", label: "Reload Page" },
   reopenTab: { accelerator: "Shift+CmdOrCtrl+T", label: "Reopen Closed Tab" },
   search: { accelerator: "CmdOrCtrl+L", label: "Search or Ask" },

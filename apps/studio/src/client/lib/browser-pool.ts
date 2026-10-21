@@ -124,6 +124,10 @@ export interface GuestHandle {
     event: K,
     listener: (event: GuestEventMap[K]) => void,
   ): () => void;
+  /** DevTools for the page, in a window of their own. */
+  openDevTools(): void;
+  /** The system's print dialog for the page. */
+  print(): void;
   reload(options?: { ignoreCache?: boolean }): void;
   /** Runs `code` in the page and settles with what it returns. */
   run(code: string): Promise<unknown>;
@@ -168,6 +172,8 @@ interface WebviewElement extends HTMLElement {
   goForward(): void;
   isLoading(): boolean;
   loadURL(url: string): Promise<void>;
+  openDevTools(): void;
+  print(): Promise<void>;
   reload(): void;
   reloadIgnoringCache(): void;
   /** A message to the guest's preload, on a channel it listens on. */
@@ -897,6 +903,17 @@ function guestHandle(
       return () => {
         webview.removeEventListener(event, relay);
       };
+    },
+    openDevTools: () => {
+      guard(() => {
+        webview.openDevTools();
+      }, undefined);
+    },
+    print: () => {
+      // Settles once the dialog closes; one dismissed rejects, which says nothing.
+      guard(() => {
+        void webview.print().catch(() => null);
+      }, undefined);
     },
     reload: ({ ignoreCache = false } = {}) => {
       guard(() => {

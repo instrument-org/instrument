@@ -84,6 +84,8 @@ const FILE_CHORDS: WindowChord[] = [
   chord("findInPage"),
   chord("findNext"),
   chord("findPrevious"),
+  // The page the person is looking at; nothing when none is.
+  chord("printPage"),
 ];
 
 /**

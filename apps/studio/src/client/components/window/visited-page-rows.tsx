@@ -107,7 +107,7 @@ export function VisitedPageRows({
 }
 
 /** An address as a person reads it: the host and the path, no scheme, no trailing slash. */
-function shownAddress(url: string): string {
+export function shownAddress(url: string): string {
   if (!URL.canParse(url)) {
     return url;
   }

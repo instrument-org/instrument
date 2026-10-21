@@ -123,6 +123,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Find Next: ⌘G / Ctrl+G
 - Find Previous: ⇧⌘G / Ctrl+Shift+G
 - Forward: ⌘] / Alt+→
+- Print…: ⌘P / Ctrl+P
 - Reload Page: ⌘R / Ctrl+R
 
 ### View

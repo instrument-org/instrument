@@ -319,6 +319,10 @@ export function useWindowCommands(
               latest.current.selectRelative(-1);
               break;
             }
+            case "printPage": {
+              runPageChord("printPage");
+              break;
+            }
             case "reloadPage": {
               // The page on screen, when there is one; nothing otherwise.
               runPageChord("reloadPage");

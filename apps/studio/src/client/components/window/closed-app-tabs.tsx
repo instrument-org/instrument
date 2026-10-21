@@ -14,7 +14,7 @@ import {
   putAwaySitesAtom,
 } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
-import { TabIcon } from "./browser-tabs";
+import { TabIcon } from "./tab-icon";
 import { useComputerVolumes } from "./computer-volumes";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";

@@ -92,19 +92,20 @@ const MessageEntrySchema = z.object({
 });
 
 /**
- * Whether a Claude Code transcript reads as a conversation this build
- * understands and holds `wanted`, the entry the caller goes on from: every
- * line JSON, every user and assistant entry a message with content. A last
- * line with no newline after it is a write a process ended in the middle
- * of, past anything a record names, and is left out. A transcript in a
- * shape it does not know (a newer Claude Code's, or a damaged one) can
- * resume as an empty conversation without a word from Claude Code, so it is
- * refused here and the session starts over from our own records instead.
+ * Why a Claude Code transcript cannot be gone on from at `wanted`, the entry
+ * the caller goes on from, or nothing when it can: it has to read as a
+ * conversation this build understands (every line JSON, every user and
+ * assistant entry a message with content) and hold that entry. A last line
+ * with no newline after it is a write a process ended in the middle of,
+ * past anything a record names, and is left out. A transcript in a shape it
+ * does not know (a newer Claude Code's, or a damaged one) can resume as an
+ * empty conversation without a word from Claude Code, so it is refused here
+ * and the session starts over from our own records instead.
  */
-async function transcriptLooksResumable(file: string, wanted: string) {
+async function transcriptRefusal(file: string, wanted: string) {
   const text = await readFile(file, "utf8").catch(() => undefined);
   if (text === undefined) {
-    return false;
+    return "missing" as const;
   }
   const lines = text.split("\n");
   // Empty when the file ends on a newline, else the unfinished write.
@@ -118,7 +119,7 @@ async function transcriptLooksResumable(file: string, wanted: string) {
     try {
       entry = JSON.parse(line);
     } catch {
-      return false;
+      return "unreadable" as const;
     }
     const type: unknown =
       typeof entry === "object" && entry !== null
@@ -129,12 +130,20 @@ async function transcriptLooksResumable(file: string, wanted: string) {
     }
     const parsed = MessageEntrySchema.safeParse(entry);
     if (!parsed.success) {
-      return false;
+      return "unreadable" as const;
     }
     hasEntry ||= parsed.data.uuid === wanted;
   }
-  return hasEntry;
+  return hasEntry ? undefined : ("without the entry" as const);
 }
+
+/**
+ * How long a read waits for a transcript to take the entry its record
+ * names. Claude Code writes a step's entries a moment after it reports
+ * them (about 100ms, measured on 2.1.306), so a record written as a step
+ * ends can name an entry its transcript does not hold yet.
+ */
+const ENTRY_WAIT_MS = 1500;
 
 /** A slot's record, or why it has none to resume. */
 export type RecordRead = { missing: string } | { record: ResumeRecord };
@@ -143,15 +152,15 @@ export type RecordRead = { missing: string } | { record: ResumeRecord };
  * The slot's record, when it has one whose transcript is still there and
  * still reads as the conversation it was, or why it has none. The transcript
  * has to hold the entry the record is read for: its `leaf`, which resuming
- * the slot cuts back to, or for a task branching off, its `forkPoint`. A
- * process that just finished a step may not have written the step's last
- * entry yet, while the input it started with is written before the model is
- * asked anything.
+ * the slot cuts back to, or for a task branching off, its `forkPoint`.
  */
 export async function readResumeRecord(
   configDir: string | undefined,
   slot: string,
-  readFor: "fork" | "resume" = "resume",
+  {
+    entryWaitMs = ENTRY_WAIT_MS,
+    readFor = "resume",
+  }: { entryWaitMs?: number; readFor?: "fork" | "resume" } = {},
 ): Promise<RecordRead> {
   const text = await readFile(recordPath(configDir, slot), "utf8").catch(
     () => undefined,
@@ -169,15 +178,36 @@ export async function readResumeRecord(
   if (!parsed.success) {
     return { missing: "a resume record in a shape this build does not read" };
   }
-  const file = transcriptPath(configDir, parsed.data.claudeSessionId);
-  const { forkPoint, leaf } = parsed.data;
-  const entry = readFor === "fork" ? (forkPoint ?? leaf) : leaf;
-  if (file !== undefined && !(await transcriptLooksResumable(file, entry))) {
-    return {
-      missing: `transcript ${parsed.data.claudeSessionId} missing, without the entry its record names, or not a conversation this build reads`,
-    };
+  const { claudeSessionId, forkPoint, leaf } = parsed.data;
+  const file = transcriptPath(configDir, claudeSessionId);
+  if (file === undefined) {
+    return { record: parsed.data };
   }
-  return { record: parsed.data };
+  const entry = readFor === "fork" ? (forkPoint ?? leaf) : leaf;
+  const deadline = Date.now() + entryWaitMs;
+  let refusal = await transcriptRefusal(file, entry);
+  while (refusal === "without the entry" && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    refusal = await transcriptRefusal(file, entry);
+  }
+  switch (refusal) {
+    case undefined: {
+      return { record: parsed.data };
+    }
+    case "missing": {
+      return { missing: `no transcript ${claudeSessionId}` };
+    }
+    case "unreadable": {
+      return {
+        missing: `transcript ${claudeSessionId}, which is not a conversation this build reads`,
+      };
+    }
+    case "without the entry": {
+      return {
+        missing: `transcript ${claudeSessionId}, without the entry its record names`,
+      };
+    }
+  }
 }
 
 export async function writeResumeRecord(

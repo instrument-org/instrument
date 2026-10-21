@@ -135,6 +135,7 @@ function streamStep({
       const existing = slot === undefined ? undefined : sessions.get(slot);
       const persistent = existing?.busy === true ? undefined : slot;
       const prompt = splitPrompt(options.prompt);
+      let planned: StepStart<ClaudeCodeSession>["kind"] | undefined;
       const onAbort = () => {
         running?.close();
       };
@@ -153,11 +154,9 @@ function streamStep({
               parentRecord: () =>
                 persistent === undefined || parentKey === undefined
                   ? Promise.resolve(undefined)
-                  : readResumeRecord(
-                      configDir,
-                      `${parentKey}:${shapeHash}`,
-                      "fork",
-                    ),
+                  : readResumeRecord(configDir, `${parentKey}:${shapeHash}`, {
+                      readFor: "fork",
+                    }),
               record: () =>
                 persistent === undefined
                   ? Promise.resolve({ missing: "no process of its own" })
@@ -180,6 +179,7 @@ function streamStep({
             closeOtherIdleSlots(key, persistent);
           }
         }
+        planned = plan.kind;
         if (plan.kind === "resume") {
           // Its transcript goes on in a new process, cut back to its last
           // finished step.
@@ -245,6 +245,15 @@ function streamStep({
         controller.close();
       } catch (error) {
         running?.close();
+        // Claude Code refusing the entry a resume starts from is not
+        // something a retry changes, so the slot starts cold next time.
+        if (
+          planned === "resume" &&
+          persistent !== undefined &&
+          RESUME_REFUSED.test(String(error))
+        ) {
+          await removeResumeRecord(configDir, persistent);
+        }
         controller.enqueue({ error, type: "error" });
         controller.close();
       } finally {
@@ -289,10 +298,15 @@ function startOn(
       return plan.session;
     }
     case "resume": {
-      const session = open(
-        { at: plan.at, kind: "resume" },
-        plan.claudeSessionId,
-      );
+      // Into a transcript of its own, which only this process writes: the
+      // one it carries on may still take entries from the process that last
+      // wrote it, which a stop or an error closed a moment ago, and Claude
+      // Code reads a transcript by its newest entries.
+      const session = open({
+        at: plan.at,
+        from: plan.claudeSessionId,
+        kind: "fork",
+      });
       console.info(
         `[claude-account] session ${session.key} resumed its Claude Code transcript at its last finished step, replaying ${plan.messages.length} messages after it${plan.restart === undefined ? "" : ` (its live process could not continue: ${plan.restart})`}`,
       );
@@ -427,6 +441,9 @@ function closeOtherIdleSlots(key: string, keep: string | undefined) {
     }
   }
 }
+
+/** What Claude Code says when the entry a resume cuts back to is not there. */
+const RESUME_REFUSED = /No message found with message\.uuid/;
 
 const EFFORTS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 

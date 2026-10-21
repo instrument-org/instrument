@@ -120,9 +120,10 @@ export class ClaudeCodeSession implements MessageSource {
 
   /**
    * @param transcript The Claude Code session this process writes, under
-   * its own id, and how it begins: new, resumed where it stopped, or forked
-   * from another session's transcript at one of its entries. None for a
-   * one-off, which nothing continues and so keeps no transcript.
+   * its own id, and how it begins: new, or forked from a transcript at one
+   * of its entries (its own slot's last finished step, or the step a task
+   * branched off its chat at). None for a one-off, which nothing continues
+   * and so keeps no transcript.
    */
   constructor(
     readonly key: string,
@@ -288,7 +289,10 @@ export class ClaudeCodeSession implements MessageSource {
    * Notes the transient messages among `messages` as given, as a new turn's
    * only notes when it starts one.
    */
-  noteGiven(messages: LanguageModelV4Message[], { newTurn }: { newTurn: boolean }) {
+  noteGiven(
+    messages: LanguageModelV4Message[],
+    { newTurn }: { newTurn: boolean },
+  ) {
     if (newTurn) {
       this.notesGiven.clear();
     }
@@ -431,8 +435,7 @@ export class ClaudeCodeSession implements MessageSource {
 
 export type TranscriptStart =
   | { kind: "fork"; at: string; from: string }
-  | { kind: "new" }
-  | { at: string; kind: "resume" };
+  | { kind: "new" };
 
 function transcriptOptions(transcript: ClaudeCodeSession["transcript"]) {
   if (transcript === undefined) {
@@ -442,11 +445,6 @@ function transcriptOptions(transcript: ClaudeCodeSession["transcript"]) {
   switch (start.kind) {
     case "new":
       return { sessionId: claudeSessionId };
-    case "resume":
-      return {
-        resume: claudeSessionId,
-        resumeSessionAt: start.at,
-      };
     case "fork":
       return {
         forkSession: true,

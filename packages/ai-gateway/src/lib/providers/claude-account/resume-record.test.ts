@@ -70,7 +70,7 @@ describe("resume records", () => {
     expect(await readResumeRecord(configDir, "ses_1:shape"))
       .toMatchInlineSnapshot(`
         {
-          "missing": "transcript 5f0c6c2e-8d1b-4f7a-9a51-0f6b2f1c3d4e missing, without the entry its record names, or not a conversation this build reads",
+          "missing": "no transcript 5f0c6c2e-8d1b-4f7a-9a51-0f6b2f1c3d4e",
         }
       `);
   });
@@ -87,7 +87,7 @@ describe("resume records", () => {
     expect(await readResumeRecord(configDir, "ses_1:shape"))
       .toMatchInlineSnapshot(`
         {
-          "missing": "transcript 5f0c6c2e-8d1b-4f7a-9a51-0f6b2f1c3d4e missing, without the entry its record names, or not a conversation this build reads",
+          "missing": "transcript 5f0c6c2e-8d1b-4f7a-9a51-0f6b2f1c3d4e, which is not a conversation this build reads",
         }
       `);
   });
@@ -113,9 +113,24 @@ describe("resume records", () => {
     await withTranscript(configDir, CONVERSATION.slice(0, 1));
     await writeResumeRecord(configDir, "ses_1:shape", record);
 
-    expect(await readResumeRecord(configDir, "ses_1:shape")).toMatchObject({
+    expect(
+      await readResumeRecord(configDir, "ses_1:shape", { entryWaitMs: 0 }),
+    ).toMatchObject({
       missing: expect.stringContaining("without the entry its record names"),
     });
+  });
+
+  // Claude Code writes a step's entries a moment after it reports them, so a
+  // request right after a step can find the record before its last entry.
+  it("waits for the transcript to take the entry its record names", async () => {
+    const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
+    await withTranscript(configDir, CONVERSATION.slice(0, 1));
+    await writeResumeRecord(configDir, "ses_1:shape", record);
+
+    const read = readResumeRecord(configDir, "ses_1:shape");
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    await withTranscript(configDir);
+    expect(await read).toEqual({ record });
   });
 
   // A process stopped mid-step can end in the middle of writing an entry,

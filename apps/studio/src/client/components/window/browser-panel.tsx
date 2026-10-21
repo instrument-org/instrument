@@ -549,10 +549,7 @@ export function BrowserPanel({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <BrowserHistoryMenu
-                hasClosedTabs={inWindow}
-                onOpen={navigateTo}
-              />
+              <BrowserHistoryMenu onOpen={navigateTo} />
               {inWindow && (
                 <DropdownMenuItem onSelect={toggleBookmark}>
                   <BookmarkSimpleIcon className="size-4" />

@@ -10,7 +10,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
-import { TabIcon } from "./tab-icon";
+import { TabIcon } from "./browser-tabs";
 import { useComputerVolumes } from "./computer-volumes";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";

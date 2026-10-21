@@ -30,7 +30,7 @@ import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";
 import { toast } from "@/client/lib/toast";
 
-import { TabIcon } from "./tab-icon";
+import { TabIcon } from "./browser-tabs";
 import { type OpenOptions, useWindow } from "./context";
 import { windowTabsAtom } from "./window-tabs";
 

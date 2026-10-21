@@ -26,7 +26,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext } from "react";
 
 import { type AppsBySlug, useAppsBySlug } from "./apps-by-slug";
-import { TabIcon } from "./tab-icon";
+import { TabIcon } from "./browser-tabs";
 import { useComputerVolumes } from "./computer-volumes";
 import { type OpenOptions, WindowContext } from "./context";
 import { type ContextItem } from "./context-items";

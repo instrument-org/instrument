@@ -4,6 +4,7 @@ import {
   type WindowTab,
 } from "@/client/atoms/window";
 import { UpdatedNote, useUpdatedNote } from "@/client/components/updated-note";
+import { PageFavicon } from "@/client/components/favicon";
 import { BrowserPanel } from "@/client/components/window/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
@@ -769,6 +770,16 @@ export function BrowserTabs({
       })}
     </div>
   );
+}
+
+export function TabIcon({
+  favicon,
+  url,
+}: {
+  favicon: string | undefined;
+  url: string | undefined;
+}) {
+  return <PageFavicon className="size-3.5" favicon={favicon} url={url} />;
 }
 
 /**

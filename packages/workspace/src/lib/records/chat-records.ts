@@ -553,7 +553,6 @@ export class ChatRecords {
     chatId: ChatId,
     sessionId: StoreId.Session,
     messages: StoreId.Message[],
-    why: string,
   ): Promise<void> {
     if (messages.length === 0) {
       return Promise.resolve();
@@ -579,7 +578,7 @@ export class ChatRecords {
             }
           };
         },
-        record: () => ({ t: "retract", at, messages, why }),
+        record: () => ({ t: "retract", at, messages }),
       });
     });
   }

@@ -178,10 +178,7 @@ export namespace ChatWrites {
     messageIds: StoreId.Message[],
   ): ResultAsync<void, TypedError.Storage> {
     return records(chatId).andThen((writing) =>
-      wrote(
-        writing.retract(chatId, sessionId, messageIds, "removed"),
-        undefined,
-      ),
+      wrote(writing.retract(chatId, sessionId, messageIds), undefined),
     );
   }
 }

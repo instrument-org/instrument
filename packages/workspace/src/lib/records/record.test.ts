@@ -111,7 +111,7 @@ describe("parseLogLine", () => {
     ],
     [
       "a retract",
-      { at: at(1), messages: [messageId(1)], seq: 4, t: "retract", why: "x" },
+      { at: at(1), messages: [messageId(1)], seq: 4, t: "retract" },
     ],
     [
       "a rollover",

@@ -166,7 +166,7 @@ describe("ChatRecords", () => {
         CHAT,
         userMessage(chatSession, messageId(3), at(5)),
       ),
-      service.retract(CHAT, chatSession, [messageId(3)], "edited"),
+      service.retract(CHAT, chatSession, [messageId(3)]),
       service.rollover(CHAT, chatSession, messageId(2), 1000),
       service.sites(CHAT, chatSession, ["example.org"]),
       service.sites(CHAT, chatSession, ["example.org", "example.com"]),
@@ -359,7 +359,7 @@ describe("ChatRecords", () => {
 
     const writes = [
       records.service.appendPart(CHAT, bashCall(3, "input-available")),
-      records.service.retract(CHAT, chatSession, [messageId(1)], "edited"),
+      records.service.retract(CHAT, chatSession, [messageId(1)]),
       records.service.sites(CHAT, chatSession, ["example.com"]),
       records.service.setting(CHAT, chatSession, {
         field: "archived",

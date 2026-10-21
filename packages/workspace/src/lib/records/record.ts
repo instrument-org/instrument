@@ -128,7 +128,6 @@ const LogRecordSchema = z.discriminatedUnion("t", [
     t: z.literal("retract"),
     ...envelope,
     messages: z.array(StoreId.MessageSchema).min(1),
-    why: z.string(),
   }),
   z.object({
     t: z.literal("rollover"),

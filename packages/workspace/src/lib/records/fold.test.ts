@@ -100,7 +100,6 @@ describe("foldChat", () => {
       seq: 5,
       at: at(3),
       messages: [messageId(2)],
-      why: "edited",
     };
 
     for (const order of [
@@ -355,7 +354,7 @@ describe("foldChat", () => {
           id: chatSession,
         }),
         partRecord(1, text(1, 1, "b's")),
-        { t: "retract", seq: 2, at: at(9), messages: [messageId(2)], why: "x" },
+        { t: "retract", seq: 2, at: at(9), messages: [messageId(2)] },
       ]),
     ]);
 
@@ -501,7 +500,7 @@ describe("ChatFold", () => {
         messageRecord(1, user(1)),
         partRecord(2, text(1, 1, "hello")),
         partRecord(3, text(1, 1, "hello again")),
-        { t: "retract", seq: 4, at: at(4), messages: [messageId(9)], why: "x" },
+        { t: "retract", seq: 4, at: at(4), messages: [messageId(9)] },
         messageRecord(5, user(2)),
         { t: "sites", seq: 6, at: at(6), visited: ["example.com"] },
       ]),

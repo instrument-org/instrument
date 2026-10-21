@@ -449,7 +449,6 @@ export function simulateChat(random: Random): SimulatedChat {
             t: "retract",
             at: when,
             messages: [message.id],
-            why: "test",
           };
         }
         break;

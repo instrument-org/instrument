@@ -31,6 +31,8 @@ import {
 } from "@/electron-main/windows/app-window-asks";
 import {
   opensSetupSized,
+  forgetSetupWindowPlace,
+  keepSetupWindowPlace,
   setupBounds,
 } from "@/electron-main/windows/setup-size";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
@@ -154,6 +156,18 @@ export function openAppWindow(): BrowserWindow {
 
   const tracked = trackWindowBounds(appWindow, "app", {
     isHeld: () => isSetupSized,
+  });
+  // Setup's window comes back where it was after a restart setup makes,
+  // which is a quit like any other.
+  const setupWindow = appWindow;
+  const keepSetupPlace = () => {
+    if (isSetupSized && !setupWindow.isDestroyed()) {
+      keepSetupWindowPlace(setupWindow.getBounds());
+    }
+  };
+  app.on("before-quit", keepSetupPlace);
+  setupWindow.on("closed", () => {
+    app.off("before-quit", keepSetupPlace);
   });
   // Every way this window changes shape. `will-resize` and `move` are here
   // because macOS does not report a resize the user did not drive (a tiling
@@ -344,6 +358,7 @@ function leaveSetupSize() {
     return;
   }
   isSetupSized = false;
+  forgetSetupWindowPlace();
   window.setResizable(true);
   window.setMaximizable(true);
   window.setFullScreenable(true);

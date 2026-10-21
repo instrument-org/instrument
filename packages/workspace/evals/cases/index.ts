@@ -25,6 +25,7 @@ import { PERMISSIONS_EVALS } from "./permissions";
 import { QUESTIONS_EVALS } from "./questions";
 import { REACH_EVALS } from "./reach";
 import { REPLY_LINKS_EVALS } from "./reply-links";
+import { REPLY_LINKS_HARD_EVALS } from "./reply-links-hard";
 import { SANDBOXED_PYTHON_EVALS } from "./sandboxed-python";
 import { SCENARIO_EVALS } from "./scenarios";
 import { SKILLS_IN_PLACE_EVALS } from "./skills-in-place";
@@ -69,6 +70,7 @@ export const EVALS = [
   ...QUESTIONS_EVALS,
   ...REACH_EVALS,
   ...REPLY_LINKS_EVALS,
+  ...REPLY_LINKS_HARD_EVALS,
   ...SANDBOXED_PYTHON_EVALS,
   ...SCENARIO_EVALS,
   ...SKILLS_IN_PLACE_EVALS,

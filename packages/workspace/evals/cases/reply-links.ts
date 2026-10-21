@@ -21,14 +21,14 @@ import { type Session } from "../../src/schemas/session";
 import { type SessionMessage } from "../../src/schemas/session/message";
 import { type Assertion, defineEval } from "../harness";
 
-function textOf(message: SessionMessage.WithParts): string {
+export function textOf(message: SessionMessage.WithParts): string {
   return message.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n\n");
 }
 
 /** A step that ended a turn: it wrote and called nothing. */
-function finishedReply(message: SessionMessage.WithParts): boolean {
+export function finishedReply(message: SessionMessage.WithParts): boolean {
   return (
     message.role === "assistant" &&
     message.metadata.error === undefined &&
@@ -38,7 +38,7 @@ function finishedReply(message: SessionMessage.WithParts): boolean {
 }
 
 /** Each turn's assistant steps, the chat's and every task's. */
-async function turnsOf(ctx: {
+export async function turnsOf(ctx: {
   childSessions: () => Promise<{ sessions: Session.WithMessagesAndParts[] }[]>;
   sessions: Session.WithMessagesAndParts[];
 }): Promise<SessionMessage.WithParts[][]> {
@@ -58,7 +58,7 @@ async function turnsOf(ctx: {
   });
 }
 
-async function linksIn(
+export async function linksIn(
   messages: SessionMessage.WithParts[],
   chatId: ChatId,
 ): Promise<{ broken: string[]; files: number }> {
@@ -126,7 +126,7 @@ const assertAtMostOneCorrection: Assertion = {
 };
 
 /** The reply handed over at least one file in a fence, so the link score is about something. */
-const assertHandedOverAFile: Assertion = {
+export const assertHandedOverAFile: Assertion = {
   check: async ({ chatId, childSessions, sessions }) => {
     const text = "Handed over a file in a fence";
     const turns = await turnsOf({ childSessions, sessions });
@@ -140,10 +140,101 @@ const assertHandedOverAFile: Assertion = {
   text: "Handed over a file in a fence",
 };
 
-const LINK_ASSERTIONS = [
+/**
+ * Each turn the end-of-turn check corrected, read back from the transcript:
+ * the note is never stored, but a turn has a second finished reply only when
+ * the check asked for one. What the turn linked up to its first reply is
+ * checked again at scoring time, beside what the correction step ran, since
+ * a link that opens now was either flagged falsely or made to open by that
+ * step.
+ */
+async function firingsIn(ctx: {
+  chatId: ChatId;
+  childSessions: () => Promise<{ sessions: Session.WithMessagesAndParts[] }[]>;
+  sessions: Session.WithMessagesAndParts[];
+}): Promise<{ brokenNow: string[]; correctionCalls: string[] }[]> {
+  const turns = await turnsOf(ctx);
+  return Promise.all(
+    turns
+      .filter((turn) => turn.filter(finishedReply).length > 1)
+      .map(async (turn) => {
+        const first = turn.findIndex(finishedReply);
+        const correctionCalls = turn.slice(first + 1).flatMap((message) =>
+          message.parts.flatMap((part) => {
+            if (!isToolPart(part)) {
+              return [];
+            }
+            const command: unknown =
+              part.type === "tool-bash" ? part.input?.command : undefined;
+            return [
+              typeof command === "string"
+                ? `bash: ${command.replaceAll("\n", " ").slice(0, 160)}`
+                : part.type.replace("tool-", ""),
+            ];
+          }),
+        );
+        return {
+          brokenNow: (await linksIn(turn.slice(0, first + 1), ctx.chatId))
+            .broken,
+          correctionCalls,
+        };
+      }),
+  );
+}
+
+/** Fails whenever the check fired, so a run's table counts the firings. */
+export const assertCheckDidNotFire: Assertion = {
+  check: async (ctx) => {
+    const text = "The end-of-turn link check did not fire";
+    const firings = await firingsIn(ctx);
+    return {
+      evidence:
+        firings.length === 0
+          ? "no turn corrected"
+          : firings
+              .map(
+                ({ brokenNow, correctionCalls }, i) =>
+                  `firing ${i + 1}: still broken before it: ${brokenNow.join(", ") || "none"}; correction ran: ${correctionCalls.join(" ; ") || "nothing"}`,
+              )
+              .join(" || "),
+      passed: firings.length === 0,
+      text,
+    };
+  },
+  text: "The end-of-turn link check did not fire",
+};
+
+/**
+ * A firing whose links all open now, after a correction step that ran
+ * nothing, flagged links that opened all along. One whose step ran something
+ * is left to the transcript, since that step may have made them open.
+ */
+export const assertNoFalseFiring: Assertion = {
+  check: async (ctx) => {
+    const text = "No firing flagged links that opened";
+    const firings = await firingsIn(ctx);
+    const suspect = firings.filter(({ brokenNow }) => brokenNow.length === 0);
+    const falseOnes = suspect.filter(
+      ({ correctionCalls }) => correctionCalls.length === 0,
+    );
+    return {
+      evidence:
+        suspect.length === 0
+          ? `${firings.length} firing(s), each with a link still broken`
+          : `${falseOnes.length} false, ${suspect.length - falseOnes.length} to read in the transcript (their correction ran tools)`,
+      passed: falseOnes.length === 0,
+      text,
+    };
+  },
+  text: "No firing flagged links that opened",
+};
+
+export const LINK_ASSERTIONS = [
   assertEveryLinkShownOpens,
   assertLastReplyLinksOpen,
   assertAtMostOneCorrection,
+  assertCheckDidNotFire,
+  assertNoFalseFiring,
 ];
 
 export const REPLY_LINKS_EVALS = [

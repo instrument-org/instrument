@@ -53,6 +53,8 @@ describe("mcpAuthProviderForCommand", () => {
           redirectUrl: () => "http://127.0.0.1:1/auth/callback/app",
           relayRedirectUrl: (service) =>
             `https://api.example/oauth/${service}/callback`,
+          relayTokenUrl: (service) =>
+            `https://api.example/oauth/${service}/token`,
           store,
         },
       },

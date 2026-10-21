@@ -24,7 +24,7 @@ type DataPartNamed<T extends SessionMessagePart.DataPart["type"]> = Extract<
  * The session's baseline in force, from its history: its own once it wrote
  * one, else the one it inherited.
  */
-export function baselineIn(
+function baselineIn(
   messages: SessionMessage.WithParts[],
   sessionId: StoreId.Session,
 ): SessionMessage.ContextWithParts[] {

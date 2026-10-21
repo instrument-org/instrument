@@ -29,7 +29,7 @@ const HEADLINE_MAX = 240;
  * own turns what they changed. The window starts at the newest rollover, so
  * what a note the cut dropped told is told again.
  */
-export function lastToldMemory(
+function lastToldMemory(
   messages: SessionMessage.WithParts[],
   sessionId: StoreId.Session,
 ): ToldDigests {

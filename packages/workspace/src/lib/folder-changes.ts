@@ -15,7 +15,7 @@ import { baselineRecorded, partsAfter } from "./last-told";
  * baseline listed, with each folder note since laid over it. Undefined where
  * the session has no baseline that recorded them.
  */
-export function lastToldFolders(
+function lastToldFolders(
   messages: SessionMessage.WithParts[],
   sessionId: StoreId.Session,
 ): ToldFolders | undefined {

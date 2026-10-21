@@ -15,7 +15,7 @@ import { getWorkspaceConfig } from "./workspace-config";
  * session that started it, and a task's inherited history tells of its
  * chat's.
  */
-export function lastToldProcesses(
+function lastToldProcesses(
   messages: SessionMessage.WithParts[],
   sessionId: StoreId.Session,
 ): { command: string; id: string }[] {

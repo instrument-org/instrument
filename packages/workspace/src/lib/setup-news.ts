@@ -37,7 +37,7 @@ export async function currentSkills(): Promise<ToldDigests> {
  * the session's own turns changed laid over that. Undefined where the
  * session has no baseline that recorded them.
  */
-export function lastToldSkills(
+function lastToldSkills(
   messages: SessionMessage.WithParts[],
   sessionId: StoreId.Session,
 ): ToldDigests | undefined {

@@ -23,12 +23,18 @@ export function createContextMessage({
   now,
   sessionId,
   textParts,
+  told,
 }: {
   agentName: AgentName;
   environment: Environment;
   now: Date;
   sessionId: StoreId.Session;
   textParts: (boolean | null | string | undefined)[];
+  /** What else the text tells, for later notes to be measured against. */
+  told?: Pick<
+    SessionMessage.Context["metadata"],
+    "apps" | "folders" | "skills"
+  >;
 }): SessionMessage.ContextWithParts {
   const userMessageId = StoreId.newMessageId();
 
@@ -46,6 +52,7 @@ export function createContextMessage({
       environment,
       realRole: "user",
       sessionId,
+      ...told,
     },
     parts: [
       {

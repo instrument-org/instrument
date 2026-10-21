@@ -44,8 +44,14 @@ import {
   beginSetupChangeTracking,
   consumeSetupChanges,
 } from "../lib/setup-changes";
-import { recordAppsTold } from "../lib/chat-app-changes";
-import { recordSetupTold } from "../lib/setup-news";
+import {
+  appsToldByTurn,
+  currentChatApps,
+  lastToldApps,
+} from "../lib/chat-app-changes";
+import { memoryToldByTurn } from "../lib/create-memory-part";
+import { grantedFolders } from "../lib/folder-changes";
+import { currentSkills, skillsToldByTurn } from "../lib/setup-news";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { TOOLS } from "../tools/all";
@@ -122,6 +128,11 @@ export const instrumentAgent = setupAgent({
       environment,
       now,
       sessionId,
+      told: {
+        apps: await currentChatApps(),
+        folders: await grantedFolders(chatId),
+        skills: await currentSkills(),
+      },
       textParts: [
         getSystemInfoText({
           environment,
@@ -142,16 +153,6 @@ export const instrumentAgent = setupAgent({
     if (changes.length === 0) {
       return;
     }
-    // Told through this part, so the next message's news does not repeat it.
-    await recordSetupTold({ changes, chatId, sessionId });
-    await recordAppsTold({
-      chatId,
-      names: changes
-        .filter((change) => change.kind === "app")
-        .map((change) => change.name),
-      sessionId,
-    });
-
     const result = await safeTry(async function* () {
       // This run's messages: the one it answered and the session's own after
       // it. A run whose message the session does not have is one whose steps
@@ -169,9 +170,30 @@ export const instrumentAgent = setupAgent({
         return err(new TypedError.NotFound("No assistant message found"));
       }
 
+      // Told through this part, so the next message's notes do not repeat it.
+      const apps = await appsToldByTurn({
+        names: changes
+          .filter((change) => change.kind === "app")
+          .map((change) => change.name),
+        told: lastToldApps(
+          yield* ChatReads.history({ chatId, sessionId }),
+          sessionId,
+        ),
+      });
+      const memory = await memoryToldByTurn(changes);
+      const skills = await skillsToldByTurn(changes);
+      const told = {
+        ...(apps && { apps }),
+        ...(memory && { memory }),
+        ...(skills && { skills }),
+      };
+
       yield* ChatWrites.savePart(
         {
-          data: { changes },
+          data: {
+            changes,
+            ...(Object.keys(told).length > 0 && { told }),
+          },
           metadata: {
             createdAt: new Date(),
             id: StoreId.newPartId(),

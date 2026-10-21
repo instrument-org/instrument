@@ -31,6 +31,7 @@ describe("memoryModelNote", () => {
         more: 0,
         sentAt,
         tells: "whole",
+        told: {},
       }),
     ).toMatchInlineSnapshot(`
       "
@@ -67,6 +68,7 @@ describe("memoryModelNote", () => {
         more: 0,
         sentAt,
         tells: "whole",
+        told: {},
       }),
     ).toContain(
       'From "Roofer call", 2 minutes ago:\n- pacific-time: You are on Pacific time.\nFrom "Roofer call", 7 days ago:\n- roofer: Your roofer is Dale.',
@@ -87,6 +89,7 @@ describe("memoryModelNote", () => {
         more: 70,
         sentAt,
         tells: "whole",
+        told: {},
       }),
     ).toContain(
       "(71):\nFrom no chat, 0 seconds ago:\n- one: One.\n...and 70 more; `instrument memory list` names them all.",
@@ -108,6 +111,7 @@ describe("memoryModelNote", () => {
         more: 0,
         sentAt,
         tells: "changes",
+        told: {},
       }),
     ).toMatchInlineSnapshot(`
       "
@@ -130,6 +134,7 @@ describe("memoryModelNote", () => {
         more: 0,
         sentAt,
         tells: "changes",
+        told: {},
       }),
     ).toMatchInlineSnapshot(`
       "
@@ -149,6 +154,7 @@ describe("memoryModelNote", () => {
         more: 0,
         sentAt,
         tells: "whole",
+        told: {},
       }),
     ).toMatchInlineSnapshot(`
       "

@@ -133,13 +133,7 @@ class Device {
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
-const STATE_FACTS: StateWhat[] = [
-  "apps",
-  "browser",
-  "folders",
-  "memory",
-  "processes",
-];
+const STATE_FACTS: StateWhat[] = ["browser"];
 
 /** How many things the devices do between them in one simulated chat. */
 const STEPS = 40;

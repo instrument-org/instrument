@@ -26,12 +26,6 @@ import { addChildTask, touchTask } from "./chat/children";
 import { createTopic } from "./chat/topics";
 import { createSession } from "./create-session";
 import { getBrowserState, recordVisitedHosts } from "./browser-state";
-import { setChatAppsBaseline } from "./chat-app-changes";
-import {
-  recordMemoryReported,
-  resetMemoryReported,
-} from "./create-memory-part";
-import { getFoldersBaseline, setFoldersBaseline } from "./folders-baseline";
 import {
   conversationView,
   listView,
@@ -503,14 +497,6 @@ describe("a chat written through its records", () => {
 
   it("says what a session was last told", async () => {
     const { chatId, sessionId } = await startChat();
-    const folders = [{ path: path.join(rootDir, "Trips") }];
-
-    (await setFoldersBaseline(chatId, sessionId, folders))._unsafeUnwrap();
-    (
-      await setChatAppsBaseline(chatId, sessionId, {
-        gmail: { connected: true, name: "Gmail" },
-      })
-    )._unsafeUnwrap();
     (
       await recordVisitedHosts({
         chatId,
@@ -520,32 +506,8 @@ describe("a chat written through its records", () => {
     )._unsafeUnwrap();
 
     const state = (await records.service.read(chatId)).chat.sessions[0]?.state;
-    expect(state?.folders).toEqual(
-      asRecorded((await getFoldersBaseline(chatId, sessionId))._unsafeUnwrap()),
-    );
-    expect(state?.apps).toEqual({ gmail: { connected: true, name: "Gmail" } });
     expect(state?.browser).toEqual(
       asRecorded((await getBrowserState(chatId, sessionId))._unsafeUnwrap()),
     );
-  });
-
-  it("says a session has been told nothing of memory again", async () => {
-    const { chatId, sessionId } = await startChat();
-    await recordMemoryReported({
-      chatId,
-      memory: undefined,
-      name: "trips.md",
-      sessionId,
-    });
-
-    expect(
-      (await records.service.read(chatId)).chat.sessions[0]?.state.memory,
-    ).toEqual({});
-
-    await resetMemoryReported({ chatId, sessionId });
-
-    expect(
-      (await records.service.read(chatId)).chat.sessions[0]?.state.memory,
-    ).toBeUndefined();
   });
 });

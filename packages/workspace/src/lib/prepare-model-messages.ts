@@ -23,7 +23,6 @@ import {
 import { ChatWrites } from "./chat-writes";
 import { contextBudgetNotice } from "./context-budget-notice";
 import { contextOverflowNeedsRollover } from "./context-overflow";
-import { resetMemoryReported } from "./create-memory-part";
 import { dropTrailingFailedMessages } from "./drop-trailing-failed-messages";
 import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
@@ -232,7 +231,9 @@ export async function prepareModelMessages({
         // Written here, behind the same successful save, so the mark in the
         // transcript and the boundary assembly reads are recorded together or
         // not at all. A failed part leaves the rollover itself intact: the
-        // session is still correct, it is only undrawn.
+        // session is still correct, it is only undrawn, and memory told on a
+        // message the cut dropped is not told again (`lastToldMemory` reads
+        // the window from this mark).
         await ChatWrites.savePart(
           {
             data: {
@@ -250,10 +251,6 @@ export async function prepareModelMessages({
           },
           chatId,
         );
-
-        // The whole of memory was told on a message the cut just dropped, so
-        // the chat's next message tells it again.
-        await resetMemoryReported({ sessionId, chatId });
       }
     }
   }

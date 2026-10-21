@@ -238,6 +238,18 @@ export async function modelHistoryView(
 }
 
 /**
+ * The session's history as it is stored, oldest first: a task's carries its
+ * chat's messages up to where it forked. No blob is read back and no
+ * rollover applies, for a reader looking for what the session was told.
+ */
+export function historyView(
+  read: ChatRead,
+  sessionId: StoreId.Session,
+): SessionMessage.WithParts[] {
+  return messagesOf(read, sessionId, {});
+}
+
+/**
  * Every message of the session with every part it holds, oldest first, each
  * call's returned bytes read back from its blob: what a transcript saved or
  * copied out of the chat carries, where the conversation and the steps each

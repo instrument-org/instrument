@@ -1,64 +1,84 @@
 import { ok, safeTry } from "neverthrow";
-import { z } from "zod";
 
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { type ToldApps } from "../schemas/told";
 import { isConnected } from "./apps/connection";
 import { listApps } from "./apps/store";
 import { folderFingerprint } from "./folder-fingerprint";
 import { ChatReads } from "./chat-reads";
-import { ChatWrites } from "./chat-writes";
+import { baselineRecorded, partsAfter } from "./last-told";
 import { getWorkspaceConfig } from "./workspace-config";
 
-const ChatAppsBaselineSchema = z.record(
-  z.string(),
-  z.object({
-    connected: z.boolean(),
-    /** What its folder held (`folder-fingerprint.ts`); missing in a baseline from an earlier build. */
-    fingerprint: z.string().optional(),
-    name: z.string(),
-    web: z.string().optional(),
-  }),
-);
-
-type ChatAppsBaseline = z.output<typeof ChatAppsBaselineSchema>;
-
 /** The workspace's apps as a chat's agent is told about them: each one's name and whether it is connected. */
-export async function currentChatApps(): Promise<ChatAppsBaseline> {
+export async function currentChatApps(): Promise<ToldApps> {
   const { apps: config, appsDir } = getWorkspaceConfig();
   const { apps } = await listApps(appsDir);
   const connections = await config.connections.list();
   return Object.fromEntries(
     await Promise.all(
-      apps.map(async (app): Promise<[string, ChatAppsBaseline[string]]> => [
-        app.slug,
-        {
-          connected: isConnected(connections[app.slug], app.manifestHash),
-          fingerprint: await folderFingerprint(app.dir),
-          name: app.name,
-          ...(app.manifest.type === "web" ? { web: app.manifest.url } : {}),
-        },
-      ]),
+      apps.map(
+        async (app): Promise<[string, ToldApps[string]]> => [
+          app.slug,
+          {
+            connected: isConnected(connections[app.slug], app.manifestHash),
+            fingerprint: await folderFingerprint(app.dir),
+            name: app.name,
+            ...(app.manifest.type === "web" ? { web: app.manifest.url } : {}),
+          },
+        ],
+      ),
     ),
   );
 }
 
-/** Records the apps as the chat's agent now knows them, so the next message diffs from here. */
-export function setChatAppsBaseline(
-  chatId: ChatId,
+/**
+ * The apps the chat's agent was last told of: what its baseline listed, then
+ * for each app note since the apps as that note left them, and what the
+ * session's own turns did to apps laid over that. Undefined where the
+ * session has no baseline that recorded them.
+ */
+export function lastToldApps(
+  messages: SessionMessage.WithParts[],
   sessionId: StoreId.Session,
-  apps: ChatAppsBaseline,
-) {
-  return ChatWrites.state(chatId, sessionId, "apps", apps);
+): ToldApps | undefined {
+  const recorded = baselineRecorded(messages, sessionId, "apps");
+  if (recorded === undefined) {
+    return undefined;
+  }
+  return partsAfter(
+    messages,
+    ["data-appEvent", "data-setupChanges"],
+    recorded.writtenAt,
+  ).reduce<ToldApps>((told, part) => {
+    if (part.type === "data-appEvent") {
+      return part.data.apps;
+    }
+    const own = part.data.told?.apps;
+    if (own === undefined) {
+      return told;
+    }
+    const next = { ...told };
+    for (const [slug, app] of Object.entries(own)) {
+      if (app === null) {
+        delete next[slug];
+      } else {
+        next[slug] = app;
+      }
+    }
+    return next;
+  }, recorded.value);
 }
 
 /**
- * Diffs the workspace's apps against what the chat's agent last heard, then
- * advances the baseline. Returns a `data-appEvent` part, marked as carried on
- * the user's message, for the apps connected, disconnected, or removed since;
- * undefined where there is no baseline yet or nothing changed.
+ * Diffs the workspace's apps against what the chat's agent last heard
+ * (`lastToldApps`). Returns a `data-appEvent` part, marked as carried on the
+ * user's message, for the apps connected, disconnected, or removed since,
+ * holding the apps as they now stand; undefined where there is no baseline
+ * yet or nothing changed.
  *
  * The standing list is in the session context, written once. A change the
  * user makes outside the conversation (a disconnect or a removal on the
@@ -76,25 +96,22 @@ export function detectChatAppChanges({
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const stored = await ChatReads.state({
-        chatId,
-        schema: ChatAppsBaselineSchema,
+      const told = lastToldApps(
+        yield* ChatReads.history({ chatId, sessionId }),
         sessionId,
-        what: "apps",
-      });
-      const current = await currentChatApps();
-      yield* setChatAppsBaseline(chatId, sessionId, current);
-      // Missing on the first message of a session, whose context already
-      // lists the apps as they stand.
-      if (stored.isErr() || stored.value === undefined) {
+      );
+      // Missing before the session's first baseline, which lists the apps as
+      // they stand.
+      if (told === undefined) {
         return ok(undefined);
       }
-      const events = appEventsBetween(stored.value, current);
+      const current = await currentChatApps();
+      const events = appEventsBetween(told, current);
       if (events.length === 0) {
         return ok(undefined);
       }
       return ok({
-        data: { carried: true, events },
+        data: { apps: current, carried: true, events },
         metadata: {
           createdAt: new Date(),
           id: StoreId.newPartId(),
@@ -112,11 +129,11 @@ export function detectChatAppChanges({
  * told: an app gone is removed, one that lost its connection is
  * disconnected, one that gained it is connected, a new one not connected yet
  * is added, and one whose folder holds something else is changed. What the
- * conversation's own turn did is in the baseline already (`recordAppsTold`).
+ * conversation's own turn did is told already (`appsToldByTurn`).
  */
 export function appEventsBetween(
-  before: ChatAppsBaseline,
-  after: ChatAppsBaseline,
+  before: ToldApps,
+  after: ToldApps,
 ): SessionMessageDataPart.AppEventDataPart["events"] {
   const events: SessionMessageDataPart.AppEventDataPart["events"] = [];
   for (const [slug, was] of Object.entries(before)) {
@@ -131,8 +148,6 @@ export function appEventsBetween(
         ...(now.web ? { web: now.web } : {}),
       });
     } else if (
-      was.fingerprint !== undefined &&
-      now.fingerprint !== undefined &&
       was.fingerprint !== now.fingerprint &&
       was.connected === now.connected
     ) {
@@ -155,41 +170,35 @@ export function appEventsBetween(
 }
 
 /**
- * Takes what the conversation's own turn did to apps (by their folders'
- * names) into the baseline, so the next message does not tell the agent
- * what it did itself. Only those apps: a change made elsewhere meanwhile is
- * still news. Nothing where the session has no baseline yet.
+ * What the conversation's own turn did to apps (by their folders' names), as
+ * the agent now knows them, for the turn's `data-setupChanges` part to carry
+ * so the next message does not tell the agent what it did itself: each such
+ * app as it stands, and `null` for one told before that is gone. Only those
+ * apps: a change made elsewhere meanwhile is still news.
  */
-export async function recordAppsTold({
-  chatId,
+export async function appsToldByTurn({
   names,
-  sessionId,
+  told,
 }: {
-  chatId: ChatId;
   names: readonly string[];
-  sessionId: StoreId.Session;
-}): Promise<void> {
-  if (names.length === 0) {
-    return;
-  }
-  const stored = await ChatReads.state({
-    chatId,
-    schema: ChatAppsBaselineSchema,
-    sessionId,
-    what: "apps",
-  });
-  if (stored.isErr() || stored.value === undefined) {
-    return;
+  /** What the session was told before the turn (`lastToldApps`). */
+  told: ToldApps | undefined;
+}): Promise<Record<string, ToldApps[string] | null> | undefined> {
+  if (names.length === 0 || told === undefined) {
+    return undefined;
   }
   const current = await currentChatApps();
   const own = new Set(names);
-  const told = Object.fromEntries(
-    Object.entries(stored.value).filter(([, app]) => !own.has(app.name)),
-  );
-  for (const [slug, app] of Object.entries(current)) {
+  const changed: Record<string, ToldApps[string] | null> = {};
+  for (const [slug, app] of Object.entries(told)) {
     if (own.has(app.name)) {
-      told[slug] = app;
+      changed[slug] = null;
     }
   }
-  await setChatAppsBaseline(chatId, sessionId, told);
+  for (const [slug, app] of Object.entries(current)) {
+    if (own.has(app.name)) {
+      changed[slug] = app;
+    }
+  }
+  return changed;
 }

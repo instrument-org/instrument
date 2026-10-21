@@ -7,6 +7,7 @@ import {
   RelativePathSchema,
 } from "../paths";
 import { StoreId } from "../store-id";
+import { ToldAppsSchema, ToldDigestsSchema } from "../told";
 
 export namespace SessionMessageDataPart {
   export const NameSchema = z.enum([
@@ -51,7 +52,9 @@ export namespace SessionMessageDataPart {
    * - `event`: something that happened on this turn. A repeat is impossible
    *   by construction.
    * - `diff`: what changed since the session was last told. Self-limiting:
-   *   no change, no part.
+   *   no change, no part. What it was last told is read from its history
+   *   (`last-told.ts`): the baseline's metadata and the notes since, each
+   *   carrying what it brought the model up to.
    * - `state`: the whole current picture, stored on every message whose
    *   writer could read it, an empty picture included. `stateNotes` is the
    *   one place that decides what of it the model hears: nothing when it
@@ -351,6 +354,20 @@ export namespace SessionMessageDataPart {
         }),
       )
       .min(1),
+    /**
+     * What the agent now knows of each app, memory and skill it changed, so
+     * the next message's notes do not tell it what it did itself: an app by
+     * its id, a memory by its name, a skill as `skill:<name>`, `null` for one
+     * it took away. Absent where the turn changed none of them.
+     */
+    told: z
+      .object({
+        apps: z.record(z.string(), ToldAppsSchema.valueType.nullable()),
+        memory: z.record(z.string(), z.string().nullable()),
+        skills: z.record(z.string(), z.string().nullable()),
+      })
+      .partial()
+      .optional(),
   });
 
   export type SetupChangesDataPart = z.output<
@@ -376,6 +393,8 @@ export namespace SessionMessageDataPart {
         }),
       )
       .min(1),
+    /** Every workspace skill the session now knows, by `skill:<name>` with its fingerprint. */
+    told: ToldDigestsSchema,
   });
 
   export type SetupNewsDataPart = z.output<typeof SetupNewsDataPartSchema>;
@@ -632,6 +651,8 @@ export namespace SessionMessageDataPart {
         }),
       )
       .min(1),
+    /** Every app as the chat's agent knows them once told this. */
+    apps: ToldAppsSchema,
   });
 
   export type AppEventDataPart = z.output<typeof AppEventDataPartSchema>;
@@ -953,6 +974,8 @@ export namespace SessionMessageDataPart {
     sentAt: z.number(),
     /** Whether the note carries the whole of memory or the change since the chat was last told. */
     tells: z.enum(["whole", "changes"]).default("whole"),
+    /** What memory held when the note was written, a digest per name (`memoryDigests`): what the chat now knows. */
+    told: ToldDigestsSchema,
   });
 
   export type MemoryDataPart = z.output<typeof MemoryDataPartSchema>;

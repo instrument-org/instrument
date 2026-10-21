@@ -1,6 +1,5 @@
 import { ok, safeTry } from "neverthrow";
 import os from "node:os";
-import { alphabetical } from "radashi";
 
 import {
   type Environment,
@@ -15,7 +14,7 @@ import { ChatReads } from "./chat-reads";
 import { chatOutputFolder, outputFolderPath } from "./chat/output-folder";
 import { getCurrentDate } from "./get-current-date";
 import { getSystemInfo } from "./get-system-info";
-import { baselineInForce } from "./session-baseline";
+import { baselineRecorded, partsAfter } from "./last-told";
 import { getWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
@@ -68,38 +67,17 @@ export function lastToldEnvironment(
   messages: SessionMessage.WithParts[],
   sessionId: StoreId.Session,
 ): Environment | undefined {
-  const baseline = baselineInForce(
-    messages.filter(
-      (message): message is SessionMessage.ContextWithParts =>
-        message.role === "session-context",
-    ),
-    sessionId,
-  );
-  const recorded = baseline.find((message) => message.metadata.environment)
-    ?.metadata.environment;
-  const writtenAt = baseline.at(-1)?.id;
-  if (recorded === undefined || writtenAt === undefined) {
+  const recorded = baselineRecorded(messages, sessionId, "environment");
+  if (recorded === undefined) {
     return undefined;
   }
-
-  // A note from before the baseline was written told what the baseline
-  // already holds.
-  const notes = alphabetical(
-    messages
-      .filter((message) => message.id > writtenAt)
-      .flatMap((message) => message.parts)
-      .filter(
-        (
-          part,
-        ): part is SessionMessagePart.DataPart & {
-          type: "data-environmentChange";
-        } => part.type === "data-environmentChange",
-      ),
-    (part) => part.metadata.id,
-  );
-  return notes.reduce<Environment>(
+  return partsAfter(
+    messages,
+    ["data-environmentChange"],
+    recorded.writtenAt,
+  ).reduce<Environment>(
     (told, note) => ({ ...told, ...note.data }),
-    recorded,
+    recorded.value,
   );
 }
 

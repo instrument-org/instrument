@@ -14,11 +14,16 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
+import { writeBaseline, writeMessage } from "../test/helpers/told-history";
 import { withTestRecords } from "../test/helpers/with-test-records";
 import { APP_FILE_NAME } from "./apps/app-file";
 import { createSession } from "./create-session";
 import { forgetChatFolders } from "./record-folders";
-import { createSetupNewsPart, recordSetupTold } from "./setup-news";
+import {
+  createSetupNewsPart,
+  currentSkills,
+  skillsToldByTurn,
+} from "./setup-news";
 import { setupTouchesBetween, snapshotSetup } from "./setup-snapshot";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -99,6 +104,9 @@ describe("createSetupNewsPart", () => {
     const sessionId = StoreId.newSessionId();
     const chatId = await chatFor(sessionId);
     (await createSession({ chatId, sessionId }))._unsafeUnwrap();
+    // The note the next message carries, written with it as a turn does;
+    // the first message's baseline is written after it.
+    let first = true;
     const next = async () => {
       const part = await createSetupNewsPart({
         chatId,
@@ -106,7 +114,16 @@ describe("createSetupNewsPart", () => {
         messageId: StoreId.newMessageId(),
         sessionId,
       });
-      return part?.type === "data-setupNews" ? part.data : undefined;
+      await writeMessage(chatId, sessionId, "user", [part]);
+      if (first) {
+        first = false;
+        await writeBaseline(chatId, sessionId, {
+          skills: await currentSkills(),
+        });
+      }
+      return part?.type === "data-setupNews"
+        ? { changes: part.data.changes }
+        : undefined;
     };
     return { chatId, next, sessionId };
   }
@@ -127,9 +144,7 @@ describe("createSetupNewsPart", () => {
 
     // Apps and memories have news of their own.
     await expect(next()).resolves.toEqual({
-      changes: [
-        { change: "changed", kind: "skill", name: "tidy" },
-      ],
+      changes: [{ change: "changed", kind: "skill", name: "tidy" }],
     });
     await expect(next()).resolves.toBeUndefined();
   });
@@ -141,11 +156,15 @@ describe("createSetupNewsPart", () => {
 
     await write(skill("tidy", "run.sh"));
     await write(skill("brief"));
-    await recordSetupTold({
-      changes: [{ change: "changed", kind: "skill", name: "tidy" }],
-      chatId,
-      sessionId,
-    });
+    const changes = [
+      { change: "changed" as const, kind: "skill" as const, name: "tidy" },
+    ];
+    await writeMessage(chatId, sessionId, "assistant", [
+      {
+        data: { changes, told: { skills: await skillsToldByTurn(changes) } },
+        type: "data-setupChanges",
+      },
+    ]);
 
     await expect(next()).resolves.toEqual({
       changes: [{ change: "added", kind: "skill", name: "brief" }],

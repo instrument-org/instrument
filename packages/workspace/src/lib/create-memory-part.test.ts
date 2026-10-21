@@ -8,13 +8,10 @@ import { WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import {
-  createMemoryPart,
-  recordMemoryReported,
-  resetMemoryReported,
-} from "./create-memory-part";
+import { createMemoryPart, memoryToldByTurn } from "./create-memory-part";
 import { forgetMemory, memoryDir, saveMemory } from "./memory/store";
 import { chatFor } from "../test/helpers/chat-record";
+import { writeMessage } from "../test/helpers/told-history";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 const sessionId = StoreId.newSessionId();
@@ -35,8 +32,8 @@ beforeEach(async () => {
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(root),
   });
-  // What a chat was last told of memory is written into its session's log, so
-  // the chat holds the session before any of it is recorded.
+  // What a chat was last told of memory is read from its session's history,
+  // so the chat holds the session before any of it is written.
   await chatFor(sessionId, chatId);
 });
 
@@ -44,13 +41,32 @@ afterEach(async () => {
   await fs.rm(root, { force: true, recursive: true });
 });
 
-function build() {
-  return createMemoryPart({
+/** The note the next message carries, written with it as a turn does. */
+async function build() {
+  const part = await createMemoryPart({
     createdAt: new Date("2026-09-19T12:00:00.000Z"),
     messageId: StoreId.newMessageId(),
     sessionId,
     chatId,
   });
+  await writeMessage(chatId, sessionId, "user", [part]);
+  return part;
+}
+
+/** A turn of the chat's own that changed memory, told as a turn tells it. */
+async function ownTurn(name: string) {
+  const memory = await memoryToldByTurn([
+    { change: "changed", kind: "memory", name },
+  ]);
+  await writeMessage(chatId, sessionId, "assistant", [
+    {
+      data: {
+        changes: [{ change: "changed", kind: "memory", name }],
+        told: { memory },
+      },
+      type: "data-setupChanges",
+    },
+  ]);
 }
 
 describe("createMemoryPart", () => {
@@ -126,12 +142,7 @@ describe("createMemoryPart", () => {
       name: "one",
       text: "One.",
     });
-    await recordMemoryReported({
-      memory,
-      name: memory.name,
-      sessionId,
-      chatId,
-    });
+    await ownTurn(memory.name);
 
     expect(await build()).toBeUndefined();
   });
@@ -145,12 +156,7 @@ describe("createMemoryPart", () => {
       name: "pacific-time",
       text: "Pacific.",
     });
-    await recordMemoryReported({
-      memory,
-      name: memory.name,
-      sessionId,
-      chatId,
-    });
+    await ownTurn(memory.name);
 
     expect(await build()).toMatchObject({
       data: {
@@ -167,24 +173,41 @@ describe("createMemoryPart", () => {
     await build();
 
     await forgetMemory(memoryDir(), "one");
-    await recordMemoryReported({
-      memory: undefined,
-      name: "one",
-      sessionId,
-      chatId,
-    });
+    await ownTurn("one");
 
     expect(await build()).toBeUndefined();
   });
 
-  it("tells the whole again once the session was reset", async () => {
+  it("tells the whole again once a rollover cut the note that told it", async () => {
     await saveMemory(memoryDir(), { name: "one", text: "One." });
     await build();
 
-    await resetMemoryReported({ sessionId, chatId });
+    await writeMessage(chatId, sessionId, "assistant", [
+      {
+        data: { droppedMessages: 2, retainedUserMessages: 0 },
+        type: "data-contextRollover",
+      },
+    ]);
 
     expect(await build()).toMatchObject({
       data: { memories: [{ name: "one" }], tells: "whole" },
     });
+  });
+
+  it("tells the whole again once a rollover cut the whole, though a change since is in the window", async () => {
+    await saveMemory(memoryDir(), { name: "one", text: "One." });
+    await build();
+    await writeMessage(chatId, sessionId, "assistant", [
+      {
+        data: { droppedMessages: 2, retainedUserMessages: 1 },
+        type: "data-contextRollover",
+      },
+    ]);
+    await saveMemory(memoryDir(), { name: "two", text: "Two." });
+    // Measured from a window holding no whole note, so it tells the whole.
+    expect(await build()).toMatchObject({
+      data: { memories: [{ name: "two" }, { name: "one" }], tells: "whole" },
+    });
+    expect(await build()).toBeUndefined();
   });
 });

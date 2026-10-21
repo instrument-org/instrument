@@ -1,11 +1,12 @@
-import { isEqual, omit } from "radashi";
-import { z } from "zod";
+import { isEqual } from "radashi";
 
+import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { type ToldDigests } from "../schemas/told";
 import { ChatReads } from "./chat-reads";
-import { ChatWrites } from "./chat-writes";
+import { partsAfter, rolledOverAfter } from "./last-told";
 import {
   listMemories,
   type Memory,
@@ -13,6 +14,7 @@ import {
   memoryDir,
   memoryHeadline,
 } from "./memory/store";
+import { type SetupChange } from "./setup-changes";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /** How many memories a whole note lists before the rest are counted. */
@@ -20,8 +22,50 @@ const MEMORIES_IN_NOTE = 64;
 /** How much of a memory's first line the note carries; the whole is an `instrument memory show` away. */
 const HEADLINE_MAX = 240;
 
-/** Each memory the session has been told of, by name, with a digest of what it held. */
-const ToldSchema = z.record(z.string(), z.string());
+/**
+ * Each memory the session's model was last told of, by name, with a digest of
+ * what it held, from the notes in the window it is sent: a whole note says
+ * all of memory, a note of changes the memories it names, and the session's
+ * own turns what they changed. The window starts at the newest rollover, so
+ * what a note the cut dropped told is told again.
+ */
+export function lastToldMemory(
+  messages: SessionMessage.WithParts[],
+  sessionId: StoreId.Session,
+): ToldDigests {
+  return partsAfter(
+    messages,
+    ["data-memory", "data-setupChanges"],
+    rolledOverAfter(messages, sessionId),
+  ).reduce<ToldDigests>((known, part) => {
+    if (part.type === "data-memory" && part.data.tells === "whole") {
+      return part.data.told;
+    }
+    const changed =
+      part.type === "data-memory"
+        ? {
+            ...Object.fromEntries(
+              part.data.forgotten.map((name) => [name, null]),
+            ),
+            ...Object.fromEntries(
+              part.data.memories.map(({ name }) => [
+                name,
+                part.data.told[name] ?? null,
+              ]),
+            ),
+          }
+        : (part.data.told?.memory ?? {});
+    const next = { ...known };
+    for (const [name, digest] of Object.entries(changed)) {
+      if (digest === null) {
+        delete next[name];
+      } else {
+        next[name] = digest;
+      }
+    }
+    return next;
+  }, {});
+}
 
 /**
  * What memory holds, for the turn about to run, on a chat's user message.
@@ -32,9 +76,9 @@ const ToldSchema = z.record(z.string(), z.string());
  * whole of memory; every later one carries only what was saved, corrected,
  * or forgotten since, because each note stays in the chat for good and a
  * chat that outlives many changes would otherwise carry the whole of
- * memory once per change. A change the chat made itself is recorded as
- * told by the command that made it, so the note never restates what the
- * agent just did.
+ * memory once per change. A change the chat made itself is told by its
+ * turn's `data-setupChanges` part (`memoryToldByTurn`), so the note never
+ * restates what the agent just did.
  */
 export async function createMemoryPart({
   createdAt,
@@ -51,20 +95,13 @@ export async function createMemoryPart({
     const memories = await listMemories(memoryDir());
     const digests = memoryDigests(memories);
 
-    const reported = await ChatReads.state({
-      chatId,
-      schema: ToldSchema,
-      sessionId,
-      what: "memory",
-    });
-    // Nothing recorded reads as told nothing, which is what an empty memory
-    // also reads as: a fresh chat with nothing to remember gets no note.
-    const state = reported.isOk() ? (reported.value ?? {}) : {};
+    const history = await ChatReads.history({ chatId, sessionId });
+    // Told nothing is what an empty memory also reads as: a fresh chat with
+    // nothing to remember gets no note.
+    const state = history.isOk() ? lastToldMemory(history.value, sessionId) : {};
     if (isEqual(state, digests)) {
       return undefined;
     }
-
-    await ChatWrites.state(chatId, sessionId, "memory", digests);
 
     const metadata = {
       createdAt,
@@ -83,6 +120,7 @@ export async function createMemoryPart({
           more: Math.max(0, memories.length - MEMORIES_IN_NOTE),
           sentAt,
           tells: "whole",
+          told: digests,
         },
         metadata,
         type: "data-memory",
@@ -97,6 +135,7 @@ export async function createMemoryPart({
         more: 0,
         sentAt,
         tells: "changes",
+        told: digests,
       },
       metadata,
       type: "data-memory",
@@ -108,46 +147,23 @@ export async function createMemoryPart({
 }
 
 /**
- * Marks one memory as told to this session, after the session's own command
- * saved, corrected, or forgot it. Only that name: a change another chat or
- * the user made in the meantime is still news, and the next note carries it.
+ * What the session's own turn did to memory, for the turn's
+ * `data-setupChanges` part to carry, so the next note does not tell the agent
+ * what it did itself: each memory's digest now, `null` for one forgotten.
+ * Only those names: a change another chat or the person made meanwhile is
+ * still news.
  */
-export async function recordMemoryReported({
-  memory,
-  name,
-  sessionId,
-  chatId,
-}: {
-  /** What the name holds now, or nothing once it is forgotten. */
-  memory: Memory | undefined;
-  name: string;
-  sessionId: StoreId.Session;
-  chatId: ChatId;
-}): Promise<void> {
-  const reported = await ChatReads.state({
-    chatId,
-    schema: ToldSchema,
-    sessionId,
-    what: "memory",
-  });
-  const state = omit(reported.isOk() ? (reported.value ?? {}) : {}, [name]);
-  const digests = memory ? { ...state, ...memoryDigests([memory]) } : state;
-  await ChatWrites.state(chatId, sessionId, "memory", digests);
-}
-
-/**
- * Marks this session as told nothing, so its next message carries the whole
- * of memory again. For a session whose history was cut at a rollover: the
- * note that told it the whole sat on a message it no longer sends.
- */
-export async function resetMemoryReported({
-  sessionId,
-  chatId,
-}: {
-  sessionId: StoreId.Session;
-  chatId: ChatId;
-}): Promise<void> {
-  await ChatWrites.state(chatId, sessionId, "memory", undefined);
+export async function memoryToldByTurn(
+  changes: SetupChange[],
+): Promise<Record<string, string | null> | undefined> {
+  const own = changes.filter((change) => change.kind === "memory");
+  if (own.length === 0) {
+    return undefined;
+  }
+  const digests = memoryDigests(await listMemories(memoryDir()));
+  return Object.fromEntries(
+    own.map(({ name }) => [name, digests[name] ?? null]),
+  );
 }
 
 function noteRow(memory: Memory) {

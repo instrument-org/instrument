@@ -19,6 +19,7 @@ import {
   liveView,
   mergeViews,
   messageIdsView,
+  historyView,
   modelHistoryView,
   stepsView,
 } from "./records/views";
@@ -58,6 +59,20 @@ export namespace ChatReads {
         storageError,
       ),
     );
+  }
+
+  /**
+   * The session's history as it is stored, with no blob read back: where a
+   * reader finds what the session was last told (`last-told.ts`).
+   */
+  export function history({
+    chatId,
+    sessionId,
+  }: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+  }): ResultAsync<SessionMessage.WithParts[], Failure> {
+    return read(chatId).map((chat) => historyView(chat, sessionId));
   }
 
   /**
@@ -133,11 +148,8 @@ export namespace ChatReads {
   }
 
   /**
-   * What the session was last told of one standing fact: the folders it can
-   * reach, the apps it is connected to, the browser's tabs, the memories it
-   * was given, the processes it left running. Each is written as a record
-   * when it changes, and read back here to be compared with what holds now,
-   * so the agent is told only the difference.
+   * One standing fact the app keeps about a session: the sites its browser
+   * used. Written as a record when it changes, and read back here.
    */
   export function state<Schema extends z.ZodType>({
     chatId,

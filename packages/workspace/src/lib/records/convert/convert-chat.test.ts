@@ -285,7 +285,12 @@ describe("convertChat", () => {
       {
         "blobBytes": 29,
         "blobs": 2,
-        "leftBehind": {},
+        "leftBehind": {
+          "background-processes-reported": 1,
+          "chat-apps-baseline": 1,
+          "folders-baseline": 2,
+          "memory-reported": 1,
+        },
         "messages": 8,
         "parts": 22,
         "sessions": 2,
@@ -330,11 +335,7 @@ describe("convertChat", () => {
         "part tool-bash",
         "rollover",
         "stopped",
-        "state apps",
         "state browser",
-        "state folders",
-        "state memory",
-        "state processes",
       ]
     `);
     expect(
@@ -348,7 +349,6 @@ describe("convertChat", () => {
         "part tool-read_file",
         "part text",
         "stopped",
-        "state folders",
       ]
     `);
 
@@ -413,32 +413,12 @@ describe("convertChat", () => {
             },
           },
           "state": {
-            "apps": {
-              "gmail": {
-                "connected": true,
-                "name": "Gmail",
-              },
-            },
             "browser": {
               "lastUsedAt": "2026-10-14T12:01:10.000Z",
               "visitedHosts": [
                 "example.com",
               ],
             },
-            "folders": [
-              {
-                "path": "/Users/someone/Trips",
-              },
-            ],
-            "memory": {
-              "trips.md": "rev-1",
-            },
-            "processes": [
-              {
-                "command": "npm run dev",
-                "id": "bg_1",
-              },
-            ],
           },
           "stopped": {
             "at": 2026-10-14T12:00:50.000Z,
@@ -483,13 +463,7 @@ describe("convertChat", () => {
           "id": "ses_01K7A000000000000000000002",
           "parent": "ses_01K7A000000000000000000001",
           "settings": {},
-          "state": {
-            "folders": [
-              {
-                "path": "/Users/someone/Trips",
-              },
-            ],
-          },
+          "state": {},
           "stopped": {
             "at": 2026-10-14T12:01:30.000Z,
             "by": "user",

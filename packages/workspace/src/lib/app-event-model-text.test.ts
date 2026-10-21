@@ -6,6 +6,7 @@ describe("the note an app event wakes the chat with", () => {
   it("sends a web app's connection to the browser, not to app call", () => {
     expect(
       appEventModelNote({
+        apps: {},
         events: [
           {
             event: "connected",
@@ -28,6 +29,7 @@ describe("the note an app event wakes the chat with", () => {
   it("says a change carried on the user's message is only for knowing", () => {
     expect(
       appEventModelNote({
+        apps: {},
         carried: true,
         events: [{ event: "removed", name: "Slack", slug: "slack" }],
       }),

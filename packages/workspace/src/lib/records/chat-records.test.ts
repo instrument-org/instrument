@@ -168,9 +168,9 @@ describe("ChatRecords", () => {
       ),
       service.retract(CHAT, chatSession, [messageId(3)], "edited"),
       service.rollover(CHAT, chatSession, messageId(2), 1000),
-      service.state(CHAT, chatSession, "folders", ["/a"]),
-      service.state(CHAT, chatSession, "memory", { state: 1 }),
-      service.state(CHAT, chatSession, "memory", null),
+      service.state(CHAT, chatSession, "browser", { state: 1 }),
+      service.state(CHAT, chatSession, "browser", null),
+      service.state(CHAT, chatSession, "browser", ["/a"]),
       service.setting(CHAT, chatSession, {
         field: "title",
         value: { auto: false, text: "Totals" },
@@ -225,7 +225,7 @@ describe("ChatRecords", () => {
         updatedAt: NOW,
       },
     ]);
-    expect(landed.chat.sessions[0]?.state).toEqual({ folders: ["/a"] });
+    expect(landed.chat.sessions[0]?.state).toEqual({ browser: ["/a"] });
     // The image went to a blob, and comes back from it.
     const [chatTranscript] = await transcripts(service);
     const call = chatTranscript?.[1]?.parts[0];
@@ -361,7 +361,7 @@ describe("ChatRecords", () => {
     const writes = [
       records.service.appendPart(CHAT, bashCall(3, "input-available")),
       records.service.retract(CHAT, chatSession, [messageId(1)], "edited"),
-      records.service.state(CHAT, chatSession, "apps", ["slack"]),
+      records.service.state(CHAT, chatSession, "browser", ["slack"]),
       records.service.setting(CHAT, chatSession, {
         field: "archived",
         value: true,

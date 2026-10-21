@@ -96,13 +96,7 @@ export type ChatDbRead =
 export const TOLD_KEYS: readonly (readonly [
   StateWhat,
   (session: StoreId.Session) => string,
-])[] = [
-  ["apps", StorageKey.chatAppsBaseline],
-  ["browser", StorageKey.browserState],
-  ["folders", StorageKey.foldersBaseline],
-  ["memory", StorageKey.memoryReported],
-  ["processes", StorageKey.backgroundProcessesReported],
-];
+])[] = [["browser", StorageKey.browserState]];
 
 /** Rows the store keeps for itself, which are no part of the chat. */
 const BOOKKEEPING = new Set(["__canary__", "__migration_version__"]);

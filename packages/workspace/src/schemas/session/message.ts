@@ -45,6 +45,7 @@ import { taskEventModelNote } from "../../lib/task-event-model-text";
 import { workspaceHostPath } from "../../lib/workspace-relative-path";
 import { TOOL_NAMES } from "../../tools/name";
 import { EnvironmentSchema } from "../environment";
+import { ToldAppsSchema, ToldDigestsSchema, ToldFoldersSchema } from "../told";
 import { StoreId } from "../store-id";
 import { SessionMessageDataPart } from "./message-data-part";
 import { SessionMessagePart } from "./message-part";
@@ -150,6 +151,12 @@ export namespace SessionMessage {
      */
     agentName: z.string(),
     /**
+     * The apps the baseline told a chat's model about, on the message that
+     * tells them: what a later app note is measured against. Absent on a
+     * task's baseline, which lists none.
+     */
+    apps: ToldAppsSchema.optional(),
+    /**
      * Which shape of the session baseline this message holds
      * (`SESSION_CONTEXT_VERSION`), so a release that puts something new in the
      * baseline reaches sessions that already have one stored.
@@ -164,7 +171,18 @@ export namespace SessionMessage {
      * a baseline from before it was recorded.
      */
     environment: EnvironmentSchema.optional(),
+    /**
+     * The folders granted in the chat that the baseline told the model it
+     * reaches: what a later folder note is measured against.
+     */
+    folders: ToldFoldersSchema.optional(),
     realRole: z.enum(["system", "user", "assistant"]),
+    /**
+     * The workspace's own skills as the baseline's catalog listed them, by
+     * `skill:<name>` with a fingerprint each: what later skill news is
+     * measured against.
+     */
+    skills: ToldDigestsSchema.optional(),
   });
   const UserMetadataSchema = BaseMetadataSchema.extend({
     /**

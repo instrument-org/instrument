@@ -1,7 +1,6 @@
 import { type ByteString, defineCommand } from "just-bash";
 
 import { type StoreId } from "../../schemas/store-id";
-import { recordMemoryReported } from "../create-memory-part";
 import {
   forgetMemory,
   listMemories,
@@ -66,7 +65,7 @@ const runMemory = defineSubcommands<MemoryCommandContext>({
   subcommands: {
     forget: subcommand({
       positional: 1,
-      run: ({ positional }, context) => runForget(positional, context),
+      run: ({ positional }) => runForget(positional),
     }),
     list: subcommand({ positional: 0, run: () => runList() }),
     save: subcommand({
@@ -108,20 +107,7 @@ function origin(memory: Memory): string {
     : day(memory.at);
 }
 
-/**
- * Where the chat stands after the agent changed one memory itself: that
- * change is in front of it, so the next message's note has nothing to add
- * about it.
- */
-async function rememberTold(
-  { chatId, sessionId }: MemoryCommandContext,
-  name: string,
-  memory: Memory | undefined,
-) {
-  await recordMemoryReported({ memory, name, sessionId, chatId });
-}
-
-async function runForget(args: string[], context: MemoryCommandContext) {
+async function runForget(args: string[]) {
   const name = args[0];
   if (!name) {
     throw new Error(`forget: which memory? ${NAME} list names them.`);
@@ -130,7 +116,6 @@ async function runForget(args: string[], context: MemoryCommandContext) {
   if (!memory) {
     throw new Error(`no memory named "${name}". ${NAME} list names them.`);
   }
-  await rememberTold(context, memory.name, undefined);
   recordSetupTouch({ existedBefore: true, kind: "memory", name: memory.name });
   return ok(`Forgot "${memory.name}": ${memoryHeadline(memory.text)}`);
 }
@@ -176,7 +161,6 @@ async function runSave(
     name: parsedName.data,
     text,
   });
-  await rememberTold(context, memory.name, memory);
   recordSetupTouch({
     existedBefore: replaced,
     kind: "memory",

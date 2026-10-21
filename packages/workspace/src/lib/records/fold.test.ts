@@ -131,26 +131,25 @@ describe("foldChat", () => {
         },
         { t: "stopped", seq: 3, at: at(3), by: "app" },
         { t: "stopped", seq: 4, at: at(4), by: "user" },
-        { t: "state", seq: 5, at: at(5), what: "folders", value: ["/a"] },
+        { t: "state", seq: 5, at: at(5), what: "browser", value: ["/a"] },
         {
           t: "state",
           seq: 6,
           at: at(6),
           what: "browser",
-          value: { host: "x" },
+          value: null,
         },
-        { t: "state", seq: 7, at: at(7), what: "folders", value: ["/a", "/b"] },
-        { t: "state", seq: 8, at: at(8), what: "browser", value: null },
+        { t: "state", seq: 7, at: at(7), what: "browser", value: ["/a", "/b"] },
+        { t: "state", seq: 8, at: at(8), what: "browser", value: ["/c"] },
       ]),
     ]).sessions;
 
     expect(session).toMatchObject({
       rollover: { after: messageId(2), usableTokens: 9 },
       stopped: { at: at(4), by: "user" },
-      state: { folders: ["/a", "/b"] },
+      state: { browser: ["/c"] },
       updatedAt: at(8),
     });
-    expect(session?.state).not.toHaveProperty("browser");
   });
 
   it("merges marks across devices by newest, ties to the larger device id", () => {
@@ -510,7 +509,7 @@ describe("ChatFold", () => {
         partRecord(3, text(1, 1, "hello again")),
         { t: "retract", seq: 4, at: at(4), messages: [messageId(9)], why: "x" },
         messageRecord(5, user(2)),
-        { t: "state", seq: 6, at: at(6), what: "memory", value: 3 },
+        { t: "state", seq: 6, at: at(6), what: "browser", value: 3 },
       ]),
       log(DEVICE_B, [
         header(0, {

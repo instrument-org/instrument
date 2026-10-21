@@ -30,7 +30,7 @@ export function startAppEvents(workspaceRef: WorkspaceActorRef): void {
       try {
         const connection = await readConnection(event.slug);
         await wakeChatForApp(
-          { data: { events: [event] }, type: "data-appEvent" },
+          [event],
           workspaceRef,
           connection?.askedIn,
         );

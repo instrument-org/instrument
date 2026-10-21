@@ -131,7 +131,7 @@ describe("parseLogLine", () => {
         seq: 7,
         t: "state",
         value: [{ path: "/a" }],
-        what: "folders",
+        what: "browser",
       },
     ],
     [

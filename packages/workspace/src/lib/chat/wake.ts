@@ -40,7 +40,7 @@ import {
   ownMessages,
   turnStartedAt,
 } from "./activity";
-import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
+import { currentChatApps } from "../chat-app-changes";
 import { listChatIds } from "./chat-records";
 import {
   type ChatTask,
@@ -210,11 +210,11 @@ export function startChatWake(workspaceRef: WorkspaceActorRef): void {
  * only while it is still there: a change nobody in a conversation asked
  * for (a disconnect or a removal on the app's page) wakes nothing, and
  * reaches each chat on the next message the user writes there
- * (`detectChatAppChanges`). Waking leaves that chat's baseline at the apps
- * as they now stand, so its next message does not say the same thing again.
+ * (`detectChatAppChanges`). The note carries the apps as they now stand,
+ * so that chat's next message does not say the same thing again.
  */
 export async function wakeChatForApp(
-  part: WakePart,
+  events: SessionMessageDataPart.AppEventDataPart["events"],
   workspaceRef: WorkspaceActorRef,
   asked: ChatId | undefined,
 ): Promise<void> {
@@ -224,18 +224,11 @@ export async function wakeChatForApp(
   if (!(await chatModelURI(asked))) {
     return;
   }
-  const sessionId = sessionOfChat(asked);
-  await wakeWith(asked, part, workspaceRef);
-  if (sessionId !== undefined) {
-    const baseline = await setChatAppsBaseline(
-      asked,
-      sessionId,
-      await currentChatApps(),
-    );
-    if (baseline.isErr()) {
-      getWorkspaceConfig().captureException(baseline.error);
-    }
-  }
+  await wakeWith(
+    asked,
+    { data: { apps: await currentChatApps(), events }, type: "data-appEvent" },
+    workspaceRef,
+  );
 }
 
 /**

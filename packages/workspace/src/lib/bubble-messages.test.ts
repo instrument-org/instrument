@@ -57,7 +57,7 @@ const modelChange: PartOf = (messageId) => ({
 });
 
 const memory: PartOf = (messageId) => ({
-  data: { forgotten: [], memories: [], more: 0, sentAt: 0, tells: "whole" },
+  data: { forgotten: [], memories: [], more: 0, sentAt: 0, tells: "whole", told: {} },
   metadata: partMetadata(messageId),
   type: "data-memory",
 });

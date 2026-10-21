@@ -406,8 +406,8 @@ describe("the standing facts a session was told", () => {
   it("reads back what the session was last told, and not an earlier one", async () => {
     const { chatId, sessionId } = await startChat();
     await writeTurn(chatId, sessionId);
-    await ChatWrites.state(chatId, sessionId, "folders", [{ path: "/a" }]);
-    await ChatWrites.state(chatId, sessionId, "folders", [{ path: "/b" }]);
+    await ChatWrites.state(chatId, sessionId, "browser", [{ path: "/a" }]);
+    await ChatWrites.state(chatId, sessionId, "browser", [{ path: "/b" }]);
 
     expect(
       (
@@ -415,7 +415,7 @@ describe("the standing facts a session was told", () => {
           chatId,
           schema,
           sessionId,
-          what: "folders",
+          what: "browser",
         })
       )._unsafeUnwrap(),
     ).toEqual([{ path: "/b" }]);
@@ -428,13 +428,13 @@ describe("the standing facts a session was told", () => {
     const { chatId, sessionId } = await startChat();
     await writeTurn(chatId, sessionId);
     if (state === null) {
-      await ChatWrites.state(chatId, sessionId, "folders", [{ path: "/a" }]);
-      await ChatWrites.state(chatId, sessionId, "folders", undefined);
+      await ChatWrites.state(chatId, sessionId, "browser", [{ path: "/a" }]);
+      await ChatWrites.state(chatId, sessionId, "browser", undefined);
     }
 
     expect(
       (
-        await ChatReads.state({ chatId, schema, sessionId, what: "folders" })
+        await ChatReads.state({ chatId, schema, sessionId, what: "browser" })
       )._unsafeUnwrap(),
     ).toBeUndefined();
   });
@@ -442,7 +442,7 @@ describe("the standing facts a session was told", () => {
   it("gives a task what its chat was told before it forked", async () => {
     const { chatId, sessionId } = await startChat();
     const { asked } = await writeTurn(chatId, sessionId);
-    await ChatWrites.state(chatId, sessionId, "folders", [{ path: "/a" }]);
+    await ChatWrites.state(chatId, sessionId, "browser", [{ path: "/a" }]);
     const task = await addChildTask(chatId, {
       createdAt: new Date(),
       forkedAtMessageId: asked.id,
@@ -457,7 +457,7 @@ describe("the standing facts a session was told", () => {
           chatId,
           schema,
           sessionId: task.id,
-          what: "folders",
+          what: "browser",
         })
       )._unsafeUnwrap(),
     ).toEqual([{ path: "/a" }]);
@@ -466,7 +466,7 @@ describe("the standing facts a session was told", () => {
   it("answers nothing for a fact written in a shape this build cannot read", async () => {
     const { chatId, sessionId } = await startChat();
     await writeTurn(chatId, sessionId);
-    await ChatWrites.state(chatId, sessionId, "folders", { folders: "/a" });
+    await ChatWrites.state(chatId, sessionId, "browser", { folders: "/a" });
 
     expect(
       (
@@ -474,7 +474,7 @@ describe("the standing facts a session was told", () => {
           chatId,
           schema,
           sessionId,
-          what: "folders",
+          what: "browser",
         })
       )._unsafeUnwrap(),
     ).toBeUndefined();

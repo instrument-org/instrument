@@ -14,6 +14,7 @@ import {
 } from "./background-processes";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { chatFor } from "../test/helpers/chat-record";
+import { writeMessage } from "../test/helpers/told-history";
 
 // A chat of its own per test: the records hold an open chat by its id, so a
 // second chat under one name would still be writing into the folder the test
@@ -23,13 +24,16 @@ let root: string;
 let sessionId: StoreId.Session;
 let chatId: ChatId;
 
+/** The note the next message carries, written with it as a turn does. */
 async function makePart() {
-  return createBackgroundProcessesPart({
+  const part = await createBackgroundProcessesPart({
     createdAt: new Date(),
     messageId: StoreId.newMessageId(),
     sessionId,
     chatId,
   });
+  await writeMessage(chatId, sessionId, "user", [part]);
+  return part;
 }
 
 /**
@@ -64,8 +68,8 @@ beforeEach(async () => {
     path.join(root, TASKS_DIR_NAME, `background-processes-part-${++chats}`),
   );
   sessionId = StoreId.newSessionId();
-  // What a session was last told is written into its own log, so the chat
-  // holds the session before any of it is recorded.
+  // What a session was last told is read from its own history, so the chat
+  // holds the session before any of it is written.
   await chatFor(sessionId, chatId);
 });
 

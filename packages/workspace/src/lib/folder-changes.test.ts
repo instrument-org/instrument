@@ -9,11 +9,11 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { grantFolder } from "./chat/grants";
 import { detectFolderChanges } from "./folder-changes";
-import { setFoldersBaseline } from "./folders-baseline";
 import { sessionOfChat } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { initializeTestChat } from "../test/helpers/initialize-test-chat";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
+import { writeBaseline, writeMessage } from "../test/helpers/told-history";
 
 // A chat of its own per test: a chat's records are read back whole, so a
 // second case under one name would be told what the first one was.
@@ -25,10 +25,12 @@ let sessionId: StoreId.Session;
 let downloads: string;
 
 async function changesSince(baseline: { path: string }[]) {
-  const set = await setFoldersBaseline(CHAT_ID, sessionId, baseline);
-  if (set.isErr()) {
-    throw set.error;
-  }
+  await writeBaseline(CHAT_ID, sessionId, { folders: baseline });
+  return detect();
+}
+
+/** The note the next message would carry, written with it as a turn does. */
+async function detect() {
   const result = await detectFolderChanges({
     messageId: StoreId.newMessageId(),
     sessionId,
@@ -37,6 +39,7 @@ async function changesSince(baseline: { path: string }[]) {
   if (result.isErr()) {
     throw result.error;
   }
+  await writeMessage(CHAT_ID, sessionId, "user", [result.value]);
   return result.value?.type === "data-folderChanges"
     ? result.value.data
     : undefined;
@@ -105,5 +108,18 @@ describe("detectFolderChanges", () => {
     const changes = await changesSince([{ path: downloads }]);
 
     expect(changes).toBeUndefined();
+  });
+
+  it("reports nothing before the session has a baseline", async () => {
+    await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
+
+    expect(await detect()).toBeUndefined();
+  });
+
+  it("counts a folder the last note told as told", async () => {
+    await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
+    expect((await changesSince([]))?.added).toEqual([{ path: downloads }]);
+
+    expect(await detect()).toBeUndefined();
   });
 });

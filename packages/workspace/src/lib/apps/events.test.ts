@@ -43,7 +43,7 @@ describe("startAppEvents", () => {
     await answer("connected");
 
     expect(woken).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "data-appEvent" }),
+      [expect.objectContaining({ event: "connected" })],
       expect.anything(),
       LISBON,
     );

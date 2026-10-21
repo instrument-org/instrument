@@ -6,14 +6,14 @@ describe("appEventsBetween", () => {
   it.each([
     [
       "an app taken away",
-      { slack: { connected: true, name: "Slack" } },
+      { slack: { connected: true, fingerprint: "a", name: "Slack" } },
       {},
       [{ event: "removed", name: "Slack", slug: "slack" }],
     ],
     [
       "a connection lost",
-      { linear: { connected: true, name: "Linear" } },
-      { linear: { connected: false, name: "Linear" } },
+      { linear: { connected: true, fingerprint: "a", name: "Linear" } },
+      { linear: { connected: false, fingerprint: "a", name: "Linear" } },
       [{ event: "disconnected", name: "Linear", slug: "linear" }],
     ],
     [
@@ -21,6 +21,7 @@ describe("appEventsBetween", () => {
       {
         drive: {
           connected: false,
+          fingerprint: "a",
           name: "Drive",
           web: "https://drive.google.com",
         },
@@ -28,6 +29,7 @@ describe("appEventsBetween", () => {
       {
         drive: {
           connected: true,
+          fingerprint: "a",
           name: "Drive",
           web: "https://drive.google.com",
         },
@@ -41,12 +43,12 @@ describe("appEventsBetween", () => {
         },
       ],
     ],
-    // The conversation's own turns are in the baseline (`recordAppsTold`),
-    // so one that turns up here was set up elsewhere.
+    // The conversation's own turns are told already (`appsToldByTurn`), so
+    // one that turns up here was set up elsewhere.
     [
       "an app set up, not yet connected",
       {},
-      { notion: { connected: false, name: "Notion" } },
+      { notion: { connected: false, fingerprint: "a", name: "Notion" } },
       [{ event: "added", name: "Notion", slug: "notion" }],
     ],
     [
@@ -55,17 +57,10 @@ describe("appEventsBetween", () => {
       { linear: { connected: true, fingerprint: "b", name: "Linear" } },
       [{ event: "changed", name: "Linear", slug: "linear" }],
     ],
-    // A baseline from before folders were fingerprinted says nothing changed.
-    [
-      "an app read before fingerprints",
-      { linear: { connected: true, name: "Linear" } },
-      { linear: { connected: true, fingerprint: "b", name: "Linear" } },
-      [],
-    ],
     [
       "nothing",
-      { a: { connected: true, name: "A" } },
-      { a: { connected: true, name: "A" } },
+      { a: { connected: true, fingerprint: "a", name: "A" } },
+      { a: { connected: true, fingerprint: "a", name: "A" } },
       [],
     ],
   ])("tells %s", (_case, before, after, expected) => {

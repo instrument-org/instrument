@@ -1,17 +1,37 @@
-import { z } from "zod";
-
+import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { listBackgroundProcesses } from "./background-processes";
 import { getCurrentDate } from "./get-current-date";
 import { ChatReads } from "./chat-reads";
-import { ChatWrites } from "./chat-writes";
+import { partsAfter } from "./last-told";
 import { getWorkspaceConfig } from "./workspace-config";
 
-const ReportedProcessesSchema = z.array(
-  z.object({ command: z.string(), id: z.string() }),
-);
+/**
+ * The processes the session was last told are there: each of its own
+ * process notes takes away what it says ended and adds what it says is
+ * running. Only the session's own notes, since a process belongs to the
+ * session that started it, and a task's inherited history tells of its
+ * chat's.
+ */
+export function lastToldProcesses(
+  messages: SessionMessage.WithParts[],
+  sessionId: StoreId.Session,
+): { command: string; id: string }[] {
+  return partsAfter(messages, ["data-backgroundProcesses"])
+    .filter((part) => part.metadata.sessionId === sessionId)
+    .reduce<{ command: string; id: string }[]>((told, note) => {
+      const gone = new Set([
+        ...note.data.ended.map(({ id }) => id),
+        ...note.data.running.map(({ id }) => id),
+      ]);
+      return [
+        ...told.filter(({ id }) => !gone.has(id)),
+        ...note.data.running.map(({ command, id }) => ({ command, id })),
+      ];
+    }, []);
+}
 
 /**
  * What this session still has running, for the turn about to start.
@@ -43,15 +63,11 @@ export async function createBackgroundProcessesPart({
   chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
-    const reported = await ChatReads.state({
-      chatId,
-      schema: ReportedProcessesSchema,
-      sessionId,
-      what: "processes",
-    });
-    // An error here is "nothing recorded yet" as often as a real failure, and
-    // both mean this session has been told nothing.
-    const previous = reported.isOk() ? (reported.value ?? []) : [];
+    const history = await ChatReads.history({ chatId, sessionId });
+    // A history that does not read is a session told nothing.
+    const previous = history.isOk()
+      ? lastToldProcesses(history.value, sessionId)
+      : [];
 
     const now = getCurrentDate().getTime();
     const processes = listBackgroundProcesses(sessionId);
@@ -68,7 +84,8 @@ export async function createBackgroundProcessesPart({
     // words. It is therefore in neither list: calling it running would claim a
     // server is up, and calling it ended would tell the agent to start a second
     // copy of something still holding the port. It stays in what this session has
-    // been told, so it is reported as ended once it settles or the app restarts.
+    // been told (no note names it ended), so it is reported as ended once it
+    // settles or the app restarts.
     const stillThere = processes
       .filter(
         (process) =>
@@ -83,19 +100,17 @@ export async function createBackgroundProcessesPart({
     if (running.length === 0 && ended.length === 0) {
       return undefined;
     }
-    // Same set as last time, and nothing has gone away. Durations move on their
-    // own and are not news; what is running is.
+    // Nothing has gone away and nothing is running that the session was not
+    // told of. Durations move on their own and are not news; what is running
+    // is.
     if (
       ended.length === 0 &&
-      previous.length === stillThere.length &&
-      stillThere.every((process) =>
+      running.every((process) =>
         previous.some((earlier) => earlier.id === process.id),
       )
     ) {
       return undefined;
     }
-
-    await ChatWrites.state(chatId, sessionId, "processes", stillThere);
 
     return {
       data: { ended, running },

@@ -119,14 +119,7 @@ const PartSchema = z
     message: "A part names itself, its message, its session and its date",
   });
 
-const StateWhatSchema = z.enum([
-  "apps",
-  "browser",
-  "folders",
-  "memory",
-  "processes",
-  "setup",
-]);
+const StateWhatSchema = z.enum(["browser"]);
 
 export type StateWhat = z.output<typeof StateWhatSchema>;
 

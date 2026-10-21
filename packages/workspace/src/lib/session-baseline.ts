@@ -38,7 +38,7 @@ import { ChatWrites } from "./chat-writes";
  * written again; one marked newer is kept, since an older build running
  * against a newer baseline has nothing better to put there.
  */
-export const SESSION_CONTEXT_VERSION = 44;
+export const SESSION_CONTEXT_VERSION = 45;
 
 /** Why a session's baseline has to be written now. */
 type Due = "none" | "older-shape" | "rolled-over";

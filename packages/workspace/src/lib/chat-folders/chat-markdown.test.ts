@@ -433,7 +433,7 @@ describe("a change the file does not report leaves it alone", () => {
             device: DEVICE_B,
             id: chatSession,
           }),
-          { t: "state", seq: 1, at: at(500), value: ["/tmp"], what: "folders" },
+          { t: "state", seq: 1, at: at(500), value: ["/tmp"], what: "browser" },
         ],
         { generation: 2 },
       ),

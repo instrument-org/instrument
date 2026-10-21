@@ -45,12 +45,21 @@ export type TrialModeId = (typeof trialModes)[number]["id"];
 
 const windows = [{ anchor: "first_use", duration: "PT5H", key: "5h" }];
 
+// Illustrative: the policy names each plan's models, and its makers are what
+// the card marks.
+const models = [
+  { maker: "anthropic", name: "Claude Haiku 5.5" },
+  { maker: "openai", name: "GPT-6 Luna" },
+  { maker: "google", name: "Gemini" },
+];
+
 const plans: Offer["plans"] = [
   {
     allowance: { multiple: 1, windows },
     description: "For everyday work with AI.",
     features: ["Standard AI usage", "Web search", "Image generation"],
     key: "basic",
+    models,
     name: "Basic",
     price: { currency: "usd", interval: "month", unitAmount: 1000 },
   },
@@ -59,6 +68,7 @@ const plans: Offer["plans"] = [
     description: "For people who work with AI all day.",
     features: ["4× Standard AI usage", "Web search", "Image generation"],
     key: "pro",
+    models,
     name: "Pro",
     price: { currency: "usd", interval: "month", unitAmount: 4000 },
   },

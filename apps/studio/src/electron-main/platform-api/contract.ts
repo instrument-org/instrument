@@ -118,6 +118,13 @@ const BillingOfferSchema = z.object({
       description: z.string().nullable(),
       features: z.array(z.string()),
       key: z.string(),
+      /**
+       * What the plan's models are, from its policy, in the order its
+       * picker offers them. Absent from an API older than the field.
+       */
+      models: z
+        .array(z.object({ maker: z.string().optional(), name: z.string() }))
+        .optional(),
       name: z.string(),
       price: z
         .object({

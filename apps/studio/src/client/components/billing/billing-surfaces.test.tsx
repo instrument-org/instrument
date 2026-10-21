@@ -499,27 +499,29 @@ describe("the plan cards", () => {
 
   it.each([
     {
-      expected: 4,
-      models: [],
-      name: "the four big makers while the catalog names none",
+      expected: 0,
+      models: undefined,
+      name: "no models row when the offer names none",
     },
     {
       expected: 2,
       models: [
-        { maker: "anthropic", params: { provider: "instrument" } },
-        { maker: "xai", params: { provider: "instrument" } },
-        { maker: "x-ai", params: { provider: "instrument" } },
-        { maker: "openai", params: { provider: "openai" } },
-        { params: { provider: "instrument" } },
+        { maker: "anthropic", name: "Claude Haiku 5.5" },
+        { maker: "xai", name: "Grok 5" },
+        { maker: "x-ai", name: "Grok 5 Fast" },
+        { name: "Auto" },
       ],
-      name: "the makers behind Instrument's models",
+      name: "the makers of the plan's own models",
     },
-  ])("marks $name", async ({ expected, models }) => {
-    platform.models = models;
+  ])("shows $name", async ({ expected, models }) => {
+    platform.offer = {
+      ...OFFER,
+      plans: OFFER.plans.map((plan) => ({ ...plan, models })),
+    } satisfies Offer;
     const of = await cards();
     await vi.waitFor(() => {
       expect(
-        of("basic")?.querySelector("[data-plan-makers]")?.children.length,
+        of("basic")?.querySelector("[data-plan-makers]")?.children.length ?? 0,
       ).toBe(expected);
     });
   });

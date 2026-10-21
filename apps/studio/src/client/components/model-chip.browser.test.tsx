@@ -30,25 +30,17 @@ const fable = AIGatewayModel.Schema.parse({
   }),
 });
 
-it("names the model that answered without dropping the one that was asked for", async () => {
+it("names the model that answered in place of the one asked for", async () => {
   await renderInBrowser(
-    <ModelChip aiGatewayModel={fable} replacedBy="Opus 5" />,
+    <ModelChip aiGatewayModel={fable} answeredBy="Opus 5" />,
   );
 
-  await expect.element(page.getByText("Fable 5")).toBeVisible();
-  await expect
-    .element(page.getByText("Opus 5", { exact: false }))
-    .toBeVisible();
-  expect(page.getByText("Fable 5").element()).toHaveStyle({
-    textDecorationLine: "line-through",
-  });
+  await expect.element(page.getByText("Opus 5")).toBeVisible();
+  await expect.element(page.getByText("Fable 5")).not.toBeInTheDocument();
 });
 
-it("draws one name when the provider served what was asked for", async () => {
+it("names the model asked for when the provider served it", async () => {
   await renderInBrowser(<ModelChip aiGatewayModel={fable} />);
 
   await expect.element(page.getByText("Fable 5")).toBeVisible();
-  expect(page.getByText("Fable 5").element()).not.toHaveStyle({
-    textDecorationLine: "line-through",
-  });
 });

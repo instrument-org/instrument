@@ -62,10 +62,13 @@ export function SetupHost() {
         className="pointer-events-none absolute top-[-442px] left-1/2 h-220 w-[1123px] -translate-x-1/2 bg-[radial-gradient(closest-side,var(--color-setup-glow),transparent_74%)]"
       />
       {/* The window's band, which drags it; the system draws the lights at
-        its left on macOS, and setup draws minimize and close elsewhere. */}
+        its left on macOS, and setup draws minimize and close elsewhere. It
+        lies over the page rather than above it, so a page taller than the
+        window (zoomed in, say) scrolls up under it as a Mac window's
+        content does, and keeps its full height. */}
       <div
         className={cn(
-          "relative flex shrink-0 items-center justify-end gap-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]",
+          "absolute inset-x-0 top-0 z-10 flex items-center justify-end gap-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]",
           isMacOS() && "pr-2",
         )}
         style={{ height: `${TOOLBAR_HEIGHT}px` }}

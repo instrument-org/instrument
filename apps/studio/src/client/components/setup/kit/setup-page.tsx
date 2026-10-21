@@ -1,3 +1,4 @@
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { Button } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
@@ -32,10 +33,12 @@ export function SetupPage({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-17">
+        {/* Clear of the window's band, which lies over the page. */}
+        <div className="shrink-0" style={{ height: `${TOOLBAR_HEIGHT}px` }} />
         <div
           className={cn(
-            "flex min-h-full flex-col items-center pb-6",
-            align === "center" ? "justify-center" : "pt-11",
+            "flex flex-1 shrink-0 flex-col items-center pb-6",
+            align === "center" ? "justify-center-safe" : "pt-11",
             className,
           )}
         >

@@ -54,7 +54,7 @@ export type DictationMicrophone = z.output<typeof DictationMicrophoneSchema>;
  * dictation comes back.
  */
 export type DictationFailure =
-  | { kind: "allowance-reached"; remainingSeconds?: number; resetsAt?: string }
+  | { kind: "allowance-reached"; resetsAt?: string }
   | { kind: "canceled" }
   | { kind: "connection" }
   /** The API heard no audio in the recording. */
@@ -69,13 +69,7 @@ export type DictationFailure =
   | { kind: "unsupported-audio" };
 
 export type DictationResult =
-  | {
-      durationSeconds: number;
-      ok: true;
-      /** Seconds of today's dictation left, when the API said. */
-      remainingSeconds?: number;
-      text: string;
-    }
+  | { ok: true; text: string }
   | { failure: DictationFailure; ok: false };
 
 /**

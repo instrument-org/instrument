@@ -16,10 +16,7 @@ import { getPlatformApiHeaders } from "./headers";
  */
 const TRANSCRIBE_TIMEOUT_MS = 180_000;
 
-const TranscriptSchema = z.object({
-  durationSeconds: z.number(),
-  text: z.string(),
-});
+const TranscriptSchema = z.object({ text: z.string() });
 
 /** The API answers in one of two shapes: a typed error, or a plain message. */
 const ErrorSchema = z.object({
@@ -31,51 +28,6 @@ const ErrorSchema = z.object({
     }),
   ]),
 });
-
-/**
- * What the last answer said about today's allowance: seconds left, and when
- * it comes back once there are none, for the session it was said to. Held in
- * memory only, so a press of the mic can be told before recording that there
- * is nothing left to spend, and another account signing in starts fresh.
- */
-let lastAllowance: {
-  remainingSeconds?: number;
-  resetsAt?: string;
-  token?: null | string;
-} = {};
-
-/** Keeps that today's dictation is used up until `resetsAt`. */
-export function noteDictationUsedUp(resetsAt: string | undefined) {
-  lastAllowance = { remainingSeconds: 0, resetsAt, token: getToken() };
-}
-
-function remainingSecondsOf(response: Response): number | undefined {
-  const header = response.headers.get("x-dictation-remaining-seconds");
-  const seconds = header === null ? Number.NaN : Number(header);
-  return Number.isFinite(seconds) ? seconds : undefined;
-}
-
-/**
- * Whether today's dictation is known to be used up: the last answer left
- * none, and the time it comes back has not passed. Anything less certain
- * lets the recording go ahead, and the API says no if it must.
- */
-export function dictationAllowance(now = Date.now()): {
-  exhausted: boolean;
-  resetsAt?: string;
-} {
-  const { remainingSeconds, resetsAt, token } = lastAllowance;
-  if (token !== getToken()) {
-    return { exhausted: false };
-  }
-  const resets = resetsAt === undefined ? Number.NaN : Date.parse(resetsAt);
-  const exhausted =
-    remainingSeconds !== undefined &&
-    remainingSeconds <= 0 &&
-    Number.isFinite(resets) &&
-    now < resets;
-  return exhausted ? { exhausted, resetsAt } : { exhausted };
-}
 
 function failed(failure: DictationFailure): DictationResult {
   return { failure, ok: false };
@@ -160,21 +112,8 @@ export async function transcribeDictation({
   }
 
   const body = await response.text().catch(() => "");
-  const remainingSeconds = remainingSecondsOf(response);
   if (!response.ok) {
-    const failure = dictationFailureOf(response.status, body);
-    if (failure.kind === "allowance-reached") {
-      lastAllowance = {
-        remainingSeconds: remainingSeconds ?? 0,
-        resetsAt: failure.resetsAt,
-        token: getToken(),
-      };
-      return failed({ ...failure, remainingSeconds: remainingSeconds ?? 0 });
-    }
-    return failed(failure);
-  }
-  if (remainingSeconds !== undefined) {
-    lastAllowance = { remainingSeconds, token: getToken() };
+    return failed(dictationFailureOf(response.status, body));
   }
 
   let json: unknown;
@@ -187,9 +126,5 @@ export async function transcribeDictation({
   if (!parsed.success) {
     return failed({ kind: "server" });
   }
-  return {
-    ...parsed.data,
-    ok: true,
-    ...(remainingSeconds !== undefined && { remainingSeconds }),
-  };
+  return { ok: true, text: parsed.data.text };
 }

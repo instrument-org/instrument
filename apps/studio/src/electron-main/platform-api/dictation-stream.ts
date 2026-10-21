@@ -7,7 +7,7 @@ import { WebSocket } from "ws";
 import { z } from "zod";
 
 import { platformApiBaseUrl } from "./base-url";
-import { dictationFailureOf, noteDictationUsedUp } from "./dictation";
+import { dictationFailureOf } from "./dictation";
 import { getPlatformApiHeaders } from "./headers";
 import { getToken } from "./utils";
 
@@ -109,9 +109,6 @@ export async function* listenForDictation({
     });
     response.on("end", () => {
       const failure = dictationFailureOf(response.statusCode ?? 0, body);
-      if (failure.kind === "allowance-reached") {
-        noteDictationUsedUp(failure.resetsAt);
-      }
       push({ failure, type: "unavailable" });
       end();
     });
@@ -147,9 +144,6 @@ export async function* listenForDictation({
     }
     if (message.type === "end") {
       ended = true;
-      if (message.reason === "allowance") {
-        noteDictationUsedUp(message.resetsAt);
-      }
     }
     push(message);
   });

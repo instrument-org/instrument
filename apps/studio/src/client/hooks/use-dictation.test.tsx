@@ -12,7 +12,6 @@ import {
 } from "./use-dictation";
 
 const mocks = vi.hoisted(() => ({
-  allowance: vi.fn(),
   feed: vi.fn(),
   finish: vi.fn(),
   listen: vi.fn(),
@@ -40,7 +39,6 @@ vi.mock(import("@/client/rpc/client"), () => ({
       },
     },
     dictation: {
-      allowance: { call: mocks.allowance },
       feed: { call: mocks.feed },
       finish: { call: mocks.finish },
       listen: { call: mocks.listen },
@@ -183,9 +181,7 @@ beforeEach(() => {
     yield* [];
   });
   mocks.finish.mockResolvedValue(undefined);
-  mocks.allowance.mockResolvedValue({ exhausted: false });
   mocks.transcribe.mockResolvedValue({
-    durationSeconds: 3,
     ok: true,
     text: "Hello there.",
   });
@@ -225,7 +221,7 @@ describe("useDictation", () => {
     expect(signal?.aborted).toBe(false);
 
     await act(async () => {
-      transcribed({ durationSeconds: 3, ok: true, text: "Hello there." });
+      transcribed({ ok: true, text: "Hello there." });
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(onText).toHaveBeenCalledWith("Hello there.");
@@ -310,7 +306,6 @@ describe("useDictation", () => {
   it("does not send when nothing was heard", async () => {
     mocks.open.mockResolvedValue(fakeCapture());
     mocks.transcribe.mockResolvedValue({
-      durationSeconds: 3,
       ok: true,
       text: "  ",
     });
@@ -492,36 +487,11 @@ describe("useDictation", () => {
     });
   });
 
-  it("opens no microphone for a start canceled while it was checking", async () => {
-    let allow: (value: { exhausted: boolean }) => void = () => undefined;
-    mocks.allowance.mockReturnValueOnce(
-      new Promise((resolve) => {
-        allow = resolve;
-      }),
-    );
-    const { result } = setup();
-    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
-    act(() => {
-      result.current.start();
-    });
-    act(() => {
-      result.current.cancel();
-    });
-    await act(async () => {
-      allow({ exhausted: false });
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(mocks.open).not.toHaveBeenCalled();
-    expect(result.current.phase.kind).toBe("idle");
-  });
-
   it("keeps the take when the allowance runs out mid-day", async () => {
     mocks.open.mockResolvedValue(fakeCapture());
     mocks.transcribe.mockResolvedValueOnce({
       failure: {
         kind: "allowance-reached",
-        remainingSeconds: 0,
         resetsAt: "2099-01-01T00:00:00.000Z",
       },
       ok: false,
@@ -541,26 +511,6 @@ describe("useDictation", () => {
     expect(toastOptions(mocks.toast.info.mock.calls[0]).action.label).toBe(
       "Try again",
     );
-  });
-
-  it("says the allowance is used up instead of recording", async () => {
-    mocks.allowance.mockResolvedValue({
-      exhausted: true,
-      resetsAt: "2099-01-01T00:00:00.000Z",
-    });
-    const { result } = setup();
-    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
-    act(() => {
-      result.current.start();
-    });
-    await waitFor(() => {
-      expect(mocks.toast.info).toHaveBeenCalledWith(
-        "You've used today's dictation",
-        expect.anything(),
-      );
-    });
-    expect(mocks.open).not.toHaveBeenCalled();
-    expect(result.current.phase.kind).toBe("idle");
   });
 
   it("asks a signed-out person to log in instead of recording", async () => {

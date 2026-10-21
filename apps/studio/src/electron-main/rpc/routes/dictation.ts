@@ -1,7 +1,4 @@
-import {
-  dictationAllowance,
-  transcribeDictation,
-} from "@/electron-main/platform-api/dictation";
+import { transcribeDictation } from "@/electron-main/platform-api/dictation";
 import {
   feedDictation,
   finishDictation,
@@ -106,11 +103,7 @@ const setSounds = base
     getMachinePreferences().set("dictationSounds", input.on);
   });
 
-/** Whether today's dictation is known to be used up, and when it comes back. */
-const allowance = base.handler(() => dictationAllowance());
-
 export const dictation = {
-  allowance,
   feed,
   finish,
   listen,

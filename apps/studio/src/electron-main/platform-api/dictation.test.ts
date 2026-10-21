@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { dictationAllowance, transcribeDictation } from "./dictation";
+import { transcribeDictation } from "./dictation";
 import { getToken } from "./utils";
 
 vi.mock(import("./headers"), () => ({
@@ -84,7 +84,6 @@ describe("transcribeDictation", () => {
     `);
     expect(result).toMatchInlineSnapshot(`
       {
-        "durationSeconds": 4.2,
         "ok": true,
         "text": "Hello there.",
       }
@@ -128,7 +127,6 @@ describe("transcribeDictation", () => {
       },
       {
         kind: "allowance-reached",
-        remainingSeconds: 0,
         resetsAt: "2026-10-14T00:00:00.000Z",
       },
     ],
@@ -194,63 +192,5 @@ describe("transcribeDictation", () => {
     const result = await transcribeDictation({ audio, surface: "composer" });
 
     expect(result).toEqual({ failure: { kind: "server" }, ok: false });
-  });
-
-  describe("the allowance", () => {
-    const resetsAt = "2026-10-14T00:00:00.000Z";
-    const beforeReset = Date.parse("2026-10-13T20:00:00.000Z");
-    const respond = (status: number, remaining: string, body: unknown) => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        Response.json(body, {
-          headers: { "x-dictation-remaining-seconds": remaining },
-          status,
-        }),
-      );
-      return transcribeDictation({ audio, surface: "composer" });
-    };
-    const reached = {
-      error: {
-        code: "dictation-allowance-reached",
-        message: "Come back later",
-        resetsAt,
-        retryable: false,
-      },
-    };
-
-    it("hands the seconds left to the renderer with the words", async () => {
-      expect(
-        await respond(200, "1234", { durationSeconds: 2, text: "Hi" }),
-      ).toMatchObject({ ok: true, remainingSeconds: 1234 });
-      expect(dictationAllowance(beforeReset)).toEqual({ exhausted: false });
-    });
-
-    it("is used up after a refusal, until the reset passes", async () => {
-      await respond(429, "0", reached);
-      expect(dictationAllowance(beforeReset)).toEqual({
-        exhausted: true,
-        resetsAt,
-      });
-      expect(dictationAllowance(Date.parse(resetsAt) + 1)).toEqual({
-        exhausted: false,
-      });
-    });
-
-    it("starts fresh for another account signing in", async () => {
-      await respond(429, "0", reached);
-      mockGetToken.mockReturnValue("another-token");
-      expect(dictationAllowance(beforeReset)).toEqual({ exhausted: false });
-    });
-
-    it("is not called used up on a zero with no reset time to wait for", async () => {
-      await respond(429, "0", reached);
-      await respond(200, "0", { durationSeconds: 2, text: "Hi" });
-      expect(dictationAllowance(beforeReset)).toEqual({ exhausted: false });
-    });
-
-    it("starts over when an answer says there is time left", async () => {
-      await respond(429, "0", reached);
-      await respond(200, "60", { durationSeconds: 2, text: "Hi" });
-      expect(dictationAllowance(beforeReset)).toEqual({ exhausted: false });
-    });
   });
 });

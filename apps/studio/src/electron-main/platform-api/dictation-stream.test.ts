@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
 
 import { platformApiBaseUrl } from "./base-url";
-import { dictationAllowance } from "./dictation";
 import {
   feedDictation,
   finishDictation,
@@ -222,25 +221,5 @@ describe("listenForDictation", () => {
     expect(await listen([])).toEqual([
       { failure: { kind: "connection" }, type: "unavailable" },
     ]);
-  });
-
-  it("keeps the allowance used up once a stream ends at it", async () => {
-    const resetsAt = new Date(Date.now() + 60_000).toISOString();
-    api = await fakeApi((socket) => {
-      socket.send(
-        JSON.stringify({
-          audioSeconds: 3,
-          complete: true,
-          reason: "allowance",
-          resetsAt,
-          type: "end",
-        }),
-      );
-      socket.close(1000, "allowance");
-    });
-
-    await listen([], { stop: false });
-
-    expect(dictationAllowance()).toEqual({ exhausted: true, resetsAt });
   });
 });

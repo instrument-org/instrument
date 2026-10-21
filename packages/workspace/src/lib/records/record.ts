@@ -58,8 +58,8 @@ const SessionHeaderSchema = z.object({
   forkedAt: StoreId.MessageSchema.optional(),
   /** On a task, its short name in the chat (`t1`). */
   handle: z.string().optional(),
-  /** On a task, the title it was started with. */
-  title: z.string().optional(),
+  /** On a task, the title it was started with, apart from the `title` setting the person changes. */
+  startedAs: z.string().optional(),
   /**
    * Every other log of the session this one's writer had read when it began,
    * by stem, with the last `seq` it read of each: what this log carries on

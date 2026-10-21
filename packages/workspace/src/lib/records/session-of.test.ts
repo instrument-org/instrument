@@ -191,7 +191,7 @@ describe("sessionOf", () => {
         handle: "t1",
         id: taskSession,
         parent: chatSession,
-        title: "Look into it",
+        startedAs: "Look into it",
       }),
       messageRecord(1, userMessage(taskSession, messageId(2), at(1))),
       messageRecord(2, assistantMessage(taskSession, messageId(3), at(2))),

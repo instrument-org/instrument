@@ -36,7 +36,7 @@ export function sessionOf(session: FoldedSession): Session.Type {
     }),
     ...(settings.starred?.value && { starredAt: settings.starred.at }),
     ...(stopped && !turnSinceStop && { stoppedBy: stopped.by }),
-    title: title?.value.text ?? session.title ?? UNTITLED_CHAT_TITLE,
+    title: title?.value.text ?? session.startedAs ?? UNTITLED_CHAT_TITLE,
     // The app's name is still the app's once it settles it, and a rename
     // the user typed never matches a line the app wrote.
     ...(title &&

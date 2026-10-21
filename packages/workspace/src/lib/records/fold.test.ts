@@ -219,7 +219,7 @@ describe("foldChat", () => {
             handle: "t1",
             id: taskSession,
             parent: chatSession,
-            title: "Look into it",
+            startedAs: "Look into it",
           }),
           messageRecord(1, user(3, 3, taskSession)),
         ],
@@ -237,7 +237,7 @@ describe("foldChat", () => {
       forkedAt: messageId(2),
       handle: "t1",
       parent: chatSession,
-      title: "Look into it",
+      startedAs: "Look into it",
     });
   });
 

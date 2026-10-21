@@ -79,7 +79,7 @@ export interface SessionStart {
   handle?: string;
   id: StoreId.Session;
   parent?: StoreId.Session;
-  title?: string;
+  startedAs?: string;
 }
 
 /** One of a session's settings: a field and what it is now. */
@@ -1068,7 +1068,7 @@ export class ChatRecords {
       ...(start.parent !== undefined && { parent: start.parent }),
       ...(start.forkedAt !== undefined && { forkedAt: start.forkedAt }),
       ...(start.handle !== undefined && { handle: start.handle }),
-      ...(start.title !== undefined && { title: start.title }),
+      ...(start.startedAs !== undefined && { startedAs: start.startedAs }),
       ...(Object.keys(continues).length > 0 && { continues }),
     };
   }
@@ -1475,7 +1475,7 @@ function startOf(session: FoldedSession): SessionStart {
     ...(session.parent !== undefined && { parent: session.parent }),
     ...(session.forkedAt !== undefined && { forkedAt: session.forkedAt }),
     ...(session.handle !== undefined && { handle: session.handle }),
-    ...(session.title !== undefined && { title: session.title }),
+    ...(session.startedAs !== undefined && { startedAs: session.startedAs }),
   };
 }
 
@@ -1489,7 +1489,7 @@ function headerOf(session: Session.Type): SessionStart {
     ...(session.handle !== undefined && { handle: session.handle }),
     id: session.id,
     ...(session.parentId !== undefined && { parent: session.parentId }),
-    title: session.title,
+    startedAs: session.title,
   };
 }
 
@@ -1773,7 +1773,7 @@ function startedSession(
     handle,
     id,
     parent,
-    title,
+    startedAs,
   }: SessionStart & {
     app: string;
     at: Date;
@@ -1790,7 +1790,7 @@ function startedSession(
     messages: [],
     ...(parent !== undefined && { parent }),
     settings: {},
-    ...(title !== undefined && { title }),
+    ...(startedAs !== undefined && { startedAs }),
     updatedAt: at,
     writtenBy: new Map(),
   };

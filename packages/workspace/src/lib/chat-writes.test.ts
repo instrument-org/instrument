@@ -252,7 +252,7 @@ describe("a chat written through its records", () => {
       forkedAt: asked.id,
       handle: "t1",
       parent: sessionId,
-      title: "Find hotels",
+      startedAs: "Find hotels",
     });
     // Its history is its chat's up to the fork, then its own.
     expect(

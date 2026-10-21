@@ -81,7 +81,8 @@ export interface FoldedSession {
   stopped?: { at: Date; by: Stopper };
   /** The hosts the session's browser has been on, from its newest `sites` record. */
   sites?: string[];
-  title?: string;
+  /** On a task, the title it was started with. */
+  startedAs?: string;
   /** When the session's newest record was written. */
   updatedAt: Date;
   /**
@@ -517,7 +518,7 @@ function folded(
     ...(session.rollover && { rollover: session.rollover.value }),
     ...(session.sites && { sites: session.sites.value }),
     ...(session.stopped && { stopped: session.stopped.value }),
-    ...(header.title === undefined ? {} : { title: header.title }),
+    ...(header.startedAs === undefined ? {} : { startedAs: header.startedAs }),
     updatedAt: new Date(session.updatedAt),
     writtenBy,
   };

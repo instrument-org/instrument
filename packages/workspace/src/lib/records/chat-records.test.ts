@@ -132,7 +132,7 @@ describe("ChatRecords", () => {
       service.startSession(CHAT, {
         createdAt: at(0),
         id: chatSession,
-        title: "Untitled chat",
+        startedAs: "Untitled chat",
       }),
       service.appendMessageWithParts(CHAT, {
         ...userMessage(chatSession, messageId(1), at(1)),
@@ -181,7 +181,7 @@ describe("ChatRecords", () => {
         handle: "t1",
         id: taskSession,
         parent: chatSession,
-        title: "Look into it",
+        startedAs: "Look into it",
       }),
       service.appendMessage(
         CHAT,

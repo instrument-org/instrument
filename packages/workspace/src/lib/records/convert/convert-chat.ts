@@ -512,7 +512,7 @@ async function logRecords(
       app,
       ...(session.parentId === undefined
         ? {}
-        : { parent: session.parentId, title: session.title }),
+        : { parent: session.parentId, startedAs: session.title }),
       ...(session.forkedAtMessageId === undefined
         ? {}
         : { forkedAt: session.forkedAtMessageId }),
@@ -627,7 +627,7 @@ function sessionRow(folded: FoldedSession): unknown {
   return {
     createdAt: folded.createdAt,
     id: folded.id,
-    title: title?.value.text ?? folded.title,
+    title: title?.value.text ?? folded.startedAs,
     updatedAt: folded.updatedAt,
     ...(folded.parent === undefined ? {} : { parentId: folded.parent }),
     ...(folded.forkedAt === undefined

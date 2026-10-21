@@ -249,7 +249,7 @@ async function throughRecords(service: ChatRecords) {
     handle: "t1",
     id: taskSession,
     parent: chatSession,
-    title: "Regions",
+    startedAs: "Regions",
   });
   for (const message of TASK_MESSAGES) {
     await service.appendMessageWithParts(CHAT, message);

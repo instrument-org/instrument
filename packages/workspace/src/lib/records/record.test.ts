@@ -79,7 +79,7 @@ describe("parseLogLine", () => {
         handle: "t1",
         id: sessionId(2),
         parent: session,
-        title: "Look into it",
+        startedAs: "Look into it",
       }),
     ],
     [

@@ -450,11 +450,11 @@ describe("convertChat", () => {
           "id": "ses_01K7A000000000000000000002",
           "parent": "ses_01K7A000000000000000000001",
           "settings": {},
+          "startedAs": "Find hotels",
           "stopped": {
             "at": 2026-10-14T12:01:30.000Z,
             "by": "person",
           },
-          "title": "Find hotels",
           "updatedAt": 2026-10-14T12:01:30.000Z,
           "writtenBy": Map {
             "msg_01K7A000000000000000000007" => "dev_AAAAAAAA",
@@ -853,7 +853,7 @@ describe("convertChat", () => {
         handle: "t2",
         id: sessionId(9),
         parent: CHAT_SESSION,
-        title: "Later",
+        startedAs: "Later",
       });
     });
 

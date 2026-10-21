@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { count, folderAction } from "./folder-flow";
+import { count, folderAction, foundNote } from "./folder-flow";
 
 const empty = { chats: 0, items: 0 };
 
@@ -79,5 +79,19 @@ describe("folderAction", () => {
       "1 chat",
       "12 chats",
     ]);
+  });
+});
+
+describe("foundNote", () => {
+  it.each([
+    [{ chats: 128, type: "earlier" } as const, { chats: 128, kind: "earlier" }],
+    [
+      { items: 214, type: "exists" } as const,
+      { items: 214, kind: "exists", moving: 3 },
+    ],
+    [{ create: true, type: "move" } as const, null],
+    [{ type: "denied" } as const, null],
+  ])("says %o on sight as %o", (action, note) => {
+    expect(foundNote(action, 3)).toEqual(note);
   });
 });

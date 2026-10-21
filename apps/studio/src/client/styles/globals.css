@@ -123,6 +123,7 @@ body {
   --color-vignette-banner-top: var(--vignette-banner-top);
   --color-vignette-banner-bottom: var(--vignette-banner-bottom);
   --color-setup-tile: var(--setup-tile);
+  --color-setup-picked: var(--setup-picked);
   --color-setup-perk-search: var(--setup-perk-search);
   --color-setup-perk-search-ink: var(--setup-perk-search-ink);
   --color-setup-perk-dictation: var(--setup-perk-dictation);
@@ -268,6 +269,8 @@ body {
   /* Setup's tiles over its ground (the free account's perks, the themes to
      pick), and the tinted wells of the perks' icons with their icons' ink. */
   --setup-tile: var(--card);
+  /* The picked row in setup's lists, such as the main model's. */
+  --setup-picked: var(--brand-50);
   --setup-perk-search: #c8fae5;
   --setup-perk-search-ink: var(--foreground);
   --setup-perk-dictation: #c8ecef;
@@ -435,6 +438,7 @@ body {
   --vignette-banner-top: color-mix(in oklab, #cddff2 30%, var(--gray-800));
   --vignette-banner-bottom: color-mix(in oklab, #eaf0f7 12%, var(--gray-800));
   --setup-tile: rgb(255 255 255 / 0.04);
+  --setup-picked: color-mix(in oklab, var(--brand-400) 24%, transparent);
   --setup-perk-search: color-mix(in oklab, #3fd8a0 18%, transparent);
   --setup-perk-search-ink: #c8fae5;
   --setup-perk-dictation: color-mix(in oklab, #3cc3cf 18%, transparent);

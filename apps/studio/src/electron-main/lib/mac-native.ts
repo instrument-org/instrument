@@ -78,6 +78,73 @@ interface MacModule {
   resolveAlias: (path: string) => Promise<string>;
   notificationStatus: () => Promise<string>;
   requestNotifications: () => Promise<string>;
+  automationStatus: (bundleId: string, request: string) => Promise<string>;
+}
+
+/** The Mac's own apps whose data has privacy settings of its own, by bundle id. */
+const APP_DATA_KINDS: Record<string, DataKind> = {
+  "com.apple.AddressBook": "contacts",
+  "com.apple.iCal": "calendars",
+  "com.apple.reminders": "reminders",
+};
+
+/**
+ * Where macOS stands on the app reaching `target`: Calendar, Reminders and
+ * Contacts by their data's privacy settings (the helper), any other app by
+ * whether it may be controlled (the module, since the app's own process
+ * holds the Apple Events entitlement). `request` raises the prompt nobody
+ * answered yet and waits for the answer. A running app alone is answered
+ * for under Automation, so one that is closed is `unknown`.
+ */
+export async function macAppAccess(
+  target: { bundleId: string; name: string },
+  { request }: { request: boolean },
+): Promise<"allowed" | "denied" | "not-asked" | "unknown"> {
+  const kind = Object.hasOwn(APP_DATA_KINDS, target.bundleId)
+    ? APP_DATA_KINDS[target.bundleId]
+    : undefined;
+  if (kind !== undefined) {
+    const { status } = await dataAccess(kind, { request });
+    switch (status) {
+      case "allowed":
+      case "not-asked":
+        return status;
+      case "denied":
+      case "restricted":
+      case "write-only":
+        return "denied";
+      default:
+        return "unknown";
+    }
+  }
+  const native = loadModule();
+  if (!native) {
+    return "unknown";
+  }
+  const answer = z
+    .union([
+      z.object({
+        status: z.enum([
+          "allowed",
+          "denied",
+          "not-asked",
+          "not-running",
+          "unknown",
+        ]),
+      }),
+      z.object({ error: z.string() }),
+    ])
+    .parse(
+      JSON.parse(
+        await native.automationStatus(
+          target.bundleId,
+          request ? "request" : "",
+        ),
+      ),
+    );
+  return "error" in answer || answer.status === "not-running"
+    ? "unknown"
+    : answer.status;
 }
 
 let macModule: MacModule | null | undefined;

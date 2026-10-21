@@ -26,6 +26,32 @@ const onDisk = (posixPath: string) => nodePath.resolve(posixPath);
 const slashed = (hostPath: string) =>
   `/${nodePath.relative(nodePath.parse(hostPath).root, hostPath).replaceAll(nodePath.sep, "/")}`;
 
+it.runIf(process.platform === "darwin")(
+  "says macOS refused a read the rules allow, from the bare error just-bash rethrows",
+  async () => {
+    const sam = onDisk("/Users/sam");
+    const delegate = new InMemoryFs({ "/notes.md": "n" });
+    // ReadWriteFs's sanitizer rethrows a refusal with the code in the
+    // message alone.
+    vi.spyOn(delegate, "readFile").mockRejectedValue(
+      new Error("EPERM: open '/notes.md'"),
+    );
+    const refusals: string[] = [];
+    const fs = rulesFs({
+      delegate,
+      hostRoot: sam,
+      onRefusal: (refusal) => refusals.push(refusal),
+      rules: { dangerouslyAllowEveryFolder: false, home: sam, rules: [] },
+      spell: slashed,
+    });
+
+    await expect(fs.readFile("/notes.md")).rejects.toThrow(/EPERM/);
+    expect(refusals).toEqual([
+      expect.stringMatching(/^macOS itself refused "\/Users\/sam\/notes.md"/),
+    ]);
+  },
+);
+
 it("refuses what the rules close, reports it, and leaves the rest alone", async () => {
   const sam = onDisk("/Users/sam");
   const delegate = new InMemoryFs({

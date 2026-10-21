@@ -10,6 +10,7 @@ import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-config
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import {
   finderEntries,
+  macAppAccess,
   macHelperBinPath,
   seatbeltHelperPath,
   resolveAlias,
@@ -214,6 +215,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       resolveAlias,
       // Files refuses what the viewers' file channel refuses, by one rule.
       isRefusedFile: (hostPath) => isRefusedFile(hostPath),
+      ...(process.platform === "darwin" ? { macAppAccess } : {}),
       macHelperBinPath: macHelperBinPath(),
       seatbeltHelperPath: seatbeltHelperPath(),
       mxcExecPath: getMxcExecPath(),

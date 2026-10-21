@@ -358,9 +358,59 @@ describe("permissions.answer", () => {
       macos.look = undefined;
     });
 
-    it("keeps a folder macOS refuses open with the yes, and wakes the askers once a retry gets in", async () => {
+    it("says macOS is asking while its prompt is up, then settles on the answer", async () => {
+      const { chatId, own } = await chatWithTask();
+      const desktop = path.join(os.homedir(), "Desktop", "Pantry");
+      await recordAsk({ chatId, sessionId: own }, "folder", desktop);
+      const [card] = await openAsks(chatId);
+      let answerMacos: (look: "system") => void = () => {};
+      macos.look = () =>
+        new Promise((resolve) => {
+          answerMacos = resolve;
+        });
+
+      const allowing = call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "allowed", id: chatId },
+        { context: context() },
+      );
+      await vi.waitFor(
+        async () => {
+          expect(await openAsks(chatId)).toEqual([
+            expect.objectContaining({ status: "macos-asking" }),
+          ]);
+        },
+        { timeout: 3000 },
+      );
+      answerMacos("system");
+      await allowing;
+
+      expect(await openAsks(chatId)).toEqual([
+        expect.objectContaining({ status: "macos-refused" }),
+      ]);
+    });
+
+    it("says a folder only its own app opens is private, with no way in", async () => {
       const { chatId, own } = await chatWithTask();
       await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+      const [card] = await openAsks(chatId);
+      macos.look = () => Promise.resolve("system");
+
+      await call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "allowed", id: chatId },
+        { context: context() },
+      );
+
+      expect(await openAsks(chatId)).toEqual([
+        expect.objectContaining({ status: "macos-private" }),
+      ]);
+    });
+
+    it("keeps a folder macOS refuses open with the yes, and wakes the askers once a retry gets in", async () => {
+      const { chatId, own } = await chatWithTask();
+      const desktop = path.join(os.homedir(), "Desktop", "Pantry");
+      await recordAsk({ chatId, sessionId: own }, "folder", desktop);
       const [card] = await openAsks(chatId);
       const sentBefore = sent.length;
       macos.look = () => Promise.resolve("system");

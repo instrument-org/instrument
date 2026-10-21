@@ -22,18 +22,22 @@ export interface Asker {
  * Records that the agent asked for a folder or an app the person has not
  * answered for, so the chat shows the card. One card per thing: asking again
  * while the card is up raises nothing new, and another session that asks
- * joins the card, to be woken with its answer too.
+ * joins the card, to be woken with its answer too. `macos` raises it, or
+ * turns the card already up, into one about macOS's own answer, for a thing
+ * the person's rules already allow. Answers the card's id.
  */
 export async function recordAsk(
   asker: Asker & { reason?: string },
   kind: PermissionAsk["kind"],
   target: string,
-): Promise<void> {
+  macos?: { allowed: "allowed" | "always"; status: MacosAskStatus },
+): Promise<string> {
   const joining = {
     ...(asker.partId && { partId: asker.partId }),
     ...(asker.reason && { reason: asker.reason }),
     sessionId: asker.sessionId,
   };
+  let id = ulid();
   await updateChatState(chatDir(asker.chatId), (state) => {
     const asks = state.waitingOn;
     const open = asks.find((ask) => ask.kind === kind && ask.target === target);
@@ -44,24 +48,37 @@ export async function recordAsk(
           {
             askedAt: getCurrentDate(),
             askers: [joining],
-            id: ulid(),
+            id,
             kind,
             status: "open" as const,
             target,
+            ...macos,
           },
         ],
       };
     }
-    if (open.askers.some((on) => on.sessionId === asker.sessionId)) {
+    id = open.id;
+    const joins = !open.askers.some((on) => on.sessionId === asker.sessionId);
+    if (!joins && macos === undefined) {
       return {};
     }
     return {
       waitingOn: asks.map((ask) =>
-        ask === open ? { ...ask, askers: [...ask.askers, joining] } : ask,
+        ask === open
+          ? {
+              ...ask,
+              ...macos,
+              askers: joins ? [...ask.askers, joining] : ask.askers,
+            }
+          : ask,
       ),
     };
   });
+  return id;
 }
+
+/** What a card about macOS's own answer says: asking, refused, or private. */
+export type MacosAskStatus = Exclude<PermissionAsk["status"], "open">;
 
 /** The chat's open permission cards, oldest first: this computer's. */
 export async function openPermissionAsks(
@@ -80,9 +97,13 @@ export function sortAsks<T extends Ask>(asks: T[]): T[] {
  * folder or app it asks about.
  */
 export function cardLine(card: Ask): string {
-  return card.kind === "question"
-    ? card.question.trim() || "Waiting for you to answer"
-    : `Waiting for your OK to use ${askTargetName(card.kind, card.target)}`;
+  if (card.kind === "question") {
+    return card.question.trim() || "Waiting for you to answer";
+  }
+  const name = askTargetName(card.kind, card.target);
+  return card.status === "macos-asking"
+    ? `Your Mac is asking about ${name}`
+    : `Waiting for your OK to use ${name}`;
 }
 
 /** Takes an answered permission card off the chat, and answers what it was. */
@@ -94,19 +115,20 @@ export function closeAsk(
 }
 
 /**
- * Marks an allowed folder macOS refused, keeping the yes, so its card offers
- * the system's own ways in and a retry wakes the askers with it.
+ * Marks an allowed folder or app as waiting on macOS, keeping the yes:
+ * macOS asking the person, refusing it (the card offers the system's own
+ * ways in, and a retry wakes the askers with the yes), or keeping it to its
+ * own app.
  */
-export async function refusedByMacos(
+export async function setMacosStatus(
   chatId: ChatId,
   askId: string,
+  status: MacosAskStatus,
   allowed: "allowed" | "always",
 ): Promise<void> {
   await updateChatState(chatDir(chatId), (state) => ({
     waitingOn: state.waitingOn.map((ask) =>
-      ask.id === askId
-        ? { ...ask, allowed, status: "macos-refused" as const }
-        : ask,
+      ask.id === askId ? { ...ask, allowed, status } : ask,
     ),
   }));
 }

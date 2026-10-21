@@ -5,7 +5,16 @@ import os from "node:os";
 import nodePath from "node:path";
 import { z } from "zod";
 
+import { setTimeout as sleep } from "node:timers/promises";
+
 import { recordAsk } from "../lib/chat/asks";
+import {
+  lookAsTheApp,
+  MACOS_ASKING_MS,
+  macosAppCard,
+  macosGuardedRoot,
+  macosRefusalStatus,
+} from "../lib/permissions/macos";
 import { withoutDataVolume } from "../lib/host-path";
 import {
   accountCanWrite,
@@ -69,8 +78,27 @@ export const AskPermission = setupTool({
       input.kind === "folder"
         ? await folderToAsk(chatId, input.target)
         : await appToAsk(chatId, input.target);
+    if (decided.state === "allowed" && decided.macos !== undefined) {
+      // The person's rules let it in, so whatever refused it was macOS,
+      // which is asking the person, refusing, or keeping it to its own app:
+      // the card for that goes up instead of an "allowed" the agent can only
+      // run into again.
+      const asker = { chatId, partId, reason: input.reason, sessionId };
+      const macos = await decided.macos(asker);
+      if (macos !== undefined) {
+        return ok({
+          kind: input.kind,
+          state: "asked" as const,
+          target: macos,
+        });
+      }
+    }
     if (decided.state !== "ask") {
-      return ok(decided);
+      return ok(
+        decided.state === "allowed"
+          ? { state: decided.state, target: decided.target }
+          : decided,
+      );
     }
     await recordAsk(
       { chatId, partId, reason: input.reason, sessionId },
@@ -108,8 +136,49 @@ export const AskPermission = setupTool({
 
 type Decided =
   | { message: string; state: "refused" }
-  | { state: "allowed"; target: string }
+  | {
+      /**
+       * Raises the card for macOS's own answer when macOS keeps the app
+       * out, answering what the card asks for; nothing when it lets it in.
+       */
+      macos?: (
+        asker: Parameters<typeof recordAsk>[0],
+      ) => Promise<string | undefined>;
+      state: "allowed";
+      target: string;
+    }
   | { state: "ask"; target: string };
+
+/**
+ * The card for a folder the rules allow that macOS keeps the app out of,
+ * raised when the look inside is refused, or hasn't answered in a moment
+ * where macOS asks the person about it; the card that is asking settles on
+ * their answer. Its folder, or nothing when macOS lets the app in.
+ */
+async function macosFolderCard(
+  asker: Parameters<typeof recordAsk>[0],
+  hostPath: string,
+): Promise<string | undefined> {
+  const folder =
+    existsSync(hostPath) && !statSync(hostPath).isDirectory()
+      ? nodePath.dirname(hostPath)
+      : hostPath;
+  const early = await Promise.race([
+    lookAsTheApp(folder, () => Promise.resolve()),
+    sleep(MACOS_ASKING_MS).then(() => "waiting" as const),
+  ]);
+  const status =
+    early === "system"
+      ? macosRefusalStatus(folder)
+      : early === "waiting" && macosGuardedRoot(folder) !== undefined
+        ? "macos-asking"
+        : undefined;
+  if (status === undefined) {
+    return undefined;
+  }
+  await recordAsk(asker, "folder", folder, { allowed: "allowed", status });
+  return folder;
+}
 
 /** The folder a card asks for to open `given`, by the rules, or why none can. */
 async function folderToAsk(
@@ -134,7 +203,13 @@ async function folderToAsk(
   const shown = (path: string) => JSON.stringify(shellPath(path));
   const reach = reachOf(rules, hostPath, "write");
   if (reach.level === "allow") {
-    return { state: "allowed", target: shellPath(hostPath) };
+    return {
+      ...(process.platform === "darwin" && {
+        macos: (asker) => macosFolderCard(asker, hostPath),
+      }),
+      state: "allowed",
+      target: shellPath(hostPath),
+    };
   }
   if (reach.level === "never") {
     return { message: closedNote(reach, shown(hostPath)), state: "refused" };
@@ -172,7 +247,12 @@ async function appToAsk(
   const app = { bundleId, name: given };
   const level = await appLevel(chatId, app);
   if (level === "allow") {
-    return { state: "allowed", target: given };
+    return {
+      macos: async (asker) =>
+        (await macosAppCard(asker, app)) === undefined ? undefined : given,
+      state: "allowed",
+      target: given,
+    };
   }
   if (level === "never") {
     return {

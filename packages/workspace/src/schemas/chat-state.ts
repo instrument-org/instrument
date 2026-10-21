@@ -64,11 +64,16 @@ const PermissionAskSchema = z.object({
   id: z.string(),
   kind: z.enum(["app", "folder"]),
   /**
-   * `macos-refused` once the person allowed a folder and macOS kept the app
-   * out of it: the card offers the Mac's folder panel and System Settings
-   * until a retry gets in or the person declines.
+   * What the card waits on once the person's yes is given: `open`, their
+   * answer; `macos-asking`, their answer to macOS's own prompt, which the
+   * look inside waits on; `macos-refused`, macOS keeping the app out, where
+   * the card offers the Mac's folder panel (a folder) and System Settings
+   * until a retry gets in or the person declines; `macos-private`, a folder
+   * only its own app may open, which the card says and offers no way into.
    */
-  status: z.enum(["macos-refused", "open"]).default("open"),
+  status: z
+    .enum(["macos-asking", "macos-private", "macos-refused", "open"])
+    .default("open"),
   /** The folder's absolute path, or the app's name. */
   target: z.string(),
 });

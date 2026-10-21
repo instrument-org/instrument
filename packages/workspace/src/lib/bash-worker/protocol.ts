@@ -9,6 +9,7 @@ import { type AbsolutePath, type ChatDir } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { type BashEnvOptions } from "../create-bash-env";
+import { type Asker } from "../chat/asks";
 import { type SetupTouch } from "../setup-changes";
 import { type CommandRun } from "../shell-commands/command-runs";
 import { type VenvError } from "../venv";
@@ -70,6 +71,14 @@ export type FromWorker =
       type: "capture-exception";
     }
   | { id: number; touch: SetupTouch; type: "setup-touch" }
+  /** A command waiting on macOS's prompt about `root`, which the chat's card says. */
+  | { asker: Asker; root: string; type: "macos-asking" }
+  /** What a read or listing learned of macOS's answer for a folder, for Settings. */
+  | {
+      answer: "allowed" | "denied";
+      hostPath: string;
+      type: "macos-folder-answer";
+    }
   | { id: number; result: WireResult; type: "result" }
   /**
    * What answered each command so far, whole: sent when a run adds a row,

@@ -1,9 +1,9 @@
-import { APP_NAME } from "@instrument-org/shared";
 import { type ByteString, type ExecResult } from "just-bash";
 import os from "node:os";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { appRefusal, type MacApp } from "../permissions/apps";
+import { macosAppCard, noteMacAppAnswer } from "../permissions/macos";
 import {
   hostPathOf,
   unsandboxedOperandRefusal,
@@ -199,8 +199,9 @@ function failure(command: string, message: string, exitCode = 1): ExecResult {
  *
  * Succeeds with the script's answer, its last line break dropped. A failure
  * is said in words: `errors` for the numbers the script raises itself, and
- * for the system's own, what to do about them. Exit code 2 means macOS was
- * told not to let the app be controlled.
+ * for the system's own, what to do about them. Exit code 2 means macOS
+ * keeps the app from controlling it, or is asking the person whether it
+ * may, and the chat's card for it is up.
  */
 export async function runAppScript({
   app,
@@ -225,6 +226,12 @@ export async function runAppScript({
   if (refusal !== undefined) {
     return failure(command, `refused: ${refusal}`);
   }
+  // macOS's own answer goes on a card, beside the system's prompt when
+  // nobody has answered it, rather than in a line the agent repeats.
+  const macos = await macosAppCard(layout.rules.asker, app);
+  if (macos !== undefined) {
+    return failure(command, macos, 2);
+  }
   const result = await execShim(OSASCRIPT_PATH, scriptArgv(script, values), {
     cancelSignal: signal,
     cwd: os.tmpdir(),
@@ -232,6 +239,7 @@ export async function runAppScript({
     unsandboxed: true,
   });
   if (result.exitCode === 0) {
+    noteMacAppAnswer(app, "allowed");
     return {
       exitCode: 0,
       stderr: "",
@@ -254,13 +262,22 @@ export async function runAppScript({
   }
   switch (code) {
     case -1743: {
+      noteMacAppAnswer(app, "denied");
       return failure(
         command,
-        `macOS isn't letting ${APP_NAME} control ${app.name}, because the person said no when it asked. Only they can change that, under System Settings › Privacy & Security › Automation.`,
+        (await macosAppCard(layout.rules.asker, app, { known: "denied" })) ??
+          "",
         2,
       );
     }
     case -1712: {
+      // A script to an app nobody has let the app control waits on macOS's
+      // prompt until the event times out; the app is running by then, so
+      // macOS can say whether that prompt is what held it.
+      const asking = await macosAppCard(layout.rules.asker, app);
+      if (asking !== undefined) {
+        return failure(command, asking, 2);
+      }
       return failure(
         command,
         `${app.name} took too long to answer. It may be busy or showing a dialog; try again, or ask the person to look at ${app.name}.`,

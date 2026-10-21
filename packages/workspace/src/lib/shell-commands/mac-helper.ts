@@ -2,6 +2,7 @@ import { defineCommand } from "just-bash";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { appRefusal, type MacApp } from "../permissions/apps";
+import { macosAppCard, noteMacAppAnswer } from "../permissions/macos";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
@@ -18,7 +19,7 @@ export const CALENDAR_COMMAND = {
     "`instrument calendar add-reminder --title <t> [--list <name>] [--due <date>] [--notes <n>]` add one. " +
     "When two accounts share a calendar or list name, --account names which. " +
     "A date is today, tomorrow, yesterday, 2026-10-06, or 2026-10-06T14:30 in local time. Answers are JSON. " +
-    "The first time a chat uses Calendar or Reminders the person is asked to allow it, and macOS asks them once for each; exit code 2 means macOS was told no, which only they can change in System Settings.",
+    "The first time a chat uses Calendar or Reminders the person is asked to allow it, and macOS asks them once for each; exit code 2 means macOS keeps Instrument out, and the person sees a card that lets them change it; their answer wakes you.",
   name: `${INSTRUMENT_COMMAND.name} calendar`,
   summary: "Read and add to Calendar and Reminders.",
   word: "calendar",
@@ -28,7 +29,7 @@ export const CONTACTS_COMMAND = {
   description:
     "Look people up in Contacts on this Mac through Apple's own interface, in well under a second. " +
     "`instrument contacts [--search <words>] [--limit <n>]` lists the people whose name, nickname, company, title, email, or phone holds every word, with their emails, phones, and birthday, as JSON. " +
-    "The first time a chat uses Contacts the person is asked to allow it, and macOS asks them once; exit code 2 means macOS was told no, which only they can change in System Settings.",
+    "The first time a chat uses Contacts the person is asked to allow it, and macOS asks them once; exit code 2 means macOS keeps Instrument out, and the person sees a card that lets them change it; their answer wakes you.",
   name: `${INSTRUMENT_COMMAND.name} contacts`,
   summary: "Look people up in Contacts.",
   word: "contacts",
@@ -98,12 +99,30 @@ export function createMacHelperCommand(
     if (refused !== undefined) {
       return refusal(command.name, `refused: ${refused}`);
     }
+    // macOS's own answer goes on a card, beside the system's prompt when
+    // nobody has answered it, rather than in a line the agent repeats.
+    const macos = await macosAppCard(layout.rules.asker, app);
+    if (macos !== undefined) {
+      return { ...refusal(command.name, macos), exitCode: 2 };
+    }
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const result = await execShim(
       binPath,
       command === CONTACTS_COMMAND ? ["contacts", ...args] : args,
       { cancelSignal: ctx.signal, cwd: hostCwd, env, stdin: "ignore" },
     );
+    // Exit code 2 is macOS refusing the app, which the helper only learns
+    // by asking, so the card goes up now.
+    if (result.exitCode === 2) {
+      noteMacAppAnswer(app, "denied");
+      const note = await macosAppCard(layout.rules.asker, app, {
+        known: "denied",
+      });
+      return { ...refusal(command.name, note ?? ""), exitCode: 2 };
+    }
+    if (result.exitCode === 0) {
+      noteMacAppAnswer(app, "allowed");
+    }
     return {
       exitCode: result.exitCode ?? 1,
       ...mapStreams(shimOutput(result, command.name), (text) => text),

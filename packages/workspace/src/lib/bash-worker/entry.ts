@@ -19,6 +19,7 @@ import { CommandRuns, withCommandRuns } from "../shell-commands/command-runs";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
+import { setMacosForwarder } from "../permissions/macos";
 import { setSetupTouchForwarder } from "../setup-changes";
 import {
   fromWireError,
@@ -97,6 +98,14 @@ setSetupTouchForwarder((touch) => {
   if (id !== undefined) {
     post({ id, touch, type: "setup-touch" });
   }
+});
+setMacosForwarder({
+  asking: (asker, root) => {
+    post({ asker, root, type: "macos-asking" });
+  },
+  folderAnswer: (hostPath, answer) => {
+    post({ answer, hostPath, type: "macos-folder-answer" });
+  },
 });
 setSubprocessTreeObserver({
   settled: (pid) => {

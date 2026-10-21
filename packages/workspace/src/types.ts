@@ -188,6 +188,17 @@ export interface WorkspaceConfig {
    * answers such a folder as refused by the app. Absent, nothing is.
    */
   isRefusedFile?: (hostPath: string) => Promise<boolean>;
+  /**
+   * Where macOS stands on the app reaching a Mac app: Calendar, Reminders
+   * and Contacts by their own privacy settings, any other app by whether it
+   * may be controlled. `request` raises the system's prompt when nobody has
+   * answered it, and waits for the answer. `unknown` where macOS can't say
+   * now (an app it only answers for while it runs); absent off macOS.
+   */
+  macAppAccess?: (
+    app: { bundleId: string; name: string },
+    options: { request: boolean },
+  ) => Promise<"allowed" | "denied" | "not-asked" | "unknown">;
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Whether the Instrument account's plan would run one of its hosted

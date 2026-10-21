@@ -129,7 +129,7 @@ describe("runAppScript", () => {
       -1743,
       "execution error: Not authorized to send Apple events to Notes. (-1743)",
       2,
-      "notes: macOS isn't letting Instrument control Notes, because the person said no when it asked. Only they can change that, under System Settings › Privacy & Security › Automation.\n",
+      "notes: macOS itself keeps Instrument out of Notes, not the person's settings. They now see a card that opens the setting, and their answer wakes you; stop here and say what you're waiting for.\n",
     ],
     [
       9013,

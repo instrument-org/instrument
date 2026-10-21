@@ -23,6 +23,7 @@ import {
   terminateSubprocessTree,
 } from "../subprocess-tree";
 import { getWorkspaceConfig } from "../workspace-config";
+import { noteMacosFolderAnswer, raiseMacosAsking } from "../permissions/macos";
 import { recordSetupTouch } from "../setup-changes";
 import {
   fromWireError,
@@ -283,6 +284,14 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       instance.pending.get(message.id)?.inContext(() => {
         recordSetupTouch(message.touch);
       });
+      return;
+    }
+    case "macos-asking": {
+      await raiseMacosAsking(message.asker, message.root);
+      return;
+    }
+    case "macos-folder-answer": {
+      noteMacosFolderAnswer(message.hostPath, message.answer);
       return;
     }
     case "tool": {

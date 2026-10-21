@@ -387,10 +387,57 @@ static napi_value caseSensitivity(napi_env env, napi_callback_info info) {
   });
 }
 
+/// Whether macOS lets the app control another app with Apple Events, asked
+/// by its bundle id, without sending one: allowed, denied, not-asked, or
+/// not-running, since macOS answers for a running app alone. With "request"
+/// as the second argument, a question nobody has answered raises the
+/// system's prompt and waits for the answer. Here, not in the helper: the
+/// app's own process holds the Apple Events entitlement.
+static napi_value automationStatus(napi_env env, napi_callback_info info) {
+  NSArray *args = stringArguments(env, info, 2);
+  NSString *bundleId = args.count > 0 && args[0] != NSNull.null ? args[0] : nil;
+  BOOL request = args.count > 1 && [args[1] isEqual:@"request"];
+  return answer(env, ^(Done done) {
+    if (bundleId == nil) {
+      done(@{@"error" : @"a bundle id is required"});
+      return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSData *bytes = [bundleId dataUsingEncoding:NSUTF8StringEncoding];
+      AEAddressDesc target;
+      if (AECreateDesc(typeApplicationBundleID, bytes.bytes, (Size)bytes.length, &target) !=
+          noErr) {
+        done(@{@"error" : @"could not name the app"});
+        return;
+      }
+      OSStatus status =
+          AEDeterminePermissionToAutomateTarget(&target, typeWildCard, typeWildCard, request);
+      AEDisposeDesc(&target);
+      switch (status) {
+        case noErr:
+          done(@{@"status" : @"allowed"});
+          break;
+        case errAEEventNotPermitted:
+          done(@{@"status" : @"denied"});
+          break;
+        case errAEEventWouldRequireUserConsent:
+          done(@{@"status" : @"not-asked"});
+          break;
+        case procNotFound:
+          done(@{@"status" : @"not-running"});
+          break;
+        default:
+          done(@{@"status" : @"unknown"});
+      }
+    });
+  });
+}
+
 static const struct {
   const char *name;
   napi_callback fn;
 } FUNCTIONS[] = {
+    {"automationStatus", automationStatus},
     {"fileIcon", fileIcon},
     {"finderEntries", finderEntries},
     {"pasteboardFiles", pasteboardFiles},

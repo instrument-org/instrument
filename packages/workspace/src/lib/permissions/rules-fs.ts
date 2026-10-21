@@ -1,5 +1,5 @@
 import { APP_NAME } from "@instrument-org/shared";
-import { type IFileSystem } from "just-bash";
+import { DefenseInDepthBox, type IFileSystem } from "just-bash";
 import { existsSync } from "node:fs";
 import nodePath from "node:path";
 
@@ -7,6 +7,12 @@ import { FOLDER_VARIABLES } from "../../constants";
 import { canonicalizeThroughMissing, withoutDataVolume } from "../host-path";
 import { accountCanWrite, systemOwnedNote } from "./account-can-write";
 import { askFirstNote, macosRefusalNote } from "../chat/asks";
+import {
+  MACOS_ASKING_MS,
+  macosGuardedRoot,
+  noteMacosFolderAnswer,
+  raiseMacosAsking,
+} from "./macos";
 import { isClosedDiskRoot } from "../disk-root";
 import {
   folderToAskFor,
@@ -261,18 +267,67 @@ export function rulesFs({
         Reflect.apply(value, target, args);
       // What the rules allowed and macOS refused anyway: the system's own
       // privacy settings, which the agent hears of beside the bare error so
-      // it asks for the folder instead of guessing at what blocked it.
-      const macosRefused = async (mountPath: string, run: () => unknown) => {
+      // it asks for the folder instead of guessing at what blocked it. One
+      // that waits in a folder macOS guards is macOS asking the person, which
+      // the chat's card says while it waits, rather than a quiet stall.
+      const macosRefused = async (
+        mountPath: string,
+        run: () => unknown,
+        {
+          isListing = false,
+          isRead = true,
+        }: { isListing?: boolean; isRead?: boolean } = {},
+      ) => {
+        const pending = Promise.resolve().then(run);
+        // A listing is what waits on macOS's prompt for its folder, and one
+        // in a folder macOS guards has no other reason to take a second; a
+        // read of a big file can, so a read raises nothing. Looking at the
+        // folder again to be sure would hold one more of the process's file
+        // threads for as long as the prompt is up.
+        const root =
+          rules.asker === undefined || !isListing
+            ? undefined
+            : macosGuardedRoot(given(mountPath));
+        if (rules.asker !== undefined && root !== undefined) {
+          const asker = rules.asker;
+          // The app's own timer, which just-bash blocks a running script
+          // from setting, so it is set and cleared as trusted host code.
+          const timer = DefenseInDepthBox.runTrusted(() =>
+            setTimeout(() => {
+              void DefenseInDepthBox.runTrustedAsync(() =>
+                raiseMacosAsking(asker, root),
+              ).catch(() => {});
+            }, MACOS_ASKING_MS),
+          );
+          void pending
+            .finally(() => {
+              DefenseInDepthBox.runTrusted(() => {
+                clearTimeout(timer);
+              });
+            })
+            .catch(() => {});
+        }
         try {
-          return await run();
+          const answered = await pending;
+          // A new file is written while macOS is still asking, so only a
+          // read or listing that answered says it let the app in.
+          if (isRead) {
+            noteMacosFolderAnswer(given(mountPath), "allowed");
+          }
+          return answered;
         } catch (error) {
+          // just-bash's own filesystem rethrows a refusal as a plain error
+          // whose message starts with the code, leaving no `code` on it.
           if (
             process.platform === "darwin" &&
             error instanceof Error &&
-            "code" in error &&
-            error.code === "EPERM"
+            (("code" in error && error.code === "EPERM") ||
+              error.message.startsWith("EPERM:"))
           ) {
-            onRefusal?.(macosRefusalNote(spell(given(mountPath))));
+            noteMacosFolderAnswer(given(mountPath), "denied");
+            onRefusal?.(
+              macosRefusalNote(JSON.stringify(spell(given(mountPath)))),
+            );
           }
           throw error;
         }
@@ -283,13 +338,17 @@ export function rulesFs({
           const named = listings.count === 0;
           listings.count++;
           check("list", key, dir, named);
-          return named ? macosRefused(dir, () => call(...args)) : call(...args);
+          return named
+            ? macosRefused(dir, () => call(...args), { isListing: true })
+            : call(...args);
         };
       }
       if (reads.has(key) || writes.has(key)) {
         return async (...args: unknown[]) => {
           check(reads.has(key) ? "read" : "write", key, String(args[0]));
-          return macosRefused(String(args[0]), () => call(...args));
+          return macosRefused(String(args[0]), () => call(...args), {
+            isRead: reads.has(key),
+          });
         };
       }
       if (key === "cp" || key === "mv" || key === "link" || key === "symlink") {

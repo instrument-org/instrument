@@ -21,8 +21,20 @@ import {
   updatePermissionSettings,
 } from "../../lib/permissions/rules";
 import { appBundleId, grantApp } from "../../lib/permissions/apps";
-import { closeAsk, refusedByMacos } from "../../lib/chat/asks";
+import {
+  closeAsk,
+  type MacosAskStatus,
+  setMacosStatus,
+} from "../../lib/chat/asks";
 import { openAsks } from "../../lib/chat/open-asks";
+import {
+  lookAsTheApp,
+  MACOS_ASKING_MS,
+  macAppStanding,
+  macosRefusalStatus,
+  macosRefusedFolders,
+} from "../../lib/permissions/macos";
+import { setTimeout as sleep } from "node:timers/promises";
 import { grantFolder } from "../../lib/chat/grants";
 import { setDenied } from "../../lib/permissions/denials";
 import { wakeAskers } from "../../lib/chat/wake";
@@ -33,7 +45,6 @@ import { base } from "../base";
 import { type PermissionAsk } from "../../schemas/chat-state";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { listFolder } from "../../lib/chat/folder-look";
 
 const PermissionsViewSchema = z.object({
   /**
@@ -127,6 +138,37 @@ function view(
 const get = base
   .output(PermissionsViewSchema)
   .handler(async () => view(await readPermissionSettings()));
+
+/**
+ * What macOS keeps the app out of among what the person allowed, for
+ * Settings to say beside their answer: each app it refuses, by name, as
+ * macOS says now or last said, and each folder it guards that it last
+ * refused, by that folder. Asking about a folder nobody answered would
+ * raise macOS's prompt, so folders are what the app's own looks found.
+ */
+const macos = base
+  .output(z.object({ apps: z.array(z.string()), folders: z.array(z.string()) }))
+  .handler(async () => {
+    if (process.platform !== "darwin") {
+      return { apps: [], folders: [] };
+    }
+    const allowed = (await readPermissionSettings()).apps.filter(
+      (app) => app.level === "allow",
+    );
+    const refused = await Promise.all(
+      allowed.map(async (app) => {
+        const bundleId = app.bundleId ?? (await appBundleId(app.name));
+        return bundleId !== undefined &&
+          (await macAppStanding({ bundleId, name: app.name })) === "denied"
+          ? app.name
+          : undefined;
+      }),
+    );
+    return {
+      apps: refused.filter((name) => name !== undefined),
+      folders: macosRefusedFolders(),
+    };
+  });
 
 /** Sets a built-in place's rule. The output folder is always allowed. */
 const setPlace = base
@@ -276,9 +318,9 @@ const removeApp = base
  * The person's answer to an ask: allowed in this chat, allowed always, or
  * not now, which the chat keeps whoever asked. Every session that asked is
  * woken with the answer, or hears it at its next step if its turn is still
- * going. On macOS a folder allowed is looked inside first, which is when the
- * system's own ask for it comes up, and the call settles once that is
- * answered; a folder the system refuses keeps its card, `macos-refused`,
+ * going. On macOS a folder or app allowed is asked of macOS first, which is
+ * when the system's own prompt for it comes up, and the call settles once
+ * that is answered; one the system refuses keeps its card, `macos-refused`,
  * until `retry` gets in or the person declines.
  */
 const answer = base
@@ -301,16 +343,20 @@ const answer = base
   });
 
 /**
- * Looks inside a folder macOS refused again, after the person picked it in
- * the system's folder panel or allowed it in System Settings, and wakes the
- * askers with the yes they gave once it gets in.
+ * Asks macOS again about a folder or app it refused, after the person
+ * picked the folder in the system's panel or allowed it in System Settings,
+ * or waits out the prompt a card that is `macos-asking` stands for, and
+ * wakes the askers with the yes they gave once the app gets in.
  */
 const retry = base
   .input(z.object({ askId: z.string(), id: ChatIdSchema }))
   .output(z.void())
   .handler(async ({ context, input }) => {
     const ask = await openPermissionAsk(input.id, input.askId);
-    if (ask.status !== "macos-refused" || !ask.allowed) {
+    if (
+      (ask.status !== "macos-refused" && ask.status !== "macos-asking") ||
+      !ask.allowed
+    ) {
       throw new ORPCError("BAD_REQUEST", {
         message: "That request isn't waiting on macOS.",
       });
@@ -412,9 +458,9 @@ const settling = new Map<string, Promise<void>>();
 
 /**
  * Closes an allowed ask and wakes its askers, once macOS lets the app into
- * the folder: the look inside waits as long as the system's own ask is up.
- * One macOS refuses stays open as `macos-refused`, keeping the yes. Off
- * macOS, and for an app, nothing is looked at.
+ * the folder or the app: asking waits as long as the system's own prompt is
+ * up, and the card says macOS is asking meanwhile. One macOS refuses stays
+ * open, keeping the yes. Off macOS nothing is asked.
  */
 function settle(
   chatId: ChatId,
@@ -427,11 +473,12 @@ function settle(
     return running;
   }
   const settled = (async () => {
-    if (ask.kind === "folder" && process.platform === "darwin") {
-      if ((await listFolder(ask.target)) === "system") {
-        await refusedByMacos(chatId, ask.id, decision);
-        return;
-      }
+    const kept = await macosKeepsOut(ask, () =>
+      setMacosStatus(chatId, ask.id, "macos-asking", decision),
+    );
+    if (kept !== undefined) {
+      await setMacosStatus(chatId, ask.id, kept, decision);
+      return;
     }
     const closed = await closeAsk(chatId, ask.id);
     if (!closed) {
@@ -453,9 +500,47 @@ function settle(
   return settled;
 }
 
+/**
+ * How macOS keeps the app from what `ask` is for, once the person said
+ * yes: the card's status, or undefined when it lets the app in (or off
+ * macOS). A folder is looked inside, and an app asked of macOS, which raises
+ * the system's prompt nobody has answered yet; `onAsking` runs once when
+ * that answer is a while coming.
+ */
+async function macosKeepsOut(
+  ask: PermissionAsk,
+  onAsking: () => Promise<void>,
+): Promise<Exclude<MacosAskStatus, "macos-asking"> | undefined> {
+  if (process.platform !== "darwin") {
+    return undefined;
+  }
+  if (ask.kind === "folder") {
+    return (await lookAsTheApp(ask.target, onAsking)) === "system"
+      ? macosRefusalStatus(ask.target)
+      : undefined;
+  }
+  const bundleId = await appBundleId(ask.target);
+  if (bundleId === undefined) {
+    return undefined;
+  }
+  const standing = macAppStanding(
+    { bundleId, name: ask.target },
+    { request: true },
+  );
+  const early = await Promise.race([
+    standing,
+    sleep(MACOS_ASKING_MS).then(() => "waiting" as const),
+  ]);
+  if (early === "waiting") {
+    await onAsking();
+  }
+  return (await standing) === "denied" ? "macos-refused" : undefined;
+}
+
 export const permissions = {
   answer,
   declineAll,
+  macos,
   retry,
   get,
   removeApp,

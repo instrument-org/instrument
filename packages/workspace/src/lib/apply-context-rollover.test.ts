@@ -5,6 +5,7 @@ import { type StoreId } from "../schemas/store-id";
 import {
   applyContextRollover,
   contextRolloverBoundaryInForce,
+  rolloverWindowDecision,
   contextRolloverWouldReclaim,
 } from "./apply-context-rollover";
 import { sanitizeSurrogates } from "./sanitize-model-text";
@@ -214,68 +215,97 @@ describe("applyContextRollover", () => {
   });
 });
 
-describe("contextRolloverBoundaryInForce", () => {
-  const BOUNDARY = id("a2");
-
-  it("has nothing to apply in a session that never rolled over", () => {
+describe("rolloverWindowDecision", () => {
+  it("holds the boundary while the window is the one it was drawn under", () => {
     expect(
-      contextRolloverBoundaryInForce({
-        rolledOverAfterMessageId: undefined,
-        rolledOverUnderUsableTokens: 4800,
-        usable: 800_000,
-      }),
-    ).toBeUndefined();
-  });
-
-  it("keeps the boundary while the window is the one it was drawn under", () => {
-    expect(
-      contextRolloverBoundaryInForce({
-        rolledOverAfterMessageId: BOUNDARY,
+      rolloverWindowDecision({
         rolledOverUnderUsableTokens: 4800,
         usable: 4800,
       }),
-    ).toBe(BOUNDARY);
+    ).toEqual({ lifted: false, usableTokens: 4800 });
   });
 
-  it("keeps the boundary on a move to an even smaller window", () => {
+  it("holds the boundary on a move to an even smaller window", () => {
     expect(
-      contextRolloverBoundaryInForce({
-        rolledOverAfterMessageId: BOUNDARY,
+      rolloverWindowDecision({
         rolledOverUnderUsableTokens: 4800,
         usable: 800,
       }),
-    ).toBe(BOUNDARY);
+    ).toEqual({ lifted: false, usableTokens: 800 });
   });
 
   it("lifts the boundary once the window has room the reset was taken for lack of", () => {
     expect(
-      contextRolloverBoundaryInForce({
-        rolledOverAfterMessageId: BOUNDARY,
+      rolloverWindowDecision({
         rolledOverUnderUsableTokens: 4800,
         usable: 800_000,
       }),
-    ).toBeUndefined();
+    ).toEqual({ lifted: true, usableTokens: 800_000 });
   });
 
-  it("keeps a boundary whose window was never recorded", () => {
+  it("holds a boundary whose window was never recorded", () => {
     // Drawn before the window was kept alongside it, or for a model that never
     // reported one. Either way there is nothing to compare, and a boundary that
     // cannot be judged stands.
     expect(
-      contextRolloverBoundaryInForce({
-        rolledOverAfterMessageId: BOUNDARY,
+      rolloverWindowDecision({
         rolledOverUnderUsableTokens: undefined,
         usable: 800_000,
       }),
-    ).toBe(BOUNDARY);
+    ).toEqual({ lifted: false, usableTokens: 800_000 });
   });
 
-  it("keeps the boundary when the model being asked has no known window", () => {
+  it("decides nothing for a model with no known window", () => {
     expect(
-      contextRolloverBoundaryInForce({
-        rolledOverAfterMessageId: BOUNDARY,
+      rolloverWindowDecision({
         rolledOverUnderUsableTokens: 4800,
         usable: undefined,
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe("contextRolloverBoundaryInForce", () => {
+  const BOUNDARY = id("a2");
+  const WINDOWS = {
+    roomy: { lifted: true, usableTokens: 800_000 },
+    small: { lifted: false, usableTokens: 4800 },
+  };
+
+  it("has nothing to apply in a session that never rolled over", () => {
+    expect(
+      contextRolloverBoundaryInForce({
+        model: "roomy",
+        rolledOverAfterMessageId: undefined,
+        rolloverWindows: WINDOWS,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("reads the verdict recorded for the model being asked", () => {
+    const inForce = (model: string | undefined) =>
+      contextRolloverBoundaryInForce({
+        model,
+        rolledOverAfterMessageId: BOUNDARY,
+        rolloverWindows: WINDOWS,
+      });
+    expect(inForce("roomy")).toBeUndefined();
+    expect(inForce("small")).toBe(BOUNDARY);
+  });
+
+  it("holds the boundary for a model with no verdict yet", () => {
+    expect(
+      contextRolloverBoundaryInForce({
+        model: "new-model",
+        rolledOverAfterMessageId: BOUNDARY,
+        rolloverWindows: WINDOWS,
+      }),
+    ).toBe(BOUNDARY);
+    expect(
+      contextRolloverBoundaryInForce({
+        model: undefined,
+        rolledOverAfterMessageId: BOUNDARY,
+        rolloverWindows: WINDOWS,
       }),
     ).toBe(BOUNDARY);
   });

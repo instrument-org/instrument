@@ -21,9 +21,7 @@ import {
   rememberForegroundPrograms,
   startBackgroundRun,
 } from "../lib/background-processes";
-import { usableContextTokens } from "../lib/context-budget";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
-import { effectiveContextLength } from "../lib/effective-context-length";
 import {
   BrowserSkillSchema,
   browserSkillToDeliver,
@@ -283,7 +281,6 @@ export const BashTool = setupTool({
     // The chat's own commands are its conversation's: a task of the chat's
     // runs in the same folder with a task's shell.
     const role = sessionRole(chatId, sessionId) ?? "task";
-    const usable = usableContextTokens(effectiveContextLength(model));
     const bash = await createBashEnv({
       folders,
       callPartId: partId,
@@ -295,7 +292,7 @@ export const BashTool = setupTool({
       remainingYieldMs: () => yieldMs - (performance.now() - startedAt),
       sessionId,
       chatId,
-      usable,
+      model: model.canonicalId,
     });
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
@@ -461,7 +458,11 @@ export const BashTool = setupTool({
 
     const pageAfter = await browserFollowUp.take(signal);
     const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
-      ? await browserSkillToDeliver({ sessionId, chatId, usable })
+      ? await browserSkillToDeliver({
+          sessionId,
+          chatId,
+          model: model.canonicalId,
+        })
       : undefined;
     const guidesShown = appGuidesShown(appGuides, outcome.output);
 

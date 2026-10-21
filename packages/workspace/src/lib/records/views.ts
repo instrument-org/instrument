@@ -202,7 +202,7 @@ export function mergeViews(
  * The session's whole history, for the model request to be built from:
  * every message, with the bytes its calls returned read back from their
  * blobs in the messages the model is sent, those after the rollover that
- * holds for a window of `usable` tokens. The messages before it keep their
+ * holds for `model` as the session recorded it. The messages before it keep their
  * blob references, since past a rollover only the person's words are sent.
  * A blob that is gone leaves its call an error saying so.
  *
@@ -212,14 +212,14 @@ export function mergeViews(
 export async function modelHistoryView(
   read: ChatRead,
   sessionId: StoreId.Session,
-  { inherited, usable }: HistoryOptions & { usable?: number } = {},
+  { inherited, model }: HistoryOptions & { model?: string } = {},
 ): Promise<SessionMessage.WithParts[]> {
   const session = read.chat.sessions.find(({ id }) => id === sessionId);
   const messages = messagesOf(read, sessionId, { inherited });
   const boundary = contextRolloverBoundaryInForce({
+    model,
     rolledOverAfterMessageId: session?.rollover?.after,
-    rolledOverUnderUsableTokens: session?.rollover?.usableTokens,
-    usable,
+    rolloverWindows: session?.rollover?.windows,
   });
   // A boundary the history does not hold sends everything, as the request's own reading of it does.
   const sentFrom = messages.findIndex((message) => message.id === boundary) + 1;

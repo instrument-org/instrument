@@ -42,15 +42,15 @@ export type BrowserSkill = z.output<typeof BrowserSkillSchema>;
 export async function browserSkillToDeliver({
   sessionId,
   chatId,
-  usable,
+  model,
 }: {
   sessionId: StoreId.Session;
   chatId: ChatId;
-  /** What the model the call answers to may use of its window. */
-  usable: number | undefined;
+  /** The canonical id of the model the call answers to. */
+  model: string | undefined;
 }): Promise<BrowserSkill | undefined> {
   try {
-    const messages = await readModelWindow({ chatId, sessionId, usable });
+    const messages = await readModelWindow({ chatId, model, sessionId });
     if (messages === undefined || browserSkillInWindow(messages)) {
       return undefined;
     }

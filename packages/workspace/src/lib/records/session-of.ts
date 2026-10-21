@@ -33,6 +33,9 @@ export function sessionOf(session: FoldedSession): Session.Type {
       ...(rollover.usableTokens !== undefined && {
         rolledOverUnderUsableTokens: rollover.usableTokens,
       }),
+      ...(rollover.windows !== undefined && {
+        rolloverWindows: rollover.windows,
+      }),
     }),
     ...(settings.starred?.value && { starredAt: settings.starred.at }),
     ...(stopped && !turnSinceStop && { stoppedBy: stopped.by }),

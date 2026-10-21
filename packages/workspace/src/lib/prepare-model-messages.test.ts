@@ -1332,6 +1332,98 @@ describe("prepareModelMessages", () => {
       });
     });
 
+    describe("a boundary decided once for each model", () => {
+      /**
+       * One model, as two processes serve it: the provider connection a
+       * window is reported under, and another that has heard nothing, which
+       * is what a restart or another computer is to the in-memory reports.
+       */
+      const served = () =>
+        createMockAIGatewayModel({
+          canonicalId: "decided-model-id",
+          contextLength: 1000,
+          providerConfigId: `served-${StoreId.newSessionId()}`,
+        });
+
+      /** A session rolled over under the small window. */
+      async function rolledOver() {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        await prepare(smallWindowModel);
+        expect(await storedBoundary()).toBeDefined();
+      }
+
+      const sendsTurn0 = (messages: ModelMessage[]) =>
+        modelTexts(messages).some((text) => text.includes("turn 0"));
+
+      async function storedWindows() {
+        const result = await ChatReads.session({ chatId, sessionId });
+        return result._unsafeUnwrap().rolloverWindows;
+      }
+
+      it("keeps a boundary it held after the provider reports a larger window", async () => {
+        await rolledOver();
+        expect(sendsTurn0(await prepare(served()))).toBe(false);
+
+        const reporting = served();
+        noteReportedContextLength(reporting, 100_000);
+
+        expect(sendsTurn0(await prepare(reporting))).toBe(false);
+        expect((await storedWindows())?.["decided-model-id"]).toEqual({
+          lifted: false,
+          usableTokens: 800,
+        });
+      });
+
+      it("keeps a boundary it lifted once the reported window is forgotten", async () => {
+        await rolledOver();
+        const reporting = served();
+        noteReportedContextLength(reporting, 100_000);
+        expect(sendsTurn0(await prepare(reporting))).toBe(true);
+
+        expect(sendsTurn0(await prepare(served()))).toBe(true);
+        expect((await storedWindows())?.["decided-model-id"]?.lifted).toBe(
+          true,
+        );
+      });
+
+      it("decides nothing for a model whose window is unknown, holding the boundary", async () => {
+        await rolledOver();
+
+        const unknown = createMockAIGatewayModel({
+          canonicalId: "unknown-window-model-id",
+        });
+
+        expect(sendsTurn0(await prepare(unknown))).toBe(false);
+        expect(
+          (await storedWindows())?.["unknown-window-model-id"],
+        ).toBeUndefined();
+      });
+
+      // A lifted history that outgrows the window is refused like any other
+      // request, and the refusal rolls the session over again, under a new
+      // boundary whose only verdict is the model it was drawn for.
+      it("rolls a lifted history over again when the provider refuses it for size", async () => {
+        await rolledOver();
+        const first = await storedBoundary();
+        const reporting = served();
+        noteReportedContextLength(reporting, 100_000);
+        await prepare(reporting);
+        // It answers once in the lifted window, then is refused.
+        await save(assistantMessageWithUsage("answered lifted", 50_000));
+        await save(refusedForSize());
+
+        await prepare(reporting);
+
+        expect(await storedBoundary()).not.toBe(first);
+        expect(await storedWindows()).toEqual({
+          "decided-model-id": { lifted: false, usableTokens: 80_000 },
+        });
+      });
+    });
+
     describe("a request the provider refused for size", () => {
       it("resets a session whose window the provider never reported", async () => {
         // Budgeting is off for this model and cannot be turned on, so the

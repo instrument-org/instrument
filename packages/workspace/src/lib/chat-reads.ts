@@ -35,25 +35,25 @@ export namespace ChatReads {
   /**
    * The session's history as the model is sent it: every message, with the
    * bytes its calls returned read back from the blobs that hold them in the
-   * messages inside the window `usable` tokens leave. `inherited: false`
+   * messages inside the window `model` is sent. `inherited: false`
    * reads the session's own messages alone, without those a task carries on
    * from its chat.
    */
   export function modelHistory({
     chatId,
     inherited,
+    model,
     sessionId,
-    usable,
   }: {
     chatId: ChatId;
     inherited?: boolean;
+    /** The canonical id of the model the request is for, whose recorded verdict may lift the boundary. */
+    model?: string;
     sessionId: StoreId.Session;
-    /** The window the request is being built for, which retires a boundary drawn under a smaller one. */
-    usable?: number;
   }): ResultAsync<SessionMessage.WithParts[], Failure> {
     return read(chatId).andThen((chat) =>
       ResultAsync.fromPromise(
-        modelHistoryView(chat, sessionId, { inherited, usable }),
+        modelHistoryView(chat, sessionId, { inherited, model }),
         storageError,
       ),
     );

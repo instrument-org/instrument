@@ -437,13 +437,15 @@ export class ChatRecords {
     if (
       saved.rolledOverAfterMessageId !== undefined &&
       (known?.rollover?.after !== saved.rolledOverAfterMessageId ||
-        known.rollover.usableTokens !== saved.rolledOverUnderUsableTokens)
+        known.rollover.usableTokens !== saved.rolledOverUnderUsableTokens ||
+        !isEqual(known.rollover.windows, saved.rolloverWindows))
     ) {
       await this.rollover(
         chatId,
         saved.id,
         saved.rolledOverAfterMessageId,
         saved.rolledOverUnderUsableTokens,
+        saved.rolloverWindows,
       );
     }
     // Against the session as it reads, whose stop a turn after it retires:
@@ -583,16 +585,21 @@ export class ChatRecords {
     });
   }
 
-  /** Where the session's context window was last reset. */
+  /**
+   * Where the session's context window was last reset, and whether that
+   * holds for each model asked since.
+   */
   rollover(
     chatId: ChatId,
     sessionId: StoreId.Session,
     after: StoreId.Message,
     usableTokens?: number,
+    windows?: Session.RolloverWindows,
   ): Promise<void> {
     const value = {
       after,
       ...(usableTokens !== undefined && { usableTokens }),
+      ...(windows !== undefined && { windows }),
     };
     return this.#with(chatId, (chat) => {
       const at = this.#now();

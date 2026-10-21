@@ -16,7 +16,8 @@ const LOG_RECORDS = {
     "a message, with its `role` and `id`; its words are in the `part` records that name it",
   part: "a piece of a message, which `part.metadata.messageId` names: `text` and `reasoning` hold words, `tool-<name>` a call with its `input` and `output`, `file` a file. The newest record of a part's id is the one that stands. A path the app wrote that starts `workspace:/` is from the workspace's top level",
   retract: "the `messages` it names are no longer in the session",
-  rollover: "the context window was reset after message `after`",
+  rollover:
+    "the context window was reset after message `after`; `windows` says, by model, whether that still holds (`lifted` when the model has room for everything). The newest record stands",
   session:
     "the log's first line: `parent` and `forkedAt` on a task, a session the chat started, whose history is its parent's up to `forkedAt`, then its own, and `startedAs`, the title it was started with",
   sites:

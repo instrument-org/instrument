@@ -13,32 +13,31 @@ import { ChatReads } from "./chat-reads";
  * aside: the request is built from it, and anything asking whether the model
  * already has something in front of it (a guide handed over with a command's
  * output) reads the same answer. The session's stored rollover boundary, which
- * a task inherits from its chat, applies while it binds the window of `usable`
- * tokens, so a model with room for more is counted as seeing more.
+ * a task inherits from its chat, applies unless the verdict the session
+ * recorded for `model` lifted it (`rolloverWindowDecision`), so a model with
+ * room for more is counted as seeing more, and the answer is read from the
+ * records alone.
  */
 export function modelWindow({
   messages,
+  model,
   session,
-  usable,
 }: {
   messages: readonly SessionMessage.WithParts[];
+  /** The canonical id of the model being asked. */
+  model: string | undefined;
   session:
-    | Pick<
-        Session.Type,
-        "rolledOverAfterMessageId" | "rolledOverUnderUsableTokens"
-      >
+    | Pick<Session.Type, "rolledOverAfterMessageId" | "rolloverWindows">
     | undefined;
-  /** What the model being asked may use, from `usableContextTokens`. */
-  usable: number | undefined;
 }): {
   /** The boundary in force: the last message before what is sent whole. */
   after: StoreId.Message | undefined;
   messages: SessionMessage.WithParts[];
 } {
   const after = contextRolloverBoundaryInForce({
+    model,
     rolledOverAfterMessageId: session?.rolledOverAfterMessageId,
-    rolledOverUnderUsableTokens: session?.rolledOverUnderUsableTokens,
-    usable,
+    rolloverWindows: session?.rolloverWindows,
   });
   return {
     after,
@@ -56,12 +55,13 @@ export function modelWindow({
  */
 export async function readModelWindow({
   chatId,
+  model,
   sessionId,
-  usable,
 }: {
   chatId: ChatId;
+  /** The canonical id of the model the check answers to. */
+  model: string | undefined;
   sessionId: StoreId.Session;
-  usable: number | undefined;
 }): Promise<SessionMessage.WithParts[] | undefined> {
   const [history, session] = await Promise.all([
     ChatReads.history({ chatId, sessionId }),
@@ -74,7 +74,7 @@ export async function readModelWindow({
     messages: history.value.filter(
       (message) => message.role !== "session-context",
     ),
+    model,
     session: session.isOk() ? session.value : undefined,
-    usable,
   }).messages;
 }

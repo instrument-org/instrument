@@ -3,6 +3,7 @@ import { err, ok } from "neverthrow";
 import { alphabetical } from "radashi";
 
 import { type AnyAgent } from "../agents/types";
+import { type Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -13,6 +14,7 @@ import { chatAttachmentsDir } from "./chat-dir-utils";
 import {
   applyContextRollover,
   contextRolloverWouldReclaim,
+  rolloverWindowDecision,
 } from "./apply-context-rollover";
 import {
   computeContextBudget,
@@ -46,6 +48,45 @@ import { shellPath } from "./workspace-fs-layout";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
+ * The session with a verdict for `model` on its rollover boundary, recorded
+ * the first time that model is asked with a window this process knows; as
+ * it was when there is no boundary, a verdict is already recorded, or the
+ * window is unknown (the boundary holds meanwhile). A verdict that cannot be
+ * recorded is not acted on, so the request reads only what is stored.
+ */
+async function withRolloverDecision({
+  chatId,
+  model,
+  session,
+  usable,
+}: {
+  chatId: ChatId;
+  model: string;
+  session: Session.Type | undefined;
+  usable: number | undefined;
+}): Promise<Session.Type | undefined> {
+  if (
+    session?.rolledOverAfterMessageId === undefined ||
+    session.rolloverWindows?.[model] !== undefined
+  ) {
+    return session;
+  }
+  const decision = rolloverWindowDecision({
+    rolledOverUnderUsableTokens: session.rolledOverUnderUsableTokens,
+    usable,
+  });
+  if (decision === undefined) {
+    return session;
+  }
+  const decided = {
+    ...session,
+    rolloverWindows: { ...session.rolloverWindows, [model]: decision },
+  };
+  const saved = await ChatWrites.saveSession(decided, chatId);
+  return saved.isOk() ? decided : session;
+}
+
+/**
  * Marks a message said for this request only and kept nowhere. A model that
  * keeps its own copy of the conversation (a Claude account's Claude Code)
  * sends it with the turn but does not count it as part of what it has seen,
@@ -69,10 +110,25 @@ export async function prepareModelMessages({
   const contextLength = effectiveContextLength(model);
   const usable = usableContextTokens(contextLength);
 
+  // The window this task is actually running in, read before anything is
+  // measured, because occupancy has to come from turns inside the current
+  // window: a reported count from before a reset describes a request that is no
+  // longer being sent, and taking it at face value would roll the session over
+  // again on every turn, eating another slice of history each time. Whether a
+  // boundary holds for this model is decided the first time it is asked and
+  // recorded with the boundary, so every request after reads the same answer
+  // whatever this process knows of the window then (`rolloverWindowDecision`).
+  const session = await withRolloverDecision({
+    chatId,
+    model: model.canonicalId,
+    session: await ChatReads.session({ chatId, sessionId }).unwrapOr(undefined),
+    usable,
+  });
+
   const messageResults = await ChatReads.modelHistory({
     chatId,
+    model: model.canonicalId,
     sessionId,
-    usable,
   });
 
   // Every failure is re-wrapped rather than returned as it came. A neverthrow
@@ -97,14 +153,6 @@ export async function prepareModelMessages({
   const allNonContextMessages = messages.filter(
     (message) => !isSessionContextMessage(message),
   );
-
-  // The window this task is actually running in. Read before anything is
-  // measured, because occupancy has to come from turns inside the current
-  // window: a reported count from before a reset describes a request that is no
-  // longer being sent, and taking it at face value would roll the session over
-  // again on every turn, eating another slice of history each time.
-  const sessionResult = await ChatReads.session({ chatId, sessionId });
-  const session = sessionResult.isOk() ? sessionResult.value : undefined;
 
   // Recorded before anything is measured or reset, so the transcript says the
   // model moved even on a turn that then fails. Attached to the newest message
@@ -135,13 +183,12 @@ export async function prepareModelMessages({
     );
   }
 
-  // Asked on every request rather than read straight off the session, so a
-  // boundary drawn when a smaller model ran out stops narrowing the history
-  // once a model with room for it is the one being asked.
+  // A boundary drawn when a smaller model ran out stops narrowing the history
+  // once a model with room for it is the one being asked, as recorded above.
   const sent = modelWindow({
     messages: allNonContextMessages,
+    model: model.canonicalId,
     session,
-    usable,
   });
   let rolledOverAfterMessageId = sent.after;
   let nonContextMessages = sent.messages;
@@ -210,6 +257,17 @@ export async function prepareModelMessages({
             ...row,
             rolledOverAfterMessageId: newest.id,
             rolledOverUnderUsableTokens: usable,
+            // A new boundary drops the verdicts on the last one; this model's
+            // is that it holds, since it was drawn under this window.
+            rolloverWindows:
+              usable === undefined
+                ? undefined
+                : {
+                    [model.canonicalId]: {
+                      lifted: false,
+                      usableTokens: usable,
+                    },
+                  },
           },
           chatId,
         ),

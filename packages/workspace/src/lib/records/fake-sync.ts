@@ -1,3 +1,4 @@
+import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type Stopper, StopperSchema } from "../../schemas/stop-notice";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -57,7 +58,11 @@ export interface SessionModel {
   parent?: StoreId.Session;
   parts: Map<string, SessionMessagePart.Type>;
   retracted: Set<string>;
-  rollover?: { after: StoreId.Message; usableTokens?: number };
+  rollover?: {
+    after: StoreId.Message;
+    usableTokens?: number;
+    windows?: Session.RolloverWindows;
+  };
   sites?: string[];
   stopped?: { at: Date; by: Stopper };
   /** Newest `at` of any record in the session's logs. */
@@ -544,6 +549,7 @@ export function simulateChat(random: Random): SimulatedChat {
           ...(record.usableTokens === undefined
             ? {}
             : { usableTokens: record.usableTokens }),
+          ...(record.windows === undefined ? {} : { windows: record.windows }),
         };
         break;
       case "stop":

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { addChildTask } from "../lib/chat/children";
 import { ChatWrites } from "../lib/chat-writes";
 import { sessionOfChat } from "../lib/record-folders";
+import { type Session } from "../schemas/session";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -98,6 +99,7 @@ describe("bash attaches the agent-browser skill", () => {
   async function saveSession(
     rolledOverAfterMessageId?: StoreId.Message,
     rolledOverUnderUsableTokens?: number,
+    rolloverWindows?: Session.RolloverWindows,
   ) {
     (
       await ChatWrites.saveSession(
@@ -106,6 +108,7 @@ describe("bash attaches the agent-browser skill", () => {
           id: sessionId,
           rolledOverAfterMessageId,
           rolledOverUnderUsableTokens,
+          rolloverWindows,
           title: "Browsing",
         },
         chatId,
@@ -165,13 +168,18 @@ describe("bash attaches the agent-browser skill", () => {
     ).toBeDefined();
   });
 
-  it("counts the turn before a rollover as carrying it for a model whose window lifts the boundary", async () => {
+  it("counts the turn before a rollover as carrying it for a model the session lifted the boundary for", async () => {
     await saveSession();
     await record(await bash("agent-browser --help"));
     const later = await record(await bash("echo later"));
-    await saveSession(later.id, 1000);
+    const roomy = createMockAIGatewayModel({
+      canonicalId: "roomy-model-id",
+      contextLength: 200_000,
+    });
+    await saveSession(later.id, 1000, {
+      "roomy-model-id": { lifted: true, usableTokens: 160_000 },
+    });
 
-    const roomy = createMockAIGatewayModel({ contextLength: 200_000 });
     expect(
       (await bash("agent-browser --help", { asked: roomy })).browserSkill,
     ).toBeUndefined();

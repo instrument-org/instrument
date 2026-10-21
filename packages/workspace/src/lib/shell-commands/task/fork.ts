@@ -216,6 +216,9 @@ async function startFork({
           rolledOverAfterMessageId: chatSession.value.rolledOverAfterMessageId,
           rolledOverUnderUsableTokens:
             chatSession.value.rolledOverUnderUsableTokens,
+          // And so does whether it holds for each model, so the task sends
+          // the history the chat's model was sent.
+          rolloverWindows: chatSession.value.rolloverWindows,
         }
       : {}),
     title: name,

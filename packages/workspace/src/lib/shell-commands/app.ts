@@ -90,8 +90,8 @@ export interface AppCommandContext {
   chatId: ChatId;
   /** The session running the call, whose history says which guides it has. */
   sessionId: StoreId.Session;
-  /** What the model the call answers to may use of its window (`usableContextTokens`). */
-  usable?: number;
+  /** The canonical id of the model the call answers to, whose window the session recorded a verdict for. */
+  model?: string;
 }
 
 /** The apps folder as the shell spells it. */
@@ -403,11 +403,11 @@ function jsonFrom(
  * that cut it hands it over again, and so does an edit to it since.
  */
 async function guideInWindow(
-  { chatId, sessionId, usable }: AppCommandContext,
+  { chatId, model, sessionId }: AppCommandContext,
   app: string,
   guide: string,
 ): Promise<boolean> {
-  const messages = await readModelWindow({ chatId, sessionId, usable });
+  const messages = await readModelWindow({ chatId, model, sessionId });
   return messages !== undefined && appGuideHandedOver(messages, app, guide);
 }
 

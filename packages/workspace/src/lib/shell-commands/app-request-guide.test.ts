@@ -6,6 +6,7 @@ import {
 } from "just-bash";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { type Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
@@ -44,17 +45,18 @@ describe("app request and the app's guide", () => {
     args: string[],
     {
       session = sessionId,
+      model,
       stdin = EMPTY_BYTES,
-      usable,
     }: {
+      /** The canonical id of the model the call answers to. */
+      model?: string;
       session?: StoreId.Session;
       stdin?: typeof EMPTY_BYTES;
-      usable?: number;
     } = {},
   ) {
     const recorded: RecordedAppGuide[] = [];
     const result = await withAppGuideHandOffs(recorded, () =>
-      createAppCommand({ chatId, sessionId: session, usable }).execute(
+      createAppCommand({ chatId, model, sessionId: session }).execute(
         args,
         createCommandContext({
           cwd: "/Users/me/chat",
@@ -108,6 +110,7 @@ describe("app request and the app's guide", () => {
     session: StoreId.Session,
     after: StoreId.Message,
     usableTokens?: number,
+    rolloverWindows?: Session.RolloverWindows,
   ) {
     const row = (
       await ChatReads.session({ chatId, sessionId: session })
@@ -118,6 +121,7 @@ describe("app request and the app's guide", () => {
           ...row,
           rolledOverAfterMessageId: after,
           rolledOverUnderUsableTokens: usableTokens,
+          rolloverWindows,
         },
         chatId,
       )
@@ -209,15 +213,18 @@ describe("app request and the app's guide", () => {
     expect(await handsOver(slug, { session: task.id })).toBe(false);
   });
 
-  it("counts a hand-off before the rollover as seen by a model whose window lifts the boundary, as the request does", async () => {
+  it("counts a hand-off before the rollover as seen by a model the session lifted the boundary for, as the request does", async () => {
     const slug = `guide-${chats}`;
     await connectedApiApp(slug);
     expect(await handsOver(slug)).toBe(true);
     const later = await app(["list"]);
-    await rollOver(sessionId, later.messageId, 1000);
+    await rollOver(sessionId, later.messageId, 1000, {
+      roomy: { lifted: true, usableTokens: 2000 },
+      small: { lifted: false, usableTokens: 1000 },
+    });
 
-    expect(await handsOver(slug, { usable: 2000 })).toBe(false);
-    expect(await handsOver(slug, { usable: 1000 })).toBe(true);
+    expect(await handsOver(slug, { model: "roomy" })).toBe(false);
+    expect(await handsOver(slug, { model: "small" })).toBe(true);
   });
 
   it("counts writing the guide as having it", async () => {

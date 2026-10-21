@@ -1,3 +1,4 @@
+import { type Session } from "../schemas/session";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
@@ -85,48 +86,67 @@ export function applyContextRollover({
 }
 
 /**
- * The boundary that still applies, of the one the session recorded.
+ * Whether the session's rollover boundary holds for a model, decided once.
  *
  * A rollover is a decision taken under a constraint, and the constraint can go
  * away. Reset on a small model, move to a roomy one, and an absolute boundary
  * would keep the task assembling from a narrowed history for the rest of its
- * life, hiding turns the new window has ample room for. Asking on every request
- * instead means the boundary lifts by itself the moment the room appears, and
- * settles back into place if the room goes away again, with nothing persisted
- * either time and nothing for a user to have to ask for.
+ * life, hiding turns the new window has ample room for. So the first time a
+ * model is asked after a boundary is drawn, its window is held against the
+ * one the boundary was drawn under, and the verdict is recorded with the
+ * boundary (`rolloverWindows`). Every later request for that model reads the
+ * verdict rather than the window, which this process may know differently
+ * after a restart or on another computer: the window a provider reports is
+ * held in memory, and the catalog's can differ from it.
  *
  * The test is the window rather than the occupancy it was drawn against.
  * Occupancy would have to be compared across tokenizers to be of any use here,
  * and would have to estimate the size of a history nothing has measured since
- * it was hidden. Windows are exact, both sides are known, and the comparison
- * says precisely what the ticket asks: is the constraint that produced this
- * boundary still in force. It is also self-consistent, in that a boundary
- * cannot lift under the window it was drawn under, since a rollover only ever
- * happens once occupancy has passed it.
+ * it was hidden. A boundary cannot lift under the window it was drawn under,
+ * since a rollover only ever happens once occupancy has passed it, and one
+ * recorded before the window was stored alongside it cannot be judged, so it
+ * holds. A model whose window is unknown offers nothing to compare, and gets
+ * no verdict until it has one; the boundary holds meanwhile.
  *
- * A boundary is kept whenever the answer is not clearly yes: a model whose
- * window is unknown offers nothing to compare, and one recorded before the
- * window was stored alongside it cannot be judged at all.
+ * Nothing here can send more than a window allows: a lifted history that
+ * outgrows the model is measured, or refused for size, and rolled over again
+ * like any other, which draws a new boundary and drops these verdicts.
  */
-export function contextRolloverBoundaryInForce({
-  rolledOverAfterMessageId,
+export function rolloverWindowDecision({
   rolledOverUnderUsableTokens,
   usable,
 }: {
-  rolledOverAfterMessageId: StoreId.Message | undefined;
   rolledOverUnderUsableTokens: number | undefined;
-  /** What the model now being asked may use, from `usableContextTokens`. */
+  /** What the model being asked may use, from `usableContextTokens`. */
   usable: number | undefined;
-}): StoreId.Message | undefined {
-  if (
-    rolledOverAfterMessageId === undefined ||
-    rolledOverUnderUsableTokens === undefined ||
-    usable === undefined
-  ) {
-    return rolledOverAfterMessageId;
+}): Session.RolloverWindows[string] | undefined {
+  if (usable === undefined) {
+    return undefined;
   }
+  return {
+    lifted:
+      rolledOverUnderUsableTokens !== undefined &&
+      usable > rolledOverUnderUsableTokens,
+    usableTokens: usable,
+  };
+}
 
-  return usable > rolledOverUnderUsableTokens
+/**
+ * The boundary in force for `model`, from what the session recorded alone:
+ * the boundary, unless the verdict recorded for that model lifted it. A
+ * model with no verdict yet is held to it.
+ */
+export function contextRolloverBoundaryInForce({
+  model,
+  rolledOverAfterMessageId,
+  rolloverWindows,
+}: {
+  /** The canonical id of the model being asked, if one is. */
+  model: string | undefined;
+  rolledOverAfterMessageId: StoreId.Message | undefined;
+  rolloverWindows: Session.RolloverWindows | undefined;
+}): StoreId.Message | undefined {
+  return model !== undefined && rolloverWindows?.[model]?.lifted
     ? undefined
     : rolledOverAfterMessageId;
 }

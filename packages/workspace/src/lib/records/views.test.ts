@@ -241,7 +241,12 @@ async function throughRecords(service: ChatRecords) {
   for (const message of CHAT_MESSAGES) {
     await service.appendMessageWithParts(CHAT, message);
   }
-  await service.rollover(CHAT, chatSession, messageId(6), 1000);
+  // Decided for two models: held for the one it was drawn under, lifted for
+  // one with room for everything.
+  await service.rollover(CHAT, chatSession, messageId(6), 1000, {
+    roomy: { lifted: true, usableTokens: 2000 },
+    small: { lifted: false, usableTokens: 1000 },
+  });
   service.live(CHAT, chatSession).setPart(STREAMING);
   await service.startSession(CHAT, {
     createdAt: at(10),
@@ -288,6 +293,10 @@ describe("views", () => {
         id: chatSession,
         rolledOverAfterMessageId: messageId(6),
         rolledOverUnderUsableTokens: 1000,
+        rolloverWindows: {
+          roomy: { lifted: true, usableTokens: 2000 },
+          small: { lifted: false, usableTokens: 1000 },
+        },
         starredAt: NOW,
         title: "Quarterly numbers",
         titleSettledAt: NOW,
@@ -326,9 +335,9 @@ describe("views", () => {
 
     // A model with room for what the rollover dropped is sent all of it, and
     // never the part still arriving.
-    expect(await modelHistoryView(read, chatSession, { usable: 2000 })).toEqual(
-      CHAT_MESSAGES,
-    );
+    expect(
+      await modelHistoryView(read, chatSession, { model: "roomy" }),
+    ).toEqual(CHAT_MESSAGES);
     expect(await modelHistoryView(read, taskSession)).toEqual([
       ...CHAT_MESSAGES.slice(0, 3),
       ...TASK_MESSAGES,
@@ -376,7 +385,7 @@ describe("views", () => {
     };
 
     const narrowed = await modelHistoryView(read, chatSession, {
-      usable: 1000,
+      model: "small",
     });
     expect(readFile(narrowed)?.output).toMatchObject({
       blob: expect.stringMatching(/^sha256-[0-9a-f]{64}\.png$/),
@@ -389,7 +398,7 @@ describe("views", () => {
       await fs.rm(path.join(blobs, name));
     }
     const lifted = readFile(
-      await modelHistoryView(read, chatSession, { usable: 2000 }),
+      await modelHistoryView(read, chatSession, { model: "roomy" }),
     );
     expect(lifted).toMatchObject({
       errorText:

@@ -338,6 +338,47 @@ describe("task new", () => {
     });
   });
 
+  // The chat's rollover boundary, and whether it holds for each model, are
+  // the task's: it sends the history the chat's model was sent.
+  it("inherits the chat's rollover boundary and the verdicts on it", async () => {
+    const chat = (
+      await ChatReads.session({
+        chatId: context.chatId,
+        sessionId: chatSessionId,
+      })
+    )._unsafeUnwrap();
+    const windows = {
+      "mock-model-id": { lifted: true, usableTokens: 160_000 },
+      small: { lifted: false, usableTokens: 800 },
+    };
+    (
+      await ChatWrites.saveSession(
+        {
+          ...chat,
+          rolledOverAfterMessageId: chatMessages[1]?.id,
+          rolledOverUnderUsableTokens: 800,
+          rolloverWindows: windows,
+        },
+        context.chatId,
+      )
+    )._unsafeUnwrap();
+
+    const { handOffs } = await fork();
+
+    expect(
+      (
+        await ChatReads.session({
+          chatId: context.chatId,
+          sessionId: forkId(handOffs),
+        })
+      )._unsafeUnwrap(),
+    ).toMatchObject({
+      rolledOverAfterMessageId: chatMessages[1]?.id,
+      rolledOverUnderUsableTokens: 800,
+      rolloverWindows: windows,
+    });
+  });
+
   it("reads the chat's messages as its own history, copying none", async () => {
     const { handOffs } = await fork();
     const id = forkId(handOffs);

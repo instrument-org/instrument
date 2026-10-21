@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { type Stopper } from "../../schemas/stop-notice";
 
 import { type ChatId } from "../../schemas/chat-id";
+import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
@@ -73,7 +74,11 @@ export interface FoldedSession {
   /** The session's own messages, oldest first, each with its parts. */
   messages: SessionMessage.WithParts[];
   parent?: StoreId.Session;
-  rollover?: { after: StoreId.Message; usableTokens?: number };
+  rollover?: {
+    after: StoreId.Message;
+    usableTokens?: number;
+    windows?: Session.RolloverWindows;
+  };
   /**
    * The newest stop. It applies until a message that starts a turn comes
    * after it, which the conversation says.
@@ -337,6 +342,9 @@ export class ChatFold {
             ...(record.usableTokens === undefined
               ? {}
               : { usableTokens: record.usableTokens }),
+            ...(record.windows === undefined
+              ? {}
+              : { windows: record.windows }),
           },
           place,
         );

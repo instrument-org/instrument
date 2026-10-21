@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { StopperSchema } from "../../schemas/stop-notice";
@@ -136,6 +137,12 @@ const LogRecordSchema = z.discriminatedUnion("t", [
     after: StoreId.MessageSchema,
     /** The usable window the reset was decided under, when known. */
     usableTokens: z.number().int().positive().optional(),
+    /**
+     * Whether the boundary holds for each model asked since, by its
+     * canonical id; a later record for the same boundary carries every
+     * decision so far.
+     */
+    windows: Session.RolloverWindowsSchema.optional(),
   }),
   z.object({
     t: z.literal("stop"),

@@ -6,6 +6,26 @@ import { StoreId } from "../store-id";
 import { SessionMessage } from "./message";
 
 export namespace Session {
+  /**
+   * Whether the rollover boundary holds for each model asked since it was
+   * drawn, by the model's canonical id: decided the first time a model with
+   * a known window is asked, from that window against the one the boundary
+   * was drawn under, and kept, so the history a request sends never turns on
+   * what this process happens to know about a window (a reported window is
+   * held in memory and gone after a restart). Kept with the boundary, and
+   * dropped by the next one.
+   */
+  export const RolloverWindowsSchema = z.record(
+    z.string(),
+    z.object({
+      /** The boundary does not hold: the model is sent the whole history. */
+      lifted: z.boolean(),
+      /** The usable window the decision was made under. */
+      usableTokens: z.number().int().positive(),
+    }),
+  );
+  export type RolloverWindows = z.output<typeof RolloverWindowsSchema>;
+
   export const Schema = z.object({
     /** When the chat was put away; absent while it is in the inbox. */
     archivedAt: z.date().optional(),
@@ -69,6 +89,8 @@ export namespace Session {
      * reader: this boundary cannot be judged, so it stands.
      */
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
+    /** Whether that boundary holds for each model asked since; see {@link RolloverWindowsSchema}. */
+    rolloverWindows: RolloverWindowsSchema.optional(),
     /**
      * Who ended a task's last turn with a stop: the person, from the task or
      * the chat's Stop, the chat's agent with `instrument task stop`, or the

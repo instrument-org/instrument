@@ -12,7 +12,10 @@ import { createAppCommand } from "./app";
 const chatId = ChatIdSchema.parse("app-catalog-task");
 
 async function catalog(...words: string[]) {
-  const result = await createAppCommand({ chatId, sessionId: StoreId.newSessionId() }).execute(
+  const result = await createAppCommand({
+    chatId,
+    sessionId: StoreId.newSessionId(),
+  }).execute(
     ["catalog", ...words],
     createCommandContext({
       cwd: "/Users/sam/chat",

@@ -125,7 +125,10 @@ beforeEach(async () => {
 });
 
 async function app(...args: string[]) {
-  return createAppCommand({ chatId, sessionId: StoreId.newSessionId() }).execute(
+  return createAppCommand({
+    chatId,
+    sessionId: StoreId.newSessionId(),
+  }).execute(
     args,
     createCommandContext({
       cwd: "/Users/sam/chat",

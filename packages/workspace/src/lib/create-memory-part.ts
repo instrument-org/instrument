@@ -98,7 +98,9 @@ export async function createMemoryPart({
     const history = await ChatReads.history({ chatId, sessionId });
     // Told nothing is what an empty memory also reads as: a fresh chat with
     // nothing to remember gets no note.
-    const state = history.isOk() ? lastToldMemory(history.value, sessionId) : {};
+    const state = history.isOk()
+      ? lastToldMemory(history.value, sessionId)
+      : {};
     if (isEqual(state, digests)) {
       return undefined;
     }

@@ -26,11 +26,7 @@ import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
-import {
-  answerQuestion,
-  openAsks,
-  openAsksOf,
-} from "../../lib/chat/open-asks";
+import { answerQuestion, openAsks, openAsksOf } from "../../lib/chat/open-asks";
 import { wakeAskers } from "../../lib/chat/wake";
 import { AskSchema } from "../../schemas/chat-state";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";

@@ -29,11 +29,7 @@ export function startAppEvents(workspaceRef: WorkspaceActorRef): void {
       }
       try {
         const connection = await readConnection(event.slug);
-        await wakeChatForApp(
-          [event],
-          workspaceRef,
-          connection?.askedIn,
-        );
+        await wakeChatForApp([event], workspaceRef, connection?.askedIn);
         if (connection?.askedIn && event.event !== "failed") {
           const { askedIn: _answered, ...rest } = connection;
           await getWorkspaceConfig().apps.connections.set(event.slug, rest);

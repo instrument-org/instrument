@@ -224,7 +224,10 @@ describe("ChatRecords", () => {
         updatedAt: NOW,
       },
     ]);
-    expect(landed.chat.sessions[0]?.sites).toEqual(["example.org", "example.com"]);
+    expect(landed.chat.sessions[0]?.sites).toEqual([
+      "example.org",
+      "example.com",
+    ]);
     // The image went to a blob, and comes back from it.
     const [chatTranscript] = await transcripts(service);
     const call = chatTranscript?.[1]?.parts[0];

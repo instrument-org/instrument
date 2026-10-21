@@ -51,9 +51,9 @@ describe("browser state", () => {
       }
     }
 
-    expect((await ChatReads.sites({ chatId, sessionId }))._unsafeUnwrap()).toEqual(
-      [],
-    );
+    expect(
+      (await ChatReads.sites({ chatId, sessionId }))._unsafeUnwrap(),
+    ).toEqual([]);
     await visited(["https://example.com/a"]);
     await visited([
       "https://example.org/a",
@@ -63,9 +63,9 @@ describe("browser state", () => {
       "https://example.org/b",
     ]);
 
-    expect((await ChatReads.sites({ chatId, sessionId }))._unsafeUnwrap()).toEqual(
-      ["example.com", "example.org"],
-    );
+    expect(
+      (await ChatReads.sites({ chatId, sessionId }))._unsafeUnwrap(),
+    ).toEqual(["example.com", "example.org"]);
   });
 });
 

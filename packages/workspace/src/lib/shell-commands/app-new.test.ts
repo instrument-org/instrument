@@ -45,7 +45,10 @@ async function app(...args: string[]) {
 }
 
 async function appWithStdin(stdin: string | undefined, ...args: string[]) {
-  return createAppCommand({ chatId, sessionId: StoreId.newSessionId() }).execute(
+  return createAppCommand({
+    chatId,
+    sessionId: StoreId.newSessionId(),
+  }).execute(
     args,
     createCommandContext({
       cwd: CHAT_FOLDER,
@@ -409,7 +412,10 @@ describe("app icon", () => {
   async function setIcon(slug: string, file: string, svg: string) {
     const taskFs = new InMemoryFs();
     await taskFs.writeFile(`${CHAT_FOLDER}/${file}`, svg);
-    return createAppCommand({ chatId, sessionId: StoreId.newSessionId() }).execute(
+    return createAppCommand({
+      chatId,
+      sessionId: StoreId.newSessionId(),
+    }).execute(
       ["icon", slug, file],
       createCommandContext({
         cwd: CHAT_FOLDER,

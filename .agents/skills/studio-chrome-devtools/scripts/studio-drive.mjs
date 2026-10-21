@@ -477,6 +477,14 @@ function readAccount(file) {
       `${file} is not an account file: it needs an \`api\` URL and a \`token\`.`,
     );
   }
+  // The app joins paths onto the server, which a query or fragment would
+  // swallow: Settings refuses them too (PlatformApiServerSchema).
+  const api = new URL(account.api);
+  if (!["http:", "https:"].includes(api.protocol) || api.search || api.hash) {
+    fail(
+      `${file} names an \`api\` the app cannot use: it needs an http(s) address with no query or fragment.`,
+    );
+  }
   return {
     api: account.api.replace(/\/+$/, ""),
     email: typeof account.email === "string" ? account.email : undefined,

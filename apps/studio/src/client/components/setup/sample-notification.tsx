@@ -40,7 +40,9 @@ function notificationLook(): NotificationLook {
 const SCREEN_EDGE: Record<NotificationLook, string> = {
   gnome:
     "[mask-image:radial-gradient(ellipse_55%_110%_at_50%_0%,black_35%,transparent_95%)]",
-  mac: "[mask-image:linear-gradient(17deg,transparent_49%,black_97%)]",
+  // Frame 10's own mask, crossed with one fading out leftward, so the
+  // outline is gone before its far corner rounds.
+  mac: "[mask-composite:intersect] [mask-image:linear-gradient(17deg,transparent_49%,black_97%),linear-gradient(90deg,transparent_12%,black_45%)]",
   windows: "[mask-image:linear-gradient(163deg,transparent_49%,black_97%)]",
 };
 

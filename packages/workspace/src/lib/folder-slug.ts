@@ -1,3 +1,4 @@
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
 
 // Leaves room for the "YYYY-MM-DD-" prefix (11) and a "-NN" collision suffix
@@ -13,7 +14,7 @@ export function folderSlug(
   prompt: string,
   maxLength = MAX_SLUG_LENGTH,
 ): string {
-  const tokens = renderSkillMentionsAsText(prompt)
+  const tokens = stripDictatedMarks(renderSkillMentionsAsText(prompt))
     // NFKD + diacritic strip folds accented characters to ASCII (é -> e)
     .normalize("NFKD")
     .replaceAll(/[\u0300-\u036F]/g, "")

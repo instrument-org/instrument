@@ -17,6 +17,7 @@
     "./app-directory": "./src/app-directory.ts",
     "./constants": "./src/constants.ts",
     "./decision-bars": "./src/decision-bars.ts",
+    "./dictated-text": "./src/dictated-text.ts",
     "./exceptions": "./src/exceptions/index.ts",
     "./icons": "./src/icons.ts",
     "./merge-generators": "./src/merge-generators.ts",

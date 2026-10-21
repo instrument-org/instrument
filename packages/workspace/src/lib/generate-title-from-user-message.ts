@@ -1,3 +1,4 @@
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import {
   type AIGatewayModel,
   CLIENT_SESSION_ID_HEADER,
@@ -207,7 +208,9 @@ export function generateTitleFromUserMessage({
 function titleSourceText(message: SessionMessage.UserWithParts): string {
   // Same as the message the agent reads: the model names what the user typed,
   // not the `[$name](skill:name)` wire form the mention is stored in.
-  const text = renderSkillMentionsAsText(textForMessage(message));
+  const text = stripDictatedMarks(
+    renderSkillMentionsAsText(textForMessage(message)),
+  );
 
   // What the user marked in their files is the request when they typed
   // nothing else, so the title is drawn from it too.

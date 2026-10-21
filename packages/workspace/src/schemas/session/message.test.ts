@@ -631,6 +631,58 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  it("tags dictated words for the model and says what the tag means", async () => {
+    const { messageId, messageMetadata, partMetadata } = baseMetadata();
+
+    const messages: SessionMessage.WithParts[] = [
+      {
+        id: messageId,
+        metadata: messageMetadata,
+        parts: [
+          {
+            metadata: partMetadata,
+            state: "done",
+            text: "Compare these\n[and check help scout too](dictated:)",
+            type: "text",
+          },
+        ],
+        role: "user",
+      },
+    ];
+
+    const result = await SessionMessage.toModelMessages(
+      messages,
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    expect(result).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "text": "<user_message>",
+              "type": "text",
+            },
+            {
+              "text": "Compare these
+      <dictated>and check help scout too</dictated>",
+              "type": "text",
+            },
+            {
+              "text": "</user_message>",
+              "type": "text",
+            },
+            {
+              "text": "The words in <dictated> tags were spoken and transcribed, so a word that doesn't fit may be one that sounds like the word the user meant.",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
   it("includes tool parts in output-available state", async () => {
     const { sessionId } = baseMetadata();
 

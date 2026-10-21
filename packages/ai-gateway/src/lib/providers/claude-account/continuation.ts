@@ -69,6 +69,70 @@ export function transientPrintsOf(messages: LanguageModelV4Message[]) {
   return messages.filter(isTransient).map(fingerprintOf);
 }
 
+/** A request's messages, as `splitPrompt` gives them. */
+type Prompt = ReturnType<typeof splitPrompt>;
+
+function restart(reason: string): Restart {
+  return { kind: "restart", reason };
+}
+
+/** Whether a message is the user's or the system's, rather than a reply or results. */
+function isSaid(message: LanguageModelV4Message) {
+  return message.role === "user" || message.role === "system";
+}
+
+/**
+ * What a request adds past `seen`, the messages a process, a record or a
+ * parent saw (`who`), when they open the request unchanged; else why not.
+ */
+function pastSeen(
+  seen: string[],
+  { kept, keptPrints }: Prompt,
+  who: string,
+): LanguageModelV4Message[] | Restart {
+  if (seen.length === 0) {
+    return restart(`${who} saw no messages`);
+  }
+  if (kept.length < seen.length) {
+    return restart(
+      `the request has ${kept.length} messages, ${who} saw ${seen.length}`,
+    );
+  }
+  const changed = seen.findIndex((print, index) => keptPrints[index] !== print);
+  if (changed !== -1) {
+    return restart(
+      `message ${changed} of ${seen.length} (${kept[changed]?.role ?? "missing"}) changed since ${who} saw it`,
+    );
+  }
+  return kept.slice(seen.length);
+}
+
+/**
+ * What a request adds past the reply `who` gave to what it saw, when what it
+ * saw opens the request unchanged and the reply follows; else why not.
+ */
+function pastReply(
+  seen: string[],
+  prompt: Prompt,
+  who: string,
+): LanguageModelV4Message[] | Restart {
+  const added = pastSeen(seen, prompt, who);
+  if (!Array.isArray(added)) {
+    return added;
+  }
+  const [reply, ...after] = added;
+  return reply?.role === "assistant"
+    ? after
+    : restart(
+        `message ${seen.length} is ${reply?.role ?? "missing"}, not the reply`,
+      );
+}
+
+/** The roles of `messages` in order, for a reason in the log. */
+function rolesOf(messages: LanguageModelV4Message[]) {
+  return messages.map((message) => message.role).join(", ") || "none";
+}
+
 /**
  * How a request follows from what a Claude Code session saw, or why it does
  * not and the session has to start over from our transcript. It follows
@@ -92,43 +156,18 @@ export function continuationOf(
     notesGiven?: ReadonlySet<string>;
     seen: string[];
   },
-  kept: LanguageModelV4Message[],
-  keptPrints: string[],
-  transient: LanguageModelV4Message[],
+  prompt: Prompt,
 ): Continuation | Restart {
-  const restart = (reason: string): Restart => ({ kind: "restart", reason });
-  const { seen } = session;
-  if (seen.length === 0) {
-    return restart("the process saw no messages");
+  const after = pastReply(session.seen, prompt, "the process");
+  if (!Array.isArray(after)) {
+    return after;
   }
-  if (kept.length <= seen.length) {
-    return restart(
-      `the request has ${kept.length} messages, the process saw ${seen.length}`,
-    );
-  }
-  const changed = seen.findIndex((print, index) => keptPrints[index] !== print);
-  if (changed !== -1) {
-    return restart(
-      `message ${changed} of ${seen.length} (${kept[changed]?.role ?? "missing"}) changed since the process saw it`,
-    );
-  }
-  const [reply, ...unseen] = kept.slice(seen.length);
-  if (reply?.role !== "assistant") {
-    return restart(
-      `message ${seen.length} is ${reply?.role ?? "missing"}, not the reply`,
-    );
-  }
-  const roles = unseen.map((message) => message.role).join(", ") || "none";
-  if (session.awaitingToolCallIds.length > 0) {
-    const [results, ...followedBy] = unseen;
-    if (
-      results?.role !== "tool" ||
-      !followedBy.every(
-        (message) => message.role === "user" || message.role === "system",
-      )
-    ) {
+  const { awaitingToolCallIds } = session;
+  if (awaitingToolCallIds.length > 0) {
+    const [results, ...followedBy] = after;
+    if (results?.role !== "tool" || !followedBy.every(isSaid)) {
       return restart(
-        `awaiting ${session.awaitingToolCallIds.length} tool results, the reply is followed by ${roles}`,
+        `awaiting ${awaitingToolCallIds.length} tool results, the reply is followed by ${rolesOf(after)}`,
       );
     }
     const parts = results.content.filter(
@@ -136,33 +175,31 @@ export function continuationOf(
         part.type === "tool-result",
     );
     const answered = new Set(parts.map((part) => part.toolCallId));
-    const missing = session.awaitingToolCallIds.filter(
-      (id) => !answered.has(id),
-    );
-    const notes = transient.filter(
+    const missing = awaitingToolCallIds.filter((id) => !answered.has(id));
+    if (missing.length > 0) {
+      return restart(
+        `results answer ${parts.length} calls and leave ${missing.length} of ${awaitingToolCallIds.length} unanswered`,
+      );
+    }
+    const notes = prompt.transient.filter(
       (message) => session.notesGiven?.has(fingerprintOf(message)) !== true,
     );
-    return missing.length === 0
-      ? {
-          kind: "tool-results",
-          results: parts,
-          followedBy: [...followedBy, ...notes],
-        }
-      : restart(
-          `results answer ${parts.length} calls and leave ${missing.length} of ${session.awaitingToolCallIds.length} unanswered`,
-        );
+    return {
+      followedBy: [...followedBy, ...notes],
+      kind: "tool-results",
+      results: parts,
+    };
   }
   // A turn of transient messages alone is a note on the reply, as asking for
   // a correction or for the rest of a reply cut off is. Kept nowhere, it
   // leaves what the process saw ending on the reply it answers, so the next
   // request's reply is the one this turn gives.
-  const added = [...unseen, ...transient];
-  return added.length > 0 &&
-    unseen.every(
-      (message) => message.role === "user" || message.role === "system",
-    )
+  const added = [...after, ...prompt.transient];
+  return added.length > 0 && after.every(isSaid)
     ? { kind: "turn", messages: added }
-    : restart(`no tool results awaited, the reply is followed by ${roles}`);
+    : restart(
+        `no tool results awaited, the reply is followed by ${rolesOf(after)}`,
+      );
 }
 
 /**
@@ -173,23 +210,15 @@ export function continuationOf(
  */
 export function branchOf(
   parent: { seen: string[] },
-  kept: LanguageModelV4Message[],
-  keptPrints: string[],
-  transient: LanguageModelV4Message[],
-): LanguageModelV4Message[] | undefined {
-  const { seen } = parent;
-  if (seen.length === 0 || kept.length <= seen.length) {
-    return undefined;
+  prompt: Prompt,
+): LanguageModelV4Message[] | Restart {
+  const added = pastSeen(parent.seen, prompt, "the parent");
+  if (!Array.isArray(added)) {
+    return added;
   }
-  if (seen.some((print, index) => keptPrints[index] !== print)) {
-    return undefined;
-  }
-  const added = kept.slice(seen.length);
-  return added.every(
-    (message) => message.role === "user" || message.role === "system",
-  )
-    ? [...added, ...transient]
-    : undefined;
+  return added.length > 0 && added.every(isSaid)
+    ? [...added, ...prompt.transient]
+    : restart(`what the parent saw is followed by ${rolesOf(added)}`);
 }
 
 /**
@@ -203,31 +232,15 @@ export function branchOf(
  */
 export function tailAfter(
   record: { awaitingToolCallIds: string[]; seen: string[] },
-  kept: LanguageModelV4Message[],
-  keptPrints: string[],
-  transient: LanguageModelV4Message[],
+  prompt: Prompt,
 ): { kind: "tail"; messages: LanguageModelV4Message[] } | Restart {
-  const restart = (reason: string): Restart => ({ kind: "restart", reason });
-  const { seen } = record;
-  if (seen.length === 0) {
-    return restart("its record saw no messages");
+  const after = pastReply(record.seen, prompt, "its record");
+  if (!Array.isArray(after)) {
+    return after;
   }
-  const changed = seen.findIndex((print, index) => keptPrints[index] !== print);
-  if (changed !== -1) {
-    return restart(
-      `message ${changed} of ${seen.length} (${kept[changed]?.role ?? "missing"}) changed since its record`,
-    );
-  }
-  const reply = kept[seen.length];
-  if (reply?.role !== "assistant") {
-    return restart(
-      `message ${seen.length} is ${reply?.role ?? "missing"}, not the reply its record ends on`,
-    );
-  }
-  const tail = [...kept.slice(seen.length + 1), ...transient];
+  const tail = [...after, ...prompt.transient];
   const [first] = tail;
-  const last = tail.at(-1);
-  if (first === undefined || last === undefined) {
+  if (first === undefined) {
     return restart("nothing follows the reply its record ends on");
   }
   if (first.role === "assistant") {
@@ -247,7 +260,7 @@ export function tailAfter(
       "the reply its record ends on is followed by results of calls it did not make",
     );
   }
-  return last.role === "assistant"
+  return tail.at(-1)?.role === "assistant"
     ? restart("the request ends on an assistant message")
     : { kind: "tail", messages: tail };
 }
@@ -355,14 +368,13 @@ export async function planStep<
   },
   prompt: ReturnType<typeof splitPrompt>,
 ): Promise<StepStart<Live>> {
-  const { kept, keptPrints, transient } = prompt;
   const cold = (tag: ColdStart["tag"], detail: string): StepStart<Live> => ({
     kind: "cold",
     why: { detail, tag },
   });
   let liveRestart: string | undefined;
   if (from.live) {
-    const continuation = continuationOf(from.live, kept, keptPrints, transient);
+    const continuation = continuationOf(from.live, prompt);
     if (continuation.kind !== "restart") {
       return { continuation, kind: "live", session: from.live };
     }
@@ -373,7 +385,7 @@ export async function planStep<
   const read = await from.record();
   if ("record" in read) {
     const { record } = read;
-    const tail = tailAfter(record, kept, keptPrints, transient);
+    const tail = tailAfter(record, prompt);
     if (tail.kind === "restart") {
       return liveRestart === undefined
         ? cold("transcript", tail.reason)
@@ -402,15 +414,12 @@ export async function planStep<
     return cold("fork", `the parent has ${parentRead.missing}`);
   }
   const parent = parentRead.record;
-  const branch = branchOf(parent, kept, keptPrints, transient);
   if (parent.forkPoint === undefined) {
     return cold("fork", "the parent's record has no fork point");
   }
-  if (branch === undefined) {
-    return cold(
-      "fork",
-      `the request does not carry on from the input of the parent's last step (${read.missing} of its own)`,
-    );
+  const branch = branchOf(parent, prompt);
+  if (!Array.isArray(branch)) {
+    return cold("fork", `${branch.reason} (${read.missing} of its own)`);
   }
   return {
     at: parent.forkPoint,

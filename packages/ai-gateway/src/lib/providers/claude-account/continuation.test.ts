@@ -56,8 +56,7 @@ function continuation(
   session: ReturnType<typeof after>,
   prompt: LanguageModelV4Message[],
 ) {
-  const { kept, keptPrints, transient } = splitPrompt(prompt);
-  return continuationOf(session, kept, keptPrints, transient);
+  return continuationOf(session, splitPrompt(prompt));
 }
 
 describe("continuationOf", () => {
@@ -206,7 +205,7 @@ describe("continuationOf", () => {
       ...after(first, ["t1"]),
       notesGiven: new Set(transientPrintsOf([rollover])),
     };
-    const { kept, keptPrints, transient } = splitPrompt([
+    const prompt = splitPrompt([
       system,
       user("one"),
       callsTool("t1"),
@@ -214,7 +213,7 @@ describe("continuationOf", () => {
       rollover,
       notice("81%"),
     ]);
-    expect(continuationOf(given, kept, keptPrints, transient)).toEqual({
+    expect(continuationOf(given, prompt)).toEqual({
       followedBy: [notice("81%")],
       kind: "tool-results",
       results: toolResult("t1").content,
@@ -292,8 +291,7 @@ describe("branchOf", () => {
     parent: ReturnType<typeof after>,
     prompt: LanguageModelV4Message[],
   ) => {
-    const { kept, keptPrints, transient } = splitPrompt(prompt);
-    return branchOf(parent, kept, keptPrints, transient);
+    return branchOf(parent, splitPrompt(prompt));
   };
 
   // A task's history is its chat's up to the step that started it, then its
@@ -312,14 +310,20 @@ describe("branchOf", () => {
         user("edited"),
         user("the assignment"),
       ]),
-    ).toBeUndefined();
+    ).toEqual({
+      kind: "restart",
+      reason: "message 1 of 2 (user) changed since the parent saw it",
+    });
   });
 
   it("does not branch past a reply the parent never saw", () => {
     const chat = [system, user("one")];
     expect(
       branch(after(chat), [...chat, reply("a"), user("the assignment")]),
-    ).toBeUndefined();
+    ).toEqual({
+      kind: "restart",
+      reason: "what the parent saw is followed by assistant, user",
+    });
   });
 });
 
@@ -329,8 +333,7 @@ describe("tailAfter", () => {
     record: ReturnType<typeof after>,
     prompt: LanguageModelV4Message[],
   ) => {
-    const { kept, keptPrints, transient } = splitPrompt(prompt);
-    return tailAfter(record, kept, keptPrints, transient);
+    return tailAfter(record, splitPrompt(prompt));
   };
 
   it("takes everything after the record's reply, notes last", () => {
@@ -365,7 +368,7 @@ describe("tailAfter", () => {
       "a message it saw changed",
       after(chat),
       [system, user("edited"), reply("a"), user("two")],
-      "message 1 of 2 (user) changed since its record",
+      "message 1 of 2 (user) changed since its record saw it",
     ],
     [
       "two replies follow what it saw",
@@ -440,7 +443,7 @@ describe("planStep", () => {
       kind: "cold",
       why: {
         detail:
-          "message 1 of 2 (user) changed since the process saw it; its transcript: message 1 of 2 (user) changed since its record",
+          "message 1 of 2 (user) changed since the process saw it; its transcript: message 1 of 2 (user) changed since its record saw it",
         tag: "restart",
       },
     });
@@ -574,7 +577,7 @@ describe("planStep", () => {
     [
       "saw other messages",
       record([system, user("other")], { forkPoint: "entry" }),
-      "the request does not carry on from the input of the parent's last step (no resume record of its own)",
+      "message 1 of 2 (user) changed since the parent saw it (no resume record of its own)",
     ],
   ])(
     "starts cold, saying why, when the parent %s",

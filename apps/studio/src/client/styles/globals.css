@@ -110,6 +110,18 @@ body {
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
   --color-ground: var(--ground);
+  --color-setup-ground-top: var(--setup-ground-top);
+  --color-setup-ground-bottom: var(--setup-ground-bottom);
+  --color-setup-glow: var(--setup-glow);
+  --color-vignette-paper: var(--vignette-paper);
+  --color-vignette-paper-muted: var(--vignette-paper-muted);
+  --color-vignette-band: var(--vignette-band);
+  --color-vignette-head: var(--vignette-head);
+  --color-vignette-ink: var(--vignette-ink);
+  --color-vignette-ink-faint: var(--vignette-ink-faint);
+  --color-vignette-edge: var(--vignette-edge);
+  --color-vignette-banner-top: var(--vignette-banner-top);
+  --color-vignette-banner-bottom: var(--vignette-banner-bottom);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
@@ -230,6 +242,22 @@ body {
    ========================= */
 :root {
   --radius: 0.5rem;
+  /* Setup's ground: a green wash at the top fading to the page, and the
+     glow over it. */
+  --setup-ground-top: var(--brand-50);
+  --setup-ground-bottom: var(--gray-100);
+  --setup-glow: #d9e8e2;
+  /* The little pages in setup's pictures (a sheet, a document, a chart, a
+     browser page): paper, its bands and its lines of ink. */
+  --vignette-paper: #ffffff;
+  --vignette-paper-muted: var(--gray-50);
+  --vignette-band: var(--gray-100);
+  --vignette-head: var(--brand-50);
+  --vignette-ink: var(--gray-300);
+  --vignette-ink-faint: var(--gray-200);
+  --vignette-edge: rgb(10 13 18 / 0.06);
+  --vignette-banner-top: #cddff2;
+  --vignette-banner-bottom: #eaf0f7;
   --background: var(--gray-50);
   --foreground: var(--gray-950);
   --card: #ffffff;
@@ -374,6 +402,22 @@ body {
    ========================= */
 .dark {
   --background: var(--gray-900);
+  --setup-ground-top: var(--brand-950);
+  --setup-ground-bottom: var(--gray-900);
+  --setup-glow: color-mix(in oklab, var(--brand-800) 55%, transparent);
+  --vignette-paper: var(--gray-800);
+  --vignette-paper-muted: color-mix(
+    in oklab,
+    var(--gray-800) 60%,
+    var(--gray-900)
+  );
+  --vignette-band: var(--gray-700);
+  --vignette-head: var(--brand-900);
+  --vignette-ink: var(--gray-600);
+  --vignette-ink-faint: var(--gray-700);
+  --vignette-edge: rgb(255 255 255 / 0.08);
+  --vignette-banner-top: color-mix(in oklab, #cddff2 30%, var(--gray-800));
+  --vignette-banner-bottom: color-mix(in oklab, #eaf0f7 12%, var(--gray-800));
   --foreground: #ffffff;
   --card: var(--gray-800);
   --card-foreground: #ffffff;
@@ -1673,5 +1717,69 @@ a.cursor-pointer {
   &:hover {
     background: var(--accent);
     color: var(--foreground);
+  }
+}
+
+/* Setup's pictures that are drawn as a fixed light picture in both themes
+   (the packed folder): the vignette tokens at their light values. */
+@utility vignettes-light {
+  --vignette-paper: #ffffff;
+  --vignette-paper-muted: var(--gray-50);
+  --vignette-band: var(--gray-100);
+  --vignette-head: var(--brand-50);
+  --vignette-ink: var(--gray-300);
+  --vignette-ink-faint: var(--gray-200);
+  --vignette-edge: rgb(10 13 18 / 0.06);
+}
+
+/* Welcome's picture (Neil's welcome burst): the app icon scales in, then six
+ * pages spring out from behind it to their tilts, once. Each page sets
+ * where it starts (`--burst-x`, `--burst-y`), its tilt (`--burst-rotate`)
+ * and when it leaves (`--burst-delay`); with reduced motion it sits at its
+ * end from the start. */
+@utility welcome-burst-page {
+  transform: translate(0, 0) scale(1) rotate(var(--burst-rotate));
+  @media (prefers-reduced-motion: no-preference) {
+    animation:
+      welcome-burst-move 850ms cubic-bezier(0.3, 1.32, 0.52, 1)
+        var(--burst-delay) both,
+      welcome-burst-fade 850ms linear var(--burst-delay) both;
+  }
+}
+
+@utility welcome-burst-icon {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: welcome-burst-icon 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes welcome-burst-icon {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes welcome-burst-move {
+  from {
+    transform: translate(var(--burst-x), var(--burst-y)) scale(0.45)
+      rotate(0deg);
+  }
+  to {
+    transform: translate(0, 0) scale(1) rotate(var(--burst-rotate));
+  }
+}
+
+@keyframes welcome-burst-fade {
+  0% {
+    opacity: 0;
+  }
+  23.5%,
+  100% {
+    opacity: 1;
   }
 }

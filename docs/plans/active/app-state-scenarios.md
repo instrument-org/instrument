@@ -1,6 +1,6 @@
 # Plan: app-state scenarios
 
-Status: proposed, not started.
+Status: started. `studio-drive.mjs boot --scenario` and setup's scenarios (`fixtures/scenarios/`) are built, with the setup record, sentinel ChatGPT sign-ins, the folder's place and `--account`; the account states through the local API (step 2's account half) are not.
 
 ## Problem
 
@@ -35,9 +35,9 @@ account:                        # optional; signed out otherwise
   plan: lower                   # assign, through the operator CLI
   window: { key: 5h, used: 0.95 }
   revoked: false
-state:                          # workspace stores the manifest doesn't cover yet
-  hasCompletedProviderSetup: true
-signIns: [chatgpt-account, claude-account]   # inert records, no real tokens
+setup:                          # setup's record: finishing answers every step
+  finished: true
+signIns: [chatgpt]              # inert records, no real tokens
 open: /settings?section=providers&add=1
 ```
 
@@ -51,7 +51,7 @@ Scenarios that need no account (onboarding, signed-out states, layout) run witho
 
 ## Steps
 
-1. **Workspace stores in the manifest.** Let a fixture write workspace state (`hasCompletedProviderSetup` and its siblings), provider configs, and app connections. Sign-in records hold sentinel tokens that pass validation and fail any real call.
+1. **Workspace stores in the manifest.** Let a scenario write setup's record (`setup` in machine state), provider configs, and app connections. Sign-in records hold sentinel tokens that pass validation and fail any real call.
 2. **`--scenario` in studio-drive**, with the account steps above. Start with six scenarios: signed out, trial available, trial ending, window used up, payment owed, access revoked.
 3. **Screens you can link to.** Each scenario's `open` should be a URL. Where the screen it needs is held in component state (the plan sheet, a Settings section, an onboarding step, the add-provider dialog), move it into a search param. One at a time, only as a scenario needs it; no general UI-state serializer.
 4. **A contact sheet.** It boots every scenario, captures its `open` screen, and writes one page of captures. It runs locally first, and in CI once the seeded-workspaces CI step lands ([seeded-test-workspaces.md](./seeded-test-workspaces.md)).

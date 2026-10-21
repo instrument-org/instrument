@@ -95,10 +95,17 @@ node $DRIVE boot --purpose "first chat" --clean-room first-chat --with-sign-ins
 node $DRIVE rpc workspaces.current '{}' --clean-room first-chat
 ```
 
-`--account <file>` on `boot` signs a fixture or a clean room in as a given Instrument account and points that instance at the account's API, so a run can start as an account in a particular state instead of signing in and working up to it. The file is JSON with the API's address (`api`) and a session token on it (`token`); the platform's own tooling writes them, and how is documented there. It replaces whatever session the workspace held, and an instance already running signed in as someone else is refused rather than reused, since the API it talks to is fixed when it boots.
+`--account <file>` on `boot` signs a fixture, a clean room or a scenario in as a given Instrument account and points that instance at the account's API, so a run can start as an account in a particular state instead of signing in and working up to it. The file is JSON with the API's address (`api`) and a session token on it (`token`); the platform's own tooling writes them, and how is documented there. It replaces whatever session the workspace held, and an instance already running signed in as someone else is refused rather than reused, since the API it talks to is fixed when it boots.
 
 ```bash
 node $DRIVE boot --purpose "near limit" --workspace documents --account ~/.instrument/accounts/scenario-near-limit-4fa6.json
+```
+
+Fixtures and clean rooms set `SKIP_ONBOARDING`, so they open on the app window whatever setup would say. `--scenario <name>` is for the states setup reads: it builds application data of its own from `fixtures/scenarios/<name>.yaml` (a workspace, where the folder is, sentinel sign-ins, setup's record, and the notification and network status a development build takes from the environment), rebuilds it on every boot, and leaves setup to decide. Like `--workspace`, it goes on every command. Read where setup landed from its state rather than the screen: `setup.live.state` is a live route, so take its first value in an `eval`, as below. `setup.answer`, `setup.finish` and `setup.dev.reset` go through `rpc`. `fixtures/scenarios/README.md` lists the scenarios and the file's keys; the dev panel's "Run setup again" forgets the record in any instance.
+
+```bash
+node $DRIVE boot --purpose "setup" --scenario beta-tester
+node $DRIVE eval '(async () => { const it = await window.__studioDebug.rpc("setup.live.state"); const { value } = await it.next(); await it.return?.(); return value; })()' --scenario beta-tester
 ```
 
 An instance started from a terminal answers to the terminal's macOS privacy grants, so it usually has Full Disk Access and never sees a protected folder refuse it or ask. `boot --own-privacy` (macOS) starts Electron through a launcher that makes it responsible for its own grants, so Documents asks on first read and a Full Disk Access folder (`~/Library/Mail`) comes back refused, the way an installed app's would. Electron stays in the instance's process group, so `stop` ends it like any other. The grants belong to the dev Electron bundle (`com.github.Electron`), not a signed build, and they outlive the instance: an answer given to a prompt holds for every later `--own-privacy` run until `tccutil reset All com.github.Electron` clears it. Reading a protected folder from one opens a system prompt on the developer's screen, so say so before a run that will.

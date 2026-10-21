@@ -40,7 +40,7 @@ node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs boot --purpo
 node .agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs goto /chats/red-and-blue-squares --workspace documents
 ```
 
-It seeds into the OS cache directory keyed by checkout, sets `SKIP_ONBOARDING`, points the fixture's output folder at a folder beside it (`INSTRUMENT_OUTPUT_FOLDER`) and its home at `<fixture>-home` (`INSTRUMENT_DATA_HOME`) so its agents never write into your real `~/Instrument Dev` or `~/.instrument-dev/work`, and picks a port of its own. Pass `--workspace` to every command of that run, not just `boot`: it selects the instance. Workspaces nobody has driven for 3 days are dropped at the next boot, and so are dependencies installed in a chat's work folder; both cost a reseed, which is seconds.
+It seeds into the OS cache directory keyed by checkout, sets `SKIP_ONBOARDING`, points the fixture's output folder at a folder beside it (`INSTRUMENT_OUTPUT_FOLDER`) and its home at `<fixture>-home` (`INSTRUMENT_DATA_HOME`) so its agents never write into your real `~/Instrument Dev` or `~/.instrument-dev/work`, and picks a port of its own. Pass `--workspace` to every command of that run, not just `boot`: it selects the instance. Workspaces nobody has driven for 3 days are dropped at the next boot, and so are dependencies installed in a chat's work folder; both cost a reseed, which is seconds. For a state setup reads (a first launch, a beta tester, a step added later), boot a scenario instead ([../scenarios/README.md](../scenarios/README.md)), which seeds a fixture too and leaves `SKIP_ONBOARDING` off.
 
 ## What belongs in a fixture, and what does not
 

@@ -190,8 +190,8 @@ describe("ChatTasksPopover", () => {
   });
 
   it.each([
-    ["user", "You stopped this task"],
-    ["chat", "The chat stopped this task"],
+    ["person", "You stopped this task"],
+    ["agent", "The chat stopped this task"],
   ] as const)(
     "says the %s stopped a task, rather than drawing it done",
     async (stoppedBy, said) => {

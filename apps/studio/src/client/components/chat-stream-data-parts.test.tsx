@@ -122,7 +122,7 @@ describe("a file-changes part from before the fence", () => {
  * starts no reply, so it is the only word a person gets that the task ended.
  */
 describe("a task event in the chat", () => {
-  const partWith = (stoppedBy?: "app" | "user") =>
+  const partWith = (stoppedBy?: "app" | "person") =>
     ({
       data: {
         events: [
@@ -142,7 +142,7 @@ describe("a task event in the chat", () => {
       },
       type: "data-taskEvent",
     }) as unknown as SessionMessagePart.DataPart;
-  const rendered = (stoppedBy?: "app" | "user") =>
+  const rendered = (stoppedBy?: "app" | "person") =>
     renderDataPart({
       stateNote: undefined,
       ctx: {
@@ -156,7 +156,7 @@ describe("a task event in the chat", () => {
     expect(rendered()).toBeNull();
   });
 
-  it.each(["app", "user"] as const)(
+  it.each(["app", "person"] as const)(
     "shows a stop by %s to everyone, since no reply follows it",
     (stoppedBy) => {
       expect(rendered(stoppedBy)).not.toBeNull();

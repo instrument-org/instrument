@@ -300,9 +300,6 @@ export const PromptInput = ({
     refetch: modelsRefetch,
   } = useQuery(rpcClient.gateway.models.live.list.experimental_liveOptions());
   const { errors: modelsErrors, models } = modelsData ?? {};
-  const { data: hasToken } = useQuery(
-    rpcClient.auth.live.hasToken.experimental_liveOptions(),
-  );
   const { data: skills = [] } = useQuery(
     rpcClient.workspace.skill.list.queryOptions({
       staleTime: SKILL_LIST_STALE_TIME_MS,
@@ -357,7 +354,7 @@ export const PromptInput = ({
   // Counts the sends the notice refused, for the row to flash at each one.
   const [noticeNudge, setNoticeNudge] = useState(0);
   const addProvider = () => {
-    openLogin(hasToken ? { reason: "provider-required" } : undefined);
+    openLogin();
   };
   const handleModelAction = (action: ModelAction) => {
     switch (action.kind) {

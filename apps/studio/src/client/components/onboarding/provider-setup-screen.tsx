@@ -1,17 +1,13 @@
 import { AddProviderForm } from "@/client/components/add-provider/form";
 import { BrandMark } from "@/client/components/brand-mark";
-import { ChatGPTLoginButton } from "@/client/components/chatgpt-login-button";
-import { ClaudeLoginButton } from "@/client/components/claude-login-button";
-import { ExternalLink } from "@/client/components/external-link";
-import { GoogleLoginButton } from "@/client/components/google-login-button";
-import { GrokLoginButton } from "@/client/components/grok-login-button";
+import { ConnectButton } from "@/client/components/connect-button";
+import { type ConnectResult } from "@/client/hooks/use-connect-flow";
 import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
 import { OnboardingScreen } from "@/client/components/onboarding/screen";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { rpcClient } from "@/client/rpc/client";
-import { type SignInOutcome } from "@/shared/sign-in-outcome";
-import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
-import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { type ConnectProvider } from "@/shared/connect-outcome";
+import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -20,24 +16,21 @@ import { Button } from "../ui/button";
 export type ProviderSetupPage = "add-provider" | "welcome";
 
 export function ProviderSetupScreen({
-  error,
   instrumentOnly,
   onAddProvider,
   onBack,
   onContinue,
-  onLogin,
   onLoginSuccess,
   onPageChange,
   page,
   signedIn,
 }: {
-  error?: Error | null;
   instrumentOnly?: boolean;
   onAddProvider?: () => void;
   onBack?: () => void;
   onContinue: () => void;
-  onLogin: () => Promise<SignInOutcome>;
-  onLoginSuccess: () => void;
+  /** A way in connected, with how it ended. */
+  onLoginSuccess: (result: ConnectResult) => void;
   onPageChange: (page: ProviderSetupPage) => void;
   page: ProviderSetupPage;
   /** Signed in to Instrument already, so the page offers only the providers to add. */
@@ -52,18 +45,23 @@ export function ProviderSetupScreen({
 
   // The sign-in holding for the browser, which alone stays on the page until
   // it finishes or is canceled.
-  const [holding, setHolding] = useState<
-    "chatgpt" | "claude" | "google" | "grok"
-  >();
+  const [holding, setHolding] = useState<ConnectProvider>();
   const holdingChange =
-    (provider: "chatgpt" | "claude" | "google" | "grok") =>
+    (provider: ConnectProvider) =>
     (waiting: boolean) => {
       setHolding((current) =>
         waiting ? provider : current === provider ? undefined : current,
       );
     };
-  const shows = (provider: "chatgpt" | "claude" | "google" | "grok") =>
+  const shows = (provider: ConnectProvider) =>
     !holding || holding === provider;
+  // Ready goes on; any other answer stays here, said under its button, so
+  // another way in is one press away.
+  const landed = (result: ConnectResult) => {
+    if (result.outcome.kind === "ready") {
+      onLoginSuccess(result);
+    }
+  };
 
   // Signed in to Claude already, there is no Claude plan left to add.
   const offersClaude = !signedIn || claudeStatus?.kind !== "signed-in";
@@ -124,29 +122,8 @@ export function ProviderSetupScreen({
         </div>
 
         <div className="flex w-full max-w-xs flex-col items-center gap-4">
-          {error && (
-            <div className="w-full rounded-lg bg-muted px-3 py-2.5">
-              <div className="mb-1.5 flex items-center gap-1.5">
-                <WarningCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                <span className="text-xs font-medium text-foreground/80">
-                  Login failed
-                </span>
-              </div>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                There was an error logging in. Please try again, or{" "}
-                <ExternalLink
-                  className="underline underline-offset-2 hover:text-foreground"
-                  href={SUPPORT_URL}
-                >
-                  contact support
-                </ExternalLink>
-                .
-              </p>
-            </div>
-          )}
-
-          {!signedIn && shows("google") && (
-            <GoogleLoginButton
+          {!signedIn && shows("instrument") && (
+            <ConnectButton
               caption={
                 <div className="flex items-center justify-center gap-x-2">
                   <BrandLeafIcon className="size-3" />
@@ -156,38 +133,42 @@ export function ProviderSetupScreen({
                 </div>
               }
               className="w-full justify-center"
-              onLogin={onLogin}
-              onSuccess={onLoginSuccess}
-              onWaitingChange={holdingChange("google")}
+              onResult={landed}
+              onWaitingChange={holdingChange("instrument")}
+              provider="instrument"
+              variant="default"
             />
           )}
 
           {!instrumentOnly && (
             <>
               {shows("chatgpt") && (
-                <ChatGPTLoginButton
+                <ConnectButton
                   caption="Pay for ChatGPT Plus or Pro? Use it here."
                   className="w-full justify-center"
-                  onSuccess={onLoginSuccess}
+                  onResult={landed}
                   onWaitingChange={holdingChange("chatgpt")}
+                  provider="chatgpt"
                 />
               )}
 
               {offersClaude && shows("claude") && (
-                <ClaudeLoginButton
+                <ConnectButton
                   caption="Pay for Claude Pro or Max? Use it here."
                   className="w-full justify-center"
-                  onSuccess={onLoginSuccess}
+                  onResult={landed}
                   onWaitingChange={holdingChange("claude")}
+                  provider="claude"
                 />
               )}
 
               {shows("grok") && (
-                <GrokLoginButton
+                <ConnectButton
                   caption="Pay for SuperGrok or X Premium+? Use it here."
                   className="w-full justify-center"
-                  onSuccess={onLoginSuccess}
+                  onResult={landed}
                   onWaitingChange={holdingChange("grok")}
+                  provider="grok"
                 />
               )}
             </>

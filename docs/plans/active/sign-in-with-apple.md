@@ -18,7 +18,7 @@ What people see depends on their browser. Safari shows Apple's own sheet, which 
 
 ## What changes in Studio
 
-- Onboarding offers "Continue with Apple" beside "Continue with Google", under the same caption (`apps/studio/src/client/components/onboarding/provider-setup-screen.tsx`). The Google button (`google-login-button.tsx`) becomes one handoff button that takes a provider, so both share the pending state, errors and retry.
+- Onboarding offers "Continue with Apple" beside "Continue with Google", under the same caption (`apps/studio/src/client/components/onboarding/provider-setup-screen.tsx`). The Google button is `ConnectButton` (`connect-button.tsx`), which takes a provider and runs its connect hook (`hooks/use-connect.ts`), so Apple gets a hook of its own and shares the pending state, the answers and retry.
 - The account card in Settings offers both wherever it offers logging in today.
 - The start URL carries the provider; the rest of `auth/client.ts` stays as it is.
 - The headers Studio already sends with the exchange (`platform-api/headers.ts`) are how the API learns which client made a session, so they must keep going on that request.

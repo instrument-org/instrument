@@ -37,17 +37,18 @@ vi.mock("@/client/components/add-provider/form", () => ({
 vi.mock("@/client/components/terms-footer", () => ({
   TermsFooter: () => null,
 }));
-vi.mock("@/client/components/google-login-button", () => ({
-  GoogleLoginButton: () => null,
-}));
-vi.mock("@/client/components/chatgpt-login-button", () => ({
-  ChatGPTLoginButton: () => <button>Continue with ChatGPT</button>,
-}));
-vi.mock("@/client/components/claude-login-button", () => ({
-  ClaudeLoginButton: () => <button>Continue with Claude</button>,
-}));
-vi.mock("@/client/components/grok-login-button", () => ({
-  GrokLoginButton: () => <button>Continue with Grok</button>,
+vi.mock("@/client/components/connect-button", () => ({
+  ConnectButton: ({ provider }: { provider: string }) =>
+    provider === "instrument" ? null : (
+      <button>
+        Continue with{" "}
+        {provider === "chatgpt"
+          ? "ChatGPT"
+          : provider === "claude"
+            ? "Claude"
+            : "Grok"}
+      </button>
+    ),
 }));
 
 describe("provider setup Claude sign-in", () => {
@@ -63,7 +64,6 @@ describe("provider setup Claude sign-in", () => {
       const { queryClient } = renderWithProviders(
         <ProviderSetupScreen
           onContinue={vi.fn()}
-          onLogin={vi.fn()}
           onLoginSuccess={vi.fn()}
           onPageChange={vi.fn()}
           page="welcome"

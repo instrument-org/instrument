@@ -4,9 +4,9 @@ import { getDefaultStore } from "jotai";
 export interface LoginModalProps {
   // Offer only the Instrument account login: no ChatGPT, Claude, or manual
   // provider, for callers that mean signing in to Instrument itself.
+  // Otherwise the Add a provider sheet opens, with Instrument's free trial
+  // in it while signed out.
   instrumentOnly?: boolean;
-  // Open straight to the add-provider form because a provider is required.
-  reason?: "provider-required";
 }
 
 interface LoginModalState {

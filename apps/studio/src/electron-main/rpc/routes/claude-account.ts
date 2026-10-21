@@ -3,12 +3,11 @@ import {
   cancelClaudeSignIn,
   claudeAccountStatus,
   claudeAccountUsage,
-  openClaudeSignIn,
+  signInToClaude,
   signOutOfClaude,
   submitClaudeSignInCode,
   refreshClaudeAccountStatus,
 } from "@/electron-main/lib/claude-account";
-import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
 import {
@@ -29,9 +28,12 @@ const live = {
 
 /**
  * Signs in to Claude: installs our copy of Claude Code when it is not in yet,
- * then opens Anthropic's sign-in page in the browser.
+ * opens Anthropic's sign-in page in the browser, and answers once the sign-in
+ * ends, with the account read back. Signed in already, it answers at once.
+ * Connecting the account (the check and the default model) is
+ * `accountCheck.connect`.
  */
-const signIn = base.handler(() => openClaudeSignIn());
+const signIn = base.handler(() => signInToClaude());
 
 /**
  * Passes the waiting sign-in the code Anthropic's page showed on another
@@ -57,25 +59,11 @@ const signOut = base.handler(async () => {
   return status;
 });
 
-/**
- * Uses the Claude account Claude Code is signed in to, when it is: the
- * model Claude Code recommends becomes the default. Answers the status
- * either way, and the model's name when one was chosen.
- */
-const connect = base.handler(async () => {
-  const status = await refreshClaudeAccountStatus({ force: true });
-  if (status.kind !== "signed-in") {
-    return { modelName: undefined, status };
-  }
-  return { modelName: await setClaudeAccountDefaultModel(), status };
-});
-
 /** The subscription's usage by window, read fresh from Claude Code each time. */
 const usage = base.handler(() => claudeAccountUsage());
 
 export const claudeAccount = {
   cancelSignIn,
-  connect,
   live,
   signIn,
   signOut,

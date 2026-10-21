@@ -27,8 +27,9 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { capitalize } from "radashi";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "@/client/lib/toast";
+import { useClaudeConnect } from "@/client/hooks/use-connect";
+import { showConnectToast } from "@/client/lib/connect-toast";
+import { useEffect, useState } from "react";
 
 const CLAUDE_ID = AIProviderConfigIdSchema.parse(
   CLAUDE_ACCOUNT_PROVIDER_CONFIG.id,
@@ -37,7 +38,7 @@ const CLAUDE_ID = AIProviderConfigIdSchema.parse(
 /** A usage window this full is worth pointing out a way past. */
 const RUNNING_LOW_PERCENT = 80;
 
-type Status = RPCOutput["claudeAccount"]["connect"]["status"];
+type Status = RPCOutput["claudeAccount"]["signIn"]["status"];
 
 /**
  * The Claude account as a row among the providers, laid out like the ChatGPT
@@ -46,14 +47,11 @@ type Status = RPCOutput["claudeAccount"]["connect"]["status"];
  * in the browser. Usage opens on request, since reading it starts Claude Code.
  */
 export function ClaudeAccountCard() {
-  const { data: status } = useQuery(
-    rpcClient.claudeAccount.live.status.experimental_liveOptions(),
-  );
-  const signIn = useMutation(rpcClient.claudeAccount.signIn.mutationOptions());
+  const flow = useClaudeConnect();
+  const { status } = flow;
   const signOut = useMutation(
     rpcClient.claudeAccount.signOut.mutationOptions(),
   );
-  const [hint, setHint] = useState<string>();
   const providerSwitch = useProviderSwitch();
   const settings = useAtomValue(settingsModalAtom);
   const [showUsage, setShowUsage] = useState(
@@ -64,34 +62,12 @@ export function ClaudeAccountCard() {
       setShowUsage(true);
     }
   }, [settings]);
-  const wasSigningIn = useRef(false);
-
-  // A sign-in this card started has finished: the account is connected, as
-  // from setup, so its recommended model becomes the default.
-  useEffect(() => {
-    if (status?.signingIn) {
-      wasSigningIn.current = true;
-      return;
-    }
-    if (!wasSigningIn.current || status?.kind !== "signed-in") {
-      return;
-    }
-    wasSigningIn.current = false;
-    void rpcClient.claudeAccount.connect.call({}).then((result) => {
-      toast.success("Connected your Claude account", {
-        description: result.modelName
-          ? `New chats use ${result.modelName} from your subscription.`
-          : "Its models are in the model picker.",
-      });
-    });
-  }, [status?.signingIn, status?.kind]);
-
   if (!status) {
     return null;
   }
 
   const installing = status.install?.state === "downloading";
-  const waiting = status.signingIn || installing || signIn.isPending;
+  const waiting = status.signingIn || installing || flow.waiting;
   const off = status.kind === "signed-in" && providerSwitch.isOff(CLAUDE_ID);
 
   return (
@@ -114,7 +90,11 @@ export function ClaudeAccountCard() {
               Claude account
             </h3>
             <p className="text-sm text-muted-foreground">
-              {off ? DISABLED_LINE : (hint ?? describe(status))}
+              {off
+                ? DISABLED_LINE
+                : flow.phase === "checking"
+                  ? "Checking your Claude plan."
+                  : describe(status)}
             </p>
           </div>
         </div>
@@ -167,12 +147,18 @@ export function ClaudeAccountCard() {
           ) : (
             <BrowserHandoffButton
               onCancel={() => {
+                if (flow.waiting) {
+                  flow.cancel();
+                  return;
+                }
+                // A sign-in started somewhere else.
                 void rpcClient.claudeAccount.cancelSignIn.call({});
               }}
               onStart={() => {
-                setHint(undefined);
-                void signIn.mutateAsync({}).then((result) => {
-                  setHint(result.error);
+                void flow.start().then((result) => {
+                  if (result) {
+                    showConnectToast(result, "claude");
+                  }
                 });
               }}
               waiting={waiting}

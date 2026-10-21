@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   branchOf,
+  coldStartReason,
   continuationOf,
   planStep,
   splitPrompt,
@@ -301,7 +302,10 @@ describe("planStep", () => {
     claudeSessionId: "transcript",
     ...fields,
   });
-  const none = () => Promise.resolve(undefined);
+  const found = (value: ResumeRecord) => () =>
+    Promise.resolve({ record: value });
+  const none = () => Promise.resolve({ missing: "no resume record" });
+  const noParent = () => Promise.resolve(undefined);
   const refuse = () => Promise.reject(new Error("read too far"));
 
   it("continues the live process without reading a record", async () => {
@@ -329,18 +333,14 @@ describe("planStep", () => {
     );
     expect(plan).toMatchObject({
       kind: "cold",
-      restart: expect.stringContaining("changed"),
+      why: { detail: expect.stringContaining("changed"), tag: "restart" },
     });
   });
 
   it("resumes the session's transcript without reading its parent's", async () => {
     await expect(
       planStep(
-        {
-          live: undefined,
-          parentRecord: refuse,
-          record: () => Promise.resolve(record(chat)),
-        },
+        { live: undefined, parentRecord: refuse, record: found(record(chat)) },
         splitPrompt(answered),
       ),
     ).resolves.toEqual({
@@ -357,14 +357,16 @@ describe("planStep", () => {
         {
           live: undefined,
           parentRecord: refuse,
-          record: () =>
-            Promise.resolve(record(chat, { awaitingToolCallIds: ["t1"] })),
+          record: found(record(chat, { awaitingToolCallIds: ["t1"] })),
         },
         splitPrompt(calling),
       ),
     ).resolves.toEqual({
       kind: "cold",
-      restart: "its process ended while waiting on tool results",
+      why: {
+        detail: "its process ended while waiting on tool results",
+        tag: "transcript",
+      },
     });
   });
 
@@ -373,10 +375,9 @@ describe("planStep", () => {
       planStep(
         {
           live: undefined,
-          parentRecord: () =>
-            Promise.resolve(
-              record(chat, { claudeSessionId: "chat", forkPoint: "entry" }),
-            ),
+          parentRecord: found(
+            record(chat, { claudeSessionId: "chat", forkPoint: "entry" }),
+          ),
           record: none,
         },
         splitPrompt([...chat, user("the assignment")]),
@@ -390,21 +391,89 @@ describe("planStep", () => {
   });
 
   it.each([
-    ["has no fork point", record(chat)],
+    [
+      "has no fork point",
+      record(chat),
+      "the parent's record has no fork point",
+    ],
     [
       "saw other messages",
       record([system, user("other")], { forkPoint: "entry" }),
+      "the request does not carry on from the input of the parent's last step (no resume record of its own)",
     ],
-  ])("starts cold, without a reason, when the parent %s", async (_, parent) => {
+  ])(
+    "starts cold, saying why, when the parent %s",
+    async (_, parent, detail) => {
+      await expect(
+        planStep(
+          { live: undefined, parentRecord: found(parent), record: none },
+          splitPrompt([...chat, user("the assignment")]),
+        ),
+      ).resolves.toEqual({ kind: "cold", why: { detail, tag: "fork" } });
+    },
+  );
+
+  it("starts cold, saying why, with nothing to carry on", async () => {
     await expect(
       planStep(
-        {
-          live: undefined,
-          parentRecord: () => Promise.resolve(parent),
-          record: none,
-        },
-        splitPrompt([...chat, user("the assignment")]),
+        { live: undefined, parentRecord: noParent, record: none },
+        splitPrompt(answered),
       ),
-    ).resolves.toEqual({ kind: "cold" });
+    ).resolves.toEqual({
+      kind: "cold",
+      why: {
+        detail: "no live process and no resume record",
+        tag: "no-record",
+      },
+    });
+  });
+});
+
+describe("coldStartReason", () => {
+  const noRecord = {
+    detail: "no live process and no resume record",
+    tag: "no-record" as const,
+  };
+  const base = {
+    busy: false,
+    changedShape: undefined,
+    kept: [system, user("one"), reply("a"), user("two")],
+    oneOff: false,
+    why: noRecord,
+  };
+
+  it.each([
+    ["a one-off", { oneOff: true }],
+    ["a session's first step", { kept: [system, user("one")] }],
+  ])("says nothing for %s, which loses nothing", (_, fields) => {
+    expect(coldStartReason({ ...base, ...fields })).toBeUndefined();
+  });
+
+  it.each([
+    ["the plan's reason", {}, noRecord],
+    [
+      "a busy process",
+      { busy: true },
+      { detail: "its process is mid-step on another request", tag: "busy" },
+    ],
+    [
+      "a changed shape, for a slot with nothing of its own",
+      { changedShape: "system prompt and tools" },
+      {
+        detail:
+          "the session's system prompt and tools changed since its last step, which needs a process of its own",
+        tag: "shape",
+      },
+    ],
+    [
+      "the plan's reason over a changed shape, for a slot with a transcript",
+      {
+        changedShape: "tools",
+        why: { detail: "message 1 of 2 (user) changed", tag: "transcript" },
+      },
+      { detail: "message 1 of 2 (user) changed", tag: "transcript" },
+    ],
+  ] as const)("names %s", (_, fields, expected) => {
+    expect(coldStartReason({ ...base, ...fields })).toEqual(expected);
   });
 });

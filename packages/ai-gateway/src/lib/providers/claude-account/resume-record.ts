@@ -124,38 +124,40 @@ async function transcriptLooksResumable(file: string) {
   return messages > 0;
 }
 
+/** A slot's record, or why it has none to resume. */
+export type RecordRead = { missing: string } | { record: ResumeRecord };
+
 /**
  * The slot's record, when it has one whose transcript is still there and
- * still reads as the conversation it was.
+ * still reads as the conversation it was, or why it has none.
  */
 export async function readResumeRecord(
   configDir: string | undefined,
   slot: string,
-): Promise<ResumeRecord | undefined> {
+): Promise<RecordRead> {
   const text = await readFile(recordPath(configDir, slot), "utf8").catch(
     () => undefined,
   );
   if (text === undefined) {
-    return undefined;
+    return { missing: "no resume record" };
   }
   let json: unknown;
   try {
     json = JSON.parse(text);
   } catch {
-    return undefined;
+    return { missing: "a resume record that is not JSON" };
   }
   const parsed = ResumeRecordSchema.safeParse(json);
   if (!parsed.success) {
-    return undefined;
+    return { missing: "a resume record in a shape this build does not read" };
   }
   const file = transcriptPath(configDir, parsed.data.claudeSessionId);
   if (file !== undefined && !(await transcriptLooksResumable(file))) {
-    console.warn(
-      `[claude-account] transcript ${parsed.data.claudeSessionId} refused: missing or not a conversation this build reads`,
-    );
-    return undefined;
+    return {
+      missing: `transcript ${parsed.data.claudeSessionId} missing or not a conversation this build reads`,
+    };
   }
-  return parsed.data;
+  return { record: parsed.data };
 }
 
 export async function writeResumeRecord(

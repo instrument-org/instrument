@@ -4,7 +4,7 @@ import {
 } from "@ai-sdk/provider";
 import { createHash } from "node:crypto";
 
-import { type ResumeRecord } from "./resume-record";
+import { type RecordRead } from "./resume-record";
 
 export type Continuation =
   | {
@@ -189,43 +189,106 @@ export type StepStart<Live> =
       kind: "fork";
       messages: LanguageModelV4Message[];
     }
-  | { kind: "cold"; restart?: string };
+  | { kind: "cold"; why: ColdStart };
+
+/**
+ * Why a step starts cold, for the log: `tag` sorts a day's cold starts by
+ * cause, and `detail` says what did not line up.
+ * - `restart`: the live process saw something this request does not carry on.
+ * - `transcript`: no live process, and the transcript its record names does not
+ *   line up with the request.
+ * - `fork`: a task with nothing of its own, whose parent's transcript it could
+ *   not branch from.
+ * - `no-record`: nothing to carry on: no live process and no usable record.
+ * - `shape`: the session's system prompt, tools, effort or built-in tools
+ *   changed, and a step of another shape needs a process of its own.
+ * - `busy`: the session's process is mid-step, so this one gets a process of
+ *   its own that keeps nothing.
+ */
+interface ColdStart {
+  detail: string;
+  tag: "busy" | "fork" | "no-record" | "restart" | "shape" | "transcript";
+}
+
+/**
+ * Why a step that starts cold does, as the log says it, or nothing when the
+ * replay loses nothing: a one-off (a title, a summary) is cold by design, and
+ * a session's first step has nothing to carry on.
+ */
+export function coldStartReason({
+  busy,
+  changedShape,
+  kept,
+  oneOff,
+  why,
+}: {
+  /** Whether the session's own process is mid-step on another request. */
+  busy: boolean;
+  /** What of the session's shape changed since its last step, if anything. */
+  changedShape: string | undefined;
+  kept: LanguageModelV4Message[];
+  oneOff: boolean;
+  why: ColdStart;
+}): ColdStart | undefined {
+  if (oneOff || !kept.some((message) => message.role === "assistant")) {
+    return undefined;
+  }
+  if (busy) {
+    return {
+      detail: "its process is mid-step on another request",
+      tag: "busy",
+    };
+  }
+  if (why.tag === "no-record" && changedShape !== undefined) {
+    return {
+      detail: `the session's ${changedShape} changed since its last step, which needs a process of its own`,
+      tag: "shape",
+    };
+  }
+  return why;
+}
 
 /**
  * Where a request's step starts, trying in order the live process, the
  * session's resume record, then its parent's. A record is read only when
- * what comes before it has nothing to offer.
+ * what comes before it has nothing to offer. The parent's reader answers
+ * nothing for a session with no parent.
  */
 export async function planStep<
   Live extends { awaitingToolCallIds: string[]; seen: string[] },
 >(
   from: {
     live: Live | undefined;
-    parentRecord: () => Promise<ResumeRecord | undefined>;
-    record: () => Promise<ResumeRecord | undefined>;
+    parentRecord: () => Promise<RecordRead | undefined>;
+    record: () => Promise<RecordRead>;
   },
   prompt: ReturnType<typeof splitPrompt>,
 ): Promise<StepStart<Live>> {
   const { kept, keptPrints, transient } = prompt;
+  const cold = (tag: ColdStart["tag"], detail: string): StepStart<Live> => ({
+    kind: "cold",
+    why: { detail, tag },
+  });
   if (from.live) {
     const continuation = continuationOf(from.live, kept, keptPrints, transient);
     return continuation.kind === "restart"
-      ? { kind: "cold", restart: continuation.reason }
+      ? cold("restart", continuation.reason)
       : { continuation, kind: "live", session: from.live };
   }
-  const record = await from.record();
-  if (record) {
+  const read = await from.record();
+  if ("record" in read) {
+    const { record } = read;
     const continuation = continuationOf(record, kept, keptPrints, transient);
     if (continuation.kind === "restart") {
-      return { kind: "cold", restart: continuation.reason };
+      return cold("transcript", continuation.reason);
     }
     // The calls it waited on died with its process, and a resumed one has no
     // way to take their results.
     if (continuation.kind === "tool-results") {
-      return {
-        kind: "cold",
-        restart: "its process ended while waiting on tool results",
-      };
+      return cold(
+        "transcript",
+        "its process ended while waiting on tool results",
+      );
     }
     return {
       claudeSessionId: record.claudeSessionId,
@@ -233,15 +296,28 @@ export async function planStep<
       messages: continuation.messages,
     };
   }
-  const parent = await from.parentRecord();
-  const branch = parent && branchOf(parent, kept, keptPrints, transient);
-  if (parent?.forkPoint !== undefined && branch !== undefined) {
-    return {
-      at: parent.forkPoint,
-      from: parent.claudeSessionId,
-      kind: "fork",
-      messages: branch,
-    };
+  const parentRead = await from.parentRecord();
+  if (parentRead === undefined) {
+    return cold("no-record", `no live process and ${read.missing}`);
   }
-  return { kind: "cold" };
+  if (!("record" in parentRead)) {
+    return cold("fork", `the parent has ${parentRead.missing}`);
+  }
+  const parent = parentRead.record;
+  const branch = branchOf(parent, kept, keptPrints, transient);
+  if (parent.forkPoint === undefined) {
+    return cold("fork", "the parent's record has no fork point");
+  }
+  if (branch === undefined) {
+    return cold(
+      "fork",
+      `the request does not carry on from the input of the parent's last step (${read.missing} of its own)`,
+    );
+  }
+  return {
+    at: parent.forkPoint,
+    from: parent.claudeSessionId,
+    kind: "fork",
+    messages: branch,
+  };
 }

@@ -616,7 +616,7 @@ it.skipIf(!live)(
         "drift",
         drift,
         VIEWS.e.color.test(drift.text),
-        /started from a native replay/,
+        /cold start \(no-record\), native replay/,
       );
 
       // Mac B: the chat's records synced, nothing of Mac A's Claude Code did.
@@ -633,7 +633,7 @@ it.skipIf(!live)(
         "mac B",
         macB,
         VIEWS.b.color.test(macB.text) && macB.text.includes(VIEWS.f.badge),
-        /started from a native replay/,
+        /cold start \(no-record\), native replay/,
       );
 
       // Back on Mac A, whose resume record and transcript stop before B's
@@ -647,7 +647,7 @@ it.skipIf(!live)(
         "back on A",
         backOnA,
         VIEWS.f.color.test(backOnA.text),
-        /restarted from a native replay/,
+        /cold start \(transcript\), native replay/,
       );
 
       // While A's process still runs, a turn arrives from another Mac whose
@@ -701,7 +701,7 @@ it.skipIf(!live)(
         foreign,
         foreign.text.includes(VIEWS.g.badge) &&
           VIEWS.g.color.test(foreign.text),
-        /restarted from a native replay/,
+        /cold start \(restart\), native replay/,
       );
 
       // The chat's model changes while its process runs.
@@ -728,7 +728,7 @@ it.skipIf(!live)(
         "model switch, Mac C",
         switchedCold,
         VIEWS.b.color.test(switchedCold.text),
-        /started from a native replay/,
+        /cold start \(no-record\), native replay/,
       );
 
       // Home to A and the first model; the process ends while our loop runs a

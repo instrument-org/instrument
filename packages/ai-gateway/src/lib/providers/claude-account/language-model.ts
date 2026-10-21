@@ -11,7 +11,12 @@ import { type EffortLevel } from "@anthropic-ai/claude-agent-sdk";
 import { createHash, randomUUID } from "node:crypto";
 
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
-import { planStep, splitPrompt, type StepStart } from "./continuation";
+import {
+  coldStartReason,
+  planStep,
+  splitPrompt,
+  type StepStart,
+} from "./continuation";
 import { coldStartContent, replayFrames, splitSystemPrompt } from "./prompt";
 import {
   readResumeRecord,
@@ -144,11 +149,15 @@ function streamStep({
                 : readResumeRecord(configDir, `${parentKey}:${shapeHash}`),
             record: () =>
               persistent === undefined
-                ? Promise.resolve(undefined)
+                ? Promise.resolve({ missing: "no process of its own" })
                 : readResumeRecord(configDir, persistent),
           },
           prompt,
         );
+        const changedShape =
+          key === undefined || persistent === undefined
+            ? undefined
+            : shapeChangeOf(key, shape);
         if (persistent !== undefined) {
           await removeResumeRecord(configDir, persistent);
         }
@@ -168,15 +177,18 @@ function streamStep({
           await session.useModel(modelId);
           if (plan.kind === "cold") {
             const how = await coldStart(session, rest);
-            if (plan.restart !== undefined) {
-              // What the session saw is not what this request continues, so
-              // it starts over from our transcript.
+            // A replay re-sends the history uncached and loses what Claude
+            // Code's own tools found, so each one says why it happened.
+            const why = coldStartReason({
+              busy: slot !== undefined && persistent === undefined,
+              changedShape,
+              kept: prompt.kept,
+              oneOff: slot === undefined,
+              why: plan.why,
+            });
+            if (why !== undefined && slot !== undefined) {
               console.warn(
-                `[claude-account] session ${slot ?? "one-off"} restarted from a ${how} replay: ${plan.restart}`,
-              );
-            } else if (slot !== undefined && rest.length > 1) {
-              console.info(
-                `[claude-account] session ${slot} started from a ${how} replay of ${rest.length} messages`,
+                `[claude-account] session ${slot} cold start (${why.tag}), ${how} replay of ${rest.length} messages: ${why.detail}`,
               );
             }
           } else {
@@ -298,6 +310,45 @@ async function coldStart(
     );
   }
   return "native";
+}
+
+/**
+ * A fingerprint of each part of the shape each session's last step ran
+ * with, kept for as long as this process runs.
+ */
+const lastShapes = new Map<string, Record<string, string>>();
+
+/**
+ * Which parts of `shape` differ from the one the session's last step ran
+ * with, named for the log ("system prompt and tools"), if any. Notes `shape`
+ * as the session's latest.
+ */
+function shapeChangeOf(key: string, shape: SessionShape) {
+  const parts: Record<string, string> = Object.fromEntries(
+    Object.entries({
+      "Claude Code": [shape.executablePath, shape.configDir],
+      "built-in tools": shape.builtInTools,
+      effort: shape.effort ?? null,
+      "system prompt": shape.systemPrompt,
+      tools: shape.tools.map((tool) => [
+        tool.name,
+        tool.description,
+        tool.inputSchema,
+      ]),
+    }).map(([name, value]) => [
+      name,
+      createHash("sha256").update(JSON.stringify(value)).digest("hex"),
+    ]),
+  );
+  const last = lastShapes.get(key);
+  lastShapes.set(key, parts);
+  if (last === undefined) {
+    return undefined;
+  }
+  const changed = Object.keys(parts).filter(
+    (name) => parts[name] !== last[name],
+  );
+  return changed.length > 0 ? changed.join(" and ") : undefined;
 }
 
 /**

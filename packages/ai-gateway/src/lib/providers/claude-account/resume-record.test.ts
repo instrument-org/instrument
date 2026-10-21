@@ -51,15 +51,24 @@ describe("resume records", () => {
     await withTranscript(configDir);
     await writeResumeRecord(configDir, "ses_1:shape", record);
 
-    expect(await readResumeRecord(configDir, "ses_1:shape")).toEqual(record);
-    expect(await readResumeRecord(configDir, "ses_2:shape")).toBeUndefined();
+    expect(await readResumeRecord(configDir, "ses_1:shape")).toEqual({
+      record,
+    });
+    expect(await readResumeRecord(configDir, "ses_2:shape")).toEqual({
+      missing: "no resume record",
+    });
   });
 
   it("has nothing to resume once Claude Code's transcript is gone", async () => {
     const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
     await writeResumeRecord(configDir, "ses_1:shape", record);
 
-    expect(await readResumeRecord(configDir, "ses_1:shape")).toBeUndefined();
+    expect(await readResumeRecord(configDir, "ses_1:shape"))
+      .toMatchInlineSnapshot(`
+      {
+        "missing": "transcript 5f0c6c2e-8d1b-4f7a-9a51-0f6b2f1c3d4e missing or not a conversation this build reads",
+      }
+    `);
   });
 
   it("refuses a transcript whose messages it cannot read", async () => {
@@ -71,7 +80,12 @@ describe("resume records", () => {
     );
     await writeResumeRecord(configDir, "ses_1:shape", record);
 
-    expect(await readResumeRecord(configDir, "ses_1:shape")).toBeUndefined();
+    expect(await readResumeRecord(configDir, "ses_1:shape"))
+      .toMatchInlineSnapshot(`
+      {
+        "missing": "transcript 5f0c6c2e-8d1b-4f7a-9a51-0f6b2f1c3d4e missing or not a conversation this build reads",
+      }
+    `);
   });
 
   it("forgets a removed record", async () => {
@@ -80,6 +94,11 @@ describe("resume records", () => {
     await writeResumeRecord(configDir, "ses_1:shape", record);
     await removeResumeRecord(configDir, "ses_1:shape");
 
-    expect(await readResumeRecord(configDir, "ses_1:shape")).toBeUndefined();
+    expect(await readResumeRecord(configDir, "ses_1:shape"))
+      .toMatchInlineSnapshot(`
+      {
+        "missing": "no resume record",
+      }
+    `);
   });
 });

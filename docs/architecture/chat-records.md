@@ -21,6 +21,17 @@ What is this computer's about a chat stays in the workspace's machine folder: th
 
 A record is one JSON object on one line, `t`, `seq` and `at` first (`records/record.ts`). A device only ever appends to files that carry its own id, so two devices writing the same chat never write the same file, and a sync engine has nothing to merge. The conflict copies it makes anyway (`file-names.ts` knows their shapes) are read like any other file.
 
+Who wrote a record is its device: a log's header names it, and so does every settings line. Each device says which computer it is in the workspace's `.instrument/devices/<device>/device.json` (`records/device-file.ts`), written by that device alone and only when its name or platform changes: the computer's own name and `process.platform`. A device stands for a person, and every device whose file names no `person` is the workspace's owner. A service that vouches for who is behind a device may add `person: { id, name, issuer }`, which the app carries forward and writes none of. A device id never spans two people, so a device that changes person starts as a new one.
+
+## Changing the format
+
+Devices sharing a workspace run whatever build each has, so a change to anything in these files has to read safely on a build older and a build newer than the one making it.
+
+- An additive change never bumps the header's `format` or `workspace.json`'s `formatVersion`. Either bump makes every older build refuse what it covers: a session's logs, or the whole workspace.
+- New meaning goes in a new record type, a new field, or a new setting field, which an older build skips or strips. A new value is never added to an existing enum (`stopped.by`, `state.what`), since an older build drops the whole line rather than the value.
+- A reader skips what it does not know (a record type, a setting field, a part type, which reads as `data-unknown`) and never fails on it.
+- A file a device rewrites whole carries forward the fields it does not know (`json-record-file.ts`).
+
 ## Writing
 
 `ChatWrites` (`lib/chat-writes.ts`) is the only way a chat is written, and every function on it waits for its append. A write nobody waits on is a message the person sent and the chat does not have.

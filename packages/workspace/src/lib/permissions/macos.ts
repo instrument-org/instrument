@@ -18,6 +18,25 @@ import { type MacApp } from "./apps";
 const PROMPT_POLL_MS = 250;
 
 /**
+ * The folders in the home folder macOS asks the person about before the app
+ * reads inside them: Desktop, Documents, Downloads and iCloud Drive's. None
+ * off macOS.
+ */
+export function macosGuardedHomeFolders({
+  home = os.homedir(),
+  platform = process.platform,
+}: { home?: string; platform?: NodeJS.Platform } = {}): string[] {
+  return platform === "darwin"
+    ? [
+        "Desktop",
+        "Documents",
+        "Downloads",
+        nodePath.join("Library", "Mobile Documents"),
+      ].map((name) => nodePath.join(home, name))
+    : [];
+}
+
+/**
  * The folder macOS asks the person about when the app reaches `hostPath`,
  * which the person can then open to the app from its folder panel or System
  * Settings: Desktop, Documents, Downloads, iCloud Drive, or a disk under
@@ -33,12 +52,7 @@ export function macosGuardedRoot(
   if (platform !== "darwin") {
     return undefined;
   }
-  const roots = [
-    "Desktop",
-    "Documents",
-    "Downloads",
-    nodePath.join("Library", "Mobile Documents"),
-  ].map((name) => nodePath.join(home, name));
+  const roots = macosGuardedHomeFolders({ home, platform });
   const root = roots.find(
     (candidate) =>
       hostPath === candidate || hostPath.startsWith(`${candidate}/`),

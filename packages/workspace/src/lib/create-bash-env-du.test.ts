@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { MountedFolder } from "../schemas/mounted-folder";
 import { ChatDirSchema } from "../schemas/paths";
@@ -9,6 +9,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { updatePermissionSettings } from "./permissions/rules";
 import { getWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
 
@@ -94,6 +95,43 @@ afterAll(async () => {
 describe("du", () => {
   // The folders as the shell spells them.
   const home = () => shellPath(homeDir);
+
+  it.runIf(process.platform === "darwin")(
+    "steps over a folder macOS guards on the way down, and walks one named",
+    async () => {
+      // The attached home stands in for the person's, whose Documents macOS
+      // would ask about before the app reads inside it.
+      const homedir = vi.spyOn(os, "homedir").mockReturnValue(homeDir);
+      // The person allowed Documents, which says nothing of macOS's answer.
+      const before = await updatePermissionSettings((settings) => settings);
+      await updatePermissionSettings((settings) => ({
+        ...settings,
+        places: { ...settings.places, documents: "allow" },
+      }));
+      await fs.mkdir(path.join(homeDir, "Documents"), { recursive: true });
+      await fs.writeFile(
+        path.join(homeDir, "Documents", "a.txt"),
+        "d".repeat(700),
+      );
+      try {
+        const over = await run(`du -b -d 1 '${home()}'`);
+        const named = await run(`du -b '${home()}/Documents'`);
+
+        expect(over.stdout).not.toContain(`${home()}/Documents`);
+        expect(over.stderr).toContain(
+          `du: left out '${home()}/Documents', which macOS asks the person about before the app reads inside`,
+        );
+        expect(Number(named.stdout.split("\t")[0])).toBeGreaterThanOrEqual(700);
+      } finally {
+        await updatePermissionSettings(() => before);
+        homedir.mockRestore();
+        await fs.rm(path.join(homeDir, "Documents"), {
+          force: true,
+          recursive: true,
+        });
+      }
+    },
+  );
 
   it("prints a file's size in bytes and in GNU's rounded-up human form", async () => {
     const file = `${home()}/notes/one.txt`;

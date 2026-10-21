@@ -1,6 +1,8 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { realHostPath } from "../host-path";
+import { macosGuardedHomeFolders } from "../permissions/macos";
 import { parseDuArgs, walkBounds } from "./du";
 
 describe("walkBounds", () => {
@@ -34,6 +36,14 @@ describe("walkBounds", () => {
       }),
     ).toEqual({
       closed: [at("app"), at("Desktop"), at("Music")],
+      guarded: [
+        ...new Set(
+          macosGuardedHomeFolders().flatMap((folder) => [
+            folder,
+            realHostPath(folder),
+          ]),
+        ),
+      ],
       named: [at("Desktop"), at("Music")],
       open: [at("Desktop", "Pricing")],
     });

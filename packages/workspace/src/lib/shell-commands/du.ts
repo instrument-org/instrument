@@ -8,6 +8,7 @@ import { hostPathWithin, realHostPath } from "../host-path";
 import { relativeWithin } from "../path-containment";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { reachOf } from "../permissions/rules";
+import { macosGuardedHomeFolders } from "../permissions/macos";
 import {
   appDataBounds,
   hostPathOf,
@@ -88,6 +89,7 @@ interface DuRoot {
  */
 export function walkBounds(layout: Pick<WorkspaceFsLayout, "rules">): {
   closed: string[];
+  guarded: string[];
   named: string[];
   open: string[];
 } {
@@ -122,6 +124,18 @@ export function walkBounds(layout: Pick<WorkspaceFsLayout, "rules">): {
     );
   return {
     closed: [...own.closed, ...named],
+    // Stepped over on the way down, whatever the rules say: a rule allowing
+    // one says the person let the agent in, not that macOS let the app in,
+    // and a walk that crosses into one unasked puts macOS's prompt up. One
+    // named as an operand is walked, since the agent asked about it.
+    guarded: [
+      ...new Set(
+        macosGuardedHomeFolders().flatMap((folder) => [
+          folder,
+          realHostPath(folder),
+        ]),
+      ),
+    ],
     named,
     open: [...new Set([...own.open, ...opened])],
   };
@@ -529,7 +543,9 @@ const fold = (hostPath) =>
 const closed = bounds.closed.map(fold);
 const open = bounds.open.map(fold);
 const named = new Set(bounds.named.map(fold));
+const guarded = new Set(bounds.guarded.map(fold));
 const skipped = [];
+const asked = [];
 
 function holds(root, hostPath) {
   return (
@@ -584,6 +600,10 @@ function walk(hostPath, display, depth) {
         if (named.has(fold(entry))) skipped.push(child(display, name));
         continue;
       }
+      if (guarded.has(fold(entry))) {
+        asked.push(child(display, name));
+        continue;
+      }
       total += walk(entry, child(display, name), depth + 1);
     }
     if (depth <= options.maxDepth) emit(total, display);
@@ -618,6 +638,12 @@ try {
     errors.push(
       "du: left out " + skipped.map((shown) => "'" + shown + "'").join(", ") +
         ", which need the person's yes, so their size isn't counted; du each one by name to ask\n",
+    );
+  }
+  if (asked.length > 0) {
+    errors.push(
+      "du: left out " + asked.map((shown) => "'" + shown + "'").join(", ") +
+        ", which macOS asks the person about before the app reads inside; du one by name to measure it\n",
     );
   }
   parentPort.postMessage({ exitCode, stderr: errors.join(""), stdout: lines.join("") });

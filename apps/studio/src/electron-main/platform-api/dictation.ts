@@ -1,3 +1,4 @@
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { getToken } from "@/electron-main/platform-api/utils";
 import {
   type DictationFailure,
@@ -137,7 +138,7 @@ export async function transcribeDictation({
   }
 
   const query = language ? `?${new URLSearchParams({ language })}` : "";
-  const url = `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/dictation${query}`;
+  const url = `${platformApiBaseUrl()}/dictation${query}`;
   const timeout = AbortSignal.timeout(TRANSCRIBE_TIMEOUT_MS);
 
   let response: Response;

@@ -17,6 +17,9 @@ vi.mock(import("./headers"), () => ({
 vi.mock(import("./utils"), () => ({
   getToken: vi.fn(),
 }));
+vi.mock(import("./base-url"), () => ({
+  platformApiBaseUrl: () => "https://api.example.test",
+}));
 
 const mockGetToken = vi.mocked(getToken);
 
@@ -63,7 +66,7 @@ describe("transcribeDictation", () => {
     });
 
     const [url, init] = fetchSpy.mock.calls[0] ?? [];
-    expect(url).toEqual(expect.stringMatching(/\/dictation\?language=fr$/));
+    expect(url).toBe("https://api.example.test/dictation?language=fr");
     expect(init?.body).toBe(audio);
     expect(init?.method).toBe("POST");
     expect(init?.headers).toMatchInlineSnapshot(`
@@ -95,8 +98,8 @@ describe("transcribeDictation", () => {
 
     await transcribeDictation({ audio, surface: "composer" });
 
-    expect(fetchSpy.mock.calls[0]?.[0]).toEqual(
-      expect.stringMatching(/\/dictation$/),
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      "https://api.example.test/dictation",
     );
   });
 

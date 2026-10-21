@@ -4,6 +4,7 @@ import { type AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
 
+import { platformApiBaseUrl } from "./base-url";
 import { dictationAllowance } from "./dictation";
 import {
   feedDictation,
@@ -24,8 +25,10 @@ vi.mock(import("./headers"), () => ({
   }),
 }));
 vi.mock(import("./utils"), () => ({ getToken: vi.fn() }));
+vi.mock(import("./base-url"), () => ({ platformApiBaseUrl: vi.fn() }));
 
 const mockGetToken = vi.mocked(getToken);
+const mockPlatformApiBaseUrl = vi.mocked(platformApiBaseUrl);
 
 /**
  * A stand-in for the API's stream route: it records what it was sent and
@@ -90,7 +93,7 @@ async function fakeApi(
   });
   // `as`: listening on a port, so the address is an AddressInfo.
   const { port } = http.address() as AddressInfo;
-  vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", `http://127.0.0.1:${port}`);
+  mockPlatformApiBaseUrl.mockReturnValue(`http://127.0.0.1:${port}`);
   return {
     asked,
     close: () =>
@@ -132,7 +135,6 @@ beforeEach(() => {
 afterEach(async () => {
   await api?.close();
   api = undefined;
-  vi.unstubAllEnvs();
 });
 
 describe("listenForDictation", () => {
@@ -215,7 +217,7 @@ describe("listenForDictation", () => {
   });
 
   it("is unavailable when the API can't be reached", async () => {
-    vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", "http://127.0.0.1:1");
+    mockPlatformApiBaseUrl.mockReturnValue("http://127.0.0.1:1");
 
     expect(await listen([])).toEqual([
       { failure: { kind: "connection" }, type: "unavailable" },

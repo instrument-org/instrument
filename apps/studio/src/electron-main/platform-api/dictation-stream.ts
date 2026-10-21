@@ -6,6 +6,7 @@ import {
 import { WebSocket } from "ws";
 import { z } from "zod";
 
+import { platformApiBaseUrl } from "./base-url";
 import { dictationFailureOf, noteDictationUsedUp } from "./dictation";
 import { getPlatformApiHeaders } from "./headers";
 import { getToken } from "./utils";
@@ -50,10 +51,7 @@ export async function* listenForDictation({
     yield { failure: { kind: "signed-out" }, type: "unavailable" };
     return;
   }
-  const base = import.meta.env.MAIN_VITE_APP_API_BASE_URL.replace(
-    /^http/,
-    "ws",
-  );
+  const base = platformApiBaseUrl().replace(/^http/, "ws");
   const query = language ? `?${new URLSearchParams({ language })}` : "";
   const socket = new WebSocket(`${base}/dictation/stream${query}`, {
     handshakeTimeout: OPEN_TIMEOUT_MS,

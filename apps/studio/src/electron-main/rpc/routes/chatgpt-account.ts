@@ -12,7 +12,6 @@ import {
 import { setChatGPTAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { z } from "zod";
 
@@ -46,12 +45,6 @@ const signIn = base
           accountId: input.accountId,
           callbackPort: server.port,
         });
-        if (result.outcome === "signed-in") {
-          // A plan is a way to run models like a provider or an account, so
-          // the app opens on the window from now on, as it does after either
-          // of those.
-          getWorkspaceState().set("hasCompletedProviderSetup", true);
-        }
         return result;
       } catch (error) {
         captureServerException(

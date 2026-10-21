@@ -5,15 +5,12 @@ import { type ModelRoutes } from "@instrument-org/ai-gateway";
 import Store from "electron-store";
 import { z } from "zod";
 
-import { getProviderConfigsStore } from "./provider-configs";
-
 /**
- * What the app remembers about this workspace on this computer: whether its
- * providers are set up, which holds only with this computer's keys. Kept in
- * the workspace's machine folder; machine-wide state is in `machine/state.ts`.
+ * What the app remembers about this workspace on this computer, which holds
+ * only with this computer's keys. Kept in the workspace's machine folder;
+ * machine-wide state is in `machine/state.ts`.
  */
 const WorkspaceStateSchema = z.object({
-  hasCompletedProviderSetup: z.boolean().catch(false),
   // The connection this computer settled on for each model a chat names
   // through another computer's connection (`routeModel`), so it always goes
   // through the same one here. This computer's alone, which is why it is
@@ -25,7 +22,7 @@ type WorkspaceState = z.output<typeof WorkspaceStateSchema>;
 
 let STORE: null | Store<WorkspaceState> = null;
 
-export const getWorkspaceState = (): Store<WorkspaceState> => {
+const getWorkspaceState = (): Store<WorkspaceState> => {
   if (STORE === null) {
     const defaults = WorkspaceStateSchema.parse({});
     STORE = new Store<WorkspaceState>({
@@ -44,15 +41,6 @@ export const getWorkspaceState = (): Store<WorkspaceState> => {
       },
       name: "state",
     });
-
-    if (!STORE.get("hasCompletedProviderSetup")) {
-      const hasAnyProvider =
-        getProviderConfigsStore().get("providers").length > 0;
-
-      if (hasAnyProvider) {
-        STORE.set("hasCompletedProviderSetup", true);
-      }
-    }
   }
 
   return STORE;

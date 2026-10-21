@@ -6,6 +6,7 @@ import {
   workspaceKeysDir,
 } from "@/electron-main/lib/get-workspace-folder";
 import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
+import { refreshSetupFacts } from "@/electron-main/lib/setup-facts";
 import {
   createWorkspace,
   keysDirOf,
@@ -373,6 +374,8 @@ const move = base
         userDataDir: getUserDataDir(),
         workspace,
       });
+      // A recorded move settles setup's folder step.
+      refreshSetupFacts();
     };
     // A build that cannot restart itself makes the move the next time it is
     // started by hand.

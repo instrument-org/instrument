@@ -3,6 +3,7 @@ import {
   notificationStatus,
   requestNotifications,
 } from "@/electron-main/lib/mac-native";
+import { refreshNotificationsForSetup } from "@/electron-main/lib/setup-facts";
 import { base } from "@/electron-main/rpc/base";
 import { z } from "zod";
 
@@ -19,7 +20,11 @@ const notifications = {
   /** Never asked, allowed, provisional, or denied; `unsupported` where it cannot be known. */
   status: base.handler(() => notificationStatus()),
   /** The system's prompt when nobody has answered it; the standing answer otherwise. */
-  request: base.handler(() => requestNotifications()),
+  request: base.handler(async () => {
+    const answer = await requestNotifications();
+    void refreshNotificationsForSetup();
+    return answer;
+  }),
 };
 
 const access = {

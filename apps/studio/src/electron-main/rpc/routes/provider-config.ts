@@ -9,7 +9,6 @@ import {
 import { getAllAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { ClientAIProviderConfigSchema } from "@/shared/schemas/provider";
 import {
   AIGatewayProviderConfig,
@@ -191,9 +190,6 @@ const create = base
     };
 
     providersStore.set("providers", [...existingConfigs, configToSave]);
-
-    getWorkspaceState().set("hasCompletedProviderSetup", true);
-
     void setDefaultModel({ replacing: "nothing" });
   });
 

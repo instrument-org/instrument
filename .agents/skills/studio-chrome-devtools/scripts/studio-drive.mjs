@@ -104,6 +104,14 @@
 //
 //   node studio-drive.mjs boot --purpose "first chat" --clean-room first-chat --with-sign-ins
 //
+// `--scenario <name>` boots application data of its own in one app state from
+// fixtures/scenarios/<name>.yaml: a workspace, the folder's place, sentinel
+// sign-ins and setup's record, rebuilt on every boot. Unlike a fixture it does
+// not set SKIP_ONBOARDING, since setup is what most scenarios are about.
+// `--account` signs it in too. Like `--workspace`, it belongs on every command.
+//
+//   node studio-drive.mjs boot --purpose "setup" --scenario beta-tester
+//
 // The app window's tabs are each a router of their own: `goto` sends the tab
 // up (or, with --new-tab, a new tab) to the route, and `state` reports the tab
 // up's route, the tabs and a dialog.
@@ -130,11 +138,13 @@ import {
   utimesSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { DEV_INSTANCE_COLORS } from "../../../../apps/studio/src/shared/dev-instance-colors.ts";
+import { SETUP_STEPS } from "../../../../apps/studio/src/shared/setup.ts";
 import {
   CHECKOUT_KEY,
   checkoutPort,
@@ -207,14 +217,22 @@ const WORKSPACE = flag(process.argv, "--workspace");
 // `--clean-room <name>` boots a blank workspace on the shared dev application
 // data instead (see prepareCleanRoom). Same rule: it belongs on every command.
 const CLEAN_ROOM = flag(process.argv, "--clean-room");
-// What keys the port and the instance record: the fixture or the clean room a
-// run is about, or neither for the checkout's own instance.
-const INSTANCE = WORKSPACE ?? (CLEAN_ROOM && `clean-room-${CLEAN_ROOM}`);
+// `--scenario <name>` boots application data of its own in one app state
+// (fixtures/scenarios/, see prepareScenario). Same rule again.
+const SCENARIO = flag(process.argv, "--scenario");
+// What keys the port and the instance record: the fixture, clean room or
+// scenario a run is about, or none for the checkout's own instance.
+const INSTANCE =
+  WORKSPACE ??
+  (CLEAN_ROOM && `clean-room-${CLEAN_ROOM}`) ??
+  (SCENARIO && `scenario-${SCENARIO}`);
 const INSTANCE_FLAG = WORKSPACE
   ? ` --workspace ${WORKSPACE}`
   : CLEAN_ROOM
     ? ` --clean-room ${CLEAN_ROOM}`
-    : "";
+    : SCENARIO
+      ? ` --scenario ${SCENARIO}`
+      : "";
 
 // --- seeded workspaces -------------------------------------------------
 
@@ -222,12 +240,13 @@ const INSTANCE_FLAG = WORKSPACE
  * Build (or reuse) the workspace this boot will run against, and hand back the
  * directory to point `ELECTRON_USER_DATA_DIR` at. The seeder is idempotent and
  * fast, so calling it on every boot is cheaper than reasoning about whether the
- * fixture has changed since last time.
+ * fixture has changed since last time. `dirName` names the directory when it
+ * is not the fixture's own (a scenario's).
  */
-function prepareWorkspace(name, { fresh, keepTabs }) {
+function prepareWorkspace(name, { dirName = name, fresh, keepTabs }) {
   reapStaleWorkspaces();
 
-  const userDataDir = path.join(WORKSPACE_CACHE_ROOT, name);
+  const userDataDir = path.join(WORKSPACE_CACHE_ROOT, dirName);
   mkdirSync(WORKSPACE_CACHE_ROOT, { recursive: true });
 
   let output;
@@ -427,30 +446,220 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
       devUserDataDir(),
       path.join(devUserDataDir(), "workspace"),
     );
-    const machineDir = movedMachineDir(devUserDataDir(), dir);
     const keysDir = keysDirOf(devUserDataDir(), dir);
-    // Beside the keys in the settings folder, above them in a machine folder.
-    const stateFile = path.join(machineDir ?? keysDir, "state.json");
     mkdirSync(keysDir, { recursive: true });
-    let copied = 0;
     for (const file of SIGN_IN_FILES) {
       const target = path.join(keysDir, file);
       if (existsSync(path.join(from, file)) && !existsSync(target)) {
         copyFileSync(path.join(from, file), target);
-        copied++;
       }
-    }
-    if (copied > 0) {
-      writeFileSync(
-        stateFile,
-        `${JSON.stringify({ hasCompletedProviderSetup: true })}\n`,
-      );
     }
   }
 
   // Reaping goes by mtime, as for fixtures.
   utimesSync(dir, new Date(), new Date());
   return { dir };
+}
+
+// --- scenarios ---------------------------------------------------------
+
+const SCENARIOS_DIR = path.join(REPO_ROOT, "fixtures", "scenarios");
+
+// The ChatGPT plan scope a sign-in has to carry for its account to count,
+// as the built-in sign-in setup names it (chatgpt-sign-in-setup.ts).
+const CHATGPT_PLAN_SCOPE = "chatgpt.tokens.use.direct";
+
+/** The keys a scenario may set, so a typo fails rather than doing nothing. */
+const SCENARIO_KEYS = new Set([
+  "description",
+  "folder",
+  "network",
+  "notifications",
+  "outputFolder",
+  "setup",
+  "signIns",
+  "workspace",
+]);
+
+function readScenario(name) {
+  const file = path.join(SCENARIOS_DIR, `${name}.yaml`);
+  if (!existsSync(file)) {
+    const known = existsSync(SCENARIOS_DIR)
+      ? readdirSync(SCENARIOS_DIR)
+          .filter((entry) => entry.endsWith(".yaml"))
+          .map((entry) => entry.replace(/\.yaml$/, ""))
+      : [];
+    fail(`No scenario "${name}". Scenarios: ${known.join(", ") || "none"}`);
+  }
+  // The workspace package's copy, since the repo root has none of its own.
+  const yaml = createRequire(
+    path.join(REPO_ROOT, "packages", "workspace", "package.json"),
+  )("yaml");
+  const scenario = yaml.parse(readFileSync(file, "utf8")) ?? {};
+  const unknown = Object.keys(scenario).filter(
+    (key) => !SCENARIO_KEYS.has(key),
+  );
+  if (unknown.length > 0) {
+    fail(`${file} has keys no scenario takes: ${unknown.join(", ")}`);
+  }
+  for (const step of [
+    ...(scenario.setup?.answered ?? []),
+    ...(scenario.setup?.addedLater ?? []),
+  ]) {
+    if (!SETUP_STEPS.includes(step)) {
+      fail(
+        `${file} names a step setup has no ${JSON.stringify(step)}. Steps: ${SETUP_STEPS.join(", ")}`,
+      );
+    }
+  }
+  return scenario;
+}
+
+/**
+ * Builds a scenario's application data from scratch, so every boot lands in
+ * the same state however the last run left it: its workspace (a fixture, or
+ * none yet), the folder's place, sentinel sign-ins, and setup's record. What
+ * comes from outside the app (macOS's notification answer, the network)
+ * comes back as the environment the boot sets.
+ */
+function prepareScenario(name, { keepTabs }) {
+  const scenario = readScenario(name);
+  const dirName = `scenario-${name}`;
+  const base = path.join(WORKSPACE_CACHE_ROOT, dirName);
+  rmSync(base, { force: true, recursive: true });
+  rmSync(`${base}-output`, { force: true, recursive: true });
+  rmSync(`${base}-home`, { force: true, recursive: true });
+  const seeded = scenario.workspace
+    ? prepareWorkspace(scenario.workspace, { dirName, keepTabs })
+    : undefined;
+  if (!seeded) {
+    reapStaleWorkspaces();
+    mkdirSync(base, { recursive: true });
+  }
+  const userDataDir = seeded?.userDataDir ?? base;
+  const workspaceDir = path.join(userDataDir, "workspace");
+
+  // Where finished work goes. `documents` stands in for the folder in
+  // Documents an earlier build sent it to, inside the scenario's own
+  // folder: a development build never looks in the real one.
+  let outputDir = `${userDataDir}-output`;
+  if (scenario.outputFolder === "documents") {
+    outputDir = path.join(`${userDataDir}-home`, "Documents", "Instrument");
+    mkdirSync(outputDir, { recursive: true });
+    writeFileSync(
+      path.join(outputDir, "Finished before.md"),
+      "# Earlier work\n",
+    );
+  } else if (scenario.outputFolder !== undefined) {
+    fail(`outputFolder takes only "documents", not ${scenario.outputFolder}`);
+  }
+  mkdirSync(outputDir, { recursive: true });
+
+  if (scenario.folder === "move-pending") {
+    // The move Continue on the folder step records before its restart, which
+    // this launch makes.
+    const target = path.join(`${userDataDir}-home`, "Instrument");
+    mkdirSync(target, { recursive: true });
+    // A launch has always settled the workspace before a move is asked
+    // for, and the launch that makes one opens only a folder with an
+    // identity.
+    const identity = path.join(workspaceDir, ".instrument", "workspace.json");
+    if (!existsSync(identity)) {
+      mkdirSync(path.dirname(identity), { recursive: true });
+      writeFileSync(identity, `${JSON.stringify({ name: "Default" })}\n`);
+    }
+    const registryFile = path.join(userDataDir, "workspaces.json");
+    let registry = {};
+    try {
+      registry = JSON.parse(readFileSync(registryFile, "utf8"));
+    } catch {
+      // None yet: the app registers the default workspace at launch.
+    }
+    const others = (registry.workspaces ?? []).filter(
+      (entry) => entry?.id !== "default",
+    );
+    const own = (registry.workspaces ?? []).find(
+      (entry) => entry?.id === "default",
+    );
+    writeFileSync(
+      registryFile,
+      `${JSON.stringify({
+        ...registry,
+        active: registry.active ?? "default",
+        workspaces: [
+          ...others,
+          {
+            path: "workspace",
+            ...own,
+            id: "default",
+            pendingMove: { from: workspaceDir, to: target },
+          },
+        ],
+      })}\n`,
+    );
+  } else if (scenario.folder !== undefined && scenario.folder !== "app-data") {
+    fail(`folder takes "app-data" or "move-pending", not ${scenario.folder}`);
+  }
+
+  for (const signIn of scenario.signIns ?? []) {
+    if (signIn !== "chatgpt") {
+      fail(`signIns takes only "chatgpt", not ${signIn}`);
+    }
+    // A sign-in that passes every check the app makes on disk and fails any
+    // real request: the token is not one.
+    const keysDir = keysDirOf(userDataDir, workspaceDir);
+    mkdirSync(keysDir, { recursive: true });
+    writeFileSync(
+      path.join(keysDir, "chatgpt-account.json"),
+      `${JSON.stringify({
+        registrations: {
+          "scenario-chatgpt": {
+            accessToken: "scenario-sentinel-not-a-token",
+            addedAt: Date.now(),
+            clientId: "scenario-sentinel",
+            email: "scenario@example.com",
+            expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+            id: "scenario-chatgpt",
+            scopes: ["openid", CHATGPT_PLAN_SCOPE],
+            subject: "scenario-sentinel",
+          },
+        },
+      })}\n`,
+      { mode: 0o600 },
+    );
+  }
+
+  if (scenario.setup) {
+    // As setup itself writes it (setup-step.ts): finishing answers every
+    // step, and `addedLater` takes back the ones a later build added.
+    const at = new Date().toISOString();
+    const answered = Object.fromEntries(
+      (scenario.setup.finished ? SETUP_STEPS : (scenario.setup.answered ?? []))
+        .filter((step) => !(scenario.setup.addedLater ?? []).includes(step))
+        .map((step) => [step, at]),
+    );
+    writeFileSync(
+      path.join(userDataDir, "machine-state.json"),
+      `${JSON.stringify({
+        setup: {
+          answered,
+          ...(scenario.setup.finished && { finishedAt: at }),
+        },
+      })}\n`,
+    );
+  }
+
+  return {
+    env: {
+      ...(scenario.notifications && {
+        INSTRUMENT_NOTIFICATION_STATUS: scenario.notifications,
+      }),
+      ...(scenario.network && { INSTRUMENT_NETWORK_STATUS: scenario.network }),
+    },
+    outputDir,
+    userDataDir,
+    workspaceDir,
+  };
 }
 
 // --- accounts --------------------------------------------------------
@@ -495,30 +704,15 @@ function readAccount(file) {
 
 /**
  * Signs the workspace at `workspaceDir` in as `account`: the session the app
- * reads (plain JSON in a dev build), and setup marked done so it opens
- * straight to the window. Replaces any session the workspace held.
+ * reads (plain JSON in a dev build). Replaces any session the workspace held.
  */
 function signInAs(account, userDataDir, workspaceDir) {
   const keysDir = keysDirOf(userDataDir, workspaceDir);
-  const stateFile = path.join(
-    movedMachineDir(userDataDir, workspaceDir) ?? keysDir,
-    "state.json",
-  );
   mkdirSync(keysDir, { recursive: true });
   writeFileSync(
     path.join(keysDir, "session-dev.json"),
     `${JSON.stringify({ apiBearerTokens: { [new URL(account.api).origin]: account.token } })}\n`,
     { mode: 0o600 },
-  );
-  let state = {};
-  try {
-    state = JSON.parse(readFileSync(stateFile, "utf8"));
-  } catch {
-    // None yet.
-  }
-  writeFileSync(
-    stateFile,
-    `${JSON.stringify({ ...state, hasCompletedProviderSetup: true })}\n`,
   );
 }
 
@@ -658,14 +852,14 @@ async function cmdBoot(
   },
 ) {
   const purpose = normalizePurpose(rawPurpose);
-  if (WORKSPACE && CLEAN_ROOM) {
+  if ([WORKSPACE, CLEAN_ROOM, SCENARIO].filter(Boolean).length > 1) {
     fail(
-      "Pass --workspace or --clean-room, not both: a fixture brings its own application data, a clean room uses yours.",
+      "Pass one of --workspace, --clean-room or --scenario: a fixture and a scenario bring their own application data, a clean room uses yours.",
     );
   }
-  if (accountFile && !WORKSPACE && !CLEAN_ROOM) {
+  if (accountFile && !WORKSPACE && !CLEAN_ROOM && !SCENARIO) {
     fail(
-      "--account signs a disposable workspace in, so it needs --workspace or --clean-room: your own workspace keeps your own sign-in.",
+      "--account signs a disposable workspace in, so it needs --workspace, --clean-room or --scenario: your own workspace keeps your own sign-in.",
     );
   }
   const account = accountFile ? readAccount(accountFile) : undefined;
@@ -744,8 +938,13 @@ async function cmdBoot(
   const cleanRoom = CLEAN_ROOM
     ? prepareCleanRoom(CLEAN_ROOM, { purpose, withSignIns })
     : undefined;
+  const scenario = SCENARIO
+    ? prepareScenario(SCENARIO, { keepTabs })
+    : undefined;
   if (account) {
-    if (workspace) {
+    if (scenario) {
+      signInAs(account, scenario.userDataDir, scenario.workspaceDir);
+    } else if (workspace) {
       signInAs(
         account,
         workspace.userDataDir,
@@ -806,19 +1005,25 @@ async function cmdBoot(
         STUDIO_DRIVE_PURPOSE: purpose,
         STUDIO_DRIVE_VISIBLE: visible ? "1" : undefined,
         // A seeded workspace has no provider credentials and must not: they
-        // cannot be committed. Without this the app opens the onboarding window
-        // and never reveals the main one, which reads as a hang.
+        // cannot be committed. Without this the app opens on setup.
         ...(workspace && {
           ELECTRON_USER_DATA_DIR: workspace.userDataDir,
           INSTRUMENT_OUTPUT_FOLDER: workspace.outputDir,
           SKIP_ONBOARDING: "true",
         }),
         // Pinned rather than switched to, so the developer's own instance keeps
-        // opening the workspace it had. Signed out, onboarding would hide the
-        // main window exactly as it would for a fixture.
+        // opening the workspace it had. Setup's record is the developer's
+        // application data's, so setup stays out of the way whatever it says.
         ...(cleanRoom && {
           INSTRUMENT_WORKSPACE: cleanRoom.dir,
-          ...(!withSignIns && !account && { SKIP_ONBOARDING: "true" }),
+          SKIP_ONBOARDING: "true",
+        }),
+        // A scenario is about the state setup reads, so setup decides.
+        ...(scenario && {
+          ...scenario.env,
+          ELECTRON_USER_DATA_DIR: scenario.userDataDir,
+          INSTRUMENT_OUTPUT_FOLDER: scenario.outputDir,
+          SKIP_ONBOARDING: undefined,
         }),
         // The account's API, over the build's (electron-vite takes a variable
         // already in the environment over the .env files) and over the server
@@ -846,6 +1051,7 @@ async function cmdBoot(
     startedAt: new Date().toISOString(),
     ...(workspace && { tasks: workspace.tasks, workspace: WORKSPACE }),
     ...(cleanRoom && { cleanRoom: cleanRoom.dir }),
+    ...(scenario && { scenario: SCENARIO }),
     ...(account && {
       account: { api: account.api, email: account.email, file: account.file },
     }),

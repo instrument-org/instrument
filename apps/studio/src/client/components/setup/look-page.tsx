@@ -14,7 +14,7 @@ type ThemeOption = "dark" | "light" | "system";
 const THEMES: { label: string; value: ThemeOption }[] = [
   { label: "Light", value: "light" },
   { label: "Dark", value: "dark" },
-  { label: "Auto", value: "system" },
+  { label: "System", value: "system" },
 ];
 
 /**

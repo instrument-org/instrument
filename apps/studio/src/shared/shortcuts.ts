@@ -49,7 +49,7 @@ export const SHORTCUTS = {
   themeSystem: {
     accelerator: "CmdOrCtrl+Shift+M",
     group: "Developer",
-    label: "Set Theme: Auto",
+    label: "Set Theme: System",
   },
 } satisfies Record<string, ShortcutDescriptor>;
 

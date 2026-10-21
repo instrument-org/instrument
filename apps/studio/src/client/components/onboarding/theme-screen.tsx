@@ -120,7 +120,7 @@ const MOCKUP: Record<ThemeOption, React.ComponentType> = {
 const LABELS: Record<ThemeOption, string> = {
   dark: "Dark",
   light: "Light",
-  system: "Auto",
+  system: "System",
 };
 
 const THEMES: ThemeOption[] = ["light", "dark", "system"];

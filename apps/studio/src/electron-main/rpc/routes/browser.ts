@@ -303,6 +303,16 @@ const continueDespiteCertificate = base
       ) ?? false,
   }));
 
+/**
+ * How a tab's last page load ended, read by its panel once it is listening,
+ * since a first load can fail before then.
+ */
+const lastLoad = base
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
+  .handler(
+    ({ input }) => getBrowserViewManager()?.lastLoadOf(input.targetId) ?? null,
+  );
+
 /** The engine's answer: the words asked about, then what it would finish them as. */
 const SuggestionsSchema = z.tuple(
   [z.string(), z.array(z.string())],
@@ -352,6 +362,7 @@ export const browser = {
   continueDespiteCertificate,
   downloads,
   events,
+  lastLoad,
   live,
   page,
   rememberPageIcon,

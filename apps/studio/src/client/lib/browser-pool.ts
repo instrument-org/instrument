@@ -90,7 +90,7 @@ export interface GuestEventMap {
     isMainFrame: boolean;
     validatedURL: string;
   };
-  "did-navigate": { url: string };
+  "did-navigate": { httpResponseCode: number; url: string };
   "did-navigate-in-page": { isMainFrame: boolean; url: string };
   "did-start-loading": object;
   "did-stop-loading": object;

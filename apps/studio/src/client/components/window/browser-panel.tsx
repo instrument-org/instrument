@@ -71,12 +71,20 @@ import {
   webSearchUrl,
 } from "@/client/lib/resolve-url-or-search";
 import { showInFolder } from "@/client/lib/show-in-files";
+import {
+  type FailedLoad,
+  failedLoadCopy,
+  isEmptyResponseDocument,
+  isResponseDocument,
+  READ_RESPONSE_DOCUMENT,
+} from "@/client/lib/failed-load-copy";
 import { segmentsOf } from "@/client/components/window/host-path";
 import { type TypedPath } from "@/client/lib/typed-path";
 import { fileHref } from "@/shared/computer-href";
 import { displayHostPath } from "@instrument-org/shared";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { safe } from "@orpc/client";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import {
   BROWSER_ZOOM_MAX,
@@ -219,8 +227,9 @@ export function BrowserPanel({
   // browser shows in place of the page.
   const [failure, setFailure] = useState<null | {
     certificate?: string;
+    /** What failed, for the notice's words; absent for a typed path. */
+    load?: FailedLoad;
     located?: LocatedPath;
-    message: string;
     targetId: BrowserTargetId;
     typed?: TypedPath;
     url: string;
@@ -350,7 +359,11 @@ export function BrowserPanel({
         ...(isCertificateError(detail.errorCode)
           ? { certificate: detail.errorDescription }
           : {}),
-        message: detail.errorDescription || "This site can’t be reached",
+        load: {
+          errorCode: detail.errorCode,
+          errorDescription: detail.errorDescription,
+          url: detail.validatedURL,
+        },
         targetId,
         url: detail.validatedURL,
       });
@@ -371,6 +384,37 @@ export function BrowserPanel({
         setDraftUrl(detail.validatedURL);
       }
     };
+    // A page committed from a 4xx or 5xx response with nothing in it gets
+    // the notice too, where Chrome shows its own "HTTP ERROR" page. Read
+    // once the page has stopped loading, and dropped when the guest has
+    // moved on since.
+    let httpError: null | { status: number; url: string } = null;
+    const noteResponse = (detail: GuestEventMap["did-navigate"]) => {
+      httpError =
+        detail.httpResponseCode >= 400
+          ? { status: detail.httpResponseCode, url: detail.url }
+          : null;
+    };
+    const checkEmptyResponse = () => {
+      const response = httpError;
+      httpError = null;
+      if (!response || guest.url() !== response.url) {
+        return;
+      }
+      void guest.run(READ_RESPONSE_DOCUMENT).then((doc) => {
+        if (
+          isResponseDocument(doc) &&
+          isEmptyResponseDocument(doc) &&
+          guest.url() === response.url
+        ) {
+          setFailure({
+            load: { httpStatus: response.status, url: response.url },
+            targetId,
+            url: response.url,
+          });
+        }
+      });
+    };
     // The zoom is the guest's, and moves without the panel: a chord pressed
     // in the page, or a site the guest's zoom was already set for.
     const readZoom = () => {
@@ -384,7 +428,33 @@ export function BrowserPanel({
       guest.on("did-navigate-in-page", clearFailure),
       guest.on("did-start-loading", clearFailure),
       guest.on("did-fail-load", onFailLoad),
+      guest.on("did-navigate", noteResponse),
+      guest.on("did-stop-loading", checkEmptyResponse),
     ];
+    // A guest's first load can end before these listeners are on, a refused
+    // connection within a few milliseconds of it starting, so how the last
+    // one ended is read once, for the page the guest still shows.
+    void safe(rpcClient.browser.lastLoad.call({ targetId })).then(
+      ({ data: last }) => {
+        if (!last || guest.url() !== last.url || guest.isLoading()) {
+          return;
+        }
+        if (last.errorCode !== undefined) {
+          onFailLoad({
+            errorCode: last.errorCode,
+            errorDescription: last.errorDescription,
+            isMainFrame: true,
+            validatedURL: last.url,
+          });
+        } else {
+          noteResponse({
+            httpResponseCode: last.httpResponseCode,
+            url: last.url,
+          });
+          checkEmptyResponse();
+        }
+      },
+    );
     return () => {
       for (const stop of stops) {
         stop();
@@ -450,7 +520,6 @@ export function BrowserPanel({
     } else {
       setFailure({
         located,
-        message: "",
         targetId,
         typed: typedPath,
         url: typedPath.typed,
@@ -1116,8 +1185,8 @@ function LoadErrorNotice({
   onSearch,
 }: {
   failure: {
+    load?: FailedLoad;
     located?: LocatedPath;
-    message: string;
     typed?: TypedPath;
     url: string;
   };
@@ -1125,6 +1194,7 @@ function LoadErrorNotice({
   onSearch: (words: string) => void;
 }) {
   const { located, typed } = failure;
+  const copy = failure.load ? failedLoadCopy(failure.load) : null;
   const home = window.api.homeDir;
   const missed =
     located?.kind === "missing" || located?.kind === "failed"
@@ -1142,13 +1212,20 @@ function LoadErrorNotice({
         <p className="max-w-sm text-sm font-medium">
           Instrument can’t read “{displayHostPath(located.path, home)}”.
         </p>
+      ) : copy ? (
+        <div className="max-w-md space-y-1.5">
+          <p className="text-base font-medium break-words">{copy.heading}</p>
+          <p className="text-sm break-words text-muted-foreground">
+            {copy.summary}
+          </p>
+          <p className="font-mono text-xs text-muted-foreground">{copy.code}</p>
+        </div>
       ) : (
         <div className="space-y-1">
           <p className="text-sm font-medium">This site can’t be reached</p>
           <p className="max-w-xs truncate text-xs text-muted-foreground">
             {failure.url}
           </p>
-          <p className="text-xs text-muted-foreground">{failure.message}</p>
         </div>
       )}
       <div className="flex flex-wrap items-center justify-center gap-2">
@@ -1187,7 +1264,7 @@ function LoadErrorNotice({
           </Button>
         )}
         <Button onClick={onRetry} size="sm" variant="outline">
-          Try again
+          Reload
         </Button>
       </div>
     </div>

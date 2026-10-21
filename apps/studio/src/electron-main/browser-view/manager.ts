@@ -1,6 +1,7 @@
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   type BrowserGuestTarget,
+  type GuestLastLoad,
   targetIdFromPartition,
 } from "@/shared/browser";
 import {
@@ -112,13 +113,23 @@ export interface BrowserViewManager {
   // Trust the certificate a tab's page was last refused, when it was for
   // `url`'s site, and load `url` again under it: "Continue" on the page that
   // says the connection isn't private. False when there is none to trust.
-  continueDespiteCertificate: (targetId: BrowserTargetId, url: string) => boolean;
+  continueDespiteCertificate: (
+    targetId: BrowserTargetId,
+    url: string,
+  ) => boolean;
+  // How a tab's last page load ended, for a panel that started listening to
+  // its guest after it did: a guest's first load can fail before the panel
+  // showing it has its listeners on.
+  lastLoadOf: (targetId: BrowserTargetId) => GuestLastLoad | null;
   // Record focus returning to any element in the host renderer.
   setHostFocus: () => void;
   teardown: () => void;
 }
 
 let managerInstance: BrowserViewManager | undefined;
+
+/** How each tab's last main-frame load ended, until its next one starts. */
+const lastLoads = new WeakMap<BrowserEntry, GuestLastLoad>();
 
 /** The sign-ins the window's tabs are waiting on, which the window draws. */
 export const guestSignIns = createSignInRequests(() => {
@@ -345,6 +356,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     const history = recordHistory(entry, guest);
     guest.on("did-start-navigation", (details) => {
       if (details.isMainFrame && !details.isSameDocument) {
+        lastLoads.delete(entry);
         focusGuard.onNavigationStart(targetId);
         markNavigated(entry, details.url);
         history.start(details.url);
@@ -361,6 +373,9 @@ export function createBrowserViewManager(): BrowserViewManager {
     // an empty page. History compares the list as the commit left it,
     // before the blank start goes, and settles on it after.
     guest.on("did-navigate", (_event, url, httpResponseCode) => {
+      if (!lastLoads.get(entry)?.errorCode) {
+        lastLoads.set(entry, { httpResponseCode, url });
+      }
       history.commit({
         after: navigationSnapshot(guest),
         status: httpResponseCode,
@@ -412,6 +427,11 @@ export function createBrowserViewManager(): BrowserViewManager {
       (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
         if (isMainFrame && errorCode !== -3) {
           history.failed(validatedURL);
+          lastLoads.set(entry, {
+            errorCode,
+            errorDescription,
+            url: validatedURL,
+          });
         }
         // Only the host goes in the log: a page's full address can carry
         // tokens and says what the user was looking at.
@@ -793,6 +813,10 @@ export function createBrowserViewManager(): BrowserViewManager {
     bindHost,
     browser,
     continueDespiteCertificate,
+    lastLoadOf: (targetId) => {
+      const entry = entries.get(targetId);
+      return (entry && lastLoads.get(entry)) ?? null;
+    },
     getTargets: () =>
       [...entries.values()].map((entry) => ({
         attached: hasGuest(entry),

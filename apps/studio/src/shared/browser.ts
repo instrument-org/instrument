@@ -46,6 +46,14 @@ export interface BrowserGuestTarget {
 }
 
 /**
+ * How a tab's last page load ended: Chromium's net error for one that
+ * failed, or the HTTP status of the response it committed.
+ */
+export type GuestLastLoad =
+  | { errorCode: number; errorDescription: string; url: string }
+  | { errorCode?: undefined; httpResponseCode: number; url: string };
+
+/**
  * A page asking for a username and password (HTTP basic or digest auth, or a
  * proxy in its way), waiting on the person's answer in the tab's window.
  */

@@ -248,15 +248,15 @@ function matchesSearch(
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * When something last happened in a chat, the way a mailbox says it at a
- * row's end: the time of day while it is today, and the date past that.
- */
-/**
  * Said once a usage limit stopped the chat's last turn, which is not an error:
  * the note over its reply box says what to do.
  */
 export const LIMITED = "Stopped at a usage limit";
 
+/**
+ * When something last happened in a chat, the way a mailbox says it at a
+ * row's end: the time of day while it is today, and the date past that.
+ */
 export function activityLabel(date: Date, now: Date): string {
   const startOfToday = new Date(now).setHours(0, 0, 0, 0);
   const days = Math.floor((startOfToday - date.getTime()) / DAY_MS);

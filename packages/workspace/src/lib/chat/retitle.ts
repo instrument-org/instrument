@@ -5,15 +5,14 @@ import { publisher } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
-import { generateTitleFromUserMessage } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { ChatReads } from "../chat-reads";
 import { followTitle, titlesToFollow } from "../chat-folders/follow-title";
-import { cappedTitle } from "../chat-folders/folder-name";
 import { chatModelURI } from "../chat-settings";
 import { sessionRole } from "./children";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
+import { nameChat } from "./chat-name";
 import { chatIsWorking, settleChatTitle } from "./chats";
 import { lastAssistantTextIn } from "./latest-session";
 import { type ChatId } from "../../schemas/chat-id";
@@ -76,22 +75,21 @@ export async function retitleChat({
   if (!model.ok) {
     return undefined;
   }
-  const title = await generateTitleFromUserMessage({
-    currentTitle,
+  // Cut and kept clear of every other chat's name before it is stored, so
+  // the title compared, the title written and the title handed back are one
+  // string, and the folder that follows it needs no number of its own.
+  const title = await nameChat({
+    chatId: id,
+    ...(currentTitle === undefined ? {} : { currentTitle }),
     message: root,
     model: model.value,
     reply,
-    chatId: id,
     workspaceConfig,
   });
   if (title.isErr()) {
     return undefined;
   }
-  // Cut here rather than on the way to storage, so the title compared, the
-  // title written and the title handed back are one string. A model that
-  // overran would otherwise be told its name was kept while a shorter one
-  // was stored.
-  const named = cappedTitle(title.value);
+  const named = title.value;
   if (named === session.value.title) {
     return named;
   }

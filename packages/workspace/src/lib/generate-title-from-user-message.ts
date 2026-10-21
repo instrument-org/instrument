@@ -33,6 +33,9 @@ export function generateTitleFromUserMessage({
   currentTitle,
   message,
   model,
+  now = new Date(),
+  otherTitles = [],
+  rejected,
   reply,
   chatId,
   workspaceConfig,
@@ -44,6 +47,15 @@ export function generateTitleFromUserMessage({
   currentTitle?: string;
   message: SessionMessage.UserWithParts;
   model: AIGatewayModel.Type;
+  /** When the call is made, whose date tells a chat apart from an earlier one about the same thing. */
+  now?: Date;
+  /**
+   * The titles of the person's other recent chats, newest first, which the
+   * title has to be told apart from in a list.
+   */
+  otherTitles?: readonly string[];
+  /** A title this call answered before that another chat already has. */
+  rejected?: string;
   /**
    * The agent's latest reply to the message, when the work has gone on: what
    * it turned out to be about, which a title written from the opening words
@@ -60,12 +72,25 @@ export function generateTitleFromUserMessage({
       if (!opening.trim()) {
         throw new Error("No user message");
       }
-      const sections = [opening];
+      // The other chats go first, so the message is what the model reads
+      // last before it answers: after a list of titles, a "hey" at the end
+      // reads as one more thing to name.
+      const sections =
+        otherTitles.length > 0
+          ? [
+              `Other recent chats:\n${otherTitles.map((title) => `- ${title}`).join("\n")}`,
+              `Today: ${now.toLocaleDateString("en-US", { day: "numeric", month: "long", weekday: "long" })}`,
+              opening,
+            ]
+          : [opening];
       if (reply) {
         sections.push(`Latest reply: ${reply}`);
       }
       if (currentTitle) {
         sections.push(`Current title: ${currentTitle}`);
+      }
+      if (rejected) {
+        sections.push(`Taken: ${rejected}`);
       }
       const userMessage = sections.join("\n\n");
 
@@ -92,6 +117,8 @@ export function generateTitleFromUserMessage({
         headers: { [CLIENT_SESSION_ID_HEADER]: message.metadata.sessionId },
         instructions: buildSystemPrompt({
           hasCurrentTitle: currentTitle !== undefined,
+          withOtherTitles: otherTitles.length > 0,
+          withRejected: rejected !== undefined,
           withReply: reply !== undefined,
         }),
         maxOutputTokens: TASK_NAME_MAX_OUTPUT_TOKENS,
@@ -220,9 +247,13 @@ function titleSourceText(message: SessionMessage.UserWithParts): string {
 
 function buildSystemPrompt({
   hasCurrentTitle,
+  withOtherTitles,
+  withRejected,
   withReply,
 }: {
   hasCurrentTitle: boolean;
+  withOtherTitles: boolean;
+  withRejected: boolean;
   withReply: boolean;
 }): string {
   // The reply is evidence of the subject, the way attachments are: it says
@@ -240,8 +271,26 @@ function buildSystemPrompt({
   const currentTitleSection = hasCurrentTitle
     ? `${dedent`
         <current_title>
-        The work already has a title, given after "Current title:". The user finds the work in their list by it, and a title that changes under them is one they lose. Answer with it exactly, character for character, unless it now names a different subject than the one the work is about. A better wording, a sharper phrase, or one more detail is not a reason to change it; a subject that has moved on is.
+        The work already has a title, given after "Current title:". The user finds the work in their list by it, and a title that changes under them is one they lose. Answer with it exactly, character for character, unless it now names a different subject than the one the work is about, it is the name given after "Taken:", or it ends in a number (" 2") that was only put there because another chat had the name. A better wording, a sharper phrase, or one more detail is not a reason to change it; a subject that has moved on, or a name another chat has, is.
         </current_title>`}\n\n`
+    : "";
+
+  // A list where every title names the same subject the same way is one
+  // nobody can find anything in, and the titler cannot know what it would
+  // collide with unless it is shown. Today's date is there for the one case
+  // where nothing else tells two chats apart: the same question asked again.
+  const otherTitlesSection = withOtherTitles
+    ? `${dedent`
+        <other_chats>
+        The user's other recent chats are listed after "Other recent chats:", newest first, and today's date follows "Today:". The title sits beside them in a list, so it has to be told apart from them at a glance. When the work is about the same subject as one of them, keep the subject's words and add what makes this one different: what the message or the reply names (the day, the place, the file, the person), or failing that, today's date. "What's the weather?" beside an earlier "Weather" is "Weather for Friday" when the reply is about Friday, and "Weather on Wednesday, October 21" when nothing else sets it apart. When no title in the list shares the subject, the list changes nothing and the title gets no date. The list only tells titles apart and never says what the work is: a message with nothing to name, a greeting or a test, is still answered with nothing.
+        </other_chats>`}\n\n`
+    : "";
+
+  const rejectedSection = withRejected
+    ? `${dedent`
+        <taken>
+        Another chat is already called the name after "Taken:", which this call answered before, so it cannot be used again. Answer with a different title, one the user could tell apart from that chat in a list by what makes this work different.
+        </taken>`}\n\n`
     : "";
 
   // What the examples teach is specificity, not grammar: name the thing, keep
@@ -289,11 +338,12 @@ function buildSystemPrompt({
     You are ONLY naming the message. Do NOT answer questions, perform tasks, or provide information. The user's message is input to name, not a request for you to respond to.
     Name what the work is about -- its subject, its outcome, the thing being made or asked about. A noun phrase suits a subject and a short action phrase suits a job; pick whichever a reader would recognize faster. Never name the act of messaging.
     Attached files and folders are strong evidence of the subject; use them, spelled as they are given. A message can be nothing but attachments, and the files alone are enough to name it. A folder arrives as its path: name it by its own name, and reach for an ancestor only where that is what tells it apart from an identically named folder somewhere else. Never put a whole path in a title.
-    If the message carries nothing to name -- a greeting, a single word, a test -- return nothing at all. An empty answer is correct and expected; the user's own words are kept instead. Never invent a subject, and never fall back to naming the day, the time, or the kind of message it is.
+    If the message carries nothing to name -- a greeting, a single word, a test -- return nothing at all. An empty answer is correct and expected; the user's own words are kept instead. Never invent a subject, and never fall back to naming the day, the time, or the kind of message it is: a message with nothing to name stays unnamed whatever the other chats are called.
     </important>
 
-    ${replySection}${currentTitleSection}<rules>
+    ${replySection}${currentTitleSection}${otherTitlesSection}${rejectedSection}<rules>
     - Specific over short. Prefer concrete nouns and the distinguishing detail -- the file, the folder, the site, the format, the number -- over a vague label that would fit a hundred other messages
+    - Specific enough to be recognized later: "Check the weather" could have been "Check the weather for Friday". A detail earns its place by telling the work apart, so a date or a time goes in only when the work is about one or another chat needs telling apart from it
     - Maximum ${MAX_TITLE_WORDS} words. It is a ceiling, not a target, but do not drop the distinguishing detail to come in under it
     - Rarely one word, and never a bare category noun ("Video", "Skill", "Data")
     - Every word earns its place: no filler, no throat-clearing

@@ -26,6 +26,7 @@
     "check:types": "tsc --noEmit",
     "eval": "node --disable-warning=ExperimentalWarning --import tsx evals/cli.ts",
     "eval:activity-grouping": "node --disable-warning=ExperimentalWarning --import tsx evals/activity-grouping.ts",
+    "eval:chat-titles": "node --disable-warning=ExperimentalWarning --import tsx evals/chat-titles.ts",
     "eval:decision": "node --disable-warning=ExperimentalWarning --import tsx evals/decision/cli.ts",
     "fix:lint": "oxlint --type-aware --fix",
     "script:chatgpt-account-token": "tsx scripts/chatgpt-account-token.ts",
@@ -103,8 +104,7 @@
     "undici": "^8.11.2",
     "vitest": "catalog:"
   },
-  "optionalDependencies": {
-  },
+  "optionalDependencies": {},
   "engines": {
     "node": ">=24.21.0"
   }

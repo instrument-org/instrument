@@ -16,7 +16,7 @@ import { ChatReads } from "../../lib/chat-reads";
 import { ChatWrites } from "../../lib/chat-writes";
 import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
-import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
+import { nameChat } from "../../lib/chat/chat-name";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
 import { attendChatArrivals } from "../../lib/records/take-arrivals";
@@ -168,7 +168,7 @@ const create = base
           // Titling is deliberately non-blocking, so the agent's turn never
           // waits behind it on the first message of a session.
           void (async () => {
-            const title = await generateTitleFromUserMessage({
+            const title = await nameChat({
               message,
               model,
               chatId,

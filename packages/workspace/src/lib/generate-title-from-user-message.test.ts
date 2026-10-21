@@ -479,3 +479,82 @@ describe("generateTitleFromUserMessage with a current title", () => {
     expect(system).not.toContain("<current_title>");
   });
 });
+
+describe("generateTitleFromUserMessage beside other chats", () => {
+  async function callWith(
+    options: { otherTitles?: string[]; rejected?: string } = {},
+  ) {
+    const mockLanguageModel = createMockLanguageModel("Weather for Friday");
+    const model = createMockAIGatewayModel();
+    createMockChatConfig(ChatIdSchema.parse("mock"), {
+      aiSDKModel: mockLanguageModel,
+      model,
+    });
+    await generateTitleFromUserMessage({
+      ...options,
+      message: createMockMessage("What's the weather?"),
+      model,
+      now: new Date(2026, 9, 21, 9),
+      chatId: ChatIdSchema.parse("mock"),
+      workspaceConfig: getWorkspaceConfig(),
+    });
+    const prompt = mockLanguageModel.doGenerateCalls[0]?.prompt ?? [];
+    const system = prompt.find((entry) => entry.role === "system");
+    const user = prompt.find((entry) => entry.role === "user");
+    return {
+      sections: [
+        system?.role === "system" && system.content.includes("<other_chats>"),
+        system?.role === "system" && system.content.includes("<taken>"),
+      ],
+      user:
+        user?.role === "user"
+          ? user.content.flatMap((part) =>
+              part.type === "text" ? [part.text] : [],
+            )
+          : [],
+    };
+  }
+
+  // The message comes after the list, so a greeting is still the last thing
+  // the model reads before it answers.
+  it("lists the other chats and today's date ahead of the message, and the taken name after it", async () => {
+    expect(
+      await callWith({
+        otherTitles: ["Weather", "Plant watering tracker app"],
+        rejected: "Weather",
+      }),
+    ).toMatchInlineSnapshot(`
+      {
+        "sections": [
+          true,
+          true,
+        ],
+        "user": [
+          "Other recent chats:
+      - Weather
+      - Plant watering tracker app
+
+      Today: Wednesday, October 21
+
+      What's the weather?
+
+      Taken: Weather",
+        ],
+      }
+    `);
+  });
+
+  it("says nothing of other chats when there are none", async () => {
+    expect(await callWith()).toMatchInlineSnapshot(`
+      {
+        "sections": [
+          false,
+          false,
+        ],
+        "user": [
+          "What's the weather?",
+        ],
+      }
+    `);
+  });
+});

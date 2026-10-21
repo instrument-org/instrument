@@ -96,7 +96,8 @@ function chatLinkedInFileSync(file: string): ChatId | undefined {
   }
 }
 
-function foldersIn(chats: string): string[] {
+/** The folders directly under `chats`, by name, hidden ones aside. */
+export function foldersIn(chats: string): string[] {
   try {
     return fs
       .readdirSync(chats, { withFileTypes: true })

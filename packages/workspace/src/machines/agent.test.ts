@@ -577,6 +577,62 @@ describe("agentMachine", () => {
     `);
   });
 
+  // More refusals in a row than a retry's attempts allow: a wait for capacity
+  // spends none of them, so the turn still gets its answer.
+  it("waits out our platform's concurrency limit past the retry budget", async () => {
+    const runSessionId = StoreId.newSessionId();
+    const parentMessageId = StoreId.newMessageId();
+    const refused: SessionMessage.Assistant = {
+      ...createAssistantMessage(StoreId.newMessageId(), runSessionId),
+      metadata: {
+        ...createAssistantMessage(StoreId.newMessageId(), runSessionId)
+          .metadata,
+        aiGatewayModel: model,
+        error: {
+          classification: "rate-limit",
+          kind: "api-call",
+          message: "Too many requests",
+          name: "APIError",
+          responseBody: '{"error":{"code":"concurrency-limit"}}',
+          statusCode: 429,
+          url: "https://example.com",
+        },
+        finishReason: "error",
+      },
+    };
+    const answered = createAssistantMessage(
+      StoreId.newMessageId(),
+      runSessionId,
+    );
+    let requests = 0;
+
+    const actor = createActor(
+      agentMachine.provide({
+        actors: {
+          llmRequestLogic: fromPromise(() => {
+            requests += 1;
+            return Promise.resolve({
+              message: requests <= 5 ? refused : answered,
+              parts: noParts,
+            });
+          }),
+          onFinish: fromPromise(() => Promise.resolve()),
+          onStart: fromPromise(() => Promise.resolve()),
+          shouldContinue: fromPromise(
+            (): Promise<ShouldContinueResult> =>
+              Promise.resolve({ continue: false, outputLimitContinuations: 0 }),
+          ),
+        },
+      }),
+      { input: createAgentInput({ parentMessageId, sessionId: runSessionId }) },
+    );
+
+    actor.start();
+    await waitFor(actor, (state) => state.matches("Done"));
+
+    expect(requests).toBe(6);
+  });
+
   // A preliminary output lives only in the turn's memory, so the record under
   // it still waits on an answer the stop says will never come.
   it("finalizes a saved call that had only offered a preliminary output when the turn is stopped", async () => {

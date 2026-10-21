@@ -209,7 +209,6 @@ describe("webSearch", () => {
       const searchWeb = vi.fn<WebSearchClient>(() =>
         Promise.resolve({
           data: {
-            costDollars: 0.007,
             results: [
               {
                 publishedDate: "2026-07-01",
@@ -239,7 +238,6 @@ describe("webSearch", () => {
       expect(results.map((r) => r._unsafeUnwrap())).toMatchInlineSnapshot(`
         [
           {
-            "costDollars": 0.007,
             "kind": "excerpts",
             "sources": [
               {
@@ -286,7 +284,7 @@ describe("webSearch", () => {
         .fn<WebSearchClient>()
         .mockResolvedValueOnce(unavailable)
         .mockResolvedValue({
-          data: { costDollars: 0.007, results: [] },
+          data: { results: [] },
           ok: true,
         });
 
@@ -362,6 +360,139 @@ describe("webSearch", () => {
     });
   });
 
+  // A model on the person's own provider searches through our endpoint while
+  // the host says the platform offers it (signed in, the switch on, search
+  // available), and through its provider otherwise.
+  describe("routing a search by provider and the platform's offer", () => {
+    const platformResults = { data: { results: [] }, ok: true as const };
+
+    function setUp(
+      provider: "instrument" | "openrouter",
+      offered: boolean | undefined,
+      platformSearch: WebSearchClient = () => Promise.resolve(platformResults),
+    ) {
+      const model = createMockAIGatewayModel({ provider });
+      const searchWeb = vi.fn<WebSearchClient>(platformSearch);
+      const providerSearch = new MockLanguageModelV4({
+        doStream: () =>
+          Promise.resolve({
+            stream: simulateReadableStream({
+              chunks: [...textDelta("What the provider found."), finishPart],
+            }),
+          }),
+      });
+      createMockChatConfig(ChatIdSchema.parse("2026-10-20-web-search-route"), {
+        ...(offered !== undefined && {
+          isPlatformSearchForEveryModel: () => offered,
+        }),
+        model,
+        webSearch: searchWeb,
+        webSearchModel: { model: providerSearch },
+      });
+      return { model, providerSearch, searchWeb };
+    }
+
+    it.each([
+      { offered: true, provider: "instrument", served: "excerpts" },
+      { offered: false, provider: "instrument", served: "excerpts" },
+      { offered: undefined, provider: "instrument", served: "excerpts" },
+      { offered: true, provider: "openrouter", served: "excerpts" },
+      { offered: false, provider: "openrouter", served: "summary" },
+      { offered: undefined, provider: "openrouter", served: "summary" },
+    ] as const)(
+      "a $provider model with the offer $offered gets $served",
+      async ({ offered, provider, served }) => {
+        const { model, providerSearch, searchWeb } = setUp(provider, offered);
+
+        const last = (await collect(model)).at(-1)?._unsafeUnwrap();
+
+        expect(last?.kind).toBe(served);
+        expect(searchWeb).toHaveBeenCalledTimes(served === "excerpts" ? 1 : 0);
+        expect(providerSearch.doStreamCalls).toHaveLength(
+          served === "summary" ? 1 : 0,
+        );
+      },
+    );
+
+    it.each([
+      {
+        failure: {
+          errorMessage: "Web search failed with status 429.",
+          errorType: "request-failed",
+          ok: false,
+          refusal: {
+            code: "usage-limit-exceeded",
+            resetsAt: "2026-11-19T00:00:00.000Z",
+          },
+        },
+        platformCalls: 1,
+        situation: "the free allowance is spent",
+      },
+      {
+        failure: {
+          errorMessage: "Web search failed with status 402.",
+          errorType: "payment-required",
+          ok: false,
+          refusal: { code: "subscription-required", reason: "no-plan" },
+        },
+        platformCalls: 1,
+        situation: "the plan leaves search out",
+      },
+      {
+        failure: {
+          errorMessage: "Sign in to Instrument to search the web.",
+          errorType: "not-authenticated",
+          ok: false,
+        },
+        platformCalls: 1,
+        situation: "the person signed out",
+      },
+      { failure: unavailable, platformCalls: 2, situation: "it is down" },
+    ] satisfies {
+      failure: Awaited<ReturnType<WebSearchClient>>;
+      platformCalls: number;
+      situation: string;
+    }[])(
+      "falls back to the provider's search for a model of the person's own when $situation",
+      async ({ failure, platformCalls }) => {
+        const { model, searchWeb } = setUp("openrouter", true, () =>
+          Promise.resolve(failure),
+        );
+
+        const last = (await collect(model)).at(-1)?._unsafeUnwrap();
+
+        expect(searchWeb).toHaveBeenCalledTimes(platformCalls);
+        expect(last).toMatchObject({
+          kind: "summary",
+          text: "What the provider found.",
+        });
+        expect(last?.platformRefusal).toEqual(
+          "refusal" in failure ? failure.refusal : undefined,
+        );
+      },
+    );
+
+    it("asks our endpoint once when a model of the person's own has no search of its own", async () => {
+      const model = createMockAIGatewayModel({ provider: "openai-compatible" });
+      const searchWeb = vi.fn<WebSearchClient>(() =>
+        Promise.resolve(unavailable),
+      );
+      createMockChatConfig(
+        ChatIdSchema.parse("2026-10-20-web-search-route-no-backend"),
+        {
+          isPlatformSearchForEveryModel: () => true,
+          model,
+          webSearch: searchWeb,
+        },
+      );
+
+      const last = (await collect(model)).at(-1);
+
+      expect(searchWeb).toHaveBeenCalledTimes(2);
+      expect(last?._unsafeUnwrapErr().errorType).toBe("api-call");
+    });
+  });
+
   describe("a model whose provider cannot search", () => {
     const signedOut: WebSearchClient = () =>
       Promise.resolve({
@@ -432,7 +563,44 @@ describe("webSearch", () => {
 
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(results.at(-1)?._unsafeUnwrap()).toMatchObject({
-        costDollars: 0.007,
+        kind: "excerpts",
+      });
+    });
+
+    it("searches keyless, without retrying, when the free allowance is spent, and says so", async () => {
+      const resetsAt = "2026-11-19T00:00:00.000Z";
+      const platformSearch = vi.fn<WebSearchClient>(() =>
+        Promise.resolve({
+          errorMessage: "Web search failed with status 429.",
+          errorType: "request-failed",
+          ok: false,
+          refusal: { code: "usage-limit-exceeded", resetsAt },
+        }),
+      );
+      const model = setUp(platformSearch);
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        Response.json({
+          id: 1,
+          jsonrpc: "2.0",
+          result: {
+            content: [
+              {
+                text: "Title: One\nURL: https://one.test\nPublished: 2026-10-08T09:00:00.000Z\nAuthor: N/A\nHighlights:\nThe passage that matched.",
+                type: "text",
+              },
+            ],
+          },
+        }),
+      );
+
+      const results = await collect(model);
+      fetchSpy.mockRestore();
+
+      expect(platformSearch).toHaveBeenCalledTimes(1);
+      expect(results.at(-1)?._unsafeUnwrap()).toMatchObject({
+        kind: "excerpts",
+        platformRefusal: { code: "usage-limit-exceeded", resetsAt },
+        sources: [{ url: "https://one.test" }],
       });
     });
 

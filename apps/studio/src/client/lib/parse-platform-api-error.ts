@@ -20,22 +20,37 @@ const platformApiErrorResponseSchema = z
       error: z.object({
         code: z.string(),
         message: z.string().optional(),
+        reason: z.string().optional(),
+        resetsAt: z.string().optional(),
         retryable: z.boolean().optional(),
+        window: z.string().optional(),
       }),
     }),
   );
 
+/**
+ * A refusal from our own platform, read off the response body. `reason` comes
+ * with `subscription-required` (`trial-ended`, `no-plan`, ...); `window` and
+ * `resetsAt` with `usage-limit-exceeded`.
+ */
 interface PlatformApiError {
   code: PlatformApiErrorCode;
   message?: string;
+  reason?: string;
+  resetsAt?: string;
   retryable?: boolean;
+  window?: string;
 }
 
 type PlatformApiErrorCode =
-  | "insufficient-credits"
+  | "concurrency-limit"
+  | "meter-unavailable"
   | "model-not-allowed"
   | "model-not-found"
-  | "no-model-requested";
+  | "no-model-requested"
+  | "rate-limit-exceeded"
+  | "subscription-required"
+  | "usage-limit-exceeded";
 
 export function parsePlatformApiError(
   message: SessionMessage.Assistant,
@@ -55,24 +70,11 @@ export function parsePlatformApiError(
   const result = platformApiErrorResponseSchema.safeParse(
     metadataError.responseBody,
   );
-  if (result.success) {
-    return {
-      code: result.data.error.code as PlatformApiErrorCode,
-      message: result.data.error.message,
-      retryable: result.data.error.retryable,
-    };
+  if (!result.success) {
+    return null;
   }
-
-  if (
-    metadataError.responseBody.toLowerCase().includes("insufficient credits")
-  ) {
-    return {
-      code: "insufficient-credits",
-      message: "Insufficient credits",
-    };
-  }
-
-  return null;
+  const { code, ...rest } = result.data.error;
+  return { ...rest, code: code as PlatformApiErrorCode };
 }
 
 export function requiresAutoModelRecovery(

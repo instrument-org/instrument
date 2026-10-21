@@ -5,6 +5,7 @@ import {
   type GetProviderConfigs,
   type ModelCache,
   type ModelRoutes,
+  type ReportPlatformRefusal,
   type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
@@ -189,6 +190,21 @@ export interface WorkspaceConfig {
   isRefusedFile?: (hostPath: string) => Promise<boolean>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
+   * Whether the Instrument account's plan would run one of its hosted
+   * features now, as the platform last said: false while the free
+   * allowance is spent or the plan leaves it out, so the workspace asks
+   * nothing of the platform that it would refuse. Absent, or undefined for
+   * a feature not yet heard about, the feature is taken as available.
+   */
+  isHostedFeatureAvailable?: (feature: "decisions") => boolean | undefined;
+  /**
+   * Whether a search from a model on the person's own provider goes through
+   * the platform's search first: true only while signed in, the platform's
+   * switch for it is on, and its plan would run search, as it last said.
+   * Absent or false, such a model searches through its provider.
+   */
+  isPlatformSearchForEveryModel?: () => boolean;
+  /**
    * Who is signed in, for the agents to know whose work it is: the account's
    * email and, when the account gives one, name, or undefined while nobody is. Read when a session's
    * context is built rather than at boot, since a sign-in comes and goes;
@@ -272,6 +288,8 @@ export interface WorkspaceConfig {
    */
   programsWithoutSandbox?: boolean;
   pnpmBinPath: AbsolutePath;
+  /** Told about each hosted request our platform refused (no plan, a spent window). */
+  reportPlatformRefusal?: ReportPlatformRefusal;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
   /**

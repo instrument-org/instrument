@@ -8,15 +8,33 @@ Link a page or a row as `[Label](instrument://settings/<name>)`, with the name i
 
 ### General (`general`)
 
-Your account, how Instrument looks, notifications, updates, and the diagnostic log.
+How Instrument looks, notifications, updates, and the diagnostic log.
 
-- **Account** (`account`): Your Instrument account and plan. On it: Log out (`log-out`).
 - **Theme** (`theme`): Choose your preferred color scheme.
 - **Zoom** (`zoom`): Make everything in the app larger or smaller.
 - **Notify when tasks finish** (`notifications`): Show a desktop notification when a task finishes. On it: Send a test notification (`test-notification`).
 - **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: Release notes (`release-notes`), Check for updates (`check-for-updates`).
 - **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Report a bug (`report-bug`), Third-party licenses (`third-party-licenses`).
 - **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
+
+### Account (`account`)
+
+Who you're logged in to Instrument as, your plan and its usage limits, and billing.
+
+- **Account** (`account`): Who you're logged in to Instrument as. On it: Log out (`log-out`).
+- **Plan** (`plan`): Your free trial or subscription, and changing your plan. On it: Change plan (`change-plan`).
+- **Change plan** (`change-plan`): Switch to another plan.
+- **Payment method and invoices** (`billing-portal`): Your card and invoices, and canceling your subscription, in Stripe. On it: Manage billing (`manage-billing`).
+- **Manage billing** (`manage-billing`): Your card, invoices, and subscription, in Stripe.
+
+### Providers (`providers`)
+
+The AI models Instrument can use: your ChatGPT, Claude or Grok plan, or a provider you add with your own key.
+
+- **Add provider** (`add-provider`): Use a model with your own key.
+- **ChatGPT account** (`chatgpt-account`): Use your ChatGPT Plus or Pro plan.
+- **Claude account** (`claude-account`): Use your Claude plan.
+- **Grok account** (`grok-account`): Use your SuperGrok or X Premium+ plan.
 
 ### Memory (`memory`)
 
@@ -34,21 +52,6 @@ Which folders and places on this computer Instrument may use.
 - **Folders every chat can use** (`always-open`): Your Instrument folder, each chat's files, past chats and caches, which every chat can use because Instrument needs them.
 - **Reset permissions** (`reset-permissions`): Put every folder and app back the way they were when you installed Instrument.
 
-### Providers (`providers`)
-
-The AI models Instrument can use: your ChatGPT, Claude or Grok plan, or a provider you add with your own key.
-
-- **Add provider** (`add-provider`): Use a model with your own key.
-- **ChatGPT account** (`chatgpt-account`): Use your ChatGPT Plus or Pro plan.
-- **Claude account** (`claude-account`): Use your Claude plan.
-- **Grok account** (`grok-account`): Use your SuperGrok or X Premium+ plan.
-
-### Activity (`activity`)
-
-Every request Instrument made to an AI model, which you can filter, sort, and export.
-
-- **Activity** (`activity`): Every request Instrument sends to an AI, with its model, tokens, and time.
-
 ### Skills (`skills`)
 
 The skills Instrument's tasks can use, and making a new one.
@@ -61,6 +64,12 @@ Where your Instrument folder is, and chats in it that can’t be opened.
 
 - **Instrument folder** (`instrument-folder`): Where your chats, topics, and memories are kept, and moving them.
 - **Chats that can’t be opened** (`broken-folders`): Chats in your Instrument folder that can’t be opened.
+
+### Activity (`activity`)
+
+Everything Instrument asked an AI model to do, which you can filter, sort, and export.
+
+- **Activity** (`activity`): Everything Instrument asked an AI model to do, with the model, tokens, and time.
 
 ## Screens
 

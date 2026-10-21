@@ -1,4 +1,6 @@
+import { openPlanSheet } from "@/client/atoms/plan-sheet";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { useStartTrial } from "@/client/components/billing/use-start-trial";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -21,10 +23,16 @@ import {
   rowsForConnection,
   rowsForSearch,
 } from "@/client/lib/model-picker-rows";
+import { useBillingStatus } from "@/client/hooks/use-billing-status";
+import {
+  autoIncludedLine,
+  canStartTrial,
+  hasNoPlan,
+} from "@/client/lib/billing";
 import { type ModelAction, type ModelNotice } from "@/client/lib/model-status";
 import { cn } from "@/client/lib/utils";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
-import { type RPCOutput } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
@@ -35,9 +43,11 @@ import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { CheckIcon } from "@phosphor-icons/react/Check";
+import { InfoIcon } from "@phosphor-icons/react/Info";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   type PointerEvent,
@@ -62,6 +72,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 const PANEL_WIDTH = "42.5rem";
 const PANEL_HEIGHT_REM = 32.5;
 const PANEL_HEIGHT = `${String(PANEL_HEIGHT_REM)}rem`;
+/** The narrower panel shown while there is nothing to pick. */
+const EMPTY_PANEL_WIDTH = "23.75rem";
 
 /** The chosen model's row, the same pressed state the inbox's filters use. */
 const CHOSEN = "bg-accent text-accent-foreground";
@@ -155,6 +167,9 @@ export function ModelPicker({
   const selectedName =
     selectedModel?.name.trim() ??
     (modelURI ? (modelNameFromURI(modelURI) ?? null) : null);
+  // Nothing connected yet: the panel is only a way to connect something, with
+  // no search or provider rail around an empty list.
+  const isEmpty = !isLoading && !isError && !models?.length && !errors?.length;
   const placeholderText = isLoading
     ? "Loading models..."
     : isError
@@ -187,6 +202,9 @@ export function ModelPicker({
               "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
               isProblem &&
                 "text-yellow-700 hover:text-yellow-700 dark:text-yellow-300 dark:hover:text-yellow-300",
+              // An invitation to connect something rather than a fault.
+              isEmpty &&
+                "text-brand-700 not-disabled:hover:text-brand-700 dark:text-brand-300 dark:not-disabled:hover:text-brand-300",
               className,
             )}
             disabled={disabled || isLoading}
@@ -218,6 +236,11 @@ export function ModelPicker({
                 </Tooltip>
                 <span className="min-w-0 flex-1 truncate">{selectedName}</span>
               </span>
+            ) : isEmpty ? (
+              <span className="flex items-center gap-1.5 text-xs leading-4 font-medium">
+                <InfoIcon className="size-4 shrink-0" />
+                Add a model
+              </span>
             ) : (
               <span className="text-xs leading-4 font-medium opacity-50">
                 {placeholderText}
@@ -239,17 +262,32 @@ export function ModelPicker({
         maxHeight={PANEL_HEIGHT}
         side={hangsOff ? placement.side : undefined}
         sideOffset={hangsOff ? placement.sideOffset : undefined}
-        style={{
-          height: PANEL_HEIGHT,
-          ...(hangsOff
-            ? { width: placement.width }
-            : {
+        style={
+          isEmpty
+            ? {
                 maxWidth: "var(--radix-popover-content-available-width)",
-                width: PANEL_WIDTH,
-              }),
-        }}
+                width: EMPTY_PANEL_WIDTH,
+              }
+            : {
+                height: PANEL_HEIGHT,
+                ...(hangsOff
+                  ? { width: placement.width }
+                  : {
+                      maxWidth: "var(--radix-popover-content-available-width)",
+                      width: PANEL_WIDTH,
+                    }),
+              }
+        }
       >
-        {isOpen && (
+        {isOpen && isEmpty && (
+          <NoModelsYet
+            onAddProvider={() => {
+              closePopover();
+              onAddProvider?.();
+            }}
+          />
+        )}
+        {isOpen && !isEmpty && (
           <PickerPanel
             errors={errors ?? []}
             isError={isError}
@@ -479,10 +517,6 @@ function PickerPanel({
                   Retry
                 </Button>
               </EmptyMessage>
-            ) : rail.length === 0 ? (
-              <EmptyMessage text={`Connect a provider to use ${APP_NAME}`}>
-                <AddProviderButton onClick={onAddProvider} />
-              </EmptyMessage>
             ) : rows.length === 0 ? (
               <EmptyMessage
                 text={
@@ -495,6 +529,9 @@ function PickerPanel({
               </EmptyMessage>
             ) : (
               <>
+                {!searching && opened?.provider === OUR_MODELS.providerType && (
+                  <PlanNeeded />
+                )}
                 {/* Auto leads its connection's list, set apart from the
                     models under it rather than being the first of them. */}
                 {autoRow && rows.length === 1 ? (
@@ -708,6 +745,7 @@ function AutoRow({
   model: AIGatewayModel.Type;
   onPick: (model: AIGatewayModel.Type) => void;
 }) {
+  const note = useAutoNote(model);
   return (
     <CommandItem
       data-chosen={chosen || undefined}
@@ -734,14 +772,16 @@ function AutoRow({
             Recommended
           </span>
         )}
-        <span
-          className={cn(
-            "truncate text-xs",
-            chosen ? "opacity-80" : "text-muted-foreground",
-          )}
-        >
-          {model.note ?? "Included with your subscription"}
-        </span>
+        {note && (
+          <span
+            className={cn(
+              "truncate text-xs",
+              chosen ? "opacity-80" : "text-muted-foreground",
+            )}
+          >
+            {note}
+          </span>
+        )}
       </span>
       {chosen && (
         <>
@@ -751,6 +791,15 @@ function AutoRow({
       )}
     </CommandItem>
   );
+}
+
+/**
+ * The line beside Auto: the lineup's own note for it, or what includes it
+ * for this account, which is nothing while the account has no plan or trial.
+ */
+function useAutoNote(model: AIGatewayModel.Type) {
+  const { data: status, isSignedIn } = useBillingStatus();
+  return model.note ?? (isSignedIn ? autoIncludedLine(status) : undefined);
 }
 
 /**
@@ -768,6 +817,7 @@ function AutoOnly({
   model: AIGatewayModel.Type;
   onPick: (model: AIGatewayModel.Type) => void;
 }) {
+  const note = useAutoNote(model);
   return (
     <div className="flex flex-col items-center gap-3 px-6 pt-16 pb-10 text-center">
       <AIProviderIcon
@@ -784,9 +834,7 @@ function AutoOnly({
             </span>
           )}
         </span>
-        <span className="text-sm text-muted-foreground">
-          {model.note ?? "Included with your subscription"}
-        </span>
+        {note && <span className="text-sm text-muted-foreground">{note}</span>}
       </div>
       <CommandItem
         data-solid
@@ -947,6 +995,87 @@ function FailedConnection({
         </Button>
       </div>
     </EmptyMessage>
+  );
+}
+
+/**
+ * Over Instrument's models while the account has no plan for them (the free
+ * allowance covers search and suggestions alone): how to get them, the free
+ * trial first while it can start. Picking one stays possible; the chat says
+ * the same if a message is sent on it.
+ */
+function PlanNeeded() {
+  const { data: status, isSignedIn } = useBillingStatus();
+  const { data: offer } = useQuery({
+    ...rpcClient.billing.offer.queryOptions(),
+    enabled: isSignedIn,
+  });
+  const startTrial = useStartTrial();
+  if (!isSignedIn || !hasNoPlan(status)) {
+    return null;
+  }
+  const offerTrial = canStartTrial(status, offer);
+  return (
+    <div
+      className="mx-1 mb-2 flex items-center gap-3 rounded-xl bg-muted/60 px-3 py-2.5"
+      data-billing-picker="plan-needed"
+    >
+      <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+        {offerTrial
+          ? `Start your free trial to use ${APP_NAME}'s models.`
+          : `${APP_NAME}'s models need a plan.`}
+      </p>
+      {offerTrial && (
+        <Button
+          disabled={startTrial.isPending}
+          onClick={() => {
+            startTrial.mutate(undefined);
+          }}
+          size="sm"
+        >
+          Start free trial
+        </Button>
+      )}
+      <Button
+        onClick={() => {
+          openPlanSheet();
+        }}
+        size="sm"
+        variant={offerTrial ? "outline" : "default"}
+      >
+        Choose a plan
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * What the picker opens to while no provider is connected: the kinds of
+ * account that bring models, and the one way to connect one, which opens the
+ * sign-in dialog.
+ */
+function NoModelsYet({ onAddProvider }: { onAddProvider: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3 px-8 py-8 text-center">
+      <div aria-hidden className="flex items-center gap-1.5">
+        <AIProviderIcon
+          className="size-7"
+          colored
+          type={OUR_MODELS.providerType}
+        />
+        <AIProviderIcon className="size-7" colored type="chatgpt-account" />
+        <AIProviderIcon className="size-7" colored type="claude-account" />
+      </div>
+      <p className="text-base font-medium">No models yet</p>
+      <p className="text-sm text-muted-foreground">
+        Log in to {APP_NAME} for a free trial, or use the ChatGPT, Claude or
+        Grok plan you already pay for.
+      </p>
+      <Button autoFocus onClick={onAddProvider} variant="brand">
+        <PlusIcon className="size-4" />
+        Add a provider
+      </Button>
+    </div>
   );
 }
 

@@ -1,10 +1,8 @@
 import { renderWithProviders } from "@/tests/render";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-
-import { openSettings } from "../atoms/settings-modal";
 
 vi.mock("../atoms/settings-modal", () => ({ openSettings: vi.fn() }));
 
@@ -90,6 +88,7 @@ function openDetails() {
 }
 
 function renderError({
+  isAgentRunning = false,
   error = {
     classification: "rate-limit",
     kind: "unknown",
@@ -101,6 +100,7 @@ function renderError({
   onModelChange = vi.fn(),
 }: {
   error?: MessageErrorData;
+  isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
   isLastMessage?: boolean;
   provider?: null | string;
@@ -109,11 +109,10 @@ function renderError({
   return renderWithProviders(
     <TooltipProvider>
       <MessageError
-        isAgentRunning={false}
+        isAgentRunning={isAgentRunning}
         isDeveloperMode={isDeveloperMode}
         isLastMessage={isLastMessage}
         message={messageWithError(error, provider)}
-        onContinue={vi.fn()}
         onModelChange={onModelChange}
         onRunAgain={vi.fn()}
       />
@@ -122,48 +121,6 @@ function renderError({
 }
 
 describe("MessageError", () => {
-  it.each(["claude-account", "chatgpt-account"])(
-    "recovers %s with the explicit Auto model",
-    async (provider) => {
-      const onModelChange = vi.fn();
-      renderError({
-        provider,
-        onModelChange,
-        error: {
-          classification: "usage-limit",
-          kind: "unknown",
-          message: "Limit reached",
-        },
-      });
-      await waitFor(() =>
-        expect(
-          screen.getByRole("button", { name: "Switch to Auto" }),
-        ).not.toBeNull(),
-      );
-      fireEvent.click(screen.getByRole("button", { name: "Switch to Auto" }));
-      expect(onModelChange).toHaveBeenCalledExactlyOnceWith(
-        "auto?provider=instrument",
-      );
-    },
-  );
-
-  it("opens Claude's usage limits directly", () => {
-    renderError({
-      error: {
-        classification: "usage-limit",
-        kind: "unknown",
-        message: "Weekly limit reached",
-      },
-      provider: "claude-account",
-    });
-    fireEvent.click(screen.getByRole("button", { name: "View usage limits" }));
-    expect(openSettings).toHaveBeenCalledWith({
-      tab: "Providers",
-      setting: "claude-account",
-      providerUsage: "claude-account",
-    });
-  });
-
   it("keeps the provider's own text out of the transcript", () => {
     const { container } = renderError({});
 
@@ -266,8 +223,10 @@ describe("MessageError", () => {
     expect(container.textContent).not.toContain("requested model");
   });
 
-  it("names ChatGPT when its plan's limit was reached", () => {
-    renderError({
+  // The way forward is the note over the reply box (`PlanAccountNote`), so
+  // the transcript keeps one plain line naming the plan.
+  it.each([
+    {
       error: {
         classification: "usage-limit",
         kind: "api-call",
@@ -277,18 +236,39 @@ describe("MessageError", () => {
         statusCode: 400,
         url: "http://localhost/ai-gateway/providers/chatgpt-account/responses",
       },
+      line: "I had to stop here. Your ChatGPT plan is out of usage for now.",
       provider: "chatgpt-account",
-    });
+    },
+    {
+      error: {
+        classification: "usage-limit",
+        kind: "api-call",
+        message: "You've hit your limit",
+        name: "AI_APICallError",
+        statusCode: 429,
+        url: "claude-account://",
+      },
+      line: "I had to stop here. Your Claude plan is out of usage for now.",
+      provider: "claude-account",
+    },
+  ] satisfies {
+    error: MessageErrorData;
+    line: string;
+    provider: string;
+  }[])(
+    "ends a turn $provider's plan stopped on one line",
+    ({ error, line, provider }) => {
+      renderError({ error, provider });
 
-    expect(screen.getByText("ChatGPT is out of usage for now")).not.toBeNull();
-    expect(
-      screen.getByRole("button", { name: "View usage limits" }),
-    ).not.toBeNull();
-  });
+      expect(screen.getByText(line)).not.toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByRole("button")).toBeNull();
+    },
+  );
 
   it.each([
     [429, "No Grok plan on this account", "Open provider settings"],
-    [401, "Signed out of Grok", "Sign in again"],
+    [401, "Signed out of Grok", "Sign in"],
   ])("tells a Grok %i apart: %s", (statusCode, summary, action) => {
     renderError({
       error: {
@@ -306,28 +286,80 @@ describe("MessageError", () => {
     expect(screen.getByRole("button", { name: action })).not.toBeNull();
   });
 
-  it("offers Auto when the Claude account's limit was reached", async () => {
-    renderError({
-      error: {
-        classification: "usage-limit",
-        kind: "api-call",
-        message: "You've hit your limit",
-        name: "AI_APICallError",
-        statusCode: 429,
-        url: "claude-account://",
-      },
-      provider: "claude-account",
-    });
-
-    expect(screen.getByText("Claude usage limit reached")).not.toBeNull();
-    expect(
-      await screen.findByRole("button", { name: "Switch to Auto" }),
-    ).not.toBeNull();
-  });
-
   it("says nothing about a throttle the session already got past", () => {
     const { container } = renderError({ isLastMessage: false });
 
     expect(container.innerHTML).toBe("");
+  });
+
+  describe("our platform's refusals for the plan", () => {
+    const refusal = (body: object, statusCode: number): MessageErrorData => ({
+      classification: "usage-limit",
+      kind: "api-call",
+      message: "Refused",
+      name: "AI_APICallError",
+      responseBody: JSON.stringify({ error: body }),
+      statusCode,
+      url: "http://localhost/gateway/openrouter/v1/chat/completions",
+    });
+
+    // The way forward is the notice over the reply box, so the transcript
+    // keeps one plain line and no card, buttons, or retry.
+    it.each([
+      {
+        body: { code: "subscription-required", reason: "trial-ended" },
+        line: "Stopped: your free trial has ended.",
+        statusCode: 402,
+      },
+      {
+        body: { code: "usage-limit-exceeded", window: "5h" },
+        line: "Stopped: you've reached your plan's limit for now.",
+        statusCode: 429,
+      },
+    ])(
+      "ends the turn on one line for $body.code",
+      ({ body, line, statusCode }) => {
+        renderError({ error: refusal(body, statusCode) });
+
+        expect(screen.getByText(line)).not.toBeNull();
+        expect(screen.queryByRole("alert")).toBeNull();
+        expect(screen.queryByRole("button")).toBeNull();
+      },
+    );
+
+    it("keeps the line once the chat has moved on", () => {
+      renderError({
+        error: refusal(
+          { code: "subscription-required", reason: "no-plan" },
+          402,
+        ),
+        isLastMessage: false,
+      });
+
+      expect(
+        screen.getByText("Stopped: Instrument needs a plan."),
+      ).not.toBeNull();
+    });
+
+    it("waits rather than erring while too many tasks are running", () => {
+      renderError({
+        error: refusal({ code: "concurrency-limit" }, 429),
+        isAgentRunning: true,
+      });
+
+      expect(
+        screen.getByText("Waiting for one of your other tasks to finish"),
+      ).not.toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("says nothing about a wait the turn got past", () => {
+      const { container } = renderError({
+        error: refusal({ code: "concurrency-limit" }, 429),
+        isLastMessage: false,
+      });
+
+      expect(container.innerHTML).toBe("");
+    });
   });
 });

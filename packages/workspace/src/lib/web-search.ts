@@ -18,7 +18,10 @@ import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { type WebSearchResult } from "../schemas/web-search";
+import {
+  type PlatformSearchRefusal,
+  type WebSearchResult,
+} from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
 import { activityTelemetry, recordActivity } from "./activity/record";
 import { TypedError } from "./errors";
@@ -32,6 +35,8 @@ export interface WebSearchFailure {
     | "no-search-backend"
     | "not-authenticated"
     | "payment-required";
+  /** The platform refused the search for the account's plan. */
+  refusal?: PlatformSearchRefusal;
   responseBody?: string;
 }
 
@@ -44,9 +49,8 @@ const USER_ACTIONABLE = new Set<WebSearchFailure["errorType"]>([
 ]);
 
 // Our search endpoint answers a burst with a rate limit that clears almost at
-// once. One short retry usually gets the better backend back rather than
-// spending the rest of the task on the weaker one; the provider's own search
-// is the floor, not the target.
+// once. One short retry usually gets it back rather than moving the rest of
+// the task to the fallback.
 const RETRY_DELAY_MS = 250;
 
 /**
@@ -57,8 +61,13 @@ const RETRY_DELAY_MS = 250;
  */
 export type WebSearchResults =
   | {
-      costDollars: number;
       kind: "excerpts";
+      /**
+       * Set when our endpoint refused the search for the account's plan and
+       * a basic search stood in: what the platform said, for the chat to
+       * say that the advanced search is paused.
+       */
+      platformRefusal?: PlatformSearchRefusal;
       sources: WebSearchResult[];
     }
   | {
@@ -71,6 +80,12 @@ export type WebSearchResults =
        * only way to attribute a search after the fact.
        */
       modelIdServed?: string;
+      /**
+       * Set when our endpoint, asked first for a model on the person's own
+       * provider, refused the search for the account's plan and the
+       * provider's search stood in: what the platform said.
+       */
+      platformRefusal?: PlatformSearchRefusal;
       provider: AIGatewayProviderConfig.Type;
       sources: WebSearchSource[];
       text: string;
@@ -112,11 +127,16 @@ export async function* webSearch({
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
-  // A model on our provider searches through our endpoint first. A model on a
-  // key the user brought searches through that provider, which needs no second
-  // API key from them.
-  if (callingModel.params.provider === OUR_MODELS.providerType) {
-    const platformResult = await searchWithPlatform({
+  const ours = callingModel.params.provider === OUR_MODELS.providerType;
+  // A model on our provider searches through our endpoint first. So does a
+  // model on the person's own provider (a ChatGPT, Claude or Grok plan, or a
+  // key) while the platform offers its search to every model: signed in, the
+  // platform's switch on, and search available, as it last said. Otherwise
+  // that model searches through its provider, which needs no second API key
+  // from them. Nothing waits on a status read: unknown is provider search.
+  let platformAttempt: Result<WebSearchResults, WebSearchFailure> | undefined;
+  if (ours || workspaceConfig.isPlatformSearchForEveryModel?.() === true) {
+    platformAttempt = await searchWithPlatform({
       prompt,
       sessionId,
       signal,
@@ -124,18 +144,25 @@ export async function* webSearch({
       workspaceConfig,
     });
     if (
-      platformResult.isOk() ||
-      USER_ACTIONABLE.has(platformResult.error.errorType)
+      platformAttempt.isOk() ||
+      (ours && USER_ACTIONABLE.has(platformAttempt.error.errorType))
     ) {
-      yield platformResult;
+      yield platformAttempt;
       return;
     }
   }
+  // A model of the person's own falls back on any failure, a refusal for the
+  // plan included, since its provider's search needs nothing from the
+  // account; the refusal goes along so the chat can say why.
+  const platformRefusal = platformAttempt?.isErr()
+    ? platformAttempt.error.refusal
+    : undefined;
 
-  // Reached either because the model runs on the user's own key, or because our
-  // endpoint is rate limited, switched off, or down. The user asked for a
-  // search, so run one on the provider rather than hand back an error; the
-  // result names its own kind, so nothing downstream is told it got excerpts.
+  // Reached because the model runs on the person's own provider, or because
+  // our endpoint is rate limited, switched off, refused, or down. The user
+  // asked for a search, so run one on the provider rather than hand back an
+  // error; the result names its own kind, so nothing downstream is told it
+  // got excerpts.
   for await (const result of searchWithProviderModel({
     callingModel,
     configs,
@@ -152,24 +179,39 @@ export async function* webSearch({
     if (
       result.isErr() &&
       result.error.errorType === "no-search-backend" &&
-      callingModel.params.provider !== OUR_MODELS.providerType
+      !ours
     ) {
-      const platformResult = await searchWithPlatform({
-        prompt,
-        sessionId,
-        signal,
-        chatId,
-        workspaceConfig,
-      });
+      const platformResult =
+        platformAttempt ??
+        (await searchWithPlatform({
+          prompt,
+          sessionId,
+          signal,
+          chatId,
+          workspaceConfig,
+        }));
       // A signed-out user cannot reach our endpoint, so a keyless search gives
-      // them a working lookup; signing in is what gets them ours.
+      // them a working lookup; signing in is what gets them ours. The same
+      // goes for an account whose plan our endpoint refuses (the free
+      // allowance spent), and the result says so.
+      const refusal = platformResult.isErr()
+        ? platformResult.error.refusal
+        : undefined;
+      if (refusal) {
+        yield (
+          await searchWithKeyless({ prompt, signal, workspaceConfig })
+        ).map((results) => ({ ...results, platformRefusal: refusal }));
+        return;
+      }
       yield platformResult.isErr() &&
       platformResult.error.errorType === "not-authenticated"
         ? await searchWithKeyless({ prompt, signal, workspaceConfig })
         : platformResult;
       return;
     }
-    yield result;
+    yield platformRefusal
+      ? result.map((results) => ({ ...results, platformRefusal }))
+      : result;
   }
 }
 
@@ -264,12 +306,12 @@ async function requestPlatformSearch({
         response.errorType === "request-failed"
           ? "api-call"
           : response.errorType,
+      ...(response.refusal && { refusal: response.refusal }),
       responseBody: response.responseBody,
     });
   }
 
   return ok({
-    costDollars: response.data.costDollars,
     kind: "excerpts",
     sources: response.data.results,
   });
@@ -305,7 +347,12 @@ async function searchWithPlatform(args: {
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
   const first = await requestPlatformSearch(args);
 
-  if (first.isOk() || USER_ACTIONABLE.has(first.error.errorType)) {
+  // A refusal for the account's plan answers the same a moment later.
+  if (
+    first.isOk() ||
+    USER_ACTIONABLE.has(first.error.errorType) ||
+    first.error.refusal
+  ) {
     return first;
   }
 

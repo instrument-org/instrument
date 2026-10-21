@@ -466,7 +466,7 @@ const CSV_COLUMNS: [
   ["Duration (ms)", (row) => row.durationMs],
   ["Result", (row) => row.status],
   ["Type", (row) => row.kind],
-  ["Purpose", (row) => row.purpose],
+  ["For", (row) => row.purpose],
   ["Chat", (row) => row.chatId],
   ["Session", (row) => row.sessionId],
   ["Surface", (row) => row.surface],

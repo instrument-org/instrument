@@ -2,6 +2,7 @@ import {
   settingsModalAtom,
   type SettingsTab,
 } from "@/client/atoms/settings-modal";
+import { AccountSection } from "@/client/components/settings/account-section";
 import { ActivitySection } from "@/client/components/settings/activity-section";
 import { DebugSection } from "@/client/components/settings/debug-section";
 import { FeaturesSection } from "@/client/components/settings/features-section";
@@ -51,6 +52,7 @@ import { FlagIcon } from "@phosphor-icons/react/Flag";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
+import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
 import { PulseIcon } from "@phosphor-icons/react/Pulse";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtom } from "jotai";
@@ -517,6 +519,9 @@ function useFlashSetting(
 
 function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
   switch (tab) {
+    case "Account": {
+      return <AccountSection />;
+    }
     case "Activity": {
       return <ActivitySection />;
     }
@@ -561,6 +566,7 @@ const NAV_ICONS: Record<SettingsTab, React.ElementType> = {
   Providers: CpuIcon,
   Skills: CubeIcon,
   Storage: HardDrivesIcon,
+  Account: UserCircleIcon,
   Activity: PulseIcon,
 };
 

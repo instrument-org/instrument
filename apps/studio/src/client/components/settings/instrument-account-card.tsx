@@ -4,8 +4,9 @@ import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
-import { useLiveSubscriptionStatus } from "@/client/hooks/use-live-subscription-status";
+import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { useLiveUser } from "@/client/hooks/use-live-user";
+import { isTrialHeldBack, subscribedPlan } from "@/client/lib/billing";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
@@ -15,8 +16,8 @@ import { useQuery } from "@tanstack/react-query";
  * Instrument at the top of the providers. Logged out it offers an account,
  * since Providers is where people look for a way to get AI working; logged in
  * it names the account and its plan, and the account itself is managed on
- * General. It has no more menu: Instrument can't be disabled, only logged out
- * of.
+ * the Account page. It has no more menu: Instrument can't be disabled, only
+ * logged out of.
  */
 export function InstrumentAccountCard() {
   const { data: hasToken } = useQuery(
@@ -50,14 +51,14 @@ export function InstrumentAccountCard() {
           <p className="truncate text-sm text-muted-foreground">
             {hasToken
               ? user?.email
-              : "Create an account to try it free, with no provider to set up."}
+              : "Create an account to start a free trial, with no provider to set up."}
           </p>
         </div>
         {hasToken ? (
           <Button
             className="shrink-0"
             onClick={() => {
-              openSettings({ setting: "account", tab: "General" });
+              openSettings({ tab: "Account" });
             }}
             variant="outline"
           >
@@ -80,9 +81,15 @@ export function InstrumentAccountCard() {
 }
 
 function PlanBadge() {
-  const { data: subscription } = useLiveSubscriptionStatus();
-  if (!subscription) {
+  const { data: status } = useBillingStatus();
+  const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
+  const name =
+    subscribedPlan(status, offer)?.name ??
+    (status?.plan === "trial" && !isTrialHeldBack(status, offer)
+      ? "Free trial"
+      : undefined);
+  if (!name) {
     return null;
   }
-  return <Badge variant="outline">{subscription.plan ?? "Free"}</Badge>;
+  return <Badge variant="outline">{name}</Badge>;
 }

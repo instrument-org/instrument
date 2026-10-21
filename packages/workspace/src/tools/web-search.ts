@@ -85,7 +85,6 @@ const SUMMARY_PREAMBLE =
   "Everything below is a search model's summary of pages it retrieved. It is not verbatim source text and not a verified answer: it can be inaccurate or out of date, and it can cite a page that does not support the claim, so confirm anything your answer depends on.";
 
 const ExcerptResultsSchema = z.object({
-  costDollars: z.number(),
   kind: z.literal("excerpts"),
   sources: z.array(
     z.object({
@@ -129,6 +128,16 @@ export const WebSearch = setupTool({
       // Which backend served the search decides what a result even is, so the
       // two shapes stay distinct instead of collapsing into shared optional
       // fields that only one of them ever fills in.
+      // Our endpoint refused the search for the account's plan, and another
+      // search stood in (a basic one, or the model's own provider's): what
+      // the platform said, for the chat to show.
+      platformRefusal: z
+        .object({
+          code: z.enum(["subscription-required", "usage-limit-exceeded"]),
+          reason: z.string().optional(),
+          resetsAt: z.string().optional(),
+        })
+        .optional(),
       results: z.discriminatedUnion("kind", [
         ExcerptResultsSchema,
         SummaryResultsSchema,
@@ -195,12 +204,19 @@ export const WebSearch = setupTool({
       }
 
       const results = result.value;
+      const { platformRefusal } = results;
       yield ok({
+        ...(platformRefusal && { platformRefusal }),
         results:
           results.kind === "excerpts"
-            ? results
+            ? { kind: results.kind, sources: results.sources }
             : {
-                ...results,
+                kind: results.kind,
+                modelId: results.modelId,
+                modelIdServed: results.modelIdServed,
+                sources: results.sources,
+                text: results.text,
+                usage: results.usage,
                 provider: {
                   displayName: results.provider.displayName,
                   id: results.provider.id,

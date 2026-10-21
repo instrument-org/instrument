@@ -18,6 +18,7 @@ import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as DebugIndexRouteImport } from './routes/debug/index'
+import { Route as DebugBillingRouteImport } from './routes/debug/billing'
 import { Route as DebugComponentsRouteImport } from './routes/debug/components'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
@@ -93,6 +94,11 @@ const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
 const DebugIndexRoute = DebugIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => DebugRouteRoute,
+} as any)
+const DebugBillingRoute = DebugBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
   getParentRoute: () => DebugRouteRoute,
 } as any)
 const DebugComponentsRoute = DebugComponentsRouteImport.update({
@@ -278,6 +284,7 @@ export interface FileRoutesByFullPath {
   '/files': typeof AppFilesRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/debug/billing': typeof DebugBillingRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
@@ -318,6 +325,7 @@ export interface FileRoutesByTo {
   '/files': typeof AppFilesRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/debug/billing': typeof DebugBillingRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug': typeof DebugIndexRoute
@@ -360,6 +368,7 @@ export interface FileRoutesById {
   '/_app/files': typeof AppFilesRoute
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
+  '/debug/billing': typeof DebugBillingRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
@@ -404,6 +413,7 @@ export interface FileRouteTypes {
     | '/files'
     | '/new-tab'
     | '/release-notes'
+    | '/debug/billing'
     | '/debug/components'
     | '/onboarding/providers'
     | '/onboarding/theme'
@@ -444,6 +454,7 @@ export interface FileRouteTypes {
     | '/files'
     | '/new-tab'
     | '/release-notes'
+    | '/debug/billing'
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/debug'
@@ -485,6 +496,7 @@ export interface FileRouteTypes {
     | '/_app/files'
     | '/_app/new-tab'
     | '/_app/release-notes'
+    | '/debug/billing'
     | '/debug/components'
     | '/onboarding/providers'
     | '/onboarding/theme'
@@ -590,6 +602,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/debug/'
       preLoaderRoute: typeof DebugIndexRouteImport
+      parentRoute: typeof DebugRouteRoute
+    }
+    '/debug/billing': {
+      id: '/debug/billing'
+      path: '/billing'
+      fullPath: '/debug/billing'
+      preLoaderRoute: typeof DebugBillingRouteImport
       parentRoute: typeof DebugRouteRoute
     }
     '/debug/components': {
@@ -918,11 +937,13 @@ const DebugComponentsRouteWithChildren = DebugComponentsRoute._addFileChildren(
 )
 
 interface DebugRouteRouteChildren {
+  DebugBillingRoute: typeof DebugBillingRoute
   DebugComponentsRoute: typeof DebugComponentsRouteWithChildren
   DebugIndexRoute: typeof DebugIndexRoute
 }
 
 const DebugRouteRouteChildren: DebugRouteRouteChildren = {
+  DebugBillingRoute: DebugBillingRoute,
   DebugComponentsRoute: DebugComponentsRouteWithChildren,
   DebugIndexRoute: DebugIndexRoute,
 }

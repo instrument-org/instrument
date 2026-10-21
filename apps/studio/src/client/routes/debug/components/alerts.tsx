@@ -1,8 +1,4 @@
 import { ContactErrorAlert } from "@/client/components/contact-error-alert";
-import {
-  type UpgradeSubscriptionAlertState,
-  UpgradeSubscriptionAlertView,
-} from "@/client/components/upgrade-subscription-alert";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "@/client/lib/toast";
 
@@ -12,48 +8,6 @@ export const Route = createFileRoute("/debug/components/alerts")({
     meta: [{ title: "Debug alerts" }],
   }),
 });
-
-const upgradeStates: {
-  description: string;
-  label: string;
-  loggingIn?: boolean;
-  state: UpgradeSubscriptionAlertState;
-}[] = [
-  {
-    description:
-      "The person has no credits left, so the only way forward is to contact support.",
-    label: "out-of-credits",
-    state: "out-of-credits",
-  },
-  {
-    description:
-      "The person has credits again, after adding some or waiting for them to reset.",
-    label: "credits-available",
-    state: "credits-available",
-  },
-  {
-    description: "The person is logged out of Instrument.",
-    label: "logged-out",
-    state: "logged-out",
-  },
-  {
-    description:
-      "The person pressed Log in, and the app is waiting for them to finish in the browser.",
-    label: "logged-out, logging in",
-    loggingIn: true,
-    state: "logged-out",
-  },
-  {
-    description: "The app couldn't load the person's subscription.",
-    label: "status-error",
-    state: "status-error",
-  },
-  {
-    description: "The app is still loading the person's subscription.",
-    label: "loading",
-    state: "loading",
-  },
-];
 
 function RouteComponent() {
   return (
@@ -69,35 +23,6 @@ function RouteComponent() {
             which is hard to set up in a real session.
           </p>
         </header>
-
-        <section className="flex flex-col gap-3">
-          <div>
-            <h2 className="text-base font-semibold">Upgrade / credit alert</h2>
-            <p className="text-sm text-muted-foreground">
-              A chat shows this in place of its error when a turn fails because
-              the person ran out of credits.
-            </p>
-          </div>
-          <div className="flex flex-col gap-6">
-            {upgradeStates.map(({ description, label, loggingIn, state }) => (
-              <div className="flex flex-col gap-2" key={label}>
-                <div>
-                  <p className="font-mono text-xs text-muted-foreground">
-                    {label}
-                  </p>
-                  <p className="text-sm text-muted-foreground">{description}</p>
-                </div>
-                <UpgradeSubscriptionAlertView
-                  loggingIn={loggingIn}
-                  onCancelLogin={() => toast.info("onCancelLogin")}
-                  onContinue={() => toast.info("onContinue")}
-                  onLogin={() => toast.info("onLogin")}
-                  state={state}
-                />
-              </div>
-            ))}
-          </div>
-        </section>
 
         <section className="flex flex-col gap-3">
           <div>

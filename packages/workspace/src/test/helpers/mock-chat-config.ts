@@ -83,6 +83,8 @@ export function createMockChatConfig(
      */
     catalog?: AIGatewayModel.Type[];
     imageModel?: ImageModelV4;
+    /** What the host says about searching every model through the platform. */
+    isPlatformSearchForEveryModel?: () => boolean;
     model?: AIGatewayModel.Type;
     /**
      * Leaves the id out of the folder index, for a test that makes the chat
@@ -136,6 +138,9 @@ export function createMockChatConfig(
       console.error("captureException", args);
     },
     deviceId: newDeviceId(),
+    ...(options.isPlatformSearchForEveryModel && {
+      isPlatformSearchForEveryModel: options.isPlatformSearchForEveryModel,
+    }),
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
     modelCache: options.catalog
       ? { ...noopModelCache, read: () => options.catalog }

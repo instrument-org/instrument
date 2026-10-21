@@ -1,6 +1,8 @@
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
+import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
+import { APP_NAME } from "@instrument-org/shared";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 
@@ -42,6 +44,11 @@ export function GoogleLoginButton({
     setWaiting(false);
     if (outcome === "signed-in") {
       onSuccess?.();
+    }
+    if (outcome === "sign-up-refused") {
+      toast.error(`${APP_NAME} isn't open to new accounts yet`, {
+        description: "You can still use your own ChatGPT, Claude or Grok plan.",
+      });
     }
   };
 

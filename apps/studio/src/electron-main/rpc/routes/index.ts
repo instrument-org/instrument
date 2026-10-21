@@ -4,6 +4,7 @@ import { activity } from "./activity";
 import { appCommands } from "./app-commands";
 import { apps } from "./apps";
 import { auth } from "./auth";
+import { billing } from "./billing";
 import { browser } from "./browser";
 import { browsingData } from "./browsing-data";
 import { chatLocation } from "./chat-location";
@@ -19,12 +20,10 @@ import { mac } from "./mac";
 import { notices } from "./notices";
 import { onboarding } from "./onboarding";
 import { pageEditor } from "./page-editor";
-import { plans } from "./plans";
 import { preferences } from "./preferences";
 import { problems } from "./problems";
 import { providerConfig } from "./provider-config";
 import { releases } from "./releases";
-import { stripe } from "./stripe";
 import { syntax } from "./syntax";
 import { updates } from "./updates";
 import { user } from "./user";
@@ -37,6 +36,7 @@ export const router = {
   appCommands,
   apps,
   auth,
+  billing,
   browser,
   browsingData,
   chatLocation,
@@ -52,12 +52,10 @@ export const router = {
   notices,
   onboarding,
   pageEditor,
-  plans,
   preferences,
   problems,
   providerConfig,
   releases,
-  stripe,
   syntax,
   updates,
   user,

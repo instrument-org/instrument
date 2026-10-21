@@ -1,6 +1,5 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
-import { AccountInfo } from "@/client/components/account-info";
 import {
   BlockToolbarButton,
   blockToolbarButtonClassName,
@@ -62,7 +61,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
-function SettingsSection({
+export function SettingsSection({
   children,
   developerOnly,
   title,
@@ -94,7 +93,6 @@ const handleInstallUpdate = () => {
 export function GeneralSection() {
   return (
     <div className="space-y-4">
-      <AccountInfo />
       <InterfaceAndTheme />
       <Notifications />
       <About />

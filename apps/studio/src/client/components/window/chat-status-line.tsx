@@ -17,7 +17,7 @@ import { useMutation } from "@tanstack/react-query";
 
 import { ChatTasksPopover } from "./chat-activity";
 import { useChatTasks } from "./child-tasks-query";
-import { type Chat } from "./chats";
+import { type Chat, limitedText } from "./chats";
 
 /**
  * What the line under a chat's title says, and in which voice. `stopped` is
@@ -25,7 +25,7 @@ import { type Chat } from "./chats";
  */
 type StatusLine = {
   text: string;
-  tone: "done" | "failed" | "run" | "stopped" | "wait";
+  tone: "done" | "failed" | "limited" | "run" | "stopped" | "wait";
 };
 
 /** Said while the chat works and nothing has named the step yet. */
@@ -85,7 +85,9 @@ export function ChatStatusLine({
             line.tone === "run" && "brand-shiny-text",
             line.tone === "wait" && "text-foreground/80",
             line.tone === "failed" && "text-error-700 dark:text-error-300",
-            (line.tone === "done" || line.tone === "stopped") &&
+            (line.tone === "done" ||
+              line.tone === "limited" ||
+              line.tone === "stopped") &&
               "text-muted-foreground",
           )}
         >
@@ -179,7 +181,11 @@ function StopChatButton({ chatId }: { chatId: ChatId }) {
   );
 }
 
-/** The mark the chat's row and the tasks list put beside the same state. */
+/**
+ * The mark the chat's row and the tasks list put beside the same state. A
+ * stop at a usage limit has none: the words say it, and the reply box's note
+ * says what to do.
+ */
 function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
   switch (tone) {
     case "run": {
@@ -209,6 +215,9 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
     case "done": {
       return <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />;
     }
+    case "limited": {
+      return null;
+    }
   }
 }
 
@@ -236,6 +245,7 @@ export function statusLine({
     | "latest"
     | "runningTasks"
     | "state"
+    | "stoppedFor"
     | "title"
   >;
   listed:
@@ -262,6 +272,9 @@ export function statusLine({
   }
   if (chat.state === "stopped") {
     return undefined;
+  }
+  if (chat.state === "limited") {
+    return { text: limitedText(chat), tone: "limited" };
   }
   const own = chat.lastStep;
   const task = listed

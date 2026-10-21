@@ -5,6 +5,7 @@ import { chatStateOf } from "./chat-state";
 const resting = {
   askedAt: undefined,
   failed: false,
+  limited: false,
   ownTurn: false,
   spokeAt: 1,
   stopped: false,
@@ -73,6 +74,16 @@ describe("chatStateOf", () => {
     [
       "an ask over an error",
       { askedAt: 5, failed: true },
+      { ownWorking: false, state: "waiting", working: false },
+    ],
+    [
+      "a turn stopped at a usage limit",
+      { limited: true },
+      { ownWorking: false, state: "limited", working: false },
+    ],
+    [
+      "an ask over a usage limit",
+      { askedAt: 5, limited: true },
       { ownWorking: false, state: "waiting", working: false },
     ],
     [

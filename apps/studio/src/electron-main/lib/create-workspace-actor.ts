@@ -1,3 +1,8 @@
+import {
+  isHostedFeatureAvailable,
+  isPlatformSearchForEveryModel,
+} from "@/electron-main/lib/hosted-features";
+import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { refreshExpiredGrokTokens } from "@/electron-main/lib/grok-account";
@@ -262,7 +267,10 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         : { outputDir: rootDir }),
       // Passwords and sign-ins stay out of every native command's reach.
       nativeSandbox: true,
+      isHostedFeatureAvailable,
+      isPlatformSearchForEveryModel,
       pnpmBinPath: getPNPMBinPath(),
+      reportPlatformRefusal: recordPlatformRefusal,
       refreshExpiredCredentials: async (providerConfigId) => {
         await Promise.all([
           refreshExpiredTokens(providerConfigId),

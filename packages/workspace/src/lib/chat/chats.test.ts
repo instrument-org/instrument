@@ -192,11 +192,14 @@ async function agentSays(
   text: string,
   {
     commands = [],
+    error,
     failed = false,
     finished = true,
     minute = 0,
   }: {
     commands?: string[];
+    /** The error the step ended in, when it ended in one. */
+    error?: SessionMessage.Assistant["metadata"]["error"];
     /** Whether the step ended in an error rather than its stop. */
     failed?: boolean;
     finished?: boolean;
@@ -209,7 +212,8 @@ async function agentSays(
     id: messageId,
     metadata: {
       createdAt: at(minute),
-      finishReason: failed ? "error" : "stop",
+      ...(error && { error }),
+      finishReason: failed || error ? "error" : "stop",
       ...(finished ? { finishedAt: at(minute) } : {}),
       modelId: "glm-5.3-flash",
       providerId: "openai-compatible",
@@ -649,6 +653,47 @@ describe("listChats", () => {
     await agentSays(chatId, sessionId, "Doing well!", { minute: 3 });
     const [answered] = await listChats();
     expect(answered?.state).toBe("idle");
+  });
+
+  it("says a chat stopped at a usage limit is limited, not failed", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "hru");
+    await userSays(chatId, sessionId, "hru", 1);
+    await agentSays(chatId, sessionId, "", {
+      error: {
+        classification: "usage-limit",
+        kind: "unknown",
+        message: "Usage limit reached.",
+      },
+      minute: 2,
+    });
+
+    const [chat] = await listChats();
+    expect(chat?.state).toBe("limited");
+    expect(chat?.stoppedFor).toBe("usage");
+  });
+
+  it("says a chat Instrument refused for want of a plan stopped for its plan", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "hru");
+    await userSays(chatId, sessionId, "hru", 1);
+    await agentSays(chatId, sessionId, "", {
+      error: {
+        classification: "usage-limit",
+        kind: "api-call",
+        message: "Start your free trial or choose a plan.",
+        name: "AI_APICallError",
+        responseBody: JSON.stringify({
+          error: { code: "subscription-required", reason: "trial-available" },
+        }),
+        statusCode: 402,
+        url: "http://127.0.0.1/ai-gateway/providers/instrument/chat/completions",
+      },
+      minute: 2,
+    });
+
+    const [chat] = await listChats();
+    expect(chat).toMatchObject({ state: "limited", stoppedFor: "plan" });
   });
 
   it("leaves a failed turn behind once the user sends again", async () => {

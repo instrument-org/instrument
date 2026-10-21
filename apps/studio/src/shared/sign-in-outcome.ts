@@ -14,5 +14,7 @@ export type SignInOutcome =
   | "failed"
   /** Signed in to ChatGPT with plan access left unchecked: nothing to run on yet. */
   | "plan-off"
+  /** The service said yes, and Instrument wouldn't create an account for that address. */
+  | "sign-up-refused"
   /** Signed in, and ready. */
   | "signed-in";

@@ -21,7 +21,6 @@ const WebSearchResultSchema = z.object({
 });
 
 export const WebSearchResponseSchema = z.object({
-  costDollars: z.number(),
   results: z.array(WebSearchResultSchema),
 });
 
@@ -40,8 +39,21 @@ export type WebSearchClientResult =
       // everything else is ours to absorb (see the fallback in lib/web-search).
       errorType: "not-authenticated" | "payment-required" | "request-failed";
       ok: false;
+      /**
+       * The platform turned the search away for the account's plan
+       * (`subscription-required`, or `usage-limit-exceeded` while the free
+       * allowance is spent), and what it said.
+       */
+      refusal?: PlatformSearchRefusal;
       responseBody?: string;
     };
+
+/** Why the platform refused a search for the account's plan, as it said. */
+export type PlatformSearchRefusal = {
+  code: "subscription-required" | "usage-limit-exceeded";
+  reason?: string;
+  resetsAt?: string;
+};
 
 export type WebSearchRequest = z.output<typeof WebSearchRequestSchema>;
 

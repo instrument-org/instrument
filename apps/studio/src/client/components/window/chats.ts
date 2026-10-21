@@ -45,7 +45,7 @@ export interface Filterable {
   root?: undefined | { parts: { text?: string; type: string }[] };
   /** Whether the user starred it: a mark of the user's own, kept wherever the chat is. */
   starred: boolean;
-  state: "failed" | "idle" | "stopped" | "waiting" | "working";
+  state: "failed" | "idle" | "limited" | "stopped" | "waiting" | "working";
   title: string;
   /** The id of the topic it is filed under, when it is filed under one. */
   topic?: string;
@@ -246,6 +246,23 @@ function matchesSearch(
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Said once a usage limit stopped the chat's last turn, which is not an error:
+ * the note over its reply box says what to do.
+ */
+const LIMITED = "Stopped at a usage limit";
+
+/**
+ * Said once Instrument refused the chat's last turn for want of a plan or a
+ * trial: not a limit reached, and the reply box's note says what unlocks it.
+ */
+const PLAN_NEEDED = "Stopped: needs a plan";
+
+/** What a stopped-at-a-limit chat says, by what stopped it. */
+export function limitedText(chat: Pick<Chat, "stoppedFor">) {
+  return chat.stoppedFor === "plan" ? PLAN_NEEDED : LIMITED;
+}
 
 /**
  * When something last happened in a chat, the way a mailbox says it at a

@@ -1,4 +1,5 @@
 import { zoomAtom } from "@/client/atoms/zoom";
+import { type RPCOutput } from "@/client/rpc/client";
 import { noticeFor, readModelStatus } from "@/client/lib/model-status";
 import { ariaSnapshot } from "@/tests/aria-snapshot";
 import { renderInBrowser } from "@/tests/render-browser";
@@ -12,6 +13,25 @@ import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { ModelPicker } from "./model-picker";
+
+type Status = RPCOutput["billing"]["status"];
+
+/** The account's billing status, as the picker reads it; a Basic plan unless a test says otherwise. */
+const account = vi.hoisted(() => ({
+  status: undefined as unknown,
+}));
+vi.mock("@/client/hooks/use-billing-status", () => ({
+  useBillingStatus: () => ({ data: account.status, isSignedIn: true }),
+}));
+
+const onBasic: Status = {
+  canSubscribe: false,
+  plan: "basic",
+  subscription: { cancelAtPeriodEnd: false, status: "active" },
+  trial: { state: "ended" },
+  windows: [],
+};
+account.status = onBasic;
 
 // What the picker offers has to be legible from the accessibility tree, since
 // that tree is both what a screen reader announces and what an agent driving
@@ -147,6 +167,28 @@ async function openPicker(
 }
 
 describe("ModelPicker in a browser", () => {
+  it("opens with nothing connected to one way to add a provider, with no search or rail", async () => {
+    const onAddProvider = vi.fn();
+    await renderInBrowser(
+      <ModelPicker
+        models={[]}
+        onAddProvider={onAddProvider}
+        onValueChange={vi.fn()}
+      />,
+    );
+    const trigger = page.getByRole("combobox", { name: "Model" });
+    await expect.element(trigger).toHaveTextContent("Add a model");
+    await userEvent.click(trigger);
+
+    await expect.element(page.getByText("No models yet")).toBeVisible();
+    expect(document.querySelector("[data-slot=command]")).toBeNull();
+    await userEvent.click(page.getByRole("button", { name: "Add a provider" }));
+    expect(onAddProvider).toHaveBeenCalledOnce();
+    await expect
+      .element(page.getByText("No models yet"))
+      .not.toBeInTheDocument();
+  });
+
   it("opens on Instrument with Auto chosen, the rail naming where the rest are", async () => {
     const tree = await openPicker(autoModel);
     expect(await tree()).toMatchInlineSnapshot(`
@@ -163,6 +205,49 @@ describe("ModelPicker in a browser", () => {
         - text: Auto Recommended Included with your subscription
         - option "Auto (chosen)" [selected]: In use"
     `);
+  });
+
+  it.each([
+    {
+      expected: "AutoRecommendedIncluded with your free trialIn use",
+      state: "the trial",
+      status: {
+        canSubscribe: true,
+        plan: "trial",
+        trial: { state: "active" },
+        windows: [],
+      } satisfies Status,
+    },
+    {
+      expected: "AutoRecommendedIn use",
+      state: "the free allowance",
+      status: {
+        canSubscribe: true,
+        plan: "free",
+        trial: { state: "available" },
+        windows: [],
+      } satisfies Status,
+    },
+    {
+      expected: "AutoRecommendedIn use",
+      state: "a trial that has ended",
+      status: {
+        canSubscribe: true,
+        plan: "free",
+        trial: { state: "ended" },
+        windows: [],
+      } satisfies Status,
+    },
+  ])("says what includes Auto on $state", async ({ expected, status }) => {
+    account.status = status;
+    try {
+      await openPicker(autoModel);
+      const row = document.querySelector("[data-slot=command] [role=listbox]");
+      expect(row?.textContent).toContain(expected);
+      expect(row?.textContent).not.toContain("Included with your subscription");
+    } finally {
+      account.status = onBasic;
+    }
   });
 
   it("lists Instrument's lineup by brand, each over its family, as the gateway describes it", async () => {

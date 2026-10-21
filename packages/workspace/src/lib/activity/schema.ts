@@ -40,7 +40,11 @@ const ACTIVITY_SURFACES = [
 export const ActivitySurfaceSchema = z.enum(ACTIVITY_SURFACES);
 export type ActivitySurface = z.output<typeof ActivitySurfaceSchema>;
 
-const ACTIVITY_STATUSES = ["finished", "failed", "stopped"] as const;
+/**
+ * How a request ended. `limited` is one a usage limit refused (a plan, a usage
+ * window), which went as it should rather than wrong.
+ */
+const ACTIVITY_STATUSES = ["finished", "failed", "limited", "stopped"] as const;
 export const ActivityStatusSchema = z.enum(ACTIVITY_STATUSES);
 
 /** One request, as its device logged it and the index reads it back. Metadata only: nothing anyone wrote. */

@@ -7,7 +7,6 @@ describe("readWebSearchResults", () => {
     expect(
       readWebSearchResults({
         results: {
-          costDollars: 0.007,
           kind: "excerpts",
           sources: [
             {

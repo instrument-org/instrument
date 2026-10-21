@@ -24,24 +24,6 @@ const live = {
         });
       }
     }),
-  subscriptionStatus: base.handler(async function* ({ errors, signal }) {
-    try {
-      yield* createAuthenticatedLiveQuery({
-        getOptions: (enabled) =>
-          platformApiRpcClient.users.getSubscriptionStatus.queryOptions({
-            enabled,
-            staleTime: 0,
-          }),
-        queryKey: platformApiRpcClient.users.getSubscriptionStatus.queryKey(),
-        signal,
-      });
-    } catch (error) {
-      throw errors.API_ERROR({
-        cause: error,
-        message: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }),
 };
 
 export const user = {

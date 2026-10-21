@@ -144,7 +144,10 @@ export function useWindowCommands(
         (event.metaKey || event.ctrlKey) &&
         !event.altKey &&
         !event.shiftKey &&
-        event.key.toLowerCase() === "l"
+        event.key.toLowerCase() === "l" &&
+        // Under a hold (a dialog, setup) the field is behind it; the key is
+        // left to what is on top, which may have a search of its own.
+        getDefaultStore().get(windowHoldsAtom).length === 0
       ) {
         event.preventDefault();
         latest.current.search();

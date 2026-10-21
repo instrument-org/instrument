@@ -1,67 +1,93 @@
 # Plan: the onboarding setup assistant
 
-Status: designed, not built on main. The final designs are in Figma (Instrument 2.0 file, node 4238-2276), which is the source of truth for every screen and its copy. A rough-draft implementation was built from an earlier wireframe round; it proved the shape below but needs a large update to match Figma and is not a merge candidate. Billing (plans, trial, beta offer) lands on main first; onboarding builds on it. Tracked in Linear FP-1356 (design) and FP-1368 (testing against real accounts).
+Status: building. The designs are in Figma (Instrument 2.0 file, page R6, node 4238-2276), the source of truth for every screen and its copy. Where Figma has no frame (Grok, out of usage during setup, the beta folder move, Welcome back's place, card and intro trials, the beta offer, the test notification's click, a step added by an update), the wireframes fill in until the design does. Tracked in Linear FP-1356 (design) and FP-1368 (testing against real accounts).
 
-Onboarding is what a person goes through from first launch to an app that works: a way to get AI (an Instrument plan, a ChatGPT or Claude plan, or their own API key), the setup every way in shares (memories, the workspace folder, notifications, what fills their week, the look, a few suggested tasks), and the move into the app with those tasks waiting as drafts.
+Onboarding is what a person goes through from first launch to an app that works: a way to get AI (an Instrument plan, a ChatGPT, Claude or Grok plan, or their own API key), the main model, the workspace folder, notifications, and the look.
 
-## What the draft settled
+## Where setup opens: facts, plus the steps answered
 
-These held up in the draft and carry into the build.
+Setup never saves which page it was on. At launch, and whenever a fact changes, main reads a few facts and the list of steps answered, and the current step is the first step that is needed and not done. Pages inside a step (a sign-in waiting, an account check's answer, Trial started) live only in the renderer, so a quit lands back at the start of that step.
 
-- **One window.** Setup draws over the whole app window instead of opening a window of its own. The app loads behind it, so finishing fades setup away onto an app that is already there, and sending someone back through onboarding is a reset of one number and a reload. While setup is on screen the menu is the minimal one, the window's shortcuts and tab navigation wait, and files or links opened from outside wait until it finishes.
-- **The window's size.** A first launch opens the window at setup's own size (1080×720), fixed: not resizable, maximizable, or full-screen, and its bounds are not saved. Finishing grows it to the remembered bounds with an animation. Someone sent back through onboarding after an update keeps the window as they left it. Off macOS the window has no system frame, so setup draws minimize and close itself (and maximize only when the window can be resized).
-- **When it shows.** A version number in workspace state (`onboardingVersion`) gates it, so an update that adds a step brings setup back for everyone; a returning person starts on a "Welcome back" page instead of Welcome.
-- **The step model is pure.** One reducer (go, replace, back, answer, way) holds the page, the history for Back, and the answers, so the order of pages is checked without drawing them. Dev builds can jump to any page by name.
-- **A ChatGPT or Claude account is checked before setup moves on.** Connecting is not enough: setup reads the plan and sends one small request on it, then routes on the answer. Ready goes on; not eligible (a free plan, one that ended, or a workspace that turns off other apps; the providers report all three the same way) gets a page that says the account can't be used here; out of usage gets a page with the real reset time that lets setup finish without the step that needs AI; signed out or an answer the check can't read gets a "couldn't connect" page with Try again and the other ways in, and no way through. Claude's check can take about 15 seconds, so the page says it is checking.
-- **No step that spends AI can trap anyone.** Each such step is skippable throughout, says so when it fails (Try again), says so when it is slow (after 10 seconds: Keep waiting), and offers the non-AI fallback (starter tasks in place of written ones).
-- **The beta offer is the server's to give.** Whether someone sees it comes only from the API's answer about their account, never from anything the app decides, so coupon codes can come in the same way later. Accepting is a $0 Checkout.
-- **A trial the server cannot start says why.** When the day's free trials are taken, the plans page says so and keeps Subscribe.
-- **Own key.** After the key is accepted, the person picks the model new chats use, and a toggle says whether setup may spend that key writing their suggested tasks. A model list that has not loaded after 10 seconds offers Skip.
-- **Notes above the reply box.** A ChatGPT or Claude plan that runs out, or an account that can't be used here, ends the turn with one line in the transcript; the note above the reply box carries the ways on (switch AI, wait for the reset, see the usage, connect another AI). This replaces the recovery buttons the transcript's error card carries for those two providers.
-- **Words.** The theme choice that follows the computer is "Auto", as in Figma and the rest of the app. Once suggested tasks are showing there is no Skip; unchecking them all is the way past.
+The facts (`SetupFacts`, `shared/setup.ts`):
 
-## Requirements the draft did not meet
-
-- **Quitting at any step.** Onboarding must pick up correctly after a quit on any page. The draft decides "returning" from `hasCompletedProviderSetup`, which a new person sets by connecting a provider, so someone who quits after connecting comes back to "Welcome back" as if they were a beta tester. That is a bug to fix, and the quit-anywhere case needs its own test pass.
-- **The workspace folder.** Onboarding gets a screen that requires choosing the workspace folder, built on main's pick-and-move ([choose-where-instrument-keeps-files.md](choose-where-instrument-keeps-files.md), [workspace-layout.md](workspace-layout.md) "The onboarding folder step"). The draft's folder step kept an output-folder setting of its own and held folder creation until setup finished; none of that carries over.
-- **Drafts on the first launch.** The tasks and memory imports picked during setup arrive as drafts. On the first launch the inbox shows drafts and chats together, ordered by time, with a filter that shows only drafts.
-- **Adding another provider from inside the app.** The sheet behind every "add a provider" entry point still has the old small-window design and shows every option whatever is connected. It is being redesigned: it hides each sign-in that is already connected, falls back to adding a key by hand when nothing else is left, and covers Grok as a third subscription provider beside ChatGPT and Claude. Whether a second ChatGPT account gets a place there is part of that design.
-
-## Building it from Figma
-
-The draft is rebuilt on main's components, not merged. About a quarter of its UI was composed from `components/ui` and the billing components; the rest copied main or was drawn by hand, so what carries over is its logic, its tests, and a few patterns.
-
-**What the draft got wrong.** It re-implemented ChatGPT and Claude sign-in beside `chatgpt-login-button.tsx` and `claude-login-button.tsx` (toast copy and the install-percent helper included), key entry beside `add-provider/form.tsx`, a model list with no search beside `model-picker.tsx` and `lib/model-picker-rows.ts`, and the theme screen beside `onboarding/theme-screen.tsx`. It hand-rolled a toggle, checkbox, input, cards, and buttons that `components/ui` has, and used raw hex colors.
-
-**What carries over.** The step reducer with its Back history (`flow.ts`, which needs a test). The tested pure logic: account-check routing and reset times, which models to suggest for a key, plans, starter tasks, and drafts. The guard against a stale sign-in, the race guard on key checks, the dev jump to any page, and the welcome hero's Reduce Motion handling.
-
-**Each frame and where it comes from.**
-
-| Source | Frames |
+| Fact | Read from |
 |---|---|
-| Main as it is | 05 Choose a folder and 08 Folder already exists (`settings/storage-section.tsx`, `workspace-move.ts` `checkPlace`); 10, 12, 13 notifications (`rpc/routes/mac.ts` notification status and request, `sendTestNotification`, `lib/notification-settings.ts`); 14 Choose your look (`onboarding/theme-screen.tsx`); 16 and 17 Claude sign-in (`claude-login-button.tsx`, `chatgpt-login-button.tsx`); 20 Free account (`google-login-button.tsx`); 21 to 23 and 25 adding a provider (`add-provider/form.tsx`, `provider-picker.tsx`); 26 Connect OpenRouter (`add-provider/connect-openrouter.tsx`); 28 and 29 model list and search (`model-picker.tsx`); the logo set (`ai-provider-icon.tsx`, `model-maker-icon.tsx`) |
-| Adapted from the draft | 01 Welcome (the hero and burst); 02 and 03 plans and trial, once billing is on main; 04 Choose a model (the suggested-models logic); 18 No paid plan and 19 Out of usage (account-check routing); 24 Key accepted; 15 All set (suggested tasks); 30 Welcome back, after the returning-person fix; the page frame, rebuilt as Figma's title bar and footer |
-| New | 06 Documents access and 07 Documents denied (create the folder on Continue so macOS asks, fall back to the home folder if refused, offer a fix); 09 Earlier chats found (the move check knows a workspace is there, not how many chats it holds); 11 Test notification (knowing it was clicked and bringing setup forward); 27 No credits (needs an OpenRouter credits signal); Figma's component set: footer variants, model, folder, and notification rows, plan and way cards, brand tile |
+| Usable AI | `getAllAIProviderConfigs()`, with each ChatGPT, Claude and Grok account checked again (`checkAccount`): an account the check calls ready or out of usage counts, one with no paid plan does not. Claude's status is waited on with a deadline, so a Claude-only person never flashes as new. |
+| Instrument account | `hasToken()`, then `billing.status` and `billing.offer` for the plan step |
+| Used before | the workspace has chats (`usedBefore()`) |
+| Folder settled | `workspaces.folder()` is outside app data, pinned, or has a move recorded and waiting on a restart |
+| Notifications | `mac.notifications.status`; `unknown` and `unsupported` count as done, so the step can't trap |
 
-**Order.**
+The record (`SetupRecord`, machine state, so a second workspace on the same computer doesn't run setup again): the time each answered step was answered, and when setup finished. It replaces `onboardingVersion` and `hasCompletedProviderSetup`, and nothing else writes either.
 
-1. Port the pure logic and its tests, adding one for the step reducer.
-2. Build Figma's component set as a setup kit on `components/ui`, with no hand-rolled controls.
-3. The shell: one window, the fixed size, the version gate, and picking up after a quit.
-4. The pages main already covers: folder, notifications, look, provider form, model picker.
-5. Lift sign-in and the account check out of the login buttons into hooks Settings and setup share, then frames 16 to 20.
-6. Plans, trial, and Welcome back.
-7. The new pages: Documents denied, Earlier chats found, No credits, the test notification.
-8. Illustrations and the hero last.
+The steps, in order (`SETUP_STEPS`):
 
-Exact spacing and tokens come from Figma per frame during the build; this map does not carry them.
+| Step | Needed while | Done by |
+|---|---|---|
+| `welcome-back` | used before, and setup never finished | answering it |
+| `way-in` | no usable AI | the fact (no answer is kept) |
+| `plan` | an Instrument account with no subscription and no running trial | answering it: a trial started, Checkout, the beta offer, or "Use it instead" |
+| `free-account` | usable AI and no Instrument account | answering it (Google or Not now) |
+| `model` | always | answering it |
+| `folder` | the folder isn't settled | the fact, and answering it |
+| `notifications` | status is `not-asked` or `provisional` | the fact, or answering it (Not now) |
+| `look` | always | answering it |
 
-## Open gaps
+Two rules keep this from trapping or nagging anyone:
 
-- **A slow-web-search note.** The designs include a note above the reply box, in the app after setup, for someone who passed on the free Instrument account and so has slow web search, offering that account again. Nothing in the app can tell that a search is slow, so it waits on that signal.
-- **The main model in Settings.** The own-key step sets the default model for new chats, but Settings shows that default nowhere, so a choice made in setup can only be changed from a chat.
-- **The old onboarding window is still on main.** The setup assistant replaces it, its routes, and its dev panel entry.
+- **Before finishing, facts and answers both count. After finishing, only a missing answer brings setup back.** Signing out of every AI later, or a folder moved back into app data, never reopens setup; the app's own notes handle those. A step added by an update has no answer for anyone, so people who finished see only that step, under "One new thing to set up".
+- **Steps a person can't do here are skipped, not shown.** The plan step needs an Instrument account; notifications need macOS.
+
+`SKIP_ONBOARDING=true` hides setup without writing anything, for fixtures and smoke tests.
+
+Welcome back is how a beta tester is found: the API has no beta flag, and its beta offer only means "account made before a cutoff, never subscribed". Their workspace is in app data with chats in it, and their finished work went to `~/Documents/Instrument`. The folder step asks them too, and Continue moves the chats there and restarts the app; the move is recorded before the restart, so the folder reads as settled afterwards and setup picks up at the next step.
+
+## The window
+
+Setup draws over the app window (no window of its own), with the app loaded behind it.
+
+- **Size.** A first launch opens at 1080×720, fixed (not resizable, maximizable or full-screen), centered on the pointer's display. Finishing turns resizing back on and sets the remembered bounds; the old onboarding window's grow animation and the warm-behind swap are gone with it. Bounds are never saved while setup is sized, on close and quit included (`trackWindowBounds`). Someone shown one new step after an update keeps the window as they left it. Off macOS, setup draws minimize and close itself.
+- **Held back while setup is up:** the minimal menu (`createOtherWindowMenu`), the window's chords (`bindAppWindowChords`), tab commands and the command menu (a window hold with no close), and swipe back and forward.
+- **Files and links opened from outside** wait in main and are delivered when setup finishes (`window.command`), and setup says what is waiting.
+- **Gone:** `windows/onboarding.ts`, `client/routes/onboarding/`, the warm-behind machinery in `app-window.ts`, the `windowType` "onboarding" plumbing, the dev panel and command menu entries, the debug gallery's onboarding screens. The login modal keeps its screens until the shared sign-in replaces them. `OnboardingZoomRoot` is the app window's zoom root too, so it is renamed, not deleted.
+
+## Signing in: one flow per provider, one set of answers
+
+Onboarding, the Add a provider sheet, Settings and the notes above the reply box share one connect flow per provider and one list of answers (`ConnectOutcome`, `shared/connect-outcome.ts`), and differ only in how they draw them.
+
+- **Google (Instrument):** browser sign-in, with a timeout. Answers: ready, declined, canceled, sign-up refused, failed. The plan comes from `billing.status`, as everywhere else.
+- **ChatGPT and Claude:** browser sign-in, then the account check (`checkAccount`: one small request on the plan), with a deadline and Cancel. Answers: ready, no paid plan, out of usage (with the reset time), signed out, canceled, failed. The default model is set only once the check says ready, so a failed account never becomes the default.
+- **Grok:** device code (the page shows the code beside Cancel); the plan is read at sign-in (`no-subscription`, SuperGrok or X Premium+).
+- **Copy:** one module turns an answer into words for each surface. Network trouble is not an answer of its own: the offline pill says it ([network-status.md](network-status.md)).
+
+A result that arrives after the person has left the page is dropped, and a retry that lands on the same page resets its waiting state.
+
+## Plans and the trial
+
+The plan step is the app's plan cards (`PlanCards` with `trial`) and reads only the server's answers:
+
+- **No-card trial** (`offer.trial.mode` `no_card`): Start free trial runs `useStartTrial`, then Trial started. Nothing else starts a trial.
+- **Card or intro trial** (`card`, `intro`): the cards say so (`checkoutTrialLine`), and the button opens Checkout.
+- **Trials held back** (`isTrialHeldBack`): Choose a plan, with Subscribe.
+- **Beta offer** (`offer.beta`): one card for the free months, claimed through Checkout (`offer: "beta"`).
+- **ChatGPT, Claude, Grok and keys need no plan**, so those ways never see the plan step; they see the free-account offer instead.
+
+## Building it
+
+What carries over from the earlier drafts is logic and tests, never UI: account-check routing and reset times, suggested models for a key, the stale sign-in and key-check race guards, the dev jump to any step, and the welcome hero's Reduce Motion handling. Every page is built from `components/ui`, the billing components, and main's existing pieces (`theme-screen.tsx`, `add-provider/form.tsx`, `model-picker.tsx`, `storage-section.tsx`, `workspace-move.ts`).
+
+Four streams run in parallel, then the pages:
+
+1. **Setup logic.** The facts, the record, `currentSetupStep` with tests (every step, quit at each, the finished rule, a step added later), the `setup` RPC routes, removing `hasCompletedProviderSetup` and `onboardingVersion` and their writers, and scenarios (below).
+2. **The window.** Everything under "The window", against `isSetupUp()` (`electron-main/lib/setup-state.ts`).
+3. **Shared sign-in.** The connect flows, `checkAccount`, and the copy module, wired into the Add a provider sheet, Settings and the reply-box notes.
+4. **Offline.** [network-status.md](network-status.md).
+5. **The pages**, once the first three are in, from Figma frame by frame.
+
+## Scenarios
+
+A scenario boots the app straight into one state: `studio-drive.mjs boot --scenario <name>` seeds a workspace and writes the facts and the record, so the gate follows from files alone. The first ones are setup's: new, beta tester (chats in app data, `~/Documents/Instrument` present), quit after connecting ChatGPT, waiting on the folder move's restart, finished with a step added later, and offline. Account states come from the preview test accounts (`--account`). Notification status comes from macOS, so the bridge takes a development-build override. This is the first part of [app-state-scenarios.md](app-state-scenarios.md), built on the record instead of `hasCompletedProviderSetup`.
 
 ## Testing
 
-Unit tests cover the step order and the routing of each account-check answer. Everything that depends on a real account (paid, free, out of usage, a workspace that turns off other apps, for ChatGPT and for Claude; a new Google account's trial; the beta offer; a real key) is a manual pass, listed in FP-1368.
+Unit tests cover the step order (`currentSetupStep` over facts and records), each connect answer's routing and copy, the window-bounds guard, and asks held and delivered. Scenarios cover every setup state on screen. What needs a real account or a signed build (each provider's paid, free and out-of-usage accounts, a new Google account's trial, the beta offer, a key, the test notification's click) is a manual pass, listed in FP-1368.

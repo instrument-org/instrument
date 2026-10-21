@@ -1,6 +1,6 @@
 # The names in a visible file's front matter
 
-Status: approved, building. The shapes below are decided; the build follows the numbered list.
+Status: built. As built, a web page and an app's front go in a draft's `context` by their own address too, and a draft's `model` is not written: the composer has no model of its own per draft yet.
 
 A person can open any of these files in a Markdown viewer, and another client (the phone app) reads and writes some of them. So the keys are a product surface: they are read by someone who has never seen the schema, and written by someone implementing against it. They should say what they hold without a legend.
 

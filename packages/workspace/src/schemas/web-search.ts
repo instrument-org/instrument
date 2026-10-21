@@ -21,7 +21,6 @@ const WebSearchResultSchema = z.object({
 });
 
 export const WebSearchResponseSchema = z.object({
-  costDollars: z.number(),
   results: z.array(WebSearchResultSchema),
 });
 

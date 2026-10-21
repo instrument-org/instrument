@@ -413,6 +413,8 @@ export const agentMachine = setup({
 
   delays: {
     llmRequestChunkTimeoutMs: ({ context }) => context.llmRequestChunkTimeoutMs,
+    capacityWait: ({ context }) =>
+      context.baseLLMRetryDelayMs * CAPACITY_WAIT_FACTOR,
     requestAbortBackstop: REQUEST_ABORT_BACKSTOP_MS,
     retryBackoff: ({ context }) => {
       return context.baseLLMRetryDelayMs * Math.pow(2, context.retryCount - 1);
@@ -454,6 +456,8 @@ export const agentMachine = setup({
       stopReason?: StopReason;
       chatId: ChatId;
       toolCallQueue: SessionMessagePart.ToolPartInputAvailable[];
+      /** Requests our platform turned away for too many running at once, in a row. */
+      capacityWaitCount: number;
     },
     events: {} as AgentMachineEvent,
     input: {} as {
@@ -473,6 +477,7 @@ export const agentMachine = setup({
   context: ({ input }) => ({
     agent: input.agent,
     baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
+    capacityWaitCount: 0,
     llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
     maxAttemptCount: 3,
     maxStepCount: input.maxStepCount,
@@ -709,6 +714,7 @@ export const agentMachine = setup({
           {
             // A reply the model finished: its calls run next.
             actions: assign(({ event: { output } }) => ({
+              capacityWaitCount: 0,
               retryCount: 0,
               toolCallQueue: output.parts.filter(
                 (part): part is SessionMessagePart.ToolPartInputAvailable =>
@@ -719,6 +725,20 @@ export const agentMachine = setup({
               context.requestStop?.signal.aborted !== true &&
               getErrorAction(output.message).type === "continue",
             target: "MaybeExecutingToolCalls",
+          },
+          {
+            // Too many of the user's requests on our platform at once: the
+            // turn waits its place rather than spending its retries, since the
+            // one thing that ends it is another task finishing.
+            actions: assign({
+              capacityWaitCount: ({ context }) => context.capacityWaitCount + 1,
+              partsLeftBehind: true,
+            }),
+            guard: ({ context, event: { output } }) =>
+              context.requestStop?.signal.aborted !== true &&
+              getErrorAction(output.message).type === "wait" &&
+              context.capacityWaitCount < MAX_CAPACITY_WAITS,
+            target: "WaitingForCapacity",
           },
           {
             // An abort of ours already says why. Otherwise the reply's error
@@ -907,6 +927,14 @@ export const agentMachine = setup({
       },
     },
 
+    WaitingForCapacity: {
+      after: {
+        capacityWait: {
+          target: "LLMStreaming",
+        },
+      },
+    },
+
     SavingMaxStepsMessage: {
       invoke: {
         input: ({ context }) => ({
@@ -990,6 +1018,16 @@ export type AgentMachineActorRef = ActorRefFrom<typeof agentMachine>;
  * sixteen concurrent searches without refusing any.
  */
 const MAX_CONCURRENT_TOOL_CALLS = 8;
+
+/**
+ * How long a turn turned away for too many requests at once waits before
+ * asking again, as a multiple of the base retry delay (ten seconds in the
+ * app), and how many times it asks: about five minutes before it gives up.
+ * Each refused attempt is a message in the session, which is what keeps the
+ * count this low.
+ */
+const CAPACITY_WAIT_FACTOR = 10;
+const MAX_CAPACITY_WAITS = 30;
 
 /**
  * The calls to run together next: the read-only calls at the head of the queue

@@ -5,6 +5,12 @@ export const debugNavigationRoutes = [
     title: "Debug components",
     to: "/debug/components",
   },
+  {
+    id: "billing",
+    label: "Billing",
+    title: "Debug billing",
+    to: "/debug/billing",
+  },
 ] as const;
 
 export const componentPages = [

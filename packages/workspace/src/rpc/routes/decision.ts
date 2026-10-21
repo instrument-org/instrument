@@ -57,7 +57,7 @@ const ask = base
     if (!asked) {
       throw errors.NOT_FOUND({
         message:
-          "The decision model can't be asked: it needs an OpenRouter key or an Instrument sign-in, and is left alone for a minute after asking it fails",
+          "The decision model can't be asked: it needs an OpenRouter key or an Instrument sign-in, and is left alone for a while after asking it fails or the plan refuses it",
       });
     }
     return { ...asked.response, ms: asked.ms, provider: asked.provider };

@@ -5,6 +5,7 @@ import {
   type GetProviderConfigs,
   type ModelCache,
   type ModelRoutes,
+  type ReportPlatformRefusal,
   type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
@@ -272,6 +273,8 @@ export interface WorkspaceConfig {
    */
   programsWithoutSandbox?: boolean;
   pnpmBinPath: AbsolutePath;
+  /** Told about each hosted request our platform refused (no plan, a spent window). */
+  reportPlatformRefusal?: ReportPlatformRefusal;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
   /**

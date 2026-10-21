@@ -56,7 +56,12 @@ async function exchangeDesktopSignIn({
  */
 type InstrumentSignInResult =
   | { email: string; outcome: Extract<SignInOutcome, "signed-in"> }
-  | { outcome: Extract<SignInOutcome, "canceled" | "declined"> };
+  | {
+      outcome: Extract<
+        SignInOutcome,
+        "canceled" | "declined" | "sign-up-refused"
+      >;
+    };
 
 const signIns = createLoopbackSignIn<InstrumentSignInResult>({});
 
@@ -108,6 +113,11 @@ export async function signInSocial(): Promise<
     const ended = params.get("error");
     if (ended === "access_denied") {
       return { outcome: "declined" };
+    }
+    // Better Auth's code when the account could not be created, which the
+    // API answers for an address outside the domains open for sign-up.
+    if (ended === "unable_to_create_user") {
+      return { outcome: "sign-up-refused" };
     }
     const token = params.get("token");
     let email: string;

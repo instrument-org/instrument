@@ -1,5 +1,11 @@
 /** Where a chat stands, as its row and its line say it. */
-export type ChatState = "failed" | "idle" | "stopped" | "waiting" | "working";
+export type ChatState =
+  | "failed"
+  | "idle"
+  | "limited"
+  | "stopped"
+  | "waiting"
+  | "working";
 
 /**
  * Where a chat stands: the one rule every reader of a chat's state goes
@@ -16,6 +22,8 @@ export type ChatState = "failed" | "idle" | "stopped" | "waiting" | "working";
  *   and no turn has started since.
  * - **failed**: the chat's last turn ended in an error, and nothing has been
  *   sent since.
+ * - **limited**: the same, when what stopped it was a usage limit (a plan, a
+ *   usage window) rather than something going wrong.
  * - **idle**: none of these.
  *
  * `working` comes back beside `state`, which waiting outranks it in: whether
@@ -25,6 +33,7 @@ export type ChatState = "failed" | "idle" | "stopped" | "waiting" | "working";
 export function chatStateOf({
   askedAt,
   failed,
+  limited,
   ownTurn,
   spokeAt,
   stopped,
@@ -35,6 +44,8 @@ export function chatStateOf({
   askedAt: number | undefined;
   /** The chat's last turn ended in an error with nothing sent after it. */
   failed: boolean;
+  /** The chat's last turn stopped at a usage limit with nothing sent after it. */
+  limited: boolean;
   /** The chat's own session has a turn: a message has reached it, and the turn it starts has not ended. */
   ownTurn: boolean;
   /** When the user last sent a message, in ms. */
@@ -60,6 +71,8 @@ export function chatStateOf({
             ? "stopped"
             : failed
               ? "failed"
-              : "idle";
+              : limited
+                ? "limited"
+                : "idle";
   return { ownWorking, state, working };
 }

@@ -740,7 +740,6 @@ const BubbleRowView = memo(function BubbleRowView({
           isDeveloperMode={row.isDeveloperMode}
           isLastMessage={row.isLastMessage}
           message={row.message}
-          onContinue={actions.onContinue}
           onModelChange={actions.onModelChange}
           onRunAgain={actions.onRunAgain}
         />

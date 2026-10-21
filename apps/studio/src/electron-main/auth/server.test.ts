@@ -75,6 +75,17 @@ describe("the assembled auth callback server", () => {
     expect(mocks.chatgpt).not.toHaveBeenCalled();
   });
 
+  // An address the API won't create an account for is an answer, not a bug.
+  it("says sign-ups are closed without reporting a failure", async () => {
+    mocks.instrument.mockResolvedValue({ outcome: "sign-up-refused" });
+    const response = await createAuthCallbackApp().request(
+      `${AUTH_CALLBACK_PATHS.instrument}?state=instrument-state&error=unable_to_create_user`,
+    );
+    expect(response.status).toBe(403);
+    expect(await response.text()).toBe("sign-up-refused");
+    expect(mocks.capture).not.toHaveBeenCalled();
+  });
+
   it("hands ChatGPT a callback carrying the Instrument state", async () => {
     const response = await createAuthCallbackApp().request(
       `${AUTH_CALLBACK_PATHS.chatgpt}?state=instrument-state&token=token`,

@@ -1,3 +1,4 @@
+import { ReplyNote, ReplyNoteButton } from "@/client/components/reply-note";
 import { type ModelAction, type ModelNotice } from "@/client/lib/model-status";
 import { cn } from "@/client/lib/utils";
 import { ArrowCircleUpIcon } from "@phosphor-icons/react/ArrowCircleUp";
@@ -14,16 +15,19 @@ import { XIcon } from "@phosphor-icons/react/X";
  * that does, so the row that reports a problem is also the way out of it.
  *
  * `nudge` counts the sends it refused: each new count flashes the row, so a
- * blocked send points at the reason already on screen.
+ * blocked send points at the reason already on screen. `floating` draws it as
+ * the note over a chat's reply box rather than a row inside a box.
  */
 export function ModelNoticeRow({
   className,
+  floating = false,
   notice,
   nudge = 0,
   onAction,
   onDismiss,
 }: {
   className?: string;
+  floating?: boolean;
   notice: ModelNotice;
   nudge?: number;
   onAction: (action: ModelAction) => void;
@@ -31,6 +35,35 @@ export function ModelNoticeRow({
 }) {
   const isOffer = notice.tone === "offer";
   const Icon = isOffer ? ArrowCircleUpIcon : WarningIcon;
+  if (floating) {
+    return (
+      <ReplyNote
+        action={
+          notice.action && (
+            <ReplyNoteButton
+              emphasis={notice.action.kind === "sign-in"}
+              onClick={() => {
+                if (notice.action) {
+                  onAction(notice.action);
+                }
+              }}
+            >
+              {notice.action.label}
+            </ReplyNoteButton>
+          )
+        }
+        className={className}
+        data-slot="model-notice"
+        icon={Icon}
+        nudge={nudge}
+        onDismiss={notice.dismissible ? onDismiss : undefined}
+        title={notice.detail}
+        tone={isOffer ? "neutral" : "warn"}
+      >
+        {notice.text}
+      </ReplyNote>
+    );
+  }
   return (
     <div
       className={cn(

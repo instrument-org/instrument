@@ -8,24 +8,25 @@ import {
   type SessionMessage,
 } from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { openLogin } from "../atoms/login-modal";
 import { openSettings } from "../atoms/settings-modal";
-import { useOpenExternalLink } from "../hooks/use-open-external-link";
+import { stopLineText } from "../lib/billing";
 import {
   parsePlatformApiError,
   requiresAutoModelRecovery,
 } from "../lib/parse-platform-api-error";
 import { readModelStatus } from "../lib/model-status";
+import { planAccountStop, planAccountStopLine } from "../lib/plan-account-stop";
 import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
 import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
 import { Button } from "./ui/button";
-import { UpgradeSubscriptionAlert } from "./upgrade-subscription-alert";
+import { Spinner } from "./ui/spinner";
 
 interface ErrorAction {
   label: string;
@@ -41,14 +42,11 @@ interface MessageErrorProps {
   isDeveloperMode: boolean;
   isLastMessage: boolean;
   message: SessionMessage.Assistant;
-  onContinue: () => void;
   /** Retries the pending request with another model; the card offers no switch without it. */
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   /** Sends the last message again; the card offers no retry without it. */
   onRunAgain?: () => void;
 }
-
-const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
 
 /**
  * A turn that ended in an error, said in our words with the way forward
@@ -70,7 +68,6 @@ export function MessageError({
   isDeveloperMode,
   isLastMessage,
   message,
-  onContinue,
   onModelChange,
   onRunAgain,
 }: MessageErrorProps) {
@@ -78,10 +75,6 @@ export function MessageError({
   const { data: modelsData } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
-  const { data: hasToken } = useQuery(
-    rpcClient.auth.live.hasToken.experimental_liveOptions(),
-  );
-  const openLink = useOpenExternalLink();
   const [showDetails, setShowDetails] = useState(false);
   const [expandedPast, setExpandedPast] = useState(false);
 
@@ -90,21 +83,45 @@ export function MessageError({
   }
 
   const platformError = parsePlatformApiError(message);
+  // A turn our platform turned away for the plan ends on one plain line: the
+  // way forward is the notice over the reply box, not a card in the
+  // transcript. Too many tasks at once is a wait while the turn waits it out.
+  const stopLine = platformError ? stopLineText(platformError) : undefined;
+  if (stopLine) {
+    if (platformError?.code === "concurrency-limit") {
+      if (isLastMessage && isAgentRunning) {
+        return <WaitingForCapacityLine />;
+      }
+      if (!isLastMessage) {
+        return null;
+      }
+    }
+    return <BillingStopLine text={stopLine} />;
+  }
+  // The same for a turn the person's ChatGPT or Claude plan stopped: the note
+  // over the reply box says when it is back and how to keep going.
+  const planStop = planAccountStop(message);
+  if (planStop) {
+    return (
+      <BillingStopLine
+        text={planAccountStopLine(
+          planStop,
+          new Date(message.metadata.createdAt),
+        )}
+      />
+    );
+  }
   const classification =
     "classification" in error ? error.classification : undefined;
   // Each of these describes a problem the user no longer has: a turn they
-  // stopped themselves, credits they have since topped up, or a throttle the
-  // machine waited out before the turn that followed succeeded.
+  // stopped themselves, or a throttle the machine waited out before the turn
+  // that followed succeeded.
   const isHiddenFromReader =
     error.kind === "aborted" ||
-    (platformError?.code === "insufficient-credits" && !isLastMessage) ||
     ((classification === "rate-limit" || classification === "transient") &&
       !isLastMessage);
   if (isHiddenFromReader && !isDeveloperMode) {
     return null;
-  }
-  if (!isHiddenFromReader && platformError?.code === "insufficient-credits") {
-    return <UpgradeSubscriptionAlert onContinue={onContinue} />;
   }
 
   const provider = message.metadata.aiGatewayModel?.params.provider;
@@ -124,11 +141,13 @@ export function MessageError({
     classification === "auth" &&
     error.kind === "api-call" &&
     error.statusCode === 429;
-  const { detail, summary } = describeForProvider(describeMessageError(error), {
-    classification,
-    grokWithoutPlan,
-    provider,
-  });
+  const { detail, summary } =
+    (platformError && describePlatformRefusal(platformError)) ??
+    describeForProvider(describeMessageError(error), {
+      classification,
+      grokWithoutPlan,
+      provider,
+    });
   const modelName = message.metadata.aiGatewayModel?.name.trim();
   const needsAutoRecovery =
     !!platformError && requiresAutoModelRecovery(message);
@@ -149,14 +168,6 @@ export function MessageError({
       : undefined;
 
   const actions = errorActions({
-    instrumentOffer:
-      classification === "usage-limit" && isPlanProvider(provider)
-        ? hasToken === undefined
-          ? undefined
-          : hasToken
-            ? modelsData?.models.find(isAuto)
-            : "sign-up"
-        : undefined,
     switchTo: needsAutoRecovery
       ? recoveryFor(message.metadata.aiGatewayModel?.uri, modelsData?.models)
       : undefined,
@@ -165,7 +176,6 @@ export function MessageError({
     kind: error.kind,
     onModelChange,
     onRunAgain,
-    openLink,
     provider,
   });
 
@@ -248,6 +258,28 @@ export function MessageError({
 }
 
 /**
+ * Our platform's refusals of a hosted request that are still errors, said for
+ * the person rather than the integrator. The plan's refusals end the turn on
+ * a stop line instead (`stopLineText`). Undefined for a code with no wording
+ * of its own here.
+ */
+function describePlatformRefusal(
+  platformError: NonNullable<ReturnType<typeof parsePlatformApiError>>,
+): undefined | { detail: string; summary: string } {
+  switch (platformError.code) {
+    case "meter-unavailable": {
+      return {
+        detail: `${APP_NAME} couldn't check your usage just now. Try again in a moment.`,
+        summary: "Usage check unavailable",
+      };
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+/**
  * Our sentence, naming the service when we know which one refused. Instrument
  * reaches several, so "the provider" leaves the reader to work out which
  * account hit its limit or signed them out.
@@ -265,12 +297,6 @@ function describeForProvider(
   },
 ): { detail: string; summary: string } {
   if (provider === "claude-account") {
-    if (classification === "usage-limit") {
-      return {
-        detail: `You've reached your Claude subscription's usage limit. It starts over when the window resets; Settings shows when. Until then, switch to another model.`,
-        summary: "Claude usage limit reached",
-      };
-    }
     if (classification === "auth") {
       return {
         detail:
@@ -306,13 +332,6 @@ function describeForProvider(
   }
   if (provider !== "chatgpt-account") {
     return described;
-  }
-  if (classification === "usage-limit") {
-    return {
-      detail:
-        "Your ChatGPT plan has hit its limit. You can check your usage in ChatGPT, or switch to another model.",
-      summary: "ChatGPT is out of usage for now",
-    };
   }
   if (classification === "auth") {
     return {
@@ -376,39 +395,22 @@ function detailsText(facts: [string, string][], body: string | undefined) {
   return body ? [...lines, "", body].join("\n") : lines.join("\n");
 }
 
-/**
- * A plan the user brings, whose limit is theirs to reach. Running out offers
- * Instrument's own models, as a choice and never as a silent fallback.
- */
-function isPlanProvider(provider: string | undefined) {
-  return (
-    provider === "chatgpt-account" ||
-    provider === "claude-account" ||
-    provider === "grok-account"
-  );
-}
-
 function errorActions({
-  instrumentOffer,
   switchTo,
   classification,
   grokWithoutPlan,
   kind,
   onModelChange,
   onRunAgain,
-  openLink,
   provider,
 }: {
   /** A Grok account xAI allows no requests, which signing in again won't fix. */
   grokWithoutPlan: boolean;
-  /** Instrument's Auto to switch to, or signing up for Instrument to get it. */
-  instrumentOffer: AIGatewayModel.Type | "sign-up" | undefined;
   switchTo: AIGatewayModel.Type | undefined;
   classification: string | undefined;
   kind: MessageErrorData["kind"];
   onModelChange: ((modelURI: AIGatewayModelURI.Type) => void) | undefined;
   onRunAgain: (() => void) | undefined;
-  openLink: ReturnType<typeof useOpenExternalLink>;
   provider: string | undefined;
 }): ErrorAction[] {
   const tryAgain = onRunAgain
@@ -433,55 +435,7 @@ function errorActions({
     ];
   }
   if (classification === "usage-limit") {
-    const offer: ErrorAction[] =
-      instrumentOffer === "sign-up"
-        ? [
-            {
-              label: `Try ${APP_NAME}`,
-              onClick: () => {
-                openLogin({ instrumentOnly: true });
-              },
-            },
-          ]
-        : instrumentOffer && onModelChange
-          ? [
-              {
-                label: "Switch to Auto",
-                onClick: () => {
-                  onModelChange(instrumentOffer.uri);
-                },
-              },
-            ]
-          : [];
-    if (provider === "claude-account") {
-      return [
-        ...offer,
-        {
-          label: "View usage limits",
-          onClick: () =>
-            openSettings({
-              tab: "Providers",
-              setting: "claude-account",
-              providerUsage: "claude-account",
-            }),
-        },
-        ...tryAgain,
-      ];
-    }
-    return provider === "chatgpt-account"
-      ? [
-          ...offer,
-          {
-            label: "View usage limits",
-            onClick: () => {
-              openLink(CHATGPT_USAGE_URL, { addReferral: false });
-            },
-          },
-          ...tryAgain,
-        ]
-      : provider === "grok-account"
-        ? [...offer, providerSettings, ...tryAgain]
-        : [providerSettings, ...tryAgain];
+    return [providerSettings, ...tryAgain];
   }
   if (classification === "auth" || kind === "api-key") {
     if (provider === OUR_MODELS.providerType) {
@@ -490,7 +444,7 @@ function errorActions({
     return provider === "chatgpt-account" ||
       provider === "claude-account" ||
       (provider === "grok-account" && !grokWithoutPlan)
-      ? [{ ...providerSettings, label: "Sign in again" }, ...tryAgain]
+      ? [{ ...providerSettings, label: "Sign in" }, ...tryAgain]
       : [providerSettings, ...tryAgain];
   }
   return tryAgain;
@@ -579,6 +533,37 @@ function providerSentence(error: MessageErrorData): string {
     }
   }
   return error.message;
+}
+
+/** How a turn our platform turned away for the plan ends: one plain line. */
+function BillingStopLine({ text }: { text: string }) {
+  return (
+    <div
+      className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground"
+      data-billing-stop-line
+    >
+      <PauseCircleIcon className="size-3.5 shrink-0" />
+      {text}
+    </div>
+  );
+}
+
+/**
+ * The turn waiting its place behind the person's other tasks on our models,
+ * drawn as work in flight: it starts on its own when one of them finishes.
+ */
+function WaitingForCapacityLine() {
+  return (
+    <div
+      className="flex items-center gap-2 px-1 text-xs"
+      data-billing-waiting-line
+    >
+      <Spinner className="size-3.5 text-muted-foreground" delay={0} />
+      <span className="brand-shiny-text">
+        Waiting for one of your other tasks to finish
+      </span>
+    </div>
+  );
 }
 
 const isAuto = (model: AIGatewayModel.Type) =>

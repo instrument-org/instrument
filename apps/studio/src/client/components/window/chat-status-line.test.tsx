@@ -137,6 +137,11 @@ describe("statusLine", () => {
       { text: "Stopped on an error", tone: "failed" },
     ],
     [
+      "a chat stopped at a usage limit, calmly",
+      { chat: at("limited"), listed: [] },
+      { text: "Stopped at a usage limit", tone: "limited" },
+    ],
+    [
       "that its work is done once the user wrote after the task they stopped, though its reply took no step",
       {
         chat: at("idle", {

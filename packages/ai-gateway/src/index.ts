@@ -36,6 +36,7 @@ export * from "./lib/route-model";
 export { namesSameModel } from "./lib/names-same-model";
 export { baseURLWithDefault } from "./lib/providers/base-url-with-default";
 export { fetchCredits } from "./lib/providers/fetch-credits";
+export { readPlatformRefusal } from "./lib/read-platform-refusal";
 export {
   getAllProviderMetadata,
   getProviderMetadata,

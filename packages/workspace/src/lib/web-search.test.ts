@@ -209,7 +209,6 @@ describe("webSearch", () => {
       const searchWeb = vi.fn<WebSearchClient>(() =>
         Promise.resolve({
           data: {
-            costDollars: 0.007,
             results: [
               {
                 publishedDate: "2026-07-01",
@@ -239,7 +238,6 @@ describe("webSearch", () => {
       expect(results.map((r) => r._unsafeUnwrap())).toMatchInlineSnapshot(`
         [
           {
-            "costDollars": 0.007,
             "kind": "excerpts",
             "sources": [
               {
@@ -286,7 +284,7 @@ describe("webSearch", () => {
         .fn<WebSearchClient>()
         .mockResolvedValueOnce(unavailable)
         .mockResolvedValue({
-          data: { costDollars: 0.007, results: [] },
+          data: { results: [] },
           ok: true,
         });
 
@@ -432,7 +430,7 @@ describe("webSearch", () => {
 
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(results.at(-1)?._unsafeUnwrap()).toMatchObject({
-        costDollars: 0.007,
+        kind: "excerpts",
       });
     });
 

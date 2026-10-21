@@ -147,6 +147,28 @@ async function openPicker(
 }
 
 describe("ModelPicker in a browser", () => {
+  it("opens with nothing connected to one way to add a provider, with no search or rail", async () => {
+    const onAddProvider = vi.fn();
+    await renderInBrowser(
+      <ModelPicker
+        models={[]}
+        onAddProvider={onAddProvider}
+        onValueChange={vi.fn()}
+      />,
+    );
+    const trigger = page.getByRole("combobox", { name: "Model" });
+    await expect.element(trigger).toHaveTextContent("Add a model");
+    await userEvent.click(trigger);
+
+    await expect.element(page.getByText("No models yet")).toBeVisible();
+    expect(document.querySelector("[data-slot=command]")).toBeNull();
+    await userEvent.click(page.getByRole("button", { name: "Add a provider" }));
+    expect(onAddProvider).toHaveBeenCalledOnce();
+    await expect
+      .element(page.getByText("No models yet"))
+      .not.toBeInTheDocument();
+  });
+
   it("opens on Instrument with Auto chosen, the rail naming where the rest are", async () => {
     const tree = await openPicker(autoModel);
     expect(await tree()).toMatchInlineSnapshot(`

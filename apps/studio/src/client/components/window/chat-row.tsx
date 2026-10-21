@@ -33,7 +33,13 @@ import { type ReactNode, useRef, useState } from "react";
 import { type AppsBySlug } from "./apps-by-slug";
 import { chatMenuGroups } from "./chat-actions";
 import { ChatTitleField } from "./chat-title";
-import { activityLabel, type Chat, type Topic, wordRanges } from "./chats";
+import {
+  activityLabel,
+  type Chat,
+  LIMITED,
+  type Topic,
+  wordRanges,
+} from "./chats";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { HoldMarks } from "./hold-marks";
 import { RowActionBar } from "./row-action-bar";
@@ -515,9 +521,10 @@ function Peek({
   search?: string;
 }) {
   const isFailed = chat.state === "failed";
+  const isLimited = chat.state === "limited";
   const isWaiting = chat.state === "waiting";
   const isWorking = chat.state === "working";
-  if (!chat.latest && !isFailed && !isWaiting && !isWorking) {
+  if (!chat.latest && !isFailed && !isLimited && !isWaiting && !isWorking) {
     return null;
   }
   return (
@@ -541,6 +548,10 @@ function Peek({
             Stopped on an error
           </span>
         </>
+      ) : isLimited ? (
+        <span className="min-w-0 truncate text-muted-foreground">
+          {LIMITED}
+        </span>
       ) : isWaiting ? (
         <>
           <QuestionIcon

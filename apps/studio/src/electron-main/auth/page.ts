@@ -30,6 +30,8 @@ export type AuthOutcome =
     }
   /** The link matches no sign-in waiting for it: an old tab, a second visit, or the app restarted. */
   | { kind: "expired" }
+  /** Signed in with Google, and the API wouldn't create an account for that address. */
+  | { kind: "sign-up-refused" }
   /** The service said yes and the rest went wrong. `connecting` names what was being connected; absent, it was signing in. */
   | { connecting?: string; kind: "failed"; reference: string };
 
@@ -235,6 +237,20 @@ function renderOutcome(outcome: AuthOutcome) {
         title: "Link expired",
       };
     }
+    case "sign-up-refused": {
+      return {
+        body: html`${glyph(
+          WARNING_CIRCLE,
+          "size-12 text-stone-400 dark:text-white/40",
+        )}
+        ${group(
+          heading(`${APP_NAME} isn't open to new accounts yet`),
+          subline("You can still use your own ChatGPT, Claude or Grok plan."),
+        )}
+        ${openApp}`,
+        title: "Sign-up closed",
+      };
+    }
     case "failed": {
       const { connecting, reference } = outcome;
       return {
@@ -293,6 +309,7 @@ export const previewOutcomes = (
     },
   },
   { label: "Expired", outcome: { kind: "expired" } },
+  { label: "Sign-up refused", outcome: { kind: "sign-up-refused" } },
   {
     label: "Failed",
     outcome: {

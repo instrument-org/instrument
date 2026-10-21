@@ -48,6 +48,7 @@ export const workspaceServerLogic = fromCallback<
         ...context,
       });
     });
+    c.set("reportPlatformRefusal", input.workspaceConfig.reportPlatformRefusal);
     c.set("clientInfo", {
       clientArch: process.arch,
       clientName: APP_CLIENT_NAME_STUDIO,

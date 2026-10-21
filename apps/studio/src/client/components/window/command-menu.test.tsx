@@ -111,13 +111,14 @@ describe("Settings tabs in the command menu in developer mode", () => {
 
     expect(listed()).toEqual(
       [
+        "Settings: Account",
+        "Settings: Activity",
         "Settings: Features",
         "Settings: Memory",
         "Settings: Permissions",
         "Settings: Providers",
         "Settings: Skills",
         "Settings: Storage",
-        "Settings: Activity",
         ...(debug ? ["Settings: Debug"] : []),
       ].sort(),
     );

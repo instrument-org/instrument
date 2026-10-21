@@ -46,6 +46,7 @@ import {
 } from "react";
 import { toast } from "@/client/lib/toast";
 
+import { useChatNote } from "../billing/chat-note";
 import { ChatBubbles } from "../chat-bubbles";
 import { TypingRow } from "../chat-stream";
 import { ComposerDraftContext } from "../composer-draft-context";
@@ -311,6 +312,13 @@ export function ChatConversation({
     });
   };
 
+  const note = useChatNote({
+    isAgentRunning,
+    messages,
+    modelURI: selectedModelURI,
+    onContinue: handleRunAgain,
+  });
+
   const isActiveTab = useIsActiveTab();
   const outputFolder = useOutputFolder();
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
@@ -441,6 +449,7 @@ export function ChatConversation({
       isLoading={createMessage.isPending}
       lead={composerLead}
       modelURI={selectedModelURI}
+      note={note}
       onItemsChange={draftKey.scope === "chat" ? staging.keepItems : undefined}
       onModelChange={setSelectedModelURI}
       onSubmit={(sending) => {

@@ -333,7 +333,7 @@ export function noticeFor(status: ModelStatus): ModelNotice | null {
           action: {
             account: status.account,
             kind: "sign-in",
-            label: "Sign in again",
+            label: "Sign in",
           },
           dismissible: false,
           text: goneText(status),

@@ -85,7 +85,6 @@ const SUMMARY_PREAMBLE =
   "Everything below is a search model's summary of pages it retrieved. It is not verbatim source text and not a verified answer: it can be inaccurate or out of date, and it can cite a page that does not support the claim, so confirm anything your answer depends on.";
 
 const ExcerptResultsSchema = z.object({
-  costDollars: z.number(),
   kind: z.literal("excerpts"),
   sources: z.array(
     z.object({

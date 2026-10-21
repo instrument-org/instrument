@@ -12,12 +12,13 @@ export function useSettingsTabs(): SettingsTab[] {
 
   return [
     "General",
+    "Account",
+    "Providers",
     "Memory",
     "Permissions",
-    "Providers",
-    "Activity",
     "Skills",
     "Storage",
+    "Activity",
     ...(isDeveloperMode ? (["Features"] as const) : []),
     ...(isDeveloperMode && isLinux() ? (["Debug"] as const) : []),
   ];

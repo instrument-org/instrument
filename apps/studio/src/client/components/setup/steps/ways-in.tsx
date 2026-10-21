@@ -70,7 +70,8 @@ type Offer = RPCOutput["billing"]["offer"];
  * no plan still lands on its answer here.
  *
  * The way-in step opens it on Welcome; the plan step opens it on the
- * subscriptions, for "Use it instead", where Google is already done.
+ * subscriptions or the key, for "Use it instead" while no free trial can
+ * start, where Google is already done.
  */
 export function WaysIn({
   hold,
@@ -229,9 +230,13 @@ export function WaysIn({
       return (
         <KeyPage
           onAdded={onDone}
-          onBack={() => {
-            setPage(keyFrom);
-          }}
+          onBack={
+            keyFrom.kind === "key" && onLeave
+              ? onLeave
+              : () => {
+                  setPage(keyFrom);
+                }
+          }
         />
       );
     }

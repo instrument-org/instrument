@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   accountNotice,
   allowanceLabel,
+  allowanceMeter,
   canStartTrial,
   checkoutTrialLine,
   describeWhen,
@@ -476,6 +477,32 @@ describe("planCardAction", () => {
     ]);
   });
 
+  it.each([
+    { expected: [1, 4], multiples: [1, 4] },
+    { expected: [1, 2, 4], multiples: [1, 2, 4] },
+    { expected: [1], multiples: [1] },
+    { expected: [1, 8], multiples: [1, 20] },
+    { expected: [2, 3], multiples: [2, 3] },
+  ])(
+    "fills a meter of $multiples by share of the biggest",
+    ({ expected, multiples }) => {
+      const plans = multiples.map((multiple) => ({
+        allowance: { multiple, windows },
+        description: null,
+        features: [],
+        key: String(multiple),
+        name: String(multiple),
+        price: null,
+      }));
+      expect(plans.map((plan) => allowanceMeter(plan, plans))).toEqual(
+        expected.map((filled) => ({
+          filled,
+          segments: Math.min(Math.ceil(Math.max(...multiples)), 8),
+        })),
+      );
+    },
+  );
+
   it("has no plan above the biggest", () => {
     expect(upgradePlan(offer, onPlan("pro"))).toBeUndefined();
     expect(upgradePlan(offer, onPlan("basic"))?.key).toBe("pro");
@@ -675,6 +702,26 @@ describe("the free allowance", () => {
       reason: "trial-available",
     });
   });
+
+  // Before any refusal the note offers a plan, and says nothing of trials.
+  it.each(["trial-capacity", "trial-paused"])(
+    "leaves %s out of the note before any refusal",
+    (reason) => {
+      const status: Status = {
+        ...onFree(),
+        features: {
+          decisions: { available: true },
+          models: { available: false, code: "subscription-required", reason },
+          search: { available: true },
+        },
+      };
+      const notice = accountNotice(status, { ...offer, trial: null });
+      expect(notice).toEqual({ kind: "plan-required" });
+      expect(notice && noticeCopy(notice, NOW).title).toBe(
+        "Instrument needs a plan.",
+      );
+    },
+  );
 
   it.each([
     { expected: undefined, feature: "decisions", status: onFree() },

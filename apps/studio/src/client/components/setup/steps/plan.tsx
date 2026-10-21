@@ -21,6 +21,7 @@ import { useState } from "react";
 import { SetupFooter, SetupPage } from "../kit/setup-page";
 import { type SetupPageProps } from "../setup-page-props";
 import { previewPage } from "./preview";
+import { WaysIn, type WaysInPage } from "./ways-in";
 
 type Offer = RPCOutput["billing"]["offer"];
 
@@ -28,13 +29,16 @@ type Offer = RPCOutput["billing"]["offer"];
 type PlanPage =
   | { kind: "cards" }
   | { kind: "checkout" }
-  | { days: number; endsAt?: string; kind: "trial-started" };
+  | { days: number; endsAt?: string; kind: "trial-started" }
+  | { initial: WaysInPage; kind: "use-instead" };
 
 /**
  * The plan, for someone signed in to Instrument with no subscription and no
  * trial running: the plan cards as the server's offer has them, a no-card
- * trial started right here, or Checkout for everything else. Answered once
- * a trial starts or Checkout completes.
+ * trial started right here, or Checkout for everything else. While no free
+ * trial can start, it also offers a subscription they already pay for, or
+ * an API key, instead. Answered once a trial starts, Checkout completes, or
+ * another way connects.
  */
 export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
   const [page, setPage] = useState<PlanPage>(
@@ -52,6 +56,19 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
   const [trialPlan, setTrialPlan] = useState<null | string>(null);
 
   switch (page.kind) {
+    case "use-instead": {
+      return (
+        <WaysIn
+          hold={hold}
+          initial={page.initial}
+          offerInstrument={false}
+          onDone={onContinue}
+          onLeave={() => {
+            setPage({ kind: "cards" });
+          }}
+        />
+      );
+    }
     case "trial-started": {
       return (
         <SetupPage
@@ -190,10 +207,53 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
               />
             )}
           </div>
+          {offer && !beta && !(showsTrial && !heldBack) && (
+            <p className="mt-6 text-sm text-muted-foreground" data-use-instead>
+              Already pay for ChatGPT, Claude or Grok?{" "}
+              <InlineLink
+                onClick={() => {
+                  setPage({
+                    initial: { kind: "subscriptions" },
+                    kind: "use-instead",
+                  });
+                }}
+              >
+                Use it instead
+              </InlineLink>
+              , or{" "}
+              <InlineLink
+                onClick={() => {
+                  hold();
+                  setPage({ initial: { kind: "key" }, kind: "use-instead" });
+                }}
+              >
+                add an API key
+              </InlineLink>
+              .
+            </p>
+          )}
         </SetupPage>
       );
     }
   }
+}
+
+function InlineLink({
+  children,
+  onClick,
+}: {
+  children: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="font-medium text-foreground underline underline-offset-2"
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
+  );
 }
 
 /** The plan page's title and line, from what the offer gives this account. */
@@ -223,14 +283,12 @@ function cardsCopy(
         };
   }
   return {
-    subtitle: heldBack
-      ? "Free trials are paused right now, so pick the plan that fits how much you use AI. You can change or cancel it any time."
-      : [
-          checkoutTrialLine(offer),
-          "Pick the plan that fits how much you use AI. You can change or cancel it any time.",
-        ]
-          .filter(Boolean)
-          .join(" "),
+    subtitle: [
+      checkoutTrialLine(offer),
+      "Pick the plan that fits how much you use AI. You can change or cancel it any time.",
+    ]
+      .filter(Boolean)
+      .join(" "),
     title: "Choose a plan",
   };
 }

@@ -347,11 +347,9 @@ function PlanGroup({ status }: { status: Status }) {
                   ? `Ends ${describeDay(trialEndsAt)}`
                   : undefined
                 : [
-                    trialHeldBack
-                      ? "Free trials aren't available right now."
-                      : offerTrial && days
-                        ? `Your free trial gives you ${days} days of ${APP_NAME}'s models, with no card needed.`
-                        : checkoutTrialLine(offer),
+                    offerTrial && days
+                      ? `Your free trial gives you ${days} days of ${APP_NAME}'s models, with no card needed.`
+                      : checkoutTrialLine(offer),
                     `${APP_NAME}'s models need a plan. Your ChatGPT, Claude or Grok account, or your own key, works without one.`,
                   ]
                     .filter(Boolean)

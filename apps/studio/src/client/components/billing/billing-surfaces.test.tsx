@@ -8,6 +8,7 @@ import { act, fireEvent, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AccountSection } from "../settings/account-section";
+import { PlanStep } from "../setup/steps/plan";
 import { useChatNote } from "./chat-note";
 import { PlanSheet } from "./plan-sheet";
 
@@ -42,12 +43,14 @@ type Status = RPCOutput["billing"]["status"];
 const { mutation, platform, query, toastError } = vi.hoisted(() => {
   const answers: {
     changePlan: (input: RPCInput["billing"]["changePlan"]) => Promise<unknown>;
+    models: unknown[];
     offer: unknown;
     signedIn: boolean;
     startTrial: () => Promise<unknown>;
     status: unknown;
   } = {
     changePlan: () => Promise.resolve(null),
+    models: [],
     offer: null,
     signedIn: true,
     startTrial: () => Promise.resolve(null),
@@ -78,12 +81,41 @@ vi.mock("@/client/lib/toast", async (importOriginal) => ({
   toast: { error: toastError },
 }));
 
+// The other ways in, as the plan step opens them: the page it starts on,
+// and a way that connects.
+vi.mock("../setup/steps/ways-in", () => ({
+  WaysIn: ({
+    initial,
+    onDone,
+  }: {
+    initial: { kind: string };
+    onDone: () => void;
+  }) => (
+    <div data-ways-in={initial.kind}>
+      <button onClick={onDone} type="button">
+        Connected
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     auth: {
       live: {
         hasToken: {
           experimental_liveOptions: query("hasToken", () => platform.signedIn),
+        },
+      },
+    },
+    gateway: {
+      models: {
+        live: {
+          list: {
+            experimental_liveOptions: query("models", () => ({
+              models: platform.models,
+            })),
+          },
         },
       },
     },
@@ -231,6 +263,7 @@ beforeEach(() => {
   platform.changePlan = () => Promise.resolve(null);
   platform.startTrial = () => Promise.resolve(onTrial());
   toastError.mockClear();
+  platform.models = [];
   platform.offer = OFFER;
   platform.signedIn = true;
   platform.status = null;
@@ -326,10 +359,8 @@ describe("Settings > Account", () => {
     };
     renderWithProviders(<AccountSection />);
 
-    expect(
-      await screen.findByText(/Free trials aren't available right now\./),
-    ).toBeDefined();
-    expect(screen.getByText("No plan")).toBeDefined();
+    expect(await screen.findByText("No plan")).toBeDefined();
+    expect(screen.queryByText(/Free trials/)).toBeNull();
     expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
   });
 
@@ -410,6 +441,167 @@ describe("Settings > Account", () => {
     expect(screen.queryByText("Change plan")).toBeNull();
     expect(screen.queryByText("Choose a plan")).toBeNull();
     expect(screen.queryByText("Keep my plan")).toBeNull();
+  });
+});
+
+describe("the plan cards", () => {
+  const cards = async () => {
+    platform.status = {
+      canSubscribe: true,
+      plan: "none",
+      trial: { state: "ended" },
+      windows: [],
+    } satisfies Status;
+    const { store } = renderWithProviders(<PlanSheet />);
+    act(() => {
+      store.set(planSheetAtom, {});
+    });
+    await screen.findByText("Choose a plan");
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-plan-card="pro"]')).not.toBe(null);
+    });
+    const of = (plan: string) =>
+      document.querySelector<HTMLElement>(`[data-plan-card="${plan}"]`);
+    return of;
+  };
+
+  it("fills the meter by share of the biggest plan, and tints the biggest", async () => {
+    const of = await cards();
+    expect(
+      ["basic", "pro"].map((plan) => [
+        of(plan)?.querySelector("[data-allowance]")?.textContent,
+        of(plan)
+          ?.querySelector("[data-allowance-meter]")
+          ?.getAttribute("data-allowance-meter"),
+        of(plan)?.hasAttribute("data-heaviest"),
+      ]),
+    ).toEqual([
+      ["Standard", "1/4", false],
+      ["4× Standard", "4/4", true],
+    ]);
+  });
+
+  it("lists the offer's features on each card", async () => {
+    platform.offer = {
+      ...OFFER,
+      plans: OFFER.plans.map((plan) => ({
+        ...plan,
+        features: [`${plan.name} search`, `${plan.name} images`],
+      })),
+    } satisfies Offer;
+    const of = await cards();
+    expect(
+      [...(of("pro")?.querySelectorAll("li") ?? [])].map(
+        (item) => item.textContent,
+      ),
+    ).toEqual(["Pro search", "Pro images"]);
+  });
+
+  it.each([
+    {
+      expected: 4,
+      models: [],
+      name: "the four big makers while the catalog names none",
+    },
+    {
+      expected: 2,
+      models: [
+        { maker: "anthropic", params: { provider: "instrument" } },
+        { maker: "xai", params: { provider: "instrument" } },
+        { maker: "x-ai", params: { provider: "instrument" } },
+        { maker: "openai", params: { provider: "openai" } },
+        { params: { provider: "instrument" } },
+      ],
+      name: "the makers behind Instrument's models",
+    },
+  ])("marks $name", async ({ expected, models }) => {
+    platform.models = models;
+    const of = await cards();
+    await vi.waitFor(() => {
+      expect(
+        of("basic")?.querySelector("[data-plan-makers]")?.children.length,
+      ).toBe(expected);
+    });
+  });
+});
+
+describe("setup's plan step", () => {
+  const renderStep = () => {
+    const onContinue = vi.fn();
+    renderWithProviders(
+      <PlanStep
+        hold={vi.fn()}
+        isLast={false}
+        isNewStepOnly={false}
+        onContinue={onContinue}
+        onFinish={vi.fn()}
+        step="plan"
+      />,
+    );
+    return onContinue;
+  };
+  const neverTrialed = (): Status => ({
+    canSubscribe: true,
+    plan: "free",
+    trial: { state: "available" },
+    windows: [],
+  });
+
+  it.each([
+    { name: "trials held back", offer: { ...OFFER, trial: null } },
+    {
+      name: "an intro price",
+      offer: {
+        ...OFFER,
+        trial: {
+          available: true,
+          cardRequired: true,
+          days: 7,
+          intro: { months: 1, price: { currency: "usd", unitAmount: 100 } },
+          mode: "intro" as const,
+        },
+      },
+    },
+  ])(
+    "offers a plan or another way in with $name, and connecting answers it",
+    async ({ offer }) => {
+      platform.offer = offer;
+      platform.status = neverTrialed();
+      const onContinue = renderStep();
+
+      expect(await screen.findByText("Choose a plan")).toBeDefined();
+      expect(screen.queryByText(/paused|aren't available/)).toBeNull();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Use it instead" }),
+      );
+      expect(
+        document.querySelector("[data-ways-in]")?.getAttribute("data-ways-in"),
+      ).toBe("subscriptions");
+      fireEvent.click(screen.getByRole("button", { name: "Connected" }));
+      expect(onContinue).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("opens the key page from the same line", async () => {
+    platform.offer = { ...OFFER, trial: null };
+    platform.status = neverTrialed();
+    renderStep();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "add an API key" }),
+    );
+    expect(
+      document.querySelector("[data-ways-in]")?.getAttribute("data-ways-in"),
+    ).toBe("key");
+  });
+
+  it("offers only the trial while one can start", async () => {
+    platform.offer = OFFER_WITH_TRIAL;
+    platform.status = onFree();
+    renderStep();
+    expect(
+      await screen.findByText("Try Instrument free for 7 days"),
+    ).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Use it instead" })).toBeNull();
   });
 });
 

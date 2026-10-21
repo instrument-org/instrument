@@ -104,7 +104,7 @@ export function DictationButton({
  * so it goes invisible but keeps its place, and nothing beside it moves as
  * the words land.
  */
-export function DictationCancel({
+function DictationCancel({
   className,
   dictation,
   size = "md",
@@ -144,6 +144,30 @@ export function DictationCancel({
   );
 }
 
+/**
+ * The wave, Cancel and the microphone or Stop, in a row: the wave and Cancel
+ * only while dictating, the microphone alone otherwise.
+ */
+export function DictationControls({
+  className,
+  dictation,
+  disabled,
+  size = "md",
+}: {
+  className?: string;
+  dictation: Dictation;
+  disabled?: boolean;
+  size?: "md" | "sm";
+}) {
+  return (
+    <div className={cn("flex items-center gap-1", className)}>
+      <DictationWave className="mr-1" dictation={dictation} />
+      <DictationCancel dictation={dictation} size={size} />
+      <DictationButton dictation={dictation} disabled={disabled} size={size} />
+    </div>
+  );
+}
+
 /** How often the wave takes a new bar from the microphone. */
 const WAVE_STEP_MS = 50;
 const WAVE_BAR_PX = 2;
@@ -155,7 +179,7 @@ const WAVE_GAP_PX = 2;
  * the voice rather than the room (`createWaveLevel`), and it keeps its place
  * flat once the recording stops.
  */
-export function DictationWave({
+function DictationWave({
   className,
   dictation,
 }: {
@@ -387,15 +411,12 @@ export function DictatedTextarea({
       <Textarea className={cn("pb-10", className)} {...props} />
       <div className="pointer-events-none absolute inset-x-2 bottom-1.5 flex items-center gap-2 [&>*]:pointer-events-auto">
         <DictationReadout dictation={dictation} />
-        <div className="ml-auto flex items-center gap-1">
-          <DictationWave className="mr-1" dictation={dictation} />
-          <DictationCancel dictation={dictation} size="sm" />
-          <DictationButton
-            dictation={dictation}
-            disabled={props.disabled}
-            size="sm"
-          />
-        </div>
+        <DictationControls
+          className="ml-auto"
+          dictation={dictation}
+          disabled={props.disabled}
+          size="sm"
+        />
       </div>
     </div>
   );

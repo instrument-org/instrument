@@ -16,8 +16,7 @@ import {
 import { ComposerFrame } from "@/client/components/composer-frame";
 import {
   DictationButton,
-  DictationCancel,
-  DictationWave,
+  DictationControls,
   landingWords,
 } from "@/client/components/dictation-controls";
 import { SystemFolderIcon } from "@/client/components/icons/folder-glyph";
@@ -1097,16 +1096,9 @@ export const PromptInput = ({
               )}
 
               {/* While dictating: the wave, then Cancel and Stop together.
-                  Send waits until the words land; Enter still sends. */}
-              <div
-                className={cn(
-                  "flex shrink-0 items-center",
-                  dictating ? "gap-1" : "gap-1.5",
-                )}
-              >
-                <DictationWave className="mr-1" dictation={dictation} />
-                <DictationCancel dictation={dictation} />
-                <DictationButton dictation={dictation} disabled={isLoading} />
+                  Send is back once the words land; Enter stops and sends. */}
+              <div className="flex shrink-0 items-center gap-1.5">
+                <DictationControls dictation={dictation} disabled={isLoading} />
                 {!dictating && (
                   <Button
                     aria-label="Send"
@@ -1268,17 +1260,14 @@ export const PromptInput = ({
         }
         below={
           // While dictating, under the words: the wave, then Cancel and Stop
-          // together. Send waits until the words land; Enter still sends.
+          // together. Send is back once the words land; Enter stops and sends.
           variant === "pill" && dictating ? (
-            <div className="flex items-center justify-end gap-1">
-              <DictationWave className="mr-1" dictation={dictation} />
-              <DictationCancel dictation={dictation} size="sm" />
-              <DictationButton
-                dictation={dictation}
-                disabled={isLoading}
-                size="sm"
-              />
-            </div>
+            <DictationControls
+              className="justify-end"
+              dictation={dictation}
+              disabled={isLoading}
+              size="sm"
+            />
           ) : undefined
         }
         ref={setComposerBounds}

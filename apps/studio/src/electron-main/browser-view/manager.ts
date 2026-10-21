@@ -42,6 +42,11 @@ import { isBlocking } from "./content-blocking";
 import { attachGuestInteractions } from "./guest-interactions";
 import { noteUserInput } from "./external-app-links";
 import { guests } from "./guest-registry";
+import {
+  createCertificateExceptions,
+  createSignInRequests,
+  guardGuestSecurity,
+} from "./guest-security";
 import { configureGuestSession } from "./guest-session";
 import {
   noteRestored,
@@ -104,12 +109,26 @@ export interface BrowserViewManager {
   // guests (it can get stuck `true` after focus moves to a plain host-page
   // element).
   setGuestFocus: (targetId: BrowserTargetId, focused: boolean) => void;
+  // Trust the certificate a tab's page was last refused, when it was for
+  // `url`'s site, and load `url` again under it: "Continue" on the page that
+  // says the connection isn't private. False when there is none to trust.
+  continueDespiteCertificate: (targetId: BrowserTargetId, url: string) => boolean;
   // Record focus returning to any element in the host renderer.
   setHostFocus: () => void;
   teardown: () => void;
 }
 
 let managerInstance: BrowserViewManager | undefined;
+
+/** The sign-ins the window's tabs are waiting on, which the window draws. */
+export const guestSignIns = createSignInRequests(() => {
+  publisher.publish("browser.sign-ins-changed", null);
+});
+
+/** The certificates a person chose to trust anyway, for as long as the app runs. */
+export const certificateExceptions = createCertificateExceptions(() => {
+  publisher.publish("browser.certificate-exceptions-changed", null);
+});
 
 // Whether the host renderer is showing a guest: `parked` when it or an
 // ancestor is at the pool's near-zero parking opacity, `offscreen` when laid
@@ -293,6 +312,10 @@ export function createBrowserViewManager(): BrowserViewManager {
         }
       }
       return response;
+    });
+    guardGuestSecurity(guest, targetId, {
+      exceptions: certificateExceptions,
+      signIns: guestSignIns,
     });
     // Mute: the page may be agent-driven and not visible to the user.
     guest.setAudioMuted(true);
@@ -753,9 +776,23 @@ export function createBrowserViewManager(): BrowserViewManager {
     focusGuard.claimHost();
   }
 
+  function continueDespiteCertificate(targetId: BrowserTargetId, url: string) {
+    const guest = entries.get(targetId)?.webContents;
+    if (
+      !guest ||
+      guest.isDestroyed() ||
+      !certificateExceptions.allowRefused(guest.id, url)
+    ) {
+      return false;
+    }
+    void guest.loadURL(url).catch(noop);
+    return true;
+  }
+
   managerInstance = {
     bindHost,
     browser,
+    continueDespiteCertificate,
     getTargets: () =>
       [...entries.values()].map((entry) => ({
         attached: hasGuest(entry),

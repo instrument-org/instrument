@@ -14,6 +14,11 @@ interface PublisherEvents {
   // along, ended, or was taken off the list. The agent's own downloads report
   // through agent-browser instead and are not on it.
   "browser.downloads-changed": null;
+  // A person trusted a site's bad certificate anyway, which its tabs' address
+  // field says is not secure.
+  "browser.certificate-exceptions-changed": null;
+  // A tab's page asked for a username and password, or stopped waiting for one.
+  "browser.sign-ins-changed": null;
   // Ask the renderer to put keyboard focus on a guest before agent keyboard
   // input is dispatched to it. Only renderer-side DOM focus on the `<webview>`
   // element moves Chromium's keyboard focus across the process boundary;

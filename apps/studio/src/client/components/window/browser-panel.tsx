@@ -4,6 +4,11 @@ import { OpenInAppMenuItems } from "@/client/components/open-in-app";
 import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
 import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
 import { BrowserHistoryMenu } from "@/client/components/window/browser-history-menu";
+import {
+  CertificateErrorNotice,
+  SignInSheet,
+  useGuestSignIn,
+} from "@/client/components/window/browser-guest-security";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { Delayed } from "@/client/components/ui/delayed";
@@ -73,7 +78,11 @@ import { displayHostPath } from "@instrument-org/shared";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
-import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";
+import {
+  BROWSER_ZOOM_MAX,
+  BROWSER_ZOOM_MIN,
+  isCertificateError,
+} from "@/shared/browser";
 import { steppedZoom } from "@/shared/zoom";
 import { withoutPageEditParam } from "@instrument-org/shared";
 import {
@@ -206,7 +215,10 @@ export function BrowserPanel({
   // path (`located`), learned after the fact, so the notice can say there is
   // nothing there and offer the closest folder that opens. `typed` marks one
   // the address field asked for, which never reached the guest at all.
+  // `certificate` is a refused certificate's error, which gets the warning a
+  // browser shows in place of the page.
   const [failure, setFailure] = useState<null | {
+    certificate?: string;
     located?: LocatedPath;
     message: string;
     targetId: BrowserTargetId;
@@ -232,6 +244,9 @@ export function BrowserPanel({
   // brief handoff counts as blank too, so the guest's black default never
   // flashes through before we learn its URL.
   const blankPage = !nav.url || nav.url === "about:blank";
+  // A site asking for a username and password, drawn over the page while
+  // its request waits.
+  const signIn = useGuestSignIn(active ? targetId : null);
 
   // Read once and give both hooks the same answer: a panel that parks its guest
   // under an overlay must also stop being the Cmd+F target, or the overlay's
@@ -253,7 +268,10 @@ export function BrowserPanel({
     emulatedDeviceWidth: emulatedDevice?.width,
     // A guest raised above its floating host is above the card this panel
     // draws over a blank page, so it stays parked until the page is there.
-    hasLoadError: Boolean(loadError) || (layer !== undefined && blankPage),
+    hasLoadError:
+      Boolean(loadError) ||
+      signIn !== null ||
+      (layer !== undefined && blankPage),
     isVisible,
     layer,
     relayoutKey,
@@ -329,6 +347,9 @@ export function BrowserPanel({
         return;
       }
       setFailure({
+        ...(isCertificateError(detail.errorCode)
+          ? { certificate: detail.errorDescription }
+          : {}),
         message: detail.errorDescription || "This site can’t be reached",
         targetId,
         url: detail.validatedURL,
@@ -985,26 +1006,43 @@ export function BrowserPanel({
       )}
       {active ? (
         <div className="relative flex-1" ref={slotRef}>
-          {blankPage && !loadError && (
+          {blankPage && !loadError && !signIn && (
             <div
               aria-hidden
               className="pointer-events-none absolute inset-0 z-10 bg-card"
             />
           )}
-          {loadError && (
-            <LoadErrorNotice
-              failure={loadError}
-              onRetry={() => {
-                if (loadError.typed) {
-                  void openTypedPath(loadError.typed);
+          {signIn ? (
+            <SignInSheet key={signIn.id} signIn={signIn} />
+          ) : loadError?.certificate ? (
+            <CertificateErrorNotice
+              error={loadError.certificate}
+              onGoBack={() => {
+                if (nav.canGoBack) {
+                  stepPage(targetId, "back");
                 } else {
-                  navigateTo(loadError.url);
+                  navigateTo("about:blank");
                 }
               }}
-              onSearch={(words) => {
-                navigateTo(webSearchUrl(words));
-              }}
+              targetId={targetId}
+              url={loadError.url}
             />
+          ) : (
+            loadError && (
+              <LoadErrorNotice
+                failure={loadError}
+                onRetry={() => {
+                  if (loadError.typed) {
+                    void openTypedPath(loadError.typed);
+                  } else {
+                    navigateTo(loadError.url);
+                  }
+                }}
+                onSearch={(words) => {
+                  navigateTo(webSearchUrl(words));
+                }}
+              />
+            )
           )}
         </div>
       ) : (

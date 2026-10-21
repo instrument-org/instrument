@@ -19,4 +19,15 @@ describe("pageConnection", () => {
   ])("%s is %s", (url, expected) => {
     expect(pageConnection(url)).toBe(expected);
   });
+
+  it.each([
+    ["https://expired.badssl.com/", "certificate"],
+    ["https://expired.badssl.com:8443/", "secure"],
+    ["https://localhost:8444/", "certificate"],
+    ["http://expired.badssl.com/", "insecure"],
+  ])("%s with a certificate let through is %s", (url, expected) => {
+    expect(pageConnection(url, ["expired.badssl.com", "localhost:8444"])).toBe(
+      expected,
+    );
+  });
 });

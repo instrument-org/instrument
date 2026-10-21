@@ -10,7 +10,11 @@ import {
   listDownloads,
   removeDownload,
 } from "@/electron-main/browser-view/download-list";
-import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
+import {
+  certificateExceptions,
+  getBrowserViewManager,
+  guestSignIns,
+} from "@/electron-main/browser-view/manager";
 import {
   savePageAs,
   sharePage,
@@ -92,11 +96,29 @@ const events = {
 };
 
 const live = {
+  // The sites with a certificate a person trusted anyway this run.
+  certificateExceptions: base.handler(async function* ({ signal }) {
+    yield* liveRead({
+      changes: [
+        publisher.subscribe("browser.certificate-exceptions-changed", {
+          signal,
+        }),
+      ],
+      read: () => certificateExceptions.hosts(),
+    });
+  }),
   // The download list, newest first, sent again whenever it changes.
   downloads: base.handler(async function* ({ signal }) {
     yield* liveRead({
       changes: [publisher.subscribe("browser.downloads-changed", { signal })],
       read: listDownloads,
+    });
+  }),
+  // The sign-ins tabs' pages are waiting on, oldest first.
+  signIns: base.handler(async function* ({ signal }) {
+    yield* liveRead({
+      changes: [publisher.subscribe("browser.sign-ins-changed", { signal })],
+      read: () => guestSignIns.list(),
     });
   }),
   // Stream the browser targets. The renderer pool reconciles its guests to this
@@ -249,6 +271,38 @@ const page = {
     })),
 };
 
+/**
+ * The person's answer to a page's sign-in: what they typed, or null for
+ * Cancel. Handed to Chromium and kept nowhere else.
+ */
+const answerSignIn = base
+  .input(
+    z.object({
+      credentials: z
+        .object({ password: z.string(), username: z.string() })
+        .nullable(),
+      id: z.string(),
+    }),
+  )
+  .handler(({ input }) => {
+    guestSignIns.answer(input.id, input.credentials);
+  });
+
+/**
+ * "Continue" on a page refused for its certificate: trusts that certificate
+ * for its site until the app quits and loads the page again.
+ */
+const continueDespiteCertificate = base
+  .input(z.object({ targetId: BrowserTargetIdSchema, url: z.string() }))
+  .output(z.object({ continued: z.boolean() }))
+  .handler(({ input }) => ({
+    continued:
+      getBrowserViewManager()?.continueDespiteCertificate(
+        input.targetId,
+        input.url,
+      ) ?? false,
+  }));
+
 /** The engine's answer: the words asked about, then what it would finish them as. */
 const SuggestionsSchema = z.tuple(
   [z.string(), z.array(z.string())],
@@ -294,6 +348,8 @@ function duckDuckGoRegion(locale: string) {
 }
 
 export const browser = {
+  answerSignIn,
+  continueDespiteCertificate,
   downloads,
   events,
   live,

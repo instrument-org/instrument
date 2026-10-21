@@ -46,6 +46,30 @@ export interface BrowserGuestTarget {
 }
 
 /**
+ * A page asking for a username and password (HTTP basic or digest auth, or a
+ * proxy in its way), waiting on the person's answer in the tab's window.
+ */
+export interface GuestSignIn {
+  id: string;
+  /** A proxy between the guest and the site asked, rather than the site. */
+  proxy: boolean;
+  realm: string;
+  /** Whether what is typed goes over an encrypted connection. */
+  secure: boolean;
+  /** The host the sign-in is for, with its port when not the default. */
+  site: string;
+  targetId: BrowserTargetId;
+}
+
+/**
+ * Whether a failed load's error code is a certificate error: Chromium's
+ * `ERR_CERT_*` range, -200 down to -218 (`ERR_CERT_END` is -219).
+ */
+export function isCertificateError(errorCode: number): boolean {
+  return errorCode <= -200 && errorCode > -219;
+}
+
+/**
  * Zoom range for the browser guest, matching desktop Chrome's 25%–500%. The
  * shared `steppedZoom` ladder (see `@/shared/zoom`) is restricted to this range
  * so the panel's zoom widget (renderer) and the keyboard shortcuts (main

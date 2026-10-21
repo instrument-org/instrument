@@ -518,17 +518,20 @@ function Field({ location }: { location: TabLocation }) {
 /**
  * What a page's address says about its connection, where a browser says it:
  * nothing for an encrypted page, since a lock is true of a lookalike site
- * too; Not secure ahead of the address for plain http; and only a mark for
- * plain http to this computer, which never crosses the network but is no
- * more encrypted for it. A press on either is the reason, in Chromium's
- * words.
+ * too; Not secure ahead of the address for plain http and for a site whose
+ * refused certificate the person let through; and only a mark for plain
+ * http to this computer, which never crosses the network but is no more
+ * encrypted for it. A press on either is the reason, in Chromium's words.
  */
 function ConnectionBadge({ url }: { url: string }) {
   const [isOpen, setOpen] = useState(false);
   useCloseOnWindowBlur(isOpen, () => {
     setOpen(false);
   });
-  const connection = pageConnection(url);
+  const { data: certificateExceptions } = useQuery(
+    rpcClient.browser.live.certificateExceptions.experimental_liveOptions(),
+  );
+  const connection = pageConnection(url, certificateExceptions);
   if (connection === "secure") {
     return null;
   }
@@ -557,9 +560,9 @@ function ConnectionBadge({ url }: { url: string }) {
           Your connection to this site is not secure
         </p>
         <p className="mt-1.5 text-muted-foreground">
-          You should not enter any sensitive information on this site (for
-          example, passwords or credit cards), because it could be stolen by
-          attackers.
+          {connection === "certificate"
+            ? "You chose to continue even though this site’s certificate isn’t valid, so someone could be pretending to be it."
+            : "You should not enter any sensitive information on this site (for example, passwords or credit cards), because it could be stolen by attackers."}
         </p>
       </PopoverContent>
     </Popover>

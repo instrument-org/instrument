@@ -50,6 +50,7 @@ import { SignInIcon } from "@phosphor-icons/react/SignIn";
 import { SignOutIcon } from "@phosphor-icons/react/SignOut";
 import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { SunIcon } from "@phosphor-icons/react/Sun";
@@ -147,6 +148,10 @@ export function DevPanel() {
 
   const { mutate: openWorkspaceFolder } = useMutation(
     rpcClient.debug.openWorkspaceFolder.mutationOptions(),
+  );
+
+  const { mutate: runSetupAgain } = useMutation(
+    rpcClient.setup.dev.reset.mutationOptions(),
   );
 
   const [switchTarget, setSwitchTarget] = useState<null | SwitchTarget>(null);
@@ -363,6 +368,15 @@ export function DevPanel() {
                   >
                     <SignInIcon className="size-3" />
                     Sign-in dialog
+                  </MenubarItem>
+                  <MenubarItem
+                    className={itemClassName}
+                    onSelect={() => {
+                      runSetupAgain();
+                    }}
+                  >
+                    <ArrowCounterClockwiseIcon className="size-3" />
+                    Run setup again
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>

@@ -8,7 +8,6 @@ import { MockLanguageModelV4 } from "ai/test";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
@@ -22,7 +21,6 @@ import {
   activityCsv,
   insertActivity,
   listActivity,
-  makeActivityTable,
   summarizeActivity,
 } from "./store";
 
@@ -450,34 +448,5 @@ describe("the log in the workspace", () => {
     await writeTheirs("2026-10", line.slice(40));
 
     expect(ids()).toHaveLength(2);
-  });
-
-  it("writes rows an earlier build kept only in the table into this device's file", async () => {
-    const database = new DatabaseSync(path.join(dir, "workspace.db"));
-    database.exec(
-      "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT",
-    );
-    makeActivityTable(database);
-    database
-      .prepare(
-        "INSERT INTO activity (id, started_at, status, kind, purpose, input_tokens) VALUES (?, ?, ?, ?, ?, ?)",
-      )
-      .run(
-        "01EARLIER000000000000000A",
-        Date.UTC(2026, 9, 3),
-        "finished",
-        "language",
-        "chat",
-        7,
-      );
-    database.close();
-
-    expect(ids()).toEqual([`${DEVICE}:01EARLIER000000000000000A`]);
-    const written = await fs.readFile(fileOf(DEVICE, "2026-10"), "utf8");
-    expect(written).toContain('"id":"01EARLIER000000000000000A"');
-
-    // Its own line read back is the row the index already has.
-    closeWorkspaceDb();
-    expect(ids()).toEqual([`${DEVICE}:01EARLIER000000000000000A`]);
   });
 });

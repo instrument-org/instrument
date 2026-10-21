@@ -30,11 +30,6 @@ import {
  * `activity_files` keeps how far each file has been read, so a look reads
  * only what a file gained. A request this device makes goes to its own file
  * and into the table at once.
- *
- * Version 2 adds `device` to a table version 1 kept as the only copy of
- * this computer's requests; those rows, `device` still empty, are written
- * into this device's files the first time the table is opened, and then
- * carry its id like any other.
  */
 const ACTIVITY_VERSION = 2;
 
@@ -108,11 +103,9 @@ let reported = false;
 
 /**
  * Makes the activity tables in a workspace's database where they are
- * missing, and gives a version 1 table its `device` column: at first use,
- * and before the activity an earlier build kept in its own file moves in.
- * A version 1 table's `connection_id` stays, unread.
+ * missing, at first use.
  */
-export function makeActivityTable(database: DatabaseSync): void {
+function makeActivityTable(database: DatabaseSync): void {
   database.exec("BEGIN");
   try {
     versionMatches(database, "activity", ACTIVITY_VERSION);
@@ -149,13 +142,6 @@ export function makeActivityTable(database: DatabaseSync): void {
         read_to INTEGER NOT NULL
       ) STRICT;
     `);
-    const columns = database
-      .prepare("SELECT name FROM pragma_table_info('activity')")
-      .all()
-      .map((row) => row.name);
-    if (!columns.includes("device")) {
-      database.exec("ALTER TABLE activity ADD COLUMN device TEXT");
-    }
     database.exec(`
       CREATE INDEX IF NOT EXISTS activity_started ON activity (started_at, id);
       CREATE INDEX IF NOT EXISTS activity_kind ON activity (kind, started_at);
@@ -179,40 +165,8 @@ export function makeActivityTable(database: DatabaseSync): void {
  */
 const openStore = workspaceTables((database) => {
   makeActivityTable(database);
-  writeOutEarlierRows(database);
   return database;
 });
-
-/**
- * Writes the rows an earlier build kept only in the table, `device` still
- * empty, into this device's files, then gives them its id. A launch cut short
- * between the two writes them again, which a read of the files takes once,
- * by id.
- */
-function writeOutEarlierRows(database: DatabaseSync): void {
-  const { deviceId, rootDir } = getWorkspaceConfig();
-  const earlier = database
-    .prepare(
-      `SELECT ${SELECT_ROW} FROM activity WHERE device IS NULL ORDER BY started_at, id`,
-    )
-    .all()
-    .map((row) => ActivityRowSchema.parse({ ...row, device: deviceId }));
-  if (earlier.length === 0) {
-    return;
-  }
-  const byFile = new Map<string, string[]>();
-  for (const row of earlier) {
-    const file = activityFileOf(rootDir, deviceId, row.startedAt);
-    byFile.set(file, [...(byFile.get(file) ?? []), lineOf(row)]);
-  }
-  for (const [file, lines] of byFile) {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.appendFileSync(file, lines.join(""));
-  }
-  database
-    .prepare("UPDATE activity SET device = ? WHERE device IS NULL")
-    .run(deviceId);
-}
 
 /**
  * Brings the table up to every device's files: reads what each file gained

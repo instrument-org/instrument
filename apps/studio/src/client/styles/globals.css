@@ -421,7 +421,11 @@ body {
    ========================= */
 .dark {
   --background: var(--gray-900);
-  --setup-ground-top: color-mix(in oklab, var(--brand-950) 70%, var(--gray-900));
+  --setup-ground-top: color-mix(
+    in oklab,
+    var(--brand-950) 70%,
+    var(--gray-900)
+  );
   --setup-ground-bottom: var(--gray-900);
   --setup-glow: color-mix(in oklab, var(--brand-800) 40%, transparent);
   --vignette-paper: var(--gray-800);

@@ -125,6 +125,39 @@ export function detectChatAppChanges({
 }
 
 /**
+ * The note that wakes a chat with the user's answer to an app it asked for:
+ * the answer, then every other change since the chat's session was last told
+ * of its apps, so the apps the note saves as told are the apps it told.
+ */
+export function appWakeNote({
+  chatId,
+  events,
+  sessionId,
+}: {
+  chatId: ChatId;
+  events: SessionMessageDataPart.AppEventDataPart["events"];
+  sessionId: StoreId.Session;
+}) {
+  return safeTry<SessionMessageDataPart.AppEventDataPart, Error>(
+    async function* () {
+      const told = lastToldApps(
+        yield* ChatReads.history({ chatId, sessionId }),
+        sessionId,
+      );
+      const current = await currentChatApps();
+      const answered = new Set(events.map((event) => event.slug));
+      const since =
+        told === undefined
+          ? []
+          : appEventsBetween(told, current).filter(
+              (event) => !answered.has(event.slug),
+            );
+      return ok({ apps: current, events: [...events, ...since] });
+    },
+  );
+}
+
+/**
  * What changed between two readings of the apps, as the events a chat is
  * told: an app gone is removed, one that lost its connection is
  * disconnected, one that gained it is connected, a new one not connected yet

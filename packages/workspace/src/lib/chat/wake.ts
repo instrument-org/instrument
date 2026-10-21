@@ -40,7 +40,7 @@ import {
   ownMessages,
   turnStartedAt,
 } from "./activity";
-import { currentChatApps } from "../chat-app-changes";
+import { appWakeNote } from "../chat-app-changes";
 import { listChatIds } from "./chat-records";
 import {
   type ChatTask,
@@ -210,7 +210,8 @@ export function startChatWake(workspaceRef: WorkspaceActorRef): void {
  * only while it is still there: a change nobody in a conversation asked
  * for (a disconnect or a removal on the app's page) wakes nothing, and
  * reaches each chat on the next message the user writes there
- * (`detectChatAppChanges`). The note carries the apps as they now stand,
+ * (`detectChatAppChanges`). The note also tells every change since the
+ * chat was last told of its apps, and carries the apps as they now stand,
  * so that chat's next message does not say the same thing again.
  */
 export async function wakeChatForApp(
@@ -221,12 +222,17 @@ export async function wakeChatForApp(
   if (!resolveChat(asked)) {
     return;
   }
-  if (!(await chatModelURI(asked))) {
+  const sessionId = sessionOfChat(asked);
+  if (sessionId === undefined || !(await chatModelURI(asked))) {
     return;
+  }
+  const note = await appWakeNote({ chatId: asked, events, sessionId });
+  if (note.isErr()) {
+    throw note.error;
   }
   await wakeWith(
     asked,
-    { data: { apps: await currentChatApps(), events }, type: "data-appEvent" },
+    { data: note.value, type: "data-appEvent" },
     workspaceRef,
   );
 }

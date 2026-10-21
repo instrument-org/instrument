@@ -1,6 +1,7 @@
 import type { DraftsBridge } from "@/shared/drafts";
 import type { BookmarksBridge } from "@/shared/bookmarks";
 import type { KeptFile, KeptSnapshot } from "@/shared/kept-state";
+import type { SetupState } from "@/shared/setup";
 import type { ElectronAPI } from "@electron-toolkit/preload";
 import type { CaptureContext } from "@instrument-org/shared";
 import type { SerializedError } from "@instrument-org/shared/exceptions";
@@ -36,6 +37,10 @@ declare global {
       // Fixed for the life of the process, so the preload hands it over once
       // rather than the renderer asking per path.
       homeDir: string;
+      // Where setup was as the window loaded, for its first render; the
+      // window follows `setup.live.state` from there. Null where the read
+      // failed, absent outside Electron.
+      initialSetupState?: null | SetupState;
       // What the windows keep across launches (`client/lib/kept-state.ts`):
       // every key as the window loaded, writes back to the main process, and
       // the writes other windows make. Absent outside Electron.

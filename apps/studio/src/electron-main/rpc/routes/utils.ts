@@ -534,14 +534,19 @@ const live = {
       });
     }),
   // What the renderer needs to draw window chrome for itself: the custom controls
-  // pick the maximize/restore glyph, and the Linux window border hides when an
+  // pick the maximize/restore glyph, or leave it out while the window is fixed
+  // at setup's shape, and the Linux window border hides when an
   // edge sits against the screen. Re-yields on OS-driven transitions too (snap,
   // double-click, Win+Up) and after a resize, which is when a move between
   // displays can have changed the scale the border insets itself for.
   windowState: base
     .output(
       eventIterator(
-        z.object({ fullScreen: z.boolean(), maximized: z.boolean() }),
+        z.object({
+          fullScreen: z.boolean(),
+          maximizable: z.boolean(),
+          maximized: z.boolean(),
+        }),
       ),
     )
     .handler(async function* ({ context, signal }) {
@@ -558,6 +563,7 @@ function readWindowState(webContentsId: number) {
   const window = getCallingWindow(webContentsId);
   return {
     fullScreen: window?.isFullScreen() ?? false,
+    maximizable: window?.isMaximizable() ?? true,
     maximized: window?.isMaximized() ?? false,
   };
 }

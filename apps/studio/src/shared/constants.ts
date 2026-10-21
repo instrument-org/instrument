@@ -2,6 +2,11 @@
 // document is parsed. See serveResolvedTheme in electron-main/lib/theme-utils.
 export const RESOLVE_THEME_CHANNEL = "resolve-theme";
 
+// Synchronous request the preload makes for where setup is, so the window's
+// first render is setup's and not the app's for a frame. See serveSetupState
+// in electron-main/lib/serve-setup-state.
+export const SETUP_STATE_CHANNEL = "setup-state";
+
 // One-way request to hand a file to the OS as a native drag. Sent rather than
 // invoked because the drag has to start while the pointer is still down: an
 // awaited round trip can outlive the gesture. See electron-main/lib/file-drag.

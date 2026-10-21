@@ -1,0 +1,83 @@
+import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
+import { renderWithDefaultStore } from "@/tests/render";
+import { getDefaultStore } from "jotai";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { useWindowCommands } from "./use-window-commands";
+
+// What main sends the window over its command stream, as a test can feed it.
+const stream = vi.hoisted(() => {
+  const queued: unknown[] = [];
+  let wake: (() => void) | undefined;
+  return {
+    push(command: unknown) {
+      queued.push(command);
+      wake?.();
+    },
+    async *read() {
+      for (;;) {
+        const next = queued.shift();
+        if (next !== undefined) {
+          yield next;
+          continue;
+        }
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+        });
+      }
+    },
+  };
+});
+
+vi.mock("@tanstack/react-router", () => ({ useRouter: () => ({}) }));
+vi.mock("@/client/rpc/client", () => ({
+  rpcClient: {
+    window: {
+      events: { command: { call: () => Promise.resolve(stream.read()) } },
+      takePending: { call: () => Promise.resolve([]) },
+    },
+  },
+}));
+
+const handlers = {
+  back: vi.fn(),
+  closeTab: vi.fn(),
+  forward: vi.fn(),
+  goToPlace: vi.fn(),
+  newChat: vi.fn(),
+  newTab: vi.fn(),
+  openFile: vi.fn(),
+  openScreen: vi.fn(),
+  reopenTab: vi.fn(),
+  search: vi.fn(),
+  selectChat: vi.fn(),
+  selectRelative: vi.fn(),
+  selectTab: vi.fn(),
+  toggleInbox: vi.fn(),
+};
+
+function Window() {
+  useWindowCommands(handlers, { isReady: true });
+  return null;
+}
+
+afterEach(() => {
+  getDefaultStore().set(windowHoldsAtom, []);
+});
+
+// What waited for setup is sent over the command stream the moment setup is
+// done, which can be before setup's own hold on the window has come down. It
+// is answered all the same: the hold keeps the tab chords off the window,
+// never what was opened from outside it.
+describe("useWindowCommands", () => {
+  it("answers a file and a link from outside while the window is held", async () => {
+    getDefaultStore().set(windowHoldsAtom, [{}]);
+    renderWithDefaultStore(<Window />);
+    stream.push({ hostPath: "/Users/mac-user/a.pdf", type: "openFile" });
+    stream.push({ href: "/chats/abc", type: "openScreen" });
+    await vi.waitFor(() => {
+      expect(handlers.openScreen).toHaveBeenCalledWith("/chats/abc");
+    });
+    expect(handlers.openFile).toHaveBeenCalledWith("/Users/mac-user/a.pdf");
+  });
+});

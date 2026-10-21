@@ -51,8 +51,8 @@ const TRAVELING_FILES = ["bookmarks.json", "features.json", "preferences.json"];
 /** The window's stores: its size and place, where the person left off, how they lay things out. */
 const WINDOW_FILES = ["layout.json", "view.json", "window-state.json"];
 
-/** The in-app browser's lists, which name this computer's files and apps. */
-const BROWSER_FILES = ["downloads.json", "external-app-links.json"];
+/** The in-app browser's list of downloads, which names this computer's files. */
+const BROWSER_FILES = ["downloads.json"];
 
 /** Where every workspace's index was kept before each had a machine folder. */
 const LEGACY_INDEXES_DIR = "indexes";

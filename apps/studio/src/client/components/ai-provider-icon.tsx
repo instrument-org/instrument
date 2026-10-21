@@ -34,6 +34,7 @@ import deepinfraColor from "@lobehub/icons-static-svg/icons/deepinfra-color.svg?
 import deepseekColor from "@lobehub/icons-static-svg/icons/deepseek-color.svg?raw";
 import fireworksColor from "@lobehub/icons-static-svg/icons/fireworks-color.svg?raw";
 import geminiColor from "@lobehub/icons-static-svg/icons/gemini-color.svg?raw";
+import grok from "@lobehub/icons-static-svg/icons/grok.svg?raw";
 import huggingfaceColor from "@lobehub/icons-static-svg/icons/huggingface-color.svg?raw";
 import minimaxColor from "@lobehub/icons-static-svg/icons/minimax-color.svg?raw";
 import mistralColor from "@lobehub/icons-static-svg/icons/mistral-color.svg?raw";
@@ -69,6 +70,11 @@ function ClaudeMark({ className }: { className?: string }) {
   return <VendorMark className={className} svg={claude} />;
 }
 
+/** Grok's own mark, for a Grok account; xAI's stays on its API key. */
+function GrokMark({ className }: { className?: string }) {
+  return <VendorMark className={className} svg={grok} />;
+}
+
 /**
  * The providers whose mark has a version in its own colors. The rest are
  * drawn in one color either way, which for OpenAI and xAI is their mark.
@@ -102,7 +108,7 @@ const PROVIDER_ICON_MAP: Record<
   deepseek: DeepSeek,
   fireworks: Fireworks,
   google: SiGooglegemini,
-  "grok-account": XAI,
+  "grok-account": GrokMark,
   groq: Groq,
   huggingface: HuggingFace,
   jan: Jan,

@@ -60,9 +60,6 @@ const WORKSPACES_DIR_NAME = "workspaces";
  */
 const MACHINE_DIR_NAME = "machine";
 
-/** What earlier builds called {@link MACHINE_DIR_NAME}, taken over on launch. */
-const FORMER_MACHINE_DIR_NAME = "workspaces-data";
-
 const REGISTRY_FILENAME = "workspaces.json";
 const IDENTITY_FILENAME = "workspace.json";
 
@@ -625,51 +622,6 @@ export function workspaceMachineDirOf(
   localId: string,
 ): string {
   return path.join(userDataDir, MACHINE_DIR_NAME, localId);
-}
-
-/**
- * Takes the folder earlier builds kept every workspace's machine data in to
- * the name it has now, `machine/`. First of all on launch, before anything
- * reads a path inside it: the rest of the launch is given paths under the
- * new name, and a folder left behind would be read by nothing.
- *
- * A workspace already under the new name keeps what is there, and the one
- * under the old name is left where it is rather than written over, since a
- * folder of the same local id under both names is two workspaces' worth of
- * keys and only one of them was opened. Every step can run again, so a
- * launch that stops partway is picked up by the next.
- */
-export function renameMachineFolder(userDataDir: string): string[] {
-  const done: string[] = [];
-  const former = path.join(userDataDir, FORMER_MACHINE_DIR_NAME);
-  const current = path.join(userDataDir, MACHINE_DIR_NAME);
-  try {
-    if (!fs.existsSync(former)) {
-      return done;
-    }
-    if (!fs.existsSync(current)) {
-      fs.renameSync(former, current);
-      done.push(`${FORMER_MACHINE_DIR_NAME}/ is now ${MACHINE_DIR_NAME}/`);
-      return done;
-    }
-    for (const entry of fs.readdirSync(former)) {
-      const to = path.join(current, entry);
-      if (fs.existsSync(to)) {
-        done.push(
-          `${entry} left in ${FORMER_MACHINE_DIR_NAME}/: already in ${MACHINE_DIR_NAME}/`,
-        );
-        continue;
-      }
-      fs.renameSync(path.join(former, entry), to);
-      done.push(`${entry} is now in ${MACHINE_DIR_NAME}/`);
-    }
-    if (fs.readdirSync(former).length === 0) {
-      fs.rmdirSync(former);
-    }
-  } catch (error) {
-    done.push(`machine folder rename stopped: ${String(error)}`);
-  }
-  return done;
 }
 
 /**

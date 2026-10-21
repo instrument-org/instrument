@@ -38,7 +38,6 @@ import {
 import {
   markWorkspaceOpen,
   releaseOpenMark,
-  renameMachineFolder,
   resolveWorkspace,
   setResolvedWorkspace,
 } from "./lib/workspaces";
@@ -130,10 +129,6 @@ function openWorkspace() {
   // registered here.
   registerAppStoredPaths();
   const userDataDir = getUserDataDir();
-  // Before the workspace resolves, which takes a path inside this folder.
-  for (const step of renameMachineFolder(userDataDir)) {
-    logger.info(`Machine folder: ${step}`);
-  }
   const resolved = resolveWorkspace({
     pin: process.env.INSTRUMENT_WORKSPACE,
     userDataDir,

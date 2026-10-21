@@ -112,6 +112,68 @@ describe("continuationOf", () => {
     });
   });
 
+  // The workspace asks for one more step after a finished reply with a note
+  // it never stores: a link correction, the rest of a reply the output limit
+  // cut off, the work a reply promised. Starting over for it replayed the
+  // whole history and lost what Claude Code's own tools had found.
+  it("continues a turn of only a note after the reply", () => {
+    const first = [system, user("one")];
+    expect(
+      continuation(after(first), [
+        ...first,
+        reply("a"),
+        notice("These links open nothing."),
+      ]),
+    ).toEqual({
+      kind: "turn",
+      messages: [notice("These links open nothing.")],
+    });
+  });
+
+  // The note is not kept, so the request after it reads the history with the
+  // corrected reply straight after the first one.
+  it.each([
+    {
+      added: [user("two")],
+      awaiting: [],
+      expected: { kind: "turn", messages: [user("two")] },
+      name: "a new message",
+    },
+    {
+      added: [toolResult("t1")],
+      awaiting: ["t1"],
+      expected: {
+        followedBy: [],
+        kind: "tool-results",
+        results: toolResult("t1").content,
+      },
+      name: "the results of a call the correction made",
+    },
+  ])(
+    "continues after a note's turn with $name",
+    ({ added, awaiting, expected }) => {
+      const first = [system, user("one")];
+      const noted = [...first, reply("a"), notice("fix the links")];
+      const correction = awaiting.length > 0 ? callsTool("t1") : reply("fixed");
+      expect(
+        continuation(after(noted, awaiting), [
+          ...first,
+          reply("a"),
+          correction,
+          ...added,
+        ]),
+      ).toEqual(expected);
+    },
+  );
+
+  it("starts over when nothing follows the reply", () => {
+    const first = [system, user("one")];
+    expect(continuation(after(first), [...first, reply("a")])).toEqual({
+      kind: "restart",
+      reason: "no tool results awaited, the reply is followed by none",
+    });
+  });
+
   it("continues with tool results while a notice rides along", () => {
     const first = [system, user("one"), notice("80%")];
     const next = [

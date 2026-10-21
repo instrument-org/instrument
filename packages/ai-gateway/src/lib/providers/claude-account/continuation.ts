@@ -66,7 +66,8 @@ function fingerprintOf(message: LanguageModelV4Message) {
  * not and the session has to start over from our transcript. It follows
  * when every message the session saw opens the request unchanged, then the
  * reply it gave, then either the results of the tools that reply called
- * (and anything said since) or a new turn.
+ * (and anything said since) or a new turn, which may be transient messages
+ * alone.
  */
 export function continuationOf(
   session: { awaitingToolCallIds: string[]; seen: string[] },
@@ -128,11 +129,16 @@ export function continuationOf(
           `results answer ${parts.length} calls and leave ${missing.length} of ${session.awaitingToolCallIds.length} unanswered`,
         );
   }
-  return unseen.length > 0 &&
+  // A turn of transient messages alone is a note on the reply, as asking for
+  // a correction or for the rest of a reply cut off is. Kept nowhere, it
+  // leaves what the process saw ending on the reply it answers, so the next
+  // request's reply is the one this turn gives.
+  const added = [...unseen, ...transient];
+  return added.length > 0 &&
     unseen.every(
       (message) => message.role === "user" || message.role === "system",
     )
-    ? { kind: "turn", messages: [...unseen, ...transient] }
+    ? { kind: "turn", messages: added }
     : restart(`no tool results awaited, the reply is followed by ${roles}`);
 }
 

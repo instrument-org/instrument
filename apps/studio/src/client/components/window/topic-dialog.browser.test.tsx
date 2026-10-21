@@ -12,6 +12,18 @@ vi.mock("./emoji-set", () => ({ useEmojiSet: () => [] }));
 vi.mock("./emoji-suggestions", () => ({
   useEmojiSuggestions: () => ({ suggestions: [] }),
 }));
+// The instructions' mic asks main whether someone is signed in.
+vi.mock(import("@/client/hooks/use-dictation"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  useDictation: () => ({
+    cancel: vi.fn(),
+    live: undefined,
+    phase: { kind: "idle" },
+    start: vi.fn(),
+    stop: vi.fn(),
+    stream: undefined,
+  }),
+}));
 vi.mock(import("./use-topic-backfill"), async (importOriginal) => ({
   ...(await importOriginal()),
   useTopicBackfill: () => [],

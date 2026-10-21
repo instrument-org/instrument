@@ -6,8 +6,9 @@ import { ModelChip } from "./model-chip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 /**
- * The model a run of replies asked for, as a chip whose card says what
- * answered: the router's pick, a provider's substitute, the ids.
+ * The model a run of replies ran on, as a chip whose card says the rest: the
+ * router's pick, what was asked for when a provider served another, the ids.
+ * A substitute is named on the chip itself, since it is what answered.
  */
 export function ModelUsageChip({
   className,
@@ -22,9 +23,9 @@ export function ModelUsageChip({
         <div className="min-w-0">
           <ModelChip
             aiGatewayModel={usage.requested}
+            answeredBy={substitutedBy(usage)}
             className={className}
             modelId={usage.modelId}
-            replacedBy={substitutedBy(usage)}
           />
         </div>
       </TooltipTrigger>

@@ -14,9 +14,6 @@ import { lazy, Suspense, useState } from "react";
 import { SETUP_PAGES } from "./setup-pages";
 import { useSetupState } from "./use-setup-state";
 
-/** The toaster setup's own toasts go to (`toasterId`), the one shown over it. */
-const SETUP_TOASTER_ID = "setup";
-
 // The developer panel, for Skip setup: loaded only in developer mode.
 const DevPanel = lazy(() =>
   import("@/client/components/dev-panel").then((m) => ({
@@ -114,7 +111,9 @@ export function SetupHost() {
           step={step}
         />
       </div>
-      <Toaster id={SETUP_TOASTER_ID} />
+      {/* The app's toaster is not mounted while setup is up, so every toast
+        lands here. */}
+      <Toaster />
     </div>
   );
 }

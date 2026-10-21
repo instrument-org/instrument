@@ -30,19 +30,21 @@ export function mcpAuthProviderForCommand(
   if (!oauth) {
     return undefined;
   }
+  const signIn = mcpSignInClient({
+    loopbackRedirectUrl: oauth.redirectUrl(),
+    relayRedirectUrl: oauth.relayRedirectUrl,
+    relayTokenUrl: oauth.relayTokenUrl,
+    serverUrl: manifest.url,
+  });
   return createMcpOAuthProvider({
-    ...mcpSignInClient({
-      loopbackRedirectUrl: oauth.redirectUrl(),
-      relayRedirectUrl: oauth.relayRedirectUrl,
-      serverUrl: manifest.url,
-    }),
+    ...signIn,
     openAuthorization: () => {
       throw new UnauthorizedError(
         "This app needs the user to sign in again. Ask with connect_app.",
       );
     },
     origin: credentialOrigin(manifest),
-    scope: manifest.auth.scope,
+    scope: manifest.auth.scope ?? signIn.scope,
     slug,
     store: oauth.store,
   });

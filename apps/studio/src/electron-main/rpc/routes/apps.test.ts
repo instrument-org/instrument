@@ -38,6 +38,8 @@ vi.mock("../../lib/apps", () => ({
   appOAuthRedirectUrl: () => "http://127.0.0.1:1/auth/callback/app",
   appOAuthRelayUrl: (service: string) =>
     `https://api.example/oauth/${service}/callback`,
+  appOAuthTokenUrl: (service: string) =>
+    `https://api.example/oauth/${service}/token`,
   disconnectApp: vi.fn(),
 }));
 vi.mock(

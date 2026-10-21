@@ -85,11 +85,28 @@ const AppCatalogEntrySchema = z.object({
       bundleId: z.string().optional(),
       /**
        * For `auth: "oauth-client"`, the client Instrument registered with the
-       * vendor: a public PKCE client, so the id is no secret. Its sign-in
-       * comes back through our API's relay, the only https redirect the
-       * vendor accepts.
+       * vendor, used with PKCE, so the id is no secret. Its sign-in comes
+       * back through our API's relay, the only https redirect the vendor
+       * accepts.
        */
       clientId: z.string().optional(),
+      /**
+       * For a `clientId` whose vendor wants the client's secret at its token
+       * endpoint even with PKCE, where the code is redeemed and the token
+       * refreshed: `"api"` is our API's `/oauth/<slug>/token`, which adds
+       * the secret it holds and passes the request on to the vendor.
+       */
+      tokenExchange: z.literal("api").optional(),
+      /**
+       * For a `clientId`, the scopes its sign-in asks for, space-separated,
+       * when the server's own list offers more than the app needs.
+       */
+      scope: z.string().optional(),
+      /**
+       * For a `clientId`, what else its authorization page is opened with,
+       * such as what the vendor needs before it issues a refresh token.
+       */
+      authorizationParams: z.record(z.string(), z.string()).optional(),
       endpoint: z.string().optional(),
       format: z.string(),
       /**
@@ -278,12 +295,16 @@ export function catalogEndpointNeedsClient(endpoint: string): boolean {
 /**
  * Instrument's own sign-in client for an MCP server, when the directory has
  * one for exactly that endpoint, with the service whose relay route the
- * sign-in comes back through. Matched on the endpoint rather than the app's
- * slug, so the client is only ever offered to the server it was issued for.
+ * sign-in comes back through and what the directory says of its sign-in.
+ * Matched on the endpoint rather than the app's slug, so the client is only
+ * ever offered to the server it was issued for.
  */
-export function catalogRegisteredClient(
-  endpoint: string,
-): undefined | { clientId: string; service: string } {
+export function catalogRegisteredClient(endpoint: string):
+  | undefined
+  | (Pick<
+      CatalogInterface,
+      "authorizationParams" | "scope" | "tokenExchange"
+    > & { clientId: string; service: string }) {
   for (const entry of getAppCatalog()) {
     for (const surface of entry.interfaces) {
       if (
@@ -292,7 +313,13 @@ export function catalogRegisteredClient(
         surface.clientId !== undefined &&
         sameEndpoint(endpoint, surface.endpoint)
       ) {
-        return { clientId: surface.clientId, service: entry.slug };
+        return {
+          authorizationParams: surface.authorizationParams,
+          clientId: surface.clientId,
+          scope: surface.scope,
+          service: entry.slug,
+          tokenExchange: surface.tokenExchange,
+        };
       }
     }
   }

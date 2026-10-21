@@ -215,6 +215,8 @@ describe("mcpSignInClient", () => {
   const loopbackRedirectUrl = "http://127.0.0.1:49200/auth/callback/app";
   const relayRedirectUrl = (service: string) =>
     `https://api.example/oauth/${service}/callback`;
+  const relayTokenUrl = (service: string) =>
+    `https://api.example/oauth/${service}/token`;
 
   afterEach(resetServedAppCatalog);
 
@@ -223,6 +225,7 @@ describe("mcpSignInClient", () => {
       mcpSignInClient({
         loopbackRedirectUrl,
         relayRedirectUrl,
+        relayTokenUrl,
         serverUrl: "https://mcp.slack.com/mcp",
       }).clientId,
     ).toBeUndefined();
@@ -233,7 +236,12 @@ describe("mcpSignInClient", () => {
     (serverUrl) => {
       serveRegisteredClient("slack", "registered-slack-client");
       expect(
-        mcpSignInClient({ loopbackRedirectUrl, relayRedirectUrl, serverUrl }),
+        mcpSignInClient({
+          loopbackRedirectUrl,
+          relayRedirectUrl,
+          relayTokenUrl,
+          serverUrl,
+        }),
       ).toMatchInlineSnapshot(`
       {
         "clientId": "registered-slack-client",
@@ -249,6 +257,7 @@ describe("mcpSignInClient", () => {
       mcpSignInClient({
         loopbackRedirectUrl,
         relayRedirectUrl,
+        relayTokenUrl,
         serverUrl: "https://mcp.linear.app/mcp",
       }),
     ).toMatchInlineSnapshot(`
@@ -263,6 +272,7 @@ describe("mcpSignInClient", () => {
       mcpSignInClient({
         loopbackRedirectUrl,
         relayRedirectUrl,
+        relayTokenUrl,
         serverUrl: "https://mcp.slack.com/other",
       }).clientId,
     ).toBeUndefined();

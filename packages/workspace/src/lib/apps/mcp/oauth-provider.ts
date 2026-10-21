@@ -1,5 +1,9 @@
 import { APP_NAME } from "@instrument-org/shared";
-import { type OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
+import {
+  discoverOAuthServerInfo,
+  type OAuthClientProvider,
+  type OAuthDiscoveryState,
+} from "@modelcontextprotocol/sdk/client/auth.js";
 import {
   type OAuthClientInformation,
   type OAuthClientInformationFull,
@@ -9,6 +13,7 @@ import {
 
 import { catalogRegisteredClient } from "../catalog";
 import { boundTo, type OriginBound } from "../origin-bound";
+import { fetchForMcp } from "./fetch";
 
 /**
  * Everything the OAuth flow must persist for one app, keyed by slug. The
@@ -58,6 +63,14 @@ export interface McpOAuthStore {
  * that takes no dynamic registration: the SDK uses it as it stands and never
  * registers one. `statePrefix` goes in front of every state, as
  * `<prefix>.<uuid>`, for a relay that reads where to send the browser from it.
+ * `authorizationParams` are added to the authorization page's address, and
+ * so is `scope` for such a client.
+ *
+ * `tokenExchange` names a token endpoint that stands in for the one the
+ * server's authorization server advertises, for a client whose secret our API
+ * holds: the code is redeemed and the token refreshed there. The SDK takes
+ * its endpoints from the discovery state, so the provider runs the discovery
+ * itself and hands back the result with the token endpoint replaced.
  *
  * `origin` is the MCP server's origin under the manifest as it stands. What
  * this provider saves is recorded against it, and what it reads back is only
@@ -66,6 +79,7 @@ export interface McpOAuthStore {
  * instead of handing that server the user's session.
  */
 export function createMcpOAuthProvider({
+  authorizationParams,
   clientId,
   openAuthorization,
   origin,
@@ -74,7 +88,9 @@ export function createMcpOAuthProvider({
   slug,
   statePrefix,
   store,
+  tokenExchange,
 }: {
+  authorizationParams?: Record<string, string>;
   clientId?: string;
   openAuthorization: (url: URL) => Promise<void> | void;
   origin: string;
@@ -83,6 +99,7 @@ export function createMcpOAuthProvider({
   slug: string;
   statePrefix?: string;
   store: McpOAuthStore;
+  tokenExchange?: { serverUrl: string; tokenUrl: string };
 }): OAuthClientProvider {
   const clientMetadata: OAuthClientMetadata = {
     client_name: APP_NAME,
@@ -93,12 +110,26 @@ export function createMcpOAuthProvider({
     token_endpoint_auth_method: "none",
   };
 
+  let discovered: Promise<OAuthDiscoveryState> | undefined;
+  const discoveryState =
+    tokenExchange === undefined
+      ? undefined
+      : () =>
+          (discovered ??= discoverWithTokenUrl(tokenExchange).catch(
+            (error: unknown) => {
+              // A failed discovery is tried again on the next call.
+              discovered = undefined;
+              throw error;
+            },
+          ));
+
   return {
     clientInformation: async () =>
       clientId === undefined
         ? boundTo(await store.getClientInformation(slug), origin)
         : { client_id: clientId },
     clientMetadata,
+    discoveryState,
     codeVerifier: async () => {
       const verifier = await store.getCodeVerifier(slug);
       if (verifier === undefined) {
@@ -121,9 +152,23 @@ export function createMcpOAuthProvider({
       if (invalidateScope === "all" || invalidateScope === "verifier") {
         await store.clearTransient(slug);
       }
+      if (invalidateScope === "all" || invalidateScope === "discovery") {
+        discovered = undefined;
+      }
     },
-    redirectToAuthorization: (authorizationUrl) =>
-      openAuthorization(authorizationUrl),
+    redirectToAuthorization: (authorizationUrl) => {
+      // The SDK prefers the scopes a challenge or the server's metadata names
+      // over the client's own. A registered client asks for what it was
+      // registered for, since a server can list scopes the vendor has not
+      // granted the client.
+      if (clientId !== undefined && scope !== undefined) {
+        authorizationUrl.searchParams.set("scope", scope);
+      }
+      for (const [name, value] of Object.entries(authorizationParams ?? {})) {
+        authorizationUrl.searchParams.set(name, value);
+      }
+      return openAuthorization(authorizationUrl);
+    },
     redirectUrl,
     saveClientInformation: (info: OAuthClientInformation) =>
       // DCR always returns the full shape; persist it for later reads.
@@ -149,28 +194,81 @@ export function createMcpOAuthProvider({
 }
 
 /**
+ * The server's discovery, as the SDK would run it, with the authorization
+ * server's token endpoint replaced by `tokenUrl`. A server whose
+ * authorization server publishes no metadata has no token endpoint to
+ * replace, so the sign-in stops there rather than going to a guessed one
+ * without the secret.
+ */
+async function discoverWithTokenUrl({
+  serverUrl,
+  tokenUrl,
+}: {
+  serverUrl: string;
+  tokenUrl: string;
+}): Promise<OAuthDiscoveryState> {
+  const info = await discoverOAuthServerInfo(serverUrl, {
+    fetchFn: fetchForMcp,
+  });
+  if (info.authorizationServerMetadata === undefined) {
+    throw new Error(
+      `The sign-in server for ${serverUrl} publishes no metadata, so its token endpoint cannot be replaced.`,
+    );
+  }
+  return {
+    ...info,
+    authorizationServerMetadata: {
+      ...info.authorizationServerMetadata,
+      token_endpoint: tokenUrl,
+    },
+  };
+}
+
+/**
  * Which client a sign-in to an MCP server uses and where the vendor sends the
  * browser back. A server Instrument holds a registered client for signs in
  * with it through our API's relay, the state naming the loopback port the
- * relay passes the browser on to; any other server registers a client of its
- * own and comes straight back to the loopback.
+ * relay passes the browser on to, with the scopes and authorization page
+ * parameters the directory gives, and redeems its code at our API when the
+ * directory says the API holds the client's secret; any other server
+ * registers a client of its own and comes straight back to the loopback.
  */
 export function mcpSignInClient({
   loopbackRedirectUrl,
   relayRedirectUrl,
+  relayTokenUrl,
   serverUrl,
 }: {
   loopbackRedirectUrl: string;
   relayRedirectUrl: (service: string) => string;
+  relayTokenUrl: (service: string) => string;
   serverUrl: string;
-}): { clientId?: string; redirectUrl: string; statePrefix?: string } {
+}): Pick<
+  Parameters<typeof createMcpOAuthProvider>[0],
+  | "authorizationParams"
+  | "clientId"
+  | "redirectUrl"
+  | "scope"
+  | "statePrefix"
+  | "tokenExchange"
+> {
   const registered = catalogRegisteredClient(serverUrl);
   if (registered === undefined) {
     return { redirectUrl: loopbackRedirectUrl };
   }
   return {
+    ...(registered.authorizationParams && {
+      authorizationParams: registered.authorizationParams,
+    }),
     clientId: registered.clientId,
     redirectUrl: relayRedirectUrl(registered.service),
+    ...(registered.scope && { scope: registered.scope }),
     statePrefix: new URL(loopbackRedirectUrl).port,
+    ...(registered.tokenExchange === "api" && {
+      tokenExchange: {
+        serverUrl,
+        tokenUrl: relayTokenUrl(registered.service),
+      },
+    }),
   };
 }

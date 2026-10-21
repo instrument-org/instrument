@@ -64,6 +64,7 @@ export async function beginMcpOAuth({
   opensIn = "app",
   redirectUrl,
   relayRedirectUrl,
+  relayTokenUrl,
   slug,
   store,
 }: {
@@ -71,6 +72,7 @@ export async function beginMcpOAuth({
   opensIn?: SignInOpensIn;
   redirectUrl: string;
   relayRedirectUrl: (service: string) => string;
+  relayTokenUrl: (service: string) => string;
   slug: string;
   store: McpOAuthStore;
 }): Promise<
@@ -105,17 +107,20 @@ export async function beginMcpOAuth({
   // analysis does not narrow the value to the literal it started as.
   const opened: { url?: string } = {};
   const origin = new URL(manifest.url).origin;
+  const signIn = mcpSignInClient({
+    loopbackRedirectUrl: redirectUrl,
+    relayRedirectUrl,
+    relayTokenUrl,
+    serverUrl: manifest.url,
+  });
+  const scope = manifest.auth.scope ?? signIn.scope;
   const provider = createMcpOAuthProvider({
-    ...mcpSignInClient({
-      loopbackRedirectUrl: redirectUrl,
-      relayRedirectUrl,
-      serverUrl: manifest.url,
-    }),
+    ...signIn,
     openAuthorization: (url) => {
       opened.url = url.toString();
     },
     origin,
-    scope: manifest.auth.scope,
+    scope,
     slug,
     store,
   });
@@ -154,7 +159,7 @@ export async function beginMcpOAuth({
     await client.close().catch(noop);
     await auth(provider, {
       fetchFn: fetchForMcp,
-      scope: manifest.auth.scope,
+      scope,
       serverUrl: new URL(manifest.url),
     });
   } catch (error) {

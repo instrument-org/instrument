@@ -106,9 +106,21 @@ const STAGING_API_BASE_URL = "https://staging.api.tryinstrument.com";
  * with it, so an API running on this machine borrows staging's relay.
  */
 export function appOAuthRelayUrl(service: string): string {
+  return `${relayApiBase()}/oauth/${service}/callback`;
+}
+
+/**
+ * Where a sign-in made with Instrument's own client for `service` is redeemed
+ * and refreshed when our API holds the client's secret: the same API as the
+ * relay, since the vendor checks the code against the redirect it was sent to.
+ */
+export function appOAuthTokenUrl(service: string): string {
+  return `${relayApiBase()}/oauth/${service}/token`;
+}
+
+function relayApiBase(): string {
   const api = URL.parse(platformApiBaseUrl());
-  const base = api?.protocol === "https:" ? api.origin : STAGING_API_BASE_URL;
-  return `${base}/oauth/${service}/callback`;
+  return api?.protocol === "https:" ? api.origin : STAGING_API_BASE_URL;
 }
 
 /**
@@ -123,6 +135,7 @@ export function createAppsConfig(): WorkspaceConfig["apps"] {
     oauth: {
       redirectUrl: appOAuthRedirectUrl,
       relayRedirectUrl: appOAuthRelayUrl,
+      relayTokenUrl: appOAuthTokenUrl,
       store: appOAuthStore,
     },
   };

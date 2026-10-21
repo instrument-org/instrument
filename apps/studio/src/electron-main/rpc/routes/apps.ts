@@ -53,6 +53,7 @@ import {
   announceConnected,
   appOAuthRedirectUrl,
   appOAuthRelayUrl,
+  appOAuthTokenUrl,
   disconnectApp,
 } from "../../lib/apps";
 import {
@@ -614,6 +615,7 @@ const startOAuth = base
       opensIn: input.opensIn,
       redirectUrl: appOAuthRedirectUrl(),
       relayRedirectUrl: appOAuthRelayUrl,
+      relayTokenUrl: appOAuthTokenUrl,
       slug: input.slug,
       store: appOAuthStore,
     });

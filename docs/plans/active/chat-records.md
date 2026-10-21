@@ -161,9 +161,9 @@ What a session was last told of what changes under it (its folders, apps, memory
 One file in `machine/<local id>/`, WAL, `synchronous = NORMAL`, owned by the workspace's process.
 
 - Index tables, rebuildable from the folder: `chat_digests` (what a chat list row draws: title, marks, the first ask, the last reply's first line, steps, files and sites), `task_hosts` and `task_standings`, each a value per chat or session with the stamp of the files it was folded from. Also `own_log_cursors`, where this device's own log for each session ends. Per-file `files`, `sessions` and `messages` tables (byte offsets for paging), and later the front matter of topics, drafts and memories and full-text search, are deferred.
-- Records, not rebuildable: `activity` (the rows `ai-usage.db` held). The window's own tabs have kept no browser state since beta.55, so there is nothing of the window's to keep here.
+- Records, not rebuildable: `activity`. The window's own tabs have kept no browser state since beta.55, so there is nothing of the window's to keep here.
 - Rebuild drops and refolds the index tables only; their schema version bump triggers it. A corrupt file is moved aside and recreated, which loses the activity log; nothing billing depends on it.
-- Replaces `index/chats.db` (the `index/` folder goes), `.instrument/ai-usage.db` (its rows move in) and `.instrument/window/chat.db` (empty except its migration marker on every install checked; deleted).
+- Replaces `.instrument/window/chat.db` (empty except its migration marker on every install checked; deleted).
 - On read: stat the chat's log and settings files. Unchanged means the stored value stands; anything else means refold that chat. A file another device grew is noticed when the window comes forward and on a slow timer while it is in front, plus one non-recursive watch on the open chat's record folder. This computer's own writes update the index directly.
 
 ## Read side
@@ -208,7 +208,7 @@ What that install's own history leaves to the fixture in `convert-chat.test.ts`:
 | 0 | This plan and record spec | Reviewed |
 | 1 | Log layer: record schemas, append with newline repair and commit-point fsync, handle closed after each burst, whole-line reader, blobs, device id | Unit tests, including torn lines and a crash mid-write |
 | 2 | Fold, and a fake sync engine for tests | Property tests: any file order, duplicates, truncations or conflict copies give the same chat, or a flagged fork; never a crash or a silent loss |
-| 3 | `workspace.db`: per-chat derived values stamped by their files, rebuild, activity log moved in; `index/`, `ai-usage.db` and the window store removed | A stamp miss refolds to the same value a fresh fold gives |
+| 3 | `workspace.db`: per-chat derived values stamped by their files, rebuild; the window store removed | A stamp miss refolds to the same value a fresh fold gives |
 | 4 | Swap the store: records written when they settle, the six views in place of the `Store` queries, renderer routes pointed at the views; the `Store` and its writes to the key-value table deleted, and nothing persisted while a part streams | The app runs on the new store |
 | 5 | Converter, and the 1.x migration writing logs | A clone of a real install (392 chats) converts with zero differences; a chat that differs stays on `chat.db` |
 | 6 | Everything visible in the Instrument folder, and the machine-side cleanups: [instrument-folder.md](instrument-folder.md) | As that plan says |

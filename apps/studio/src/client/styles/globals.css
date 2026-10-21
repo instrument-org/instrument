@@ -122,6 +122,13 @@ body {
   --color-vignette-edge: var(--vignette-edge);
   --color-vignette-banner-top: var(--vignette-banner-top);
   --color-vignette-banner-bottom: var(--vignette-banner-bottom);
+  --color-setup-tile: var(--setup-tile);
+  --color-setup-perk-search: var(--setup-perk-search);
+  --color-setup-perk-search-ink: var(--setup-perk-search-ink);
+  --color-setup-perk-dictation: var(--setup-perk-dictation);
+  --color-setup-perk-dictation-ink: var(--setup-perk-dictation-ink);
+  --color-setup-perk-suggestions: var(--setup-perk-suggestions);
+  --color-setup-perk-suggestions-ink: var(--setup-perk-suggestions-ink);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
@@ -258,6 +265,15 @@ body {
   --vignette-edge: rgb(10 13 18 / 0.06);
   --vignette-banner-top: #cddff2;
   --vignette-banner-bottom: #eaf0f7;
+  /* Setup's tiles over its ground (the free account's perks, the themes to
+     pick), and the tinted wells of the perks' icons with their icons' ink. */
+  --setup-tile: var(--card);
+  --setup-perk-search: #c8fae5;
+  --setup-perk-search-ink: var(--foreground);
+  --setup-perk-dictation: #c8ecef;
+  --setup-perk-dictation-ink: var(--foreground);
+  --setup-perk-suggestions: #c5d8e8;
+  --setup-perk-suggestions-ink: var(--foreground);
   --background: var(--gray-50);
   --foreground: var(--gray-950);
   --card: #ffffff;
@@ -418,6 +434,13 @@ body {
   --vignette-edge: rgb(255 255 255 / 0.08);
   --vignette-banner-top: color-mix(in oklab, #cddff2 30%, var(--gray-800));
   --vignette-banner-bottom: color-mix(in oklab, #eaf0f7 12%, var(--gray-800));
+  --setup-tile: rgb(255 255 255 / 0.04);
+  --setup-perk-search: color-mix(in oklab, #3fd8a0 18%, transparent);
+  --setup-perk-search-ink: #c8fae5;
+  --setup-perk-dictation: color-mix(in oklab, #3cc3cf 18%, transparent);
+  --setup-perk-dictation-ink: #c8ecef;
+  --setup-perk-suggestions: color-mix(in oklab, #6c9fd0 22%, transparent);
+  --setup-perk-suggestions-ink: #c5d8e8;
   --foreground: #ffffff;
   --card: var(--gray-800);
   --card-foreground: #ffffff;

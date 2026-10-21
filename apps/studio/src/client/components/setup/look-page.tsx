@@ -58,7 +58,7 @@ export function LookPage({
           title="Pick a theme"
         >
           <div
-            className="mt-8 flex items-center gap-5 rounded-[32px] border-2 border-white/30 bg-white/30 p-6 dark:border-white/5 dark:bg-white/5"
+            className="mt-8 flex items-center gap-5 rounded-[32px] border-2 border-white/30 bg-white/30 p-6 dark:border-white/5 dark:bg-setup-tile"
             role="radiogroup"
           >
             {THEMES.map((option) => (
@@ -103,7 +103,7 @@ function ThemeOptionButton({
           "rounded-2xl p-1.25 group-focus-visible:outline-[3px] group-focus-visible:outline-ring/50 group-focus-visible:[outline-style:solid]",
           isSelected
             ? "border-4 border-brand-500 p-1"
-            : "bg-card shadow-xs dark:bg-white/10",
+            : "bg-setup-tile shadow-xs",
         )}
       >
         <span className="relative block h-37.5 w-58 overflow-hidden rounded-[11px]">

@@ -15,19 +15,19 @@ const PERKS: { icon: ReactNode; line: string; tint: string; title: string }[] =
     {
       icon: <GlobeSimpleIcon />,
       line: "Fast, up-to-date answers from the web",
-      tint: "bg-[#c8fae5] dark:bg-[#c8fae5]/15",
+      tint: "bg-setup-perk-search text-setup-perk-search-ink",
       title: "Web search",
     },
     {
       icon: <MicrophoneIcon />,
       line: `Talk to ${APP_NAME} rather than typing`,
-      tint: "bg-[#c8ecef] dark:bg-[#c8ecef]/15",
+      tint: "bg-setup-perk-dictation text-setup-perk-dictation-ink",
       title: "Dictation",
     },
     {
       icon: <SparkleIcon />,
       line: "Topics for new chats, and search that finds a chat by what it's about",
-      tint: "bg-[#c5d8e8] dark:bg-[#c5d8e8]/15",
+      tint: "bg-setup-perk-suggestions text-setup-perk-suggestions-ink",
       title: "Smart suggestions",
     },
   ];
@@ -54,12 +54,12 @@ export function FreeAccountStep({ hold, onBack, onContinue }: SetupPageProps) {
       <div className="mt-7 flex max-w-full flex-wrap justify-center gap-1">
         {PERKS.map((perk) => (
           <div
-            className="flex h-35 w-58 flex-col gap-3 rounded-[20px] border bg-card p-4"
+            className="flex h-35 w-58 flex-col gap-3 rounded-[20px] border bg-setup-tile p-4 dark:border-white/8"
             key={perk.title}
           >
             <span
               className={cn(
-                "flex size-9 items-center justify-center rounded-[11px] text-foreground [&_svg]:size-5",
+                "flex size-9 items-center justify-center rounded-[11px] [&_svg]:size-5",
                 perk.tint,
               )}
             >

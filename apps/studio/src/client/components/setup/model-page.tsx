@@ -8,6 +8,7 @@ import {
 import { RadioGroup } from "@/client/components/ui/radio-group";
 import { Spinner } from "@/client/components/ui/spinner";
 import { connectionsOf } from "@/client/lib/model-picker-rows";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
@@ -131,10 +132,19 @@ export function ModelPage({ onBack, onContinue }: SetupPageProps) {
           </p>
         ) : isShort ? (
           <div className="flex w-140 max-w-full flex-col rounded-2xl border bg-card p-2">
-            {shortList(models, recommended).map((model, index) => (
+            {shortList(models, recommended).map((model, index, shown) => (
               <div key={model.uri}>
+                {/* A rule between rows, left blank beside the picked one,
+                  whose own fill sets it apart. */}
                 {index > 0 && (
-                  <div className="ml-13 h-px bg-gray-100 dark:bg-white/5" />
+                  <div
+                    className={cn(
+                      "ml-13 h-px",
+                      model.uri !== chosen &&
+                        shown[index - 1]?.uri !== chosen &&
+                        "bg-gray-100 dark:bg-white/5",
+                    )}
+                  />
                 )}
                 <ModelRow {...rowProps(model)} />
               </div>

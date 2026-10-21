@@ -102,6 +102,43 @@ describe("brokenLinksIn", () => {
     ).toEqual([]);
   });
 
+  it("says when a link opens nothing for its shape rather than its file", async () => {
+    expect(
+      await check(
+        [
+          "[up](sales/../sales/report.md)",
+          "[heading](sales/report.md#totals)",
+          "[line](sales/report.md:12)",
+          "[query](sales/report.md?v=2)",
+          "[neither](sales/missing.md#totals)",
+        ].join("\n"),
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "link": "sales/../sales/report.md",
+          "reason": "the app opens no link through \`..\`: write the path without it",
+        },
+        {
+          "link": "sales/report.md#totals",
+          "reason": "the app opens no link ending in \`#totals\`: link the file alone",
+        },
+        {
+          "link": "sales/report.md:12",
+          "reason": "the app opens no link ending in \`:12\`: link the file alone",
+        },
+        {
+          "link": "sales/report.md?v=2",
+          "reason": "the app opens no link ending in \`?v=2\`: link the file alone",
+        },
+        {
+          "link": "sales/missing.md#totals",
+          "reason": "no file there",
+        },
+      ]
+    `);
+  });
+
   it("names every link that opens nothing, once each", async () => {
     expect(
       await check(

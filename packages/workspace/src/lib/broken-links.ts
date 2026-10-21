@@ -190,18 +190,48 @@ async function missingFiles(
         : stats !== undefined;
     }),
   );
-  return files.flatMap((file, i) =>
-    found[i]
-      ? []
-      : [
-          {
-            link: file.link,
-            reason: file.path.endsWith("/")
-              ? "no folder there"
-              : "no file there",
-          },
-        ],
+  const missing = files.filter((_, i) => !found[i]);
+  return Promise.all(
+    missing.map(async (file) => ({
+      link: file.link,
+      reason: await whyNothingOpens(file.path, chatId),
+    })),
   );
+}
+
+/** A step up a folder, which the app opens no file link through. */
+const PARENT_STEP = /(?:^|\/)\.\.(?:\/|$)/u;
+
+/**
+ * What a file link may end in that the app opens no file by: a heading, a
+ * query, or an editor's line and column (`notes.md#intro`, `a.csv?v=2`,
+ * `main.ts:12:4`).
+ */
+const SUFFIX = /(?:#[^/]*|\?[^/]*|:\d+(?::\d+)?)$/u;
+
+/**
+ * Why a file link opens nothing, said so the agent fixes the link rather
+ * than looking for a file that may be right there: a step up a folder, an
+ * ending the app does not read, or no file or folder at that path.
+ */
+async function whyNothingOpens(
+  written: string,
+  chatId: ChatId,
+): Promise<string> {
+  if (PARENT_STEP.test(written)) {
+    return "the app opens no link through `..`: write the path without it";
+  }
+  const suffix = SUFFIX.exec(written)?.[0];
+  if (suffix !== undefined) {
+    const bare = written.slice(0, -suffix.length);
+    const hostPath = (
+      await resolveWorkspaceFilePaths({ chatId, filePaths: [bare] })
+    ).get(bare);
+    if (hostPath && (await fs.stat(hostPath).catch(() => undefined))) {
+      return `the app opens no link ending in \`${suffix}\`: link the file alone`;
+    }
+  }
+  return written.endsWith("/") ? "no folder there" : "no file there";
 }
 
 /** Why an app address opens nothing, or undefined when it does or cannot be told. */

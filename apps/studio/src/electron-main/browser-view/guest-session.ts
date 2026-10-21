@@ -13,6 +13,7 @@ import { mayOpenInAnotherApp } from "./external-app-links";
 import { askToOpenInAnotherApp } from "./external-app-prompt";
 import { mayEnterFullScreen } from "./full-screen-policy";
 import { guests } from "./guest-registry";
+import { log } from "./log";
 import { refusePasskeys } from "./passkey-policy";
 import {
   confineLocalPagesToTheirFolder,
@@ -80,10 +81,12 @@ export function configureGuestSession(profileDir: string): Session {
   // a tab a person is looking at and just used (`mayEnterFullScreen`): it
   // takes the whole window into full screen, onto a Space of its own on
   // macOS, and Chromium counts an agent's CDP click as the user gesture it
-  // asks for. Once it is granted, Esc leaves it, and Electron puts the window in full
-  // screen and stands the guest over all of it, then puts both back. A page
-  // no slot is showing is still taken back out (`leaveFullScreen` in
-  // `browser-pool.ts`). A link to another app (`slack://`) goes to that app
+  // asks for. A page already in full screen may always ask again. Once it is
+  // granted, Esc leaves it, and Electron puts the window in full screen and
+  // stands the guest over all of it, then puts both back; on macOS the
+  // window's pages are told again once its exit animation ends
+  // (`full-screen-exit.ts`). A page no slot is showing is still taken back
+  // out (`leaveFullScreen` in `browser-pool.ts`). A link to another app (`slack://`) goes to that app
   // when a person just used the tab and says yes, or said its site always
   // may.
   guestSession.setPermissionRequestHandler(
@@ -91,16 +94,19 @@ export function configureGuestSession(profileDir: string): Session {
       if (permission === "fullscreen") {
         const record = guests.get(wc.id);
         const host = wc.hostWebContents;
-        callback(
-          mayEnterFullScreen({
-            record,
-            shown: record?.entry?.shown ?? false,
-            windowFocused:
-              !!host &&
-              !host.isDestroyed() &&
-              !!BrowserWindow.fromWebContents(host)?.isFocused(),
-          }),
+        const asked = {
+          record,
+          shown: record?.entry?.shown ?? false,
+          windowFocused:
+            !!host &&
+            !host.isDestroyed() &&
+            !!BrowserWindow.fromWebContents(host)?.isFocused(),
+        };
+        const allowed = mayEnterFullScreen(asked);
+        log.info(
+          `full screen ${allowed ? "granted" : "refused"} guest=${wc.id} role=${record?.role ?? "none"} inFullScreen=${record?.htmlFullScreen ?? false} shown=${asked.shown} windowFocused=${asked.windowFocused} inputAgoMs=${record?.userInputAt ? Date.now() - record.userInputAt : "never"}`,
         );
+        callback(allowed);
         return;
       }
       if (permission !== "openExternal") {

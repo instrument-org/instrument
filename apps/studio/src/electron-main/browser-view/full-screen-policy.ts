@@ -11,16 +11,25 @@ import { personJustUsedTab } from "./external-app-links";
  * last few seconds. Chromium's own user-gesture check counts an agent's CDP
  * click as a gesture; the guest's record of input leaves it out (see
  * `noteUserInput`).
+ *
+ * A page already in full screen may always ask again (a player moving full
+ * screen to another element): Electron never answers a refused request, so
+ * refusing one would leave the page waiting with its exit stuck behind it.
  */
 export function mayEnterFullScreen(
   guest: {
-    record: Pick<GuestRecord, "role" | "userInputAt"> | undefined;
+    record:
+      | Pick<GuestRecord, "htmlFullScreen" | "role" | "userInputAt">
+      | undefined;
     /** Whether a slot in the guest's window shows it, as the renderer pool last reported. */
     shown: boolean;
     windowFocused: boolean;
   },
   now = Date.now(),
 ): boolean {
+  if (guest.record?.role === "webview" && guest.record.htmlFullScreen) {
+    return true;
+  }
   return (
     guest.shown && guest.windowFocused && personJustUsedTab(guest.record, now)
   );

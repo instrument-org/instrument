@@ -42,6 +42,7 @@ import {
 import { isBlocking } from "./content-blocking";
 import { attachGuestInteractions } from "./guest-interactions";
 import { noteUserInput } from "./external-app-links";
+import { resyncPagesAfterFullScreen } from "./full-screen-exit";
 import { guests } from "./guest-registry";
 import {
   createCertificateExceptions,
@@ -498,6 +499,10 @@ export function createBrowserViewManager(): BrowserViewManager {
 
   function bindHost(host: WebContents) {
     hostContents = host;
+    const hostWindow = BrowserWindow.fromWebContents(host);
+    if (hostWindow) {
+      resyncPagesAfterFullScreen(hostWindow);
+    }
     // A FIFO of entries accepted in `will-attach-webview`, drained in
     // `did-attach-webview`: Electron pairs the two events in order, and the
     // guest it hands over carries nothing naming its target. The entry rather

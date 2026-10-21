@@ -59,6 +59,8 @@ export interface GuestRecord {
    * new document (`did-frame-navigate`).
    */
   readonly frames: Map<string, FrameId & { url: string }>;
+  /** Whether the contents' page is in HTML full screen, from Electron's `enter-` and `leave-html-full-screen`. */
+  htmlFullScreen: boolean;
   readonly id: number;
   readonly role: GuestRole;
   /**
@@ -101,11 +103,18 @@ export function createGuestRegistry() {
       edit: null,
       entry: null,
       frames: new Map(),
+      htmlFullScreen: false,
       id,
       role,
       userInputAt: 0,
     };
     records.set(id, record);
+    contents.on("enter-html-full-screen", () => {
+      record.htmlFullScreen = true;
+    });
+    contents.on("leave-html-full-screen", () => {
+      record.htmlFullScreen = false;
+    });
     contents.on(
       "did-frame-navigate",
       (_event, url, _code, _status, _isMainFrame, processId, routingId) => {

@@ -87,6 +87,13 @@ The folder is only as good as the title, so the title is a product surface rathe
 
 Not proposed: giving the model tools to query other chats before naming. It turns a one-shot title into a session, and the cost is not worth it.
 
+Built, at both moments a model names a chat (the first message, and the first exchange settling), in `lib/chat/chat-name.ts`:
+
+- The titler sees the titles of the 20 most recently active other chats that have one, archived chats aside, newest first, and today's date beside them. Both go ahead of the message in its input, so the message is the last thing it reads and a "hey" is not taken for one more title to name.
+- A collision is what the folder layer counts as one: the same name once spelled as a folder, in any case. A title collides with every other chat's title, archived ones included, and with every folder under `Chats/` but the chat's own.
+- A colliding title is handed back once, as taken. A second answer that also collides, or fails, numbers the first one (`Weather 2`) before it is stored, so the app and the folder carry the same name (point 7 above). The current-title rule that keeps a settled name lets one go when it is taken or carries such a number.
+- `pnpm eval:chat-titles` (`evals/chat-titles.ts`) measures it against seeded chats: "What's the weather?" beside earlier weather chats gets a name none of them has, a subject nothing shares gets no date, "hey" stays unnamed, and a name handed back as taken comes back different.
+
 ## Archiving
 
 Archiving a chat moves its folder out of `Chats/`, because a person who archived something does not expect to still find it there.

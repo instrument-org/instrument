@@ -104,6 +104,28 @@ export function allowanceLabel(plan: OfferPlan) {
   return multiple <= 1 ? "Standard" : `${multiple}× Standard`;
 }
 
+/** The most segments a plan card's usage meter draws. */
+const METER_SEGMENTS_MOST = 8;
+
+/**
+ * A plan card's usage meter, against the biggest plan offered: one segment
+ * per Standard up to the biggest plan's multiple (at most eight), filled by
+ * this plan's share of it. The biggest plan fills the meter; any plan fills
+ * at least one.
+ */
+export function allowanceMeter(plan: OfferPlan, plans: readonly OfferPlan[]) {
+  const most = Math.max(
+    plan.allowance.multiple,
+    ...plans.map((other) => other.allowance.multiple),
+  );
+  const segments = Math.min(Math.max(Math.ceil(most), 1), METER_SEGMENTS_MOST);
+  const filled =
+    most > 0
+      ? Math.max(Math.round((plan.allowance.multiple / most) * segments), 1)
+      : segments;
+  return { filled, segments };
+}
+
 /**
  * A trial refused for now rather than used up: the month's trials are spent
  * (`trial-capacity`) or new ones are paused (`trial-paused`). Only a plan

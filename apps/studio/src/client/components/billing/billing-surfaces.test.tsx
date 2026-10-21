@@ -42,12 +42,14 @@ type Status = RPCOutput["billing"]["status"];
 const { mutation, platform, query, toastError } = vi.hoisted(() => {
   const answers: {
     changePlan: (input: RPCInput["billing"]["changePlan"]) => Promise<unknown>;
+    models: unknown[];
     offer: unknown;
     signedIn: boolean;
     startTrial: () => Promise<unknown>;
     status: unknown;
   } = {
     changePlan: () => Promise.resolve(null),
+    models: [],
     offer: null,
     signedIn: true,
     startTrial: () => Promise.resolve(null),
@@ -84,6 +86,17 @@ vi.mock("@/client/rpc/client", () => ({
       live: {
         hasToken: {
           experimental_liveOptions: query("hasToken", () => platform.signedIn),
+        },
+      },
+    },
+    gateway: {
+      models: {
+        live: {
+          list: {
+            experimental_liveOptions: query("models", () => ({
+              models: platform.models,
+            })),
+          },
         },
       },
     },
@@ -231,6 +244,7 @@ beforeEach(() => {
   platform.changePlan = () => Promise.resolve(null);
   platform.startTrial = () => Promise.resolve(onTrial());
   toastError.mockClear();
+  platform.models = [];
   platform.offer = OFFER;
   platform.signedIn = true;
   platform.status = null;
@@ -410,6 +424,87 @@ describe("Settings > Account", () => {
     expect(screen.queryByText("Change plan")).toBeNull();
     expect(screen.queryByText("Choose a plan")).toBeNull();
     expect(screen.queryByText("Keep my plan")).toBeNull();
+  });
+});
+
+describe("the plan cards", () => {
+  const cards = async () => {
+    platform.status = {
+      canSubscribe: true,
+      plan: "none",
+      trial: { state: "ended" },
+      windows: [],
+    } satisfies Status;
+    const { store } = renderWithProviders(<PlanSheet />);
+    act(() => {
+      store.set(planSheetAtom, {});
+    });
+    await screen.findByText("Choose a plan");
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-plan-card="pro"]')).not.toBe(null);
+    });
+    const of = (plan: string) =>
+      document.querySelector<HTMLElement>(`[data-plan-card="${plan}"]`);
+    return of;
+  };
+
+  it("fills the meter by share of the biggest plan, and tints the biggest", async () => {
+    const of = await cards();
+    expect(
+      ["basic", "pro"].map((plan) => [
+        of(plan)?.querySelector("[data-allowance]")?.textContent,
+        of(plan)
+          ?.querySelector("[data-allowance-meter]")
+          ?.getAttribute("data-allowance-meter"),
+        of(plan)?.hasAttribute("data-heaviest"),
+      ]),
+    ).toEqual([
+      ["Standard", "1/4", false],
+      ["4× Standard", "4/4", true],
+    ]);
+  });
+
+  it("lists the offer's features on each card", async () => {
+    platform.offer = {
+      ...OFFER,
+      plans: OFFER.plans.map((plan) => ({
+        ...plan,
+        features: [`${plan.name} search`, `${plan.name} images`],
+      })),
+    } satisfies Offer;
+    const of = await cards();
+    expect(
+      [...(of("pro")?.querySelectorAll("li") ?? [])].map(
+        (item) => item.textContent,
+      ),
+    ).toEqual(["Pro search", "Pro images"]);
+  });
+
+  it.each([
+    {
+      expected: 4,
+      models: [],
+      name: "the four big makers while the catalog names none",
+    },
+    {
+      expected: 2,
+      models: [
+        { maker: "anthropic", params: { provider: "instrument" } },
+        { maker: "xai", params: { provider: "instrument" } },
+        { maker: "x-ai", params: { provider: "instrument" } },
+        { maker: "openai", params: { provider: "openai" } },
+        { params: { provider: "instrument" } },
+      ],
+      name: "the makers behind Instrument's models",
+    },
+  ])("marks $name", async ({ expected, models }) => {
+    platform.models = models;
+    const of = await cards();
+    await vi.waitFor(() => {
+      expect(
+        of("basic")?.querySelector("[data-plan-makers]")?.children.length,
+      ).toBe(expected);
+    });
   });
 });
 

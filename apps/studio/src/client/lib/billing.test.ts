@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   accountNotice,
   allowanceLabel,
+  allowanceMeter,
   canStartTrial,
   checkoutTrialLine,
   describeWhen,
@@ -475,6 +476,32 @@ describe("planCardAction", () => {
       "4× Standard",
     ]);
   });
+
+  it.each([
+    { expected: [1, 4], multiples: [1, 4] },
+    { expected: [1, 2, 4], multiples: [1, 2, 4] },
+    { expected: [1], multiples: [1] },
+    { expected: [1, 8], multiples: [1, 20] },
+    { expected: [2, 3], multiples: [2, 3] },
+  ])(
+    "fills a meter of $multiples by share of the biggest",
+    ({ expected, multiples }) => {
+      const plans = multiples.map((multiple) => ({
+        allowance: { multiple, windows },
+        description: null,
+        features: [],
+        key: String(multiple),
+        name: String(multiple),
+        price: null,
+      }));
+      expect(plans.map((plan) => allowanceMeter(plan, plans))).toEqual(
+        expected.map((filled) => ({
+          filled,
+          segments: Math.min(Math.ceil(Math.max(...multiples)), 8),
+        })),
+      );
+    },
+  );
 
   it("has no plan above the biggest", () => {
     expect(upgradePlan(offer, onPlan("pro"))).toBeUndefined();

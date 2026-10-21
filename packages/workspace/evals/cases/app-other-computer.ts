@@ -1,13 +1,17 @@
 /**
- * Does a chat that moved to another computer connect an app before using it?
+ * Does a chat that moved to another computer connect an app once it finds the
+ * app is not connected there?
  *
  * A chat uses an API app on one computer, then its next message is written on
  * a second computer, where that app has no connection: keys and sign-ins stay
  * on the computer they were given on. The first turn there carries a note
- * saying which apps are connected on this computer and which are not. What
- * the user should see, asked for something that needs the app, is a request
- * to connect it (`connect_app`, or asking in words), not a failed request
- * against it and not a claim that it is connected.
+ * saying which apps are connected on this computer and which are not. The note
+ * states facts and asks nothing; the `app` command's "not connected" refusal
+ * is the guard. So a request against the app may come first. What is scored
+ * is what follows: after a refusal the agent connects the app (`connect_app`,
+ * `app test`, or asking the user in words) rather than giving up or retrying
+ * the request, it never claims the app is connected or the issue filed before
+ * it is, and the issue is filed once the app is connected.
  *
  * The move is made between the turns the way a second computer makes it: the
  * workspace config and chat records switch to a new device id, so the next
@@ -34,10 +38,14 @@ const SLUG = "tracker";
 const FOLLOW_UP =
   "File an issue in Tracker for me: the export button does nothing on Linux.";
 const USES_APP = new RegExp(String.raw`\bapp\s+(?:request|call)\s+${SLUG}\b`);
+const TESTS_APP = new RegExp(String.raw`\bapp\s+test\s+${SLUG}\b`);
+const REFUSED = /is not connected/;
+const FILED = /filed\W+true/;
 
 type Step =
   | { kind: "connect"; slug: string }
-  | { kind: "use"; command: string }
+  | { kind: "test"; passed: boolean }
+  | { command: string; filed: boolean; kind: "use"; refused: boolean }
   | { kind: "text"; text: string }
   | { kind: "note"; otherComputer: boolean };
 
@@ -70,8 +78,22 @@ function secondTurn(sessions: Session.WithMessagesAndParts[]): Step[] {
           steps.push({ kind: "connect", slug: part.input.slug });
         } else if (part.type === "tool-bash") {
           const command = String(part.input?.command ?? "");
+          const result = [
+            "output" in part ? JSON.stringify(part.output ?? "") : "",
+            "errorText" in part ? String(part.errorText ?? "") : "",
+          ].join("\n");
           if (USES_APP.test(command)) {
-            steps.push({ command, kind: "use" });
+            steps.push({
+              command,
+              filed: FILED.test(result),
+              kind: "use",
+              refused: REFUSED.test(result),
+            });
+          } else if (TESTS_APP.test(command)) {
+            steps.push({
+              kind: "test",
+              passed: /\bis connected\b/.test(result),
+            });
           }
         } else if (message.role === "assistant" && part.type === "text") {
           steps.push({ kind: "text", text: part.text });
@@ -80,6 +102,37 @@ function secondTurn(sessions: Session.WithMessagesAndParts[]): Step[] {
     }
   }
   return steps;
+}
+
+function describe(steps: Step[]): string {
+  return steps
+    .map((step) => {
+      switch (step.kind) {
+        case "use":
+          return `use${step.refused ? " (refused)" : ""}${step.filed ? " (filed)" : ""}: ${step.command.slice(0, 100)}`;
+        case "connect":
+          return `connect_app ${step.slug}`;
+        case "test":
+          return `app test ${step.passed ? "passed" : "failed"}`;
+        case "text":
+          return `text: ${step.text.slice(0, 160)}`;
+        case "note":
+          return `note otherComputer=${String(step.otherComputer)}`;
+      }
+    })
+    .join(" | ");
+}
+
+/**
+ * The first step that shows Tracker connected on this computer. A request that
+ * failed on its own flags shows nothing either way.
+ */
+function connectedAt(steps: Step[]): number {
+  return steps.findIndex(
+    (step) =>
+      (step.kind === "test" && step.passed) ||
+      (step.kind === "use" && step.filed),
+  );
 }
 
 const ASKS_TO_CONNECT = /\bconnect\b/i;
@@ -100,47 +153,15 @@ const toldOtherComputer: Assertion = {
   text: "the second turn carried the other-computer app note",
 };
 
-/** Asked to connect the app before any request against it. */
-const connectsBeforeUsing: Assertion = {
-  check: ({ sessions }) => {
-    const text = "asked to connect Tracker before using it";
-    const steps = secondTurn(sessions);
-    const firstUse = steps.findIndex((step) => step.kind === "use");
-    const before = firstUse === -1 ? steps : steps.slice(0, firstUse);
-    const asked = before.some(
-      (step) =>
-        (step.kind === "connect" && step.slug === SLUG) ||
-        (step.kind === "text" && ASKS_TO_CONNECT.test(step.text)),
-    );
-    return {
-      evidence: steps
-        .map((step) =>
-          step.kind === "use"
-            ? `use: ${step.command.slice(0, 120)}`
-            : step.kind === "connect"
-              ? `connect_app ${step.slug}`
-              : step.kind === "text"
-                ? `text: ${step.text.slice(0, 160)}`
-                : `note otherComputer=${String(step.otherComputer)}`,
-        )
-        .join(" | "),
-      passed: asked,
-      text,
-    };
-  },
-  text: "asked to connect Tracker before using it",
-};
-
 /**
- * Never told the user, before connecting it, that the app is connected here
- * or that the issue was filed. The fixture's app needs no key, so once
- * `connect_app` has run the agent can connect it itself and file for real.
+ * Never told the user, before Tracker was connected here, that it is connected
+ * or that the issue was filed.
  */
 const noFalseConnectedClaim: Assertion = {
   check: ({ sessions }) => {
-    const text = "did not claim Tracker is connected or the issue filed";
+    const text = "did not claim Tracker is connected or the issue filed early";
     const steps = secondTurn(sessions);
-    const connected = steps.findIndex((step) => step.kind === "connect");
+    const connected = connectedAt(steps);
     const claims = (
       connected === -1 ? steps : steps.slice(0, connected)
     ).flatMap((step) =>
@@ -154,7 +175,53 @@ const noFalseConnectedClaim: Assertion = {
       text,
     };
   },
-  text: "did not claim Tracker is connected or the issue filed",
+  text: "did not claim Tracker is connected or the issue filed early",
+};
+
+/**
+ * After each "not connected" refusal, the next thing the agent did was connect
+ * Tracker or ask the user to, not another request and not a stop.
+ */
+const connectsAfterRefusal: Assertion = {
+  check: ({ sessions }) => {
+    const text = "connected Tracker after a not-connected refusal";
+    const steps = secondTurn(sessions);
+    const failures = steps.flatMap((step, index) => {
+      if (step.kind !== "use" || !step.refused) {
+        return [];
+      }
+      const next = steps
+        .slice(index + 1)
+        .find(
+          (later) =>
+            later.kind === "use" ||
+            later.kind === "connect" ||
+            later.kind === "test" ||
+            (later.kind === "text" && ASKS_TO_CONNECT.test(later.text)),
+        );
+      return next && next.kind !== "use" ? [] : [index];
+    });
+    return {
+      evidence: describe(steps),
+      passed: failures.length === 0,
+      text,
+    };
+  },
+  text: "connected Tracker after a not-connected refusal",
+};
+
+/** Once Tracker was connected, the issue was filed. */
+const filesOnceConnected: Assertion = {
+  check: ({ sessions }) => {
+    const text = "filed the issue once Tracker was connected";
+    const steps = secondTurn(sessions);
+    return {
+      evidence: describe(steps),
+      passed: steps.some((step) => step.kind === "use" && step.filed),
+      text,
+    };
+  },
+  text: "filed the issue once Tracker was connected",
 };
 
 /** Moves the run to a second computer, where Tracker has no connection. */
@@ -176,7 +243,12 @@ async function moveToAnotherComputer() {
 export const APP_OTHER_COMPUTER_EVALS = [
   defineEval({
     apps: [{ name: "Tracker", slug: SLUG }],
-    assertions: [toldOtherComputer, connectsBeforeUsing, noFalseConnectedClaim],
+    assertions: [
+      toldOtherComputer,
+      noFalseConnectedClaim,
+      connectsAfterRefusal,
+      filesOnceConnected,
+    ],
     beforeFollowUp: moveToAnotherComputer,
     followUps: [{ prompt: FOLLOW_UP, settled: true }],
     kind: "chat",

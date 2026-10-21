@@ -20,7 +20,6 @@ import {
   selectAdjacent,
   selectByIndex,
   selectTab,
-  type TabsModel,
 } from "@/client/lib/tabs-model";
 import { rpcClient } from "@/client/rpc/client";
 import { outputFolderHref, useOutputFolder } from "@/client/lib/output-folder";

@@ -26,6 +26,7 @@ import { pathIsWithin } from "./path-is-within";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 import { inWorkspacePath } from "./workspace-relative-path";
 import { sanitizeFilename } from "./sanitize-filename";
+import { shellPath } from "./shell-path";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {
@@ -98,6 +99,7 @@ export async function writeUploadedAttachments({
         );
 
         fileInfos.push({
+          agentPath: shellPath(preparedFile.filePath),
           filename: preparedFile.filename,
           filePath: preparedFile.storedPath,
           mimeType: preparedFile.mimeType,

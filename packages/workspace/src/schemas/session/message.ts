@@ -341,10 +341,12 @@ export namespace SessionMessage {
   };
 
   /**
-   * Where the chat's record folder keeps what the person sent, as the agent
-   * spells it: an upload stored as `attachments/<name>` is named to the model
-   * at its full path there, since the agent's shell starts in the work
-   * folder, apart from the records.
+   * This computer's folders, for the notes on messages written before a path
+   * was kept as the shell spelled it: where the chat's record folder keeps
+   * what the person sent, as the agent spells it (an upload stored as
+   * `attachments/<name>` is named to the model at its full path there, since
+   * the agent's shell starts in the work folder, apart from the records).
+   * A message that kept its paths is rendered from them alone.
    */
   export interface ModelNoteOptions {
     attachmentsDir?: string;
@@ -603,7 +605,7 @@ const USER_TURN_NOTES = [
     const attachmentDescriptions = data.files
       .map(
         (file) =>
-          `- \`${attachmentPathForModel(file.filePath, options)}\` (${formatBytes(file.size)})`,
+          `- \`${file.agentPath ?? attachmentPathForModel(file.filePath, options)}\` (${formatBytes(file.size)})`,
       )
       .join("\n");
     return dedent`
@@ -650,7 +652,8 @@ const USER_TURN_NOTES = [
 ];
 
 /**
- * A stored attachment path as the model reads it: an upload, stored relative
+ * A stored attachment path as the model reads it, for a message written
+ * before the path was kept as the shell spelled it (`agentPath`): an upload, stored relative
  * to the chat as `attachments/<name>`, at its full path in the record folder
  * when that folder is given; a file kept by its place in the workspace, under
  * the workspace's root on this computer; a file attached where it lay in the

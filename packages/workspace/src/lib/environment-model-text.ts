@@ -83,6 +83,13 @@ export function environmentChangeModelNote(
     lines.push(
       "Paths named earlier in this conversation may belong to the computer it ran on before; check one before you rely on it.",
     );
+  } else if (VARIABLE_FOLDERS.some(([fact]) => change[fact] !== undefined)) {
+    // A file named earlier keeps the path it had when it was named, so after
+    // the workspace moves an upload or a workspace file is under the new
+    // folders rather than at that path.
+    lines.push(
+      "Paths named earlier in this conversation, such as the files the user sent, may point where these folders were before; look under the new ones instead.",
+    );
   }
   const guidance =
     change.platform === undefined

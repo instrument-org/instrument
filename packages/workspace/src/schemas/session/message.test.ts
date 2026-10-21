@@ -914,6 +914,72 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  // A file whose path was kept as the shell spelled it is named by that path
+  // alone, so the note reads the same on every computer and after a move.
+  it("names a file by the path it was sent at, whatever this computer's folders are", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+    const messages = [
+      {
+        id: StoreId.newMessageId(),
+        metadata: messageMetadata,
+        parts: [
+          { metadata: partMetadata, text: "what is this", type: "text" },
+          SessionMessagePart.coerce({
+            data: {
+              files: [
+                {
+                  agentPath:
+                    "/Users/mac-user/Instrument/Chats/Trip/attachments/a.png",
+                  filename: "a.png",
+                  filePath: "attachments/a.png",
+                  mimeType: "image/png",
+                  modifiedAt: 0,
+                  size: 10,
+                },
+                {
+                  agentPath: "/Users/mac-user/Instrument/Notes/plan.md",
+                  filename: "plan.md",
+                  filePath: "workspace:/Notes/plan.md",
+                  mimeType: "text/markdown",
+                  modifiedAt: 0,
+                  size: 10,
+                },
+              ],
+            },
+            metadata: partMetadata,
+            type: "data-attachments",
+          }),
+        ],
+        role: "user",
+      },
+    ] satisfies SessionMessage.WithParts[];
+    const render = async (options: SessionMessage.ModelNoteOptions) =>
+      JSON.stringify(
+        await SessionMessage.toModelMessages(
+          messages,
+          TOOLS_FOR_MODEL_OUTPUT,
+          options,
+        ),
+      );
+
+    const here = await render({
+      attachmentsDir:
+        "/Users/mac-user/Instrument/.instrument/chats/c/attachments",
+      workspaceRoot: "/Users/mac-user/Instrument",
+    });
+    expect(here).toContain(
+      "/Users/mac-user/Instrument/Chats/Trip/attachments/a.png",
+    );
+    expect(
+      await render({
+        attachmentsDir:
+          "/c/Users/windows-user/Instrument/.instrument/chats/c/attachments",
+        shellPath: (hostPath) => hostPath.replaceAll("\\", "/"),
+        workspaceRoot: "C:\\Users\\windows-user\\Instrument",
+      }),
+    ).toBe(here);
+  });
+
   // A file in the workspace is kept by its place there, so the note names it
   // under the root of whichever computer the chat is read on, while one kept
   // at its absolute path by an earlier build is named as it was.

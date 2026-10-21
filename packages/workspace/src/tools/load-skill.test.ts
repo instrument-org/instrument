@@ -469,7 +469,7 @@ describe("LoadSkill", () => {
     expect(notes).toMatchInlineSnapshot(`
       "This skill's folder is \`<runtime skills>/my-skill\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
 
-      This skill is provided by Instrument and is read-only. Copy it into \`<workspace skills>/\` to change it.
+      This skill is provided by Instrument and is read-only. Copy it into \`$INSTRUMENT_WORKSPACE_SKILLS/\` to change it.
 
       This skill's SKILL.md is longer than 40000 characters, so only its beginning is below. Read \`$INSTRUMENT_SKILL_DIR/SKILL.md\` for the rest before following it."
     `);
@@ -598,14 +598,14 @@ describe("LoadSkill", () => {
       {
         "external": "This skill's folder is \`/home/.claude/skills/docx\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
 
-      This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`<workspace skills>/\` to change it.
+      This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`$INSTRUMENT_WORKSPACE_SKILLS/\` to change it.
 
       Everything below is the text of the skill "docx".
 
       # Body",
         "instrument": "This skill's folder is \`/runtime/skills/docx\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
 
-      This skill is provided by Instrument and is read-only. Copy it into \`<workspace skills>/\` to change it.
+      This skill is provided by Instrument and is read-only. Copy it into \`$INSTRUMENT_WORKSPACE_SKILLS/\` to change it.
 
       Everything below is the text of the skill "docx".
 
@@ -642,7 +642,7 @@ describe("LoadSkill", () => {
     ).toMatchInlineSnapshot(`
       "This skill's folder is \`/runtime/environments/0123456789abcdef\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
 
-      This skill is provided by Instrument and is read-only. Copy it into \`<workspace skills>/\` to change it.
+      This skill is provided by Instrument and is read-only. Copy it into \`$INSTRUMENT_WORKSPACE_SKILLS/\` to change it.
 
       For an operation a script already covers, read it and run it with \`node\` (TypeScript) or \`python\` (Python) rather than rewriting it. Run a script where it is, by its full path from your work folder (e.g. \`node "$INSTRUMENT_SKILL_DIR/scripts/<script>.ts" <input> --output <job>/out\` or \`python "$INSTRUMENT_SKILL_DIR/scripts/<script>.py" <input> --output <job>/out\`); do NOT \`cd\` into the skill's folder, or your relative paths won't point into your work folder. For work the scripts don't cover -- especially content, layout, or anything generative -- write your own code against the skill's libraries (see its recipes) in your work folder instead of bending a script's flags to fit. Its files, in its folder:
 
@@ -928,7 +928,7 @@ describe("LoadSkill", () => {
     expect(value).toMatchInlineSnapshot(`
       "This skill's folder is \`/home/.claude/skills/third-party\`, which the shell names \`$INSTRUMENT_SKILL_DIR\` until you load another skill.
 
-      This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`<workspace skills>/\` to change it.
+      This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`$INSTRUMENT_WORKSPACE_SKILLS/\` to change it.
 
       This skill declares Node.js dependencies, but Instrument did not set them up because the skill comes from a third-party skills folder on this machine. Review the skill first; if you trust it, copy it into a folder in your work folder, run \`pnpm install\` there, and run the copy's scripts.
 

@@ -142,6 +142,11 @@ describe("writeUploadedAttachments", () => {
     const [attached] = await attach([file]);
 
     expect(attached?.filePath).toBe("workspace:/Notes/Trip plan.jpg");
+    // What the model is told is the path as it was when the message was
+    // written, which a later move of the workspace leaves alone.
+    expect(attached?.agentPath).toBe(
+      path.join(workspaceRoot, "Notes", "Trip plan.jpg"),
+    );
     expect(
       workspaceHostPath(attached?.filePath ?? "", "/Volumes/Other/Instrument"),
     ).toBe("/Volumes/Other/Instrument/Notes/Trip plan.jpg");

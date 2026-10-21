@@ -147,6 +147,21 @@ describe("environmentChangeModelNote", () => {
     `);
   });
 
+  it("points paths named before a workspace move at the new folders", () => {
+    expect(
+      environmentChangeModelNote({
+        outputFolder: "/Volumes/Archive/Instrument/Chats/Trip",
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      These facts about the computer changed since the system information above was written, which they supersede:
+      - The output folder (\`$INSTRUMENT_OUTPUT\`): \`/Volumes/Archive/Instrument/Chats/Trip\`
+      Paths named earlier in this conversation, such as the files the user sent, may point where these folders were before; look under the new ones instead.
+      </instrument-system-note>"
+    `);
+  });
+
   it("leaves out the warning about old paths when only the time zone moved", () => {
     expect(environmentChangeModelNote({ timeZone: "Europe/Lisbon" }))
       .toMatchInlineSnapshot(`

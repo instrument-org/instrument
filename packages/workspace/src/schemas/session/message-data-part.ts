@@ -121,6 +121,14 @@ export namespace SessionMessageDataPart {
   >;
 
   const FileAttachmentDataPartSchema = z.object({
+    /**
+     * Where the file was when the message was written, as the agent's shell
+     * spelled it then, which is what the model is told: the same words on
+     * every later request, wherever the chat is read. A file that has moved
+     * since is found from the environment notes that follow. Absent on a
+     * message written before it was kept.
+     */
+    agentPath: z.string().optional(),
     filename: z.string(),
     // A file the person attached is the file itself, so the agent reads and
     // edits what they pointed at: one in the workspace by its place there

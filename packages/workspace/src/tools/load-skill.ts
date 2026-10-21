@@ -36,7 +36,7 @@ import {
   truncateSkillContent,
 } from "../lib/skills";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { getWorkspaceSkillsDir, shellPath } from "../lib/workspace-fs-layout";
+import { shellPath } from "../lib/workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
 import { type AbsolutePath } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
@@ -233,7 +233,9 @@ export const LoadSkill = setupTool({
       fileSection = `\n\n${fileSectionText} Its files, in its folder:\n\n${fileListXml}${truncationNote}`;
     }
 
-    const workspaceSkillsPath = shellPath(getWorkspaceSkillsDir());
+    // By its variable, which the session's system information says where it
+    // points, so a stored result reads the same after the workspace moves.
+    const workspaceSkillsPath = `$${FOLDER_VARIABLES.workspaceSkills}`;
     const customizeHint = `Copy it into \`${workspaceSkillsPath}/\` to change it.`;
     const builtCopy = output.installResults?.some(
       (result) => result.runtime === "node" && result.state === "success",

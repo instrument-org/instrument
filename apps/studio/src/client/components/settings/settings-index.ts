@@ -70,7 +70,7 @@ export const SETTINGS_INDEX = [
     title: "Dictation microphone",
   },
   {
-    detail: "The language dictation listens for, or detect it.",
+    detail: "Pick the language you speak, or let dictation detect it.",
     id: "dictation-language",
     tab: "General",
     title: "Dictation language",

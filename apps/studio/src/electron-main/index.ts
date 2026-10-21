@@ -70,7 +70,10 @@ import {
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
-import { chooseLaunchDeviceId } from "./lib/launch-device-id";
+import {
+  chooseLaunchDeviceId,
+  describeLaunchDevice,
+} from "./lib/launch-device-id";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
@@ -293,6 +296,7 @@ async function bootstrapPrimaryInstance() {
   // Chosen before the workspace starts, which writes every chat record
   // under it.
   const deviceId = await timeBootStep("chooseDeviceId", chooseLaunchDeviceId);
+  void describeLaunchDevice(deviceId);
   const { actor: workspaceRef, workspaceConfig } = await timeBootStep(
     "createWorkspaceActor",
     () => createWorkspaceActor(deviceId),

@@ -131,6 +131,7 @@ export {
   type DeviceId,
   newDeviceId,
 } from "./lib/records/device-id";
+export { readComputerName, writeDeviceFile } from "./lib/records/device-file";
 export { readMachineId } from "./lib/records/machine-id";
 export {
   startRecordArrivals,

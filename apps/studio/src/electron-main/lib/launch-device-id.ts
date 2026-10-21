@@ -3,11 +3,17 @@ import {
   chooseDeviceId,
   type DeviceId,
   newDeviceId,
+  readComputerName,
   readMachineId,
+  writeDeviceFile,
 } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 
 import { logger } from "./electron-logger";
-import { workspaceMachineDir } from "./get-workspace-folder";
+import {
+  getWorkspaceFolder,
+  workspaceMachineDir,
+} from "./get-workspace-folder";
 import { openElsewhereBy } from "./workspaces";
 
 /**
@@ -52,4 +58,22 @@ export async function chooseLaunchDeviceId(
     }
   }
   return choice.deviceId;
+}
+
+/**
+ * Says in the workspace which computer this device is (`device.json` in its
+ * devices folder), so another device or a viewer of the workspace can name
+ * where a record was written. A failure is logged: records name their
+ * device either way.
+ */
+export async function describeLaunchDevice(deviceId: DeviceId): Promise<void> {
+  try {
+    await writeDeviceFile({
+      device: deviceId,
+      devicesDir: workspaceLayout(getWorkspaceFolder()).devicesDir,
+      file: { name: await readComputerName(), platform: process.platform },
+    });
+  } catch (error) {
+    logger.error(`Could not describe device ${deviceId}`, error);
+  }
 }

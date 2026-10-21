@@ -12,6 +12,11 @@ export function AppEventNote({
 }: {
   data: SessionMessageDataPart.AppEventDataPart;
 }) {
+  // A note that only told the agent this computer's connections has no
+  // event for the person to read.
+  if (data.events.length === 0) {
+    return null;
+  }
   return (
     <div className="mt-2 flex flex-col gap-1">
       {data.events.map((event) => (
@@ -26,14 +31,14 @@ export function AppEventNote({
               : event.event === "changed"
                 ? `${event.name} changed`
                 : event.event === "connected"
-              ? `${event.name} connected`
-              : event.event === "declined"
-                ? `${event.name} not connected`
-                : event.event === "disconnected"
-                  ? `${event.name} disconnected`
-                  : event.event === "removed"
-                    ? `${event.name} removed`
-                    : `${event.name} could not connect`}
+                  ? `${event.name} connected`
+                  : event.event === "declined"
+                    ? `${event.name} not connected`
+                    : event.event === "disconnected"
+                      ? `${event.name} disconnected`
+                      : event.event === "removed"
+                        ? `${event.name} removed`
+                        : `${event.name} could not connect`}
           </span>
         </p>
       ))}

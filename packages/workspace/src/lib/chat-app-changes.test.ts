@@ -12,9 +12,14 @@ import {
   appEventsBetween,
   appWakeNote,
   currentChatApps,
+  detectChatAppChanges,
 } from "./chat-app-changes";
+import { DeviceIdSchema } from "./records/device-id";
 import { ChatWrites } from "./chat-writes";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+
+const MAC = DeviceIdSchema.parse("dev_MAC00000");
+const PC = DeviceIdSchema.parse("dev_PC000000");
 
 /** A baseline that told the session of `apps`. */
 function baseline(
@@ -48,6 +53,75 @@ function baseline(
     role: "session-context",
   };
 }
+
+describe("detectChatAppChanges", () => {
+  it("tells this computer's connections whole on the first message here, then nothing", async () => {
+    const chatId = createMockChatConfig(
+      ChatIdSchema.parse("app-other-computer"),
+    );
+    const sessionId = StoreId.newSessionId();
+    await ChatWrites.saveSession(
+      { createdAt: new Date(), id: sessionId, title: "Test session" },
+      chatId,
+    );
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      apps: createMemoryAppsConfig(),
+    });
+    await writeAppFolder({
+      appsDir: getWorkspaceConfig().appsDir,
+      guide: "",
+      manifest: {
+        auth: { kind: "none" },
+        type: "mcp",
+        url: "https://mcp.example.com/mcp",
+      },
+      name: "Elsewhere",
+      slug: AppSlugSchema.parse("elsewhere"),
+    });
+    // Told on another computer, where the app is connected; not connected on
+    // this one.
+    const here = await currentChatApps();
+    const there = Object.fromEntries(
+      Object.entries(here).map(([slug, app]) => [
+        slug,
+        { ...app, connected: true, device: MAC },
+      ]),
+    );
+    await ChatWrites.saveMessageWithParts(baseline(sessionId, there), chatId);
+
+    const detect = async () =>
+      (
+        await detectChatAppChanges({
+          chatId,
+          messageId: StoreId.newMessageId(),
+          sessionId,
+        })
+      )._unsafeUnwrap();
+    const first = await detect();
+    expect(first?.type === "data-appEvent" && first.data).toMatchObject({
+      apps: { elsewhere: { connected: false } },
+      carried: true,
+      events: [],
+      otherComputer: true,
+    });
+    if (first?.type !== "data-appEvent") {
+      throw new Error("expected an app note");
+    }
+    const id = first.metadata.messageId;
+    await ChatWrites.saveMessageWithParts(
+      {
+        id,
+        metadata: { createdAt: new Date(), sessionId },
+        parts: [first],
+        role: "user",
+      },
+      chatId,
+    );
+
+    expect(await detect()).toBeUndefined();
+  });
+});
 
 describe("appWakeNote", () => {
   it("tells every change since the session was last told, beside the answer", async () => {
@@ -168,6 +242,20 @@ describe("appEventsBetween", () => {
       "nothing",
       { a: { connected: true, fingerprint: "a", name: "A" } },
       { a: { connected: true, fingerprint: "a", name: "A" } },
+      [],
+    ],
+    // Connections are each computer's own, so one computer's against
+    // another's is no change.
+    [
+      "no change of connection between two computers",
+      {
+        a: { connected: true, device: MAC, fingerprint: "a", name: "A" },
+        b: { connected: false, device: MAC, fingerprint: "b", name: "B" },
+      },
+      {
+        a: { connected: false, device: PC, fingerprint: "a", name: "A" },
+        b: { connected: true, device: PC, fingerprint: "b", name: "B" },
+      },
       [],
     ],
   ])("tells %s", (_case, before, after, expected) => {

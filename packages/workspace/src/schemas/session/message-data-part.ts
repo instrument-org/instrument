@@ -623,14 +623,20 @@ export namespace SessionMessageDataPart {
    * user message, so the agent learns without anyone typing, and it draws as
    * a product-event line in the transcript.
    */
-  export const AppEventDataPartSchema = z.object({
-    /**
-     * Carried on a message the user wrote, for changes made outside the
-     * conversation since the agent's last turn, rather than waking the chat.
-     */
-    carried: z.boolean().optional(),
-    events: z
-      .array(
+  export const AppEventDataPartSchema = z
+    .object({
+      /**
+       * Carried on a message the user wrote, for changes made outside the
+       * conversation since the agent's last turn, rather than waking the chat.
+       */
+      carried: z.boolean().optional(),
+      /**
+       * What the session was last told of the apps' connections was read on
+       * another computer, so this tells each app's connection on this one, from
+       * `apps`, as where things stand here rather than as changes.
+       */
+      otherComputer: z.literal(true).optional(),
+      events: z.array(
         z.object({
           /** The account the app is signed in as, when it is named. */
           account: z.string().optional(),
@@ -650,11 +656,13 @@ export namespace SessionMessageDataPart {
           /** For a web app, the site the work happens on. */
           web: z.string().optional(),
         }),
-      )
-      .min(1),
-    /** Every app as the chat's agent knows them once told this. */
-    apps: ToldAppsSchema,
-  });
+      ),
+      /** Every app as the chat's agent knows them once told this. */
+      apps: ToldAppsSchema,
+    })
+    .refine((data) => data.events.length > 0 || data.otherComputer === true, {
+      message: "An app note tells an event, or the apps on another computer",
+    });
 
   export type AppEventDataPart = z.output<typeof AppEventDataPartSchema>;
 

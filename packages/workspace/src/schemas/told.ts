@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { DeviceIdSchema } from "./device-id";
+
 /**
  * What a session's model was brought up to about things that change under a
  * chat: carried by the note that told it, or by the baseline for the picture
@@ -7,11 +9,22 @@ import { z } from "zod";
  * history (`lib/last-told.ts`).
  */
 
-/** The workspace's apps as a chat's agent was told of them, by id. */
+/**
+ * The workspace's apps as a chat's agent was told of them, by id. An app's
+ * folder is the workspace's, the same on every computer, but its connection
+ * is one computer's (its key or sign-in and its connection record stay
+ * there), so `connected` names the computer it was read on.
+ */
 export const ToldAppsSchema = z.record(
   z.string(),
   z.object({
     connected: z.boolean(),
+    /**
+     * The device `connected` was read on. Another device's, or none (an entry
+     * written before this was recorded), says nothing about this computer's
+     * connections, which are then told whole rather than as changes.
+     */
+    device: DeviceIdSchema.optional(),
     /** What its folder held (`folder-fingerprint.ts`). */
     fingerprint: z.string(),
     name: z.string(),

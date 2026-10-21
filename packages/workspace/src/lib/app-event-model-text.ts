@@ -8,7 +8,9 @@ import { systemNote } from "./system-note";
  * The note about an app: on its own, it wakes the chat that asked, because
  * the user finished a sign-in, saved a key, or declined, and says what to do
  * next, since nobody typed anything; carried on a message the user wrote, it
- * says what changed outside the conversation, and only that.
+ * says what changed outside the conversation, and only that. Where the
+ * session was last told another computer's connections, it also tells which
+ * apps are connected on this one, from the apps the note saved.
  */
 export function appEventModelNote(
   data: SessionMessageDataPart.AppEventDataPart,
@@ -47,15 +49,46 @@ export function appEventModelNote(
     }
   });
 
+  const said = [
+    ...(lines.length === 0
+      ? []
+      : [lines.length === 1 ? "An app changed:" : "Apps changed:", ...lines]),
+    ...(data.otherComputer ? onThisComputer(data.apps) : []),
+    data.carried
+      ? lines.length === 0
+        ? "It is only so you know: answer what the user wrote."
+        : "This changed outside the conversation since your last turn. It is only so you know: answer what the user wrote."
+      : "Nobody typed anything; this note is why you are awake. Tell the user in one line where things stand, and finish what they asked for if it was waiting on this.",
+  ];
+
   return systemNote`
-    ${data.events.length === 1 ? "An app changed:" : "Apps changed:"}
-    ${lines.join("\n")}
-    ${
-      data.carried
-        ? "This changed outside the conversation since your last turn. It is only so you know: answer what the user wrote."
-        : "Nobody typed anything; this note is why you are awake. Tell the user in one line where things stand, and finish what they asked for if it was waiting on this."
-    }
+    ${said.join("\n")}
   `;
+}
+
+/**
+ * Each app's connection on this computer, for a session last told another
+ * computer's: a key or sign-in stays on the computer it was given on.
+ */
+function onThisComputer(
+  apps: SessionMessageDataPart.AppEventDataPart["apps"],
+): string[] {
+  const named = (connected: boolean) =>
+    Object.entries(apps)
+      .filter(([, app]) => app.connected === connected)
+      .map(([slug, app]) => `${app.name} (${slug})`)
+      .join(", ");
+  const connected = named(true);
+  const not = named(false);
+  return [
+    "You were last told about apps on another computer. Each computer has its own sign-ins and keys; on this one:",
+    `- Connected: ${connected || "none"}.`,
+    ...(not
+      ? [
+          `- Not connected here: ${not}. Each needs the user to connect it on this computer (connect_app) before its tools, requests or site work.`,
+        ]
+      : []),
+  ];
 }
 
 /**

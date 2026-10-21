@@ -13,9 +13,9 @@ import { ChatReads } from "./chat-reads";
 import { baselineRecorded, partsAfter } from "./last-told";
 import { getWorkspaceConfig } from "./workspace-config";
 
-/** The workspace's apps as a chat's agent is told about them: each one's name and whether it is connected. */
+/** The workspace's apps as a chat's agent is told about them: each one's name and whether it is connected on this computer. */
 export async function currentChatApps(): Promise<ToldApps> {
-  const { apps: config, appsDir } = getWorkspaceConfig();
+  const { apps: config, appsDir, deviceId } = getWorkspaceConfig();
   const { apps } = await listApps(appsDir);
   const connections = await config.connections.list();
   return Object.fromEntries(
@@ -25,6 +25,7 @@ export async function currentChatApps(): Promise<ToldApps> {
           app.slug,
           {
             connected: isConnected(connections[app.slug], app.manifestHash),
+            device: deviceId,
             fingerprint: await folderFingerprint(app.dir),
             name: app.name,
             ...(app.manifest.type === "web" ? { web: app.manifest.url } : {}),
@@ -107,11 +108,17 @@ export function detectChatAppChanges({
       }
       const current = await currentChatApps();
       const events = appEventsBetween(told, current);
-      if (events.length === 0) {
+      const otherComputer = toldOnOtherComputer(told, current);
+      if (events.length === 0 && !otherComputer) {
         return ok(undefined);
       }
       return ok({
-        data: { apps: current, carried: true, events },
+        data: {
+          apps: current,
+          carried: true,
+          events,
+          ...(otherComputer && { otherComputer }),
+        },
         metadata: {
           createdAt: new Date(),
           id: StoreId.newPartId(),
@@ -152,8 +159,26 @@ export function appWakeNote({
           : appEventsBetween(told, current).filter(
               (event) => !answered.has(event.slug),
             );
-      return ok({ apps: current, events: [...events, ...since] });
+      const otherComputer =
+        told !== undefined && toldOnOtherComputer(told, current);
+      return ok({
+        apps: current,
+        events: [...events, ...since],
+        ...(otherComputer && { otherComputer }),
+      });
     },
+  );
+}
+
+/**
+ * Whether an app the session was told of had its connection read on another
+ * computer than the one `current` was read on, which says nothing of this
+ * computer's: the note then tells this computer's whole (`otherComputer`).
+ */
+function toldOnOtherComputer(told: ToldApps, current: ToldApps): boolean {
+  return Object.entries(current).some(
+    ([slug, now]) =>
+      told[slug] !== undefined && told[slug].device !== now.device,
   );
 }
 
@@ -163,6 +188,9 @@ export function appWakeNote({
  * disconnected, one that gained it is connected, a new one not connected yet
  * is added, and one whose folder holds something else is changed. What the
  * conversation's own turn did is told already (`appsToldByTurn`).
+ *
+ * A connection is compared only between two readings on one computer: one
+ * computer's against another's is no change at all (`toldOnOtherComputer`).
  */
 export function appEventsBetween(
   before: ToldApps,
@@ -171,9 +199,10 @@ export function appEventsBetween(
   const events: SessionMessageDataPart.AppEventDataPart["events"] = [];
   for (const [slug, was] of Object.entries(before)) {
     const now = after[slug];
+    const sameComputer = now?.device === was.device;
     if (now === undefined) {
       events.push({ event: "removed", name: was.name, slug });
-    } else if (was.connected && !now.connected) {
+    } else if (sameComputer && was.connected && !now.connected) {
       events.push({
         event: "disconnected",
         name: now.name,
@@ -182,15 +211,19 @@ export function appEventsBetween(
       });
     } else if (
       was.fingerprint !== now.fingerprint &&
-      was.connected === now.connected
+      (!sameComputer || was.connected === now.connected)
     ) {
       events.push({ event: "changed", name: now.name, slug });
     }
   }
   for (const [slug, now] of Object.entries(after)) {
-    if (!now.connected && before[slug] === undefined) {
+    const was = before[slug];
+    if (!now.connected && was === undefined) {
       events.push({ event: "added", name: now.name, slug });
-    } else if (now.connected && before[slug]?.connected !== true) {
+    } else if (
+      now.connected &&
+      (was === undefined || (was.device === now.device && !was.connected))
+    ) {
       events.push({
         event: "connected",
         name: now.name,

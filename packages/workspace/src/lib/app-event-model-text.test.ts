@@ -26,6 +26,28 @@ describe("the note an app event wakes the chat with", () => {
     `);
   });
 
+  it("tells this computer's connections to a session last told another's", () => {
+    expect(
+      appEventModelNote({
+        apps: {
+          linear: { connected: true, fingerprint: "a", name: "Linear" },
+          slack: { connected: false, fingerprint: "b", name: "Slack" },
+        },
+        carried: true,
+        events: [],
+        otherComputer: true,
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      You were last told about apps on another computer. Each computer has its own sign-ins and keys; on this one:
+      - Connected: Linear (linear).
+      - Not connected here: Slack (slack). Each needs the user to connect it on this computer (connect_app) before its tools, requests or site work.
+      It is only so you know: answer what the user wrote.
+      </instrument-system-note>"
+    `);
+  });
+
   it("says a change carried on the user's message is only for knowing", () => {
     expect(
       appEventModelNote({

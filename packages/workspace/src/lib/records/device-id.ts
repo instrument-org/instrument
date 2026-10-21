@@ -1,23 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
-import { z } from "zod";
+import { type DeviceId, DeviceIdSchema } from "../../schemas/device-id";
 
-/**
- * A device id as a pattern, for the file names that carry one: `dev_` and
- * eight characters of Crockford's base32 (digits and capitals without I, L,
- * O and U).
- */
-export const DEVICE_ID_PATTERN = "dev_[0-9A-HJKMNP-TV-Z]{8}";
-
-/**
- * One install of the app on one machine: the only writer of every log and
- * settings file whose name carries it.
- */
-export const DeviceIdSchema = z
-  .string()
-  .regex(new RegExp(`^${DEVICE_ID_PATTERN}$`))
-  .brand("DeviceId");
-
-export type DeviceId = z.output<typeof DeviceIdSchema>;
+// The schema is apart from this module's node:crypto so the renderer can read
+// a stored device id; everything that names one imports it from here.
+export {
+  DEVICE_ID_PATTERN,
+  type DeviceId,
+  DeviceIdSchema,
+} from "../../schemas/device-id";
 
 /** Crockford's base32 alphabet. */
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";

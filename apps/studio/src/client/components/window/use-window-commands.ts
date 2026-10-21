@@ -20,7 +20,7 @@ import {
 } from "@/client/lib/find-targets";
 import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
 import { runPageChord } from "@/client/lib/page-chords";
-import { isMacOS } from "@/client/lib/utils";
+import { isLinux } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { useRouter } from "@tanstack/react-router";
@@ -54,8 +54,9 @@ const MODAL_SAFE_COMMANDS = new Set([
  * swipe, a thumb button or the History menu, the tab chords (close, new,
  * reopen, next and previous, one by number), the caret into the field, a
  * screen a link from outside the app named, and a file handed to the app.
- * On a Mac the thumb buttons reach the page as mouse events, so they are
- * answered here; elsewhere they arrive through the main process. Chromium
+ * On a Mac and on Windows the thumb buttons reach the page as mouse events
+ * and never as the window's app-command, so they are answered here; on
+ * Linux they arrive through the main process. Chromium
  * walks the renderer's own history on the same mouseup unless the page
  * consumes it, and that history is not the tab's: left alone, back moved the
  * tab one step and the renderer one step, and the second undid the first.
@@ -170,7 +171,7 @@ export function useWindowCommands(
       }
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
-    if (isMacOS()) {
+    if (!isLinux()) {
       window.addEventListener("mousedown", swallow, { capture: true });
       window.addEventListener("mouseup", onMouseUp, { capture: true });
       window.addEventListener("auxclick", swallow, { capture: true });

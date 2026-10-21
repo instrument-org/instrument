@@ -3,8 +3,13 @@ import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { noteSignedOut } from "@/electron-main/lib/notices";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
+import {
+  decodeKeyFile,
+  encodeKeyFile,
+  KEY_FILE_EXTENSION,
+  KEY_STORE_NAMES,
+} from "@/electron-main/lib/key-file";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { is } from "@electron-toolkit/utils";
 import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
 import {
   AIProviderConfigIdSchema,
@@ -12,7 +17,7 @@ import {
   CHATGPT_ACCOUNT_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
-import { safeStorage, shell } from "electron";
+import { shell } from "electron";
 import Store from "electron-store";
 import {
   createHash,
@@ -330,32 +335,26 @@ function getStore(): Store<StoreShape> {
       defaults,
       deserialize: (value) => {
         try {
-          const json = is.dev
-            ? value
-            : safeStorage.decryptString(Buffer.from(value, "base64"));
-          return StoreSchema.parse(JSON.parse(json));
+          return StoreSchema.parse(JSON.parse(decodeKeyFile(value)));
         } catch (error) {
           log.error("Failed to read the ChatGPT account store", error);
           return defaults;
         }
       },
-      fileExtension: is.dev ? "json" : "json.enc",
-      name: "chatgpt-account",
+      fileExtension: KEY_FILE_EXTENSION,
+      name: KEY_STORE_NAMES.chatgptAccount,
       serialize: (value) => {
-        const json = JSON.stringify(value);
-        if (is.dev) {
-          return json;
-        }
         // Where there is no keyring to encrypt with (a Linux desktop without
         // one, or CI), nothing is written, as the session and provider stores
         // do: the store is made, and writes its defaults, on the first read at
         // boot, so throwing here kept the app from opening at all. A sign-in
         // then lasts until the app quits.
-        if (!safeStorage.isEncryptionAvailable()) {
+        const encoded = encodeKeyFile(JSON.stringify(value));
+        if (encoded === undefined) {
           log.error("Encryption is not available");
           return "";
         }
-        return safeStorage.encryptString(json).toString("base64");
+        return encoded;
       },
     });
     STORE.onDidAnyChange(() => {

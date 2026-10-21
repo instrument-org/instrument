@@ -17,7 +17,12 @@ import {
   splitPrompt,
   type StepStart,
 } from "./continuation";
-import { coldStartContent, replayFrames, splitSystemPrompt } from "./prompt";
+import {
+  coldStartContent,
+  type ReplayFrame,
+  replayFrames,
+  splitSystemPrompt,
+} from "./prompt";
 import {
   readResumeRecord,
   removeResumeRecord,
@@ -138,36 +143,47 @@ function streamStep({
       try {
         controller.enqueue({ type: "stream-start", warnings: [] });
         // A live process for this slot, or else the transcript its last one
-        // left, resumed where it stopped, or else for a task's first step,
-        // its chat's transcript forked where the task branched off.
-        const plan = await planStep(
-          {
-            live: persistent === undefined ? undefined : existing,
-            parentRecord: () =>
-              persistent === undefined || parentKey === undefined
-                ? Promise.resolve(undefined)
-                : readResumeRecord(configDir, `${parentKey}:${shapeHash}`),
-            record: () =>
-              persistent === undefined
-                ? Promise.resolve({ missing: "no process of its own" })
-                : readResumeRecord(configDir, persistent),
-          },
-          prompt,
+        // left, resumed at its last finished step, or else for a task's
+        // first step, its chat's transcript forked where the task branched
+        // off.
+        const { frames, plan } = withResumeFrames(
+          await planStep(
+            {
+              live: persistent === undefined ? undefined : existing,
+              parentRecord: () =>
+                persistent === undefined || parentKey === undefined
+                  ? Promise.resolve(undefined)
+                  : readResumeRecord(
+                      configDir,
+                      `${parentKey}:${shapeHash}`,
+                      "fork",
+                    ),
+              record: () =>
+                persistent === undefined
+                  ? Promise.resolve({ missing: "no process of its own" })
+                  : readResumeRecord(configDir, persistent),
+            },
+            prompt,
+          ),
         );
         const changedShape =
           key === undefined || persistent === undefined
             ? undefined
             : shapeChangeOf(key, shape);
-        if (persistent !== undefined) {
-          await removeResumeRecord(configDir, persistent);
-        }
-
         if (plan.kind === "cold" && persistent !== undefined) {
-          // What the live process saw is not what this request continues.
+          // What the live process saw is not what this request continues,
+          // and the slot goes on in a new transcript, which its record does
+          // not name.
           existing?.close();
+          await removeResumeRecord(configDir, persistent);
           if (key !== undefined) {
             closeOtherIdleSlots(key, persistent);
           }
+        }
+        if (plan.kind === "resume") {
+          // Its transcript goes on in a new process, cut back to its last
+          // finished step.
+          existing?.close();
         }
         const session = startOn(plan, persistent, slot, shape);
         running = session;
@@ -191,6 +207,8 @@ function streamStep({
                 `[claude-account] session ${slot} cold start (${why.tag}), ${how} replay of ${rest.length} messages: ${why.detail}`,
               );
             }
+          } else if (plan.kind === "resume") {
+            await session.replay(frames);
           } else {
             await session.continueWith(
               plan.kind === "live"
@@ -202,11 +220,18 @@ function streamStep({
         } finally {
           session.endStep();
         }
-        if (persistent !== undefined && session.transcript) {
+        // Only a finished step moves the record on: one stopped or failed
+        // leaves it naming the step before, which the next request resumes.
+        if (
+          persistent !== undefined &&
+          session.transcript &&
+          session.leaf !== undefined
+        ) {
           await writeResumeRecord(configDir, persistent, {
             awaitingToolCallIds: session.awaitingToolCallIds,
             claudeSessionId: session.transcript.claudeSessionId,
             forkPoint: session.forkPoint,
+            leaf: session.leaf,
             seen: session.seen,
           });
         }
@@ -262,9 +287,12 @@ function startOn(
       return plan.session;
     }
     case "resume": {
-      const session = open({ kind: "resume" }, plan.claudeSessionId);
+      const session = open(
+        { at: plan.at, kind: "resume" },
+        plan.claudeSessionId,
+      );
       console.info(
-        `[claude-account] session ${session.key} resumed its Claude Code transcript`,
+        `[claude-account] session ${session.key} resumed its Claude Code transcript at its last finished step, replaying ${plan.messages.length} messages after it${plan.restart === undefined ? "" : ` (its live process could not continue: ${plan.restart})`}`,
       );
       return session;
     }
@@ -278,6 +306,41 @@ function startOn(
     case "cold": {
       return open({ kind: "new" });
     }
+  }
+}
+
+/**
+ * The frames a resume replays onto its transcript, or a cold start in its
+ * place when what the request adds cannot be told as frames.
+ */
+function withResumeFrames(plan: StepStart<ClaudeCodeSession>): {
+  frames: ReplayFrame[];
+  plan: StepStart<ClaudeCodeSession>;
+} {
+  if (plan.kind !== "resume") {
+    return { frames: [], plan };
+  }
+  try {
+    return {
+      frames: replayFrames(
+        plan.messages,
+        TOOL_PREFIX,
+        plan.awaitingToolCallIds,
+      ),
+      plan,
+    };
+  } catch (error) {
+    const detail = `what follows its transcript cannot be replayed: ${String(error)}`;
+    return {
+      frames: [],
+      plan: {
+        kind: "cold",
+        why:
+          plan.restart === undefined
+            ? { detail, tag: "transcript" }
+            : { detail: `${plan.restart}; ${detail}`, tag: "restart" },
+      },
+    };
   }
 }
 

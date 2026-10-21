@@ -7,6 +7,7 @@ import {
   continuationOf,
   planStep,
   splitPrompt,
+  tailAfter,
 } from "./continuation";
 import { type ResumeRecord } from "./resume-record";
 
@@ -291,6 +292,67 @@ describe("branchOf", () => {
   });
 });
 
+describe("tailAfter", () => {
+  const chat = [system, user("one")];
+  const tail = (
+    record: ReturnType<typeof after>,
+    prompt: LanguageModelV4Message[],
+  ) => {
+    const { kept, keptPrints, transient } = splitPrompt(prompt);
+    return tailAfter(record, kept, keptPrints, transient);
+  };
+
+  it("takes everything after the record's reply, notes last", () => {
+    expect(
+      tail(after(chat), [
+        ...chat,
+        reply("a"),
+        user("two"),
+        reply("half"),
+        user("three"),
+        notice("80% of context used"),
+      ]),
+    ).toEqual({
+      kind: "tail",
+      messages: [
+        user("two"),
+        reply("half"),
+        user("three"),
+        notice("80% of context used"),
+      ],
+    });
+  });
+
+  it.each([
+    [
+      "nothing follows the reply",
+      after(chat),
+      [...chat, reply("a")],
+      "nothing follows the reply its record ends on",
+    ],
+    [
+      "a message it saw changed",
+      after(chat),
+      [system, user("edited"), reply("a"), user("two")],
+      "message 1 of 2 (user) changed since its record",
+    ],
+    [
+      "two replies follow what it saw",
+      after(chat),
+      [...chat, reply("a"), reply("b"), user("two")],
+      "the reply its record ends on is followed by another assistant message",
+    ],
+    [
+      "results answer calls its reply never made",
+      after(chat, ["t1"]),
+      [...chat, callsTool("t2"), toolResult("t2")],
+      "the reply its record ends on is followed by results of calls it did not make",
+    ],
+  ])("refuses when %s", (_, record, prompt, reason) => {
+    expect(tail(record, prompt)).toEqual({ kind: "restart", reason });
+  });
+});
+
 describe("planStep", () => {
   const chat = [system, user("one")];
   const answered = [...chat, reply("a"), user("two")];
@@ -300,6 +362,7 @@ describe("planStep", () => {
   ): ResumeRecord => ({
     ...after(prompt),
     claudeSessionId: "transcript",
+    leaf: "reply-entry",
     ...fields,
   });
   const found = (value: ResumeRecord) => () =>
@@ -307,6 +370,17 @@ describe("planStep", () => {
   const none = () => Promise.resolve({ missing: "no resume record" });
   const noParent = () => Promise.resolve(undefined);
   const refuse = () => Promise.reject(new Error("read too far"));
+  const resumed = (
+    messages: LanguageModelV4Message[],
+    fields: { awaitingToolCallIds?: string[]; restart?: string } = {},
+  ) => ({
+    at: "reply-entry",
+    awaitingToolCallIds: [],
+    claudeSessionId: "transcript",
+    kind: "resume",
+    messages,
+    ...fields,
+  });
 
   it("continues the live process without reading a record", async () => {
     const live = after(chat);
@@ -322,18 +396,22 @@ describe("planStep", () => {
     });
   });
 
-  it("starts cold, with the reason, when the live process cannot continue", async () => {
+  it("starts cold, with both reasons, when neither the live process nor its transcript can continue", async () => {
     const plan = await planStep(
       {
         live: after([system, user("edited")]),
         parentRecord: refuse,
-        record: refuse,
+        record: found(record([system, user("edited")])),
       },
       splitPrompt(answered),
     );
-    expect(plan).toMatchObject({
+    expect(plan).toEqual({
       kind: "cold",
-      why: { detail: expect.stringContaining("changed"), tag: "restart" },
+      why: {
+        detail:
+          "message 1 of 2 (user) changed since the process saw it; its transcript: message 1 of 2 (user) changed since its record",
+        tag: "restart",
+      },
     });
   });
 
@@ -343,15 +421,12 @@ describe("planStep", () => {
         { live: undefined, parentRecord: refuse, record: found(record(chat)) },
         splitPrompt(answered),
       ),
-    ).resolves.toEqual({
-      claudeSessionId: "transcript",
-      kind: "resume",
-      messages: [user("two")],
-    });
+    ).resolves.toEqual(resumed([user("two")]));
   });
 
-  it("starts cold when the transcript it would resume waited on tool results", async () => {
-    const calling = [...chat, callsTool("t1"), toolResult("t1")];
+  // A process that died waiting on our tools still left a transcript that
+  // ends on its calls, which the results can be replayed onto.
+  it("resumes a transcript that ended waiting on tool results", async () => {
     await expect(
       planStep(
         {
@@ -359,15 +434,50 @@ describe("planStep", () => {
           parentRecord: refuse,
           record: found(record(chat, { awaitingToolCallIds: ["t1"] })),
         },
-        splitPrompt(calling),
+        splitPrompt([...chat, callsTool("t1"), toolResult("t1")]),
       ),
-    ).resolves.toEqual({
-      kind: "cold",
-      why: {
-        detail: "its process ended while waiting on tool results",
-        tag: "transcript",
-      },
-    });
+    ).resolves.toEqual(
+      resumed([toolResult("t1")], { awaitingToolCallIds: ["t1"] }),
+    );
+  });
+
+  // A step stopped or failed leaves the record naming the step before it, and
+  // our record of the stopped step goes in after that step's reply.
+  it("resumes past a stopped step, replaying our record of it", async () => {
+    const stopped = [...answered, reply("half a"), user("three")];
+    await expect(
+      planStep(
+        { live: undefined, parentRecord: refuse, record: found(record(chat)) },
+        splitPrompt(stopped),
+      ),
+    ).resolves.toEqual(resumed([user("two"), reply("half a"), user("three")]));
+  });
+
+  // A turn that came from another provider or computer, which the live
+  // process cannot take as a continuation, still goes onto its transcript.
+  it("resumes the live process's transcript when the live process cannot take the request", async () => {
+    const foreign = [
+      ...answered,
+      callsTool("functions.bash:0"),
+      toolResult("functions.bash:0"),
+      reply("done"),
+      user("three"),
+    ];
+    await expect(
+      planStep(
+        {
+          live: after(chat),
+          parentRecord: refuse,
+          record: found(record(chat)),
+        },
+        splitPrompt(foreign),
+      ),
+    ).resolves.toEqual(
+      resumed(foreign.slice(3), {
+        restart:
+          "no tool results awaited, the reply is followed by user, assistant, tool, assistant, user",
+      }),
+    );
   });
 
   it("forks the parent's transcript where it branched off", async () => {

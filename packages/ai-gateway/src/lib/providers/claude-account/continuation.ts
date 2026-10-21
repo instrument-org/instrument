@@ -170,18 +170,85 @@ export function branchOf(
 }
 
 /**
+ * What a request adds past the last step a resume record names, to be
+ * replayed onto its transcript once that is cut back to the step's last
+ * entry: everything after the step's reply, whatever it is, as long as it
+ * ends on the user's side. That covers a step stopped or failed since
+ * (our record of it, partial reply and stopped calls included), tool
+ * results the record's process died waiting on, and turns another computer
+ * or provider took.
+ */
+export function tailAfter(
+  record: { awaitingToolCallIds: string[]; seen: string[] },
+  kept: LanguageModelV4Message[],
+  keptPrints: string[],
+  transient: LanguageModelV4Message[],
+): { kind: "tail"; messages: LanguageModelV4Message[] } | Restart {
+  const restart = (reason: string): Restart => ({ kind: "restart", reason });
+  const { seen } = record;
+  if (seen.length === 0) {
+    return restart("its record saw no messages");
+  }
+  const changed = seen.findIndex((print, index) => keptPrints[index] !== print);
+  if (changed !== -1) {
+    return restart(
+      `message ${changed} of ${seen.length} (${kept[changed]?.role ?? "missing"}) changed since its record`,
+    );
+  }
+  const reply = kept[seen.length];
+  if (reply?.role !== "assistant") {
+    return restart(
+      `message ${seen.length} is ${reply?.role ?? "missing"}, not the reply its record ends on`,
+    );
+  }
+  const tail = [...kept.slice(seen.length + 1), ...transient];
+  const [first] = tail;
+  const last = tail.at(-1);
+  if (first === undefined || last === undefined) {
+    return restart("nothing follows the reply its record ends on");
+  }
+  if (first.role === "assistant") {
+    return restart(
+      "the reply its record ends on is followed by another assistant message",
+    );
+  }
+  if (
+    first.role === "tool" &&
+    !first.content.every(
+      (part) =>
+        part.type !== "tool-result" ||
+        record.awaitingToolCallIds.includes(part.toolCallId),
+    )
+  ) {
+    return restart(
+      "the reply its record ends on is followed by results of calls it did not make",
+    );
+  }
+  return last.role === "assistant"
+    ? restart("the request ends on an assistant message")
+    : { kind: "tail", messages: tail };
+}
+
+/**
  * Where a step starts: on the live process, which carries on from what it
- * saw; on the transcript its last process left, resumed where it stopped; on
- * its parent's transcript, forked where it branched off; or cold, on a new
- * process given our history, with the reason a process that had seen part
- * of it could not continue.
+ * saw; on the transcript its last process left, cut back to the last entry
+ * of the step its record names, with what the request adds past that step
+ * replayed onto it; on its parent's transcript, forked where it branched
+ * off; or cold, on a new process given our history, with the reason a
+ * process that had seen part of it could not continue.
  */
 export type StepStart<Live> =
   | { continuation: Continuation; kind: "live"; session: Live }
   | {
+      /** The transcript entry the step the record names ended on. */
+      at: string;
+      /** The tool calls that step ended on, which `messages` may answer. */
+      awaitingToolCallIds: string[];
       claudeSessionId: string;
       kind: "resume";
       messages: LanguageModelV4Message[];
+      /** Why the live process, when there was one, could not continue. */
+      restart?: string;
     }
   | {
       at: string;
@@ -194,7 +261,8 @@ export type StepStart<Live> =
 /**
  * Why a step starts cold, for the log: `tag` sorts a day's cold starts by
  * cause, and `detail` says what did not line up.
- * - `restart`: the live process saw something this request does not carry on.
+ * - `restart`: the live process saw something this request does not carry on,
+ *   and its transcript cannot take what the request adds either.
  * - `transcript`: no live process, and the transcript its record names does not
  *   line up with the request.
  * - `fork`: a task with nothing of its own, whose parent's transcript it could
@@ -269,32 +337,39 @@ export async function planStep<
     kind: "cold",
     why: { detail, tag },
   });
+  let liveRestart: string | undefined;
   if (from.live) {
     const continuation = continuationOf(from.live, kept, keptPrints, transient);
-    return continuation.kind === "restart"
-      ? cold("restart", continuation.reason)
-      : { continuation, kind: "live", session: from.live };
+    if (continuation.kind !== "restart") {
+      return { continuation, kind: "live", session: from.live };
+    }
+    // The live process's transcript, cut back to its last step, may still
+    // take what the request adds since.
+    liveRestart = continuation.reason;
   }
   const read = await from.record();
   if ("record" in read) {
     const { record } = read;
-    const continuation = continuationOf(record, kept, keptPrints, transient);
-    if (continuation.kind === "restart") {
-      return cold("transcript", continuation.reason);
-    }
-    // The calls it waited on died with its process, and a resumed one has no
-    // way to take their results.
-    if (continuation.kind === "tool-results") {
-      return cold(
-        "transcript",
-        "its process ended while waiting on tool results",
-      );
+    const tail = tailAfter(record, kept, keptPrints, transient);
+    if (tail.kind === "restart") {
+      return liveRestart === undefined
+        ? cold("transcript", tail.reason)
+        : cold("restart", `${liveRestart}; its transcript: ${tail.reason}`);
     }
     return {
+      at: record.leaf,
+      awaitingToolCallIds: record.awaitingToolCallIds,
       claudeSessionId: record.claudeSessionId,
       kind: "resume",
-      messages: continuation.messages,
+      messages: tail.messages,
+      ...(liveRestart !== undefined && { restart: liveRestart }),
     };
+  }
+  if (liveRestart !== undefined) {
+    return cold(
+      "restart",
+      `${liveRestart}; its transcript has ${read.missing}`,
+    );
   }
   const parentRead = await from.parentRecord();
   if (parentRead === undefined) {

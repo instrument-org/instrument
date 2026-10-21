@@ -541,3 +541,152 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     expect(asked.text.toLowerCase()).toMatch(/stop/);
   },
 );
+
+// A step the user stops, or one that fails, ends its process with the
+// transcript past the step before it. The next request resumes that
+// transcript cut back to the last finished step, with our record of the
+// stopped step replayed after it, rather than replaying the whole chat.
+it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
+  "resumes after a step stopped mid-reply and after one that failed mid-results",
+  { timeout: 300_000 },
+  async () => {
+    const warnings: string[] = [];
+    const infos: string[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation((line) => {
+      warnings.push(String(line));
+    });
+    const info = vi.spyOn(console, "info").mockImplementation((line) => {
+      infos.push(String(line));
+    });
+    const model = createClaudeAccountLanguageModel({
+      configDir: undefined,
+      executablePath: `${homedir()}/.local/bin/claude`,
+    })(process.env.CLAUDE_PROBE_MODEL ?? "claude-haiku-5-5");
+    const tools: LanguageModelV4FunctionTool[] = [
+      {
+        description: "Add two numbers",
+        inputSchema: {
+          properties: { a: { type: "number" }, b: { type: "number" } },
+          required: ["a", "b"],
+          type: "object",
+        },
+        name: "add",
+        type: "function",
+      },
+    ];
+    const providerOptions = {
+      "claude-account": { sessionId: `live-stop-${randomUUID()}` },
+    };
+    /** One step, stopped once `stopAfter` text or tool input deltas came in. */
+    async function step(prompt: LanguageModelV4Message[], stopAfter?: number) {
+      const abort = new AbortController();
+      const { stream } = await model.doStream({
+        abortSignal: abort.signal,
+        prompt,
+        providerOptions,
+        tools,
+      });
+      let text = "";
+      let deltas = 0;
+      let failed = false;
+      const calls: { input: string; toolCallId: string }[] = [];
+      for await (const part of stream) {
+        if (part.type === "error") {
+          if (stopAfter === undefined) {
+            throw part.error;
+          }
+          failed = true;
+        }
+        if (part.type === "text-delta" || part.type === "tool-input-delta") {
+          deltas += 1;
+          text += part.type === "text-delta" ? part.delta : "";
+          if (stopAfter !== undefined && deltas >= stopAfter) {
+            abort.abort();
+          }
+        }
+        if (part.type === "tool-call") {
+          calls.push({ input: part.input, toolCallId: part.toolCallId });
+        }
+      }
+      return { calls, failed, text };
+    }
+    const user = (text: string): LanguageModelV4Message => ({
+      content: [{ text, type: "text" }],
+      role: "user",
+    });
+    const said = (text: string): LanguageModelV4Message => ({
+      content: [{ text, type: "text" }],
+      role: "assistant",
+    });
+
+    const prompt: LanguageModelV4Message[] = [
+      {
+        content: `${PROBE_MARKER} Use the add tool for all arithmetic.`,
+        role: "system",
+      },
+      user("The code word is OTTER. Reply with just OK."),
+    ];
+    prompt.push(said((await step(prompt)).text));
+
+    // Stopped while it writes, as the Stop button does: what streamed is
+    // kept on our side as the step's reply.
+    prompt.push(user("Count from 1 to 300 in English words, one per line."));
+    const stopped = await step(prompt, 25);
+    expect(stopped.failed).toBe(true);
+    prompt.push(
+      said(stopped.text),
+      user(
+        "Stop counting. In one line, without tools: the code word, and the last word you wrote before I stopped you.",
+      ),
+    );
+    const afterStop = await step(prompt);
+    prompt.push(said(afterStop.text));
+    const lastWord = stopped.text.trim().split(/\s+/).at(-1) ?? "";
+
+    // A step that fails while it takes tool results, then is retried as our
+    // loop retries it: the same request again, with nothing of the failed
+    // attempt in it.
+    prompt.push(user("Add 2 and 3 with the tool, then tell me the sum."));
+    const calling = await step(prompt);
+    const [call] = calling.calls;
+    expect(call).toBeDefined();
+    prompt.push(
+      {
+        content: [
+          {
+            input: JSON.parse(call?.input ?? "{}") as unknown,
+            toolCallId: call?.toolCallId ?? "",
+            toolName: "add",
+            type: "tool-call",
+          },
+        ],
+        role: "assistant",
+      },
+      {
+        content: [
+          {
+            output: { type: "text", value: "5" },
+            toolCallId: call?.toolCallId ?? "",
+            toolName: "add",
+            type: "tool-result",
+          },
+        ],
+        role: "tool",
+      },
+    );
+    expect((await step(prompt, 1)).failed).toBe(true);
+    const retried = await step(prompt);
+    process.stderr.write(
+      `STOP-RESUME ${JSON.stringify({ afterStop, infos, lastWord, retried, stopped, warnings })}\n`,
+    );
+    warn.mockRestore();
+    info.mockRestore();
+    closeClaudeAccountSessions();
+
+    expect(afterStop.text).toContain("OTTER");
+    expect(afterStop.text.toLowerCase()).toContain(lastWord.toLowerCase());
+    expect(retried.text).toMatch(/5/);
+    expect(warnings.filter((line) => line.includes("cold start"))).toEqual([]);
+    expect(infos.filter((line) => line.includes("resumed"))).toHaveLength(2);
+  },
+);

@@ -351,11 +351,76 @@ function essayAtMost(file: string, words: number): Assertion {
   };
 }
 
+const STOPPED_LIST_CODE_WORD = "OTTER";
+
+/**
+ * After the user stopped a reply partway, the next one still knows what was
+ * said before the stop and where the stopped reply got to: the code word
+ * from the first message and the last number the stopped reply wrote.
+ */
+const rememberedTheStoppedReply: Assertion = {
+  check: ({ sessions }) => {
+    const text =
+      "named the code word and the last number of the reply the user stopped";
+    const messages = sessions.flatMap((session) => session.messages);
+    const stopped = messages.find(
+      (message) =>
+        message.role === "assistant" &&
+        message.metadata.finishReason === "aborted",
+    );
+    const stoppedText = (stopped?.parts ?? [])
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("");
+    const lastWord = stoppedText.trim().split(/\s+/).at(-1);
+    if (stopped === undefined || !lastWord) {
+      return fail(text, "no reply was stopped partway through its text");
+    }
+    const answer = messages
+      .slice(messages.indexOf(stopped) + 1)
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : [],
+        ),
+      )
+      .join("\n");
+    const named =
+      answer.includes(STOPPED_LIST_CODE_WORD) &&
+      answer.toLowerCase().includes(lastWord.toLowerCase());
+    return named
+      ? pass(text, `stopped at "${lastWord}"; answered: ${answer}`)
+      : fail(text, `stopped at "${lastWord}"; answered: ${answer}`);
+  },
+  text: "named the code word and the last number of the reply the user stopped",
+};
+
 // ---------------------------------------------------------------------------
 // Cases
 // ---------------------------------------------------------------------------
 
 export const CHAT_EVALS = [
+  defineEval({
+    // The user presses Stop while a long reply streams, then asks about it.
+    // What the stopped reply had written is the chat's record of it, and a
+    // model that keeps its own copy of the conversation (a Claude account's
+    // Claude Code) has to carry on from that, not from a replay. The first
+    // turn finishes, so the stopped one has a finished step to go on from.
+    assertions: [rememberedTheStoppedReply],
+    followUps: [
+      "Without using any tool, write out the numbers from one to four hundred in English words, one per line, and nothing else.",
+      // Long enough for the reply to be writing its list.
+      { afterMs: 4000, stopChat: true },
+      {
+        prompt:
+          "Stop there. Without any tool and without going on with the list, tell me in one line the code word and the last number you wrote.",
+        settled: true,
+      },
+    ],
+    kind: "chat",
+    name: "chat-stopped-reply-then-ask",
+    prompt: `The code word is ${STOPPED_LIST_CODE_WORD}. Reply with just OK.`,
+  }),
+
   defineEval({
     assertions: [wroteIntoTheInstrumentFolder, linkedAFileThatExists],
     kind: "chat",

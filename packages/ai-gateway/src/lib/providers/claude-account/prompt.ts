@@ -155,10 +155,15 @@ function claudeToolId(id: string) {
  * Reasoning is kept when Claude signed it; reasoning from anyone else is
  * left out. Throws when the history cannot be told this way (it does not
  * end on the user's side), so the caller can fall back to `coldStartContent`.
+ *
+ * `answering` names tool calls the transcript these frames go onto ended
+ * on, for messages that carry on a resumed transcript: their results are
+ * replayed like those of a call in `messages`.
  */
 export function replayFrames(
   messages: LanguageModelV4Message[],
   toolPrefix: string,
+  answering: string[] = [],
 ): ReplayFrame[] {
   const frames: ReplayFrame[] = [];
   const userSide = (blocks: ContentBlockParam[]) => {
@@ -173,7 +178,7 @@ export function replayFrames(
     }
   };
   // Calls a replayed assistant message made, until a result answers each.
-  let unanswered: string[] = [];
+  let unanswered: string[] = [...answering];
   const answerUnanswered = () => {
     // An interrupted call has no result, which Claude refuses to read past.
     userSide(

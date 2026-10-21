@@ -103,6 +103,13 @@ export class ClaudeCodeSession implements MessageSource {
   forkPoint: string | undefined;
 
   /**
+   * The transcript entry this step's reply ends on so far: the last of the
+   * assistant entries Claude Code reported, which a later resume cuts the
+   * transcript back to.
+   */
+  leaf: string | undefined;
+
+  /**
    * @param transcript The Claude Code session this process writes, under
    * its own id, and how it begins: new, resumed where it stopped, or forked
    * from another session's transcript at one of its entries. None for a
@@ -222,6 +229,7 @@ export class ClaudeCodeSession implements MessageSource {
     this.busy = true;
     this.awaitingToolCallIds = [];
     this.forkPoint = undefined;
+    this.leaf = undefined;
     this.seen = seen;
     this.touch();
   }
@@ -400,7 +408,7 @@ export class ClaudeCodeSession implements MessageSource {
 export type TranscriptStart =
   | { kind: "fork"; at: string; from: string }
   | { kind: "new" }
-  | { kind: "resume" };
+  | { at: string; kind: "resume" };
 
 function transcriptOptions(transcript: ClaudeCodeSession["transcript"]) {
   if (transcript === undefined) {
@@ -411,7 +419,10 @@ function transcriptOptions(transcript: ClaudeCodeSession["transcript"]) {
     case "new":
       return { sessionId: claudeSessionId };
     case "resume":
-      return { resume: claudeSessionId };
+      return {
+        resume: claudeSessionId,
+        resumeSessionAt: start.at,
+      };
     case "fork":
       return {
         forkSession: true,

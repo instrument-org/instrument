@@ -637,7 +637,7 @@ it.skipIf(!live)(
       );
 
       // Back on Mac A, whose resume record and transcript stop before B's
-      // turn: resuming them would lose it.
+      // turn, which is replayed onto them.
       closeClaudeAccountSessions();
       await state.leave("mac-b");
       await state.arrive("mac-a");
@@ -647,7 +647,7 @@ it.skipIf(!live)(
         "back on A",
         backOnA,
         VIEWS.f.color.test(backOnA.text),
-        /cold start \(transcript\), native replay/,
+        /resumed its Claude Code transcript/,
       );
 
       // While A's process still runs, a turn arrives from another Mac whose
@@ -701,7 +701,7 @@ it.skipIf(!live)(
         foreign,
         foreign.text.includes(VIEWS.g.badge) &&
           VIEWS.g.color.test(foreign.text),
-        /cold start \(restart\), native replay/,
+        /resumed its Claude Code transcript .*its live process could not continue/,
       );
 
       // The chat's model changes while its process runs.
@@ -751,7 +751,7 @@ it.skipIf(!live)(
         midLoop,
         midLoop.text.includes(VIEWS.d.badge) &&
           VIEWS.d.color.test(midLoop.text),
-        /native replay/,
+        /resumed its Claude Code transcript/,
       );
 
       // A task forked from the chat's step that started it: that step's

@@ -17,6 +17,7 @@ export type StepSession = Pick<
   | "awaitingToolCallIds"
   | "builtInTools"
   | "forkPoint"
+  | "leaf"
   | "messages"
   | "rateLimit"
   | "stderr"
@@ -80,6 +81,10 @@ export async function pumpStep(
     switch (message.type) {
       case "assistant": {
         replying = true;
+        // One entry per content block; a subagent's go elsewhere.
+        if (message.parent_tool_use_id === null) {
+          session.leaf = message.uuid;
+        }
         if (message.error && message.error !== "max_output_tokens") {
           throw planError(
             message.error,

@@ -9,6 +9,9 @@ import { SetupHost } from "./setup-host";
 
 // Setup's toaster reads the theme, which is not under test.
 vi.mock("@/client/components/ui/sonner", () => ({ Toaster: () => null }));
+vi.mock("@/client/components/network-status/network-status-pill", () => ({
+  SetupNetworkStatusPill: () => null,
+}));
 
 const rpc = vi.hoisted(() => ({ answer: vi.fn(), finish: vi.fn() }));
 

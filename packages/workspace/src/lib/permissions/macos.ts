@@ -133,7 +133,7 @@ export function watchForMacosAsking(asker: Asker, root: string): () => void {
   // the watch sets the app's own.
   void DefenseInDepthBox.runTrustedAsync(() =>
     watchMacosPrompt(pending, async () => {
-      await recordAsk(asker, "folder", root, {
+      await recordAsk({ ...asker, waits: true }, "folder", root, {
         allowed: "allowed",
         status: "macos-asking",
       });

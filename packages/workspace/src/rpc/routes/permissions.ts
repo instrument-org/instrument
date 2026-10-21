@@ -363,9 +363,7 @@ const retry = base
         message: "That request isn't waiting on the system.",
       });
     }
-    await settle(input.id, ask, ask.allowed, context.workspaceRef, {
-      wakesOnlyIfPrompted: ask.status === "macos-asking",
-    });
+    await settle(input.id, ask, ask.allowed, context.workspaceRef);
   });
 
 /**
@@ -496,35 +494,32 @@ const settling = new Map<string, Promise<void>>();
  * up, and the card says macOS is asking meanwhile. One macOS refuses stays
  * open, keeping the yes. Off macOS nothing is asked.
  *
- * `wakesOnlyIfPrompted` is for a card a command raised while macOS asked,
- * which nobody answered in the app: it wakes the askers only when the look
- * itself waited on macOS's prompt, so the person's answer there is what let
- * the app in. One whose look got in without it goes quietly, since the
- * command it stood for carries on by itself.
+ * An asker whose own command waits on the folder (`waits`) is never woken:
+ * the command carries on by itself once macOS answers, and wakes its
+ * session when it ends. So a card a command raised goes quietly when its
+ * look gets in, whatever was on screen meanwhile.
  */
 function settle(
   chatId: ChatId,
   ask: PermissionAsk,
   decision: "allowed" | "always",
   workspaceRef: WorkspaceActorRef,
-  { wakesOnlyIfPrompted = false }: { wakesOnlyIfPrompted?: boolean } = {},
 ): Promise<void> {
   const running = settling.get(ask.id);
   if (running) {
     return running;
   }
   const settled = (async () => {
-    let prompted = false;
-    const kept = await macosKeepsOut(ask, async () => {
-      prompted = true;
-      await setMacosStatus(chatId, ask.id, "macos-asking", decision);
-    });
+    const kept = await macosKeepsOut(ask, () =>
+      setMacosStatus(chatId, ask.id, "macos-asking", decision),
+    );
     if (kept !== undefined) {
       await setMacosStatus(chatId, ask.id, kept, decision);
       return;
     }
     const closed = await closeAsk(chatId, ask.id);
-    if (!closed || (wakesOnlyIfPrompted && !prompted)) {
+    const woken = closed?.askers.filter((asker) => asker.waits !== true);
+    if (!woken?.length) {
       return;
     }
     await wakeAskers(
@@ -541,7 +536,7 @@ function settle(
       },
       workspaceRef,
       chatId,
-      closed.askers.map((asker) => asker.sessionId),
+      woken.map((asker) => asker.sessionId),
     );
   })().finally(() => {
     settling.delete(ask.id);

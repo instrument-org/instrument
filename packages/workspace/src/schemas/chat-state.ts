@@ -40,6 +40,12 @@ const AskerSchema = z.object({
   /** What the session said it needs the folder or app for, for the card. */
   reason: z.string().optional(),
   sessionId: StoreId.SessionSchema,
+  /**
+   * A command of the session's waits on what the card is about and carries
+   * on by itself once it settles, waking the session as any command that
+   * outlived its turn does, so the card's answer wakes it no more.
+   */
+  waits: z.literal(true).optional(),
 });
 
 /**

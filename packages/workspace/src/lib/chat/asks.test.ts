@@ -74,6 +74,41 @@ it("asks once per folder, and a second session joins the card", async () => {
   expect(await openAsks(chatId)).toEqual([]);
 });
 
+it("stops counting a session as waiting once it asks with a call that ends its turn", async () => {
+  const chatId = createMockChatConfig(ChatIdSchema.parse("asks-waits-test"));
+  const own = StoreId.newSessionId();
+  const target = path.join(os.homedir(), "Downloads");
+  const macos = { allowed: "allowed", status: "macos-asking" } as const;
+  await recordAsk(
+    { chatId, sessionId: own, waits: true },
+    "folder",
+    target,
+    macos,
+  );
+  expect((await openAsks(chatId))[0]?.askers).toEqual([
+    { sessionId: own, waits: true },
+  ]);
+  // Its command's watch again: still waiting.
+  await recordAsk(
+    { chatId, sessionId: own, waits: true },
+    "folder",
+    target,
+    macos,
+  );
+  expect((await openAsks(chatId))[0]?.askers).toEqual([
+    { sessionId: own, waits: true },
+  ]);
+  await recordAsk(
+    { chatId, reason: "To list it.", sessionId: own },
+    "folder",
+    target,
+    macos,
+  );
+  expect((await openAsks(chatId))[0]?.askers).toEqual([
+    { reason: "To list it.", sessionId: own },
+  ]);
+});
+
 it("never asks for the home folder whole", () => {
   const home = os.homedir();
   const refusal = ruleRefusal({

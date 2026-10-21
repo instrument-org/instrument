@@ -16,6 +16,8 @@ export interface Asker {
   /** The call that asked, by its part's id. */
   partId?: StoreId.Part;
   sessionId: StoreId.Session;
+  /** The session's command waits on what the card is about itself (`waits` on the card's asker). */
+  waits?: true;
 }
 
 /**
@@ -41,6 +43,7 @@ export async function recordAsk(
     ...(asker.partId && { partId: asker.partId }),
     ...(asker.reason && { reason: asker.reason }),
     sessionId: asker.sessionId,
+    ...(asker.waits && { waits: true as const }),
   };
   let id = ulid();
   await updateChatState(chatDir(asker.chatId), (state) => {
@@ -63,8 +66,11 @@ export async function recordAsk(
       };
     }
     id = open.id;
-    const joins = !open.askers.some((on) => on.sessionId === asker.sessionId);
-    if (!joins && macos === undefined) {
+    const on = open.askers.find((one) => one.sessionId === asker.sessionId);
+    // A session already on the card whose command waited on it, asking now
+    // with a call that ends its turn, is woken by the answer from now on.
+    const stopsWaiting = on?.waits === true && asker.waits !== true;
+    if (on !== undefined && !stopsWaiting && macos === undefined) {
       return {};
     }
     return {
@@ -73,7 +79,12 @@ export async function recordAsk(
           ? {
               ...ask,
               ...macos,
-              askers: joins ? [...ask.askers, joining] : ask.askers,
+              askers:
+                on === undefined
+                  ? [...ask.askers, joining]
+                  : stopsWaiting
+                    ? ask.askers.map((one) => (one === on ? joining : one))
+                    : ask.askers,
             }
           : ask,
       ),

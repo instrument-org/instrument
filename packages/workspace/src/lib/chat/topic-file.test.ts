@@ -13,7 +13,7 @@ const AT = new Date("2026-10-16T18:04:11.231Z");
 const KITCHEN: TopicFile = {
   about: "Kitchen plans and appliances",
   color: "amber",
-  created: new Date(2026, 8, 2, 9, 14, 0),
+  created: new Date("2026-09-02T09:14:00Z"),
   emoji: "🍳",
   id: "top_01K8ZQ2N4C",
   instructions:
@@ -28,7 +28,7 @@ describe("renderTopicFile", () => {
       emoji: 🍳
       color: amber
       about: Kitchen plans and appliances
-      created: 2026-09-02 09:14:00
+      created: 2026-09-02T09:14:00Z
       ---
 
       The standing instructions every chat under this topic is read with.
@@ -41,7 +41,7 @@ describe("renderTopicFile", () => {
       .toMatchInlineSnapshot(`
         "---
         id: top_1
-        created: 2026-09-02 09:14:00
+        created: 2026-09-02T09:14:00Z
         ---
         "
       `);

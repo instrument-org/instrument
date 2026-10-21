@@ -1,7 +1,7 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
 
-import { localStamp } from "../local-stamp";
+import { utcStamp } from "../utc-stamp";
 import { isRecord, splitFrontmatter } from "../skills";
 
 /**
@@ -161,7 +161,7 @@ export function renderTopicFile(topic: TopicFile): string {
   if (topic.about !== undefined) {
     front.about = topic.about;
   }
-  front.created = localStamp(topic.created);
+  front.created = utcStamp(topic.created);
   // Only when true: a topic in the menus says so by having no such line.
   if (topic.retired === true) {
     front.retired = true;

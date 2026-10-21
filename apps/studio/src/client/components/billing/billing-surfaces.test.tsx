@@ -83,6 +83,10 @@ vi.mock("@/client/lib/toast", async (importOriginal) => ({
 
 // The other ways in, as the plan step opens them: the page it starts on,
 // and a way that connects.
+// Setup's state says the plan is known, so the plan step draws its cards.
+vi.mock("@/client/components/setup/use-setup-state", () => ({
+  useSetupState: () => null,
+}));
 vi.mock("../setup/steps/ways-in", () => ({
   WaysIn: ({
     initial,

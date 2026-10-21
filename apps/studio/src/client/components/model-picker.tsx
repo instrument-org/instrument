@@ -407,7 +407,11 @@ function PickerPanel({
     notice?.tone === "offer" && notice.action?.kind === "switch"
       ? notice.action
       : undefined;
-  const autoRow = !searching && rows[0]?.type === "auto" ? rows[0] : undefined;
+  // Auto alone is the answer rather than a list of one.
+  const autoOnly =
+    !searching && rows.length === 1 && rows[0]?.type === "auto"
+      ? rows[0]
+      : undefined;
 
   return (
     <Command
@@ -532,33 +536,23 @@ function PickerPanel({
                 {!searching && opened?.provider === OUR_MODELS.providerType && (
                   <PlanNeeded />
                 )}
-                {/* Auto leads its connection's list, set apart from the
-                    models under it rather than being the first of them. */}
-                {autoRow && rows.length === 1 ? (
+                {autoOnly ? (
                   <AutoOnly
-                    chosen={selectedModel?.uri === autoRow.model.uri}
-                    model={autoRow.model}
+                    chosen={selectedModel?.uri === autoOnly.model.uri}
+                    model={autoOnly.model}
                     onPick={onPick}
                   />
-                ) : autoRow ? (
-                  <AutoRow
-                    chosen={selectedModel?.uri === autoRow.model.uri}
-                    model={autoRow.model}
+                ) : (
+                  <VirtualRows
+                    offer={offer}
+                    onAction={onAction}
                     onPick={onPick}
+                    onShowAll={setShowAll}
+                    rows={rows}
+                    scrollRef={scrollRef}
+                    selectedModel={selectedModel}
                   />
-                ) : null}
-                {autoRow && rows.length > 1 && (
-                  <div className="mx-2.5 my-2 h-px bg-border" />
                 )}
-                <VirtualRows
-                  offer={offer}
-                  onAction={onAction}
-                  onPick={onPick}
-                  onShowAll={setShowAll}
-                  rows={autoRow ? rows.slice(1) : rows}
-                  scrollRef={scrollRef}
-                  selectedModel={selectedModel}
-                />
               </>
             )}
           </CommandList>
@@ -582,7 +576,7 @@ function VirtualRows({
   onPick: (model: AIGatewayModel.Type) => void;
   onShowAll: (showAll: boolean) => void;
   rows: PickerRow[];
-  /** The list's scroll, which also holds the notice and Auto above the rows. */
+  /** The list's scroll, which also holds the notice above the rows. */
   scrollRef: RefObject<HTMLDivElement | null>;
   selectedModel?: AIGatewayModel.Type;
 }) {
@@ -590,7 +584,7 @@ function VirtualRows({
   const [scrollMargin, setScrollMargin] = useState(0);
 
   // Where the rows start within the scroll, read after every render: what
-  // moves them is the notice or Auto above them coming and going, and
+  // moves them is the notice above them coming and going, and
   // each of those is already a render of this component. The equality guard
   // keeps a position that has not moved from writing anything.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -732,9 +726,9 @@ function VirtualRows({
 }
 
 /**
- * Auto, the way Instrument is meant to be used: one line like every model
- * row, so it reads as one of the options, set apart by the recommendation in
- * the brand color after its name and the rule under it.
+ * Auto, the way Instrument is meant to be used: a row like every model's,
+ * first in its connection's list, set apart only by the recommendation in
+ * the brand color after its name.
  */
 function AutoRow({
   chosen,
@@ -745,7 +739,7 @@ function AutoRow({
   model: AIGatewayModel.Type;
   onPick: (model: AIGatewayModel.Type) => void;
 }) {
-  const note = useAutoNote(model);
+  const { note } = model;
   return (
     <CommandItem
       data-chosen={chosen || undefined}

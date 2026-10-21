@@ -19,6 +19,7 @@ const NEW: SetupFacts = {
   hasInstrumentAccount: false,
   hasInstrumentPlan: false,
   hasUsableAI: false,
+  isCheckingPlan: false,
   notificationsAskable: true,
   usedBefore: false,
 };
@@ -363,6 +364,7 @@ describe("setupStateFrom", () => {
           "hasInstrumentAccount": false,
           "hasInstrumentPlan": false,
           "hasUsableAI": false,
+          "isCheckingPlan": false,
           "notificationsAskable": true,
           "usedBefore": false,
         },

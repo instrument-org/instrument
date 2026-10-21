@@ -56,6 +56,15 @@ const MachineStateSchema = z.object({
    * run setup again.
    */
   setup: SetupRecordSchema.catch({ answered: {} }),
+  /**
+   * Where setup's window was when the app last quit with setup up, so a
+   * restart setup makes (the folder step's) opens it there again rather than
+   * centered on the pointer's display. Forgotten once setup is done.
+   */
+  setupWindowAt: z
+    .object({ x: z.number(), y: z.number() })
+    .optional()
+    .catch(undefined),
 });
 
 type MachineState = z.output<typeof MachineStateSchema>;

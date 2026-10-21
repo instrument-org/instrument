@@ -38,6 +38,11 @@ export interface SetupFacts {
    * plan step has nothing to ask. False while the status is unknown.
    */
   hasInstrumentPlan: boolean;
+  /**
+   * Signed in to Instrument and the billing status not yet read for that
+   * sign-in, so whether the plan step asks anything isn't known yet.
+   */
+  isCheckingPlan: boolean;
   /** The workspace has chats. */
   usedBefore: boolean;
   /**

@@ -16,6 +16,9 @@ import { count, folderAction, type FoundNote, foundNote } from "./folder-flow";
 import { type SetupPageProps } from "./setup-page-props";
 import { useSetupState } from "./use-setup-state";
 
+/** How long the page saying the app restarts shows before the restart. */
+const RESTART_NOTICE_MS = 3000;
+
 /** A note under the folder, for the folder it was found in. */
 type Note = FoundNote | { kind: "denied" } | { kind: "unfinished" };
 
@@ -92,6 +95,10 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   ) => {
     hold();
     setMoving(how.type);
+    // The restart is said long enough to read before it happens.
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, RESTART_NOTICE_MS);
+    });
     try {
       if (how.type === "open") {
         const opened = await rpcClient.workspaces.open.call({ path });

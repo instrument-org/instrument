@@ -66,40 +66,6 @@ function clean(): string[] {
   });
 }
 
-describe("the browser homes kept per chat", () => {
-  const home = () => path.join(machineDir(), "browser", "agent-browser-home");
-
-  function seed() {
-    write(path.join(home(), "cha_one", "config.json"), "{}");
-    write(path.join(home(), "cha_one", "instrument-provider.mjs"), "plugin");
-    write(path.join(home(), "cha_two", "config.json"), "{}");
-    write(path.join(home(), "config.json"), "{}");
-  }
-
-  it("removes every folder below the one home the workspace now shares", () => {
-    seed();
-
-    const done = clean();
-
-    expect(tree(home())).toEqual(["config.json"]);
-    expect(done).toContain(
-      `removed 2 browser homes kept per chat in ${home()}`,
-    );
-  });
-
-  it("has nothing left to say on the boot after", () => {
-    seed();
-    clean();
-
-    expect(clean()).toEqual([]);
-    expect(tree(home())).toEqual(["config.json"]);
-  });
-
-  it("says nothing on an install that never had one", () => {
-    expect(clean()).toEqual([]);
-  });
-});
-
 describe("the files no build reads any more", () => {
   const dataDir = () =>
     path.join(defaultWorkspacePath(userDataDir), ".instrument");

@@ -3,7 +3,6 @@ import {
   WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
 import {
-  BROWSER_FOLDER_NAMES,
   CHAT_FOLDER_NAMES,
   entryExists,
   moveEntrySync,
@@ -85,12 +84,6 @@ function steps(where: {
   workspace: ResolvedWorkspace;
 }): [what: string, step: (done: string[]) => void][] {
   return [
-    [
-      "remove the browser homes kept per chat",
-      (done) => {
-        removePerChatBrowserHomes(where.machineDir, done);
-      },
-    ],
     [
       "take in the Claude sign-in kept at the top of this computer's data",
       (done) => {
@@ -400,43 +393,4 @@ function takeInClaudeAccount(
   fs.mkdirSync(machineDir, { recursive: true });
   moveEntrySync(from, to);
   done.push(`moved the Claude sign-in from ${from} to ${to}`);
-}
-
-/**
- * The folder `agent-browser` ran with under `$HOME`, which was one per chat
- * and is now one for the workspace. Every copy held the same empty
- * `config.json` and the same provider plugin, both written again on each
- * invocation, so there is nothing in one to keep: the folders below the
- * shared home go, and what the shared home itself holds stays.
- */
-function removePerChatBrowserHomes(machineDir: string, done: string[]) {
-  const home = path.join(
-    machineDir,
-    WORKSPACE_MACHINE_ENTRIES.browser,
-    BROWSER_FOLDER_NAMES.agentHome,
-  );
-  if (!entryExists(home)) {
-    return;
-  }
-  let entries: fs.Dirent[];
-  try {
-    entries = fs.readdirSync(home, { withFileTypes: true });
-  } catch {
-    // No folder to read, or no reading it: the next boot tries again.
-    return;
-  }
-  let removed = 0;
-  for (const entry of entries) {
-    // A link is not a copy this made, so it stays as it is.
-    if (!entry.isDirectory()) {
-      continue;
-    }
-    fs.rmSync(path.join(home, entry.name), { force: true, recursive: true });
-    removed += 1;
-  }
-  if (removed > 0) {
-    done.push(
-      `removed ${removed.toString()} browser home${removed === 1 ? "" : "s"} kept per chat in ${home}`,
-    );
-  }
 }

@@ -116,13 +116,6 @@ export const WORKSPACE_FORMAT_VERSION = 2;
  * workspace keeps its name.
  */
 export const WorkspaceIdentitySchema = z.object({
-  /**
-   * Set on Windows once the launch has taken the hidden attribute off
-   * `.instrument`, which an earlier build put there and which kept OneDrive
-   * from syncing it. Only Windows writes it, so a folder that reaches a
-   * Windows computer for the first time is still cleared there.
-   */
-  appFolderUnhidden: z.boolean().optional().catch(undefined),
   color: WorkspaceColorSchema.catch("gray"),
   createdBy: WorkspaceCreatorSchema.catch({ kind: "person" }),
   /** Set once every chat in the workspace is on its records rather than a `chat.db`. */

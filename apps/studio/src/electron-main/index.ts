@@ -43,9 +43,13 @@ import {
   DEV_INSTANCE_COLORS,
   isDevInstanceColor,
 } from "@/shared/dev-instance-colors";
-import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
-import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  APP_FLAVOR,
+  APP_PROTOCOL,
+  instrumentLinkOf,
+} from "@instrument-org/shared";
 import {
   BrowserWindow,
   app,

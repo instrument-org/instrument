@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { settingsTargetOf } from "@/client/components/settings/settings-index";
-import { instrumentLinkOf } from "@/shared/instrument-link";
+import { instrumentLinkOf } from "@instrument-org/shared";
 import { isScreenName } from "@/shared/instrument-screens";
 
 import { productGuideReference } from "./product-guide";

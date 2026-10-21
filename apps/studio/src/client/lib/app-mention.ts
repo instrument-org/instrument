@@ -1,5 +1,4 @@
-import { instrumentLinkOf } from "@/shared/instrument-link";
-import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { APP_NAME_SLUG, instrumentLinkOf } from "@instrument-org/shared";
 
 /** An app named in a prompt: what it is called, and the slug its address carries. */
 export interface AppMention {

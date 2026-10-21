@@ -1,5 +1,5 @@
 import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
-import { instrumentLinkOf } from "@/shared/instrument-link";
+import { instrumentLinkOf } from "@instrument-org/shared";
 
 /**
  * Where a link's address leads, read the way the window opens things:

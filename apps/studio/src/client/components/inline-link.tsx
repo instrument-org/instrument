@@ -13,10 +13,7 @@ import {
 } from "@/client/lib/link-target";
 import { cn } from "@/client/lib/utils";
 import { settingsPathOf } from "@/client/components/settings/settings-index";
-import {
-  type InstrumentLink,
-  instrumentLinkOf,
-} from "@/shared/instrument-link";
+import { type InstrumentLink, instrumentLinkOf } from "@instrument-org/shared";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CubeIcon } from "@phosphor-icons/react/Cube";

@@ -1,7 +1,7 @@
 import {
-  APP_NAME_SLUG,
-  APP_PROTOCOL,
   filePathOfInstrumentLink,
+  instrumentLinkOf,
+  isInstrumentAddress,
 } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -35,30 +35,6 @@ const markdown = unified().use(remarkParse).use(remarkGfm);
 type MarkdownNode =
   | ReturnType<typeof markdown.parse>
   | ReturnType<typeof markdown.parse>["children"][number];
-
-const SCHEMES = new Set([`${APP_NAME_SLUG}:`, `${APP_PROTOCOL}:`]);
-
-/**
- * The nouns the window opens an address for, as its link reader knows them
- * (`instrumentLinkOf` in Studio), each by the noun this checks it as.
- * `thread` is what older replies called a chat.
- */
-const NOUNS = {
-  app: "app",
-  chat: "chat",
-  memory: "memory",
-  screen: "screen",
-  settings: "settings",
-  skill: "skill",
-  task: "task",
-  thread: "chat",
-} as const;
-
-const isNoun = (noun: string): noun is keyof typeof NOUNS =>
-  Object.hasOwn(NOUNS, noun);
-
-/** A name the window takes in an address: one segment of these characters. */
-const NAME = /^[\w.:-]+$/u;
 
 /**
  * Every link in a reply that would open nothing: a files fence line or a
@@ -158,21 +134,14 @@ function readTarget(
   | { opens: "file"; path: string }
   | { opens: "nothing" } {
   const parsed = URL.canParse(href) ? new URL(href) : undefined;
-  if (parsed && SCHEMES.has(parsed.protocol)) {
-    const noun = parsed.host.toLowerCase();
-    if (noun === "file") {
-      const filePath = filePathOfInstrumentLink(href);
-      return filePath === undefined
-        ? { opens: "nothing" }
-        : { opens: "file", path: filePath };
+  if (isInstrumentAddress(href)) {
+    const filePath = filePathOfInstrumentLink(href);
+    if (filePath !== undefined) {
+      return { opens: "file", path: filePath };
     }
-    const segments = parsed.pathname.split("/").filter(Boolean);
-    const name = segments[0] === undefined ? undefined : decoded(segments[0]);
-    return isNoun(noun) &&
-      segments.length === 1 &&
-      name !== undefined &&
-      NAME.test(name)
-      ? { name, noun: NOUNS[noun], opens: "address" }
+    const link = instrumentLinkOf(href);
+    return link
+      ? { name: link.name, noun: link.kind, opens: "address" }
       : { opens: "nothing" };
   }
   if (isChatFileHref(href)) {
@@ -252,8 +221,7 @@ async function missingThing({
         ? undefined
         : "no app by that name";
     }
-    case "chat":
-    case "thread": {
+    case "chat": {
       // The window also takes a chat by the start of its id, which only it
       // can match, so only a whole id is checked.
       if (!ChatIdSchema.safeParse(name).success) {
@@ -316,12 +284,4 @@ async function guideNames(
       match[1] === undefined ? [] : [match[1]],
     ),
   );
-}
-
-function decoded(segment: string): string {
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
 }

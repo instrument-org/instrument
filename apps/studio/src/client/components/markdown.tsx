@@ -7,11 +7,11 @@ import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
-import { instrumentLinkOf } from "@/shared/instrument-link";
 import {
   APP_NAME_SLUG,
   APP_PROTOCOL,
   filePathOfInstrumentLink,
+  instrumentLinkOf,
 } from "@instrument-org/shared";
 import {
   AGENT_FILES_LANGUAGE,

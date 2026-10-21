@@ -1,4 +1,7 @@
-import { APP_NAME_SLUG, APP_PROTOCOL } from "@instrument-org/shared";
+import { APP_NAME_SLUG, APP_PROTOCOL } from "./constants";
+
+// The one reading of an `instrument://` address, for the window that opens
+// it and the check that tells the agent a link in its reply opens nothing.
 
 /** What an `instrument://` address names, and where in the window that is. */
 export interface InstrumentLink {
@@ -61,6 +64,31 @@ const NAME = /^[\w.:-]+$/;
  * agent wrote in a development build reads the same as one in a release.
  */
 const SCHEMES = new Set([`${APP_NAME_SLUG}:`, `${APP_PROTOCOL}:`]);
+
+/** Whether an address is the app's own, whether or not it names anything. */
+export function isInstrumentAddress(url: string): boolean {
+  return URL.canParse(url) && SCHEMES.has(new URL(url).protocol);
+}
+
+/**
+ * The file path an `instrument://file/<path>` address names, or undefined for
+ * any other address. A file is handed over as a path, not as a place in the
+ * window, but a reply taught to link tasks and chats this way reaches for
+ * the same form for a file, and the path in it is the one it meant.
+ */
+export function filePathOfInstrumentLink(url: string): string | undefined {
+  if (!URL.canParse(url)) {
+    return undefined;
+  }
+  const parsed = new URL(url);
+  if (!SCHEMES.has(parsed.protocol) || parsed.host.toLowerCase() !== "file") {
+    return undefined;
+  }
+  // `instrument://file//Users/sam/a.md` and `instrument://file/Users/sam/a.md` both mean
+  // the absolute path the reply had in hand.
+  const path = decoded(parsed.pathname).replace(/^\/+/, "/");
+  return path === "/" ? undefined : path;
+}
 
 /** What an address names inside the app, or undefined for one that names nothing here. */
 export function instrumentLinkOf(url: string): InstrumentLink | undefined {

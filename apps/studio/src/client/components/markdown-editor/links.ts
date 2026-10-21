@@ -9,10 +9,7 @@ import {
   openTargetOfHref,
 } from "@/client/lib/open-target";
 import { commandKeyHeld } from "@/client/lib/utils";
-import {
-  type InstrumentLink,
-  instrumentLinkOf,
-} from "@/shared/instrument-link";
+import { type InstrumentLink, instrumentLinkOf } from "@instrument-org/shared";
 import { type Mark, type Node as PMNode } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
 import {

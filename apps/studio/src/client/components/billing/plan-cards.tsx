@@ -16,10 +16,8 @@ import {
   scheduledPlanChange,
 } from "@/client/lib/billing";
 import { cn } from "@/client/lib/utils";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { type RPCOutput } from "@/client/rpc/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import { OUR_MODELS } from "@instrument-org/shared";
-import { useQuery } from "@tanstack/react-query";
 
 type Offer = RPCOutput["billing"]["offer"];
 type OfferPlan = Offer["plans"][number];
@@ -75,7 +73,6 @@ export function PlanCards({
   });
   const isChoosable = (action: PlanCardAction) =>
     action !== "current" && action !== "scheduled";
-  const makers = useInstrumentMakers();
   const most = Math.max(...offer.plans.map((plan) => plan.allowance.multiple));
   const least = Math.min(...offer.plans.map((plan) => plan.allowance.multiple));
   const leading =
@@ -92,7 +89,7 @@ export function PlanCards({
           isHeaviest={most > least && plan.allowance.multiple === most}
           isLeading={leading?.plan.key === plan.key}
           key={plan.key}
-          makers={makers}
+          makers={planMakers(plan)}
           meter={allowanceMeter(plan, offer.plans)}
           note={note}
           onChoose={() => {
@@ -105,28 +102,19 @@ export function PlanCards({
   );
 }
 
-/** The makers Figma's plan card shows when the catalog names none. */
-const FALLBACK_MAKERS = ["openai", "anthropic", "google", "x-ai"];
-
 /**
- * Who makes the models behind Instrument's, by author slug, in the catalog's
- * order: the makers this client has a mark for, else the four big ones.
+ * Who makes the plan's models, in the order its policy lists them, for the
+ * makers this client has a mark for: none when the offer names none.
  */
-function useInstrumentMakers(): string[] {
-  const { data } = useQuery(
-    rpcClient.gateway.models.live.list.experimental_liveOptions(),
-  );
+function planMakers(plan: OfferPlan): string[] {
   const makers = new Set<string>();
-  for (const model of data?.models ?? []) {
-    if (
-      model.params.provider === OUR_MODELS.providerType &&
-      model.maker !== undefined &&
-      hasMakerMark(model.maker)
-    ) {
-      makers.add(model.maker === "xai" ? "x-ai" : model.maker);
+  for (const model of plan.models ?? []) {
+    const maker = model.maker === "xai" ? "x-ai" : model.maker;
+    if (maker !== undefined && hasMakerMark(maker)) {
+      makers.add(maker);
     }
   }
-  return makers.size > 0 ? [...makers] : FALLBACK_MAKERS;
+  return [...makers];
 }
 
 function PlanCard({
@@ -226,14 +214,16 @@ function PlanCard({
             ))}
           </div>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground">Models</span>
-          <span className="flex items-center gap-2" data-plan-makers>
-            {makers.map((maker) => (
-              <ModelMakerIcon author={maker} key={maker} />
-            ))}
-          </span>
-        </div>
+        {makers.length > 0 && (
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-muted-foreground">Models</span>
+            <span className="flex items-center gap-2" data-plan-makers>
+              {makers.map((maker) => (
+                <ModelMakerIcon author={maker} key={maker} />
+              ))}
+            </span>
+          </div>
+        )}
       </div>
       {plan.features.length > 0 && (
         <ul className="flex flex-col gap-1.5 text-sm">

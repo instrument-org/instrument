@@ -11,6 +11,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import {
   type AppCatalogEntry,
+  catalogApiSignInClient,
   catalogEndpointNeedsClient,
   catalogInterfaceLacksClient,
   catalogEntryAt,
@@ -45,6 +46,7 @@ import {
 import { callMcpTool, listMcpTools } from "../apps/mcp/client";
 import { withAppMcpClient } from "../apps/mcp/run";
 import { credentialOrigin } from "../apps/origin-bound";
+import { performSignedInRequest } from "../apps/api-oauth";
 import { performAppRequest, redactCredential } from "../apps/request";
 import {
   type AppInfo,
@@ -1026,6 +1028,15 @@ async function refuseWhatCannotConnect(
       );
     }
   }
+  if (
+    manifest.type === "api" &&
+    manifest.auth.kind === "oauth" &&
+    catalogApiSignInClient(slug, manifest) === undefined
+  ) {
+    throw new Error(
+      `${APP_NAME} signs in to an API only with a client the directory has for its service, and it has none for ${manifest.url}${manifest.service ? ` as ${manifest.service}` : ""}, so the sign-in card would fail. Set it up the way \`${APP_COMMAND.name} catalog\` says for the service.`,
+    );
+  }
   if (manifest.type === "mcp" && manifest.auth.kind === "oauth") {
     const entry = findCatalogEntry(slug, manifest.url);
     const site = entry ? (entry.home ?? `https://${entry.domain}`) : undefined;
@@ -1108,16 +1119,27 @@ async function runRequest(
   );
   const piped = subprocessStdin(stdin)?.toString("utf8").trim();
   const body = piped || inlineBody?.trim() || undefined;
-  const credential = await requireAppCredential(app.slug, app.manifest);
-  const result = await performAppRequest({
+  const request = {
     body,
-    credential,
     manifest: app.manifest,
     method,
     params,
     path: requestPath,
     signal: withTimeout(signal, REQUEST_TIMEOUT_MS),
-  });
+  };
+  // A signed-in API sends its access token, and the token it sent is what
+  // is kept out of what the agent reads.
+  let credential: null | string;
+  let result: Awaited<ReturnType<typeof performAppRequest>>;
+  if (app.manifest.auth.kind === "oauth") {
+    ({ result, token: credential } = await performSignedInRequest({
+      ...request,
+      slug: app.slug,
+    }));
+  } else {
+    credential = await requireAppCredential(app.slug, app.manifest);
+    result = await performAppRequest({ ...request, credential });
+  }
   if (result.isErr()) {
     throw new Error(redactCredential(result.error.message, credential));
   }
@@ -1219,7 +1241,9 @@ function summarizeCatalogEntry(entry: AppCatalogEntry): string {
       : way.kind === "local"
         ? "mcp:local"
         : way.kind === "api"
-          ? "api:key"
+          ? way.auth === "oauth"
+            ? "api"
+            : "api:key"
           : way.kind === "mac-app"
             ? "mac-app"
             : "web";

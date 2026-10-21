@@ -111,7 +111,7 @@ describe("app new --auth basic", () => {
     const result = await newApiApp("basic-bad", "--auth", "apiKey");
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain(
-      'takes bearer, basic, basic:<user>, header:<Name>, query:<param>, or none (got "apiKey")',
+      'takes oauth (only where the directory\'s set-up line says so), bearer, basic, basic:<user>, header:<Name>, query:<param>, or none (got "apiKey")',
     );
   });
 });

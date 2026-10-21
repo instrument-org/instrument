@@ -46,6 +46,10 @@ const ApiAuthSchema = z.discriminatedUnion("kind", [
   z.strictObject({ header: z.string().min(1), kind: z.literal("header") }),
   // No credential required.
   z.strictObject({ kind: z.literal("none") }),
+  // Authorization: Bearer <access token>, from a sign-in in the browser with
+  // the client the directory has for the app's service, refreshed as it
+  // expires. No key is stored.
+  z.strictObject({ kind: z.literal("oauth") }),
   // ?<param>=<credential>
   z.strictObject({ kind: z.literal("query"), param: z.string().min(1) }),
 ]);

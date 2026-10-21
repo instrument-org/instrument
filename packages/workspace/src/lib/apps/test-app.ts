@@ -20,7 +20,8 @@ import { listMcpTools } from "./mcp/client";
 import { withAppMcpClient } from "./mcp/run";
 import { mcpAuthProviderForCommand } from "./mcp/tool-auth";
 import { credentialOrigin } from "./origin-bound";
-import { performAppRequest } from "./request";
+import { performSignedInRequest, SignInNeededError } from "./api-oauth";
+import { performAppRequest, redactCredential } from "./request";
 import { scanAppFolder } from "./secret-scan";
 import {
   type AppInfo,
@@ -321,15 +322,37 @@ export async function runAppTest({
 
   const manifest = app.manifest;
   const canaryMethod = manifest.test.method ?? "GET";
-  const canary = await performAppRequest({
+  const canaryRequest = {
     body: manifest.test.body,
-    credential,
     manifest,
     method: canaryMethod,
     params: {},
     path: manifest.test.path,
     signal,
-  });
+  };
+  const signedIn = manifest.auth.kind === "oauth";
+  // A signed-in API's request carries its access token, refreshed when the
+  // API refuses it; whatever it sent is kept out of the report.
+  let sent = credential;
+  let canary: Awaited<ReturnType<typeof performAppRequest>>;
+  if (signedIn) {
+    try {
+      const signed = await performSignedInRequest({ ...canaryRequest, slug });
+      canary = signed.result;
+      sent = signed.token;
+    } catch (error) {
+      if (error instanceof SignInNeededError) {
+        missing = "sign-in";
+      }
+      checks.push({
+        name: "canary",
+        ...failure(error instanceof Error ? error.message : String(error)),
+      });
+      return finish(report());
+    }
+  } else {
+    canary = await performAppRequest({ ...canaryRequest, credential });
+  }
   if (canary.isErr()) {
     checks.push({ name: "canary", ...failure(redact(canary.error.message)) });
   } else if (canary.value.status >= 200 && canary.value.status < 300) {
@@ -340,18 +363,25 @@ export async function runAppTest({
     });
   } else {
     const rejected = canary.value.status === 401 || canary.value.status === 403;
+    if (signedIn && canary.value.status === 401) {
+      missing = "sign-in";
+    }
     checks.push({
       name: "canary",
       ...failure(
         `${canaryMethod} ${manifest.test.path} returned ${canary.value.status}. ${
-          rejected
-            ? // A key the service would accept is refused exactly like a wrong
-              // one when it rides in the wrong place, and the placement is the
-              // thing the agent chose and can change. Naming only the key sends
-              // it back to the card for a key that was right all along.
-              `The key was refused. That is as often the wrong placement as the wrong key: a service that documents Basic credentials, an \`X-Api-Key\`, or an \`api_key\` query parameter refuses a bearer token just like this. Try the placements the manifest can take (bearer, basic, basic:<user>, header:<Name>, query:<param>) with \`${APP_COMMAND.name} new ${slug} ... --force\`, then \`${APP_COMMAND.name} test ${slug}\`, which reuses the stored key and does not ask the user. Only once every one is refused is the key itself in question: ask for it again with connect_app, saying what was wrong.`
-            : `Expected a 2xx response; fix the test path or the manifest. Some APIs require static headers on every request (an API-version header, say): set them in the manifest's "headers".`
-        } Response body: ${redact(canary.value.bodyText).slice(0, 400)}`,
+          signedIn && canary.value.status === 401
+            ? `The sign-in was refused even after a refresh. Ask the user to sign in again with connect_app.`
+            : signedIn && rejected
+              ? `The API knows the signed-in account and refuses it this request: the account, or what the sign-in asked for, lacks a permission it needs.`
+              : rejected
+                ? // A key the service would accept is refused exactly like a wrong
+                  // one when it rides in the wrong place, and the placement is the
+                  // thing the agent chose and can change. Naming only the key sends
+                  // it back to the card for a key that was right all along.
+                  `The key was refused. That is as often the wrong placement as the wrong key: a service that documents Basic credentials, an \`X-Api-Key\`, or an \`api_key\` query parameter refuses a bearer token just like this. Try the placements the manifest can take (bearer, basic, basic:<user>, header:<Name>, query:<param>) with \`${APP_COMMAND.name} new ${slug} ... --force\`, then \`${APP_COMMAND.name} test ${slug}\`, which reuses the stored key and does not ask the user. Only once every one is refused is the key itself in question: ask for it again with connect_app, saying what was wrong.`
+                : `Expected a 2xx response; fix the test path or the manifest. Some APIs require static headers on every request (an API-version header, say): set them in the manifest's "headers".`
+        } Response body: ${redactCredential(redact(canary.value.bodyText), sent).slice(0, 400)}`,
       ),
     });
   }

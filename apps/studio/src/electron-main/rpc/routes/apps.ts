@@ -100,7 +100,7 @@ const KeyHelpSchema = z
 
 const AppListItemSchema = z.discriminatedUnion("type", [
   AppListItemBaseSchema.extend({
-    authKind: z.enum(["basic", "bearer", "header", "none", "query"]),
+    authKind: z.enum(["basic", "bearer", "header", "none", "oauth", "query"]),
     keyHelp: KeyHelpSchema,
     type: z.literal("api"),
   }),

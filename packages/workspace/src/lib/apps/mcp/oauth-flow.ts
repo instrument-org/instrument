@@ -7,9 +7,18 @@ import { err, ok, type Result } from "neverthrow";
 import { noop } from "radashi";
 
 import { type AbsolutePath } from "../../../schemas/paths";
+import { APP_COMMAND } from "../../shell-commands/app-command";
+import {
+  performSignedInRequest,
+  redeemApiSignIn,
+  startApiSignIn,
+} from "../api-oauth";
+import { catalogApiSignInClient } from "../catalog";
 import { recordConnection } from "../connection";
-import { boundTo } from "../origin-bound";
+import { type ApiAppManifest } from "../manifest";
+import { boundTo, credentialOrigin } from "../origin-bound";
 import { loadApp } from "../store";
+import { runAppTest } from "../test-app";
 import { describeMcpFailure, type McpConnectionError } from "./client";
 import { fetchForMcp } from "./fetch";
 import {
@@ -30,13 +39,32 @@ import {
  *
  * The in-flight transport is parked here between `begin` and `complete`,
  * keyed by the OAuth `state`, so the callback only needs `{ state, code }`.
+ *
+ * An API app that signs in (`type: "api"`, `auth.kind: "oauth"`) goes through
+ * the same begin and complete, with the client the directory has for its
+ * service (`api-oauth.ts`): what is parked is how to redeem its code, and
+ * the app's own test is what connects it.
  */
 /** Where the authorization page was opened: the window's own browser, or the user's. */
 export type SignInOpensIn = "app" | "external";
 
-interface PendingFlow {
+type PendingFlow = PendingApiFlow | PendingMcpFlow;
+
+interface PendingApiFlow {
   appsDir: AbsolutePath;
   expiresAt: number;
+  kind: "api";
+  opensIn: SignInOpensIn;
+  /** Redeem the code the callback brings, keeping the tokens. */
+  redeem: (code: string) => Promise<void>;
+  slug: string;
+  store: McpOAuthStore;
+}
+
+interface PendingMcpFlow {
+  appsDir: AbsolutePath;
+  expiresAt: number;
+  kind: "mcp";
   opensIn: SignInOpensIn;
   provider: ReturnType<typeof createMcpOAuthProvider>;
   slug: string;
@@ -51,6 +79,10 @@ interface PendingFlow {
 // A sign-in the user never finishes (declined, closed the tab) would otherwise
 // leak a transport forever. Evict parked flows after this long.
 const PENDING_FLOW_TTL_MS = 10 * 60 * 1000;
+
+// How long an API app's sign-in waits on the request that says whether the
+// sign-in it already has still works.
+const API_PROBE_TIMEOUT_MS = 30_000;
 
 const pendingFlows = new Map<string, PendingFlow>();
 
@@ -90,7 +122,10 @@ export async function beginMcpOAuth({
     return err({ message: loaded.error.message, reason: "connect" });
   }
   const { manifest, manifestHash } = loaded.value;
-  if (manifest.type !== "mcp" || manifest.auth.kind !== "oauth") {
+  if (
+    (manifest.type !== "mcp" && manifest.type !== "api") ||
+    manifest.auth.kind !== "oauth"
+  ) {
     return err({
       message: `App "${slug}" does not sign in with OAuth.`,
       reason: "connect",
@@ -101,6 +136,21 @@ export async function beginMcpOAuth({
   // material so this flow starts clean.
   dropPendingFlowsForSlug(slug);
   await store.clearTransient(slug);
+
+  if (manifest.type === "api") {
+    return beginApiOAuth({
+      appsDir,
+      manifest,
+      manifestHash,
+      now,
+      opensIn,
+      redirectUrl,
+      relayRedirectUrl,
+      relayTokenUrl,
+      slug,
+      store,
+    });
+  }
 
   // The SDK asks for the browser while `connect` runs, before it throws for
   // the authorization it now waits on. A holder object so control-flow
@@ -190,6 +240,7 @@ export async function beginMcpOAuth({
   pendingFlows.set(state, {
     appsDir,
     expiresAt: now + PENDING_FLOW_TTL_MS,
+    kind: "mcp",
     opensIn,
     provider,
     slug,
@@ -198,6 +249,110 @@ export async function beginMcpOAuth({
     url: manifest.url,
   });
   return ok({ alreadyConnected: false, authorizationUrl: opened.url, state });
+}
+
+/**
+ * Start an API app's sign-in. A sign-in it already has that the API still
+ * takes connects it outright; otherwise the authorization page is handed
+ * back and the redemption parked for the callback.
+ */
+async function beginApiOAuth({
+  appsDir,
+  manifest,
+  manifestHash,
+  now,
+  opensIn,
+  redirectUrl,
+  relayRedirectUrl,
+  relayTokenUrl,
+  slug,
+  store,
+}: {
+  appsDir: AbsolutePath;
+  manifest: ApiAppManifest;
+  manifestHash: string;
+  now: number;
+  opensIn: SignInOpensIn;
+  redirectUrl: string;
+  relayRedirectUrl: (service: string) => string;
+  relayTokenUrl: (service: string) => string;
+  slug: string;
+  store: McpOAuthStore;
+}): Promise<
+  Result<
+    | { alreadyConnected: false; authorizationUrl: string; state: string }
+    | { alreadyConnected: true },
+    McpConnectionError
+  >
+> {
+  const client = catalogApiSignInClient(slug, manifest);
+  if (client === undefined) {
+    return err({
+      message: `${APP_NAME} has no sign-in client for ${manifest.url} in this directory, so "${slug}" cannot sign in. Set it up the way \`${APP_COMMAND.name} catalog\` says for the service.`,
+      reason: "connect",
+    });
+  }
+  const origin = credentialOrigin(manifest);
+  if (boundTo(await store.getTokens(slug), origin) !== undefined) {
+    const probe = await performSignedInRequest({
+      body: manifest.test.body,
+      manifest,
+      method: manifest.test.method ?? "GET",
+      params: {},
+      path: manifest.test.path,
+      signal: AbortSignal.timeout(API_PROBE_TIMEOUT_MS),
+      slug,
+    }).catch(noop);
+    const status = probe?.result.isOk() ? probe.result.value.status : 0;
+    if (status >= 200 && status < 300) {
+      await recordConnection(slug, {
+        connectedAt: now,
+        manifestHash,
+        status: "connected",
+      });
+      return ok({ alreadyConnected: true });
+    }
+  }
+  let started: Awaited<ReturnType<typeof startApiSignIn>>;
+  try {
+    started = await startApiSignIn({
+      client,
+      loopbackRedirectUrl: redirectUrl,
+      relayRedirectUrl,
+      relayTokenUrl,
+      slug,
+      store,
+    });
+  } catch (error) {
+    return err({
+      cause: error,
+      message: `Could not start sign-in for "${slug}": ${describeSignInFailure(error)}`,
+      reason: "connect",
+    });
+  }
+  pendingFlows.set(started.state, {
+    appsDir,
+    expiresAt: now + PENDING_FLOW_TTL_MS,
+    kind: "api",
+    opensIn,
+    redeem: (code) =>
+      redeemApiSignIn({
+        client,
+        code,
+        origin,
+        redirectUrl: started.redirectUrl,
+        relayTokenUrl,
+        slug,
+        store,
+      }),
+    slug,
+    store,
+  });
+  return ok({
+    alreadyConnected: false,
+    authorizationUrl: started.authorizationUrl,
+    state: started.state,
+  });
 }
 
 /**
@@ -211,7 +366,7 @@ export async function cancelMcpOAuth(state: string): Promise<void> {
     return;
   }
   pendingFlows.delete(state);
-  await flow.transport.close().catch(noop);
+  await closeFlow(flow);
   await flow.store.clearTransient(flow.slug).catch(noop);
 }
 
@@ -223,7 +378,7 @@ export async function completeMcpOAuth({
   state: string;
 }): Promise<
   Result<
-    { opensIn: SignInOpensIn; slug: string; toolCount: number },
+    { opensIn: SignInOpensIn; slug: string; toolCount?: number },
     McpConnectionError
   >
 > {
@@ -236,6 +391,9 @@ export async function completeMcpOAuth({
     });
   }
   pendingFlows.delete(state);
+  if (flow.kind === "api") {
+    return completeApiOAuth(flow, code);
+  }
 
   // finishAuth on the original transport exchanges the code for tokens (saved
   // through the provider). That transport is already started, so the working
@@ -332,13 +490,56 @@ export function describeSignInFailure(failure: unknown): string {
   return said;
 }
 
+/**
+ * Redeem an API app's code, then run the app's test, which reaches the API
+ * with the new token and is what connects the app.
+ */
+async function completeApiOAuth(
+  flow: PendingApiFlow,
+  code: string,
+): Promise<
+  Result<{ opensIn: SignInOpensIn; slug: string }, McpConnectionError>
+> {
+  try {
+    await flow.redeem(code);
+  } catch (error) {
+    return err({
+      cause: error,
+      message: describeMcpFailure(error),
+      reason: "unauthorized",
+    });
+  } finally {
+    await flow.store.clearTransient(flow.slug).catch(noop);
+  }
+  const report = await runAppTest({
+    appsDir: flow.appsDir,
+    signal: AbortSignal.timeout(API_PROBE_TIMEOUT_MS),
+    slug: flow.slug,
+  });
+  if (!report.passed) {
+    const failed = report.checks.find((check) => check.status === "fail");
+    return err({
+      message: `Signed in, but the app's test failed: ${failed?.detail ?? "no check passed"}`,
+      reason: "connect",
+    });
+  }
+  return ok({ opensIn: flow.opensIn, slug: flow.slug });
+}
+
+/** Let go of what a parked flow holds open. */
+async function closeFlow(flow: PendingFlow): Promise<void> {
+  if (flow.kind === "mcp") {
+    await flow.transport.close().catch(noop);
+  }
+}
+
 function dropPendingFlowsForSlug(slug: string): void {
   // A new sign-in for an app supersedes any in-flight one: close the old
   // transport and clear its entry so a stale page resolves to a clean "no
   // pending sign-in" error instead of a PKCE mismatch.
   for (const [state, flow] of pendingFlows) {
     if (flow.slug === slug) {
-      void flow.transport.close().catch(noop);
+      void closeFlow(flow);
       pendingFlows.delete(state);
     }
   }
@@ -347,7 +548,7 @@ function dropPendingFlowsForSlug(slug: string): void {
 function evictExpiredFlows(now: number): void {
   for (const [state, flow] of pendingFlows) {
     if (flow.expiresAt <= now) {
-      void flow.transport.close().catch(noop);
+      void closeFlow(flow);
       pendingFlows.delete(state);
     }
   }

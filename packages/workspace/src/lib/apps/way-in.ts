@@ -3,6 +3,7 @@ import {
   catalogEntryLocalServer,
   catalogEntryMacApp,
   catalogEntryMcpEndpoint,
+  catalogEntrySignedInApi,
 } from "./catalog";
 import { type CalledAppManifest } from "./manifest";
 
@@ -40,8 +41,9 @@ function catalogKeyPlacement(auth: string | undefined): string | undefined {
 
 /**
  * How a service is reached, decided once so the index and the detail cannot
- * disagree about it. An API a key opens is the third way in; a service with
- * none of the three (every way in wants a sign-in client of the user's own,
+ * disagree about it: a hosted server, an API Instrument's own client signs
+ * in to, a server that runs here, then an API a key opens. A service with
+ * none of those (every way in wants a sign-in client of the user's own,
  * which the card cannot make) is set up as a web app at its home, rather than
  * handed a set-up line of placeholders that no --auth the command takes can
  * fill.
@@ -68,6 +70,17 @@ export function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
   // where the user makes one; otherwise the next way in is tried.
   if (mcp && placement !== undefined && mcpSurface?.keyPage !== undefined) {
     return { auth: placement, endpoint: mcp, kind: "mcp" };
+  }
+  // An API a sign-in with Instrument's own client opens comes next: like a
+  // hosted server's sign-in, the user gives nothing but the go-ahead.
+  const signedInApi = catalogEntrySignedInApi(entry);
+  if (signedInApi) {
+    return {
+      auth: "oauth",
+      endpoint: signedInApi,
+      kind: "api",
+      test: entry.apiGuide?.test,
+    };
   }
   const local = catalogEntryLocalServer(entry);
   if (local) {
@@ -127,11 +140,6 @@ export function parseAuth(
     );
   }
   if (value === "oauth") {
-    if (type === "api") {
-      throw new Error(
-        "oauth is for MCP apps. An API app takes bearer, basic, basic:<user>, header:<Name>, query:<param>, or none.",
-      );
-    }
     return { kind: "oauth" };
   }
   if (value === "bearer" || value === "none") {
@@ -162,7 +170,7 @@ export function parseAuth(
     `--auth takes ${
       type === "mcp"
         ? "oauth, bearer, header:<Name>, or none"
-        : "bearer, basic, basic:<user>, header:<Name>, query:<param>, or none"
+        : "oauth (only where the directory's set-up line says so), bearer, basic, basic:<user>, header:<Name>, query:<param>, or none"
     } (got "${value}").`,
   );
 }

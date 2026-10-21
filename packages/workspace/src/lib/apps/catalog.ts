@@ -107,6 +107,13 @@ const AppCatalogEntrySchema = z.object({
        * such as what the vendor needs before it issues a refresh token.
        */
       authorizationParams: z.record(z.string(), z.string()).optional(),
+      /**
+       * For a `clientId` on a plain API rather than an MCP server, which
+       * publishes no sign-in metadata of its own: the vendor's authorization
+       * page. Such a sign-in redeems its code at our API, so it goes with
+       * `tokenExchange: "api"`.
+       */
+      authorizationEndpoint: z.string().optional(),
       endpoint: z.string().optional(),
       format: z.string(),
       /**
@@ -324,6 +331,73 @@ export function catalogRegisteredClient(endpoint: string):
     }
   }
   return undefined;
+}
+
+/** What an API app's sign-in with Instrument's own client needs to know. */
+export type ApiSignInClient = {
+  authorizationEndpoint: string;
+  authorizationParams?: Record<string, string>;
+  clientId: string;
+  scope?: string;
+  service: string;
+};
+
+/**
+ * Whether an interface is a plain API Instrument signs in to with its own
+ * client: one the directory gives a client id, the vendor's authorization
+ * page, and our API's token route.
+ */
+function catalogInterfaceSignsIn(
+  surface: CatalogInterface,
+): surface is CatalogInterface & {
+  authorizationEndpoint: string;
+  clientId: string;
+  endpoint: string;
+} {
+  return (
+    surface.format !== "mcp" &&
+    surface.auth === "oauth-client" &&
+    surface.clientId !== undefined &&
+    surface.authorizationEndpoint !== undefined &&
+    surface.endpoint !== undefined &&
+    surface.tokenExchange === "api"
+  );
+}
+
+/** The entry's API that a sign-in with Instrument's own client opens, when it has one. */
+export function catalogEntrySignedInApi(
+  entry: AppCatalogEntry,
+): string | undefined {
+  return entry.interfaces.find(catalogInterfaceSignsIn)?.endpoint;
+}
+
+/**
+ * Instrument's own sign-in client for an API app: the one the directory
+ * gives the app's service for exactly the app's base URL. Matched on the
+ * service as well as the endpoint, since one API can serve several products
+ * (Microsoft Graph is Outlook, OneDrive and Teams), each signing in for its
+ * own scopes and coming back through its own relay route.
+ */
+export function catalogApiSignInClient(
+  slug: string,
+  manifest: { service?: string | undefined; type: "api"; url: string },
+): ApiSignInClient | undefined {
+  const entry = catalogEntryForApp(slug, manifest);
+  const surface = entry?.interfaces
+    .filter(catalogInterfaceSignsIn)
+    .find((candidate) => sameEndpoint(manifest.url, candidate.endpoint));
+  if (entry === undefined || surface === undefined) {
+    return undefined;
+  }
+  return {
+    authorizationEndpoint: surface.authorizationEndpoint,
+    ...(surface.authorizationParams && {
+      authorizationParams: surface.authorizationParams,
+    }),
+    clientId: surface.clientId,
+    ...(surface.scope && { scope: surface.scope }),
+    service: entry.slug,
+  };
 }
 
 /**

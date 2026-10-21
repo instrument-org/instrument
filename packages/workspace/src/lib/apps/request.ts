@@ -8,12 +8,12 @@ const MAX_REDIRECTS = 5;
 // marker so the agent knows to narrow the request.
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 
-interface AppRequestError {
+export interface AppRequestError {
   message: string;
   reason: "invalid-path" | "network" | "too-many-redirects" | "unsafe-url";
 }
 
-interface AppResponse {
+export interface AppResponse {
   bodyText: string;
   contentType: string;
   status: number;
@@ -273,7 +273,8 @@ function applyAuth({
       );
       break;
     }
-    case "bearer": {
+    case "bearer":
+    case "oauth": {
       headers.set("Authorization", `Bearer ${credential}`);
       break;
     }

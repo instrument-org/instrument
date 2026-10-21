@@ -11,6 +11,9 @@ import { includedItemsOf, isIncludable } from "./draft-context";
 import { isFreshTab, isHomeTab } from "./tab-model";
 import { chatOfGroup, chatOfHref } from "./window-href";
 
+/** How the key of a chip naming a file or folder by its path starts. */
+const CHOSEN_KEY = "chosen:";
+
 /**
  * One thing a message carries about what the user was looking at, which the
  * composer shows as a chip with an x. A message carries these and nothing
@@ -124,6 +127,14 @@ export function draftContextItems({
   const chosen = dedupeChats(
     (draft.context ?? []).map((entry) => contextItemOf(entry, allTabs)),
   );
+  // A file or folder the person took off stays off: the screen names it no
+  // more than the draft does, so a Finder whose selection it was stands
+  // for its folder again rather than for it.
+  const takenOff = dismissed.flatMap((key) =>
+    key.startsWith(CHOSEN_KEY)
+      ? [{ kind: "file" as const, path: key.slice(CHOSEN_KEY.length) }]
+      : [],
+  );
   const screen: ContextItem[] = [];
   for (const tab of [bandUp, inView]) {
     const key = keyOfTab(tab);
@@ -133,7 +144,7 @@ export function draftContextItems({
     const item = itemOfTab(tab, {
       finderOf,
       group,
-      held: heldPaths([...chosen, ...screen]),
+      held: [...heldPaths([...chosen, ...screen]), ...takenOff],
       key,
     });
     if (
@@ -158,7 +169,7 @@ export function contextKeyOf(entry: DraftContextItem): string {
     }
     case "file":
     case "folder": {
-      return `chosen:${entry.path}`;
+      return `${CHOSEN_KEY}${entry.path}`;
     }
   }
 }

@@ -1,6 +1,6 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { type Draft } from "@/shared/drafts";
+import { type ChosenItem, type Draft } from "@/shared/drafts";
 import { renderInBrowser } from "@/tests/render-browser";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { useState } from "react";
@@ -41,13 +41,23 @@ const DOCUMENTS = screen(folderHref("/Users/casey/Documents"));
 const CHAT_SCREEN = screen(chatHref(CHAT));
 
 /** A draft's chip row over whatever the window has in view. */
-function Chips({ inView }: { inView: WindowTab }) {
-  const [draft, setDraft] = useState(DRAFT);
+function Chips({
+  finder = null,
+  inView,
+  opened = DRAFT,
+}: {
+  /** What the Finder on the tab in view shows, when it is a folder's. */
+  finder?: null | { folder: string; selected: ChosenItem[] };
+  inView: WindowTab;
+  /** The draft as it was made. */
+  opened?: Draft;
+}) {
+  const [draft, setDraft] = useState(opened);
   const { items, leaveOut } = useDraftChips({
     allTabs: [],
     bandUp: undefined,
     draft,
-    finderOf: () => null,
+    finderOf: (id) => (id === inView.id ? finder : null),
     inView,
     onChange: setDraft,
   });
@@ -84,5 +94,38 @@ describe("a draft's screen chips", () => {
 
     await rerender(<Chips inView={CHAT_SCREEN} />);
     await expect.poll(chipNames).toEqual([]);
+  });
+
+  // Ask over a file selected in a folder: the draft is made with the file,
+  // and the Finder in view stands for its folder beside it.
+  it("leaves out the one chip pressed of two, and keeps it out across a screen switch", async () => {
+    const output = "/Users/casey/documents-output";
+    const plan = { kind: "file" as const, path: `${output}/plan.md` };
+    const folder = screen(folderHref(output));
+    const finder = { folder: output, selected: [plan] };
+    const asked: Draft = { ...DRAFT, context: [plan] };
+    const { rerender } = await renderInBrowser(
+      <Chips finder={finder} inView={folder} opened={asked} />,
+    );
+    await expect
+      .poll(chipNames)
+      .toEqual(["Leave out documents-output", "Leave out plan.md"]);
+
+    await userEvent.click(
+      page.getByRole("button", { name: "Leave out plan.md" }),
+    );
+    await expect.poll(chipNames).toEqual(["Leave out documents-output"]);
+
+    await rerender(
+      <Chips
+        finder={{ folder: `${output}/Notes`, selected: [] }}
+        inView={screen(folderHref(`${output}/Notes`))}
+        opened={asked}
+      />,
+    );
+    await expect.poll(chipNames).toEqual(["Leave out Notes"]);
+
+    await rerender(<Chips finder={finder} inView={folder} opened={asked} />);
+    await expect.poll(chipNames).toEqual(["Leave out documents-output"]);
   });
 });

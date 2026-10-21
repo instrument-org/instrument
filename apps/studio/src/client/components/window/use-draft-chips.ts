@@ -11,8 +11,9 @@ import {
 
 /**
  * A draft's chips (see `draftContextItems`) and taking one off. A chip the
- * person chose takes its line out of the draft's `context`; a chip of what
- * is on screen is dismissed for this draft while the app runs.
+ * person chose takes its line out of the draft's `context`, and is dismissed
+ * as well, so the screen does not name it again; a chip of what is on
+ * screen is dismissed for this draft while the app runs.
  */
 export function useDraftChips({
   allTabs,
@@ -50,7 +51,6 @@ export function useDraftChips({
         const { context: _was, ...rest } = current;
         return left.length > 0 ? { ...rest, context: left } : rest;
       });
-      return;
     }
     setDismissed((current) => ({
       ...current,

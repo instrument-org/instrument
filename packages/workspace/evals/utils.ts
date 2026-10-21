@@ -92,11 +92,7 @@ export function buildReportWorkspaceConfig(
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
     webSearch: unavailableWebSearchClient,
     workFoldersDir: AbsolutePathSchema.parse(
-      path.join(
-        absoluteWorkspaceDir,
-        EVAL_MACHINE_DIR_NAME,
-        "work",
-      ),
+      path.join(absoluteWorkspaceDir, EVAL_MACHINE_DIR_NAME, "work"),
     ),
     userDataDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, EVAL_MACHINE_DIR_NAME),

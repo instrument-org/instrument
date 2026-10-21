@@ -104,9 +104,7 @@ export async function seedWorkspace({
     overrides: {
       // The machine folder's paths, which the seeder writes into rather than
       // merely names: each chat's work folder is in it.
-      workFoldersDir: AbsolutePathSchema.parse(
-        path.join(machineDir, "work"),
-      ),
+      workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),
       workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
     },
     rootDir,

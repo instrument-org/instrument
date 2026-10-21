@@ -9,7 +9,7 @@ import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config"
 import { chatDir } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { readChatPermissions } from "../permissions/rules";
-import { chatGrants, grantFolder, revokeGrant } from "./grants";
+import { chatGrants, grantFolder } from "./grants";
 
 let chatId: ChatId;
 let root: string;
@@ -59,10 +59,14 @@ describe("grantFolder", () => {
       grantFolder({ chatId, path: notes, source: "attached" }),
       grantFolder({ chatId, path: photos, source: "card" }),
     ]);
-    await revokeGrant({ chatId, path: notes });
 
     const held = await readChatPermissions(chatId);
-    expect(held.grants.map(({ path: p, source }) => [p, source])).toEqual([
+    expect(
+      held.grants
+        .map(({ path: p, source }) => [p, source])
+        .toSorted(([a = ""], [b = ""]) => a.localeCompare(b)),
+    ).toEqual([
+      [notes, "attached"],
       [photos, "card"],
     ]);
   });

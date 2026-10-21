@@ -16,18 +16,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 
-export function ProvidersSection({
-  autoOpenAddProvider = false,
-}: {
-  autoOpenAddProvider?: boolean;
-}) {
+export function ProvidersSection() {
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
   const providerSwitch = useProviderSwitch();
 
-  const [showAddProvider, setShowAddProvider] = useState(autoOpenAddProvider);
+  const [showAddProvider, setShowAddProvider] = useState(false);
   const [selectedConfig, setSelectedConfig] =
     useState<ClientAIProviderConfig | null>(null);
 

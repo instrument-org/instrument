@@ -2,6 +2,7 @@ import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { OpenInAppButton } from "@/client/components/open-in-app";
 import { FolderMark } from "@/client/components/window/folder-mark";
+import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import {
   Popover,
@@ -649,7 +650,9 @@ function locationText(location: TabLocation) {
     // Written out in full, since a path from the home folder's name is not
     // one the field can open.
     case "folder": {
-      return expandHomePath(location.path, window.api.homeDir);
+      return location.path === COMPUTER_ROOT
+        ? ""
+        : expandHomePath(location.path, window.api.homeDir);
     }
     case "newTab": {
       return "";
@@ -669,7 +672,7 @@ function locationText(location: TabLocation) {
 /**
  * What another app can open of the place: a file, a folder (which the
  * computer's file manager opens standing in it), or a site's address. The
- * recents are a list rather than a folder, and have no path to hand over.
+ * recents and the disks are no folder, and have no path to hand over.
  */
 function openInAppTargetOf(location: TabLocation): OpenInAppTarget | undefined {
   switch (location.kind) {
@@ -677,7 +680,7 @@ function openInAppTargetOf(location: TabLocation): OpenInAppTarget | undefined {
       return { hostPath: location.path };
     }
     case "folder": {
-      return location.path
+      return location.path && location.path !== COMPUTER_ROOT
         ? {
             hostPath:
               location.hostPath ??

@@ -196,9 +196,6 @@ export const contract = {
     startTrial: base.input(z.void()).output(BillingStatusSchema),
     status: base.input(z.void()).output(BillingStatusSchema),
   },
-  root: {
-    ping: base.input(z.void()).output(z.string()),
-  },
   users: {
     getMe: base.input(z.void()).output(
       z.object({

@@ -1,12 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { type Fault, runMxcCanary } from "./mxc-canary";
-import {
-  mxcCanaryLaunch,
-  nativeSandboxEnforced,
-  type NativeReach,
-  wrapNativeCommand,
-} from "./index";
+import { mxcCanaryLaunch, type NativeReach, wrapNativeCommand } from "./index";
 
 /**
  * The canary against the real launcher, on Windows only, where
@@ -55,7 +50,6 @@ describe.runIf(process.platform === "win32" && exec)(
       expect(wrapNativeCommand("cmd.exe", ["/c", "exit"], reach).kind).toBe(
         "mxc",
       );
-      expect(nativeSandboxEnforced()).toBe(true);
     });
 
     it("runs native commands unwrapped with INSTRUMENT_MXC=0", () => {
@@ -63,7 +57,6 @@ describe.runIf(process.platform === "win32" && exec)(
       expect(wrapNativeCommand("cmd.exe", ["/c", "exit"], reach).kind).toBe(
         "unwrapped",
       );
-      expect(nativeSandboxEnforced()).toBe(false);
     });
 
     it.each<Fault>(["grant", "realpath", "refuse"])(
@@ -77,7 +70,6 @@ describe.runIf(process.platform === "win32" && exec)(
           kind: "unwrapped",
           unheld: reach,
         });
-        expect(nativeSandboxEnforced()).toBe(false);
       },
     );
   },

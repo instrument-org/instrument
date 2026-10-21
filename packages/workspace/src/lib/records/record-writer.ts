@@ -24,7 +24,7 @@ export interface LogCursor {
 }
 
 /** How many of a file's last bytes its tail hash covers. */
-export const TAIL_BYTES = 4096;
+const TAIL_BYTES = 4096;
 
 const NEWLINE = 0x0a;
 

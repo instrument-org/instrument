@@ -15,6 +15,13 @@ export function fileHref(
 }
 
 /**
+ * The place above every disk: This PC, the Finder's Computer, GNOME's Other
+ * Locations. Stands where a root folder stands, as the recents do, and lists
+ * the disks rather than a folder.
+ */
+export const COMPUTER_ROOT = "computer:";
+
+/**
  * The address of a folder's tab: the folder view standing in it.
  *
  * Rooted there rather than opened under the home folder, so the columns start

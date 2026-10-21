@@ -415,24 +415,6 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
 /** find's own options before its start points. */
 const FIND_LEADING = /^-(?:[HLP]|D|O\d?)$/;
 
-/** The actions that stop find adding its own -print. */
-const FIND_ACTIONS = new Set([
-  "-delete",
-  "-exec",
-  "-execdir",
-  "-fls",
-  "-fprint",
-  "-fprint0",
-  "-fprintf",
-  "-ls",
-  "-ok",
-  "-okdir",
-  "-print",
-  "-print0",
-  "-printf",
-  "-quit",
-]);
-
 /** A find command line split into its options, start points and expression. */
 function splitFind(args: string[]): {
   expression: string[];
@@ -457,40 +439,6 @@ function splitFind(args: string[]): {
     index += 1;
   }
   return { expression: args.slice(index), options, starts };
-}
-
-/**
- * find's arguments with the entries the app hides pruned before the
- * caller's expression runs: every `.instrument` folder by name, and each
- * `pathsToPrune` (the chat's `tasks/` as each start point spells it). The
- * shell's own find never lists them, and the native sandbox does not hide
- * them. An expression with no action of its own gets an explicit -print, so
- * the pruned folder is not printed by the one find would add.
- */
-export function findWithHiddenEntriesPruned(
-  args: string[],
-  pathsToPrune: string[],
-): string[] {
-  const { expression, options, starts } = splitFind(args);
-  const pruned = [
-    "-name",
-    ".instrument",
-    ...pathsToPrune.flatMap((each) => ["-o", "-path", each]),
-  ];
-  const acts = expression.some((arg) => FIND_ACTIONS.has(arg));
-  return [
-    ...options,
-    ...starts,
-    "(",
-    ...pruned,
-    ")",
-    "-prune",
-    "-o",
-    "(",
-    ...(expression.length > 0 ? expression : ["-true"]),
-    ")",
-    ...(acts ? [] : ["-print"]),
-  ];
 }
 
 /**

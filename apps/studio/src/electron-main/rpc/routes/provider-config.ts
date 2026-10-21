@@ -356,7 +356,6 @@ export const providerConfig = {
   connectOpenRouter: connectOpenRouterProvider,
   create,
   credits,
-  disabled,
   list,
   live,
   metadata: {

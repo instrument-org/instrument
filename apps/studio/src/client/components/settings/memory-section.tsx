@@ -21,11 +21,15 @@ import { Textarea } from "@/client/components/ui/textarea";
 import { WindowContext } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { useModalBack } from "@/client/hooks/use-modal-back";
-import { useOpenGestures } from "@/client/hooks/use-open-target";
+import {
+  openClickGestures,
+  useOpenGestures,
+} from "@/client/hooks/use-open-target";
 import { displayPath } from "@/client/lib/path-utils";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { fileHref } from "@/shared/computer-href";
 import { APP_NAME } from "@instrument-org/shared";
 import claudeCode from "@lobehub/icons-static-svg/icons/claudecode-color.svg?raw";
 import claude from "@lobehub/icons-static-svg/icons/claude-color.svg?raw";
@@ -46,8 +50,7 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
-import { debounce } from "radashi";
-import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import { type ReactNode, useContext, useEffect, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 import {
@@ -56,9 +59,6 @@ import {
   memoryMatches,
   toggleGroup,
 } from "./memory-groups";
-
-/** How tall a memory folded to its two lines stands, with a pixel or two to spare. */
-const COLLAPSED_MAX_HEIGHT_PX = 40;
 
 /**
  * The chat tools worth asking what they already know about the user.
@@ -112,12 +112,10 @@ export function MemorySection() {
     rpcClient.workspace.memory.live.list.experimental_liveOptions(),
   );
   const memories = data?.memories ?? [];
-  // The memory a link asked for, which the row for it brings into view. A
-  // name the list does not hold is said once the list is known, since a link
-  // to a memory since forgotten is the ordinary way to arrive here by name.
+  // A link to a memory opens its file, so one arrives here by name only
+  // when no file has it any more, which is said once the list is known.
   const named = useAtomValue(settingsModalAtom)?.memory;
-  // A link to a memory while the import page is up goes back to the list,
-  // where that memory is.
+  // A link to a memory while the import page is up goes back to the list.
   const [isImporting, setIsImporting] = useState(false);
   const [seenNamed, setSeenNamed] = useState(named);
   if (named !== seenNamed) {
@@ -169,11 +167,17 @@ export function MemorySection() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-base font-semibold">Memory</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          What {APP_NAME} knows about you
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-base font-semibold">Memory</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            What {APP_NAME} knows about you. Each memory is a file in your
+            Memory folder, so you can open one to read or change it.
+          </p>
+        </div>
+        {data !== undefined && memories.length > 0 && (
+          <RevealFolder dir={data.dir} />
+        )}
       </div>
 
       {/* Held back until the list is known: an empty list carries the same
@@ -182,10 +186,8 @@ export function MemorySection() {
       {memories.length > 0 && <ImportEntry onOpen={openImport} />}
 
       <Memories
-        dir={data?.dir}
         isLoading={data === undefined}
         memories={memories}
-        named={named}
         onImport={openImport}
       />
     </div>
@@ -652,28 +654,15 @@ What counts is what stays true about me whatever I am working on: how I like thi
  * one group that can be picked, and forgotten, whole.
  */
 function Memories({
-  dir,
   isLoading,
   memories,
-  named,
   onImport,
 }: {
-  dir: string | undefined;
   isLoading: boolean;
   memories: Memory[];
-  named: string | undefined;
   onImport: () => void;
 }) {
   const [query, setQuery] = useState("");
-  // A link to one memory clears the search, so the row it names is there to
-  // scroll to.
-  const [seenNamed, setSeenNamed] = useState(named);
-  if (named !== seenNamed) {
-    setSeenNamed(named);
-    if (named !== undefined) {
-      setQuery("");
-    }
-  }
   const groups = groupMemories(
     memories.filter((memory) => memoryMatches(memory, query)),
   );
@@ -752,12 +741,7 @@ function Memories({
             </span>
           </>
         ) : (
-          <>
-            <h4 className="text-sm font-medium">Memories</h4>
-            {dir !== undefined && (
-              <RevealFolder dir={dir} hidden={memories.length === 0} />
-            )}
-          </>
+          <h4 className="text-sm font-medium">Memories</h4>
         )}
       </div>
       {memories.length === 0 ? (
@@ -788,7 +772,6 @@ function Memories({
                   group={group}
                   isPicking={picked.size > 0}
                   key={group.key}
-                  named={named}
                   onPickGroup={(groupNames) => {
                     setPicked((current) => toggleGroup(current, groupNames));
                   }}
@@ -859,14 +842,12 @@ function EmptyMemories({ onImport }: { onImport: () => void }) {
 function MemoryGroupList({
   group,
   isPicking,
-  named,
   onPickGroup,
   onPickOne,
   picked,
 }: {
   group: MemoryGroup;
   isPicking: boolean;
-  named: string | undefined;
   onPickGroup: (names: string[]) => void;
   onPickOne: (name: string) => void;
   picked: ReadonlySet<string>;
@@ -903,7 +884,6 @@ function MemoryGroupList({
       <ul className="divide-y">
         {group.memories.map((memory) => (
           <MemoryRow
-            isNamed={memory.name === named}
             isPicked={picked.has(memory.name)}
             isPicking={isPicking}
             key={memory.path}
@@ -919,78 +899,48 @@ function MemoryGroupList({
 }
 
 /**
- * One memory, folded to two lines when it runs long, and opened by pressing
- * it.
- *
- * The one a link asked for scrolls into view as the list appears and stands
- * tinted for as long as the screen is open, since a list of memories that
- * all look alike gives a reader nothing else to find the named one by.
+ * One memory, folded to two lines, and a link to the file it is: pressing it
+ * opens the file in a tab of its own, where it reads in full and can be
+ * changed, and Settings closes so the tab is in view.
  */
 function MemoryRow({
-  isNamed,
   isPicked,
   isPicking,
   memory,
   onPick,
 }: {
-  isNamed: boolean;
   isPicked: boolean;
   /** Whether anything at all is picked, which is what keeps the rest of the boxes in view. */
   isPicking: boolean;
   memory: Memory;
   onPick: () => void;
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isOverflowing, setIsOverflowing] = useState(false);
-  const textRef = useRef<HTMLParagraphElement>(null);
-  const rowRef = useRef<HTMLLIElement>(null);
-
-  useEffect(() => {
-    if (isNamed) {
-      rowRef.current?.scrollIntoView({ block: "center" });
-    }
-  }, [isNamed]);
-
-  useEffect(() => {
-    const element = textRef.current;
-    if (!element) {
-      return;
-    }
-    // The full content height under either clamp, so the answer is the same
-    // whether it is folded or open.
-    const check = () => {
-      setIsOverflowing(element.scrollHeight > COLLAPSED_MAX_HEIGHT_PX);
-    };
-    check();
-    const observer = new ResizeObserver(debounce({ delay: 100 }, check));
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-    };
-  }, [memory.text]);
-
-  // A shade under the page's own text in dark mode. A memory is the body of
-  // a card rather than a heading over one, and full-strength white on this
-  // ground reads as the loudest thing on the screen.
-  const text = (
-    <p
-      className={cn(
-        "text-sm leading-snug whitespace-pre-wrap dark:text-foreground/85",
-        !isExpanded && "line-clamp-2",
-      )}
-      ref={textRef}
-    >
-      {memory.text}
-    </p>
+  const closeSettings = useSetAtom(settingsModalAtom);
+  const gestures = useOpenGestures({
+    href: fileHref(memory.path),
+    kind: "screen",
+  });
+  const open = gestures.destinations.find((entry) => entry.id === "open");
+  const separate = gestures.destinations.find(
+    (entry) => entry.id === "openNewTab",
   );
+  const clicks = openClickGestures({
+    open: () => {
+      open?.run();
+      closeSettings(null);
+    },
+    openInNewTab: () => {
+      separate?.run();
+      closeSettings(null);
+    },
+  });
 
   return (
     <li
       className={cn(
         "group flex items-start gap-2.5 px-2.5 py-1.5",
-        isPicked ? "bg-accent/50" : isNamed && "bg-accent/40",
+        isPicked && "bg-accent/50",
       )}
-      ref={rowRef}
     >
       {/* The gutter is always there and the box in it usually is not: a
           column that appears on hover would shove the words beside it, and
@@ -1009,38 +959,40 @@ function MemoryRow({
         )}
         onCheckedChange={onPick}
       />
-      {isOverflowing ? (
-        <button
-          aria-expanded={isExpanded}
-          className="min-w-0 flex-1 rounded-sm text-left select-text focus-visible:outline-2 focus-visible:outline-ring"
-          onClick={() => {
-            setIsExpanded((expanded) => !expanded);
-          }}
-          type="button"
-        >
-          {text}
-        </button>
-      ) : (
-        <div className="min-w-0 flex-1">{text}</div>
-      )}
+      {/* A shade under the page's own text in dark mode. A memory is the
+          body of a card rather than a heading over one, and full-strength
+          white on this ground reads as the loudest thing on the screen. */}
+      <button
+        className="min-w-0 flex-1 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-ring"
+        disabled={open === undefined}
+        onAuxClick={clicks.onAuxClick}
+        onClick={clicks.onClick}
+        onContextMenu={gestures.onContextMenu}
+        onMouseDown={clicks.onMouseDown}
+        title={`${memory.name}.md`}
+        type="button"
+      >
+        <p className="line-clamp-2 text-sm leading-snug whitespace-pre-wrap decoration-border underline-offset-2 group-hover:underline dark:text-foreground/85">
+          {memory.text}
+        </p>
+      </button>
     </li>
   );
 }
 
-/** The way to the files themselves, beside the list they hold. */
-function RevealFolder({ dir, hidden }: { dir: string; hidden: boolean }) {
-  if (hidden) {
-    return null;
-  }
+/** The way to the files themselves, at the top of the page they are listed on. */
+function RevealFolder({ dir }: { dir: string }) {
   return (
     <Button
-      className="h-auto p-0 text-xs font-normal text-muted-foreground"
+      className="shrink-0"
       onClick={() => {
         void showInFolder(dir, { kind: "folder" });
       }}
-      variant="link"
+      size="sm"
+      variant="outline"
+      {...settingAnchor("memory-folder")}
     >
-      <ShowInFolderIcon className="size-3.5" kind="folder" />
+      <ShowInFolderIcon className="size-4" kind="folder" />
       {showInFolderLabel("folder")}
     </Button>
   );

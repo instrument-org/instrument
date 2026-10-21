@@ -97,3 +97,24 @@ export async function showChatFolder(chatId: ChatId) {
   }
   await showInFolder(hostPath, { kind: "folder" });
 }
+
+/**
+ * Shows a skill's own folder, as `showInFolder` shows any folder, found by
+ * the name a task loads it by: a source's own id (`agents:handoff`) first,
+ * then the name it is invoked by, the way the workspace looks one up.
+ */
+export async function showSkillFolder(name: string) {
+  const [error, skills] = await safe(rpcClient.workspace.skill.list.call());
+  if (error) {
+    toast.error("Couldn't find the skill's folder", { cause: error });
+    return;
+  }
+  const skill =
+    skills.find((entry) => entry.aliases.includes(name)) ??
+    skills.find((entry) => entry.qualifiedName === name);
+  if (!skill) {
+    toast("No skill by that name is installed on this computer.");
+    return;
+  }
+  await showInFolder(skill.path, { kind: "folder" });
+}

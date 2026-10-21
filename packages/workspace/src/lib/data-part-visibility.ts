@@ -70,7 +70,12 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // Drawn by the chat stream over the user's bubble, not in the part's place
   // under it.
   "data-reply": "hidden",
-  "data-skillChanges": "always",
+  // What the turn did to the person's skills, apps and memories, from its own
+  // writes; see `setup-changes.ts`.
+  "data-setupChanges": "always",
+  // What changed in skills and apps since the session last heard, for the
+  // agent: the person was told by the chat that made each change.
+  "data-setupNews": "dev",
   "data-skillMentions": "dev",
   // Shown for the same reason the folder note is: the change was made in a
   // conversation the reader of this transcript is not looking at, and it is

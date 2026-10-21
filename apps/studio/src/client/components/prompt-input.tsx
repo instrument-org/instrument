@@ -14,7 +14,7 @@ import {
   type ComposerPlaces,
 } from "@/client/components/composer-add-menu";
 import { ComposerFrame } from "@/client/components/composer-frame";
-import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { SystemFolderIcon } from "@/client/components/icons/folder-glyph";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { type ChatNote } from "@/client/components/billing/chat-note";
 import { ModelNoticeRow } from "@/client/components/model-notice";
@@ -1024,7 +1024,7 @@ export const PromptInput = ({
                 >
                   {item.type === "folder" ? (
                     <AttachedItemPreview
-                      icon={<MacFolderIcon className="size-5 shrink-0" />}
+                      icon={<SystemFolderIcon className="size-5 shrink-0" />}
                       label={folderLabel(item.path)}
                       onRemove={() => {
                         removeAttachedItem(item.id);

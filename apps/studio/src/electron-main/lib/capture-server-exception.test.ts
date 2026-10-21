@@ -17,6 +17,9 @@ vi.mock("@/electron-main/platform-api/reachability", () => ({
   isPlatformApiUnreachable: () => unreachable.value,
 }));
 vi.mock("./electron-logger", () => ({ logger }));
+vi.mock("./renderer-host", () => ({
+  rendererBaseURL: () => "instrument://app/",
+}));
 vi.mock("./exception-store", () => ({ storeExceptionEvent }));
 vi.mock("./event-contexts", () => ({
   eventContexts: () => ({
@@ -104,6 +107,20 @@ describe("captureServerException", () => {
       ),
     );
     expect(stored()?.process).toBe("bash-worker");
+  });
+
+  it("names a renderer frame by its place in the renderer", () => {
+    const error = new Error("render");
+    error.stack =
+      "Error: render\n    at Chat (instrument://app/assets/chat-AbCd1234.js:10:5)";
+    captureServerException(
+      new ForwardedException(serializeError(error), "renderer"),
+    );
+    expect(stored()?.exceptions[0]?.frames[0]).toMatchObject({
+      filename: "app:///assets/chat-AbCd1234.js",
+      inApp: true,
+      module: "assets/chat",
+    });
   });
 
   it("leaves out a network drop while the platform API is unreachable", () => {

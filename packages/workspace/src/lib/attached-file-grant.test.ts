@@ -18,7 +18,6 @@ import { chatGrants } from "./chat/grants";
 import { newMessage } from "./new-message";
 import { reachOf, rulesFor, type Rules } from "./permissions/rules";
 import { sessionOfChat } from "./record-folders";
-import { disposeSessionsStoreStorage } from "./session-store-storage";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   buildBashFs,
@@ -117,8 +116,6 @@ describe("sending a file from the disk", () => {
     expect(reachOf(rules, path.join(closed, "taxes.md"), "read").level).toBe(
       "never",
     );
-    // Closed before the folder goes: Windows removes no file held open.
-    await disposeSessionsStoreStorage(chatId);
   });
 
   // A folder is a scope rather than a document: sending one says where the
@@ -158,7 +155,6 @@ describe("sending a file from the disk", () => {
     expect(
       reachOf(rulesWith([]), path.join(closed, "taxes.md"), "read").level,
     ).toBe("never");
-    await disposeSessionsStoreStorage(chatId);
   });
 });
 

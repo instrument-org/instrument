@@ -44,7 +44,7 @@ const config: KnipConfig = {
         "src/client/components/ui/*.tsx!",
         "src/client/router.tsx!",
         "src/client/main.tsx!",
-        "src/electron-main/index.ts!",
+        "src/electron-main/boot.ts!",
         "src/electron-preload/index.ts!",
         // Page editor guest: built by a nested Vite build in electron.vite.config.ts.
         "src/page-editor-guest/preload.ts!",
@@ -70,7 +70,6 @@ const config: KnipConfig = {
         "node-api-headers", // Resolved by path in scripts/build-mac-helper.ts
         "dugite", // Needed to ensure the git binary is available
         "agent-browser", // Imported in Vite build to resolve the binary path
-        "@parcel/watcher", // Needed for electron.vite.config.ts to build
         "@anthropic-ai/claude-agent-sdk", // Resolved at runtime by ai-gateway's createRequire for the Claude Code manifest
       ],
       paths: {

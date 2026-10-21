@@ -16,7 +16,6 @@ import { ChatWrites } from "./chat-writes";
 import { addChildTask } from "./chat/children";
 import { newMessage } from "./new-message";
 import { sessionOfChat } from "./record-folders";
-import { disposeSessionsStoreStorage } from "./session-store-storage";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
 import { readWorkspaceInstructions } from "./workspace-instructions";
@@ -47,7 +46,6 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await disposeSessionsStoreStorage(chatId);
   await fs.rm(root, { force: true, recursive: true });
 });
 

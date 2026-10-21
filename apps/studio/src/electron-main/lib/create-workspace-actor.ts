@@ -64,7 +64,6 @@ import {
   settleWorkspaceDb,
   startRecordArrivals,
   stopRecordArrivals,
-  stopWorkspaceSkillWatcher,
   chatRecords,
   warmBashWorker,
   workspaceMachine,
@@ -430,22 +429,16 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         }),
         closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
         stopServices: fromPromise(async () => {
-          // @parcel/watcher aborts the process (SIGABRT) if a live subscription
-          // is torn down while Node frees the environment, so stop the skills
-          // watcher and await its unsubscribe before app.exit.
-          await Promise.all([
-            stopWorkspaceSkillWatcher().catch(noop),
-            // Agent-started servers and watchers outlive the turn that started
-            // them, so quitting is what ends them. The tasks at work are
-            // stopped and their chats told first, while what each has running
-            // can still be named.
-            interruptTasksForQuit(actor)
-              .catch((error: unknown) => {
-                captureServerException(error);
-              })
-              .then(() => killAllBackgroundProcesses())
-              .catch(noop),
-          ]);
+          // Agent-started servers and watchers outlive the turn that started
+          // them, so quitting is what ends them. The tasks at work are
+          // stopped and their chats told first, while what each has running
+          // can still be named.
+          await interruptTasksForQuit(actor)
+            .catch((error: unknown) => {
+              captureServerException(error);
+            })
+            .then(() => killAllBackgroundProcesses())
+            .catch(noop);
           stopRecordArrivals();
           // Last, so the stops the tasks just wrote are on disk: every chat's
           // records are landed and synced before the process goes.

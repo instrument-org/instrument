@@ -5,17 +5,16 @@ import superjson from "superjson";
 import { type ChatId } from "../schemas/chat-id";
 import { type StoreId } from "../schemas/store-id";
 import { cacheByChatGeneration } from "./chat-generation";
-import { STORE_MIGRATION_COUNT } from "./store-migrations";
 import { chatDir } from "./record-folders";
 import { getWorkspaceConfig } from "./workspace-config";
 import { versionMatches, workspaceTables } from "./workspace-db";
 
 /**
  * The shape of what the index holds. Any change to a table, or to the value a
- * row carries, bumps this. An index built under another version, by another
- * release, or against stores of another migration count is thrown away and
- * rebuilt from the stores as it is read: the index is derived, so it is never
- * migrated. Its tables are in `workspace.db`, beside tables it never touches.
+ * row carries, bumps this, including a change to how a value is derived: a
+ * release that leaves it alone reads the rows an earlier one wrote. An index
+ * built under another version is thrown away and rebuilt from the records as it
+ * is read: the index is derived, so it is never migrated. Its tables are in `workspace.db`, beside tables it never touches.
  */
 const INDEX_VERSION = 14;
 
@@ -110,9 +109,9 @@ export function indexedByRecords<Value>(table: IndexTable) {
   };
 }
 
-/** The version an index must carry to be read: this build's shape, release, and stores. */
+/** The version an index must carry to be read: the shape of what it holds. */
 function expectedVersion(): string {
-  return `${INDEX_VERSION}:${getWorkspaceConfig().appVersion}:${STORE_MIGRATION_COUNT}`;
+  return String(INDEX_VERSION);
 }
 
 /**

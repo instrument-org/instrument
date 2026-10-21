@@ -11,6 +11,7 @@ import { shownTitle } from "../chat/shown-title";
 import { isToolPart } from "../is-tool-part";
 import { type FoldedChat, type FoldedSession } from "../records/fold";
 import { localStamp } from "../local-stamp";
+import { setupChangeSentence } from "../setup-change-sentence";
 import { sessionOf } from "../records/session-of";
 import {
   inlineMarkdown,
@@ -67,7 +68,7 @@ const VISIBLE = new Set<string>([
   "data-permissionAnswer",
   "data-questionAnswer",
   "data-reply",
-  "data-skillChanges",
+  "data-setupChanges",
   "data-taskEvent",
   "file",
   "text",
@@ -326,11 +327,13 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
         ? `You skipped the question.${note}`
         : `You chose “${answer.selectedChoice}”.${note}`;
     }
-    case "data-skillChanges": {
-      const changed = [...part.data.created, ...part.data.updated];
-      return changed.length === 0
-        ? undefined
-        : `Wrote the skill${changed.length === 1 ? "" : "s"} ${changed.join(", ")}.`;
+    case "data-setupChanges": {
+      return part.data.changes
+        .map((change) => {
+          const { after, before, label } = setupChangeSentence(change);
+          return `${before}${label}${after}`;
+        })
+        .join("\n");
     }
     case "data-taskEvent": {
       // A task's news shows in the chat where the person or the app stopped

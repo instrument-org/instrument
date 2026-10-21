@@ -17,6 +17,9 @@ import {
 } from "../pnpm-outside";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
+import { dlxInstall, dlxPlan, dlxProgram } from "../dlx-outside";
+import { mxcState } from "../native-sandbox/mxc";
+import { execNode } from "./node";
 import { resolveCommandContext, subprocessStdin } from "./utils";
 
 export const PNPM_COMMAND = {
@@ -59,10 +62,11 @@ function blockedSubcommand(
   };
 }
 
-export function createNpxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
+export function createNpxCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
   return createDlxAliasCommand(
     NPX_COMMAND.name,
     chatId,
+    layout,
     stripNpxCompatibilityFlags,
   );
 }
@@ -167,17 +171,18 @@ export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
   });
 }
 
-export function createPnpxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
-  return createDlxAliasCommand(PNPX_COMMAND.name, chatId);
+export function createPnpxCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
+  return createDlxAliasCommand(PNPX_COMMAND.name, chatId, layout);
 }
 
-export function createPnxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
-  return createDlxAliasCommand(PNX_COMMAND.name, chatId);
+export function createPnxCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
+  return createDlxAliasCommand(PNX_COMMAND.name, chatId, layout);
 }
 
 function createDlxAliasCommand(
   name: string,
   chatId: ChatId,
+  layout: WorkspaceFsLayout,
   normalizeArgs = (args: string[]) => args,
 ) {
   return defineCommand(name, async (args, ctx) => {
@@ -188,6 +193,45 @@ function createDlxAliasCommand(
     }
 
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
+
+    // Where the sandbox refuses links, the install is made outside it and
+    // the program runs inside (`dlx-outside.ts`).
+    const plan = mxcState() === "works" ? dlxPlan(normalizedArgs) : undefined;
+    const prepared = plan && dlxInstall(plan, layout);
+    if (plan && prepared && (prepared.ready || prepared.install)) {
+      if (prepared.install) {
+        const installed = await installOutside({
+          chatId,
+          env,
+          plan: prepared.install,
+          signal: ctx.signal,
+        });
+        if (installed.exitCode !== 0) {
+          return {
+            exitCode: installed.exitCode,
+            stderr: installed.stderr,
+            stdout: installed.stdout,
+          };
+        }
+      }
+      const program = dlxProgram(plan);
+      if (program === undefined) {
+        return {
+          exitCode: 1,
+          stderr: `${name}: no program named ${plan.command} in ${plan.packages.join(", ")}.\n`,
+          stdout: "",
+        };
+      }
+      return execNode(
+        chatId,
+        [program, ...plan.args],
+        ctx,
+        hostCwd,
+        env,
+        subprocessStdin(ctx.stdin),
+      );
+    }
+
     const result = await runPnpmCommand({
       args: ["dlx", ...normalizedArgs],
       cwd: hostCwd,

@@ -29,8 +29,6 @@ import {
   wakeAskers,
 } from "./wake";
 
-vi.mock(import("../session-store-storage"));
-
 // What a task has running lives in this process's process table, which a
 // test has none of; a case names it.
 vi.mock(import("./activity"), async (importOriginal) => {

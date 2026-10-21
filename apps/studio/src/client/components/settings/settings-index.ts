@@ -122,6 +122,13 @@ export const SETTINGS_INDEX = [
     title: "Import from another AI",
   },
   {
+    detail:
+      "Open the folder of your memories, where each one is a file you can read or change.",
+    id: "memory-folder",
+    tab: "Memory",
+    title: "Memory folder",
+  },
+  {
     detail: "Use a model with your own key.",
     id: "add-provider",
     tab: "Providers",
@@ -279,7 +286,7 @@ export const SETTINGS_PAGES: Record<
     detail: `The AI models ${APP_NAME} can use: your ChatGPT, Claude or Grok plan, or a provider you add with your own key.`,
   },
   Memory: {
-    detail: `What ${APP_NAME} remembers about you, which you can search, forget, or add to from another AI.`,
+    detail: `What ${APP_NAME} remembers about you, one file per memory, which you can search, open, forget, or add to from another AI.`,
   },
   Permissions: {
     detail: `Which folders and places on this computer ${APP_NAME} may use.`,

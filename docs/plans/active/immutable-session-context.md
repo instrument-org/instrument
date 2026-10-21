@@ -33,7 +33,7 @@ The one-hour threshold is not a safe proxy for cache expiry. An active or interm
 - User turns already render uploaded files, attached-folder changes, browser status, open pane tabs, project changes, skill mentions, and intent as contextual text parts.
 - A max-step note is already carried from an assistant data part to the next user message. This is the precedent for delivering a persisted assistant-side delta without rewriting history.
 - `workspace-skill-index` snapshots only the writable workspace skill directory for an agent turn and reports packages that the turn created, updated, or removed.
-- `mainAgent.onFinish` already saves created and updated workspace skill names as `data-skillChanges` on the turn's last assistant message for the UI.
+- `mainAgent.onFinish` saves what the turn did to the workspace's skills, apps, topics and memories as `data-setupChanges` on the turn's last assistant message, for the UI and for the agent's next turn.
 
 ## Proposed message model
 
@@ -57,11 +57,11 @@ Existing data parts remain the canonical sources for project, attached-folder, b
 
 Move the budgeted `<available_skills>` catalog out of the `load_skill` description and into the initial contextual message. Keep the tool description static and teach it to consult the catalog in context, accept a qualified skill name, and return the current budgeted catalog on a not-found result as it does today.
 
-Use the existing `data-skillChanges` part to tell the model about workspace skills created or updated by the agent. During `SessionMessage.toModelMessages`, carry the latest pending skill-change part from an assistant message into the next user message, following the max-step-note pattern. Render only the recorded names and tell the model to call `load_skill` for current instructions. Do not rescan or embed the full catalog in the delta.
+Use the `data-setupChanges` part to tell the model about workspace skills created or updated by the agent. During `SessionMessage.toModelMessages`, carry the latest pending skill-change part from an assistant message into the next user message, following the max-step-note pattern. Render only the recorded names and tell the model to call `load_skill` for current instructions. Do not rescan or embed the full catalog in the delta.
 
-Do not add watchers or snapshotting for Claude, Codex, Cursor, registry, system, or other third-party skill locations. Changes outside the existing writable workspace-skill tracking remain visible on a later not-found response or in a new session's baseline catalog.
+Do not add watchers or snapshotting for Claude, Codex, Cursor, registry, system, or other third-party skill locations. Changes outside the workspace's own skills remain visible on a later not-found response or in a new session's baseline catalog. Changes to the workspace's own skills and apps made by anyone else (another chat, the person, a program) since the session last heard reach it as `data-setupNews` on the next user message, read off the folders (`setup-news.ts`).
 
-Skill removals stay out, and not only for the first implementation. `data-skillChanges` persists created and updated names on purpose. Telling the agent about a removal buys nothing a failed `load_skill` does not already buy: the call comes back not found with the catalog beside it, which is the recovery the agent would take anyway, and it costs context only in the session that actually reaches for the skill. Announcing removals costs every session on every turn after one. Decided 2026-10-15; reopen it only for a case where the agent cannot recover from the not-found, which the catalog makes hard to construct.
+Skill removals stay out, and not only for the first implementation. The model reads only created and updated names from `data-setupChanges`, and `data-setupNews` carries no removals, on purpose. Telling the agent about a removal buys nothing a failed `load_skill` does not already buy: the call comes back not found with the catalog beside it, which is the recovery the agent would take anyway, and it costs context only in the session that actually reaches for the skill. Announcing removals costs every session on every turn after one. Decided 2026-10-15; reopen it only for a case where the agent cannot recover from the not-found, which the catalog makes hard to construct.
 
 ### Date rollover
 
@@ -73,7 +73,7 @@ This date correction can be a follow-up phase. Removing timed context replacemen
 
 1. Remove timed replacement from `prepareModelMessages`. Add tests proving stored session-context message IDs and model-visible bytes remain unchanged after the former 60-minute threshold and across process-style reconstruction from the store.
 2. Split skill guidance from discovery output. Render the current budgeted catalog once in `mainAgent.getMessages`, make the `load_skill` description static, and retain the not-found catalog for recovery.
-3. Add model rendering for existing `data-skillChanges`. Carry each persisted assistant-side delta to the next user turn once, preserve user-message fencing, and test multiple changes, replay, and a session ending before another user turn.
+3. Add model rendering for the skills in `data-setupChanges`. Carry each persisted assistant-side delta to the next user turn once, preserve user-message fencing, and test multiple changes, replay, and a session ending before another user turn.
 4. Add a persisted date-rollover correction without timers or baseline mutation.
 5. Add byte-stability regression coverage over the serialized system messages, tool definitions, and historical tool results for two identical reconstructions of one stored session.
 

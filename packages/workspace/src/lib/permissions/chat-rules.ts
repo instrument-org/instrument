@@ -113,7 +113,12 @@ export function nativeReachFor(
   const runtime = runtimeLayout(getWorkspaceConfig().runtimeDir);
   return {
     readOnly: [
-      ...layout.skills.map((mount) => mount.hostRoot),
+      // The skills the app ships and the person's other skill folders; the
+      // workspace's own is the person's to change, programs included, and
+      // what changes in it is seen (`setup-snapshot.ts`).
+      ...layout.skills
+        .filter((mount) => mount.readOnly)
+        .map((mount) => mount.hostRoot),
       ...toolBinFolders(runtime.bin),
       // The managed Pythons every chat's virtualenv runs on, which the app
       // installs (installManagedPython), the skill environments it builds,
@@ -132,6 +137,9 @@ export function nativeReachFor(
     ],
     readWrite: [
       layout.chat.hostRoot,
+      ...layout.skills
+        .filter((mount) => !mount.readOnly)
+        .map((mount) => mount.hostRoot),
       runtime.caches,
       runtime.config,
       ...(layout.apps ? [layout.apps.hostRoot] : []),

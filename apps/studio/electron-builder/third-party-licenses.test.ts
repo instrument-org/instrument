@@ -176,7 +176,6 @@ describe("writeThirdPartyLicenses", () => {
         "ripgrep: MIT OR Unlicense",
         "pnpm: MIT",
         "agent-browser: Apache-2.0",
-        "parcel-watcher: MIT",
         "pdfium: MIT AND BSD-3-Clause",
         "react-docx: MIT",
         "react-pptx: MIT",

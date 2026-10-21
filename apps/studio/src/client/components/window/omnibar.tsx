@@ -53,7 +53,7 @@ import {
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { fileHref } from "@/shared/computer-href";
+import { COMPUTER_ROOT, fileHref } from "@/shared/computer-href";
 import { displayHostPath, expandHomePath } from "@instrument-org/shared";
 import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
@@ -261,7 +261,9 @@ export function Omnibar({
     const home = window.api.homeDir;
     const here = matchScreen(routerLocation.href);
     const currentRoot =
-      here.kind === "computer" && here.root !== RECENTS_ROOT
+      here.kind === "computer" &&
+      here.root !== RECENTS_ROOT &&
+      here.root !== COMPUTER_ROOT
         ? here.root
         : undefined;
     const currentRootHost =

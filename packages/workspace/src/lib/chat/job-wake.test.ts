@@ -25,8 +25,6 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";
 import { hasPendingJobWake, startJobWake } from "./job-wake";
 
-vi.mock(import("../session-store-storage"));
-
 // Whether a session has a turn running is the workspace machine's to say,
 // which a test has none of; a case says.
 vi.mock(import("./activity"), async (importOriginal) => ({

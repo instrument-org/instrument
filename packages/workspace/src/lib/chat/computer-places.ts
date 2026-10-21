@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { unique } from "radashi";
 import { z } from "zod";
 
@@ -28,8 +30,18 @@ export const ComputerPlacesSchema = z.object({
   /** The disks and the cloud services' folders: the sidebar's Locations. */
   volumes: ComputerPlaceSchema.array(),
 });
+const run = promisify(execFile);
+
 type ComputerPlace = z.output<typeof ComputerPlaceSchema>;
 export type ComputerPlaces = z.output<typeof ComputerPlacesSchema>;
+
+export const ComputerDriveSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  /** In bytes; absent for a disk that has not answered in a moment. */
+  space: z.object({ free: z.number(), total: z.number() }).optional(),
+});
+export type ComputerDrive = z.output<typeof ComputerDriveSchema>;
 
 /**
  * The person's own folders each system's file manager lists, in its order:
@@ -104,6 +116,36 @@ export async function computerPlaces(): Promise<ComputerPlaces> {
     // its Locations.
     volumes: [...(iCloudDrive ? [iCloudDrive] : []), ...clouds, ...drives],
   };
+}
+
+/**
+ * The disks the sidebar lists, each with how big it is and how much of it is
+ * free: what This PC, the Finder's Computer and GNOME's Other Locations show.
+ * A disk that has not answered in a moment is listed without its space.
+ */
+export async function computerDrives(): Promise<ComputerDrive[]> {
+  const drives = await drivePlaces(os.homedir());
+  return Promise.all(
+    drives.map(async ({ name, path: at }): Promise<ComputerDrive> => {
+      const space = await inAMoment(at, spaceOf, checkingSpace);
+      return space === UNANSWERED || space === undefined
+        ? { name, path: at }
+        : { name, path: at, space };
+    }),
+  );
+}
+
+/** How big the disk at `at` is and how much of it is free, in bytes. */
+async function spaceOf(at: string) {
+  try {
+    const stats = await fs.statfs(at);
+    return {
+      free: stats.bavail * stats.bsize,
+      total: stats.blocks * stats.bsize,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -224,7 +266,11 @@ async function cloudStoragePlaces(home: string): Promise<ComputerPlace[]> {
 async function drivePlaces(home: string): Promise<ComputerPlace[]> {
   if (process.platform === "darwin") {
     // The boot volume is a link to `/`; the others are themselves.
-    return realFolders("/Volumes");
+    const [volumes, hidden] = await Promise.all([
+      realFolders("/Volumes"),
+      unbrowsableMounts(),
+    ]);
+    return volumes.filter((volume) => !hidden.has(volume.path));
   }
   if (process.platform === "win32") {
     // A and B are the floppy letters, which a machine with no floppy can
@@ -256,6 +302,29 @@ async function drivePlaces(home: string): Promise<ComputerPlace[]> {
   ];
 }
 
+/**
+ * Where macOS mounted a volume it asks the Finder not to show, such as the
+ * Recovery volume: `mount` lists each with `nobrowse` among its options.
+ * Nothing is hidden when `mount` cannot be asked.
+ */
+async function unbrowsableMounts(): Promise<ReadonlySet<string>> {
+  try {
+    const { stdout } = await run("/sbin/mount", [], {
+      timeout: DRIVE_ANSWER_MS,
+    });
+    return new Set(
+      stdout.split("\n").flatMap((line) => {
+        const match = / on (.+) \(([^)]*)\)$/.exec(line);
+        return match?.[1] && match[2]?.split(", ").includes("nobrowse")
+          ? [match[1]]
+          : [];
+      }),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
 /** How long a disk has to answer before it is listed unanswered. */
 const DRIVE_ANSWER_MS = 500;
 
@@ -269,6 +338,10 @@ const UNANSWERED = Symbol("unanswered");
  */
 const checkingDrives = new Map<string, Promise<boolean>>();
 const checkingVolumes = new Map<string, Promise<string | undefined>>();
+const checkingSpace = new Map<
+  string,
+  Promise<Awaited<ReturnType<typeof spaceOf>>>
+>();
 
 /**
  * What `look` finds at `at`, or `UNANSWERED` when it has not finished in a

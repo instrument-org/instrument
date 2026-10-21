@@ -18,12 +18,12 @@ import {
 import { handleDirectoryIconRequest } from "./directory-icons";
 import { getResourcePath } from "./resource-path";
 import { type Deps as SiteIconDeps, siteIconFor } from "./site-icons";
+import { RENDERER_HOST, rendererDir } from "./renderer-host";
 
 const FILE_OPEN_ICON_HOST = "file-open-icon";
 const SITE_ICON_HOST = "site-icon";
-// The renderer runs from `file://` in production, where bundled assets cannot
-// be fetched, so the document viewers load their wasm engines from here
-// instead.
+// The document viewers load their wasm engines from here rather than from the
+// renderer's bundle (see `client/lib/document-viewers.ts`).
 const VENDOR_HOST = "vendor";
 const ICON_SIZE = 64;
 const ICON_FILENAME_PATTERN = /^[a-f0-9]{64}\.(?:png|svg)$/;
@@ -38,6 +38,21 @@ const VENDOR_PATH_PATTERN = /^[\w-]+(?:\.[\w-]+)*(?:\/[\w-]+(?:\.[\w-]+)*)*$/;
 const VENDOR_CONTENT_TYPES: Record<string, string> = {
   ".wasm": "application/wasm",
 };
+// What the renderer build emits, typed: module scripts are refused without a
+// JavaScript type. Doubles as the allowlist, as the vendor host's does.
+const RENDERER_CONTENT_TYPES: Record<string, string> = {
+  ".css": "text/css",
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".json": "application/json",
+  ".map": "application/json",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".ttf": "font/ttf",
+  ".wasm": "application/wasm",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+};
 const IMMUTABLE_CACHE_SECONDS = 365 * 24 * 60 * 60;
 
 /**
@@ -50,6 +65,9 @@ export function registerAppProtocol(ses: Session) {
     switch (url.hostname) {
       case DIRECTORY_ICON_HOST: {
         return handleDirectoryIconRequest({ request, url });
+      }
+      case RENDERER_HOST: {
+        return handleRendererRequest({ request, url });
       }
       case FILE_OPEN_ICON_HOST: {
         return handleFileOpenIconRequest({ request, url });
@@ -173,6 +191,46 @@ async function handleSiteIconRequest({
   }
 }
 
+/**
+ * The built renderer's own files, which makes `<scheme>://app` the origin the
+ * app's windows load from. Chromium keeps V8's compiled code for a page's
+ * scripts (the session's `Code Cache`) only for http(s) and the custom schemes
+ * registered with `codeCache`, so a renderer loaded from `file://` parses and
+ * compiles its whole bundle again on every launch.
+ */
+async function handleRendererRequest({
+  request,
+  url,
+}: {
+  request: Request;
+  url: URL;
+}) {
+  if (request.method !== "GET") {
+    return new Response(null, { status: 404 });
+  }
+  const root = rendererDir();
+  let file: string;
+  try {
+    file = path.resolve(root, `.${decodeURIComponent(url.pathname)}`);
+  } catch {
+    return new Response(null, { status: 404 });
+  }
+  if (!file.startsWith(`${root}${path.sep}`)) {
+    return new Response(null, { status: 404 });
+  }
+  const contentType = RENDERER_CONTENT_TYPES[path.extname(file)];
+  if (!contentType) {
+    return new Response(null, { status: 404 });
+  }
+  try {
+    return new Response(await fs.readFile(file), {
+      headers: { "Content-Type": contentType },
+    });
+  } catch {
+    return new Response(null, { status: 404 });
+  }
+}
+
 async function handleVendorRequest({
   request,
   url,
@@ -194,9 +252,9 @@ async function handleVendorRequest({
     const asset = await fs.readFile(getResourcePath(VENDOR_HOST, assetPath));
     return new Response(asset, {
       headers: {
-        // The renderer's own origin is `file://` (or the dev server) and never
-        // this scheme, so every request here is cross-origin and `fetch()`
-        // would fail CORS without this. The bytes ship with the app and the
+        // The renderer's own origin is another host of this scheme (or the dev
+        // server), so every request here is cross-origin and `fetch()` would
+        // fail CORS without this. The bytes ship with the app and the
         // scheme is only reachable from the app's own web contents.
         "Access-Control-Allow-Origin": "*",
         // These ship with the app build, so they only change when the app

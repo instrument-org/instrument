@@ -3,9 +3,9 @@ import fs from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  beginSkillChangeTracking,
-  consumeSkillChanges,
-} from "../lib/workspace-skill-index";
+  beginSetupChangeTracking,
+  consumeSetupChanges,
+} from "../lib/setup-changes";
 import { grantFolder } from "../lib/chat/grants";
 import { workDir } from "../lib/work-dir";
 import { getWorkspaceSkillsDir } from "../lib/workspace-skills-dir";
@@ -111,7 +111,7 @@ describe("WriteFile - path policy", () => {
     });
     const sessionId = StoreId.newSessionId();
     const turn = { id: chatId, sessionId };
-    await beginSkillChangeTracking(turn);
+    beginSetupChangeTracking(turn);
 
     const result = await runTool(WriteFile, {
       ...makeExecuteArgs({
@@ -123,11 +123,9 @@ describe("WriteFile - path policy", () => {
     });
 
     expect(result.isOk()).toBe(true);
-    await expect(consumeSkillChanges(turn)).resolves.toEqual({
-      created: ["brief"],
-      removed: [],
-      updated: [],
-    });
+    await expect(consumeSetupChanges(turn)).resolves.toEqual([
+      { change: "added", kind: "skill", name: "brief" },
+    ]);
   });
 
   it("writes into a granted folder by its full path", async () => {

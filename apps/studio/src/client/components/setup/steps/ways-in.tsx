@@ -1,6 +1,5 @@
 import { AddProviderForm } from "@/client/components/add-provider/form";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
-import welcomeBurstSrc from "@/client/assets/setup/welcome-burst.svg";
 import { BrandMark } from "@/client/components/brand-mark";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { ClaudeSignInCode } from "@/client/components/claude-sign-in-code";
@@ -39,6 +38,7 @@ import { FcGoogle } from "react-icons/fc";
 import { BrandTile } from "../kit/brand-tile";
 import { SetupFooter, SetupPage } from "../kit/setup-page";
 import { SetupRow, SetupRowList } from "../kit/setup-row";
+import { WelcomeBurst } from "../welcome-burst";
 
 type PlanProvider = Exclude<ConnectProvider, "instrument">;
 
@@ -296,13 +296,9 @@ function WelcomePage({
       align="center"
       footer={<TermsFooter className="px-8 pt-5 pb-6" />}
       hero={
-        <img
-          alt=""
-          aria-hidden
-          className="mb-2 h-37.5 w-107"
-          draggable={false}
-          src={welcomeBurstSrc}
-        />
+        <div className="mb-2">
+          <WelcomeBurst />
+        </div>
       }
       subtitle={`${APP_NAME} is a desktop app for doing your best work with AI. It works in your files and its own browser, and connects with all your favorite apps.`}
       title={`Welcome to ${APP_NAME}`}

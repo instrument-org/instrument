@@ -18,7 +18,11 @@ import {
   useInstrumentConnect,
 } from "@/client/hooks/use-connect";
 import { type ConnectFlow } from "@/client/hooks/use-connect-flow";
-import { CONNECT_NAMES, connectPageCopy } from "@/client/lib/connect-copy";
+import {
+  CONNECT_NAMES,
+  connectPageCopy,
+  noCreditsPageCopy,
+} from "@/client/lib/connect-copy";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   type ConnectOutcome,
@@ -560,6 +564,7 @@ function NoCreditsPage({
   const [check, setCheck] = useState<"checking" | "idle" | "still-none">(
     "idle",
   );
+  const noCreditsCopy = noCreditsPageCopy();
   const checkAgain = async () => {
     setCheck("checking");
     if (await hasNoCredits(providerId)) {
@@ -577,8 +582,8 @@ function NoCreditsPage({
           <AIProviderIcon colored type="openrouter" />
         </BrandTile>
       }
-      subtitle={`${APP_NAME} can't run on OpenRouter until there are credits on the account. Add some and try again, or pick another way in.`}
-      title="Your OpenRouter account has no credits"
+      subtitle={noCreditsCopy.subtitle}
+      title={noCreditsCopy.title}
     >
       <OtherWays
         flows={flows}

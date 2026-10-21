@@ -34,11 +34,11 @@ function table(provider: ConnectProvider) {
 }
 
 describe("connectPageCopy", () => {
-  it("says no paid plan for ChatGPT in words that cover a work account", () => {
+  it("says no paid plan for ChatGPT", () => {
     expect(connectPageCopy({ kind: "no-plan" }, "chatgpt")).toEqual({
       subtitle:
-        "Instrument needs a paid ChatGPT plan, and some work accounts turn off other apps. Upgrade and try again, or pick another way in.",
-      title: "This ChatGPT account can't be used here",
+        "Instrument only works with paid ChatGPT plans. Upgrade and try again, or pick another way in.",
+      title: "Your ChatGPT account doesn't have a paid plan",
     });
   });
 
@@ -47,7 +47,7 @@ describe("connectPageCopy", () => {
       connectPageCopy({ kind: "out-of-usage", resetsAt }, "claude", { now }),
     ).toEqual({
       subtitle:
-        "Your Claude plan hit its limit, and Claude says it resets at 3:40 PM. You can keep going and use it then, or pick another way in now.",
+        "Your Claude plan hit its limit, and Claude says it resets around 3:40 PM. You can keep going and use it then, or pick another way in now.",
       title: "Claude is out of usage for now",
     });
   });
@@ -75,15 +75,15 @@ describe("connectPageCopy", () => {
           "title": "Couldn't sign in to Grok",
         },
         "no-plan": {
-          "subtitle": "Instrument works with SuperGrok or X Premium+. Upgrade and try again, or pick another way in.",
-          "title": "Your Grok account doesn't have a plan Instrument can use",
+          "subtitle": "Instrument only works with paid Grok plans. Upgrade and try again, or pick another way in.",
+          "title": "Your Grok account doesn't have a paid plan",
         },
         "out-of-usage": {
           "subtitle": "Your Grok plan hit its limit for now. You can keep going and use it once it resets, or pick another way in now.",
           "title": "Grok is out of usage for now",
         },
         "out-of-usage with reset": {
-          "subtitle": "Your Grok plan hit its limit, and Grok says it resets at 3:40 PM. You can keep going and use it then, or pick another way in now.",
+          "subtitle": "Your Grok plan hit its limit, and Grok says it resets around 3:40 PM. You can keep going and use it then, or pick another way in now.",
           "title": "Grok is out of usage for now",
         },
         "ready": {
@@ -122,9 +122,9 @@ describe("connectNote", () => {
       cases.map(([provider, outcome]) => connectNote(outcome, provider, { now })),
     ).toMatchInlineSnapshot(`
       [
-        "Your Grok account doesn't have a plan Instrument can use.",
-        "This ChatGPT account can't be used here. It needs a paid ChatGPT plan.",
-        "This Claude account can't be used here. It needs Claude Pro or Max.",
+        "Your Grok account doesn't have a paid plan.",
+        "Your ChatGPT account doesn't have a paid plan.",
+        "Your Claude account doesn't have a paid plan.",
         "Claude is out of usage until 3:40 PM.",
         "Grok is out of usage for now.",
         "You're signed out of ChatGPT.",

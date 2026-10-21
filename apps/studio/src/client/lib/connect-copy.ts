@@ -139,7 +139,7 @@ export function connectLine(
     case "no-plan": {
       return provider === "instrument"
         ? undefined
-        : `This account needs ${provider === "chatgpt" ? "a paid ChatGPT plan" : provider === "claude" ? "Claude Pro or Max" : "SuperGrok or X Premium+"}.`;
+        : `${noPlanTitle(provider)}.`;
     }
     case "out-of-usage": {
       return outOfUsageLine(provider, outcome.resetsAt, now);
@@ -251,9 +251,7 @@ export function connectNote(
   const name = CONNECT_NAMES[provider];
   switch (outcome.kind) {
     case "no-plan": {
-      return provider === "grok"
-        ? `Your Grok account doesn't have a plan ${APP_NAME} can use.`
-        : `This ${name} account can't be used here. It needs ${provider === "chatgpt" ? "a paid ChatGPT plan" : "Claude Pro or Max"}.`;
+      return `${noPlanTitle(provider)}.`;
     }
     case "out-of-usage": {
       return outOfUsageLine(provider, outcome.resetsAt, now);
@@ -275,28 +273,25 @@ function signInTo(provider: ConnectProvider) {
 }
 
 function noPlanTitle(provider: ConnectProvider) {
-  return provider === "grok"
-    ? `Your Grok account doesn't have a plan ${APP_NAME} can use`
-    : `This ${CONNECT_NAMES[provider]} account can't be used here`;
+  return `Your ${CONNECT_NAMES[provider]} account doesn't have a paid plan`;
 }
 
 function noPlanReason(provider: ConnectProvider) {
-  switch (provider) {
-    case "chatgpt": {
-      // ChatGPT answers the same for a free plan and for a work account that
-      // turns other apps off, so the words cover both.
-      return `${APP_NAME} needs a paid ChatGPT plan, and some work accounts turn off other apps.`;
-    }
-    case "claude": {
-      return `${APP_NAME} works with Claude Pro or Max.`;
-    }
-    case "grok": {
-      return `${APP_NAME} works with SuperGrok or X Premium+.`;
-    }
-    case "instrument": {
-      return `This account doesn't have an ${APP_NAME} plan.`;
-    }
-  }
+  return provider === "instrument"
+    ? `This account doesn't have an ${APP_NAME} plan.`
+    : `${APP_NAME} only works with paid ${CONNECT_NAMES[provider]} plans.`;
+}
+
+/**
+ * The page for an OpenRouter key whose account has nothing to spend.
+ * OpenRouter still serves its free models with no credits, so the line says
+ * most models rather than all of them.
+ */
+export function noCreditsPageCopy(): ConnectPageCopy {
+  return {
+    subtitle: `${APP_NAME} needs credits on the account to use most OpenRouter models. Add some and try again, or pick another way in.`,
+    title: "Your OpenRouter account has no credits",
+  };
 }
 
 function usageLimitReason(
@@ -306,7 +301,7 @@ function usageLimitReason(
 ) {
   const name = CONNECT_NAMES[provider];
   return resetsAt
-    ? `Your ${name} plan hit its limit, and ${name} says it resets ${describeWhen(new Date(resetsAt), now)}.`
+    ? `Your ${name} plan hit its limit, and ${name} says it resets ${describeWhen(new Date(resetsAt), now).replace(/^at /, "around ")}.`
     : `Your ${name} plan hit its limit for now.`;
 }
 

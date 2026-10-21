@@ -119,7 +119,7 @@ function ThemeOptionButton({
           // Drawn in rings, which take no room, so picking one moves nothing.
           "rounded-2xl p-1.25 group-focus-visible:outline-[3px] group-focus-visible:outline-ring/50 group-focus-visible:[outline-style:solid]",
           isSelected
-            ? "ring-3 ring-brand-500 inset-ring inset-ring-brand-500"
+            ? "ring-3 inset-ring ring-brand-500 inset-ring-brand-500"
             : "bg-setup-tile shadow-xs",
         )}
       >

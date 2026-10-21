@@ -230,6 +230,18 @@ Syncing between devices last: the fake sync engine covers late, partial, duplica
 - Showing a forked session (two devices continuing one chat).
 - A first-party sync service with its own API, which would make the lease and live watching possible.
 
+For a workspace shared between people, none of which needs a format change, since the device file and the rules in [chat-records.md](../../architecture/chat-records.md#changing-the-format) already leave room:
+
+- Starred, archived and unread are one person's. Once a device file names a `person`, those three fold over that person's devices only; title, topic and model stay shared. Devices that name no person are all the workspace's owner, as every device is today.
+- Which device is running a session's turn: a `running` entry (session, since, heartbeat) in that device's `state.<device>.json`, which other devices read. A real lease waits on the sync service; through a file sync engine it can only be a marker.
+- A device that reads another's records starts a new log of the session (`<session>.<device>.2.jsonl` and on). Two people trading messages would make a file per exchange; an in-log record of what was read would replace the new file, with new logs kept for recovery.
+- What is one person's should sit where a sync service can withhold it by path: `state.<device>.json` sits in each chat's record folder, and the activity log and the bookmarks are workspace-wide.
+- Task handles (`t2`) are picked from what one device has seen, so two devices that have not synced can give two tasks one handle. Session ids still differ; the fold should tell the two apart for display.
+- Whose `Memory/` and `Drafts/` are, in a shared workspace, is a product decision.
+- Paths in the agent's own words and tool calls stay as it wrote them. Reading one written on another computer at this one's paths would use the `environment` the session recorded, and needs no change to what is written.
+- A relative path the agent writes is read against the chat's work folder, which is on one computer only.
+- `workspace.json` is rewritten whole by whichever device runs a launch migration.
+
 Decided elsewhere: attachments, drafts and the visible folders are in [instrument-folder.md](instrument-folder.md).
 
 ## Not in this plan

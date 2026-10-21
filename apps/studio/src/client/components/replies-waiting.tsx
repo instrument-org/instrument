@@ -4,6 +4,7 @@ import {
   replyInBox,
 } from "@/client/drafts/chat-box";
 import { draftsAtom } from "@/client/drafts/store";
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { useAtomValue } from "jotai";
@@ -96,7 +97,7 @@ function countOf(waiting: number, inTheBox: boolean): string {
 }
 
 function firstWords(words: string) {
-  const text = words.trim();
+  const text = stripDictatedMarks(words).trim();
   return text.length > WORDS_SHOWN
     ? `${text.slice(0, WORDS_SHOWN).trimEnd()}…`
     : text;

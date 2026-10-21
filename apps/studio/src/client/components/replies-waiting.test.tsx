@@ -97,6 +97,18 @@ describe("a chat's other replies waiting", () => {
     expect(onSwapIn).not.toHaveBeenCalled();
   });
 
+  it("offers dictated words as the plain words said", () => {
+    show([
+      reply("first", 2, "[Ask about the](dictated:) warranty"),
+      reply("second", 1, "two"),
+    ]);
+    openMenu();
+
+    expect(screen.getByRole("menuitem").textContent).toBe(
+      "Ask about the warranty2 days ago",
+    );
+  });
+
   it("counts no reply of another chat's", () => {
     show([
       reply("first", 2, "one"),

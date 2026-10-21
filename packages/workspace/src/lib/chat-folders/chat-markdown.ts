@@ -1,4 +1,5 @@
 import { APP_NAME, chatAddressOf } from "@instrument-org/shared";
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import { z } from "zod";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -262,7 +263,7 @@ function visibleBlocks(
 function visibleBlock(part: SessionMessagePart.Type): string | undefined {
   switch (part.type) {
     case "text": {
-      return part.text.trim();
+      return stripDictatedMarks(part.text).trim();
     }
     case "file": {
       return `${part.filename ?? "A file"} (${part.mediaType})`;

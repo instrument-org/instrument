@@ -505,3 +505,29 @@ function foldFilesOf() {
     ]),
   ];
 }
+
+it("writes dictated words as the plain words the person said", () => {
+  const dictated = foldChat([
+    log(DEVICE_A, [
+      header(0, { device: DEVICE_A, id: chatSession }),
+      messageRecord(1, userMessage(chatSession, messageId(1), at(0))),
+      partRecord(
+        2,
+        textPart(
+          chatSession,
+          messageId(1),
+          partId(1),
+          "[Find me a quiet](dictated:) dishwasher [under \\[900\\]](dictated:)",
+          at(0),
+        ),
+      ),
+    ]),
+  ]);
+  expect(render(dictated)?.split("\n").slice(-3)).toMatchInlineSnapshot(`
+    [
+      "",
+      "Find me a quiet dishwasher under [900]",
+      "",
+    ]
+  `);
+});

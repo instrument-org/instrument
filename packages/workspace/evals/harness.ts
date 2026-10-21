@@ -982,9 +982,16 @@ export async function runEvals(
                   ask.kind === "folder"
                     ? evalCase.declinesFolders
                     : evalCase.declinesApps;
+                // A folder outside the run's home is the developer's own, which
+                // a model that guesses at the real home asks for, so it is never
+                // allowed and never counts against the case's allowance.
+                const fromHome = path.relative(os.homedir(), ask.target);
+                const inRunHome =
+                  !fromHome.startsWith("..") && !path.isAbsolute(fromHome);
                 const allows =
                   ask.kind === "folder"
                     ? !declines &&
+                      inRunHome &&
                       foldersAllowed++ < (evalCase.allowsFolders ?? 0)
                     : evalCase.allowsApps;
                 write(

@@ -5,13 +5,14 @@ import { Input } from "@/client/components/ui/input";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
+import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
 import { FilesIcon } from "@phosphor-icons/react/Files";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
-import { useDeferredValue, useState } from "react";
+import { type ReactNode, useDeferredValue, useState } from "react";
 
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 
@@ -37,9 +38,16 @@ const SOURCE_RANK: Record<Skill["source"], number> = {
 
 /**
  * Every skill a task can load, searchable and grouped by where it comes
- * from, each a row that `onOpen` takes to the skill's page.
+ * from, each a row that `onOpen` takes to the skill's folder, with `menu`
+ * drawn at its end.
  */
-export function SkillList({ onOpen }: { onOpen: (skill: Skill) => void }) {
+export function SkillList({
+  menu,
+  onOpen,
+}: {
+  menu: (skill: Skill) => ReactNode;
+  onOpen: (skill: Skill) => void;
+}) {
   const { data: skills = [], isLoading } = useQuery(
     rpcClient.workspace.skill.list.queryOptions(),
   );
@@ -124,6 +132,7 @@ export function SkillList({ onOpen }: { onOpen: (skill: Skill) => void }) {
                   {group.skills.map((skill) => (
                     <li className="min-w-0" key={skill.id}>
                       <SkillRow
+                        menu={menu(skill)}
                         onOpen={onOpen}
                         ranges={matchBySkill.get(skill)}
                         skill={skill}
@@ -202,57 +211,66 @@ function showsSourcePaths(source: Skill["source"]) {
 
 /**
  * One skill: its name the way it is invoked, what it is, and how much it
- * brings with it. The whole row opens the skill's page.
+ * brings with it. The row opens the skill's folder, and `menu` sits at its
+ * end.
  *
  * Two lines rather than columns, because the pane this stands in is narrow:
  * a name column wide enough for the longest name left the description no
  * room at all.
  */
 function SkillRow({
+  menu,
   onOpen,
   ranges,
   skill,
 }: {
+  menu: ReactNode;
   onOpen: (skill: Skill) => void;
   ranges: SkillMatch<Skill> | undefined;
   skill: Skill;
 }) {
   return (
-    <button
-      className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-accent/40"
-      onClick={() => {
-        onOpen(skill);
-      }}
-      type="button"
-    >
-      <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="truncate font-mono text-sm font-medium">
-            {skill.userInvocable ? "/" : null}
-            <FuzzyHighlight
-              matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
-              ranges={ranges?.nameRanges ?? null}
-              text={skill.name}
+    <div className="flex items-center hover:bg-accent/40">
+      <button
+        className={cn(
+          "flex min-w-0 flex-1 items-start gap-3 py-2.5 pl-4 text-left",
+          menu ? "pr-2" : "pr-4",
+        )}
+        onClick={() => {
+          onOpen(skill);
+        }}
+        type="button"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="truncate font-mono text-sm font-medium">
+              {skill.userInvocable ? "/" : null}
+              <FuzzyHighlight
+                matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
+                ranges={ranges?.nameRanges ?? null}
+                text={skill.name}
+              />
+            </span>
+            <SkillBadges
+              className="flex shrink-0 flex-wrap gap-1"
+              skill={skill}
             />
           </span>
-          <SkillBadges
-            className="flex shrink-0 flex-wrap gap-1"
-            skill={skill}
-          />
+          <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+            <FuzzyHighlight
+              ranges={ranges?.descriptionRanges ?? null}
+              text={skill.description}
+            />
+          </span>
         </span>
-        <span className="mt-0.5 block truncate text-sm text-muted-foreground">
-          <FuzzyHighlight
-            ranges={ranges?.descriptionRanges ?? null}
-            text={skill.description}
-          />
-        </span>
-      </span>
-      {skill.fileCount > 1 ? (
-        <span className="flex shrink-0 items-center gap-1 pt-1 text-xs text-muted-foreground">
-          <FilesIcon className="size-3.5" />
-          {fileCountLabel(skill)}
-        </span>
-      ) : null}
-    </button>
+        {skill.fileCount > 1 ? (
+          <span className="flex shrink-0 items-center gap-1 pt-1 text-xs text-muted-foreground">
+            <FilesIcon className="size-3.5" />
+            {fileCountLabel(skill)}
+          </span>
+        ) : null}
+      </button>
+      {menu ? <span className="shrink-0 pr-2">{menu}</span> : null}
+    </div>
   );
 }

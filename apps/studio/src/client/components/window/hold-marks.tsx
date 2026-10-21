@@ -1,6 +1,6 @@
 import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { Favicon } from "@/client/components/favicon";
-import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { SystemFolderIcon } from "@/client/components/icons/folder-glyph";
 import {
   Popover,
   PopoverContent,
@@ -76,7 +76,7 @@ export function HoldMarks({
     // the count folds the rest away.
     ...holds.files.toReversed().map((path) => ({
       icon: path.endsWith("/") ? (
-        <MacFolderIcon className="size-4" />
+        <SystemFolderIcon className="size-4" />
       ) : (
         <FileTypeIcon className="size-4" fileName={nameOf(path)} />
       ),

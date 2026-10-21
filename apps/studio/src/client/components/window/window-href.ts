@@ -67,8 +67,8 @@ export const SCREEN_ROUTES = {
 
 /**
  * Addresses a link names that are no route of the window's: the window
- * opens each where that thing lives (Settings, a dialog) rather than as a
- * screen of its own.
+ * opens each where that thing lives (Settings, a dialog, a skill's folder in
+ * Files) rather than as a screen of its own.
  */
 export const LINK_ADDRESSES = {
   memory: "/memory/$name",

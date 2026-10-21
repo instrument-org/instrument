@@ -10,7 +10,6 @@ import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 import {
-  findWithHiddenEntriesPruned,
   quietRefusedFolders,
   quoteWindowsArgument,
   splitPrefix,
@@ -87,24 +86,6 @@ describe("quietRefusedFolders", () => {
       "
     `);
     expect(quietRefusedFolders("find: other\n")).toBe("find: other\n");
-  });
-});
-
-describe("findWithHiddenEntriesPruned", () => {
-  it.each<[string[], string[], string]>([
-    [[], [], "( -name .instrument ) -prune -o ( -true ) -print"],
-    [
-      ["-L", "tree", "-name", "*.md"],
-      ["./tasks"],
-      "-L tree ( -name .instrument -o -path ./tasks ) -prune -o ( -name *.md ) -print",
-    ],
-    [
-      [".", "-type", "f", "-printf", "%f\\n"],
-      [],
-      ". ( -name .instrument ) -prune -o ( -type f -printf %f\\n )",
-    ],
-  ])("%j pruning %j", (args, paths, expected) => {
-    expect(findWithHiddenEntriesPruned(args, paths).join(" ")).toBe(expected);
   });
 });
 

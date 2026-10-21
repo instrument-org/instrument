@@ -3,7 +3,6 @@ import {
   cancelClaudeSignIn,
   claudeAccountStatus,
   claudeAccountUsage,
-  installClaudeCode,
   openClaudeSignIn,
   signOutOfClaude,
   submitClaudeSignInCode,
@@ -59,9 +58,6 @@ const signOut = base.handler(async () => {
   return status;
 });
 
-/** Looks again, after the person says they have signed in. */
-const refresh = base.handler(() => refreshClaudeAccountStatus({ force: true }));
-
 /**
  * Uses the Claude account Claude Code is signed in to, when it is: setup is
  * done, and the model Claude Code recommends becomes the default. Answers the
@@ -76,21 +72,13 @@ const connect = base.handler(async () => {
   return { modelName: await setClaudeAccountDefaultModel(), status };
 });
 
-/**
- * Installs our copy of Claude Code, the release this build drives. The status
- * carries its progress; this answers once it is in or has failed.
- */
-const install = base.handler(() => installClaudeCode());
-
 /** The subscription's usage by window, read fresh from Claude Code each time. */
 const usage = base.handler(() => claudeAccountUsage());
 
 export const claudeAccount = {
   cancelSignIn,
   connect,
-  install,
   live,
-  refresh,
   signIn,
   signOut,
   submitSignInCode,

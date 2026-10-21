@@ -32,8 +32,8 @@ A chat is where the user talks to Instrument. Instrument answers small things it
 
 ## What Instrument keeps
 
-- **Memory**: what Instrument remembers about the user, which they can search, forget, or bring in from another AI: [Memory](instrument://settings/memory).
-- **Skills**: recipes tasks use for a kind of work, and new ones the user asks for: [Skills](instrument://settings/skills).
+- **Memory**: what Instrument remembers about the user, one Markdown file per memory in the Memory folder of their Instrument folder. Settings lists them to search, forget, or bring in from another AI: [Memory](instrument://settings/memory). Pressing one there, or a link to one, opens its file to read or edit; [Memory folder](instrument://settings/memory-folder) opens the folder in Files.
+- **Skills**: recipes tasks use for a kind of work, and new ones the user asks for: [Skills](instrument://settings/skills). Each skill is a folder: clicking one in Settings opens its folder in Files, where the user reads or edits it, or asks Instrument to change it. Only skills in the workspace's own `Skills` folder can be deleted, from the "⋯" on their row.
 - **Models**: Instrument works with its own plan, or the user's ChatGPT, Claude or Grok plan (SuperGrok or X Premium+), or a provider with their own key: [Providers](instrument://settings/providers).
 
 ## Something wrong

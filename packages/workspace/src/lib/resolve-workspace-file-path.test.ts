@@ -195,6 +195,30 @@ describe("resolveWorkspaceFilePath", () => {
     expect(resolved).toBe(skillFile);
   });
 
+  it("reads a relative path the work folder lacks from the workspace's top level, after the work folder", async () => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(root),
+    });
+    const skillFile = path.join(root, SKILLS_FOLDER_NAME, "brief", "SKILL.md");
+    await fs.mkdir(path.dirname(skillFile), { recursive: true });
+    await fs.writeFile(skillFile, "---\nname: brief\n---\n");
+    await fs.writeFile(path.join(root, "notes.txt"), "workspace file");
+
+    const resolved = await resolveWorkspaceFilePaths({
+      chatId,
+      filePaths: ["Skills/brief/SKILL.md", "notes.txt", "Skills/gone.md"],
+    });
+
+    expect(Object.fromEntries(resolved)).toEqual({
+      "Skills/brief/SKILL.md": skillFile,
+      // The work folder has one, and it wins.
+      "notes.txt": path.join(chatRoot, "notes.txt"),
+      // Nowhere: named in the work folder, as before.
+      "Skills/gone.md": path.join(chatRoot, "Skills", "gone.md"),
+    });
+  });
+
   it.each([
     {
       filePath: (): string =>

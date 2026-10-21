@@ -3,7 +3,6 @@ packages:
   - apps/*
 
 allowBuilds:
-  "@parcel/watcher": false
   "@swc/core": true
   "@vscode/ripgrep": true
   agent-browser: true
@@ -134,7 +133,6 @@ overrides:
 
 patchedDependencies:
   "@milkdown/plugin-block@7.22.2": patches/@milkdown__plugin-block@7.22.2.patch
-  "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch
   conf@14.0.0: patches/conf@14.0.0.patch
   ffmpeg-ffprobe-static@7.1.0-rc.1: patches/ffmpeg-ffprobe-static@7.1.0-rc.1.patch
   just-bash@3.6.0: patches/just-bash@3.6.0.patch

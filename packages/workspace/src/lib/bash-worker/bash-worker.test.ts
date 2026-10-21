@@ -35,9 +35,9 @@ import { shellPath } from "../workspace-fs-layout";
 import { workspaceLayout } from "../workspace-layout";
 import { getWorkspaceSkillsDir } from "../workspace-skills-dir";
 import {
-  beginSkillChangeTracking,
-  consumeSkillChanges,
-} from "../workspace-skill-index";
+  beginSetupChangeTracking,
+  consumeSetupChanges,
+} from "../setup-changes";
 import { createRemoteBash, setBashWorkerFactory } from "./client";
 import { fromWireError, type FromWorker, toWireError } from "./protocol";
 
@@ -224,7 +224,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   it("credits a skill written from the shell to the turn that wrote it", async () => {
     const bashOptions = options();
     const turn = { id: chatId, sessionId: bashOptions.sessionId };
-    await beginSkillChangeTracking(turn);
+    beginSetupChangeTracking(turn);
     const skill = `${shellPath(getWorkspaceSkillsDir())}/tracked`;
 
     await withTurnContext(turn, () =>
@@ -233,9 +233,9 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
       ),
     );
 
-    await expect(consumeSkillChanges(turn)).resolves.toMatchObject({
-      created: ["tracked"],
-    });
+    await expect(consumeSetupChanges(turn)).resolves.toEqual([
+      { change: "added", kind: "skill", name: "tracked" },
+    ]);
   });
 
   it.skipIf(process.platform === "win32")(

@@ -18,6 +18,7 @@ import {
   isAddressableChatFilePath,
   isChatFileHref,
   chatFilePathFromHref,
+  isDriveHref,
   type ChatId,
 } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
@@ -764,6 +765,12 @@ const markdownUrlTransform: UrlTransform = (url, key, node) => {
   // know and drops.
   if (key === "href" && isChatFileHref(url)) {
     return url;
+  }
+  // An image by its drive goes by the shell's spelling, which is how the
+  // message's other images name a file. One on a network share is left to
+  // the default: `//server/share` is how a URL names another host.
+  if (key === "src" && isDriveHref(url)) {
+    return chatFilePathFromHref(url);
   }
   if (!/^file:/i.test(url)) {
     return defaultUrlTransform(url);

@@ -1,7 +1,7 @@
 import { type StudioPath } from "@/shared/studio-path";
 import { is } from "@electron-toolkit/utils";
-import path from "node:path";
-import url from "node:url";
+
+import { rendererBaseURL } from "./renderer-host";
 
 export function studioURL(pathname: StudioPath) {
   return createBaseURL("../renderer/index.html", pathname);
@@ -14,12 +14,7 @@ function createBaseURL(rendererPath: string, hash = "") {
     baseUrl.hash = hash;
     return baseUrl.toString();
   } else {
-    const fileUrl = url.format({
-      pathname: path.join(import.meta.dirname, rendererPath),
-      protocol: "file:",
-      slashes: true,
-    });
-    const baseUrl = new URL(fileUrl);
+    const baseUrl = new URL("index.html", rendererBaseURL());
     baseUrl.hash = hash;
     return baseUrl.toString();
   }

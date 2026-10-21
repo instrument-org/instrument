@@ -1,10 +1,8 @@
 import { APP_PROTOCOL } from "@instrument-org/shared";
 import { lazy } from "react";
 
-// The renderer is served from `file://` in production, where `fetch()` of a
-// bundled asset is blocked. Engine binaries and the tables they load are copied
-// into `resources/vendor/` at build time and served from the privileged app
-// protocol instead.
+// Engine binaries and the tables they load are copied into `resources/vendor/`
+// at build time and served from the app protocol's vendor host.
 const vendorUrl = (assetPath: string) =>
   `${APP_PROTOCOL}://vendor/${assetPath}`;
 
@@ -12,9 +10,8 @@ export const PDFIUM_WASM_URL = vendorUrl("pdfium.wasm");
 export const SQLITE_WASM_URL = vendorUrl("sqlite3.wasm");
 
 // Every host that mounts a viewer goes through these handles, so a viewer can
-// never reach its parser with the library's default wasm source: that one
-// resolves against `import.meta.url` and is loaded through a dynamic `import()`
-// of a `file:` URL, which the renderer's CSP rejects.
+// never reach its parser with the library's default wasm source, which
+// resolves against `import.meta.url`.
 //
 // Each viewer library is reached through a dynamic import so that it stays in
 // its own chunk; a static import here would pull all of them into the entry

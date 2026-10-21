@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-import { computerPlaces } from "./computer-places";
+import { computerDrives, computerPlaces } from "./computer-places";
 
 const PLATFORM = process.platform;
 
@@ -85,3 +85,20 @@ it.skipIf(process.platform === "win32")(
     });
   },
 );
+
+it("lists a Windows drive whose space never comes back without its space", async () => {
+  vi.spyOn(fs, "statfs").mockImplementation(((target: string) =>
+    target === "C:\\"
+      ? Promise.resolve({ bavail: 25, blocks: 100, bsize: 4096 })
+      : new Promise(() => {})) as unknown as typeof fs.statfs);
+  const drives = computerDrives();
+  await vi.advanceTimersByTimeAsync(1000);
+  await expect(drives).resolves.toEqual([
+    {
+      name: "C:",
+      path: "C:\\",
+      space: { free: 25 * 4096, total: 100 * 4096 },
+    },
+    { name: "Z:", path: "Z:\\" },
+  ]);
+});

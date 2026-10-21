@@ -10,7 +10,13 @@ import {
 } from "@/client/lib/image-policy";
 import { renderWithProviders } from "@/tests/render";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { Profiler } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
@@ -184,6 +190,16 @@ describe("Markdown links", () => {
 
     expect(screen.getByRole("button", { name: "notes.txt" }).title).toBe(
       "/c/Users/sam/Documents/sp ace/notes.txt",
+    );
+  });
+
+  // Markdown reads `\\` in a link as one backslash, so a share reaches the
+  // link only with its backslashes doubled.
+  it("opens a link to a file on a network share by its shell path", () => {
+    renderMarkdown(String.raw`[shot.png](<\\\\nas\\photos\\shot.png>)`);
+
+    expect(screen.getByRole("button", { name: "shot.png" }).title).toBe(
+      "//nas/photos/shot.png",
     );
   });
 
@@ -497,6 +513,23 @@ describe("Markdown images", () => {
     // A failed image is a fact rather than an offer, so the chip is no button.
     expect(screen.queryByRole("button", { name: /The chart/ })).toBeNull();
   });
+
+  // A person writes a Windows image by its drive, and it is the same file as
+  // the shell's spelling the reply's other images use.
+  it.each([String.raw`C:\Users\sam\shot.png`, "C:/Users/sam/shot.png"])(
+    "draws an image named by its drive: %s",
+    (src) => {
+      const bySpelling = (markdown: string) =>
+        renderMarkdown(markdown)
+          .container.querySelector("img")
+          ?.getAttribute("src");
+      const shell = bySpelling("![shot](/c/Users/sam/shot.png)");
+      cleanup();
+
+      expect(shell).toBeTruthy();
+      expect(bySpelling(`![shot](${src})`)).toBe(shell);
+    },
+  );
 
   // A reply routinely names the file it is still writing, so mid-turn a miss
   // says nothing about whether the image will be there.

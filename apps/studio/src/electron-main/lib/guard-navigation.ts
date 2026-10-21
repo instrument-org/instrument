@@ -40,9 +40,14 @@ export function isStudioURL(target: string): boolean {
   try {
     const app = new URL(studioURL("/"));
     const url = new URL(target);
-    // Every `file:` URL shares the one `file://` origin, so in a packaged build
-    // the pathname is what separates the renderer from any other file on disk.
-    return url.origin === app.origin && url.pathname === app.pathname;
+    // By scheme and host rather than `origin`, which a URL parser gives as
+    // "null" for every host of a custom scheme. The renderer's host also
+    // serves its assets, so the pathname is what separates the document.
+    return (
+      url.protocol === app.protocol &&
+      url.host === app.host &&
+      url.pathname === app.pathname
+    );
   } catch {
     return false;
   }

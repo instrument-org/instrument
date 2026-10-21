@@ -3,7 +3,6 @@ import fs from "node:fs";
 
 import {
   BROWSER_FOLDER_NAMES,
-  CHAT_DB_FILE_NAME,
   CHAT_FOLDER_NAMES,
   HANDOFF_NOTES_FILE_NAME,
 } from "../constants";
@@ -102,8 +101,4 @@ export function chatStatePath(dir: ChatDir, device: DeviceId): AbsolutePath {
  */
 export function handoffNotesPath(dir: ChatDir): AbsolutePath {
   return absolutePathJoin(dir, HANDOFF_NOTES_FILE_NAME);
-}
-
-export function sessionStorePath(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(dir, CHAT_DB_FILE_NAME);
 }

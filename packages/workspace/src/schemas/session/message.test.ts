@@ -1144,14 +1144,21 @@ describe("SessionMessage.toModelMessages", () => {
 
     const messages: SessionMessage.WithParts[] = [
       messageOf("assistant", (metadata) => ({
-        data: { created: ["pdf-report"], updated: [] },
+        data: {
+          changes: [{ change: "added", kind: "skill", name: "pdf-report" }],
+        },
         metadata,
-        type: "data-skillChanges",
+        type: "data-setupChanges",
       })),
       messageOf("assistant", (metadata) => ({
-        data: { created: ["pdf-report"], updated: ["chart-builder"] },
+        data: {
+          changes: [
+            { change: "changed", kind: "skill", name: "chart-builder" },
+            { change: "added", kind: "skill", name: "pdf-report" },
+          ],
+        },
         metadata,
-        type: "data-skillChanges",
+        type: "data-setupChanges",
       })),
       messageOf("user", (metadata) => ({
         metadata,

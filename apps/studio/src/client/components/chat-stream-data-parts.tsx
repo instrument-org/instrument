@@ -9,6 +9,7 @@ import {
   messageGapModelNote,
   outputLimitModelNote,
   type SessionMessagePart,
+  setupNewsModelNote,
 } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
 
@@ -22,7 +23,7 @@ import { type RenderPartContext } from "./chat-stream-render-part";
 import { PermissionAnswerNote } from "./permission-asks";
 import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
-import { SkillChangesCard } from "./skill-changes-card";
+import { SetupChangesNote } from "./setup-changes-note";
 import { TaskEventNote } from "./task-event-note";
 import { SentAsksNote } from "./window/ask-pills";
 
@@ -259,16 +260,19 @@ export function renderDataPart({
         />
       );
     }
-    case "data-skillChanges": {
+    case "data-setupNews": {
       return (
-        // Wider than the file grid's mt-2: that grid is a block of its own and
-        // reads as separate at 8px, while a single slim card sits close enough
-        // to the text above to look glued to it.
-        <SkillChangesCard
-          className="mt-3"
-          data={part.data}
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
           key={part.metadata.id}
+          text={setupNewsModelNote(part.data)}
         />
+      );
+    }
+    case "data-setupChanges": {
+      return (
+        <SetupChangesNote changes={part.data.changes} key={part.metadata.id} />
       );
     }
     case "data-jobEvent": {

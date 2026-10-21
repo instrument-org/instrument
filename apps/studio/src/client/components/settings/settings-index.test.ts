@@ -64,7 +64,10 @@ describe("matchSettings", () => {
   });
 
   it("finds the rows on a page by the page name under them, after title matches", () => {
-    expect(titles("memory")).toEqual(["Import from another AI"]);
+    expect(titles("memory")).toEqual([
+      "Memory folder",
+      "Import from another AI",
+    ]);
   });
 
   it("matches only words the result shows, as written", () => {

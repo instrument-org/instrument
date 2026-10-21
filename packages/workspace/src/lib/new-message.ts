@@ -14,6 +14,7 @@ import { detectChatAppChanges } from "./chat-app-changes";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
+import { createSetupNewsPart } from "./setup-news";
 import { readWorkspaceInstructions } from "./workspace-instructions";
 import { detectDateChange } from "./date-change";
 import { detectEnvironmentChange } from "./environment";
@@ -289,6 +290,19 @@ export async function newMessage({
     });
     if (memoryPart) {
       parts.push(memoryPart);
+    }
+
+    // Skills and apps another chat, the person or a program changed since
+    // this session last heard: its catalog and app list were written when it
+    // began.
+    const setupNews = await createSetupNewsPart({
+      createdAt,
+      messageId,
+      sessionId,
+      chatId,
+    });
+    if (setupNews) {
+      parts.push(setupNews);
     }
   }
 

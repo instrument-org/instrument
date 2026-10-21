@@ -22,8 +22,6 @@ import { agentMachine, type ShouldContinueResult } from "./agent";
 import { executeToolCallMachine } from "./execute-tool-call";
 import { llmRequestLogic } from "../logic/llm-request";
 
-vi.mock(import("../lib/session-store-storage"));
-
 describe("agentMachine", () => {
   const model = createMockAIGatewayModel();
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"), { model });

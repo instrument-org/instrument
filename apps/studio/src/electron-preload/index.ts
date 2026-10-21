@@ -276,8 +276,7 @@ window.addEventListener("message", (event) => {
   // file viewer previews task HTML in an iframe that runs scripts -- without
   // this check that content could pass its own port and drive the entire oRPC
   // router (file I/O, shell, workspace) from inside the sandbox. `event.origin`
-  // cannot tell them apart: the packaged app loads over `file://`, which
-  // serializes to "null", exactly like a sandboxed frame's opaque origin.
+  // says where a frame was loaded from, never who wrote what it runs.
   if (event.source !== window) {
     return;
   }

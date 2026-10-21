@@ -55,7 +55,6 @@
     "@instrument-org/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@orpc/server": "catalog:",
-    "@parcel/watcher": "2.6.0",
     "@types/ws": "^8.18.1",
     "@vscode/ripgrep": "^1.18.0",
     "agent-browser": "^0.39.1",
@@ -105,14 +104,6 @@
     "vitest": "catalog:"
   },
   "optionalDependencies": {
-    "@parcel/watcher-darwin-arm64": "2.6.0",
-    "@parcel/watcher-darwin-x64": "2.6.0",
-    "@parcel/watcher-linux-arm64-glibc": "2.6.0",
-    "@parcel/watcher-linux-arm64-musl": "2.6.0",
-    "@parcel/watcher-linux-x64-glibc": "2.6.0",
-    "@parcel/watcher-linux-x64-musl": "2.6.0",
-    "@parcel/watcher-win32-arm64": "2.6.0",
-    "@parcel/watcher-win32-x64": "2.6.0"
   },
   "engines": {
     "node": ">=24.21.0"

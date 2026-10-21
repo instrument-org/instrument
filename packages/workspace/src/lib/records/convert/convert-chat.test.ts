@@ -9,7 +9,6 @@ import { type ChatId } from "../../../schemas/chat-id";
 import { SessionMessage } from "../../../schemas/session/message";
 import { SessionMessagePart } from "../../../schemas/session/message-part";
 import { withTempDir } from "../../../test/helpers/temp-dir";
-import { disposeSessionsStoreStorage } from "../../session-store-storage";
 import { StorageKey } from "../../storage-key";
 import { blobPath } from "../blobs";
 import { ChatRecords, installChatRecords } from "../chat-records";
@@ -193,7 +192,6 @@ async function recordFiles(dir: string): Promise<Record<string, string>> {
  */
 async function alongsideTheStore(
   dir: string,
-  chat: ChatId,
   write: (records: ChatRecords) => Promise<void>,
   device: DeviceId = DEVICE_A,
 ): Promise<void> {
@@ -209,7 +207,6 @@ async function alongsideTheStore(
   } finally {
     installChatRecords(undefined);
     await records.dispose();
-    await disposeSessionsStoreStorage(chat);
   }
 }
 
@@ -219,9 +216,9 @@ async function alongsideTheStore(
  */
 function writeHoldsAMapChat(dir: string): Promise<ChatId> {
   const s = sessionId(1);
-  return writeChat(dir, async (chat) => {
-    await saveSession(chat, { createdAt: at(0), id: s, title: "Maps" });
-    await saveMessage(chat, assistantMessage(s, messageId(1), at(1)), [
+  return writeChat(dir, async (store) => {
+    await saveSession(store, { createdAt: at(0), id: s, title: "Maps" });
+    await saveMessage(store, assistantMessage(s, messageId(1), at(1)), [
       part(s, messageId(1), 10, {
         input: { command: "count" },
         output: new Map([["words", 3]]),
@@ -257,8 +254,7 @@ describe("convertChat", () => {
     // read below and by the conversion, and the two compare exactly.
     vi.useFakeTimers({ now: at(500), toFake: ["Date"] });
     const dir = chatPath("every-kind");
-    const chat = await writeEveryKindChat(dir);
-    await disposeSessionsStoreStorage(chat);
+    await writeEveryKindChat(dir);
     // What the store held, through the reader the conversion itself uses:
     // each session's own messages with their parts.
     const read = await readChatDb(
@@ -522,9 +518,9 @@ describe("convertChat", () => {
     "files a chat whose row kept the topics %j under the first",
     async (topics, topic) => {
       const dir = chatPath(`topics-${topics.length}`);
-      await writeChat(dir, async (chat) => {
+      await writeChat(dir, async (store) => {
         const { topic: _one, ...session } = EVERY_KIND_SESSION;
-        await tell(chat, StorageKey.session(session.id), {
+        await tell(store, StorageKey.session(session.id), {
           ...session,
           topics,
         });
@@ -885,7 +881,7 @@ describe("convertChat", () => {
     expect((await convertChat(dir, OPTIONS)).kind).toBe("converted");
     // The chat.db that could not be set aside, under records that went on
     // to take a turn and start a task.
-    await alongsideTheStore(dir, chat, async (records) => {
+    await alongsideTheStore(dir, async (records) => {
       await records.appendMessage(
         chat,
         SessionMessage.Schema.parse(
@@ -925,7 +921,6 @@ describe("convertChat", () => {
     // merge those, so the database stays and the chat is said back.
     await alongsideTheStore(
       dir,
-      chat,
       async (records) => {
         await records.saveSession(chat, EVERY_KIND_SESSION);
         await records.appendMessage(
@@ -953,7 +948,6 @@ describe("convertChat", () => {
     // its own to write, so they stay as they are.
     await alongsideTheStore(
       dir,
-      chat,
       (records) => records.saveSession(chat, EVERY_KIND_SESSION),
       DEVICE_B,
     );
@@ -976,7 +970,7 @@ describe("convertChat", () => {
     const chat = await writeEveryKindChat(dir);
     // Saving the row is all the app has to do to the chat: the records take
     // its header and the settings it carries, and none of its history.
-    await alongsideTheStore(dir, chat, (records) =>
+    await alongsideTheStore(dir, (records) =>
       records.saveSession(chat, EVERY_KIND_SESSION),
     );
     expect(await listing(dir)).toEqual([
@@ -1003,7 +997,7 @@ describe("convertChat", () => {
 
     const dir = chatPath("torn");
     const chat = await writeEveryKindChat(dir);
-    await alongsideTheStore(dir, chat, (records) =>
+    await alongsideTheStore(dir, (records) =>
       records.saveSession(chat, EVERY_KIND_SESSION),
     );
     // What a crash mid-append leaves: a line with no newline after it. Every
@@ -1020,7 +1014,7 @@ describe("convertChat", () => {
   it("keeps a chat whose records hold turns a build took before it ran", async () => {
     const dir = chatPath("half-written");
     const chat = await writeEveryKindChat(dir);
-    await alongsideTheStore(dir, chat, async (records) => {
+    await alongsideTheStore(dir, async (records) => {
       await records.saveSession(chat, EVERY_KIND_SESSION);
       await records.appendMessage(
         chat,
@@ -1048,10 +1042,10 @@ describe("convertChat", () => {
   it("says a chat the store could not read is unreadable, and writes nothing", async () => {
     const dir = chatPath("unreadable");
     const s = sessionId(1);
-    await writeChat(dir, async (chat) => {
-      await saveSession(chat, { createdAt: at(0), id: s, title: "Broken" });
-      await saveMessage(chat, userMessage(s, messageId(1), at(1)));
-      await tell(chat, StorageKey.message(s, messageId(2)), {
+    await writeChat(dir, async (store) => {
+      await saveSession(store, { createdAt: at(0), id: s, title: "Broken" });
+      await saveMessage(store, userMessage(s, messageId(1), at(1)));
+      await tell(store, StorageKey.message(s, messageId(2)), {
         id: "not a message",
       });
     });

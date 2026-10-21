@@ -18,10 +18,6 @@ export const SKILL_ARTIFACT_IGNORE = [
   "venv",
 ];
 
-/** Machine-generated skill directories in @parcel/watcher glob syntax. */
-export const SKILL_ARTIFACT_WATCHER_IGNORE = SKILL_ARTIFACT_IGNORE.flatMap(
-  (name) => [name, `${name}/**`, `**/${name}`, `**/${name}/**`],
-);
 
 /** Authored files omitted from a Node skill's built copy. */
 export const SKILL_COPY_IGNORE = [

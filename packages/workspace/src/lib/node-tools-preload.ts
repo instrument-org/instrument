@@ -257,7 +257,19 @@ if (globalThis.tools === undefined && toolsAt !== undefined) {
  * The module `node` loads with `--import` ahead of the agent's script: the
  * package.json part, then `tools`.
  */
-const NODE_TOOLS_PRELOAD = `${PACKAGE_SCOPE_PRELOAD}${TOOLS_PRELOAD}`;
+/**
+ * The agent's \`node\` is the app's Electron run as Node, which keeps
+ * \`process.versions.electron\`. Argument parsers (yargs, commander) take a
+ * process with it and no \`process.defaultApp\` for a packaged Electron app,
+ * whose argv has no script in it, and hand the script's own path to the
+ * program as its first argument. Marked as Electron's default app, it reads
+ * argv as Node's.
+ */
+const ELECTRON_AS_NODE_PRELOAD = `
+process.defaultApp ??= true;
+`;
+
+const NODE_TOOLS_PRELOAD = `${PACKAGE_SCOPE_PRELOAD}${TOOLS_PRELOAD}${ELECTRON_AS_NODE_PRELOAD}`;
 
 /** A tool call the preload sends, one JSON line each. */
 interface ToolCall {

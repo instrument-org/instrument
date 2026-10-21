@@ -17,6 +17,7 @@ import { recentBreadcrumbs } from "./breadcrumbs";
 import { logger } from "./electron-logger";
 import { eventContexts } from "./event-contexts";
 import { storeExceptionEvent } from "./exception-store";
+import { rendererBaseURL } from "./renderer-host";
 
 /**
  * The one way an exception is captured in Studio, for every process: the
@@ -62,7 +63,6 @@ export function buildMainExceptionEvent(
   context?: CaptureContext,
   area = "studio",
 ): ExceptionEvent {
-  const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   return buildExceptionEvent(error, {
     breadcrumbs: recentBreadcrumbs(),
     context,
@@ -71,7 +71,7 @@ export function buildMainExceptionEvent(
     paths: {
       appRoot: app.getAppPath(),
       home: os.homedir(),
-      urlRoots: rendererUrl ? [rendererUrl.replace(/\/?$/, "/")] : [],
+      urlRoots: [rendererBaseURL()],
     },
   });
 }

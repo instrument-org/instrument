@@ -1,31 +1,20 @@
 import { eventIterator } from "@orpc/server";
-import fs from "node:fs/promises";
-import path from "node:path";
 import { z } from "zod";
 
 import { deleteSkill } from "../../lib/delete-skill";
-import { pathIsWithin } from "../../lib/path-is-within";
 import {
   getSkillProvenance,
   getWritableSkillsRoot,
 } from "../../lib/skill-provenance";
 import {
-  findSkill,
   findSkills,
   getSkillSources,
   listSkillFiles,
   SKILL_SOURCE_KINDS,
-  splitFrontmatter,
 } from "../../lib/skills";
 import { startWatchingWorkspaceSkills } from "../../lib/workspace-skill-watcher";
 import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
-
-/**
- * Past this a file stops being something to read on a skill page, and the cost
- * of pushing it through RPC and a highlighter starts to show.
- */
-const FILE_SIZE_LIMIT = 512 * 1024;
 
 const SkillSourceSchema = z.enum(SKILL_SOURCE_KINDS);
 
@@ -34,10 +23,9 @@ const SkillSummarySchema = z.object({
   description: z.string(),
   /**
    * True when the skill lives in the one workspace directory the agent can
-   * write to, so the UI can offer an edit action that actually lands. The
-   * other workspace source (`.agents/skills`) is listed but sits outside the
-   * writable skills directory, so pointing an edit agent at it would fork a
-   * duplicate rather than revise it in place.
+   * write to: the skills the person installed or made, which the UI offers
+   * to delete. The other workspace source (`.agents/skills`) is listed but
+   * sits outside the writable skills directory.
    */
   editable: z.boolean(),
   fileCount: z.number(),
@@ -55,20 +43,6 @@ const SkillSummarySchema = z.object({
   title: z.string(),
   userInvocable: z.boolean(),
 });
-
-const SkillDetailSchema = SkillSummarySchema.extend({
-  compatibility: z.string().nullable(),
-  content: z.string(),
-  files: z.array(z.string()),
-  frontmatter: z.string(),
-  rawSkillFile: z.string(),
-});
-
-const SkillFileSchema = z.discriminatedUnion("kind", [
-  z.object({ content: z.string(), kind: z.literal("text") }),
-  z.object({ kind: z.literal("binary") }),
-  z.object({ kind: z.literal("too-large") }),
-]);
 
 const list = base
   .output(SkillSummarySchema.array())
@@ -100,108 +74,6 @@ const list = base
       title: skill.title,
       userInvocable: skill.userInvocable,
     }));
-  });
-
-const byName = base
-  .input(z.object({ name: z.string() }))
-  .output(SkillDetailSchema)
-  .handler(async ({ context, errors, input }) => {
-    const { skill } = await findSkill(context.workspaceConfig, input.name);
-    if (!skill) {
-      throw errors.NOT_FOUND({
-        message: `Skill "${input.name}" was not found.`,
-      });
-    }
-
-    const { files, truncated } = await listSkillFiles(
-      skill.skillDir,
-      AbortSignal.timeout(10_000),
-    );
-    const writableRoot = await getWritableSkillsRoot(
-      context.workspaceConfig.rootDir,
-    );
-    const rawSkillFile = await fs.readFile(
-      path.join(skill.skillDir, "SKILL.md"),
-      "utf8",
-    );
-    const frontmatterResult = splitFrontmatter(rawSkillFile);
-    return {
-      aliases: skill.aliases,
-      compatibility: skill.compatibility ?? null,
-      content: skill.content,
-      description: skill.description,
-      editable: getSkillProvenance(skill, writableRoot).editable,
-      fileCount: files.length,
-      files,
-      filesTruncated: truncated,
-      frontmatter: frontmatterResult.ok
-        ? `---\n${frontmatterResult.block}\n---`
-        : "",
-      id: skill.id,
-      modelInvocable: skill.modelInvocable,
-      name: skill.name,
-      path: skill.skillDir,
-      qualifiedName: skill.qualifiedName,
-      rawSkillFile,
-      source: skill.source,
-      title: skill.title,
-      userInvocable: skill.userInvocable,
-    };
-  });
-
-const file = base
-  .input(z.object({ name: z.string(), path: z.string() }))
-  .output(SkillFileSchema)
-  .handler(async ({ context, errors, input }) => {
-    const { skill } = await findSkill(context.workspaceConfig, input.name);
-    if (!skill) {
-      throw errors.NOT_FOUND({
-        message: `Skill "${input.name}" was not found.`,
-      });
-    }
-
-    // The caller picks from a list we produced, so containment is a guard
-    // against a crafted path rather than an expected case.
-    const filePath = path.resolve(skill.skillDir, input.path);
-    if (!pathIsWithin(filePath, skill.skillDir)) {
-      throw errors.NOT_FOUND({
-        message: `"${input.path}" is not part of the "${input.name}" skill.`,
-      });
-    }
-
-    const stats = await fs.lstat(filePath).catch(() => null);
-    if (!stats) {
-      throw errors.NOT_FOUND({ message: `"${input.path}" was not found.` });
-    }
-
-    const canonicalFilePath = stats.isSymbolicLink()
-      ? await fs.realpath(filePath).catch(() => null)
-      : filePath;
-    if (
-      canonicalFilePath === null ||
-      !pathIsWithin(canonicalFilePath, skill.skillDir)
-    ) {
-      throw errors.NOT_FOUND({
-        message: `"${input.path}" is not part of the "${input.name}" skill.`,
-      });
-    }
-
-    const fileStats = await fs.stat(canonicalFilePath).catch(() => null);
-    if (!fileStats?.isFile()) {
-      throw errors.NOT_FOUND({ message: `"${input.path}" was not found.` });
-    }
-    if (fileStats.size > FILE_SIZE_LIMIT) {
-      return { kind: "too-large" } as const;
-    }
-
-    const bytes = await fs.readFile(canonicalFilePath);
-    // A NUL byte is what separates something worth showing as text from an
-    // image or a compiled artifact the skill happens to ship.
-    if (bytes.includes(0)) {
-      return { kind: "binary" } as const;
-    }
-
-    return { content: bytes.toString("utf8"), kind: "text" } as const;
   });
 
 const remove = base
@@ -250,4 +122,4 @@ const changed = base
     }
   });
 
-export const skill = { byName, events: { changed }, file, list, remove };
+export const skill = { events: { changed }, list, remove };

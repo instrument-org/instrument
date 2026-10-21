@@ -28,9 +28,7 @@ export function useRefreshSkillsOnChange() {
     if (revision === undefined) {
       return;
     }
-    // The router's own key, so this covers every skill read rather than the
-    // list alone: someone watching a skill's page while the agent revises it
-    // is looking at `byName` and `file`, which the list key never touched.
+    // The router's own key, so this covers every skill read.
     void queryClient.invalidateQueries({
       queryKey: rpcClient.workspace.skill.key(),
     });

@@ -51,40 +51,59 @@ export type ChatFolderWrite =
   | { folder: string; kind: "written" };
 
 /**
- * One write per chat at a time: a turn ending, a message sent and a title
- * settling can land together, and two writes of one folder would race to
- * claim it and to rename the same temp file over `CHAT.md`.
+ * One write or move of a chat's folder at a time: a turn ending, a message
+ * sent and a title settling can land together. Two writes of one folder
+ * would race to claim it and to rename the same temp file over `CHAT.md`,
+ * and a write that read the recorded name before a move took the folder
+ * away would claim a second, numbered folder under the new title.
  */
 const writesInOrder = createWriteQueue();
 
 /**
+ * Runs `work` on the chat's folder once every write and move of it queued
+ * before has finished, and before any queued after it starts.
+ */
+export function inChatFolderOrder<T>(
+  id: ChatId,
+  work: () => Promise<T>,
+): Promise<T> {
+  return writesInOrder(id, work);
+}
+
+/**
  * Writes the chat's folder and `CHAT.md` from its records as they stand now,
  * in the running workspace, reporting a failure rather than throwing it.
+ */
+export function rewriteChatFolder(id: ChatId): Promise<void> {
+  return inChatFolderOrder(id, () => rewriteChatFolderInOrder(id));
+}
+
+/**
+ * `rewriteChatFolder` for work already running in the chat's folder order
+ * (`inChatFolderOrder`), which would otherwise wait on itself.
  *
  * The renderer needs the topics by name and a zone to write the days in,
  * both read here rather than held, so a topic renamed since shows under its
  * new name.
  */
-export function rewriteChatFolder(id: ChatId): Promise<void> {
-  return writesInOrder(id, async () => {
-    const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
-    const written = await writeChatFolder({
-      chatsDir: workspaceLayout(rootDir).chatsDir,
-      id,
-      machineDir: workspaceMachineDir,
-      rootDir,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      topicNames: new Map(
-        readTopicsSync(rootDir).map((topic) => [topic.id, topic.name]),
-      ),
-    });
-    if (written.kind === "failed") {
-      getWorkspaceConfig().captureException(
-        new Error("Could not write a chat's transcript"),
-        { chatId: id, data: { error: written.error } },
-      );
-    }
+export async function rewriteChatFolderInOrder(id: ChatId): Promise<void> {
+  const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
+  const written = await writeChatFolder({
+    chatsDir: workspaceLayout(rootDir).chatsDir,
+    id,
+    machineDir: workspaceMachineDir,
+    rootDir,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    topicNames: new Map(
+      readTopicsSync(rootDir).map((topic) => [topic.id, topic.name]),
+    ),
   });
+  if (written.kind === "failed") {
+    getWorkspaceConfig().captureException(
+      new Error("Could not write a chat's transcript"),
+      { chatId: id, data: { error: written.error } },
+    );
+  }
 }
 
 /**

@@ -22,7 +22,7 @@ import { usePrefetchFileOpenTarget } from "../hooks/use-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
-import { MacFolderIcon } from "./icons/mac-folder";
+import { SystemFolderIcon } from "./icons/folder-glyph";
 import { ImageWithFallback } from "./image-with-fallback";
 import { type MediaCardShape } from "./media-card-shape";
 import { MediaCardShell } from "./media-card-shell";
@@ -149,7 +149,7 @@ export function FolderRowCard({
         type="button"
       />
       <span className="pointer-events-none relative z-10 grid h-11.5 w-9 shrink-0 place-items-center">
-        <MacFolderIcon className="size-9" />
+        <SystemFolderIcon className="size-9" />
       </span>
       <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 flex-col justify-center text-left">
         <span

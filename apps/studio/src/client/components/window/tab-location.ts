@@ -1,5 +1,6 @@
 import { type OpenTarget } from "@/client/lib/open-target";
-import { folderHref } from "@/shared/computer-href";
+import { osConventions } from "@/client/lib/utils";
+import { COMPUTER_ROOT, folderHref } from "@/shared/computer-href";
 import { expandHomePath, namesFromHome } from "@instrument-org/shared";
 import {
   type ChatId,
@@ -51,6 +52,11 @@ export function tasksHref(chat: ChatId): string {
 export function chatOfTasksList(chat: unknown): ChatId | undefined {
   const parsed = ChatIdSchema.safeParse(chat);
   return parsed.success ? parsed.data : undefined;
+}
+
+/** The address of one memory, by its name. */
+export function memoryHref(name: string): string {
+  return pathOf(LINK_ADDRESSES.memory, { name });
 }
 
 /** The address of one skill, by the name a task loads it by. */
@@ -129,6 +135,9 @@ export function locationCrumbs(
     }
     // Several picked are the place, under the folder they are in.
     case "folder": {
+      if (location.path === COMPUTER_ROOT) {
+        return [{ label: osConventions().computer }];
+      }
       if (location.picked === undefined) {
         return pathCrumbs(location.path, { home, volumes });
       }
@@ -176,26 +185,6 @@ export function tasksOfHref(
   }
   const { kind: _tasks, ...tasks } = screen;
   return tasks;
-}
-
-/**
- * The memory an address names, by its name. Nothing for any other address,
- * and nothing for the memories as a whole, which have no address: the
- * Settings tab is where they are, and a tab is not a place a link goes.
- */
-export function memoryOfHref(href: string): string | undefined {
-  const screen = matchScreen(href);
-  return screen.kind === "memory" ? screen.name : undefined;
-}
-
-/**
- * The skill an address names, by the name a task loads it by. Nothing for
- * any other address, and nothing for the skills as a whole: the Settings tab
- * is where they are, the way it is for the memories.
- */
-export function skillOfHref(href: string): string | undefined {
-  const screen = matchScreen(href);
-  return screen.kind === "skill" ? screen.name : undefined;
 }
 
 /** A name that is a whole volume on Windows, which is where a path there starts. */

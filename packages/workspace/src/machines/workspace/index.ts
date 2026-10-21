@@ -11,7 +11,6 @@ import {
   log,
   raise,
   setup,
-  type SnapshotFrom,
 } from "xstate";
 
 import { instrumentAgent } from "../../agents/instrument";
@@ -571,4 +570,3 @@ export const workspaceMachine = setup({
 });
 
 export type WorkspaceActorRef = ActorRefFrom<typeof workspaceMachine>;
-export type WorkspaceSnapshot = SnapshotFrom<typeof workspaceMachine>;

@@ -21,8 +21,6 @@ import { SESSION_CONTEXT_VERSION } from "./session-baseline";
 import { chatDir } from "./record-folders";
 import { shellPath } from "./workspace-fs-layout";
 
-vi.mock(import("./session-store-storage"));
-
 // Half of an emoji: the code unit left behind when text is cut mid-character.
 // A provider handed one rejects the whole request, so nothing may carry it out.
 const LONE_SURROGATE = "\u{D83D}";

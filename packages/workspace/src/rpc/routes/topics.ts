@@ -1,4 +1,4 @@
-import { ORPCError } from "@orpc/server";
+import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import {
@@ -9,10 +9,13 @@ import {
   TOPIC_NAME_MAX,
   TopicFolderSchema,
   TopicNameError,
+  topicsDir,
   TopicSchema,
   updateTopic,
 } from "../../lib/chat/topics";
+import { watchFolder } from "../../lib/folder-watch";
 import { base } from "../base";
+import { publisher } from "../publisher";
 
 /** What the user picks about a topic: its mark, its tint. */
 const TopicMarkSchema = z.object({
@@ -106,8 +109,36 @@ const retireTopicRoute = base
     await retireTopic(input.topicId);
   });
 
+/**
+ * A revision that moves whenever a topic's folder changes on disk, whoever
+ * changed it: the app, the agent, the person in their files. Opens with
+ * revision 0, a point to re-read from, as `skill.events.changed` does.
+ */
+const changedTopicsRoute = base
+  .output(eventIterator(z.object({ revision: z.number() })))
+  .handler(async function* ({ signal }) {
+    const changes = publisher.subscribe("topic.changed", { signal });
+    const stop = watchFolder(topicsDir(), {
+      depth: 1,
+      onChange: () => {
+        publisher.publish("topic.changed", null);
+      },
+    });
+    let revision = 0;
+    try {
+      yield { revision };
+      for await (const _ of changes) {
+        revision += 1;
+        yield { revision };
+      }
+    } finally {
+      stop();
+    }
+  });
+
 export const topics = {
   create: createTopicRoute,
+  events: { changed: changedTopicsRoute },
   list: listTopicsRoute,
   retire: retireTopicRoute,
   update: updateTopicRoute,

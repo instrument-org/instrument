@@ -10,6 +10,7 @@ import {
   listMemories,
   memoryDir,
   MemorySchema,
+  readMemory,
 } from "../../lib/memory/store";
 import { startWatchingMemory } from "../../lib/memory/watch";
 import { base } from "../base";
@@ -48,6 +49,15 @@ const listMemorySourcesRoute = base
   .output(MemorySourceSchema.array())
   .handler(() => listMemorySources());
 
+/** The file a memory is in, by its name, or null when no memory has that name. */
+const locateMemoryRoute = base
+  .input(z.object({ name: z.string() }))
+  .output(z.string().nullable())
+  .handler(
+    async ({ input }) =>
+      (await readMemory(memoryDir(), input.name))?.path ?? null,
+  );
+
 /** Drops one memory by name. Nothing happens when there is none by it. */
 const forgetMemoryRoute = base
   .input(z.object({ names: z.array(z.string()).min(1) }))
@@ -58,5 +68,6 @@ const forgetMemoryRoute = base
 export const memory = {
   forget: forgetMemoryRoute,
   live: { list: liveListMemoryRoute },
+  locate: locateMemoryRoute,
   sources: listMemorySourcesRoute,
 };

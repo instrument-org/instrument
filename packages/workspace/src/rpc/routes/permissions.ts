@@ -1,5 +1,5 @@
 import os from "node:os";
-import { eventIterator, ORPCError } from "@orpc/server";
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { getCurrentDate } from "../../lib/get-current-date";
@@ -29,12 +29,10 @@ import { hostPathWithin } from "../../lib/host-path";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { base } from "../base";
-import { recordChanges } from "../../lib/record-changes";
-import { AskSchema, type PermissionAsk } from "../../schemas/chat-state";
+import { type PermissionAsk } from "../../schemas/chat-state";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { listFolder } from "../../lib/chat/folder-look";
-import { distinct, liveRead } from "../live-read";
 
 const PermissionsViewSchema = z.object({
   /**
@@ -454,32 +452,10 @@ function settle(
   return settled;
 }
 
-/**
- * The chat's open asks, as its cards draw them, oldest first, read again
- * whenever the chat's state moves.
- */
-const liveAsks = base
-  .input(z.object({ id: ChatIdSchema }))
-  .output(eventIterator(AskSchema.array()))
-  .handler(async function* ({ input, signal }) {
-    yield* distinct(
-      liveRead({
-        changes: [
-          recordChanges(
-            signal,
-            (change) => change.id === input.id && change.kind === "state",
-          ),
-        ],
-        read: () => openAsks(input.id),
-      }),
-    );
-  });
-
 export const permissions = {
   answer,
   declineAll,
   retry,
-  liveAsks,
   get,
   removeApp,
   reset,

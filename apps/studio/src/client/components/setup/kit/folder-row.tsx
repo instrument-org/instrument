@@ -1,3 +1,4 @@
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -79,7 +80,7 @@ function FolderTrail({ path }: { path: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium">
+        <span className="flex min-w-0 flex-1 cursor-default items-center gap-1.5 text-sm font-medium select-none">
           {isInside(path, window.api.homeDir) && (
             <HouseIcon
               aria-hidden
@@ -87,9 +88,11 @@ function FolderTrail({ path }: { path: string }) {
             />
           )}
           <FoldingTrail
-            className="flex-1 select-text"
+            className="flex-1"
             fold={() => (
-              <span className="shrink-0 text-muted-foreground">…</span>
+              <span className="shrink-0 rounded px-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                …
+              </span>
             )}
             foldMark="…"
             labels={labels}
@@ -111,10 +114,24 @@ function FolderTrail({ path }: { path: string }) {
           />
         </span>
       </TooltipTrigger>
+      {/* The whole path as a folder window's path menu shows it: each folder
+        under the one before, the folder itself last. */}
       <TooltipContent align="start">
-        <ol>
+        <ol className="flex flex-col gap-0.5 py-0.5">
           {labels.map((label, at) => (
-            <li key={`${String(at)}:${label}`}>{label}</li>
+            <li
+              className="flex items-center gap-1.5"
+              key={`${String(at)}:${label}`}
+              style={{ paddingLeft: `${String(at * 12)}px` }}
+            >
+              <FolderSimpleIcon
+                aria-hidden
+                className="size-3.5 shrink-0 opacity-70"
+              />
+              <span className={at === last ? "font-medium" : undefined}>
+                {label}
+              </span>
+            </li>
           ))}
         </ol>
       </TooltipContent>

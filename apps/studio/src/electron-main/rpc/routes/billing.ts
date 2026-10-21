@@ -32,7 +32,13 @@ let heldBackPage: null | string = null;
  * never opens one on the machine it shares with a person.
  */
 async function openBillingPage(url: string) {
-  if (!app.isPackaged && process.env.STUDIO_DRIVE_PURPOSE) {
+  // An agent's instance keeps Stripe out of the person's browser; one booted
+  // to be seen (`--visible`) has a person driving it, who means to pay.
+  if (
+    !app.isPackaged &&
+    process.env.STUDIO_DRIVE_PURPOSE &&
+    process.env.STUDIO_DRIVE_VISIBLE !== "1"
+  ) {
     heldBackPage = url;
     return;
   }
@@ -171,20 +177,23 @@ const burn = localDev
       throw errors.UNAUTHORIZED();
     }
     const path = "/v1/chat/completions";
-    const response = await fetch(`${platformApiBaseUrl()}/gateway/openrouter${path}`, {
-      body: JSON.stringify({
-        messages: [{ content: "burn", role: "user" }],
-        model: "instrument/auto",
-        stream: true,
-      }),
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-        "x-stub-cost": String(input.usd),
-        "x-stub-upstream": "1",
+    const response = await fetch(
+      `${platformApiBaseUrl()}/gateway/openrouter${path}`,
+      {
+        body: JSON.stringify({
+          messages: [{ content: "burn", role: "user" }],
+          model: "instrument/auto",
+          stream: true,
+        }),
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "x-stub-cost": String(input.usd),
+          "x-stub-upstream": "1",
+        },
+        method: "POST",
       },
-      method: "POST",
-    });
+    );
     const refusal = response.ok
       ? undefined
       : await readPlatformRefusal(response.clone(), path);

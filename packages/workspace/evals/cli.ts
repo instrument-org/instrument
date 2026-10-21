@@ -20,6 +20,7 @@ import {
   HOUSE_FLOOR,
   runEvals,
 } from "./harness";
+import { removeClaudeAccountLeftovers } from "./lib/claude-account-leftovers";
 import { removePreparedSkills, sweepOldRuns } from "./lib/sweep-old-runs";
 import { generateReport } from "./report";
 import {
@@ -567,6 +568,9 @@ switch (subcommand) {
         workspaceRootDir,
       });
       removePreparedSkills(workspaceRootDir);
+      if (process.env.APP_CLAUDE_CODE_PATH) {
+        removeClaudeAccountLeftovers();
+      }
 
       printSummary({ outputDir, rollup, workspaceRootDir });
       printTranscripts({ outputDir, rollup });

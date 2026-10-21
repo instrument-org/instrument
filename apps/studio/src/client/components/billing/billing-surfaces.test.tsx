@@ -44,11 +44,13 @@ const { mutation, platform, query, toastError } = vi.hoisted(() => {
     changePlan: (input: RPCInput["billing"]["changePlan"]) => Promise<unknown>;
     offer: unknown;
     signedIn: boolean;
+    startTrial: () => Promise<unknown>;
     status: unknown;
   } = {
     changePlan: () => Promise.resolve(null),
     offer: null,
     signedIn: true,
+    startTrial: () => Promise.resolve(null),
     status: null,
   };
   return {
@@ -94,7 +96,13 @@ vi.mock("@/client/rpc/client", () => ({
       offer: { queryOptions: query("offer", () => platform.offer) },
       openCheckout: { mutationOptions: mutation() },
       openPortal: { mutationOptions: mutation() },
-      status: { queryOptions: query("status", () => platform.status) },
+      startTrial: {
+        mutationOptions: mutation(() => platform.startTrial()),
+      },
+      status: {
+        key: () => ["status"],
+        queryOptions: query("status", () => platform.status),
+      },
     },
     user: {
       live: {
@@ -106,6 +114,9 @@ vi.mock("@/client/rpc/client", () => ({
           ),
         },
       },
+    },
+    workspace: {
+      decision: { available: { queryKey: () => ["decision-available"] } },
     },
     utils: {
       events: {
@@ -178,8 +189,47 @@ const periodEnd = new Date(NEXT_MONTH).toLocaleDateString("en-US", {
     : { year: "numeric" }),
 });
 
+/** The free allowance, for an account that has never started its trial. */
+const onFree = (paused?: { resetsAt: string }): Status => ({
+  canSubscribe: true,
+  features: {
+    decisions: paused
+      ? { available: false, code: "usage-limit-exceeded", ...paused }
+      : { available: true },
+    models: {
+      available: false,
+      code: "subscription-required",
+      reason: "trial-available",
+    },
+    search: paused
+      ? { available: false, code: "usage-limit-exceeded", ...paused }
+      : { available: true },
+  },
+  plan: "free",
+  trial: { state: "available" },
+  windows: [{ key: "free", percentUsed: paused ? 100 : 10 }],
+});
+
+const OFFER_WITH_TRIAL: Offer = {
+  ...OFFER,
+  trial: { available: true, cardRequired: false, days: 7 },
+};
+
+const onTrial = (): Status => ({
+  canSubscribe: true,
+  features: {
+    decisions: { available: true },
+    models: { available: true },
+    search: { available: true },
+  },
+  plan: "trial",
+  trial: { endsAt: NEXT_MONTH, percentUsed: 0, state: "active" },
+  windows: [],
+});
+
 beforeEach(() => {
   platform.changePlan = () => Promise.resolve(null);
+  platform.startTrial = () => Promise.resolve(onTrial());
   toastError.mockClear();
   platform.offer = OFFER;
   platform.signedIn = true;
@@ -280,6 +330,43 @@ describe("Settings > Account", () => {
       await screen.findByText(/Free trials aren't available right now\./),
     ).toBeDefined();
     expect(screen.getByText("No plan")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
+  });
+
+  it("offers the free trial beside the plans on the free allowance, and starts it", async () => {
+    platform.offer = OFFER_WITH_TRIAL;
+    platform.status = onFree();
+    const startTrial = vi.fn(() => Promise.resolve(onTrial()));
+    platform.startTrial = startTrial;
+    renderWithProviders(<AccountSection />);
+
+    expect(
+      await screen.findByText(/Your free trial gives you 7 days/),
+    ).toBeDefined();
+    expect(screen.queryByText(/free web search/)).toBeNull();
+    // The free window is not a plan's limit, so it gets no meter.
+    expect(screen.queryByText(/% used/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Start free trial" }));
+    await vi.waitFor(() => {
+      expect(startTrial).toHaveBeenCalled();
+    });
+    expect(await screen.findAllByText("Free trial")).not.toHaveLength(0);
+  });
+
+  it("says when free search and suggestions come back once the allowance is spent", async () => {
+    platform.offer = OFFER_WITH_TRIAL;
+    platform.status = onFree({ resetsAt: NEXT_MONTH });
+    renderWithProviders(<AccountSection />);
+
+    expect(
+      await screen.findByText(
+        `You've used your free web search and suggestions until ${periodEnd}.`,
+      ),
+    ).toBeDefined();
+    expect(
+      await screen.findByRole("button", { name: "Start free trial" }),
+    ).toBeDefined();
     expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
   });
 
@@ -576,6 +663,112 @@ describe("the chat's billing notice", () => {
           ?.getAttribute("data-holds-send"),
       ).toBe("true");
     });
+  });
+
+  it("offers Start free trial for a model refused with trial-available, then Continue", async () => {
+    platform.offer = OFFER_WITH_TRIAL;
+    platform.status = onFree();
+    // Reads after the start find the trial running, as the API would.
+    const startTrial = vi.fn(() => {
+      platform.status = onTrial();
+      return Promise.resolve(onTrial());
+    });
+    platform.startTrial = startTrial;
+    renderWithProviders(
+      <ChatNoteHarness
+        isAgentRunning={false}
+        messages={refusedTurn(
+          { code: "subscription-required", reason: "trial-available" },
+          402,
+        )}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Start your free trial to use Instrument's models.",
+      ),
+    ).toBeDefined();
+    expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Start free trial" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Continue" }),
+    ).toBeDefined();
+    expect(screen.getByText("Your free trial has started.")).toBeDefined();
+    expect(startTrial).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await vi.waitFor(() => {
+      expect(screen.queryByText("Your free trial has started.")).toBeNull();
+    });
+  });
+
+  it("holds a send on Instrument's models on the free allowance before any refusal", async () => {
+    platform.offer = OFFER_WITH_TRIAL;
+    platform.status = onFree();
+    renderWithProviders(
+      <ChatNoteHarness isAgentRunning={false} messages={[]} />,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Start free trial" }),
+    ).toBeDefined();
+    await vi.waitFor(() => {
+      expect(
+        document
+          .querySelector("[data-holds-send]")
+          ?.getAttribute("data-holds-send"),
+      ).toBe("true");
+    });
+  });
+
+  it("says quietly that advanced web search is paused after a search fell back", async () => {
+    platform.offer = OFFER_WITH_TRIAL;
+    platform.status = onFree({ resetsAt: NEXT_MONTH });
+    const searched = [
+      {
+        id: "msg_searched",
+        metadata: { createdAt: new Date(), sessionId: "s" },
+        parts: [
+          {
+            input: { query: "weather" },
+            output: {
+              platformRefusal: {
+                code: "usage-limit-exceeded",
+                resetsAt: NEXT_MONTH,
+              },
+              results: { kind: "excerpts", sources: [] },
+              state: "success",
+            },
+            state: "output-available",
+            toolCallId: "t1",
+            type: "tool-web_search",
+          },
+        ],
+        role: "assistant",
+      },
+    ] as unknown as SessionMessage.WithParts[];
+    renderWithProviders(
+      <ChatNoteHarness
+        isAgentRunning={false}
+        messages={searched}
+        modelURI={CLAUDE}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        `Instrument's advanced web search is paused until ${periodEnd}.`,
+      ),
+    ).toBeDefined();
+    expect(
+      await screen.findByRole("button", { name: "Start free trial" }),
+    ).toBeDefined();
+    expect(
+      document
+        .querySelector("[data-holds-send]")
+        ?.getAttribute("data-holds-send"),
+    ).toBe("false");
   });
 
   it("says nothing about Instrument's plan in a chat on another model", () => {

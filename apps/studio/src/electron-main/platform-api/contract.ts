@@ -12,13 +12,41 @@ const base = oc.errors({
 });
 
 /**
+ * Whether one hosted feature would run now, and if not, the refusal a request
+ * for it would get: `subscription-required` with what unlocks it, or
+ * `usage-limit-exceeded` with when it comes back.
+ */
+const FeatureAvailabilitySchema = z.object({
+  available: z.boolean(),
+  code: z.string().optional(),
+  reason: z.string().optional(),
+  resetsAt: z.string().optional(),
+});
+
+export type FeatureAvailability = z.output<typeof FeatureAvailabilitySchema>;
+
+/**
  * What the platform says about a user's plan: percent and reset time per
  * enabled window, never dollars. `binding` names the window closest to its
- * limit.
+ * limit. `plan` is `free` on the free allowance, the decisions and search
+ * every signed-in account gets without a plan or a running trial.
  */
 const BillingStatusSchema = z.object({
   binding: z.string().optional(),
   canSubscribe: z.boolean(),
+  /**
+   * Which hosted features would run now. Absent from a platform that
+   * predates it, and then each is taken as available.
+   */
+  features: z
+    .object({
+      decisions: FeatureAvailabilitySchema,
+      /** Not reported yet: dictation is metered apart from the plans. */
+      dictation: FeatureAvailabilitySchema.optional(),
+      models: FeatureAvailabilitySchema,
+      search: FeatureAvailabilitySchema,
+    })
+    .optional(),
   plan: z.string(),
   subscription: z
     .object({
@@ -155,8 +183,8 @@ export const contract = {
     createPortal: base.input(z.void()).output(z.object({ url: z.string() })),
     offer: base.input(z.void()).output(BillingOfferSchema),
     /**
-     * Starts the free trial now rather than on the first message to
-     * Instrument's models; a no-op when there is none to start.
+     * Starts the free trial, the only way it starts; a no-op when there is
+     * none to start.
      */
     startTrial: base.input(z.void()).output(BillingStatusSchema),
     status: base.input(z.void()).output(BillingStatusSchema),

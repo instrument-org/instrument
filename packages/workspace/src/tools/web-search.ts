@@ -128,6 +128,15 @@ export const WebSearch = setupTool({
       // Which backend served the search decides what a result even is, so the
       // two shapes stay distinct instead of collapsing into shared optional
       // fields that only one of them ever fills in.
+      // Our endpoint refused the search for the account's plan, and a basic
+      // search stood in: what the platform said, for the chat to show.
+      platformRefusal: z
+        .object({
+          code: z.enum(["subscription-required", "usage-limit-exceeded"]),
+          reason: z.string().optional(),
+          resetsAt: z.string().optional(),
+        })
+        .optional(),
       results: z.discriminatedUnion("kind", [
         ExcerptResultsSchema,
         SummaryResultsSchema,
@@ -194,10 +203,13 @@ export const WebSearch = setupTool({
       }
 
       const results = result.value;
+      const platformRefusal =
+        results.kind === "excerpts" ? results.platformRefusal : undefined;
       yield ok({
+        ...(platformRefusal && { platformRefusal }),
         results:
           results.kind === "excerpts"
-            ? results
+            ? { kind: results.kind, sources: results.sources }
             : {
                 ...results,
                 provider: {

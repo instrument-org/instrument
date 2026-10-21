@@ -434,6 +434,43 @@ describe("webSearch", () => {
       });
     });
 
+    it("searches keyless, without retrying, when the free allowance is spent, and says so", async () => {
+      const resetsAt = "2026-11-19T00:00:00.000Z";
+      const platformSearch = vi.fn<WebSearchClient>(() =>
+        Promise.resolve({
+          errorMessage: "Web search failed with status 429.",
+          errorType: "request-failed",
+          ok: false,
+          refusal: { code: "usage-limit-exceeded", resetsAt },
+        }),
+      );
+      const model = setUp(platformSearch);
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        Response.json({
+          id: 1,
+          jsonrpc: "2.0",
+          result: {
+            content: [
+              {
+                text: "Title: One\nURL: https://one.test\nPublished: 2026-10-08T09:00:00.000Z\nAuthor: N/A\nHighlights:\nThe passage that matched.",
+                type: "text",
+              },
+            ],
+          },
+        }),
+      );
+
+      const results = await collect(model);
+      fetchSpy.mockRestore();
+
+      expect(platformSearch).toHaveBeenCalledTimes(1);
+      expect(results.at(-1)?._unsafeUnwrap()).toMatchObject({
+        kind: "excerpts",
+        platformRefusal: { code: "usage-limit-exceeded", resetsAt },
+        sources: [{ url: "https://one.test" }],
+      });
+    });
+
     it("offers signing in when the keyless search fails", async () => {
       const model = setUp(signedOut);
       const fetchSpy = vi

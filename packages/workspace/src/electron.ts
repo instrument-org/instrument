@@ -207,6 +207,7 @@ export {
 } from "./lib/chat/finder-entries";
 export { type ChatId, ChatIdSchema } from "./schemas/chat-id";
 export {
+  type PlatformSearchRefusal,
   type WebSearchClient,
   type WebSearchClientResult,
   type WebSearchRequest,

@@ -17,7 +17,7 @@ import { useMutation } from "@tanstack/react-query";
 
 import { ChatTasksPopover } from "./chat-activity";
 import { useChatTasks } from "./child-tasks-query";
-import { type Chat, LIMITED } from "./chats";
+import { type Chat, limitedText } from "./chats";
 
 /**
  * What the line under a chat's title says, and in which voice. `stopped` is
@@ -245,6 +245,7 @@ export function statusLine({
     | "latest"
     | "runningTasks"
     | "state"
+    | "stoppedFor"
     | "title"
   >;
   listed:
@@ -273,7 +274,7 @@ export function statusLine({
     return undefined;
   }
   if (chat.state === "limited") {
-    return { text: LIMITED, tone: "limited" };
+    return { text: limitedText(chat), tone: "limited" };
   }
   const own = chat.lastStep;
   const task = listed

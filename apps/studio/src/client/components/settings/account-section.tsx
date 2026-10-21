@@ -9,12 +9,15 @@ import { Progress } from "@/client/components/ui/progress";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
+import { useStartTrial } from "@/client/components/billing/use-start-trial";
 import {
+  canStartTrial,
   checkoutTrialLine,
   describeDate,
   describeDay,
   describeWhen,
   formatPriceInWords,
+  freeAllowancePause,
   hasPaymentFailed,
   isAccessRevoked,
   isTrialHeldBack,
@@ -126,6 +129,7 @@ function PlanGroup({ status }: { status: Status }) {
       },
     }),
   );
+  const startTrial = useStartTrial();
   const now = new Date();
   const plan = subscribedPlan(status, offer);
   const change = scheduledPlanChange(status, offer);
@@ -290,10 +294,50 @@ function PlanGroup({ status }: { status: Status }) {
   const isTrial =
     status.plan === "trial" && status.trial.state !== "ended" && !trialHeldBack;
   const days = offer?.trial?.days;
+  const offerTrial = canStartTrial(status, offer);
+  const freePause = freeAllowancePause(status, now);
+  const actions = (
+    <div className="flex shrink-0 gap-2">
+      {offerTrial && (
+        <Button
+          disabled={startTrial.isPending}
+          onClick={() => {
+            startTrial.mutate(undefined);
+          }}
+          size="sm"
+        >
+          Start free trial
+        </Button>
+      )}
+      <Button
+        onClick={() => {
+          openPlanSheet();
+        }}
+        size="sm"
+        variant={offerTrial ? "outline" : "default"}
+      >
+        Choose a plan
+      </Button>
+    </div>
+  );
   return (
     <SettingsSection title="Plan">
       <StateArrival state={arrival}>
         <Card className="gap-0 p-0">
+          {freePause && (
+            <div
+              className="flex items-center gap-3 border-b border-border px-4 py-3"
+              data-billing-row="free-paused"
+            >
+              <WarningIcon className="size-4 shrink-0 text-warning-700 dark:text-warning-300" />
+              <p className="min-w-0 flex-1 text-sm">
+                {freePause.resetsAt
+                  ? `You've used your free web search and suggestions until ${describeDate(freePause.resetsAt, now)}.`
+                  : "You've used your free web search and suggestions for now."}
+              </p>
+              {actions}
+            </div>
+          )}
           <Row
             {...settingAnchor("plan")}
             data-billing-row="plan"
@@ -301,11 +345,13 @@ function PlanGroup({ status }: { status: Status }) {
               isTrial
                 ? trialEndsAt
                   ? `Ends ${describeDay(trialEndsAt)}`
-                  : `Starts with your first message to ${APP_NAME}${days ? ` and runs ${days} days` : ""}.`
+                  : undefined
                 : [
                     trialHeldBack
                       ? "Free trials aren't available right now."
-                      : checkoutTrialLine(offer),
+                      : offerTrial && days
+                        ? `Your free trial gives you ${days} days of ${APP_NAME}'s models, with no card needed.`
+                        : checkoutTrialLine(offer),
                     `${APP_NAME}'s models need a plan. Your ChatGPT, Claude or Grok account, or your own key, works without one.`,
                   ]
                     .filter(Boolean)
@@ -313,14 +359,18 @@ function PlanGroup({ status }: { status: Status }) {
             }
             title={isTrial ? "Free trial" : "No plan"}
           >
-            <Button
-              onClick={() => {
-                openPlanSheet();
-              }}
-              size="sm"
-            >
-              Choose a plan
-            </Button>
+            {isTrial ? (
+              <Button
+                onClick={() => {
+                  openPlanSheet();
+                }}
+                size="sm"
+              >
+                Choose a plan
+              </Button>
+            ) : (
+              !freePause && actions
+            )}
           </Row>
         </Card>
       </StateArrival>
@@ -353,7 +403,8 @@ function UsageGroup({ status }: { status: Status }) {
       </SettingsSection>
     );
   }
-  if (status.windows.length === 0) {
+  // The free allowance's window is said in Plan, only once it is spent.
+  if (status.windows.length === 0 || status.plan === "free") {
     return null;
   }
   return (

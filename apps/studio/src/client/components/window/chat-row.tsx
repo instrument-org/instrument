@@ -36,7 +36,7 @@ import { ChatTitleField } from "./chat-title";
 import {
   activityLabel,
   type Chat,
-  LIMITED,
+  limitedText,
   type Topic,
   wordRanges,
 } from "./chats";
@@ -550,7 +550,7 @@ function Peek({
         </>
       ) : isLimited ? (
         <span className="min-w-0 truncate text-muted-foreground">
-          {LIMITED}
+          {limitedText(chat)}
         </span>
       ) : isWaiting ? (
         <>

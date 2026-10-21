@@ -38,11 +38,6 @@ function computer(workspaceId = "01M50AD8JDN21N4B6XJ5GFYHJH") {
   };
 }
 
-function write(file: string, text = "x") {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, text);
-}
-
 describe("workspaceLabel", () => {
   const userDataDir = path.join(base, "Instrument Preview (first-run)");
   it.each([
@@ -93,90 +88,5 @@ describe("settleWorkFolders", () => {
     }).workFoldersDir;
     expect(path.basename(first)).toBe("instrument-dev-yhjh");
     expect(path.basename(second)).toBe("instrument-dev-k3f9");
-  });
-
-  it("moves the work folders an earlier build kept, and the paths stored into them", () => {
-    const at = computer();
-    const earlier = path.join(at.machineDir, "work");
-    write(path.join(earlier, "2026-10-13-chat", "report.md"), "report");
-    write(path.join(earlier, "2026-10-14-other", "a", "b.txt"), "b");
-    const kept = path.join(earlier, "2026-10-13-chat", "report.md");
-    write(
-      path.join(at.machineDir, "permissions.json"),
-      JSON.stringify({
-        folders: [{ addedAt: 0, level: "allow", path: kept }],
-      }),
-    );
-
-    const { done, workFoldersDir } = settleWorkFolders(at);
-
-    expect(fs.existsSync(earlier)).toBe(false);
-    expect(
-      fs.readFileSync(
-        path.join(workFoldersDir, "2026-10-13-chat", "report.md"),
-        "utf8",
-      ),
-    ).toBe("report");
-    expect(
-      fs.readFileSync(
-        path.join(workFoldersDir, "2026-10-14-other", "a", "b.txt"),
-        "utf8",
-      ),
-    ).toBe("b");
-    expect(
-      fs.readFileSync(path.join(at.machineDir, "permissions.json"), "utf8"),
-    ).toContain(
-      JSON.stringify(path.join(workFoldersDir, "2026-10-13-chat", "report.md")),
-    );
-    expect(done.join("\n")).toContain("moved 2 work folder(s)");
-  });
-
-  it("finishes a move a launch cut short, merging into what it moved", () => {
-    const at = computer();
-    const { workFoldersDir } = settleWorkFolders(at);
-    // As a launch cut short leaves it: one chat moved, the record not yet
-    // saying so, the rest still where it was.
-    const record = path.join(at.machineDir, "work-folders.json");
-    fs.writeFileSync(
-      record,
-      JSON.stringify({ name: path.basename(workFoldersDir) }),
-    );
-    write(path.join(workFoldersDir, "2026-10-13-chat", "one.md"), "1");
-    write(path.join(at.machineDir, "work", "2026-10-13-chat", "two.md"), "2");
-    write(path.join(at.machineDir, "work", "2026-10-14-other", "three.md"));
-
-    settleWorkFolders(at);
-
-    expect(
-      fs.readdirSync(path.join(workFoldersDir, "2026-10-13-chat")).toSorted(),
-    ).toEqual(["one.md", "two.md"]);
-    expect(fs.existsSync(path.join(workFoldersDir, "2026-10-14-other"))).toBe(
-      true,
-    );
-    expect(fs.existsSync(path.join(at.machineDir, "work"))).toBe(false);
-    expect(JSON.parse(fs.readFileSync(record, "utf8"))).toMatchObject({
-      moved: true,
-    });
-  });
-
-  it("leaves a file whose place is taken where it was", () => {
-    const at = computer();
-    const { workFoldersDir } = settleWorkFolders(at);
-    fs.writeFileSync(
-      path.join(at.machineDir, "work-folders.json"),
-      JSON.stringify({ name: path.basename(workFoldersDir) }),
-    );
-    write(path.join(workFoldersDir, "c", "same.md"), "new");
-    write(path.join(at.machineDir, "work", "c", "same.md"), "old");
-
-    const { done } = settleWorkFolders(at);
-
-    expect(
-      fs.readFileSync(path.join(workFoldersDir, "c", "same.md"), "utf8"),
-    ).toBe("new");
-    expect(
-      fs.readFileSync(path.join(at.machineDir, "work", "c", "same.md"), "utf8"),
-    ).toBe("old");
-    expect(done.join("\n")).toContain("is there already");
   });
 });

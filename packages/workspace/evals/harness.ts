@@ -5,10 +5,7 @@ import {
   noopModelCache,
   type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
-import {
-  APP_NAME_SLUG,
-  WORKSPACE_MACHINE_ENTRIES,
-} from "@instrument-org/shared";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import { execa } from "execa";
 import fs from "node:fs";
@@ -672,7 +669,7 @@ export async function runEvals(
       workFoldersDir: path.join(
         workspaceRootDir,
         EVAL_MACHINE_DIR_NAME,
-        WORKSPACE_MACHINE_ENTRIES.work,
+        "work",
       ),
       systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
       trashItem: () => Promise.reject(new Error("Not implemented")),

@@ -17,7 +17,6 @@
 import {
   PRIVATE_FOLDER_NAME,
   SETTINGS_FILE_NAME,
-  WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
 import { ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
@@ -106,7 +105,7 @@ export async function seedWorkspace({
       // The machine folder's paths, which the seeder writes into rather than
       // merely names: each chat's work folder is in it.
       workFoldersDir: AbsolutePathSchema.parse(
-        path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work),
+        path.join(machineDir, "work"),
       ),
       workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
     },

@@ -198,12 +198,6 @@ export const WORKSPACE_MACHINE_ENTRIES = {
   /** The window's size and place, and where the person left off in it. */
   window: "window",
   /**
-   * Where builds before kept each chat's work folder, `work/<chat id>/`;
-   * the launch moves what is there to the workspace's folder in
-   * `~/.instrument/work/` (`HOME_DATA_ENTRIES.work`).
-   */
-  work: "work",
-  /**
    * The name of the workspace's folder in `~/.instrument/work/`, settled the
    * first time the workspace opens on this computer and kept here, so a
    * workspace renamed or moved keeps its chats' work.

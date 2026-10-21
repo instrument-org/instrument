@@ -14,10 +14,7 @@ import {
   TEST_MODEL_OVERRIDE_KEY,
   TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
 } from "@instrument-org/ai-gateway/schemas";
-import {
-  AI_GATEWAY_API_KEY_NOT_NEEDED,
-  WORKSPACE_MACHINE_ENTRIES,
-} from "@instrument-org/shared";
+import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { noop } from "radashi";
@@ -60,7 +57,7 @@ export const MOCK_WORKSPACE_DIRS = {
   chats: MOCK_WORKSPACE_LAYOUT.chatsDir,
   machine: MOCK_WORKSPACE_MACHINE_DIR,
   tasks: path.join(MOCK_WORKSPACE_DIR, TASKS_DIR_NAME),
-  work: path.join(MOCK_WORKSPACE_MACHINE_DIR, WORKSPACE_MACHINE_ENTRIES.work),
+  work: path.join(MOCK_WORKSPACE_MACHINE_DIR, "work"),
 } as const;
 
 // Provider configs registered by createMockChatConfig. The singleton's

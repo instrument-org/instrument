@@ -23,7 +23,6 @@ import "dotenv/config";
 import "./lib/define-globals-apply";
 
 import { noopModelCache } from "@instrument-org/ai-gateway";
-import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import { execa } from "execa";
 import { createRequire } from "node:module";
 import { makeToolBinIn } from "./lib/tool-bin-dir";
@@ -135,7 +134,7 @@ const layout = workspaceLayout(rootDir);
 const chatsDir = args.chatsDir ? path.resolve(args.chatsDir) : layout.chatsDir;
 // Outside the workspace, as the app keeps this computer's folder for it.
 const machineDir = path.resolve(os.tmpdir(), "instrument-bash-repl-machine");
-const workFoldersDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work);
+const workFoldersDir = path.join(machineDir, "work");
 
 const runtimeDir = path.join(rootDir, "runtime");
 const repoRoot = path.resolve(import.meta.dirname, "../../..");

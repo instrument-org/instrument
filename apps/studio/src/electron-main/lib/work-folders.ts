@@ -1,10 +1,4 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
-import {
-  entryExists,
-  mergeEntrySync,
-  removeIfEmptySync,
-  rewriteStoredPaths,
-} from "@instrument-org/workspace/electron";
 import { homeDataLayout } from "@instrument-org/workspace/layout";
 import { randomInt } from "node:crypto";
 import fs from "node:fs";
@@ -32,8 +26,6 @@ function workFoldersRoot(home = os.homedir()): string {
 const RecordSchema = z.object({
   /** The workspace's folder in `workFoldersRoot`. */
   name: z.string().min(1),
-  /** Set once the work folders an earlier build kept are moved in. */
-  moved: z.literal(true).optional(),
 });
 
 type WorkFoldersRecord = z.output<typeof RecordSchema>;
@@ -124,9 +116,8 @@ function writeRecord(machineDir: string, record: WorkFoldersRecord) {
 
 /**
  * Settles where the workspace's chats work on this computer,
- * `~/.instrument/work/<workspace>/`, and moves in the work folders an
- * earlier build kept in its machine folder. Runs at launch before any store
- * opens, and answers the folder.
+ * `~/.instrument/work/<workspace>/`. Runs at launch before any store opens,
+ * and answers the folder.
  *
  * The name is settled once and recorded in the machine folder
  * (`WORKSPACE_MACHINE_ENTRIES.workFolders`), which is keyed by the
@@ -135,13 +126,8 @@ function writeRecord(machineDir: string, record: WorkFoldersRecord) {
  * making the folder, which fails where anything is there already, so two
  * workspaces, or two copies of the app, never share one.
  *
- * The move is made chat by chat (`mergeEntrySync`: renamed on one volume,
- * copied whole beside its place and renamed in across volumes), so a launch
- * cut short leaves each chat's work in one place or the other, and the next
- * launch picks up where it stopped. The paths the app stored into the old
- * folder are written where they went, and the record says so once that is
- * done. Nothing here throws: a step that fails is said in what it answers,
- * and the folder is still the workspace's.
+ * Nothing here throws: a step that fails is said in what it answers, and
+ * the folder is still the workspace's.
  */
 export function settleWorkFolders({
   home = os.homedir(),
@@ -199,68 +185,5 @@ export function settleWorkFolders({
       return { done, workFoldersDir: path.join(root, name) };
     }
   }
-  const workFoldersDir = path.join(root, record.name);
-  if (!record.moved) {
-    try {
-      moveEarlierWorkFolders({
-        done,
-        machineDir,
-        rootDir: workspace.path,
-        workFoldersDir,
-      });
-      writeRecord(machineDir, { ...record, moved: true });
-    } catch (error) {
-      done.push(`stopped moving the work folders in: ${String(error)}`);
-    }
-  }
-  return { done, workFoldersDir };
-}
-
-/**
- * Each chat's work folder from where builds before kept it, the machine
- * folder's `work/`, into the workspace's folder, merged into one that is
- * already there; then the paths stored into the old folder written where
- * they went. Throws when a move fails, leaving what it had not reached yet.
- */
-function moveEarlierWorkFolders({
-  done,
-  machineDir,
-  rootDir,
-  workFoldersDir,
-}: {
-  done: string[];
-  machineDir: string;
-  rootDir: string;
-  workFoldersDir: string;
-}) {
-  const earlier = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.work);
-  if (!entryExists(earlier)) {
-    return;
-  }
-  fs.mkdirSync(workFoldersDir, { recursive: true });
-  let moved = 0;
-  for (const name of fs.readdirSync(earlier)) {
-    if (
-      mergeEntrySync(
-        path.join(earlier, name),
-        path.join(workFoldersDir, name),
-        (from, to) => {
-          done.push(`left ${from}: ${to} is there already`);
-        },
-      )
-    ) {
-      moved++;
-    }
-  }
-  removeIfEmptySync(earlier);
-  done.push(
-    `moved ${moved.toString()} work folder(s) from ${earlier} to ${workFoldersDir}`,
-  );
-  done.push(
-    ...rewriteStoredPaths({
-      machineDir,
-      moves: [{ from: earlier, to: workFoldersDir }],
-      rootDir,
-    }),
-  );
+  return { done, workFoldersDir: path.join(root, record.name) };
 }

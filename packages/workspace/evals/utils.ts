@@ -12,7 +12,6 @@ import {
   CHATGPT_ACCOUNT_PROVIDER_CONFIG,
   CLAUDE_ACCOUNT_PROVIDER_CONFIG,
   OUR_PROVIDER_CONFIG,
-  WORKSPACE_MACHINE_ENTRIES,
 } from "@instrument-org/shared";
 import { writeFileSync } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
@@ -96,7 +95,7 @@ export function buildReportWorkspaceConfig(
       path.join(
         absoluteWorkspaceDir,
         EVAL_MACHINE_DIR_NAME,
-        WORKSPACE_MACHINE_ENTRIES.work,
+        "work",
       ),
     ),
     userDataDir: AbsolutePathSchema.parse(

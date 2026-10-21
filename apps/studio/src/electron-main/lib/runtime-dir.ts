@@ -12,12 +12,11 @@ export function getRuntimeDir(): string {
 
 /**
  * Where builds before the runtime folder kept what it holds, at the root of
- * userData: the `bin` links, uv's Pythons and caches, the node tools'
- * caches and config, bubblewrap's closed-file stand-in, and the prepared
+ * userData: the `bin` links, uv's Pythons and caches, and the prepared
  * skills with the copies a crash left beside them.
  */
 const FORMER_RUNTIME_ENTRY =
-  /^(?:bin|node-tools|sandbox|uv|skills(?:\.(?:preparing|previous)-\d+)?)$/;
+  /^(?:bin|uv|skills(?:\.(?:preparing|previous)-\d+)?)$/;
 
 /**
  * Deletes what the runtime folder replaced at the root of `userDataDir`.

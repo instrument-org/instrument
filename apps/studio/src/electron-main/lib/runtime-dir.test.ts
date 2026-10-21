@@ -29,8 +29,6 @@ describe("removeFormerRuntime", () => {
   it("deletes what the runtime folder holds now from the root of userData, and nothing else", async () => {
     await plant(
       "bin/node",
-      "node-tools/npmrc",
-      "sandbox/closed-file",
       "skills/pdf/SKILL.md",
       "skills.preparing-4242/pdf/SKILL.md",
       "skills.previous-4242/pdf/SKILL.md",

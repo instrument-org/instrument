@@ -2347,23 +2347,6 @@ describe("llmRequestLogic", () => {
               },
               "role": "assistant",
             },
-            {
-              "content": [
-                {
-                  "text": "
-        <instrument-system-note>
-        Your last reply said you would start work but called no tool. Do it now, without saying the line again.
-        </instrument-system-note>",
-                  "type": "text",
-                },
-              ],
-              "providerOptions": {
-                "instrument": {
-                  "transient": true,
-                },
-              },
-              "role": "user",
-            },
           ],
         ]
       `);

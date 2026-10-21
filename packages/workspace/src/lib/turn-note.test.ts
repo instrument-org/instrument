@@ -5,12 +5,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { MID_TURN_NOTE } from "./chat/mid-turn";
 import { systemNoteBody } from "./system-note";
-import {
-  continuesOwnReply,
-  cutOffAtOutputLimit,
-  opensTypedTurn,
-  TURN_NOTE,
-} from "./turn-note";
+import { cutOffAtOutputLimit, opensTypedTurn, TURN_NOTE } from "./turn-note";
 
 const sessionId = StoreId.newSessionId();
 const createdAt = new Date("2026-10-07T12:00:00Z");
@@ -137,31 +132,6 @@ describe("opensTypedTurn", () => {
   });
 });
 
-describe("continuesOwnReply", () => {
-  const asked = message("user", ["text"]);
-
-  it.each<[string, SessionMessage.WithParts[], boolean]>([
-    [
-      "a step after one that only wrote",
-      [asked, message("assistant", ["text"])],
-      true,
-    ],
-    [
-      "a step after one that called a tool",
-      [asked, message("assistant", ["text", "tool"])],
-      false,
-    ],
-    [
-      "the retry of a step that failed",
-      [asked, message("assistant", ["text"], { error: true })],
-      false,
-    ],
-    ["the first step of a turn", [asked], false],
-  ])("%s", (_, messages, expected) => {
-    expect(continuesOwnReply(messages)).toBe(expected);
-  });
-});
-
 describe("cutOffAtOutputLimit", () => {
   const asked = message("user", ["text"]);
   const cutOff = message("assistant", ["text"], { finishReason: "length" });
@@ -201,10 +171,5 @@ describe("cutOffAtOutputLimit", () => {
     ["the first step of a turn", [asked], false],
   ])("%s", (_, messages, expected) => {
     expect(cutOffAtOutputLimit(messages)).toBe(expected);
-  });
-
-  it("is asked before continuesOwnReply, which a cut-off reply also matches", () => {
-    expect(continuesOwnReply([asked, cutOff])).toBe(true);
-    expect(cutOffAtOutputLimit([asked, cutOff])).toBe(true);
   });
 });

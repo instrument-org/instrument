@@ -5,7 +5,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
-import { endOfTurnNote } from "./end-of-turn-checks";
+import { endOfTurnNote, givenEndOfTurnNote } from "./end-of-turn-checks";
 
 const createdAt = new Date("2026-10-21T12:00:00Z");
 const DEAD = "Made it.\n\n```files\nsquares.csv\n```";
@@ -178,5 +178,39 @@ describe("endOfTurnNote", () => {
       sessionId: StoreId.newSessionId(),
     });
     expect(note).toContain("write your reply again whole");
+  });
+
+  it("hands the step it asked for, and that step's retry, the note it decided on", async () => {
+    const reply = step("assistant", DEAD);
+    const note = await endOfTurnNote({
+      chatId,
+      messages: [asked(), reply],
+      sessionId: chatSession,
+    });
+    expect(note).toBeDefined();
+    expect(
+      givenEndOfTurnNote({
+        messages: [asked(), reply],
+        sessionId: chatSession,
+      }),
+    ).toBe(note);
+    expect(
+      givenEndOfTurnNote({
+        messages: [asked(), reply, step("assistant", "", { error: true })],
+        sessionId: chatSession,
+      }),
+    ).toBe(note);
+    expect(
+      givenEndOfTurnNote({
+        messages: [asked(), step("assistant", FINE)],
+        sessionId: chatSession,
+      }),
+    ).toBeUndefined();
+    expect(
+      givenEndOfTurnNote({
+        messages: [asked(), reply, asked()],
+        sessionId: chatSession,
+      }),
+    ).toBeUndefined();
   });
 });

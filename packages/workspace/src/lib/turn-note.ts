@@ -1,6 +1,5 @@
 import { joinedMidTurn } from "./chat/mid-turn";
-import { endOfTurnNote } from "./end-of-turn-checks";
-import { isToolPart } from "./is-tool-part";
+import { givenEndOfTurnNote } from "./end-of-turn-checks";
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -43,16 +42,6 @@ export function opensTypedTurn(messages: SessionMessage.WithParts[]): boolean {
 }
 
 /**
- * What a step is sent with when the turn's last step only wrote, promising
- * work it never called (`shouldContinueAfterHandingOff` gives it one more
- * step). Without a message after it, the request would end on the agent's own
- * reply, which some providers refuse as prefill.
- */
-const PROMISED_NOTE = systemNote`
-  Your last reply said you would start work but called no tool. Do it now, without saying the line again.
-`;
-
-/**
  * What a step is sent with when the model ran out of room to write: its reply
  * stops mid-word, and the step that follows is the rest of it. The note says
  * so, because a model handed its own unfinished text with nothing else will
@@ -80,36 +69,12 @@ export function cutOffAtOutputLimit(
 }
 
 /**
- * Whether the next step continues the agent's own reply: the turn's latest
- * message is a step of the agent's that finished with text and no tool call.
- */
-export function continuesOwnReply(
-  messages: SessionMessage.WithParts[],
-): boolean {
-  const last = messages.at(-1);
-  return (
-    last?.role === "assistant" &&
-    last.metadata.error === undefined &&
-    !last.metadata.synthetic &&
-    last.parts.some(
-      (part) => part.type === "text" && part.text.trim() !== "",
-    ) &&
-    !last.parts.some((part) => isToolPart(part))
-  );
-}
-
-/**
  * The note a session's next step carries, read from its stored transcript:
  * `LENGTH_NOTE` on a step that carries on a reply the output limit cut off,
- * the end-of-turn checks' note (`endOfTurnNote`) on the step that corrects a
- * reply failing one, `PROMISED_NOTE` on a step that otherwise continues the
- * agent's own reply, `TURN_NOTE` on the first step of a chat's typed turn,
+ * the end-of-turn checks' note on the step that corrects a reply failing one
+ * (the note `endOfTurnNote` gave when it decided the turn goes on, never
+ * judged again), `TURN_NOTE` on the first step of a chat's typed turn,
  * otherwise none.
- *
- * `LENGTH_NOTE` is asked for first because a reply cut off mid-sentence is
- * text with no tool call, which `continuesOwnReply` also matches: without this
- * order a cut-off reply would be told it promised work it never started. The
- * same holds for a reply being corrected.
  */
 export async function turnNoteFor({
   sessionId,
@@ -125,16 +90,12 @@ export async function turnNoteFor({
   if (cutOffAtOutputLimit(messages.value)) {
     return LENGTH_NOTE;
   }
-  const correction = await endOfTurnNote({
-    chatId,
+  const correction = givenEndOfTurnNote({
     messages: messages.value,
     sessionId,
   });
   if (correction !== undefined) {
     return correction;
-  }
-  if (continuesOwnReply(messages.value)) {
-    return PROMISED_NOTE;
   }
   return sessionRole(chatId, sessionId) === "chat" &&
     opensTypedTurn(messages.value)

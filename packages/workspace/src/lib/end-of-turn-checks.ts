@@ -58,14 +58,7 @@ export async function endOfTurnNote({
   sessionId: StoreId.Session;
 }): Promise<string | undefined> {
   const start = messages.findLastIndex((message) => message.role === "user");
-  const steps = messages
-    .slice(start + 1)
-    .filter(
-      (message) =>
-        message.role === "assistant" &&
-        message.metadata.error === undefined &&
-        !message.metadata.synthetic,
-    );
+  const steps = messages.slice(start + 1).filter(isStep);
   const last = steps.at(-1);
   if (
     last === undefined ||
@@ -88,7 +81,58 @@ export async function endOfTurnNote({
       END_OF_TURN_CHECKS.map((check) => check({ chatId, reply, role })),
     )
   ).filter((note) => note !== undefined);
-  return found.length === 0 ? undefined : systemNote`${found.join("\n\n")}`;
+  if (found.length === 0) {
+    return undefined;
+  }
+  const note = systemNote`${found.join("\n\n")}`;
+  judged.set(`${sessionId}:${last.id}`, note);
+  // A note is read by its step and that step's retries; the oldest go once
+  // there are more than a process could still be sending.
+  for (const key of judged.keys()) {
+    if (judged.size <= MOST_KEPT) {
+      break;
+    }
+    judged.delete(key);
+  }
+  return note;
+}
+
+/**
+ * The note `endOfTurnNote` gave a reply, by its session and message, kept
+ * from the moment it decides the turn goes on until the step it sends is
+ * built: the files the checks read can change in between (a task making the
+ * file a link names), and the step a note started has to carry that note.
+ */
+const judged = new Map<string, string>();
+const MOST_KEPT = 100;
+
+/**
+ * The note `endOfTurnNote` gave the turn's latest reply, for the step it
+ * asked for and that step's retries. Undefined when it gave none.
+ */
+export function givenEndOfTurnNote({
+  messages,
+  sessionId,
+}: {
+  messages: SessionMessage.WithParts[];
+  sessionId: StoreId.Session;
+}): string | undefined {
+  const start = messages.findLastIndex((message) => message.role === "user");
+  const last = messages.slice(start + 1).findLast(isStep);
+  if (last === undefined) {
+    return undefined;
+  }
+  const key = `${sessionId}:${last.id}`;
+  return judged.get(key);
+}
+
+/** A step of the agent's that ran: not a failed one, nor one the harness wrote. */
+function isStep(message: SessionMessage.WithParts): boolean {
+  return (
+    message.role === "assistant" &&
+    message.metadata.error === undefined &&
+    !message.metadata.synthetic
+  );
 }
 
 /** A step that ended the turn: it wrote, called nothing, and was not cut off. */

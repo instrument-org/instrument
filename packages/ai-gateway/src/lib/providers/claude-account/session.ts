@@ -12,6 +12,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { type ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
   CallToolRequestSchema,
@@ -109,6 +110,7 @@ export class ClaudeCodeSession implements MessageSource {
   private readonly query: Query;
   private readonly results = new Map<string, Deferred<CallToolResult>>();
   private readonly stderrTail: string[] = [];
+  private readonly exit = new Deferred<void>();
 
   /**
    * The transcript entry that ends this step's input, before the reply: the
@@ -188,9 +190,24 @@ export class ClaudeCodeSession implements MessageSource {
         ...transcriptOptions(transcript),
         settingSources: [],
         settings: { disableClaudeAiConnectors: true },
-        stderr: (data) => {
-          this.stderrTail.push(data);
-          this.stderrTail.splice(0, this.stderrTail.length - 20);
+        // Spawned here, as the SDK would, so that `exited` can say when the
+        // process is gone.
+        spawnClaudeCodeProcess: (spawned) => {
+          const child = spawn(spawned.command, spawned.args, {
+            cwd: spawned.cwd,
+            env: spawned.env,
+            signal: spawned.signal,
+            stdio: ["pipe", "pipe", "pipe"],
+            windowsHide: true,
+          });
+          child.stderr.setEncoding("utf8");
+          child.stderr.on("data", (data: string) => {
+            this.stderrTail.push(data);
+            this.stderrTail.splice(0, this.stderrTail.length - 20);
+          });
+          child.once("close", () => this.exit.resolve());
+          child.once("error", () => this.exit.resolve());
+          return child;
         },
         strictMcpConfig: true,
         // Claude Code streams a thinking block with its text left out unless
@@ -216,6 +233,15 @@ export class ClaudeCodeSession implements MessageSource {
 
   get stderr() {
     return this.stderrTail.join("");
+  }
+
+  /**
+   * Settles once the process has exited. Claude Code writes the last entries
+   * of its transcript as it exits, a moment after `close`, so another process
+   * on that transcript starts only after.
+   */
+  get exited() {
+    return this.exit.promise;
   }
 
   close() {

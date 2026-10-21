@@ -51,13 +51,31 @@ import {
 const sessions = new Map<string, ClaudeCodeSession>();
 
 /**
- * Ends every live process, as an idle timeout or quitting would. Their
- * transcripts stay, so the next request resumes them.
+ * The process writing each Claude Code transcript, by its session id, until
+ * it has exited: closed ones stay here while they write their last entries.
  */
-export function closeClaudeAccountSessions() {
+const writers = new Map<string, ClaudeCodeSession>();
+
+/**
+ * Ends the process writing a transcript, if one still is, and settles once
+ * it has exited, so the transcript holds all it will.
+ */
+async function settleTranscript(claudeSessionId: string) {
+  const writer = writers.get(claudeSessionId);
+  writer?.close();
+  await writer?.exited;
+}
+
+/**
+ * Ends every live process, as an idle timeout or quitting would, and settles
+ * once each has exited. Their transcripts stay, so the next request resumes
+ * them.
+ */
+export async function closeClaudeAccountSessions() {
   for (const session of sessions.values()) {
     session.close();
   }
+  await Promise.all([...writers.values()].map((writer) => writer.exited));
 }
 
 /**
@@ -172,7 +190,13 @@ function streamStep({
               record: () =>
                 persistent === undefined
                   ? Promise.resolve({ missing: "no process of its own" })
-                  : readResumeRecord(configDir, persistent),
+                  : readResumeRecord(configDir, persistent, {
+                      readFor: "resume",
+                      // The slot's own process, when it is the one that
+                      // cannot continue, goes either way: a resume carries
+                      // its transcript on, and a cold start leaves it.
+                      settled: settleTranscript,
+                    }),
             },
             prompt,
           ),
@@ -310,6 +334,12 @@ function startOn(
     );
     if (persistent !== undefined) {
       sessions.set(created.key, created);
+      writers.set(claudeSessionId, created);
+      void created.exited.then(() => {
+        if (writers.get(claudeSessionId) === created) {
+          writers.delete(claudeSessionId);
+        }
+      });
     }
     return created;
   };
@@ -318,10 +348,13 @@ function startOn(
       return plan.session;
     }
     case "resume": {
-      // Into a transcript of its own, which only this process writes: the
-      // one it carries on may still take entries from the process that last
-      // wrote it, which a stop or an error closed a moment ago, and Claude
-      // Code reads a transcript by its newest entries.
+      // Into a transcript of its own, cut at the record's last entry, so
+      // every transcript is one line of entries. Resumed in place, the file
+      // branches where the stopped step's reply did, and Claude Code loads a
+      // branched transcript from its newest `last-prompt` checkpoint, which
+      // the stopped process wrote on its dead branch as it exited: until the
+      // resumed process ends a turn, a task forking at an entry on the live
+      // branch is refused ("No message found with message.uuid").
       const session = open({
         at: plan.at,
         from: plan.claudeSessionId,

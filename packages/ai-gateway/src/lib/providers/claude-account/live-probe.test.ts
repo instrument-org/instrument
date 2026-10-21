@@ -42,7 +42,7 @@ afterAll(async () => {
   if (process.env.CLAUDE_ACCOUNT_LIVE !== "1") {
     return;
   }
-  closeClaudeAccountSessions();
+  await closeClaudeAccountSessions();
   const home = userInfo().homedir;
   const project = join(
     home,
@@ -288,7 +288,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     });
 
     // The process ends, as an idle timeout or quitting would end it.
-    closeClaudeAccountSessions();
+    await closeClaudeAccountSessions();
     prompt.push({
       content: [
         {
@@ -441,7 +441,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     );
     warn.mockRestore();
     info.mockRestore();
-    closeClaudeAccountSessions();
+    await closeClaudeAccountSessions();
 
     expect(task.text.toLowerCase()).toContain("marmalade");
     expect(warnings.filter((line) => line.includes("replay"))).toEqual([]);
@@ -542,7 +542,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     );
     const asked = await step(prompt);
     process.stderr.write(`STOPPED ${JSON.stringify(asked)}\n`);
-    closeClaudeAccountSessions();
+    await closeClaudeAccountSessions();
     expect(asked.text.toLowerCase()).toMatch(/stop/);
   },
 );
@@ -687,7 +687,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     );
     warn.mockRestore();
     info.mockRestore();
-    closeClaudeAccountSessions();
+    await closeClaudeAccountSessions();
 
     expect(afterStop.text).toContain("OTTER");
     expect(afterStop.text.toLowerCase()).toContain(lastWord.toLowerCase());
@@ -814,7 +814,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     const second = await step([...prompt, notice]);
     prompt.push(...answered(second, "15"));
     const last = await step([...prompt, notice]);
-    closeClaudeAccountSessions();
+    await closeClaudeAccountSessions();
 
     const home = userInfo().homedir;
     const project = join(

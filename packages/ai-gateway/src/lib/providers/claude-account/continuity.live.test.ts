@@ -264,30 +264,11 @@ function localState(marker: string) {
     rmSync(from, { force: true, recursive: true });
   };
   /**
-   * Waits for closed processes to finish writing: Claude Code appends its
-   * last entries as it exits, after `close` returns, and would recreate a
-   * transcript moved away before then.
+   * Ends every process and waits for each to exit: Claude Code appends its
+   * last entries as it exits, and would recreate a transcript moved away
+   * before then.
    */
-  const settle = async () => {
-    const signature = () =>
-      entries()
-        .map((name) => {
-          const { mtimeMs, size } = statSync(join(project, name));
-          return `${name}:${size}:${mtimeMs}`;
-        })
-        .join();
-    let last = signature();
-    let stableSince = Date.now();
-    const deadline = Date.now() + 15_000;
-    while (Date.now() - stableSince < 1500 && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      const now = signature();
-      if (now !== last) {
-        last = now;
-        stableSince = Date.now();
-      }
-    }
-  };
+  const settle = () => closeClaudeAccountSessions();
   return {
     settle,
     /** Puts this Mac's files away under `device`, as if on another Mac. */
@@ -584,7 +565,7 @@ it.skipIf(!live)(
 
       // Quitting the app, or an idle timeout, ends the process; its transcript
       // is still on this Mac.
-      closeClaudeAccountSessions();
+      await closeClaudeAccountSessions();
       prompt.push(
         ask(`the code word from my first message, and ${colorOf("a")}`),
       );
@@ -598,7 +579,6 @@ it.skipIf(!live)(
 
       // A Claude Code that writes its transcript in a shape this build does
       // not read.
-      closeClaudeAccountSessions();
       await state.settle();
       const transcript = state.newestTranscript();
       if (transcript !== undefined && existsSync(transcript)) {
@@ -618,7 +598,6 @@ it.skipIf(!live)(
 
       // Mac B: the chat's records synced, nothing of Mac A's Claude Code did.
       // It answers about A's pictures and takes one of its own.
-      closeClaudeAccountSessions();
       await state.leave("mac-a");
       prompt.push(
         user(
@@ -635,7 +614,6 @@ it.skipIf(!live)(
 
       // Back on Mac A, whose resume record and transcript stop before B's
       // turn, which is replayed onto them.
-      closeClaudeAccountSessions();
       await state.leave("mac-b");
       await state.arrive("mac-a");
       prompt.push(ask(colorOf("f")));
@@ -715,7 +693,6 @@ it.skipIf(!live)(
 
       // Mac C, on the switched model, with Claude's signed thinking from the
       // other model in the records.
-      closeClaudeAccountSessions();
       await state.leave("mac-a2");
       prompt.push(ask(colorOf("b")));
       const switchedCold = await turn("8-model-switch-mac-c", prompt, {
@@ -730,7 +707,6 @@ it.skipIf(!live)(
 
       // Home to A and the first model; the process ends while our loop runs a
       // tool, as a crash or quit would.
-      closeClaudeAccountSessions();
       await state.leave("mac-c");
       await state.arrive("mac-a2");
       prompt.push(
@@ -739,8 +715,10 @@ it.skipIf(!live)(
         ),
       );
       const midLoop = await turn("9-restart-mid-tool-loop", prompt, {
+        // Not waited for, as a crash is not: the next step's resume waits
+        // for the process to exit.
         between: () => {
-          closeClaudeAccountSessions();
+          void closeClaudeAccountSessions();
         },
       });
       check(
@@ -805,7 +783,7 @@ it.skipIf(!live)(
       }
       expect(reports.filter((report) => report.error)).toEqual([]);
     } finally {
-      closeClaudeAccountSessions();
+      await closeClaudeAccountSessions();
       warn.mockRestore();
       info.mockRestore();
       await state.clear();

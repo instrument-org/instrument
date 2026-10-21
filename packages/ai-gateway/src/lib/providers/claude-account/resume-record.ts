@@ -137,14 +137,6 @@ async function transcriptRefusal(file: string, wanted: string) {
   return hasEntry ? undefined : ("without the entry" as const);
 }
 
-/**
- * How long a read waits for a transcript to take the entry its record
- * names. Claude Code writes a step's entries a moment after it reports
- * them (about 100ms, measured on 2.1.306), so a record written as a step
- * ends can name an entry its transcript does not hold yet.
- */
-const ENTRY_WAIT_MS = 1500;
-
 /** A slot's record, or why it has none to resume. */
 export type RecordRead = { missing: string } | { record: ResumeRecord };
 
@@ -153,14 +145,22 @@ export type RecordRead = { missing: string } | { record: ResumeRecord };
  * still reads as the conversation it was, or why it has none. The transcript
  * has to hold the entry the record is read for: its `leaf`, which resuming
  * the slot cuts back to, or for a task branching off, its `forkPoint`.
+ *
+ * A resume reads the transcript once `settled` says nothing still writes it:
+ * Claude Code writes a step's entries a moment after it reports them, and its
+ * last ones as it exits. A fork reads its parent's as it is, since the chat's
+ * process is waiting on the task and its fork point was written as its step
+ * began.
  */
 export async function readResumeRecord(
   configDir: string | undefined,
   slot: string,
-  {
-    entryWaitMs = ENTRY_WAIT_MS,
-    readFor = "resume",
-  }: { entryWaitMs?: number; readFor?: "fork" | "resume" } = {},
+  options:
+    | { readFor: "fork" }
+    | {
+        readFor: "resume";
+        settled: (claudeSessionId: string) => Promise<void>;
+      },
 ): Promise<RecordRead> {
   const text = await readFile(recordPath(configDir, slot), "utf8").catch(
     () => undefined,
@@ -179,18 +179,15 @@ export async function readResumeRecord(
     return { missing: "a resume record in a shape this build does not read" };
   }
   const { claudeSessionId, forkPoint, leaf } = parsed.data;
+  if (options.readFor === "resume") {
+    await options.settled(claudeSessionId);
+  }
   const file = transcriptPath(configDir, claudeSessionId);
   if (file === undefined) {
     return { record: parsed.data };
   }
-  const entry = readFor === "fork" ? (forkPoint ?? leaf) : leaf;
-  const deadline = Date.now() + entryWaitMs;
-  let refusal = await transcriptRefusal(file, entry);
-  while (refusal === "without the entry" && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    refusal = await transcriptRefusal(file, entry);
-  }
-  switch (refusal) {
+  const entry = options.readFor === "fork" ? (forkPoint ?? leaf) : leaf;
+  switch (await transcriptRefusal(file, entry)) {
     case undefined: {
       return { record: parsed.data };
     }

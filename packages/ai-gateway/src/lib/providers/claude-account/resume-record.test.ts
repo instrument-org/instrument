@@ -10,6 +10,11 @@ import {
   writeResumeRecord,
 } from "./resume-record";
 
+const RESUME = {
+  readFor: "resume",
+  settled: () => Promise.resolve(),
+} as const;
+
 const record = {
   awaitingToolCallIds: [],
   claudeSessionId: "5f0c6c2e-8d1b-4f7a-9a51-0f6b2f1c3d4e",
@@ -55,10 +60,10 @@ describe("resume records", () => {
     await withTranscript(configDir);
     await writeResumeRecord(configDir, "ses_1:shape", record);
 
-    expect(await readResumeRecord(configDir, "ses_1:shape")).toEqual({
+    expect(await readResumeRecord(configDir, "ses_1:shape", RESUME)).toEqual({
       record,
     });
-    expect(await readResumeRecord(configDir, "ses_2:shape")).toEqual({
+    expect(await readResumeRecord(configDir, "ses_2:shape", RESUME)).toEqual({
       missing: "no resume record",
     });
   });
@@ -67,7 +72,7 @@ describe("resume records", () => {
     const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
     await writeResumeRecord(configDir, "ses_1:shape", record);
 
-    expect(await readResumeRecord(configDir, "ses_1:shape"))
+    expect(await readResumeRecord(configDir, "ses_1:shape", RESUME))
       .toMatchInlineSnapshot(`
         {
           "missing": "no transcript 5f0c6c2e-8d1b-4f7a-9a51-0f6b2f1c3d4e",
@@ -84,7 +89,7 @@ describe("resume records", () => {
     );
     await writeResumeRecord(configDir, "ses_1:shape", record);
 
-    expect(await readResumeRecord(configDir, "ses_1:shape"))
+    expect(await readResumeRecord(configDir, "ses_1:shape", RESUME))
       .toMatchInlineSnapshot(`
         {
           "missing": "transcript 5f0c6c2e-8d1b-4f7a-9a51-0f6b2f1c3d4e, which is not a conversation this build reads",
@@ -98,7 +103,7 @@ describe("resume records", () => {
     await writeResumeRecord(configDir, "ses_1:shape", record);
     await removeResumeRecord(configDir, "ses_1:shape");
 
-    expect(await readResumeRecord(configDir, "ses_1:shape"))
+    expect(await readResumeRecord(configDir, "ses_1:shape", RESUME))
       .toMatchInlineSnapshot(`
       {
         "missing": "no resume record",
@@ -114,23 +119,31 @@ describe("resume records", () => {
     await writeResumeRecord(configDir, "ses_1:shape", record);
 
     expect(
-      await readResumeRecord(configDir, "ses_1:shape", { entryWaitMs: 0 }),
+      await readResumeRecord(configDir, "ses_1:shape", RESUME),
     ).toMatchObject({
       missing: expect.stringContaining("without the entry its record names"),
     });
   });
 
-  // Claude Code writes a step's entries a moment after it reports them, so a
-  // request right after a step can find the record before its last entry.
-  it("waits for the transcript to take the entry its record names", async () => {
+  // Claude Code writes a step's last entries after it reports them, some as
+  // its process exits, so a resume reads the transcript only once its writer
+  // has settled.
+  it("reads the transcript once its writer has settled", async () => {
     const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
     await withTranscript(configDir, CONVERSATION.slice(0, 1));
     await writeResumeRecord(configDir, "ses_1:shape", record);
 
-    const read = readResumeRecord(configDir, "ses_1:shape");
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    await withTranscript(configDir);
-    expect(await read).toEqual({ record });
+    const settledFor: string[] = [];
+    expect(
+      await readResumeRecord(configDir, "ses_1:shape", {
+        readFor: "resume",
+        settled: async (claudeSessionId) => {
+          settledFor.push(claudeSessionId);
+          await withTranscript(configDir);
+        },
+      }),
+    ).toEqual({ record });
+    expect(settledFor).toEqual([record.claudeSessionId]);
   });
 
   // A process stopped mid-step can end in the middle of writing an entry,
@@ -140,7 +153,7 @@ describe("resume records", () => {
     await withTranscript(configDir, CONVERSATION, '{"type":"assistant","mes');
     await writeResumeRecord(configDir, "ses_1:shape", record);
 
-    expect(await readResumeRecord(configDir, "ses_1:shape")).toEqual({
+    expect(await readResumeRecord(configDir, "ses_1:shape", RESUME)).toEqual({
       record,
     });
   });

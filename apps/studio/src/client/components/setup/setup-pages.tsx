@@ -1,11 +1,22 @@
-import { Button } from "@/client/components/ui/button";
-import { SETUP_STEPS, type SetupStep } from "@/shared/setup";
+import { type SetupStep } from "@/shared/setup";
 import { type ComponentType } from "react";
+
+import { SetupFooter, SetupPage } from "./kit/setup-page";
 
 /** What every setup page is handed. */
 export type SetupPageProps = {
-  /** Whether this is setup's last step, which finishes it. */
+  /**
+   * Keeps this step's page on screen while it finishes something that
+   * settles the step on its own (notifications allowed, a folder move
+   * recorded), until `onContinue` or `onFinish`.
+   */
+  hold: () => void;
+  /** Whether this is setup's last step, whose way on finishes setup. */
   isLast: boolean;
+  /** Setup is back after an update for only the steps added since. */
+  isNewStepOnly: boolean;
+  /** Back to the step before, or none when there is nothing to go back to. */
+  onBack?: () => void;
   /** Answers this step, and setup moves to the next one it needs. */
   onContinue: () => void;
   /** Finishes setup, and the window is the app's. */
@@ -25,24 +36,25 @@ export const SETUP_PAGES: Record<SetupStep, ComponentType<SetupPageProps>> = {
   "welcome-back": PlaceholderPage,
 };
 
-export function isLastSetupStep(step: SetupStep) {
-  return SETUP_STEPS.at(-1) === step;
-}
-
 /** Stands in for a step whose page is not built yet. */
-function PlaceholderPage({ isLast, onContinue, onFinish, step }: SetupPageProps) {
+function PlaceholderPage({
+  isLast,
+  onBack,
+  onContinue,
+  onFinish,
+  step,
+}: SetupPageProps) {
   return (
-    <div className="flex flex-col items-center gap-6">
-      <h1 className="font-mono text-lg">{step}</h1>
-      {isLast ? (
-        <Button onClick={onFinish} variant="brand">
-          Finish
-        </Button>
-      ) : (
-        <Button onClick={onContinue} variant="brand">
-          Continue
-        </Button>
-      )}
-    </div>
+    <SetupPage
+      align="center"
+      footer={
+        <SetupFooter
+          label={isLast ? "Finish" : "Continue"}
+          onBack={onBack}
+          onContinue={isLast ? onFinish : onContinue}
+        />
+      }
+      title={<span className="font-mono text-lg">{step}</span>}
+    />
   );
 }

@@ -68,6 +68,8 @@ export type SetupRecord = z.output<typeof SetupRecordSchema>;
 
 /** What the window and the renderer read: the step setup is on, or none. */
 export interface SetupState {
+  /** The step Back returns to, or none when there is nothing to go back to. */
+  back: null | SetupStep;
   facts: SetupFacts;
   /** Answered before an update added a step: setup shows only what's new. */
   isNewStepOnly: boolean;

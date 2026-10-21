@@ -1,6 +1,7 @@
 import { liveRead } from "@instrument-org/workspace/electron";
 import {
   answerSetupStep,
+  backFromSetupStep,
   finishSetup,
   readSetupState,
   resetSetup,
@@ -19,6 +20,13 @@ const answer = base
   .input(z.object({ step: SetupStepSchema }))
   .handler(({ input }) => {
     answerSetupStep(input.step);
+  });
+
+/** Back from `step` to the step before it, which setup asks again. */
+const back = base
+  .input(z.object({ step: SetupStepSchema }))
+  .handler(({ input }) => {
+    backFromSetupStep(input.step);
   });
 
 const finish = base.handler(() => {
@@ -46,6 +54,7 @@ const dev = {
 
 export const setup = {
   answer,
+  back,
   dev,
   finish,
   live,

@@ -100,11 +100,14 @@ setSetupTouchForwarder((touch) => {
   }
 });
 setMacosForwarder({
-  asking: (asker, root) => {
-    post({ asker, root, type: "macos-asking" });
-  },
   folderAnswer: (hostPath, answer) => {
     post({ answer, hostPath, type: "macos-folder-answer" });
+  },
+  unwatch: (id) => {
+    post({ id, type: "macos-unwatch" });
+  },
+  watch: (id, asker, root) => {
+    post({ asker, id, root, type: "macos-watch" });
   },
 });
 setSubprocessTreeObserver({

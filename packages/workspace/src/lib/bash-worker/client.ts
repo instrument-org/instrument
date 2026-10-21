@@ -23,7 +23,10 @@ import {
   terminateSubprocessTree,
 } from "../subprocess-tree";
 import { getWorkspaceConfig } from "../workspace-config";
-import { noteMacosFolderAnswer, raiseMacosAsking } from "../permissions/macos";
+import {
+  noteMacosFolderAnswer,
+  watchForMacosAsking,
+} from "../permissions/macos";
 import { recordSetupTouch } from "../setup-changes";
 import {
   fromWireError,
@@ -73,6 +76,8 @@ interface PendingExec {
  * nothing left over from a dead worker can settle a newer one's calls.
  */
 interface WorkerInstance {
+  /** Its commands' looks macOS may be asking about, each one's stop by id. */
+  macosWatches: Map<string, () => void>;
   pending: Map<number, PendingExec>;
   post: (message: ToWorker) => void;
   retired: boolean;
@@ -198,6 +203,7 @@ function getInstance(): WorkerInstance {
   }
   const worker = factory({ name: "bash" });
   const instance: WorkerInstance = {
+    macosWatches: new Map(),
     pending: new Map(),
     post: (message) => {
       worker.postMessage(message);
@@ -286,8 +292,16 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       });
       return;
     }
-    case "macos-asking": {
-      await raiseMacosAsking(message.asker, message.root);
+    case "macos-watch": {
+      instance.macosWatches.set(
+        message.id,
+        watchForMacosAsking(message.asker, message.root),
+      );
+      return;
+    }
+    case "macos-unwatch": {
+      instance.macosWatches.get(message.id)?.();
+      instance.macosWatches.delete(message.id);
       return;
     }
     case "macos-folder-answer": {
@@ -367,6 +381,10 @@ function retire(instance: WorkerInstance, error: Error) {
     void terminateSubprocessTree(pid);
   }
   instance.trees.clear();
+  for (const stop of instance.macosWatches.values()) {
+    stop();
+  }
+  instance.macosWatches.clear();
 }
 
 /**

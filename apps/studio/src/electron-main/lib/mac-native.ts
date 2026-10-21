@@ -79,6 +79,7 @@ interface MacModule {
   notificationStatus: () => Promise<string>;
   requestNotifications: () => Promise<string>;
   automationStatus: (bundleId: string, request: string) => Promise<string>;
+  promptOnScreen: () => Promise<string>;
 }
 
 /** The Mac's own apps whose data has privacy settings of its own, by bundle id. */
@@ -145,6 +146,25 @@ export async function macAppAccess(
   return "error" in answer || answer.status === "not-running"
     ? "unknown"
     : answer.status;
+}
+
+/**
+ * Whether one of macOS's own permission prompts is on screen now, by the
+ * window list: what a look macOS holds is waiting on. False in a build
+ * without the module.
+ */
+export async function macosPromptOnScreen(): Promise<boolean> {
+  const native = loadModule();
+  if (!native) {
+    return false;
+  }
+  const answer = z
+    .union([
+      z.object({ onScreen: z.boolean() }),
+      z.object({ error: z.string() }),
+    ])
+    .parse(JSON.parse(await native.promptOnScreen()));
+  return "onScreen" in answer && answer.onScreen;
 }
 
 let macModule: MacModule | null | undefined;

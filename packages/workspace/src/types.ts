@@ -199,6 +199,12 @@ export interface WorkspaceConfig {
     app: { bundleId: string; name: string },
     options: { request: boolean },
   ) => Promise<"allowed" | "denied" | "not-asked" | "unknown">;
+  /**
+   * Whether one of macOS's own permission prompts is on screen now, as the
+   * window list says: what a look the system holds is waiting on. Absent off
+   * macOS.
+   */
+  macosPromptOnScreen?: () => Promise<boolean>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Whether the Instrument account's plan would run one of its hosted

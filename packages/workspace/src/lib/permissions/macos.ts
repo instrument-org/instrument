@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import os from "node:os";
 import nodePath from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -11,11 +12,10 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { type MacApp } from "./apps";
 
 /**
- * How long a look inside a folder macOS guards may take before it counts as
- * macOS asking the person: a listing there waits for their answer to the
- * system's prompt, while one macOS has answered for comes back at once.
+ * How often the window list is read while a look macOS may be asking about
+ * waits. A look that answers sooner asks nothing of it.
  */
-export const MACOS_ASKING_MS = 1000;
+const PROMPT_POLL_MS = 250;
 
 /**
  * The folder macOS asks the person about when the app reaches `hostPath`,
@@ -56,13 +56,14 @@ const folderAnswers = new Map<string, "allowed" | "denied">();
 
 /**
  * Set in the bash worker, whose shell meets macOS's answers but holds
- * neither the chat's cards that windows watch nor the answers Settings
- * reads: each one goes to the main thread instead.
+ * neither the chat's cards that windows watch, the answers Settings reads,
+ * nor the window list: each goes to the main thread instead.
  */
 let forward:
   | {
-      asking: (asker: Asker, root: string) => void;
       folderAnswer: (hostPath: string, answer: "allowed" | "denied") => void;
+      unwatch: (id: string) => void;
+      watch: (id: string, asker: Asker, root: string) => void;
     }
   | undefined;
 
@@ -71,21 +72,74 @@ export function setMacosForwarder(next: NonNullable<typeof forward>): void {
 }
 
 /**
- * Raises the chat's card saying macOS is asking the person about `root`,
- * for a command of the person's that waits on that prompt.
+ * Whether one of macOS's own permission prompts is on screen: a window of
+ * UserNotificationCenter, the process that draws them, which the window
+ * list names without the screen recording permission. False where it can't
+ * be told (off macOS, a build without the Mac module).
  */
-export async function raiseMacosAsking(
-  asker: Asker,
-  root: string,
-): Promise<void> {
-  if (forward) {
-    forward.asking(asker, root);
-    return;
+async function promptOnScreen(): Promise<boolean> {
+  const check = getWorkspaceConfig().macosPromptOnScreen;
+  return check === undefined ? false : check().catch(() => false);
+}
+
+/**
+ * Watches for macOS's prompt for as long as `pending` waits, and runs
+ * `onAsking` once if it shows: what a look into a folder macOS guards, or a
+ * question to macOS about an app, is then waiting on. Resolves whether it
+ * showed. Only the prompt on screen counts, never how long the wait takes,
+ * so a slow disk or a folder still downloading raises nothing.
+ */
+export async function watchMacosPrompt(
+  pending: Promise<unknown>,
+  onAsking: () => Promise<void>,
+): Promise<boolean> {
+  let settled = false;
+  const done = pending.then(
+    () => {
+      settled = true;
+    },
+    () => {
+      settled = true;
+    },
+  );
+  while (!settled) {
+    await Promise.race([done, sleep(PROMPT_POLL_MS)]);
+    if (!settled && (await promptOnScreen()) && !settled) {
+      await onAsking();
+      return true;
+    }
   }
-  await recordAsk(asker, "folder", root, {
-    allowed: "allowed",
-    status: "macos-asking",
+  return false;
+}
+
+/**
+ * Watches, while a command's look into `root` waits, for macOS's prompt
+ * about it, and raises the chat's card saying macOS is asking the person
+ * once the prompt shows. The returned stop is called when the look settles.
+ */
+export function watchForMacosAsking(asker: Asker, root: string): () => void {
+  if (forward) {
+    const id = randomUUID();
+    forward.watch(id, asker, root);
+    return () => {
+      forward?.unwatch(id);
+    };
+  }
+  let stop = () => {};
+  const pending = new Promise<void>((resolve) => {
+    stop = resolve;
   });
+  // A command's look runs where just-bash keeps timers from being set, and
+  // the watch sets the app's own.
+  void DefenseInDepthBox.runTrustedAsync(() =>
+    watchMacosPrompt(pending, async () => {
+      await recordAsk(asker, "folder", root, {
+        allowed: "allowed",
+        status: "macos-asking",
+      });
+    }),
+  ).catch(() => {});
+  return stop;
 }
 
 /** Records what a look or read inside `hostPath` learned of macOS's answer. */
@@ -126,9 +180,9 @@ export function macosRefusalStatus(
 
 /**
  * A look inside `folder` as the app, which waits as long as macOS is asking
- * the person about it: `onAsking` runs once when the look into a folder
- * macOS guards hasn't answered within {@link MACOS_ASKING_MS}, and the look
- * still settles on the person's answer.
+ * the person about it: `onAsking` runs once when macOS's prompt shows while
+ * a look into a folder macOS guards waits, and the look still settles on
+ * the person's answer.
  */
 export async function lookAsTheApp(
   folder: string,
@@ -143,15 +197,12 @@ export async function lookAsTheApp(
   if (macosGuardedRoot(folder) === undefined) {
     return look;
   }
-  const early = await Promise.race([
-    look,
-    sleep(MACOS_ASKING_MS).then(() => "waiting" as const),
-  ]);
-  if (early !== "waiting") {
-    return early;
-  }
-  await onAsking();
-  return look;
+  // Waited on too, so a card the prompt raised is never marked asking
+  // after the answer already settled it.
+  const watched = watchMacosPrompt(look, onAsking);
+  const looked = await look;
+  await watched;
+  return looked;
 }
 
 /**
@@ -211,8 +262,12 @@ export function noteMacAppAnswer(
   lastAnswers.set(app.bundleId, answer);
 }
 
-/** How long asking macOS where it stands on an app may take before it counts as macOS asking the person. */
-const MACOS_STATUS_MS = 2000;
+/**
+ * How long asking macOS where it stands on an app is waited for while its
+ * prompt isn't on screen, after which macOS reads as not saying. A prompt
+ * is told by its window, never by this.
+ */
+const MACOS_STATUS_PATIENCE_MS = 10_000;
 
 /**
  * Where macOS stands on the app reaching `app`, or the last answer seen
@@ -230,12 +285,17 @@ export async function macAppStanding(
   }
   const asked = access(app, { request }).catch(() => "unknown" as const);
   // macOS holds a check that asks nothing for as long as its own prompt for
-  // the app is up, so one that hasn't answered in a moment is that prompt.
+  // the app is up, so one waiting while that prompt is on screen is it.
   const answer = request
     ? await asked
     : await Promise.race([
         asked,
-        sleep(MACOS_STATUS_MS).then(() => "not-asked" as const),
+        new Promise<"not-asked">((resolve) => {
+          void watchMacosPrompt(asked, async () => {
+            resolve("not-asked");
+          });
+        }),
+        sleep(MACOS_STATUS_PATIENCE_MS).then(() => "unknown" as const),
       ]);
   if (answer === "allowed" || answer === "denied") {
     noteMacAppAnswer(app, answer);

@@ -71,8 +71,12 @@ export type FromWorker =
       type: "capture-exception";
     }
   | { id: number; touch: SetupTouch; type: "setup-touch" }
-  /** A command waiting on macOS's prompt about `root`, which the chat's card says. */
-  | { asker: Asker; root: string; type: "macos-asking" }
+  /**
+   * A command's look into `root` that waits, which the main thread watches
+   * for macOS's prompt about it until the matching unwatch.
+   */
+  | { asker: Asker; id: string; root: string; type: "macos-watch" }
+  | { id: string; type: "macos-unwatch" }
   /** What a read or listing learned of macOS's answer for a folder, for Settings. */
   | {
       answer: "allowed" | "denied";

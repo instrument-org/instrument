@@ -10,9 +10,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { recordAsk } from "../lib/chat/asks";
 import {
   lookAsTheApp,
-  MACOS_ASKING_MS,
   macosAppCard,
-  macosGuardedRoot,
   macosRefusalStatus,
 } from "../lib/permissions/macos";
 import { withoutDataVolume } from "../lib/host-path";
@@ -150,10 +148,17 @@ type Decided =
   | { state: "ask"; target: string };
 
 /**
+ * How long the look inside a folder is waited for with no macOS prompt on
+ * screen, after which the folder counts as not kept out by macOS (a slow
+ * disk), and the call returns while the look goes on.
+ */
+const LOOK_PATIENCE_MS = 5000;
+
+/**
  * The card for a folder the rules allow that macOS keeps the app out of,
- * raised when the look inside is refused, or hasn't answered in a moment
- * where macOS asks the person about it; the card that is asking settles on
- * their answer. Its folder, or nothing when macOS lets the app in.
+ * raised when the look inside is refused, or waits while macOS's prompt
+ * about it is on screen; the card that is asking settles on their answer.
+ * Its folder, or nothing when macOS lets the app in.
  */
 async function macosFolderCard(
   asker: Parameters<typeof recordAsk>[0],
@@ -163,14 +168,23 @@ async function macosFolderCard(
     existsSync(hostPath) && !statSync(hostPath).isDirectory()
       ? nodePath.dirname(hostPath)
       : hostPath;
+  let prompted = () => {};
+  const asking = new Promise<"asking">((resolve) => {
+    prompted = () => {
+      resolve("asking");
+    };
+  });
   const early = await Promise.race([
-    lookAsTheApp(folder, () => Promise.resolve()),
-    sleep(MACOS_ASKING_MS).then(() => "waiting" as const),
+    lookAsTheApp(folder, async () => {
+      prompted();
+    }),
+    asking,
+    sleep(LOOK_PATIENCE_MS).then(() => "slow" as const),
   ]);
   const status =
     early === "system"
       ? macosRefusalStatus(folder)
-      : early === "waiting" && macosGuardedRoot(folder) !== undefined
+      : early === "asking"
         ? "macos-asking"
         : undefined;
   if (status === undefined) {

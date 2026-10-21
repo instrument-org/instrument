@@ -12,6 +12,7 @@ import {
   finderEntries,
   macAppAccess,
   macHelperBinPath,
+  macosPromptOnScreen,
   seatbeltHelperPath,
   resolveAlias,
 } from "@/electron-main/lib/mac-native";
@@ -215,7 +216,9 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       resolveAlias,
       // Files refuses what the viewers' file channel refuses, by one rule.
       isRefusedFile: (hostPath) => isRefusedFile(hostPath),
-      ...(process.platform === "darwin" ? { macAppAccess } : {}),
+      ...(process.platform === "darwin"
+        ? { macAppAccess, macosPromptOnScreen }
+        : {}),
       macHelperBinPath: macHelperBinPath(),
       seatbeltHelperPath: seatbeltHelperPath(),
       mxcExecPath: getMxcExecPath(),

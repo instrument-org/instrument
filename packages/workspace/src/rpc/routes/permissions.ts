@@ -29,12 +29,11 @@ import {
 import { openAsks } from "../../lib/chat/open-asks";
 import {
   lookAsTheApp,
-  MACOS_ASKING_MS,
   macAppStanding,
   macosRefusalStatus,
   macosRefusedFolders,
+  watchMacosPrompt,
 } from "../../lib/permissions/macos";
-import { setTimeout as sleep } from "node:timers/promises";
 import { grantFolder } from "../../lib/chat/grants";
 import { setDenied } from "../../lib/permissions/denials";
 import { wakeAskers } from "../../lib/chat/wake";
@@ -361,7 +360,9 @@ const retry = base
         message: "That request isn't waiting on macOS.",
       });
     }
-    await settle(input.id, ask, ask.allowed, context.workspaceRef);
+    await settle(input.id, ask, ask.allowed, context.workspaceRef, {
+      wakesOnlyIfPrompted: ask.status === "macos-asking",
+    });
   });
 
 /** Says not now to every permission card the chat has open. */
@@ -461,27 +462,36 @@ const settling = new Map<string, Promise<void>>();
  * the folder or the app: asking waits as long as the system's own prompt is
  * up, and the card says macOS is asking meanwhile. One macOS refuses stays
  * open, keeping the yes. Off macOS nothing is asked.
+ *
+ * `wakesOnlyIfPrompted` is for a card a command raised while macOS asked,
+ * which nobody answered in the app: it wakes the askers only when the look
+ * itself waited on macOS's prompt, so the person's answer there is what let
+ * the app in. One whose look got in without it goes quietly, since the
+ * command it stood for carries on by itself.
  */
 function settle(
   chatId: ChatId,
   ask: PermissionAsk,
   decision: "allowed" | "always",
   workspaceRef: WorkspaceActorRef,
+  { wakesOnlyIfPrompted = false }: { wakesOnlyIfPrompted?: boolean } = {},
 ): Promise<void> {
   const running = settling.get(ask.id);
   if (running) {
     return running;
   }
   const settled = (async () => {
-    const kept = await macosKeepsOut(ask, () =>
-      setMacosStatus(chatId, ask.id, "macos-asking", decision),
-    );
+    let prompted = false;
+    const kept = await macosKeepsOut(ask, async () => {
+      prompted = true;
+      await setMacosStatus(chatId, ask.id, "macos-asking", decision);
+    });
     if (kept !== undefined) {
       await setMacosStatus(chatId, ask.id, kept, decision);
       return;
     }
     const closed = await closeAsk(chatId, ask.id);
-    if (!closed) {
+    if (!closed || (wakesOnlyIfPrompted && !prompted)) {
       return;
     }
     await wakeAskers(
@@ -505,7 +515,7 @@ function settle(
  * yes: the card's status, or undefined when it lets the app in (or off
  * macOS). A folder is looked inside, and an app asked of macOS, which raises
  * the system's prompt nobody has answered yet; `onAsking` runs once when
- * that answer is a while coming.
+ * that prompt is on screen while the answer waits.
  */
 async function macosKeepsOut(
   ask: PermissionAsk,
@@ -527,14 +537,10 @@ async function macosKeepsOut(
     { bundleId, name: ask.target },
     { request: true },
   );
-  const early = await Promise.race([
-    standing,
-    sleep(MACOS_ASKING_MS).then(() => "waiting" as const),
-  ]);
-  if (early === "waiting") {
-    await onAsking();
-  }
-  return (await standing) === "denied" ? "macos-refused" : undefined;
+  const watched = watchMacosPrompt(standing, onAsking);
+  const answer = await standing;
+  await watched;
+  return answer === "denied" ? "macos-refused" : undefined;
 }
 
 export const permissions = {

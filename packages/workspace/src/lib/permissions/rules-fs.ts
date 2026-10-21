@@ -5,13 +5,17 @@ import nodePath from "node:path";
 
 import { FOLDER_VARIABLES } from "../../constants";
 import { canonicalizeThroughMissing, withoutDataVolume } from "../host-path";
-import { accountCanWrite, systemOwnedNote } from "./account-can-write";
-import { askFirstNote, macosRefusalNote } from "../chat/asks";
 import {
-  MACOS_ASKING_MS,
+  accountCanWrite,
+  lockedNote,
+  systemOwnedNote,
+} from "./account-can-write";
+import { askFirstNote, macosRefusalNote } from "../chat/asks";
+import { listFolder } from "../chat/folder-look";
+import {
   macosGuardedRoot,
   noteMacosFolderAnswer,
-  raiseMacosAsking,
+  watchForMacosAsking,
 } from "./macos";
 import { isClosedDiskRoot } from "../disk-root";
 import {
@@ -279,33 +283,16 @@ export function rulesFs({
         }: { isListing?: boolean; isRead?: boolean } = {},
       ) => {
         const pending = Promise.resolve().then(run);
-        // A listing is what waits on macOS's prompt for its folder, and one
-        // in a folder macOS guards has no other reason to take a second; a
-        // read of a big file can, so a read raises nothing. Looking at the
-        // folder again to be sure would hold one more of the process's file
-        // threads for as long as the prompt is up.
+        // A listing is what waits on macOS's prompt for its folder, which
+        // the chat's card says once the prompt is on screen; a read raises
+        // nothing, since the same look into the folder already would.
         const root =
           rules.asker === undefined || !isListing
             ? undefined
             : macosGuardedRoot(given(mountPath));
         if (rules.asker !== undefined && root !== undefined) {
-          const asker = rules.asker;
-          // The app's own timer, which just-bash blocks a running script
-          // from setting, so it is set and cleared as trusted host code.
-          const timer = DefenseInDepthBox.runTrusted(() =>
-            setTimeout(() => {
-              void DefenseInDepthBox.runTrustedAsync(() =>
-                raiseMacosAsking(asker, root),
-              ).catch(() => {});
-            }, MACOS_ASKING_MS),
-          );
-          void pending
-            .finally(() => {
-              DefenseInDepthBox.runTrusted(() => {
-                clearTimeout(timer);
-              });
-            })
-            .catch(() => {});
+          const stop = watchForMacosAsking(rules.asker, root);
+          void pending.finally(stop).catch(() => {});
         }
         try {
           const answered = await pending;
@@ -324,10 +311,21 @@ export function rulesFs({
             (("code" in error && error.code === "EPERM") ||
               error.message.startsWith("EPERM:"))
           ) {
-            noteMacosFolderAnswer(given(mountPath), "denied");
-            onRefusal?.(
-              macosRefusalNote(JSON.stringify(spell(given(mountPath)))),
+            const hostPath = given(mountPath);
+            const shown = JSON.stringify(spell(hostPath));
+            // macOS's own refusal keeps the app out of the whole folder, so
+            // a look at the folder around the path is refused too; a folder
+            // that lists means the path's own lock or owner refused it.
+            const folder = isListing ? hostPath : nodePath.dirname(hostPath);
+            const looked = await DefenseInDepthBox.runTrustedAsync(() =>
+              listFolder(folder),
             );
+            if (looked === "system") {
+              noteMacosFolderAnswer(folder, "denied");
+              onRefusal?.(macosRefusalNote(shown));
+            } else {
+              onRefusal?.(lockedNote(shown));
+            }
           }
           throw error;
         }

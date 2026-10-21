@@ -433,11 +433,37 @@ static napi_value automationStatus(napi_env env, napi_callback_info info) {
   });
 }
 
+/// Whether one of macOS's own permission prompts is on screen: a window of
+/// UserNotificationCenter, the process that draws the prompts for folders and
+/// apps. The window list names a window's owner without the screen recording
+/// permission, which only its title needs.
+static napi_value promptOnScreen(napi_env env, napi_callback_info info) {
+  return answer(env, ^(Done done) {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      CFArrayRef windows =
+          CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
+      BOOL shown = NO;
+      for (NSDictionary *window in (__bridge NSArray *)windows) {
+        if ([window[(__bridge NSString *)kCGWindowOwnerName]
+                isEqualToString:@"UserNotificationCenter"]) {
+          shown = YES;
+          break;
+        }
+      }
+      if (windows != NULL) {
+        CFRelease(windows);
+      }
+      done(@{@"onScreen" : shown ? @YES : @NO});
+    });
+  });
+}
+
 static const struct {
   const char *name;
   napi_callback fn;
 } FUNCTIONS[] = {
     {"automationStatus", automationStatus},
+    {"promptOnScreen", promptOnScreen},
     {"fileIcon", fileIcon},
     {"finderEntries", finderEntries},
     {"pasteboardFiles", pasteboardFiles},

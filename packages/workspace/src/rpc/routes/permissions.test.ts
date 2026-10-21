@@ -358,10 +358,19 @@ describe("permissions.answer", () => {
       macos.look = undefined;
     });
 
+    /** Whether macOS's prompt is on screen, as the window list would say. */
+    const promptShown = (onScreen: boolean) => {
+      setWorkspaceConfig({
+        ...getWorkspaceConfig(),
+        macosPromptOnScreen: () => Promise.resolve(onScreen),
+      });
+    };
+
     it("says macOS is asking while its prompt is up, then settles on the answer", async () => {
       const { chatId, own } = await chatWithTask();
       const desktop = path.join(os.homedir(), "Desktop", "Pantry");
       await recordAsk({ chatId, sessionId: own }, "folder", desktop);
+      promptShown(true);
       const [card] = await openAsks(chatId);
       let answerMacos: (look: "system") => void = () => {};
       macos.look = () =>
@@ -387,6 +396,61 @@ describe("permissions.answer", () => {
 
       expect(await openAsks(chatId)).toEqual([
         expect.objectContaining({ status: "macos-refused" }),
+      ]);
+    });
+
+    it("lets a command's asking card go quietly when its look gets in with no prompt seen", async () => {
+      const { chatId, own } = await chatWithTask();
+      const downloads = path.join(os.homedir(), "Downloads");
+      // What a command's watch records once macOS's prompt showed.
+      await recordAsk({ chatId, sessionId: own }, "folder", downloads, {
+        allowed: "allowed",
+        status: "macos-asking",
+      });
+      const [card] = await openAsks(chatId);
+      const sentBefore = sent.length;
+      promptShown(false);
+      macos.look = () => Promise.resolve("open");
+
+      await call(
+        permissions.retry,
+        { askId: card?.id ?? "", id: chatId },
+        { context: context() },
+      );
+
+      expect(await openAsks(chatId)).toEqual([]);
+      expect(wokenSince(sentBefore)).toEqual([]);
+    });
+
+    it("wakes a command's asking card's askers once the person answers the prompt it waited on", async () => {
+      const { chatId, own } = await chatWithTask();
+      const downloads = path.join(os.homedir(), "Downloads");
+      await recordAsk({ chatId, sessionId: own }, "folder", downloads, {
+        allowed: "allowed",
+        status: "macos-asking",
+      });
+      const [card] = await openAsks(chatId);
+      const sentBefore = sent.length;
+      promptShown(true);
+      let answerMacos: (look: "open") => void = () => {};
+      macos.look = () =>
+        new Promise((resolve) => {
+          answerMacos = resolve;
+        });
+
+      const retrying = call(
+        permissions.retry,
+        { askId: card?.id ?? "", id: chatId },
+        { context: context() },
+      );
+      // The look waits on the prompt the window list shows.
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      answerMacos("open");
+      await retrying;
+
+      expect(await openAsks(chatId)).toEqual([]);
+      expect(wokenSince(sentBefore)).toEqual([
+        { answer: ["allowed"], sessionId: own },
       ]);
     });
 

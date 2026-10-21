@@ -5,8 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
+import { listFolder } from "../chat/folder-look";
 import { closedNote, ruleRefusal, rulesFs } from "./rules-fs";
 import { type Rule, type Rules } from "./rules";
+
+vi.mock(import("../chat/folder-look"), () => ({ listFolder: vi.fn() }));
 
 // The rules below hold a made-up home, which nothing on this disk lets the
 // account change.
@@ -26,29 +29,60 @@ const onDisk = (posixPath: string) => nodePath.resolve(posixPath);
 const slashed = (hostPath: string) =>
   `/${nodePath.relative(nodePath.parse(hostPath).root, hostPath).replaceAll(nodePath.sep, "/")}`;
 
-it.runIf(process.platform === "darwin")(
-  "says macOS refused a read the rules allow, from the bare error just-bash rethrows",
-  async () => {
+describe.runIf(process.platform === "darwin")(
+  "an EPERM the rules allow",
+  () => {
     const sam = onDisk("/Users/sam");
-    const delegate = new InMemoryFs({ "/notes.md": "n" });
-    // ReadWriteFs's sanitizer rethrows a refusal with the code in the
-    // message alone.
-    vi.spyOn(delegate, "readFile").mockRejectedValue(
-      new Error("EPERM: open '/notes.md'"),
-    );
-    const refusals: string[] = [];
-    const fs = rulesFs({
-      delegate,
-      hostRoot: sam,
-      onRefusal: (refusal) => refusals.push(refusal),
-      rules: { dangerouslyAllowEveryFolder: false, home: sam, rules: [] },
-      spell: slashed,
+    /** A filesystem whose `method` fails as just-bash rethrows a refusal: the code in the message alone. */
+    const documents = nodePath.join(sam, "Documents");
+    const refusing = (method: "readFile" | "writeFile") => {
+      const delegate = new InMemoryFs({ "/Documents/notes.md": "n" });
+      vi.spyOn(delegate, method).mockRejectedValue(
+        new Error(`EPERM: open '/Documents/notes.md'`),
+      );
+      const refusals: string[] = [];
+      const fs = rulesFs({
+        delegate,
+        hostRoot: sam,
+        onRefusal: (refusal) => refusals.push(refusal),
+        rules: {
+          dangerouslyAllowEveryFolder: false,
+          home: sam,
+          rules: [{ level: "allow", path: documents, source: "place" }],
+        },
+        spell: slashed,
+      });
+      return { fs, refusals };
+    };
+
+    it("is macOS's when a look at its folder is refused too", async () => {
+      vi.mocked(listFolder).mockResolvedValue("system");
+      const { fs, refusals } = refusing("readFile");
+
+      await expect(fs.readFile("/Documents/notes.md")).rejects.toThrow(/EPERM/);
+      expect(listFolder).toHaveBeenCalledWith(documents);
+      expect(refusals).toEqual([
+        expect.stringMatching(
+          /^macOS itself refused "\/Users\/sam\/Documents\/notes.md"/,
+        ),
+      ]);
     });
 
-    await expect(fs.readFile("/notes.md")).rejects.toThrow(/EPERM/);
-    expect(refusals).toEqual([
-      expect.stringMatching(/^macOS itself refused "\/Users\/sam\/notes.md"/),
-    ]);
+    it("is the file's own lock or owner when its folder lists", async () => {
+      // A Finder-locked file, or a root-owned one: the folder around it opens.
+      vi.mocked(listFolder).mockResolvedValue("open");
+      const { fs, refusals } = refusing("writeFile");
+
+      await expect(fs.writeFile("/Documents/notes.md", "x")).rejects.toThrow(
+        /EPERM/,
+      );
+      expect(refusals).toEqual([
+        expect.stringMatching(
+          /^"\/Users\/sam\/Documents\/notes.md" is locked, or owned by another account/,
+        ),
+      ]);
+      expect(refusals.join("\n")).not.toMatch(/ask_permission|macOS/);
+    });
   },
 );
 

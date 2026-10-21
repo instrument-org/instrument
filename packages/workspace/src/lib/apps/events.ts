@@ -1,5 +1,5 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { publisher } from "../../rpc/publisher";
+import { publishedUntil } from "../../rpc/publisher";
 import { wakeChatForApp } from "../chat/wake";
 import { getWorkspaceConfig } from "../workspace-config";
 import { readConnection } from "./connection";
@@ -21,9 +21,12 @@ import { readConnection } from "./connection";
  * anything, so it wakes no chat; each chat hears of it on the next message
  * the user writes there.
  */
-export function startAppEvents(workspaceRef: WorkspaceActorRef): void {
+export function startAppEvents(
+  workspaceRef: WorkspaceActorRef,
+  signal?: AbortSignal,
+): void {
   void (async () => {
-    for await (const event of publisher.subscribe("app.event")) {
+    for await (const event of publishedUntil("app.event", signal)) {
       if (event.event === "disconnected" || event.event === "removed") {
         continue;
       }

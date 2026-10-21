@@ -2,7 +2,7 @@ import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { parallel, unique } from "radashi";
 import { z } from "zod";
 
-import { publisher } from "../../rpc/publisher";
+import { publishedUntil } from "../../rpc/publisher";
 import { type Ask } from "../../schemas/chat-state";
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
@@ -288,9 +288,12 @@ export async function markChatUnread(
  * treats as news. A chat the user is looking at as it settles is marked
  * too; the window takes the mark off again at once.
  */
-export function startChatUnreadOnSettle(): void {
+export function startChatUnreadOnSettle(signal?: AbortSignal): void {
   void (async () => {
-    for await (const { id, sessionId } of publisher.subscribe("session.done")) {
+    for await (const { id, sessionId } of publishedUntil(
+      "session.done",
+      signal,
+    )) {
       try {
         // A task's turn ending is news the chat's own next reply carries.
         if (

@@ -2,7 +2,7 @@ import { readdirSync, rmdirSync, unlinkSync } from "node:fs";
 import path from "node:path";
 
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { publisher } from "../../rpc/publisher";
+import { publishedUntil } from "../../rpc/publisher";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { listChatBackgroundProcesses } from "../background-processes";
 import { resolveChat } from "../record-folders";
@@ -27,14 +27,17 @@ const SYSTEM_LITTER = new Set([".DS_Store"]);
  * turn left behind when the app quit or crashed before it ended are reaped
  * when the workspace starts.
  */
-export function startWorkDirReap(workspaceRef: WorkspaceActorRef): void {
+export function startWorkDirReap(
+  workspaceRef: WorkspaceActorRef,
+  signal?: AbortSignal,
+): void {
   try {
     reapWorkDirs(workspaceRef);
   } catch (error) {
     getWorkspaceConfig().captureException(error);
   }
   void (async () => {
-    for await (const { id } of publisher.subscribe("session.done")) {
+    for await (const { id } of publishedUntil("session.done", signal)) {
       try {
         reapWorkDir(id, workspaceRef);
       } catch (error) {

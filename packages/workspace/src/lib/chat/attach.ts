@@ -19,15 +19,21 @@ import { startWorkDirReap } from "./work-dir-reap";
  * removes a work folder a chat at rest left empty.
  * Called once per actor by whoever creates one, rather than by the machine
  * itself, so a test that builds a machine does not also start a subscriber
- * it never stops.
+ * it never stops. Answers what detaches them all again, for a workspace
+ * that closes while the process goes on.
  */
-export function attachChats(workspaceRef: WorkspaceActorRef): void {
+export function attachChats(workspaceRef: WorkspaceActorRef): () => void {
   setWorkspaceActorRef(workspaceRef);
-  startChatWake(workspaceRef);
-  startJobWake(workspaceRef);
-  startAppEvents(workspaceRef);
-  startChatRetitle();
-  startChatUnreadOnSettle();
-  startChatFolderWrites();
-  startWorkDirReap(workspaceRef);
+  const attached = new AbortController();
+  const { signal } = attached;
+  startChatWake(workspaceRef, signal);
+  startJobWake(workspaceRef, { signal });
+  startAppEvents(workspaceRef, signal);
+  startChatRetitle(signal);
+  startChatUnreadOnSettle(signal);
+  startChatFolderWrites(signal);
+  startWorkDirReap(workspaceRef, signal);
+  return () => {
+    attached.abort();
+  };
 }

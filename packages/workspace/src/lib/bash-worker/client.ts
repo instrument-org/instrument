@@ -172,6 +172,32 @@ export function createRemoteBash(
   };
 }
 
+/**
+ * Ends the worker, so the next command starts a fresh one: for a workspace
+ * closing while the process goes on, whose config the worker built its
+ * state from. Nothing should be in flight by then; whatever is fails.
+ */
+export async function stopBashWorker(): Promise<void> {
+  const instance = current;
+  if (!instance) {
+    return;
+  }
+  current = undefined;
+  instance.retired = true;
+  const closed = new Error("The workspace closed");
+  for (const entry of instance.pending.values()) {
+    for (const call of entry.calls.values()) {
+      call.abort();
+    }
+    entry.reject(closed);
+  }
+  for (const pid of instance.trees) {
+    void terminateSubprocessTree(pid);
+  }
+  instance.trees.clear();
+  await instance.worker.terminate();
+}
+
 export function setBashWorkerFactory(next: BashWorkerFactory): void {
   factory = next;
 }

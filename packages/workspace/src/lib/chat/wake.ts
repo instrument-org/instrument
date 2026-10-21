@@ -4,7 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { publisher } from "../../rpc/publisher";
+import { publishedUntil } from "../../rpc/publisher";
 import { ChatWrites } from "../chat-writes";
 import { recordChanged } from "../record-changes";
 import { type Ask } from "../../schemas/chat-state";
@@ -183,9 +183,12 @@ async function onItsWay<Value>(
  * session, which starts a turn there if it is idle and queues behind the
  * current one if it is not, the same as anything the user types.
  */
-export function startChatWake(workspaceRef: WorkspaceActorRef): void {
+export function startChatWake(
+  workspaceRef: WorkspaceActorRef,
+  signal?: AbortSignal,
+): void {
   void (async () => {
-    for await (const payload of publisher.subscribe("session.done")) {
+    for await (const payload of publishedUntil("session.done", signal)) {
       try {
         await onSessionDone(payload, workspaceRef);
       } catch (error) {
@@ -202,6 +205,18 @@ export function startChatWake(workspaceRef: WorkspaceActorRef): void {
     });
   }, OVERDUE_CHECK_MS);
   timer.unref();
+  // A wake still waiting out its debounce is the closing workspace's.
+  signal?.addEventListener(
+    "abort",
+    () => {
+      clearInterval(timer);
+      for (const { timer: waiting } of pending.values()) {
+        clearTimeout(waiting);
+      }
+      pending.clear();
+    },
+    { once: true },
+  );
 }
 
 /**

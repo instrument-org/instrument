@@ -97,6 +97,7 @@ export {
 export { type ChatRecordsSplit } from "./lib/split-chat-records";
 export { moveTopicFolders } from "./lib/permissions/move-topic-folders";
 export { attachChats } from "./lib/chat/attach";
+export { closeWorkspace } from "./lib/close-workspace";
 export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
 export { settleWorkspaceDb } from "./lib/settle-workspace-db";

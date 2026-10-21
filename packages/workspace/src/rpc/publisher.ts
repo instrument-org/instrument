@@ -119,3 +119,25 @@ export const publisher = new EventPublisher<{
   // (`liveRead`), so queuing costs it nothing.
   maxBufferedEvents: 100,
 });
+
+type PublishedEvents =
+  typeof publisher extends EventPublisher<infer Events> ? Events : never;
+
+/**
+ * Each `event` published from now on, until `signal` ends the listening,
+ * which ends a loop over it rather than throwing into it.
+ */
+export async function* publishedUntil<Event extends keyof PublishedEvents>(
+  event: Event,
+  signal: AbortSignal | undefined,
+): AsyncGenerator<PublishedEvents[Event]> {
+  try {
+    for await (const payload of publisher.subscribe(event, { signal })) {
+      yield payload;
+    }
+  } catch (error) {
+    if (!signal?.aborted) {
+      throw error;
+    }
+  }
+}

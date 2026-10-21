@@ -1,7 +1,7 @@
 import { fetchModel } from "@instrument-org/ai-gateway";
 import { alphabetical } from "radashi";
 
-import { publisher } from "../../rpc/publisher";
+import { publishedUntil } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
@@ -117,9 +117,9 @@ export async function retitleChat({
  * runs) waits for the one that settles it, the same moment a notification
  * treats as news.
  */
-export function startChatRetitle(): void {
+export function startChatRetitle(signal?: AbortSignal): void {
   void (async () => {
-    for await (const payload of publisher.subscribe("session.done")) {
+    for await (const payload of publishedUntil("session.done", signal)) {
       try {
         await retitleOnSettle(payload);
       } catch (error) {

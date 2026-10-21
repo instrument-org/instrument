@@ -1,4 +1,4 @@
-import { publisher } from "../../rpc/publisher";
+import { publishedUntil } from "../../rpc/publisher";
 import { sessionRole } from "../chat/children";
 import { getWorkspaceConfig } from "../workspace-config";
 import { rewriteChatFolder } from "./write-chat-folder";
@@ -13,9 +13,12 @@ import { rewriteChatFolder } from "./write-chat-folder";
  * has a transcript that moved. Nothing is written when the bytes read the
  * same, which is the usual answer for a turn that only a task ran.
  */
-export function startChatFolderWrites(): void {
+export function startChatFolderWrites(signal?: AbortSignal): void {
   void (async () => {
-    for await (const { id, sessionId } of publisher.subscribe("session.done")) {
+    for await (const { id, sessionId } of publishedUntil(
+      "session.done",
+      signal,
+    )) {
       try {
         // A task's own folder is its parent's; the chat is what has one.
         if (sessionRole(id, sessionId) === undefined) {

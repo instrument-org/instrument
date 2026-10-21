@@ -1,5 +1,5 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { publisher } from "../../rpc/publisher";
+import { publishedUntil } from "../../rpc/publisher";
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import {
@@ -57,18 +57,23 @@ const stopped = new Set<StoreId.Session>();
  */
 export function startJobWake(
   workspaceRef: WorkspaceActorRef,
-  { debounceMs = JOB_WAKE_DEBOUNCE_MS }: { debounceMs?: number } = {},
+  {
+    debounceMs = JOB_WAKE_DEBOUNCE_MS,
+    signal,
+  }: { debounceMs?: number; signal?: AbortSignal } = {},
 ): void {
   void (async () => {
-    for await (const { id, sessionId } of publisher.subscribe(
+    for await (const { id, sessionId } of publishedUntil(
       "backgroundProcess.settled",
+      signal,
     )) {
       schedule(id, sessionId, workspaceRef, debounceMs);
     }
   })();
   void (async () => {
-    for await (const { id, notice, sessionId } of publisher.subscribe(
+    for await (const { id, notice, sessionId } of publishedUntil(
       "session.done",
+      signal,
     )) {
       if (notice?.by === "user" || notice?.by === "chat") {
         stopped.add(sessionId);
@@ -78,6 +83,17 @@ export function startJobWake(
       schedule(id, sessionId, workspaceRef, debounceMs);
     }
   })();
+  // A wake still waiting out its debounce is the closing workspace's.
+  signal?.addEventListener(
+    "abort",
+    () => {
+      for (const { timer } of pending.values()) {
+        clearTimeout(timer);
+      }
+      pending.clear();
+    },
+    { once: true },
+  );
 }
 
 function schedule(

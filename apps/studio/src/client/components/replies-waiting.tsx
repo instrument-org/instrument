@@ -33,9 +33,12 @@ const WORDS_SHOWN = 120;
  */
 export function RepliesWaiting({
   chatId,
+  disabled = false,
   onSwapIn,
 }: {
   chatId: ChatId;
+  /** Shown but not opened: while the box is dictating into the reply in it. */
+  disabled?: boolean;
   /** Puts that reply in the box, words and attachments both. */
   onSwapIn: (draftId: string) => void;
 }) {
@@ -50,7 +53,7 @@ export function RepliesWaiting({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger asChild disabled={disabled}>
         <Button
           className="mb-1.5 text-muted-foreground"
           size="xs"

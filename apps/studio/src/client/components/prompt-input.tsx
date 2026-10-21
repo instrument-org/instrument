@@ -202,6 +202,8 @@ interface PromptInputProps {
    * holds a send and flashes the note.
    */
   note?: ChatNote;
+  /** Whether the box is dictating, from the press until the words land, each time that changes. */
+  onDictatingChange?: (dictating: boolean) => void;
   /** What the box holds besides the words, each time that changes after it first draws. */
   onItemsChange?: (items: AttachedItem[]) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
@@ -238,6 +240,7 @@ export const PromptInput = ({
   lead,
   modelURI,
   note,
+  onDictatingChange,
   onItemsChange,
   onModelChange,
   onSubmit,
@@ -305,16 +308,33 @@ export const PromptInput = ({
   );
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
   const appendDictation = useSetAtom(appendDictationToPromptAtom);
-  // Finished even if the composer goes away mid-recording: the words land in
-  // the draft it was recording for, which keeps them until it comes back.
+  const shownDraft = useRef(draftKeyed);
+  useLayoutEffect(() => {
+    shownDraft.current = draftKeyed;
+  });
+  // The words land in this composer's own editor while it still shows the
+  // draft it was recording for, since another tab can show that draft in an
+  // editor of its own. Finished even if the composer goes away mid-recording:
+  // the words then land in the draft, which keeps them until it comes back.
   const dictation = useDictation({
     finishOnUnmount: true,
     onText: (text) => {
+      const editor = promptEditorRef.current;
+      if (editor && shownDraft.current === draftKeyed) {
+        editor.appendDictation(text);
+        return;
+      }
       appendDictation({ key: draftKey, text });
     },
     surface: "composer",
   });
   const dictating = isDictating(dictation.phase);
+  const onDictatingChangeEvent = useEffectEvent((now: boolean) => {
+    onDictatingChange?.(now);
+  });
+  useEffect(() => {
+    onDictatingChangeEvent(dictating);
+  }, [dictating]);
 
   const {
     data: modelsData,

@@ -229,8 +229,8 @@ export function ComposeWindow({
   draft: Draft;
   modelURI: AIGatewayModelURI.Type | undefined;
   onChange: (update: (draft: Draft) => Draft) => void;
-  /** The window's close, with the words as the box has them that moment: the caller keeps or throws the draft away by them. */
-  onClose: (words: string) => void;
+  /** The window's close, with the words as the box has them that moment and whether it is dictating more: the caller keeps or throws the draft away by them. */
+  onClose: (words: string, dictating: boolean) => void;
   /** Throws the draft away, from the head's trash, offered while it has words to lose. */
   onDiscard: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
@@ -276,6 +276,7 @@ export function ComposeWindow({
   const words = useAtomValue(storedWordsAtom(key));
 
   const inputRef = useRef<PromptInputRef>(null);
+  const [dictating, setDictating] = useState(false);
 
   // What the box holds besides its words, kept with the draft.
   const { asStaged, keepItems } = useDraftStaging({
@@ -600,7 +601,7 @@ export function ComposeWindow({
                   <WindowButton
                     label="Close"
                     onClick={() => {
-                      onClose(words);
+                      onClose(words, dictating);
                     }}
                   >
                     <XIcon className="size-4" />
@@ -633,6 +634,7 @@ export function ComposeWindow({
                   className="min-h-0 flex-1"
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
+                  onDictatingChange={setDictating}
                   onItemsChange={keepItems}
                   // The window becomes the chat's at the press, so the
                   // box is never left waiting on a send.

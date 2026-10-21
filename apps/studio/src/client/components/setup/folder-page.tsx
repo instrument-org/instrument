@@ -17,7 +17,7 @@ import { type SetupPageProps } from "./setup-page-props";
 import { useSetupState } from "./use-setup-state";
 
 /** How long the page saying the app restarts shows before the restart. */
-const RESTART_NOTICE_MS = 1200;
+const RESTART_NOTICE_MS = 3000;
 
 /** A note under the folder, for the folder it was found in. */
 type Note = FoundNote | { kind: "denied" } | { kind: "unfinished" };

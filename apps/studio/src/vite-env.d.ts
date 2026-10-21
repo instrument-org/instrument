@@ -80,6 +80,14 @@ declare namespace NodeJS {
       /** Dev only: the notification status the Mac bridge answers in place of macOS's (`notificationStatus`). */
       INSTRUMENT_NOTIFICATION_STATUS: string | undefined;
       /**
+       * Dev only, beside `INSTRUMENT_NOTIFICATION_STATUS`: how the prompt
+       * answers (`allowed`, `denied`), or `clicked` for allowed with the test
+       * notification clicked at once (`requestNotifications`, `showTestNotification`).
+       */
+      INSTRUMENT_NOTIFICATION_ANSWER: string | undefined;
+      /** Dev only: a stand-in home folder for the folders setup offers (`workspaces.folder`). */
+      INSTRUMENT_SETUP_HOME: string | undefined;
+      /**
        * Development builds only: the platform API this launch talks to, over
        * the build's and the one chosen in Settings. See setup-environment.ts.
        */

@@ -36,8 +36,6 @@ import { renderChatMarkdown } from "./chat-markdown";
 const chatSession = sessionId(1);
 const taskSession = sessionId(2);
 
-const ZONE = "America/New_York";
-
 function file(name: string, records: (LogRecord | SettingRecord)[]) {
   return { bytes: Buffer.from(records.map(recordLine).join("")), name };
 }
@@ -50,12 +48,11 @@ function log(
   return file(logFileName(session, device, generation), records);
 }
 
-function render(chat: FoldedChat, options: { timeZone?: string } = {}) {
+function render(chat: FoldedChat) {
   return renderChatMarkdown({
     chat,
     id: CHAT,
     rootDir: "/Users/someone/Workspace",
-    timeZone: options.timeZone ?? ZONE,
     topicNames: new Map([["top_1", "Kitchen"]]),
   });
 }
@@ -227,7 +224,8 @@ it("renders a chat whole", () => {
   expect(render(wholeChat())).toMatchInlineSnapshot(`
     "---
     title: "Quiet dishwashers under $900"
-    created: 2026-10-14 08:00:00
+    chat: records-test
+    created: 2026-10-14T12:00:00Z
     topic: Kitchen
     ---
 
@@ -237,7 +235,7 @@ it("renders a chat whole", () => {
 
     ## Wednesday, October 14, 2026
 
-    ### You at 8:00 AM
+    ### You at 12:00 PM UTC
 
     Find me a quiet dishwasher under $900.
 
@@ -262,19 +260,19 @@ it("renders a chat whole", () => {
 
     </details>
 
-    ### Instrument at 8:03 AM
+    ### Instrument at 12:03 PM UTC
 
     Three run under 44 dB.
 
     ## Thursday, October 15, 2026
 
-    ### Instrument at 9:00 AM
+    ### Instrument at 1:00 PM UTC
 
     Asked: Which brand?
     - Bosch
     - Miele
 
-    ### You at 9:01 AM
+    ### You at 1:01 PM UTC
 
     You chose “Bosch”.
     "
@@ -372,18 +370,16 @@ describe("the same records render the same bytes", () => {
   });
 
   /**
-   * The zone is an argument rather than the process's own, which is what
-   * keeps a render from moving when the app is started somewhere else. The
+   * Every day and time is UTC rather than the process's own zone, which is
+   * what keeps a render from moving when the app runs somewhere else. The
    * whole file is also run under another `TZ` in CI for the same reason;
    * this is the half a unit test can see.
    */
-  it("says the day and the time in the zone it is given", () => {
-    const here = render(wholeChat());
-    const inAuckland = render(wholeChat(), { timeZone: "Pacific/Auckland" });
-    expect(here).toContain("## Wednesday, October 14, 2026");
-    expect(here).toContain("### You at 8:00 AM");
-    expect(inAuckland).toContain("## Thursday, October 15, 2026");
-    expect(inAuckland).toContain("### You at 1:00 AM");
+  it("says the day and the time in UTC", () => {
+    const rendered = render(wholeChat());
+    expect(rendered).toContain("created: 2026-10-14T12:00:00Z");
+    expect(rendered).toContain("## Wednesday, October 14, 2026");
+    expect(rendered).toContain("### You at 12:00 PM UTC");
   });
 });
 

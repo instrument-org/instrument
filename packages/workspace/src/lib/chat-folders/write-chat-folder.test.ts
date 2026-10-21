@@ -46,8 +46,6 @@ import { attachmentsWaitingToMove, writeChatFolder } from "./write-chat-folder";
  * guess at.
  */
 
-const ZONE = "America/New_York";
-
 let root: string;
 
 const heldConfig = getWorkspaceConfig();
@@ -127,7 +125,6 @@ function writeFolder(id: string) {
     id: ChatIdSchema.parse(id),
     machineDir: machineDir(),
     rootDir: root,
-    timeZone: ZONE,
   });
 }
 

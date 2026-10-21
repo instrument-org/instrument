@@ -1581,7 +1581,6 @@ describe("sessionMachine", () => {
         id,
         machineDir: MOCK_WORKSPACE_DIRS.machine,
         rootDir,
-        timeZone: "UTC",
       }).then((written) => {
         if (written.kind !== "written") {
           throw new Error(`Expected a written folder, got ${written.kind}`);

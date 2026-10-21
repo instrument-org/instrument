@@ -10,8 +10,8 @@ import { clipLine, partCreatedAt, partEndedAt } from "../chat/call-label";
 import { shownTitle } from "../chat/shown-title";
 import { isToolPart } from "../is-tool-part";
 import { type FoldedChat, type FoldedSession } from "../records/fold";
-import { localStamp } from "../local-stamp";
 import { setupChangeSentence } from "../setup-change-sentence";
+import { utcStamp } from "../utc-stamp";
 import { sessionOf } from "../records/session-of";
 import {
   inlineMarkdown,
@@ -28,9 +28,10 @@ import {
  *
  * The same records render the same bytes, every time, on any computer. So
  * nothing here reads the clock, the process's time zone or a folder's
- * listing: the zone the days and times are written in is handed in, and
- * every list is ordered by an id or by a time the records carry. A `Map` is
- * only ever asked for one key, never iterated.
+ * listing: every day and time is written in UTC, the front matter's as ISO
+ * 8601 and the headings' as words with `UTC` after the time, and every list
+ * is ordered by an id or by a time the records carry. A `Map` is only ever
+ * asked for one key, never iterated.
  *
  * What the person sees in the chat stays visible: what they and the agent
  * said, what they sent, the cards they answered, a model switch. The work
@@ -48,8 +49,6 @@ export interface ChatMarkdownInput {
   id: ChatId;
   /** The workspace, which the files the work touched are named from. */
   rootDir: string;
-  /** The zone the day and time headings are written in, as an IANA name. */
-  timeZone: string;
   /**
    * Each topic's name by its id, for the front matter. A topic the workspace
    * no longer has is left out rather than named by its id.
@@ -136,7 +135,6 @@ export function renderChatMarkdown({
   chat,
   id,
   rootDir,
-  timeZone,
   topicNames,
 }: ChatMarkdownInput): string | undefined {
   const own = ownSession(chat);
@@ -144,7 +142,7 @@ export function renderChatMarkdown({
     return undefined;
   }
   const blocks: string[] = [
-    frontMatter(own, timeZone, topicNames),
+    frontMatter(own, id, topicNames),
     `[Open this chat in ${APP_NAME}](${APP_NAME_SLUG}://chat/${id})`,
     // The file is rewritten from the records at the end of every turn.
     `*This is a copy of the chat that you can read and search anywhere. ${APP_NAME} updates it after each reply, so any changes you make here will be replaced.*`,
@@ -154,7 +152,7 @@ export function renderChatMarkdown({
   let day: string | undefined;
   /** Says the day of what comes next, where the file has not said it yet. */
   const onDay = (at: Date) => {
-    const heading = dayHeading(at, timeZone);
+    const heading = dayHeading(at);
     if (heading !== day) {
       day = heading;
       blocks.push(`## ${heading}`);
@@ -189,7 +187,7 @@ export function renderChatMarkdown({
     const at = said[0]?.at ?? message.metadata.createdAt;
     foldUpTo(at.getTime());
     onDay(at);
-    blocks.push(`### ${speaker(message)} at ${timeHeading(at, timeZone)}`);
+    blocks.push(`### ${speaker(message)} at ${timeHeading(at)}`);
     blocks.push(...said.map((block) => block.text));
   }
   foldUpTo(undefined);
@@ -216,15 +214,15 @@ function ownSession(chat: FoldedChat): FoldedSession | undefined {
 }
 
 /**
- * The file's front matter: what the chat is called, when it began, and the
- * topic it is filed under. Nothing lists its files, its pages or its apps,
- * which the folder beside it and the app already say.
+ * The file's front matter: what the chat is called, which chat it is, when it
+ * began, and the topic it is filed under. Nothing lists its files, its pages
+ * or its apps, which the folder beside it and the app already say.
  *
- * The chat's own id is the link in the first line of the body rather than a
- * key, so it is something to click as well as what ties a folder back to a
- * chat. Which also says what this file is: a render the app rewrites whole,
- * with no `id` of its own, where a draft or a topic carries one because the
- * app has to find it again after the person moves it.
+ * `chat` is the chat's id, what ties a folder back to its chat, and the link
+ * in the first line of the body says it again as something to click. It is
+ * no `id`: this file is a render the app rewrites whole, where a draft or a
+ * topic carries an `id` because the app has to find it again after the
+ * person moves it.
  *
  * `title` is here so a Markdown viewer's properties panel and the file's
  * thumbnail name the conversation, and so the name survives the person
@@ -232,7 +230,7 @@ function ownSession(chat: FoldedChat): FoldedSession | undefined {
  */
 function frontMatter(
   own: FoldedSession,
-  timeZone: string,
+  id: ChatId,
   topicNames: ReadonlyMap<string, string> | undefined,
 ): string {
   const topicId = own.settings.topic?.value;
@@ -240,7 +238,8 @@ function frontMatter(
   return [
     "---",
     `title: ${yamlScalar(titleOf(own))}`,
-    `created: ${localStamp(own.createdAt, timeZone)}`,
+    `chat: ${id}`,
+    `created: ${utcStamp(own.createdAt)}`,
     ...(topic === undefined ? [] : [`topic: ${yamlScalar(topic)}`]),
     "---",
   ].join("\n");
@@ -470,50 +469,20 @@ function workLines(
   );
 }
 
-/** The day a moment falls on in the zone, as the heading says it. */
-function dayHeading(at: Date, timeZone: string): string {
-  const { day, month, year } = zoned(at, timeZone);
-  const weekday =
-    WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()] ?? "";
-  return `${weekday}, ${MONTHS[month - 1] ?? ""} ${day.toString()}, ${year.toString()}`;
+/** The day a moment falls on in UTC, as the heading says it. */
+function dayHeading(at: Date): string {
+  const weekday = WEEKDAYS[at.getUTCDay()] ?? "";
+  const month = MONTHS[at.getUTCMonth()] ?? "";
+  return `${weekday}, ${month} ${at.getUTCDate().toString()}, ${at.getUTCFullYear().toString()}`;
 }
 
-/** The time of day a moment falls at in the zone, as a heading says it. */
-function timeHeading(at: Date, timeZone: string): string {
-  const { hour, minute } = zoned(at, timeZone);
+/** The time of day a moment falls at in UTC, as a heading says it. */
+function timeHeading(at: Date): string {
+  const hour = at.getUTCHours();
+  const minute = at.getUTCMinutes();
   const half = hour < 12 ? "AM" : "PM";
   const twelve = hour % 12 === 0 ? 12 : hour % 12;
-  return `${twelve.toString()}:${minute.toString().padStart(2, "0")} ${half}`;
-}
-
-/**
- * The civil date and time a moment reads as in the zone, as numbers. Only
- * digits are taken from the system's own calendar data, and the names of the
- * days and the months are this file's, so what a heading says cannot change
- * under an updated copy of that data.
- */
-function zoned(
-  at: Date,
-  timeZone: string,
-): { day: number; hour: number; minute: number; month: number; year: number } {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    day: "2-digit",
-    hour: "2-digit",
-    hourCycle: "h23",
-    minute: "2-digit",
-    month: "2-digit",
-    timeZone,
-    year: "numeric",
-  }).formatToParts(at);
-  const read = (type: Intl.DateTimeFormatPartTypes) =>
-    Number(parts.find((part) => part.type === type)?.value ?? "0");
-  return {
-    day: read("day"),
-    hour: read("hour"),
-    minute: read("minute"),
-    month: read("month"),
-    year: read("year"),
-  };
+  return `${twelve.toString()}:${minute.toString().padStart(2, "0")} ${half} UTC`;
 }
 
 /** A name as a YAML scalar, quoted where plain text would read as something else. */

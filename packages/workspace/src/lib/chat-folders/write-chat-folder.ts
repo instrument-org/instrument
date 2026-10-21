@@ -82,9 +82,8 @@ export function rewriteChatFolder(id: ChatId): Promise<void> {
  * `rewriteChatFolder` for work already running in the chat's folder order
  * (`inChatFolderOrder`), which would otherwise wait on itself.
  *
- * The renderer needs the topics by name and a zone to write the days in,
- * both read here rather than held, so a topic renamed since shows under its
- * new name.
+ * The renderer needs the topics by name, read here rather than held, so a
+ * topic renamed since shows under its new name.
  */
 export async function rewriteChatFolderInOrder(id: ChatId): Promise<void> {
   const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
@@ -93,7 +92,6 @@ export async function rewriteChatFolderInOrder(id: ChatId): Promise<void> {
     id,
     machineDir: workspaceMachineDir,
     rootDir,
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     topicNames: new Map(
       readTopicsSync(rootDir).map((topic) => [topic.id, topic.name]),
     ),
@@ -207,14 +205,12 @@ export async function writeChatFolder({
   id,
   machineDir,
   rootDir,
-  timeZone,
   topicNames,
 }: {
   chatsDir: string;
   id: ChatId;
   machineDir: string;
   rootDir: string;
-  timeZone: string;
   topicNames?: ReadonlyMap<string, string>;
 }): Promise<ChatFolderWrite> {
   const names = chatFolderNames(machineDir);
@@ -228,7 +224,6 @@ export async function writeChatFolder({
     machineDir,
     named,
     rootDir,
-    timeZone,
     topicNames,
   });
 }
@@ -241,7 +236,6 @@ async function writeFolder({
   machineDir,
   named,
   rootDir,
-  timeZone,
   topicNames,
 }: {
   /** The folder under `Chats/` this chat is to take as its own, if any. */
@@ -252,7 +246,6 @@ async function writeFolder({
   /** The name this computer last recorded for the chat's folder. */
   named: string | undefined;
   rootDir: string;
-  timeZone: string;
   topicNames?: ReadonlyMap<string, string>;
 }): Promise<ChatFolderWrite> {
   try {
@@ -262,7 +255,6 @@ async function writeFolder({
       chat,
       id,
       rootDir,
-      timeZone,
       topicNames,
     });
     if (markdown === undefined) {

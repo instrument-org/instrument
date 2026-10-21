@@ -39,7 +39,6 @@ export async function giveChatsTheirFolders(
     return [];
   }
   const chatsDir = workspaceLayout(rootDir).chatsDir;
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const topicNames = new Map(
     readTopicsSync(rootDir).map((topic) => [topic.id, topic.name]),
   );
@@ -50,7 +49,6 @@ export async function giveChatsTheirFolders(
       id,
       machineDir,
       rootDir,
-      timeZone,
       topicNames,
     })),
   }));

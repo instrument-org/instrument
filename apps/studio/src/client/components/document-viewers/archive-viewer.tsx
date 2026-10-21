@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useFileOpenControl } from "@/client/hooks/use-file-open-control";
 import { cn, isMacOS } from "@/client/lib/utils";
@@ -124,7 +125,7 @@ export function ArchiveViewer({ file }: { file: ViewerFile }) {
     <>
       <ViewerToolbar>
         <span className="min-w-0 truncate px-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-          {root.fileCount.toLocaleString()}{" "}
+          {root.fileCount.toLocaleString(displayLocale)}{" "}
           {root.fileCount === 1 ? "item" : "items"}
           {/* Sizes are what the archive says about itself, which is exactly
               what a compression bomb overstates, so the total is labeled as a
@@ -235,7 +236,7 @@ export function ArchiveViewer({ file }: { file: ViewerFile }) {
                 ) : null}
                 <span className="w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
                   {isFolder
-                    ? `${node.fileCount.toLocaleString()} ${node.fileCount === 1 ? "item" : "items"}`
+                    ? `${node.fileCount.toLocaleString(displayLocale)} ${node.fileCount === 1 ? "item" : "items"}`
                     : formatBytes(node.entry.uncompressedSize)}
                 </span>
               </div>

@@ -255,6 +255,14 @@ if (windowType) {
   api.windowType = windowType;
 }
 
+const systemRegion = process.argv
+  .find((arg) => arg.startsWith("--systemRegion="))
+  ?.split("=")[1];
+
+if (systemRegion) {
+  api.systemRegion = systemRegion;
+}
+
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
 // just add to the DOM global.

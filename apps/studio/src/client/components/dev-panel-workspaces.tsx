@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -465,7 +466,7 @@ function lastOpened(row: WorkspaceRow) {
   }
   return row.lastOpenedAt === null
     ? "never opened"
-    : new Date(row.lastOpenedAt).toLocaleString();
+    : new Date(row.lastOpenedAt).toLocaleString(displayLocale);
 }
 
 /**

@@ -4,6 +4,7 @@ import { guardNavigation } from "@/electron-main/lib/guard-navigation";
 import { loadWindowURL } from "@/electron-main/lib/load-window-url";
 import { openExternal } from "@/electron-main/lib/open-external";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
+import { systemRegionArguments } from "@/electron-main/lib/system-country";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -64,7 +65,10 @@ export function openOnboardingWindow(): BrowserWindow {
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 12, y: 12 },
     webPreferences: {
-      additionalArguments: ["--windowType=onboarding"],
+      additionalArguments: [
+        "--windowType=onboarding",
+        ...systemRegionArguments(),
+      ],
       // An agent's instance keeps drawing, and taking input, off screen or
       // behind other windows.
       backgroundThrottling: !isDrivenInstance(),

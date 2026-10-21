@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { UNTRUSTED_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
 import { cn } from "@/client/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -236,7 +237,7 @@ function NotebookDocument({ text }: { text: string }) {
 
       <ViewerToolbar>
         <span className="px-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-          {notebook.cells.length.toLocaleString()}{" "}
+          {notebook.cells.length.toLocaleString(displayLocale)}{" "}
           {notebook.cells.length === 1 ? "cell" : "cells"}
         </span>
         <ViewerToolbarSpacer />

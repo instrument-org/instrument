@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
 import { zoomAtom } from "@/client/atoms/zoom";
@@ -247,21 +248,21 @@ const PERIODS = {
 type Period = keyof typeof PERIODS;
 const PERIOD_ORDER: Period[] = ["all", "day", "week", "month"];
 
-const dateFormat = new Intl.DateTimeFormat(undefined, {
+const dateFormat = new Intl.DateTimeFormat(displayLocale, {
   day: "numeric",
   hour: "numeric",
   minute: "2-digit",
   month: "short",
 });
-const fullDateFormat = new Intl.DateTimeFormat(undefined, {
+const fullDateFormat = new Intl.DateTimeFormat(displayLocale, {
   dateStyle: "medium",
   timeStyle: "medium",
 });
-const compactNumber = new Intl.NumberFormat(undefined, {
+const compactNumber = new Intl.NumberFormat(displayLocale, {
   maximumFractionDigits: 1,
   notation: "compact",
 });
-const wholeNumber = new Intl.NumberFormat();
+const wholeNumber = new Intl.NumberFormat(displayLocale);
 
 function formatDuration(ms: null | number) {
   if (ms === null) {

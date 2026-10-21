@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import {
   FileThumbnail,
   useNaturalAspectRatio,
@@ -719,12 +720,12 @@ export function formatByteSize(size: number | undefined) {
 }
 // Made once: `toLocaleDateString` with options builds a formatter per call,
 // which a list of dates redrawn on every arrow press cannot afford.
-const DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
+const DAY_FORMAT = new Intl.DateTimeFormat(displayLocale, {
   day: "numeric",
   month: "short",
   year: "numeric",
 });
-const TIME_FORMAT = new Intl.DateTimeFormat("en-US", {
+const TIME_FORMAT = new Intl.DateTimeFormat(displayLocale, {
   hour: "numeric",
   minute: "2-digit",
 });
@@ -861,7 +862,7 @@ function kindGroupOf(entry: FileSystemEntry): KindGroup {
   if (mime.startsWith("text/")) return "Documents";
   return "Other";
 }
-const MONTH_FORMAT = new Intl.DateTimeFormat("en-US", { month: "long" });
+const MONTH_FORMAT = new Intl.DateTimeFormat(displayLocale, { month: "long" });
 const DAY_MS = 24 * 60 * 60 * 1000;
 // The Finder's ladder for a date, by calendar day: today, yesterday, the
 // seven days and the thirty before those, each month left of this year, and
@@ -4531,11 +4532,11 @@ function formatListDate(value: string | undefined) {
 // A date short enough for the narrow column beside a file, the way the
 // Finder shortens one as its column narrows: today by its time, yesterday by
 // name, this year by its month and day, and earlier years in figures.
-const SHORT_DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
+const SHORT_DAY_FORMAT = new Intl.DateTimeFormat(displayLocale, {
   day: "numeric",
   month: "short",
 });
-const FIGURES_DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
+const FIGURES_DAY_FORMAT = new Intl.DateTimeFormat(displayLocale, {
   day: "numeric",
   month: "numeric",
   year: "2-digit",

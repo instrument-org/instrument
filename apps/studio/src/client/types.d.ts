@@ -52,6 +52,9 @@ declare global {
       // computer. Absent outside Electron, which is what makes a surface stop
       // offering the drag at all.
       startFileDrag?: (files: string[]) => void;
+      // The two-letter country the OS region names, which dates and numbers
+      // are formatted by. Absent outside Electron or when the OS names none.
+      systemRegion?: string;
       windowType?: "app" | "onboarding";
     };
     electron: ElectronAPI;

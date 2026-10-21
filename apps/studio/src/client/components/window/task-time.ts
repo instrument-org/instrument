@@ -1,3 +1,5 @@
+import { displayLocale } from "@/client/lib/display-locale";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -23,5 +25,8 @@ export function taskTimeLabel(date: Date, now: Date): string {
     const hours = Math.round(minutes / 60);
     return `${hours}h`;
   }
-  return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return date.toLocaleDateString(displayLocale, {
+    day: "numeric",
+    month: "short",
+  });
 }

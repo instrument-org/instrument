@@ -14,3 +14,13 @@ export function systemCountry(): string | undefined {
     return undefined;
   }
 }
+
+/**
+ * The launch argument that hands a window's preload the OS region, which
+ * dates and numbers on screen are formatted by. The renderer cannot read it:
+ * its own locale follows the OS language.
+ */
+export function systemRegionArguments(): string[] {
+  const country = systemCountry();
+  return country ? [`--systemRegion=${country}`] : [];
+}

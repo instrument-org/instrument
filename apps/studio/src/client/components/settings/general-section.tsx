@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import {
@@ -157,13 +158,13 @@ function About() {
 
   const formatLastChecked = (date: Date) => {
     return (
-      date.toLocaleDateString("en-US", {
+      date.toLocaleDateString(displayLocale, {
         day: "numeric",
         month: "long",
         year: "numeric",
       }) +
       " at " +
-      date.toLocaleTimeString("en-US", {
+      date.toLocaleTimeString(displayLocale, {
         hour: "numeric",
         hour12: true,
         minute: "2-digit",

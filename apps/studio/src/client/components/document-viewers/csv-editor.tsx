@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { SaveFailedPill } from "@/client/components/save-failed-pill";
 import { WindowContext } from "@/client/components/window/context";
 import {
@@ -614,7 +615,7 @@ function readOnlyReason(doc: CsvDocument) {
     doc.rowRecords.length > MAX_EDITABLE_ROWS ||
     doc.text.length > MAX_EDITABLE_LENGTH
   ) {
-    return `read-only above ${MAX_EDITABLE_ROWS.toLocaleString()} rows`;
+    return `read-only above ${MAX_EDITABLE_ROWS.toLocaleString(displayLocale)} rows`;
   }
   return null;
 }

@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { logger } from "@/client/lib/logger";
@@ -713,8 +714,8 @@ export function DataGrid({
           {title && <span className="text-foreground">{title}</span>}
           {title && " · "}
           {filtered
-            ? `${visibleRows.length.toLocaleString()} of ${rows.length.toLocaleString()}`
-            : rows.length.toLocaleString()}{" "}
+            ? `${visibleRows.length.toLocaleString(displayLocale)} of ${rows.length.toLocaleString(displayLocale)}`
+            : rows.length.toLocaleString(displayLocale)}{" "}
           {rows.length === 1 ? "row" : "rows"}
           {note ? ` (${note})` : ""}
         </span>

@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { useQuery } from "@tanstack/react-query";
 
 import { FileLoading } from "../file-loading";
@@ -67,7 +68,7 @@ function formatValue(value: unknown): CellValue {
     return null;
   }
   if (value instanceof Uint8Array) {
-    return `<${value.length.toLocaleString()} bytes>`;
+    return `<${value.length.toLocaleString(displayLocale)} bytes>`;
   }
   if (value instanceof Date) {
     return value.toISOString();
@@ -142,7 +143,7 @@ async function readParquet(url: string) {
     columns,
     note:
       total > MAX_ROWS
-        ? `first ${MAX_ROWS.toLocaleString()} of ${total.toLocaleString()}`
+        ? `first ${MAX_ROWS.toLocaleString(displayLocale)} of ${total.toLocaleString(displayLocale)}`
         : undefined,
     rows,
   };

@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { SQLITE_WASM_URL } from "@/client/lib/document-viewers";
 import { cn } from "@/client/lib/utils";
 import sqlite3InitModule, {
@@ -126,10 +127,10 @@ function formatValue(value: SqlValue): CellValue {
     return null;
   }
   if (value instanceof Uint8Array || value instanceof Int8Array) {
-    return `<${value.length.toLocaleString()} bytes>`;
+    return `<${value.length.toLocaleString(displayLocale)} bytes>`;
   }
   if (value instanceof ArrayBuffer) {
-    return `<${value.byteLength.toLocaleString()} bytes>`;
+    return `<${value.byteLength.toLocaleString(displayLocale)} bytes>`;
   }
   return String(value);
 }
@@ -204,7 +205,7 @@ function readTable({ db, table }: { db: Database; table: TableInfo }) {
       rowMode: "array",
       sql: `SELECT count(*) FROM ${quoted}`,
     });
-    note = `first ${MAX_ROWS.toLocaleString()} of ${Number(total?.[0] ?? 0).toLocaleString()}`;
+    note = `first ${MAX_ROWS.toLocaleString(displayLocale)} of ${Number(total?.[0] ?? 0).toLocaleString(displayLocale)}`;
   }
 
   const declared = readColumnTypes({ db, table });

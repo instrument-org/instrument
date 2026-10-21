@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { useQuery } from "@tanstack/react-query";
 
 import { FileLoading } from "../file-loading";
@@ -162,12 +163,12 @@ function parseLines(text: string) {
   const notes: string[] = [];
   if (truncated) {
     notes.push(
-      `first ${MAX_ROWS.toLocaleString()} of ${lines.length.toLocaleString()} lines`,
+      `first ${MAX_ROWS.toLocaleString(displayLocale)} of ${lines.length.toLocaleString(displayLocale)} lines`,
     );
   }
   if (malformed > 0) {
     notes.push(
-      `${malformed.toLocaleString()} ${malformed === 1 ? "line" : "lines"} skipped`,
+      `${malformed.toLocaleString(displayLocale)} ${malformed === 1 ? "line" : "lines"} skipped`,
     );
   }
 

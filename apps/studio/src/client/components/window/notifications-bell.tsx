@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { Button } from "@/client/components/ui/button";
@@ -332,6 +333,12 @@ function formatWhen(at: number) {
   const date = new Date(at);
   const today = new Date();
   return date.toDateString() === today.toDateString()
-    ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : date.toLocaleDateString([], { day: "numeric", month: "short" });
+    ? date.toLocaleTimeString(displayLocale, {
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : date.toLocaleDateString(displayLocale, {
+        day: "numeric",
+        month: "short",
+      });
 }

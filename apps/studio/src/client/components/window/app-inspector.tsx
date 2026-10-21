@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { MarkdownCodeBlock } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import { Markdown } from "@/client/components/markdown";
@@ -813,7 +814,9 @@ function Leaf({ name, value }: { name?: string; value: unknown }) {
   ) {
     return (
       <span title={String(value)}>
-        {new Date(value > 1e11 ? value : value * 1000).toLocaleString()}
+        {new Date(value > 1e11 ? value : value * 1000).toLocaleString(
+          displayLocale,
+        )}
       </span>
     );
   }

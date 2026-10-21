@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { ORPCError } from "@orpc/client";
@@ -306,7 +307,7 @@ export function upgradePlan(
  * "November 5" past that.
  */
 export function describeWhen(date: Date, now: Date) {
-  const time = date.toLocaleTimeString("en-US", {
+  const time = date.toLocaleTimeString(displayLocale, {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -318,7 +319,7 @@ export function describeWhen(date: Date, now: Date) {
     return `tomorrow at ${time}`;
   }
   if (days < 7) {
-    const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+    const weekday = date.toLocaleDateString(displayLocale, { weekday: "long" });
     return `${weekday} at ${time}`;
   }
   return describeDate(date, now);
@@ -326,7 +327,7 @@ export function describeWhen(date: Date, now: Date) {
 
 /** "November 5", with the year only when it is not this one. */
 export function describeDate(date: Date, now: Date) {
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString(displayLocale, {
     day: "numeric",
     month: "long",
     ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
@@ -335,7 +336,7 @@ export function describeDate(date: Date, now: Date) {
 
 /** "Sunday, October 11", for the end of a trial. */
 export function describeDay(date: Date) {
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString(displayLocale, {
     day: "numeric",
     month: "long",
     weekday: "long",

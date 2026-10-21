@@ -1,3 +1,4 @@
+import { displayLocale } from "@/client/lib/display-locale";
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { dismissedModelOffersAtom } from "@/client/atoms/dismissed-model-offers";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
@@ -418,7 +419,8 @@ export const PromptInput = ({
         : isModelProblem
           ? noticeRow
           : (chatNote ?? noticeRow);
-  const holdsSend = isModelProblem || (variant === "pill" && note?.holdsSend === true);
+  const holdsSend =
+    isModelProblem || (variant === "pill" && note?.holdsSend === true);
 
   useEffect(() => {
     setInputRef(promptEditorRef.current);
@@ -907,7 +909,7 @@ export const PromptInput = ({
       reader.readAsDataURL(blob);
 
       toast.info(
-        `Large text (${text.length.toLocaleString()} characters) converted to file attachment`,
+        `Large text (${text.length.toLocaleString(displayLocale)} characters) converted to file attachment`,
       );
       return true;
     }

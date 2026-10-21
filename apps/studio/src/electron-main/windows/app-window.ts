@@ -10,6 +10,7 @@ import {
   requestQuitApproval,
 } from "@/electron-main/lib/quit";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
+import { systemRegionArguments } from "@/electron-main/lib/system-country";
 import { studioURL } from "@/electron-main/lib/urls";
 import { bindAppWindowChords } from "@/electron-main/menus/app-window";
 import { bindShortcutAccelerators } from "@/electron-main/menus/shortcuts";
@@ -154,7 +155,7 @@ export function openAppWindow({
     title: "Instrument",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     webPreferences: {
-      additionalArguments: ["--windowType=app"],
+      additionalArguments: ["--windowType=app", ...systemRegionArguments()],
       // An agent's instance keeps drawing, and taking input, off screen or
       // behind other windows.
       backgroundThrottling: !isDrivenInstance(),
@@ -267,8 +268,10 @@ export function openAppWindow({
     group: "Developer",
   });
 
-  // A trackpad swipe or a mouse thumb button asks for history, and both reach
-  // the main process rather than the page; the window's own router answers.
+  // A trackpad swipe, a keyboard's back and forward keys, and on Linux a mouse
+  // thumb button ask for history here rather than in the page; the window's
+  // own router answers. A thumb button on a Mac or Windows reaches only the
+  // page, which answers it itself.
   appWindow.on("swipe", (_event, direction) => {
     if (direction === "left") {
       publisher.publish("window.command", "back");

@@ -1,7 +1,10 @@
 import type { ModelMessage } from "ai";
 
 import { execa } from "execa";
-import { beforeAll, describe, expect, it } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { pngHeaderBytes } from "../test/helpers/png-header";
 import { FFMPEG_PATH } from "./ffmpeg";
@@ -354,5 +357,45 @@ describe("normalizeModelImages", () => {
 
     // Byte-identical across turns, or the prompt cache breaks on every request.
     expect(imageDataOf(second[0])).toBe(imageDataOf(first[0]));
+  }, 60_000);
+
+  // A rendering is kept beside the chat's records, so a request after a
+  // restart, or on another computer, sends the bytes the first one did
+  // rather than encoding again.
+  it("sends the rendering kept beside the records once there is one", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rendered-"));
+    const messages: ModelMessage[] = [
+      {
+        content: [
+          {
+            data: (await drawPng("3000x1700")).toString("base64"),
+            mediaType: "image/png",
+            type: "file",
+          },
+        ],
+        role: "user",
+      },
+    ];
+    try {
+      const first = await normalizeModelImages({ messages, renderedIn: dir });
+      const kept = await fs.readdir(path.join(dir, "blobs"));
+      expect(kept).toHaveLength(1);
+      const keptFile = path.join(dir, "blobs", kept[0] ?? "");
+      expect((await fs.readFile(keptFile)).toString("base64")).toBe(
+        imageDataOf(first[0]),
+      );
+
+      // A fresh process, whose kept copy says something else: it is what is sent.
+      await fs.writeFile(keptFile, Buffer.from(small, "base64"));
+      vi.resetModules();
+      const restarted = await import("./normalize-model-images");
+      const later = await restarted.normalizeModelImages({
+        messages,
+        renderedIn: dir,
+      });
+      expect(imageDataOf(later[0])).toBe(small);
+    } finally {
+      await fs.rm(dir, { force: true, recursive: true });
+    }
   }, 60_000);
 });

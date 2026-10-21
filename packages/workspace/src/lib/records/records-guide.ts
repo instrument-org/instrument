@@ -77,6 +77,7 @@ export function chatRecordsReference(): string {
     `- \`${RECORD_FILE_EXAMPLES.settings}\`: \`set\` records, one per change a device made to a session, the newest of each \`session\` and \`field\` standing:`,
     ...listed(SETTING_FIELDS, 1),
     `- \`${BLOBS_FOLDER_NAME}/\`: bytes a tool returned, which its part names in a \`blob\` field (\`sha256-<hex>.<ext>\`).`,
+    `  - \`derived-sha256-<hex>-<how>\`: an image as a request sends it, made once from the bytes \`<hex>\` names, so every later request sends the same bytes.`,
     "",
   ].join("\n");
 }

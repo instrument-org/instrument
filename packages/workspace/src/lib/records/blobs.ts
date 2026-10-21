@@ -19,7 +19,7 @@ export const BLOBS_FOLDER_NAME = "blobs";
 const BLOB_NAME = /^sha256-[0-9a-f]{64}\.[0-9a-z]+$/;
 
 /** Blob writes under way in this process, by path, so two of one share it. */
-const writing = new Map<string, Promise<string>>();
+const writing = new Map<string, Promise<void>>();
 
 /** Whether a name is one `writeBlob` gives. */
 export function isBlobName(name: string): boolean {
@@ -42,12 +42,56 @@ export function writeBlob(
 ): Promise<string> {
   const hex = createHash("sha256").update(bytes).digest("hex");
   const name = `sha256-${hex}.${mime.extension(mediaType) || "bin"}`;
+  return writeNamed(dir, name, bytes).then(() => name);
+}
+
+/**
+ * The name bytes made from other bytes are kept under in `<dir>/blobs/`:
+ * the SHA-256 of what they were made from and how they were made
+ * (`variant`), so making them again from the same bytes the same way finds
+ * them rather than making them anew. Every device names them alike, so the
+ * bytes a request sends are the ones the first device made.
+ */
+export function derivedBlobName(source: Uint8Array, variant: string): string {
+  const hex = createHash("sha256").update(source).digest("hex");
+  return `derived-sha256-${hex}-${variant}`;
+}
+
+/** Writes bytes under a name from {@link derivedBlobName}, once. */
+export function writeDerivedBlob(
+  dir: string,
+  name: string,
+  bytes: Uint8Array,
+): Promise<void> {
+  return writeNamed(dir, name, bytes);
+}
+
+/** The bytes of a blob, or undefined where there is none by that name. */
+export async function readBlob(
+  dir: string,
+  name: string,
+): Promise<Buffer | undefined> {
+  try {
+    return await fs.readFile(blobPath(dir, name));
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+function writeNamed(
+  dir: string,
+  name: string,
+  bytes: Uint8Array,
+): Promise<void> {
   const target = blobPath(dir, name);
   const pending = writing.get(target);
   if (pending) {
     return pending;
   }
-  const write = writeOnce(target, bytes).then(() => name);
+  const write = writeOnce(target, bytes);
   writing.set(target, write);
   return write.finally(() => writing.delete(target));
 }

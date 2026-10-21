@@ -318,6 +318,7 @@ export async function prepareModelMessages({
   // breakpoints have to be placed over the bytes we actually send.
   const normalizedMessages = await normalizeModelImages({
     messages: filteredMessages,
+    renderedIn: chatDir(chatId),
     signal,
   });
 

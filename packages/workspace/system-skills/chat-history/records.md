@@ -23,3 +23,4 @@ A chat's folder holds JSON Lines files, one record per line, with `t` naming the
   - `topic`: its topic id, the `id` in the topic's `TOPIC.md`, or `null` for none
   - `unread`: `new` or `marked` (the user marked it) while unread, `null` once read
 - `blobs/`: bytes a tool returned, which its part names in a `blob` field (`sha256-<hex>.<ext>`).
+  - `derived-sha256-<hex>-<how>`: an image as a request sends it, made once from the bytes `<hex>` names, so every later request sends the same bytes.

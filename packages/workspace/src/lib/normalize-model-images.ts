@@ -12,6 +12,7 @@ import {
   type ModelMediaEdit,
 } from "./model-message-parts";
 import { isCompleteImage } from "./probe-media";
+import { derivedBlobName, readBlob, writeDerivedBlob } from "./records/blobs";
 import {
   exceedsDecodeBudget,
   measureImage,
@@ -37,8 +38,9 @@ const TOO_MANY_PIXELS_NOTE =
 
 // One turn re-sends the whole transcript, so without this every image in the
 // history is re-encoded on every request. Keyed on the source bytes and the
-// budget, so a cache hit is byte-identical to what a miss would produce --
-// which also keeps the prompt cache from breaking on a re-render.
+// budget. A rendering is also kept beside the chat's records, where every
+// later request, after a restart and on another computer, reads the same
+// bytes back; this is the fast path in front of that.
 //
 // Only a verdict about the image itself is stored, never one about the machine:
 // caching `unavailable` would make a stopped turn or a temporarily unrunnable
@@ -62,9 +64,15 @@ const RENDER_CACHE_LIMIT = 32;
  */
 export function normalizeModelImages({
   messages,
+  renderedIn,
   signal,
 }: {
   messages: ModelMessage[];
+  /**
+   * The chat's record folder, whose blobs keep each rendering: the first
+   * request renders an image once, and every later one sends those bytes.
+   */
+  renderedIn?: string;
   signal?: AbortSignal;
 }) {
   return mapModelMessageParts(messages, {
@@ -79,14 +87,44 @@ export function normalizeModelImages({
         // one, and the bytes say what it is.
         return { state: "unchanged" };
       }
-      return normalizeImage({ bytes, declaredMediaType: mediaType, signal });
+      return normalizeImage({
+        bytes,
+        declaredMediaType: mediaType,
+        renderedIn,
+        signal,
+      });
     },
   });
 }
 
+/** How an image is rendered, which names a rendering along with its source. */
+function renderVariant(limits: ImageViewLimits) {
+  return `${limits.maxEdge}-${limits.maxPatches}-${limits.patchSize}-${MAX_RAW_BYTES}`;
+}
+
 function cacheKey(bytes: Buffer, limits: ImageViewLimits) {
   const digest = crypto.createHash("sha1").update(bytes).digest("hex");
-  return `${digest}:${limits.maxEdge}:${limits.maxPatches}:${limits.patchSize}`;
+  return `${digest}:${renderVariant(limits)}`;
+}
+
+/** A rendering kept beside the chat's records, if one is. */
+async function storedRendering(
+  renderedIn: string | undefined,
+  name: string,
+): Promise<RenderedImage | undefined> {
+  if (renderedIn === undefined) {
+    return undefined;
+  }
+  const stored = await readBlob(renderedIn, name).catch(() => undefined);
+  const size = stored === undefined ? undefined : measureImage(stored);
+  return stored !== undefined && size?.mediaType !== undefined
+    ? {
+        bytes: stored,
+        height: size.height,
+        mediaType: size.mediaType,
+        width: size.width,
+      }
+    : undefined;
 }
 
 /**
@@ -99,10 +137,12 @@ function cacheKey(bytes: Buffer, limits: ImageViewLimits) {
 async function normalizeImage({
   bytes,
   declaredMediaType,
+  renderedIn,
   signal,
 }: {
   bytes: Buffer;
   declaredMediaType: string | undefined;
+  renderedIn?: string;
   signal?: AbortSignal;
 }): Promise<ModelMediaEdit> {
   const size = measureImage(bytes);
@@ -152,8 +192,12 @@ async function normalizeImage({
   }
 
   const key = cacheKey(bytes, PREVIEW_LIMITS);
+  const blobName = derivedBlobName(bytes, renderVariant(PREVIEW_LIMITS));
   let rendered = RENDER_CACHE.get(key);
   if (!RENDER_CACHE.has(key)) {
+    rendered = await storedRendering(renderedIn, blobName);
+  }
+  if (!RENDER_CACHE.has(key) && rendered === undefined) {
     const result = await renderImage({
       bytes,
       maxBytes: MAX_RAW_BYTES,
@@ -181,6 +225,15 @@ async function normalizeImage({
     }
 
     rendered = result.state === "rendered" ? result.image : undefined;
+    if (rendered && renderedIn !== undefined) {
+      // Kept before it is sent, so every later request sends these bytes. One
+      // that cannot be kept is still sent, and rendered again next time.
+      await writeDerivedBlob(renderedIn, blobName, rendered.bytes).catch(
+        () => undefined,
+      );
+    }
+  }
+  if (!RENDER_CACHE.has(key)) {
     if (RENDER_CACHE.size >= RENDER_CACHE_LIMIT) {
       const oldest = RENDER_CACHE.keys().next();
       if (!oldest.done) {

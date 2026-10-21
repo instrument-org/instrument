@@ -259,9 +259,19 @@ const LIMITED = "Stopped at a usage limit";
  */
 const PLAN_NEEDED = "Stopped: needs a plan";
 
+/** Said once Instrument refused the turn because the plan's last payment failed. */
+const PAYMENT_FAILED = "Stopped: payment didn't go through";
+
 /** What a stopped-at-a-limit chat says, by what stopped it. */
 export function limitedText(chat: Pick<Chat, "stoppedFor">) {
-  return chat.stoppedFor === "plan" ? PLAN_NEEDED : LIMITED;
+  switch (chat.stoppedFor) {
+    case "payment":
+      return PAYMENT_FAILED;
+    case "plan":
+      return PLAN_NEEDED;
+    default:
+      return LIMITED;
+  }
 }
 
 /**

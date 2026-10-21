@@ -696,6 +696,29 @@ describe("listChats", () => {
     expect(chat).toMatchObject({ state: "limited", stoppedFor: "plan" });
   });
 
+  it("says a chat Instrument refused for a failed payment stopped for its payment", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "hru");
+    await userSays(chatId, sessionId, "hru", 1);
+    await agentSays(chatId, sessionId, "", {
+      error: {
+        classification: "usage-limit",
+        kind: "api-call",
+        message: "Your last payment did not go through.",
+        name: "AI_APICallError",
+        responseBody: JSON.stringify({
+          error: { code: "subscription-required", reason: "payment-failed" },
+        }),
+        statusCode: 402,
+        url: "http://127.0.0.1/ai-gateway/providers/instrument/chat/completions",
+      },
+      minute: 2,
+    });
+
+    const [chat] = await listChats();
+    expect(chat).toMatchObject({ state: "limited", stoppedFor: "payment" });
+  });
+
   it("leaves a failed turn behind once the user sends again", async () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "hru");

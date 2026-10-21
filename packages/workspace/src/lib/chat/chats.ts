@@ -118,9 +118,10 @@ export const ChatSchema = z.object({
   /**
    * While `state` is `limited`, what stopped the turn: a plan the account
    * does not have (`plan`, Instrument's refusal for a missing or lapsed
-   * plan), or a usage window spent (`usage`).
+   * plan), a plan whose last payment failed (`payment`), or a usage window
+   * spent (`usage`).
    */
-  stoppedFor: z.enum(["plan", "usage"]).optional(),
+  stoppedFor: z.enum(["payment", "plan", "usage"]).optional(),
   title: z.string(),
   /**
    * Whether the agent has named the chat. Until it has, `title` is the
@@ -410,8 +411,11 @@ interface ChatDigest {
   failed: boolean;
   /** Whether that error was a usage limit, which `failed` then leaves out. */
   limited: boolean;
-  /** Whether that limit was a missing plan rather than a spent window. */
-  planRequired?: boolean;
+  /**
+   * Whether that limit was Instrument's refusal for a plan rather than a
+   * spent window, and whether the plan was missing or its payment failed.
+   */
+  planRefusal?: "payment" | "plan";
   openedHosts: string[];
   root?: SessionMessage.UserWithParts;
   sent: ReturnType<typeof sentHeld>;
@@ -572,7 +576,7 @@ async function chatFor(
     ...(digest.lastStep ? { lastStep: digest.lastStep } : {}),
     lastUserMessageAt: digest.lastUserMessageAt ?? createdAt,
     ...(state === "limited" && {
-      stoppedFor: digest.planRequired ? ("plan" as const) : ("usage" as const),
+      stoppedFor: digest.planRefusal ?? ("usage" as const),
     }),
     ...(root ? { root } : {}),
     runningTasks,
@@ -691,8 +695,10 @@ function digestOf(
   const failed = endedInError && !limited;
   // Instrument refusing a turn for want of a plan reads as a usage limit to
   // the provider error classifier; its own code tells the two apart.
-  const planRequired =
-    limited && "responseBody" in error && isPlanRefusal(error.responseBody);
+  const planRefusal =
+    limited && "responseBody" in error
+      ? planRefusalOf(error.responseBody)
+      : undefined;
   // The user's Stop, rather than what it left behind: a turn stopped before
   // it began left only the message no turn took up, and one stopped between
   // steps left nothing at all.
@@ -710,7 +716,7 @@ function digestOf(
     }),
     limited,
     madeFiles: filesHeld(messages),
-    ...(planRequired && { planRequired }),
+    ...(planRefusal && { planRefusal }),
     openedHosts: commands.flatMap(openedHostsIn),
     ...(root && { root }),
     sent: sentHeld(messages),
@@ -1053,26 +1059,32 @@ function startsTurn(message: SessionMessage.WithParts): boolean {
 }
 
 /**
- * Whether a refused request's body is Instrument's `subscription-required`:
- * the account has no plan or trial that covers it, which is not a usage
- * window running out.
+ * Whether a refused request's body is Instrument's `subscription-required`,
+ * which is not a usage window running out: `payment` when the account's plan
+ * is held up by a failed payment, `plan` when it has no plan or trial that
+ * covers the request.
  */
-function isPlanRefusal(responseBody: unknown) {
+function planRefusalOf(responseBody: unknown) {
   if (typeof responseBody !== "string") {
-    return false;
+    return undefined;
   }
   try {
     const parsed: unknown = JSON.parse(responseBody);
-    return (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "error" in parsed &&
-      typeof parsed.error === "object" &&
-      parsed.error !== null &&
-      "code" in parsed.error &&
-      parsed.error.code === "subscription-required"
-    );
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("error" in parsed) ||
+      typeof parsed.error !== "object" ||
+      parsed.error === null ||
+      !("code" in parsed.error) ||
+      parsed.error.code !== "subscription-required"
+    ) {
+      return undefined;
+    }
+    return "reason" in parsed.error && parsed.error.reason === "payment-failed"
+      ? ("payment" as const)
+      : ("plan" as const);
   } catch {
-    return false;
+    return undefined;
   }
 }

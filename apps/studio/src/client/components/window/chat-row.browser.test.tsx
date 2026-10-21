@@ -609,6 +609,10 @@ describe("ChatRow", () => {
   it.each([
     { expected: "Stopped at a usage limit", stoppedFor: "usage" as const },
     { expected: "Stopped: needs a plan", stoppedFor: "plan" as const },
+    {
+      expected: "Stopped: payment didn't go through",
+      stoppedFor: "payment" as const,
+    },
   ])(
     "says $expected, with no mark, for a chat stopped for its $stoppedFor",
     async ({ expected, stoppedFor }) => {

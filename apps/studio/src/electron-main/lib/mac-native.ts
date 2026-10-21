@@ -78,6 +78,7 @@ interface MacModule {
   resolveAlias: (path: string) => Promise<string>;
   notificationStatus: () => Promise<string>;
   requestNotifications: () => Promise<string>;
+  bundleIdentifier: () => Promise<string>;
 }
 
 let macModule: MacModule | null | undefined;
@@ -184,6 +185,21 @@ function loadModule(): MacModule | null {
       : null;
   }
   return macModule;
+}
+
+/**
+ * The identifier macOS files this app's settings under: the build's own in a
+ * packaged app, Electron's (`com.github.Electron`) in a development run.
+ * Undefined off macOS and in a build without the module.
+ */
+export async function bundleIdentifier(): Promise<string | undefined> {
+  const native = loadModule();
+  if (!native) {
+    return undefined;
+  }
+  return z
+    .object({ bundleId: z.string().optional() })
+    .parse(JSON.parse(await native.bundleIdentifier())).bundleId;
 }
 
 const NotificationStatusSchema = z.object({

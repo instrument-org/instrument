@@ -117,6 +117,15 @@ static napi_value requestNotifications(napi_env env, napi_callback_info info) {
   });
 }
 
+/// The identifier macOS files this app's settings under, notifications
+/// included: the build's own in a packaged app, Electron's in a dev run.
+static napi_value bundleIdentifier(napi_env env, napi_callback_info info) {
+  return answer(env, ^(Done done) {
+    NSString *identifier = NSBundle.mainBundle.bundleIdentifier;
+    done(identifier != nil ? @{@"bundleId" : identifier} : @{});
+  });
+}
+
 /// The call's string arguments, in order; nil for one that is not a string.
 static NSArray *stringArguments(napi_env env, napi_callback_info info, size_t count) {
   napi_value argv[4];
@@ -400,6 +409,7 @@ static const struct {
     {"resolveAlias", resolveAlias},
     {"notificationStatus", notificationStatus},
     {"requestNotifications", requestNotifications},
+    {"bundleIdentifier", bundleIdentifier},
 };
 
 NAPI_MODULE_INIT() {

@@ -335,6 +335,21 @@ export const PromptInput = ({
   useEffect(() => {
     onDictatingChangeEvent(dictating);
   }, [dictating]);
+  // A tab put out of sight stays mounted, so its take stops there rather
+  // than leave the mic on with no controls showing. Its words still land; a
+  // mic still opening has heard nothing yet, so it is let go.
+  const stopOutOfSight = useEffectEvent(() => {
+    if (dictation.phase.kind === "recording") {
+      dictation.stop();
+    } else if (dictation.phase.kind === "starting") {
+      dictation.cancel();
+    }
+  });
+  useEffect(() => {
+    if (!isActiveTab) {
+      stopOutOfSight();
+    }
+  }, [isActiveTab]);
 
   const {
     data: modelsData,

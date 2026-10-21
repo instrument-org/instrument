@@ -7,7 +7,7 @@ import {
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useEffectEvent, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 import { cn } from "../../lib/utils";
@@ -60,6 +60,16 @@ export function QuestionCard({
     surface: "question-note",
     value: note,
   });
+  // The note's box goes once the question stops being open, so a take still
+  // recording into it is thrown away rather than left on with no controls.
+  const cancelNoteDictation = useEffectEvent(() => {
+    noteDictation.cancel();
+  });
+  useEffect(() => {
+    if (!isOpen) {
+      cancelNoteDictation();
+    }
+  }, [isOpen]);
   // Answering waits for dictated words, so the note goes with them.
   const isHolding = isSending || isDictating(noteDictation.phase);
   const shown = output ?? sending;

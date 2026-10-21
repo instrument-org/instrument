@@ -465,6 +465,10 @@ function TopicForm({
       setPicking(false);
       setFollows(isNew);
       setFilingFits(false);
+    } else {
+      // The form outlives the dialog, so a take still recording into the
+      // instructions is thrown away rather than left on with no controls.
+      instructionsDictation.cancel();
     }
   }
   const fits = useTopicBackfill({ candidates, name, open });

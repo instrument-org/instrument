@@ -60,7 +60,7 @@ const plans: Offer["plans"] = [
     features: ["Standard AI usage", "Web search", "Image generation"],
     key: "basic",
     models,
-    name: "Basic",
+    name: "Instrument",
     price: { currency: "usd", interval: "month", unitAmount: 1000 },
   },
   {
@@ -69,7 +69,7 @@ const plans: Offer["plans"] = [
     features: ["4× Standard AI usage", "Web search", "Image generation"],
     key: "pro",
     models,
-    name: "Pro",
+    name: "Instrument Plus",
     price: { currency: "usd", interval: "month", unitAmount: 4000 },
   },
 ];

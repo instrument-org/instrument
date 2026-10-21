@@ -990,7 +990,7 @@ function layoutRules(
  * and `rg`'s on Windows) leaves out a path whose deepest holder is closed,
  * and goes on through it to what is open.
  */
-export function appDataBounds(layout: WorkspaceFsLayout): {
+export function appDataBounds(layout: Pick<WorkspaceFsLayout, "rules">): {
   closed: string[];
   open: string[];
 } {

@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import nodePath from "node:path";
 import { Worker } from "node:worker_threads";
 
-import { realHostPath } from "../host-path";
+import { hostPathWithin, realHostPath } from "../host-path";
 import { relativeWithin } from "../path-containment";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { reachOf } from "../permissions/rules";
@@ -70,12 +70,63 @@ interface DuRoot {
  *
  * Paths are printed as the agent typed them, never in the host's spelling. The walk
  * does not follow symlinks and counts a hard-linked file once. It runs as the
- * app, outside every sandbox, so it leaves the app's own data out
- * ({@link appDataBounds}) the way the rules do: what is closed is neither
- * counted nor named, and what opens inside it is walked. Anything it does not
+ * app, outside every sandbox, so it leaves out what the rules don't open
+ * ({@link walkBounds}): the app's own data neither counted nor named, a
+ * place that asks first or is closed named on stderr, and what opens inside
+ * either walked. Anything it does not
  * implement -- another flag, an operand outside every mount -- goes to
  * just-bash's `du` unchanged.
  */
+/**
+ * What the walk leaves out: the app's own data, unnamed, and every place the
+ * rules don't open for reading (a place that asks first, one the person
+ * closed), named. The walk runs as the app, so reading inside Desktop,
+ * Documents, the Music or Photos library or other apps' files is the app
+ * reading them, and on macOS that raises the system's own prompt, or its
+ * notice that the app was kept out of other apps' data, over a size the
+ * agent asked about. Anything the rules open inside one of them is walked.
+ */
+export function walkBounds(layout: Pick<WorkspaceFsLayout, "rules">): {
+  closed: string[];
+  named: string[];
+  open: string[];
+} {
+  const own = appDataBounds(layout);
+  const named = [
+    ...new Set(
+      layout.rules.rules
+        .filter(
+          (rule) =>
+            rule.appData !== true &&
+            rule.dotEntries !== true &&
+            rule.file !== true &&
+            reachOf(layout.rules, rule.path, "read").level !== "allow",
+        )
+        .map((rule) => realHostPath(rule.path)),
+    ),
+  ];
+  const opened = layout.rules.rules
+    .filter(
+      (rule) =>
+        rule.appData !== true &&
+        rule.dotEntries !== true &&
+        reachOf(layout.rules, rule.path, "read").level === "allow",
+    )
+    .map((rule) => realHostPath(rule.path))
+    .filter((path) =>
+      named.some(
+        (folder) =>
+          hostPathWithin(folder, path) !== null &&
+          hostPathWithin(path, folder) === null,
+      ),
+    );
+  return {
+    closed: [...own.closed, ...named],
+    named,
+    open: [...new Set([...own.open, ...opened])],
+  };
+}
+
 export function createDuCommand({
   layout,
 }: {
@@ -136,7 +187,7 @@ export function createDuCommand({
 
     return await runInWorker(
       {
-        bounds: appDataBounds(layout),
+        bounds: walkBounds(layout),
         maxOutput: ctx.limits.maxOutputSize,
         operands,
         options: parsed.options,
@@ -477,6 +528,8 @@ const fold = (hostPath) =>
   windows || process.platform === "darwin" ? hostPath.toLowerCase() : hostPath;
 const closed = bounds.closed.map(fold);
 const open = bounds.open.map(fold);
+const named = new Set(bounds.named.map(fold));
+const skipped = [];
 
 function holds(root, hostPath) {
   return (
@@ -526,9 +579,12 @@ function walk(hostPath, display, depth) {
     }
     names.sort();
     for (const name of names) {
-      const named = path.join(hostPath, name);
-      if (leftOut(named)) continue;
-      total += walk(named, child(display, name), depth + 1);
+      const entry = path.join(hostPath, name);
+      if (leftOut(entry)) {
+        if (named.has(fold(entry))) skipped.push(child(display, name));
+        continue;
+      }
+      total += walk(entry, child(display, name), depth + 1);
     }
     if (depth <= options.maxDepth) emit(total, display);
   } else if (depth === 0 || (options.all && depth <= options.maxDepth)) {
@@ -558,6 +614,12 @@ try {
     }
   }
   if (options.grandTotal) emit(grand, "total");
+  if (skipped.length > 0) {
+    errors.push(
+      "du: left out " + skipped.map((shown) => "'" + shown + "'").join(", ") +
+        ", which need the person's yes, so their size isn't counted; du each one by name to ask\n",
+    );
+  }
   parentPort.postMessage({ exitCode, stderr: errors.join(""), stdout: lines.join("") });
 } catch (error) {
   if (!(error instanceof OutputLimit)) throw error;
@@ -571,7 +633,7 @@ try {
 
 async function runInWorker(
   input: {
-    bounds: ReturnType<typeof appDataBounds>;
+    bounds: ReturnType<typeof walkBounds>;
     maxOutput: number;
     operands: DuOperand[];
     options: DuOptions;

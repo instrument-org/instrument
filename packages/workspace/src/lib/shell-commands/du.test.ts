@@ -1,6 +1,44 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { parseDuArgs } from "./du";
+import { parseDuArgs, walkBounds } from "./du";
+
+describe("walkBounds", () => {
+  it("leaves out and names the places the rules don't open, and walks what opens in them", () => {
+    // Nowhere on disk, so no link resolves it to another spelling.
+    const home = path.resolve("/du-bounds-home");
+    const at = (...parts: string[]) => path.join(home, ...parts);
+    expect(
+      walkBounds({
+        rules: {
+          dangerouslyAllowEveryFolder: false,
+          home,
+          rules: [
+            { level: "allow", path: home, source: "place" },
+            {
+              level: "ask",
+              path: at("Desktop"),
+              place: "desktop",
+              source: "place",
+            },
+            { level: "never", path: at("Music"), source: "folder" },
+            { level: "allow", path: at("Desktop", "Pricing"), source: "grant" },
+            {
+              appData: true,
+              level: "never",
+              path: at("app"),
+              source: "system",
+            },
+          ],
+        },
+      }),
+    ).toEqual({
+      closed: [at("app"), at("Desktop"), at("Music")],
+      named: [at("Desktop"), at("Music")],
+      open: [at("Desktop", "Pricing")],
+    });
+  });
+});
 
 describe("parseDuArgs", () => {
   it.each([

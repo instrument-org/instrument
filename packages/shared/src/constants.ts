@@ -186,6 +186,12 @@ export const WORKSPACE_MACHINE_ENTRIES = {
    * flags.
    */
   preferences: "preferences.json",
+  /**
+   * The skills folders in places macOS guards (a `~/.claude/skills` linked
+   * into Documents) the person loaded on this computer, which later passes
+   * read without asking again.
+   */
+  skillFolders: "skill-folders.json",
   /** What the app remembers about the workspace on this computer. */
   state: "state.json",
   /** The window's size and place, and where the person left off in it. */

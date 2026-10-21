@@ -15,6 +15,14 @@ import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
 import { AGENT_BROWSER_GUIDE_NAME } from "./agent-browser-guide";
 import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
 import { runtimeLayout } from "./runtime-dir";
+import {
+  noteSkippedSkillFolders,
+  realPathByLinks,
+  setSkillFolderLoaded,
+  skillFolderToSkip,
+  type SkippedSkillFolder,
+} from "./guarded-skill-folders";
+import { macosGuardedRoot } from "./permissions/macos";
 
 export const FILE_LIST_LIMIT = 50;
 
@@ -183,6 +191,12 @@ const SOURCE_RANK: Record<SkillSourceKind, number> = {
  */
 const BUNDLED_SOURCES = new Set<SkillSourceKind>([APP_NAME_SLUG, "system"]);
 
+/** The sources the app keeps itself: the bundled ones and the workspace's own. */
+const APP_SKILL_SOURCES = new Set<SkillSourceKind>([
+  ...BUNDLED_SOURCES,
+  "workspace",
+]);
+
 /** The same set as {@link BUNDLED_SOURCES}, by the id that names a mount. */
 export const BUNDLED_SOURCE_IDS = new Set<SkillSourceId>([
   APP_NAME_SLUG,
@@ -224,9 +238,26 @@ export async function findSkill(
 export async function findSkills(sources: SkillSource[]): Promise<SkillInfo[]> {
   const skillMap = new Map<string, DiscoveredSkill>();
   const canonicalIds = new Map<string, string>();
+  const skipped = new Map<string, SkippedSkillFolder>();
 
   for (const { dir, id, source } of sources) {
-    const skills = await findSkillsInDir(dir, id, source);
+    // A home folder's skills folder linked into a place macOS guards is
+    // read only once the person loads it in Settings: reading it unasked
+    // would put the system's prompt up over a chat that never asked for it.
+    // The app's own and the workspace's skills are never in one it hasn't
+    // been let into.
+    const guarded = !APP_SKILL_SOURCES.has(source);
+    const skip = guarded ? await skillFolderToSkip(dir) : undefined;
+    if (skip !== undefined) {
+      skipped.set(skip.folder, skip);
+      continue;
+    }
+    const skills = await findSkillsInDir(
+      dir,
+      id,
+      source,
+      guarded ? skipped : undefined,
+    );
     for (const skill of skills) {
       const canonical = await canonicalDir(skill.skillDir);
       const existingId = canonicalIds.get(canonical);
@@ -260,6 +291,7 @@ export async function findSkills(sources: SkillSource[]): Promise<SkillInfo[]> {
       ),
     ),
   );
+  noteSkippedSkillFolders(skipped);
   return skills.map((skill) =>
     BUNDLED_SOURCES.has(skill.source)
       ? { ...skill, userInvocable: false }
@@ -604,6 +636,7 @@ async function findSkillsInDir(
   dir: AbsolutePath,
   id: SkillSourceId,
   source: SkillSourceKind,
+  skipped?: Map<string, SkippedSkillFolder>,
 ): Promise<DiscoveredSkill[]> {
   const exists = await pathExists(dir);
   if (!exists) {
@@ -615,6 +648,15 @@ async function findSkillsInDir(
 
   for (const entry of entries) {
     const skillDir = absolutePathJoin(dir, entry.name);
+    // One skill linked into a place macOS guards waits for the person to
+    // load it, as a whole folder does (`findSkills`).
+    if (skipped !== undefined && entry.isSymbolicLink()) {
+      const skip = await skillFolderToSkip(skillDir);
+      if (skip !== undefined) {
+        skipped.set(skip.folder, skip);
+        continue;
+      }
+    }
     const isDirectory =
       entry.isDirectory() || (await isDirectorySymlink(skillDir));
     if (!isDirectory) {
@@ -626,7 +668,8 @@ async function findSkillsInDir(
     let raw: string;
     try {
       raw = await fs.readFile(skillFile, "utf8");
-    } catch {
+    } catch (error) {
+      await forgetRefusedFolder(skillDir, error);
       continue;
     }
 
@@ -710,10 +753,31 @@ async function listSource(dir: AbsolutePath): Promise<Dirent[]> {
   if ("entries" in listed) {
     return listed.entries;
   }
+  if ("error" in listed) {
+    await forgetRefusedFolder(dir, listed.error);
+  }
   console.warn(
     `Skipping the skills in ${dir}: ${"waiting" in listed ? "its listing hasn't answered yet (macOS may be asking the person about the folder)" : String(listed.error)}`,
   );
   return [];
+}
+
+/**
+ * A skills folder the person loaded that macOS now refuses (they turned it
+ * off in System Settings) goes back to waiting to be loaded, so the next
+ * pass skips it and Settings offers it again.
+ */
+async function forgetRefusedFolder(dir: string, error: unknown) {
+  if (
+    process.platform !== "darwin" ||
+    !(error instanceof Error && "code" in error && error.code === "EPERM")
+  ) {
+    return;
+  }
+  const folder = await realPathByLinks(dir);
+  if (macosGuardedRoot(folder) !== undefined) {
+    await setSkillFolderLoaded(folder, false).catch(() => {});
+  }
 }
 
 async function isDirectorySymlink(candidate: AbsolutePath) {

@@ -1,7 +1,12 @@
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
+import { listFolder } from "../../lib/chat/folder-look";
 import { deleteSkill } from "../../lib/delete-skill";
+import {
+  setSkillFolderLoaded,
+  skippedSkillFolders,
+} from "../../lib/guarded-skill-folders";
 import {
   getSkillProvenance,
   getWritableSkillsRoot,
@@ -122,4 +127,48 @@ const changed = base
     }
   });
 
-export const skill = { events: { changed }, list, remove };
+/**
+ * The skills folders the last pass left unread because they really are in a
+ * place macOS guards (a `~/.claude/skills` linked into Documents), which the
+ * person loads in Settings rather than meeting the system's prompt unasked.
+ * Read after a `list`, which is the pass that finds them.
+ */
+const skippedFolders = base
+  .output(z.object({ folder: z.string(), root: z.string() }).array())
+  .handler(async ({ context }) => {
+    await findSkills(getSkillSources(context.workspaceConfig));
+    return skippedSkillFolders();
+  });
+
+/**
+ * Loads a skills folder the passes skip: looks inside it as the app, which
+ * is when macOS asks the person about it, beside the button they pressed,
+ * and waits for their answer. Let in, it is recorded so every later pass
+ * reads it; refused, it stays skipped.
+ */
+const loadFolder = base
+  .input(z.object({ folder: z.string() }))
+  .output(z.object({ loaded: z.boolean() }))
+  .handler(async ({ input }) => {
+    const known = skippedSkillFolders().some(
+      (skipped) => skipped.folder === input.folder,
+    );
+    if (!known) {
+      return { loaded: false };
+    }
+    const looked = await listFolder(input.folder);
+    if (looked !== "open") {
+      return { loaded: false };
+    }
+    await setSkillFolderLoaded(input.folder, true);
+    publisher.publish("skill.changed", null);
+    return { loaded: true };
+  });
+
+export const skill = {
+  events: { changed },
+  list,
+  loadFolder,
+  remove,
+  skippedFolders,
+};

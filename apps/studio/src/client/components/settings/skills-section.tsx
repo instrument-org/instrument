@@ -1,4 +1,5 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { FolderRow } from "@/client/components/folder-row";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { SkillList } from "@/client/components/skills/skill-list";
 import {
@@ -26,7 +27,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { useContext, useState } from "react";
 import { toast } from "@/client/lib/toast";
@@ -65,6 +66,7 @@ export function SkillsSection() {
           </GlyphButton>
         ) : null}
       </div>
+      <SkippedSkillFolders />
       <SkillList
         menu={(skill) => (skill.editable ? <SkillMenu skill={skill} /> : null)}
         onOpen={(skill) => {
@@ -74,6 +76,75 @@ export function SkillsSection() {
     </div>
   );
 }
+
+// oxlint-disable studio/no-os-words -- a skills folder is skipped this way on macOS alone
+/**
+ * Skills folders the app leaves unread because they really are in a place
+ * macOS guards, such as a `~/.claude/skills` linked into Documents. Load
+ * looks inside one, which is when macOS asks, beside the button pressed.
+ */
+function SkippedSkillFolders() {
+  const queryClient = useQueryClient();
+  const skipped = useQuery(
+    rpcClient.workspace.skill.skippedFolders.queryOptions(),
+  );
+  const load = useMutation(
+    rpcClient.workspace.skill.loadFolder.mutationOptions(),
+  );
+  if (!skipped.data?.length) {
+    return null;
+  }
+  const loadFolder = async (folder: string) => {
+    const name = folder.split("/").at(-1) ?? folder;
+    try {
+      const { loaded } = await load.mutateAsync({ folder });
+      await queryClient.invalidateQueries({
+        queryKey: rpcClient.workspace.skill.key(),
+      });
+      if (!loaded) {
+        toast(`Your Mac didn’t let Instrument read “${name}”`, {
+          description:
+            "You can allow it under Files and Folders in System Settings.",
+        });
+      }
+    } catch (error) {
+      toast.error(`Couldn't load “${name}”`, { cause: error });
+    }
+  };
+  return (
+    <section className="space-y-2">
+      <h4 className="text-sm font-medium text-muted-foreground">
+        Waiting to load
+      </h4>
+      <p className="text-sm text-muted-foreground">
+        Your Mac asks before Instrument reads these folders, so their skills
+        load when you say so.
+      </p>
+      <div className="divide-y overflow-hidden rounded-lg border">
+        {skipped.data.map(({ folder }) => (
+          <FolderRow
+            className="p-3"
+            end={
+              <Button
+                disabled={load.isPending}
+                onClick={() => {
+                  void loadFolder(folder);
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Load
+              </Button>
+            }
+            key={folder}
+            path={folder}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+// oxlint-enable studio/no-os-words
 
 /** The "⋯" on a row of the workspace's own skills, the ones it can delete. */
 function SkillMenu({ skill }: { skill: Skill }) {

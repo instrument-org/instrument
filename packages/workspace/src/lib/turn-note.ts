@@ -1,4 +1,5 @@
 import { joinedMidTurn } from "./chat/mid-turn";
+import { endOfTurnNote } from "./end-of-turn-checks";
 import { isToolPart } from "./is-tool-part";
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
@@ -100,12 +101,15 @@ export function continuesOwnReply(
 /**
  * The note a session's next step carries, read from its stored transcript:
  * `LENGTH_NOTE` on a step that carries on a reply the output limit cut off,
- * `PROMISED_NOTE` on a step that continues the agent's own reply, `TURN_NOTE`
- * on the first step of a chat's typed turn, otherwise none.
+ * the end-of-turn checks' note (`endOfTurnNote`) on the step that corrects a
+ * reply failing one, `PROMISED_NOTE` on a step that otherwise continues the
+ * agent's own reply, `TURN_NOTE` on the first step of a chat's typed turn,
+ * otherwise none.
  *
  * `LENGTH_NOTE` is asked for first because a reply cut off mid-sentence is
  * text with no tool call, which `continuesOwnReply` also matches: without this
- * order a cut-off reply would be told it promised work it never started.
+ * order a cut-off reply would be told it promised work it never started. The
+ * same holds for a reply being corrected.
  */
 export async function turnNoteFor({
   sessionId,
@@ -120,6 +124,14 @@ export async function turnNoteFor({
   }
   if (cutOffAtOutputLimit(messages.value)) {
     return LENGTH_NOTE;
+  }
+  const correction = await endOfTurnNote({
+    chatId,
+    messages: messages.value,
+    sessionId,
+  });
+  if (correction !== undefined) {
+    return correction;
   }
   if (continuesOwnReply(messages.value)) {
     return PROMISED_NOTE;

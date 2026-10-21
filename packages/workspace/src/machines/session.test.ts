@@ -1077,6 +1077,48 @@ describe("sessionMachine", () => {
     `);
   });
 
+  it("gives a reply naming a file that is not there one step to correct it, and no more", async () => {
+    answersAsChat();
+    const replying = (text: string) =>
+      [
+        { id: "1", type: "text-start" },
+        { delta: text, id: "1", type: "text-delta" },
+        { id: "1", type: "text-end" },
+      ] as const satisfies LanguageModelV4StreamPart[];
+    const dead = "Made it.\n\n```files\nsquares.csv\n```";
+    const prompts: string[] = [];
+    const replies = [dead, dead];
+    const aiSDKModel = new MockLanguageModelV4({
+      doStream: (options) => {
+        prompts.push(JSON.stringify(options.prompt.at(-1)));
+        const text = replies.shift();
+        if (text === undefined) {
+          throw new Error("No chunks left");
+        }
+        return Promise.resolve({
+          rawCall: { rawPrompt: null, rawSettings: {} },
+          stream: simulateReadableStream({
+            chunks: [...replying(text), streamFinishChunk],
+          }),
+        });
+      },
+    });
+
+    const session = await runTestMachine(
+      await createActorAndTask({ aiSDKModel }),
+    );
+
+    expect(
+      session
+        ._unsafeUnwrap()
+        .messages.filter((message) => message.role === "assistant").length,
+    ).toBe(2);
+    expect(prompts.map((prompt) => prompt.includes("open nothing"))).toEqual([
+      false,
+      true,
+    ]);
+  });
+
   it("says on the record change feed when its agent moves, as well as what it writes", async () => {
     const result = await createActorAndTask({ chunkSets: [finishChunks] });
     const kinds = new Set<string>();

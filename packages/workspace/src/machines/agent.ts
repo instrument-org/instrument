@@ -404,7 +404,9 @@ export const agentMachine = setup({
 
       return {
         continue: await input.agent.shouldContinue({
+          chatId: input.chatId,
           messages: messageResults.value,
+          sessionId: input.sessionId,
         }),
         outputLimitContinuations: 0,
       };

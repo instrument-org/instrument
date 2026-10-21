@@ -33,7 +33,9 @@ export interface Agent<T extends AgentTools> {
     chatId: ChatId;
   }) => Promise<void>;
   shouldContinue: (options: {
+    chatId: ChatId;
     messages: SessionMessage.WithParts[];
+    sessionId: StoreId.Session;
   }) => Promise<boolean>;
   /**
    * The system prompt `getMessages` puts in the baseline. Built from code

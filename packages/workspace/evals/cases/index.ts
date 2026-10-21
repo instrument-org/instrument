@@ -24,6 +24,7 @@ import { PDF_SKILL_EVALS } from "./pdf-skill";
 import { PERMISSIONS_EVALS } from "./permissions";
 import { QUESTIONS_EVALS } from "./questions";
 import { REACH_EVALS } from "./reach";
+import { REPLY_LINKS_EVALS } from "./reply-links";
 import { SANDBOXED_PYTHON_EVALS } from "./sandboxed-python";
 import { SCENARIO_EVALS } from "./scenarios";
 import { SKILLS_IN_PLACE_EVALS } from "./skills-in-place";
@@ -67,6 +68,7 @@ export const EVALS = [
   ...PERMISSIONS_EVALS,
   ...QUESTIONS_EVALS,
   ...REACH_EVALS,
+  ...REPLY_LINKS_EVALS,
   ...SANDBOXED_PYTHON_EVALS,
   ...SCENARIO_EVALS,
   ...SKILLS_IN_PLACE_EVALS,

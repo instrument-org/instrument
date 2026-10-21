@@ -24,6 +24,7 @@ import { buildFoldersText } from "../lib/build-folders-text";
 import { ChatReads } from "../lib/chat-reads";
 import { ChatWrites } from "../lib/chat-writes";
 import { folderReach } from "../lib/chat/folder-reach";
+import { endOfTurnNote } from "../lib/end-of-turn-checks";
 import { currentEnvironment } from "../lib/environment";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
@@ -191,7 +192,10 @@ export const instrumentAgent = setupAgent({
   onStart: async ({ sessionId, chatId }) => {
     beginSetupChangeTracking({ id: chatId, sessionId });
   },
-  shouldContinue: shouldContinueAfterHandingOff,
+  // A reply whose links open nothing gets one step more to correct them.
+  shouldContinue: async (options) =>
+    (await shouldContinueAfterHandingOff(options)) ||
+    (await endOfTurnNote(options)) !== undefined,
   systemPrompt,
 }));
 

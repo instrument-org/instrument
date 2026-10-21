@@ -18,6 +18,7 @@ outputFolder: documents # optional: finished work in a stand-in for the folder i
 folder: move-pending # optional: app-data (the default), or a move recorded for this launch to make
 signIns: [chatgpt] # optional: sentinel sign-ins that count as connected and fail any real request
 notifications: not-asked # optional: what macOS says (INSTRUMENT_NOTIFICATION_STATUS)
+notificationAnswer: clicked # optional: how the prompt answers (INSTRUMENT_NOTIFICATION_ANSWER): allowed, denied, or clicked, allowed with the test notification clicked
 network: offline # optional: the network status (INSTRUMENT_NETWORK_STATUS)
 setup: # optional: setup's record; none means setup never ran
   answered: [welcome-back, model] # the steps answered so far
@@ -27,7 +28,7 @@ setup: # optional: setup's record; none means setup never ran
 
 Everything a scenario writes stays inside its own folders in studio-drive's cache, never the real home folder: `outputFolder: documents` is a folder named `Documents/Instrument` beside the scenario's application data, and a move goes to an `Instrument` folder there.
 
-`notifications` and `network` take effect only in a development build. `notifications` is any status the Mac bridge answers: `not-asked`, `provisional`, `allowed`, `denied`, `unknown`, `unsupported`.
+`notifications`, `notificationAnswer` and `network` take effect only in a development build. `notifications` is any status the Mac bridge answers: `not-asked`, `provisional`, `allowed`, `denied`, `unknown`, `unsupported`.
 
 ## The scenarios
 

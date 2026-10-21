@@ -30,14 +30,12 @@ export function ModelRow({
     <label
       className={cn(
         "flex h-12 w-full shrink-0 items-center gap-3.5 rounded-xl px-4",
-        isSelected
-          ? "bg-brand-50 dark:bg-brand-900/60"
-          : "hover:bg-muted/60",
+        isSelected ? "bg-brand-50 dark:bg-brand-900/60" : "hover:bg-muted/60",
       )}
       htmlFor={id}
     >
       <RadioGroupItem
-        className="size-5 border-gray-400 data-[state=checked]:border-brand-600 data-[state=checked]:[&_svg]:size-2.5 data-[state=checked]:[&_svg]:fill-brand-600 dark:data-[state=checked]:border-brand-400 dark:data-[state=checked]:[&_svg]:fill-brand-400"
+        className="size-5 border-gray-400 data-[state=checked]:border-brand-600 dark:data-[state=checked]:border-brand-400 data-[state=checked]:[&_svg]:size-2.5 data-[state=checked]:[&_svg]:fill-brand-600 dark:data-[state=checked]:[&_svg]:fill-brand-400"
         id={id}
         value={value}
       />

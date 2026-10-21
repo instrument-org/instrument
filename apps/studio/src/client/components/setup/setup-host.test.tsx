@@ -9,14 +9,18 @@ import { SetupHost } from "./setup-host";
 
 // Setup's toaster reads the theme, which is not under test.
 vi.mock("@/client/components/ui/sonner", () => ({ Toaster: () => null }));
+vi.mock("@/client/components/theme-provider", () => ({
+  useTheme: () => ({ setTheme: () => {}, theme: "light" }),
+}));
 vi.mock("@/client/components/network-status/network-status-pill", () => ({
   SetupNetworkStatusPill: () => null,
 }));
 
-// The host under test, not the steps' own pages: each step draws its name
-// and the host's ways on.
-vi.mock("./setup-pages", async () => {
-  const { SETUP_STEPS } = await import("@/shared/setup");
+// The host under test, not the way-in, plan and free-account pages, which
+// sign in and read billing: each draws its name and the host's ways on.
+vi.mock("./setup-pages", async (importOriginal) => {
+  const { SETUP_PAGES } =
+    await importOriginal<typeof import("./setup-pages")>();
   const { SetupFooter, SetupPage } = await import("./kit/setup-page");
   const Page = ({
     isLast,
@@ -24,7 +28,7 @@ vi.mock("./setup-pages", async () => {
     onContinue,
     onFinish,
     step,
-  }: import("./setup-pages").SetupPageProps) => (
+  }: import("./setup-page-props").SetupPageProps) => (
     <SetupPage
       footer={
         <SetupFooter
@@ -37,7 +41,12 @@ vi.mock("./setup-pages", async () => {
     />
   );
   return {
-    SETUP_PAGES: Object.fromEntries(SETUP_STEPS.map((step) => [step, Page])),
+    SETUP_PAGES: {
+      ...SETUP_PAGES,
+      "free-account": Page,
+      plan: Page,
+      "way-in": Page,
+    },
   };
 });
 
@@ -69,8 +78,10 @@ vi.mock("@/client/rpc/client", () => {
         finish: mutation(rpc.finish),
         live: { state: live("setup") },
       },
+      user: { live: { me: live("me") } },
       utils: {
         closeWindow: mutation(() => {}),
+        events: { windowFocusChanged: live("windowFocusChanged") },
         live: { windowState: live("windowState", { maximized: false }) },
         minimizeWindow: mutation(() => {}),
         toggleMaximizeWindow: mutation(() => {}),
@@ -122,22 +133,36 @@ describe("SetupHost", () => {
   });
 
   it("offers Back only where there is a step to go back to", async () => {
-    loadedWith("model");
+    loadedWith("plan");
     const { unmount } = renderWithDefaultStore(<SetupHost />);
     expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
     unmount();
-    loadedWith("model", "free-account");
+    loadedWith("plan", "welcome-back");
     renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     await vi.waitFor(() => {
-      expect(rpc.back.mock.calls[0]?.[0]).toEqual({ step: "model" });
+      expect(rpc.back.mock.calls[0]?.[0]).toEqual({ step: "plan" });
     });
   });
 
-  it("finishes on the last step", async () => {
+  it("finishes from All set after the last step, never only answering it", async () => {
     loadedWith("look");
     renderWithDefaultStore(<SetupHost />);
-    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Instrument" }));
+    await vi.waitFor(() => {
+      expect(rpc.finish).toHaveBeenCalled();
+    });
+    expect(rpc.answer).not.toHaveBeenCalled();
+  });
+
+  it("finishes from the only step an update added", async () => {
+    loadedWith("plan");
+    window.api.initialSetupState = {
+      ...window.api.initialSetupState!,
+      isNewStepOnly: true,
+    };
+    renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Finish" }));
     await vi.waitFor(() => {
       expect(rpc.finish).toHaveBeenCalled();

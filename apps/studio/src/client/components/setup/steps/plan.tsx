@@ -19,7 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { SetupFooter, SetupPage } from "../kit/setup-page";
-import { type SetupPageProps } from "../setup-pages";
+import { type SetupPageProps } from "../setup-page-props";
 import { previewPage } from "./preview";
 import { WaysIn } from "./ways-in";
 

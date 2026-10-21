@@ -4,6 +4,7 @@ import {
   requestNotifications,
 } from "@/electron-main/lib/mac-native";
 import { refreshNotificationsForSetup } from "@/electron-main/lib/setup-facts";
+import { showTestNotification } from "@/electron-main/lib/test-notification";
 import { base } from "@/electron-main/rpc/base";
 import { z } from "zod";
 
@@ -25,6 +26,13 @@ const notifications = {
     void refreshNotificationsForSetup();
     return answer;
   }),
+  /**
+   * Setup's test notification: answers `clicked` when the person clicks it,
+   * or `timed-out` after `timeoutMs`.
+   */
+  test: base
+    .input(z.object({ timeoutMs: z.number().int().positive().max(600_000) }))
+    .handler(({ input }) => showTestNotification(input)),
 };
 
 const access = {

@@ -80,4 +80,17 @@ describe("useWindowCommands", () => {
     });
     expect(handlers.openFile).toHaveBeenCalledWith("/Users/mac-user/a.pdf");
   });
+
+  it("leaves the search chord to what holds the window", () => {
+    renderWithDefaultStore(<Window />);
+    const press = () =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "l", metaKey: true }),
+      );
+    press();
+    expect(handlers.search).toHaveBeenCalledTimes(1);
+    getDefaultStore().set(windowHoldsAtom, [{}]);
+    press();
+    expect(handlers.search).toHaveBeenCalledTimes(1);
+  });
 });

@@ -1,4 +1,4 @@
-import { type SetupPageProps } from "../setup-pages";
+import { type SetupPageProps } from "../setup-page-props";
 import { previewPage } from "./preview";
 import { type WaysInPage, WaysIn } from "./ways-in";
 

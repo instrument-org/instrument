@@ -16,9 +16,10 @@ import {
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { SetupFooter, SetupPage } from "../kit/setup-page";
+import { SetupPageSwitch } from "../kit/setup-page-switch";
 import { type SetupPageProps } from "../setup-page-props";
 import { previewPage } from "./preview";
 import { WaysIn, type WaysInPage } from "./ways-in";
@@ -55,195 +56,213 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
   // The card whose Start free trial was pressed, busy while the trial starts.
   const [trialPlan, setTrialPlan] = useState<null | string>(null);
 
-  switch (page.kind) {
-    case "use-instead": {
-      return (
-        <WaysIn
-          hold={hold}
-          initial={page.initial}
-          offerInstrument={false}
-          onDone={onContinue}
-          onLeave={() => {
-            setPage({ kind: "cards" });
-          }}
-        />
-      );
-    }
-    case "trial-started": {
-      return (
-        <SetupPage
-          align="center"
-          footer={<SetupFooter back={false} onContinue={onContinue} />}
-          hero={
-            <span className="flex size-32 flex-col items-center justify-center rounded-full bg-brand-100/70 text-brand-800 dark:bg-brand-900/60 dark:text-brand-200">
-              <span className="font-serif text-5xl/none font-medium">
-                {page.days}
+  const shown = (): ReactNode => {
+    switch (page.kind) {
+      case "use-instead": {
+        return (
+          <WaysIn
+            hold={hold}
+            initial={page.initial}
+            offerInstrument={false}
+            onDone={onContinue}
+            onLeave={() => {
+              setPage({ kind: "cards" });
+            }}
+          />
+        );
+      }
+      case "trial-started": {
+        return (
+          <SetupPage
+            align="center"
+            footer={<SetupFooter back={false} onContinue={onContinue} />}
+            hero={
+              <span className="flex size-32 flex-col items-center justify-center rounded-full bg-brand-100/70 text-brand-800 dark:bg-brand-900/60 dark:text-brand-200">
+                <span className="font-serif text-5xl/none font-medium">
+                  {page.days}
+                </span>
+                <span className="mt-1 text-xs">
+                  {page.days === 1 ? "day" : "days"}
+                </span>
               </span>
-              <span className="mt-1 text-xs">
-                {page.days === 1 ? "day" : "days"}
-              </span>
-            </span>
-          }
-          subtitle={
-            page.endsAt
-              ? `It runs until ${describeDay(new Date(page.endsAt))}, or until the trial's AI usage runs out, whichever comes first.`
-              : "It runs until the trial's AI usage runs out or its days are up, whichever comes first."
-          }
-          title="Your trial has started"
-        />
-      );
-    }
-    case "checkout": {
-      const isWaiting = checkout.isWaiting || checkout.isOpening;
-      return (
-        <SetupPage
-          align="center"
-          footer={
-            <SetupFooter
-              next="none"
-              onBack={() => {
-                checkout.cancel();
-                setPage({ kind: "cards" });
-              }}
-            />
-          }
-          subtitle={
-            isWaiting
-              ? "Checkout is open in your browser. Setup moves on by itself once your payment goes through."
-              : "If you pay in the browser later, setup still moves on once it goes through."
-          }
-          title={isWaiting ? "Finish in your browser" : "No payment yet"}
-        >
-          <BrowserHandoffButton
-            className="mt-8"
-            onCancel={checkout.cancel}
-            onStart={checkout.retry}
-            variant={isWaiting ? "default" : "brand"}
-            waiting={isWaiting}
+            }
+            subtitle={
+              page.endsAt
+                ? `It runs until ${describeDay(new Date(page.endsAt))}, or until the trial's AI usage runs out, whichever comes first.`
+                : "It runs until the trial's AI usage runs out or its days are up, whichever comes first."
+            }
+            title="Your trial has started"
+          />
+        );
+      }
+      case "checkout": {
+        const isWaiting = checkout.isWaiting || checkout.isOpening;
+        return (
+          <SetupPage
+            align="center"
+            footer={
+              <SetupFooter
+                next="none"
+                onBack={() => {
+                  checkout.cancel();
+                  setPage({ kind: "cards" });
+                }}
+              />
+            }
+            subtitle={
+              isWaiting
+                ? "Checkout is open in your browser. Setup moves on by itself once your payment goes through."
+                : "If you pay in the browser later, setup still moves on once it goes through."
+            }
+            title={isWaiting ? "Finish in your browser" : "No payment yet"}
           >
-            Open Checkout again
-          </BrowserHandoffButton>
-        </SetupPage>
-      );
-    }
-    case "cards": {
-      const trial = offer?.trial;
-      const noCardTrial =
-        trial?.available !== false &&
-        (trial?.mode ?? (trial?.cardRequired ? "card" : "no_card")) ===
-          "no_card";
-      const showsTrial =
-        trial !== null &&
-        trial !== undefined &&
-        trial.available !== false &&
-        trial.mode !== "intro";
-      const heldBack = isTrialHeldBack(status, offer);
-      const copy = cardsCopy(offer, { heldBack, showsTrial });
-      const beta = offer?.beta;
-      const betaPlan =
-        beta && offer.plans.find((plan) => plan.key === beta.plan);
-      return (
-        <SetupPage
-          footer={<SetupFooter next="none" onBack={onBack} />}
-          subtitle={copy.subtitle}
-          title={copy.title}
-        >
-          <div className="mt-8 w-170 max-w-full">
-            {!offer ? (
-              error ? (
-                <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
-                  <p>The plans didn&rsquo;t load. Try again in a moment.</p>
-                  <Button
-                    onClick={() => {
-                      void refetch();
-                    }}
-                    size="sm"
-                  >
-                    Try again
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex justify-center">
-                  <Spinner className="size-5 text-muted-foreground" />
-                </div>
-              )
-            ) : beta && betaPlan ? (
-              <BetaCard
-                isBusy={checkout.isOpening}
-                months={beta.months}
-                onClaim={() => {
-                  hold();
-                  checkout.start(betaPlan.key, { offer: "beta" });
-                  setPage({ kind: "checkout" });
-                }}
-                plan={betaPlan}
-              />
-            ) : (
-              <PlanCards
-                busyPlan={startTrial.isPending ? trialPlan : null}
-                offer={offer}
-                onChoose={(plan, action) => {
-                  hold();
-                  if (action === "trial" && noCardTrial) {
-                    setTrialPlan(plan.key);
-                    startTrial.mutate(undefined, {
-                      onSuccess: (started) => {
-                        setPage({
-                          days: trial?.days ?? 0,
-                          ...(started.trial.endsAt && {
-                            endsAt: started.trial.endsAt,
-                          }),
-                          kind: "trial-started",
-                        });
-                      },
-                    });
-                  } else {
-                    checkout.start(plan.key);
+            <BrowserHandoffButton
+              className="mt-8"
+              onCancel={checkout.cancel}
+              onStart={checkout.retry}
+              variant={isWaiting ? "default" : "brand"}
+              waiting={isWaiting}
+            >
+              Open Checkout again
+            </BrowserHandoffButton>
+          </SetupPage>
+        );
+      }
+      case "cards": {
+        const trial = offer?.trial;
+        const noCardTrial =
+          trial?.available !== false &&
+          (trial?.mode ?? (trial?.cardRequired ? "card" : "no_card")) ===
+            "no_card";
+        const showsTrial =
+          trial !== null &&
+          trial !== undefined &&
+          trial.available !== false &&
+          trial.mode !== "intro";
+        const heldBack = isTrialHeldBack(status, offer);
+        const copy = cardsCopy(offer, { heldBack, showsTrial });
+        const beta = offer?.beta;
+        const betaPlan =
+          beta && offer.plans.find((plan) => plan.key === beta.plan);
+        return (
+          <SetupPage
+            footer={<SetupFooter next="none" onBack={onBack} />}
+            subtitle={copy.subtitle}
+            title={copy.title}
+          >
+            <div className="mt-8 w-170 max-w-full">
+              {!offer ? (
+                error ? (
+                  <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
+                    <p>The plans didn&rsquo;t load. Try again in a moment.</p>
+                    <Button
+                      onClick={() => {
+                        void refetch();
+                      }}
+                      size="sm"
+                    >
+                      Try again
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex justify-center">
+                    <Spinner className="size-5 text-muted-foreground" />
+                  </div>
+                )
+              ) : beta && betaPlan ? (
+                <BetaCard
+                  isBusy={checkout.isOpening}
+                  months={beta.months}
+                  onClaim={() => {
+                    hold();
+                    checkout.start(betaPlan.key, { offer: "beta" });
                     setPage({ kind: "checkout" });
-                  }
-                }}
-                status={status}
-                trial={showsTrial && !heldBack}
-              />
-            )}
-          </div>
-          {offer && !beta && (
-            <p className="mt-5 text-sm text-muted-foreground" data-use-instead>
-              Already pay for ChatGPT, Claude, or Grok?{" "}
-              <InlineLink
-                onClick={() => {
-                  setPage({
-                    initial: { kind: "subscriptions" },
-                    kind: "use-instead",
-                  });
-                }}
-              >
-                Use your existing subscriptions
-              </InlineLink>
-              {!(showsTrial && !heldBack) && (
-                <>
-                  , or{" "}
-                  <InlineLink
-                    onClick={() => {
-                      hold();
-                      setPage({
-                        initial: { kind: "key" },
-                        kind: "use-instead",
+                  }}
+                  plan={betaPlan}
+                />
+              ) : (
+                <PlanCards
+                  busyPlan={startTrial.isPending ? trialPlan : null}
+                  offer={offer}
+                  onChoose={(plan, action) => {
+                    hold();
+                    if (action === "trial" && noCardTrial) {
+                      setTrialPlan(plan.key);
+                      startTrial.mutate(undefined, {
+                        onSuccess: (started) => {
+                          setPage({
+                            days: trial?.days ?? 0,
+                            ...(started.trial.endsAt && {
+                              endsAt: started.trial.endsAt,
+                            }),
+                            kind: "trial-started",
+                          });
+                        },
                       });
-                    }}
-                  >
-                    add an API key
-                  </InlineLink>
-                  .
-                </>
+                    } else {
+                      checkout.start(plan.key);
+                      setPage({ kind: "checkout" });
+                    }
+                  }}
+                  status={status}
+                  trial={showsTrial && !heldBack}
+                />
               )}
-            </p>
-          )}
-        </SetupPage>
-      );
+            </div>
+            {offer && !beta && (
+              <p
+                className="mt-5 text-sm text-muted-foreground"
+                data-use-instead
+              >
+                Already pay for ChatGPT, Claude, or Grok?{" "}
+                <InlineLink
+                  onClick={() => {
+                    setPage({
+                      initial: { kind: "subscriptions" },
+                      kind: "use-instead",
+                    });
+                  }}
+                >
+                  Use your existing subscriptions
+                </InlineLink>
+                {!(showsTrial && !heldBack) && (
+                  <>
+                    , or{" "}
+                    <InlineLink
+                      onClick={() => {
+                        hold();
+                        setPage({
+                          initial: { kind: "key" },
+                          kind: "use-instead",
+                        });
+                      }}
+                    >
+                      add an API key
+                    </InlineLink>
+                    .
+                  </>
+                )}
+              </p>
+            )}
+          </SetupPage>
+        );
+      }
     }
-  }
+  };
+  return (
+    <SetupPageSwitch depth={PLAN_DEPTH[page.kind]} page={page.kind}>
+      {shown()}
+    </SetupPageSwitch>
+  );
 }
+
+/** How far into the plan step each page is, so going to a shallower one reads as Back. */
+const PLAN_DEPTH: Record<PlanPage["kind"], number> = {
+  cards: 0,
+  checkout: 1,
+  "trial-started": 2,
+  "use-instead": 1,
+};
 
 function InlineLink({
   children,

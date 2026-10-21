@@ -76,7 +76,6 @@ describe("createMemoryPart", () => {
 
   it("tells a chat what memory holds once, then only on a change", async () => {
     await saveMemory(memoryDir(), {
-      from: { title: "Roofer call" },
       name: "pacific-time",
       text: "You are on Pacific time.\n\nMornings are best for calls.",
     });
@@ -86,7 +85,6 @@ describe("createMemoryPart", () => {
         forgotten: [],
         memories: [
           {
-            from: "Roofer call",
             name: "pacific-time",
             text: "You are on Pacific time.",
           },
@@ -206,7 +204,14 @@ describe("createMemoryPart", () => {
     await saveMemory(memoryDir(), { name: "two", text: "Two." });
     // Measured from a window holding no whole note, so it tells the whole.
     expect(await build()).toMatchObject({
-      data: { memories: [{ name: "two" }, { name: "one" }], tells: "whole" },
+      data: {
+        // Saved within one second of each other, so in either order.
+        memories: expect.arrayContaining([
+          expect.objectContaining({ name: "one" }),
+          expect.objectContaining({ name: "two" }),
+        ]),
+        tells: "whole",
+      },
     });
     expect(await build()).toBeUndefined();
   });

@@ -9,15 +9,12 @@ const NOON = new Date(2026, 9, 7, 12).getTime();
 const memory = (
   name: string,
   at: number,
-  from?: Memory["from"],
+  chat?: Memory["chat"],
   text = name,
-): Memory => ({ at, from, name, path: `/m/${name}.md`, text });
+): Memory => ({ at, chat, name, path: `/m/${name}.md`, text });
 
-const IMPORT = {
-  chatId: ChatIdSchema.parse("import"),
-  title: "Import from ChatGPT",
-};
-const LISBON = { chatId: ChatIdSchema.parse("lisbon"), title: "Lisbon trip" };
+const IMPORT = ChatIdSchema.parse("import");
+const LISBON = ChatIdSchema.parse("lisbon");
 
 describe("groupMemories", () => {
   it("joins neighbors from one chat on one day, and nothing else", () => {
@@ -32,34 +29,34 @@ describe("groupMemories", () => {
     ]);
     expect(
       groups.map((group) => ({
-        from: group.from?.title,
+        chat: group.chat,
         names: group.memories.map((m) => m.name).join(""),
         newest: group.newest === group.memories[0]?.at,
       })),
     ).toMatchInlineSnapshot(`
       [
         {
-          "from": "Import from ChatGPT",
+          "chat": "import",
           "names": "ab",
           "newest": true,
         },
         {
-          "from": "Lisbon trip",
+          "chat": "lisbon",
           "names": "c",
           "newest": true,
         },
         {
-          "from": "Import from ChatGPT",
+          "chat": "import",
           "names": "d",
           "newest": true,
         },
         {
-          "from": "Import from ChatGPT",
+          "chat": "import",
           "names": "e",
           "newest": true,
         },
         {
-          "from": undefined,
+          "chat": undefined,
           "names": "fg",
           "newest": true,
         },

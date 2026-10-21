@@ -1,6 +1,5 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
-import { CHATS_HREF } from "@/client/atoms/window";
 import { VendorMark } from "@/client/components/vendor-mark";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { RelativeTime } from "@/client/components/relative-time";
@@ -20,6 +19,7 @@ import { Input } from "@/client/components/ui/input";
 import { Textarea } from "@/client/components/ui/textarea";
 import { WindowContext } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
+import { chatListOptions } from "@/client/components/window/chat-list-query";
 import { chatHref } from "@/client/components/window/window-href";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import {
@@ -40,7 +40,7 @@ import gemini from "@lobehub/icons-static-svg/icons/gemini-color.svg?raw";
 import grok from "@lobehub/icons-static-svg/icons/grok.svg?raw";
 import openai from "@lobehub/icons-static-svg/icons/openai.svg?raw";
 import opencode from "@lobehub/icons-static-svg/icons/opencode.svg?raw";
-import { type Memory } from "@instrument-org/workspace/client";
+import { type ChatId, type Memory } from "@instrument-org/workspace/client";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -518,16 +518,16 @@ function StepNumber({ n }: { n: number }) {
  * the name of something the reader cannot get to from here, which is worth
  * less than the room it takes.
  */
-function FromChat({ from }: { from: NonNullable<Memory["from"]> }) {
+function FromChat({ chatId, title }: { chatId: ChatId; title: string }) {
   const closeSettings = useSetAtom(settingsModalAtom);
   const gestures = useOpenGestures({
-    href: from.chatId ? chatHref(from.chatId) : CHATS_HREF,
+    href: chatHref(chatId),
     kind: "screen",
   });
   const open = gestures.destinations.find((entry) => entry.id === "open");
 
-  if (!from.chatId || !open) {
-    return <span className="truncate">{from.title}</span>;
+  if (!open) {
+    return <span className="truncate">{title}</span>;
   }
   return (
     <button
@@ -540,7 +540,7 @@ function FromChat({ from }: { from: NonNullable<Memory["from"]> }) {
       onContextMenu={gestures.onContextMenu}
       type="button"
     >
-      {from.title}
+      {title}
     </button>
   );
 }
@@ -855,6 +855,9 @@ function MemoryGroupList({
 }) {
   const groupNames = group.memories.map((memory) => memory.name);
   const isAllPicked = groupNames.every((name) => picked.has(name));
+  // The chat by the title it goes by now; a chat since deleted names nothing.
+  const { data: chats } = useQuery(chatListOptions());
+  const title = chats?.find((chat) => chat.id === group.chat)?.title;
 
   return (
     <div>
@@ -872,10 +875,10 @@ function MemoryGroupList({
             onPickGroup(groupNames);
           }}
         />
-        {group.from && (
+        {group.chat && title && (
           <>
             <span className="flex min-w-0 font-medium">
-              <FromChat from={group.from} />
+              <FromChat chatId={group.chat} title={title} />
             </span>
             <span aria-hidden>·</span>
           </>

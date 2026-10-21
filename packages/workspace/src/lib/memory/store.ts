@@ -10,7 +10,12 @@ import { AbsolutePathSchema } from "../../schemas/paths";
 import { MEMORY_FOLDER_NAME } from "../../constants";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { rewriteFileSync } from "../rewrite-file";
-import { splitFrontMatter } from "@instrument-org/shared";
+import { utcStamp } from "../utc-stamp";
+import {
+  chatAddressOf,
+  chatIdNamedBy,
+  splitFrontMatter,
+} from "@instrument-org/shared";
 
 import { isRecord } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -23,8 +28,9 @@ import { getWorkspaceConfig } from "../workspace-config";
  * Files rather than rows so the user can open the folder and read, edit, or
  * delete a memory with nothing but a file manager, and so a memory the agent
  * wrote and one the user typed into a new file are the same thing. Each file
- * is the memory's text under a short frontmatter saying where it came from
- * and when; a file with no frontmatter at all is still a memory, read whole.
+ * is the memory's text under a short frontmatter naming the chat it was
+ * learned in and when it last changed; a file with no frontmatter at all is
+ * still a memory, read whole.
  *
  * One file per memory rather than one list, because a memory is corrected by
  * being replaced under its name and forgotten by being deleted, and both are
@@ -51,12 +57,7 @@ export const MemorySchema = z.object({
   /** When it was saved or last corrected, in ms since the epoch. */
   at: z.number(),
   /** The chat it was learned in, when a chat saved it. */
-  from: z
-    .object({
-      chatId: ChatIdSchema.optional(),
-      title: z.string(),
-    })
-    .optional(),
+  chat: ChatIdSchema.optional(),
   /** The file's name without its extension. */
   name: z.string(),
   /** Where the file is on disk, for a viewer that opens it. */
@@ -176,7 +177,7 @@ export async function readMemory(
  */
 export async function saveMemory(
   dir: AbsolutePath,
-  { from, name, text }: { from?: Memory["from"]; name: string; text: string },
+  { chat, name, text }: { chat?: Memory["chat"]; name: string; text: string },
 ): Promise<{ memory: Memory; replaced: boolean }> {
   const parsedName = MemoryNameSchema.parse(name);
   const body = text.trim();
@@ -188,7 +189,9 @@ export async function saveMemory(
       `A memory holds at most ${MEMORY_TEXT_MAX} characters; this one is ${body.length}. Keep the fact and leave the rest to the chat.`,
     );
   }
-  const at = Date.now();
+  // To the second, as the file says it, so the memory handed back is the
+  // one a read of the file gives.
+  const at = Math.floor(Date.now() / 1000) * 1000;
   const filePath = path.join(dir, `${parsedName}${FILE_EXTENSION}`);
   // Built from the file as it is when written: correcting a memory rewrites
   // it from these few fields, and anything else in its front matter, left by
@@ -196,13 +199,13 @@ export async function saveMemory(
   let replaced = false;
   rewriteFileSync(filePath, (held) => {
     replaced = held !== undefined;
-    return serialize({ at, body, from, others: othersIn(held) });
+    return serialize({ at, body, chat, others: othersIn(held) });
   });
   publisher.publish("memory.changed", null);
   return {
     memory: {
       at,
-      ...(from ? { from } : {}),
+      ...(chat ? { chat } : {}),
       name: parsedName,
       path: filePath,
       text: body,
@@ -246,44 +249,42 @@ async function readMemoryFile(
     return undefined;
   }
   const at =
-    typeof record.at === "string" && !Number.isNaN(Date.parse(record.at))
-      ? Date.parse(record.at)
+    typeof record.updated === "string" &&
+    !Number.isNaN(Date.parse(record.updated))
+      ? Date.parse(record.updated)
       : modifiedAt;
-  const chat = ChatIdSchema.safeParse(record.chat);
-  const from =
-    typeof record.from === "string" && record.from.trim()
-      ? {
-          ...(chat.success ? { chatId: chat.data } : {}),
-          title: record.from.trim(),
-        }
-      : undefined;
-  return { at, ...(from ? { from } : {}), name, path: filePath, text };
+  const chat = ChatIdSchema.safeParse(
+    typeof record.chat === "string" ? chatIdNamedBy(record.chat) : undefined,
+  );
+  return {
+    at,
+    ...(chat.success ? { chat: chat.data } : {}),
+    name,
+    path: filePath,
+    text,
+  };
 }
 
 /**
- * The file: frontmatter naming the chat and the moment, then the memory.
- * String values are written as JSON, which YAML reads as a quoted scalar, so
- * a chat title holding a colon or a quote round-trips.
+ * The file: frontmatter naming the chat by its address and the moment, then
+ * the memory.
  */
 function serialize({
   at,
   body,
-  from,
+  chat,
   others,
 }: {
   at: number;
   body: string;
-  from: Memory["from"];
+  chat: Memory["chat"];
   others?: Record<string, unknown>;
 }): string {
   const lines = ["---"];
-  if (from) {
-    lines.push(`from: ${JSON.stringify(from.title)}`);
-    if (from.chatId) {
-      lines.push(`chat: ${JSON.stringify(from.chatId)}`);
-    }
+  if (chat) {
+    lines.push(`chat: ${chatAddressOf(chat)}`);
   }
-  lines.push(`at: ${new Date(at).toISOString()}`);
+  lines.push(`updated: ${utcStamp(new Date(at))}`);
   if (others && Object.keys(others).length > 0) {
     lines.push(stringifyYaml(others, { sortMapEntries: true }).trimEnd());
   }
@@ -292,7 +293,7 @@ function serialize({
 }
 
 /** The keys this build writes, and so the ones that are nobody else's. */
-const OWN_KEYS = new Set(["at", "chat", "from"]);
+const OWN_KEYS = new Set(["chat", "updated"]);
 
 /**
  * Front matter in what the file held that this build does not write, so a

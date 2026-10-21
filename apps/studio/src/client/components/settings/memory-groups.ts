@@ -3,7 +3,7 @@ import { type Memory } from "@instrument-org/workspace/client";
 /** A run of memories one chat saved on one day, in the order the list gave them. */
 export interface MemoryGroup {
   /** The chat they came from; none for memories saved outside a chat. */
-  from: Memory["from"];
+  chat: Memory["chat"];
   key: string;
   memories: Memory[];
   /** When the group's newest memory was saved, which its heading shows. */
@@ -22,8 +22,7 @@ export function groupMemories(memories: Memory[]): MemoryGroup[] {
   let lastSource: string | undefined;
   for (const memory of memories) {
     const source = [
-      memory.from?.chatId ?? "",
-      memory.from?.title ?? "",
+      memory.chat ?? "",
       new Date(memory.at).toDateString(),
     ].join("\u0000");
     const group = groups.at(-1);
@@ -32,7 +31,7 @@ export function groupMemories(memories: Memory[]): MemoryGroup[] {
       group.newest = Math.max(group.newest, memory.at);
     } else {
       groups.push({
-        from: memory.from,
+        chat: memory.chat,
         // The first memory's name, since a name is in one group only.
         key: memory.name,
         memories: [memory],

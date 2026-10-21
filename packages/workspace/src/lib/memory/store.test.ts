@@ -51,10 +51,7 @@ describe("MemoryNameSchema", () => {
 describe("saveMemory", () => {
   it("writes a file the user can read, and lists it back", async () => {
     const saved = await saveMemory(dir, {
-      from: {
-        chatId: ChatIdSchema.parse("2026-10-21-roofer-call"),
-        title: "Roofer call",
-      },
+      chat: ChatIdSchema.parse("2026-10-21-roofer-call"),
       name: "pacific-time",
       text: "You are on Pacific time and mornings are best for calls.",
     });
@@ -63,7 +60,7 @@ describe("saveMemory", () => {
     expect(saved.memory.path).toBe(path.join(dir, "pacific-time.md"));
     const file = await fs.readFile(saved.memory.path, "utf8");
     expect(file).toMatch(
-      /^---\nfrom: "Roofer call"\nchat: "2026-10-21-roofer-call"\nat: \d{4}-\d{2}-\d{2}T[^\n]+\n---\nYou are on Pacific time and mornings are best for calls.\n$/,
+      /^---\nchat: instrument:\/\/chat\/2026-10-21-roofer-call\nupdated: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\n---\nYou are on Pacific time and mornings are best for calls.\n$/,
     );
 
     const listed = await listMemories(dir);
@@ -93,7 +90,7 @@ describe("saveMemory", () => {
       file,
       [
         "---",
-        "at: 2026-10-14T18:22:04.000Z",
+        "updated: 2026-10-14T18:22:04Z",
         "topic: Kitchen",
         "---",
         "No stevia.",
@@ -122,16 +119,20 @@ describe("saveMemory", () => {
     expect(await listMemories(dir)).toEqual([]);
   });
 
-  it("keeps a title with a colon and quotes through the round trip", async () => {
-    const title = 'Caffeine: the "Zevia" chat';
-    await saveMemory(dir, {
-      from: { title },
-      name: "zevia",
-      text: "Zevia is back in.",
-    });
+  it.each([
+    ["its address", "instrument://chat/2026-10-21-zevia"],
+    ["a bare id", "2026-10-21-zevia"],
+  ])("reads the chat named by %s", async (_name, chat) => {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, "zevia.md"),
+      `---\nchat: ${chat}\nupdated: 2026-10-21T15:04:11Z\n---\nZevia is back in.\n`,
+    );
 
-    const memory = await readMemory(dir, "zevia");
-    expect(memory?.from).toEqual({ title });
+    expect(await readMemory(dir, "zevia")).toMatchObject({
+      at: Date.parse("2026-10-21T15:04:11Z"),
+      chat: "2026-10-21-zevia",
+    });
   });
 });
 
@@ -153,18 +154,18 @@ describe("listMemories", () => {
       name: "address",
       text: "Your address is 1420 Alder St, Portland.",
     });
-    expect(memory?.from).toBeUndefined();
+    expect(memory?.chat).toBeUndefined();
     expect(memory?.at).toBeGreaterThan(0);
   });
 
   it("orders newest first and skips what is not a memory", async () => {
     await fs.writeFile(
       path.join(dir, "older.md"),
-      "---\nat: 2026-01-01T00:00:00.000Z\n---\nOlder.\n",
+      "---\nupdated: 2026-01-01T00:00:00Z\n---\nOlder.\n",
     );
     await fs.writeFile(
       path.join(dir, "newer.md"),
-      "---\nat: 2026-02-01T00:00:00.000Z\n---\nNewer.\n",
+      "---\nupdated: 2026-02-01T00:00:00Z\n---\nNewer.\n",
     );
     await fs.writeFile(path.join(dir, ".DS_Store"), "");
     await fs.writeFile(path.join(dir, "notes.txt"), "not a memory");

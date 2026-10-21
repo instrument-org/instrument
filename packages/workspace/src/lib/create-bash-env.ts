@@ -934,7 +934,7 @@ export async function createLocalBashEnv({
         ? [
             {
               ...MEMORY_COMMAND,
-              command: createMemoryCommand({ chatId, sessionId }),
+              command: createMemoryCommand({ chatId }),
             },
             {
               ...TAB_COMMAND,

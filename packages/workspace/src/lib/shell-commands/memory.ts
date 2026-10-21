@@ -1,6 +1,5 @@
 import { type ByteString, defineCommand } from "just-bash";
 
-import { type StoreId } from "../../schemas/store-id";
 import {
   forgetMemory,
   listMemories,
@@ -11,7 +10,7 @@ import {
   readMemory,
   saveMemory,
 } from "../memory/store";
-import { ChatReads } from "../chat-reads";
+import { learnedIn } from "../memory/learned-in";
 import { recordSetupTouch } from "../setup-changes";
 import { MEMORY_COMMAND } from "./memory-command";
 import { defineSubcommands, subcommand } from "./subcommands";
@@ -44,9 +43,8 @@ const USAGE = `Usage: ${NAME} <subcommand> ...
 
 /** What `memory` needs from the `bash` call it runs inside. */
 export interface MemoryCommandContext {
+  /** The chat the call runs in, named on what it saves. */
   chatId: ChatId;
-  /** The chat the call runs in: named on what it saves, and spared the note about its own change. */
-  sessionId: StoreId.Session;
 }
 
 /**
@@ -80,18 +78,6 @@ const runMemory = defineSubcommands<MemoryCommandContext>({
   usage: USAGE,
 });
 
-/** The chat a memory is learned in, by title, so a reader knows where it came from. */
-async function chatOf({
-  chatId,
-  sessionId,
-}: MemoryCommandContext): Promise<Memory["from"]> {
-  const session = await ChatReads.session({ chatId, sessionId });
-  if (session.isErr() || !session.value.title.trim()) {
-    return undefined;
-  }
-  return { chatId, title: session.value.title.trim() };
-}
-
 function day(at: number): string {
   return new Date(at).toISOString().slice(0, 10);
 }
@@ -101,10 +87,13 @@ function ok(text: string) {
   return text.endsWith("\n") ? text : `${text}\n`;
 }
 
-function origin(memory: Memory): string {
-  return memory.from
-    ? `from "${memory.from.title}" · ${day(memory.at)}`
-    : day(memory.at);
+/** Where a memory was learned, by the chat's title as it is now, and when. */
+function origin(
+  memory: Memory,
+  titles: ReadonlyMap<ChatId, string>,
+): string {
+  const title = memory.chat && titles.get(memory.chat);
+  return title ? `from "${title}" · ${day(memory.at)}` : day(memory.at);
 }
 
 async function runForget(args: string[]) {
@@ -125,9 +114,10 @@ async function runList() {
   if (memories.length === 0) {
     return ok(`Nothing remembered yet. ${NAME} save <name> keeps something.`);
   }
+  const titles = await learnedIn(memories);
   const rows = memories.map(
     (memory) =>
-      `  ${memory.name}  ${origin(memory)}\n    ${memoryHeadline(memory.text)}`,
+      `  ${memory.name}  ${origin(memory, titles)}\n    ${memoryHeadline(memory.text)}`,
   );
   return ok(
     `${memories.length} ${memories.length === 1 ? "memory" : "memories"}, newest first (${NAME} show <name> for one whole):\n${rows.join("\n")}`,
@@ -157,7 +147,7 @@ async function runSave(
     );
   }
   const { memory, replaced } = await saveMemory(memoryDir(), {
-    from: await chatOf(context),
+    chat: context.chatId,
     name: parsedName.data,
     text,
   });
@@ -180,5 +170,6 @@ async function runShow(args: string[]) {
   if (!memory) {
     throw new Error(`no memory named "${name}". ${NAME} list names them.`);
   }
-  return ok(`${memory.name}  ${origin(memory)}\n\n${memory.text}`);
+  const titles = await learnedIn([memory]);
+  return ok(`${memory.name}  ${origin(memory, titles)}\n\n${memory.text}`);
 }

@@ -7,6 +7,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { type ToldDigests } from "../schemas/told";
 import { ChatReads } from "./chat-reads";
 import { partsAfter, rolledOverAfter } from "./last-told";
+import { learnedIn } from "./memory/learned-in";
 import {
   listMemories,
   type Memory,
@@ -118,7 +119,7 @@ export async function createMemoryPart({
       return {
         data: {
           forgotten: [],
-          memories: memories.slice(0, MEMORIES_IN_NOTE).map(noteRow),
+          memories: await noteRows(memories.slice(0, MEMORIES_IN_NOTE)),
           more: Math.max(0, memories.length - MEMORIES_IN_NOTE),
           sentAt,
           tells: "whole",
@@ -131,9 +132,11 @@ export async function createMemoryPart({
     return {
       data: {
         forgotten: Object.keys(state).filter((name) => !(name in digests)),
-        memories: memories
-          .filter((memory) => state[memory.name] !== digests[memory.name])
-          .map(noteRow),
+        memories: await noteRows(
+          memories.filter(
+            (memory) => state[memory.name] !== digests[memory.name],
+          ),
+        ),
         more: 0,
         sentAt,
         tells: "changes",
@@ -168,11 +171,16 @@ export async function memoryToldByTurn(
   );
 }
 
-function noteRow(memory: Memory) {
-  return {
-    at: memory.at,
-    ...(memory.from ? { from: memory.from.title } : {}),
-    name: memory.name,
-    text: memoryHeadline(memory.text).slice(0, HEADLINE_MAX),
-  };
+/** Memories as the note lists them, each by the title its chat goes by now. */
+async function noteRows(memories: Memory[]) {
+  const titles = await learnedIn(memories);
+  return memories.map((memory) => {
+    const from = memory.chat && titles.get(memory.chat);
+    return {
+      at: memory.at,
+      ...(from ? { from } : {}),
+      name: memory.name,
+      text: memoryHeadline(memory.text).slice(0, HEADLINE_MAX),
+    };
+  });
 }

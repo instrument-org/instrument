@@ -1,8 +1,13 @@
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { Button } from "@/client/components/ui/button";
-import { folderOf, nameOf } from "@/client/components/window/host-path";
+import {
+  folderOf,
+  isInside,
+  nameOf,
+} from "@/client/components/window/host-path";
 import { displayPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
+import { HouseIcon } from "@phosphor-icons/react/House";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { type ReactNode } from "react";
 
@@ -11,7 +16,8 @@ import { SetupRowButton } from "./setup-row";
 /**
  * Where the Instrument folder will be: "Location" over a card with the
  * folder's own name, where it is under that from the home folder's own
- * name, and Change at its end. A long location gives way from its start,
+ * name, after a small house the way the Finder marks home, and Change at
+ * its end. A long location gives way from its start,
  * so the folders nearest the name stay. Without a `path` yet the card
  * keeps its place with blank lines. A note about the folder (`FolderNote`)
  * goes inside the card, under the path.
@@ -25,7 +31,10 @@ export function FolderLocation({
   onChange?: () => void;
   path?: string;
 }) {
-  const location = path === undefined ? undefined : displayPath(folderOf(path));
+  const parent = path === undefined ? undefined : folderOf(path);
+  const location = parent === undefined ? undefined : displayPath(parent);
+  const isUnderHome =
+    parent !== undefined && isInside(parent, window.api.homeDir);
   return (
     <div className="flex w-140 max-w-full flex-col gap-1.5">
       <p className="pl-4 text-xs font-medium text-muted-foreground">Location</p>
@@ -42,13 +51,18 @@ export function FolderLocation({
               <span className="truncate text-sm font-medium text-foreground">
                 {nameOf(path)}
               </span>
-              {/* Right to left only to put the ellipsis at the start; the
-                path itself reads left to right. */}
-              <span
-                className="truncate text-left text-xs text-muted-foreground [direction:rtl]"
-                title={displayPath(path)}
-              >
-                <bdi dir="ltr">{location}</bdi>
+              <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                {isUnderHome && (
+                  <HouseIcon aria-hidden className="size-3 shrink-0" />
+                )}
+                {/* Right to left only to put the ellipsis at the start; the
+                  path itself reads left to right. */}
+                <span
+                  className="truncate text-left [direction:rtl]"
+                  title={displayPath(path)}
+                >
+                  <bdi dir="ltr">{location}</bdi>
+                </span>
               </span>
             </span>
           )}

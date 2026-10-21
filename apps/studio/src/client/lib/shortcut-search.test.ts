@@ -67,6 +67,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "Pages: Find Next  ⌘G",
         "Pages: Find Previous  ⇧⌘G",
         "Pages: Forward  ⌘]",
+        "Pages: Print…  ⌘P",
         "Pages: Reload Page  ⌘R",
         "View: Actual Size  ⌘0",
         "View: Toggle Full Screen  ⌃⌘F",

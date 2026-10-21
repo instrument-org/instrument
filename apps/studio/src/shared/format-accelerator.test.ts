@@ -118,6 +118,7 @@ describe("formatAcceleratorFor", () => {
         "nextTab: ⌃ Tab  /  Ctrl Tab  /  Ctrl Tab",
         "previousChat: ⌥ ⌘ ↑  /  Alt Shift ↑  /  Alt Shift ↑",
         "previousTab: ⌃ ⇧ Tab  /  Ctrl Shift Tab  /  Ctrl Shift Tab",
+        "printPage: ⌘ P  /  Ctrl P  /  Ctrl P",
         "reloadPage: ⌘ R  /  Ctrl R  /  Ctrl R",
         "reopenTab: ⇧ ⌘ T  /  Ctrl Shift T  /  Ctrl Shift T",
         "search: ⌘ L  /  Ctrl L  /  Ctrl L",

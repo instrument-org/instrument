@@ -190,7 +190,7 @@ All after the records converter, each safe to run again, moving into a free name
 - No hidden attribute on `.instrument` on Windows, so OneDrive syncs it; the branch's `attrib +h` is undone at the update.
 - `claude-account/` moves from this computer's root into the workspace's folder on this computer, beside `keys/`.
 - The `downloads/` fallback at the Instrument folder's top goes; when the system's Downloads refuses a file, the app asks where to save.
-- `features.json` merges into `preferences.json`.
+- `features.json` merges into `preferences.json` in the machine folder, as the machine data move takes the preferences there.
 - Dead files removed: root copies of 1.x and beta settings (`preferences.json`, `app-state.json`, `features.json`, `window-state.json`, `favorites.json`), `chatgpt-plan` and its copies, the 1.2 betas' `workspace.db` and `migrations.json`, stale Linux install scripts.
 - The app's own stored path fields are rewritten once at the update.
 

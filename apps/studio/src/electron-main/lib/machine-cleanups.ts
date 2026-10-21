@@ -7,7 +7,6 @@ import {
   entryExists,
   moveEntrySync,
 } from "@instrument-org/workspace/electron";
-import { FeatureNameSchema } from "@/shared/features";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
@@ -22,7 +21,6 @@ import {
   MACHINE_DATA_FORMAT_VERSION,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
-  writeJsonAtomic,
 } from "./workspaces";
 
 /**
@@ -46,14 +44,12 @@ const LEGACY_CHATGPT_PLAN_FILES = [
 ];
 
 /**
- * What the move to visible folders leaves behind on this computer: a folder
- * per chat where one for the workspace does, files no build reads any more,
- * and a sign-in at the top of userData that belongs beside the workspace's
- * other keys.
+ * What the move to visible folders leaves behind on this computer: files no
+ * build reads any more, the browser's own downloads folder, and a sign-in at
+ * the top of userData that belongs beside the workspace's other keys.
  *
  * Runs at launch after the machine data move (`machine-data-migration.ts`)
- * and before any store opens, since one of the steps merges two stores into
- * one. Every step is a few stats when there is nothing to do, so each runs on
+ * and before any store opens. Every step is a few stats when there is nothing to do, so each runs on
  * every boot rather than once; nothing here throws, and a step that fails
  * leaves what it was clearing for the next boot.
  */
@@ -94,18 +90,6 @@ function steps(where: {
       "remove the browser's own downloads folder",
       (done) => {
         removeDownloadsFallback(where, done);
-      },
-    ],
-    [
-      "move preferences.json into this computer's folder",
-      (done) => {
-        movePreferencesToMachine(where, done);
-      },
-    ],
-    [
-      "merge features.json into preferences.json",
-      (done) => {
-        mergeFeaturesIntoPreferences(where, done);
       },
     ],
     [
@@ -219,108 +203,6 @@ function fileStats(file: string): boolean {
     return fs.statSync(file).isFile();
   } catch {
     return false;
-  }
-}
-
-/**
- * The workspace's preferences, out of its `.instrument/` and into this
- * computer's folder for it. Every device sharing the workspace rewrote the
- * one file whole, and what it holds (theme, developer mode, the default
- * model, the flags) is one computer's choice. Before any store opens, so
- * the preferences read the moved file rather than writing their defaults.
- *
- * A file this computer already has wins, and the workspace's copy goes
- * either way, so a second computer that opens the workspace later starts at
- * the defaults.
- */
-function movePreferencesToMachine(
-  {
-    machineDir,
-    workspace,
-  }: { machineDir: string; workspace: ResolvedWorkspace },
-  done: string[],
-) {
-  const from = path.join(
-    workspaceLayout(workspace.path).dataDir,
-    "preferences.json",
-  );
-  if (!fileStats(from)) {
-    return;
-  }
-  const stored = readJsonObject(from);
-  const to = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.preferences);
-  if (stored && !fileStats(to)) {
-    writeJsonAtomic(to, stored);
-    done.push(`moved ${from} to ${to}`);
-  }
-  fs.rmSync(from, { force: true });
-}
-
-/**
- * The experimental flags, out of a `features.json` of their own and into
- * `preferences.json` beside the rest of what the person chose for the
- * workspace on this computer. Before any store opens, so the preferences
- * read the merged file rather than writing their defaults over it.
- *
- * A flag the file holds wins over one already under `features` in the
- * preferences, since the preferences had none before this; a flag this
- * build does not know is dropped, as the flags' own store dropped it. The
- * old file goes only once the merged preferences are written.
- */
-function mergeFeaturesIntoPreferences(
-  {
-    machineDir,
-    workspace,
-  }: { machineDir: string; workspace: ResolvedWorkspace },
-  done: string[],
-) {
-  const dataDir = workspaceLayout(workspace.path).dataDir;
-  const file = path.join(dataDir, "features.json");
-  const stored = readJsonObject(file);
-  if (!stored) {
-    // Not there, or a file this cannot read, which held nothing worth
-    // keeping either way: the flags' own store wrote its defaults over one
-    // it could not parse.
-    fs.rmSync(file, { force: true });
-    return;
-  }
-  const flags = Object.fromEntries(
-    Object.entries(stored).flatMap(([name, value]) =>
-      FeatureNameSchema.safeParse(name).success && typeof value === "boolean"
-        ? [[name, value]]
-        : [],
-    ),
-  );
-  const preferencesFile = path.join(
-    machineDir,
-    WORKSPACE_MACHINE_ENTRIES.preferences,
-  );
-  const preferences = readJsonObject(preferencesFile) ?? {};
-  const features = preferences.features;
-  writeJsonAtomic(preferencesFile, {
-    ...preferences,
-    features: {
-      ...(isJsonObject(features) ? features : {}),
-      ...flags,
-    },
-  });
-  fs.rmSync(file, { force: true });
-  done.push(
-    `merged ${Object.keys(flags).length.toString()} feature flag${Object.keys(flags).length === 1 ? "" : "s"} into ${preferencesFile}`,
-  );
-}
-
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function readJsonObject(file: string): Record<string, unknown> | undefined {
-  try {
-    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
-    return isJsonObject(parsed) ? parsed : undefined;
-  } catch {
-    // Not there, or not a file the app wrote: nothing to take from it.
-    return undefined;
   }
 }
 

@@ -158,6 +158,7 @@ describe("moveMachineData", () => {
         "keys/something-new.json.enc",
         "owner.json",
         "permissions.json",
+        "preferences.json",
         "state.json",
         "window/layout.json",
         "window/view.json",
@@ -175,8 +176,6 @@ describe("moveMachineData", () => {
       [
         ".instrument/ai-usage.db",
         ".instrument/bookmarks.json",
-        ".instrument/features.json",
-        ".instrument/preferences.json",
         ".instrument/window/.instrument/chat.db",
         ".instrument/workspace.json",
         "chats/2026-10-01-chat/.instrument/chat.db",
@@ -187,6 +186,37 @@ describe("moveMachineData", () => {
     expect(done).toContain(
       `workspace at format version 1, machine data in ${machineDir}`,
     );
+  });
+
+  it("puts a beta's preferences in this computer's folder, with its feature flags merged in", () => {
+    seedBeta();
+    const settings = path.join(
+      defaultWorkspacePath(userDataDir),
+      ".instrument",
+      "settings",
+    );
+    write(
+      path.join(settings, "preferences.json"),
+      JSON.stringify({ features: { context_ring: false }, theme: "dark" }),
+    );
+    write(
+      path.join(settings, "features.json"),
+      JSON.stringify({ context_ring: true, retired_flag: true }),
+    );
+
+    const { done, machineDir } = moveMachineData({
+      userDataDir,
+      workspace: workspace(),
+    });
+
+    const preferencesFile = path.join(machineDir, "preferences.json");
+    expect(JSON.parse(fs.readFileSync(preferencesFile, "utf8"))).toEqual({
+      features: { context_ring: true },
+      theme: "dark",
+    });
+    expect(fs.existsSync(path.join(settings, "preferences.json"))).toBe(false);
+    expect(fs.existsSync(path.join(settings, "features.json"))).toBe(false);
+    expect(done).toContain(`merged 1 feature flag into ${preferencesFile}`);
   });
 
   // A folder the person picked, or pinned, that no build made a workspace

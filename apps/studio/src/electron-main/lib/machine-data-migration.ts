@@ -1,6 +1,7 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import { entryExists, moveEntrySync } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
+import { FeatureNameSchema } from "@/shared/features";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -46,7 +47,7 @@ const KEY_FILES = [
 ];
 
 /** The stores that follow the person, from the settings folder to the top of `.instrument/`. */
-const TRAVELING_FILES = ["bookmarks.json", "features.json", "preferences.json"];
+const TRAVELING_FILES = ["bookmarks.json"];
 
 /** The window's stores: its size and place, where the person left off, how they lay things out. */
 const WINDOW_FILES = ["layout.json", "view.json", "window-state.json"];
@@ -65,9 +66,10 @@ const SQLITE_FILES = ["", "-journal", "-shm", "-wal"];
  * into its machine folder, `<userData>/machine/<local id>/`: secrets
  * encrypted with this computer's key, the Chromium profiles and browser
  * history, the window's state, the folder rules (whose paths are this
- * computer's) and installed app servers. What follows the person
- * stays and moves up out of `.instrument/settings/`, and the layout sweep's
- * marker files become fields of `workspace.json`.
+ * computer's), installed app servers, and the person's preferences with the
+ * experimental flags merged into them. What follows the person stays and
+ * moves up out of `.instrument/settings/`, and the layout sweep's marker
+ * files become fields of `workspace.json`.
  *
  * Runs after `settings-migration.ts`, before any store opens, once per
  * workspace: `formatVersion` in `workspace.json` says it is done. Only a
@@ -158,6 +160,20 @@ export function moveMachineData({
       } catch (error) {
         failed++;
         done.push(`could not move ${from} (${String(error)}); left it there`);
+      }
+    }
+    // Once the preferences are in place, so a retry that puts them over the
+    // defaults does not drop the flags merged into those.
+    if (failed === 0) {
+      try {
+        mergeFeaturesIntoPreferences({
+          done,
+          machineDir,
+          workspacePath: workspace.path,
+        });
+      } catch (error) {
+        failed++;
+        done.push(`could not merge the feature flags (${String(error)})`);
       }
     }
     foldLayoutMarkers(workspace.path, done);
@@ -320,8 +336,84 @@ function plannedMoves({
       path.join(workspacePath, ".app-servers"),
       path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.appServers),
     ],
+    [
+      path.join(settingsDir, "preferences.json"),
+      path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.preferences),
+    ],
     ...into(settingsDir, dataDir, TRAVELING_FILES),
   ];
+}
+
+/**
+ * The experimental flags, out of the settings folder's `features.json` and
+ * into the `features` of the preferences in this computer's folder, beside
+ * the rest of what the person chose for the workspace on this computer.
+ *
+ * A flag the file holds wins over one already under `features`; a flag this
+ * build does not know is dropped, as the flags' own store dropped it. The
+ * file goes once the merged preferences are written, or at once when it
+ * cannot be read: the flags' own store wrote its defaults over one it could
+ * not parse, so it held nothing worth keeping.
+ */
+function mergeFeaturesIntoPreferences({
+  done,
+  machineDir,
+  workspacePath,
+}: {
+  done: string[];
+  machineDir: string;
+  workspacePath: string;
+}) {
+  const file = path.join(
+    workspaceSettingsDirOf(workspacePath),
+    "features.json",
+  );
+  if (!entryExists(file)) {
+    return;
+  }
+  const stored = readJsonObject(file);
+  if (!stored) {
+    fs.rmSync(file, { force: true });
+    return;
+  }
+  const flags = Object.fromEntries(
+    Object.entries(stored).flatMap(([name, value]) =>
+      FeatureNameSchema.safeParse(name).success && typeof value === "boolean"
+        ? [[name, value]]
+        : [],
+    ),
+  );
+  const preferencesFile = path.join(
+    machineDir,
+    WORKSPACE_MACHINE_ENTRIES.preferences,
+  );
+  const preferences = readJsonObject(preferencesFile) ?? {};
+  const features = preferences.features;
+  writeJsonAtomic(preferencesFile, {
+    ...preferences,
+    features: {
+      ...(isJsonObject(features) ? features : {}),
+      ...flags,
+    },
+  });
+  fs.rmSync(file, { force: true });
+  done.push(
+    `merged ${Object.keys(flags).length.toString()} feature flag${Object.keys(flags).length === 1 ? "" : "s"} into ${preferencesFile}`,
+  );
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readJsonObject(file: string): Record<string, unknown> | undefined {
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+    return isJsonObject(parsed) ? parsed : undefined;
+  } catch {
+    // Not there, or not a file the app wrote: nothing to take from it.
+    return undefined;
+  }
 }
 
 /**

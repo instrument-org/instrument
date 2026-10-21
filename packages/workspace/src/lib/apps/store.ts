@@ -7,6 +7,7 @@ import { omit } from "radashi";
 import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
 import { readOwnFile, writeOwnFile } from "../own-file";
+import { shellPath } from "../shell-path";
 import { APP_COMMAND } from "../shell-commands/app-command";
 import {
   type AppFile,
@@ -271,7 +272,16 @@ export async function writeAppFolder({
   replacesGuide?: boolean;
   slug: AppSlug;
 }): Promise<AbsolutePath> {
-  const here = await findApp(appsDir, slug);
+  const found = await findApp(appsDir, slug);
+  if (found?.kind === "invalid") {
+    // Writing a folder beside it would make two apps of one id, the new one
+    // taking the key and connection while the person's guide stays in the
+    // broken file.
+    throw new Error(
+      `${shellPath(path.join(found.dir, APP_FILE_NAME))} is already "${slug}" and cannot be read: ${found.message} Fix that file rather than writing another.`,
+    );
+  }
+  const here = found?.app;
   const dir =
     here?.dir ??
     absolutePathJoin(
@@ -346,18 +356,31 @@ function appInfoOf(
 
 /**
  * The app as its file holds it, with the folder it is in: what a write that
- * keeps the rest of the file needs. Nothing where no folder gives that id.
+ * keeps the rest of the file needs. A file that gives the id and cannot be
+ * read is found too, so nothing writes a second app of that id. Nothing where
+ * no folder gives that id.
  */
 async function findApp(
   appsDir: AbsolutePath,
   slug: AppSlug,
-): Promise<(AppFile & { dir: AbsolutePath }) | undefined> {
+): Promise<
+  | { app: AppFile & { dir: AbsolutePath }; kind: "app" }
+  | { dir: AbsolutePath; kind: "invalid"; message: string }
+  | undefined
+> {
+  let broken:
+    | { dir: AbsolutePath; kind: "invalid"; message: string }
+    | undefined;
   for (const { folder, read } of await readAppFolders(appsDir)) {
+    const dir = absolutePathJoin(appsDir, folder);
     if (read.kind === "app" && read.app.id === slug) {
-      return { ...read.app, dir: absolutePathJoin(appsDir, folder) };
+      return { app: { ...read.app, dir }, kind: "app" };
+    }
+    if (read.kind === "invalid" && read.id === slug) {
+      broken ??= { dir, kind: "invalid", message: read.message };
     }
   }
-  return undefined;
+  return broken;
 }
 
 /** The app, or why there is none to write to. */
@@ -365,14 +388,14 @@ async function requireApp(
   appsDir: AbsolutePath,
   slug: AppSlug,
 ): Promise<AppFile & { dir: AbsolutePath }> {
-  const app = await findApp(appsDir, slug);
-  if (app === undefined) {
+  const found = await findApp(appsDir, slug);
+  if (found?.kind !== "app") {
     const loaded = await loadApp(appsDir, slug);
     throw new Error(
       loaded.isErr() ? loaded.error.message : `"${slug}" is not an app.`,
     );
   }
-  return app;
+  return found.app;
 }
 
 /** Writes a manifest over the one in the app's file, keeping everything else in it. */

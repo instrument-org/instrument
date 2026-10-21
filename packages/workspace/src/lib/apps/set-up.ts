@@ -48,7 +48,7 @@ export async function setUpFromDirectory({
   const way = catalogWayIn(entry);
   const name = entry.name;
   const { appsDir } = getWorkspaceConfig();
-  const present = (await listApps(appsDir)).apps;
+  const { apps: present, invalid } = await listApps(appsDir);
   const fields = serviceManifestFields(entry, {
     anotherAccount: present.some(
       (app) => catalogEntryForApp(app.slug, app.manifest)?.slug === entry.slug,
@@ -95,7 +95,11 @@ export async function setUpFromDirectory({
     return { kind: "agent" };
   }
 
-  const taken = new Set(present.map((app) => String(app.slug)));
+  // A broken file keeps its id, so the next app of the service passes it by.
+  const taken = new Set([
+    ...present.map((app) => String(app.slug)),
+    ...invalid.map((app) => app.slug),
+  ]);
   const slug = AppSlugSchema.parse(nextFreeSlug(entry.slug, taken));
   await writeAppFolder({ appsDir, guide, manifest, name, slug });
 

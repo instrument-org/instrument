@@ -1,6 +1,9 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { APP_FILE_NAME } from "./app-file";
 import { createMemoryAppsConfig } from "./memory-config";
 import { setUpFromDirectory } from "./set-up";
 import { loadApp } from "./store";
@@ -43,6 +46,20 @@ describe("setUpFromDirectory", () => {
     expect(
       (await getWorkspaceConfig().apps.connections.get("linear"))?.status,
     ).toBe("needs-sign-in");
+  });
+
+  it("passes by an id whose file cannot be read", async () => {
+    const dir = path.join(getWorkspaceConfig().appsDir, "Sentry");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, APP_FILE_NAME),
+      "---\nid: sentry\ntype: mcp\n---\n",
+    );
+
+    expect(await setUpFromDirectory({ slug: "sentry" })).toEqual({
+      kind: "set-up",
+      slug: "sentry-2",
+    });
   });
 
   it("sets a second account up beside the first", async () => {

@@ -186,6 +186,31 @@ describe("writing an app's folder", () => {
     ]);
   });
 
+  it("refuses a second folder for an id whose file cannot be read, naming that file", async () => {
+    await fs.mkdir(path.join(apps, "Linear"), { recursive: true });
+    await fs.writeFile(
+      path.join(apps, "Linear", APP_FILE_NAME),
+      "---\nid: linear\ntype: mcp\n\tbroken: :\n---\nMy guide.\n",
+    );
+
+    await expect(
+      writeAppFolder({
+        appsDir: apps,
+        guide: "A skeleton.",
+        manifest: AppManifestSchema.parse({
+          auth: { kind: "oauth" },
+          type: "mcp",
+          url: "https://mcp.linear.app/mcp",
+        }),
+        name: "Linear",
+        slug: AppSlugSchema.parse("linear"),
+      }),
+    ).rejects.toThrow(
+      `${path.join(apps, "Linear", APP_FILE_NAME)} is already "linear" and cannot be read: ${APP_FILE_NAME}'s front matter is not YAML`,
+    );
+    expect(await fs.readdir(apps)).toEqual(["Linear"]);
+  });
+
   it("keeps the folder the person renamed, and the guide, when the app is written again", async () => {
     await writeApp(apps, "My Drafts", { ...drafts, id: "drafts" }, "Mine.");
 

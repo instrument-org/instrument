@@ -100,11 +100,21 @@ export function parseAppFile(text: string): AppFileRead {
   let parsed: unknown;
   try {
     parsed = parseYaml(split.block) as unknown;
-  } catch {
-    // Front matter that is not YAML at all names no app, the way one with
-    // none does: a `---` fence in a note the person left is not an app
-    // saying it is broken.
-    return { kind: "none" };
+  } catch (error) {
+    // Front matter that is not YAML names no app, the way one with none
+    // does: a `---` fence in a note the person left is not an app saying it
+    // is broken. One with an `id:` line of its own is an app whose file broke,
+    // and its id is what keeps another app from taking its place.
+    const said = /^id:[ \t]*(["']?)([^"'#\s]+)\1[ \t]*(?:#.*)?$/m.exec(
+      split.block,
+    )?.[2];
+    return said === undefined
+      ? { kind: "none" }
+      : {
+          id: said,
+          kind: "invalid",
+          message: `${APP_FILE_NAME}'s front matter is not YAML: ${error instanceof Error ? (error.message.split("\n")[0] ?? "") : String(error)}`,
+        };
   }
   return appFileOf(isRecord(parsed) ? parsed : {}, {
     guide: split.body.replaceAll("\r\n", "\n"),

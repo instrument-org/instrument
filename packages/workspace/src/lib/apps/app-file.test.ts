@@ -88,6 +88,10 @@ describe("reading an app's file", () => {
   it.each([
     ["an id no app could have", "---\nid: Notion\ntype: web\nurl: x\n---\n"],
     ["a setup it cannot read", "---\nid: notion\ntype: api\n---\n"],
+    [
+      "an id over front matter that is not YAML",
+      "---\nid: notion\n\tbad: :\n---\n",
+    ],
   ])("reads %s as an app to say something about", (_what, text) => {
     expect(parseAppFile(text).kind).toBe("invalid");
   });

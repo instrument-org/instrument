@@ -59,6 +59,7 @@ import module from "node:module";
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
 import { serveDrafts } from "./drafts/serve-drafts";
 import { serveKeptState } from "./stores/workspace/kept-state";
+import { serveSetupState } from "./lib/serve-setup-state";
 import { serveBookmarks } from "./bookmarks/serve-bookmarks";
 import { serveRendererExceptions } from "./lib/renderer-exceptions";
 import {
@@ -270,6 +271,7 @@ async function bootstrapPrimaryInstance() {
   nativeTheme.on("updated", applyThemeToWindows);
   // Registered before any window exists, so no preload can ask before it answers.
   serveResolvedTheme();
+  serveSetupState();
   serveKeptState();
   serveDrafts();
   serveRendererExceptions();

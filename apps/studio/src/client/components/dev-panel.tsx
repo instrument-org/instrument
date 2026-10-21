@@ -29,6 +29,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { cn, isMacOS } from "@/client/lib/utils";
+import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   FEATURE_METADATA,
@@ -152,6 +153,7 @@ export function DevPanel() {
   const { mutate: skipSetup } = useMutation(
     rpcClient.setup.finish.mutationOptions(),
   );
+  const isSetupUp = useIsSetupUp();
 
   const { data: currentWorkspace } = useQuery(
     rpcClient.workspaces.current.queryOptions(),
@@ -279,16 +281,20 @@ export function DevPanel() {
               {/* Past setup without answering it, which is a state worth
                   seeing too. Here rather than on setup's pages, so their
                   layout stays the one people get. */}
-              <MenubarItem
-                className={itemClassName}
-                onSelect={() => {
-                  skipSetup();
-                }}
-              >
-                <FastForwardIcon className="size-3" />
-                Skip setup
-              </MenubarItem>
-              <MenubarSeparator />
+              {isSetupUp && (
+                <>
+                  <MenubarItem
+                    className={itemClassName}
+                    onSelect={() => {
+                      skipSetup();
+                    }}
+                  >
+                    <FastForwardIcon className="size-3" />
+                    Skip setup
+                  </MenubarItem>
+                  <MenubarSeparator />
+                </>
+              )}
               <MenubarItem
                 className={itemClassName}
                 onSelect={() => {

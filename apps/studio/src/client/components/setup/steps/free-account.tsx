@@ -15,19 +15,19 @@ const PERKS: { icon: ReactNode; line: string; tint: string; title: string }[] =
     {
       icon: <GlobeSimpleIcon />,
       line: "Fast, up-to-date answers from the web",
-      tint: "bg-brand-100 text-brand-800 dark:bg-brand-900/60 dark:text-brand-200",
+      tint: "bg-[#c8fae5] dark:bg-[#c8fae5]/15",
       title: "Web search",
     },
     {
       icon: <MicrophoneIcon />,
       line: `Talk to ${APP_NAME} rather than typing`,
-      tint: "bg-[#d3edf1] text-[#1f5e69] dark:bg-[#1f5e69]/40 dark:text-[#bfe6ec]",
+      tint: "bg-[#c8ecef] dark:bg-[#c8ecef]/15",
       title: "Dictation",
     },
     {
       icon: <SparkleIcon />,
       line: "Topics for new chats, and search that finds a chat by what it's about",
-      tint: "bg-[#dbe3ee] text-[#2e4a66] dark:bg-[#2e4a66]/40 dark:text-[#c9d6e6]",
+      tint: "bg-[#c5d8e8] dark:bg-[#c5d8e8]/15",
       title: "Smart suggestions",
     },
   ];
@@ -51,28 +51,32 @@ export function FreeAccountStep({ hold, onBack, onContinue }: SetupPageProps) {
       subtitle="Sign in with Google for a few extras that work with any AI. It's free, and it doesn't use your plan or your key."
       title={`Add a free ${APP_NAME} account`}
     >
-      <div className="mt-8 flex max-w-full flex-wrap justify-center gap-1.5">
+      <div className="mt-7 flex max-w-full flex-wrap justify-center gap-1">
         {PERKS.map((perk) => (
           <div
-            className="flex w-57.5 flex-col gap-1 rounded-2xl border bg-card p-4"
+            className="flex h-35 w-58 flex-col gap-3 rounded-[20px] border bg-card p-4"
             key={perk.title}
           >
             <span
               className={cn(
-                "mb-3 flex size-9 items-center justify-center rounded-[11px] [&_svg]:size-5",
+                "flex size-9 items-center justify-center rounded-[11px] text-foreground [&_svg]:size-5",
                 perk.tint,
               )}
             >
               {perk.icon}
             </span>
-            <p className="text-sm font-medium text-foreground">{perk.title}</p>
-            <p className="text-xs text-muted-foreground">{perk.line}</p>
+            <div className="flex flex-col gap-0.5">
+              <p className="text-sm font-medium text-foreground">
+                {perk.title}
+              </p>
+              <p className="text-xs text-muted-foreground">{perk.line}</p>
+            </div>
           </div>
         ))}
       </div>
-      <div className="mt-8 w-80">
+      <div className="mt-8">
         <ConnectButton
-          className="h-10 w-full text-base"
+          className="h-10 px-5 text-base"
           onResult={(result) => {
             if (result.outcome.kind !== "ready") {
               return;

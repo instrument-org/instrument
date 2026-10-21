@@ -27,11 +27,15 @@ export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
   if (part.state !== "output-available") {
     return null;
   }
-  if (part.output.state === "failure") {
+  if (part.output.state === "failure" || part.output.state === "connected") {
     return (
       <ToolCard>
         <ToolCardSection collapsedHeight={256}>
-          <p className="text-sm text-muted-foreground">{part.output.message}</p>
+          <p className="text-sm text-muted-foreground">
+            {part.output.state === "failure"
+              ? part.output.message
+              : `${part.output.name} is already connected.`}
+          </p>
         </ToolCardSection>
       </ToolCard>
     );

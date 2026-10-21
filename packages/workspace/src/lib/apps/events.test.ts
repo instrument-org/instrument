@@ -8,11 +8,16 @@ import { readConnection } from "./connection";
 import { startAppEvents } from "./events";
 import { createMemoryAppsConfig } from "./memory-config";
 
-const woken = vi.hoisted(() => vi.fn());
+const woken = vi.hoisted(() =>
+  vi.fn((_events: unknown, _ref: unknown, _chatId: string) =>
+    Promise.resolve(),
+  ),
+);
 
 vi.mock(import("../chat/wake"), () => ({ wakeChatForApp: woken }));
 
 const LISBON = ChatIdSchema.parse("2026-10-08-lisbon");
+const PORTO = ChatIdSchema.parse("2026-10-09-porto");
 
 /** Says the user answered the ask for Linear, the way the host app does. */
 async function answer(event: "connected" | "declined" | "failed") {
@@ -33,32 +38,38 @@ describe("startAppEvents", () => {
       apps: createMemoryAppsConfig(),
     });
     await getWorkspaceConfig().apps.connections.set("linear", {
-      askedIn: LISBON,
       status: "needs-sign-in",
+      waitingChats: [LISBON, PORTO],
       updatedAt: 1,
     });
   });
 
-  it("wakes the chat that asked, and takes the ask off once it is settled", async () => {
-    await answer("connected");
+  it.each(["connected", "declined"] as const)(
+    "wakes every chat that asked when %s, and takes the asks off",
+    async (event) => {
+      await answer(event);
 
-    expect(woken).toHaveBeenCalledWith(
-      [expect.objectContaining({ event: "connected" })],
-      expect.anything(),
-      LISBON,
-    );
-    expect((await readConnection("linear"))?.askedIn).toBeUndefined();
-  });
+      expect(woken.mock.calls.map(([, , chatId]) => chatId)).toEqual([
+        LISBON,
+        PORTO,
+      ]);
+      expect(woken).toHaveBeenCalledWith(
+        [expect.objectContaining({ event })],
+        expect.anything(),
+        LISBON,
+      );
+      expect((await readConnection("linear"))?.waitingChats).toBeUndefined();
+    },
+  );
 
-  it("keeps the ask after a failure, for the user to try again from the card", async () => {
+  it("keeps the asks after a failure, for the user to try again from a card", async () => {
     await answer("failed");
 
-    expect(woken).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
+    expect(woken).toHaveBeenCalledTimes(2);
+    expect((await readConnection("linear"))?.waitingChats).toEqual([
       LISBON,
-    );
-    expect((await readConnection("linear"))?.askedIn).toBe(LISBON);
+      PORTO,
+    ]);
   });
 
   it("wakes nobody for an app no chat is waiting on", async () => {
@@ -67,10 +78,6 @@ describe("startAppEvents", () => {
 
     await answer("connected");
 
-    expect(woken).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      undefined,
-    );
+    expect(woken).not.toHaveBeenCalled();
   });
 });

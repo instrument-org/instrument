@@ -32,14 +32,6 @@ export const AppConnectionSchema = z.object({
    * was given is not what was agreed to, and the app asks again.
    */
   approvedManifestHash: z.string().optional(),
-  /**
-   * The chat that asked the user to connect the app and is still waiting on
-   * the answer. The answer (a sign-in finished in the browser, a key saved,
-   * a decline) can come from the chat's card or the app's own page, neither
-   * of which is the chat, so the ask is kept with the app and the chat is
-   * woken from here. Gone once the answer has reached it.
-   */
-  askedIn: ChatIdSchema.optional(),
   connectedAt: z.number().optional(),
   /** Why the last test failed, for the card and the page. */
   error: z.string().optional(),
@@ -52,6 +44,14 @@ export const AppConnectionSchema = z.object({
   status: AppConnectionStatusSchema,
   toolCount: z.number().optional(),
   updatedAt: z.number(),
+  /**
+   * The chats that asked the user to connect the app and are still waiting on
+   * the answer. The answer (a sign-in finished in the browser, a key saved,
+   * a decline) can come from any chat's card or the app's own page, none of
+   * which is the chat, so the asks are kept with the app and every chat in
+   * them is woken from here. Gone once the answer has reached them.
+   */
+  waitingChats: z.array(ChatIdSchema).optional(),
 });
 
 export type AppConnection = z.output<typeof AppConnectionSchema>;

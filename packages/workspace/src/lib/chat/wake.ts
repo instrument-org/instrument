@@ -216,9 +216,9 @@ export function startChatWake(workspaceRef: WorkspaceActorRef): void {
 export async function wakeChatForApp(
   events: SessionMessageDataPart.AppEventDataPart["events"],
   workspaceRef: WorkspaceActorRef,
-  asked: ChatId | undefined,
+  asked: ChatId,
 ): Promise<void> {
-  if (asked === undefined || !resolveChat(asked)) {
+  if (!resolveChat(asked)) {
     return;
   }
   if (!(await chatModelURI(asked))) {

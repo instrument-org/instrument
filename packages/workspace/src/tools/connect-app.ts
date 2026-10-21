@@ -4,7 +4,11 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { APP_FILE_NAME } from "../lib/apps/app-file";
-import { recordConnection } from "../lib/apps/connection";
+import {
+  isConnected,
+  readConnection,
+  recordConnection,
+} from "../lib/apps/connection";
 import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
 import { appSiteFor } from "../lib/apps/site";
 import {
@@ -56,6 +60,11 @@ export const ConnectApp = setupTool({
       url: z.string().optional(),
     }),
     z.object({
+      name: z.string(),
+      slug: z.string(),
+      state: z.literal("connected"),
+    }),
+    z.object({
       message: z.string(),
       slug: z.string(),
       state: z.literal("failure"),
@@ -84,7 +93,13 @@ export const ConnectApp = setupTool({
         state: "failure" as const,
       });
     }
-    const { dir, manifest, name, slug } = loaded.value;
+    const { dir, manifest, manifestHash, name, slug } = loaded.value;
+    // Asking again would set a working connection back to waiting, for every
+    // chat that uses it.
+    const connection = await readConnection(slug);
+    if (isConnected(connection, manifestHash)) {
+      return ok({ name, slug, state: "connected" as const });
+    }
     // The test that runs once the user has acted fails on an API app's
     // unwritten guide, so a card asked for before it is written puts that
     // failure in front of the user, after their click, as something they
@@ -122,16 +137,17 @@ export const ConnectApp = setupTool({
     }
     if (kind !== "none") {
       // What the user does on the card or the app's page comes back as an
-      // app event with no chat of its own; the ask kept with the app is
-      // what tells it which chat to wake.
+      // app event with no chat of its own; the asks kept with the app are
+      // what tell it which chats to wake.
+      const waiting = connection?.waitingChats ?? [];
       await recordConnection(slug, {
-        askedIn: chatId,
         status:
           kind === "key"
             ? "needs-key"
             : kind === "run"
               ? "needs-approval"
               : "needs-sign-in",
+        waitingChats: waiting.includes(chatId) ? waiting : [...waiting, chatId],
       });
     }
     return ok({
@@ -151,6 +167,12 @@ export const ConnectApp = setupTool({
   toModelOutput: ({ output }) => {
     if (output.state === "failure") {
       return { type: "error-text", value: output.message };
+    }
+    if (output.state === "connected") {
+      return {
+        type: "text",
+        value: `${output.name} is already connected; no card was shown. Use it.`,
+      };
     }
     switch (output.kind) {
       case "key": {

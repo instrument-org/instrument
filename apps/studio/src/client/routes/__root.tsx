@@ -56,8 +56,8 @@ function RootComponent() {
   // stays mounted, so without this gate each would push its own <title>, and
   // `document.title` (the OS window title / accessible window name) would follow
   // whichever tab resolved last rather than the visible one. `useIsActiveTab`
-  // defaults to true outside the tab host, so the onboarding window still
-  // renders its head. The app window names itself from its tab bar instead
+  // defaults to true outside the tab host, so a page outside the app window
+  // still renders its head. The app window names itself from its tab bar instead
   // (`AppTabStrip`), since most of its screens declare no head of their own.
   const isActiveTab = useIsActiveTab();
   return (

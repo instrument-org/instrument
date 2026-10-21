@@ -63,7 +63,6 @@ import {
 import {
   componentPages,
   debugNavigationRoutes,
-  onboardingScreens,
 } from "@/client/routes/debug/-debug-routes";
 import { scenarios } from "@/client/routes/debug/-transcript/scenarios";
 import { rpcClient } from "@/client/rpc/client";
@@ -379,10 +378,6 @@ export function useCommandMenuRows({
         ...componentPages.map((page) => ({
           href: page.to,
           label: `Component: ${page.label}`,
-        })),
-        ...onboardingScreens.map((screen) => ({
-          href: screen.to,
-          label: `Onboarding: ${screen.label}`,
         })),
         ...scenarios.map((scenario) => ({
           href: `/debug/components/transcript?scenario=${encodeURIComponent(scenario.id)}`,

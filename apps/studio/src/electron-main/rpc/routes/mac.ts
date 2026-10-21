@@ -8,7 +8,7 @@ import { z } from "zod";
 
 /**
  * The Mac bridge (lib/mac-native.ts), for pages that ask the user for
- * something macOS guards before the first task needs it: onboarding's
+ * something macOS guards before the first task needs it: setup's
  * notifications and Mac-data steps, and Settings showing where each stands.
  * Off macOS, every status is `unsupported`.
  */

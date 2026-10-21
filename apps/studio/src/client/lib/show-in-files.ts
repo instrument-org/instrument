@@ -13,8 +13,8 @@ import { toast } from "@/client/lib/toast";
 
 /**
  * Whether this window has a folder view of its own to show a thing in. The
- * app window does, and keeps the person in it; the onboarding window hands
- * the thing to the system's file manager.
+ * app window does, and keeps the person in it; outside it the thing goes
+ * to the system's file manager.
  */
 export function hasFilesView() {
   return window.api.windowType === "app";

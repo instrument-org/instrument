@@ -34,7 +34,8 @@ const events = {
 /**
  * What links and files from outside the app asked for while this window was
  * still opening, which the command stream could not carry to it. Asked once,
- * as the window comes up.
+ * as the window comes up. Nothing while setup is up: what waits for it goes
+ * out over the command stream once it is done.
  */
 const takePending = base
   .output(z.array(AskSchema))
@@ -43,7 +44,8 @@ const takePending = base
 const live = {
   /**
    * What from outside waits for the window, as of now and each time more
-   * arrives: what onboarding tells the person opens once they are through.
+   * arrives or goes: what setup tells the person opens once they are
+   * through.
    */
   waiting: base
     .output(eventIterator(z.array(AskSchema)))

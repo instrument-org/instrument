@@ -15,7 +15,7 @@ import {
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { NavControls } from "@/client/components/nav-controls";
-import { OnboardingZoomRoot } from "@/client/components/onboarding/zoom-root";
+import { WindowZoomRoot } from "@/client/components/window/window-zoom-root";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ThemeProvider } from "@/client/components/theme-provider";
 import { Spinner } from "@/client/components/ui/spinner";
@@ -152,13 +152,13 @@ export function AppWindow() {
             onCatch={captureComponentError}
           >
             <IconContext.Provider value={ICON_CONTEXT_VALUE}>
-              <OnboardingZoomRoot>
+              <WindowZoomRoot>
                 {activeRouter ? (
                   <RouterContextProvider router={activeRouter}>
                     <WindowShell routers={routers} tabs={model.tabs} />
                   </RouterContextProvider>
                 ) : null}
-              </OnboardingZoomRoot>
+              </WindowZoomRoot>
             </IconContext.Provider>
           </CatchBoundary>
           {/* Past the boundary, so a window showing its crash card keeps

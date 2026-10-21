@@ -1,0 +1,75 @@
+/**
+ * What something outside the window asks it to put up: a screen by its
+ * route, from a link, or a file handed to the app, which the window places
+ * itself.
+ */
+export type AppWindowAsk =
+  | { hostPath: string; type: "openFile" }
+  | { href: string; type: "openScreen" };
+
+/**
+ * Where asks from outside the window wait until it can take them: while its
+ * page is loading, which cannot hear the command stream yet, and while
+ * `isHeld` says the window is not the person's to use (setup is up). They go
+ * out in order, through `deliver`, once both are past: the page asks for what
+ * waited when it is up (`take`), and `release` sends what waited when the
+ * hold lifts. `changed` is told whenever what waits changes, for whoever
+ * names it.
+ */
+export function createAppWindowAsks({
+  changed,
+  deliver,
+  isHeld,
+}: {
+  changed: () => void;
+  deliver: (ask: AppWindowAsk) => void;
+  isHeld: () => boolean;
+}) {
+  let pending: AppWindowAsk[] = [];
+  // Whether the window's page has taken what waited for it, and so is
+  // listening for asks as they come. A window that exists is not enough: its
+  // page may still be loading, or reloading.
+  let isTaking = false;
+
+  const handOver = () => {
+    const asks = pending;
+    pending = [];
+    if (asks.length > 0) {
+      changed();
+    }
+    return asks;
+  };
+
+  return {
+    ask(ask: AppWindowAsk) {
+      if (isTaking && !isHeld()) {
+        deliver(ask);
+        return;
+      }
+      pending.push(ask);
+      changed();
+    },
+    /** The window lifted its hold: what waited goes to a page listening. */
+    release() {
+      if (!isTaking || isHeld()) {
+        return;
+      }
+      for (const ask of handOver()) {
+        deliver(ask);
+      }
+    },
+    /** The page went away or is loading afresh, and is not listening. */
+    stopTaking() {
+      isTaking = false;
+    },
+    /** The page is up and listening: what waited for it, unless held. */
+    take(): AppWindowAsk[] {
+      isTaking = true;
+      return isHeld() ? [] : handOver();
+    },
+    /** What waits, for the page to name while it is held. */
+    get waiting(): readonly AppWindowAsk[] {
+      return pending;
+    },
+  };
+}

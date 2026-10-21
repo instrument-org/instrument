@@ -139,7 +139,7 @@ describe("PermissionAsksFoot", () => {
       ),
     ).toBeDefined();
     // The test window has no Files view, so the folder's own button names
-    // the Finder, as the onboarding window's would.
+    // the Finder.
     expect(
       screen
         .getAllByRole("button")

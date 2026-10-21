@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as DebugRouteRouteImport } from './routes/debug/route'
-import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppBrowserRouteImport } from './routes/_app/browser'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
@@ -20,9 +19,6 @@ import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes
 import { Route as DebugIndexRouteImport } from './routes/debug/index'
 import { Route as DebugBillingRouteImport } from './routes/debug/billing'
 import { Route as DebugComponentsRouteImport } from './routes/debug/components'
-import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
-import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
-import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as AppAppsIndexRouteImport } from './routes/_app/apps/index'
 import { Route as AppAppsSlugRouteImport } from './routes/_app/apps/$slug'
 import { Route as AppChatsIndexRouteImport } from './routes/_app/chats/index'
@@ -39,18 +35,12 @@ import { Route as DebugComponentsErrorCardRouteImport } from './routes/debug/com
 import { Route as DebugComponentsFileIconsRouteImport } from './routes/debug/components/file-icons'
 import { Route as DebugComponentsFormElementsRouteImport } from './routes/debug/components/form-elements'
 import { Route as DebugComponentsModelNoticesRouteImport } from './routes/debug/components/model-notices'
-import { Route as DebugComponentsOnboardingRouteImport } from './routes/debug/components/onboarding'
 import { Route as DebugComponentsProviderIconsRouteImport } from './routes/debug/components/provider-icons'
 import { Route as DebugComponentsQuestionRouteImport } from './routes/debug/components/question'
 import { Route as DebugComponentsSpinnerRouteImport } from './routes/debug/components/spinner'
 import { Route as DebugComponentsToastsRouteImport } from './routes/debug/components/toasts'
 import { Route as DebugComponentsTranscriptRouteImport } from './routes/debug/components/transcript'
 import { Route as DebugComponentsTypographyRouteImport } from './routes/debug/components/typography'
-import { Route as DebugComponentsOnboardingIndexRouteImport } from './routes/debug/components/onboarding/index'
-import { Route as DebugComponentsOnboardingCompleteRouteImport } from './routes/debug/components/onboarding/complete'
-import { Route as DebugComponentsOnboardingLoginRouteImport } from './routes/debug/components/onboarding/login'
-import { Route as DebugComponentsOnboardingProvidersRouteImport } from './routes/debug/components/onboarding/providers'
-import { Route as DebugComponentsOnboardingThemeRouteImport } from './routes/debug/components/onboarding/theme'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -64,11 +54,6 @@ const AppRouteRoute = AppRouteRouteImport.update({
 const DebugRouteRoute = DebugRouteRouteImport.update({
   id: '/debug',
   path: '/debug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingRouteRoute = OnboardingRouteRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppBrowserRoute = AppBrowserRouteImport.update({
@@ -105,21 +90,6 @@ const DebugComponentsRoute = DebugComponentsRouteImport.update({
   id: '/components',
   path: '/components',
   getParentRoute: () => DebugRouteRoute,
-} as any)
-const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => OnboardingRouteRoute,
-} as any)
-const OnboardingProvidersRoute = OnboardingProvidersRouteImport.update({
-  id: '/providers',
-  path: '/providers',
-  getParentRoute: () => OnboardingRouteRoute,
-} as any)
-const OnboardingThemeRoute = OnboardingThemeRouteImport.update({
-  id: '/theme',
-  path: '/theme',
-  getParentRoute: () => OnboardingRouteRoute,
 } as any)
 const AppAppsIndexRoute = AppAppsIndexRouteImport.update({
   id: '/apps/',
@@ -206,12 +176,6 @@ const DebugComponentsModelNoticesRoute =
     path: '/model-notices',
     getParentRoute: () => DebugComponentsRoute,
   } as any)
-const DebugComponentsOnboardingRoute =
-  DebugComponentsOnboardingRouteImport.update({
-    id: '/onboarding',
-    path: '/onboarding',
-    getParentRoute: () => DebugComponentsRoute,
-  } as any)
 const DebugComponentsProviderIconsRoute =
   DebugComponentsProviderIconsRouteImport.update({
     id: '/provider-icons',
@@ -245,51 +209,17 @@ const DebugComponentsTypographyRoute =
     path: '/typography',
     getParentRoute: () => DebugComponentsRoute,
   } as any)
-const DebugComponentsOnboardingIndexRoute =
-  DebugComponentsOnboardingIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => DebugComponentsOnboardingRoute,
-  } as any)
-const DebugComponentsOnboardingCompleteRoute =
-  DebugComponentsOnboardingCompleteRouteImport.update({
-    id: '/complete',
-    path: '/complete',
-    getParentRoute: () => DebugComponentsOnboardingRoute,
-  } as any)
-const DebugComponentsOnboardingLoginRoute =
-  DebugComponentsOnboardingLoginRouteImport.update({
-    id: '/login',
-    path: '/login',
-    getParentRoute: () => DebugComponentsOnboardingRoute,
-  } as any)
-const DebugComponentsOnboardingProvidersRoute =
-  DebugComponentsOnboardingProvidersRouteImport.update({
-    id: '/providers',
-    path: '/providers',
-    getParentRoute: () => DebugComponentsOnboardingRoute,
-  } as any)
-const DebugComponentsOnboardingThemeRoute =
-  DebugComponentsOnboardingThemeRouteImport.update({
-    id: '/theme',
-    path: '/theme',
-    getParentRoute: () => DebugComponentsOnboardingRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/debug': typeof DebugRouteRouteWithChildren
-  '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/debug/billing': typeof DebugBillingRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
-  '/onboarding/providers': typeof OnboardingProvidersRoute
-  '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug/': typeof DebugIndexRoute
-  '/onboarding/': typeof OnboardingIndexRoute
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
   '/sites/$id': typeof AppSitesIdRoute
@@ -302,7 +232,6 @@ export interface FileRoutesByFullPath {
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
   '/debug/components/model-notices': typeof DebugComponentsModelNoticesRoute
-  '/debug/components/onboarding': typeof DebugComponentsOnboardingRouteWithChildren
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
@@ -313,11 +242,6 @@ export interface FileRoutesByFullPath {
   '/chats/': typeof AppChatsIndexRoute
   '/tasks/': typeof AppTasksIndexRoute
   '/debug/components/': typeof DebugComponentsIndexRoute
-  '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
-  '/debug/components/onboarding/login': typeof DebugComponentsOnboardingLoginRoute
-  '/debug/components/onboarding/providers': typeof DebugComponentsOnboardingProvidersRoute
-  '/debug/components/onboarding/theme': typeof DebugComponentsOnboardingThemeRoute
-  '/debug/components/onboarding/': typeof DebugComponentsOnboardingIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -326,10 +250,7 @@ export interface FileRoutesByTo {
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/debug/billing': typeof DebugBillingRoute
-  '/onboarding/providers': typeof OnboardingProvidersRoute
-  '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug': typeof DebugIndexRoute
-  '/onboarding': typeof OnboardingIndexRoute
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
   '/sites/$id': typeof AppSitesIdRoute
@@ -352,28 +273,19 @@ export interface FileRoutesByTo {
   '/chats': typeof AppChatsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/debug/components': typeof DebugComponentsIndexRoute
-  '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
-  '/debug/components/onboarding/login': typeof DebugComponentsOnboardingLoginRoute
-  '/debug/components/onboarding/providers': typeof DebugComponentsOnboardingProvidersRoute
-  '/debug/components/onboarding/theme': typeof DebugComponentsOnboardingThemeRoute
-  '/debug/components/onboarding': typeof DebugComponentsOnboardingIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_app': typeof AppRouteRouteWithChildren
   '/debug': typeof DebugRouteRouteWithChildren
-  '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/_app/browser': typeof AppBrowserRoute
   '/_app/files': typeof AppFilesRoute
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
   '/debug/billing': typeof DebugBillingRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
-  '/onboarding/providers': typeof OnboardingProvidersRoute
-  '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug/': typeof DebugIndexRoute
-  '/onboarding/': typeof OnboardingIndexRoute
   '/_app/apps/$slug': typeof AppAppsSlugRoute
   '/_app/chats/$id': typeof AppChatsIdRoute
   '/_app/sites/$id': typeof AppSitesIdRoute
@@ -386,7 +298,6 @@ export interface FileRoutesById {
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
   '/debug/components/model-notices': typeof DebugComponentsModelNoticesRoute
-  '/debug/components/onboarding': typeof DebugComponentsOnboardingRouteWithChildren
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
@@ -397,28 +308,19 @@ export interface FileRoutesById {
   '/_app/chats/': typeof AppChatsIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
   '/debug/components/': typeof DebugComponentsIndexRoute
-  '/debug/components/onboarding/complete': typeof DebugComponentsOnboardingCompleteRoute
-  '/debug/components/onboarding/login': typeof DebugComponentsOnboardingLoginRoute
-  '/debug/components/onboarding/providers': typeof DebugComponentsOnboardingProvidersRoute
-  '/debug/components/onboarding/theme': typeof DebugComponentsOnboardingThemeRoute
-  '/debug/components/onboarding/': typeof DebugComponentsOnboardingIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/debug'
-    | '/onboarding'
     | '/browser'
     | '/files'
     | '/new-tab'
     | '/release-notes'
     | '/debug/billing'
     | '/debug/components'
-    | '/onboarding/providers'
-    | '/onboarding/theme'
     | '/debug/'
-    | '/onboarding/'
     | '/apps/$slug'
     | '/chats/$id'
     | '/sites/$id'
@@ -431,7 +333,6 @@ export interface FileRouteTypes {
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
     | '/debug/components/model-notices'
-    | '/debug/components/onboarding'
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
@@ -442,11 +343,6 @@ export interface FileRouteTypes {
     | '/chats/'
     | '/tasks/'
     | '/debug/components/'
-    | '/debug/components/onboarding/complete'
-    | '/debug/components/onboarding/login'
-    | '/debug/components/onboarding/providers'
-    | '/debug/components/onboarding/theme'
-    | '/debug/components/onboarding/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -455,10 +351,7 @@ export interface FileRouteTypes {
     | '/new-tab'
     | '/release-notes'
     | '/debug/billing'
-    | '/onboarding/providers'
-    | '/onboarding/theme'
     | '/debug'
-    | '/onboarding'
     | '/apps/$slug'
     | '/chats/$id'
     | '/sites/$id'
@@ -481,27 +374,18 @@ export interface FileRouteTypes {
     | '/chats'
     | '/tasks'
     | '/debug/components'
-    | '/debug/components/onboarding/complete'
-    | '/debug/components/onboarding/login'
-    | '/debug/components/onboarding/providers'
-    | '/debug/components/onboarding/theme'
-    | '/debug/components/onboarding'
   id:
     | '__root__'
     | '/'
     | '/_app'
     | '/debug'
-    | '/onboarding'
     | '/_app/browser'
     | '/_app/files'
     | '/_app/new-tab'
     | '/_app/release-notes'
     | '/debug/billing'
     | '/debug/components'
-    | '/onboarding/providers'
-    | '/onboarding/theme'
     | '/debug/'
-    | '/onboarding/'
     | '/_app/apps/$slug'
     | '/_app/chats/$id'
     | '/_app/sites/$id'
@@ -514,7 +398,6 @@ export interface FileRouteTypes {
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
     | '/debug/components/model-notices'
-    | '/debug/components/onboarding'
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
@@ -525,18 +408,12 @@ export interface FileRouteTypes {
     | '/_app/chats/'
     | '/_app/tasks/'
     | '/debug/components/'
-    | '/debug/components/onboarding/complete'
-    | '/debug/components/onboarding/login'
-    | '/debug/components/onboarding/providers'
-    | '/debug/components/onboarding/theme'
-    | '/debug/components/onboarding/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRouteRoute: typeof AppRouteRouteWithChildren
   DebugRouteRoute: typeof DebugRouteRouteWithChildren
-  OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -560,13 +437,6 @@ declare module '@tanstack/react-router' {
       path: '/debug'
       fullPath: '/debug'
       preLoaderRoute: typeof DebugRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/browser': {
@@ -617,27 +487,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/debug/components'
       preLoaderRoute: typeof DebugComponentsRouteImport
       parentRoute: typeof DebugRouteRoute
-    }
-    '/onboarding/': {
-      id: '/onboarding/'
-      path: '/'
-      fullPath: '/onboarding/'
-      preLoaderRoute: typeof OnboardingIndexRouteImport
-      parentRoute: typeof OnboardingRouteRoute
-    }
-    '/onboarding/providers': {
-      id: '/onboarding/providers'
-      path: '/providers'
-      fullPath: '/onboarding/providers'
-      preLoaderRoute: typeof OnboardingProvidersRouteImport
-      parentRoute: typeof OnboardingRouteRoute
-    }
-    '/onboarding/theme': {
-      id: '/onboarding/theme'
-      path: '/theme'
-      fullPath: '/onboarding/theme'
-      preLoaderRoute: typeof OnboardingThemeRouteImport
-      parentRoute: typeof OnboardingRouteRoute
     }
     '/_app/apps/': {
       id: '/_app/apps/'
@@ -751,13 +600,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsModelNoticesRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
-    '/debug/components/onboarding': {
-      id: '/debug/components/onboarding'
-      path: '/onboarding'
-      fullPath: '/debug/components/onboarding'
-      preLoaderRoute: typeof DebugComponentsOnboardingRouteImport
-      parentRoute: typeof DebugComponentsRoute
-    }
     '/debug/components/provider-icons': {
       id: '/debug/components/provider-icons'
       path: '/provider-icons'
@@ -800,41 +642,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsTypographyRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
-    '/debug/components/onboarding/': {
-      id: '/debug/components/onboarding/'
-      path: '/'
-      fullPath: '/debug/components/onboarding/'
-      preLoaderRoute: typeof DebugComponentsOnboardingIndexRouteImport
-      parentRoute: typeof DebugComponentsOnboardingRoute
-    }
-    '/debug/components/onboarding/complete': {
-      id: '/debug/components/onboarding/complete'
-      path: '/complete'
-      fullPath: '/debug/components/onboarding/complete'
-      preLoaderRoute: typeof DebugComponentsOnboardingCompleteRouteImport
-      parentRoute: typeof DebugComponentsOnboardingRoute
-    }
-    '/debug/components/onboarding/login': {
-      id: '/debug/components/onboarding/login'
-      path: '/login'
-      fullPath: '/debug/components/onboarding/login'
-      preLoaderRoute: typeof DebugComponentsOnboardingLoginRouteImport
-      parentRoute: typeof DebugComponentsOnboardingRoute
-    }
-    '/debug/components/onboarding/providers': {
-      id: '/debug/components/onboarding/providers'
-      path: '/providers'
-      fullPath: '/debug/components/onboarding/providers'
-      preLoaderRoute: typeof DebugComponentsOnboardingProvidersRouteImport
-      parentRoute: typeof DebugComponentsOnboardingRoute
-    }
-    '/debug/components/onboarding/theme': {
-      id: '/debug/components/onboarding/theme'
-      path: '/theme'
-      fullPath: '/debug/components/onboarding/theme'
-      preLoaderRoute: typeof DebugComponentsOnboardingThemeRouteImport
-      parentRoute: typeof DebugComponentsOnboardingRoute
-    }
   }
 }
 
@@ -870,30 +677,6 @@ const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
   AppRouteRouteChildren,
 )
 
-interface DebugComponentsOnboardingRouteChildren {
-  DebugComponentsOnboardingCompleteRoute: typeof DebugComponentsOnboardingCompleteRoute
-  DebugComponentsOnboardingLoginRoute: typeof DebugComponentsOnboardingLoginRoute
-  DebugComponentsOnboardingProvidersRoute: typeof DebugComponentsOnboardingProvidersRoute
-  DebugComponentsOnboardingThemeRoute: typeof DebugComponentsOnboardingThemeRoute
-  DebugComponentsOnboardingIndexRoute: typeof DebugComponentsOnboardingIndexRoute
-}
-
-const DebugComponentsOnboardingRouteChildren: DebugComponentsOnboardingRouteChildren =
-  {
-    DebugComponentsOnboardingCompleteRoute:
-      DebugComponentsOnboardingCompleteRoute,
-    DebugComponentsOnboardingLoginRoute: DebugComponentsOnboardingLoginRoute,
-    DebugComponentsOnboardingProvidersRoute:
-      DebugComponentsOnboardingProvidersRoute,
-    DebugComponentsOnboardingThemeRoute: DebugComponentsOnboardingThemeRoute,
-    DebugComponentsOnboardingIndexRoute: DebugComponentsOnboardingIndexRoute,
-  }
-
-const DebugComponentsOnboardingRouteWithChildren =
-  DebugComponentsOnboardingRoute._addFileChildren(
-    DebugComponentsOnboardingRouteChildren,
-  )
-
 interface DebugComponentsRouteChildren {
   DebugComponentsAlertsRoute: typeof DebugComponentsAlertsRoute
   DebugComponentsAppIconsRoute: typeof DebugComponentsAppIconsRoute
@@ -903,7 +686,6 @@ interface DebugComponentsRouteChildren {
   DebugComponentsFileIconsRoute: typeof DebugComponentsFileIconsRoute
   DebugComponentsFormElementsRoute: typeof DebugComponentsFormElementsRoute
   DebugComponentsModelNoticesRoute: typeof DebugComponentsModelNoticesRoute
-  DebugComponentsOnboardingRoute: typeof DebugComponentsOnboardingRouteWithChildren
   DebugComponentsProviderIconsRoute: typeof DebugComponentsProviderIconsRoute
   DebugComponentsQuestionRoute: typeof DebugComponentsQuestionRoute
   DebugComponentsSpinnerRoute: typeof DebugComponentsSpinnerRoute
@@ -922,7 +704,6 @@ const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
   DebugComponentsFileIconsRoute: DebugComponentsFileIconsRoute,
   DebugComponentsFormElementsRoute: DebugComponentsFormElementsRoute,
   DebugComponentsModelNoticesRoute: DebugComponentsModelNoticesRoute,
-  DebugComponentsOnboardingRoute: DebugComponentsOnboardingRouteWithChildren,
   DebugComponentsProviderIconsRoute: DebugComponentsProviderIconsRoute,
   DebugComponentsQuestionRoute: DebugComponentsQuestionRoute,
   DebugComponentsSpinnerRoute: DebugComponentsSpinnerRoute,
@@ -952,27 +733,10 @@ const DebugRouteRouteWithChildren = DebugRouteRoute._addFileChildren(
   DebugRouteRouteChildren,
 )
 
-interface OnboardingRouteRouteChildren {
-  OnboardingProvidersRoute: typeof OnboardingProvidersRoute
-  OnboardingThemeRoute: typeof OnboardingThemeRoute
-  OnboardingIndexRoute: typeof OnboardingIndexRoute
-}
-
-const OnboardingRouteRouteChildren: OnboardingRouteRouteChildren = {
-  OnboardingProvidersRoute: OnboardingProvidersRoute,
-  OnboardingThemeRoute: OnboardingThemeRoute,
-  OnboardingIndexRoute: OnboardingIndexRoute,
-}
-
-const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
-  OnboardingRouteRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRouteRoute: AppRouteRouteWithChildren,
   DebugRouteRoute: DebugRouteRouteWithChildren,
-  OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

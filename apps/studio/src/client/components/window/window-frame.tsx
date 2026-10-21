@@ -1,4 +1,6 @@
 import { filePreviewAtom } from "@/client/atoms/file-preview";
+import { SetupHost } from "@/client/components/setup/setup-host";
+import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
 import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { Toaster } from "@/client/components/ui/sonner";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
@@ -42,6 +44,10 @@ export function WindowFrame({
   rowRef?: Ref<HTMLDivElement>;
 }) {
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
+  // Setup covers the window, so the app behind it takes no input, and what
+  // the app would put up over itself (a dialog, the file preview, a toast)
+  // waits rather than landing over setup.
+  const isSetupUp = useIsSetupUp();
   return (
     // The band across the top is the window's, so every menu, popover and
     // tooltip is held below it: on macOS the traffic lights are drawn over that
@@ -55,6 +61,7 @@ export function WindowFrame({
       <div
         className="relative flex h-full flex-col bg-ground"
         data-testid={bar ? "app-page" : undefined}
+        inert={isSetupUp}
       >
         {/* The bar is the window's own row and reserves the band the traffic
           lights are drawn in, so no column below has to leave a gap for them. */}
@@ -87,19 +94,26 @@ export function WindowFrame({
           the window's own foot and right edge rather than inside the card's
           margin, and a grown one is centered over the bar and the rail too. */}
         {overlay}
-        <StudioModals />
-        {isFilePreviewOpen && (
-          <Suspense fallback={null}>
-            <LazyFilePreviewModal />
-          </Suspense>
+        {!isSetupUp && (
+          <>
+            <StudioModals />
+            {isFilePreviewOpen && (
+              <Suspense fallback={null}>
+                <LazyFilePreviewModal />
+              </Suspense>
+            )}
+            {/* Bottom left, inside the card's corner past the rail, so the
+              rail stays in reach: clear of the drafts and the floating chat,
+              which dock at the bottom right. */}
+            <Toaster
+              {...(rail
+                ? { mobileOffset: CARD_CORNER, offset: CARD_CORNER }
+                : {})}
+            />
+          </>
         )}
-        {/* Bottom left, inside the card's corner past the rail, so the rail
-          stays in reach: clear of the drafts and the floating chat, which dock
-          at the bottom right. */}
-        <Toaster
-          {...(rail ? { mobileOffset: CARD_CORNER, offset: CARD_CORNER } : {})}
-        />
       </div>
+      <SetupHost />
     </ChromeInsetProvider>
   );
 }

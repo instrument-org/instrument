@@ -2,6 +2,7 @@ import {
   CAPTURE_EXCEPTION_CHANNEL,
   CODE_EDITOR_FOCUS_CHANNEL,
   RESOLVE_THEME_CHANNEL,
+  SETUP_STATE_CHANNEL,
   START_FILE_DRAG_CHANNEL,
 } from "@/shared/constants";
 import {
@@ -21,6 +22,7 @@ import {
   type DraftsSnapshot,
   type DraftStageRequest,
 } from "@/shared/drafts";
+import { type SetupState } from "@/shared/setup";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import os from "node:os";
@@ -93,6 +95,24 @@ function loadKeptState(): KeptSnapshot {
         : [],
     ),
   );
+}
+
+/**
+ * Where setup is as the window loads, read synchronously so a first launch
+ * draws setup in its first render instead of the inbox it covers a moment
+ * later. Null where the read fails, and the live state takes over.
+ */
+function loadSetupState(): null | SetupState {
+  try {
+    const value: unknown = ipcRenderer.sendSync(SETUP_STATE_CHANNEL);
+    if (value !== null && typeof value === "object" && "step" in value) {
+      // Main's own readSetupState, made for this window as it loads.
+      return value as SetupState;
+    }
+  } catch {
+    // Null, as below.
+  }
+  return null;
 }
 
 /**
@@ -200,6 +220,7 @@ const api: Window["api"] = {
   },
   getFilePath: (file: File) => webUtils.getPathForFile(file),
   homeDir: os.homedir(),
+  initialSetupState: loadSetupState(),
   keptState: {
     initial: loadKeptState(),
     onChange: (listener) => {

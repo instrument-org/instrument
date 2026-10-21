@@ -229,9 +229,8 @@ export function flushKeptState() {
 /**
  * Answers the windows: every file, synchronously, for a preload that is
  * loading; and each write, which goes to the other windows too so a window
- * already open keeps up (the onboarding window and the app window share the
- * zoom). A write names one of the kept files, never a path. Registered before
- * any window exists.
+ * already open keeps up. A write names one of the kept files, never a path.
+ * Registered before any window exists.
  */
 export function serveKeptState() {
   ipcMain.on(KEPT_STATE_CHANNEL.load, (event) => {

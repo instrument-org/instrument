@@ -51,7 +51,7 @@ import {
 
 /**
  * Moving a workspace to a folder the person picked, from Settings, the
- * onboarding folder step or the dev RPC. Never at boot on its own, and never
+ * setup folder step or the dev RPC. Never at boot on its own, and never
  * with anything open: the pick is recorded in the workspace's registry entry
  * (`requestWorkspaceMove`), the app restarts, and the next launch makes the
  * move before any store opens (`finishPendingMove`).

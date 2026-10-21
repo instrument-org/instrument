@@ -36,6 +36,8 @@ export function WindowControls() {
   }
 
   const isMaximized = data?.maximized ?? false;
+  // Setup holds the window at its own shape, so there is nothing to maximize.
+  const isMaximizable = data?.maximizable ?? true;
 
   return (
     <div className="flex h-full shrink-0 items-stretch [-webkit-app-region:no-drag]">
@@ -47,18 +49,20 @@ export function WindowControls() {
       >
         <MinusIcon className="size-3.5" />
       </WindowControlButton>
-      <WindowControlButton
-        label={isMaximized ? "Restore" : "Maximize"}
-        onClick={() => {
-          toggleMaximize(undefined);
-        }}
-      >
-        {isMaximized ? (
-          <CopyIcon className="size-3" />
-        ) : (
-          <SquareIcon className="size-3" />
-        )}
-      </WindowControlButton>
+      {isMaximizable && (
+        <WindowControlButton
+          label={isMaximized ? "Restore" : "Maximize"}
+          onClick={() => {
+            toggleMaximize(undefined);
+          }}
+        >
+          {isMaximized ? (
+            <CopyIcon className="size-3" />
+          ) : (
+            <SquareIcon className="size-3" />
+          )}
+        </WindowControlButton>
+      )}
       <WindowControlButton
         label="Close"
         onClick={() => {

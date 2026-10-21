@@ -10,12 +10,6 @@ import { simulateChromiumSandboxOff } from "@/electron-main/lib/chromium-sandbox
 import { noteUpdate } from "@/electron-main/lib/notices";
 import { simulateSandboxOff } from "@instrument-org/workspace/electron";
 import { openPathOnComputer } from "@/electron-main/lib/open-path";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
-import { openAppWindow } from "@/electron-main/windows/app-window";
-import {
-  closeOnboardingWindow,
-  openOnboardingWindow,
-} from "@/electron-main/windows/onboarding";
 import {
   DEV_INSTANCE_COLORS,
   isDevInstanceColor,
@@ -161,10 +155,6 @@ const trigger = {
     }),
 };
 
-const openOnboarding = devOnly.input(z.void()).handler(() => {
-  openOnboardingWindow();
-});
-
 /**
  * The remote debugging port this instance answers on. It is the only thing that
  * separates two instances of one checkout, which is what a hand-started window
@@ -252,18 +242,6 @@ async function openFolder(folderPath: string) {
   }
 }
 
-/**
- * Past onboarding with nothing set up, as though it had been finished: the
- * app window with no provider and no account is a state worth seeing too.
- */
-const skipOnboarding = devOnly.input(z.void()).handler(() => {
-  getWorkspaceState().set("hasCompletedProviderSetup", true);
-  // Opened before the onboarding window closes, which quits the app when it
-  // leaves no window behind.
-  openAppWindow();
-  closeOnboardingWindow();
-});
-
 const openUserDataFolder = devOnly.input(z.void()).handler(() => {
   return openFolder(app.getPath("userData"));
 });
@@ -287,11 +265,9 @@ const setQuitGuardForced = devOnly
 export const debug = {
   getAppEnvironment,
   getQuitGuardForced,
-  openOnboarding,
   openUserDataFolder,
   openWorkspaceFolder,
   setQuitGuardForced,
-  skipOnboarding,
   systemInfo,
   trigger,
 };

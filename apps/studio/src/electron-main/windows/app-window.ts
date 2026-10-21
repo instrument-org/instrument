@@ -11,21 +11,28 @@ import {
 } from "@/electron-main/lib/quit";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { systemRegionArguments } from "@/electron-main/lib/system-country";
+import { isSetupUp, readSetupState } from "@/electron-main/lib/setup-state";
 import { studioURL } from "@/electron-main/lib/urls";
 import { bindAppWindowChords } from "@/electron-main/menus/app-window";
 import { bindShortcutAccelerators } from "@/electron-main/menus/shortcuts";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import {
   getAppZoom,
   getWindowState,
 } from "@/electron-main/stores/workspace/window-state";
-import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
 import {
   isDrivenInstance,
   isHeldOffScreen,
   putOnScreen,
 } from "@/electron-main/windows/on-screen";
+import {
+  type AppWindowAsk,
+  createAppWindowAsks,
+} from "@/electron-main/windows/app-window-asks";
+import {
+  opensSetupSized,
+  setupBounds,
+} from "@/electron-main/windows/setup-size";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
@@ -41,42 +48,27 @@ const WINDOW_HEIGHT = 840;
 let appWindow: BrowserWindow | null = null;
 
 /**
- * What something outside the window asks it to put up: a screen by its
- * route, from a link, or a file handed to the app, which the window places
- * itself.
+ * Whether the window is at setup's own shape, fixed, which is never saved as
+ * where the window was left. Set as it opens, and cleared once setup is done.
  */
-export type AppWindowAsk =
-  | { hostPath: string; type: "openFile" }
-  | { href: string; type: "openScreen" };
+let isSetupSized = false;
 
 /**
- * Asks made before the window's page was there to take them, in order:
- * several files handed over at once arrive one by one while the window is
- * still opening. The window's command stream starts empty at subscribe time,
- * so a command published while the renderer is still loading is lost; the
- * layout asks for these once it is up instead.
+ * Asks from outside, in order: several files handed over at once arrive one
+ * by one while the window is still opening. The window's command stream
+ * starts empty at subscribe time, so a command published while the renderer
+ * is still loading is lost; the layout asks for these once it is up instead.
+ * While setup is up they wait for it, and go to the window when it is done.
  */
-let pendingAsks: AppWindowAsk[] = [];
-
-/**
- * Whether the window's page has taken what waited for it, and so is listening
- * for asks as they come. A window that exists is not enough: its page may
- * still be loading, or reloading.
- */
-let isTakingAsks = false;
-
-/**
- * Whether the window is open but held off screen, loading behind onboarding so
- * it is ready the moment onboarding is done. Asks wait for it to come on
- * screen rather than going to a page nobody can see.
- */
-let isWarming = false;
-
-/** Settles once the window has painted, and so can go on screen. */
-let painted: Promise<void> = Promise.resolve();
-
-/** Whether the window comes on screen maximized, as it was last left. */
-let showsMaximized = false;
+const asks = createAppWindowAsks({
+  changed: () => {
+    publisher.publish("window.asks-waiting", null);
+  },
+  deliver: (ask) => {
+    publisher.publish("window.command", ask);
+  },
+  isHeld: isSetupUp,
+});
 
 export function getAppWindow(): BrowserWindow | null {
   return appWindow && !appWindow.isDestroyed() ? appWindow : null;
@@ -114,34 +106,23 @@ export function openAppScreen(href: string) {
 /**
  * The app window: the inbox of chats, the tasks they started, and the tabs
  * the user and the agents open. Its renderer hosts every task's browser guest.
- *
- * `hidden` opens it off screen to warm behind onboarding
- * ({@link warmAppWindowBehind}); opening it again without puts it on screen.
- * `onShow` runs once the window is on screen, for a window it replaces. Not
- * the window's own `show` event, which macOS ties to occlusion and does not
- * send while the display sleeps.
  */
-export function openAppWindow({
-  hidden = false,
-  onShow,
-}: { hidden?: boolean; onShow?: () => void } = {}): BrowserWindow {
+export function openAppWindow(): BrowserWindow {
   if (appWindow && !appWindow.isDestroyed()) {
-    if (isWarming && !hidden) {
-      revealAppWindow(onShow);
-    } else if (!isWarming) {
-      if (!isHeldOffScreen(appWindow)) {
-        appWindow.focus();
-      }
-      onShow?.();
+    if (!isHeldOffScreen(appWindow)) {
+      appWindow.focus();
     }
     return appWindow;
   }
 
+  watchSetup();
   const remembered = rememberedAppWindowState();
-  showsMaximized = remembered.isMaximized;
+  // Someone new meets setup in a window its own size; someone shown one new
+  // step after an update keeps the window as they left it.
+  isSetupSized = opensSetupSized(readSetupState());
 
   appWindow = new BrowserWindow({
-    ...remembered.bounds,
+    ...(isSetupSized ? setupBounds() : remembered.bounds),
     backgroundColor: getBackgroundColor(),
     // On macOS the native NSWindow frame is kept, since `hiddenInset` already
     // gives the chromeless look and a frameless window cannot host modal
@@ -149,8 +130,11 @@ export function openAppWindow({
     // window's own bar, so it goes and the renderer draws the window controls
     // (see WindowControls).
     frame: process.platform === "darwin",
+    fullscreenable: !isSetupSized,
+    maximizable: !isSetupSized,
     minHeight: 520,
     minWidth: 900,
+    resizable: !isSetupSized,
     show: false,
     title: "Instrument",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
@@ -168,7 +152,9 @@ export function openAppWindow({
     },
   });
 
-  const tracked = trackWindowBounds(appWindow, "app");
+  const tracked = trackWindowBounds(appWindow, "app", {
+    isHeld: () => isSetupSized,
+  });
   // Every way this window changes shape. `will-resize` and `move` are here
   // because macOS does not report a resize the user did not drive (a tiling
   // manager) and Linux does not reliably report maximize on its own.
@@ -199,13 +185,13 @@ export function openAppWindow({
   setTrafficLightForZoom(appWindow, getAppZoom());
 
   const window = appWindow;
-  painted = new Promise((resolve) => {
-    showWhenReady(window, resolve);
+  showWhenReady(window, () => {
+    if (!window.isDestroyed()) {
+      putOnScreen(window, {
+        maximized: !isSetupSized && remembered.isMaximized,
+      });
+    }
   });
-  isWarming = hidden;
-  if (!hidden) {
-    revealAppWindow(onShow);
-  }
 
   // Where closing the last window the user can see quits the app, the
   // running-work warning has to happen here, while the window still exists.
@@ -233,17 +219,18 @@ export function openAppWindow({
     "did-start-navigation",
     ({ isMainFrame, isSameDocument }) => {
       if (isMainFrame && !isSameDocument) {
-        isTakingAsks = false;
+        asks.stopTaking();
       }
     },
   );
   appWindow.webContents.on("render-process-gone", () => {
-    isTakingAsks = false;
+    asks.stopTaking();
   });
 
   appWindow.on("closed", () => {
     appWindow = null;
-    isTakingAsks = false;
+    isSetupSized = false;
+    asks.stopTaking();
     publisher.publish("window.focus-changed", null);
     // The window is already out of the list by now, so nothing to exclude.
     if (quitsWithLastWindow && !hasVisibleWindowOtherThan(null)) {
@@ -306,48 +293,8 @@ export function openAppWindow({
   return appWindow;
 }
 
-/**
- * Opens the app window off screen once onboarding has painted, so it loads
- * while the person goes through onboarding instead of after it, and is ready
- * to take onboarding's place the moment they finish. After onboarding's own
- * first paint, so the two pages do not compete for it. Onboarding closed
- * without finishing takes the waiting window with it, which is then the last
- * window and quits the app.
- */
-export function warmAppWindowBehind(onboarding: BrowserWindow) {
-  onboarding.webContents.once("did-finish-load", () => {
-    if (!onboarding.isDestroyed() && !getAppWindow()) {
-      openAppWindow({ hidden: true });
-    }
-  });
-  onboarding.once("closed", () => {
-    if (isWarming) {
-      appWindow?.destroy();
-    }
-  });
-}
-
-/** Puts the window on screen once it has painted, with what waited for it. */
-function revealAppWindow(onShow?: () => void) {
-  isWarming = false;
-  void painted.then(() => {
-    const window = getAppWindow();
-    if (!window) {
-      return;
-    }
-    putOnScreen(window, { maximized: showsMaximized });
-    onShow?.();
-    // What was asked while it waited off screen, for a page already listening.
-    if (isTakingAsks) {
-      for (const ask of takePendingAppWindowAsks()) {
-        publisher.publish("window.command", ask);
-      }
-    }
-  });
-}
-
 /** Where the app window opens: where it was left, or its first-time shape. */
-export function rememberedAppWindowState() {
+function rememberedAppWindowState() {
   return getWindowState("app", {
     height: WINDOW_HEIGHT,
     width: WINDOW_WIDTH,
@@ -355,24 +302,58 @@ export function rememberedAppWindowState() {
 }
 
 /**
- * What waits for the window without taking it: what onboarding names, so
- * the person knows it opens once they are through.
+ * What waits for the window without taking it: what setup names, so the
+ * person knows it opens once they are through.
  */
 export function waitingAppWindowAsks(): readonly AppWindowAsk[] {
-  return pendingAsks;
+  return asks.waiting;
 }
 
-/** What was asked of the window while it was opening, once, then nothing. */
+/**
+ * What was asked of the window while it was opening, once, then nothing.
+ * Nothing while setup is up: what waits goes to the window when it is done.
+ */
 export function takePendingAppWindowAsks(): AppWindowAsk[] {
-  isTakingAsks = true;
-  // A page warming off screen is listening, but what waits is for the window
-  // the person sees; it is handed over when the window comes on screen.
-  if (isWarming) {
-    return [];
+  return asks.take();
+}
+
+let isWatchingSetup = false;
+
+/**
+ * Follows setup going down: the window takes the remembered shape back, and
+ * gets what was asked of it meanwhile.
+ */
+function watchSetup() {
+  if (isWatchingSetup) {
+    return;
   }
-  const asks = pendingAsks;
-  pendingAsks = [];
-  return asks;
+  isWatchingSetup = true;
+  void publisher.subscribe("setup.updated", () => {
+    if (isSetupUp()) {
+      return;
+    }
+    leaveSetupSize();
+    asks.release();
+  });
+}
+
+/** Back to the window's remembered bounds, resizable again, at once. */
+function leaveSetupSize() {
+  const window = getAppWindow();
+  if (!window || !isSetupSized) {
+    return;
+  }
+  isSetupSized = false;
+  window.setResizable(true);
+  window.setMaximizable(true);
+  window.setFullScreenable(true);
+  const { bounds, isMaximized } = rememberedAppWindowState();
+  window.setBounds(bounds);
+  if (isMaximized) {
+    window.maximize();
+  }
+  // The window's own maximize control comes back with it.
+  publisher.publish("window.state-changed", null);
 }
 
 export function updateAppWindowBackgroundColor() {
@@ -383,28 +364,17 @@ export function updateAppWindowBackgroundColor() {
 
 function askAppWindow(ask: AppWindowAsk) {
   const window = getAppWindow();
-  if (window && !isWarming) {
+  if (window) {
     if (!isHeldOffScreen(window)) {
       window.focus();
     }
-    if (isTakingAsks) {
-      publisher.publish("window.command", ask);
-    } else {
-      pendingAsks.push(ask);
-    }
+    asks.ask(ask);
     return;
   }
-  pendingAsks.push(ask);
-  publisher.publish("window.asks-waiting", null);
+  asks.ask(ask);
   // An ask that launched the app arrives before it is ready to make a window;
-  // boot opens this one itself, and the ask waits for it. So does one made
-  // before onboarding is finished, including its steps after the provider is
-  // set up: finishing it opens this window, which then takes it.
-  if (
-    app.isReady() &&
-    getWorkspaceState().get("hasCompletedProviderSetup") &&
-    !getOnboardingWindow()
-  ) {
+  // boot opens this one itself, and the ask waits for it.
+  if (app.isReady()) {
     openAppWindow();
   }
 }

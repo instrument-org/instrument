@@ -32,6 +32,19 @@ function notificationLook(): NotificationLook {
 }
 
 /**
+ * The screen's edge around each look's notification, as Figma's frame 10
+ * draws the Mac's: the corner the notification shows up in, its rounded
+ * outline fading out away from it. GNOME's shows up at the top's middle, so
+ * there the top edge fades out to both sides.
+ */
+const SCREEN_EDGE: Record<NotificationLook, string> = {
+  gnome:
+    "[mask-image:radial-gradient(ellipse_55%_110%_at_50%_0%,black_35%,transparent_95%)]",
+  mac: "[mask-image:linear-gradient(17deg,transparent_49%,black_97%)]",
+  windows: "[mask-image:linear-gradient(163deg,transparent_49%,black_97%)]",
+};
+
+/**
  * Frame 10's picture: a notification the way this computer's system draws
  * one, in the corner of the screen it shows up in. Only the words and the
  * icon are ours in the real one; the rest follows the system.
@@ -43,13 +56,15 @@ export function SampleNotification() {
       className="relative h-41 w-117.5 overflow-hidden"
       data-notification-look={look}
     >
-      <div
-        className={
-          look === "windows"
-            ? "absolute inset-x-0 bottom-0 h-49 rounded-[20px] border border-gray-400 mask-t-from-40% mask-t-to-100% opacity-75"
-            : "absolute inset-x-0 top-0 h-49 rounded-[20px] border border-gray-400 mask-b-from-40% mask-b-to-100% opacity-75"
-        }
-      />
+      <div className={`absolute inset-0 opacity-75 ${SCREEN_EDGE[look]}`}>
+        <div
+          className={
+            look === "windows"
+              ? "absolute inset-x-0 bottom-0 h-49 rounded-[20px] border border-gray-400"
+              : "absolute inset-x-0 top-0 h-49 rounded-[20px] border border-gray-400"
+          }
+        />
+      </div>
       {look === "mac" && <MacBanner />}
       {look === "windows" && <WindowsToast />}
       {look === "gnome" && <GnomeBanner />}

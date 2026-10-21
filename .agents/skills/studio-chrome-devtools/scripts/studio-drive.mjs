@@ -581,6 +581,8 @@ function prepareScenario(name, { keepTabs }) {
   // Where finished work goes. `documents` stands in for the folder in
   // Documents an earlier build sent it to, inside the scenario's own
   // folder: a development build never looks in the real one.
+  // A Mac always has Documents, so the stand-in home has one too.
+  mkdirSync(path.join(`${userDataDir}-home`, "Documents"), { recursive: true });
   let outputDir = `${userDataDir}-output`;
   if (scenario.outputFolder === "documents") {
     outputDir = path.join(`${userDataDir}-home`, "Documents", "Instrument");

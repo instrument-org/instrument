@@ -19,26 +19,18 @@ import {
   OZONE_PLATFORMS,
   resolveOzonePlatform,
 } from "./lib/ozone-platform";
-import {
-  migrateMachineSettings,
-  migrateWorkspaceSettings,
-} from "./lib/settings-migration";
 import { registerAppStoredPaths } from "./lib/app-stored-paths";
-import { cleanUpMachineData } from "./lib/machine-cleanups";
-import { moveMachineData } from "./lib/machine-data-migration";
+import {
+  resolveLaunchWorkspace,
+  settleMachineFolders,
+} from "./lib/open-workspace";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
-import { settleWorkFolders } from "./lib/work-folders";
-import { finishPendingMove } from "./lib/workspace-move";
 import { settlePlatformApiServer } from "./platform-api/base-url";
 import { getMachinePreferences } from "./stores/machine/preferences";
-import {
-  inspectWorkspaceFolder,
-  setWorkspaceRefusal,
-} from "./lib/workspace-refusal";
+import { setWorkspaceRefusal } from "./lib/workspace-refusal";
 import {
   markWorkspaceOpen,
   releaseOpenMark,
-  resolveWorkspace,
   setResolvedWorkspace,
 } from "./lib/workspaces";
 
@@ -129,47 +121,15 @@ function openWorkspace() {
   // registered here.
   registerAppStoredPaths();
   const userDataDir = getUserDataDir();
-  const resolved = resolveWorkspace({
+  const { refusal, workspace } = resolveLaunchWorkspace({
+    log: logger,
+    packaged: app.isPackaged,
     pin: process.env.INSTRUMENT_WORKSPACE,
     userDataDir,
   });
-  for (const problem of resolved.problems) {
-    logger.warn(problem);
-  }
-  const { done: moveSteps, workspace } = finishPendingMove({
-    userDataDir,
-    workspace: resolved.workspace,
-  });
-  for (const step of moveSteps) {
-    logger.info(`Workspace move: ${step}`);
-  }
-  logger.info(
-    `Workspace ${workspace.id}${workspace.pinned ? " (pinned)" : ""}: ${workspace.path}`,
-  );
-  // A folder made by a newer build, one that cannot be read, or one in a
-  // place no workspace can be is not opened: the boot says so in a window of
-  // its own and starts nothing else.
-  const refusal = inspectWorkspaceFolder({ userDataDir, workspace });
   if (refusal) {
-    logger.warn(
-      refusal.kind === "newer"
-        ? `Not opening ${workspace.path}: a newer build made it`
-        : refusal.kind === "misplaced"
-          ? `Not opening ${workspace.path}: no workspace can be there (${refusal.reason})`
-          : `Not opening ${workspace.path}: it is ${refusal.why === "denied" ? "not readable" : "missing"}`,
-    );
     setWorkspaceRefusal(refusal);
     return;
-  }
-  for (const step of [
-    ...migrateMachineSettings(userDataDir),
-    ...migrateWorkspaceSettings({
-      packaged: app.isPackaged,
-      userDataDir,
-      workspace,
-    }),
-  ]) {
-    logger.info(`Settings migration: ${step}`);
   }
   // After the machine settings migration, which writes the store this reads,
   // and before anything asks the platform API: the server stays the same for
@@ -184,40 +144,14 @@ function openWorkspace() {
       : getMachinePreferences().get("platformApiServer"),
   );
 
-  // After the settings migration, which brings what predates workspaces into
-  // the folder this takes it from.
-  const moved = moveMachineData({ userDataDir, workspace });
-  for (const step of moved.done) {
-    logger.info(`Machine data: ${step}`);
-  }
-  for (const step of cleanUpMachineData({
-    machineDir: moved.machineDir,
-    userDataDir,
-    workspace,
-  })) {
-    logger.info(`Machine cleanup: ${step}`);
-  }
-  // After the cleanups, and before any store opens: the paths it moves are
-  // written into the window's and the browser's stores (`registerAppStoredPaths`).
-  const work = settleWorkFolders({
-    machineDir: moved.machineDir,
-    userDataDir,
-    workspace,
-  });
-  for (const step of work.done) {
-    logger.info(`Work folders: ${step}`);
-  }
-  setResolvedWorkspace({
-    ...workspace,
-    machineDir: moved.machineDir,
-    workFoldersDir: work.workFoldersDir,
-  });
+  const opened = settleMachineFolders({ log: logger, userDataDir, workspace });
+  setResolvedWorkspace(opened);
 
-  markWorkspaceOpen(moved.machineDir);
+  markWorkspaceOpen(opened.machineDir);
   // On process exit rather than `will-quit`: the quit teardown ends in
   // `app.exit`, which skips `will-quit`.
   process.on("exit", () => {
-    releaseOpenMark(moved.machineDir);
+    releaseOpenMark(opened.machineDir);
   });
 }
 

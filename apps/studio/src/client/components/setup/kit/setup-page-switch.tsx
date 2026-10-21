@@ -1,10 +1,16 @@
 import {
   AnimatePresence,
   useIsPresent,
+  usePresence,
   usePresenceData,
-  type Variants,
 } from "motion/react";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
 /** Which way setup last moved: on to a later page, or Back to an earlier one. */
 type Direction = "back" | "forward";
@@ -20,44 +26,28 @@ const PageMotionContext = createContext<null | {
 }>(null);
 
 /**
- * How the body of the page being drawn comes in: whether it slides in or
- * is there from the start, and from which side. The way it leaves comes
- * from the switch, which knows where setup went next.
+ * How the body of the page being drawn moves right now, as its
+ * `data-page-motion`: in or out, by the way setup went, or nothing once it
+ * is still. The styles (`globals.css`) slide it a short way and fade it,
+ * on the compositor alone; with reduced motion they only fade it. The first
+ * page shows where it is rather than sliding in.
  */
-export function usePageArrival(): { arrives: boolean; direction: Direction } {
+export type PageMotion = `${"in" | "out"}-${Direction}`;
+
+export function usePageMotion(): PageMotion | undefined {
   const motion = useContext(PageMotionContext);
-  return {
-    arrives: motion?.arrived ?? false,
-    direction: motion?.direction ?? "forward",
-  };
+  const isPresent = useIsPresent();
+  // A page leaving reads the way setup went next, which the switch hands
+  // its leaving pages; its own context is from when it was shown.
+  const leaving = usePresenceData() as Direction | undefined;
+  if (!isPresent) {
+    return `out-${leaving ?? motion?.direction ?? "forward"}`;
+  }
+  return motion?.arrived ? `in-${motion.direction}` : undefined;
 }
 
-const SLIDE = { duration: 0.25, ease: [0.32, 0.72, 0, 1] } as const;
-const FADE = { duration: 0.15, ease: "easeOut" } as const;
-
-/**
- * How a page's body comes and goes, by the direction setup moved: a later
- * page pushes in from the right and the one before leaves to the left, the
- * other way round for Back. With reduced motion, a quick fade.
- */
-export function pageVariants(isReduced: boolean): Variants {
-  return isReduced
-    ? {
-        center: { opacity: 1, transition: FADE },
-        enter: { opacity: 0 },
-        exit: { opacity: 0, transition: FADE },
-      }
-    : {
-        center: { transition: SLIDE, x: 0 },
-        enter: (direction: Direction) => ({
-          x: direction === "back" ? "-100%" : "100%",
-        }),
-        exit: (direction: Direction) => ({
-          transition: SLIDE,
-          x: direction === "back" ? "100%" : "-100%",
-        }),
-      };
-}
+/** Longest a leaving page waits for its body's slide before it goes anyway. */
+const EXIT_MOST_MS = 400;
 
 /**
  * Switches between setup's pages, sliding each page's body in and the one
@@ -131,11 +121,22 @@ export function SetupPageSwitch({
 
 /**
  * One page, filling the switch so the page leaving and the one coming lie
- * over each other. The leaving one's footer hides at once and it takes no
- * clicks, so only its body is seen going.
+ * over each other in one layer, with nothing between them to reflow. The
+ * leaving one's footer hides at once and it takes no clicks, so only its
+ * body is seen going; it goes once its body's slide ends.
  */
 function PageFrame({ children }: { children: ReactNode }) {
-  const isPresent = useIsPresent();
+  const [isPresent, safeToRemove] = usePresence();
+  useEffect(() => {
+    if (isPresent) {
+      return;
+    }
+    // A page with no body to slide (or a slide that never ran) still goes.
+    const timer = window.setTimeout(safeToRemove, EXIT_MOST_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isPresent, safeToRemove]);
   return (
     <div
       className={
@@ -144,6 +145,11 @@ function PageFrame({ children }: { children: ReactNode }) {
           : "pointer-events-none absolute inset-0 flex flex-col [&_[data-setup-footer]]:invisible"
       }
       inert={!isPresent}
+      onAnimationEnd={(event) => {
+        if (!isPresent && event.animationName.startsWith("setup-page-out")) {
+          safeToRemove();
+        }
+      }}
     >
       {children}
     </div>

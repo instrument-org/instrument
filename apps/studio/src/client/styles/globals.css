@@ -1786,6 +1786,89 @@ a.cursor-pointer {
   }
 }
 
+/* Setup's pages (`SetupPageSwitch`): the body of a later page slides in a
+ * short way from the right as it fades in, while the one before slides a
+ * short way left as it fades out, the other way round for Back. Only
+ * transform and opacity move, so the compositor runs it whatever the main
+ * thread is doing, and the body has its own layer only while it moves. With
+ * reduced motion the pages only cross-fade. */
+[data-page-motion] {
+  will-change: transform, opacity;
+  animation-duration: 200ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-page-motion^="out"] {
+  animation-duration: 160ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
+[data-page-motion="in-forward"] {
+  animation-name: setup-page-in-forward;
+}
+
+[data-page-motion="in-back"] {
+  animation-name: setup-page-in-back;
+}
+
+[data-page-motion="out-forward"] {
+  animation-name: setup-page-out-forward;
+}
+
+[data-page-motion="out-back"] {
+  animation-name: setup-page-out-back;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-page-motion^="in"] {
+    animation-name: setup-page-in-fade;
+  }
+  [data-page-motion^="out"] {
+    animation-name: setup-page-out-fade;
+  }
+}
+
+@keyframes setup-page-in-forward {
+  from {
+    opacity: 0;
+    transform: translate3d(32px, 0, 0);
+  }
+}
+
+@keyframes setup-page-in-back {
+  from {
+    opacity: 0;
+    transform: translate3d(-32px, 0, 0);
+  }
+}
+
+@keyframes setup-page-out-forward {
+  to {
+    opacity: 0;
+    transform: translate3d(-32px, 0, 0);
+  }
+}
+
+@keyframes setup-page-out-back {
+  to {
+    opacity: 0;
+    transform: translate3d(32px, 0, 0);
+  }
+}
+
+@keyframes setup-page-in-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes setup-page-out-fade {
+  to {
+    opacity: 0;
+  }
+}
+
 /* All set's words fading and rising in as the page arrives, once; with
  * reduced motion they are there from the start. */
 @utility setup-rise-in {

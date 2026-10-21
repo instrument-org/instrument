@@ -33,15 +33,18 @@ function notificationLook(): NotificationLook {
 
 /**
  * The screen's edge around each look's notification, as Figma's frame 10
- * draws the Mac's: the corner the notification shows up in, its rounded
- * outline fading out away from it. GNOME's shows up at the top's middle, so
- * there the top edge fades out to both sides.
+ * draws the Mac's: a small piece of the screen at the corner the
+ * notification shows up in, its outline fading out away from it before any
+ * other corner rounds. Each crosses two masks (`intersect`): the Mac's top
+ * right and Windows' bottom right fade on the diagonal and out to the left;
+ * GNOME's top middle fades out to both sides and down.
  */
 const SCREEN_EDGE: Record<NotificationLook, string> = {
   gnome:
-    "[mask-image:radial-gradient(ellipse_55%_110%_at_50%_0%,black_35%,transparent_95%)]",
-  mac: "[mask-image:linear-gradient(17deg,transparent_49%,black_97%)]",
-  windows: "[mask-image:linear-gradient(163deg,transparent_49%,black_97%)]",
+    "[mask-composite:intersect] [mask-image:linear-gradient(90deg,transparent_10%,black_38%,black_62%,transparent_90%),linear-gradient(180deg,black_20%,transparent_75%)]",
+  mac: "[mask-composite:intersect] [mask-image:linear-gradient(17deg,transparent_49%,black_97%),linear-gradient(90deg,transparent_12%,black_45%)]",
+  windows:
+    "[mask-composite:intersect] [mask-image:linear-gradient(163deg,transparent_49%,black_97%),linear-gradient(90deg,transparent_12%,black_45%)]",
 };
 
 /**

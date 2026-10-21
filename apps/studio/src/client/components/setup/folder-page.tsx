@@ -1,6 +1,6 @@
 import { REFUSALS } from "@/client/components/settings/storage-section";
 import { Spinner } from "@/client/components/ui/spinner";
-import { folderOf, nameOf } from "@/client/components/window/host-path";
+import { folderOf } from "@/client/components/window/host-path";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -12,24 +12,22 @@ import { FolderLocation, FolderNote } from "./kit/folder-row";
 import { SetupFooter, SetupPage } from "./kit/setup-page";
 import { SetupPageSwitch } from "./kit/setup-page-switch";
 import { PackedFolder } from "./folder-illustration";
-import { count, folderAction } from "./folder-flow";
+import { count, folderAction, type FoundNote, foundNote } from "./folder-flow";
 import { type SetupPageProps } from "./setup-page-props";
 import { useSetupState } from "./use-setup-state";
 
 /** A note under the folder, for the folder it was found in. */
-type Note =
-  | { chats: number; kind: "earlier" }
-  | { items: number; kind: "exists"; moving: number }
-  | { kind: "denied" }
-  | { kind: "unfinished" };
+type Note = FoundNote | { kind: "denied" } | { kind: "unfinished" };
 
 /**
  * Where the Instrument folder lives (frames 05 to 09). Documents is
- * suggested, and nothing touches it until Continue, which is when a Mac that
- * guards Documents asks. A refusal falls back to the home folder with a note
+ * suggested, and nothing is made there until Continue, which is when a Mac
+ * that guards Documents asks. A refusal falls back to the home folder with a note
  * and Fix; a folder with things in it, or one that is already an Instrument
- * folder, says so before the next Continue goes on. Moving restarts the app,
- * so the page says that first and holds the step on screen meanwhile.
+ * folder, says so as soon as it is on screen, and Continue goes on past it.
+ * Moving the folder, or opening one that is already an Instrument folder,
+ * restarts the app, so the page says that first and holds the step on screen
+ * meanwhile.
  */
 export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   const { data: folder } = useQuery(rpcClient.workspaces.folder.queryOptions());
@@ -37,7 +35,8 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   const [picked, setPicked] = useState<null | string>(null);
   const [note, setNote] = useState<Note | null>(null);
   const [busy, setBusy] = useState(false);
-  const [moving, setMoving] = useState(false);
+  // What Continue is doing to the folder while the app restarts for it.
+  const [moving, setMoving] = useState<"move" | "open" | null>(null);
 
   // The folder on screen: the one picked, or the one in Documents setup
   // suggests, once the current folder has loaded.
@@ -49,6 +48,36 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
       input: target === undefined ? skipToken : { path: target },
     }),
   );
+  // What is in it already, so an Instrument folder with chats, or a folder
+  // with things in it, is said as soon as it is on screen. Read only from a
+  // folder that is there, so a folder still to be made reads nothing.
+  const { data: targetSummary } = useQuery(
+    rpcClient.workspaces.summary.queryOptions({
+      input:
+        target !== undefined &&
+        (targetCheck?.kind === "workspace" || targetCheck?.kind === "movable")
+          ? { path: target }
+          : skipToken,
+    }),
+  );
+  // The chats a move would bring along, for a folder with things in it.
+  const { data: currentSummary } = useQuery(
+    rpcClient.workspaces.summary.queryOptions({
+      input: usedBefore && folder ? { path: folder.path } : skipToken,
+    }),
+  );
+  const found =
+    targetCheck && targetSummary !== undefined
+      ? foundNote(
+          folderAction({
+            seen: null,
+            summary: targetSummary,
+            verdict: targetCheck,
+          }),
+          currentSummary?.chats ?? 0,
+        )
+      : null;
+  const shown = note ?? found;
 
   const pick = (path: string) => {
     setPicked(path);
@@ -62,7 +91,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
     how: { create: boolean; type: "move" } | { type: "open" },
   ) => {
     hold();
-    setMoving(true);
+    setMoving(how.type);
     try {
       if (how.type === "open") {
         const opened = await rpcClient.workspaces.open.call({ path });
@@ -85,12 +114,12 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
         }
         if (moved.kind === "refused") {
           if (moved.reason === "unfinished") {
-            setMoving(false);
+            setMoving(null);
             setNote({ kind: "unfinished" });
             return;
           }
           if (moved.reason === "unwritable" && path === current.inDocuments) {
-            setMoving(false);
+            setMoving(null);
             setPicked(current.inHome);
             setNote({ kind: "denied" });
             return;
@@ -103,7 +132,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
     } catch (error) {
       toast.error(`${APP_NAME} couldn’t move your folder`, { cause: error });
     }
-    setMoving(false);
+    setMoving(null);
   };
 
   const proceed = async () => {
@@ -118,8 +147,8 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
       ]);
       const action = folderAction({
         seen:
-          note?.kind === "earlier" || note?.kind === "exists"
-            ? note.kind
+          shown?.kind === "earlier" || shown?.kind === "exists"
+            ? shown.kind
             : null,
         summary,
         verdict,
@@ -199,9 +228,12 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
 
   const warning = targetCheck?.warning;
   return (
-    <SetupPageSwitch depth={moving ? 1 : 0} page={moving ? "moving" : "folder"}>
-      {moving ? (
-        <MovingPage usedBefore={usedBefore} />
+    <SetupPageSwitch
+      depth={moving === null ? 0 : 1}
+      page={moving === null ? "folder" : "moving"}
+    >
+      {moving !== null ? (
+        <MovingPage how={moving} usedBefore={usedBefore} />
       ) : (
         <SetupPage
           footer={
@@ -229,7 +261,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
               }
               path={target}
             >
-              {note?.kind === "denied" && (
+              {shown?.kind === "denied" && (
                 <FolderNote
                   action={{
                     label: "Fix",
@@ -243,25 +275,25 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
                   title={`${APP_NAME} was denied access to your Documents folder.`}
                 />
               )}
-              {note?.kind === "exists" && (
+              {shown?.kind === "exists" && (
                 <FolderNote
                   action={{ label: "Show folder", onClick: showFolder }}
                   line={
-                    note.moving > 0
-                      ? `It has ${count(note.items, "item")}. We'll move your ${count(note.moving, "chat")} in beside them.`
-                      : `It has ${count(note.items, "item")}. We'll keep everything in it and add your chats and files alongside.`
+                    shown.moving > 0
+                      ? `We'll keep them and move your ${count(shown.moving, "chat")} in beside them.`
+                      : "We'll keep them and add your chats and files beside them."
                   }
-                  title={`There's already a folder called ${nameOf(target ?? "")} here.`}
+                  title={`This folder already has ${count(shown.items, "item")}.`}
                 />
               )}
-              {note?.kind === "earlier" && (
+              {shown?.kind === "earlier" && (
                 <FolderNote
                   action={{ label: "Show folder", onClick: showFolder }}
                   line="We'll open them, so you can pick up where you left off."
-                  title={`This folder already has ${count(note.chats, "chat")} from ${APP_NAME}.`}
+                  title={`This folder has ${count(shown.chats, "chat")} from ${APP_NAME}.`}
                 />
               )}
-              {note?.kind === "unfinished" && (
+              {shown?.kind === "unfinished" && (
                 <FolderNote
                   action={{
                     label: "Keep it where it is for now",
@@ -271,7 +303,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
                   title={`${APP_NAME} is still updating your folder from an earlier version.`}
                 />
               )}
-              {note === null && warning !== undefined && (
+              {shown === null && warning !== undefined && (
                 <FolderNote
                   line={folderWarningSentence(warning)}
                   title={`This might not be the best place for your ${APP_NAME} folder.`}
@@ -285,14 +317,33 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   );
 }
 
-/** What shows while the move restarts the app: the restart is said before it happens. */
-function MovingPage({ usedBefore }: { usedBefore: boolean }) {
+/**
+ * What shows while the move, or the open of a folder that is already an
+ * Instrument folder, restarts the app: the restart is said before it happens.
+ */
+function MovingPage({
+  how,
+  usedBefore,
+}: {
+  how: "move" | "open";
+  usedBefore: boolean;
+}) {
   return (
     <SetupPage
       align="center"
       hero={<Spinner className="size-6 text-muted-foreground" />}
-      subtitle={`${APP_NAME} restarts once to finish, then picks up right here.`}
-      title={usedBefore ? "Moving your chats" : "Setting up your folder"}
+      subtitle={
+        how === "open"
+          ? `${APP_NAME} restarts once to open it, then picks up right here.`
+          : `${APP_NAME} restarts once to finish, then picks up right here.`
+      }
+      title={
+        how === "open"
+          ? "Opening your folder"
+          : usedBefore
+            ? "Moving your chats"
+            : "Setting up your folder"
+      }
     />
   );
 }

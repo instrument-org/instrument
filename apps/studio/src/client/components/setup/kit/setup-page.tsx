@@ -2,10 +2,9 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { Button } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
-import { motion, useReducedMotion } from "motion/react";
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
-import { pageVariants, usePageArrival } from "./setup-page-switch";
+import { type PageMotion, usePageMotion } from "./setup-page-switch";
 
 /**
  * One page of setup, as Figma draws every one: an optional picture over a
@@ -34,17 +33,22 @@ export function SetupPage({
   subtitle?: ReactNode;
   title: ReactNode;
 }) {
-  const { arrives, direction } = usePageArrival();
-  const isReduced = useReducedMotion() ?? false;
+  const motion = usePageMotion();
+  // The slide in that has ended, so the body stops asking for its own layer.
+  const [arrived, setArrived] = useState<PageMotion | undefined>(undefined);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <motion.div
-        animate="center"
+      <div
         className="flex min-h-0 flex-1 flex-col overflow-y-auto px-17"
-        custom={direction}
-        exit="exit"
-        initial={arrives ? "enter" : false}
-        variants={pageVariants(isReduced)}
+        data-page-motion={motion === arrived ? undefined : motion}
+        onAnimationEnd={(event) => {
+          if (
+            event.target === event.currentTarget &&
+            motion?.startsWith("in")
+          ) {
+            setArrived(motion);
+          }
+        }}
       >
         {/* Clear of the window's band, which lies over the page. */}
         <div className="shrink-0" style={{ height: `${TOOLBAR_HEIGHT}px` }} />
@@ -66,7 +70,7 @@ export function SetupPage({
           )}
           {children}
         </div>
-      </motion.div>
+      </div>
       {/* Marked so a page leaving hides its footer at once. */}
       <div className="contents" data-setup-footer>
         {footer}

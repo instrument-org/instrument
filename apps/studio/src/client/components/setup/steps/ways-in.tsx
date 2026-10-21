@@ -1,5 +1,6 @@
 import { AddProviderForm } from "@/client/components/add-provider/form";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
+import welcomeBurstSrc from "@/client/assets/setup/welcome-burst.svg";
 import { BrandMark } from "@/client/components/brand-mark";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { ClaudeSignInCode } from "@/client/components/claude-sign-in-code";
@@ -23,16 +24,17 @@ import {
   type ConnectOutcome,
   type ConnectProvider,
 } from "@/shared/connect-outcome";
-import { APP_NAME } from "@instrument-org/shared";
+import { type AIProviderConfigId, APP_NAME } from "@instrument-org/shared";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ClockIcon } from "@phosphor-icons/react/Clock";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 
+import { BrandTile } from "../kit/brand-tile";
 import { SetupFooter, SetupPage } from "../kit/setup-page";
-import { SetupRow } from "../kit/setup-row";
-import { BrandTile, WayCard } from "../kit/way-card";
+import { SetupRow, SetupRowList } from "../kit/setup-row";
 
 type PlanProvider = Exclude<ConnectProvider, "instrument">;
 
@@ -42,12 +44,14 @@ const PLAN_PROVIDERS: PlanProvider[] = ["chatgpt", "claude", "grok"];
 const SUBSCRIPTION_LINES: Record<PlanProvider, string> = {
   chatgpt: "Plus, Pro or another paid plan",
   claude: "Pro, Max or another paid plan",
-  grok: "SuperGrok or X Premium+",
+  grok: "SuperGrok or another paid plan",
 };
 
 /** A page of the ways in. Kept in the step's own state, never saved. */
 export type WaysInPage =
   | { kind: "key" }
+  /** An OpenRouter key just added, on an account with nothing to spend. */
+  | { kind: "no-credits"; providerId: AIProviderConfigId }
   | { kind: "outcome"; outcome: ConnectOutcome; provider: ConnectProvider }
   | { kind: "subscriptions" }
   | {
@@ -237,6 +241,24 @@ export function WaysIn({
                   setPage(keyFrom);
                 }
           }
+          onNoCredits={(providerId) => {
+            setPage({ kind: "no-credits", providerId });
+          }}
+        />
+      );
+    }
+    case "no-credits": {
+      return (
+        <NoCreditsPage
+          flows={flows}
+          offer={offer}
+          offerInstrument={offerInstrument}
+          onBack={() => {
+            setPage({ kind: "key" });
+          }}
+          onConnect={connect}
+          onCredited={onDone}
+          providerId={page.providerId}
         />
       );
     }
@@ -269,32 +291,36 @@ function WelcomePage({
     <SetupPage
       align="center"
       footer={<TermsFooter className="px-8 pt-5 pb-6" />}
-      hero={<BrandMark className="size-24 drop-shadow-md" />}
+      hero={
+        <img
+          alt=""
+          aria-hidden
+          className="mb-2 h-37.5 w-107"
+          draggable={false}
+          src={welcomeBurstSrc}
+        />
+      }
       subtitle={`${APP_NAME} is a desktop app for doing your best work with AI. It works in your files and its own browser, and connects with all your favorite apps.`}
       title={`Welcome to ${APP_NAME}`}
     >
-      <div className="mt-8 flex w-85 flex-col gap-2">
+      <div className="mt-10 flex w-95 max-w-full flex-col gap-3">
         <BrowserHandoffButton
-          className="h-11 w-full text-base"
-          icon={
-            <span className="flex size-5 items-center justify-center rounded-full bg-white">
-              <FcGoogle className="size-3.5" />
-            </span>
-          }
+          className="h-10 w-full text-base"
+          icon={<FcGoogle className="size-4" />}
           onCancel={google.cancel}
           onStart={onGoogle}
-          variant="brand"
+          variant="default"
           waiting={google.waiting}
         >
-          Try for free with Google
+          Continue with Google
         </BrowserHandoffButton>
         <Button
-          className="h-11 w-full text-base"
+          className="h-10 w-full bg-white/30 text-base text-foreground dark:bg-white/5"
           disabled={google.waiting}
           onClick={onSubscription}
-          variant="default"
+          variant="outline"
         >
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1.5">
             {PLAN_PROVIDERS.map((provider) => (
               <SubscriptionMark
                 className="size-4"
@@ -309,14 +335,14 @@ function WelcomePage({
       {line && (
         <p className="mt-3 text-center text-xs text-muted-foreground">{line}</p>
       )}
-      <button
-        className="mt-8 text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+      <Button
+        className="mt-3 h-9 px-5 text-muted-foreground"
         disabled={google.waiting}
         onClick={onKey}
-        type="button"
+        variant="ghost"
       >
         Or add an API provider manually
-      </button>
+      </Button>
     </SetupPage>
   );
 }
@@ -340,28 +366,45 @@ function SubscriptionsPage({
       }
       title="Which subscription do you have?"
     >
-      <div className="mt-8 flex w-115 max-w-full flex-col gap-2">
+      <SetupRowList className="mt-7">
         {PLAN_PROVIDERS.map((provider) => (
-          <SetupRow
-            end={
-              <Button
-                className="rounded-full px-4"
-                onClick={() => {
-                  onSignIn(provider);
-                }}
-                size="sm"
-              >
-                Sign in
-              </Button>
-            }
-            icon={<SubscriptionMark provider={provider} />}
+          <SubscriptionRow
             key={provider}
-            line={SUBSCRIPTION_LINES[provider]}
-            title={CONNECT_NAMES[provider]}
+            onSignIn={() => {
+              onSignIn(provider);
+            }}
+            provider={provider}
           />
         ))}
-      </div>
+      </SetupRowList>
     </SetupPage>
+  );
+}
+
+/** A subscription in a list of ways in: its tile, its paid plans, Sign in. */
+function SubscriptionRow({
+  onSignIn,
+  provider,
+}: {
+  onSignIn: () => void;
+  provider: PlanProvider;
+}) {
+  return (
+    <SetupRow
+      end={
+        <Button className="w-29" onClick={onSignIn}>
+          Sign in
+        </Button>
+      }
+      icon={
+        <BrandTile size={40}>
+          <SubscriptionMark provider={provider} />
+        </BrandTile>
+      }
+      inList
+      line={SUBSCRIPTION_LINES[provider]}
+      title={CONNECT_NAMES[provider]}
+    />
   );
 }
 
@@ -404,7 +447,7 @@ function WaitingPage({
 
 /**
  * How a sign-in ended when it isn't ready: the way in's mark with what went
- * wrong, the shared words, a card for each other way still open, and links
+ * wrong, the shared words, a row for each other way still open, and links
  * to a key and to trying again. Out of usage keeps the account and goes on.
  */
 function OutcomePage({
@@ -430,8 +473,6 @@ function OutcomePage({
 }) {
   const copy = connectPageCopy(outcome, provider);
   const isOutOfUsage = outcome.kind === "out-of-usage";
-  const others = PLAN_PROVIDERS.filter((other) => other !== provider);
-  const trial = trialDays(offer);
   const retry =
     outcome.kind === "no-plan"
       ? `I've upgraded. Try ${CONNECT_NAMES[provider]} again`
@@ -468,18 +509,134 @@ function OutcomePage({
       subtitle={copy?.subtitle}
       title={copy?.title}
     >
-      <div className="mt-8 flex max-w-full items-stretch justify-center gap-3">
-        {offerInstrument && provider !== "instrument" && (
-          <WayCard
-            icons={<BrandMark className="size-12" />}
-            line={
-              trial
-                ? `Sign in with Google and get ${String(trial.days)} days free.${trial.cardRequired ? "" : " No card needed."}`
-                : `Sign in with Google and choose a plan.`
-            }
-            title={trial ? `Try ${APP_NAME} free` : `Use ${APP_NAME}'s AI`}
-          >
+      <OtherWays
+        flows={flows}
+        instrumentLabel={outcome.kind === "no-plan" ? "Learn more" : undefined}
+        offer={offer}
+        offerInstrument={offerInstrument && provider !== "instrument"}
+        onConnect={onConnect}
+        providers={PLAN_PROVIDERS.filter((other) => other !== provider)}
+      />
+      <OutcomeLinks
+        keyLabel="Use your own API key"
+        onKey={onKey}
+        retry={
+          retry
+            ? {
+                label: retry,
+                onClick: () => {
+                  onConnect(provider);
+                },
+              }
+            : undefined
+        }
+      />
+    </SetupPage>
+  );
+}
+
+/**
+ * An OpenRouter key whose account has nothing to spend: every other way in,
+ * another key, and a check again once credits are added.
+ */
+function NoCreditsPage({
+  flows,
+  offer,
+  offerInstrument,
+  onBack,
+  onConnect,
+  onCredited,
+  providerId,
+}: {
+  flows: Record<ConnectProvider, ConnectFlow<void>>;
+  offer: Offer | undefined;
+  offerInstrument: boolean;
+  /** Back to the key page, also "Use a different API key". */
+  onBack: () => void;
+  onConnect: (provider: ConnectProvider) => void;
+  onCredited: () => void;
+  providerId: AIProviderConfigId;
+}) {
+  const [check, setCheck] = useState<"checking" | "idle" | "still-none">(
+    "idle",
+  );
+  const checkAgain = async () => {
+    setCheck("checking");
+    if (await hasNoCredits(providerId)) {
+      setCheck("still-none");
+    } else {
+      onCredited();
+    }
+  };
+  return (
+    <SetupPage
+      align="center"
+      footer={<SetupFooter next="none" onBack={onBack} />}
+      hero={
+        <BrandTile badge={<WarningIcon weight="bold" />}>
+          <AIProviderIcon colored type="openrouter" />
+        </BrandTile>
+      }
+      subtitle={`${APP_NAME} can't run on OpenRouter until there are credits on the account. Add some and try again, or pick another way in.`}
+      title="Your OpenRouter account has no credits"
+    >
+      <OtherWays
+        flows={flows}
+        offer={offer}
+        offerInstrument={offerInstrument}
+        onConnect={onConnect}
+        providers={PLAN_PROVIDERS}
+      />
+      <OutcomeLinks
+        keyLabel="Use a different API key"
+        onKey={onBack}
+        retry={{
+          busy: check === "checking",
+          label: "I've added credits. Try again",
+          onClick: () => {
+            void checkAgain();
+          },
+        }}
+      />
+      {check === "still-none" && (
+        <p className="mt-2 text-sm text-muted-foreground">
+          OpenRouter still shows no credits. It can take a minute for new ones
+          to show up.
+        </p>
+      )}
+    </SetupPage>
+  );
+}
+
+/**
+ * The ways in still open, as rows in one card: Instrument with its trial
+ * when the offer has one (and this account isn't signed in yet), then each
+ * subscription.
+ */
+function OtherWays({
+  flows,
+  instrumentLabel,
+  offer,
+  offerInstrument,
+  onConnect,
+  providers,
+}: {
+  flows: Record<ConnectProvider, ConnectFlow<void>>;
+  /** What Instrument's button says while a trial can start. */
+  instrumentLabel?: string;
+  offer: Offer | undefined;
+  offerInstrument: boolean;
+  onConnect: (provider: ConnectProvider) => void;
+  providers: PlanProvider[];
+}) {
+  const trial = trialDays(offer);
+  return (
+    <SetupRowList className="mt-8">
+      {offerInstrument && (
+        <SetupRow
+          end={
             <BrowserHandoffButton
+              className="px-5"
               onCancel={flows.instrument.cancel}
               onStart={() => {
                 onConnect("instrument");
@@ -487,82 +644,114 @@ function OutcomePage({
               variant="brand"
               waiting={flows.instrument.waiting}
             >
-              {trial ? "Start free trial" : "Continue with Google"}
+              {trial ? (instrumentLabel ?? "Start free trial") : "Sign in"}
             </BrowserHandoffButton>
-          </WayCard>
-        )}
-        {others.map((other) => (
-          <WayCard
-            icons={
-              <BrandTile size={40}>
-                <SubscriptionMark provider={other} />
-              </BrandTile>
-            }
-            key={other}
-            line={`Works with a paid ${CONNECT_NAMES[other]} plan.`}
-            title={`Use ${CONNECT_NAMES[other]} instead`}
-          >
-            <Button
-              onClick={() => {
-                onConnect(other);
-              }}
-            >
-              Continue with {CONNECT_NAMES[other]}
-            </Button>
-          </WayCard>
-        ))}
-      </div>
-      <p className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
-        <LinkButton onClick={onKey}>Use your own API key</LinkButton>
-        {retry && (
-          <>
-            <span aria-hidden>·</span>
-            <LinkButton
-              onClick={() => {
-                onConnect(provider);
-              }}
-            >
-              {retry}
-            </LinkButton>
-          </>
-        )}
-      </p>
-    </SetupPage>
+          }
+          icon={<BrandMark className="size-12 shrink-0" />}
+          inList
+          line={
+            trial
+              ? `Sign in with Google and get ${String(trial.days)} days free.${trial.cardRequired ? "" : " No card needed."}`
+              : "Sign in with Google and choose a plan."
+          }
+          title={trial ? `Try ${APP_NAME} free` : APP_NAME}
+        />
+      )}
+      {providers.map((provider) => (
+        <SubscriptionRow
+          key={provider}
+          onSignIn={() => {
+            onConnect(provider);
+          }}
+          provider={provider}
+        />
+      ))}
+    </SetupRowList>
   );
 }
 
-function LinkButton({
-  children,
-  onClick,
+/** Under the rows: another key, and trying the same way in again. */
+function OutcomeLinks({
+  keyLabel,
+  onKey,
+  retry,
 }: {
-  children: ReactNode;
-  onClick: () => void;
+  keyLabel: string;
+  onKey: () => void;
+  retry?: { busy?: boolean; label: string; onClick: () => void };
 }) {
   return (
-    <button
-      className="hover:text-foreground hover:underline"
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
+    <div className="mt-4 flex items-center text-muted-foreground">
+      <Button
+        className="h-9 px-5 text-muted-foreground"
+        onClick={onKey}
+        variant="ghost"
+      >
+        {keyLabel}
+      </Button>
+      {retry && (
+        <>
+          <span aria-hidden className="text-sm text-gray-400">
+            ·
+          </span>
+          <Button
+            className="h-9 px-5 text-muted-foreground"
+            disabled={retry.busy}
+            onClick={retry.onClick}
+            variant="ghost"
+          >
+            {retry.busy ? <Spinner delay={0} /> : <ArrowClockwiseIcon />}
+            {retry.label}
+          </Button>
+        </>
+      )}
+    </div>
   );
+}
+
+/** Whether an OpenRouter config's key has nothing left to spend. */
+async function hasNoCredits(providerId: AIProviderConfigId) {
+  const result = await rpcClient.providerConfig.credits
+    .call({ id: providerId })
+    .catch(() => undefined);
+  return result !== undefined && result.credits.remaining <= 0;
 }
 
 /**
  * The key way in: the app's Add a provider form, with OpenRouter's browser
- * sign-in inside it. A key the provider accepts ends the step.
+ * sign-in inside it. A key the provider accepts ends the step, unless it's
+ * an OpenRouter key on an account with no credits.
  */
 function KeyPage({
   onAdded,
   onBack,
+  onNoCredits,
 }: {
   onAdded: () => void;
   onBack: () => void;
+  onNoCredits: (providerId: AIProviderConfigId) => void;
 }) {
   const { data: providers } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
+  // The configs from before this page, so the one the form adds is the new one.
+  const [known, setKnown] = useState<Set<AIProviderConfigId>>();
+  if (providers && !known) {
+    setKnown(new Set(providers.map((provider) => provider.id)));
+  }
+  const added = async () => {
+    const list = await rpcClient.providerConfig.list
+      .call({})
+      .catch(() => undefined);
+    const openRouter = list?.find(
+      (provider) => provider.type === "openrouter" && !known?.has(provider.id),
+    );
+    if (openRouter && known && (await hasNoCredits(openRouter.id))) {
+      onNoCredits(openRouter.id);
+    } else {
+      onAdded();
+    }
+  };
   return (
     <SetupPage
       footer={<SetupFooter next="none" onBack={onBack} />}
@@ -571,7 +760,9 @@ function KeyPage({
     >
       <div className="mt-6 w-120 max-w-full">
         <AddProviderForm
-          onSuccess={onAdded}
+          onSuccess={() => {
+            void added();
+          }}
           providers={providers ?? []}
           showTitle={false}
           submitLabel="Continue"

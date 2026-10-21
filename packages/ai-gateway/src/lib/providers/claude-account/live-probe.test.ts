@@ -12,7 +12,7 @@ import {
   rmSync,
   statSync,
 } from "node:fs";
-import { homedir, userInfo } from "node:os";
+import { userInfo } from "node:os";
 import { join } from "node:path";
 import { afterAll, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -23,8 +23,9 @@ import {
   closeClaudeAccountSessions,
   createClaudeAccountLanguageModel,
 } from "./language-model";
+import { shippedClaudeCode } from "./shipped-claude-code";
 
-// Runs against the real `claude` CLI in ~/.local/bin and spends the signed-in
+// Runs against the Claude Code the app ships (`shippedClaudeCode`) and spends the signed-in
 // account's plan, so it only runs when asked: CLAUDE_ACCOUNT_LIVE=1.
 
 /** Begins every system prompt here, so the transcripts it leaves can be told apart. */
@@ -104,7 +105,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
   async () => {
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
-      executablePath: `${homedir()}/.local/bin/claude`,
+      executablePath: shippedClaudeCode(),
       providerConfigId: "claude-account",
     })("claude-haiku-4-5");
     const calls: string[] = [];
@@ -173,7 +174,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
   async () => {
     const usage = await fetchClaudeAccountUsage({
       configDir: undefined,
-      executablePath: `${homedir()}/.local/bin/claude`,
+      executablePath: shippedClaudeCode(),
     });
     console.log("USAGE", JSON.stringify(usage));
     expect(usage.windows.length).toBeGreaterThan(0);
@@ -197,7 +198,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     });
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
-      executablePath: `${homedir()}/.local/bin/claude`,
+      executablePath: shippedClaudeCode(),
       providerConfigId: "claude-account",
     })("claude-haiku-4-5");
     const tools: LanguageModelV4FunctionTool[] = [
@@ -361,7 +362,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     });
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
-      executablePath: `${homedir()}/.local/bin/claude`,
+      executablePath: shippedClaudeCode(),
       providerConfigId: "claude-account",
     })("claude-haiku-4-5");
     const tools: LanguageModelV4FunctionTool[] = [
@@ -456,7 +457,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
   async () => {
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
-      executablePath: `${homedir()}/.local/bin/claude`,
+      executablePath: shippedClaudeCode(),
       providerConfigId: "claude-account",
     })("claude-haiku-4-5");
     const tools: LanguageModelV4FunctionTool[] = [
@@ -564,7 +565,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     });
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
-      executablePath: `${homedir()}/.local/bin/claude`,
+      executablePath: shippedClaudeCode(),
       providerConfigId: "claude-account",
     })(process.env.CLAUDE_PROBE_MODEL ?? "claude-haiku-5-5");
     const tools: LanguageModelV4FunctionTool[] = [
@@ -713,7 +714,7 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     });
     const model = createClaudeAccountLanguageModel({
       configDir: undefined,
-      executablePath: `${homedir()}/.local/bin/claude`,
+      executablePath: shippedClaudeCode(),
       providerConfigId: "claude-account",
     })(process.env.CLAUDE_PROBE_MODEL ?? "claude-haiku-5-5");
     const tools: LanguageModelV4FunctionTool[] = [

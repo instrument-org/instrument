@@ -25,9 +25,10 @@ import {
   closeClaudeAccountSessions,
   createClaudeAccountLanguageModel,
 } from "./language-model";
+import { shippedClaudeCode } from "./shipped-claude-code";
 
 // Carries one chat through what a synced chat meets on the Claude account,
-// against the real `claude` CLI and the signed-in account's plan, so it only
+// against the Claude Code the app ships and the signed-in account's plan, so it only
 // runs when asked: CLAUDE_ACCOUNT_LIVE=1. Each check asks about a picture
 // whose color only a model shown that picture can name. Pick the models with
 // CLAUDE_CONTINUITY_MODEL and CLAUDE_CONTINUITY_SWITCH_MODEL and the CLI with
@@ -39,13 +40,7 @@ const switchModelId =
   process.env.CLAUDE_CONTINUITY_SWITCH_MODEL ?? "claude-haiku-5-5";
 const realHome = userInfo().homedir;
 const executablePath =
-  process.env.CLAUDE_CONTINUITY_CLI ??
-  join(
-    realHome,
-    ".local",
-    "bin",
-    process.platform === "win32" ? "claude.exe" : "claude",
-  );
+  process.env.CLAUDE_CONTINUITY_CLI ?? (live ? shippedClaudeCode() : "");
 const outDir =
   process.env.CLAUDE_CONTINUITY_OUT ??
   join(tmpdir(), `claude-continuity-${Date.now()}`);

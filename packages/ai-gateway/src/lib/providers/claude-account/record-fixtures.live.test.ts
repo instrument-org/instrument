@@ -4,13 +4,13 @@ import {
 } from "@ai-sdk/provider";
 import { type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { mkdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import path from "node:path";
 import { expect, it } from "vitest";
 
 import { pumpStep, type StepSession } from "./step-stream";
 import { ClaudeCodeSession } from "./session";
 import { type RecordedStep, scrubMessage } from "./step-fixtures";
+import { shippedClaudeCode } from "./shipped-claude-code";
 
 // Records what real Claude Code sends for one step, as fixtures the stream
 // mapping is tested against offline. It runs the `claude` in ~/.local/bin on
@@ -82,7 +82,7 @@ function open(
       builtInTools: options.builtInTools ?? [],
       configDir: undefined,
       effort: options.effort,
-      executablePath: `${homedir()}/.local/bin/claude`,
+      executablePath: shippedClaudeCode(),
       modelId: options.modelId ?? "claude-sonnet-5-5",
       systemPrompt: "You are a terse assistant.",
       tools: options.tools ?? [],

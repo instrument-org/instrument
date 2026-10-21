@@ -580,16 +580,22 @@ function prepareScenario(name, { keepTabs }) {
 
   // Where finished work goes. `documents` stands in for the folder in
   // Documents an earlier build sent it to, inside the scenario's own
-  // folder: a development build never looks in the real one.
+  // folder: a development build never looks in the real one. It is named
+  // for the development build (`HOME_FOLDERS`), which looks for its own
+  // flavor's folder there as a release build looks for `Instrument`.
   // A Mac always has Documents, so the stand-in home has one too.
   mkdirSync(path.join(`${userDataDir}-home`, "Documents"), { recursive: true });
   let outputDir = `${userDataDir}-output`;
   if (scenario.outputFolder === "documents") {
-    outputDir = path.join(`${userDataDir}-home`, "Documents", "Instrument");
-    mkdirSync(outputDir, { recursive: true });
+    outputDir = path.join(`${userDataDir}-home`, "Documents", "Instrument Dev");
+    mkdirSync(path.join(outputDir, "Squares"), { recursive: true });
     writeFileSync(
       path.join(outputDir, "Finished before.md"),
       "# Earlier work\n",
+    );
+    writeFileSync(
+      path.join(outputDir, "Squares", "notes.txt"),
+      "Red and blue squares, made earlier.\n",
     );
   } else if (scenario.outputFolder !== undefined) {
     fail(`outputFolder takes only "documents", not ${scenario.outputFolder}`);

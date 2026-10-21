@@ -27,7 +27,7 @@ setup: # optional: setup's record; none means setup never ran
   addedLater: [notifications] # with finished: steps a later build added, left unanswered
 ```
 
-Everything a scenario writes stays inside its own folders in studio-drive's cache, never the real home folder: `outputFolder: documents` is a folder named `Documents/Instrument` beside the scenario's application data, and a move goes to an `Instrument` folder there.
+Everything a scenario writes stays inside its own folders in studio-drive's cache, never the real home folder: `outputFolder: documents` is a folder named `Documents/Instrument Dev` (what `Documents/Instrument` is to a release build) with a few files in it, beside the scenario's application data, and a move goes to an `Instrument` folder there.
 
 `accountCheck`, `notifications`, `notificationAnswer` and `network` take effect only in a development build. Without `accountCheck`, a sentinel sign-in's launch check is refused like any real request, so it reads as signed out. `notifications` is any status the Mac bridge answers: `not-asked`, `provisional`, `allowed`, `denied`, `unknown`, `unsupported`.
 
@@ -37,6 +37,7 @@ Everything a scenario writes stays inside its own folders in studio-drive's cach
 | --------------------- | --------------------------------------------------------------------------- | ---------------------------- |
 | `new`                 | A first launch                                                              | `way-in`                     |
 | `beta-tester`         | Chats in the app's own data, ChatGPT, finished work in Documents, no record | `welcome-back`               |
+| `one-x-user`          | A 1.x task with no chat in the app's own data, ChatGPT, finished work in Documents, no record | `welcome-back` |
 | `quit-after-chatgpt`  | Connected ChatGPT, then quit                                                | `free-account`               |
 | `folder-move-pending` | The launch that makes the move the folder step recorded                     | `notifications`              |
 | `finished-new-step`   | Finished on a build without the notifications step                          | `notifications`, as new only |

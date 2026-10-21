@@ -396,9 +396,9 @@ describe("stepBefore", () => {
     const keyOnly = { ...NEW, hasUsableAI: true };
     const record = answered("free-account");
     expect(stepBefore(keyOnly, record, "model")).toBe("free-account");
-    expect(currentSetupStep(keyOnly, unansweredStep(record, "free-account"))).toBe(
-      "free-account",
-    );
+    expect(
+      currentSetupStep(keyOnly, unansweredStep(record, "free-account")),
+    ).toBe("free-account");
   });
 
   it("has nowhere to go once setup finished", () => {

@@ -87,6 +87,14 @@ export function readSetupState(): SetupState {
   });
 }
 
+/**
+ * Whether setup can still ask anything a fact decides: it is not hidden and
+ * has never finished. After finishing, only a missing answer brings it back.
+ */
+export function setupStillAsks(): boolean {
+  return !isSkipped() && readRecord().finishedAt === undefined;
+}
+
 /** Whether setup is up, without reading the facts once every step is answered. */
 export function isSetupUp(): boolean {
   if (isSkipped() || isEveryStepAnswered(readRecord())) {

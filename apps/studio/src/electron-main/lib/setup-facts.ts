@@ -1,3 +1,4 @@
+import { checkAccount } from "@/electron-main/lib/account-check";
 import { claudeAccountStatusKnown } from "@/electron-main/lib/claude-account";
 import { getAllAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import {
@@ -13,19 +14,53 @@ import {
   readRegistry,
   workspaceHasChats,
 } from "@/electron-main/lib/workspaces";
-import { provideSetupFacts } from "@/electron-main/lib/setup-state";
+import { createSetupAccountAnswers } from "@/electron-main/lib/setup-account-answers";
+import {
+  provideSetupFacts,
+  setupStillAsks,
+} from "@/electron-main/lib/setup-state";
 import { platformApiRpcClient } from "@/electron-main/platform-api/client";
 import { getToken, hasToken } from "@/electron-main/platform-api/utils";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { type ConnectOutcome } from "@/shared/connect-outcome";
 import { type SetupFacts } from "@/shared/setup";
 
 /**
- * Whether a way to run models is connected: a key, the Instrument sign-in,
- * or a ChatGPT, Claude or Grok account. Connected is all it checks; the
- * account check (ready or out of usage, not "no paid plan") replaces this.
+ * Each ChatGPT, Claude and Grok account's last check, for whether setup has
+ * a model to run on: an account counts until its check says no plan or
+ * signed out.
  */
-function hasConnectedAI(): boolean {
-  return getAllAIProviderConfigs().length > 0;
+const accountAnswers = createSetupAccountAnswers({
+  check: (input) => checkAccount(input),
+  onChange: () => {
+    refreshSetupFacts();
+  },
+});
+
+/**
+ * Hands setup the answer a sign-in's own account check came back with, so
+ * setup needn't spend a request of its own on the same account.
+ */
+export function noteAccountCheckForSetup(input: {
+  accountId?: string;
+  outcome: ConnectOutcome;
+  provider: Parameters<typeof checkAccount>[0]["provider"];
+}): void {
+  accountAnswers.noteCheck({ ...input, configs: getAllAIProviderConfigs() });
+}
+
+/**
+ * Checks the accounts already signed in at launch, while setup still asks
+ * something, once Claude Code has said whether it is signed in. Never waited
+ * on: each answer moves setup when it lands.
+ */
+function checkAccountsAtLaunch(): void {
+  if (!setupStillAsks()) {
+    return;
+  }
+  void claudeAccountStatusKnown()
+    .catch(() => undefined)
+    .then(() => accountAnswers.checkAll(getAllAIProviderConfigs()));
 }
 
 /**
@@ -54,7 +89,7 @@ function readSetupFacts(): SetupFacts {
     hasInstrumentAccount: hasToken(),
     hasInstrumentPlan:
       token !== undefined && planRead?.token === token && planRead.hasPlan,
-    hasUsableAI: hasConnectedAI(),
+    hasUsableAI: accountAnswers.hasUsableAI(getAllAIProviderConfigs()),
     notificationsAskable:
       notifications === "not-asked" || notifications === "provisional",
     usedBefore: workspaceHasChats(workspace.path),
@@ -119,6 +154,7 @@ export function refreshSetupFacts(): void {
 /** Reads the slow facts once, publishing as each lands, up to the deadline. */
 function settle(): Promise<void> {
   settled ??= (async () => {
+    checkAccountsAtLaunch();
     const reads = Promise.all(
       [
         claudeAccountStatusKnown(),

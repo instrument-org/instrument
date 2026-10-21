@@ -3,6 +3,7 @@ import {
   checkAccount,
   connectAccount,
 } from "@/electron-main/lib/account-check";
+import { noteAccountCheckForSetup } from "@/electron-main/lib/setup-facts";
 import { base } from "@/electron-main/rpc/base";
 import { z } from "zod";
 
@@ -45,25 +46,25 @@ async function whileRunning<T>(
  * changing anything; see `checkAccount`. Takes seconds, since it spends one
  * short request on the plan.
  */
-const check = base
-  .input(InputSchema)
-  .handler(({ input, signal }) =>
-    whileRunning(input.provider, signal, (combined) =>
-      checkAccount({ ...input, signal: combined }),
-    ),
+const check = base.input(InputSchema).handler(async ({ input, signal }) => {
+  const outcome = await whileRunning(input.provider, signal, (combined) =>
+    checkAccount({ ...input, signal: combined }),
   );
+  noteAccountCheckForSetup({ ...input, outcome });
+  return outcome;
+});
 
 /**
  * The check a sign-in ends on: the answer, and the default model it chose
  * when the account is worth running on; see `connectAccount`.
  */
-const connect = base
-  .input(InputSchema)
-  .handler(({ input, signal }) =>
-    whileRunning(input.provider, signal, (combined) =>
-      connectAccount({ ...input, signal: combined }),
-    ),
+const connect = base.input(InputSchema).handler(async ({ input, signal }) => {
+  const result = await whileRunning(input.provider, signal, (combined) =>
+    connectAccount({ ...input, signal: combined }),
   );
+  noteAccountCheckForSetup({ ...input, outcome: result.outcome });
+  return result;
+});
 
 /** Ends the check running for `provider`, which then answers `canceled`. */
 const cancel = base

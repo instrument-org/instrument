@@ -44,6 +44,8 @@ describe("brokenLinksIn", () => {
     });
     await fs.mkdir(path.join(chatRoot, "sales"), { recursive: true });
     await fs.writeFile(path.join(chatRoot, "sales", "report.md"), "# Sales");
+    await fs.mkdir(path.join(chatRoot, "Drafts (2026)"));
+    await fs.writeFile(path.join(chatRoot, "Drafts (2026)", "a b.txt"), "a");
     await fs.mkdir(path.join(root, "Memory"));
     await fs.writeFile(path.join(root, "Memory", "no-stevia.md"), "No stevia.");
     await fs.mkdir(path.join(systemSkills, "instrument-guide"), {
@@ -73,6 +75,11 @@ describe("brokenLinksIn", () => {
       "a file link by the app's address",
       "[r](instrument://file/CHATROOT/sales/report.md)",
     ],
+    ["a path in angle brackets", "[f](<Drafts (2026)/a b.txt>)"],
+    ["a path with parentheses", "[f](Drafts%20(2026)/a%20b.txt)"],
+    ["a file: URL", "[r](file://CHATROOT/sales/report.md)"],
+    ["a reference link", "See [the report][r].\n\n[r]: sales/report.md"],
+    ["link text with brackets", "[Q3 [v2] report](sales/report.md)"],
     ["a memory", "[no stevia](instrument://memory/no-stevia)"],
     ["a skill", "[the guide](instrument://skill/instrument-guide)"],
     [
@@ -106,6 +113,15 @@ describe("brokenLinksIn", () => {
           "[s](instrument://screen/nowhere)",
           "[app](instrument://app/no-such-service-xyz)",
           "[chat](instrument://chat/nosuchchat)",
+          "[Q3 plan [v2].txt](q3-plan.txt)",
+          "[gone](file:///nowhere/gone.md)",
+          "[by ref][gone]",
+          "[two CSVs](instrument://chat/Make%20me%20two%20CSVs)",
+          "[deep](instrument://skill/a/b)",
+          "[odd](instrument://nowhere/x)",
+          "[bare](instrument://settings)",
+          "",
+          "[gone]: missing/notes.md",
           "```files",
           "squares.csv",
           "sales/report.md/",
@@ -126,6 +142,34 @@ describe("brokenLinksIn", () => {
         {
           "link": "~/Desktop/out.png",
           "reason": "no file there",
+        },
+        {
+          "link": "q3-plan.txt",
+          "reason": "no file there",
+        },
+        {
+          "link": "file:///nowhere/gone.md",
+          "reason": "no file there",
+        },
+        {
+          "link": "missing/notes.md",
+          "reason": "no file there",
+        },
+        {
+          "link": "instrument://chat/Make%20me%20two%20CSVs",
+          "reason": "not an address the app opens",
+        },
+        {
+          "link": "instrument://skill/a/b",
+          "reason": "not an address the app opens",
+        },
+        {
+          "link": "instrument://nowhere/x",
+          "reason": "not an address the app opens",
+        },
+        {
+          "link": "instrument://settings",
+          "reason": "not an address the app opens",
         },
         {
           "link": "instrument://memory/no-sugar",

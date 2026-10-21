@@ -1,6 +1,9 @@
 import { APP_NAME_SLUG, APP_PROTOCOL } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
+import remarkGfm from "remark-gfm";
+import remarkParse from "remark-parse";
+import { unified } from "unified";
 
 import { ChatIdSchema, type ChatId } from "../schemas/chat-id";
 import { getAppCatalog } from "./apps/catalog";
@@ -20,22 +23,47 @@ interface BrokenLink {
   reason: string;
 }
 
-// Code is shown as written, so a link inside it is no link. The files fence
-// is read on its own, as the card it renders.
-const CODE_FENCE = /^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[ \t]*$/gmu;
-const INLINE_CODE = /`[^`\n]+`/gu;
-// The same reading of a Markdown link's target the renderer's chips use.
-const LINK = /\[[^\]]*\]\(\s*([^)\s]+)/gu;
+// The parser family the renderer reads a reply with, so a link is read here
+// exactly as it draws there: angle-bracket and parenthesized targets, nested
+// brackets in the text, references, and nothing inside code.
+const markdown = unified().use(remarkParse).use(remarkGfm);
+
+type MarkdownNode =
+  | ReturnType<typeof markdown.parse>
+  | ReturnType<typeof markdown.parse>["children"][number];
 
 const SCHEMES = new Set([`${APP_NAME_SLUG}:`, `${APP_PROTOCOL}:`]);
 
 /**
+ * The nouns the window opens an address for, as its link reader knows them
+ * (`instrumentLinkOf` in Studio), each by the noun this checks it as.
+ * `thread` is what older replies called a chat.
+ */
+const NOUNS = {
+  app: "app",
+  chat: "chat",
+  memory: "memory",
+  screen: "screen",
+  settings: "settings",
+  skill: "skill",
+  task: "task",
+  thread: "chat",
+} as const;
+
+const isNoun = (noun: string): noun is keyof typeof NOUNS =>
+  Object.hasOwn(NOUNS, noun);
+
+/** A name the window takes in an address: one segment of these characters. */
+const NAME = /^[\w.:-]+$/u;
+
+/**
  * Every link in a reply that would open nothing: a files fence line or a
- * file link naming no file or folder the chat can reach, and an app address
- * (`instrument://memory/<name>`) naming a memory, skill, app, chat, setting
- * or screen there is none of. A web address is not checked: whether it
- * answers depends on the network. An address this cannot settle (a task, a
- * chat by a short prefix, a noun it does not know) is left alone.
+ * file link naming no file or folder the chat can reach, an app address the
+ * window opens no screen for, and one (`instrument://memory/<name>`) naming
+ * a memory, skill, app, chat, setting or screen there is none of. A web
+ * address is not checked: whether it answers depends on the network. An
+ * address this cannot settle (a task, a chat by a short prefix) is left
+ * alone.
  */
 export async function brokenLinksIn({
   chatId,
@@ -49,26 +77,21 @@ export async function brokenLinksIn({
     path: written,
   }));
   const addresses: { link: string; name: string; noun: string }[] = [];
-  const prose = text.replaceAll(CODE_FENCE, "").replaceAll(INLINE_CODE, "");
-  for (const match of prose.matchAll(LINK)) {
-    const target = match[1];
-    if (target === undefined) {
-      continue;
-    }
-    if (isChatFileHref(target)) {
-      files.push({ link: target, path: chatFilePathFromHref(target) });
-      continue;
-    }
-    const address = appAddressOf(target);
-    if (address?.noun === "file") {
-      files.push({ link: target, path: address.name });
-    } else if (address) {
-      addresses.push({ link: target, ...address });
+  const refused: BrokenLink[] = [];
+  for (const target of linkTargetsIn(text)) {
+    const read = readTarget(target);
+    if (read?.opens === "file") {
+      files.push({ link: target, path: read.path });
+    } else if (read?.opens === "address") {
+      addresses.push({ link: target, name: read.name, noun: read.noun });
+    } else if (read?.opens === "nothing") {
+      refused.push({ link: target, reason: "not an address the app opens" });
     }
   }
 
   const broken = [
     ...(await missingFiles(files, chatId)),
+    ...refused,
     ...(
       await Promise.all(
         addresses.map(async (address) => ({
@@ -85,29 +108,88 @@ export async function brokenLinksIn({
   );
 }
 
-/** The noun and the one name an app address leads with, or undefined for any other address. */
-function appAddressOf(
+/**
+ * The target of every link and image a reply draws, in order. Code is shown
+ * as written, so a link inside it is no link, and the files fence is read on
+ * its own, as the card it renders.
+ */
+function linkTargetsIn(text: string): string[] {
+  const definitions = new Map<string, string>();
+  const found: ({ reference: string } | { url: string })[] = [];
+  const visit = (node: MarkdownNode) => {
+    if (node.type === "definition") {
+      definitions.set(node.identifier, node.url);
+    } else if (node.type === "link" || node.type === "image") {
+      found.push({ url: node.url });
+    } else if (
+      node.type === "linkReference" ||
+      node.type === "imageReference"
+    ) {
+      found.push({ reference: node.identifier });
+    }
+    if ("children" in node) {
+      for (const child of node.children) {
+        visit(child);
+      }
+    }
+  };
+  visit(markdown.parse(text));
+  return found.flatMap((each) => {
+    const url = "url" in each ? each.url : definitions.get(each.reference);
+    return url ? [url] : [];
+  });
+}
+
+/**
+ * What a link's target opens, read in the order the renderer reads it: an
+ * app address the window takes, a file by the app's address, a path, a
+ * `file:` URL, and then an app address the window refuses, which opens
+ * nothing. Undefined for anything else, a web address included.
+ */
+function readTarget(
   href: string,
-): undefined | { name: string; noun: string } {
-  if (!URL.canParse(href)) {
-    return undefined;
+):
+  | undefined
+  | { name: string; noun: string; opens: "address" }
+  | { opens: "file"; path: string }
+  | { opens: "nothing" } {
+  const parsed = URL.canParse(href) ? new URL(href) : undefined;
+  if (parsed && SCHEMES.has(parsed.protocol)) {
+    const noun = parsed.host.toLowerCase();
+    if (noun === "file") {
+      // `instrument://file//Users/sam/a.md` and `instrument://file/Users/sam/a.md`
+      // both name the absolute path.
+      const filePath = decoded(parsed.pathname).replace(/^\/+/u, "/");
+      return filePath === "/"
+        ? { opens: "nothing" }
+        : { opens: "file", path: filePath };
+    }
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const name = segments[0] === undefined ? undefined : decoded(segments[0]);
+    return isNoun(noun) &&
+      segments.length === 1 &&
+      name !== undefined &&
+      NAME.test(name)
+      ? { name, noun: NOUNS[noun], opens: "address" }
+      : { opens: "nothing" };
   }
-  const parsed = new URL(href);
-  if (!SCHEMES.has(parsed.protocol)) {
-    return undefined;
+  if (isChatFileHref(href)) {
+    return { opens: "file", path: chatFilePathFromHref(href) };
   }
-  const noun = parsed.host.toLowerCase();
-  if (noun === "file") {
-    // `instrument://file//Users/sam/a.md` and `instrument://file/Users/sam/a.md`
-    // both name the absolute path.
-    const filePath = decoded(parsed.pathname).replace(/^\/+/u, "/");
-    return filePath === "/" ? undefined : { name: filePath, noun };
+  if (parsed?.protocol === "file:") {
+    // A Windows file's URL keeps its drive as the first segment,
+    // `/C:/Users/sam/a.md`, which the shell spells `/c/Users/sam/a.md`.
+    return {
+      opens: "file",
+      path: chatFilePathFromHref(
+        parsed.pathname.replace(
+          /^\/([A-Za-z]):(?=\/|$)/u,
+          (_, drive: string) => `/${drive.toLowerCase()}`,
+        ),
+      ),
+    };
   }
-  const segments = parsed.pathname.split("/").filter(Boolean);
-  const [first] = segments;
-  return segments.length === 1 && first !== undefined
-    ? { name: decoded(first), noun }
-    : undefined;
+  return undefined;
 }
 
 async function missingFiles(

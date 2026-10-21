@@ -29,15 +29,10 @@ let heldBackPage: null | string = null;
  * Opens a Stripe page (Checkout, the portal) in the system browser. A dev
  * instance an agent drives (`studio-drive boot` sets STUDIO_DRIVE_PURPOSE)
  * keeps it instead, for the run to complete in a headless browser, so a run
- * never opens one on the machine it shares with a person. One booted
- * `--visible` (STUDIO_DRIVE_VISIBLE) is a person's to drive, so it opens.
+ * never opens one on the machine it shares with a person.
  */
 async function openBillingPage(url: string) {
-  if (
-    !app.isPackaged &&
-    process.env.STUDIO_DRIVE_PURPOSE &&
-    process.env.STUDIO_DRIVE_VISIBLE !== "1"
-  ) {
+  if (!app.isPackaged && process.env.STUDIO_DRIVE_PURPOSE) {
     heldBackPage = url;
     return;
   }

@@ -4,7 +4,7 @@ type Offer = RPCOutput["billing"]["offer"];
 type Status = RPCOutput["billing"]["status"];
 
 /**
- * The four ways the platform can offer the free trial, as `billing.offer`
+ * The four ways the platform can offer the free trial, and the beta offer, as `billing.offer`
  * and `billing.status` answer for an account that has never had one. The
  * `reason` is what the platform gives for refusing Instrument's models on the
  * free plan in that mode (`trial-available`, `card-required`, `trial-paused`).
@@ -34,6 +34,13 @@ export const trialModes = [
     },
   },
   { id: "paused", label: "Paused", reason: "trial-paused", trial: null },
+  // A beta tester's offer: Pro's free months, over the no-card trial.
+  {
+    id: "beta",
+    label: "Beta offer",
+    reason: "trial-available",
+    trial: { cardRequired: false, days: 7, mode: "no_card" },
+  },
 ] as const satisfies readonly {
   id: string;
   label: string;
@@ -81,7 +88,7 @@ const plans: Offer["plans"] = [
 export function trialModeOffer(mode: TrialModeId, signedIn: boolean): Offer {
   const { trial } = getTrialMode(mode);
   return {
-    beta: null,
+    beta: mode === "beta" ? { months: 3, plan: "pro" } : null,
     offerVersion: `debug-${mode}`,
     plans,
     trial: trial && { ...trial, ...(signedIn && { available: true }) },

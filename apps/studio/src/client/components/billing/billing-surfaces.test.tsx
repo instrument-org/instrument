@@ -598,6 +598,38 @@ describe("setup's plan step", () => {
     ).toBe("key");
   });
 
+  it.each([
+    {
+      button: "Claim 3 free months",
+      months: 3,
+      title: "Pro is on us for 3 months",
+    },
+    {
+      button: "Claim your free month",
+      months: 1,
+      title: "Pro is on us for a month",
+    },
+  ])(
+    "shows the beta offer as Pro's card alone, free for $months month(s)",
+    async ({ button, months, title }) => {
+      platform.offer = { ...OFFER_WITH_TRIAL, beta: { months, plan: "pro" } };
+      platform.status = onFree();
+      renderStep();
+      expect(await screen.findByRole("heading", { name: title })).toBeDefined();
+      const cards = document.querySelectorAll("[data-plan-card]");
+      expect(
+        [...cards].map((card) => card.getAttribute("data-plan-card")),
+      ).toEqual(["pro"]);
+      expect(cards[0]?.querySelector("[data-plan-price]")?.textContent).toBe(
+        `$0for ${months === 1 ? "1 month" : `${String(months)} months`}then $40/month`,
+      );
+      expect(screen.getByRole("button", { name: button })).toBeDefined();
+      expect(
+        screen.getByRole("button", { name: "Use your existing subscriptions" }),
+      ).toBeDefined();
+    },
+  );
+
   it("offers a subscription but no key while a trial can start", async () => {
     platform.offer = OFFER_WITH_TRIAL;
     platform.status = onFree();

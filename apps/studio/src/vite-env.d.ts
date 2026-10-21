@@ -51,6 +51,12 @@ declare namespace NodeJS {
       INSTRUMENT_CONTEXT_LENGTH_OVERRIDE: string | undefined;
       /** Dev only: set by scripts/dev-supervisor.mjs, which restarts electron-vite on request. */
       INSTRUMENT_DEV_SUPERVISOR: string | undefined;
+      /**
+       * Development builds only: pins the network status the window's corner
+       * shows, `offline` or `instrument-unreachable`. See
+       * electron-main/lib/network-status.ts.
+       */
+      INSTRUMENT_NETWORK_STATUS: string | undefined;
       /** `0` keeps every pipeline stage on the buffered path, for comparing it with streaming between native commands. */
       INSTRUMENT_NATIVE_PIPES: string | undefined;
       /**

@@ -101,8 +101,8 @@ import {
   watchThemePreferenceAndApply,
 } from "./lib/theme-utils";
 import { servePageEditorBoot } from "./page-editor/sessions";
+import { startNetworkStatus } from "./lib/network-status";
 import { platformApiQueryClient } from "./platform-api/client";
-import { startPlatformApiReachability } from "./platform-api/reachability";
 import { initializeRPC } from "./rpc/initialize";
 import { watchMainThreadStalls } from "./lib/main-thread-stalls";
 
@@ -282,9 +282,10 @@ async function bootstrapPrimaryInstance() {
   servePageEditorBoot();
 
   // Early, so the first requests to a local API server that is not running
-  // already find it known as down.
-  startPlatformApiReachability({
-    onReachableAgain: () =>
+  // already find it known as down. Back online, the queries that failed run
+  // again.
+  startNetworkStatus({
+    onBackOnline: () =>
       void platformApiQueryClient.refetchQueries({ type: "active" }),
   });
 

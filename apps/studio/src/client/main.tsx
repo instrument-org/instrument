@@ -8,6 +8,7 @@ import { AppWindow } from "./components/window/app-window";
 import { initBrowserNavigationNotices } from "./lib/browser-navigation-notices";
 import { initBrowserPool } from "./lib/browser-pool";
 import { initExceptionCapture } from "./lib/capture-exception";
+import { initNetworkStatusForwarding } from "./lib/network-status-forwarding";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
 import { initStudioDrive } from "./lib/studio-drive";
 
@@ -17,6 +18,7 @@ declare global {
 
 initExceptionCapture();
 initDebugRpcBridge();
+initNetworkStatusForwarding();
 
 function start() {
   const rootElement = document.querySelector("#root");

@@ -25,7 +25,6 @@ import {
   quitsWithLastWindow,
   requestQuitApproval,
 } from "@/electron-main/lib/quit";
-import { getPlatformApiReachability } from "@/electron-main/platform-api/reachability";
 import {
   clearExceptionEvents,
   listSessionExceptionEvents,
@@ -523,25 +522,6 @@ const events = {
 };
 
 const live = {
-  // Whether the platform API answers, for the window's corner. Development
-  // builds only; a packaged one always reads "unknown".
-  platformApiReachability: base
-    .output(
-      eventIterator(
-        z.object({
-          baseUrl: z.string(),
-          status: z.enum(["reachable", "unknown", "unreachable"]),
-        }),
-      ),
-    )
-    .handler(async function* ({ signal }) {
-      yield* liveRead({
-        changes: [
-          publisher.subscribe("platform-api.reachability.updated", { signal }),
-        ],
-        read: getPlatformApiReachability,
-      });
-    }),
   // The problems captured since this process started, each its last event
   // counted with every capture of its fingerprint, for the developer
   // indicator. The store also keeps earlier sessions', for reports.

@@ -1,16 +1,21 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { noteSignedOut } from "@/electron-main/lib/notices";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
+import {
+  decodeKeyFile,
+  encodeKeyFile,
+  KEY_FILE_EXTENSION,
+  KEY_STORE_NAMES,
+} from "@/electron-main/lib/key-file";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { focusAppWindow } from "@/electron-main/windows/foreground";
-import { is } from "@electron-toolkit/utils";
 import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
 import {
   AIProviderConfigIdSchema,
   GROK_ACCOUNT_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
-import { safeStorage, shell } from "electron";
+import { shell } from "electron";
 import Store from "electron-store";
 import { ulid } from "ulid";
 import { type Actor, createActor, fromPromise, waitFor } from "xstate";
@@ -252,29 +257,23 @@ function getStore(): Store<StoreShape> {
       defaults,
       deserialize: (value) => {
         try {
-          const json = is.dev
-            ? value
-            : safeStorage.decryptString(Buffer.from(value, "base64"));
-          return StoreSchema.parse(JSON.parse(json));
+          return StoreSchema.parse(JSON.parse(decodeKeyFile(value)));
         } catch (error) {
           log.error("Failed to read the Grok account store", error);
           return defaults;
         }
       },
-      fileExtension: is.dev ? "json" : "json.enc",
-      name: "grok-account",
+      fileExtension: KEY_FILE_EXTENSION,
+      name: KEY_STORE_NAMES.grokAccount,
       serialize: (value) => {
-        const json = JSON.stringify(value);
-        if (is.dev) {
-          return json;
-        }
         // Without a keyring nothing is written, as the ChatGPT account's
         // store does: a sign-in then lasts until the app quits.
-        if (!safeStorage.isEncryptionAvailable()) {
+        const encoded = encodeKeyFile(JSON.stringify(value));
+        if (encoded === undefined) {
           log.error("Encryption is not available");
           return "";
         }
-        return safeStorage.encryptString(json).toString("base64");
+        return encoded;
       },
     });
     STORE.onDidAnyChange(() => {

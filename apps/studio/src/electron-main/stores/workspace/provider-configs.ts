@@ -1,13 +1,17 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
+import {
+  decodeKeyFile,
+  encodeKeyFile,
+  KEY_FILE_EXTENSION,
+  KEY_STORE_NAMES,
+} from "@/electron-main/lib/key-file";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { is } from "@electron-toolkit/utils";
 import { AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
 import {
   type AIProviderConfigId,
   AIProviderConfigIdSchema,
 } from "@instrument-org/shared";
-import { safeStorage } from "electron";
 import Store from "electron-store";
 import { z } from "zod";
 
@@ -56,30 +60,9 @@ export const getProviderConfigsStore = (): Store<ProviderConfigsStore> => {
       cwd: workspaceKeysDir(),
       defaults: defaultStore,
       deserialize: (value) => {
-        if (is.dev) {
-          const parsed = ProviderConfigsStoreSchema.safeParse(
-            JSON.parse(value),
-          );
-
-          if (parsed.success) {
-            return parsed.data;
-          }
-
-          logger.error("Failed to parse providers state", parsed.error);
-          return defaultStore;
-        }
-
-        if (!safeStorage.isEncryptionAvailable()) {
-          logger.error("Encryption is not available");
-          return defaultStore;
-        }
-
         let jsonData: unknown;
         try {
-          const decryptedValue = safeStorage.decryptString(
-            Buffer.from(value, "base64"),
-          );
-          jsonData = JSON.parse(decryptedValue);
+          jsonData = JSON.parse(decodeKeyFile(value));
         } catch (error) {
           logger.error("Failed to decrypt or parse JSON", error);
           return defaultStore;
@@ -94,20 +77,15 @@ export const getProviderConfigsStore = (): Store<ProviderConfigsStore> => {
         logger.error("Failed to parse provider configs", parsed.error);
         return defaultStore;
       },
-      fileExtension: is.dev ? "json" : "json.enc",
-      name: "providers",
+      fileExtension: KEY_FILE_EXTENSION,
+      name: KEY_STORE_NAMES.providerConfigs,
       serialize: (value) => {
-        if (is.dev) {
-          return JSON.stringify(value);
-        }
-
-        if (!safeStorage.isEncryptionAvailable()) {
+        const encoded = encodeKeyFile(JSON.stringify(value));
+        if (encoded === undefined) {
           logger.error("Encryption is not available");
           return "";
         }
-
-        const json = JSON.stringify(value);
-        return safeStorage.encryptString(json).toString("base64");
+        return encoded;
       },
     });
 

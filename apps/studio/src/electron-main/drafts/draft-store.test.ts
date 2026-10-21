@@ -142,7 +142,6 @@ describe("a window's ops", () => {
           { kind: "folder", path: plans },
           { kind: "link", url: "https://example.com/" },
         ],
-        leftOut: ["tab:band"],
         topicId: "top_1",
         topicSource: "suggested",
         words: "Plan",
@@ -172,7 +171,7 @@ describe("a window's ops", () => {
       type: "update",
     });
 
-    // A topic the model suggested and a chip of the band's are the window's.
+    // A topic the model suggested is the window's alone.
     expect(read()).toMatchInlineSnapshot(`
       "---
       id: "a"

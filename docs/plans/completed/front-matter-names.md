@@ -1,6 +1,6 @@
 # The names in a visible file's front matter
 
-Status: built. As built, a web page and an app's front go in a draft's `context` by their own address too, and a draft's `model` is not written: the composer has no model of its own per draft yet.
+Status: built. As built, `context` holds only what the person chose; the chips of what is on screen are worked out live and never written, and dismissing one is kept in the window's memory while the app runs. A web page and an app's front can go in `context` by their own address, and a draft's `model` is not written: the composer has no model of its own per draft yet.
 
 A person can open any of these files in a Markdown viewer, and another client (the phone app) reads and writes some of them. So the keys are a product surface: they are read by someone who has never seen the schema, and written by someone implementing against it. They should say what they hold without a legend.
 

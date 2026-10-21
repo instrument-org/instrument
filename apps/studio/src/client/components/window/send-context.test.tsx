@@ -73,6 +73,7 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
         }),
     },
     chatTitles: new Map([[CHAT, "Lisbon"]]),
+    dismissed: {},
     drafts: [],
     href: "/browser",
     paneOpenByGroup: {},
@@ -549,7 +550,32 @@ describe("draftContext", () => {
     `);
   });
 
-  it("sends only what the draft names, whatever the window has in view now", async () => {
+  it("sends what is in view behind the draft, and nothing it dismissed", async () => {
+    const PLACE = "place:files";
+    const file: WindowTab = {
+      group: PLACE,
+      href: "/files?file=%2FUsers%2Fcasey%2FNotes%2Fplan.md&path=&root=~",
+      id: "file",
+      kind: "screen",
+    };
+    const behindFile = (dismissed: string[]) =>
+      contextReaders(
+        windowOf({
+          dismissed: { [DRAFT.id]: dismissed },
+          drafts: [DRAFT],
+          windowTabs: tabsOf([file], PLACE),
+        }),
+      ).draftContext(DRAFT.id);
+    await expect(behindFile([])).resolves.toMatchObject({
+      file: { path: "/Users/casey/Notes/plan.md" },
+      screen: "file",
+    });
+    await expect(
+      behindFile([`tab:file ${file.href}`]),
+    ).resolves.toBeUndefined();
+  });
+
+  it("never sends the chat on screen as what was in view", async () => {
     const page: WindowTab = {
       group: CHAT,
       id: "page",
@@ -599,7 +625,8 @@ describe("draftContext", () => {
     };
     const { draftContext } = contextReaders(
       windowOf({
-        drafts: [{ ...DRAFT, leftOut: ["tab:band"] }],
+        dismissed: { [DRAFT.id]: ["tab:band"] },
+        drafts: [DRAFT],
         windowTabs: tabsOf([band]),
       }),
     );

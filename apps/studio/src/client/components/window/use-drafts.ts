@@ -2,6 +2,7 @@ import {
   draftKeyString,
   draftSnapshotsAtom,
 } from "@/client/atoms/prompt-value";
+import { dismissedChipsAtom } from "@/client/drafts/dismissed-chips";
 import { cancelWords } from "@/client/drafts/settle-words";
 import {
   claimDraftAtom,
@@ -17,11 +18,7 @@ import {
   type DraftContextItem,
   draftGroupOf,
 } from "@/shared/drafts";
-import {
-  chatFiltersAtom,
-  NEW_TAB_HREF,
-  paneOpenByGroupAtom,
-} from "@/client/atoms/window";
+import { chatFiltersAtom, NEW_TAB_HREF } from "@/client/atoms/window";
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { holdSendsUntilOpened } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
@@ -37,16 +34,11 @@ import { useEffect, useState } from "react";
 import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
-import { appTabsAtom } from "./app-tabs";
 import { NO_FILTERS, type Topic } from "./chats";
 import { type DraftSend } from "./compose-window";
-import { contextOfTab } from "./context-items";
-import { isGroupShown, isIncludable, tabInView } from "./draft-context";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type useCompose } from "./use-compose";
-import { tabSurfaceAtom } from "./tab-surface";
 import { isHomeTab } from "./tab-model";
-import { chatOfGroup } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
 /** How long a chat just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
@@ -60,7 +52,6 @@ const CHAT_ARRIVAL_MS = ms("3 seconds");
  * of one.
  */
 export function useDrafts({
-  activeHref,
   folders,
   compose,
   draftContext,
@@ -72,8 +63,6 @@ export function useDrafts({
   topics,
   windowTabs,
 }: {
-  /** Where the window's tab up stands, which a draft opened over a screen of its own is opened on. */
-  activeHref: string;
   /** The folders the window reaches, for how the agent reaches a file an ask is on. */
   folders: Record<string, { path: string }>;
   /** The windows along the row's foot, which a draft is written in. */
@@ -104,9 +93,7 @@ export function useDrafts({
   const draftSent = useSetAtom(draftSentAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
-  const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
-  const appTabs = useAtomValue(appTabsAtom);
-  const surfaces = useAtomValue(tabSurfaceAtom);
+  const setDismissedChips = useSetAtom(dismissedChipsAtom);
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
   const { remove: removeAsks, returnTo: returnAsks } = useStagedAskActions();
@@ -162,46 +149,9 @@ export function useDrafts({
     chosen: ChosenItem[] = [],
   ) => {
     const now = Date.now();
-    // What the draft is opened over: the tab in view, when it is something
-    // the conversation can be told about: the tab open in the chat's pane
-    // beside it, or a site the tab up shows.
-    const overGroup = windowTabs.groupOnScreen;
-    const over =
-      overGroup !== undefined && isGroupShown(overGroup, paneOpenByGroup)
-        ? windowTabs.selectedTabIn(overGroup)
-        : undefined;
-    const inPlace =
-      overGroup !== undefined && over !== undefined && isIncludable(over)
-        ? over
-        : undefined;
-    // Or the window's own tab, when it stands on a screen of its own (a
-    // folder, a file, an app's front) and the draft was not opened on
-    // things by name.
-    const appTabId = appTabs.selectedId;
-    const onScreen =
-      inPlace === undefined && chosen.length === 0 && appTabId !== null
-        ? tabInView({
-            activeHref,
-            appTabId,
-            groupTab: undefined,
-            isGroupTabShown: false,
-          })
-        : undefined;
-    // A chat on screen is the chat, its pane open or not: what is in it is
-    // the chat's to name, not the draft's.
-    const overChat = chatOfGroup(overGroup);
-    const overTab =
-      inPlace ?? (onScreen && isIncludable(onScreen) ? onScreen : undefined);
-    // Worked out once, here: what the draft carries is what it was made
-    // with, whatever the window moves on to.
-    const context: DraftContextItem[] = [
-      ...chosen,
-      ...(overChat === undefined
-        ? overTab === undefined
-          ? []
-          : contextOfTab(overTab, surfaces[overTab.id]?.finder ?? null, chosen)
-        : [{ chat: overChat, kind: "chat" as const }]),
-    ];
+    // Only what the person chose is kept with the draft; what is on screen
+    // goes with it as chips worked out at the moment (draftContextItems).
+    const context: DraftContextItem[] = chosen;
     const draft: Draft = {
       ...(context.length > 0 ? { context } : {}),
       createdAt: now,
@@ -242,7 +192,12 @@ export function useDrafts({
         Object.entries(current).filter(([id]) => keep.has(id)),
       ),
     );
-  }, [draftIds, setDraftSnapshots]);
+    setDismissedChips((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([id]) => keep.has(id)),
+      ),
+    );
+  }, [draftIds, setDismissedChips, setDraftSnapshots]);
   /** Throws a draft away: its window, its folder with what its composer held, and its tabs. */
   const deleteDraft = (id: string) => {
     // What was marked for it goes back to its file's Ask, to be sent another way.

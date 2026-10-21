@@ -129,14 +129,18 @@ describe("a chat's replies", () => {
 
 describe("the update between two drafts", () => {
   it("names only the fields that changed, and the ones cleared", () => {
-    const from = draft("a", { leftOut: ["x"], topicId: "house", words: "a" });
+    const from = draft("a", {
+      topicId: "house",
+      topicSource: "chosen",
+      words: "a",
+    });
     const to = draft("a", { topicId: "money", words: "a" });
     expect(draftUpdateOf(from, to, 9)).toEqual({
       at: 9,
       id: "a",
       set: { topicId: "money" },
       type: "update",
-      unset: ["leftOut"],
+      unset: ["topicSource"],
     });
   });
 

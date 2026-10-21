@@ -72,13 +72,15 @@ describe("a draft's chips", () => {
     draftContextItems({
       allTabs: [],
       bandUp: undefined,
+      dismissed: [],
       draft,
       finderOf: () => null,
       group: "draft:d",
+      inView: undefined,
       ...over,
     });
 
-  it("are its context, then the tab its band has up", () => {
+  it("are what is on screen, then what the person chose", () => {
     expect(
       forDraft({
         bandUp: page("band", "draft:d"),
@@ -89,20 +91,35 @@ describe("a draft's chips", () => {
             { kind: "file", path: "/Users/sam/a.pdf" },
           ],
         },
+        inView: page("site", "site:1"),
       }).map((item) => item.key),
-    ).toEqual([`chat:${OTHER}`, "chosen:/Users/sam/a.pdf", "tab:band"]);
+    ).toEqual([
+      "tab:band",
+      "tab:site",
+      `chat:${OTHER}`,
+      "chosen:/Users/sam/a.pdf",
+    ]);
   });
 
-  it("leave out the band's tab once it is taken off", () => {
+  it("follow the screen, less what was dismissed", () => {
+    const site = page("site", "site:1");
+    expect(forDraft({ inView: site }).map((item) => item.key)).toEqual([
+      "tab:site",
+    ]);
+    expect(forDraft({ dismissed: ["tab:site"], inView: site })).toEqual([]);
     expect(
       forDraft({
-        bandUp: page("band", "draft:d"),
-        draft: { ...draft, leftOut: ["tab:band"] },
-      }),
-    ).toEqual([]);
+        dismissed: ["tab:site"],
+        inView: page("other", "site:2"),
+      }).map((item) => item.key),
+    ).toEqual(["tab:other"]);
   });
 
-  it("stand for a page and an app by their address", () => {
+  it("never name the chat on screen", () => {
+    expect(forDraft({ inView: page("theirs", OTHER) })).toEqual([]);
+  });
+
+  it("stand for a page and an app the person chose by their address", () => {
     const [site, app] = forDraft({
       draft: {
         ...draft,

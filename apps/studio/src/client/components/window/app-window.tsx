@@ -3,6 +3,7 @@ import {
   removeDraftAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
+import { dismissedChipsAtom } from "@/client/drafts/dismissed-chips";
 import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
@@ -535,11 +536,13 @@ function WindowShell({
         : null;
   // What goes with a message, read at the moment of sending.
   const volumes = useComputerVolumes();
+  const dismissedChips = useAtomValue(dismissedChipsAtom);
   const { draftContext, sendContext } = contextReaders({
     appsBySlug,
     appTabId: appTabs.model.selectedId,
     browser,
     chatTitles,
+    dismissed: dismissedChips,
     drafts,
     href: activeHref,
     paneOpenByGroup,
@@ -561,7 +564,6 @@ function WindowShell({
     startChat,
     startingIds,
   } = useDrafts({
-    activeHref,
     folders: opened?.folders ?? {},
     compose,
     draftContext,

@@ -52,11 +52,12 @@ export type DraftAttachment =
  * What it has gathered (sites, files, folders) is its tab group, kept with
  * the window's tabs under {@link draftGroupOf}; what its composer has besides
  * the words is kept in memory beside it, and the part of that with a place on
- * disk in `attached`. What else goes with the message is `context`, set as
- * the draft is made.
+ * disk in `attached`. What else the person chose to go with the message is
+ * `context`; what is on screen goes too, worked out at the moment, and is
+ * never kept with the draft.
  *
- * `leftOut` and `topicSource` are kept while the app runs and never written
- * to the draft's file.
+ * `topicSource` is kept while the app runs and never written to the draft's
+ * file.
  */
 export interface Draft {
   /** What the composer was given that has a place on disk, so it comes back after a relaunch. */
@@ -67,17 +68,13 @@ export interface Draft {
    */
   chatId?: ChatId;
   /**
-   * What goes with the message besides the words: the files and folders the
-   * draft was opened on by name, and what the window had up as it was made
-   * (a chat on screen, a folder, a file, a page, an app). Worked out once, as
-   * the draft is made, and changed after only by the person taking a chip
-   * off, so a chip taken off stays off.
+   * What the person chose to go with the message besides the words: the
+   * files and folders the draft was opened on by name, and the chats they
+   * added. Changed only by the person, so a chip taken off stays off.
    */
   context?: DraftContextItem[];
   createdAt: number;
   id: string;
-  /** The chips of the draft's own tabs the person took off, by their keys (see `ContextItem`). */
-  leftOut?: string[];
   /**
    * The chat the draft is on its way into, from the press until the message
    * is written or the send fails. A draft being sent is neither a reply

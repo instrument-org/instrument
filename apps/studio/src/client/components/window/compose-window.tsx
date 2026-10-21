@@ -60,11 +60,6 @@ import {
 import { ComposeZeroState } from "./compose-zero-state";
 import { useWindow, WindowContext } from "./context";
 import { ContextChips, HeldMark } from "./context-chip";
-import {
-  contextKeyOf,
-  type ContextItem,
-  draftContextItems,
-} from "./context-items";
 import { GroupItem } from "./group-item";
 import { usePageHost } from "./page-hosts";
 import { tabSurfaceAtom } from "./tab-surface";
@@ -75,7 +70,9 @@ import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { AddTopicChip, TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
+import { useDraftChips } from "./use-draft-chips";
 import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
+import { useTabInView } from "./use-tab-in-view";
 import { WindowTabStrip } from "./window-tab-strip";
 import { isHomeTab } from "./tab-model";
 import { matchScreen } from "./window-href";
@@ -260,29 +257,15 @@ export function ComposeWindow({
   // What the draft carries besides its words, as its chips: the same list
   // its chat is told at the press (see draftContextItems).
   const surfaces = useAtomValue(tabSurfaceAtom);
-  const contextItems = draftContextItems({
+  const inView = useTabInView();
+  const { items: contextItems, leaveOut } = useDraftChips({
     allTabs: windowTabs.allTabs,
     bandUp: up,
     draft,
     finderOf: (id) => surfaces[id]?.finder ?? null,
-    group,
+    inView,
+    onChange,
   });
-  // A chip of the draft's `context` takes its line out of the file; the
-  // chip of the band's own tab is only kept off while the app runs.
-  const leaveOut = (item: ContextItem) => {
-    onChange((current) => {
-      const context = current.context ?? [];
-      const left = context.filter((entry) => contextKeyOf(entry) !== item.key);
-      if (left.length === context.length) {
-        return {
-          ...current,
-          leftOut: [...(current.leftOut ?? []), item.key],
-        };
-      }
-      const { context: _was, ...rest } = current;
-      return left.length > 0 ? { ...rest, context: left } : rest;
-    });
-  };
 
   // The words are the draft's own, wherever they are read; what else the
   // box held when it was put away is put back as it comes up.

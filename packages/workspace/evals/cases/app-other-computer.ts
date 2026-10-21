@@ -121,7 +121,7 @@ const connectsBeforeUsing: Assertion = {
               ? `connect_app ${step.slug}`
               : step.kind === "text"
                 ? `text: ${step.text.slice(0, 160)}`
-                : `note otherComputer=${step.otherComputer}`,
+                : `note otherComputer=${String(step.otherComputer)}`,
         )
         .join(" | "),
       passed: asked,

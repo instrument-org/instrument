@@ -69,6 +69,9 @@ interface PooledWebview {
   // the same targetId bumps it, so reconcile knows to dispose this guest and
   // mount a fresh one rather than reusing an element bound to a dead entry.
   generation: number;
+  // Whether main was last told a slot shows this guest. Main's record of a
+  // new guest starts parked, as this does.
+  lastReportedShown: boolean;
   // Last size reported to main, so a park/show cycle that lands on the same
   // number doesn't re-send it.
   lastReportedSurface: null | { height: number; width: number };
@@ -829,6 +832,7 @@ function ensureWebview(
     desiredSurface: desiredSurfaces.get(targetId) ?? null,
     generation,
     handle: null,
+    lastReportedShown: false,
     lastReportedSurface: null,
     lastVisibleBounds: null,
     targetId,
@@ -1038,6 +1042,7 @@ function placeGuest(targetId: BrowserTargetId) {
       winner = entry;
     }
   }
+  reportShown(pooled, winner !== undefined);
   if (!winner) {
     paintOwners.delete(targetId);
     releaseGuestFocus(targetId);
@@ -1162,6 +1167,20 @@ function reportEffectiveSurface(
     height: size.height,
     targetId: pooled.targetId,
     width: size.width,
+  });
+}
+
+// Tell main whether a slot shows the guest or it is parked. A parked guest is
+// still laid out and painted, so main has no other way to tell, and it grants
+// a page full screen only in a guest a slot shows.
+function reportShown(pooled: PooledWebview, shown: boolean) {
+  if (pooled.lastReportedShown === shown) {
+    return;
+  }
+  pooled.lastReportedShown = shown;
+  void rpcClient.browser.syncGuestShown.call({
+    shown,
+    targetId: pooled.targetId,
   });
 }
 

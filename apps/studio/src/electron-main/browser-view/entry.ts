@@ -114,6 +114,11 @@ export interface BrowserEntry {
   pendingDownloadGuids: Map<string, string>;
   screencastInterval: null | ReturnType<typeof setInterval>;
   screencastSessionId: number;
+  // Whether a slot in the window shows this guest rather than parking it, as
+  // the renderer pool last reported (`placeGuest` in `browser-pool.ts`).
+  // Main cannot see the pool's slots, and a parked guest is still laid out
+  // and painted, so nothing on the guest itself says which it is.
+  shown: boolean;
   // Stable, externally-meaningful target id: the id of the tab it is drawn in.
   // Used as the manager Map key, the CDP URL path component, and the wire
   // identifier in BrowserConfig. Independent of webContents.id (which becomes
@@ -161,6 +166,7 @@ export function createEntry({
     phase: "pending",
     screencastInterval: null,
     screencastSessionId: 0,
+    shown: false,
     targetId,
     webContents: null,
   };

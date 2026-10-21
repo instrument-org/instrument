@@ -48,6 +48,17 @@ export function mayOpenInAnotherApp(
   record: Pick<GuestRecord, "role" | "userInputAt"> | undefined,
   now = Date.now(),
 ): boolean {
+  return personJustUsedTab(record, now);
+}
+
+/**
+ * Whether the contents is a tab's guest a person clicked, tapped or typed in
+ * within the last {@link USER_INPUT_WINDOW_MS}, by its own record of input.
+ */
+export function personJustUsedTab(
+  record: Pick<GuestRecord, "role" | "userInputAt"> | undefined,
+  now = Date.now(),
+): boolean {
   return (
     record?.role === "webview" &&
     record.userInputAt > 0 &&

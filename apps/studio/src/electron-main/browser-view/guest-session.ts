@@ -1,4 +1,4 @@
-import { session, type Session } from "electron";
+import { BrowserWindow, session, type Session } from "electron";
 import fs from "node:fs";
 
 import { applyStandardUserAgent } from "../lib/user-agent";
@@ -11,6 +11,7 @@ import {
 import { routeGuestDownloads } from "./downloads";
 import { mayOpenInAnotherApp } from "./external-app-links";
 import { askToOpenInAnotherApp } from "./external-app-prompt";
+import { mayEnterFullScreen } from "./full-screen-policy";
 import { guests } from "./guest-registry";
 import { refusePasskeys } from "./passkey-policy";
 import {
@@ -75,20 +76,35 @@ export function configureGuestSession(profileDir: string): Session {
   // `navigator.clipboard.writeText` rejects under a denial, and most pages
   // swallow that rejection, so the button does nothing. Reading the clipboard
   // stays denied; a page overwriting it is a click the user made, a page
-  // reading it is the user's clipboard handed over. Full screen is granted
-  // too, as a browser grants it: Chromium holds it to a user gesture, Esc
-  // leaves it, and Electron puts the window in full screen and stands the
-  // guest over all of it, then puts both back. A page no slot is showing is
-  // taken back out (`leaveFullScreen` in `browser-pool.ts`). A link to another app
-  // (`slack://`) goes to that app when a person just used the tab and says
-  // yes, or said its site always may.
+  // reading it is the user's clipboard handed over. Full screen goes only to
+  // a tab a person is looking at and just used (`mayEnterFullScreen`): it
+  // takes the whole window into full screen, onto a Space of its own on
+  // macOS, and Chromium counts an agent's CDP click as the user gesture it
+  // asks for. Once it is granted, Esc leaves it, and Electron puts the window in full
+  // screen and stands the guest over all of it, then puts both back. A page
+  // no slot is showing is still taken back out (`leaveFullScreen` in
+  // `browser-pool.ts`). A link to another app (`slack://`) goes to that app
+  // when a person just used the tab and says yes, or said its site always
+  // may.
   guestSession.setPermissionRequestHandler(
     (wc, permission, callback, details) => {
-      if (permission !== "openExternal") {
+      if (permission === "fullscreen") {
+        const record = guests.get(wc.id);
+        const host = wc.hostWebContents;
         callback(
-          permission === "clipboard-sanitized-write" ||
-            permission === "fullscreen",
+          mayEnterFullScreen({
+            record,
+            shown: record?.entry?.shown ?? false,
+            windowFocused:
+              !!host &&
+              !host.isDestroyed() &&
+              !!BrowserWindow.fromWebContents(host)?.isFocused(),
+          }),
         );
+        return;
+      }
+      if (permission !== "openExternal") {
+        callback(permission === "clipboard-sanitized-write");
         return;
       }
       if (!mayOpenInAnotherApp(guests.get(wc.id))) {

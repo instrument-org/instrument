@@ -110,6 +110,9 @@ export interface BrowserViewManager {
   // guests (it can get stuck `true` after focus moves to a plain host-page
   // element).
   setGuestFocus: (targetId: BrowserTargetId, focused: boolean) => void;
+  // Record whether a slot in the window shows a guest or the pool parks it,
+  // as the renderer pool reports each change.
+  setGuestShown: (targetId: BrowserTargetId, shown: boolean) => void;
   // Trust the certificate a tab's page was last refused, when it was for
   // `url`'s site, and load `url` again under it: "Continue" on the page that
   // says the connection isn't private. False when there is none to trust.
@@ -826,6 +829,12 @@ export function createBrowserViewManager(): BrowserViewManager {
       })),
     setEmulatedDevice,
     setGuestFocus,
+    setGuestShown: (targetId, shown) => {
+      const entry = entries.get(targetId);
+      if (entry) {
+        entry.shown = shown;
+      }
+    },
     setHostFocus,
     teardown: () => {
       for (const targetId of entries.keys()) {

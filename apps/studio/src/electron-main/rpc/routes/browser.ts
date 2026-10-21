@@ -143,6 +143,14 @@ const syncFocus = base
     getBrowserViewManager()?.setGuestFocus(input.targetId, input.focused);
   });
 
+// Whether a slot shows a guest or the pool parks it, reported by the pool on
+// each change. Main grants a page full screen only in a shown guest.
+const syncGuestShown = base
+  .input(z.object({ shown: z.boolean(), targetId: BrowserTargetIdSchema }))
+  .handler(({ input }) => {
+    getBrowserViewManager()?.setGuestShown(input.targetId, input.shown);
+  });
+
 const syncHostFocus = base.handler(() => {
   getBrowserViewManager()?.setHostFocus();
 });
@@ -369,6 +377,7 @@ export const browser = {
   searchSuggestions,
   setEmulatedDevice,
   syncFocus,
+  syncGuestShown,
   syncGuestSurface,
   syncHostFocus,
   syncRasterBudget,

@@ -60,6 +60,7 @@ vi.mock("@/client/rpc/client", () => {
           },
         },
         syncFocus: done,
+        syncGuestShown: done,
         syncGuestSurface: done,
         syncHostFocus: done,
         syncRasterBudget: done,

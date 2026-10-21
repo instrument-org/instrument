@@ -12,10 +12,16 @@ import { homeDataLayout } from "./workspace-layout";
  * The home folder the flavor's data folder is in, and with it every
  * workspace's work folders: the person's own, or the folder
  * `INSTRUMENT_DATA_HOME` names, which a seeded or clean-room instance a
- * dev tool boots sets so its chats' work stays beside its own data.
+ * dev tool boots sets so its chats' work stays beside its own data. A
+ * production build ignores it, so a stray variable cannot move a person's
+ * work folders.
  */
 export function dataHome(): string {
-  return process.env.INSTRUMENT_DATA_HOME || os.homedir();
+  return (
+    (process.env.NODE_ENV !== "production" &&
+      process.env.INSTRUMENT_DATA_HOME) ||
+    os.homedir()
+  );
 }
 
 const RecordSchema = z.object({

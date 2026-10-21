@@ -353,7 +353,7 @@ async function statusOutput(executablePath: string, args: string[]) {
  * notices it finish and brings the app back to the front. Answers why the
  * sign-in could not start, if it could not.
  */
-export async function openClaudeSignIn(): Promise<{
+async function openClaudeSignIn(): Promise<{
   error: string | undefined;
 }> {
   let current = await refreshClaudeAccountStatus({ force: true });

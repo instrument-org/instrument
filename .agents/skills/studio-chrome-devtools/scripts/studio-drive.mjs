@@ -77,9 +77,11 @@
 // `--own-privacy` (macOS) boots an instance macOS answers with its own privacy
 // grants rather than the terminal's, which otherwise hand it Full Disk Access,
 // so a protected folder refuses it and its first read asks the way an
-// installed app's does. The grants are the dev Electron bundle's, not a signed
-// build's, and they outlive the instance: undo one in System Settings or with
-// `tccutil reset All com.github.Electron`. Stopping it is the same as any other.
+// installed app's does. The grants are the instance's dev Electron clone's,
+// under its own bundle identifier (`devBundleId` in dev-supervisor.ts), not a
+// signed build's, and they outlive the instance: undo one in System Settings
+// or with `tccutil reset All <that identifier>`. Stopping it is the same as
+// any other.
 //
 // `--workspace <fixture>` boots against a disposable workspace built from a
 // committed fixture (fixtures/workspaces/) instead of the shared dev

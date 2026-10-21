@@ -8,6 +8,7 @@ import { act, fireEvent, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AccountSection } from "../settings/account-section";
+import { PlanStep } from "../setup/steps/plan";
 import { useChatNote } from "./chat-note";
 import { PlanSheet } from "./plan-sheet";
 
@@ -78,6 +79,24 @@ const { mutation, platform, query, toastError } = vi.hoisted(() => {
 vi.mock("@/client/lib/toast", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   toast: { error: toastError },
+}));
+
+// The other ways in, as the plan step opens them: the page it starts on,
+// and a way that connects.
+vi.mock("../setup/steps/ways-in", () => ({
+  WaysIn: ({
+    initial,
+    onDone,
+  }: {
+    initial: { kind: string };
+    onDone: () => void;
+  }) => (
+    <div data-ways-in={initial.kind}>
+      <button onClick={onDone} type="button">
+        Connected
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/client/rpc/client", () => ({
@@ -340,10 +359,8 @@ describe("Settings > Account", () => {
     };
     renderWithProviders(<AccountSection />);
 
-    expect(
-      await screen.findByText(/Free trials aren't available right now\./),
-    ).toBeDefined();
-    expect(screen.getByText("No plan")).toBeDefined();
+    expect(await screen.findByText("No plan")).toBeDefined();
+    expect(screen.queryByText(/Free trials/)).toBeNull();
     expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
   });
 
@@ -505,6 +522,86 @@ describe("the plan cards", () => {
         of("basic")?.querySelector("[data-plan-makers]")?.children.length,
       ).toBe(expected);
     });
+  });
+});
+
+describe("setup's plan step", () => {
+  const renderStep = () => {
+    const onContinue = vi.fn();
+    renderWithProviders(
+      <PlanStep
+        hold={vi.fn()}
+        isLast={false}
+        isNewStepOnly={false}
+        onContinue={onContinue}
+        onFinish={vi.fn()}
+        step="plan"
+      />,
+    );
+    return onContinue;
+  };
+  const neverTrialed = (): Status => ({
+    canSubscribe: true,
+    plan: "free",
+    trial: { state: "available" },
+    windows: [],
+  });
+
+  it.each([
+    { name: "trials held back", offer: { ...OFFER, trial: null } },
+    {
+      name: "an intro price",
+      offer: {
+        ...OFFER,
+        trial: {
+          available: true,
+          cardRequired: true,
+          days: 7,
+          intro: { months: 1, price: { currency: "usd", unitAmount: 100 } },
+          mode: "intro" as const,
+        },
+      },
+    },
+  ])(
+    "offers a plan or another way in with $name, and connecting answers it",
+    async ({ offer }) => {
+      platform.offer = offer;
+      platform.status = neverTrialed();
+      const onContinue = renderStep();
+
+      expect(await screen.findByText("Choose a plan")).toBeDefined();
+      expect(screen.queryByText(/paused|aren't available/)).toBeNull();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Use it instead" }),
+      );
+      expect(
+        document.querySelector("[data-ways-in]")?.getAttribute("data-ways-in"),
+      ).toBe("subscriptions");
+      fireEvent.click(screen.getByRole("button", { name: "Connected" }));
+      expect(onContinue).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("opens the key page from the same line", async () => {
+    platform.offer = { ...OFFER, trial: null };
+    platform.status = neverTrialed();
+    renderStep();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "add an API key" }),
+    );
+    expect(
+      document.querySelector("[data-ways-in]")?.getAttribute("data-ways-in"),
+    ).toBe("key");
+  });
+
+  it("offers only the trial while one can start", async () => {
+    platform.offer = OFFER_WITH_TRIAL;
+    platform.status = onFree();
+    renderStep();
+    expect(
+      await screen.findByText("Try Instrument free for 7 days"),
+    ).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Use it instead" })).toBeNull();
   });
 });
 

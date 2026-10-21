@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SKILLS_FOLDER_NAME } from "../constants";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
@@ -24,6 +24,32 @@ afterEach(async () => {
       .splice(0)
       .map((dir) => fs.rm(dir, { force: true, recursive: true })),
   );
+});
+
+describe("a source whose listing waits", () => {
+  it("starts one listing however many passes come while it waits", async () => {
+    const dir = AbsolutePathSchema.parse(
+      await fs.mkdtemp(path.join(os.tmpdir(), "skills-held-")),
+    );
+    temporaryDirs.push(dir);
+    // As macOS holds a listing while its prompt for the folder is up.
+    const readdir = vi
+      .spyOn(fs, "readdir")
+      .mockImplementation(() => new Promise(() => {}));
+    try {
+      const source = { dir, id: "claude", source: "claude" } as const;
+      const passes = await Promise.all([
+        findSkills([source]),
+        findSkills([source]),
+        findSkills([source]),
+      ]);
+
+      expect(passes).toEqual([[], [], []]);
+      expect(readdir).toHaveBeenCalledTimes(1);
+    } finally {
+      readdir.mockRestore();
+    }
+  });
 });
 
 describe("parseFrontmatter", () => {

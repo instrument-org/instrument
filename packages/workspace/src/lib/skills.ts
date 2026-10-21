@@ -662,6 +662,33 @@ async function findSkillsInDir(
  */
 const SOURCE_LOOK_MS = 1000;
 
+type SourceListing = { entries: Dirent[] } | { error: unknown };
+
+/**
+ * Each source's listing still waiting, by folder. A listing macOS holds for
+ * its prompt keeps one of the process's file threads until the person
+ * answers, so a later pass waits on the same one rather than starting
+ * another: one per source however many passes come while the prompt is up.
+ */
+const sourceListings = new Map<string, Promise<SourceListing>>();
+
+function sourceListing(dir: AbsolutePath): Promise<SourceListing> {
+  let listing = sourceListings.get(dir);
+  if (listing === undefined) {
+    listing = fs
+      .readdir(dir, { withFileTypes: true })
+      .then(
+        (entries) => ({ entries }),
+        (error: unknown) => ({ error }),
+      )
+      .finally(() => {
+        sourceListings.delete(dir);
+      });
+    sourceListings.set(dir, listing);
+  }
+  return listing;
+}
+
 /**
  * A source's entries, or none when it can't be read: a home folder's skills
  * folder is often a link into Documents or iCloud Drive, which macOS may
@@ -671,10 +698,7 @@ const SOURCE_LOOK_MS = 1000;
 async function listSource(dir: AbsolutePath): Promise<Dirent[]> {
   let timer: NodeJS.Timeout | undefined;
   const listed = await Promise.race([
-    fs.readdir(dir, { withFileTypes: true }).then(
-      (entries) => ({ entries }),
-      (error: unknown) => ({ error }),
-    ),
+    sourceListing(dir),
     new Promise<{ waiting: true }>((resolve) => {
       timer = setTimeout(() => {
         resolve({ waiting: true });
@@ -687,7 +711,7 @@ async function listSource(dir: AbsolutePath): Promise<Dirent[]> {
     return listed.entries;
   }
   console.warn(
-    `Skipping the skills in ${dir}: ${"waiting" in listed ? "its listing hasn't answered, which is macOS asking the person about the folder" : String(listed.error)}`,
+    `Skipping the skills in ${dir}: ${"waiting" in listed ? "its listing hasn't answered yet (macOS may be asking the person about the folder)" : String(listed.error)}`,
   );
   return [];
 }

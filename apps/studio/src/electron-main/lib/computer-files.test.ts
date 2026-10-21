@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { COMPUTER_FILE_REFUSAL_HEADER } from "@/shared/computer-file-refusal";
+
 import {
   computerFileBase,
   handleComputerFileRequest,
@@ -240,6 +242,25 @@ describe("handleComputerFileRequest", () => {
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
     expect(await response.text()).toBe("");
   });
+
+  // chmod takes no reading away on Windows, and root reads past it.
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "says the account refused a file it can't read, instead of failing mid-answer",
+    async () => {
+      const locked = path.join(folder, "locked.txt");
+      await fs.writeFile(locked, "theirs");
+      await fs.chmod(locked, 0o000);
+      try {
+        const response = await request(urlFor(locked));
+        expect(response.status).toBe(403);
+        expect(response.headers.get(COMPUTER_FILE_REFUSAL_HEADER)).toBe(
+          "account",
+        );
+      } finally {
+        await fs.chmod(locked, 0o644);
+      }
+    },
+  );
 
   it("refuses every method but GET and HEAD", async () => {
     const response = await request(urlFor(file), { method: "POST" });

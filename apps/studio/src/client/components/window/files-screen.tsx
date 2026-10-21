@@ -34,7 +34,11 @@ import { cn } from "@/client/lib/utils";
 import { useTheme } from "@/client/components/theme-provider";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { browserTargetOf, StoreId } from "@instrument-org/workspace/client";
+import {
+  browserTargetOf,
+  type ComputerRefusal,
+  StoreId,
+} from "@instrument-org/workspace/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
@@ -512,11 +516,15 @@ export function FilesScreen({
   // tab; beside its folder, it slides away and leaves the folder. The app's
   // own data goes the same way, which the channel forbids. Asked as the file
   // opens and again whenever its watch says it went, so trashing it from the
-  // folder beside it, or moving a folder above it, puts it away. A file
-  // macOS refuses stays, showing the ways past the refusal in place of the
-  // viewer, and is asked again once the person picks its folder.
+  // folder beside it, or moving a folder above it, puts it away. A file the
+  // system refuses stays, saying whose refusal it is in place of the viewer
+  // (with the ways past one macOS made), and is asked again once the person
+  // picks its folder.
   const isFileGone = useWatchedFileGone(file);
-  const [macosRefused, setMacosRefused] = useState<string | null>(null);
+  const [refused, setRefused] = useState<{
+    file: string;
+    reason: ComputerRefusal["reason"];
+  } | null>(null);
   const [askedAgain, setAskedAgain] = useState(0);
   useEffect(() => {
     if (!file) {
@@ -540,11 +548,14 @@ export function FilesScreen({
             leaveFile();
           }
         };
-        const refusedByMacos =
-          response.status === 403 &&
-          response.headers.get(COMPUTER_FILE_REFUSAL_HEADER) === "system";
-        setMacosRefused(refusedByMacos ? file : null);
-        if (refusedByMacos) {
+        const reason =
+          response.status === 403
+            ? response.headers.get(COMPUTER_FILE_REFUSAL_HEADER)
+            : null;
+        const refusal =
+          reason === "system" || reason === "account" ? reason : null;
+        setRefused(refusal ? { file, reason: refusal } : null);
+        if (refusal) {
           return;
         }
         if (response.status === 403) {
@@ -570,7 +581,7 @@ export function FilesScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, isFileGone, askedAgain]);
   const refusedView =
-    activeFile && macosRefused === activeFile.hostPath ? (
+    activeFile && refused?.file === activeFile.hostPath ? (
       <NotPermitted
         onGranted={() => {
           setAskedAgain((count) => count + 1);
@@ -579,7 +590,7 @@ export function FilesScreen({
           display: folderOf(activeFile.hostPath),
           kind: "refused",
           path: folderOf(activeFile.hostPath),
-          reason: "system",
+          reason: refused.reason,
         }}
       />
     ) : null;

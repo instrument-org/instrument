@@ -1,5 +1,6 @@
 import { APP_PROTOCOL, isWindowsPath } from "@instrument-org/shared";
 import {
+  readRefusalOf,
   resolveThroughAliases,
   serveStaticFile,
 } from "@instrument-org/workspace/electron";
@@ -180,22 +181,20 @@ app.all("/*", async (c) => {
     c.header("Content-Type", "image/png");
     return c.body(new Uint8Array(drawn.png));
   }
-  // macOS answers a file's stat in a folder it refuses the app, so the
+  // A file's stat answers where opening it is refused (macOS in a folder it
+  // refuses the app, any system for a file the account can't read), so the
   // refusal only shows when the file is opened, which would be partway
   // through a 200. Opened first, it is a 403 that says whose refusal it is.
-  if (process.platform === "darwin") {
-    const refused = await fs.open(hostPath, "r").then(
-      async (handle) => {
-        await handle.close();
-        return false;
-      },
-      (error: unknown) =>
-        error instanceof Error && "code" in error && error.code === "EPERM",
-    );
-    if (refused) {
-      c.header(COMPUTER_FILE_REFUSAL_HEADER, "system");
-      return c.body(null, 403);
-    }
+  const refused = await fs.open(hostPath, "r").then(
+    async (handle) => {
+      await handle.close();
+      return undefined;
+    },
+    (error: unknown) => readRefusalOf(error),
+  );
+  if (refused !== undefined) {
+    c.header(COMPUTER_FILE_REFUSAL_HEADER, refused);
+    return c.body(null, 403);
   }
   const result = await serveStaticFile(c, {
     filePath: hostPath,

@@ -105,6 +105,24 @@ if (is.dev && platform.isMacOS) {
   app.commandLine.appendSwitch("use-mock-keychain");
 }
 
+// A development run started with FAKE_MICROPHONE=true records Chromium's test
+// tone instead of a microphone, so dictation can be driven without anyone's
+// voice and without the system's permission prompt. A path to a WAV file
+// records that file instead, looping, so a run can dictate real words.
+const fakeMicrophone = process.env.FAKE_MICROPHONE;
+if (is.dev && fakeMicrophone) {
+  app.commandLine.appendSwitch("use-fake-device-for-media-stream");
+  app.commandLine.appendSwitch("use-fake-ui-for-media-stream");
+  if (fakeMicrophone !== "true") {
+    app.commandLine.appendSwitch(
+      "use-file-for-fake-audio-capture",
+      fakeMicrophone,
+    );
+    // The sandboxed audio service cannot open the file and records silence.
+    app.commandLine.appendSwitch("disable-features", "AudioServiceSandbox");
+  }
+}
+
 initializeElectronLogging();
 installAISDKWarningLogger();
 

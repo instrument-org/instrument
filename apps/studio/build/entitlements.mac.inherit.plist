@@ -24,5 +24,12 @@
     <true/>
     <key>com.apple.security.personal-information.calendars</key>
     <true/>
+    <!-- Lets dictation record from the microphone. Chromium captures audio
+         in a helper process, so the helpers need it as well as the app.
+         Under the hardened runtime audio input is refused without it; with
+         it, macOS asks the user once. A hardened-runtime key, not one a
+         profile grants. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
   </dict>
 </plist>

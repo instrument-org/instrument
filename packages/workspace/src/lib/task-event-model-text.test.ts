@@ -275,7 +275,7 @@ describe("taskEventModelNote", () => {
           ended: "Stopped by the user while reading the vault",
           handle: "t1",
           status: "done",
-          stoppedBy: "user",
+          stoppedBy: "person",
           sessionId: TASK_ID,
           title: "Audit the vault",
           tokens: 12_000,

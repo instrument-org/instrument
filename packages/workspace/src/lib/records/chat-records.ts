@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { type Stopper } from "../../schemas/stop-notice";
 import path from "node:path";
 import { isMainThread } from "node:worker_threads";
 import { isEqual, noop } from "radashi";
@@ -616,7 +617,7 @@ export class ChatRecords {
   stopped(
     chatId: ChatId,
     sessionId: StoreId.Session,
-    by: "app" | "chat" | "user",
+    by: Stopper,
     /** When the stop was asked for, where that was before now. */
     asked?: Date,
   ): Promise<void> {
@@ -633,7 +634,7 @@ export class ChatRecords {
             }
           };
         },
-        record: () => ({ t: "stopped", at, by }),
+        record: () => ({ t: "stop", at, by }),
       });
     });
   }

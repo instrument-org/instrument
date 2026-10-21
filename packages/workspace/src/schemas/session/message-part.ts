@@ -9,6 +9,7 @@ import {
   type ToolUIPart,
   type UIMessagePart,
 } from "ai";
+import { type Stopper } from "../stop-notice";
 
 import { type AISDKTools } from "../../tools/all";
 import { type StoreId } from "../store-id";
@@ -116,11 +117,11 @@ export namespace SessionMessagePart {
   export interface ToolPartOutputErrorMetadata extends ToolPartMetadata {
     endedAt: Date;
     /**
-     * Set when the chat's `instrument task stop` cut the call off, which reads the same
-     * to the person as their own Stop but not to the model. Absent on every
-     * other error, the person's Stop included.
+     * Set when the chat's agent cut the call off with `instrument task stop`,
+     * which reads the same to the person as their own Stop but not to the
+     * model. Absent on every other error, the person's Stop included.
      */
-    stoppedBy?: "chat";
+    stoppedBy?: Extract<Stopper, "agent">;
   }
 
   // Union of all part types

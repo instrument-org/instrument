@@ -138,7 +138,7 @@ describe("workspaceMachine task trashing", () => {
     actor.send({ type: "prepareToTrashChat", value: { id: trashedId } });
 
     expect(received).toEqual([
-      { notice: { by: "user", wakesChat: false }, type: "stop" },
+      { notice: { by: "person", wakesChat: false }, type: "stop" },
     ]);
     actor.stop();
   });

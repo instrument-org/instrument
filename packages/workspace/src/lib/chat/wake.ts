@@ -11,7 +11,7 @@ import { type Ask } from "../../schemas/chat-state";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
-import { type StopNotice } from "../../schemas/stop-notice";
+import { type StopNotice, type Stopper } from "../../schemas/stop-notice";
 import { StoreId } from "../../schemas/store-id";
 import { closePagesWithNoTab, heldTabs, returnTabsToChat } from "../held-tabs";
 import {
@@ -557,7 +557,7 @@ async function onSessionDone(
     ...(ending
       ? {
           ended:
-            stop?.by === "user"
+            stop?.by === "person"
               ? `Stopped by the user${ending.stoppedWhile ? ` while ${ending.stoppedWhile}` : ""}`
               : ending.line,
         }
@@ -568,14 +568,14 @@ async function onSessionDone(
     ...(ending?.resumable ? { resumable: true } : {}),
     ...(running.length > 0 ? { running } : {}),
     status: ending?.failed ? "error" : "done",
-    ...(stop?.by === "user" ? { stoppedBy: stop.by } : {}),
+    ...(stop?.by === "person" ? { stoppedBy: stop.by } : {}),
     summary,
     sessionId,
     ...(tabs.length > 0 ? { tabs } : {}),
     title: task.title,
     tokens: usage.inputTokens + usage.outputTokens,
   };
-  if (stop?.by === "user") {
+  if (stop?.by === "person") {
     const chatSessionId = sessionOfChat(chatId);
     if (chatSessionId !== undefined) {
       await saveNote(chatId, chatSessionId, {
@@ -625,10 +625,10 @@ export async function noteTaskStoppedOnCard(
   chatId: ChatId,
   sessionId: StoreId.Session,
   workspaceRef: WorkspaceActorRef,
-  by: "chat" | "user",
+  by: Extract<Stopper, "agent" | "person">,
 ): Promise<void> {
   await onSessionDone(
-    { id: chatId, notice: { by, wakesChat: by === "user" }, sessionId },
+    { id: chatId, notice: { by, wakesChat: by === "person" }, sessionId },
     workspaceRef,
   );
 }

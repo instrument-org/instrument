@@ -314,11 +314,11 @@ describe("the reads that build a model request", () => {
 
     // A stop holds until a message starts a turn after it, so a task the
     // person stopped and then sent to reads as running again.
-    await touchTask(chatId, task.id, { stoppedBy: "user" });
+    await touchTask(chatId, task.id, { stoppedBy: "person" });
     expect(
       (await ChatReads.session({ chatId, sessionId: task.id }))._unsafeUnwrap()
         .stoppedBy,
-    ).toBe("user");
+    ).toBe("person");
 
     vi.setSystemTime(new Date(NOW.getTime() + 120_000));
     (

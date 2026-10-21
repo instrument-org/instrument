@@ -70,7 +70,7 @@ export function startJobWake(
     for await (const { id, notice, sessionId } of publisher.subscribe(
       "session.done",
     )) {
-      if (notice?.by === "user" || notice?.by === "chat") {
+      if (notice?.by === "person" || notice?.by === "agent") {
         stopped.add(sessionId);
       } else {
         stopped.delete(sessionId);

@@ -610,7 +610,7 @@ describe("executeToolCallMachine", () => {
         errorText: "This action was stopped by you.",
         state: "output-error",
       });
-      expect(stored?.metadata).toMatchObject({ stoppedBy: "chat" });
+      expect(stored?.metadata).toMatchObject({ stoppedBy: "agent" });
     });
 
     it("leaves a call that answered first exactly as it answered", async () => {

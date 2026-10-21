@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { type Stopper } from "../../../schemas/stop-notice";
 import path from "node:path";
 import { parallel } from "radashi";
 import { z } from "zod";
@@ -316,7 +317,7 @@ type RecordsThere =
   | { kind: "restating"; restating: string[] };
 
 /** The records a session row restates, which a conversion writes from it. */
-const RESTATED = new Set(["rollover", "session", "set", "sites", "stopped"]);
+const RESTATED = new Set(["rollover", "session", "set", "sites", "stop"]);
 
 /**
  * Which device wrote a record does not say whether the records hold the
@@ -474,13 +475,13 @@ function lastUpdate(session: Session.Type): Date {
  */
 function stopOf(
   session: ChatDbSessionRow,
-): { at: Date; by: "app" | "chat" | "user" } | undefined {
+): { at: Date; by: Stopper } | undefined {
   if (session.stoppedBy !== undefined) {
     return { at: lastUpdate(session), by: session.stoppedBy };
   }
   return session.stoppedAt === undefined
     ? undefined
-    : { at: session.stoppedAt, by: "user" };
+    : { at: session.stoppedAt, by: "person" };
 }
 
 /**
@@ -548,7 +549,7 @@ async function logRecords(
   }
   const stop = stopOf(session);
   if (stop) {
-    records.push({ t: "stopped", ...stop });
+    records.push({ t: "stop", ...stop });
   }
   if (sites !== undefined) {
     records.push({ t: "sites", at, visited: sites });

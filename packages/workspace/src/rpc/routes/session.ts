@@ -103,7 +103,7 @@ const stop = base
       type: "stopSessions",
       value: {
         id: input.id,
-        notice: { by: "user", wakesChat: input.sessionId !== undefined },
+        notice: { by: "person", wakesChat: input.sessionId !== undefined },
         ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       },
     });
@@ -123,7 +123,7 @@ const stop = base
         input.id,
         waitingOnCard,
         context.workspaceRef,
-        "user",
+        "person",
       ).catch(context.workspaceConfig.captureException);
     }
   });

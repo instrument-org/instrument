@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { StopperSchema } from "../stop-notice";
+
 import { StoreId } from "../store-id";
 import { SessionMessage } from "./message";
 
@@ -68,12 +70,12 @@ export namespace Session {
      */
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
     /**
-     * Who ended a task's last turn with a stop: the user, from the task or
-     * the chat's Stop, the chat's agent with `instrument task stop`, or the app, which
-     * quit while the task worked. Absent when the turn ended on its own, and
-     * on the chat's own session.
+     * Who ended a task's last turn with a stop: the person, from the task or
+     * the chat's Stop, the chat's agent with `instrument task stop`, or the
+     * app, which quit while the task worked. Absent when the turn ended on its
+     * own, and on the chat's own session.
      */
-    stoppedBy: z.enum(["app", "chat", "user"]).optional(),
+    stoppedBy: StopperSchema.optional(),
     title: z.string(),
     /**
      * Whether the title's words are a name the app gave rather than one the

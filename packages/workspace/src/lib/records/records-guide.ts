@@ -21,7 +21,7 @@ const LOG_RECORDS = {
     "the log's first line: `parent` and `forkedAt` on a task, a session the chat started, whose history is its parent's up to `forkedAt`, then its own",
   sites:
     "the hosts the session's browser has been on, oldest first, in `visited`; the newest record stands",
-  stopped: "the turn was stopped, `by` saying who stopped it",
+  stop: "the turn was stopped, `by` saying who: `person`, `agent` (the chat's agent stopping its task) or `app` (it quit)",
 } satisfies Record<LogRecord["t"], string>;
 
 /** Every role a message record has. */

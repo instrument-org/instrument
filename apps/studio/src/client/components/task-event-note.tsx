@@ -39,7 +39,7 @@ export function TaskEventNote({
             <span>
               {event.stoppedBy === "app"
                 ? "Interrupted when the app closed: "
-                : event.stoppedBy === "user"
+                : event.stoppedBy === "person"
                   ? "You stopped: "
                   : event.status === "error"
                     ? "Stopped: "

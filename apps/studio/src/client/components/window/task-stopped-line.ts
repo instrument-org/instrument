@@ -7,10 +7,10 @@ import { type ChildTask } from "@instrument-org/workspace/client";
  */
 export function taskStoppedLine(stoppedBy: ChildTask["stoppedBy"]) {
   switch (stoppedBy) {
-    case "user": {
+    case "person": {
       return "You stopped this task";
     }
-    case "chat": {
+    case "agent": {
       return "The chat stopped this task";
     }
     default: {

@@ -22,7 +22,7 @@ export function taskEventModelNote(
     const outcome =
       event.stoppedBy === "app"
         ? `did not finish: ${asClause(event.ended ?? "The app closed before it finished")}`
-        : event.stoppedBy === "user"
+        : event.stoppedBy === "person"
           ? `was ${asClause(event.ended ?? "Stopped by the user")} and did not finish`
           : event.status === "error"
             ? `stopped with an error${event.ended ? `, "${event.ended}"` : ""}`
@@ -101,7 +101,7 @@ export function taskEventModelNote(
     // The user's stop is a decision, not a turn to pick up again; a task that
     // hit its step limit or lost its model to an error is one to resume.
     const leave =
-      event.stoppedBy === "user"
+      event.stoppedBy === "person"
         ? ` Leave it stopped unless they ask for it again.`
         : event.stoppedBy === undefined && event.resumable
           ? ` \`${TASK_COMMAND.name} send ${id}\` picks it up again.`
@@ -132,7 +132,7 @@ export function taskEventModelNote(
 
   // Written as the user stopped a task, and read with their next message,
   // which is why it starts none.
-  if (data.events.every((event) => event.stoppedBy === "user")) {
+  if (data.events.every((event) => event.stoppedBy === "person")) {
     return systemNote`
       ${data.events.length === 1 ? "The user stopped a task you created:" : "The user stopped tasks you created:"}
       ${lines.join("\n")}

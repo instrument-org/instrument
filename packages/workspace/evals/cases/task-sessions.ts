@@ -245,7 +245,7 @@ const stoppedTheTurnAndTheTask: Assertion = {
     const task = (await listChildTasks(ctx.chatId)).find(
       (child) => child.handle === "t1",
     );
-    return (cutOff.length > 0 && task?.stoppedBy === "user" ? pass : fail)(
+    return (cutOff.length > 0 && task?.stoppedBy === "person" ? pass : fail)(
       text,
       `${String(cutOff.length)} chat calls cut off by the stop; t1 stopped by ${task?.stoppedBy ?? "nobody"}`,
     );

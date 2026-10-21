@@ -332,7 +332,7 @@ describe("convertChat", () => {
         "message",
         "part tool-bash",
         "rollover",
-        "stopped",
+        "stop",
         "sites",
       ]
     `);
@@ -346,7 +346,7 @@ describe("convertChat", () => {
         "message",
         "part tool-read_file",
         "part text",
-        "stopped",
+        "stop",
       ]
     `);
 
@@ -415,7 +415,7 @@ describe("convertChat", () => {
           ],
           "stopped": {
             "at": 2026-10-14T12:00:50.000Z,
-            "by": "user",
+            "by": "person",
           },
           "updatedAt": 2026-10-14T12:01:40.000Z,
           "writtenBy": Map {
@@ -458,7 +458,7 @@ describe("convertChat", () => {
           "settings": {},
           "stopped": {
             "at": 2026-10-14T12:01:30.000Z,
-            "by": "user",
+            "by": "person",
           },
           "title": "Find hotels",
           "updatedAt": 2026-10-14T12:01:30.000Z,

@@ -129,8 +129,8 @@ describe("foldChat", () => {
           after: messageId(2),
           usableTokens: 9,
         },
-        { t: "stopped", seq: 3, at: at(3), by: "app" },
-        { t: "stopped", seq: 4, at: at(4), by: "user" },
+        { t: "stop", seq: 3, at: at(3), by: "app" },
+        { t: "stop", seq: 4, at: at(4), by: "person" },
         { t: "sites", seq: 5, at: at(5), visited: ["a.example"] },
         { t: "sites", seq: 6, at: at(6), visited: [] },
         { t: "sites", seq: 7, at: at(7), visited: ["a.example", "b.example"] },
@@ -140,7 +140,7 @@ describe("foldChat", () => {
 
     expect(session).toMatchObject({
       rollover: { after: messageId(2), usableTokens: 9 },
-      stopped: { at: at(4), by: "user" },
+      stopped: { at: at(4), by: "person" },
       sites: ["c.example"],
       updatedAt: at(8),
     });

@@ -4,7 +4,10 @@ import superjson from "superjson";
 
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../../constants";
 import { type ChatId } from "../../../schemas/chat-id";
-import { type ChatDbSessionRow } from "./read-chat-db";
+import {
+  type ChatDbSessionRow,
+  type ChatDbStoredSessionRow,
+} from "./read-chat-db";
 import { SessionMessage } from "../../../schemas/session/message";
 import { SessionMessagePart } from "../../../schemas/session/message-part";
 import { SessionMessageRelaxedPart } from "../../../schemas/session/message-relaxed-part";
@@ -69,7 +72,8 @@ export async function writeChat(
 
 export async function saveSession(
   store: WrappedStorage,
-  session: ChatDbSessionRow,
+  /** A task's `stoppedBy` in the words the store wrote it in. */
+  session: ChatDbSessionRow | ChatDbStoredSessionRow,
 ): Promise<void> {
   await tell(store, StorageKey.session(session.id), session);
 }

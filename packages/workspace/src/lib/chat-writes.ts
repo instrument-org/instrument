@@ -1,4 +1,5 @@
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { type Stopper } from "../schemas/stop-notice";
 
 import { type ChatId } from "../schemas/chat-id";
 import { type Session } from "../schemas/session";
@@ -139,7 +140,7 @@ export namespace ChatWrites {
   export function stopped(
     chatId: ChatId,
     sessionId: StoreId.Session,
-    by: "app" | "chat" | "user",
+    by: Stopper,
     at: Date,
   ): ResultAsync<void, TypedError.Storage> {
     return records(chatId).andThen((writing) =>

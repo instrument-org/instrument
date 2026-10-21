@@ -176,7 +176,7 @@ describe("task stop, for what a task left running", () => {
         type: "stopSessions",
         value: {
           id: CHAT_ID,
-          notice: { by: "chat", wakesChat: false },
+          notice: { by: "agent", wakesChat: false },
           reason: "chat",
           sessionId: CHILD_ID,
         },

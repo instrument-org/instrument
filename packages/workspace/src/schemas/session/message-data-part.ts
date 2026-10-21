@@ -6,6 +6,7 @@ import {
   InWorkspacePathSchema,
   RelativePathSchema,
 } from "../paths";
+import { StopperSchema } from "../stop-notice";
 import { StoreId } from "../store-id";
 import { ToldAppsSchema, ToldDigestsSchema } from "../told";
 
@@ -520,14 +521,14 @@ export namespace SessionMessageDataPart {
           status: z.enum(["done", "error", "overdue"]),
           /**
            * Set when the turn did not finish because something stopped it.
-           * `user`: the user stopped the task, from its page or the chat's
-           * task list, and it is not the chat's to start again unless the
-           * user asks. `app`: the app quit while the task worked, which
-           * ended its turn and everything it had running in the background;
-           * that note is written as the app quits and starts no turn. A stop
-           * the chat made itself wakes nothing.
+           * `person`: the person stopped the task, from its page or the
+           * chat's task list, and it is not the chat's to start again unless
+           * they ask. `app`: the app quit while the task worked, which ended
+           * its turn and everything it had running in the background; that
+           * note is written as the app quits and starts no turn. A stop the
+           * chat's agent made itself wakes nothing.
            */
-          stoppedBy: z.enum(["app", "user"]).optional(),
+          stoppedBy: StopperSchema.exclude(["agent"]).optional(),
           /**
            * The activities the child's agent set this turn, oldest first and
            * capped to the latest few. On an overdue event, so the conversation

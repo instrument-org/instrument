@@ -202,7 +202,7 @@ describe("sessionOf", () => {
         after: messageId(3),
         usableTokens: 1000,
       },
-      { t: "stopped", seq: 4, at: at(4), by: "chat" },
+      { t: "stop", seq: 4, at: at(4), by: "agent" },
     ] satisfies LogRecord[];
 
     expect(sessionOf(folded(task, [], taskSession))).toEqual({
@@ -213,7 +213,7 @@ describe("sessionOf", () => {
       parentId: chatSession,
       rolledOverAfterMessageId: messageId(3),
       rolledOverUnderUsableTokens: 1000,
-      stoppedBy: "chat",
+      stoppedBy: "agent",
       title: "Look into it",
       updatedAt: at(4),
     });

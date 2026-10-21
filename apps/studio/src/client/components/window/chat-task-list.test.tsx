@@ -86,8 +86,8 @@ describe("ChatTaskList", () => {
   });
 
   it.each([
-    ["user", "You stopped this task"],
-    ["chat", "The chat stopped this task"],
+    ["person", "You stopped this task"],
+    ["agent", "The chat stopped this task"],
   ] as const)(
     "says the %s stopped a task in place of its last words",
     (stoppedBy, said) => {
@@ -110,7 +110,7 @@ describe("ChatTaskList", () => {
       item("porto-notes", {
         line: "Reading the note",
         standing: "running",
-        stoppedBy: "chat",
+        stoppedBy: "agent",
       }),
     ]);
 

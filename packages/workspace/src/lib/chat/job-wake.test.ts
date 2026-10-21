@@ -263,7 +263,7 @@ describe("a background process that wakes nothing", () => {
     const job = promote(owner, "sleep 40");
     publisher.publish("session.done", {
       id: owner.chatId,
-      notice: { by: "user", wakesChat: false },
+      notice: { by: "person", wakesChat: false },
       sessionId: owner.sessionId,
     });
 
@@ -380,7 +380,7 @@ describe("a chat with a command's wake on its way", () => {
     vi.mocked(isWorking).mockReturnValue(false);
     publisher.publish("session.done", {
       id: halted.chatId,
-      notice: { by: "user", wakesChat: false },
+      notice: { by: "person", wakesChat: false },
       sessionId: halted.sessionId,
     });
     await new Promise((resolve) => setTimeout(resolve, 50));

@@ -123,7 +123,7 @@ describe("parseLogLine", () => {
         usableTokens: 1000,
       },
     ],
-    ["a stop", { at: at(1), by: "chat", seq: 6, t: "stopped" }],
+    ["a stop", { at: at(1), by: "agent", seq: 6, t: "stop" }],
     [
       "the sites a browser went to",
       { at: at(1), seq: 7, t: "sites", visited: ["example.com"] },
@@ -141,11 +141,19 @@ describe("parseLogLine", () => {
     ],
     [
       "a date that is not ISO",
-      '{"t":"stopped","seq":1,"at":"yesterday","by":"user"}',
+      '{"t":"stop","seq":1,"at":"yesterday","by":"person"}',
     ],
     [
       "a negative seq",
-      '{"t":"stopped","seq":-1,"at":"2026-10-14T12:00:00.000Z","by":"user"}',
+      '{"t":"stop","seq":-1,"at":"2026-10-14T12:00:00.000Z","by":"person"}',
+    ],
+    [
+      "a stop as earlier builds wrote one",
+      '{"t":"stopped","seq":1,"at":"2026-10-14T12:00:00.000Z","by":"user"}',
+    ],
+    [
+      "a standing fact as earlier builds wrote one",
+      '{"t":"state","seq":1,"at":"2026-10-14T12:00:00.000Z","what":"browser","value":null}',
     ],
     [
       "a setting, which only a settings file holds",

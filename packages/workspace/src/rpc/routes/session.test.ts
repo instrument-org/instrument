@@ -260,7 +260,7 @@ describe("a task waiting on a card", () => {
       ),
     ).toEqual([[own]]);
     await vi.waitFor(async () => {
-      expect((await childTask(chatId, task))?.stoppedBy).toBe("user");
+      expect((await childTask(chatId, task))?.stoppedBy).toBe("person");
     }, 5000);
     expect(await standingOf(chatId, task)).toEqual({
       kind: "done",
@@ -273,7 +273,7 @@ describe("a task waiting on a card", () => {
     }, 5000);
     expect((await notesIn(chatId))[0]).toMatchObject({
       sessionId: task,
-      stoppedBy: "user",
+      stoppedBy: "person",
     });
     expect((await notesIn(chatId))[0]).not.toHaveProperty("needs");
     expect(wokenSince(sentBefore)).toEqual([]);
@@ -350,7 +350,7 @@ describe("session.stop", () => {
     });
     publisher.publish("session.done", {
       id: chatId,
-      notice: { by: "user", wakesChat: true },
+      notice: { by: "person", wakesChat: true },
       sessionId: task,
     });
     await vi.waitFor(async () => {

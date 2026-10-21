@@ -254,7 +254,7 @@ async function throughRecords(service: ChatRecords) {
   for (const message of TASK_MESSAGES) {
     await service.appendMessageWithParts(CHAT, message);
   }
-  await service.stopped(CHAT, taskSession, "chat");
+  await service.stopped(CHAT, taskSession, "agent");
   return service.read(CHAT);
 }
 
@@ -298,7 +298,7 @@ describe("views", () => {
         handle: "t1",
         id: taskSession,
         parentId: chatSession,
-        stoppedBy: "chat",
+        stoppedBy: "agent",
         title: "Regions",
       },
     ]);

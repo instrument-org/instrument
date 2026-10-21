@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
+import { StopperSchema } from "../../schemas/stop-notice";
 import { StoreId } from "../../schemas/store-id";
 import { DEVICE_ID_PATTERN, DeviceIdSchema } from "./device-id";
 import { GENERATION_PATTERN } from "./file-names";
@@ -138,10 +139,10 @@ const LogRecordSchema = z.discriminatedUnion("t", [
     usableTokens: z.number().int().positive().optional(),
   }),
   z.object({
-    t: z.literal("stopped"),
+    t: z.literal("stop"),
     ...envelope,
-    /** Who stopped the session's turn: the person, the chat's agent, or the app quitting. */
-    by: z.enum(["app", "chat", "user"]),
+    /** Who stopped the session's turn. */
+    by: StopperSchema,
   }),
   z.object({
     t: z.literal("sites"),

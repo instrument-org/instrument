@@ -153,7 +153,7 @@ describe("statusLine", () => {
           lastStep: lastStep("Running the requested waits"),
           lastUserMessageAt: 10,
         }),
-        listed: [{ ...done(5), stoppedBy: "user" }],
+        listed: [{ ...done(5), stoppedBy: "person" }],
       },
       { text: "Done", tone: "done" },
     ],
@@ -172,7 +172,7 @@ describe("statusLine", () => {
       "nothing for the task the user stopped last, not a check",
       {
         chat: at("idle", { lastStep: lastStep("Starting a task") }),
-        listed: [{ ...done(5), stoppedBy: "user" }],
+        listed: [{ ...done(5), stoppedBy: "person" }],
       },
       undefined,
     ],
@@ -180,7 +180,7 @@ describe("statusLine", () => {
       "nothing for the task the chat stopped last, not a check",
       {
         chat: at("idle", { lastStep: lastStep("Stopping the waiting task") }),
-        listed: [{ ...done(5), stoppedBy: "chat" }],
+        listed: [{ ...done(5), stoppedBy: "agent" }],
       },
       undefined,
     ],
@@ -188,7 +188,7 @@ describe("statusLine", () => {
       "nothing for a task named like the chat that the chat stopped",
       {
         chat: at("idle", { lastStep: lastStep("Stopping the waiting task") }),
-        listed: [{ ...done(5, title), stoppedBy: "chat" }],
+        listed: [{ ...done(5, title), stoppedBy: "agent" }],
       },
       undefined,
     ],

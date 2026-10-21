@@ -96,7 +96,7 @@ export const sessionMachine = setup({
     // chat is told of.
     rememberStopNotice: assign({
       stopNotice: ({ context, event }) =>
-        context.stopNotice?.by === "user"
+        context.stopNotice?.by === "person"
           ? context.stopNotice
           : ((event.type === "stop" ? event.notice : undefined) ??
             context.stopNotice),
@@ -111,7 +111,7 @@ export const sessionMachine = setup({
     holdQueued: assign(({ context }) => heldQueue(context)),
 
     holdQueuedOnPersonsStop: assign(({ context, event }) =>
-      event.type === "stop" && event.notice?.by === "user"
+      event.type === "stop" && event.notice?.by === "person"
         ? heldQueue(context)
         : {},
     ),

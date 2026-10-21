@@ -729,7 +729,7 @@ describe("SessionMessage.toModelMessages", () => {
     },
     {
       errorText: "This action was stopped by you.",
-      stoppedBy: "chat" as const,
+      stoppedBy: "agent" as const,
       text: "The conversation that started this task stopped this. Do not run it again unless it asks.",
     },
     {

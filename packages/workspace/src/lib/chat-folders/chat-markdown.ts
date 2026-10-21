@@ -342,7 +342,7 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
         event.stoppedBy === undefined
           ? []
           : [
-              `${event.stoppedBy === "user" ? "You stopped" : "The app stopped"} the task ${event.title}.`,
+              `${event.stoppedBy === "person" ? "You stopped" : "The app stopped"} the task ${event.title}.`,
             ],
       );
       return stopped.length === 0 ? undefined : stopped.join("\n");

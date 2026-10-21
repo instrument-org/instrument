@@ -9,7 +9,7 @@ A chat's folder holds JSON Lines files, one record per line, with `t` naming the
   - `rollover`: the context window was reset after message `after`
   - `session`: the log's first line: `parent` and `forkedAt` on a task, a session the chat started, whose history is its parent's up to `forkedAt`, then its own
   - `sites`: the hosts the session's browser has been on, oldest first, in `visited`; the newest record stands
-  - `stopped`: the turn was stopped, `by` saying who stopped it
+  - `stop`: the turn was stopped, `by` saying who: `person`, `agent` (the chat's agent stopping its task) or `app` (it quit)
   - A message's `role`:
     - `assistant`: you
     - `session-context`: what the app told you at the start, the same in every chat and no part of the conversation

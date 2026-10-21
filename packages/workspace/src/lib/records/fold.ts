@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { type Stopper } from "../../schemas/stop-notice";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
@@ -77,7 +78,7 @@ export interface FoldedSession {
    * The newest stop. It applies until a message that starts a turn comes
    * after it, which the conversation says.
    */
-  stopped?: { at: Date; by: "app" | "chat" | "user" };
+  stopped?: { at: Date; by: Stopper };
   /** The hosts the session's browser has been on, from its newest `sites` record. */
   sites?: string[];
   title?: string;
@@ -339,7 +340,7 @@ export class ChatFold {
           place,
         );
         break;
-      case "stopped":
+      case "stop":
         session.stopped = newer(
           session.stopped,
           { at: record.at, by: record.by },

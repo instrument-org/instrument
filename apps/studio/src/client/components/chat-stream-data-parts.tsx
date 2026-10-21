@@ -303,7 +303,7 @@ export function renderDataPart({
       if (
         ctx.presentation === "chat" &&
         !part.data.events.some(
-          (event) => event.stoppedBy === "app" || event.stoppedBy === "user",
+          (event) => event.stoppedBy === "app" || event.stoppedBy === "person",
         )
       ) {
         return ctx.isDeveloperMode ? (

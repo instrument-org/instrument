@@ -187,7 +187,7 @@ describe("ChatRecords", () => {
         CHAT,
         userMessage(taskSession, messageId(4), at(7)),
       ),
-      service.stopped(CHAT, taskSession, "chat"),
+      service.stopped(CHAT, taskSession, "agent"),
     ];
 
     const queued = await service.read(CHAT);
@@ -219,7 +219,7 @@ describe("ChatRecords", () => {
         handle: "t1",
         id: taskSession,
         parentId: chatSession,
-        stoppedBy: "chat",
+        stoppedBy: "agent",
         title: "Look into it",
         updatedAt: NOW,
       },

@@ -173,7 +173,7 @@ function TaskCardSteps({
   /** Opens the task as a tab of the chat's; none for the chat itself. */
   onOpenBeside?: () => void;
   sessionId: StoreId.Session;
-  stoppedBy?: "app" | "chat" | "user";
+  stoppedBy?: "agent" | "app" | "person";
   title: string;
 }) {
   const isDeveloperMode = useTabDeveloperMode();

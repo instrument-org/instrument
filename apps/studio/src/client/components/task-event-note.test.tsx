@@ -11,7 +11,7 @@ describe("TaskEventNote", () => {
   it.each([
     { event: { status: "done" as const }, text: "Finished: Audit the vault" },
     {
-      event: { status: "done" as const, stoppedBy: "user" as const },
+      event: { status: "done" as const, stoppedBy: "person" as const },
       text: "You stopped: Audit the vault",
     },
     {

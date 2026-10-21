@@ -1,4 +1,5 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { type Stopper } from "../../schemas/stop-notice";
 import { parallel, unique } from "radashi";
 import { z } from "zod";
 
@@ -366,10 +367,10 @@ export async function markChatStopped(
   if (known.isErr()) {
     return false;
   }
-  if (known.value?.by === "user" && known.value.at >= at) {
+  if (known.value?.by === "person" && known.value.at >= at) {
     return true;
   }
-  const written = await ChatWrites.stopped(chatId, sessionId, "user", at);
+  const written = await ChatWrites.stopped(chatId, sessionId, "person", at);
   return written.isOk();
 }
 
@@ -623,7 +624,7 @@ function digestOf(
   session: Session.Type,
   messages: SessionMessage.WithParts[],
   /** The session's newest stop, whatever came after it. */
-  stop: { at: Date; by: "app" | "chat" | "user" } | undefined,
+  stop: { at: Date; by: Stopper } | undefined,
 ): ChatDigest {
   // Every chat is listed: the first thing the user sent opens it, whether
   // words, files, or an ask marked on a file.
@@ -702,7 +703,7 @@ function digestOf(
   // it began left only the message no turn took up, and one stopped between
   // steps left nothing at all.
   const stopped =
-    stop?.by === "user" &&
+    stop?.by === "person" &&
     (lastOpener === undefined || stop.at >= lastOpener.metadata.createdAt);
   return {
     calledApps: commands.flatMap(appSlugsIn),

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { StopperSchema } from "../../schemas/stop-notice";
+
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
@@ -19,7 +21,7 @@ export const ChatTaskSchema = z.object({
   handle: z.string(),
   id: StoreId.SessionSchema,
   /** Who stopped its last turn, when a stop ended it. */
-  stoppedBy: z.enum(["app", "chat", "user"]).optional(),
+  stoppedBy: StopperSchema.optional(),
   title: z.string(),
   updatedAt: z.date(),
 });

@@ -1,4 +1,5 @@
 import { type SessionMessage } from "../../schemas/session/message";
+import { type Stopper, StopperSchema } from "../../schemas/stop-notice";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { type DeviceId, DeviceIdSchema } from "./device-id";
@@ -58,7 +59,7 @@ export interface SessionModel {
   retracted: Set<string>;
   rollover?: { after: StoreId.Message; usableTokens?: number };
   sites?: string[];
-  stopped?: { at: Date; by: "app" | "chat" | "user" };
+  stopped?: { at: Date; by: Stopper };
   /** Newest `at` of any record in the session's logs. */
   updatedAt: number;
 }
@@ -464,9 +465,9 @@ export function simulateChat(random: Random): SimulatedChat {
         break;
       case 3:
         return {
-          t: "stopped",
+          t: "stop",
           at: when,
-          by: random.pick(["app", "chat", "user"] as const),
+          by: random.pick(StopperSchema.options),
         };
       default:
         break;
@@ -546,7 +547,7 @@ export function simulateChat(random: Random): SimulatedChat {
             : { usableTokens: record.usableTokens }),
         };
         break;
-      case "stopped":
+      case "stop":
         model.stopped = { at: record.at, by: record.by };
         break;
       case "sites":

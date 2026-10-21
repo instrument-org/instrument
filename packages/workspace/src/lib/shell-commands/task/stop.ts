@@ -149,7 +149,7 @@ async function stopWaiting(task: ChatTask) {
     task.chatId,
     task.id,
     getWorkspaceActorRef(),
-    "chat",
+    "agent",
   );
   return `Stopped ${task.handle}, which was waiting on the person's answer to a card; an answer no longer wakes it. \`instrument task send\` gives it the next thing to do.\n`;
 }
@@ -161,7 +161,7 @@ async function stopTurn(task: ChatTask, context: TaskCommandContext) {
     type: "stopSessions",
     value: {
       id: task.chatId,
-      notice: { by: "chat", wakesChat: false },
+      notice: { by: "agent", wakesChat: false },
       reason: "chat",
       sessionId: task.id,
     },

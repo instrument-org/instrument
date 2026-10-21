@@ -461,7 +461,7 @@ export const workspaceMachine = setup({
           type: "stopSessions",
           value: {
             id: event.value.id,
-            notice: { by: "user", wakesChat: false },
+            notice: { by: "person", wakesChat: false },
           },
         });
       }),

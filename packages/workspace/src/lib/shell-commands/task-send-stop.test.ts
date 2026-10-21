@@ -241,7 +241,7 @@ describe("task stop", () => {
         type: "stopSessions",
         value: {
           id: CHAT_ID,
-          notice: { by: "chat", wakesChat: false },
+          notice: { by: "agent", wakesChat: false },
           reason: "chat",
           sessionId: CHILD_ID,
         },
@@ -278,7 +278,7 @@ describe("task stop", () => {
         type: "stopSessions",
         value: {
           id: CHAT_ID,
-          notice: { by: "chat", wakesChat: false },
+          notice: { by: "agent", wakesChat: false },
           reason: "chat",
           sessionId: CHILD_ID,
         },
@@ -287,7 +287,7 @@ describe("task stop", () => {
         type: "stopSessions",
         value: {
           id: CHAT_ID,
-          notice: { by: "chat", wakesChat: false },
+          notice: { by: "agent", wakesChat: false },
           reason: "chat",
           sessionId: second,
         },
@@ -320,7 +320,7 @@ describe("task stop", () => {
     `);
     expect(await openAsks(CHAT_ID)).toEqual([]);
     const [task] = await listChildTasks(CHAT_ID);
-    expect(task?.stoppedBy).toBe("chat");
+    expect(task?.stoppedBy).toBe("agent");
     expect(sent.events).toEqual([]);
   });
 

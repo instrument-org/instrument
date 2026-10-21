@@ -81,7 +81,7 @@ export async function saveStoppedToolCallPart(input: {
         metadata: {
           ...unsettled.metadata,
           endedAt: getCurrentDate(),
-          ...(input.reason === "chat" ? { stoppedBy: "chat" } : {}),
+          ...(input.reason === "chat" ? { stoppedBy: "agent" } : {}),
         },
         state: "output-error",
       } as SessionMessagePart.Type;

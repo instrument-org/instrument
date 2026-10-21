@@ -161,7 +161,7 @@ describe("a stopped task", () => {
 
     publisher.publish("session.done", {
       id: chatId,
-      notice: { by: "user", wakesChat: true },
+      notice: { by: "person", wakesChat: true },
       sessionId: taskSession,
     });
 
@@ -171,10 +171,10 @@ describe("a stopped task", () => {
     expect((await notesIn(chatId))[0]).not.toHaveProperty("resumable");
     expect((await notesIn(chatId))[0]).toMatchObject({
       sessionId: taskSession,
-      stoppedBy: "user",
+      stoppedBy: "person",
       title: "Audit the vault",
     });
-    expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("user");
+    expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("person");
     // Nothing is on its way to start a turn, and nothing was sent.
     expect(hasPendingWake(chatId)).toBe(false);
     expect(wakesOf(chatId)).toEqual([]);
@@ -185,11 +185,11 @@ describe("a stopped task", () => {
 
     publisher.publish("session.done", {
       id: chatId,
-      notice: { by: "chat", wakesChat: false },
+      notice: { by: "agent", wakesChat: false },
       sessionId: taskSession,
     });
     await vi.waitFor(async () => {
-      expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("chat");
+      expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("agent");
     });
 
     // Its next turn ended on words rather than on a stop, so the note the
@@ -211,12 +211,12 @@ describe("a chat nobody has written in", () => {
   it("hears nothing from its task until someone writes in it", async () => {
     const { chatId, taskSession } = await chatNobodyWroteIn();
 
-    await noteTaskStoppedOnCard(chatId, taskSession, workspaceRef, "user");
+    await noteTaskStoppedOnCard(chatId, taskSession, workspaceRef, "person");
     expect(await notesIn(chatId)).toEqual([]);
     expect(hasPendingWake(chatId)).toBe(false);
 
     await writtenIn(chatId);
-    await noteTaskStoppedOnCard(chatId, taskSession, workspaceRef, "user");
+    await noteTaskStoppedOnCard(chatId, taskSession, workspaceRef, "person");
     expect(await notesIn(chatId)).toHaveLength(1);
   });
 });

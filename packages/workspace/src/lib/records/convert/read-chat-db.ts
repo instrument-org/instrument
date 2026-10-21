@@ -13,6 +13,7 @@ import { Session } from "../../../schemas/session";
 import { SessionMessage } from "../../../schemas/session/message";
 import { SessionMessagePart } from "../../../schemas/session/message-part";
 import { SessionMessageRelaxedPart } from "../../../schemas/session/message-relaxed-part";
+import { type Stopper } from "../../../schemas/stop-notice";
 import { StoreId } from "../../../schemas/store-id";
 import { TypedError } from "../../errors";
 import { getParsedStorageItem } from "../../get-parsed-storage-item";
@@ -57,14 +58,27 @@ export interface ChatDbPart {
 }
 
 /**
- * A session row as `chat.db` kept it: today's session, and `stoppedAt`, when
- * the user last stopped the chat's own turn, which the records keep as a
- * `stopped` record instead.
+ * A session row as `chat.db` kept it: today's session, `stoppedBy` in the
+ * words the store wrote it in, and `stoppedAt`, when the user last stopped
+ * the chat's own turn, which the records keep as a `stop` record instead.
+ * Read, it says who stopped a task the way the records do.
  */
 export type ChatDbSessionRow = z.output<typeof ChatDbSessionRowSchema>;
 
+/** A session row as the store wrote it, before it is read. */
+export type ChatDbStoredSessionRow = Omit<ChatDbSessionRow, "stoppedBy"> & {
+  stoppedBy?: z.input<typeof ChatDbSessionRowSchema>["stoppedBy"];
+};
+
 const ChatDbSessionRowSchema = Session.Schema.extend({
   stoppedAt: z.date().optional(),
+  stoppedBy: z
+    .enum(["app", "chat", "user"])
+    .transform(
+      (by): Stopper =>
+        by === "chat" ? "agent" : by === "user" ? "person" : "app",
+    )
+    .optional(),
 });
 
 export interface ChatDbSession {

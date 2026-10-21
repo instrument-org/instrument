@@ -1864,7 +1864,7 @@ async function standInForTasks(
       type: "stopSessions",
       value: {
         id: chatId,
-        notice: { by: "chat", wakesChat: false },
+        notice: { by: "agent", wakesChat: false },
         sessionId: child.id,
       },
     });

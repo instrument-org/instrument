@@ -375,7 +375,7 @@ describe("a chat written through its records", () => {
       updatedAt: new Date(),
     });
 
-    await touchTask(chatId, task.id, { stoppedBy: "user" });
+    await touchTask(chatId, task.id, { stoppedBy: "person" });
     // The row is written again with the stop it already carries, which says
     // nothing new.
     await touchTask(chatId, task.id);
@@ -383,7 +383,7 @@ describe("a chat written through its records", () => {
     const read = await records.service.read(chatId);
     expect(
       read.chat.sessions.find(({ id }) => id === task.id)?.stopped,
-    ).toEqual({ at: NOW, by: "user" });
+    ).toEqual({ at: NOW, by: "person" });
     const log = await fs.readFile(
       path.join(
         records.dirOf(chatId),
@@ -391,7 +391,7 @@ describe("a chat written through its records", () => {
       ),
       "utf8",
     );
-    expect(log.match(/"t":"stopped"/g)).toHaveLength(1);
+    expect(log.match(/"t":"stop"/g)).toHaveLength(1);
   });
 
   it("says a second stop by the same person once a turn came between", async () => {
@@ -402,7 +402,7 @@ describe("a chat written through its records", () => {
       title: "Find hotels",
       updatedAt: new Date(),
     });
-    await touchTask(chatId, task.id, { stoppedBy: "user" });
+    await touchTask(chatId, task.id, { stoppedBy: "person" });
     const later = new Date(NOW.getTime() + 1000);
     vi.setSystemTime(later);
     (
@@ -417,16 +417,16 @@ describe("a chat written through its records", () => {
     const stoppedAgain = new Date(later.getTime() + 1000);
     vi.setSystemTime(stoppedAgain);
 
-    await touchTask(chatId, task.id, { stoppedBy: "user" });
+    await touchTask(chatId, task.id, { stoppedBy: "person" });
 
     const read = await records.service.read(chatId);
     expect(
       read.chat.sessions.find(({ id }) => id === task.id)?.stopped,
-    ).toEqual({ at: stoppedAgain, by: "user" });
+    ).toEqual({ at: stoppedAgain, by: "person" });
     expect(
       (await ChatReads.session({ chatId, sessionId: task.id }))._unsafeUnwrap()
         .stoppedBy,
-    ).toBe("user");
+    ).toBe("person");
   });
 
   // Stop on the chat's own turn is a `stopped` record in its log, at the
@@ -440,7 +440,7 @@ describe("a chat written through its records", () => {
       await ChatReads.session({ chatId, sessionId })
     )._unsafeUnwrap();
     (
-      await ChatWrites.saveSession({ ...session, stoppedBy: "user" }, chatId)
+      await ChatWrites.saveSession({ ...session, stoppedBy: "person" }, chatId)
     )._unsafeUnwrap();
     expect(
       await markChatStopped(chatId, new Date(pressed.getTime() - 1000)),
@@ -449,7 +449,7 @@ describe("a chat written through its records", () => {
     const read = await records.service.read(chatId);
     expect(
       read.chat.sessions.find(({ id }) => id === sessionId)?.stopped,
-    ).toEqual({ at: pressed, by: "user" });
+    ).toEqual({ at: pressed, by: "person" });
     const log = await fs.readFile(
       path.join(
         records.dirOf(chatId),
@@ -457,7 +457,7 @@ describe("a chat written through its records", () => {
       ),
       "utf8",
     );
-    expect(log.match(/"t":"stopped"/g)).toHaveLength(1);
+    expect(log.match(/"t":"stop"/g)).toHaveLength(1);
   });
 
   it("says each mark the person made, with the moment they made it", async () => {
@@ -475,7 +475,7 @@ describe("a chat written through its records", () => {
     expect(listView(await records.service.read(chatId))[0]).toMatchObject({
       archivedAt: NOW,
       starredAt: NOW,
-      stoppedBy: "user",
+      stoppedBy: "person",
       title: "Plans for the trip",
       titleSettledAt: NOW,
       topic: topic.id,

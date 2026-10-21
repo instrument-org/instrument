@@ -1165,7 +1165,7 @@ describe("sessionMachine", () => {
     result.actor.start();
     expect(result.actor.getSnapshot().matches("UpdatingSession")).toBe(true);
     result.actor.send({
-      notice: { by: "user", wakesChat: false },
+      notice: { by: "person", wakesChat: false },
       type: "stop",
     });
 
@@ -1181,7 +1181,7 @@ describe("sessionMachine", () => {
     expect(done).toEqual([
       {
         id: result.chatId,
-        notice: { by: "user", wakesChat: false },
+        notice: { by: "person", wakesChat: false },
         sessionId: result.sessionId,
       },
     ]);
@@ -1197,11 +1197,11 @@ describe("sessionMachine", () => {
     });
     result.actor.start();
     result.actor.send({
-      notice: { by: "user", wakesChat: true },
+      notice: { by: "person", wakesChat: true },
       type: "stop",
     });
     result.actor.send({
-      notice: { by: "chat", wakesChat: false },
+      notice: { by: "agent", wakesChat: false },
       type: "stop",
     });
 
@@ -1210,7 +1210,7 @@ describe("sessionMachine", () => {
     expect(done).toEqual([
       {
         id: result.chatId,
-        notice: { by: "user", wakesChat: true },
+        notice: { by: "person", wakesChat: true },
         sessionId: result.sessionId,
       },
     ]);
@@ -1266,7 +1266,7 @@ describe("sessionMachine", () => {
     await waitFor(agentRef, (state) => state.matches("LLMStreaming"));
 
     result.actor.send({
-      notice: { by: "user", wakesChat: false },
+      notice: { by: "person", wakesChat: false },
       type: "stop",
     });
     await vi.waitFor(() => {
@@ -1285,7 +1285,7 @@ describe("sessionMachine", () => {
     expect(done).toEqual([
       {
         id: result.chatId,
-        notice: { by: "user", wakesChat: false },
+        notice: { by: "person", wakesChat: false },
         sessionId: result.sessionId,
       },
     ]);
@@ -1310,12 +1310,12 @@ describe("sessionMachine", () => {
     await waitFor(agentRef, (state) => state.matches("Finishing"));
 
     result.actor.send({
-      notice: { by: "user", wakesChat: false },
+      notice: { by: "person", wakesChat: false },
       type: "stop",
     });
     clock.increment(STOP_FAILSAFE_MS - 100);
     result.actor.send({
-      notice: { by: "chat", wakesChat: false },
+      notice: { by: "agent", wakesChat: false },
       reason: "chat",
       type: "stop",
     });
@@ -1432,7 +1432,7 @@ describe("sessionMachine", () => {
     });
 
     result.actor.send({
-      notice: { by: "user", wakesChat: false },
+      notice: { by: "person", wakesChat: false },
       type: "stop",
     });
     clock.increment(STOP_FAILSAFE_MS);
@@ -2055,7 +2055,7 @@ describe("sessionMachine", () => {
         };
         const stop = () => {
           result.actor.send({
-            notice: { by: "user", wakesChat: false },
+            notice: { by: "person", wakesChat: false },
             type: "stop",
           });
         };

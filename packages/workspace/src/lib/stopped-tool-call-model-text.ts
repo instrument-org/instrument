@@ -22,7 +22,7 @@ export function withStoppedToolCallModelText(
   return {
     ...part,
     errorText:
-      part.metadata.stoppedBy === "chat"
+      part.metadata.stoppedBy === "agent"
         ? "The conversation that started this task stopped this. Do not run it again unless it asks."
         : "The user stopped this. Do not run it again unless they ask.",
   };

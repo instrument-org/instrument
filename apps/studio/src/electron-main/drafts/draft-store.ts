@@ -42,7 +42,6 @@ const StageRequestSchema = z.object({
     ),
 }) satisfies z.ZodType<DraftStageRequest>;
 
-
 /** Where a draft's file is, and what this store last wrote there or read from it. */
 interface OnDisk {
   dir: string;
@@ -122,7 +121,7 @@ export function createDraftStore({
       file: entry.file,
       text: textOf(entry.draft),
     });
-    const read = draftOf(entry);
+    const read = draftOf(entry, rootDir);
     const current = drafts.find((draft) => draft.id === id);
     if (current === undefined) {
       drafts = [...drafts, read];
@@ -174,7 +173,7 @@ export function createDraftStore({
   const write = (draft: Draft, { force }: { force: boolean }) => {
     try {
       if (!onDisk.has(draft.id)) {
-        const file = draftFileOf(draft, undefined);
+        const file = draftFileOf(draft, { dir: undefined, rootDir });
         if (!force && isEmptyDraft(file)) {
           return undefined;
         }
@@ -197,7 +196,7 @@ export function createDraftStore({
     if (known === undefined) {
       return undefined;
     }
-    const file = draftFileOf(draft, known.dir);
+    const file = draftFileOf(draft, { dir: known.dir, rootDir });
     const text = textOf(file);
     if (known.text !== text) {
       writeDraftFile(known.file, file);

@@ -142,7 +142,12 @@ function DraftMarks({ draft }: { draft: Draft }) {
         icon: <HeldMark appsBySlug={appsBySlug} tab={tab} />,
         key: tab.id,
       })),
-    ...[...(draft.chosen ?? []), ...(draft.attached ?? [])].map((item) => ({
+    ...[
+      ...(draft.context ?? []).flatMap((item) =>
+        item.kind === "file" || item.kind === "folder" ? [item] : [],
+      ),
+      ...(draft.attached ?? []),
+    ].map((item) => ({
       icon: screenPresentation(
         item.kind === "folder" ? folderHref(item.path) : fileHref(item.path),
         { appsBySlug },

@@ -12,7 +12,13 @@
 
 export { DRAFT_FILE_NAME } from "../../constants";
 export {
-  type DraftAttached,
+  contextEntryOf,
+  contextLineOf,
+  type DraftContextEntry,
+  pastedFileOf,
+  pastedPathOf,
+} from "./context-line";
+export {
   type DraftFile,
   isEmptyDraft,
   parseDraftFile,

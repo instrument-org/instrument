@@ -1,14 +1,13 @@
-import { type ChosenItem, type Draft } from "@/shared/drafts";
+import {
+  type ChosenItem,
+  type Draft,
+  type DraftContextItem,
+} from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
-import { type TabId } from "@/shared/tabs";
+import { instrumentLinkOf, instrumentUrlOf } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
 
-import {
-  behindTabOf,
-  includedItemsOf,
-  includedTabOf,
-  isIncludable,
-} from "./draft-context";
+import { includedItemsOf, isIncludable } from "./draft-context";
 import { isFreshTab, isHomeTab } from "./tab-model";
 import { chatOfGroup, chatOfHref } from "./window-href";
 
@@ -21,6 +20,8 @@ import { chatOfGroup, chatOfHref } from "./window-href";
  * - `tab`: a tab whose own group is sending (the chat's, or the draft's that
  *   becomes the chat's) or one of the window's own, carried by what it shows;
  *   `items` is what it points at on this computer, when that is something.
+ *   A page or an app a draft names by its address is a tab too: the
+ *   window's own showing it, or one standing for it.
  * - `chat`: another chat, by its id alone: what is in it is that chat's.
  */
 export type ContextItem =
@@ -92,41 +93,29 @@ function heldPaths(items: ContextItem[]): ChosenItem[] {
 }
 
 /**
- * What a draft carries, in the order its chips stand: what it was opened on
- * by name, the tab its band has up, the thing it was opened over, and what
- * the window has in view behind it now, each until it is left out.
+ * What a draft carries, in the order its chips stand: its `context`, then
+ * the tab its own band has up unless that chip was taken off.
  */
 export function draftContextItems({
   allTabs,
   bandUp,
-  chatOnScreen,
   draft,
   finderOf,
   group,
-  hrefOfAppTab,
-  inView,
 }: {
   allTabs: WindowTab[];
   /** The tab the draft's own band has up, when the band shows one. */
   bandUp: undefined | WindowTab;
-  /** The chat the window has on screen, its pane open or not. */
-  chatOnScreen: ChatId | undefined;
   draft: Draft;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
   group: string;
-  hrefOfAppTab: (id: TabId) => string | undefined;
-  inView: undefined | WindowTab;
 }): ContextItem[] {
-  const items: ContextItem[] = (draft.chosen ?? []).map((item) => ({
-    item,
-    key: `chosen:${item.path}`,
-    kind: "chosen" as const,
-  }));
-  const add = (tab: undefined | WindowTab, key: string) => {
-    if (!tab || draft.leftOut?.includes(key)) {
-      return;
-    }
-    const item = itemOfTab(tab, {
+  const items = (draft.context ?? []).map((entry) =>
+    contextItemOf(entry, allTabs),
+  );
+  const key = keyOfTab(bandUp);
+  if (bandUp && !draft.leftOut?.includes(key)) {
+    const item = itemOfTab(bandUp, {
       finderOf,
       group,
       held: heldPaths(items),
@@ -135,31 +124,79 @@ export function draftContextItems({
     if (item && !items.some((entry) => entry.key === item.key)) {
       items.push(item);
     }
-  };
-  const addChat = (chat: ChatId | undefined) => {
-    if (chat === undefined) {
-      return;
-    }
-    const key = `chat:${chat}`;
-    if (!draft.leftOut?.includes(key)) {
-      items.push({ chat, key, kind: "chat" });
-    }
-  };
-  add(bandUp, keyOfTab(bandUp));
-  if (draft.included && "chat" in draft.included) {
-    addChat(draft.included.chat);
-  } else {
-    const included = includedTabOf(draft, allTabs, hrefOfAppTab);
-    add(included, keyOfTab(included));
-  }
-  // A chat on screen is the chat, its pane open or not.
-  if (chatOnScreen === undefined) {
-    const behind = behindTabOf(draft, inView);
-    add(behind, keyOfTab(behind));
-  } else {
-    addChat(chatOnScreen);
   }
   return dedupeChats(items);
+}
+
+/**
+ * What a draft made now carries about the tab it is made over: what the tab
+ * points at on this computer (see `includedItemsOf`), less what `chosen`
+ * already names, or else the page or the app's front by its address.
+ */
+export function contextOfTab(
+  tab: WindowTab,
+  finder: null | { folder: string; selected: ChosenItem[] },
+  chosen: ChosenItem[],
+): DraftContextItem[] {
+  const items = includedItemsOf(tab, finder, chosen);
+  if (items !== undefined) {
+    return items;
+  }
+  const url = tab.kind === "page" ? tab.url : instrumentUrlOf(tab.href);
+  return url ? [{ kind: "link", url }] : [];
+}
+
+/** The key a draft's chip for one of its `context` items is known by, and taken off by. */
+export function contextKeyOf(entry: DraftContextItem): string {
+  switch (entry.kind) {
+    case "chat": {
+      return `chat:${entry.chat}`;
+    }
+    case "link": {
+      return `link:${entry.url}`;
+    }
+    case "file":
+    case "folder": {
+      return `chosen:${entry.path}`;
+    }
+  }
+}
+
+/**
+ * The chip one of a draft's `context` items is. A page is the window's own
+ * tab at that address while there is one, so its words go with the message;
+ * otherwise it, like an app's front, is a tab standing for the address.
+ */
+function contextItemOf(
+  entry: DraftContextItem,
+  allTabs: WindowTab[],
+): ContextItem {
+  const key = contextKeyOf(entry);
+  switch (entry.kind) {
+    case "chat": {
+      return { chat: entry.chat, key, kind: "chat" };
+    }
+    case "link": {
+      const href = instrumentLinkOf(entry.url)?.href;
+      const tab: WindowTab =
+        href === undefined
+          ? (allTabs.find(
+              (open) => open.kind === "page" && open.url === entry.url,
+            ) ?? {
+              id: key,
+              kind: "page",
+              openedAt: 0,
+              title: entry.url,
+              url: entry.url,
+            })
+          : { href, id: key, kind: "screen" };
+      return { items: undefined, key, kind: "tab", owned: false, tab };
+    }
+    case "file":
+    case "folder": {
+      return { item: entry, key, kind: "chosen" };
+    }
+  }
 }
 
 /**

@@ -41,13 +41,11 @@ import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { XIcon } from "@phosphor-icons/react/X";
-import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { motion } from "motion/react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { ulid } from "ulid";
 
-import { appTabsAtom, hrefOfAppTab } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
 import { AskPills } from "./ask-pills";
 import { type BrowserTabsHandle, type PageChromeSlots } from "./browser-tabs";
@@ -62,7 +60,11 @@ import {
 import { ComposeZeroState } from "./compose-zero-state";
 import { useWindow, WindowContext } from "./context";
 import { ContextChips, HeldMark } from "./context-chip";
-import { type ContextItem, draftContextItems } from "./context-items";
+import {
+  contextKeyOf,
+  type ContextItem,
+  draftContextItems,
+} from "./context-items";
 import { GroupItem } from "./group-item";
 import { usePageHost } from "./page-hosts";
 import { tabSurfaceAtom } from "./tab-surface";
@@ -74,10 +76,9 @@ import { TopicMark } from "./topic-mark";
 import { AddTopicChip, TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
 import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
-import { useTabInView } from "./use-tab-in-view";
 import { WindowTabStrip } from "./window-tab-strip";
 import { isHomeTab } from "./tab-model";
-import { chatOfGroup, matchScreen } from "./window-href";
+import { matchScreen } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /** What the composer hands over to start the chat. */
@@ -105,7 +106,7 @@ function itemOf(attachment: DraftAttachment): AttachedItem {
     ? { id: ulid(), path: attachment.path, type: "folder" }
     : {
         id: ulid(),
-        mimeType: attachment.mimeType,
+        mimeType: attachment.mediaType,
         name: attachment.name,
         path: attachment.path,
         size: attachment.size,
@@ -256,37 +257,30 @@ export function ComposeWindow({
   const { moveTo: moveAsks } = useStagedAskActions();
   const up = windowTabs.selectedTabIn(group);
   const isExpanded = placement === "expanded";
-  // What the window has in view, and the thing the draft was opened over,
-  // while it is still there to point at, wherever its tab stands now.
-  const appTabs = useAtomValue(appTabsAtom);
-  const activeHref = useRouterState({
-    select: (routerState) => routerState.location.href,
-  });
-  const inView = useTabInView();
   // What the draft carries besides its words, as its chips: the same list
   // its chat is told at the press (see draftContextItems).
   const surfaces = useAtomValue(tabSurfaceAtom);
   const contextItems = draftContextItems({
     allTabs: windowTabs.allTabs,
     bandUp: up,
-    chatOnScreen: chatOfGroup(windowTabs.groupOnScreen),
     draft,
     finderOf: (id) => surfaces[id]?.finder ?? null,
     group,
-    hrefOfAppTab: (id) =>
-      id === appTabs.selectedId ? activeHref : hrefOfAppTab(appTabs, id),
-    inView,
   });
+  // A chip of the draft's `context` takes its line out of the file; the
+  // chip of the band's own tab is only kept off while the app runs.
   const leaveOut = (item: ContextItem) => {
     onChange((current) => {
-      if (item.kind === "chosen") {
-        const left = (current.chosen ?? []).filter(
-          (entry) => entry.path !== item.item.path,
-        );
-        const { chosen: _was, ...rest } = current;
-        return left.length > 0 ? { ...rest, chosen: left } : rest;
+      const context = current.context ?? [];
+      const left = context.filter((entry) => contextKeyOf(entry) !== item.key);
+      if (left.length === context.length) {
+        return {
+          ...current,
+          leftOut: [...(current.leftOut ?? []), item.key],
+        };
       }
-      return { ...current, leftOut: [...(current.leftOut ?? []), item.key] };
+      const { context: _was, ...rest } = current;
+      return left.length > 0 ? { ...rest, context: left } : rest;
     });
   };
 

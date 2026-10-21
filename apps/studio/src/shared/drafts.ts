@@ -1,4 +1,3 @@
-import { type TabId } from "@/shared/tabs";
 import { type ChatId } from "@instrument-org/workspace/client";
 
 /**
@@ -20,12 +19,29 @@ export interface ChosenItem {
 }
 
 /**
+ * One thing besides the words that goes with a draft's message, as its chip
+ * shows it: a file or folder by its path, another chat, or something with
+ * an address of its own (a web page, an app's front). Its file writes each
+ * as a line of `context`.
+ */
+export type DraftContextItem =
+  | ChosenItem
+  | { chat: ChatId; kind: "chat" }
+  | { kind: "link"; url: string };
+
+/**
  * A file or folder given to a draft's composer, by its path on disk: what of
  * the composer outlasts the app. Bytes pasted in with no file behind them
  * are written to the draft's own folder first, and kept by that path.
  */
 export type DraftAttachment =
-  | { kind: "file"; mimeType: string; name: string; path: string; size: number }
+  | {
+      kind: "file";
+      mediaType: string;
+      name: string;
+      path: string;
+      size: number;
+    }
   | { kind: "folder"; path: string };
 
 /**
@@ -36,11 +52,11 @@ export type DraftAttachment =
  * What it has gathered (sites, files, folders) is its tab group, kept with
  * the window's tabs under {@link draftGroupOf}; what its composer has besides
  * the words is kept in memory beside it, and the part of that with a place on
- * disk in `attached`.
+ * disk in `attached`. What else goes with the message is `context`, set as
+ * the draft is made.
  *
- * A draft read from disk also carries, as they were found, the keys of the
- * file's `state` this build does not know, so a newer build's bookkeeping
- * survives this one writing the draft.
+ * `leftOut` and `topicSource` are kept while the app runs and never written
+ * to the draft's file.
  */
 export interface Draft {
   /** What the composer was given that has a place on disk, so it comes back after a relaunch. */
@@ -51,31 +67,17 @@ export interface Draft {
    */
   chatId?: ChatId;
   /**
-   * Files and folders the person opened the draft on by name, from a menu or
-   * a button over them: kept for the chat whatever the window moves on to,
-   * until the person leaves one out.
+   * What goes with the message besides the words: the files and folders the
+   * draft was opened on by name, and what the window had up as it was made
+   * (a chat on screen, a folder, a file, a page, an app). Worked out once, as
+   * the draft is made, and changed after only by the person taking a chip
+   * off, so a chip taken off stays off.
    */
-  chosen?: ChosenItem[];
+  context?: DraftContextItem[];
   createdAt: number;
   id: string;
-  /**
-   * The thing the draft was opened over, when the window stood in a place
-   * with a tab up: that tab, by its group and id. A folder, file, or app's
-   * front on one of the window's own tabs is that tab, by its id. A chat on
-   * screen is the chat, whether or not its pane is open.
-   */
-  included?:
-    | { appTabId: TabId }
-    | { chat: ChatId }
-    | { group: string; tabId: string };
-  /** The chips the person left out of the draft, by their keys (see `ContextItem`). */
+  /** The chips of the draft's own tabs the person took off, by their keys (see `ContextItem`). */
   leftOut?: string[];
-  /**
-   * `auto` asks a computer running Instrument to send the draft as soon as it
-   * sees it, and `sendOn` names the one computer that may. Carried as found;
-   * no build sends a draft on its own yet.
-   */
-  send?: "auto";
   /**
    * The chat the draft is on its way into, from the press until the message
    * is written or the send fails. A draft being sent is neither a reply
@@ -84,12 +86,11 @@ export interface Draft {
    * the message and another device leaves the draft alone meanwhile.
    */
   sendingTo?: ChatId;
-  /** The one device that sends a `send: auto` draft; see {@link Draft.send}. */
-  sendOn?: string;
   topicId?: string;
   /**
    * Who settled the topic: the person, by picking or clearing one, or the
-   * decision model, from what the draft says. Absent while neither has.
+   * decision model, from what the draft says. Absent while neither has. A
+   * topic the model suggested is not written to the file.
    */
   topicSource?: "chosen" | "suggested";
   updatedAt: number;

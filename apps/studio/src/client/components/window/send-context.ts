@@ -49,8 +49,6 @@ export interface SendContextWindow {
   href: string;
   /** The computer's volumes, which name a folder chip the way the Finder does. */
   volumes?: Volume[];
-  /** Where one of the window's own tabs stands now. */
-  hrefOfAppTab: (id: TabId) => string | undefined;
   /** Which chats have their pane open, which is whether the tab up in one is in view. */
   paneOpenByGroup: Record<string, boolean>;
   /** What the screen that is up says it shows, or nothing while none has said. */
@@ -79,7 +77,6 @@ export function contextReaders({
   chatTitles,
   drafts,
   href,
-  hrefOfAppTab,
   paneOpenByGroup,
   screenView,
   state,
@@ -366,12 +363,9 @@ export function contextReaders({
     return draftContextItems({
       allTabs: windowTabs.allTabs,
       bandUp,
-      chatOnScreen: chatOfGroup(windowTabs.groupOnScreen),
       draft,
       finderOf,
       group,
-      hrefOfAppTab,
-      inView,
     });
   };
   /** What a draft carries as its chat starts. */

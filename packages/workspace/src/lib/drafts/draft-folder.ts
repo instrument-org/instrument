@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { ulid } from "ulid";
 
 import { DRAFT_FILE_NAME, DRAFTS_FOLDER_NAME } from "../../constants";
 import { claimFolderNamedSync, safeName } from "../chat-folders/folder-name";
+import { pastedPathOf } from "./context-line";
 import {
   type DraftFile,
   isDraftFileName,
@@ -50,9 +52,10 @@ export function draftsFolderDir(rootDir: string): string {
 
 /**
  * Every draft in the folder, oldest first. A folder with no draft in it is
- * passed over, and so is a file that names no draft; a draft whose id another
- * one already has is kept beside it rather than dropped, since one of the two
- * is a copy of the other and choosing between them is nobody's to do here.
+ * passed over, and so is a file that cannot be read as one; a draft whose id
+ * another one already has is kept beside it rather than dropped, since one of
+ * the two is a copy of the other and choosing between them is nobody's to do
+ * here. A draft written with no `id` is given one, written into its file.
  */
 export function readDrafts(rootDir: string): DraftOnDisk[] {
   const drafts = draftsFolderDir(rootDir);
@@ -93,12 +96,23 @@ export function readDrafts(rootDir: string): DraftOnDisk[] {
   );
 }
 
-/** One draft by its file, or nothing where the file is gone or names no draft. */
+/**
+ * One draft by its file, or nothing where the file is gone or cannot be read
+ * as one. A draft the file names no `id` for is given one, and the file is
+ * written with it, so the next read, here or on another device, finds the
+ * same draft.
+ */
 function readDraftFile(file: string): DraftFile | undefined {
   try {
-    return parseDraftFile(fs.readFileSync(file, "utf8"), {
+    const newId = ulid();
+    const draft = parseDraftFile(fs.readFileSync(file, "utf8"), {
       at: fs.statSync(file).mtime,
+      newId,
     });
+    if (draft?.id === newId) {
+      writeDraftFile(file, draft);
+    }
+    return draft;
   } catch {
     return undefined;
   }
@@ -192,8 +206,8 @@ function withOthersKept(file: string, draft: DraftFile): DraftFile {
  */
 export function removeDraft({ dir, draft, file }: DraftOnDisk): void {
   const otherDrafts = pastedIntoOthers(dir, file);
-  for (const item of draft.attached ?? []) {
-    const pasted = pastedIntoThisDraft(dir, item.path);
+  for (const line of draft.context ?? []) {
+    const pasted = pastedIntoThisDraft(dir, line);
     if (pasted !== undefined && !otherDrafts.has(pasted)) {
       fs.rmSync(pasted, { force: true, recursive: true });
     }
@@ -218,8 +232,9 @@ export function removeDraft({ dir, draft, file }: DraftOnDisk): void {
  * draft away must not take anything but the draft's with it, so both are
  * read as naming something that is not the draft's to remove.
  */
-function pastedIntoThisDraft(dir: string, named: string): string | undefined {
-  if (path.isAbsolute(named)) {
+function pastedIntoThisDraft(dir: string, line: string): string | undefined {
+  const named = pastedPathOf(line);
+  if (named === undefined) {
     return undefined;
   }
   const target = path.resolve(dir, named);
@@ -274,8 +289,8 @@ function pastedIntoOthers(dir: string, file: string): Set<string> {
     if (other === file) {
       continue;
     }
-    for (const item of readDraftFile(other)?.attached ?? []) {
-      const pasted = pastedIntoThisDraft(dir, item.path);
+    for (const line of readDraftFile(other)?.context ?? []) {
+      const pasted = pastedIntoThisDraft(dir, line);
       if (pasted !== undefined) {
         shared.add(pasted);
       }

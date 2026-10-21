@@ -104,7 +104,7 @@ export function rewriteStoredPaths({
   const where = (hostPath: string) => movedTo(hostPath, moves);
   rewritePermissions({ done, machineDir, where });
   for (const entry of readDrafts(rootDir)) {
-    rewriteDraftAttachments({ done, entry, where });
+    rewriteDraftContext({ done, entry, where });
   }
   for (const [name, rewrite] of registered) {
     try {
@@ -222,13 +222,13 @@ function rewritePermissions({
 }
 
 /**
- * One draft's attached files and folders where those are now, so a draft
- * carrying a file from the workspace's own folder still sends that file after
- * the folder moves. The front matter the build does not write is kept, and
+ * The files and folders one draft names by their absolute path where those
+ * are now, so a draft carrying a file from the app's own folder still sends
+ * that file after the folder moves. The front matter the build does not write is kept, and
  * `updated` stays as the file had it, so the rewrite does not move a draft to
  * the front of its chat's box.
  */
-function rewriteDraftAttachments({
+function rewriteDraftContext({
   done,
   entry,
   where,
@@ -237,23 +237,27 @@ function rewriteDraftAttachments({
   entry: DraftOnDisk;
   where: (hostPath: string) => string;
 }) {
-  const attached = entry.draft.attached;
-  if (!attached) {
+  const context = entry.draft.context;
+  if (!context) {
     return;
   }
-  // Only an absolute path names something outside the draft: what was pasted
-  // in is beside the draft, named relative to its folder, and travels with it.
-  const moved = attached.map((item) =>
-    path.isAbsolute(item.path) ? { ...item, path: where(item.path) } : item,
-  );
+  // Only an absolute path can have moved: what was pasted in is named
+  // relative to the draft's folder and travels with it, and a place in the
+  // workspace is named from its top level. A folder's line keeps its `/`.
+  const moved = context.map((line) => {
+    const bare = line.replace(/[/\\]+$/, "");
+    return bare !== "" && path.isAbsolute(bare)
+      ? `${where(bare)}${line.slice(bare.length)}`
+      : line;
+  });
   const rewritten = moved.filter(
-    (item, index) => item.path !== attached[index]?.path,
+    (line, index) => line !== context[index],
   ).length;
   if (rewritten === 0) {
     return;
   }
   try {
-    writeDraftFile(entry.file, { ...entry.draft, attached: moved });
+    writeDraftFile(entry.file, { ...entry.draft, context: moved });
   } catch (error) {
     done.push(`left ${entry.file} as it is (${String(error)})`);
     return;

@@ -1,4 +1,4 @@
-import { type ChosenItem, type Draft } from "@/shared/drafts";
+import { type ChosenItem } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { type TabId } from "@/shared/tabs";
@@ -8,22 +8,6 @@ import { computerTabOf } from "./file-tabs";
 import { joinHostPath } from "./host-path";
 import { isFreshTab } from "./tab-model";
 import { chatOfGroup, matchScreen } from "./window-href";
-
-/**
- * What stands behind a draft now, when it is something other than what the
- * draft was opened over: what the window has in view. It goes with the
- * message as well, so a draft written while looking at something else
- * carries both.
- */
-export function behindTabOf(
-  draft: Draft,
-  inView: undefined | WindowTab,
-): undefined | WindowTab {
-  if (!inView || includedIdOf(draft) === inView.id) {
-    return;
-  }
-  return inView;
-}
 
 /**
  * What a tab a draft was opened over points at on this computer, less what
@@ -65,32 +49,6 @@ export function includedItemsOf(
         { kind: "folder", path: joinHostPath(computer.root, computer.path) },
       ])
     : undefined;
-}
-
-/**
- * The thing a draft was opened over, while it is still there to point at:
- * a tab of a chat's or a site's, while it is among the window's tabs, or
- * one of the window's own tabs, at wherever it stands now while that is a
- * screen of its own rather than a chat or a site.
- */
-export function includedTabOf(
-  draft: Draft,
-  allTabs: WindowTab[],
-  hrefOfAppTab: (id: TabId) => string | undefined,
-): undefined | WindowTab {
-  const { included } = draft;
-  if (!included || "chat" in included) {
-    return;
-  }
-  if ("appTabId" in included) {
-    const href = hrefOfAppTab(included.appTabId);
-    return href === undefined || groupOfHref(href) !== undefined
-      ? undefined
-      : screenTabAt(href, included.appTabId);
-  }
-  return allTabs.find(
-    (tab) => tab.id === included.tabId && tab.group === included.group,
-  );
 }
 
 /**
@@ -158,15 +116,6 @@ export function tabInView({
     return isGroupTabShown ? groupTab : undefined;
   }
   return screenTabAt(activeHref, appTabId);
-}
-
-/** The id of the tab the draft was opened over, whichever kind of tab it is. */
-function includedIdOf(draft: Draft): string | undefined {
-  const { included } = draft;
-  if (!included || "chat" in included) {
-    return;
-  }
-  return "appTabId" in included ? included.appTabId : included.tabId;
 }
 
 /**

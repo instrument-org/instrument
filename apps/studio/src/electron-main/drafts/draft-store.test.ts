@@ -87,8 +87,8 @@ describe("a window's ops", () => {
     expect(read()).toMatchInlineSnapshot(`
       "---
       id: "a"
-      created: 2026-10-19T12:00:00.000Z
-      updated: 2026-10-19T12:00:00.000Z
+      created: 2026-10-19T12:00:00Z
+      updated: 2026-10-19T12:00:00Z
       ---
 
       Plan the trip
@@ -116,7 +116,7 @@ describe("a window's ops", () => {
         attached: [
           {
             kind: "file",
-            mimeType: "image/png",
+            mediaType: "image/png",
             name: "image.png",
             path: pasted.path,
             size: pasted.size,
@@ -125,11 +125,90 @@ describe("a window's ops", () => {
       },
       type: "update",
     });
-    expect(read()).toContain('path: "image.png"');
+    expect(read()).toContain('- "image.png"');
 
     apply({ id: "a", type: "remove" });
 
     expect(tree()).toEqual([]);
+  });
+
+  it("write what goes with the message as context, and read it back as chips and the composer's", () => {
+    const { apply, store } = open();
+    const plans = path.join(root, "Kitchen plans");
+    apply({
+      draft: draft("a", {
+        context: [
+          { chat: CHAT, kind: "chat" },
+          { kind: "folder", path: plans },
+          { kind: "link", url: "https://example.com/" },
+        ],
+        leftOut: ["tab:band"],
+        topicId: "top_1",
+        topicSource: "suggested",
+        words: "Plan",
+      }),
+      type: "create",
+    });
+    const pasted = store.stage({
+      content: Buffer.from("png").toString("base64"),
+      draftId: "a",
+      itemId: "i",
+      name: "image.png",
+    });
+    apply({
+      at: DAY,
+      id: "a",
+      set: {
+        attached: [
+          {
+            kind: "file",
+            mediaType: "image/png",
+            name: "image.png",
+            path: pasted.path,
+            size: pasted.size,
+          },
+        ],
+      },
+      type: "update",
+    });
+
+    // A topic the model suggested and a chip of the band's are the window's.
+    expect(read()).toMatchInlineSnapshot(`
+      "---
+      id: "a"
+      created: 2026-10-19T12:00:00Z
+      updated: 2026-10-19T12:00:00Z
+      context:
+        - "image.png"
+        - "instrument://chat/2026-10-19-what-s-my-latest-tweet"
+        - "workspace:/Kitchen plans/"
+        - "https://example.com/"
+      ---
+
+      Plan
+      "
+    `);
+
+    const reopened = open().store.snapshot().drafts[0];
+    expect(reopened).toEqual(
+      draft("a", {
+        attached: [
+          {
+            kind: "file",
+            mediaType: "image/png",
+            name: "image.png",
+            path: pasted.path,
+            size: 3,
+          },
+        ],
+        context: [
+          { chat: CHAT, kind: "chat" },
+          { kind: "folder", path: plans },
+          { kind: "link", url: "https://example.com/" },
+        ],
+        words: "Plan",
+      }),
+    );
   });
 
   it("point a draft being sent at its chat on disk, with the words it is sent with, before they answer", () => {
@@ -147,7 +226,7 @@ describe("a window's ops", () => {
       words: "what's my latest tweet",
     });
 
-    expect(read()).toContain(`sending: "${CHAT}"`);
+    expect(read()).toContain(`sending: instrument://chat/${CHAT}`);
     expect(read()).not.toContain("chat:");
     expect(read()).toContain("what's my latest tweet");
   });
@@ -163,7 +242,7 @@ describe("a window's ops", () => {
     expect(store.snapshot().drafts[0]).toEqual(draft("a", { words: "hi" }));
   });
 
-  it("keep front matter another program left, and state this build does not know", () => {
+  it("keep front matter another program left", () => {
     fs.mkdirSync(path.dirname(fileOf()), { recursive: true });
     fs.writeFileSync(
       fileOf(),
@@ -181,11 +260,7 @@ describe("a window's ops", () => {
       ].join("\n"),
     );
     const { apply, store } = open();
-    // A key this build knows that holds something it cannot use is left out.
-    expect(store.snapshot().drafts[0]).toEqual({
-      ...draft("a", { words: "Plan" }),
-      pinned: true,
-    });
+    expect(store.snapshot().drafts[0]).toEqual(draft("a", { words: "Plan" }));
 
     apply({
       at: DAY,
@@ -194,7 +269,7 @@ describe("a window's ops", () => {
       type: "update",
     });
 
-    expect(read()).toContain('state: {"pinned":true}');
+    expect(read()).toContain("state:\n  leftOut: not a list\n  pinned: true");
     expect(read()).toContain("phone:");
   });
 });
@@ -269,7 +344,9 @@ describe("the folder changing under the app", () => {
     // Another device's launch finding the send unfinished.
     fs.writeFileSync(
       fileOf(),
-      read().replace(`sending: "${CHAT}"\n`, "").replace("hi", "hi there"),
+      read()
+        .replace(`sending: instrument://chat/${CHAT}\n`, "")
+        .replace("hi", "hi there"),
     );
 
     store.reconcile();
@@ -334,7 +411,7 @@ describe("what the folder has that the store has not read yet", () => {
     fs.mkdirSync(path.dirname(fileOf()), { recursive: true });
     fs.writeFileSync(
       fileOf(),
-      `---\nid: "a"\ncreated: 2026-10-19T12:00:00.000Z\nsending: "${CHAT}"\n---\n\nhi\n`,
+      `---\nid: "a"\ncreated: 2026-10-19T12:00:00.000Z\nsending: instrument://chat/${CHAT}\n---\n\nhi\n`,
     );
 
     store.reconcile();

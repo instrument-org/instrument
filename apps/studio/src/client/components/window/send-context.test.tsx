@@ -5,8 +5,6 @@ import {
   type WindowTab,
 } from "@/client/atoms/window";
 import { fileUrlOf } from "@/client/lib/file-url";
-import { fileHref, folderHref } from "@/shared/computer-href";
-import { TabIdSchema } from "@/shared/tabs";
 import {
   MountedFolder,
   type SessionMessageDataPart,
@@ -77,7 +75,6 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
     chatTitles: new Map([[CHAT, "Lisbon"]]),
     drafts: [],
     href: "/browser",
-    hrefOfAppTab: vi.fn(),
     paneOpenByGroup: {},
     screenView: null,
     state: { folders: { home: HOME } },
@@ -412,42 +409,14 @@ describe("draftContext", () => {
     `);
   });
 
-  const FOLDER = folderHref("/Users/casey/Documents");
-  const FILE = fileHref("/Users/casey/Downloads/receipt.pdf");
   const APP = "/apps/notion";
 
-  it.each<[string, WindowTab, SessionMessageDataPart.ViewContextDataPart]>([
-    [
-      "folder",
-      { group: "place:files", href: FOLDER, id: "over", kind: "screen" },
-      {
-        folder: {
-          display: "/Users/casey/Documents",
-          mount: "/Users/casey/Documents",
-          selected: [],
-        },
-        screen: "computer",
-        tabs: [],
-        url: FOLDER,
-      },
-    ],
-    [
-      "file",
-      { group: "place:files", href: FILE, id: "over", kind: "screen" },
-      {
-        file: {
-          mount: "/Users/casey/Downloads/receipt.pdf",
-          name: "receipt.pdf",
-          path: "/Users/casey/Downloads/receipt.pdf",
-        },
-        screen: "file",
-        tabs: [],
-        url: FILE,
-      },
-    ],
+  it.each<
+    [string, Draft["context"], SessionMessageDataPart.ViewContextDataPart]
+  >([
     [
       "app",
-      { group: "place:apps", href: APP, id: "over", kind: "screen" },
+      [{ kind: "link", url: "instrument://app/notion" }],
       {
         app: {
           name: "Notion",
@@ -462,14 +431,7 @@ describe("draftContext", () => {
     ],
     [
       "page",
-      {
-        group: "place:apps",
-        id: "over",
-        kind: "page",
-        openedAt: 1,
-        title: "Example",
-        url: "https://example.com/",
-      },
+      [{ kind: "link", url: "https://example.com/" }],
       {
         page: {
           selection: "Words on the page",
@@ -482,115 +444,42 @@ describe("draftContext", () => {
       },
     ],
   ])(
-    "describes the %s the draft was opened over, without an id, when the band shows home",
-    async (_kind, over, expected) => {
-      const draft: Draft = {
-        ...DRAFT,
-        included: { group: over.group ?? "", tabId: over.id },
-      };
+    "describes the %s the draft names by its address, without an id",
+    async (_kind, context, expected) => {
       const { draftContext } = contextReaders(
         windowOf({
-          drafts: [draft],
-          windowTabs: tabsOf([HOME_TAB, over]),
+          drafts: [{ ...DRAFT, ...(context ? { context } : {}) }],
+          windowTabs: tabsOf([HOME_TAB]),
         }),
       );
       await expect(draftContext(DRAFT.id)).resolves.toMatchObject(expected);
     },
   );
 
-  describe("over the window's own tabs", () => {
-    const FILES_TAB = TabIdSchema.parse("files");
-    const APPS_TAB = TabIdSchema.parse("apps");
-    const NOTES = "/Users/casey/Documents/notes.md";
-    const drafted = (draft: Partial<Draft>, over: Partial<SendContextWindow>) =>
-      contextReaders(
-        windowOf({
-          drafts: [{ ...DRAFT, ...draft }],
-          hrefOfAppTab: (id) => ({ [APPS_TAB]: APP, [FILES_TAB]: FOLDER })[id],
-          windowTabs: tabsOf([HOME_TAB]),
-          ...over,
-        }),
-      ).draftContext(DRAFT.id);
-
-    it("describes the app's front its tab stands on now", async () => {
-      await expect(
-        drafted(
-          { included: { appTabId: APPS_TAB } },
-          { appTabId: FILES_TAB, href: FOLDER },
-        ),
-      ).resolves.toMatchObject({
-        app: { name: "Notion", slug: "notion" },
-        screen: "apps",
-        url: APP,
-      });
-    });
-
-    it("sends what is selected in the Finder of the tab it was opened over as picked", async () => {
-      await expect(
-        drafted(
-          { included: { appTabId: FILES_TAB } },
+  it("reads a page the draft names from the window's own tab at that address", async () => {
+    const open: WindowTab = {
+      group: "site:1",
+      id: "open",
+      kind: "page",
+      openedAt: 1,
+      title: "Example",
+      url: "https://example.com/",
+    };
+    const readPage = vi.fn(() => Promise.resolve(undefined));
+    const { draftContext } = contextReaders(
+      windowOf({
+        browser: { readPage },
+        drafts: [
           {
-            appTabId: FILES_TAB,
-            surfaces: {
-              [FILES_TAB]: {
-                finder: {
-                  folder: "/Users/casey/Documents",
-                  selected: [{ kind: "file", path: NOTES }],
-                },
-              },
-            },
-            href: FOLDER,
-          },
-        ),
-      ).resolves.toMatchObject({
-        chosen: [
-          {
-            kind: "file",
-            mount: "/Users/casey/Documents/notes.md",
-            name: "notes.md",
-            path: NOTES,
+            ...DRAFT,
+            context: [{ kind: "link", url: "https://example.com/" }],
           },
         ],
-        folder: { display: "/Users/casey/Documents" },
-      });
-    });
-
-    it("sends the Finder up behind the draft by what is selected in it, in place of its folder", async () => {
-      const context = await drafted(
-        { included: { appTabId: APPS_TAB } },
-        {
-          appTabId: FILES_TAB,
-          surfaces: {
-            [FILES_TAB]: {
-              finder: {
-                folder: "/Users/casey/Documents",
-                selected: [{ kind: "file", path: NOTES }],
-              },
-            },
-          },
-          href: FOLDER,
-        },
-      );
-      expect(context?.chosen).toEqual([
-        {
-          kind: "file",
-          mount: "/Users/casey/Documents/notes.md",
-          name: "notes.md",
-          path: NOTES,
-        },
-      ]);
-    });
-
-    it("leaves out the tab the person left out", async () => {
-      const context = await drafted(
-        {
-          included: { appTabId: APPS_TAB },
-          leftOut: [`tab:${FILES_TAB} ${FOLDER}`],
-        },
-        { appTabId: FILES_TAB, href: FOLDER },
-      );
-      expect(context?.chosen).toBeUndefined();
-    });
+        windowTabs: tabsOf([HOME_TAB, open]),
+      }),
+    );
+    await draftContext(DRAFT.id);
+    expect(readPage).toHaveBeenCalledWith("open");
   });
 
   it("sends nothing for a band that shows only a new tab", async () => {
@@ -605,13 +494,13 @@ describe("draftContext", () => {
     );
   });
 
-  it("sends what the draft was opened on by name, reached through its grant", async () => {
+  it("sends what the draft names by its path, reached through its grant", async () => {
     const { draftContext } = contextReaders(
       windowOf({
         drafts: [
           {
             ...DRAFT,
-            chosen: [
+            context: [
               { kind: "file", path: "/Users/casey/Notes/plan.md" },
               { kind: "folder", path: "/Volumes/Backup" },
             ],
@@ -660,14 +549,7 @@ describe("draftContext", () => {
     `);
   });
 
-  it("sends what is in view behind the draft, and nothing the person left out", async () => {
-    const PLACE = "place:files";
-    const file: WindowTab = {
-      group: PLACE,
-      href: "/files?file=%2FUsers%2Fcasey%2FNotes%2Fplan.md&path=&root=~",
-      id: "file",
-      kind: "screen",
-    };
+  it("sends only what the draft names, whatever the window has in view now", async () => {
     const page: WindowTab = {
       group: CHAT,
       id: "page",
@@ -676,104 +558,53 @@ describe("draftContext", () => {
       title: "Hotels",
       url: "https://hotels.example/",
     };
-    const behindFile = contextReaders(
-      windowOf({ drafts: [DRAFT], windowTabs: tabsOf([file], PLACE) }),
-    );
-    await expect(behindFile.draftContext(DRAFT.id)).resolves
-      .toMatchInlineSnapshot(`
-      {
-        "attached": [
-          {
-            "items": [
-              {
-                "kind": "file",
-                "path": "/Users/casey/Notes/plan.md",
-              },
-            ],
-            "kind": "paths",
-          },
-        ],
-        "file": {
-          "mount": "/Users/casey/Notes/plan.md",
-          "name": "plan.md",
-          "path": "/Users/casey/Notes/plan.md",
-        },
-        "screen": "file",
-        "tabs": [],
-        "url": "/files?file=%2FUsers%2Fcasey%2FNotes%2Fplan.md&path=&root=~",
-      }
-    `);
-
-    const behindPage = contextReaders(
-      windowOf({
-        drafts: [DRAFT],
-        paneOpenByGroup: { [CHAT]: true },
-        windowTabs: tabsOf([page], CHAT),
-      }),
-    );
-    await expect(behindPage.draftContext(DRAFT.id)).resolves
-      .toMatchInlineSnapshot(`
-      {
-        "attached": [
-          {
-            "id": "2026-10-01-lisbon",
-            "kind": "chat",
-            "title": "Lisbon",
-          },
-        ],
-        "chat": {
-          "id": "2026-10-01-lisbon",
-          "title": "Lisbon",
-        },
-        "screen": "chat",
-        "tabs": [],
-      }
-    `);
-
-    const leftOut = contextReaders(
-      windowOf({
-        drafts: [{ ...DRAFT, leftOut: [`chat:${CHAT}`] }],
-        paneOpenByGroup: { [CHAT]: true },
-        windowTabs: tabsOf([page], CHAT),
-      }),
-    );
-    await expect(leftOut.draftContext(DRAFT.id)).resolves.toBeUndefined();
-
-    const paneShut = contextReaders(
-      windowOf({
-        drafts: [DRAFT],
-        paneOpenByGroup: { [CHAT]: false },
-        windowTabs: tabsOf([page], CHAT),
-      }),
-    );
-    // The chat is on screen with its pane shut: still the chat.
-    await expect(paneShut.draftContext(DRAFT.id)).resolves.toMatchObject({
-      chat: { id: CHAT },
-    });
-  });
-
-  it("names nothing for a chat trashed since the draft was opened over it", async () => {
-    const gone = ChatIdSchema.parse("2026-10-02-gone");
     const { draftContext } = contextReaders(
-      windowOf({ drafts: [{ ...DRAFT, included: { chat: gone } }] }),
+      windowOf({
+        drafts: [DRAFT],
+        paneOpenByGroup: { [CHAT]: true },
+        windowTabs: tabsOf([page], CHAT),
+      }),
     );
     await expect(draftContext(DRAFT.id)).resolves.toBeUndefined();
   });
 
-  it("counts a chat's pane the toggle never touched as open", async () => {
-    const page: WindowTab = {
-      group: CHAT,
-      id: "page",
+  it("names the chat the draft names, and nothing for one trashed since", async () => {
+    const named = contextReaders(
+      windowOf({
+        drafts: [{ ...DRAFT, context: [{ chat: CHAT, kind: "chat" }] }],
+      }),
+    );
+    await expect(named.draftContext(DRAFT.id)).resolves.toMatchObject({
+      chat: { id: CHAT, title: "Lisbon" },
+      screen: "chat",
+    });
+
+    const gone = ChatIdSchema.parse("2026-10-02-gone");
+    const trashed = contextReaders(
+      windowOf({
+        drafts: [{ ...DRAFT, context: [{ chat: gone, kind: "chat" }] }],
+      }),
+    );
+    await expect(trashed.draftContext(DRAFT.id)).resolves.toBeUndefined();
+  });
+
+  it("leaves out the band's page the person took off", async () => {
+    const band: WindowTab = {
+      group: GROUP,
+      id: "band",
       kind: "page",
       openedAt: 1,
       title: "Hotels",
       url: "https://hotels.example/",
     };
     const { draftContext } = contextReaders(
-      windowOf({ drafts: [DRAFT], windowTabs: tabsOf([page], CHAT) }),
+      windowOf({
+        drafts: [{ ...DRAFT, leftOut: ["tab:band"] }],
+        windowTabs: tabsOf([band]),
+      }),
     );
-    await expect(draftContext(DRAFT.id)).resolves.toMatchObject({
-      chat: { id: CHAT },
-    });
+    const context = await draftContext(DRAFT.id);
+    expect(context?.attached).toBeUndefined();
+    expect(context?.page).toBeUndefined();
   });
 });

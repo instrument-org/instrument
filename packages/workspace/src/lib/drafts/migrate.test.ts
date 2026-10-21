@@ -88,29 +88,16 @@ describe("bringing the hidden drafts out", () => {
     `);
     expect(fs.readFileSync(path.join(rootDir, tree()[0] ?? ""), "utf8"))
       .toMatchInlineSnapshot(`
-      "---
-      id: "01KFD1"
-      created: 2026-10-14T18:22:04.000Z
-      updated: 2026-10-14T18:25:00.000Z
-      topic: "tpc_01KF"
-      ---
+        "---
+        id: "01KFD1"
+        created: 2026-10-14T18:22:04Z
+        updated: 2026-10-14T18:25:00Z
+        topic: "tpc_01KF"
+        ---
 
-      Find a quiet dishwasher.
-      "
-    `);
-  });
-
-  it("keeps what the window knew about the draft that the file does not name", async () => {
-    hiddenDraft("01KFD1", {
-      record: { included: { chat: "a-chat" }, leftOut: ["page"] },
-    });
-
-    await migrate();
-
-    expect(readDrafts(rootDir)[0]?.draft.state).toEqual({
-      included: { chat: "a-chat" },
-      leftOut: ["page"],
-    });
+        Find a quiet dishwasher.
+        "
+      `);
   });
 
   it("moves what was pasted into the draft beside it, and keeps the path pointing at it", async () => {
@@ -137,17 +124,7 @@ describe("bringing the hidden drafts out", () => {
         "Drafts/2026-10-14/pasted-image.png",
       ]
     `);
-    expect(readDrafts(rootDir)[0]?.draft.attached).toMatchInlineSnapshot(`
-      [
-        {
-          "kind": "file",
-          "mediaType": "image/png",
-          "name": "pasted-image.png",
-          "path": "pasted-image.png",
-          "size": 9,
-        },
-      ]
-    `);
+    expect(readDrafts(rootDir)[0]?.draft.context).toEqual(["pasted-image.png"]);
   });
 
   it("leaves a file the draft attached where it is on disk", async () => {
@@ -159,8 +136,8 @@ describe("bringing the hidden drafts out", () => {
 
     await migrate();
 
-    expect(readDrafts(rootDir)[0]?.draft.attached).toEqual([
-      { kind: "file", path: elsewhere },
+    expect(readDrafts(rootDir)[0]?.draft.context).toEqual([
+      "workspace:/quote.pdf",
     ]);
     expect(fs.existsSync(elsewhere)).toBe(true);
   });
@@ -173,7 +150,7 @@ describe("bringing the hidden drafts out", () => {
     const migration = await migrate();
 
     expect(migration.done[0]).toContain("without pasted-image.png");
-    expect(readDrafts(rootDir)[0]?.draft.attached).toBeUndefined();
+    expect(readDrafts(rootDir)[0]?.draft.context).toBeUndefined();
   });
 
   it("numbers a pasted file whose name the day's folder already holds", async () => {

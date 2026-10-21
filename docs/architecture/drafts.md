@@ -1,6 +1,8 @@
 # Drafts
 
-A draft is a chat not yet started, or a reply waiting in a chat. Both live in the workspace's `Drafts/`, a folder per draft holding a `DRAFT.md` (plain YAML front matter over the person's words) and whatever was pasted into it. A reply names its chat (`chat:`); a new chat's draft does not. A draft being sent names the chat it is going into as `sending:`, whichever kind it is. The folder is the record: a file manager, a sync engine bringing another device's edit, or a newer build can change it, and every window has to follow.
+A draft is a chat not yet started, or a reply waiting in a chat. Both live in the workspace's `Drafts/`, a folder per draft holding a `DRAFT.md` (plain YAML front matter over the person's words) and whatever was pasted into it. A reply names its chat by its address (`chat: instrument://chat/<id>`; a bare id reads the same); a new chat's draft does not. A draft being sent names the chat it is going into as `sending:`, whichever kind it is. The folder is the record: a file manager, a sync engine bringing another device's edit, the phone app, or a newer build can change it, and every window has to follow.
+
+The front matter is `id`, `created` and `updated` (ISO 8601 UTC to the second), `chat`, `sending`, `topic` (the topic's id, written only when the person picked one), and `context`. Every key but `id` is optional: a `DRAFT.md` with no `id`, or with no front matter at all, is a draft someone wrote by hand, and the first read gives it an id and writes it into the file (`readDrafts`). An empty file is not a draft, since that is what an editor partway through a save leaves. A key this build does not write is kept as it was found.
 
 ## Layers
 
@@ -8,7 +10,8 @@ A draft is a chat not yet started, or a reply waiting in a chat. Both live in th
 | --- | --- | --- |
 | Format and folder | [`packages/workspace/src/lib/drafts/`](../../packages/workspace/src/lib/drafts/) | `DRAFT.md` parsing and rendering, folder naming, atomic writes, keeping front matter another program wrote, the launch sweep that finishes interrupted sends |
 | Store | [`electron-main/drafts/draft-store.ts`](../../apps/studio/src/electron-main/drafts/draft-store.ts) | the drafts while the app runs: the one writer of `Drafts/`, applying ops, watching the folder, staging pastes |
-| Record | [`electron-main/drafts/draft-record.ts`](../../apps/studio/src/electron-main/drafts/draft-record.ts) | the translation between a window's `Draft` and a `DraftFile`, checking what is read from `state` |
+| Context lines | [`packages/workspace/src/lib/drafts/context-line.ts`](../../packages/workspace/src/lib/drafts/context-line.ts) | how one thing that goes with the message is written as a line of `context`, and read back |
+| Record | [`electron-main/drafts/draft-record.ts`](../../apps/studio/src/electron-main/drafts/draft-record.ts) | the translation between a window's `Draft` and a `DraftFile`: the composer's pasted files and the chips into `context` and back |
 | Ops | [`shared/drafts.ts`](../../apps/studio/src/shared/drafts.ts) | the `Draft` type, the `DraftOp` union, and `applyDraftOps`, which main and every window run |
 | Window mirror | [`client/drafts/store.ts`](../../apps/studio/src/client/drafts/store.ts), over [`client/lib/op-mirror.ts`](../../apps/studio/src/client/lib/op-mirror.ts) | what a window shows: main's snapshot with its own unacknowledged ops applied over it; the bookmarks share the mirror |
 | Chat box | [`client/drafts/chat-box.ts`](../../apps/studio/src/client/drafts/chat-box.ts) | which reply each chat's box writes into, and a reply's send |
@@ -23,6 +26,14 @@ A window shows that snapshot with the batches main has not yet acknowledged appl
 `update` ops carry only the fields that changed (`draftUpdateOf`). So a change made elsewhere to another field, such as a topic picked on another device, survives a window's words still being sent.
 
 The preload reads the snapshot synchronously before the first render (`drafts:load`), because a chat's box reads its reply as it first draws.
+
+## What goes with the message
+
+`context` lists everything that goes with the message besides the words, one line each: a file pasted into the draft by its path inside the draft's folder (`receipt.png`), a file or folder in the workspace as `workspace:/<place>` (the form chat records use), anything else on this computer at its absolute path, another chat by its address, and a web page or an app's front by its own address (`https://…`, `instrument://app/<slug>`). A folder's line ends in `/`.
+
+The window fills it once, as the draft is made (`startDraft` in `use-drafts.ts`), from the chips it would have shown then: what the draft was opened on by name, the chat on screen, or what the tab it was opened over points at (a Finder's selection or its folder, a file, a page, an app's front). Nothing is worked out again later, so the chips a draft's composer shows are its `context` (`draftContextItems`), and taking a chip off takes its line out of the file: a no is a line that is not there. A page's chip reads the words of the window's own tab at that address while there is one.
+
+Read back, a line naming a file pasted into the draft is the composer's again, with its type read from its name; every other line is a chip. What the composer was given by its path from elsewhere comes back as a chip. Two things are kept only while the app runs and never written: the chip of the tab the draft's own band has up, once taken off (`leftOut`), and a topic the decision model suggested (`topicSource: "suggested"`), which is offered again after a relaunch rather than written as the person's choice.
 
 ## The folder changing under the app
 
@@ -49,4 +60,3 @@ The composer holds the words being typed. The draft gets them a beat later, and 
 ## What a draft does not do yet
 
 - An open composer does not follow an edit made elsewhere to the words it is showing: its next write replaces them. Words changed elsewhere reach a composer as it next mounts.
-- `send: auto` and `sendOn` are carried through as found. No build sends a draft on its own.

@@ -7,8 +7,15 @@ import path from "node:path";
 
 import { isRecord } from "../skills";
 import { workspaceLayout } from "../workspace-layout";
-import { type DraftAttached, type DraftFile } from "./draft-file";
+import { contextLineOf } from "./context-line";
+import { type DraftFile } from "./draft-file";
 import { ensureDraftFolder, readDrafts, writeDraftFile } from "./draft-folder";
+
+/** Something the old draft was given, by its path: absolute, or relative to its folder. */
+interface Attached {
+  kind: "file" | "folder";
+  path: string;
+}
 
 /**
  * Brings the drafts an earlier build hid into the folder the person opens:
@@ -94,17 +101,23 @@ async function moveDraftFolder({
   const { dir, file } = ensureDraftFolder({ draft, rootDir, timeZone });
   const pasted = await movePasted(from, dir);
   const { attached, missing } = relocate(
-    (draft.attached ?? []).map((item) =>
+    (attachedOf(settings.attached) ?? []).map((item) =>
       path.dirname(item.path) === from
         ? { ...item, path: path.basename(item.path) }
         : item,
     ),
     pasted,
   );
-  const { attached: _named, ...rest } = draft;
+  const context = attached.map((item) =>
+    path.isAbsolute(item.path)
+      ? contextLineOf(item, { dir, rootDir })
+      : item.kind === "folder"
+        ? `${item.path}/`
+        : item.path,
+  );
   writeDraftFile(file, {
-    ...rest,
-    ...(attached.length > 0 ? { attached } : {}),
+    ...draft,
+    ...(context.length > 0 ? { context } : {}),
   });
   await fs.rm(path.join(from, "draft.md"), { force: true });
   await fs.rm(path.join(from, PRIVATE_FOLDER_NAME), {
@@ -154,9 +167,9 @@ async function movePasted(
  * relative to the folder.
  */
 function relocate(
-  attached: DraftAttached[],
+  attached: Attached[],
   pasted: ReadonlyMap<string, string>,
-): { attached: DraftAttached[]; missing: string[] } {
+): { attached: Attached[]; missing: string[] } {
   const missing: string[] = [];
   const kept = attached.flatMap((item) => {
     if (path.isAbsolute(item.path)) {
@@ -182,51 +195,33 @@ function draftOf({
   settings: Record<string, unknown>;
   words: string;
 }): DraftFile {
-  const {
-    attached,
-    createdAt,
-    id: _id,
-    topicId,
-    updatedAt,
-    words: _words,
-    ...rest
-  } = settings;
+  const { createdAt, topicId, updatedAt } = settings;
   const created = momentOf(createdAt) ?? new Date();
   return {
-    ...(attachedOf(attached) ? { attached: attachedOf(attached) } : {}),
     created,
     id,
-    ...(Object.keys(rest).length > 0 ? { state: rest } : {}),
     ...(typeof topicId === "string" && topicId ? { topic: topicId } : {}),
     updated: momentOf(updatedAt) ?? created,
     words,
   };
 }
 
-/**
- * What the window kept about each thing the draft was given, in the terms the
- * file writes: a path, and what the composer shows beside it.
- */
-function attachedOf(value: unknown): DraftAttached[] | undefined {
+/** What the window kept of each thing the draft was given: its path, and whether it is a folder. */
+function attachedOf(value: unknown): Attached[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
-  const items = value.flatMap((entry: unknown) => {
-    if (!isRecord(entry) || typeof entry.path !== "string" || !entry.path) {
-      return [];
-    }
-    return [
-      {
-        kind: entry.kind === "folder" ? ("folder" as const) : ("file" as const),
-        ...(typeof entry.mimeType === "string"
-          ? { mediaType: entry.mimeType }
-          : {}),
-        ...(typeof entry.name === "string" ? { name: entry.name } : {}),
-        path: entry.path,
-        ...(typeof entry.size === "number" ? { size: entry.size } : {}),
-      },
-    ];
-  });
+  const items = value.flatMap((entry: unknown) =>
+    isRecord(entry) && typeof entry.path === "string" && entry.path
+      ? [
+          {
+            kind:
+              entry.kind === "folder" ? ("folder" as const) : ("file" as const),
+            path: entry.path,
+          },
+        ]
+      : [],
+  );
   return items.length > 0 ? items : undefined;
 }
 

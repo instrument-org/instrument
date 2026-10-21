@@ -101,7 +101,7 @@ export function useDraftStaging({
                 // in reads the name off the path and refuses a send whose
                 // name says otherwise.
                 filename: writtenName(item.path),
-                mimeType: item.mimeType,
+                mimeType: item.mediaType,
                 path: item.path,
                 size: item.size,
               }
@@ -135,7 +135,7 @@ export function useDraftStaging({
           .then(({ path, size }) => {
             staged.current.set(item.id, {
               kind: "file",
-              mimeType: item.mimeType,
+              mediaType: item.mimeType,
               name: item.name,
               path,
               size,
@@ -158,7 +158,7 @@ export function itemsOf(draft: Draft | undefined): AttachedItem[] {
       ? { id: ulid(), path: attachment.path, type: "folder" as const }
       : {
           id: ulid(),
-          mimeType: attachment.mimeType,
+          mimeType: attachment.mediaType,
           name: attachment.name,
           path: attachment.path,
           size: attachment.size,
@@ -176,5 +176,5 @@ function attachmentOf(item: AttachedItem): DraftAttachment[] {
     return [];
   }
   const { mimeType, name, path, size } = item;
-  return [{ kind: "file", mimeType, name, path, size }];
+  return [{ kind: "file", mediaType: mimeType, name, path, size }];
 }

@@ -30,8 +30,8 @@ describe("a draft's file", () => {
     expect(renderDraftFile(draft())).toMatchInlineSnapshot(`
       "---
       id: "01KFDRAFT0000000000000001"
-      created: 2026-10-14T18:22:04.000Z
-      updated: 2026-10-14T18:22:04.000Z
+      created: 2026-10-14T18:22:04Z
+      updated: 2026-10-14T18:22:04Z
       ---
 
       Find a quiet dishwasher.
@@ -80,9 +80,9 @@ describe("a draft's file", () => {
     ).toMatchInlineSnapshot(`
       "---
       id: "01KFDRAFT0000000000000001"
-      created: 2026-10-14T18:22:04.000Z
-      updated: 2026-10-14T18:22:04.000Z
-      chat: "2026-10-14-quiet-dishwashers"
+      created: 2026-10-14T18:22:04Z
+      updated: 2026-10-14T18:22:04Z
+      chat: instrument://chat/2026-10-14-quiet-dishwashers
       topic: "tpc_01KF"
       ---
 
@@ -91,19 +91,21 @@ describe("a draft's file", () => {
     `);
   });
 
-  it("writes the keys a device that sends a draft on its own will read", () => {
-    const written = draft({ send: "auto", sendOn: "dev_7QF2KX1M" });
-    expect(renderDraftFile(written)).toContain("send: auto");
-    expect(roundTrip(written)).toMatchObject({
-      send: "auto",
-      sendOn: "dev_7QF2KX1M",
-    });
+  it.each([
+    ["its address", "instrument://chat/2026-10-14-quiet-dishwashers"],
+    ["a bare id", "2026-10-14-quiet-dishwashers"],
+  ])("reads the chat named by %s", (_name, chat) => {
+    expect(
+      parseDraftFile(`---\nid: "d1"\nchat: ${chat}\n---\n\nWords.\n`, {
+        at: AT,
+      })?.chat,
+    ).toBe("2026-10-14-quiet-dishwashers");
   });
 
   it("writes the chat a draft is on its way into apart from the chat a reply is for", () => {
     const written = draft({ sending: "2026-10-19-latest-tweet" });
     expect(renderDraftFile(written)).toContain(
-      'sending: "2026-10-19-latest-tweet"',
+      "sending: instrument://chat/2026-10-19-latest-tweet",
     );
     expect(roundTrip(written)).toMatchObject({
       sending: "2026-10-19-latest-tweet",
@@ -111,55 +113,31 @@ describe("a draft's file", () => {
     expect(roundTrip(written)?.chat).toBeUndefined();
   });
 
-  it("lists what was attached by its path, and what was pasted by its name", () => {
+  it("lists what goes with the message one line each", () => {
     const written = draft({
-      attached: [
-        {
-          kind: "file",
-          mediaType: "application/pdf",
-          name: "quote: final.pdf",
-          path: "/Users/someone/Documents/quote: final.pdf",
-          size: 182_344,
-        },
-        { kind: "folder", path: "/Users/someone/Projects" },
-        {
-          kind: "file",
-          mediaType: "image/png",
-          name: "pasted-image.png",
-          path: "pasted-image.png",
-          size: 48_213,
-        },
+      context: [
+        "pasted-image.png",
+        "workspace:/Kitchen plans/",
+        "/Users/someone/Documents/quote: final.pdf",
+        "instrument://chat/2026-10-12-oven-research-2p9d",
       ],
     });
     expect(renderDraftFile(written)).toMatchInlineSnapshot(`
       "---
       id: "01KFDRAFT0000000000000001"
-      created: 2026-10-14T18:22:04.000Z
-      updated: 2026-10-14T18:22:04.000Z
-      attached:
-        - path: "/Users/someone/Documents/quote: final.pdf"
-          kind: file
-          name: "quote: final.pdf"
-          mediaType: "application/pdf"
-          size: 182344
-        - path: "/Users/someone/Projects"
-          kind: folder
-        - path: "pasted-image.png"
-          kind: file
-          name: "pasted-image.png"
-          mediaType: "image/png"
-          size: 48213
+      created: 2026-10-14T18:22:04Z
+      updated: 2026-10-14T18:22:04Z
+      context:
+        - "pasted-image.png"
+        - "workspace:/Kitchen plans/"
+        - "/Users/someone/Documents/quote: final.pdf"
+        - "instrument://chat/2026-10-12-oven-research-2p9d"
       ---
 
       Find a quiet dishwasher.
       "
     `);
-    expect(roundTrip(written)?.attached).toEqual(written.attached);
-  });
-
-  it("keeps what the app knows about the draft besides that", () => {
-    const written = draft({ state: { included: { chat: "a-chat" } } });
-    expect(roundTrip(written)?.state).toEqual({ included: { chat: "a-chat" } });
+    expect(roundTrip(written)?.context).toEqual(written.context);
   });
 
   it.each([
@@ -183,12 +161,35 @@ describe("a draft's file", () => {
     expect(parseDraftFile(text, { at: AT })?.words).toBe("One.\nTwo.");
   });
 
-  it("is no draft without front matter naming an id", () => {
+  it("is no draft without an id unless it is given one", () => {
     expect(parseDraftFile("Just some words.\n", { at: AT })).toBeUndefined();
     expect(
       parseDraftFile("---\ntopic: tpc_01KF\n---\n\nWords.\n", { at: AT }),
     ).toBeUndefined();
-    expect(parseDraftFile("---\nid: [1, 2\n---\n", { at: AT })).toBeUndefined();
+  });
+
+  it.each([
+    [
+      "front matter with no id",
+      "---\ntopic: tpc_01KF\n---\nCall the plumber.\n",
+    ],
+    ["no front matter", "Call the plumber.\n"],
+  ])(
+    "reads a draft written by hand with %s under the id it is given",
+    (_name, text) => {
+      expect(parseDraftFile(text, { at: AT, newId: "d9" })).toMatchObject({
+        id: "d9",
+        words: "Call the plumber.",
+      });
+    },
+  );
+
+  it.each([
+    ["front matter that is not YAML", "---\nid: [1, 2\n---\n"],
+    ["front matter that never closes", "---\nid: d1\nWords.\n"],
+    ["nothing at all", ""],
+  ])("is no draft with %s", (_name, text) => {
+    expect(parseDraftFile(text, { at: AT, newId: "d9" })).toBeUndefined();
   });
 
   it("dates a draft by its file where the front matter says nothing", () => {
@@ -206,15 +207,18 @@ describe("a draft's file", () => {
     ).toMatchObject({ created: AT, updated: AT });
   });
 
-  it("holds nothing when it has no words and nothing was put in it", () => {
+  it("holds nothing when it has no words and nothing was pasted into it", () => {
     expect(isEmptyDraft(draft({ words: "   \n" }))).toBe(true);
     expect(
       isEmptyDraft(
         draft({
-          attached: [{ kind: "file", path: "pasted-image.png" }],
+          context: ["instrument://chat/2026-10-12-oven", "/Users/sam/a.pdf"],
           words: "",
         }),
       ),
+    ).toBe(true);
+    expect(
+      isEmptyDraft(draft({ context: ["pasted-image.png"], words: "" })),
     ).toBe(false);
     expect(isEmptyDraft(draft())).toBe(false);
   });

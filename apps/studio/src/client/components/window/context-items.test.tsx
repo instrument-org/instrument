@@ -66,39 +66,64 @@ describe("chatContextItems", () => {
   });
 });
 
-describe("a chat on screen", () => {
+describe("a draft's chips", () => {
   const draft: Draft = { createdAt: 0, id: "d", updatedAt: 0, words: "" };
   const forDraft = (over: Partial<Parameters<typeof draftContextItems>[0]>) =>
     draftContextItems({
       allTabs: [],
       bandUp: undefined,
-      chatOnScreen: undefined,
       draft,
       finderOf: () => null,
       group: "draft:d",
-      hrefOfAppTab: () => undefined,
-      inView: undefined,
       ...over,
     });
 
-  it("is a chat chip behind a draft, its pane open or not", () => {
-    expect(forDraft({ chatOnScreen: OTHER })).toEqual([
-      { chat: OTHER, key: `chat:${OTHER}`, kind: "chat" },
-    ]);
-    expect(
-      forDraft({ chatOnScreen: OTHER, inView: page("theirs", OTHER) }),
-    ).toEqual([{ chat: OTHER, key: `chat:${OTHER}`, kind: "chat" }]);
-  });
-
-  it("is the chat a draft opened over it names, and one chip with what is behind", () => {
+  it("are its context, then the tab its band has up", () => {
     expect(
       forDraft({
-        chatOnScreen: OTHER,
-        draft: { ...draft, included: { chat: OTHER } },
-      }),
-    ).toEqual([{ chat: OTHER, key: `chat:${OTHER}`, kind: "chat" }]);
+        bandUp: page("band", "draft:d"),
+        draft: {
+          ...draft,
+          context: [
+            { chat: OTHER, kind: "chat" },
+            { kind: "file", path: "/Users/sam/a.pdf" },
+          ],
+        },
+      }).map((item) => item.key),
+    ).toEqual([`chat:${OTHER}`, "chosen:/Users/sam/a.pdf", "tab:band"]);
   });
 
+  it("leave out the band's tab once it is taken off", () => {
+    expect(
+      forDraft({
+        bandUp: page("band", "draft:d"),
+        draft: { ...draft, leftOut: ["tab:band"] },
+      }),
+    ).toEqual([]);
+  });
+
+  it("stand for a page and an app by their address", () => {
+    const [site, app] = forDraft({
+      draft: {
+        ...draft,
+        context: [
+          { kind: "link", url: "https://example.com/" },
+          { kind: "link", url: "instrument://app/notion" },
+        ],
+      },
+    });
+    expect(site?.kind === "tab" && site.tab).toMatchObject({
+      kind: "page",
+      url: "https://example.com/",
+    });
+    expect(app?.kind === "tab" && app.tab).toMatchObject({
+      href: "/apps/notion",
+      kind: "screen",
+    });
+  });
+});
+
+describe("a chat on screen", () => {
   it("is a chat chip behind a popped-out chat, and nothing behind itself", () => {
     const behind = (chatOnScreen: typeof CHAT) =>
       chatContextItems({

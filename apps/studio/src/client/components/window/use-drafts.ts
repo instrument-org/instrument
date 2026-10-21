@@ -11,7 +11,12 @@ import {
   releaseDraftAtom,
   removeDraftAtom,
 } from "@/client/drafts/store";
-import { type ChosenItem, type Draft, draftGroupOf } from "@/shared/drafts";
+import {
+  type ChosenItem,
+  type Draft,
+  type DraftContextItem,
+  draftGroupOf,
+} from "@/shared/drafts";
 import {
   chatFiltersAtom,
   NEW_TAB_HREF,
@@ -35,9 +40,11 @@ import { ulid } from "ulid";
 import { appTabsAtom } from "./app-tabs";
 import { NO_FILTERS, type Topic } from "./chats";
 import { type DraftSend } from "./compose-window";
+import { contextOfTab } from "./context-items";
 import { isGroupShown, isIncludable, tabInView } from "./draft-context";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type useCompose } from "./use-compose";
+import { tabSurfaceAtom } from "./tab-surface";
 import { isHomeTab } from "./tab-model";
 import { chatOfGroup } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
@@ -99,6 +106,7 @@ export function useDrafts({
   const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
   const appTabs = useAtomValue(appTabsAtom);
+  const surfaces = useAtomValue(tabSurfaceAtom);
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
   const { remove: removeAsks, returnTo: returnAsks } = useStagedAskActions();
@@ -164,11 +172,11 @@ export function useDrafts({
         : undefined;
     const inPlace =
       overGroup !== undefined && over !== undefined && isIncludable(over)
-        ? { group: overGroup, tabId: over.id }
+        ? over
         : undefined;
     // Or the window's own tab, when it stands on a screen of its own (a
     // folder, a file, an app's front) and the draft was not opened on
-    // things by name: the draft follows that tab wherever it goes next.
+    // things by name.
     const appTabId = appTabs.selectedId;
     const onScreen =
       inPlace === undefined && chosen.length === 0 && appTabId !== null
@@ -182,17 +190,22 @@ export function useDrafts({
     // A chat on screen is the chat, its pane open or not: what is in it is
     // the chat's to name, not the draft's.
     const overChat = chatOfGroup(overGroup);
-    const included =
-      (overChat === undefined ? undefined : { chat: overChat }) ??
-      inPlace ??
-      (onScreen && appTabId !== null && isIncludable(onScreen)
-        ? { appTabId }
-        : undefined);
+    const overTab =
+      inPlace ?? (onScreen && isIncludable(onScreen) ? onScreen : undefined);
+    // Worked out once, here: what the draft carries is what it was made
+    // with, whatever the window moves on to.
+    const context: DraftContextItem[] = [
+      ...chosen,
+      ...(overChat === undefined
+        ? overTab === undefined
+          ? []
+          : contextOfTab(overTab, surfaces[overTab.id]?.finder ?? null, chosen)
+        : [{ chat: overChat, kind: "chat" as const }]),
+    ];
     const draft: Draft = {
-      ...(chosen.length > 0 ? { chosen } : {}),
+      ...(context.length > 0 ? { context } : {}),
       createdAt: now,
       id: ulid(),
-      ...(included ? { included } : {}),
       ...(topicId ? { topicId } : {}),
       updatedAt: now,
       words,

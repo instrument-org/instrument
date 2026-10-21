@@ -517,7 +517,7 @@ describe("finishPendingMove", () => {
   const historyFile = () =>
     path.join(machineDir(), WORKSPACE_MACHINE_ENTRIES.browser, "history.db");
 
-  it("writes the window's tabs, a draft's attachment and the recent files where the folder went", () => {
+  it("writes the window's tabs, a draft's context and the recent files where the folder went", () => {
     const inside = path.join(workspace.path, "downloads");
     // A Files tab the window was left on.
     fs.mkdirSync(windowDir(), { recursive: true });
@@ -538,11 +538,10 @@ describe("finishPendingMove", () => {
       [
         "---",
         'id: "d1"',
-        "created: 2026-10-16T00:00:00.000Z",
-        "updated: 2026-10-16T00:00:00.000Z",
-        "attached:",
-        `  - path: ${JSON.stringify(path.join(inside, "a.zip"))}`,
-        "    kind: file",
+        "created: 2026-10-16T00:00:00Z",
+        "updated: 2026-10-16T00:00:00Z",
+        "context:",
+        `  - ${JSON.stringify(path.join(inside, "a.zip"))}`,
         "---",
         "",
         "Have a look at this.\n",

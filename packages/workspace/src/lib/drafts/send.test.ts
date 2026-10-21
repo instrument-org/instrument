@@ -59,7 +59,7 @@ function draft(more: Partial<DraftFile> = {}): DraftFile {
 function waitingDraft(more: Partial<DraftFile> = {}) {
   const made = ensureDraftFolder({
     draft: draft({
-      attached: [{ kind: "file", name: "sink.png", path: "sink.png" }],
+      context: ["sink.png"],
       ...more,
     }),
     rootDir,
@@ -284,7 +284,7 @@ describe("finishing the sends a launch finds", () => {
       [
         {
           "id": "d1",
-          "reason": "../elsewhere is no chat's id",
+          "reason": "elsewhere holds no message from it",
         },
       ]
     `);

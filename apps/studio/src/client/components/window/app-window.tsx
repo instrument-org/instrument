@@ -72,7 +72,6 @@ import { AppTabStrip } from "./app-tab-strip";
 import {
   appTabsAtom,
   groupOfHref,
-  hrefOfAppTab,
   INBOX_HREF,
   isChatHref,
   isSiteGroup,
@@ -543,10 +542,6 @@ function WindowShell({
     chatTitles,
     drafts,
     href: activeHref,
-    hrefOfAppTab: (id) =>
-      id === appTabs.model.selectedId
-        ? activeHref
-        : hrefOfAppTab(appTabs.model, id),
     paneOpenByGroup,
     screenView,
     state: opened,

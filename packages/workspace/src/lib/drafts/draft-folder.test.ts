@@ -74,8 +74,8 @@ describe("the drafts folder", () => {
     expect(fs.readFileSync(file, "utf8")).toMatchInlineSnapshot(`
       "---
       id: "d1"
-      created: 2026-10-14T18:22:04.000Z
-      updated: 2026-10-14T18:22:04.000Z
+      created: 2026-10-14T18:22:04Z
+      updated: 2026-10-14T18:22:04Z
       voice: true
       ---
 
@@ -204,9 +204,28 @@ describe("the drafts folder", () => {
   it("passes over a folder holding no draft, and a file that is not one", () => {
     const stray = path.join(draftsFolderDir(rootDir), "Notes");
     fs.mkdirSync(stray, { recursive: true });
-    fs.writeFileSync(path.join(stray, "DRAFT.md"), "No front matter here.\n");
+    fs.writeFileSync(path.join(stray, "DRAFT.md"), "---\nid: [1, 2\n---\n");
     fs.writeFileSync(path.join(stray, "thoughts.md"), "Mine.\n");
     expect(readDrafts(rootDir)).toEqual([]);
+  });
+
+  it("gives a draft written by hand an id, and writes it into the file", () => {
+    const file = path.join(draftsFolderDir(rootDir), "Mine", "DRAFT.md");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, "---\ntopic: tpc_01KF\n---\nCall the plumber.\n");
+
+    const [read] = readDrafts(rootDir);
+
+    expect(read?.draft).toMatchObject({
+      topic: "tpc_01KF",
+      words: "Call the plumber.",
+    });
+    expect(fs.readFileSync(file, "utf8")).toContain(
+      `id: ${JSON.stringify(read?.draft.id)}`,
+    );
+    expect(readDrafts(rootDir).map((entry) => entry.draft.id)).toEqual([
+      read?.draft.id,
+    ]);
   });
 
   it("takes a draft away with what was pasted into it", () => {
@@ -214,10 +233,7 @@ describe("the drafts folder", () => {
     fs.writeFileSync(path.join(made.dir, "pasted-image.png"), "bytes");
     const with_ = {
       ...made.draft,
-      attached: [
-        { kind: "file" as const, path: "pasted-image.png" },
-        { kind: "file" as const, path: "/Users/someone/Documents/quote.pdf" },
-      ],
+      context: ["pasted-image.png", "/Users/someone/Documents/quote.pdf"],
     };
     writeDraftFile(made.file, with_);
     removeDraft({ ...made, draft: with_ });
@@ -231,12 +247,7 @@ describe("the drafts folder", () => {
     const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     const with_ = {
       ...made.draft,
-      attached: [
-        {
-          kind: "folder" as const,
-          path: path.join("..", "..", "valuable-work"),
-        },
-      ],
+      context: [path.join("..", "..", "valuable-work")],
     };
     writeDraftFile(made.file, with_);
 
@@ -258,10 +269,7 @@ describe("the drafts folder", () => {
       });
       const other = path.join(made.dir, "DRAFT 2.md");
       writeDraftFile(other, draft({ id: "d2" }));
-      const with_ = {
-        ...made.draft,
-        attached: [{ kind: "folder" as const, path: named }],
-      };
+      const with_ = { ...made.draft, context: [named] };
       writeDraftFile(made.file, with_);
 
       removeDraft({ ...made, draft: with_ });
@@ -278,9 +286,7 @@ describe("the drafts folder", () => {
     fs.symlinkSync(victim, path.join(made.dir, "out"));
     const with_ = {
       ...made.draft,
-      attached: [
-        { kind: "file" as const, path: path.join("out", "report.txt") },
-      ],
+      context: [path.join("out", "report.txt")],
     };
     writeDraftFile(made.file, with_);
 
@@ -293,13 +299,13 @@ describe("the drafts folder", () => {
     const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     const pasted = path.join(made.dir, "pasted-image.png");
     fs.writeFileSync(pasted, "bytes");
-    const attached = [{ kind: "file" as const, path: "pasted-image.png" }];
-    const mine = { ...made.draft, attached };
+    const context = ["pasted-image.png"];
+    const mine = { ...made.draft, context };
     writeDraftFile(made.file, mine);
     // A sync engine's conflict copy of the same draft, naming the same file.
     writeDraftFile(path.join(made.dir, "DRAFT 2.md"), {
       ...draft({ id: "d2" }),
-      attached,
+      context,
     });
 
     removeDraft({ ...made, draft: mine });

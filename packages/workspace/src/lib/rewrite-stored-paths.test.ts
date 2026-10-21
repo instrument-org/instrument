@@ -199,22 +199,19 @@ describe("a topic's granted folders", () => {
   });
 });
 
-describe("a draft's attachments", () => {
+describe("a draft's context", () => {
   const draftFile = () => at("Drafts", "2026-10-16", "DRAFT.md");
 
-  function writeDraft(...attached: string[]) {
+  function writeDraft(...context: string[]) {
     write(
       draftFile(),
       [
         "---",
         'id: "d1"',
-        "created: 2026-10-16T00:00:00.000Z",
-        "updated: 2026-10-16T09:00:00.000Z",
-        "attached:",
-        ...attached.flatMap((item) => [
-          `  - path: ${JSON.stringify(item)}`,
-          "    kind: file",
-        ]),
+        "created: 2026-10-16T00:00:00Z",
+        "updated: 2026-10-16T09:00:00Z",
+        "context:",
+        ...context.map((line) => `  - ${JSON.stringify(line)}`),
         "---",
         "",
         "Have a look at this.\n",
@@ -231,14 +228,14 @@ describe("a draft's attachments", () => {
     const done = rewrite();
 
     const written = fs.readFileSync(draftFile(), "utf8");
-    expect(written).toContain(`- path: ${JSON.stringify(now)}`);
+    expect(written).toContain(`- ${JSON.stringify(now)}`);
     // What was pasted into the draft is beside it, so its path is the
     // draft folder's and no move holds it.
-    expect(written).toContain('- path: "pasted-image.png"');
+    expect(written).toContain('- "pasted-image.png"');
     // The person's words and when the draft last changed are untouched, so
     // the rewrite does not move it to the front of its chat's box.
     expect(written).toContain("Have a look at this.");
-    expect(written).toContain("updated: 2026-10-16T09:00:00.000Z");
+    expect(written).toContain("updated: 2026-10-16T09:00:00Z");
     expect(done).toEqual([`wrote 1 path(s) where they went in ${draftFile()}`]);
   });
 
@@ -262,7 +259,7 @@ describe("a draft's attachments", () => {
 
     expect(rewrite()).toEqual([]);
     expect(fs.readFileSync(draftFile(), "utf8")).toContain(
-      `- path: ${JSON.stringify(outside)}`,
+      `- ${JSON.stringify(outside)}`,
     );
   });
 });

@@ -24,7 +24,7 @@ import { type DeviceId } from "./device-id";
 
 export const DEVICE_FILE_NAME = "device.json";
 
-export const DeviceFileSchema = z.object({
+const DeviceFileSchema = z.object({
   /** The computer's own name, as its system shows it. */
   name: z.string().min(1),
   /** `process.platform` of the computer the device runs on. */

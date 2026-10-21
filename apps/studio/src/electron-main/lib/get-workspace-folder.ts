@@ -1,5 +1,4 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
-import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { app } from "electron";
 import path from "node:path";
 
@@ -27,15 +26,6 @@ export function getUserDataDir(): string {
  */
 export function workspaceInAppData(): boolean {
   return pathWithin(getWorkspaceFolder(), getUserDataDir());
-}
-
-/**
- * What the app keeps for the resolved workspace that travels with it,
- * `<workspace>/.instrument/`: its identity and the folders `workspaceLayout`
- * names.
- */
-export function workspaceDataDir(): string {
-  return workspaceLayout(getWorkspaceFolder()).dataDir;
 }
 
 /**

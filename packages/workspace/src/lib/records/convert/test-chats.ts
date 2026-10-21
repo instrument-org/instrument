@@ -367,9 +367,6 @@ export function writeEveryKindChat(dir: string): Promise<ChatId> {
       ),
     ]);
 
-    await tell(store, StorageKey.foldersBaseline(s), [
-      { path: "/Users/someone/Trips" },
-    ]);
     await tell(store, StorageKey.chatAppsBaseline(s), {
       gmail: { connected: true, name: "Gmail" },
     });
@@ -405,9 +402,6 @@ export function writeEveryKindChat(dir: string): Promise<ChatId> {
         { endedAt: at(81), startedAt: at(80) },
       ),
       part(t, messageId(8), 85, { text: "Here are three.", type: "text" }),
-    ]);
-    await tell(store, StorageKey.foldersBaseline(t), [
-      { path: "/Users/someone/Trips" },
     ]);
   });
 }

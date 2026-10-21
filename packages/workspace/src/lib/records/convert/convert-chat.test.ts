@@ -286,7 +286,6 @@ describe("convertChat", () => {
         "leftBehind": {
           "background-processes-reported": 1,
           "chat-apps-baseline": 1,
-          "folders-baseline": 2,
           "memory-reported": 1,
         },
         "messages": 8,

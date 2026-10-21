@@ -4,14 +4,6 @@ export namespace StorageKey {
   const SEPARATOR = ":";
   export const MESSAGES_KEY = "messages";
 
-  // Per-session baseline of the folders granted in the chat, diffed against
-  // the current set when composing a user message to tell the session of
-  // folders granted, taken back, or moved to a new mount since. Keyed by
-  // session so the chat and each of its tasks track what they were told.
-  export function foldersBaseline(sessionId: StoreId.Session) {
-    return ["folders-baseline", sessionId].join(SEPARATOR);
-  }
-
   // Per-session record of the background processes the agent was last told
   // about. The registry itself is in memory, so this is the only thing that
   // survives a restart to say what the session believes is running -- which is

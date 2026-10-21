@@ -985,7 +985,19 @@ export async function runEvals(
                 // A folder outside the run's home is the developer's own, which
                 // a model that guesses at the real home asks for, so it is never
                 // allowed and never counts against the case's allowance.
-                const fromHome = path.relative(os.homedir(), ask.target);
+                // Both resolved, since a temp home is reached through a
+                // symlink as well (`/var` and `/private/var` on macOS).
+                const real = (at: string) => {
+                  try {
+                    return fs.realpathSync(at);
+                  } catch {
+                    return at;
+                  }
+                };
+                const fromHome = path.relative(
+                  real(os.homedir()),
+                  real(ask.target),
+                );
                 const inRunHome =
                   !fromHome.startsWith("..") && !path.isAbsolute(fromHome);
                 const allows =

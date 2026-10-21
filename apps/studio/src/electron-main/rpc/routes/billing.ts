@@ -9,11 +9,14 @@ import {
   recordPlatformRefusal,
 } from "@/electron-main/lib/platform-refusals";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
-import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
+import {
+  platformApiBaseUrl,
+  platformApiOrigin,
+} from "@/electron-main/platform-api/base-url";
 import { platformApiRpcClient } from "@/electron-main/platform-api/client";
 import { getToken } from "@/electron-main/platform-api/utils";
 import { authenticated, base, devOnly } from "@/electron-main/rpc/base";
-import { getSessionStore } from "@/electron-main/stores/workspace/session";
+import { setSessionToken } from "@/electron-main/stores/workspace/session";
 import { PAYMENT_FAILED_STATUSES } from "@/shared/billing";
 import { readPlatformRefusal } from "@instrument-org/ai-gateway";
 import { app } from "electron";
@@ -151,7 +154,7 @@ const environment = devOnly.handler(() => ({
 const setDevToken = localDev
   .input(z.object({ token: z.string().min(1) }))
   .handler(async ({ input }) => {
-    getSessionStore().set("apiBearerToken", input.token.trim());
+    setSessionToken(platformApiOrigin(), input.token.trim());
     await setDefaultModel({ replacing: "anything" });
   });
 

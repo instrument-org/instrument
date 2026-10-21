@@ -250,6 +250,30 @@ describe("ModelPicker in a browser", () => {
     }
   });
 
+  it("lists Auto as the first row of the lineup, with no line saying what includes it", async () => {
+    const lineup = [
+      autoModel,
+      instrument({ canonicalId: "grok", name: "Grok" }),
+    ];
+    const tree = await openPicker(autoModel, { models: lineup });
+    expect(await tree()).toMatchInlineSnapshot(`
+      "- text: Search models
+      - combobox "Search models" [expanded]
+      - navigation "Providers":
+        - button "Instrument models (has the chosen model)":
+          - img
+          - text: Instrument models (has the chosen model)
+        - button "Add a provider"
+      - listbox "Suggestions":
+        - option "Auto Recommended (chosen)" [selected]:
+          - img
+          - text: Auto Recommended (chosen)
+        - option "Grok":
+          - img
+          - text: Grok"
+    `);
+  });
+
   it("lists Instrument's lineup by brand, each over its family, as the gateway describes it", async () => {
     const lineup = [
       { ...autoModel, note: "Picks a model for each turn." },

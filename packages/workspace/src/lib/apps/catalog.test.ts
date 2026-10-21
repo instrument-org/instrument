@@ -5,6 +5,8 @@ import {
   builtInAppCatalogRevision,
   catalogEntryAt,
   catalogEntryForApp,
+  catalogEndpointNeedsClient,
+  catalogRegisteredClient,
   getAppCatalog,
   resetServedAppCatalog,
   applyServedAppCatalog,
@@ -37,6 +39,18 @@ describe("catalogEntryForApp", () => {
     expect(
       catalogEntryForApp("notion", { service: "gmail", type: "web" })?.slug,
     ).toBe("gmail");
+  });
+});
+
+describe("a Google product the directory gives no client", () => {
+  // The client is served only to admins; the seed says how its sign-in goes.
+  it.each([
+    "https://gmailmcp.googleapis.com/mcp/v1",
+    "https://calendarmcp.googleapis.com/mcp/v1",
+    "https://drivemcp.googleapis.com/mcp/v1",
+  ])("still needs a client at %s", (endpoint) => {
+    expect(catalogEndpointNeedsClient(endpoint)).toBe(true);
+    expect(catalogRegisteredClient(endpoint)).toBeUndefined();
   });
 });
 

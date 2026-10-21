@@ -1,8 +1,9 @@
+import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
 import {
   type OAuthClientInformationFull,
   type OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { serveRegisteredClient } from "../../../test/helpers/serve-registered-client";
 import { resetServedAppCatalog } from "../catalog";
@@ -13,6 +14,7 @@ import {
   mcpSignInClient,
   type McpOAuthStore,
 } from "./oauth-provider";
+import { fetchForMcp } from "./fetch";
 
 function inMemoryStore(): McpOAuthStore {
   const clientInfo = new Map<string, OriginBound<OAuthClientInformationFull>>();
@@ -276,5 +278,190 @@ describe("mcpSignInClient", () => {
         serverUrl: "https://mcp.slack.com/other",
       }).clientId,
     ).toBeUndefined();
+  });
+});
+
+describe("a registered client whose secret our API holds", () => {
+  const serverUrl = "https://gmailmcp.googleapis.com/mcp/v1";
+  const loopbackRedirectUrl = "http://127.0.0.1:49200/auth/callback/app";
+  const signIn = () =>
+    mcpSignInClient({
+      loopbackRedirectUrl,
+      relayRedirectUrl: (service) =>
+        `https://api.example/oauth/${service}/callback`,
+      relayTokenUrl: (service) => `https://api.example/oauth/${service}/token`,
+      serverUrl,
+    });
+
+  /** Google's discovery as it answers, and our API's token route. */
+  function serveGoogle() {
+    const tokenRequests: { body: Record<string, string>; url: string }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      if (
+        url ===
+        "https://gmailmcp.googleapis.com/.well-known/oauth-protected-resource/mcp/v1"
+      ) {
+        return Response.json({
+          authorization_servers: ["https://accounts.google.com/"],
+          resource: serverUrl,
+          scopes_supported: [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.readonly",
+          ],
+        });
+      }
+      if (
+        url ===
+        "https://accounts.google.com/.well-known/oauth-authorization-server"
+      ) {
+        return Response.json({
+          authorization_endpoint:
+            "https://accounts.google.com/o/oauth2/v2/auth",
+          code_challenge_methods_supported: ["S256"],
+          issuer: "https://accounts.google.com",
+          response_types_supported: ["code"],
+          token_endpoint: "https://oauth2.googleapis.com/token",
+        });
+      }
+      if (url === "https://api.example/oauth/gmail/token") {
+        tokenRequests.push({
+          body: Object.fromEntries(
+            new URLSearchParams(
+              init?.body instanceof URLSearchParams ? init.body : "",
+            ),
+          ),
+          url,
+        });
+        return Response.json({
+          access_token: "at",
+          expires_in: 3599,
+          refresh_token: "rt",
+          token_type: "Bearer",
+        });
+      }
+      return new Response(null, { status: 404 });
+    });
+    return tokenRequests;
+  }
+
+  beforeEach(() => {
+    // Only admins are served the client for now; the seed carries the rest.
+    serveRegisteredClient(
+      "gmail",
+      "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetServedAppCatalog();
+  });
+
+  it("takes the directory's scopes, page parameters, and token route", () => {
+    expect(signIn()).toMatchInlineSnapshot(`
+      {
+        "authorizationParams": {
+          "access_type": "offline",
+          "prompt": "consent",
+        },
+        "clientId": "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
+        "redirectUrl": "https://api.example/oauth/gmail/callback",
+        "scope": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose",
+        "statePrefix": "49200",
+        "tokenExchange": {
+          "serverUrl": "https://gmailmcp.googleapis.com/mcp/v1",
+          "tokenUrl": "https://api.example/oauth/gmail/token",
+        },
+      }
+    `);
+  });
+
+  it("asks for the directory's scopes and redeems and refreshes at our API", async () => {
+    const tokenRequests = serveGoogle();
+    const store = inMemoryStore();
+    const openAuthorization = vi.fn<(url: URL) => void>();
+    const provider = createMcpOAuthProvider({
+      ...signIn(),
+      openAuthorization,
+      origin: new URL(serverUrl).origin,
+      slug: "gmail",
+      store,
+    });
+
+    expect(await auth(provider, { fetchFn: fetchForMcp, serverUrl })).toBe(
+      "REDIRECT",
+    );
+    const page = openAuthorization.mock.calls[0]?.[0];
+    expect(
+      Object.fromEntries(
+        [...(page?.searchParams ?? [])].filter(
+          ([name]) => !["code_challenge", "state"].includes(name),
+        ),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "access_type": "offline",
+        "client_id": "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
+        "code_challenge_method": "S256",
+        "prompt": "consent",
+        "redirect_uri": "https://api.example/oauth/gmail/callback",
+        "resource": "https://gmailmcp.googleapis.com/mcp/v1",
+        "response_type": "code",
+        "scope": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose",
+      }
+    `);
+
+    expect(
+      await auth(provider, {
+        authorizationCode: "the-code",
+        fetchFn: fetchForMcp,
+        serverUrl,
+      }),
+    ).toBe("AUTHORIZED");
+
+    // A command builds its own provider, and refreshes through it.
+    await store.saveTokens("gmail", {
+      origin: new URL(serverUrl).origin,
+      value: {
+        ...(await provider.tokens()),
+        access_token: "expired",
+        token_type: "Bearer",
+      },
+    });
+    const command = createMcpOAuthProvider({
+      ...signIn(),
+      openAuthorization: vi.fn(),
+      origin: new URL(serverUrl).origin,
+      slug: "gmail",
+      store,
+    });
+    expect(await auth(command, { fetchFn: fetchForMcp, serverUrl })).toBe(
+      "AUTHORIZED",
+    );
+
+    expect(
+      tokenRequests.map(({ body }) => ({
+        ...body,
+        ...(body.code_verifier && { code_verifier: "<verifier>" }),
+      })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "client_id": "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
+          "code": "the-code",
+          "code_verifier": "<verifier>",
+          "grant_type": "authorization_code",
+          "redirect_uri": "https://api.example/oauth/gmail/callback",
+          "resource": "https://gmailmcp.googleapis.com/mcp/v1",
+        },
+        {
+          "client_id": "422213182201-4uoijqq6ij3r6ad8rgio6bhj2jhirim7.apps.googleusercontent.com",
+          "grant_type": "refresh_token",
+          "refresh_token": "rt",
+          "resource": "https://gmailmcp.googleapis.com/mcp/v1",
+        },
+      ]
+    `);
   });
 });

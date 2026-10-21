@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-10-18T16:50:01.531Z",
-  "entriesHash": "4307c248267b2b90",
+  "revision": "2026-10-21T21:41:29.225Z",
+  "entriesHash": "34752aa6b379a380",
   "entries": [
     {
       "slug": "ahrefs",
@@ -1773,7 +1773,13 @@
           "format": "mcp",
           "name": "Gmail MCP server",
           "endpoint": "https://gmailmcp.googleapis.com/mcp/v1",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "tokenExchange": "api",
+          "scope": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent"
+          }
         },
         {
           "format": "mac-app",
@@ -1814,7 +1820,13 @@
           "format": "mcp",
           "name": "Google Calendar MCP server",
           "endpoint": "https://calendarmcp.googleapis.com/mcp/v1",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "tokenExchange": "api",
+          "scope": "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent"
+          }
         },
         {
           "format": "mac-app",
@@ -1855,7 +1867,13 @@
           "format": "mcp",
           "name": "Google Drive MCP server",
           "endpoint": "https://drivemcp.googleapis.com/mcp/v1",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "tokenExchange": "api",
+          "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent"
+          }
         }
       ],
       "category": "files",

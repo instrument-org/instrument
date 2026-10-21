@@ -3,7 +3,9 @@ import {
   notificationStatus,
   requestNotifications,
 } from "@/electron-main/lib/mac-native";
+import { getMacAppIconUrl } from "@/electron-main/lib/file-open-target";
 import { base } from "@/electron-main/rpc/base";
+import { appBundleId } from "@instrument-org/workspace/electron";
 import { z } from "zod";
 
 /**
@@ -33,4 +35,21 @@ const access = {
     .handler(({ input }) => dataAccess(input.kind, { request: true })),
 };
 
-export const mac = { access, notifications };
+/**
+ * A Mac app's own icon, by the name a permission card or Settings shows it
+ * by, or by its bundle id: null off macOS, or where no app goes by it.
+ */
+const appIcon = base
+  .input(z.object({ app: z.string() }))
+  .output(z.object({ url: z.string().nullable() }))
+  .handler(async ({ input }) => {
+    const bundleId = await appBundleId(input.app);
+    return {
+      url:
+        bundleId === undefined
+          ? null
+          : await getMacAppIconUrl(bundleId).catch(() => null),
+    };
+  });
+
+export const mac = { access, appIcon, notifications };

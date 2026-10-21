@@ -95,6 +95,7 @@ export { attachChats } from "./lib/chat/attach";
 export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
 export { readRefusalOf } from "./lib/read-refusal";
+export { appBundleId } from "./lib/permissions/apps";
 export { settleWorkspaceDb } from "./lib/settle-workspace-db";
 export {
   BROWSER_FOLDER_NAMES,

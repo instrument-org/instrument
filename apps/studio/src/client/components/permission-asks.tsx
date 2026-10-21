@@ -1,3 +1,4 @@
+import { MacAppIcon } from "@/client/components/mac-app-icon";
 import { rpcClient } from "@/client/rpc/client";
 import { FolderRow } from "@/client/components/folder-row";
 import { isInside, segmentsOf } from "@/client/components/window/host-path";
@@ -13,7 +14,6 @@ import { useEffect, useState } from "react";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { privacyPaneForApp } from "@/client/lib/privacy-pane";
 import { cn } from "@/client/lib/utils";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
@@ -206,7 +206,7 @@ function PermissionAskCard({
       ) : (
         <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2">
           <span className="grid size-8 shrink-0 place-items-center">
-            <AppWindowIcon className="size-6 text-muted-foreground" />
+            <MacAppIcon app={ask.target} />
           </span>
           <span className="min-w-0 flex-1 truncate text-sm">{ask.target}</span>
         </div>

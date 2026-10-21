@@ -49,8 +49,8 @@ import { isLinux, isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
 import { SANDBOX_OFF_COPY, SANDBOX_OFF_REASONS } from "@/shared/sandbox-off";
+import { MacAppIcon } from "@/client/components/mac-app-icon";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
@@ -400,7 +400,7 @@ export function PermissionsSection() {
             {view.apps.map((app) => (
               <div className="flex items-center gap-3 p-3" key={app.name}>
                 <span className="flex w-7 shrink-0 justify-center">
-                  <AppWindowIcon className="size-6 text-muted-foreground" />
+                  <MacAppIcon app={app.name} />
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm">{app.name}</span>

@@ -36,7 +36,11 @@ import { FolderRefusalSchema } from "@/shared/workspace-folder-refusal";
 import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
-import { readBearerTokenIn } from "@/electron-main/stores/workspace/session";
+import {
+  platformApiBaseUrl,
+  platformApiOrigin,
+} from "@/electron-main/platform-api/base-url";
+import { readBearerTokensIn } from "@/electron-main/stores/workspace/session";
 import {
   instrumentFolderUnchosen,
   removeIfEmptySync,
@@ -230,21 +234,28 @@ const remove = devOnly
     if (blocked) {
       throw errors.UNAUTHORIZED({ message: blocked });
     }
-    // The sign-in goes with the workspace, so the platform session behind it
-    // ends too, unless another workspace holds the same one (a workspace made
-    // with the sign-in copied shares its session), which would be signed out
-    // with it.
-    const token = readBearerTokenIn(keysDirOf(getUserDataDir(), listing));
-    const sharedWith = listings.some(
-      (other) =>
-        other !== listing &&
-        readBearerTokenIn(keysDirOf(getUserDataDir(), other)) === token,
+    // The sign-ins go with the workspace, so the platform session behind
+    // each ends too, on its own server, unless another workspace holds the
+    // same one (a workspace made with the sign-in copied shares its
+    // session), which would be signed out with it.
+    const others = listings
+      .filter((other) => other !== listing)
+      .map((other) => readBearerTokensIn(keysDirOf(getUserDataDir(), other)));
+    const tokens = readBearerTokensIn(keysDirOf(getUserDataDir(), listing));
+    await Promise.all(
+      Object.entries(tokens)
+        .filter(([origin, token]) =>
+          others.every((held) => held[origin] !== token),
+        )
+        .map(([origin, token]) =>
+          revokeSession(
+            token,
+            origin === platformApiOrigin() ? platformApiBaseUrl() : origin,
+          ).catch((error: unknown) => {
+            logger.warn("Could not end the deleted workspace's session", error);
+          }),
+        ),
     );
-    if (token !== null && !sharedWith) {
-      await revokeSession(token).catch((error: unknown) => {
-        logger.warn("Could not end the deleted workspace's session", error);
-      });
-    }
     // Read before its `.instrument/` goes, since the id that says the
     // machine folder is its own is in it. Its keys and browser profiles go
     // to the Trash too. Of the folder itself only the app's part goes: what

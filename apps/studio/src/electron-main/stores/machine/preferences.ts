@@ -1,6 +1,7 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { MACHINE_PREFERENCES_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { PlatformApiServerSchema } from "@/shared/platform-api-server";
 import {
   NO_SIDEBAR_CHANGES,
   SidebarPlacesSchema,
@@ -10,8 +11,9 @@ import { z } from "zod";
 
 /**
  * What a person chose for this computer, whichever workspace is open: which
- * builds it updates to, whether error reports are sent without asking, and
- * what the Files sidebar pins, whose paths are this computer's. Per-workspace choices are in `workspace/preferences.ts`.
+ * builds it updates to, whether error reports are sent without asking, what
+ * the Files sidebar pins, whose paths are this computer's, and which platform
+ * API server it talks to. Per-workspace choices are in `workspace/preferences.ts`.
  */
 export const MachinePreferencesSchema = z.object({
   // Release channels are not exposed to the user and are used internally for testing
@@ -28,6 +30,10 @@ export const MachinePreferencesSchema = z.object({
   // workspace.
   runProgramsWithoutSandbox: z.boolean().catch(false),
   sidebarPlaces: SidebarPlacesSchema.catch(NO_SIDEBAR_CHANGES),
+  // Set in Settings in developer mode: the platform API server this computer
+  // talks to. Unset is the build's own. Read once at startup
+  // (`settlePlatformApiServer`), so a change takes a restart.
+  platformApiServer: PlatformApiServerSchema.optional().catch(undefined),
 });
 
 type MachinePreferences = z.output<typeof MachinePreferencesSchema>;

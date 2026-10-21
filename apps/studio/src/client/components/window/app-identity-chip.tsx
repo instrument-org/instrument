@@ -24,7 +24,8 @@ export const WORKSPACE_COLOR_HEX: Record<WorkspaceColor, string> = {
 
 /**
  * Which app this window belongs to, when it is not plainly Instrument: a
- * preview build by its name, in the purple its icon wears, and a workspace
+ * preview build by its name, in the purple its icon wears, a platform API
+ * server other than production by its name, in orange, and a workspace
  * other than the default by its own name and color. Shown whether or not
  * developer mode is on, so a screenshot or a glance always says what is
  * running. Nothing at all for the shipping app on its default workspace. A
@@ -35,10 +36,18 @@ export function AppIdentityChip() {
   const { data: workspace } = useQuery(
     rpcClient.workspaces.current.queryOptions(),
   );
+  const { data: server } = useQuery(
+    rpcClient.preferences.platformApiServer.queryOptions(),
+  );
   const customWorkspace =
     workspace !== undefined && !workspace.isDefault ? workspace : undefined;
+  const serverLabel = server?.label;
 
-  if (APP_FLAVOR.kind !== "preview" && customWorkspace === undefined) {
+  if (
+    APP_FLAVOR.kind !== "preview" &&
+    serverLabel === undefined &&
+    customWorkspace === undefined
+  ) {
     return null;
   }
 
@@ -50,6 +59,14 @@ export function AppIdentityChip() {
           title={`Preview build: ${APP_FLAVOR.name}`}
         >
           Preview · {APP_FLAVOR.name}
+        </Segment>
+      )}
+      {server !== undefined && serverLabel !== undefined && (
+        <Segment
+          color={WORKSPACE_COLOR_HEX.orange}
+          title={`API server: ${server.baseUrl}`}
+        >
+          {serverLabel}
         </Segment>
       )}
       {customWorkspace !== undefined && (

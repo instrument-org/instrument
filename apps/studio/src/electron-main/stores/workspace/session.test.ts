@@ -25,6 +25,7 @@ vi.mock("@/electron-main/lib/electron-logger", () => ({
 vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));
+vi.stubEnv("MAIN_VITE_APP_API_BASE_URL", "https://api.example/");
 
 function writeEncrypted(value: unknown) {
   fs.writeFileSync(
@@ -54,30 +55,81 @@ afterEach(() => {
 describe("session store", () => {
   it("drops keys it does not know from the file when it opens", async () => {
     writeEncrypted({
-      apiBearerToken: "bearer",
+      apiBearerTokens: { "https://api.example": "bearer" },
       providerAccessToken: "google-access",
       providerRefreshToken: "google-refresh",
     });
     const { getSessionStore } = await import("./session");
 
-    expect(getSessionStore().store).toEqual({ apiBearerToken: "bearer" });
-    expect(readEncrypted()).toEqual({ apiBearerToken: "bearer" });
+    expect(getSessionStore().store).toEqual({
+      apiBearerTokens: { "https://api.example": "bearer" },
+    });
+    expect(readEncrypted()).toEqual({
+      apiBearerTokens: { "https://api.example": "bearer" },
+    });
   });
 
   it("keeps the old keys out of later writes", async () => {
-    writeEncrypted({ apiBearerToken: "bearer", providerIdToken: "id" });
-    const { getSessionStore } = await import("./session");
+    writeEncrypted({ apiBearerTokens: {}, providerIdToken: "id" });
+    const { getSessionStore, setSessionToken } = await import("./session");
+    getSessionStore();
 
-    getSessionStore().set("apiBearerToken", "next");
+    setSessionToken("https://api.example", "next");
 
-    expect(readEncrypted()).toEqual({ apiBearerToken: "next" });
+    expect(readEncrypted()).toEqual({
+      apiBearerTokens: { "https://api.example": "next" },
+    });
   });
 
-  it("reads another workspace's bearer token without opening its store", async () => {
-    writeEncrypted({ apiBearerToken: "elsewhere" });
-    const { readBearerTokenIn } = await import("./session");
+  it("moves an earlier build's one token under the build's own server", async () => {
+    writeEncrypted({ apiBearerToken: "bearer" });
+    const { getSessionStore, getSessionToken } = await import("./session");
 
-    expect(readBearerTokenIn(dir.value)).toBe("elsewhere");
-    expect(readBearerTokenIn(path.join(dir.value, "missing"))).toBeNull();
+    expect(getSessionToken("https://api.example")).toBe("bearer");
+    expect(getSessionStore().store).toEqual({
+      apiBearerTokens: { "https://api.example": "bearer" },
+    });
+    expect(readEncrypted()).toEqual({
+      apiBearerTokens: { "https://api.example": "bearer" },
+    });
+  });
+
+  it("keeps a token already kept for the build's server over an earlier build's", async () => {
+    writeEncrypted({
+      apiBearerToken: "older",
+      apiBearerTokens: { "https://api.example": "newer" },
+    });
+    const { getSessionToken } = await import("./session");
+
+    expect(getSessionToken("https://api.example")).toBe("newer");
+  });
+
+  it("keeps each server's sign-in apart", async () => {
+    const { forgetSessionToken, getSessionToken, setSessionToken } =
+      await import("./session");
+
+    setSessionToken("https://api.example", "production");
+    setSessionToken("https://staging.example", "staging");
+    forgetSessionToken("https://api.example");
+
+    expect(getSessionToken("https://api.example")).toBeUndefined();
+    expect(getSessionToken("https://staging.example")).toBe("staging");
+    expect(readEncrypted()).toEqual({
+      apiBearerTokens: { "https://staging.example": "staging" },
+    });
+  });
+
+  it("reads another workspace's bearer tokens without opening its store", async () => {
+    writeEncrypted({
+      apiBearerToken: "elsewhere",
+      apiBearerTokens: { "https://staging.example": "staging" },
+    });
+    const { readBearerTokensIn } = await import("./session");
+
+    expect(readBearerTokensIn(dir.value)).toEqual({
+      "https://api.example": "elsewhere",
+      "https://staging.example": "staging",
+    });
+    expect(readBearerTokensIn(path.join(dir.value, "missing"))).toEqual({});
   });
 });

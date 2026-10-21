@@ -1,3 +1,4 @@
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
 import { applyServedAppCatalog } from "@instrument-org/workspace/electron";
@@ -65,7 +66,7 @@ function writeState(state: State) {
  */
 export function fetchAppCatalog(): Promise<void> {
   inFlight ??= (async () => {
-    const base = import.meta.env.MAIN_VITE_APP_API_BASE_URL;
+    const base = platformApiBaseUrl();
     if (!base) {
       return;
     }
@@ -130,7 +131,7 @@ export function startAppCatalog() {
     }
   });
   // After any ask already under way, which carried the account as it was.
-  getSessionStore().onDidChange("apiBearerToken", () => {
+  getSessionStore().onDidChange("apiBearerTokens", () => {
     void (inFlight ?? Promise.resolve()).then(fetchAppCatalog);
   });
 }

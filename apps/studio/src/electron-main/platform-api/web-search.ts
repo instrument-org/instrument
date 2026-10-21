@@ -1,4 +1,5 @@
 import { noteHostedRefusal } from "@/electron-main/lib/hosted-features";
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { systemCountry } from "@/electron-main/lib/system-country";
 import { getToken } from "@/electron-main/platform-api/utils";
 import {
@@ -35,20 +36,17 @@ export const searchWeb: WebSearchClient = async ({ input, signal }) => {
 
   let response: Response;
   try {
-    response = await fetch(
-      `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/search`,
-      {
-        // The country biases ranking toward local results ("weather", "DMV
-        // hours"); a server that predates the field drops it.
-        body: JSON.stringify({ ...input, userLocation: systemCountry() }),
-        headers: {
-          ...getPlatformApiHeaders(),
-          "content-type": "application/json",
-        },
-        method: "POST",
-        signal,
+    response = await fetch(`${platformApiBaseUrl()}/search`, {
+      // The country biases ranking toward local results ("weather", "DMV
+      // hours"); a server that predates the field drops it.
+      body: JSON.stringify({ ...input, userLocation: systemCountry() }),
+      headers: {
+        ...getPlatformApiHeaders(),
+        "content-type": "application/json",
       },
-    );
+      method: "POST",
+      signal,
+    });
   } catch (error) {
     return {
       errorMessage: signal.aborted

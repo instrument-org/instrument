@@ -1,6 +1,8 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
+import { buildDefaultPlatformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { platformApiOriginOf } from "@/shared/platform-api-server";
 import { is } from "@electron-toolkit/utils";
 import { safeStorage } from "electron";
 import Store from "electron-store";
@@ -9,19 +11,56 @@ import path from "node:path";
 import { z } from "zod";
 
 const SessionStateSchema = z.object({
+  /**
+   * The one sign-in an earlier build kept, made against the server that build
+   * talked to. Moved under that server's origin in `apiBearerTokens` as the
+   * file is read.
+   */
   apiBearerToken: z.string().nullish(),
+  /**
+   * The bearer token of the sign-in to each platform API server, by the
+   * server's origin, so pointing the app at another server keeps every
+   * server's sign-in.
+   */
+  apiBearerTokens: z.record(z.string(), z.string()).optional(),
 });
 
 type SessionState = z.output<typeof SessionStateSchema>;
+
+/**
+ * `state` with an earlier build's one bearer token moved under the origin of
+ * the server this build was made against, which is the one it signed in to.
+ * A token already kept for that origin wins.
+ */
+function withTokensByOrigin(
+  state: SessionState,
+  defaultOrigin: string,
+): SessionState {
+  const { apiBearerToken, ...rest } = state;
+  if (!apiBearerToken) {
+    return rest;
+  }
+  return {
+    ...rest,
+    apiBearerTokens: {
+      [defaultOrigin]: apiBearerToken,
+      ...rest.apiBearerTokens,
+    },
+  };
+}
+
+function buildDefaultOrigin(): string {
+  return platformApiOriginOf(buildDefaultPlatformApiBaseUrl());
+}
 
 let SESSION_STORE: null | Store<SessionState> = null;
 
 const SESSION_FILE_NAME = is.dev ? "session-dev" : "session";
 const SESSION_FILE_EXTENSION = is.dev ? "json" : "json.enc";
 
-// Set while reading a file that carries keys the schema does not know, so the
-// store is rewritten once with only the known ones.
-let READ_UNKNOWN_KEYS = false;
+// Set while reading a file that carries keys the schema does not know, or an
+// earlier build's one token, so the store is rewritten once in today's shape.
+let REWRITE_ON_OPEN = false;
 
 /**
  * The known keys of a stored session. Anything else is dropped: a key no
@@ -39,17 +78,20 @@ function parseSessionState(raw: unknown): SessionState {
     raw !== null &&
     Object.keys(raw).some((key) => !(key in SessionStateSchema.shape))
   ) {
-    READ_UNKNOWN_KEYS = true;
+    REWRITE_ON_OPEN = true;
   }
-  return parsed.data;
+  if (parsed.data.apiBearerToken != null) {
+    REWRITE_ON_OPEN = true;
+  }
+  return withTokensByOrigin(parsed.data, buildDefaultOrigin());
 }
 
 /**
- * The bearer token the session store in another workspace's keys folder
- * holds, read without opening it as a store. Null when it holds none or the
- * file cannot be read.
+ * The bearer tokens, by server origin, that the session store in another
+ * workspace's keys folder holds, read without opening it as a store. Empty
+ * when it holds none or the file cannot be read.
  */
-export function readBearerTokenIn(keysDir: string): null | string {
+export function readBearerTokensIn(keysDir: string): Record<string, string> {
   let value: string;
   try {
     value = fs.readFileSync(
@@ -57,10 +99,15 @@ export function readBearerTokenIn(keysDir: string): null | string {
       "utf8",
     );
   } catch {
-    return null;
+    return {};
   }
   const parsed = SessionStateSchema.safeParse(decodeSessionFile(value));
-  return (parsed.success && parsed.data.apiBearerToken) || null;
+  if (!parsed.success) {
+    return {};
+  }
+  return (
+    withTokensByOrigin(parsed.data, buildDefaultOrigin()).apiBearerTokens ?? {}
+  );
 }
 
 /** A session file's JSON: plaintext in dev, safeStorage ciphertext otherwise. */
@@ -106,17 +153,39 @@ export const getSessionStore = (): Store<SessionState> => {
     });
 
     // Reading the store parses it; writing back what was read leaves the file
-    // holding only the known keys.
+    // holding only the known keys, with every token under its origin.
     const current = SESSION_STORE.store;
-    if (READ_UNKNOWN_KEYS) {
+    if (REWRITE_ON_OPEN) {
       SESSION_STORE.store = current;
-      READ_UNKNOWN_KEYS = false;
+      REWRITE_ON_OPEN = false;
     }
 
-    SESSION_STORE.onDidChange("apiBearerToken", () => {
+    SESSION_STORE.onDidChange("apiBearerTokens", () => {
       publisher.publish("session.apiBearerToken.updated", null);
     });
   }
 
   return SESSION_STORE;
 };
+
+/** The bearer token of the sign-in to the server at `origin`, if there is one. */
+export function getSessionToken(origin: string): string | undefined {
+  return getSessionStore().get("apiBearerTokens")?.[origin];
+}
+
+/** Keep `token` as the sign-in to the server at `origin`. */
+export function setSessionToken(origin: string, token: string) {
+  const store = getSessionStore();
+  store.set("apiBearerTokens", {
+    ...store.get("apiBearerTokens"),
+    [origin]: token,
+  });
+}
+
+/** Forget the sign-in to the server at `origin`, keeping every other one. */
+export function forgetSessionToken(origin: string) {
+  const store = getSessionStore();
+  const { [origin]: _forgotten, ...others } =
+    store.get("apiBearerTokens") ?? {};
+  store.set("apiBearerTokens", others);
+}

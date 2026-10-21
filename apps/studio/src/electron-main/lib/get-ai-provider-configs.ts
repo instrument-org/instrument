@@ -1,3 +1,4 @@
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { chatGPTAccountProviderConfigs } from "@/electron-main/lib/chatgpt-account";
 import { claudeAccountProviderConfigs } from "@/electron-main/lib/claude-account";
 import { grokAccountProviderConfigs } from "@/electron-main/lib/grok-account";
@@ -31,7 +32,7 @@ export function getAllAIProviderConfigs(): AIGatewayProviderConfig.Type[] {
     keyBasedProviderConfigs.push({
       ...OUR_PROVIDER_CONFIG,
       apiKey: token,
-      baseURL: `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/gateway/openrouter`,
+      baseURL: `${platformApiBaseUrl()}/gateway/openrouter`,
     });
   }
 

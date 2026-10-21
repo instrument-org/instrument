@@ -1,3 +1,4 @@
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isExpectedNetworkError } from "@instrument-org/shared";
@@ -37,7 +38,7 @@ export function getPlatformApiReachability(): {
   status: Reachability;
 } {
   return {
-    baseUrl: import.meta.env.MAIN_VITE_APP_API_BASE_URL,
+    baseUrl: platformApiBaseUrl(),
     status: reachability,
   };
 }
@@ -61,7 +62,7 @@ export function notePlatformApiOutcome(outcome: unknown) {
 async function probe() {
   probeTimer = undefined;
   try {
-    const response = await fetch(import.meta.env.MAIN_VITE_APP_API_BASE_URL, {
+    const response = await fetch(platformApiBaseUrl(), {
       method: "HEAD",
       signal: AbortSignal.timeout(PROBE_TIMEOUT),
     });
@@ -82,7 +83,7 @@ function setReachability(next: Reachability) {
   reachability = next;
   publisher.publish("platform-api.reachability.updated", null);
 
-  const baseUrl = import.meta.env.MAIN_VITE_APP_API_BASE_URL;
+  const baseUrl = platformApiBaseUrl();
   if (next === "unreachable") {
     logger.warn(
       `Platform API not reachable at ${baseUrl}; is the API server running? Its connection errors go uncaptured until it answers.`,

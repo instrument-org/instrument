@@ -8,7 +8,12 @@ import {
   openNotificationSettings as openSystemNotificationSettings,
 } from "@/electron-main/lib/notification-settings";
 import { effectiveDefaultModelURI } from "@/electron-main/lib/set-default-model";
-import { base } from "@/electron-main/rpc/base";
+import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
+import {
+  buildDefaultPlatformApiBaseUrl,
+  platformApiBaseUrl,
+} from "@/electron-main/platform-api/base-url";
+import { base, devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   getMachinePreferences,
@@ -29,7 +34,14 @@ import {
   type SidebarPlaces,
   unpinPlace,
 } from "@/shared/sidebar-places";
+import {
+  offersAnyPlatformApiServer,
+  PlatformApiServerSchema,
+  platformApiServerLabel,
+  resolvePlatformApiBaseUrl,
+} from "@/shared/platform-api-server";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import { APP_FLAVOR } from "@instrument-org/shared";
 import { call, eventIterator } from "@orpc/server";
 import { app } from "electron";
 import { z } from "zod";
@@ -143,6 +155,58 @@ const setReleaseChannel = base
     return context.appUpdater.checkForUpdates({ notify: true });
   });
 
+/**
+ * The platform API server this process talks to, settled at startup, and
+ * what the window calls it: nothing for production.
+ */
+const platformApiServer = base
+  .output(z.object({ baseUrl: z.string(), label: z.string().optional() }))
+  .handler(() => {
+    const baseUrl = platformApiBaseUrl();
+    return { baseUrl, label: platformApiServerLabel(baseUrl) };
+  });
+
+/**
+ * Point this computer at another platform API server, which takes a restart.
+ * A choice that is the build's own server is kept as no choice, so the build
+ * decides again after an update. Local and typed-in servers are offered to a
+ * development build alone.
+ */
+const setPlatformApiServer = devOnly
+  .input(z.object({ server: PlatformApiServerSchema }))
+  .handler(async ({ errors, input }) => {
+    const buildDefault = buildDefaultPlatformApiBaseUrl();
+    const baseUrl = resolvePlatformApiBaseUrl({
+      buildDefault,
+      choice: input.server,
+      flavor: APP_FLAVOR,
+    });
+    const offered =
+      input.server === "production" ||
+      input.server === "staging" ||
+      offersAnyPlatformApiServer(APP_FLAVOR);
+    if (!offered) {
+      throw errors.UNAUTHORIZED({
+        message: "This build talks to production or staging only",
+      });
+    }
+    const choose = () => {
+      const store = getMachinePreferences();
+      if (baseUrl === buildDefault) {
+        store.delete("platformApiServer");
+      } else {
+        store.set("platformApiServer", input.server);
+      }
+    };
+    // A build that cannot restart itself talks to the chosen server the next
+    // time it is started by hand.
+    if (!canRelaunch()) {
+      choose();
+      return { outcome: "unsupported" as const };
+    }
+    return { outcome: await relaunchApp({ beforeRestart: choose }) };
+  });
+
 const checkForUpdates = base.handler(async ({ context }) => {
   setLastUpdateCheck();
 
@@ -196,6 +260,7 @@ export const preferences = {
   live,
   openNotificationSettings,
   pinSidebarPlace,
+  platformApiServer,
   quitAndInstall,
   restoreDefaultSidebarPlaces,
   sendTestNotification,
@@ -204,6 +269,7 @@ export const preferences = {
   setRunProgramsWithoutSandbox,
   setDefaultModelURI,
   setDeveloperMode,
+  setPlatformApiServer,
   setReleaseChannel,
   setTheme,
   unpinSidebarPlace,

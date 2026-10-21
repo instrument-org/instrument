@@ -1,3 +1,4 @@
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
@@ -66,7 +67,7 @@ function currentChannel(): string {
 export function fetchNotices(): Promise<void> {
   inFlight ??= (async () => {
     const store = getNoticesStore();
-    const url = new URL("/notices", import.meta.env.MAIN_VITE_APP_API_BASE_URL);
+    const url = new URL("/notices", platformApiBaseUrl());
     url.searchParams.set("version", app.getVersion());
     url.searchParams.set("platform", process.platform);
     url.searchParams.set("arch", process.arch);

@@ -29,7 +29,7 @@ describe("searchWeb", () => {
   });
 
   it("requires an Instrument account before making a request", async () => {
-    mockGetToken.mockReturnValue(null);
+    mockGetToken.mockReturnValue(undefined);
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     const result = await searchWeb({

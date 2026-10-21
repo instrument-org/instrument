@@ -1,3 +1,4 @@
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { createORPCClient } from "@orpc/client";
 import { isExpectedNetworkError } from "@instrument-org/shared";
@@ -51,7 +52,7 @@ const RPC_LINK = new RPCLink({
       ],
     }),
   ],
-  url: `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/rpc`,
+  url: () => `${platformApiBaseUrl()}/rpc`,
 });
 
 const baseClient: ContractRouterClient<typeof contract> =

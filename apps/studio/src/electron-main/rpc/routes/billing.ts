@@ -9,10 +9,14 @@ import {
   recordPlatformRefusal,
 } from "@/electron-main/lib/platform-refusals";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
+import {
+  platformApiBaseUrl,
+  platformApiOrigin,
+} from "@/electron-main/platform-api/base-url";
 import { platformApiRpcClient } from "@/electron-main/platform-api/client";
 import { getToken } from "@/electron-main/platform-api/utils";
 import { authenticated, base, devOnly } from "@/electron-main/rpc/base";
-import { getSessionStore } from "@/electron-main/stores/workspace/session";
+import { setSessionToken } from "@/electron-main/stores/workspace/session";
 import { PAYMENT_FAILED_STATUSES } from "@/shared/billing";
 import { readPlatformRefusal } from "@instrument-org/ai-gateway";
 import { app } from "electron";
@@ -120,14 +124,12 @@ const startTrial = authenticated.handler(async () => {
 
 const lastRefusal = base.handler(() => lastPlatformRefusal() ?? null);
 
-const API_BASE_URL = import.meta.env.MAIN_VITE_APP_API_BASE_URL;
-
 /**
  * For the dev-only billing tools: an unpackaged build talking to an API on
  * this machine, so neither can reach a deployed platform.
  */
 const localDev = devOnly.use(({ errors, next }) => {
-  const host = new URL(API_BASE_URL).hostname;
+  const host = new URL(platformApiBaseUrl()).hostname;
   if (app.isPackaged || (host !== "localhost" && host !== "127.0.0.1")) {
     throw errors.UNAUTHORIZED({
       message: "Only a dev build pointed at a local API",
@@ -141,7 +143,7 @@ const heldBackBillingPage = localDev.handler(() => ({ url: heldBackPage }));
 
 /** Where this build sends platform requests, for the debug page to show. */
 const environment = devOnly.handler(() => ({
-  apiBaseUrl: API_BASE_URL,
+  apiBaseUrl: platformApiBaseUrl(),
   isPackaged: app.isPackaged,
 }));
 
@@ -152,7 +154,7 @@ const environment = devOnly.handler(() => ({
 const setDevToken = localDev
   .input(z.object({ token: z.string().min(1) }))
   .handler(async ({ input }) => {
-    getSessionStore().set("apiBearerToken", input.token.trim());
+    setSessionToken(platformApiOrigin(), input.token.trim());
     await setDefaultModel({ replacing: "anything" });
   });
 
@@ -169,7 +171,7 @@ const burn = localDev
       throw errors.UNAUTHORIZED();
     }
     const path = "/v1/chat/completions";
-    const response = await fetch(`${API_BASE_URL}/gateway/openrouter${path}`, {
+    const response = await fetch(`${platformApiBaseUrl()}/gateway/openrouter${path}`, {
       body: JSON.stringify({
         messages: [{ content: "burn", role: "user" }],
         model: "instrument/auto",

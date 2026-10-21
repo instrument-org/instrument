@@ -1,4 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { getAnonymousPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { z } from "zod";
 
@@ -75,7 +76,7 @@ export async function fetchGrokSignInSetup(
   /** Ends the wait when the sign-in that asked is given up. */
   signal?: AbortSignal,
 ): Promise<GrokSignInSetup | undefined> {
-  const base = import.meta.env.MAIN_VITE_APP_API_BASE_URL;
+  const base = platformApiBaseUrl();
   if (!base) {
     return undefined;
   }

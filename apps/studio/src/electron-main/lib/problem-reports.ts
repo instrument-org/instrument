@@ -1,3 +1,4 @@
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getProblemsStore } from "@/electron-main/stores/machine/problems";
@@ -293,17 +294,14 @@ function reportBody(input: ReportInput): string {
  * it can be answered; one from someone not signed in goes without.
  */
 export async function sendReport(input: ReportInput): Promise<{ id: string }> {
-  const response = await fetch(
-    new URL("/reports", import.meta.env.MAIN_VITE_APP_API_BASE_URL),
-    {
-      body: reportBody(input),
-      headers: {
-        ...getPlatformApiHeaders(),
-        "content-type": "application/json",
-      },
-      method: "POST",
+  const response = await fetch(new URL("/reports", platformApiBaseUrl()), {
+    body: reportBody(input),
+    headers: {
+      ...getPlatformApiHeaders(),
+      "content-type": "application/json",
     },
-  );
+    method: "POST",
+  });
   if (!response.ok) {
     throw new Error(
       response.status === 429

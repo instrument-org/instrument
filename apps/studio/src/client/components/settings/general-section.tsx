@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
+import { Input } from "@/client/components/ui/input";
 import { Label } from "@/client/components/ui/label";
 import { Progress } from "@/client/components/ui/progress";
 import {
@@ -38,6 +39,13 @@ import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { cn, isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
+  namedPlatformApiServerLabel,
+  namedPlatformApiServerOf,
+  offersAnyPlatformApiServer,
+  PlatformApiServerSchema,
+} from "@/shared/platform-api-server";
+import {
+  APP_FLAVOR,
   APP_NAME,
   APP_REPO_URL,
   BUG_REPORT_URL,
@@ -88,6 +96,7 @@ export function GeneralSection() {
       <InterfaceAndTheme />
       <Notifications />
       <About />
+      <PlatformApiServerSetting />
       <ReleaseChannel />
       <SettingsSection title="Advanced">
         <DiagnosticLog />
@@ -499,6 +508,179 @@ function ReleaseChannel() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+      </Card>
+    </SettingsSection>
+  );
+}
+
+type ServerOption = "custom" | "local" | "production" | "staging";
+
+const SERVER_OPTIONS: readonly { label: string; value: ServerOption }[] =
+  offersAnyPlatformApiServer(APP_FLAVOR)
+    ? [
+        {
+          label: namedPlatformApiServerLabel("production"),
+          value: "production",
+        },
+        { label: namedPlatformApiServerLabel("staging"), value: "staging" },
+        { label: namedPlatformApiServerLabel("local"), value: "local" },
+        { label: "Custom", value: "custom" },
+      ]
+    : [
+        {
+          label: namedPlatformApiServerLabel("production"),
+          value: "production",
+        },
+        { label: namedPlatformApiServerLabel("staging"), value: "staging" },
+      ];
+
+/**
+ * Which platform API server this computer talks to. Developer mode only:
+ * staging, and in a development build a local or typed-in server, are for
+ * the people working on the API. A change restarts the app, after asking
+ * here.
+ */
+function PlatformApiServerSetting() {
+  const developerMode = useDeveloperMode();
+  const { data: current } = useQuery(
+    rpcClient.preferences.platformApiServer.queryOptions(),
+  );
+  const [picked, setPicked] = useState<null | ServerOption>(null);
+  const [customUrl, setCustomUrl] = useState("");
+  const setServerMutation = useMutation(
+    rpcClient.preferences.setPlatformApiServer.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't switch servers", { cause: error });
+      },
+      onSuccess: ({ outcome }) => {
+        if (outcome === "unsupported") {
+          toast.info(`Quit ${APP_NAME} and open it again to use that server.`);
+        }
+        if (outcome !== "relaunching") {
+          setPicked(null);
+        }
+      },
+    }),
+  );
+
+  if (!developerMode || current === undefined) {
+    return null;
+  }
+
+  const currentOption: ServerOption =
+    namedPlatformApiServerOf(current.baseUrl) ?? "custom";
+  const shown = picked ?? currentOption;
+  const triggerLabel =
+    SERVER_OPTIONS.find((option) => option.value === shown)?.label ?? "Custom";
+  const custom = PlatformApiServerSchema.safeParse({
+    custom: customUrl.trim(),
+  });
+  const server =
+    picked === "custom"
+      ? custom.success
+        ? custom.data
+        : undefined
+      : (picked ?? undefined);
+  const pickedLabel =
+    picked === "custom"
+      ? (URL.parse(customUrl.trim())?.host ?? "that server")
+      : SERVER_OPTIONS.find((option) => option.value === picked)?.label;
+
+  return (
+    <SettingsSection developerOnly title="API server">
+      <Card className="border-dashed border-dev-700/40 bg-dev-500/5 p-4 dark:border-dev-300/30">
+        <div className="space-y-3" {...settingAnchor("api-server")}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 space-y-1">
+              <Label htmlFor="api-server">Server</Label>
+              <p className="text-xs text-muted-foreground">
+                Sign-in, plans, and {APP_NAME} models all use this server.
+              </p>
+              <p className="truncate font-mono text-[11px] text-muted-foreground">
+                {current.baseUrl}
+              </p>
+            </div>
+            <Select
+              disabled={setServerMutation.isPending}
+              onValueChange={(value) => {
+                const option = SERVER_OPTIONS.find((o) => o.value === value);
+                if (!option) {
+                  return;
+                }
+                if (
+                  option.value === currentOption &&
+                  option.value !== "custom"
+                ) {
+                  setPicked(null);
+                  return;
+                }
+                if (option.value === "custom" && currentOption === "custom") {
+                  setCustomUrl(current.baseUrl);
+                }
+                setPicked(option.value);
+              }}
+              value={shown}
+            >
+              <SelectTrigger
+                className="bg-card bg-none dark:bg-gray-700"
+                id="api-server"
+              >
+                {triggerLabel}
+              </SelectTrigger>
+              <SelectContent align="end" position="popper">
+                {SERVER_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {picked !== null && (
+            <div className="space-y-2 border-t border-dev-700/20 pt-3 dark:border-dev-300/20">
+              {picked === "custom" && (
+                <Input
+                  aria-invalid={customUrl.trim() !== "" && !custom.success}
+                  aria-label="Server address"
+                  autoFocus
+                  className="font-mono text-xs"
+                  onChange={(event) => setCustomUrl(event.target.value)}
+                  placeholder="http://localhost:49100"
+                  value={customUrl}
+                />
+              )}
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs text-muted-foreground">
+                  {APP_NAME} will restart to use {pickedLabel}. You stay signed
+                  in on each server you’ve used.
+                </p>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    disabled={setServerMutation.isPending}
+                    onClick={() => setPicked(null)}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    disabled={
+                      server === undefined || setServerMutation.isPending
+                    }
+                    onClick={() => {
+                      if (server !== undefined) {
+                        setServerMutation.mutate({ server });
+                      }
+                    }}
+                    size="sm"
+                  >
+                    {setServerMutation.isPending ? "Restarting…" : "Restart"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </Card>
     </SettingsSection>

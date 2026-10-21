@@ -1,5 +1,13 @@
 import { browserTargetOf, StoreId } from "@instrument-org/workspace/client";
-import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import {
   getAttachedTargetsSnapshot,
@@ -127,6 +135,60 @@ it("gives the page to the newer of two slots on one layer, and keeps it there as
   setPaintHost(target, older);
   expect(placement().left).toMatchInlineSnapshot(`"500px"`);
   setPaintHost(target, newer);
+});
+
+describe("a page in full screen", () => {
+  // jsdom has no Fullscreen API; Electron makes the `<webview>` this
+  // document's full-screen element while its page is in full screen.
+  let fullScreenElement: Element | null = null;
+  const exitFullscreen = vi.fn(() => {
+    fullScreenElement = null;
+    return Promise.resolve();
+  });
+  beforeAll(() => {
+    Object.defineProperty(document, "fullscreenElement", {
+      configurable: true,
+      get: () => fullScreenElement,
+    });
+    Object.defineProperty(document, "exitFullscreen", {
+      configurable: true,
+      value: exitFullscreen,
+    });
+  });
+  afterEach(() => {
+    fullScreenElement = null;
+    exitFullscreen.mockClear();
+  });
+
+  const enterFullScreen = () => {
+    fullScreenElement = element();
+    document.dispatchEvent(new Event("fullscreenchange"));
+  };
+
+  it("stays in full screen while a slot shows it, and leaves once the last one lets go", () => {
+    showOverSlot(target, popOutBounds, popOut, null, 41);
+    showOverSlot(target, inlineBounds, inline);
+    enterFullScreen();
+    expect(exitFullscreen).not.toHaveBeenCalled();
+
+    setPaintHost(target, popOut);
+    expect(exitFullscreen).not.toHaveBeenCalled();
+
+    setPaintHost(target, inline);
+    expect(exitFullscreen).toHaveBeenCalledOnce();
+  });
+
+  it("leaves at once when nothing shows it", () => {
+    enterFullScreen();
+    expect(exitFullscreen).toHaveBeenCalledOnce();
+  });
+
+  it("leaves another element's full screen alone", () => {
+    showOverSlot(target, inlineBounds, inline);
+    fullScreenElement = document.body;
+    setPaintHost(target, inline);
+    expect(exitFullscreen).not.toHaveBeenCalled();
+  });
 });
 
 // Runs last: it brings the guest to dom-ready, which the placement cases

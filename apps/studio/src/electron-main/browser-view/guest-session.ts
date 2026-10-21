@@ -75,13 +75,20 @@ export function configureGuestSession(profileDir: string): Session {
   // `navigator.clipboard.writeText` rejects under a denial, and most pages
   // swallow that rejection, so the button does nothing. Reading the clipboard
   // stays denied; a page overwriting it is a click the user made, a page
-  // reading it is the user's clipboard handed over. A link to another app
+  // reading it is the user's clipboard handed over. Full screen is granted
+  // too, as a browser grants it: Chromium holds it to a user gesture, Esc
+  // leaves it, and Electron puts the window in full screen and stands the
+  // guest over all of it, then puts both back. A page no slot is showing is
+  // taken back out (`leaveFullScreen` in `browser-pool.ts`). A link to another app
   // (`slack://`) goes to that app when a person just used the tab and says
   // yes, or said its site always may.
   guestSession.setPermissionRequestHandler(
     (wc, permission, callback, details) => {
       if (permission !== "openExternal") {
-        callback(permission === "clipboard-sanitized-write");
+        callback(
+          permission === "clipboard-sanitized-write" ||
+            permission === "fullscreen",
+        );
         return;
       }
       if (!mayOpenInAnotherApp(guests.get(wc.id))) {

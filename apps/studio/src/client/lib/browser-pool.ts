@@ -422,6 +422,7 @@ export function initBrowserPool(): () => void {
   const controller = new AbortController();
   const { signal } = controller;
   document.addEventListener("focusin", recordHostFocus);
+  document.addEventListener("fullscreenchange", onFullScreenChange);
   window.addEventListener("resize", onWindowResize);
 
   async function run() {
@@ -555,6 +556,7 @@ export function initBrowserPool(): () => void {
   return () => {
     controller.abort();
     document.removeEventListener("focusin", recordHostFocus);
+    document.removeEventListener("fullscreenchange", onFullScreenChange);
     window.removeEventListener("resize", onWindowResize);
   };
 }
@@ -969,6 +971,39 @@ function onWindowResize() {
   }
 }
 
+/**
+ * A page in HTML full screen (a video's full-screen button) makes its
+ * `<webview>` this document's full-screen element, so it stands in the top
+ * layer over the whole window, whatever its container's opacity or bounds,
+ * and Electron puts the window in full screen for it (and back as it was when
+ * the page leaves). One no slot is showing would cover the app with a page
+ * nobody chose to look at, and take no clicks, since its container takes
+ * none; it leaves full screen instead. Leaving from this document rather than
+ * the page's means the page cannot refuse.
+ */
+function leaveFullScreen(pooled: PooledWebview) {
+  if (
+    document.fullscreenElement === pooled.webview &&
+    !paintOwners.has(pooled.targetId)
+  ) {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+function onFullScreenChange() {
+  for (const pooled of pool.values()) {
+    if (document.fullscreenElement !== pooled.webview) {
+      continue;
+    }
+    leaveFullScreen(pooled);
+    // Esc reaches the page only while it holds the keyboard, which a page an
+    // agent sent into full screen need not.
+    if (paintOwners.has(pooled.targetId)) {
+      pooled.webview.focus({ preventScroll: true });
+    }
+  }
+}
+
 /** Puts the guest in the frontmost slot asking for it, or parks it when none is. */
 function placeGuest(targetId: BrowserTargetId) {
   const pooled = pool.get(targetId);
@@ -990,6 +1025,7 @@ function placeGuest(targetId: BrowserTargetId) {
     paintOwners.delete(targetId);
     releaseGuestFocus(targetId);
     applyPaintHost(pooled);
+    leaveFullScreen(pooled);
     return;
   }
   const [owner, { bottomRadius, bounds, layer, renderedSize }] = winner;

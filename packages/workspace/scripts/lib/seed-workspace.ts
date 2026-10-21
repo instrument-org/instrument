@@ -23,7 +23,11 @@ import { ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CHAT_DB_FILE_NAME, TASKS_DIR_NAME } from "../../src/constants";
+import {
+  CHAT_DB_FILE_NAME,
+  LEGACY_TASK_DB_FILE_NAME,
+  TASKS_DIR_NAME,
+} from "../../src/constants";
 import { initializeChat } from "../../src/lib/initialize-chat";
 import { newChatId } from "../../src/lib/new-chat-id";
 import { resolvePathWithinChatDir } from "../../src/lib/resolve-path-within-chat-dir";
@@ -37,6 +41,7 @@ import { chatDir, placeChat } from "../../src/lib/record-folders";
 import { workDir } from "../../src/lib/work-dir";
 import { updateJsonRecord } from "../../src/lib/json-record-file";
 import { addChildTask } from "../../src/lib/chat/children";
+import { writeStoreRowsSync } from "../../src/lib/store-table";
 import { grantFolder } from "../../src/lib/chat/grants";
 import { setWorkspaceConfig } from "../../src/lib/workspace-config";
 import {
@@ -373,6 +378,10 @@ async function seedTask({
       });
     }
 
+    if (!isChat) {
+      writeLegacyTaskDatabase(chatDir(id), chatSession, rebased.messages);
+      return ok(undefined);
+    }
     yield* ChatWrites.saveSession(chatSession, id);
     for (const message of rebased.messages) {
       yield* ChatWrites.saveMessageWithParts(message, id);
@@ -397,6 +406,29 @@ async function seedTask({
 }
 
 /**
+ * A 1.x task's conversation as 1.x kept it, the database the boot migration
+ * reads (`task.db`): its session, each message, and each message's parts, as
+ * store rows keyed by session and message.
+ */
+function writeLegacyTaskDatabase(
+  dir: string,
+  session: Session.Type,
+  messages: SessionMessage.WithParts[],
+) {
+  const rows: [string, unknown][] = [[`sessions:${session.id}`, session]];
+  for (const { parts, ...message } of messages) {
+    rows.push([`messages:${session.id}:${message.id}`, message]);
+    for (const part of parts) {
+      rows.push([
+        `parts:${session.id}:${message.id}:${part.metadata.id}`,
+        part,
+      ]);
+    }
+  }
+  writeStoreRowsSync(path.join(dir, LEGACY_TASK_DB_FILE_NAME), rows);
+}
+
+/**
  * A 1.x task's records where it kept them, in its folder's `.instrument/`,
  * which is where the boot migration reads them from. Written to the top of
  * its folder by the store, as a chat's are, then moved there.
@@ -405,7 +437,11 @@ async function keepRecordsPrivate(dir: string) {
   const privateDir = path.join(dir, PRIVATE_FOLDER_NAME);
   await fs.mkdir(privateDir, { recursive: true });
   for (const name of await fs.readdir(dir)) {
-    if (name === SETTINGS_FILE_NAME || name.startsWith(CHAT_DB_FILE_NAME)) {
+    if (
+      name === SETTINGS_FILE_NAME ||
+      name.startsWith(CHAT_DB_FILE_NAME) ||
+      name.startsWith(LEGACY_TASK_DB_FILE_NAME)
+    ) {
       await fs.rename(path.join(dir, name), path.join(privateDir, name));
     }
   }

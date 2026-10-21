@@ -1,0 +1,6 @@
+description: A 1.x user's first launch of this build. A task 1.x made, with no chat, in the workspace in the app's own data, which the layout migration turns into a chat; finished work in the folder 1.x used in Documents; signed in to ChatGPT; no setup record. Setup opens on Welcome back, and the folder step offers the folder in Documents.
+workspace: legacy-tasks
+outputFolder: documents
+signIns: [chatgpt]
+accountCheck: ready
+notifications: not-asked

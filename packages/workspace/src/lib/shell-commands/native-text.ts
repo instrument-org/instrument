@@ -19,6 +19,8 @@ import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { inheritedEnv } from "../native-env";
 import { isAtOrUnder } from "../path-containment";
+import { macosRefusalNote } from "../chat/asks";
+import { reachOf } from "../permissions/rules";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -529,25 +531,54 @@ function pathSeparatorEnv(env: Record<string, string>): Record<string, string> {
   return { ...env, UUTILS_PATH_SEPARATOR: "slash" };
 }
 
-/** How uutils' find reports a folder the native sandbox refused. */
+/** How uutils' find reports a folder it was refused, and with which error. */
 const FIND_REFUSED =
-  /^Error: .*: (?:Operation not permitted|Permission denied) \(os error \d+\)$/;
+  /^Error: (?<path>.*): (?<why>Operation not permitted|Permission denied) \(os error \d+\)$/;
 
 /**
- * find's stderr with each folder the sandbox refused on the way left out
- * and counted in one line instead: over the home folder that is a line per
- * closed entry, dozens of them, where the shell's own find passes them
- * quietly.
+ * find's stderr with each folder the rules close left out and counted in
+ * one line instead: over the home folder that is a line per closed entry,
+ * dozens of them, where the shell's own find passes them quietly. A folder
+ * the rules allow that was refused anyway with "Operation not permitted" is
+ * macOS's own refusal, which the person did not choose, so it is named
+ * rather than counted among theirs; "Permission denied" there is the
+ * account's, which find's own line already says.
  */
-export function quietRefusedFolders(stderr: string): string {
-  const lines = stderr.split("\n");
-  const kept = lines.filter((line) => !FIND_REFUSED.test(line));
-  const left = lines.length - kept.length;
-  if (left === 0) {
+export function quietRefusedFolders(
+  stderr: string,
+  closed: (hostPath: string) => boolean,
+  spell: (hostPath: string) => string,
+): string {
+  let left = 0;
+  const macos: string[] = [];
+  const kept = stderr.split("\n").filter((line) => {
+    const refused = FIND_REFUSED.exec(line)?.groups;
+    if (refused?.path === undefined) {
+      return true;
+    }
+    if (closed(refused.path)) {
+      left++;
+      return false;
+    }
+    if (refused.why === "Operation not permitted") {
+      macos.push(spell(refused.path));
+      return false;
+    }
+    return true;
+  });
+  if (left === 0 && macos.length === 0) {
     return stderr;
   }
   const rest = kept.join("\n");
-  return `${rest}${rest === "" || rest.endsWith("\n") ? "" : "\n"}find: left out ${left} ${left === 1 ? "folder" : "folders"} the person keeps closed\n`;
+  const notes = [
+    ...macos.map((shown) => `find: ${macosRefusalNote(JSON.stringify(shown))}`),
+    ...(left === 0
+      ? []
+      : [
+          `find: left out ${left} ${left === 1 ? "folder" : "folders"} the person keeps closed`,
+        ]),
+  ];
+  return `${rest}${rest === "" || rest.endsWith("\n") ? "" : "\n"}${notes.join("\n")}\n`;
 }
 
 /** Where each route's program comes from, as the generated table says it. */
@@ -886,7 +917,12 @@ export function createNativeTextCommand(
             exitCode: result.exitCode ?? 1,
             stderr:
               route.name === "find"
-                ? quietRefusedFolders(streams.stderr)
+                ? quietRefusedFolders(
+                    streams.stderr,
+                    (hostPath) =>
+                      reachOf(layout.rules, hostPath, "list").level !== "allow",
+                    shellPath,
+                  )
                 : streams.stderr,
             stdout:
               route.printsPaths && process.platform === "win32"

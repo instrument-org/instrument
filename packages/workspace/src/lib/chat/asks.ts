@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { ulid } from "ulid";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -159,4 +160,13 @@ export async function closeAsksOf(
  */
 export function askFirstNote(what: string, ask: string): string {
   return `${what} needs the person's yes. If the work needs it, ask for ${ask} with ${TOOL_NAMES.askPermission}.`;
+}
+
+/**
+ * What the agent is told when macOS itself refused a path the person's
+ * rules allow: the card `ask` raises is the person's way to let the app in,
+ * which the system's settings would otherwise be the only one of.
+ */
+export function macosRefusalNote(shown: string): string {
+  return `macOS itself refused ${shown}, not the person's settings. If the work needs it, ask for ${shown} with ${TOOL_NAMES.askPermission}: its card shows them how to let ${APP_NAME} in. Never suggest Full Disk Access.`;
 }

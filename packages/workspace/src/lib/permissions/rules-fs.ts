@@ -6,7 +6,7 @@ import nodePath from "node:path";
 import { FOLDER_VARIABLES } from "../../constants";
 import { canonicalizeThroughMissing, withoutDataVolume } from "../host-path";
 import { accountCanWrite, systemOwnedNote } from "./account-can-write";
-import { askFirstNote } from "../chat/asks";
+import { askFirstNote, macosRefusalNote } from "../chat/asks";
 import { isClosedDiskRoot } from "../disk-root";
 import {
   folderToAskFor,
@@ -259,19 +259,37 @@ export function rulesFs({
       }
       const call = (...args: unknown[]): unknown =>
         Reflect.apply(value, target, args);
+      // What the rules allowed and macOS refused anyway: the system's own
+      // privacy settings, which the agent hears of beside the bare error so
+      // it asks for the folder instead of guessing at what blocked it.
+      const macosRefused = async (mountPath: string, run: () => unknown) => {
+        try {
+          return await run();
+        } catch (error) {
+          if (
+            process.platform === "darwin" &&
+            error instanceof Error &&
+            "code" in error &&
+            error.code === "EPERM"
+          ) {
+            onRefusal?.(macosRefusalNote(spell(given(mountPath))));
+          }
+          throw error;
+        }
+      };
       if (key === "readdir" || key === "readdirWithFileTypes") {
         return async (...args: unknown[]) => {
           const dir = String(args[0]);
           const named = listings.count === 0;
           listings.count++;
           check("list", key, dir, named);
-          return call(...args);
+          return named ? macosRefused(dir, () => call(...args)) : call(...args);
         };
       }
       if (reads.has(key) || writes.has(key)) {
         return async (...args: unknown[]) => {
           check(reads.has(key) ? "read" : "write", key, String(args[0]));
-          return call(...args);
+          return macosRefused(String(args[0]), () => call(...args));
         };
       }
       if (key === "cp" || key === "mv" || key === "link" || key === "symlink") {

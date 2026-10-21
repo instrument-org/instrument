@@ -31,7 +31,13 @@ const BLOCK_EVENT_ID = 1123;
 
 /** How long a block's event may take to land in the log after the write failed. */
 export const BLOCK_EVENT_WAIT_MS = 6000;
-const BLOCK_EVENT_POLL_MS = 500;
+/**
+ * How long each look at the log waits after the last: tight while a block
+ * usually lands, a second or two after the write, then looser.
+ */
+export function blockEventPollMs(waitedMs: number): number {
+  return waitedMs < 2000 ? 250 : 500;
+}
 
 /** How long a read of the setting stands before it is read again. */
 const MODE_FRESH_MS = 30_000;
@@ -233,7 +239,8 @@ export async function awaitOurBlocks({
   since: Date;
   waitMs?: number;
 }): Promise<ProtectionBlock[]> {
-  const deadline = Date.now() + waitMs;
+  const started = Date.now();
+  const deadline = started + waitMs;
   for (;;) {
     const ours = (await blocksSince(since)).filter(
       (block) =>
@@ -243,8 +250,32 @@ export async function awaitOurBlocks({
     if (ours.length > 0 || Date.now() >= deadline) {
       return ours;
     }
-    await sleep(BLOCK_EVENT_POLL_MS);
+    await sleep(blockEventPollMs(Date.now() - started));
   }
+}
+
+/**
+ * What kept a write by the app itself out of `target` since `since`: the
+ * folder the protection guards and the programs it blocked there, once the
+ * log names one of ours touching it. Nothing when the protection does not
+ * block, off Windows, or when the log names nothing of ours.
+ */
+export async function confirmedBlock(
+  target: string,
+  since: Date,
+): Promise<undefined | { folder: string; programs: string[] }> {
+  if (!(await protectionBlocks())) {
+    return undefined;
+  }
+  const blocks = await awaitOurBlocks({ path: target, since });
+  const [first] = blocks;
+  if (first === undefined) {
+    return undefined;
+  }
+  return {
+    folder: guardedFolderOf(first.path),
+    programs: [...new Set(blocks.map((block) => block.program))],
+  };
 }
 
 /** The folders the protection guards by default, under the home folder. */

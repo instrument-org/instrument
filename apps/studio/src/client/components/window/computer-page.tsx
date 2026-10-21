@@ -867,7 +867,7 @@ export function ComputerPage({
         return;
       }
       const route = mode === "move" ? "moveInto" : "copyInto";
-      const { failure, journalId, placed, skipped, trashed } =
+      const { failure, journalId, placed, protection, skipped, trashed } =
         await rpcClient.files[route].call({
           folder: into.hostPath,
           paths,
@@ -948,7 +948,9 @@ export function ComputerPage({
             : `${there.length.toString()} of these are already in “${folderName}”.`,
         );
       }
-      if (failure) {
+      if (protection) {
+        protectionBlocked(protection);
+      } else if (failure) {
         toast.error(
           mode === "move"
             ? "Couldn't finish moving"
@@ -3184,11 +3186,78 @@ const SPOKEN_FILE_ERRORS = [
 
 /** Says a file action didn't happen, with the reason when it is one a person can use. */
 export function fileActionFailed(title: string, error: unknown) {
+  const protection = protectionOf(error);
+  if (protection) {
+    protectionBlocked(protection);
+    return;
+  }
   toast.error(title, {
     cause: error,
     description: spokenMessage(error, SPOKEN_FILE_ERRORS),
   });
 }
+
+/** What Windows' ransomware protection kept out, from a files route's error. */
+function protectionOf(
+  error: unknown,
+): undefined | { folder: string; programs: string[] } {
+  if (!(error instanceof ORPCError) || error.code !== "WINDOWS_PROTECTION") {
+    return undefined;
+  }
+  const data: unknown = error.data;
+  return typeof data === "object" &&
+    data !== null &&
+    "folder" in data &&
+    typeof data.folder === "string" &&
+    "programs" in data &&
+    Array.isArray(data.programs)
+    ? {
+        folder: data.folder,
+        programs: data.programs.filter(
+          (program): program is string => typeof program === "string",
+        ),
+      }
+    : undefined;
+}
+
+// oxlint-disable studio/no-os-words -- Windows' ransomware protection exists on Windows alone
+/**
+ * Says Windows' ransomware protection kept Instrument out of a folder, with
+ * Allow: Windows' own prompt for an administrator's yes, which lets the
+ * blocked programs and the app through. The person then does again what
+ * they were doing.
+ */
+function protectionBlocked({
+  folder,
+  programs,
+}: {
+  folder: string;
+  programs: string[];
+}) {
+  const name = folder.split(/[\\/]/).at(-1) ?? folder;
+  toast.error(`Windows is blocking Instrument from changing “${name}”`, {
+    action: {
+      label: "Allow",
+      onClick: () => {
+        void rpcClient.files.allowThroughProtection
+          .call({ programs })
+          .then(({ outcome }) => {
+            if (outcome === "allowed") {
+              toast(`Instrument can change “${name}” now. Try that again.`);
+            } else if (outcome === "failed") {
+              toast.error(`Couldn't let Instrument into “${name}”`, {
+                description:
+                  "You can allow it under Ransomware protection in Windows Security.",
+              });
+            }
+          });
+      },
+    },
+    description:
+      "Ransomware protection only lets programs it trusts change this folder.",
+  });
+}
+// oxlint-enable studio/no-os-words
 
 /** Where an item the browser is showing sits on the Mac. */
 function hostPathOfItem(item: FileSystemItem | undefined) {

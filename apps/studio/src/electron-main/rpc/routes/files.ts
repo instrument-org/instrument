@@ -36,6 +36,10 @@ import { openPathOnComputer } from "@/electron-main/lib/open-path";
 import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
+import {
+  allowThroughProtection as allowProgramsThroughProtection,
+  confirmedBlock,
+} from "@instrument-org/workspace/electron";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getMachineState } from "@/electron-main/stores/machine/state";
 import { copyName, newFolderName, osOf } from "@/shared/os-conventions";
@@ -104,6 +108,41 @@ const NAME_ERRORS = {
   NAME_INVALID: { message: "That name cannot be used" },
 } as const;
 
+/**
+ * Windows' ransomware protection kept the app out of a folder it guards,
+ * which the write itself reports as a missing file: the folder, and the
+ * programs to let through for it.
+ */
+const PROTECTION_ERRORS = {
+  WINDOWS_PROTECTION: {
+    data: z.object({ folder: z.string(), programs: z.array(z.string()) }),
+    message: "Windows is keeping Instrument out of that folder",
+  },
+} as const;
+
+/**
+ * Runs a write into `target`, and when it fails says whether Windows'
+ * ransomware protection is what refused it, by the block Defender logs for
+ * one of the app's programs there: `blocked` with the folder and
+ * programs, or the failure as it was.
+ */
+async function writeOrBlock<T>(
+  target: string,
+  write: () => Promise<T>,
+): Promise<
+  | { blocked: { folder: string; programs: string[] }; ok: false }
+  | { error: unknown; ok: false }
+  | { ok: true; value: T }
+> {
+  const since = new Date();
+  try {
+    return { ok: true, value: await write() };
+  } catch (error) {
+    const blocked = await confirmedBlock(target, since).catch(() => undefined);
+    return blocked ? { blocked, ok: false } : { error, ok: false };
+  }
+}
+
 /** A name a file can carry: one segment, nothing hidden by a leading dot. */
 function isUsableName(name: string) {
   return (
@@ -116,28 +155,36 @@ function isUsableName(name: string) {
 }
 
 const newFolder = base
-  .errors({ CANNOT_WRITE: { message: "That folder cannot be written to" } })
+  .errors({
+    CANNOT_WRITE: { message: "That folder cannot be written to" },
+    ...PROTECTION_ERRORS,
+  })
   .input(z.object({ parent: HostPathSchema }))
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
-    try {
-      const made = await freePath(input.parent, (n) => newFolderName(OS, n));
-      await fs.mkdir(made);
-      await record(made, (identity) => ({
-        identity,
-        kind: "new-folder",
-        made,
-      }));
-      return { path: made };
-    } catch (error) {
+    const made = await writeOrBlock(input.parent, async () => {
+      const folder = await freePath(input.parent, (n) => newFolderName(OS, n));
+      await fs.mkdir(folder);
+      return folder;
+    });
+    if (!made.ok) {
+      if ("blocked" in made) {
+        throw errors.WINDOWS_PROTECTION({ data: made.blocked });
+      }
       throw errors.CANNOT_WRITE({
-        message: error instanceof Error ? error.message : undefined,
+        message: made.error instanceof Error ? made.error.message : undefined,
       });
     }
+    await record(made.value, (identity) => ({
+      identity,
+      kind: "new-folder",
+      made: made.value,
+    }));
+    return { path: made.value };
   });
 
 const rename = base
-  .errors(NAME_ERRORS)
+  .errors({ ...NAME_ERRORS, ...PROTECTION_ERRORS })
   .input(z.object({ name: z.string(), path: HostPathSchema }))
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
@@ -157,7 +204,15 @@ const rename = base
     if (there && !(self && there.dev === self.dev && there.ino === self.ino)) {
       throw errors.NAME_IN_USE();
     }
-    await fs.rename(input.path, moved);
+    const renamed = await writeOrBlock(moved, () =>
+      fs.rename(input.path, moved),
+    );
+    if (!renamed.ok) {
+      if ("blocked" in renamed) {
+        throw errors.WINDOWS_PROTECTION({ data: renamed.blocked });
+      }
+      throw renamed.error;
+    }
     followMove(input.path, moved);
     await record(moved, (identity) => ({
       from: input.path,
@@ -169,7 +224,10 @@ const rename = base
   });
 
 const duplicate = base
-  .errors({ CANNOT_WRITE: { message: "That folder cannot be written to" } })
+  .errors({
+    CANNOT_WRITE: { message: "That folder cannot be written to" },
+    ...PROTECTION_ERRORS,
+  })
   .input(z.object({ path: HostPathSchema }))
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
@@ -177,24 +235,30 @@ const duplicate = base
     // extension kept on the end where every system expects to find it.
     const extension = path.extname(input.path);
     const stem = path.basename(input.path, extension);
-    try {
+    const copied = await writeOrBlock(path.dirname(input.path), async () => {
       const copy = await freePath(
         path.dirname(input.path),
         (n) => copyName(OS, stem, n),
         extension,
       );
       await fs.cp(input.path, copy, { recursive: true });
-      await record(copy, (identity) => ({
-        identity,
-        kind: "duplicate",
-        made: copy,
-      }));
-      return { path: copy };
-    } catch (error) {
+      return copy;
+    });
+    if (!copied.ok) {
+      if ("blocked" in copied) {
+        throw errors.WINDOWS_PROTECTION({ data: copied.blocked });
+      }
       throw errors.CANNOT_WRITE({
-        message: error instanceof Error ? error.message : undefined,
+        message:
+          copied.error instanceof Error ? copied.error.message : undefined,
       });
     }
+    await record(copied.value, (identity) => ({
+      identity,
+      kind: "duplicate",
+      made: copied.value,
+    }));
+    return { path: copied.value };
   });
 
 /**
@@ -268,6 +332,10 @@ function placeRoute(op: "copy" | "move") {
       z.object({
         /** Why it stopped short, and what that left where; null when it did all of it. */
         failure: z.string().nullable(),
+        /** What kept it out when Windows' ransomware protection did: the folder and the programs to let through. */
+        protection: z
+          .object({ folder: z.string(), programs: z.array(z.string()) })
+          .nullable(),
         /** The journal entry that takes all of it back, when anything changed. */
         journalId: z.string().nullable(),
         placed: z.array(
@@ -303,11 +371,16 @@ function placeRoute(op: "copy" | "move") {
       if ("refusal" in plan) {
         throw errors.CANNOT_PLACE({ message: plan.refusal });
       }
+      const since = new Date();
       const outcome = await executePlacing(
         op,
         plan.steps,
         fileSystemOps({ leftovers: placingLeftovers, trash: trashReplaced }),
       );
+      const protection = outcome.failure
+        ? ((await confirmedBlock(input.folder, since).catch(() => undefined)) ??
+          null)
+        : null;
       for (const each of outcome.placed) {
         if (each.how === "moved") {
           followMove(each.from, each.path);
@@ -319,6 +392,7 @@ function placeRoute(op: "copy" | "move") {
           ? fileJournal.record(outcome.journal).id
           : null,
         placed: outcome.placed,
+        protection,
         skipped: outcome.skipped,
         trashed: outcome.trashed,
       };
@@ -474,7 +548,10 @@ const paste = base.handler(({ context }) => {
  * of a screenshot is.
  */
 const addFile = base
-  .errors({ CANNOT_WRITE: { message: "That folder cannot be written to" } })
+  .errors({
+    CANNOT_WRITE: { message: "That folder cannot be written to" },
+    ...PROTECTION_ERRORS,
+  })
   .input(
     z.union([
       z.object({ folder: HostPathSchema, from: HostPathSchema }),
@@ -498,7 +575,7 @@ const addFile = base
     const name = "from" in input ? path.basename(input.from) : input.name;
     const extension = path.extname(name);
     const stem = path.basename(name, extension);
-    try {
+    const added = await writeOrBlock(folder, async () => {
       const made = await freePath(
         folder,
         (n) => (n === 1 ? stem : `${stem} ${n.toString()}`),
@@ -509,12 +586,17 @@ const addFile = base
         : fs.writeFile(made, Buffer.from(input.content, "base64"), {
             flag: "wx",
           }));
-      return { path: made };
-    } catch (error) {
+      return made;
+    });
+    if (!added.ok) {
+      if ("blocked" in added) {
+        throw errors.WINDOWS_PROTECTION({ data: added.blocked });
+      }
       throw errors.CANNOT_WRITE({
-        message: error instanceof Error ? error.message : undefined,
+        message: added.error instanceof Error ? added.error.message : undefined,
       });
     }
+    return { path: added.value };
   });
 
 /** Which of `paths` name nothing on this computer, for an editor to mark the links to them. */
@@ -870,8 +952,25 @@ const live = {
     }),
 };
 
+/**
+ * Lets the programs Windows' ransomware protection blocked, and the app
+ * itself, through it, behind Windows' own prompt for an administrator's yes.
+ */
+const allowThroughProtection = base
+  .input(z.object({ programs: z.array(z.string()) }))
+  .output(z.object({ outcome: z.enum(["allowed", "canceled", "failed"]) }))
+  .handler(async ({ input }) => ({
+    outcome:
+      process.platform === "win32"
+        ? await allowProgramsThroughProtection([
+            ...new Set([...input.programs, process.execPath]),
+          ])
+        : "failed",
+  }));
+
 export const files = {
   addFile,
+  allowThroughProtection,
   clashes,
   clipboardFiles,
   clipboardHasFiles,

@@ -96,6 +96,10 @@ export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
 export { readRefusalOf } from "./lib/read-refusal";
 export { appBundleId } from "./lib/permissions/apps";
+export {
+  allowThroughProtection,
+  confirmedBlock,
+} from "./lib/permissions/windows-protection";
 export { settleWorkspaceDb } from "./lib/settle-workspace-db";
 export {
   BROWSER_FOLDER_NAMES,

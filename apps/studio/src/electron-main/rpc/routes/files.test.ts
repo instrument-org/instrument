@@ -80,6 +80,18 @@ vi.mock("@/electron-main/lib/refused-files", () => ({
   isRefusedFile: (filePath: string) => Promise.resolve(isClosed(filePath)),
 }));
 
+// What Defender's log says kept the app out of a folder, which a test sets.
+const protection = vi.hoisted(() => ({
+  block: undefined as undefined | { folder: string; programs: string[] },
+}));
+vi.mock(
+  import("@instrument-org/workspace/electron"),
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    confirmedBlock: () => Promise.resolve(protection.block),
+  }),
+);
+
 // Neither route reads its context, and the base it is built on is mocked
 // out, so an empty one stands in for the window's.
 const options = { context: {} as InitialRPCContext };
@@ -90,6 +102,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   closedFolders.length = 0;
+  protection.block = undefined;
   await fs.rm(dir, { force: true, recursive: true });
 });
 
@@ -465,6 +478,7 @@ it("leaves a row dropped on its own folder where it is, and refuses a folder int
     failure: null,
     journalId: null,
     placed: [],
+    protection: null,
     skipped: [],
     trashed: [],
   });
@@ -476,3 +490,28 @@ it("leaves a row dropped on its own folder where it is, and refuses a folder int
     ),
   ).rejects.toMatchObject({ code: "CANNOT_PLACE" });
 });
+
+it.each([
+  ["Windows' ransomware protection blocked it", true],
+  ["it failed for any other reason", false],
+])(
+  "says a write failed because %s only when Defender's log names the block",
+  async (_name, blocked) => {
+    // Under a file, so making the folder fails however the disk is set up.
+    const file = path.join(dir, "file.txt");
+    await fs.writeFile(file, "");
+    const block = {
+      folder: path.join(dir, "Documents"),
+      programs: [path.join(dir, "Instrument.exe")],
+    };
+    protection.block = blocked ? block : undefined;
+
+    await expect(
+      call(files.newFolder, { parent: file }, options),
+    ).rejects.toMatchObject(
+      blocked
+        ? { code: "WINDOWS_PROTECTION", data: block }
+        : { code: "CANNOT_WRITE" },
+    );
+  },
+);

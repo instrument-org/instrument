@@ -7,6 +7,8 @@ import {
   parseBlockEvents,
   pathsTouch,
   regDword,
+  blockEventPollMs,
+  confirmedBlock,
 } from "./windows-protection";
 
 const HOME = String.raw`C:\Users\windows-user`;
@@ -138,5 +140,21 @@ describe("regDword", () => {
     ].join("\r\n");
     expect(regDword(output, "EnableControlledFolderAccess")).toBe(1);
     expect(regDword("", "EnableControlledFolderAccess")).toBeUndefined();
+  });
+});
+
+describe("blockEventPollMs", () => {
+  it("looks every 250 ms while a block usually lands, then every 500", () => {
+    expect([0, 1000, 1999, 2000, 5000].map(blockEventPollMs)).toEqual([
+      250, 250, 250, 500, 500,
+    ]);
+  });
+});
+
+describe.runIf(process.platform !== "win32")("confirmedBlock", () => {
+  it("finds nothing off Windows, without reading a log", async () => {
+    expect(await confirmedBlock("/Users/me/Documents", new Date())).toBe(
+      undefined,
+    );
   });
 });

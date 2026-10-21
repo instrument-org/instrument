@@ -58,10 +58,9 @@ export interface ChatDbPart {
 }
 
 /**
- * A session row as `chat.db` kept it: today's session, `stoppedBy` in the
- * words the store wrote it in, and `stoppedAt`, when the user last stopped
- * the chat's own turn, which the records keep as a `stop` record instead.
- * Read, it says who stopped a task the way the records do.
+ * A session row as `chat.db` kept it: today's session, with `stoppedBy` in
+ * the words the store wrote it in. Read, it says who stopped a task the way
+ * the records do.
  */
 export type ChatDbSessionRow = z.output<typeof ChatDbSessionRowSchema>;
 
@@ -71,7 +70,6 @@ export type ChatDbStoredSessionRow = Omit<ChatDbSessionRow, "stoppedBy"> & {
 };
 
 const ChatDbSessionRowSchema = Session.Schema.extend({
-  stoppedAt: z.date().optional(),
   stoppedBy: z
     .enum(["app", "chat", "user"])
     .transform(

@@ -37,7 +37,6 @@ export const EVERY_KIND_SESSION: ChatDbSessionRow = {
   rolledOverAfterMessageId: messageId(5),
   rolledOverUnderUsableTokens: 120_000,
   starredAt: at(20),
-  stoppedAt: at(50),
   title: "Plans for the trip",
   titleSettledAt: at(10),
   topic: "travel",

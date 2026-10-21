@@ -332,7 +332,6 @@ describe("convertChat", () => {
         "message",
         "part tool-bash",
         "rollover",
-        "stop",
         "sites",
       ]
     `);
@@ -413,10 +412,6 @@ describe("convertChat", () => {
           "sites": [
             "example.com",
           ],
-          "stopped": {
-            "at": 2026-10-14T12:00:50.000Z,
-            "by": "person",
-          },
           "updatedAt": 2026-10-14T12:01:40.000Z,
           "writtenBy": Map {
             "msg_01K7A000000000000000000001" => "dev_AAAAAAAA",

@@ -470,34 +470,22 @@ function lastUpdate(session: Session.Type): Date {
 /**
  * The stop a session row says, as a `stop` record holds it: who ended a
  * task's turn (`stoppedBy`), at the session's last update, which is all the
- * row says of when; else the user's Stop on the chat's own turn
- * (`stoppedAt`), at the moment it was pressed.
+ * row says of when.
  */
 function stopOf(
   session: ChatDbSessionRow,
 ): { at: Date; by: Stopper } | undefined {
-  if (session.stoppedBy !== undefined) {
-    return { at: lastUpdate(session), by: session.stoppedBy };
-  }
-  return session.stoppedAt === undefined
+  return session.stoppedBy === undefined
     ? undefined
-    : { at: session.stoppedAt, by: "person" };
+    : { at: lastUpdate(session), by: session.stoppedBy };
 }
 
 /**
  * The session row as the records keep it, for comparing with what they fold
- * to: a stop is who made it, the moment a Stop was pressed is that record's
- * `at`, and the newest record's `at` is when the session was last updated.
+ * to: the newest record's `at` is when the session was last updated.
  */
 function asRecordsKeepIt(row: ChatDbSessionRow): Session.Type {
-  const stop = stopOf(row);
-  const { stoppedAt: _stoppedAt, ...session } = row;
-  const updated = lastUpdate(session);
-  return {
-    ...session,
-    ...(stop && { stoppedBy: stop.by }),
-    updatedAt: stop && stop.at > updated ? stop.at : updated,
-  };
+  return { ...row, updatedAt: lastUpdate(row) };
 }
 
 /**

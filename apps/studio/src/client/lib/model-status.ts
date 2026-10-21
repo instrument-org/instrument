@@ -46,6 +46,8 @@ export type ModelStatus =
   | {
       /** The account it was chosen through, when that account was signed out without the person asking. */
       account?: SignInAccountType;
+      /** That account's connection id, to sign in to the same one again. */
+      accountId?: string;
       fix?: AIGatewayModel.Type;
       /** The fix is this model through another connection, so the offer names the connection. */
       fixIsSameModel?: boolean;
@@ -226,7 +228,7 @@ export function readModelStatus({
           : account
             ? "signed-out"
             : "disconnected",
-      ...(account && { account }),
+      ...(account && source && { account, accountId: source.providerConfigId }),
       ...(provider && { provider }),
       ...withFix(fix),
       ...(fix &&
@@ -288,8 +290,13 @@ export type ModelAction =
   | { kind: "add-provider"; label: string }
   | { kind: "choose"; label: string }
   | { kind: "retry"; label: string }
-  /** Open Settings at the account's row, where signing in again is. */
-  | { account: SignInAccountType; kind: "sign-in"; label: string }
+  /** Sign in to the account again, the one `accountId` names when known. */
+  | {
+      account: SignInAccountType;
+      accountId?: string;
+      kind: "sign-in";
+      label: string;
+    }
   | { kind: "switch"; label: string; model: AIGatewayModel.Type };
 
 /** How a status reads wherever it is shown: one sentence, one action, and whether it can be set aside. */
@@ -332,6 +339,7 @@ export function noticeFor(status: ModelStatus): ModelNotice | null {
         return {
           action: {
             account: status.account,
+            accountId: status.accountId,
             kind: "sign-in",
             label: "Sign in",
           },

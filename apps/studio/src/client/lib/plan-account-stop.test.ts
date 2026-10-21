@@ -75,6 +75,28 @@ describe("planAccountStop", () => {
         provider: "chatgpt-account",
       }),
     },
+    {
+      line: "I couldn't start on this. Grok says this account doesn't have SuperGrok or X Premium+.",
+      name: "a Grok account with no plan",
+      note: "Your Grok account doesn't have a plan Instrument can use.",
+      turn: stoppedTurn({ classification: "auth", provider: "grok-account" }),
+    },
+    {
+      line: "I had to stop here. Your Grok plan is out of usage for now.",
+      name: "Grok out of usage",
+      note: "Grok is out of usage for now.",
+      turn: stoppedTurn({ provider: "grok-account" }),
+    },
+    {
+      line: "I couldn't start on this. ChatGPT says this account can't be used in other apps without a paid plan.",
+      name: "ChatGPT with plan access left out",
+      note: "This ChatGPT account can't be used here. It needs a paid ChatGPT plan.",
+      turn: stoppedTurn({
+        body: { code: "chatpass_v2_scope_not_authorized" },
+        classification: "auth",
+        provider: "chatgpt-account",
+      }),
+    },
   ])("says what stopped $name", ({ line, note, turn }) => {
     const stop = planAccountStop(turn as SessionMessage.Assistant);
     if (!stop) {

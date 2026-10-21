@@ -13,7 +13,10 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { SIGN_IN_ACCOUNT_NAMES, type SignInAccountType } from "@/shared/notices";
+
 import { openSettings } from "../atoms/settings-modal";
+import { useSignInAgain } from "../hooks/use-sign-in-again";
 import { stopLineText } from "../lib/billing";
 import {
   parsePlatformApiError,
@@ -77,6 +80,7 @@ export function MessageError({
   );
   const [showDetails, setShowDetails] = useState(false);
   const [expandedPast, setExpandedPast] = useState(false);
+  const signInAgain = useSignInAgain();
 
   if (!error) {
     return null;
@@ -134,18 +138,10 @@ export function MessageError({
   const canReadProviderText = isDeveloperMode || isOwnKeyProvider;
   const showActions = isLastMessage && !isAgentRunning;
 
-  // xAI refuses a Grok account with no plan behind it as a 429 the
-  // classifier reads as `auth`; a 401 or 403 is a session that ended.
-  const grokWithoutPlan =
-    provider === "grok-account" &&
-    classification === "auth" &&
-    error.kind === "api-call" &&
-    error.statusCode === 429;
   const { detail, summary } =
     (platformError && describePlatformRefusal(platformError)) ??
     describeForProvider(describeMessageError(error), {
       classification,
-      grokWithoutPlan,
       provider,
     });
   const modelName = message.metadata.aiGatewayModel?.name.trim();
@@ -172,11 +168,18 @@ export function MessageError({
       ? recoveryFor(message.metadata.aiGatewayModel?.uri, modelsData?.models)
       : undefined,
     classification,
-    grokWithoutPlan,
     kind: error.kind,
     onModelChange,
     onRunAgain,
     provider,
+    signIn: isSignInAccount(provider)
+      ? () => {
+          signInAgain.signIn(
+            provider,
+            message.metadata.aiGatewayModel?.params.providerConfigId,
+          );
+        }
+      : undefined,
   });
 
   const past = !isLastMessage;
@@ -288,11 +291,9 @@ function describeForProvider(
   described: { detail: string; summary: string },
   {
     classification,
-    grokWithoutPlan,
     provider,
   }: {
     classification: string | undefined;
-    grokWithoutPlan: boolean;
     provider: string | undefined;
   },
 ): { detail: string; summary: string } {
@@ -312,13 +313,6 @@ function describeForProvider(
         detail:
           "Your Grok subscription has hit its limit for now. Try again later, or switch to another model.",
         summary: "Grok is out of usage for now",
-      };
-    }
-    if (classification === "auth" && grokWithoutPlan) {
-      return {
-        detail:
-          "This Grok account doesn’t have a plan. You need SuperGrok or X Premium+ to use it here, or you can switch to another model.",
-        summary: "No Grok plan on this account",
       };
     }
     if (classification === "auth") {
@@ -398,14 +392,14 @@ function detailsText(facts: [string, string][], body: string | undefined) {
 function errorActions({
   switchTo,
   classification,
-  grokWithoutPlan,
   kind,
   onModelChange,
   onRunAgain,
   provider,
+  signIn,
 }: {
-  /** A Grok account xAI allows no requests, which signing in again won't fix. */
-  grokWithoutPlan: boolean;
+  /** Starts the account's own sign-in again. */
+  signIn: (() => void) | undefined;
   switchTo: AIGatewayModel.Type | undefined;
   classification: string | undefined;
   kind: MessageErrorData["kind"];
@@ -441,10 +435,8 @@ function errorActions({
     if (provider === OUR_MODELS.providerType) {
       return tryAgain;
     }
-    return provider === "chatgpt-account" ||
-      provider === "claude-account" ||
-      (provider === "grok-account" && !grokWithoutPlan)
-      ? [{ ...providerSettings, label: "Sign in" }, ...tryAgain]
+    return isSignInAccount(provider) && signIn
+      ? [{ label: "Sign in", onClick: signIn }, ...tryAgain]
       : [providerSettings, ...tryAgain];
   }
   return tryAgain;
@@ -565,6 +557,11 @@ function WaitingForCapacityLine() {
     </div>
   );
 }
+
+const isSignInAccount = (
+  provider: string | undefined,
+): provider is SignInAccountType =>
+  provider !== undefined && provider in SIGN_IN_ACCOUNT_NAMES;
 
 const isAuto = (model: AIGatewayModel.Type) =>
   model.providerId === OUR_MODELS.text.id;

@@ -6,6 +6,15 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../atoms/settings-modal", () => ({ openSettings: vi.fn() }));
 
+const signInAgain = vi.hoisted(() => vi.fn());
+vi.mock("../hooks/use-sign-in-again", () => ({
+  useSignInAgain: () => ({
+    cancel: vi.fn(),
+    signIn: signInAgain,
+    waiting: () => false,
+  }),
+}));
+
 import { MessageError } from "./message-error";
 import { TooltipProvider } from "./ui/tooltip";
 
@@ -266,24 +275,63 @@ describe("MessageError", () => {
     },
   );
 
-  it.each([
-    [429, "No Grok plan on this account", "Open provider settings"],
-    [401, "Signed out of Grok", "Sign in"],
-  ])("tells a Grok %i apart: %s", (statusCode, summary, action) => {
+  it("ends a Grok turn the account has no plan for on one line", () => {
     renderError({
       error: {
         classification: "auth",
         kind: "api-call",
         message: "refused",
         name: "AI_APICallError",
-        statusCode,
+        statusCode: 429,
         url: "http://localhost/ai-gateway/providers/grok-1/responses",
       },
       provider: "grok-account",
     });
 
-    expect(screen.getByText(summary)).not.toBeNull();
-    expect(screen.getByRole("button", { name: action })).not.toBeNull();
+    expect(
+      screen.getByText(
+        "I couldn't start on this. Grok says this account doesn't have SuperGrok or X Premium+.",
+      ),
+    ).not.toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("starts the account's own sign-in from a signed-out turn", () => {
+    renderError({
+      error: {
+        classification: "auth",
+        kind: "api-call",
+        message: "refused",
+        name: "AI_APICallError",
+        statusCode: 401,
+        url: "http://localhost/ai-gateway/providers/grok-1/responses",
+      },
+      provider: "grok-account",
+    });
+
+    expect(screen.getByText("Signed out of Grok")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(signInAgain).toHaveBeenCalledWith("grok-account", undefined);
+  });
+
+  it("never says signed out for a ChatGPT plan that can't be used here", () => {
+    renderError({
+      error: {
+        classification: "auth",
+        kind: "api-call",
+        message: "refused",
+        name: "AI_APICallError",
+        responseBody: JSON.stringify({
+          error: { code: "chatpass_v2_scope_not_authorized" },
+        }),
+        statusCode: 403,
+        url: "http://localhost/ai-gateway/providers/chatgpt-1/responses",
+      },
+      provider: "chatgpt-account",
+    });
+
+    expect(screen.queryByText("Signed out of ChatGPT")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
   });
 
   it("says nothing about a throttle the session already got past", () => {

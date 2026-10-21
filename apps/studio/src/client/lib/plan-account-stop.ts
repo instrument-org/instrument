@@ -1,27 +1,34 @@
-import { type SessionMessage } from "@instrument-org/workspace/client";
+import {
+  PLAN_NOT_ELIGIBLE_CODES,
+  type SessionMessage,
+} from "@instrument-org/workspace/client";
 import { z } from "zod";
 
 import { describeWhen } from "./billing";
+import { CONNECT_NAMES, connectNote } from "./connect-copy";
 
-/** A plan the person brings from ChatGPT or Claude, signed in to its account. */
-export type PlanAccountProvider = "chatgpt-account" | "claude-account";
+/** A plan the person brings from ChatGPT, Claude or Grok, signed in to its account. */
+export type PlanAccountProvider =
+  | "chatgpt-account"
+  | "claude-account"
+  | "grok-account";
+
+const CONNECT_PROVIDER = {
+  "chatgpt-account": "chatgpt",
+  "claude-account": "claude",
+  "grok-account": "grok",
+} as const satisfies Record<PlanAccountProvider, string>;
 
 /**
- * Why a turn on the person's ChatGPT or Claude plan stopped, when it is the
- * plan rather than the request: its usage ran out (with when it comes back,
- * where the provider says), or the account cannot be used here: no paid plan,
- * a plan that lapsed, or a workspace that does not allow other apps.
+ * Why a turn on the person's ChatGPT, Claude or Grok plan stopped, when it is
+ * the plan rather than the request: its usage ran out (with when it comes
+ * back, where the provider says), or the account cannot be used here: no paid
+ * plan, a plan that lapsed, a workspace that does not allow other apps, or a
+ * Grok account without SuperGrok or X Premium+.
  */
 export type PlanAccountStop =
   | { kind: "not-eligible"; provider: PlanAccountProvider }
   | { kind: "usage-limit"; provider: PlanAccountProvider; resetsAt?: Date };
-
-/**
- * The provider codes that mean the account cannot be used here. ChatGPT
- * answers this one for an account its plan does not let use other apps,
- * which is a free account, a lapsed one, or a workspace that turned it off.
- */
-const NOT_ELIGIBLE_CODES = new Set(["subscription_sharing_user_not_eligible"]);
 
 const bodySchema = z.object({
   error: z.object({
@@ -48,7 +55,7 @@ function readBody(responseBody: string | undefined) {
 function isPlanAccountProvider(
   provider: string | undefined,
 ): provider is PlanAccountProvider {
-  return provider === "chatgpt-account" || provider === "claude-account";
+  return provider !== undefined && provider in CONNECT_PROVIDER;
 }
 
 /** Why this turn's plan stopped it, or undefined when the plan did not. */
@@ -63,10 +70,22 @@ export function planAccountStop(
   const body =
     error.kind === "api-call" ? readBody(error.responseBody) : undefined;
   const code = body?.code ?? body?.type;
-  if (code && NOT_ELIGIBLE_CODES.has(code)) {
+  if (code && PLAN_NOT_ELIGIBLE_CODES.has(code)) {
     return { kind: "not-eligible", provider };
   }
-  if (!("classification" in error) || error.classification !== "usage-limit") {
+  const classification =
+    "classification" in error ? error.classification : undefined;
+  // xAI refuses a Grok account with no plan behind it as a 429 the
+  // classifier reads as `auth`; a 401 or 403 is a session that ended.
+  if (
+    provider === "grok-account" &&
+    classification === "auth" &&
+    error.kind === "api-call" &&
+    error.statusCode === 429
+  ) {
+    return { kind: "not-eligible", provider };
+  }
+  if (classification !== "usage-limit") {
     return undefined;
   }
   const resetsAt =
@@ -111,7 +130,7 @@ export function lastPlanAccountStop({
 }
 
 function planAccountName(provider: PlanAccountProvider) {
-  return provider === "chatgpt-account" ? "ChatGPT" : "Claude";
+  return CONNECT_NAMES[CONNECT_PROVIDER[provider]];
 }
 
 /** "3:40 PM", "tomorrow at 9:12 AM", "Monday at 9:12 AM", "November 5". */
@@ -130,16 +149,21 @@ export function hasUsageReturned(stop: PlanAccountStop, now: Date) {
 
 /** The words of the note over the reply box. */
 export function planAccountNoteText(stop: PlanAccountStop, now: Date) {
-  const name = planAccountName(stop.provider);
-  if (stop.kind === "not-eligible") {
-    return `This ${name} account can't be used here. It needs a paid ${name} plan.`;
-  }
   if (hasUsageReturned(stop, now)) {
-    return `Your ${name} usage limit has reset.`;
+    return `Your ${planAccountName(stop.provider)} usage limit has reset.`;
   }
-  return stop.resetsAt
-    ? `${name} is out of usage until ${describeReset(stop.resetsAt, now)}.`
-    : `${name} is out of usage for now.`;
+  return (
+    connectNote(
+      stop.kind === "not-eligible"
+        ? { kind: "no-plan" }
+        : {
+            kind: "out-of-usage",
+            ...(stop.resetsAt && { resetsAt: stop.resetsAt.toISOString() }),
+          },
+      CONNECT_PROVIDER[stop.provider],
+      { now },
+    ) ?? ""
+  );
 }
 
 /**
@@ -149,7 +173,9 @@ export function planAccountNoteText(stop: PlanAccountStop, now: Date) {
 export function planAccountStopLine(stop: PlanAccountStop, stoppedAt: Date) {
   const name = planAccountName(stop.provider);
   if (stop.kind === "not-eligible") {
-    return `I couldn't start on this. ${name} says this account can't be used in other apps without a paid plan.`;
+    return stop.provider === "grok-account"
+      ? "I couldn't start on this. Grok says this account doesn't have SuperGrok or X Premium+."
+      : `I couldn't start on this. ${name} says this account can't be used in other apps without a paid plan.`;
   }
   return stop.resetsAt
     ? `I had to stop here. Your ${name} plan is out of usage until ${describeReset(stop.resetsAt, stoppedAt)}.`

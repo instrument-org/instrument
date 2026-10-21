@@ -17,6 +17,7 @@ import { gateway } from "./gateway";
 import { grokAccount } from "./grok-account";
 import { history } from "./history";
 import { mac } from "./mac";
+import { network } from "./network";
 import { notices } from "./notices";
 import { onboarding } from "./onboarding";
 import { pageEditor } from "./page-editor";
@@ -50,6 +51,7 @@ export const router = {
   grokAccount,
   history,
   mac,
+  network,
   notices,
   onboarding,
   pageEditor,

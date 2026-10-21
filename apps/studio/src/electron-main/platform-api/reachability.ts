@@ -1,46 +1,56 @@
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { logger } from "@/electron-main/lib/electron-logger";
-import { publisher } from "@/electron-main/rpc/publisher";
 import { isExpectedNetworkError } from "@instrument-org/shared";
 import { app } from "electron";
 import ms from "ms";
 
-type Reachability = "reachable" | "unknown" | "unreachable";
+export type Reachability = "reachable" | "unknown" | "unreachable";
 
-const PROBE_INTERVAL = ms("5 seconds");
 const PROBE_TIMEOUT = ms("3 seconds");
+const FIRST_PROBE_DELAY = ms("5 seconds");
+const LONGEST_PROBE_DELAY = ms("1 minute");
+
+/**
+ * How long to wait before asking a platform API that has not answered
+ * `failedProbes` times in a row. A development build asks a local server
+ * every 5 seconds, since that is how soon a developer who starts it expects
+ * the window to notice; a packaged one doubles from 5 seconds up to a minute,
+ * so a long outage costs a request a minute per computer.
+ */
+export function probeDelay(failedProbes: number, isPackaged: boolean) {
+  if (!isPackaged) {
+    return FIRST_PROBE_DELAY;
+  }
+  return Math.min(
+    FIRST_PROBE_DELAY * 2 ** Math.max(0, failedProbes - 1),
+    LONGEST_PROBE_DELAY,
+  );
+}
 
 let reachability: Reachability = "unknown";
 let probeTimer: NodeJS.Timeout | undefined;
-let onReachableAgain: (() => void) | undefined;
+let failedProbes = 0;
+let onChange: ((reachability: Reachability) => void) | undefined;
 
 /**
- * Whether the platform API answers, for a development build pointed at an API
- * server that may not be running. While it does not, the corner of the window
- * says so, failed requests to it skip exception capture, and a probe keeps
- * asking until it answers, at which point the queries that failed run again.
- * Any HTTP response counts as an answer: the question is whether something is
- * listening, not whether it is healthy. A packaged build never asks, so it
- * stays "unknown" there and nothing changes.
+ * Whether the platform API answers. Requests to it report what they learned
+ * (`notePlatformApiOutcome`), and once one finds nothing listening a probe
+ * keeps asking, backing off, until it answers. Any HTTP response counts as
+ * an answer: the question is whether something is listening, not whether it
+ * is healthy. A development build also asks once at launch, so the first
+ * requests to a local API server that is not running already find it down.
  */
 export function startPlatformApiReachability(options: {
-  onReachableAgain: () => void;
+  onChange: (reachability: Reachability) => void;
 }) {
-  if (app.isPackaged) {
-    return;
+  onChange = options.onChange;
+  if (!app.isPackaged) {
+    void probe();
   }
-  onReachableAgain = options.onReachableAgain;
-  void probe();
 }
 
-export function getPlatformApiReachability(): {
-  baseUrl: string;
-  status: Reachability;
-} {
-  return {
-    baseUrl: platformApiBaseUrl(),
-    status: reachability,
-  };
+export function getPlatformApiReachability(): Reachability {
+  return reachability;
 }
 
 export function isPlatformApiUnreachable() {
@@ -49,14 +59,26 @@ export function isPlatformApiUnreachable() {
 
 /** What a request to the platform API learned about whether it answers. */
 export function notePlatformApiOutcome(outcome: unknown) {
-  if (app.isPackaged) {
-    return;
-  }
   if (outcome instanceof Response) {
     setReachability("reachable");
   } else if (isExpectedNetworkError(outcome)) {
     setReachability("unreachable");
   }
+}
+
+/**
+ * Asks again now, starting the backoff over, for when something suggests the
+ * answer may have changed (the computer came back online). Only while the API
+ * is known not to answer, since otherwise the next request finds out anyway.
+ */
+export function probePlatformApiNow() {
+  if (reachability !== "unreachable") {
+    return;
+  }
+  clearTimeout(probeTimer);
+  probeTimer = undefined;
+  failedProbes = 0;
+  void probe();
 }
 
 async function probe() {
@@ -70,9 +92,20 @@ async function probe() {
   } catch (error) {
     notePlatformApiOutcome(error);
   }
-  if (reachability === "unreachable" && !probeTimer) {
-    probeTimer = setTimeout(() => void probe(), PROBE_INTERVAL);
+  if (reachability === "unreachable") {
+    failedProbes += 1;
+    scheduleProbe();
   }
+}
+
+function scheduleProbe() {
+  if (probeTimer) {
+    return;
+  }
+  probeTimer = setTimeout(
+    () => void probe(),
+    probeDelay(failedProbes, app.isPackaged),
+  );
 }
 
 function setReachability(next: Reachability) {
@@ -81,20 +114,23 @@ function setReachability(next: Reachability) {
   }
   const previous = reachability;
   reachability = next;
-  publisher.publish("platform-api.reachability.updated", null);
 
   const baseUrl = platformApiBaseUrl();
   if (next === "unreachable") {
     logger.warn(
-      `Platform API not reachable at ${baseUrl}; is the API server running? Its connection errors go uncaptured until it answers.`,
+      app.isPackaged
+        ? `Platform API not reachable at ${baseUrl}; its connection errors go uncaptured until it answers.`
+        : `Platform API not reachable at ${baseUrl}; is the API server running? Its connection errors go uncaptured until it answers.`,
     );
-    if (!probeTimer) {
-      probeTimer = setTimeout(() => void probe(), PROBE_INTERVAL);
+    failedProbes = 0;
+    scheduleProbe();
+  } else {
+    clearTimeout(probeTimer);
+    probeTimer = undefined;
+    failedProbes = 0;
+    if (previous === "unreachable") {
+      logger.info(`Platform API reachable again at ${baseUrl}`);
     }
-    return;
   }
-  if (previous === "unreachable") {
-    logger.info(`Platform API reachable again at ${baseUrl}`);
-    onReachableAgain?.();
-  }
+  onChange?.(next);
 }

@@ -71,8 +71,8 @@ interface PublisherEvents {
   // What the Claude Code CLI on this computer says about its sign-in changed.
   "claude-account.updated": null;
   "exceptions.updated": null;
-  // Whether the platform API answers changed (development builds only).
-  "platform-api.reachability.updated": null;
+  // The network status the window's corner shows changed.
+  "network.status.updated": null;
   // This computer settled on a connection for a model another computer chose.
   "model-routes.updated": null;
   "preferences.updated": null;

@@ -77,19 +77,6 @@ describe("screenPresentation", () => {
     ).toBe("Macintosh HD");
   });
 
-  it("tells the model the home folder as Home, never by the account name", () => {
-    const forModel = { ...CONTEXT, homeLabel: "Home" };
-    expect(screenPresentation("/files?path=&root=~", forModel).title).toBe(
-      "Home",
-    );
-    expect(
-      screenPresentation("/files?path=&root=%2FUsers%2Fsam", forModel).title,
-    ).toBe("Home");
-    expect(
-      screenPresentation("/files?path=Documents%2F&root=~", forModel).title,
-    ).toBe("Documents");
-  });
-
   it.each([
     ["a debug tool", "/debug/components", "Components"],
     ["a component page", "/debug/components/colors", "Colors"],

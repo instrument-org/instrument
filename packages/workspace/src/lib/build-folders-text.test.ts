@@ -1,5 +1,3 @@
-import os from "node:os";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { buildFoldersText } from "./build-folders-text";
@@ -83,21 +81,19 @@ describe("buildFoldersText", () => {
     `);
   });
 
-  it("keeps the user's account name out of a parent hint", () => {
+  // Read from the path alone, so the list says the same on any computer:
+  // the home folder is called by its own name like any other.
+  it("names a parent hint in the home folder by the folder's own name", () => {
     const text = buildFoldersText({
       folders: [
-        {
-          path: path.join(os.homedir(), "test"),
-        },
-        {
-          path: path.join(os.homedir(), "Documents", "test"),
-        },
+        { path: "/Users/sam/test" },
+        { path: "/Users/sam/Documents/test" },
       ],
       intro: INTRO,
     });
 
     const hints = listOf(text).map((line) => /\(in ([^)]*)\)/.exec(line)?.[1]);
-    expect(hints).toEqual(["Home", "Documents"]);
+    expect(hints).toEqual(["sam", "Documents"]);
   });
 
   // The list is written once for the life of a session, so it says nothing

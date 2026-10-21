@@ -1,5 +1,6 @@
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { folderLabel } from "./folder-parent-label";
+import { folderNameFromPath } from "@instrument-org/shared";
+
 import { systemNote } from "./system-note";
 import { shellPath } from "./workspace-fs-layout";
 
@@ -7,7 +8,7 @@ import { shellPath } from "./workspace-fs-layout";
  * What changed about the folders granted in the chat since the model last
  * looked.
  *
- * Each folder is named the way the user names it, with its path beside it
+ * Each folder is named by its own name, read from its path alone, with its path beside it
  * as the shell spelled it when the note was written; a note from before that
  * was kept is spelled for this computer.
  */
@@ -20,7 +21,7 @@ export function folderChangesModelNote(
     const added = data.added
       .map(
         (folder) =>
-          `- "${folderLabel(folder.path)}" at \`${folder.agentPath ?? shellPath(folder.path)}\``,
+          `- "${folderNameFromPath(folder.path)}" at \`${folder.agentPath ?? shellPath(folder.path)}\``,
       )
       .join("\n");
     lines.push(
@@ -32,7 +33,7 @@ export function folderChangesModelNote(
     const removed = data.removed
       .map(
         (folder) =>
-          `- "${folderLabel(folder.path)}" at \`${folder.agentPath ?? shellPath(folder.path)}\``,
+          `- "${folderNameFromPath(folder.path)}" at \`${folder.agentPath ?? shellPath(folder.path)}\``,
       )
       .join("\n");
     lines.push(

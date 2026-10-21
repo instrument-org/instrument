@@ -12,23 +12,12 @@
  */
 
 /**
- * What the home folder is called instead of what it is called on disk, which is
- * the account name. That name is real PII -- it reaches agent context, session
- * markdown exports, and shared task transcripts -- so the substitution holds
- * everywhere the model is told the folder: in what it reads and in the path it
- * reads it at. The screen names it by its own name, as the file manager does
- * ({@link displayHostPath}).
- */
-export const HOME_DIR_LABEL = "Home";
-
-/**
  * A path the way it reads on screen: in the home folder, from that folder's own
  * name (`sam/Documents`), which is what the file manager calls it on every
  * platform; anywhere else, as it is. Keeps the separators it was given.
  *
- * For the screen only. The folder's name is the account name, so what reaches
- * the model or an export spells the home folder `~` ({@link shortenHomePath})
- * or {@link HOME_DIR_LABEL} instead.
+ * For the screen only: what reaches the model names a folder from its path
+ * alone ({@link folderNameFromPath}), the same on every computer.
  */
 export function displayHostPath(
   filePath: string,
@@ -65,20 +54,6 @@ export function expandHomePath(
   return [homeDir.replace(windows ? /[/\\]+$/ : /\/+$/, ""), ...below].join(
     separator,
   );
-}
-
-/**
- * What a folder is called wherever it is named to the model. Its own name,
- * except the home folder. Given no home directory nothing is the home folder,
- * so every folder is called what it is called on disk.
- */
-export function folderLabelFromPath(
-  folderPath: string,
-  homeDir: string | undefined,
-): string {
-  return isHomeDir(folderPath, homeDir)
-    ? HOME_DIR_LABEL
-    : folderNameFromPath(folderPath);
 }
 
 /** What the user calls a folder: its own name, never any name we assigned it. */

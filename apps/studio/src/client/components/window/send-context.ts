@@ -3,7 +3,6 @@ import { type ScreenView, type WindowTab } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { type RPCOutput } from "@/client/rpc/client";
 import { type TabId } from "@/shared/tabs";
-import { HOME_DIR_LABEL } from "@instrument-org/shared";
 import {
   type SessionMessageDataPart,
   type ChatId,
@@ -114,7 +113,6 @@ export function contextReaders({
           title: screenPresentation(tab.href, {
             appsBySlug,
             chatTitles,
-            homeLabel: HOME_DIR_LABEL,
           }).title,
         };
       }

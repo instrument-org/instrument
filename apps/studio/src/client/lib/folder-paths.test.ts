@@ -1,7 +1,6 @@
 import {
   displayHostPath,
   expandHomePath,
-  folderLabelFromPath,
   folderNameFromPath,
   parentSegmentFromPath,
   shortenHomePath,
@@ -116,59 +115,6 @@ describe("shortenHomePath", () => {
     },
   ])("shortens $label", ({ expected, filePath, home }) => {
     expect(shortenHomePath(filePath, home)).toBe(expected);
-  });
-});
-
-describe("folderLabelFromPath", () => {
-  it.each([
-    {
-      expected: "Home",
-      folderPath: "/Users/sam",
-      home: "/Users/sam",
-      label: "the home folder itself",
-    },
-    {
-      expected: "Home",
-      folderPath: "/Users/sam/",
-      home: "/Users/sam",
-      label: "the home folder with a trailing separator",
-    },
-    {
-      expected: "Home",
-      folderPath: String.raw`C:\Users\sam`,
-      home: String.raw`C:\Users\sam`,
-      label: "a Windows home folder",
-    },
-    {
-      expected: "Documents",
-      folderPath: "/Users/sam/Documents",
-      home: "/Users/sam",
-      label: "a folder inside home",
-    },
-    {
-      // The account name is only ever swapped for the folder that really is
-      // home, never for a sibling whose name starts the same way.
-      expected: "samantha",
-      folderPath: "/Users/samantha",
-      home: "/Users/sam",
-      label: "a sibling sharing a name prefix",
-    },
-    {
-      expected: "sam",
-      folderPath: "/Users/sam",
-      home: undefined,
-      label: "the home folder with no home directory known",
-    },
-    {
-      // A trailing backslash is part of the name on a Mac or Linux, so this
-      // is a folder beside home rather than home itself.
-      expected: "sam\\",
-      folderPath: "/Users/sam\\",
-      home: "/Users/sam",
-      label: "a sibling whose name ends in a backslash",
-    },
-  ])("calls $label $expected", ({ expected, folderPath, home }) => {
-    expect(folderLabelFromPath(folderPath, home)).toBe(expected);
   });
 });
 

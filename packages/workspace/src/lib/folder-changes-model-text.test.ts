@@ -37,6 +37,15 @@ describe("folderChangesModelNote", () => {
     ).toContain('- "Projects" at `/c/Users/sam/Projects`');
   });
 
+  it("calls the home folder by its own name", () => {
+    expect(
+      folderChangesModelNote({
+        added: [{ agentPath: "/Users/sam", path: "/Users/sam" }],
+        removed: [],
+      }),
+    ).toContain('- "sam" at `/Users/sam`');
+  });
+
   it("describes removed folders", () => {
     expect(
       folderChangesModelNote({

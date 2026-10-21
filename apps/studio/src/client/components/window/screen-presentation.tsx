@@ -1,7 +1,6 @@
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
-import { expandHomePath, isHomeDir } from "@instrument-org/shared";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -37,11 +36,6 @@ export interface ScreenNames {
   >;
   /** Each chat's title by its id, for a tab standing on one; a chat not in it is a "Chat". */
   chatTitles?: Map<ChatId, string>;
-  /**
-   * What the home folder is called where it is not called by its own name,
-   * which is to the model: the folder's name is the account name.
-   */
-  homeLabel?: string;
   /** Each task's title by its id, for a tab standing on one; a task not in it is a "Task". */
   taskTitles?: Map<StoreId.Session, string>;
   /** The disks the sidebar lists, which name a folder tab at the top of one. */
@@ -116,7 +110,7 @@ export function screenLocation(
 /** What a screen tab is called and drawn with, read off its address. */
 export function screenPresentation(
   href: string,
-  { appsBySlug, chatTitles, homeLabel, taskTitles, volumes }: ScreenNames,
+  { appsBySlug, chatTitles, taskTitles, volumes }: ScreenNames,
 ): { icon: ReactNode; title: string } {
   const screen = matchScreen(href);
   switch (screen.kind) {
@@ -163,7 +157,7 @@ export function screenPresentation(
       }
       return {
         icon: <FolderMark path={folderPathOf(screen)} />,
-        title: folderTitle(screen, { homeLabel, volumes }),
+        title: folderTitle(screen, { volumes }),
       };
     }
     case "debug": {
@@ -241,7 +235,7 @@ function folderPathOf({ path, root }: ComputerTab) {
  */
 function folderTitle(
   tab: ComputerTab,
-  { homeLabel, volumes }: Pick<ScreenNames, "homeLabel" | "volumes">,
+  { volumes }: Pick<ScreenNames, "volumes">,
 ) {
   if (tab.root === RECENTS_ROOT) {
     return "Recents";
@@ -251,9 +245,6 @@ function folderTitle(
   }
   const home = window.api.homeDir;
   const path = folderPathOf(tab);
-  if (homeLabel !== undefined && isHomeDir(expandHomePath(path, home), home)) {
-    return homeLabel;
-  }
   const crumbs = locationCrumbs(
     { kind: "folder", path },
     { home, ...(volumes ? { volumes } : {}) },

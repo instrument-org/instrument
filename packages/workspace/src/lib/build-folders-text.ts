@@ -1,15 +1,19 @@
-import { APP_NAME } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  folderNameFromPath,
+  parentSegmentFromPath,
+} from "@instrument-org/shared";
 import { dedent } from "radashi";
 
 import { TOOL_NAMES } from "../tools/name";
 import { shellPath } from "./workspace-fs-layout";
-import { folderLabel, folderParentLabel } from "./folder-parent-label";
 
 /**
  * The list of folders the model reads: every folder the chat reaches.
  *
- * A folder is introduced by the name the user knows it by, taken from its path,
- * with its path beside it as an address rather than a label.
+ * A folder is introduced by its own name, the home folder's included, taken
+ * from its path alone so the list reads the same whichever computer reads
+ * it, with its path beside it as an address rather than a label.
  *
  * The parent appears only where two folders share a name, which is the only
  * case where the user needs it to tell them apart.
@@ -28,7 +32,7 @@ export function buildFoldersText({
   }[];
   intro: string;
 }) {
-  const displayNames = folders.map((folder) => folderLabel(folder.path));
+  const displayNames = folders.map((folder) => folderNameFromPath(folder.path));
   const nameCounts = new Map<string, number>();
   for (const name of displayNames) {
     nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
@@ -38,7 +42,9 @@ export function buildFoldersText({
     .map(({ missing, path }, index) => {
       const name = displayNames[index] ?? path;
       const parent =
-        (nameCounts.get(name) ?? 0) > 1 ? folderParentLabel(path) : undefined;
+        (nameCounts.get(name) ?? 0) > 1
+          ? parentSegmentFromPath(path)
+          : undefined;
       const where = parent ? ` (in ${parent})` : "";
       const state = missing ? " (no longer exists)" : "";
       return `- "${name}"${where} -> \`${shellPath(path)}\`${state}`;

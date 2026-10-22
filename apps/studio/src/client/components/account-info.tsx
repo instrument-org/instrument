@@ -1,4 +1,5 @@
 import { openLogin } from "@/client/atoms/login-modal";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { LogOutButton } from "@/client/components/log-out-button";
@@ -77,12 +78,13 @@ export function AccountInfo() {
                 />
                 <p className="text-base font-medium">Log in to {APP_NAME}</p>
                 <p className="max-w-96 text-sm text-muted-foreground">
-                  Create an account to start a free trial of {APP_NAME}&apos;s
-                  AI. Your plan, its limits, and billing will show up here.
+                  Your plan, usage and billing show up here once you log in.
                 </p>
                 <Button
                   onClick={() => {
-                    openLogin({ instrumentOnly: true });
+                    openLogin({ instrumentOnly: true }, () => {
+                      openSettings({ tab: "Account" });
+                    });
                   }}
                   variant="brand"
                 >

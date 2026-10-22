@@ -7,6 +7,7 @@ import { Card } from "@/client/components/ui/card";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { isTrialHeldBack, subscribedPlan } from "@/client/lib/billing";
+import { instrumentWayCopy } from "@/client/lib/connect-copy";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
@@ -24,6 +25,11 @@ export function InstrumentAccountCard() {
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
   const { data: user } = useLiveUser();
+  const { data: offer } = useQuery({
+    ...rpcClient.billing.offer.queryOptions(),
+    enabled: hasToken === false,
+  });
+  const way = instrumentWayCopy(offer);
 
   if (hasToken === undefined) {
     return null;
@@ -44,14 +50,12 @@ export function InstrumentAccountCard() {
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate font-medium text-foreground">
-              {APP_NAME} account
+              {hasToken ? `${APP_NAME} account` : way.title}
             </h3>
             {hasToken && <PlanBadge />}
           </div>
           <p className="truncate text-sm text-muted-foreground">
-            {hasToken
-              ? user?.email
-              : "Create an account to start a free trial, with no provider to set up."}
+            {hasToken ? user?.email : way.line}
           </p>
         </div>
         {hasToken ? (
@@ -68,11 +72,13 @@ export function InstrumentAccountCard() {
           <Button
             className="shrink-0"
             onClick={() => {
-              openLogin({ instrumentOnly: true });
+              openLogin({ instrumentOnly: true }, () => {
+                openSettings({ tab: "Providers" });
+              });
             }}
             variant="brand"
           >
-            Log in
+            {way.action}
           </Button>
         )}
       </div>

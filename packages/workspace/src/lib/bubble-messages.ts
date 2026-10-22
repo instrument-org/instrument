@@ -113,12 +113,19 @@ function isDataPart(
   return part.type.startsWith("data-");
 }
 
-/** The session's last message, while its agent is still writing it. */
+/**
+ * The session's last message, while its agent is still writing it. The
+ * context messages are passed over: a session's first request writes its
+ * baseline after the reply it is answering in was created, so they can come
+ * after the reply being written.
+ */
 function composingMessage(
   messages: readonly SessionMessage.WithParts[],
   isRunning: boolean,
 ): SessionMessage.WithParts | undefined {
-  const last = messages.at(-1);
+  const last = messages.findLast(
+    (message) => message.role !== "session-context",
+  );
   return isRunning &&
     last?.role === "assistant" &&
     last.metadata.finishedAt === undefined

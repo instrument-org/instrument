@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createSystemMessage } from "../agents/shared";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
@@ -239,6 +240,25 @@ describe("BubbleProjection", () => {
       removed: [],
     });
     expect(kinds(landed.feed.messages[1])).toEqual(["text"]);
+  });
+
+  // A session's first request creates its reply, then writes the baseline
+  // the request is sent with, so the baseline's messages come after it.
+  it("holds back the first reply of a session behind the baseline written after it", () => {
+    const asked = user("Count my files");
+    const writing = assistant([text("Count")], { finished: false });
+    const baseline = createSystemMessage({
+      agentName: "instrument",
+      now: at,
+      sessionId,
+      text: "You are Instrument.",
+    });
+    const { feed } = new BubbleProjection().update({
+      isRunning: true,
+      messages: [asked, writing, baseline],
+    });
+    expect(feed.drafting).toBe(true);
+    expect(kinds(feed.messages[1])).toEqual([]);
   });
 
   it("shows a reply whose run ended before it finished", () => {

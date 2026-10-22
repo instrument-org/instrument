@@ -27,6 +27,7 @@ export const BUNDLES = {
   "page-editor-preload": "page-editor",
   preload: "preload",
   renderer: "renderer",
+  "workspace-process": "workspace-process",
 } as const;
 
 export type BundleName = keyof typeof BUNDLES;

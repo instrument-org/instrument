@@ -1,6 +1,6 @@
 # Move the agent turn off the Electron main thread
 
-Status: **active.** The interpreter runs in a worker thread (below); the utility process is not started. Dropped pastes were traced elsewhere, to a status poll ([below](#what-a-dropped-paste-measured)). The problem is measured and traced in [the agent's filesystem work stalls the window](../../findings/agent-filesystem-work-stalls-the-window.md). The direction below is settled by a survey of what comparable apps do.
+Status: **active.** The interpreter runs in a worker thread (below). Steps 2 to 4 are built: the stall sampler runs by default, the workspace utility process starts only with `INSTRUMENT_WORKSPACE_PROCESS=1` and hosts nothing, and a test fails if the workspace package reaches Electron. The actor has not moved (step 5). The plan also covers several workspaces open at once and a command line ([below](#beyond-speed-several-workspaces-at-once-and-a-command-line)). Dropped pastes were traced elsewhere, to a status poll ([below](#what-a-dropped-paste-measured)). The problem is measured and traced in [the agent's filesystem work stalls the window](../../findings/agent-filesystem-work-stalls-the-window.md). The direction below is settled by a survey of what comparable apps do.
 
 ## Problem
 
@@ -84,17 +84,63 @@ A dictation tool that pastes and then restores the clipboard 60 ms later loses t
 
 Two consequences for this plan. The poll's cost follows the workspace into a utility process and half of it is on the renderer anyway, so the fix belongs in the reads, not the process split. And the stall sampler in step 2 is worth more than it looked: a `KeyboardEvent.timeStamp` probe cannot see this class of stall, since in Electron it is the renderer's receive time, so input latency has to be measured from outside the page or inferred from main's event-loop delay.
 
+## Beyond speed: several workspaces at once, and a command line
+
+The child process is also the line between the app and its back end, and two more goals depend on where it is drawn: more than one workspace open at once, each in its own window, and a command line that drives a workspace. Neither is built yet, but the boundary decisions above are made with both in mind, so the move does not have to be redone for them.
+
+### One child per workspace
+
+Electron's single-instance lock keeps one main process per `userData`. That main owns the windows, `workspaces.json` and the secret store, and runs one utility child per open workspace, named for it ("Instrument Workspace (<name>)"). The name shows in `app.getAppMetrics()` and comes back as `name` in `child-process-gone`; Activity Monitor shows the helper binary's name instead. A workspace crashing takes down its own child and window, never the others; main crashing takes down everything. None of the surveyed tools runs a process per project, so this is stricter than all of them, and it costs little here because workspaces share nothing on disk except the runtime folder.
+
+Switching workspaces is stopping one child and starting another. The window still closes and reopens, since each workspace has its own Chromium session. The live workspace switch is the first step: it gives a workspace an in-process close, opens main's stores once per workspace rather than once per process, and makes every reader look the running workspace up instead of capturing the one from launch. What is still a process singleton after it (the resolved workspace, the browser view manager, the per-workspace stores under `stores/workspace/`, the account refresh timers) becomes a map keyed by workspace before a second child can run.
+
+### One owner per workspace, found by its socket
+
+A chat's records are one append-only log per session per device, so two processes must never own the same workspace. The open mark (`markWorkspaceOpen` / `openElsewhereBy` in `workspaces.ts`) checks and then writes, so two launches can both pass it; `chooseLaunchDeviceId` covers that today by handing the second one a throwaway device.
+
+The child claims its workspace by binding a socket, which is how VS Code, JetBrains and Codex all take ownership. The bind succeeding makes it the owner. On `EADDRINUSE` the newcomer connects and says hello, and on `ECONNREFUSED` the socket is stale, so it is unlinked and the bind retried once. The socket lives in a short user-only temp folder (`<tmpdir>/instrument-<hash>/`, 0700, the socket 0600) or a named pipe on Windows, never under the machine folder, whose path is close to macOS's 104-byte socket limit. Once listening, the child writes `endpoint.json` (schema version, pid, instance id, build, protocol version, a random token, the endpoint) into the workspace's machine folder, through a temp file and a rename, and removes it only while it is still its own. It never goes in the workspace folder, which may sync to another computer, where a pid means nothing. The bind replaces the open mark as the authority. Dev instances share one `userData` and skip the singleton, so a second one on the same workspace meets the bind, and the choice between attaching, refusing and today's throwaway device is made when the socket lands.
+
+### The command line is another client
+
+`instrument` ships inside the app bundle, running the app's own binary with `ELECTRON_RUN_AS_NODE`, as VS Code's `code` does, so it always knows which `userData` it serves. It resolves a workspace from `--workspace`, else from the nearest `.instrument/` above the working directory, else the default, and reads its `endpoint.json`.
+
+- **The wire is oRPC over a WebSocket on the socket.** `@orpc/server/ws` and `ws` are already installed. The token is checked at the upgrade and a wrong one is refused there. It is the same oRPC the renderer uses over its port, through a router of its own (`cli`: hello, status, chats, send, a turn's event stream, stop, tasks, shutdown) rather than `workspaceRouter`, so its surface is versioned and window-only routes stay out of reach.
+- **The first call is `hello`,** returning the protocol version, build, workspace and capabilities. Once an update is staged, the command on disk is newer than the running app, so the client accepts the current version and the one before it, and otherwise tells the person to restart Instrument.
+- **A dropped client detaches; it does not cancel.** The cancel rule above, that connection death cancels everything in flight, applies to RPC calls. A turn belongs to the workspace, so a command line that exits or loses its connection leaves the turn running, and only an explicit `stop` ends it.
+- **Streams are a snapshot, then deltas.** The full-thread yields in "Out of scope" below become bytes on a socket here, so that fix comes before a follow mode ships.
+- **Nothing of the client's leaks into the workspace.** The working directory is passed as an argument, never the client's environment, and the token never reaches the environment a tool inherits.
+- **The command line never runs a tool itself.** Seatbelt, bubblewrap and the process-tree reaping stay in the child. The workspace HTTP server stays the agent's alone: the command line never uses it, since its gateway half is guarded only by the internal key.
+
+### Without the app
+
+By default, a command line that finds no owner starts the app with no window (`open -g -j` on macOS, a `--headless` flag elsewhere) and attaches once `endpoint.json` appears. Main keeps the secret store, the Mac bridge, trash, dialogs and a hidden renderer for the browser pool, so the workspace has everything it has with a window, and one permission identity. A later window launch arrives as `second-instance` and shows a window for the child already running. Concurrent invocations that each start the app are serialized by the single-instance lock.
+
+`--no-app` runs the same host entry as the utility child in plain Node, for CI, Linux servers and evals; the workspace package importing nothing from Electron is what makes that possible. Credentials come from environment variables or an in-memory store. Each main-only service (the browser, dialogs, trash, Mac apps, app sign-ins) gets an implementation that answers that it needs the app, behind the same interface the child proxies to main, rather than `if (headless)` branches. A shipped path never decrypts the app's `safeStorage` through `security`: once someone picks "Always Allow", every program that can run `security` holds the key. If the command line later needs credentials of its own, they go in a separate keychain item through a keyring binding, or a user-only file where there is no secret service. A plain-Node host started from a terminal runs under the terminal's macOS privacy grants, not Instrument's, so it can reach different folders than the app does, and the command line says so.
+
+When a window wants a workspace a `--no-app` host owns, main asks the host to shut down, waits a bounded time and claims the socket. It never proxies a window to a process it did not start, since the renderer's direct port only reaches main's own children.
+
+### Before building these
+
+These haven't been checked:
+- Whether `ws` connects to a `ws+unix:` address.
+- Whether a LaunchServices launch avoids the Keychain prompt that shell launches of the signed app raise.
+- How Windows pipe ACLs behave between elevated and normal processes. The token check is required there, not optional.
+
 ## Migration order
 
 Each step is meant to be shippable and reversible on its own.
 
+0. **The live workspace switch.** A workspace closes in process, main's stores open once per workspace, and readers look the running workspace up. Every later step relies on that lifecycle.
 1. **Mitigations, no process work.** Lower the two traversal budgets and the output ceiling in `create-bash-env.ts` first: a few lines, and it bounds both stall shapes at once. Then give the file walk the native treatment ripgrep already has, through the existing read-only host path seam and the obligations it carries; that removes the syscall storm and leaves the buffered pipeline result, so it is the larger job for the smaller share of the stall. Both are independent of everything below.
-2. **The stall sampler.** A heartbeat worker that reports main-thread stalls, so the rest of this plan can be measured rather than believed. It is also the regression test for step 1.
-3. **The transport, hosting nothing.** Fork a utility process, establish the port handshake, prove crash detection, bounded restart, and quit teardown against a child that does no real work. Behavior unchanged.
-4. **The build guard.** Fail the build if the workspace package or anything it pulls in imports Electron. Cheap now, and it protects every step after this one.
+2. **The stall sampler.** A heartbeat worker that reports main-thread stalls, so the rest of this plan can be measured rather than believed. It is also the regression test for step 1. Built (`electron-main/lib/stall-sampler/`): main bumps a `SharedArrayBuffer` counter every 250 ms, and the worker writes its own warning once main has been silent for a second, again each time the silence doubles, into the dev log or `main.log`. Main's own timer (`main-thread-stalls.ts`) still reports the whole stall, with the RPC calls that ran, once it ends. On by default, since an idle worker costs about 10 MB and no measurable CPU; `INSTRUMENT_STALL_SAMPLER=0` turns it off.
+3. **The transport, hosting nothing.** Fork a utility process, establish the port handshake, prove crash detection, bounded restart, and quit teardown against a child that does no real work. Behavior unchanged. Built (`electron-main/workspace-process/`), started only with `INSTRUMENT_WORKSPACE_PROCESS=1`: a `connect` over the parent port carries the child's end of a `MessageChannelMain` and a nonce the child answers `ready` with, then `hello` returns the protocol version, build, workspace, capabilities (none) and pid. A death is seen by the port closing, the exit, or `child-process-gone`; restarts back off from 500 ms, at most three a minute (`WORKSPACE_PROCESS_RESTART_LIMIT`), and `launch-failed`, `integrity-failure` and a protocol mismatch are not retried. Quit sends `shutdown`, waits two seconds, kills, and waits one more, beside the task teardown. The child also exits when its port closes, when main's pid is gone, or when no `connect` comes. It is built by a nested Vite build in the main config into `out/workspace-process/child.js`.
+4. **The build guard.** Fail the build if the workspace package or anything it pulls in imports Electron. Cheap now, and it protects every step after this one. Built as a unit test CI runs (`packages/workspace/src/no-electron.test.ts`): every source file of the package and of the monorepo packages it depends on, and every package in its runtime dependency closure, checked for `electron`, `electron-*` and `@electron/*`.
 5. **Move the actor, proxying every callback.** The bulk of the work. Renderer still talks to main, which forwards workspace calls to the child. Behind a setting, defaulted off, as the survey's migration pattern suggests.
 6. **Direct renderer port.** Give the renderer its own port to the child for the workspace router, removing the main hop from streaming.
 7. **Flip the default, then delete the old path.**
+8. **The socket claim.** The child binds its socket and writes `endpoint.json`, replacing the open mark as the owner check.
+9. **More than one workspace.** Main's remaining singletons become maps keyed by workspace, and a second window starts a second child.
+10. **The command line.** The `cli` router and `hello`, the snapshot-and-delta stream, then the bundled command: attaching first, starting the app windowless next, `--no-app` last.
 
 ## Out of scope, but do not lose
 
@@ -103,6 +149,12 @@ Every part update yields the complete sorted message array to the renderer, up t
 ## Traps found while scoping
 
 **Do not set the macOS `disclaim` option on the utility process.** It exists to make the child a separate entity for security policies including Transparency, Consent, and Control, which sounds right for a process that shells out. For us it is backwards: attached folders are reachable because of grants the app holds, and disclaiming would put the child outside them. Our existing permission errors on user folders are already this class of problem.
+
+**electron-vite's `?modulePath` import does not work with main's config.** Its sub-build reuses main's resolved config, where `build.lib` falls back to Vite's `es` plus `umd` formats, and with the formats pinned it returns an array of outputs its load hook cannot read. The child is built the way the page editor's guest files are, by a nested Vite build the main build starts.
+
+**`child-process-gone` reports the fork's `serviceName` as `name`.** Its `serviceName` is Chromium's, `node.mojom.NodeService` for every Node utility process, so matching on it finds nothing.
+
+**Killing main may end the child before its own watch does.** With main killed, the child was gone in under half a second, inside the child's one-second poll of main's pid, so Chromium tearing its children down may be what ended it. The watch stays as the backstop for when it does not.
 
 **A utility process cannot configure stdin.** Only stdout and stderr accept `pipe`, `inherit`, or `ignore`, and anything else for stdin is an error.
 

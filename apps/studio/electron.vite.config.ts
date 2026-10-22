@@ -154,6 +154,50 @@ function buildPageEditorGuest({
   };
 }
 
+/**
+ * The workspace utility process's entry (`src/electron-main/workspace-process/
+ * child.ts`), built beside main as one ES module in `out/workspace-process`,
+ * which main forks by path. Its own build rather than electron-vite's
+ * `?modulePath`, whose sub-build cannot take main's `build.lib` config.
+ * Registered on the main build, which every dev and build invocation runs.
+ */
+function buildWorkspaceProcessChild({
+  minify,
+  record,
+}: {
+  minify: boolean;
+  record: boolean;
+}): Plugin {
+  const root = path.dirname(fileURLToPath(import.meta.url));
+  return {
+    async buildStart() {
+      await viteBuild({
+        build: {
+          emptyOutDir: false,
+          lib: {
+            entry: path.join(
+              root,
+              "src/electron-main/workspace-process/child.ts",
+            ),
+            fileName: () => "child.js",
+            formats: ["es"],
+          },
+          minify,
+          outDir: path.join(root, "out/workspace-process"),
+          rollupOptions: { external: ["electron", /^node:/] },
+          sourcemap: minify,
+        },
+        configFile: false,
+        logLevel: "warn",
+        plugins: record ? [recordBundledPackages("workspace-process")] : [],
+        resolve,
+        root,
+      });
+    },
+    name: "workspace-process-child",
+  };
+}
+
 // `buildStart` fires on every watch rebuild, so re-copying ~11MB of WASM each
 // time is skipped when the destination already holds the current bytes. The
 // mtime has to match exactly rather than merely be newer: pnpm hard links from
@@ -402,6 +446,10 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         ...(command === "serve" ? [externalizeJustBashInDev()] : []),
         copyVendorAssets(),
         buildPageEditorGuest({ minify: isProduction, record: isProduction }),
+        buildWorkspaceProcessChild({
+          minify: isProduction,
+          record: isProduction,
+        }),
         ...(isProduction ? [recordBundledPackages("main")] : []),
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("main"),

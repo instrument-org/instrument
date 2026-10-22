@@ -49,6 +49,8 @@ const config: KnipConfig = {
         // Page editor guest: built by a nested Vite build in electron.vite.config.ts.
         "src/page-editor-guest/preload.ts!",
         "src/page-editor-guest/editor/index.ts!",
+        // Workspace utility process: built by a nested Vite build in electron.vite.config.ts.
+        "src/electron-main/workspace-process/child.ts!",
         "electron.vite.config.ts!",
         "src/index.html!",
         "electron-builder.ts!",

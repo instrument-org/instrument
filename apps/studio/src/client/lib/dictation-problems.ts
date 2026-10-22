@@ -74,6 +74,12 @@ function describeBillingRefusal(
     : { title: "Couldn't transcribe that" };
   const { action } = copy;
   const line = refusal ? copy.line : undefined;
+  // Billing's own title for this one names the models, and here it was
+  // dictation that was refused.
+  const title =
+    notice?.kind === "plan-required" && notice.reason === "trial-available"
+      ? "Start your free trial to use dictation."
+      : copy.title;
   return {
     action: action?.kind === "continue" ? (kept ? "retry" : undefined) : action,
     description: kept
@@ -82,7 +88,7 @@ function describeBillingRefusal(
           .join(" ")
       : line,
     keepsRecording: kept,
-    title: copy.title,
+    title,
     tone: "info",
   };
 }

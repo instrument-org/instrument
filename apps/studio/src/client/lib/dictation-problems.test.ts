@@ -146,7 +146,7 @@ describe("billing refusals", () => {
         "stream refused for a failed payment": "Your payment didn't go through. / Update your card to keep going. [update-card: Update card]",
         "take ended, billing silent": "You've reached your plan's limit for now. /  [upgrade: Upgrade]",
         "upload over the plan's limit": "You've reached your plan's limit for now. / It resets soon. Your recording is safe, so you can send it later. [upgrade: Upgrade]",
-        "upload with a trial to start": "Start your free trial to use Instrument's models. / Your recording is safe, so you can send it later. [start-trial: Start free trial]",
+        "upload with a trial to start": "Start your free trial to use dictation. / Your recording is safe, so you can send it later. [start-trial: Start free trial]",
         "upload with no plan": "Instrument needs a plan. / Your recording is safe, so you can send it later. [choose-plan: Choose a plan]",
       }
     `);

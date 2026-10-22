@@ -7,7 +7,6 @@ import {
 } from "@/client/components/setup/kit/setup-page";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { Button } from "@/client/components/ui/button";
-import { Spinner } from "@/client/components/ui/spinner";
 import { type ConnectResult } from "@/client/hooks/use-connect-flow";
 import { useConnectedPlans } from "@/client/hooks/use-connected-plans";
 import {
@@ -102,21 +101,27 @@ export function InstrumentLogInPage({
   );
 }
 
+/** A page a sign-in goes on to when it isn't done, with the account read for it. */
+export type AfterSignInPage = Exclude<
+  InstrumentSignInNext,
+  { kind: "finish" }
+> & { offer: Offer | undefined; status: Status | undefined };
+
 /**
- * What follows a Google sign-in in a dialog, once the account is read: done
- * for an account with a plan, a running trial, or AI of its own; billing's
- * next step for a payment that didn't go through or access that was
- * revoked; otherwise setup's plan pages.
- * `onBack` puts Back on the plans, for a dialog with a page to go back to;
- * without it they offer Not now.
+ * Reads the account after a Google sign-in in a dialog and says once where
+ * it goes: done for an account with a plan, a running trial, or AI of its
+ * own, which shows the signed-in toast and calls `onFinish`; otherwise
+ * `onNext` with billing's next step or setup's plan pages. It draws nothing,
+ * so the page the person signed in from stays up, at its size, while the
+ * account is read. Mount one per sign-in.
  */
-export function AfterInstrumentSignIn({
-  onBack,
+export function InstrumentSignInCheck({
   onFinish,
+  onNext,
   result,
 }: {
-  onBack?: () => void;
   onFinish: () => void;
+  onNext: (next: AfterSignInPage) => void;
   result: ConnectResult;
 }) {
   const { data: hasToken } = useQuery(
@@ -152,53 +157,60 @@ export function AfterInstrumentSignIn({
     );
   }
 
+  const told = useRef(false);
+  useEffect(() => {
+    if (next === undefined || told.current) {
+      return;
+    }
+    told.current = true;
+    if (next.kind === "finish") {
+      showConnectToast(result, "instrument");
+      onFinish();
+    } else {
+      onNext({ ...next, offer: offer.data, status: status.data });
+    }
+  }, [next, offer.data, onFinish, onNext, result, status.data]);
+  return null;
+}
+
+/**
+ * The page a sign-in goes on to when it isn't done: billing's next step for
+ * a payment that didn't go through or access that was revoked, otherwise
+ * setup's plan pages. `onBack` puts Back on the plans, for a dialog with a
+ * page to go back to; without it they offer Not now.
+ */
+export function AfterInstrumentSignIn({
+  next,
+  onBack,
+  onFinish,
+  result,
+}: {
+  next: AfterSignInPage;
+  onBack?: () => void;
+  onFinish: () => void;
+  result: ConnectResult;
+}) {
   const finishSignedIn = () => {
     showConnectToast(result, "instrument");
     onFinish();
   };
-  const finished = useRef(false);
-  useEffect(() => {
-    if (next?.kind === "finish" && !finished.current) {
-      finished.current = true;
-      showConnectToast(result, "instrument");
-      onFinish();
-    }
-  }, [next, onFinish, result]);
-
-  switch (next?.kind) {
-    case "plans": {
-      return (
-        <PlanPages
-          cardsFooter={
-            onBack
-              ? { onBack }
-              : { skip: { label: "Not now", onClick: finishSignedIn } }
-          }
-          onDone={onFinish}
-        />
-      );
-    }
-    case "notice": {
-      return (
-        <AccountNoticePage
-          notice={next.notice}
-          offer={offer.data}
-          onFinish={finishSignedIn}
-          status={status.data}
-        />
-      );
-    }
-    default: {
-      return (
-        <SetupPage
-          align="center"
-          fit="dialog"
-          hero={<Spinner className="size-5 text-muted-foreground" />}
-          title="Checking your account…"
-        />
-      );
-    }
-  }
+  return next.kind === "plans" ? (
+    <PlanPages
+      cardsFooter={
+        onBack
+          ? { onBack }
+          : { skip: { label: "Not now", onClick: finishSignedIn } }
+      }
+      onDone={onFinish}
+    />
+  ) : (
+    <AccountNoticePage
+      notice={next.notice}
+      offer={next.offer}
+      onFinish={finishSignedIn}
+      status={next.status}
+    />
+  );
 }
 
 /**

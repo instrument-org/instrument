@@ -1,11 +1,14 @@
 import { type RPCOutput } from "@/client/rpc/client";
 import { renderWithProviders } from "@/tests/render";
 import { screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   AfterInstrumentSignIn,
+  type AfterSignInPage,
   InstrumentLogInPage,
+  InstrumentSignInCheck,
   nextAfterInstrumentSignIn,
 } from "./instrument-log-in";
 
@@ -166,16 +169,36 @@ describe("AfterInstrumentSignIn", () => {
     toastSuccess.mockClear();
   });
 
+  const result = { outcome: { kind: "ready" } } as const;
+  // The log-in dialog's way: the page signed in from stays while the account
+  // is read, then either the dialog finishes or the next page replaces it.
+  function SignedIn({ onFinish }: { onFinish: () => void }) {
+    const [next, setNext] = useState<AfterSignInPage>();
+    return next ? (
+      <AfterInstrumentSignIn next={next} onFinish={onFinish} result={result} />
+    ) : (
+      <>
+        <InstrumentSignInCheck
+          onFinish={onFinish}
+          onNext={setNext}
+          result={result}
+        />
+        <p>Log-in page</p>
+      </>
+    );
+  }
   const renderAfter = () => {
     const onFinish = vi.fn();
-    renderWithProviders(
-      <AfterInstrumentSignIn
-        onFinish={onFinish}
-        result={{ outcome: { kind: "ready" } }}
-      />,
-    );
+    renderWithProviders(<SignedIn onFinish={onFinish} />);
     return onFinish;
   };
+
+  it("keeps the page signed in from up while the account is read", () => {
+    account.status = trialRunning;
+    renderAfter();
+    expect(screen.getByText("Log-in page")).toBeTruthy();
+    expect(screen.queryByText("Checking your account…")).toBeNull();
+  });
 
   it("finishes with the signed-in toast for an account with a trial running", async () => {
     account.status = trialRunning;

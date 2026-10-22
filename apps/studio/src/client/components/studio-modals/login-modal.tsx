@@ -7,7 +7,9 @@ import { FreeAccountPage } from "@/client/components/setup/steps/free-account";
 import { AddProviderSheet } from "@/client/components/studio-modals/add-provider-sheet";
 import {
   AfterInstrumentSignIn,
+  type AfterSignInPage,
   InstrumentLogInPage,
+  InstrumentSignInCheck,
   useHasOwnAI,
 } from "@/client/components/studio-modals/instrument-log-in";
 import { Button } from "@/client/components/ui/button";
@@ -108,7 +110,9 @@ function LoginModalContent({
     from: "log-in" | "sheet";
     result: ConnectResult;
   }>();
-  const isSheet = !instrumentOnly && signedIn === undefined;
+  // Where the sign-in goes once the account is read, when it isn't done.
+  const [next, setNext] = useState<AfterSignInPage>();
+  const isSheet = !instrumentOnly && next === undefined;
 
   return (
     <DialogContent
@@ -134,50 +138,88 @@ function LoginModalContent({
           </Button>
         </DialogClose>
       </div>
-      {signedIn ? (
+      {signedIn && next === undefined && (
+        <InstrumentSignInCheck
+          onFinish={onComplete}
+          onNext={setNext}
+          result={signedIn.result}
+        />
+      )}
+      {signedIn && next ? (
         <AfterInstrumentSignIn
+          next={next}
           onBack={
             signedIn.from === "sheet"
               ? () => {
                   setSignedIn(undefined);
+                  setNext(undefined);
                 }
               : undefined
           }
           onFinish={onComplete}
           result={signedIn.result}
         />
-      ) : freeAccount ? (
-        <FreeAccountPage
-          calledOut="Dictation"
-          fit="dialog"
-          footer={
-            <SetupFooter
-              next="none"
-              skip={{ label: "Not now", onClick: onDismiss }}
-            />
-          }
-          onSignedIn={(result) => {
-            onSignedIn();
-            setSignedIn({ from: "log-in", result });
-          }}
-        />
-      ) : instrumentOnly ? (
-        <InstrumentLogInPage
-          onSignedIn={(result) => {
-            onSignedIn();
-            setSignedIn({ from: "log-in", result });
-          }}
-        />
       ) : (
-        <AddProviderSheet
-          onComplete={onComplete}
-          onDone={onDismiss}
-          onInstrumentSignedIn={(result) => {
-            onSignedIn();
-            setSignedIn({ from: "sheet", result });
-          }}
-        />
+        // The page signed in from stays up, held still, while the account is
+        // read, so the dialog keeps its size until it closes or moves on.
+        <div className="contents" inert={signedIn !== undefined}>
+          <SignInFromPage
+            freeAccount={freeAccount}
+            instrumentOnly={instrumentOnly}
+            onComplete={onComplete}
+            onDismiss={onDismiss}
+            onSignedIn={(from, result) => {
+              onSignedIn();
+              setSignedIn({ from, result });
+            }}
+          />
+        </div>
       )}
     </DialogContent>
+  );
+}
+
+/** The page a dialog opens on, where a Google sign-in starts. */
+function SignInFromPage({
+  freeAccount,
+  instrumentOnly,
+  onComplete,
+  onDismiss,
+  onSignedIn,
+}: {
+  freeAccount: boolean;
+  instrumentOnly: boolean;
+  onComplete: () => void;
+  onDismiss: () => void;
+  onSignedIn: (from: "log-in" | "sheet", result: ConnectResult) => void;
+}) {
+  return freeAccount ? (
+    <FreeAccountPage
+      calledOut="Dictation"
+      fit="dialog"
+      footer={
+        <SetupFooter
+          next="none"
+          skip={{ label: "Not now", onClick: onDismiss }}
+        />
+      }
+      onSignedIn={(result) => {
+        onSignedIn("log-in", result);
+      }}
+    />
+  ) : instrumentOnly ? (
+    <InstrumentLogInPage
+      onSignedIn={(result) => {
+        onSignedIn("log-in", result);
+      }}
+    />
+  ) : (
+    <AddProviderSheet
+      onComplete={onComplete}
+      onDone={onDismiss}
+      onInstrumentSignedIn={(result) => {
+        onSignedIn("sheet", result);
+      }}
+    />
   );
 }

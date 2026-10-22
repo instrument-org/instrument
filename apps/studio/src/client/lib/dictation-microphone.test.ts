@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { pickableInputs, resolveMicrophone } from "./dictation-microphone";
+import {
+  microphoneNames,
+  pickableInputs,
+  resolveMicrophone,
+} from "./dictation-microphone";
 
 const devices = [
   { deviceId: "default", label: "Default - MacBook Pro Microphone" },
@@ -51,6 +55,30 @@ describe("resolveMicrophone", () => {
     expect(
       resolveMicrophone({ deviceId: "right", label: "USB Audio" }, twins),
     ).toEqual({ deviceId: "right", missing: false });
+  });
+});
+
+describe("microphoneNames", () => {
+  it("drops hardware ids and numbers names two devices share", () => {
+    expect([
+      ...microphoneNames([
+        { deviceId: "a", label: "MacBook Pro Microphone (Built-in)" },
+        { deviceId: "b", label: "Yeti Stereo Microphone (046d:0ab1)" },
+        { deviceId: "c", label: "AirPods Pro (Bluetooth)" },
+        { deviceId: "d", label: "USB Audio (0d8c:0014)" },
+        { deviceId: "e", label: "USB Audio (0d8c:0014)" },
+        { deviceId: "f", label: "Headset (a4-83-e7-1b-2c-3d)" },
+        { deviceId: "g", label: "" },
+      ]).values(),
+    ]).toEqual([
+      "MacBook Pro Microphone (Built-in)",
+      "Yeti Stereo Microphone",
+      "AirPods Pro (Bluetooth)",
+      "USB Audio",
+      "USB Audio 2",
+      "Headset",
+      "",
+    ]);
   });
 });
 

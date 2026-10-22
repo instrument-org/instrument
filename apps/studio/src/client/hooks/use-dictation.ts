@@ -8,7 +8,10 @@ import {
   upgradePlan,
 } from "@/client/lib/billing";
 import { MicCapture, MicrophoneError } from "@/client/lib/dictation-capture";
-import { resolveMicrophone } from "@/client/lib/dictation-microphone";
+import {
+  microphoneName,
+  resolveMicrophone,
+} from "@/client/lib/dictation-microphone";
 import {
   describeDictationProblem,
   type DictationBilling,
@@ -733,7 +736,7 @@ export function useDictation({
     const microphone = resolveMicrophone(chosen, devices);
     if (microphone.missing && chosen) {
       toast.info("Using the system default microphone", {
-        description: `“${chosen.label}” isn't connected right now.`,
+        description: `“${microphoneName(chosen.label)}” isn't connected right now.`,
         id: "dictation:microphone-missing",
       });
     }

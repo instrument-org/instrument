@@ -10,6 +10,8 @@ import {
 } from "@/client/components/ui/select";
 import { Switch } from "@/client/components/ui/switch";
 import {
+  microphoneName,
+  microphoneNames,
   pickableInputs,
   resolveMicrophone,
 } from "@/client/lib/dictation-microphone";
@@ -27,7 +29,10 @@ import { useEffect } from "react";
 const SYSTEM_DEFAULT = "system-default";
 const AUTO_DETECT = "auto-detect";
 
-/** The microphones the system lists right now, kept current as they come and go. */
+/**
+ * The microphones the system lists right now, kept current as they come and
+ * go; undefined until the first list is in.
+ */
 function useInputDevices() {
   const devices = useQuery({
     queryFn: async () =>
@@ -46,12 +51,13 @@ function useInputDevices() {
       navigator.mediaDevices.removeEventListener("devicechange", onChange);
     };
   }, [refetch]);
-  return devices.data ?? [];
+  return devices.data;
 }
 
 /**
  * Dictation's settings: which microphone it records from, which language it
- * listens for, whether it plays sounds, and on a Mac, whether macOS lets the app use the microphone.
+ * listens for, whether it plays sounds, and on a Mac that keeps the app from
+ * the microphone, where to change that.
  */
 export function DictationSettings() {
   const { data: preferences } = useQuery(
@@ -81,15 +87,20 @@ export function DictationSettings() {
   );
 
   const devices = useInputDevices();
-  const inputs = pickableInputs(devices);
+  const inputs = pickableInputs(devices ?? []);
+  const names = microphoneNames(inputs);
   const chosen = preferences?.dictationMicrophone;
-  const resolved = resolveMicrophone(chosen, devices);
+  // Until the system lists its devices, the one picked is taken as there, so
+  // opening Settings doesn't flash it as disconnected.
+  const resolved = devices
+    ? resolveMicrophone(chosen, devices)
+    : { deviceId: chosen?.deviceId, missing: false };
   const microphoneValue = chosen
     ? (resolved.deviceId ?? chosen.deviceId)
     : SYSTEM_DEFAULT;
   const microphoneLabel = chosen
-    ? (inputs.find((input) => input.deviceId === resolved.deviceId)?.label ??
-      chosen.label)
+    ? (resolved.deviceId && names.get(resolved.deviceId)) ||
+      microphoneName(chosen.label)
     : "System default";
   const language = preferences?.dictationLanguage;
   const languageLabel =
@@ -107,7 +118,7 @@ export function DictationSettings() {
             <Label htmlFor="dictation-microphone">Microphone</Label>
             <p className="text-xs text-muted-foreground">
               {resolved.missing && chosen
-                ? `“${chosen.label}” isn't connected, so dictation uses the system default for now.`
+                ? `“${microphoneName(chosen.label)}” isn't connected, so dictation uses the system default for now.`
                 : "Pick the microphone you dictate into."}
             </p>
           </div>
@@ -129,17 +140,19 @@ export function DictationSettings() {
               <SelectItem value={SYSTEM_DEFAULT}>System default</SelectItem>
               {inputs.map((input) => (
                 <SelectItem key={input.deviceId} value={input.deviceId}>
-                  {input.label || "Microphone"}
+                  {names.get(input.deviceId) || "Microphone"}
                 </SelectItem>
               ))}
               {chosen && resolved.missing && (
                 <SelectItem disabled value={chosen.deviceId}>
-                  {chosen.label} (not connected)
+                  {microphoneName(chosen.label)} (not connected)
                 </SelectItem>
               )}
             </SelectContent>
           </Select>
         </div>
+
+        {isMacOS() && <MicrophoneAccessRow />}
 
         <div
           className="flex items-start justify-between gap-4"
@@ -198,16 +211,16 @@ export function DictationSettings() {
             }}
           />
         </div>
-
-        {isMacOS() && <MicrophoneAccessRow />}
       </div>
     </Card>
   );
 }
 
 /**
- * What macOS says about the app and the microphone, read again whenever the
- * window takes focus, which is when someone comes back from System Settings.
+ * Where to undo a refusal, shown only while macOS keeps the app from the
+ * microphone, read again whenever the window takes focus, which is when
+ * someone comes back from System Settings. Until macOS has asked, there is no
+ * switch in System Settings to send anyone to, so nothing shows.
  */
 function MicrophoneAccessRow() {
   const access = useQuery(rpcClient.mac.microphone.status.queryOptions());
@@ -223,15 +236,13 @@ function MicrophoneAccessRow() {
   );
 
   const status = access.data;
-  if (status === undefined || status === "unsupported") {
+  if (status !== "denied" && status !== "restricted") {
     return null;
   }
   const detail = {
     denied:
       // oxlint-disable-next-line studio/no-os-words -- this row shows only on macOS
       "Microphone access is off in System Settings, so you can't dictate.",
-    granted: `${APP_NAME} can use the microphone.`,
-    "not-determined": "macOS asks the first time you dictate.",
     restricted:
       // oxlint-disable-next-line studio/no-os-words -- this row shows only on macOS
       "This Mac doesn't allow microphone access, so you can't dictate.",

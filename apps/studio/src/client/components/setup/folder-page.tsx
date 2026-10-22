@@ -81,8 +81,9 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   const target = picked ?? offered?.inDocuments;
   // A risky place (Documents itself, a temporary folder) is said under it,
   // and Continue can still go past it. On a first launch on a Mac, the
-  // folder suggested in Documents is looked at only on Continue, where the
-  // page has said the Mac will ask: looking sooner would ask at once.
+  // folder suggested in Documents is looked at only on Continue: a folder
+  // the app makes there needs no asking, and one already there makes the
+  // Mac ask, which should follow the person's press rather than the page.
   const looksOnContinue = isUnplaced && isMacOS() && picked === null;
   const { data: targetCheck } = useQuery(
     rpcClient.workspaces.checkFolder.queryOptions({
@@ -437,16 +438,6 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
                   />
                 )}
             </FolderLocation>
-            {isUnplaced &&
-              isMacOS() &&
-              lostFolder === null &&
-              shown === null &&
-              target === offered?.inDocuments && (
-                <p className="mt-3 px-4 text-center text-sm text-muted-foreground">
-                  {/* oxlint-disable-next-line studio/no-os-words -- shown only on macOS */}
-                  {`Your Mac will ask whether ${APP_NAME} can use your Documents folder. Choose Allow to keep your folder there.`}
-                </p>
-              )}
           </div>
         </SetupPage>
       )}

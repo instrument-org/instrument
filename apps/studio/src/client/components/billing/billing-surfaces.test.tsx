@@ -396,7 +396,7 @@ describe("Settings > Account", () => {
 
     expect(
       await screen.findByText(
-        `You've used your free web search and suggestions until ${periodEnd}.`,
+        `You've used your free web search, images and suggestions until ${periodEnd}.`,
       ),
     ).toBeDefined();
     expect(

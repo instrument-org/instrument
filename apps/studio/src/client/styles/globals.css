@@ -162,8 +162,8 @@ body {
   --color-setup-perk-search-ink: var(--setup-perk-search-ink);
   --color-setup-perk-dictation: var(--setup-perk-dictation);
   --color-setup-perk-dictation-ink: var(--setup-perk-dictation-ink);
-  --color-setup-perk-suggestions: var(--setup-perk-suggestions);
-  --color-setup-perk-suggestions-ink: var(--setup-perk-suggestions-ink);
+  --color-setup-perk-images: var(--setup-perk-images);
+  --color-setup-perk-images-ink: var(--setup-perk-images-ink);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
@@ -309,8 +309,8 @@ body {
   --setup-perk-search-ink: var(--foreground);
   --setup-perk-dictation: #c8ecef;
   --setup-perk-dictation-ink: var(--foreground);
-  --setup-perk-suggestions: #c5d8e8;
-  --setup-perk-suggestions-ink: var(--foreground);
+  --setup-perk-images: #f6e3cf;
+  --setup-perk-images-ink: var(--foreground);
   --background: var(--gray-50);
   --foreground: var(--gray-950);
   --card: #ffffff;
@@ -481,8 +481,8 @@ body {
   --setup-perk-search-ink: #c8fae5;
   --setup-perk-dictation: color-mix(in oklab, #3cc3cf 18%, transparent);
   --setup-perk-dictation-ink: #c8ecef;
-  --setup-perk-suggestions: color-mix(in oklab, #6c9fd0 22%, transparent);
-  --setup-perk-suggestions-ink: #c5d8e8;
+  --setup-perk-images: color-mix(in oklab, #e0a36a 20%, transparent);
+  --setup-perk-images-ink: #f6e3cf;
   --foreground: #ffffff;
   --card: var(--gray-800);
   --card-foreground: #ffffff;

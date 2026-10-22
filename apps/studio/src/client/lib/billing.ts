@@ -1027,8 +1027,8 @@ export function featurePause(
 }
 
 /**
- * The free allowance's decisions and search spent until a reset: when they
- * come back. Only for an account on the free allowance; a plan's own limits
+ * The free allowance's decisions, search and images spent until a reset:
+ * when they come back. Only for an account on the free allowance; a plan's own limits
  * are the usage notices'.
  */
 export function freeAllowancePause(status: Status | undefined, now: Date) {
@@ -1037,6 +1037,7 @@ export function freeAllowancePause(status: Status | undefined, now: Date) {
   }
   const paused = [
     featurePause(status, "search", now),
+    featurePause(status, "images", now),
     featurePause(status, "decisions", now),
   ].find((pause) => pause?.code === "usage-limit-exceeded");
   return paused && { resetsAt: paused.resetsAt };

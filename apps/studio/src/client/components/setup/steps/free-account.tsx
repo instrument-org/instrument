@@ -3,8 +3,8 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { GlobeSimpleIcon } from "@phosphor-icons/react/GlobeSimple";
+import { ImageIcon } from "@phosphor-icons/react/Image";
 import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
-import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { type ReactNode } from "react";
 
 import { SetupFooter, SetupPage } from "../kit/setup-page";
@@ -25,10 +25,10 @@ const PERKS: { icon: ReactNode; line: string; tint: string; title: string }[] =
       title: "Dictation",
     },
     {
-      icon: <SparkleIcon />,
-      line: "Topics for new chats, and search that finds a chat by what it's about",
-      tint: "bg-setup-perk-suggestions text-setup-perk-suggestions-ink",
-      title: "Smart suggestions",
+      icon: <ImageIcon />,
+      line: "Make images in any chat with ChatGPT's image generation",
+      tint: "bg-setup-perk-images text-setup-perk-images-ink",
+      title: "Images",
     },
   ];
 

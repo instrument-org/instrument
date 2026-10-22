@@ -332,8 +332,8 @@ function PlanGroup({ status }: { status: Status }) {
               <WarningIcon className="size-4 shrink-0 text-warning-700 dark:text-warning-300" />
               <p className="min-w-0 flex-1 text-sm">
                 {freePause.resetsAt
-                  ? `You've used your free web search and suggestions until ${describeDate(freePause.resetsAt, now)}.`
-                  : "You've used your free web search and suggestions for now."}
+                  ? `You've used your free web search, images and suggestions until ${describeDate(freePause.resetsAt, now)}.`
+                  : "You've used your free web search, images and suggestions for now."}
               </p>
               {actions}
             </div>

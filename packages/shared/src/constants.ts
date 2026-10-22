@@ -286,8 +286,9 @@ export const OUR_MODELS = {
   image: {
     // Should technically be a ProviderId, but that's defined in the ai-gateway package
     id: `${OUR_MODELS_GROUP_ID}/auto-image`,
-    // Friendly label for the auto-selected image model, shown in place of the id.
-    name: "Auto",
+    // What the image card calls Instrument's image model, under OpenAI's
+    // mark: the name people know it by.
+    name: "ChatGPT images",
   },
   prefix: OUR_MODELS_GROUP_ID,
   providerType: OUR_MODELS_GROUP_ID,

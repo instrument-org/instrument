@@ -1,9 +1,5 @@
 import { isRouterModel } from "@instrument-org/ai-gateway/client";
-import {
-  type AIProviderType,
-  APP_NAME,
-  OUR_MODELS,
-} from "@instrument-org/shared";
+import { type AIProviderType, OUR_MODELS } from "@instrument-org/shared";
 import {
   type SessionMessagePart,
   type ChatId,
@@ -161,8 +157,14 @@ export function ToolGenerateImage({
   const parameterTags = extractParameterTags(
     successOutput?.appliedParameters ?? part.input.parameters,
   );
-  const modelName = resolveImageModelName(successOutput?.modelId);
-  const modelProviderType = successOutput?.provider.type;
+  // Instrument's image model goes by the name and mark people know it by.
+  const isOurs = successOutput?.provider.type === OUR_MODELS.providerType;
+  const modelName = isOurs
+    ? OUR_MODELS.image.name
+    : resolveImageModelName(successOutput?.modelId);
+  const modelProviderType = isOurs ? "openai" : successOutput?.provider.type;
+  const isRouter =
+    isOurs || isRouterModel({ providerId: successOutput?.modelId ?? "" });
   // Our image model is an alias like the text one, so the pill names a setting
   // and the card behind it names what that setting picked.
   const servedModelName = resolveImageModelName(successOutput?.modelIdServed);
@@ -218,19 +220,13 @@ export function ToolGenerateImage({
             <div className="mb-2 flex flex-wrap gap-1">
               {modelName && (
                 <ModelChip
-                  chose={
-                    isRouterModel({ providerId: successOutput?.modelId ?? "" })
-                      ? servedModelName
-                      : undefined
+                  chose={isRouter ? servedModelName : undefined}
+                  displayName={
+                    isOurs ? undefined : successOutput?.provider.displayName
                   }
-                  displayName={successOutput?.provider.displayName}
                   name={modelName}
                   providerType={modelProviderType}
-                  replacedBy={
-                    isRouterModel({ providerId: successOutput?.modelId ?? "" })
-                      ? undefined
-                      : servedModelName
-                  }
+                  replacedBy={isRouter ? undefined : servedModelName}
                 />
               )}
               {parameterTags.map(({ label, value }) => (
@@ -282,11 +278,6 @@ export function ToolGenerateImage({
           capabilityLabel="image generation"
           errorMessage={failureOutput.errorMessage}
           onRetry={onRetry}
-          providerGuardDescription={
-            failureOutput.errorType === "no-image-model"
-              ? `Sign up for ${APP_NAME} or add an AI provider that supports image generation.`
-              : undefined
-          }
           responseBody={failureOutput.responseBody}
           retryMessage={`I added an image generation provider. Retry generating an image with "${prompt}"`}
         />
@@ -550,16 +541,12 @@ function PromptText({ prompt }: { prompt: string }) {
   );
 }
 
-// Our auto model persists its raw id; show its friendly name. Other providers'
-// ids are already meaningful once the provider prefix is dropped.
+// A provider's model id is meaningful once its provider prefix is dropped.
 function resolveImageModelName(
   modelId: string | undefined,
 ): string | undefined {
   if (!modelId) {
     return undefined;
-  }
-  if (modelId === OUR_MODELS.image.id) {
-    return OUR_MODELS.image.name;
   }
   return modelId.split("/").at(-1) ?? modelId;
 }

@@ -788,6 +788,24 @@ describe("the free allowance", () => {
     expect(freeAllowancePause(onFree(true), NOW)).toEqual({ resetsAt: RESET });
     expect(freeAllowancePause(onFree(), NOW)).toBeUndefined();
     expect(
+      freeAllowancePause(
+        {
+          ...onFree(),
+          features: {
+            decisions: { available: true },
+            models: { available: false, code: "subscription-required" },
+            search: { available: true },
+            images: {
+              available: false,
+              code: "usage-limit-exceeded",
+              resetsAt: RESET.toISOString(),
+            },
+          },
+        },
+        NOW,
+      ),
+    ).toEqual({ resetsAt: RESET });
+    expect(
       freeAllowancePause({ ...onFree(true), plan: "basic" }, NOW),
     ).toBeUndefined();
   });

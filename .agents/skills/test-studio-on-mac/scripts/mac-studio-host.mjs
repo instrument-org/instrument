@@ -8,6 +8,8 @@
 //   node mac-studio-host.mjs status --host <ssh-host>
 //   node mac-studio-host.mjs reset-vm --base <utm-vm> --vm <utm-vm> --host <ssh-host> [--dir <folder>]
 //
+// `--dir` defaults to $INSTRUMENT_VM_DIR, this computer's folder of base VMs.
+//
 // A preview carries its own bundle id, so macOS keeps its privacy answers
 // apart from the installed app's and every build is a first launch. It is
 // started with `open`, so the app is its own responsible process and its
@@ -73,7 +75,8 @@ async function main() {
       if (!base || !vm || !VM_PATTERN.test(base) || !VM_PATTERN.test(vm)) {
         fail("Pass --base <clean UTM VM> --vm <UTM VM to replace>.");
       }
-      return report(await resetVm(host, base, vm, takeFlag("--dir")));
+      const dir = takeFlag("--dir", process.env.INSTRUMENT_VM_DIR || undefined);
+      return report(await resetVm(host, base, vm, dir));
     }
     default:
       fail(
@@ -435,7 +438,7 @@ function checkBaseBundle(base, dir) {
   ).stdout.trim();
   if (!baseId || baseId !== bundleId)
     fail(
-      `${from} is not the bundle UTM has registered as ${base}. Pass --dir the folder holding ${base}.utm.`,
+      `${from} is not the bundle UTM has registered as ${base}. Pass --dir, or set INSTRUMENT_VM_DIR to, the folder holding ${base}.utm.`,
     );
 }
 

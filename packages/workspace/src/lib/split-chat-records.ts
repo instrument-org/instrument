@@ -19,6 +19,9 @@ import {
   removeEntrySync,
   removeIfEmptySync,
 } from "./move-entry";
+import { BLOBS_FOLDER_NAME } from "./records/blobs";
+import { DEVICE_ID_PATTERN } from "./records/device-id";
+import { COPY_SUFFIXES, parseRecordFileName } from "./records/file-names";
 import { rewriteStoredPaths } from "./rewrite-stored-paths";
 import { workspaceLayout } from "./workspace-layout";
 
@@ -46,13 +49,34 @@ const DB_FILE_SUFFIXES = ["-wal", "-shm", "-journal", ""];
  */
 const REBUILT_ENTRY_NAMES = new Set(["node_modules", ".venv", ".tmp"]);
 
-/** What a chat's record folder keeps; everything else in it is work. */
+/** What a chat's record folder keeps by name; see `isRecordEntry`. */
 const RECORD_ENTRY_NAMES = new Set([
+  BLOBS_FOLDER_NAME,
   CHAT_FOLDER_NAMES.attachments,
   HANDOFF_NOTES_FILE_NAME,
   SETTINGS_FILE_NAME,
   ...DB_FILE_SUFFIXES.map((suffix) => `${CHAT_DB_FILE_NAME}${suffix}`),
 ]);
+
+/** A device's `state.<device>.json`, or a sync engine's copy of one. */
+const STATE_FILE_NAME = new RegExp(
+  `^state\\.(?:${DEVICE_ID_PATTERN})${COPY_SUFFIXES}\\.json$`,
+);
+
+/**
+ * Whether an entry of a chat's record folder is a record, which stays:
+ * what a beta kept there, and the per-device logs, settings and state the
+ * chat-database converter writes there, which a sweep run again after one
+ * that left something behind finds beside the work it still has to move.
+ * Everything else is work.
+ */
+function isRecordEntry(name: string): boolean {
+  return (
+    RECORD_ENTRY_NAMES.has(name) ||
+    parseRecordFileName(name) !== undefined ||
+    STATE_FILE_NAME.test(name)
+  );
+}
 
 export interface ChatRecordsSplit {
   /** One line per chat that changed, and one per entry left or failed. */
@@ -307,7 +331,7 @@ function splitOne({
   }
 
   for (const entry of readEntries(recordDir)) {
-    if (RECORD_ENTRY_NAMES.has(entry) || entry === PRIVATE_FOLDER_NAME) {
+    if (isRecordEntry(entry) || entry === PRIVATE_FOLDER_NAME) {
       continue;
     }
     const from = path.join(recordDir, entry);

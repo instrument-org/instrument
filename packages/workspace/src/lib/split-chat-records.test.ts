@@ -220,6 +220,43 @@ describe("splitChatRecords", () => {
     expect(listing(workDir())).toEqual(work);
   });
 
+  // A sweep runs again after one that left anything behind, by then on the
+  // records the chat-database converter wrote after it.
+  it("keeps a chat's per-device records where they are on a later run", () => {
+    const dir = recordDir();
+    const device = "dev_YFNAGN1K";
+    write(path.join(dir, `ses_01M5GEV35W7KEE7NHBRHZSAWFM.${device}.jsonl`));
+    write(path.join(dir, `ses_01M5GEV35W7KEE7NHBRHZSAWFM.${device}.2.jsonl`));
+    write(path.join(dir, `ses_01M5GEV35W7KEE7NHBRHZSAWFM.${device} 2.jsonl`));
+    write(path.join(dir, `settings.${device}.jsonl`));
+    write(path.join(dir, `state.${device}.json`));
+    write(path.join(dir, "blobs", "sha256-aaf8.png"));
+    write(path.join(dir, "attachments", "a.png"));
+    write(path.join(dir, "handoff-notes.md"));
+    // Work an earlier sweep could not move, which this one finishes.
+    write(path.join(dir, "work", "report.md"));
+
+    split();
+
+    expect(listing(recordDir())).toMatchInlineSnapshot(`
+      [
+        "attachments/a.png",
+        "blobs/sha256-aaf8.png",
+        "handoff-notes.md",
+        "ses_01M5GEV35W7KEE7NHBRHZSAWFM.dev_YFNAGN1K 2.jsonl",
+        "ses_01M5GEV35W7KEE7NHBRHZSAWFM.dev_YFNAGN1K.2.jsonl",
+        "ses_01M5GEV35W7KEE7NHBRHZSAWFM.dev_YFNAGN1K.jsonl",
+        "settings.dev_YFNAGN1K.jsonl",
+        "state.dev_YFNAGN1K.json",
+      ]
+    `);
+    expect(listing(workDir())).toMatchInlineSnapshot(`
+      [
+        "work/report.md",
+      ]
+    `);
+  });
+
   it("leaves a chat the 1.x migration has not finished, under its dotted name", () => {
     const staged = path.join(
       workspaceLayout(workspace.path).chatsDir,

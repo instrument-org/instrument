@@ -18,7 +18,7 @@ The host is a macOS test machine, not anyone's working Mac: permission tests pla
 ## A run
 
 ```bash
-node "$MAC_HOST" reset-vm --base <clean-vm> --vm <run-vm> --host "$HOST"   # fresh clone, booted, SSH up
+node "$MAC_HOST" reset-vm --base <clean-vm> --vm <run-vm> --host "$HOST" [--dir <folder>]   # fresh clone, booted, SSH up
 node "$MAC_HOST" install-preview --host "$HOST" --run <run-id>              # into /Applications
 node "$MAC_HOST" start --host "$HOST" [--name <preview-name>]
 node "$MAC_HOST" tunnel --host "$HOST"                                     # prints its local port
@@ -27,7 +27,7 @@ node "$MAC_HOST" stop --host "$HOST"
 node "$MAC_HOST" status --host "$HOST"
 ```
 
-- `reset-vm` powers off the run VM, deletes it, clones the clean base (which must stay stopped) and boots the clone. A clone shares disk with its base until it changes, so it takes seconds. Every run after a reset is a first launch on a machine no earlier run touched: no privacy answers, no Instrument data, no leftovers.
+- `reset-vm` powers off the run VM, deletes it, clones the clean base (which must stay stopped) and boots the clone. A clone shares disk with its base until it changes, so it takes seconds, but only on the base's own volume: `utmctl clone` always writes into UTM's storage on the startup disk, so a base kept on an external drive comes back as a full copy of its disk image (about 30 GB) there. For a base outside UTM's storage, pass `--dir` the folder holding its `.utm` bundle: the clone is made beside it with `cp -c` and opened in UTM as a shortcut, and deleting it at the next reset removes it from that folder. Every run after a reset is a first launch on a machine no earlier run touched: no privacy answers, no Instrument data, no leftovers.
 - `install-preview` takes the run's `arm64-mac.zip` (cached locally by artifact id), unpacks it with `ditto` into `/Applications`, and reports its bundle id, signature and Gatekeeper verdict. Each preview has its own bundle id (`com.finalpoint.instrument.preview.<name>`), so macOS keeps its privacy answers apart from any other build's.
 - `start` launches with `open -n -g -a <app> --env DISABLE_AUTO_UPDATE_POLLING=true --args --remote-debugging-port=48183`. Through `open`, the app is its own responsible process, so privacy prompts name it; launched from a shell, they would name the shell or never appear.
 - `stop` sends SIGTERM to the app's main process, kills what is left after ten seconds, and kills whatever still holds the CDP port.

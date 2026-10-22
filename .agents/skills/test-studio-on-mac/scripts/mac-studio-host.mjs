@@ -6,7 +6,7 @@
 //   node mac-studio-host.mjs stop   --host <ssh-host>
 //   node mac-studio-host.mjs tunnel --host <ssh-host> [--local-port <port>]
 //   node mac-studio-host.mjs status --host <ssh-host>
-//   node mac-studio-host.mjs reset-vm --base <utm-vm> --vm <utm-vm> --host <ssh-host>
+//   node mac-studio-host.mjs reset-vm --base <utm-vm> --vm <utm-vm> --host <ssh-host> [--dir <folder>]
 //
 // A preview carries its own bundle id, so macOS keeps its privacy answers
 // apart from the installed app's and every build is a first launch. It is
@@ -14,7 +14,8 @@
 // privacy prompts name it rather than the shell that started it.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -72,7 +73,7 @@ async function main() {
       if (!base || !vm || !VM_PATTERN.test(base) || !VM_PATTERN.test(vm)) {
         fail("Pass --base <clean UTM VM> --vm <UTM VM to replace>.");
       }
-      return report(await resetVm(host, base, vm));
+      return report(await resetVm(host, base, vm, takeFlag("--dir")));
     }
     default:
       fail(
@@ -367,9 +368,12 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * Replaces a UTM VM with a fresh clone of a clean one, then starts it and
  * waits for SSH: every run that follows is a first launch on a machine no
  * earlier run touched. Runs on the Mac hosting UTM. The clone shares disk
- * with its base until it diverges, so this costs seconds and little space.
+ * with its base until it diverges, so this costs seconds and little space,
+ * as long as both are on one volume: `utmctl clone` always writes into
+ * UTM's own storage, so with `dir`, the folder holding the base's bundle,
+ * the clone is made beside it instead (`cloneBeside`).
  */
-async function resetVm(host, base, vm) {
+async function resetVm(host, base, vm, dir) {
   if (base === vm)
     fail(
       `--vm must name the clone, not the base: resetting ${vm} would delete the clean copy.`,
@@ -377,6 +381,7 @@ async function resetVm(host, base, vm) {
   await wakeUtm();
   if (vmStatus(base) !== "stopped")
     fail(`${base} must stay stopped; it is the clean copy.`);
+  if (dir) checkBaseBundle(base, dir);
   // The clone is thrown away, so it is powered off rather than shut down.
   if (vmStatus(vm) === "started") {
     utm("stop", vm, "--force");
@@ -393,9 +398,13 @@ async function resetVm(host, base, vm) {
         `UTM did not delete ${vm}. A UTM launched hidden ignores VM commands until its window has been shown once (utmapp/UTM#7949): open UTM from the Dock, then run this again.`,
       );
   }
-  const cloned = utm("clone", base, "--name", vm);
-  if (!cloned.ok || vmStatus(vm) !== "stopped")
-    fail(`Cloning ${base} failed: ${cloned.out}`);
+  if (dir) {
+    await cloneBeside(base, vm, dir);
+  } else {
+    const cloned = utm("clone", base, "--name", vm);
+    if (!cloned.ok || vmStatus(vm) !== "stopped")
+      fail(`Cloning ${base} failed: ${cloned.out}`);
+  }
   await startHidden(vm);
   for (let i = 0; i < 36; i++) {
     const probe = spawnSync(
@@ -410,6 +419,67 @@ async function resetVm(host, base, vm) {
     await sleep(5000);
   }
   fail(`${vm} started but ${host} did not answer SSH within three minutes.`);
+}
+
+/** Fails unless `dir` holds the bundle UTM has registered as `base`. */
+function checkBaseBundle(base, dir) {
+  const from = path.join(dir, `${base}.utm`);
+  const baseId = utm("list")
+    .out.split("\n")
+    .map((line) => /^(\S+)\s+\S+\s+(.+)$/u.exec(line.trim()))
+    .find((match) => match?.[2] === base)?.[1];
+  const bundleId = spawnSync(
+    "plutil",
+    ["-extract", "Information.UUID", "raw", path.join(from, "config.plist")],
+    { encoding: "utf8" },
+  ).stdout.trim();
+  if (!baseId || baseId !== bundleId)
+    fail(
+      `${from} is not the bundle UTM has registered as ${base}. Pass --dir the folder holding ${base}.utm.`,
+    );
+}
+
+/**
+ * Clones the base's bundle in `dir` to `<vm>.utm` beside it with `cp -c`, a
+ * copy-on-write clone on APFS, and registers it with UTM as a shortcut, as
+ * opening a bundle from outside UTM's storage does. It gets a UUID and name
+ * of its own, which is all `utmctl clone` changes in an Apple VM. A bundle
+ * left behind by a delete UTM could not reach is removed first.
+ */
+async function cloneBeside(base, vm, dir) {
+  const from = path.join(dir, `${base}.utm`);
+  const to = path.join(dir, `${vm}.utm`);
+  rmSync(to, { force: true, recursive: true });
+  const copied = spawnSync("cp", ["-c", "-R", from, to], { encoding: "utf8" });
+  if (copied.status !== 0) {
+    rmSync(to, { force: true, recursive: true });
+    fail(`Cloning ${from} failed: ${copied.stderr.trim()}`);
+  }
+  const config = path.join(to, "config.plist");
+  for (const [key, value] of [
+    ["Information.UUID", randomUUID().toUpperCase()],
+    ["Information.Name", vm],
+  ]) {
+    const set = spawnSync(
+      "plutil",
+      ["-replace", key, "-string", value, config],
+      {
+        encoding: "utf8",
+      },
+    );
+    if (set.status !== 0)
+      fail(`Could not set ${key} in ${config}: ${set.stderr.trim()}`);
+  }
+  hideUtm();
+  spawnSync("open", ["-g", "-a", "UTM", to]);
+  for (let i = 0; i < 20 && vmStatus(vm) !== "stopped"; i++) {
+    hideUtm();
+    await sleep(500);
+  }
+  if (vmStatus(vm) !== "stopped")
+    fail(
+      `UTM did not register ${to}. A UTM launched hidden ignores VM commands until its window has been shown once (utmapp/UTM#7949): open UTM from the Dock, then run this again.`,
+    );
 }
 
 /**

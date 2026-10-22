@@ -14,7 +14,8 @@ The facts (`SetupFacts`, `shared/setup.ts`):
 |---|---|
 | Usable AI | `getAllAIProviderConfigs()`, with each ChatGPT, Claude and Grok account checked again (`checkAccount`): an account the check calls ready or out of usage counts, one with no paid plan does not. Claude's status is waited on with a deadline, so a Claude-only person never flashes as new. |
 | Instrument account | `hasToken()`, then `billing.status` and `billing.offer` for the plan step |
-| Used before | the workspace has chats (`usedBefore()`) |
+| Has chats | the workspace has chats (`workspaceHasChats()`); the folder step's move copy keys on it |
+| Tested before | a chat in the workspace was started by a 2.0 beta (its own session's log header names the build) or came from 1.x or a `chat.db` (`workspaceTestedBefore()`); Welcome back keys on it |
 | Folder settled | `workspaces.folder()` is outside app data, pinned, or has a move recorded and waiting on a restart |
 | Notifications | `mac.notifications.status`; `unknown` and `unsupported` count as done, so the step can't trap |
 
@@ -24,7 +25,7 @@ The steps, in order (`SETUP_STEPS`):
 
 | Step | Needed while | Done by |
 |---|---|---|
-| `welcome-back` | used before, and setup never finished | answering it |
+| `welcome-back` | tested before, and setup never finished | answering it |
 | `way-in` | no usable AI | the fact (no answer is kept) |
 | `plan` | an Instrument account with no subscription and no running trial | answering it: a trial started, Checkout, the beta offer, or "Use it instead" |
 | `free-account` | usable AI and no Instrument account | answering it (Google or Not now) |

@@ -24,7 +24,7 @@ const NEEDED: Record<
   plan: (facts) => facts.hasInstrumentAccount && !facts.hasInstrumentPlan,
   "way-in": (facts) => !facts.hasUsableAI,
   "welcome-back": (facts, record) =>
-    facts.usedBefore && record.finishedAt === undefined,
+    facts.testedBefore && record.finishedAt === undefined,
 };
 
 /**

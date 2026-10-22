@@ -40,7 +40,7 @@ type Note = FoundNote | { kind: "denied" } | { kind: "unfinished" };
  */
 export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   const { data: folder } = useQuery(rpcClient.workspaces.folder.queryOptions());
-  const usedBefore = useSetupState()?.facts.usedBefore ?? false;
+  const hasChats = useSetupState()?.facts.hasChats ?? false;
   const [picked, setPicked] = useState<null | string>(null);
   const [note, setNote] = useState<Note | null>(null);
   const [busy, setBusy] = useState(false);
@@ -72,7 +72,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   // The chats a move would bring along, for a folder with things in it.
   const { data: currentSummary } = useQuery(
     rpcClient.workspaces.summary.queryOptions({
-      input: usedBefore && folder ? { path: folder.path } : skipToken,
+      input: hasChats && folder ? { path: folder.path } : skipToken,
     }),
   );
   const found =
@@ -173,7 +173,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
           return;
         }
         case "exists": {
-          const current = usedBefore
+          const current = hasChats
             ? await rpcClient.workspaces.summary.call({ path: folder.path })
             : null;
           setNote({
@@ -246,7 +246,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
       page={moving === null ? "folder" : "moving"}
     >
       {moving !== null ? (
-        <MovingPage how={moving} usedBefore={usedBefore} />
+        <MovingPage how={moving} hasChats={hasChats} />
       ) : (
         <SetupPage
           footer={
@@ -336,10 +336,10 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
  */
 function MovingPage({
   how,
-  usedBefore,
+  hasChats,
 }: {
   how: "move" | "open";
-  usedBefore: boolean;
+  hasChats: boolean;
 }) {
   return (
     <SetupPage
@@ -353,7 +353,7 @@ function MovingPage({
       title={
         how === "open"
           ? "Opening your folder"
-          : usedBefore
+          : hasChats
             ? "Moving your chats"
             : "Setting up your folder"
       }

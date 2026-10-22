@@ -14,6 +14,7 @@ import {
   readRegistry,
   workspaceHasChats,
 } from "@/electron-main/lib/workspaces";
+import { workspaceTestedBefore } from "@/electron-main/lib/tested-before";
 import { createSetupAccountAnswers } from "@/electron-main/lib/setup-account-answers";
 import {
   provideSetupFacts,
@@ -113,8 +114,31 @@ function readSetupFacts(): SetupFacts {
     hasUsableAI: accountAnswers.hasUsableAI(getAllAIProviderConfigs()),
     notificationsAskable:
       notifications === "not-asked" || notifications === "provisional",
-    usedBefore: workspaceHasChats(workspace.path),
+    hasChats: workspaceHasChats(workspace.path),
+    testedBefore: testedBefore(workspace),
   };
+}
+
+/**
+ * Whether a tester used the workspace, read once per workspace: no chat a
+ * process starts changes the answer, and the facts are read again on every
+ * sign-in change.
+ */
+const testedBeforeByPath = new Map<string, boolean>();
+
+function testedBefore(workspace: {
+  machineDir: string;
+  path: string;
+}): boolean {
+  let answer = testedBeforeByPath.get(workspace.path);
+  if (answer === undefined) {
+    answer = workspaceTestedBefore({
+      machineDir: workspace.machineDir,
+      workspacePath: workspace.path,
+    });
+    testedBeforeByPath.set(workspace.path, answer);
+  }
+  return answer;
 }
 
 /**

@@ -112,6 +112,8 @@ export {
   CHAT_FOLDER_NAMES,
   KEY_FOLDER_NAMES,
   type KeyFolderName,
+  LEGACY_TASK_DB_FILE_NAME,
+  TASKS_DIR_NAME,
 } from "./constants";
 export {
   type ChatConversion,

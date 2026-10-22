@@ -21,7 +21,8 @@ const NEW: SetupFacts = {
   hasUsableAI: false,
   isCheckingPlan: false,
   notificationsAskable: true,
-  usedBefore: false,
+  hasChats: false,
+  testedBefore: false,
 };
 
 const EMPTY: SetupRecord = { answered: {} };
@@ -95,7 +96,7 @@ describe("currentSetupStep", () => {
   it("walks a beta tester from Welcome back through the folder move", () => {
     expect(
       walk(
-        { ...NEW, hasUsableAI: true, usedBefore: true },
+        { ...NEW, hasUsableAI: true, hasChats: true, testedBefore: true },
         { folder: { folderSettled: true } },
       ),
     ).toMatchInlineSnapshot(`
@@ -168,19 +169,25 @@ describe("currentSetupStep", () => {
     ],
     [
       "a beta tester's first launch",
-      { hasUsableAI: true, usedBefore: true },
+      { hasUsableAI: true, hasChats: true, testedBefore: true },
       EMPTY,
       "welcome-back",
     ],
     [
+      "a release user's chats on a second computer",
+      { hasUsableAI: true, hasChats: true },
+      EMPTY,
+      "free-account",
+    ],
+    [
       "a beta tester who quit after Welcome back",
-      { hasUsableAI: true, usedBefore: true },
+      { hasUsableAI: true, hasChats: true, testedBefore: true },
       answered("welcome-back"),
       "free-account",
     ],
     [
       "a beta tester signed out of everything",
-      { usedBefore: true },
+      { hasChats: true, testedBefore: true },
       answered("welcome-back"),
       "way-in",
     ],
@@ -236,7 +243,7 @@ describe("after finishing", () => {
     ["everything as it was", { folderSettled: true, hasUsableAI: true }],
     ["signed out of everything", {}],
     ["folder back in app data", { hasUsableAI: true }],
-    ["used before", { usedBefore: true }],
+    ["tested before", { hasChats: true, testedBefore: true }],
     [
       "an Instrument account without a plan",
       { hasInstrumentAccount: true, hasUsableAI: true },
@@ -267,7 +274,7 @@ describe("after finishing", () => {
     const { "welcome-back": _added, ...older } = finished.answered;
     expect(
       currentSetupStep(
-        { ...NEW, usedBefore: true },
+        { ...NEW, hasChats: true, testedBefore: true },
         { ...finished, answered: older },
       ),
     ).toBeNull();
@@ -321,8 +328,9 @@ describe("a workspace setup opened or moved", () => {
   const OPENED: SetupFacts = {
     ...NEW,
     folderSettled: true,
+    hasChats: true,
     hasUsableAI: true,
-    usedBefore: true,
+    testedBefore: true,
   };
   const BEFORE_OPEN = answered("free-account", "model");
 
@@ -357,21 +365,22 @@ describe("setupStateFrom", () => {
   it("hides setup under SKIP_ONBOARDING without changing the facts", () => {
     expect(setupStateFrom({ facts: NEW, record: EMPTY, skip: true }))
       .toMatchInlineSnapshot(`
-      {
-        "back": null,
-        "facts": {
-          "folderSettled": false,
-          "hasInstrumentAccount": false,
-          "hasInstrumentPlan": false,
-          "hasUsableAI": false,
-          "isCheckingPlan": false,
-          "notificationsAskable": true,
-          "usedBefore": false,
-        },
-        "isNewStepOnly": false,
-        "step": null,
-      }
-    `);
+        {
+          "back": null,
+          "facts": {
+            "folderSettled": false,
+            "hasChats": false,
+            "hasInstrumentAccount": false,
+            "hasInstrumentPlan": false,
+            "hasUsableAI": false,
+            "isCheckingPlan": false,
+            "notificationsAskable": true,
+            "testedBefore": false,
+          },
+          "isNewStepOnly": false,
+          "step": null,
+        }
+      `);
     expect(
       setupStateFrom({ facts: NEW, record: EMPTY, skip: false }).step,
     ).toBe("way-in");

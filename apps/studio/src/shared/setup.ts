@@ -44,7 +44,12 @@ export interface SetupFacts {
    */
   isCheckingPlan: boolean;
   /** The workspace has chats. */
-  usedBefore: boolean;
+  hasChats: boolean;
+  /**
+   * A chat in the workspace was started by a 2.0 beta, or came from 1.x
+   * (`workspaceTestedBefore`), so setup thanks them for testing.
+   */
+  testedBefore: boolean;
   /**
    * The workspace is outside the app's data, pinned, or has a move recorded
    * that the next launch finishes.

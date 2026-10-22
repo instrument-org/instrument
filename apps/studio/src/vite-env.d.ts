@@ -78,6 +78,8 @@ declare namespace NodeJS {
       INSTRUMENT_PLATFORM_API: string | undefined;
       /** Build time only: names a preview build, inlined by electron.vite.config.ts. */
       INSTRUMENT_PREVIEW_NAME: string | undefined;
+      /** `0` leaves the main-thread stall sampler off. See lib/stall-sampler. */
+      INSTRUMENT_STALL_SAMPLER: string | undefined;
       /**
        * Pins this process to one workspace, by registered id or absolute path,
        * without changing which one the app opens next. See lib/workspaces.ts.

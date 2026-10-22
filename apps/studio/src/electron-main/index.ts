@@ -106,6 +106,7 @@ import { platformApiQueryClient } from "./platform-api/client";
 import { startPlatformApiReachability } from "./platform-api/reachability";
 import { initializeRPC } from "./rpc/initialize";
 import { watchMainThreadStalls } from "./lib/main-thread-stalls";
+import { startStallSampler } from "./lib/stall-sampler";
 
 // Dev skips the single-instance lock so multiple worktrees can boot side by
 // side. Packaged builds keep it so second launches (deep links) forward to
@@ -258,6 +259,11 @@ async function bootstrapPrimaryInstance() {
       }
     }
   }
+
+  // After the move prompt above, whose synchronous dialog holds main for as
+  // long as it is open, and before the rest of the launch, which is where a
+  // hang at boot has been found before.
+  startStallSampler();
 
   await timeBootStep("waitForPreviousDevInstance", waitForPreviousDevInstance);
 

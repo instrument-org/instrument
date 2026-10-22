@@ -108,11 +108,6 @@ export const GITHUB_ORG = "instrument-org";
 export const APP_REPO_URL = `https://github.com/${GITHUB_ORG}/${APP_REPO_NAME}`;
 export const APP_DOMAIN = "tryinstrument.com";
 export const APP_URL = `https://${APP_DOMAIN}`;
-// Bug reports are filed as discussions in the triage category, not as issues.
-// The category is deep-linked rather than routed through the chooser so a
-// report started from inside the app cannot land in a category that never asks
-// for the version, platform, and model it needs.
-export const BUG_REPORT_URL = `${APP_REPO_URL}/discussions/new?category=issue-triage`;
 export const RELEASE_NOTES_URL = `${APP_REPO_URL}/releases`;
 // What Settings › Permissions links to on Windows, where programs the agent
 // runs are not yet held to the list. Kept to this one constant so the link

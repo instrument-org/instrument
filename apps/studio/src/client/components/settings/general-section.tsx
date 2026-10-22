@@ -1,4 +1,5 @@
 import { displayLocale } from "@/client/lib/display-locale";
+import { openReportDialog } from "@/client/atoms/report-dialog";
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import {
@@ -38,6 +39,7 @@ import {
 import { useAppTabs } from "@/client/components/window/app-tabs";
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import { cn, isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -50,7 +52,6 @@ import {
   APP_FLAVOR,
   APP_NAME,
   APP_REPO_URL,
-  BUG_REPORT_URL,
   MANUAL_DOWNLOAD_URL,
 } from "@instrument-org/shared";
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
@@ -383,11 +384,14 @@ function About() {
                   <ArrowSquareOutIcon className="size-3.5" />
                 </ExternalLink>
               </Button>
-              <Button asChild size="sm" variant="outline">
-                <ExternalLink href={BUG_REPORT_URL}>
-                  Report a bug
-                  <ArrowSquareOutIcon className="size-3.5" />
-                </ExternalLink>
+              <Button
+                onClick={() => {
+                  openReportDialog(feedbackReport({ surface: "settings" }));
+                }}
+                size="sm"
+                variant="outline"
+              >
+                Send feedback
               </Button>
               <Button
                 disabled={openLicensesMutation.isPending}

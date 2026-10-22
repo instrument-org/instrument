@@ -259,10 +259,10 @@ export const SETTINGS_INDEX = [
     title: "View source on GitHub",
   },
   {
-    id: "report-bug",
+    id: "send-feedback",
     mark: "open-source",
     tab: "General",
-    title: "Report a bug",
+    title: "Send feedback",
   },
   {
     id: "third-party-licenses",

@@ -3,7 +3,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { resolveAccelerator } from "@/shared/shortcuts";
 import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
-import { APP_URL, BUG_REPORT_URL, SUPPORT_URL } from "@instrument-org/shared";
+import { APP_URL, SUPPORT_URL } from "@instrument-org/shared";
 import { app, type MenuItemConstructorOptions } from "electron";
 
 import { shortcutMenuItem } from "./shortcuts";
@@ -74,8 +74,9 @@ export function createEditMenu(): MenuItemConstructorOptions {
 
 /**
  * `shortcutGuide` opens the keyboard shortcut guide and `reportProblem` the
- * report dialog, which only the app window draws; a window without them
- * leaves the guide out and links to the public tracker for a bug.
+ * report dialog, which only the app window draws once setup is done; a
+ * window without them leaves the guide out and sends feedback to the
+ * website's support page.
  */
 export function createHelpMenu({
   reportProblem,
@@ -102,22 +103,16 @@ export function createHelpMenu({
         },
         label: "Learn More",
       },
-      {
-        click: () => {
-          void openExternal(SUPPORT_URL);
-        },
-        label: "Share Feedback",
-      },
-      // The app window answers a report itself, with the log and versions
-      // the person can read before sending; a window without one sends
-      // people to the public tracker.
+      // The app window answers feedback itself, with the log and versions
+      // the person can read before sending; a window without the dialog
+      // sends people to the website's support page.
       reportProblem
         ? { click: reportProblem, label: "Send Feedback…" }
         : {
             click: () => {
-              void openExternal(BUG_REPORT_URL);
+              void openExternal(SUPPORT_URL);
             },
-            label: "Report a Bug",
+            label: "Send Feedback",
           },
     ],
   };

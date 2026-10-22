@@ -11,12 +11,15 @@ import { type PageMotion, usePageMotion } from "./setup-page-switch";
  * serif title and a gray line under it, the page's own content, and the
  * footer at the window's foot. The body scrolls on its own when the window
  * is zoomed past what fits, and the footer stays put. Inside a
- * `SetupPageSwitch` the body slides in and out as setup moves.
+ * `SetupPageSwitch` the body slides in and out as setup moves. In a dialog
+ * (`fit="dialog"`) the page leaves out the window's band and takes the
+ * dialog's narrower gutters.
  */
 export function SetupPage({
   align = "top",
   children,
   className,
+  fit = "window",
   footer,
   hero,
   subtitle,
@@ -26,6 +29,8 @@ export function SetupPage({
   align?: "center" | "top";
   children?: ReactNode;
   className?: string;
+  /** `window` fills setup's window, under its band; `dialog` sits in a dialog. */
+  fit?: "dialog" | "window";
   /** A `SetupFooter`, or nothing for a page with no footer (Welcome back). */
   footer?: ReactNode;
   /** What sits over the title: an illustration, the app icon, a brand tile. */
@@ -39,7 +44,10 @@ export function SetupPage({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-17"
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-y-auto",
+          fit === "dialog" ? "px-10" : "px-17",
+        )}
         data-page-motion={motion === arrived ? undefined : motion}
         onAnimationEnd={(event) => {
           if (
@@ -51,11 +59,16 @@ export function SetupPage({
         }}
       >
         {/* Clear of the window's band, which lies over the page. */}
-        <div className="shrink-0" style={{ height: `${TOOLBAR_HEIGHT}px` }} />
+        {fit === "window" && (
+          <div className="shrink-0" style={{ height: `${TOOLBAR_HEIGHT}px` }} />
+        )}
         <div
           className={cn(
-            "flex flex-1 shrink-0 flex-col items-center pb-6",
-            align === "center" ? "justify-center-safe" : "pt-11",
+            "flex flex-1 shrink-0 flex-col items-center",
+            fit === "dialog" ? "pt-12 pb-4" : "pb-6",
+            align === "center"
+              ? "justify-center-safe"
+              : fit === "window" && "pt-11",
             className,
           )}
         >

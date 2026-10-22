@@ -99,7 +99,7 @@ export function ChatTasksPopover({
         className={cn(
           "p-1",
           shown
-            ? "flex h-[min(70vh,40rem)] w-[min(40rem,90vw)] flex-col"
+            ? "flex h-[min(calc(70vh/var(--content-zoom)),40rem)] w-[min(40rem,calc(90vw/var(--content-zoom)))] flex-col"
             : "w-80",
         )}
       >

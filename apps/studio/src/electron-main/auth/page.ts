@@ -364,11 +364,11 @@ export function renderAuthPage(
           .auth-serif {
             font-family: "Roboto Serif", ui-serif, Georgia, serif;
           }
-          /* brandGradient light: --brand-100 → --brown-50 */
+          /* The brand gradient, light: --brand-100 → --brown-50 */
           html {
             background: linear-gradient(180deg, #c5d5d0 0%, #fcfbf8 100%);
           }
-          /* brandGradient dark: color-mix(--brand-700 50%, --background) → --background */
+          /* The brand gradient, dark: color-mix(--brand-700 50%, --background) → --background */
           @media (prefers-color-scheme: dark) {
             html {
               background: linear-gradient(

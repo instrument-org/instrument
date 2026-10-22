@@ -2,12 +2,11 @@ import { studioModalAtom } from "@/client/atoms/studio-modal";
 import { getDefaultStore } from "jotai";
 
 export interface LoginModalProps {
-  // Offer only the Instrument account login: no ChatGPT, Claude, or manual
-  // provider, for callers that mean signing in to Instrument itself.
-  // Otherwise the Add a provider sheet opens, with Instrument's free trial
-  // in it while signed out.
+  // The plain Instrument log-in page, for callers that mean signing in to
+  // Instrument itself. Otherwise the Add a provider sheet opens, with
+  // Instrument's free trial in it while signed out.
   instrumentOnly?: boolean;
-  // Why it opened: `dictation` says that signing in is what dictation needs.
+  // Why it opened: `dictation` is a press of the mic while signed out.
   reason?: "dictation";
 }
 

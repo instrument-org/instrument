@@ -19,6 +19,10 @@ import {
   type ConnectResult,
 } from "@/client/hooks/use-connect-flow";
 import {
+  type PlanProvider,
+  useConnectedPlans,
+} from "@/client/hooks/use-connected-plans";
+import {
   CONNECT_NAMES,
   CONNECT_PLANS,
   connectPageCopy,
@@ -43,8 +47,6 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
-type PlanProvider = Exclude<ConnectProvider, "instrument">;
-
 const PLAN_PROVIDERS: PlanProvider[] = ["chatgpt", "claude", "grok"];
 
 type View =
@@ -60,18 +62,22 @@ type View =
  * Each plan connects right in its row, through the same flow as setup; an
  * answer other than ready takes the sheet over, in setup's words, with the
  * other ways in beside it and a way to try again. Signed out of Instrument,
- * its free trial is offered too. Once one connects, or a key is added, the
- * sheet asks for the main model the way setup does, which is where the
- * default for new chats changes.
+ * its free trial is offered too, and its Google sign-in hands the account
+ * to what comes next (`onInstrumentSignedIn`). Once a plan connects, or a
+ * key is added, the sheet asks for the main model the way setup does, which
+ * is where the default for new chats changes.
  */
 export function AddProviderSheet({
   onComplete,
   onDone,
+  onInstrumentSignedIn,
 }: {
   /** A way in connected, or a key was added. */
   onComplete: () => void;
   /** Closed without adding one. */
   onDone: () => void;
+  /** Signed in to Instrument with Google. */
+  onInstrumentSignedIn: (result: ConnectResult) => void;
 }) {
   const flows = {
     chatgpt: useChatGPTConnect(),
@@ -79,7 +85,7 @@ export function AddProviderSheet({
     grok: useGrokConnect(),
     instrument: useInstrumentConnect(),
   };
-  const connected = useConnected();
+  const connected = useConnectedPlans();
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
@@ -91,6 +97,10 @@ export function AddProviderSheet({
   const settle = (provider: ConnectProvider, result: ConnectResult) => {
     const { outcome } = result;
     if (outcome.kind === "canceled") {
+      return;
+    }
+    if (outcome.kind === "ready" && provider === "instrument") {
+      onInstrumentSignedIn(result);
       return;
     }
     if (outcome.kind === "ready") {
@@ -116,7 +126,7 @@ export function AddProviderSheet({
 
   const rowFor = (provider: ConnectProvider, title?: string) => (
     <ConnectRow
-      connected={provider !== "instrument" && connected[provider]}
+      connected={provider !== "instrument" && (connected?.[provider] ?? false)}
       flow={flows[provider]}
       key={provider}
       onCancel={flows[provider].cancel}
@@ -361,7 +371,7 @@ function ConnectRow({
             variant={isTrial ? "default" : "outline"}
             waiting={flow.waiting}
           >
-            {isTrial ? instrument.action : "Continue"}
+            Continue
           </BrowserHandoffButton>
         )}
       </div>
@@ -438,25 +448,4 @@ function waitingLineFor(
       return "Finish signing in with Google in your browser";
     }
   }
-}
-
-/** Which plans are signed in and usable now, from each account's own status. */
-function useConnected(): Record<PlanProvider, boolean> {
-  const { data: chatgpt } = useQuery(
-    rpcClient.chatgptAccount.live.status.experimental_liveOptions(),
-  );
-  const { data: claude } = useQuery(
-    rpcClient.claudeAccount.live.status.experimental_liveOptions(),
-  );
-  const { data: grok } = useQuery(
-    rpcClient.grokAccount.live.status.experimental_liveOptions(),
-  );
-  return {
-    chatgpt:
-      chatgpt?.accounts.some((account) => account.state === "signed-in") ??
-      false,
-    claude: claude?.kind === "signed-in",
-    grok:
-      grok?.accounts.some((account) => account.state === "signed-in") ?? false,
-  };
 }

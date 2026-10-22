@@ -1,5 +1,6 @@
 import { planSheetAtom } from "@/client/atoms/plan-sheet";
 import { useChatNote } from "@/client/components/billing/chat-note";
+import { PlanPages } from "@/client/components/billing/plan-pages";
 import { PlanSheet } from "@/client/components/billing/plan-sheet";
 import { PlanNeeded } from "@/client/components/model-picker";
 import { AccountSection } from "@/client/components/settings/account-section";
@@ -133,10 +134,27 @@ const surfaces = [
     label: "Add a provider",
     render: () => (
       <div className="w-140 rounded-2xl border border-border bg-background">
-        <AddProviderSheet onComplete={noop} onDone={noop} />
+        <AddProviderSheet
+          onComplete={noop}
+          onDone={noop}
+          onInstrumentSignedIn={noop}
+        />
       </div>
     ),
     signedIn: false,
+  },
+  {
+    id: "log-in-plans",
+    label: "Log in: plans",
+    render: () => (
+      <div className="flex w-190 flex-col rounded-2xl border border-border bg-background">
+        <PlanPages
+          cardsFooter={{ skip: { label: "Not now", onClick: noop } }}
+          onDone={noop}
+        />
+      </div>
+    ),
+    signedIn: true,
   },
 ] as const satisfies readonly {
   id: string;

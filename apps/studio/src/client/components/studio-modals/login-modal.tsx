@@ -2,11 +2,11 @@ import {
   loginModalAtom,
   type LoginModalProps,
 } from "@/client/atoms/login-modal";
-import {
-  type ProviderSetupPage,
-  ProviderSetupScreen,
-} from "@/client/components/onboarding/provider-setup-screen";
 import { AddProviderSheet } from "@/client/components/studio-modals/add-provider-sheet";
+import {
+  AfterInstrumentSignIn,
+  InstrumentLogInPage,
+} from "@/client/components/studio-modals/instrument-log-in";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -15,19 +15,17 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { useModalBack } from "@/client/hooks/use-modal-back";
+import { type ConnectResult } from "@/client/hooks/use-connect-flow";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
-import { showConnectToast } from "@/client/lib/connect-toast";
-import { SHARED } from "@/client/lib/styles";
-import { cn } from "@/client/lib/utils";
-import { APP_NAME } from "@instrument-org/shared";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtom } from "jotai";
 import { useState } from "react";
 
 /**
  * App-wide login / add-provider modal, mounted once at the window root: the
- * Add a provider sheet, or, for callers that mean Instrument itself, its
- * Google sign-in.
+ * Add a provider sheet, or, for callers that mean Instrument itself, the
+ * plain log-in page. A Google sign-in from either goes on to what the
+ * account needs next (`AfterInstrumentSignIn`).
  * Reads `loginModalAtom` (opened via `openLogin`); traps tab navigation while
  * open. Finishing the flow fires the caller's `onCompleted`; dismissing does not.
  */
@@ -83,19 +81,19 @@ function LoginModalContent({
   onExitComplete: () => void;
   props?: LoginModalProps;
 }) {
-  const [page, setPage] = useState<ProviderSetupPage>("welcome");
   const instrumentOnly = props?.instrumentOnly === true;
+  // Signed in to Instrument with Google here, and from which page.
+  const [signedIn, setSignedIn] = useState<{
+    from: "log-in" | "sheet";
+    result: ConnectResult;
+  }>();
+  const isSheet = !instrumentOnly && signedIn === undefined;
 
   return (
     <DialogContent
       aria-describedby={undefined}
-      className={cn(
-        `w-full gap-0 overflow-hidden border-0 p-0 shadow-2xl outline-none
-        focus:outline-none focus-visible:outline-none`,
-        instrumentOnly && page === "welcome" && "h-[640px]",
-        instrumentOnly ? SHARED.brandGradient : "bg-background",
-      )}
-      maxWidth={instrumentOnly ? "472px" : "560px"}
+      className="flex w-full flex-col gap-0 overflow-hidden bg-background p-0 shadow-2xl outline-none focus:outline-none focus-visible:outline-none"
+      maxWidth={isSheet ? "560px" : "760px"}
       onExitComplete={onExitComplete}
       // Radix auto-focuses the first focusable element on open, painting a
       // focus ring the user never asked for. Prevent it (the focus trap still
@@ -103,8 +101,6 @@ function LoginModalContent({
       onOpenAutoFocus={(event) => {
         event.preventDefault();
       }}
-      // The login dialog uses an outlined close button (not the default subtle
-      // icon) that reads better against its gradient card.
       showCloseButton={false}
     >
       <DialogTitle className="sr-only">
@@ -117,27 +113,32 @@ function LoginModalContent({
           </Button>
         </DialogClose>
       </div>
-      {instrumentOnly ? (
-        <ProviderSetupScreen
-          heading={
-            props?.reason === "dictation"
-              ? {
-                  subtitle: `Dictation comes with an ${APP_NAME} account.`,
-                  title: "Log in to dictate",
+      {signedIn ? (
+        <AfterInstrumentSignIn
+          onBack={
+            signedIn.from === "sheet"
+              ? () => {
+                  setSignedIn(undefined);
                 }
               : undefined
           }
-          instrumentOnly
-          onContinue={onComplete}
-          onLoginSuccess={(result) => {
-            showConnectToast(result, "instrument");
-            onComplete();
+          onFinish={onComplete}
+          result={signedIn.result}
+        />
+      ) : instrumentOnly ? (
+        <InstrumentLogInPage
+          onSignedIn={(result) => {
+            setSignedIn({ from: "log-in", result });
           }}
-          onPageChange={setPage}
-          page={page}
         />
       ) : (
-        <AddProviderSheet onComplete={onComplete} onDone={onDismiss} />
+        <AddProviderSheet
+          onComplete={onComplete}
+          onDone={onDismiss}
+          onInstrumentSignedIn={(result) => {
+            setSignedIn({ from: "sheet", result });
+          }}
+        />
       )}
     </DialogContent>
   );

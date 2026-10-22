@@ -17,8 +17,6 @@ const config: KnipConfig = {
     "registry/**/*",
     ".agents/skills/**/*",
     ".agents/wireframe-kit/*.js",
-    // Kept for setup's look step, which has no page of its own yet.
-    "apps/studio/src/client/components/onboarding/theme-screen.tsx",
   ],
   // Namespace members are exported for organization (see AGENTS.md), not always
   // consumed cross-file. knip 5 did not check them; keep that scope under knip 6.

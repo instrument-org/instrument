@@ -401,7 +401,7 @@ function refusal(error: unknown): string {
       error.statusCode === 429 &&
       NO_ALLOWANCE_PATTERN.test(`${error.message}\n${detail}`)
     ) {
-      return "the Grok account has no Grok subscription, so xAI allows it no requests. It needs SuperGrok or X Premium+; [Grok account](instrument://settings/grok-account) in Settings shows its plan.";
+      return "the Grok account has no Grok subscription, so xAI allows it no requests. It needs an eligible paid plan with Grok API access; [Grok account](instrument://settings/grok-account) in Settings shows its plan.";
     }
     if (error.statusCode === 429) {
       return `the Grok account hit its usage limit; try again later. xAI said: ${detail}`;

@@ -2,7 +2,10 @@ import { AddProviderForm } from "@/client/components/add-provider/form";
 import { BrandMark } from "@/client/components/brand-mark";
 import { ConnectButton } from "@/client/components/connect-button";
 import { type ConnectResult } from "@/client/hooks/use-connect-flow";
-import { instrumentWayCopy } from "@/client/lib/connect-copy";
+import {
+  GROK_CONNECT_COPY,
+  instrumentWayCopy,
+} from "@/client/lib/connect-copy";
 import { OnboardingScreen } from "@/client/components/onboarding/screen";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { rpcClient } from "@/client/rpc/client";
@@ -168,7 +171,7 @@ export function ProviderSetupScreen({
 
               {shows("grok") && (
                 <ConnectButton
-                  caption="Pay for SuperGrok or X Premium+? Use it here."
+                  caption={GROK_CONNECT_COPY.caption}
                   className="w-full justify-center"
                   onResult={landed}
                   onWaitingChange={holdingChange("grok")}

@@ -17,7 +17,7 @@ export type ConnectOutcome =
   /**
    * Signed in, and the plan can't be used here: a free plan, one that ended,
    * or a work account that turns off other apps (ChatGPT reports these the
-   * same way), or a Grok account without SuperGrok or X Premium+.
+   * same way), or a Grok account without an eligible paid plan.
    */
   | { kind: "no-plan"; plan?: string }
   /** Signed in, and the plan hit its limit; usage comes back at `resetsAt`. */

@@ -18,6 +18,12 @@ import { describeWhen } from "./billing";
  * reads as `failed` or `timed-out`.
  */
 
+/** Grok connection copy shared by setup, provider settings, and sign-in results. */
+export const GROK_CONNECT_COPY = {
+  caption: "Use your eligible Grok or X subscription here.",
+  requirement: "Your plan needs to include Grok API access.",
+};
+
 /** What each way in is called. */
 export const CONNECT_NAMES: Record<ConnectProvider, string> = {
   chatgpt: "ChatGPT",
@@ -36,7 +42,7 @@ export const CONNECT_PLANS: Record<
 > = {
   chatgpt: "Plus, Pro or another paid plan",
   claude: "Pro, Max or another paid plan",
-  grok: "SuperGrok or X Premium+. Pay through X? Sign in with your X account.",
+  grok: GROK_CONNECT_COPY.requirement,
 };
 
 interface Context {
@@ -287,7 +293,7 @@ function noPlanReason(provider: ConnectProvider) {
   // Grok's plan can be paid through X, which counts only once the X
   // account is linked to the xAI account that signed in.
   return provider === "grok"
-    ? `${APP_NAME} works with SuperGrok or X Premium+. If you pay through X, link your X account at accounts.x.ai.`
+    ? `${GROK_CONNECT_COPY.requirement} If you pay through X, link your X account at accounts.x.ai.`
     : `${APP_NAME} only works with paid ${CONNECT_NAMES[provider]} plans.`;
 }
 

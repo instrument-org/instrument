@@ -76,7 +76,7 @@ describe("planAccountStop", () => {
       }),
     },
     {
-      line: "I couldn't start on this. Grok says this account doesn't have SuperGrok or X Premium+.",
+      line: "I couldn't start on this. Grok says this account doesn't have an eligible paid plan.",
       name: "a Grok account with no plan",
       note: "Your Grok account doesn't have a paid plan.",
       turn: stoppedTurn({ classification: "auth", provider: "grok-account" }),

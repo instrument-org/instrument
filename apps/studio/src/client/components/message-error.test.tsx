@@ -290,7 +290,7 @@ describe("MessageError", () => {
 
     expect(
       screen.getByText(
-        "I couldn't start on this. Grok says this account doesn't have SuperGrok or X Premium+.",
+        "I couldn't start on this. Grok says this account doesn't have an eligible paid plan.",
       ),
     ).not.toBeNull();
     expect(screen.queryByRole("button")).toBeNull();

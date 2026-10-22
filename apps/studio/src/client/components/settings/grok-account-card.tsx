@@ -1,3 +1,4 @@
+import { GROK_CONNECT_COPY } from "@/client/lib/connect-copy";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
@@ -85,9 +86,7 @@ export function GrokAccountCard() {
     },
   });
   const addAnother = (
-    <DropdownMenuItem
-      onSelect={continueWithGrok}
-    >
+    <DropdownMenuItem onSelect={continueWithGrok}>
       Add another account
     </DropdownMenuItem>
   );
@@ -140,7 +139,7 @@ export function GrokAccountCard() {
               ) : (
                 accounts.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    Pay for SuperGrok or X Premium+? Use it here.
+                    {GROK_CONNECT_COPY.caption}
                   </p>
                 )
               )}
@@ -249,8 +248,8 @@ function AccountLine({ account, off }: { account: Account; off: boolean }) {
       </span>
       {account.state === "no-subscription" && (
         <span className="text-xs">
-          This account doesn’t have a Grok plan. You need SuperGrok or X
-          Premium+ to use it here.
+          This account doesn’t have a paid Grok plan.{" "}
+          {GROK_CONNECT_COPY.requirement}
         </span>
       )}
     </span>

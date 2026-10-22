@@ -24,7 +24,7 @@ const CONNECT_PROVIDER = {
  * the plan rather than the request: its usage ran out (with when it comes
  * back, where the provider says), or the account cannot be used here: no paid
  * plan, a plan that lapsed, a workspace that does not allow other apps, or a
- * Grok account without SuperGrok or X Premium+.
+ * Grok account without an eligible paid plan.
  */
 export type PlanAccountStop =
   | { kind: "not-eligible"; provider: PlanAccountProvider }
@@ -174,7 +174,7 @@ export function planAccountStopLine(stop: PlanAccountStop, stoppedAt: Date) {
   const name = planAccountName(stop.provider);
   if (stop.kind === "not-eligible") {
     return stop.provider === "grok-account"
-      ? "I couldn't start on this. Grok says this account doesn't have SuperGrok or X Premium+."
+      ? "I couldn't start on this. Grok says this account doesn't have an eligible paid plan."
       : `I couldn't start on this. ${name} says this account can't be used in other apps without a paid plan.`;
   }
   return stop.resetsAt

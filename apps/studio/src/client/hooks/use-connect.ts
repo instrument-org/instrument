@@ -145,7 +145,7 @@ export function useClaudeConnect() {
 /**
  * Signing in with Grok through xAI's device code: `userCode` is the code the
  * browser page asks for, while it waits. xAI names the plan at sign-in, so an
- * account without SuperGrok or X Premium+ answers at once.
+ * account without an eligible paid plan answers at once.
  */
 export function useGrokConnect() {
   const flow = useConnectFlow<void>({

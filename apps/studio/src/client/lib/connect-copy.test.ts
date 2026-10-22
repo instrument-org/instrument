@@ -1,4 +1,7 @@
-import { type ConnectOutcome, type ConnectProvider } from "@/shared/connect-outcome";
+import {
+  type ConnectOutcome,
+  type ConnectProvider,
+} from "@/shared/connect-outcome";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -53,10 +56,17 @@ describe("connectPageCopy", () => {
   });
 
   it("never names network trouble, and says nothing for a cancel", () => {
-    for (const provider of ["chatgpt", "claude", "grok", "instrument"] as const) {
+    for (const provider of [
+      "chatgpt",
+      "claude",
+      "grok",
+      "instrument",
+    ] as const) {
       const pages = Object.values(table(provider)).filter(Boolean);
       expect(
-        pages.some((page) => /offline|network|connection/i.test(JSON.stringify(page))),
+        pages.some((page) =>
+          /offline|network|connection/i.test(JSON.stringify(page)),
+        ),
       ).toBe(false);
       expect(table(provider).canceled).toBeUndefined();
     }
@@ -75,7 +85,7 @@ describe("connectPageCopy", () => {
           "title": "Couldn't sign in to Grok",
         },
         "no-plan": {
-          "subtitle": "Instrument works with SuperGrok or X Premium+. If you pay through X, link your X account at accounts.x.ai. Upgrade and try again, or pick another way in.",
+          "subtitle": "Your plan needs to include Grok API access. If you pay through X, link your X account at accounts.x.ai. Upgrade and try again, or pick another way in.",
           "title": "Your Grok account doesn't have a paid plan",
         },
         "out-of-usage": {
@@ -119,7 +129,9 @@ describe("connectNote", () => {
       ["chatgpt", { kind: "failed", message: "x" }],
     ] satisfies ["chatgpt" | "claude" | "grok", ConnectOutcome][];
     expect(
-      cases.map(([provider, outcome]) => connectNote(outcome, provider, { now })),
+      cases.map(([provider, outcome]) =>
+        connectNote(outcome, provider, { now }),
+      ),
     ).toMatchInlineSnapshot(`
       [
         "Your Grok account doesn't have a paid plan.",

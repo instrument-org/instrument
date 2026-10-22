@@ -233,7 +233,7 @@ async function checkClaude({ signal }: Parameters<Check>[0]) {
 
 /**
  * xAI names the account's subscription when asked, so Grok answers without
- * spending a request: no SuperGrok or X Premium+ is `no-plan`. A failed ask
+ * spending a request: no paid Grok plan is `no-plan`. A failed ask
  * leaves the last answer, read here.
  */
 async function checkGrok({ accountId, signal }: Parameters<Check>[0]) {

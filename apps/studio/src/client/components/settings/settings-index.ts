@@ -1,3 +1,4 @@
+import { GROK_CONNECT_COPY } from "@/client/lib/connect-copy";
 import { type SettingsTab } from "@/client/atoms/settings-modal";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { APP_NAME } from "@instrument-org/shared";
@@ -178,7 +179,7 @@ export const SETTINGS_INDEX = [
     title: "Claude account",
   },
   {
-    detail: "Use your SuperGrok or X Premium+ plan.",
+    detail: GROK_CONNECT_COPY.caption,
     id: "grok-account",
     tab: "Providers",
     title: "Grok account",

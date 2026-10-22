@@ -121,9 +121,11 @@ async function main() {
     const packageJson = await readPackage();
 
     const currentVersion = packageJson.version;
-    const newVersion = isBeta
-      ? getNextBetaVersion(currentVersion, releaseType)
-      : semver.inc(currentVersion, releaseType);
+    const newVersion =
+      chosenVersion() ??
+      (isBeta
+        ? getNextBetaVersion(currentVersion, releaseType)
+        : semver.inc(currentVersion, releaseType));
 
     if (!newVersion) {
       throw new Error(`Failed to increment version from ${currentVersion}`);
@@ -164,6 +166,25 @@ async function main() {
     console.error("Error during release:", error);
     process.exit(1);
   }
+}
+
+/**
+ * The exact version named by `--version`, for a release that skips ahead of
+ * the next number (a milestone beta). It must still be greater than the
+ * package's version, which the caller checks.
+ */
+function chosenVersion(): string | undefined {
+  const index = process.argv.indexOf("--version");
+  if (index === -1) {
+    return undefined;
+  }
+  const version = semver.valid(process.argv[index + 1] ?? "");
+  if (!version) {
+    throw new Error(
+      `--version needs a valid version, got ${String(process.argv[index + 1])}`,
+    );
+  }
+  return version;
 }
 
 /**

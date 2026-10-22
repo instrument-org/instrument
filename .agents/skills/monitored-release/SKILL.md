@@ -18,6 +18,8 @@ Run from `apps/studio`:
 | `pnpm tag:release:patch`      | stable patch                        |
 | `pnpm tag:release:minor`      | stable minor                        |
 
+Add `--version <x.y.z[-beta.n]>` to any of them to tag that exact version instead of the next one, for a release that skips ahead (a milestone beta). It must be greater than `apps/studio/package.json`'s version.
+
 **A stable release rewrites every channel's update file.** `generateUpdatesFilesForAllChannels` is on, so publishing a stable build rewrites `beta.yml` and `alpha.yml` alongside `latest.yml`. A stable and a beta cannot be in flight together. Sequence them and let the first finish before tagging the second.
 
 ## Before you tag

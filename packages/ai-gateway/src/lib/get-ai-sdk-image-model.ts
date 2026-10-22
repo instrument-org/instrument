@@ -26,11 +26,13 @@ import {
   filterImageGenerationConfigs,
   type ImageGenerationProviderType,
 } from "./providers/metadata";
-import { selectProviderConfigs } from "./select-provider-configs";
 
-const PROVIDER_TYPE_PRIORITY: ImageGenerationProviderType[] = [
-  // Ordered by quality as of 2026-01-30
-  OUR_MODELS.providerType,
+/**
+ * The person's own image providers, in the order a chat falls back on them
+ * when its own provider makes no images: ordered by quality as of
+ * 2026-01-30. Instrument's comes after every one of them.
+ */
+const OWN_PROVIDER_TYPE_PRIORITY: ImageGenerationProviderType[] = [
   "openrouter",
   "google",
   "openai",
@@ -49,51 +51,26 @@ export type AISDKImageModelResult =
   | { model: ImageModelV4; type: "image" }
   | { model: LanguageModelV4; type: "language" };
 
-export async function getImageModel({
-  callingModel,
-  configs,
+type ImageProviderConfig = AIGatewayProviderConfig.Type & {
+  type: ImageGenerationProviderType;
+};
+
+/** The image model one provider config makes images with, ready to call. */
+export async function getImageModelFor({
+  config,
   workspaceServerURL,
 }: {
-  callingModel: AIGatewayModel.Type;
-  configs: AIGatewayProviderConfig.Type[];
+  config: ImageProviderConfig;
   workspaceServerURL: WorkspaceServerURL;
 }) {
-  const preferredProviderConfig = configs.find(
-    (c) => c.id === callingModel.params.providerConfigId,
-  );
-
-  if (!preferredProviderConfig) {
-    return Result.error(
-      new TypedError.NotFound("No AI provider found for current model"),
-    );
-  }
-
-  const configsToTry = selectImageProviderConfigs({ callingModel, configs });
-
-  if (configsToTry.length === 0) {
-    return Result.error(
-      new TypedError.NotFound(
-        "No provider with image generation support found",
-      ),
-    );
-  }
-
-  for (const config of configsToTry) {
-    const result = await getAISDKImageModel({ config, workspaceServerURL });
-    if (result.ok) {
-      return Result.ok({ ...result.value, config });
-    }
-  }
-
-  return Result.error(
-    new TypedError.NotFound("No provider with image generation support found"),
-  );
+  const result = await getAISDKImageModel({ config, workspaceServerURL });
+  return result.map((model) => ({ ...model, config }));
 }
 
 // Human-readable description of the parameters the selected image model
 // supports, for the agent's system information. Falls back to "no
-// parameters" when no image provider resolves. Only the calling model's
-// provider config decides it, so a model URI is enough to ask.
+// parameters" when no image provider resolves, or before the chat has a
+// model to pick one for. A model URI is enough to ask.
 export function imageParametersDescription({
   callingModel,
   configs,
@@ -101,7 +78,9 @@ export function imageParametersDescription({
   callingModel: CallingModel;
   configs: AIGatewayProviderConfig.Type[];
 }): string {
-  const [selected] = selectImageProviderConfigs({ callingModel, configs });
+  const [selected] = callingModel.params.providerConfigId
+    ? selectImageProviderConfigs({ callingModel, configs })
+    : [];
   return describeImageParameters(
     selected
       ? imageCapabilitiesForProvider(selected.type)
@@ -109,29 +88,44 @@ export function imageParametersDescription({
   );
 }
 
-// Deterministically resolves the ordered image-provider configs `getImageModel`
-// would try for a calling model, without constructing any SDK. Building the
-// tool description reuses this so the advertised capabilities match the model
-// that actually runs. Returns [] when the calling model's provider is missing
-// or no image-capable provider is configured.
+/**
+ * The image providers a chat's image request tries, in order: the chat's own
+ * provider when it makes images, then
+ * the person's own image providers, then Instrument's. So a free account's
+ * images are only ever what a chat falls back on, and someone with their own
+ * OpenRouter or Google key keeps making images with it.
+ *
+ * Never a second ChatGPT or Grok account: falling over from one plan to
+ * another is the account rotation OpenAI's Sign in with ChatGPT Terms forbid,
+ * and a subscription's limits are no less its own on xAI.
+ *
+ * Builds no SDK, so the tool description and the request agree on the
+ * provider without a network call. Empty when nothing connected makes images.
+ */
 export function selectImageProviderConfigs({
   callingModel,
   configs,
 }: {
   callingModel: CallingModel;
   configs: AIGatewayProviderConfig.Type[];
-}): (AIGatewayProviderConfig.Type & { type: ImageGenerationProviderType })[] {
-  const preferredProviderConfig = configs.find(
+}): ImageProviderConfig[] {
+  const imageConfigs = filterImageGenerationConfigs(configs);
+  const chats = imageConfigs.find(
     (c) => c.id === callingModel.params.providerConfigId,
   );
-  if (!preferredProviderConfig) {
-    return [];
+  const ordered: ImageProviderConfig[] = chats ? [chats] : [];
+  for (const type of OWN_PROVIDER_TYPE_PRIORITY) {
+    const config = imageConfigs.find((c) => c.type === type);
+    // One of each kind, so never a second plan of the chat's own kind.
+    if (config && !ordered.some((c) => c.type === type)) {
+      ordered.push(config);
+    }
   }
-  return selectProviderConfigs({
-    configs: filterImageGenerationConfigs(configs),
-    preferredProviderConfig,
-    providerTypePriority: PROVIDER_TYPE_PRIORITY,
-  });
+  const ours = imageConfigs.find((c) => c.type === OUR_MODELS.providerType);
+  if (ours && !ordered.includes(ours)) {
+    ordered.push(ours);
+  }
+  return ordered;
 }
 
 /**
@@ -150,7 +144,7 @@ async function getAISDKImageModel({
   config,
   workspaceServerURL,
 }: {
-  config: AIGatewayProviderConfig.Type & { type: ImageGenerationProviderType };
+  config: ImageProviderConfig;
   workspaceServerURL: WorkspaceServerURL;
 }) {
   const testOverride = (

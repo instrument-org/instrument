@@ -191,11 +191,10 @@ Asked to audit the 684 commits since 2026-08-08, concentrating on the renderer, 
 
 ### AC. The session machine drops a message sent while an actor is live
 
-- Status: declined
+- Status: not a defect
 - Where: [session.ts:380-386](/packages/workspace/src/machines/session.ts#L380-L386), [session.ts:544-590](/packages/workspace/src/machines/session.ts#L544-L590)
 - What: a session actor saved only one queued message, so a message added while the actor was live was dropped.
-- Declined because: message queuing sat behind a prompt-queue feature flag the product did not support, so the path was unreachable; revisit if that flag ships.
-- Note: the reason may no longer hold. At HEAD sending into a working turn is a product path: `addMessage` steers a live agent and keeps the message queued until the agent takes it. Whether the drop survives was not re-verified.
+- Note: no longer reachable. The prompt-queue flag is gone; a person sends any number of messages at any moment, each interrupting the turn. `addMessage` appends every message to `queuedMessages` and steers each into a live agent, and `agent.consumedSteer` removes only the ones the agent took, so none is dropped. Checked at `5b380b711`.
 
 ### AD. Tool-part `updatePart` calls discard their Results
 

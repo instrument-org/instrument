@@ -167,6 +167,64 @@ describe("listComputerFolder", () => {
     },
   );
 
+  // macOS refuses everything in a folder it guards once the person said no,
+  // so a chat's folder in a workspace kept in Documents is refused by
+  // Documents. Stood in for here by a home whose Documents answers as macOS
+  // does after a no.
+  it.runIf(process.platform === "darwin").each([
+    ["refused too", true, { refusedBy: "Documents" }],
+    ["open", false, {}],
+  ] as const)(
+    "names the guarded folder above when macOS refuses it %s",
+    async (_label, isGuardedRefused, expected) => {
+      folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-guarded-"));
+      const documentsHere = path.join(folder, "Documents");
+      const chatFolder = path.join(
+        documentsHere,
+        "Instrument",
+        "Chats",
+        "Hello World",
+      );
+      await fs.mkdir(chatFolder, { recursive: true });
+      vi.spyOn(os, "homedir").mockReturnValue(folder);
+      const refused = new Set([
+        chatFolder,
+        ...(isGuardedRefused ? [documentsHere] : []),
+      ]);
+      const eperm = () =>
+        Object.assign(new Error("operation not permitted"), { code: "EPERM" });
+      const { opendir, readdir } = fs;
+      vi.spyOn(fs, "readdir").mockImplementation(((
+        ...args: Parameters<typeof readdir>
+      ) =>
+        refused.has(String(args[0]))
+          ? Promise.reject(eperm())
+          : readdir(...args)) as typeof readdir);
+      vi.spyOn(fs, "opendir").mockImplementation(((
+        ...args: Parameters<typeof opendir>
+      ) =>
+        refused.has(String(args[0]))
+          ? Promise.reject(eperm())
+          : opendir(...args)) as typeof opendir);
+
+      try {
+        const refusal = await listComputerFolder({ path: chatFolder, chatId });
+        expect(refusal).toMatchObject({
+          kind: "refused",
+          path: chatFolder,
+          reason: "system",
+        });
+        expect(
+          refusal.kind === "refused" && refusal.refusedBy !== undefined
+            ? { refusedBy: path.basename(refusal.refusedBy) }
+            : {},
+        ).toEqual(expected);
+      } finally {
+        vi.restoreAllMocks();
+      }
+    },
+  );
+
   // The app folders iCloud Drive shows live in each app's own container; the
   // Mac helper is what names them, stood in for here by a script.
   it.runIf(process.platform === "darwin")(

@@ -144,6 +144,7 @@ import { GlyphButton } from "./glyph-button";
 import {
   folderOf,
   homeRelative,
+  isInside,
   joinHostPath,
   nameOf,
   parentFolderOf,
@@ -2616,7 +2617,9 @@ export function ComputerPage({
                         key={refusal.path}
                         onGranted={(granted) => {
                           reread();
-                          if (granted !== refusal.path) {
+                          // A folder above this one, the guarded one that
+                          // refused it, opens this one with it.
+                          if (!isInside(refusal.path, granted)) {
                             rootTo(granted);
                           }
                         }}
@@ -3371,7 +3374,7 @@ export function NotPermitted({
       rpcClient.utils.showFolderPicker.call({
         buttonLabel: "Open",
         message: `Instrument can’t read “${name}” until you open it here.`,
-        startingAt: refusal.path,
+        startingAt: shut,
       }),
     onSuccess: (picked) => {
       if (picked) {

@@ -16,6 +16,7 @@ import {
   finderEntriesOf,
   resolveThroughAliases,
 } from "./finder-entries";
+import { macosGuardedRoot } from "../permissions/macos";
 import { folderReach } from "./folder-reach";
 import { hiddenEntryNames } from "./hidden-entries";
 import {
@@ -133,10 +134,11 @@ const ComputerRefusalSchema = z.object({
     "app" | ReadRefusal
   >,
   /**
-   * The folder above the one asked for whose permissions keep the account
-   * from passing through it, which refuses everything under it whether it
-   * is there or not; absent when the folder asked for is the one that
-   * refused.
+   * The folder above the one asked for that refused, and with it everything
+   * under it whether it is there or not: one whose permissions keep the
+   * account from passing through it, or the folder macOS guards (Documents)
+   * when macOS refuses it as well. Absent when the folder asked for is the
+   * one that refused.
    */
   refusedBy: z.string().optional(),
 });
@@ -242,7 +244,9 @@ export async function listComputerFolder({
       path.basename(hostPath).normalize("NFC"),
     )?.package;
     const refusedBy =
-      reason === "account" ? await shutFolderAbove(hostPath) : undefined;
+      reason === "account"
+        ? await shutFolderAbove(hostPath)
+        : await guardedFolderAbove(hostPath);
     return {
       display: displayHostPath(hostPath),
       kind: "refused",
@@ -513,6 +517,28 @@ async function exists(hostPath: string) {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * The folder macOS guards above a path it refused (Documents, for a chat's
+ * folder in a workspace kept there), when macOS refuses that folder too: the
+ * refusal is the guarded folder's, and opening that one is what lets the
+ * app read the path again. Undefined where the guarded folder is the path
+ * itself, or is open and only the path is shut.
+ */
+async function guardedFolderAbove(
+  hostPath: string,
+): Promise<string | undefined> {
+  const guarded = macosGuardedRoot(hostPath);
+  if (guarded === undefined || guarded === hostPath) {
+    return undefined;
+  }
+  try {
+    await (await fs.opendir(guarded)).close();
+    return undefined;
+  } catch (error) {
+    return readRefusalOf(error) === "system" ? guarded : undefined;
   }
 }
 

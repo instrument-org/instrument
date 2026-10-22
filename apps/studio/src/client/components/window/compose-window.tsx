@@ -572,11 +572,15 @@ export function ComposeWindow({
                   ref={setHeadSlot}
                 />
                 <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-border pl-2">
-                  {words.trim() !== "" && (
-                    <WindowButton label="Discard draft" onClick={onDiscard}>
-                      <TrashIcon className="size-4" />
-                    </WindowButton>
-                  )}
+                  {/* Always there, so words landing in the draft don't move the
+                      buttons beside it. */}
+                  <WindowButton
+                    disabled={words.trim() === ""}
+                    label="Discard draft"
+                    onClick={onDiscard}
+                  >
+                    <TrashIcon className="size-4" />
+                  </WindowButton>
                   <WindowButton
                     label="Minimize"
                     onClick={() => {
@@ -707,11 +711,13 @@ export function ComposeWindow({
  */
 export function WindowButton({
   children,
+  disabled,
   keepsFocus = false,
   label,
   onClick,
 }: {
   children: ReactNode;
+  disabled?: boolean;
   keepsFocus?: boolean;
   label: string;
   onClick: () => void;
@@ -721,6 +727,7 @@ export function WindowButton({
       <Button
         aria-label={label}
         className="size-7 text-muted-foreground hover:text-foreground"
+        disabled={disabled}
         onClick={onClick}
         onMouseDown={
           keepsFocus

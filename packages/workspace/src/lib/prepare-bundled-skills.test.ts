@@ -118,6 +118,30 @@ describe("prepareBundledSkills", () => {
     );
   });
 
+  it("skips what a skills working copy's tooling leaves, keeping the dotfiles a skill ships", async () => {
+    const { config, prepared } = await setup();
+    const skill = path.join(config.registryDir, "skills", "pdf");
+    await write(path.join(skill, "SKILL.md"), "pdf");
+    await write(path.join(skill, ".python-version"), "3.12");
+    await write(path.join(skill, "scripts", "a.py"), "");
+    await write(path.join(skill, "scripts", "__pycache__", "a.pyc"), "");
+    await write(path.join(skill, ".venv", "bin", "python"), "");
+    await write(path.join(skill, "node_modules", "x", "index.js"), "");
+    await write(path.join(skill, ".pytest_cache", "README.md"), "");
+
+    await prepareBundledSkills(config);
+
+    expect(await listed(prepared)).toMatchInlineSnapshot(`
+      [
+        "pdf",
+        "pdf/.python-version",
+        "pdf/SKILL.md",
+        "pdf/scripts",
+        "pdf/scripts/a.py",
+      ]
+    `);
+  });
+
   it("prepares an empty folder when the bundled sources are missing", async () => {
     const { config, prepared } = await setup();
 

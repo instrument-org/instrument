@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { readPlatformRefusal } from "./read-platform-refusal";
+import { planRefusalIn, readPlatformRefusal } from "./read-platform-refusal";
 
 describe("readPlatformRefusal", () => {
   it("reads a usage-limit refusal's code, fields, and Retry-After", async () => {
@@ -38,5 +38,38 @@ describe("readPlatformRefusal", () => {
     expect(
       await readPlatformRefusal(Response.json(body, { status: 429 }), "/x"),
     ).toBeUndefined();
+  });
+});
+
+describe("planRefusalIn", () => {
+  it.each([
+    [
+      "no plan, with what unlocks it",
+      { error: { code: "subscription-required", reason: "trial-available" } },
+      { code: "subscription-required", reason: "trial-available" },
+    ],
+    [
+      "a spent window, without its other fields",
+      {
+        error: {
+          code: "usage-limit-exceeded",
+          resetsAt: "2026-10-23T09:12:00.000Z",
+          window: "5h",
+        },
+      },
+      { code: "usage-limit-exceeded", resetsAt: "2026-10-23T09:12:00.000Z" },
+    ],
+    [
+      "a concurrency limit",
+      { error: { code: "concurrency-limit" } },
+      undefined,
+    ],
+    ["a provider's own 402", { error: { code: 402, message: "x" } }, undefined],
+  ])("reads %s", (_label, body, expected) => {
+    expect(planRefusalIn(JSON.stringify(body))).toEqual(expected);
+  });
+
+  it("is undefined for a body that is not JSON", () => {
+    expect(planRefusalIn("Bad gateway")).toBeUndefined();
   });
 });

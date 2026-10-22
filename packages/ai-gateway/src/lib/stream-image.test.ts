@@ -1,4 +1,7 @@
-import { type WorkspaceServerURL } from "@instrument-org/shared";
+import {
+  OUR_PROVIDER_CONFIG,
+  type WorkspaceServerURL,
+} from "@instrument-org/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
@@ -7,10 +10,10 @@ import {
   streamOpenRouterImage,
 } from "./stream-image";
 
-async function collect() {
+async function collect(type = "openrouter") {
   const events: OpenRouterImageStreamEvent[] = [];
   for await (const event of streamOpenRouterImage({
-    config: { id: "cfg-1" } as AIGatewayProviderConfig.Type,
+    config: { id: "cfg-1", type } as AIGatewayProviderConfig.Type,
     count: 1,
     modelId: "instrument/auto-image",
     prompt: "a cat",
@@ -187,5 +190,40 @@ describe("streamOpenRouterImage", () => {
         type: "error",
       },
     ]);
+  });
+
+  const usageSpent = {
+    error: {
+      code: "usage-limit-exceeded",
+      message: "Usage limit reached.",
+      resetsAt: "2026-10-23T09:12:00.000Z",
+      window: "5h",
+    },
+  };
+
+  it("reads our platform's plan refusal into a refused event", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(Response.json(usageSpent, { status: 429 })),
+    );
+
+    expect(await collect(OUR_PROVIDER_CONFIG.type)).toEqual([
+      {
+        refusal: {
+          code: "usage-limit-exceeded",
+          resetsAt: "2026-10-23T09:12:00.000Z",
+        },
+        type: "refused",
+      },
+    ]);
+  });
+
+  it("leaves the same body from someone else's provider an error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(Response.json(usageSpent, { status: 429 })),
+    );
+
+    expect((await collect("openrouter"))[0]?.type).toBe("error");
   });
 });

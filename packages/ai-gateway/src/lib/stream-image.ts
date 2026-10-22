@@ -1,4 +1,7 @@
-import { type WorkspaceServerURL } from "@instrument-org/shared";
+import {
+  OUR_PROVIDER_CONFIG,
+  type WorkspaceServerURL,
+} from "@instrument-org/shared";
 import { parseJsonEventStream } from "ai";
 import { z } from "zod";
 
@@ -6,6 +9,7 @@ import { CLIENT_SESSION_ID_HEADER } from "../constants";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { internalURL } from "./internal-url";
 import { internalAPIKey } from "./key-for-provider";
+import { type PlanRefusal, planRefusalIn } from "./read-platform-refusal";
 
 export interface ImageStreamUsage {
   inputTokens?: number;
@@ -27,7 +31,9 @@ export type OpenRouterImageStreamEvent =
       type: "completed";
       usage?: ImageStreamUsage;
     }
-  | { message: string; responseBody?: string; type: "error" };
+  | { message: string; responseBody?: string; type: "error" }
+  /** Our platform turned the request away for the account's plan. */
+  | { refusal: PlanRefusal; type: "refused" };
 
 const UsageSchema = z.object({
   completion_tokens: z.number().nullish(),
@@ -119,6 +125,14 @@ export async function* streamOpenRouterImage({
       responseBody = await response.text();
     } catch {
       // Ignore body read failures; the status is enough to surface the error.
+    }
+    const refusal =
+      config.type === OUR_PROVIDER_CONFIG.type
+        ? planRefusalIn(responseBody)
+        : undefined;
+    if (refusal) {
+      yield { refusal, type: "refused" };
+      return;
     }
     yield {
       message: `Image stream failed: HTTP ${response.status}`,

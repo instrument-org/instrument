@@ -41,3 +41,39 @@ export async function readPlatformRefusal(
     status: response.status,
   };
 }
+
+const PlanRefusalBodySchema = z.object({
+  error: z.object({
+    code: z.enum(["subscription-required", "usage-limit-exceeded"]),
+    reason: z.string().optional(),
+    resetsAt: z.string().optional(),
+  }),
+});
+
+/**
+ * Our platform turning a hosted request away for the account's plan: no
+ * plan for it (402 `subscription-required`, with `reason`), or its usage
+ * spent until `resetsAt` (429 `usage-limit-exceeded`).
+ */
+export type PlanRefusal = z.output<typeof PlanRefusalBodySchema>["error"];
+
+/**
+ * The plan refusal a response body says, from its text. Undefined for any
+ * other body: a concurrency limit, a server error, or a provider's own 402
+ * or 429 passed through.
+ */
+export function planRefusalIn(
+  body: string | undefined,
+): PlanRefusal | undefined {
+  if (!body) {
+    return undefined;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+  const result = PlanRefusalBodySchema.safeParse(parsed);
+  return result.success ? result.data.error : undefined;
+}

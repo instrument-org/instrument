@@ -974,6 +974,34 @@ describe("the chat's billing notice", () => {
     ).toBe("false");
   });
 
+  it("keeps a dismissed image offer away in other chats until the week is out", async () => {
+    platform.signedIn = false;
+    const turn = imageTurn({ errorType: "no-image-model" });
+    const first = renderWithProviders(
+      <ChatNoteHarness
+        isAgentRunning={false}
+        messages={turn}
+        modelURI={CLAUDE}
+      />,
+    );
+    await screen.findByText("Make images with a free Instrument account.");
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    first.unmount();
+
+    renderWithProviders(
+      <ChatNoteHarness
+        isAgentRunning={false}
+        messages={turn}
+        modelURI={CLAUDE}
+      />,
+    );
+    // Long enough for the sign-in answer that drew it the first time.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(
+      screen.queryByText("Make images with a free Instrument account."),
+    ).toBeNull();
+  });
+
   it("shows a spent free account's limit in a Claude chat, with its trial and no Change model", async () => {
     platform.offer = OFFER_WITH_TRIAL;
     platform.status = onFree({ resetsAt: SOON });
@@ -1080,6 +1108,13 @@ describe("the chat's billing notice", () => {
             type: "tool-web_search",
           },
         ],
+        role: "assistant",
+      },
+      // The reply comes in a step after the search.
+      {
+        id: "msg_reply",
+        metadata: { createdAt: new Date(), sessionId: "s" },
+        parts: [{ text: "Here is the forecast.", type: "text" }],
         role: "assistant",
       },
     ] as unknown as SessionMessage.WithParts[];

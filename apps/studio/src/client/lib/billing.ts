@@ -1075,3 +1075,53 @@ export function autoIncludedLine(status: Status | undefined) {
     ? "Included with your free trial"
     : "Included with your subscription";
 }
+
+/** How long a dismissed note about something Instrument offers stays away. */
+export const NOTE_DISMISSED_FOR_MS = 7 * 86_400_000;
+
+/**
+ * What a dismissal is kept under: what was held back and why, so dismissing
+ * the image note for a spent allowance says nothing of the search note, or of
+ * the image note for a sign-in.
+ */
+export function noteDismissalKey(blocked: BlockedThing, why: string) {
+  return `${blocked}:${why}`;
+}
+
+/**
+ * Whether a note stays hidden now: dismissed less than a week ago, and not
+ * a block of the person's own message, which a dismissal never hides. Once
+ * the week is out, the next refusal for the same reason shows it again.
+ */
+export function isNoteDismissed({
+  blocksOwnSend,
+  dismissedAt,
+  now,
+}: {
+  blocksOwnSend: boolean;
+  dismissedAt: number | undefined;
+  now: number;
+}) {
+  return (
+    !blocksOwnSend &&
+    dismissedAt !== undefined &&
+    now >= dismissedAt &&
+    now - dismissedAt < NOTE_DISMISSED_FOR_MS
+  );
+}
+
+/**
+ * The dismissals kept for a workspace with `key` set to `now`, dropping the
+ * ones whose week is out, so the record never grows past the notes there are.
+ */
+export function withNoteDismissed(
+  dismissals: Record<string, number>,
+  key: string,
+  now: number,
+) {
+  return Object.fromEntries(
+    [...Object.entries(dismissals), [key, now] as const].filter(
+      ([, at]) => now - at < NOTE_DISMISSED_FOR_MS,
+    ),
+  );
+}

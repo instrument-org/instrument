@@ -285,9 +285,13 @@ function bubbleBoxes(
           turn.bubbles.push(part.metadata.id);
         }
       } else if (isToolPart(stored)) {
-        // An image call is in the feed for the note over the reply box,
-        // which says what it ran into; the bubbles draw no card for it.
-        if (stored.type !== "tool-generate_image") {
+        // An image or search call is in the feed for the note over the
+        // reply box, which says what it ran into; the bubbles draw no card
+        // for it.
+        if (
+          stored.type !== "tool-generate_image" &&
+          stored.type !== "tool-web_search"
+        ) {
           turn.rows.push({ kind: "card", part: stored });
         }
       } else if (isDataPart(stored)) {

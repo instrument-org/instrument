@@ -9,6 +9,9 @@ import {
   type BillingNotice,
   type BillingRefusal,
   canStartTrial,
+  isNoteDismissed,
+  noteDismissalKey,
+  withNoteDismissed,
   describeDate,
   featurePause,
   type BillingNoticeAction,
@@ -41,6 +44,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { FcGoogle } from "react-icons/fc";
 import { useInstrumentConnect } from "@/client/hooks/use-connect";
 import { useAtom } from "jotai";
+import { z } from "zod";
 import { useEffect, useRef, useState } from "react";
 
 /** The least time between the billing reads a finished turn makes. */
@@ -57,6 +61,21 @@ const dismissedUsageWarningAtom = keptAtom<null | string>(
   "layout",
   "billing-usage-warning-dismissed.v1",
   null,
+);
+
+/**
+ * When each note about something Instrument offers was last dismissed, by
+ * `noteDismissalKey`: kept for the workspace, so a dismissal holds a week
+ * across chats and launches.
+ */
+const dismissedNotesAtom = keptAtom<Record<string, number>>(
+  "layout",
+  "billing-notes-dismissed.v1",
+  {},
+  (value, initial) => {
+    const parsed = z.record(z.string(), z.number()).safeParse(value);
+    return parsed.success ? parsed.data : initial;
+  },
 );
 
 /** What the reply box lends the note it draws: the flash a held send asks for, and its model picker. */
@@ -143,6 +162,16 @@ export function useChatNote({
   const [dismissedWarning, setDismissedWarning] = useAtom(
     dismissedUsageWarningAtom,
   );
+  const [dismissedNotes, setDismissedNotes] = useAtom(dismissedNotesAtom);
+  const isOfferDismissed = (key: string) =>
+    isNoteDismissed({
+      blocksOwnSend: false,
+      dismissedAt: dismissedNotes[key],
+      now: Date.now(),
+    });
+  const dismissOffer = (key: string) => {
+    setDismissedNotes((kept) => withNoteDismissed(kept, key, Date.now()));
+  };
 
   // The turn the conversation ended on: its last reply, unless something has
   // been said since. Context the session records after a turn is neither.
@@ -362,7 +391,18 @@ export function useChatNote({
         : undefined;
   const imageKey =
     imageNotice && refused && `${refused.id}:image:${imageNotice.kind}`;
-  if (imageNotice && imageKey && dismissed !== imageKey) {
+  // Dismissing an offer holds a week for the reason, across chats; a ready
+  // note goes for this turn alone.
+  const imageOffer =
+    imageNotice && imageNotice.kind !== "resumed"
+      ? noteDismissalKey("images", imageNotice.kind)
+      : undefined;
+  if (
+    imageNotice &&
+    imageKey &&
+    dismissed !== imageKey &&
+    !(imageOffer && isOfferDismissed(imageOffer))
+  ) {
     const isReady = imageNotice.kind === "resumed";
     const isSignIn = imageNotice.kind === "sign-in";
     return {
@@ -382,7 +422,11 @@ export function useChatNote({
             act(kind);
           }}
           onDismiss={() => {
-            setDismissed(imageKey);
+            if (imageOffer) {
+              dismissOffer(imageOffer);
+            } else {
+              setDismissed(imageKey);
+            }
           }}
           step={nextStepFor(
             {
@@ -405,7 +449,8 @@ export function useChatNote({
   const searchPause = isSignedIn
     ? lastSearchPause(messages, status, now)
     : undefined;
-  if (searchPause && dismissed !== searchPause.key) {
+  const searchOffer = noteDismissalKey("search", "paused");
+  if (searchPause && !isOfferDismissed(searchOffer)) {
     const offerTrial = canStartTrial(status, offer);
     return {
       holdsSend: false,
@@ -436,7 +481,7 @@ export function useChatNote({
           data-billing-search-paused=""
           icon={MagnifyingGlassIcon}
           onDismiss={() => {
-            setDismissed(searchPause.key);
+            dismissOffer(searchOffer);
           }}
           tone="neutral"
         >
@@ -648,15 +693,13 @@ function PlanAccountNote({
  * The pause behind the conversation's last turn's web search, when our
  * endpoint refused it for the spent free allowance and the status still says
  * search is paused (or has not said, and the refusal's reset is ahead).
- * `key` names the pause, so dismissing it holds until the next one.
  */
 function lastSearchPause(
   messages: SessionMessage.WithParts[],
   status: Parameters<typeof featurePause>[0],
   now: Date,
 ) {
-  const last = messages.findLast((message) => message.role === "assistant");
-  const refusal = last?.parts
+  const refusal = lastTurnParts(messages)
     .map((part) =>
       part.type === "tool-web_search" &&
       part.state === "output-available" &&
@@ -679,10 +722,7 @@ function lastSearchPause(
   if (!pause) {
     return undefined;
   }
-  return {
-    key: `search-paused:${pause.resetsAt?.toISOString() ?? ""}`,
-    resetsAt: pause.resetsAt,
-  };
+  return { resetsAt: pause.resetsAt };
 }
 
 function searchPauseText(resetsAt: Date | undefined, now: Date) {
@@ -702,25 +742,26 @@ function imageBlock(
   | { kind: "refused"; refusal: BillingRefusal }
   | { kind: "sign-in" }
   | undefined {
-  for (const message of messages.toReversed()) {
-    if (message.role !== "assistant") {
-      return undefined;
-    }
-    const part = message.parts.findLast(
-      (candidate) => candidate.type === "tool-generate_image",
-    );
-    if (part?.type !== "tool-generate_image") {
-      continue;
-    }
-    if (part.state !== "output-available" || part.output.state !== "failure") {
-      return undefined;
-    }
-    if (part.output.errorType === "no-image-model") {
-      return { kind: "sign-in" };
-    }
-    return part.output.errorType === "refused" && part.output.refusal
-      ? { kind: "refused", refusal: part.output.refusal }
-      : undefined;
+  const part = lastTurnParts(messages).findLast(
+    (candidate) => candidate.type === "tool-generate_image",
+  );
+  if (
+    part?.type !== "tool-generate_image" ||
+    part.state !== "output-available" ||
+    part.output.state !== "failure"
+  ) {
+    return undefined;
   }
-  return undefined;
+  if (part.output.errorType === "no-image-model") {
+    return { kind: "sign-in" };
+  }
+  return part.output.errorType === "refused" && part.output.refusal
+    ? { kind: "refused", refusal: part.output.refusal }
+    : undefined;
+}
+
+/** The parts of the replies since the last thing the person said, in order. */
+function lastTurnParts(messages: SessionMessage.WithParts[]) {
+  const start = messages.findLastIndex((message) => message.role === "user");
+  return messages.slice(start + 1).flatMap((message) => message.parts);
 }

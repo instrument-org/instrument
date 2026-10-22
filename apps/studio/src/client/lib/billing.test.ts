@@ -12,6 +12,9 @@ import {
   freeAllowancePause,
   hasNoPlan,
   isAccessRevoked,
+  isNoteDismissed,
+  NOTE_DISMISSED_FOR_MS,
+  withNoteDismissed,
   isTrialHeldBack,
   type BillingNotice,
   nextStep,
@@ -1190,5 +1193,66 @@ describe("nextStep", () => {
         "a turn back, another model to use: Your usage limit has reset. [Continue→continue]",
       ]
     `);
+  });
+});
+
+describe("isNoteDismissed", () => {
+  const now = NOW.getTime();
+  const day = 86_400_000;
+  it.each([
+    {
+      blocksOwnSend: false,
+      dismissedAt: undefined,
+      expected: false,
+      name: "never dismissed",
+    },
+    {
+      blocksOwnSend: false,
+      dismissedAt: now - day,
+      expected: true,
+      name: "dismissed yesterday",
+    },
+    {
+      blocksOwnSend: false,
+      dismissedAt: now - 6 * day,
+      expected: true,
+      name: "dismissed six days ago",
+    },
+    {
+      blocksOwnSend: false,
+      dismissedAt: now - NOTE_DISMISSED_FOR_MS,
+      expected: false,
+      name: "the week out",
+    },
+    {
+      blocksOwnSend: false,
+      dismissedAt: now - 30 * day,
+      expected: false,
+      name: "dismissed a month ago",
+    },
+    {
+      blocksOwnSend: true,
+      dismissedAt: now - day,
+      expected: false,
+      name: "a block of the person's own send",
+    },
+    {
+      blocksOwnSend: false,
+      dismissedAt: now + day,
+      expected: false,
+      name: "a clock that moved back",
+    },
+  ])("$name: $expected", ({ expected, ...input }) => {
+    expect(isNoteDismissed({ ...input, now })).toBe(expected);
+  });
+
+  it("keeps a dismissal per reason and drops the ones whose week is out", () => {
+    expect(
+      withNoteDismissed(
+        { "images:plan-limit": now - 8 * day, "search:paused": now - day },
+        "images:sign-in",
+        now,
+      ),
+    ).toEqual({ "images:sign-in": now, "search:paused": now - day });
   });
 });

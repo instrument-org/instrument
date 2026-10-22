@@ -8,7 +8,8 @@ import { dataPartVisibility } from "./data-part-visibility";
 /**
  * What a chat's bubbles draw of its conversation, and nothing else: the words,
  * what a sent message carries, the cards that ask the user something, and the
- * notes everyone sees, with the image calls the note over the reply box reads. The steps the agent took are the task card's, read from
+ * notes everyone sees, with the image and search calls the note over the reply
+ * box reads. The steps the agent took are the task card's, read from
  * the whole transcript.
  *
  * A reply lands whole, so the words of the step still being written are left
@@ -78,15 +79,23 @@ function keepsPart(part: SessionMessagePart.Type, composing: boolean) {
         (part.state === "output-available" && part.output.state !== "failure")
       );
     }
-    // An image call that ran into a sign-in or the account's plan, for the
-    // note over the reply box to read: it offers the way forward, and the
-    // bubbles draw no card for it.
+    // An image call that ran into a sign-in or the account's plan, and a
+    // search Instrument turned away for the plan, for the note over the reply
+    // box to read: it offers the way forward, and the bubbles draw no card
+    // for either.
     case "tool-generate_image": {
       return (
         part.state === "output-available" &&
         part.output.state === "failure" &&
         (part.output.errorType === "no-image-model" ||
           part.output.errorType === "refused")
+      );
+    }
+    case "tool-web_search": {
+      return (
+        part.state === "output-available" &&
+        part.output.state === "success" &&
+        part.output.platformRefusal !== undefined
       );
     }
     default: {

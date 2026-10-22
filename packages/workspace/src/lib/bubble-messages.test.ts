@@ -162,6 +162,33 @@ describe("bubbleMessage", () => {
     ).toEqual([1, 1, 0]);
   });
 
+  it("keeps a search only when Instrument turned it away for the plan", () => {
+    const searched =
+      (refused: boolean): PartOf =>
+      (messageId) => ({
+        input: { explanation: "Searching", query: "weather" },
+        metadata: { ...partMetadata(messageId), endedAt: at },
+        output: {
+          ...(refused && {
+            platformRefusal: { code: "usage-limit-exceeded" as const },
+          }),
+          results: { kind: "excerpts", sources: [] },
+          state: "success",
+        },
+        state: "output-available",
+        toolCallId: StoreId.ToolCallSchema.parse("call-search"),
+        type: "tool-web_search",
+      });
+    expect(
+      [true, false].map(
+        (refused) =>
+          kinds(
+            bubbleMessage(assistant([searched(refused)]), { composing: false }),
+          )?.length,
+      ),
+    ).toEqual([1, 0]);
+  });
+
   it("holds back the words of a reply still being written", () => {
     const message = assistant([text("Half a sen")], { finished: false });
     expect(kinds(bubbleMessage(message, { composing: true }))).toEqual([]);

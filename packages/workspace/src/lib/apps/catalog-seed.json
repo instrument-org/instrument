@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-10-22T13:48:34.455Z",
-  "entriesHash": "a154d07757cc7b01",
+  "revision": "2026-10-22T16:46:38.690Z",
+  "entriesHash": "5c1a0a6ddd216889",
   "entries": [
     {
       "slug": "ahrefs",
@@ -1211,8 +1211,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Dovetail sign-in",
+          "note": "Needs a sign-in client registered with Dovetail, which Instrument doesn't have yet; until then the user signs in on the web."
         }
       ],
       "interfaces": [
@@ -1220,7 +1220,7 @@
           "format": "mcp",
           "name": "Dovetail MCP server",
           "endpoint": "https://dovetail.com/api/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client"
         }
       ],
       "category": "research",

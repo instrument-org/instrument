@@ -184,8 +184,7 @@ describe("the connect card after a sign-in that did not connect", () => {
           "[Sign in on the web]",
           "[Try again]",
           "[Not now]",
-          "[]",
-          "[]",
+          "[Details]",
         ],
         "refused": [
           "Sign in to Outlook",
@@ -194,11 +193,28 @@ describe("the connect card after a sign-in that did not connect", () => {
           "[Sign in on the web]",
           "[Try again]",
           "[Not now]",
-          "[]",
-          "[]",
+          "[Details]",
         ],
       }
     `);
+  });
+
+  it("keeps what the service said behind Details until it is opened", async () => {
+    mocks.apps.mockResolvedValue(
+      outlook({
+        ended: "refused",
+        error: "access_denied: AADSTS65001: not consented",
+        status: "failed",
+      }),
+    );
+    renderCard();
+
+    const details = await screen.findByRole("button", { name: "Details" });
+    expect(screen.queryByText(/AADSTS65001/)).toBeNull();
+    fireEvent.click(details);
+    expect(
+      await screen.findByText("access_denied: AADSTS65001: not consented"),
+    ).toBeTruthy();
   });
 
   it("moves the app to the web and opens its sign-in in the window's browser", async () => {

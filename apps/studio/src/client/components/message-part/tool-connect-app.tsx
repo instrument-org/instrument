@@ -1,4 +1,9 @@
 import { Button } from "@/client/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/client/components/ui/collapsible";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { WindowContext } from "@/client/components/window/context";
@@ -7,6 +12,7 @@ import { osConventions } from "@/client/lib/utils";
 import { ConnectControls } from "@/client/components/window/connect-controls";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useContext, useState } from "react";
 
@@ -103,96 +109,114 @@ function ConnectCard({
 
   return (
     <ToolCard>
-      <ToolCardSection borderBottom={Boolean(detail)} collapsedHeight={320}>
-        <div className="flex items-center gap-3">
-          <AppIcon icon={drawn?.icon} name={name} site={drawn?.site ?? site} />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">
-              {kind === "sign-in"
-                ? `Sign in to ${name}`
-                : kind === "web"
-                  ? `Sign in to ${name} on the web`
-                  : kind === "key"
-                    ? `${name} needs a key`
-                    : kind === "run"
-                      ? `${name} runs on ${osConventions().thisComputer}`
-                      : `Connect ${name}`}
-            </p>
-            <p className="text-xs leading-5 text-muted-foreground">{reason}</p>
-          </div>
-        </div>
-
-        {settled ? (
-          <p className="mt-3 text-xs text-muted-foreground">
-            {removed
-              ? `${name} was removed.`
-              : standing === "connected"
-                ? `Connected${app?.connection?.account ? ` as ${app.connection.account}` : ""}.`
-                : standing === "declined"
-                  ? "Not now."
-                  : "Connected, then changed; Instrument will test it again."}
-          </p>
-        ) : failed && kind !== "web" ? (
-          // A failure the user can act on where they read about it. A sign-in
-          // that did not connect goes on to the service's site, with another
-          // try beside it; anything else offers the same controls again,
-          // since the next thing to do is the thing that did not work.
-          <>
-            <p className="mt-3 text-xs text-muted-foreground">
-              {failedLine({ ended, name, webOffered })}
-            </p>
-            {kind === "none" ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {signInOnWeb}
-              </div>
-            ) : (
-              <div className="mt-3">
-                <ConnectControls
-                  // Where the direct sign-in goes says nothing about the web.
-                  describesDestination={!webOffered}
-                  dismissible
-                  kind={kind}
-                  label="Try again"
-                  leading={webOffered ? signInOnWeb : undefined}
-                  name={name}
-                  runs={runs}
-                  slug={slug}
-                />
-              </div>
-            )}
-          </>
-        ) : kind === "none" ? (
-          <p className="mt-3 text-xs text-muted-foreground">
-            This app doesn’t need a sign-in. Instrument is testing the
-            connection.
-          </p>
-        ) : (
-          <div className="mt-3">
-            <ConnectControls
-              dismissible
-              kind={kind}
+      {/* What the service said sits behind "Details", closed until asked
+          for: the line above the buttons already says what happened. */}
+      <Collapsible>
+        <ToolCardSection collapsedHeight={320}>
+          <div className="flex items-center gap-3">
+            <AppIcon
+              icon={drawn?.icon}
               name={name}
-              opened={movedToWeb}
-              runs={runs}
-              slug={slug}
+              site={drawn?.site ?? site}
             />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">
+                {kind === "sign-in"
+                  ? `Sign in to ${name}`
+                  : kind === "web"
+                    ? `Sign in to ${name} on the web`
+                    : kind === "key"
+                      ? `${name} needs a key`
+                      : kind === "run"
+                        ? `${name} runs on ${osConventions().thisComputer}`
+                        : `Connect ${name}`}
+              </p>
+              <p className="text-xs leading-5 text-muted-foreground">
+                {reason}
+              </p>
+            </div>
           </div>
-        )}
-      </ToolCardSection>
 
-      {detail ? (
-        // Drawn as the transcript draws every other block of machine text: its
-        // own region under the card's words, monospace, clamped to a few lines
-        // with the rest a click away, and carrying the copy and wrap controls a
-        // command's output carries. Wrapped by default so a single 300-
-        // character line is readable in place; unwrapped for the reader
-        // comparing indented lines.
-        <ToolCardSection collapsedHeight={112} copyText={detail} wrappable>
-          <pre className="font-mono text-xs leading-5 text-foreground/80">
-            {detail}
-          </pre>
+          {settled ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              {removed
+                ? `${name} was removed.`
+                : standing === "connected"
+                  ? `Connected${app?.connection?.account ? ` as ${app.connection.account}` : ""}.`
+                  : standing === "declined"
+                    ? "Not now."
+                    : "Connected, then changed; Instrument will test it again."}
+            </p>
+          ) : failed && kind !== "web" ? (
+            // A failure the user can act on where they read about it. A sign-in
+            // that did not connect goes on to the service's site, with another
+            // try beside it; anything else offers the same controls again,
+            // since the next thing to do is the thing that did not work.
+            <>
+              <p className="mt-3 text-xs text-muted-foreground">
+                {failedLine({ ended, name, webOffered })}
+              </p>
+              {kind === "none" ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {signInOnWeb}
+                </div>
+              ) : (
+                <div className="mt-3">
+                  <ConnectControls
+                    // Where the direct sign-in goes says nothing about the web.
+                    describesDestination={!webOffered}
+                    dismissible
+                    kind={kind}
+                    label="Try again"
+                    leading={webOffered ? signInOnWeb : undefined}
+                    name={name}
+                    runs={runs}
+                    slug={slug}
+                  />
+                </div>
+              )}
+            </>
+          ) : kind === "none" ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              This app doesn’t need a sign-in. Instrument is testing the
+              connection.
+            </p>
+          ) : (
+            <div className="mt-3">
+              <ConnectControls
+                dismissible
+                kind={kind}
+                name={name}
+                opened={movedToWeb}
+                runs={runs}
+                slug={slug}
+              />
+            </div>
+          )}
+          {detail ? (
+            <CollapsibleTrigger className="group mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+              <CaretRightIcon className="size-3 transition-transform group-data-[state=open]:rotate-90" />
+              Details
+            </CollapsibleTrigger>
+          ) : null}
         </ToolCardSection>
-      ) : null}
+
+        {detail ? (
+          // Drawn as the transcript draws every other block of machine text: its
+          // own region under the card's words, monospace, clamped to a few lines
+          // with the rest a click away, and carrying the copy and wrap controls a
+          // command's output carries. Wrapped by default so a single 300-
+          // character line is readable in place; unwrapped for the reader
+          // comparing indented lines.
+          <CollapsibleContent className="border-t border-border">
+            <ToolCardSection collapsedHeight={112} copyText={detail} wrappable>
+              <pre className="font-mono text-xs leading-5 text-foreground/80">
+                {detail}
+              </pre>
+            </ToolCardSection>
+          </CollapsibleContent>
+        ) : null}
+      </Collapsible>
     </ToolCard>
   );
 }

@@ -1,6 +1,6 @@
 # Plan: switch, open and move workspaces without restarting
 
-Status: built. `switch`, `open` and `move` close the workspace and open the next in process, falling back to the restart on any failure (`INSTRUMENT_LIVE_WORKSPACE_SWITCH=0` keeps the restart; `fail` makes a development build's switch fail, to exercise it). Checked on macOS in development builds (below); Windows and Linux only by reading the code.
+Status: built. `switch`, `open` and `move` close the workspace and open the next in process, falling back to the restart on any failure (`INSTRUMENT_LIVE_WORKSPACE_SWITCH=0` keeps the restart; `fail` makes a development build's switch fail, to exercise it). Checked in development builds on macOS and Windows (below); Linux only by reading the code.
 
 `workspaces.switch`, `workspaces.open` and `workspaces.move` (`apps/studio/src/electron-main/rpc/routes/workspaces.ts`) record the choice and restart the app (`relaunchApp`), because the main process opens one workspace at boot and much of it hangs off that workspace for the life of the process. This plan closes what is open for one workspace and opens the next in the same process, so the three routes answer without a restart, and falls back to the restart when anything in the live path fails.
 
@@ -134,7 +134,15 @@ Development builds on macOS, each from a fresh `studio-drive` scenario, off scre
 | A switch while a turn runs | A development build skips the running-agents question, as it does for a quit (`isQuitGuardForcedInDev`); a packaged build asks it, and a no keeps the workspace (unit-tested). The turn's record ends cleanly: its running command is written as interrupted (`INTERRUPTED_TOOL_CALL_ERROR_TEXT`, whose words say the app closed) and nothing is left in flight |
 | The fallback | With the switch made to fail after the workspace closed, the app went through its quit teardown with no workspace running, restarted (a new process), and opened the workspace the switch had recorded |
 
-On Windows and Linux, read rather than run: destroying the only window fires `window-all-closed`, which quits there, so it is skipped while a switch is under way. The other place Windows differs is the move: every file under the workspace is closed before it (records disposed, watches stopped, `workspace.db` and the stores in the machine folder, which does not move), and the old window's Chromium profile is in the machine folder too, so no handle should stand in the rename's way; not checked on a Windows host.
+On Windows, a development build of this branch on the Windows test host, with an application data folder and a home for setup's folders of its own, kept one main process through every switch, and the log showed no error and no `EBUSY` or `EPERM`:
+
+| Check (Windows) | Result |
+|---|---|
+| Setup's folder step | Continue moved the workspace into Documents in process; the app did not quit when its window closed (`window-all-closed` skipped during the switch) |
+| A move with a chat in it | After a reply on Workers AI, a move to another folder renamed `.instrument` in one step and removed the old folder; the chat opened in the new place |
+| Opening another workspace | `workspaces.open` (what Settings › Storage calls once a folder is picked) switched to it in process |
+
+Closing the workspace took about a second on its first switch there and under 100ms after. Linux is read rather than run: it takes the same `window-all-closed` path as Windows.
 
 ## What it changes in setup
 

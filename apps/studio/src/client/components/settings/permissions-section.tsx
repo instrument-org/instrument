@@ -251,12 +251,7 @@ export function PermissionsSection() {
   return (
     <div className="space-y-6">
       <div className="space-y-1.5">
-        <h3
-          className="text-base font-semibold"
-          {...settingAnchor("permissions")}
-        >
-          Permissions
-        </h3>
+        <h3 className="text-base font-semibold">Permissions</h3>
         <p className="text-sm text-muted-foreground">
           Instrument asks you in a chat the first time it needs a folder or an
           app. You can change your answer here anytime.

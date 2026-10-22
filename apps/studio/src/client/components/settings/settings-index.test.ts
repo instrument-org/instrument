@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   matchSettings,
   SETTINGS_INDEX,
+  SETTINGS_PAGES,
   settingsPathOf,
   settingsTargetOf,
 } from "./settings-index";
@@ -28,6 +29,14 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe("SETTINGS_INDEX", () => {
+  it("leaves the pages to search, which lists each one by its tab", () => {
+    expect(
+      SETTINGS_INDEX.filter((entry) =>
+        Object.keys(SETTINGS_PAGES).includes(entry.title),
+      ).map((entry) => entry.title),
+    ).toEqual([]);
+  });
+
   it("names only rows some page marks, so a jump has somewhere to land", () => {
     const marked = new Set(
       sourceFiles(COMPONENTS_DIR).flatMap((file) =>

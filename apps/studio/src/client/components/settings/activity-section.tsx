@@ -3,7 +3,6 @@ import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
-import { settingAnchor } from "@/client/components/settings/settings-index";
 import { pathOf, SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { CopyButton } from "@/client/components/copy-button";
 import { Button } from "@/client/components/ui/button";
@@ -614,10 +613,7 @@ function ActivityLog({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5">
-      <div
-        className="flex shrink-0 items-start gap-4"
-        {...settingAnchor("activity")}
-      >
+      <div className="flex shrink-0 items-start gap-4">
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold">Activity</h3>
           <p className="mt-1 text-sm text-muted-foreground">

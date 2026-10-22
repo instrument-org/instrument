@@ -25,7 +25,7 @@ How Instrument looks, notifications, dictation, updates, and the diagnostic log.
 
 Who you're logged in to Instrument as, your plan and its usage limits, and billing.
 
-- **Account** (`account`): Who you're logged in to Instrument as. On it: Log out (`log-out`).
+- **Instrument account** (`account`): Who you're logged in to Instrument as. On it: Log out (`log-out`).
 - **Plan** (`plan`): Your free trial or subscription, and changing your plan. On it: Change plan (`change-plan`).
 - **Change plan** (`change-plan`): Switch to another plan.
 - **Payment method and invoices** (`billing-portal`): Your card and invoices, and canceling your subscription, in Stripe. On it: Manage billing (`manage-billing`).
@@ -51,7 +51,6 @@ What Instrument remembers about you, one file per memory, which you can search, 
 
 Which folders and places on this computer Instrument may use.
 
-- **Permissions** (`permissions`): Which folders and places on this computer the agent may use.
 - **Use folders without asking** (`use-folders-without-asking`): Use any folder that isn't marked Not allowed, without asking.
 - **Folders every chat can use** (`always-open`): Your Instrument folder, each chat's files, past chats and caches, which every chat can use because Instrument needs them.
 - **Reset permissions** (`reset-permissions`): Put every folder and app back the way they were when you installed Instrument.
@@ -72,8 +71,6 @@ Where your Instrument folder is, and chats in it that can’t be opened.
 ### Activity (`activity`)
 
 Everything Instrument asked an AI model to do, which you can filter, sort, and export.
-
-- **Activity** (`activity`): Everything Instrument asked an AI model to do, with the model, tokens, and time.
 
 ## Screens
 

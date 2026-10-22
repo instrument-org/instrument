@@ -44,7 +44,7 @@ export const SETTINGS_INDEX = [
     detail: `Who you're logged in to ${APP_NAME} as`,
     id: "account",
     tab: "Account",
-    title: "Account",
+    title: `${APP_NAME} account`,
   },
   {
     detail: "Choose your preferred color scheme.",
@@ -183,20 +183,6 @@ export const SETTINGS_INDEX = [
     id: "grok-account",
     tab: "Providers",
     title: "Grok account",
-  },
-  {
-    detail: `Everything ${APP_NAME} asked an AI model to do, with the model, tokens, and time`,
-    id: "activity",
-    page: true,
-    tab: "Activity",
-    title: "Activity",
-  },
-  {
-    detail: "Which folders and places on this computer the agent may use.",
-    id: "permissions",
-    page: true,
-    tab: "Permissions",
-    title: "Permissions",
   },
   {
     detail: "Use any folder that isn't marked Not allowed, without asking.",

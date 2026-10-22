@@ -10,32 +10,42 @@ import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { type ConnectResult } from "@/client/hooks/use-connect-flow";
 import { useConnectedPlans } from "@/client/hooks/use-connected-plans";
-import { hasPaymentFailed, noticeCopy } from "@/client/lib/billing";
+import {
+  accountNotice,
+  type BillingNotice,
+  nextStepFor,
+} from "@/client/lib/billing";
 import { showConnectToast } from "@/client/lib/connect-toast";
 import { toast } from "@/client/lib/toast";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
-import { CreditCardIcon } from "@phosphor-icons/react/CreditCard";
+import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
+import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+type Offer = RPCOutput["billing"]["offer"];
 type Status = RPCOutput["billing"]["status"];
 
 /** Where a dialog goes once someone has signed in to Instrument with Google. */
 type InstrumentSignInNext =
   | { kind: "finish" }
-  | { kind: "payment-failed" }
+  /** An account a plan can't help: a failed payment or revoked access. */
+  | { kind: "notice"; notice: BillingNotice }
   | { kind: "plans" };
 
 export function nextAfterInstrumentSignIn({
   hasOwnAI,
+  offer,
   status,
 }: {
   hasOwnAI: boolean;
+  offer: Offer | undefined;
   status: Status | undefined;
 }): InstrumentSignInNext {
-  if (hasPaymentFailed(status)) {
-    return { kind: "payment-failed" };
+  const notice = accountNotice(status, offer);
+  if (notice?.kind === "access-revoked" || notice?.kind === "payment-failed") {
+    return { kind: "notice", notice };
   }
   if (status?.subscription !== undefined || status?.trial.state === "active") {
     return { kind: "finish" };
@@ -80,7 +90,8 @@ export function InstrumentLogInPage({
 /**
  * What follows a Google sign-in in a dialog, once the account is read: done
  * for an account with a plan, a running trial, or AI of its own; billing's
- * notice for a payment that didn't go through; otherwise setup's plan pages.
+ * next step for a payment that didn't go through or access that was
+ * revoked; otherwise setup's plan pages.
  * `onBack` puts Back on the plans, for a dialog with a page to go back to;
  * without it they offer Not now.
  */
@@ -104,6 +115,7 @@ export function AfterInstrumentSignIn({
       staleTime: 0,
     }),
   );
+  const offer = useQuery(rpcClient.billing.offer.queryOptions());
   const { data: keys } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
@@ -116,12 +128,14 @@ export function AfterInstrumentSignIn({
     next === undefined &&
     status.isFetchedAfterMount &&
     !status.isFetching &&
+    !offer.isPending &&
     keys !== undefined &&
     plans !== undefined
   ) {
     setNext(
       nextAfterInstrumentSignIn({
         hasOwnAI: keys.length > 0 || Object.values(plans).some(Boolean),
+        offer: offer.data,
         status: status.data,
       }),
     );
@@ -153,8 +167,15 @@ export function AfterInstrumentSignIn({
         />
       );
     }
-    case "payment-failed": {
-      return <PaymentFailedPage onFinish={finishSignedIn} />;
+    case "notice": {
+      return (
+        <AccountNoticePage
+          notice={next.notice}
+          offer={offer.data}
+          onFinish={finishSignedIn}
+          status={status.data}
+        />
+      );
     }
     default: {
       return (
@@ -169,10 +190,28 @@ export function AfterInstrumentSignIn({
   }
 }
 
-/** Billing's own notice for a failed payment, with its way to fix the card. */
-function PaymentFailedPage({ onFinish }: { onFinish: () => void }) {
+/**
+ * Billing's next step for an account no plan can help, in the words a chat's
+ * note uses: Update card for a failed payment, Contact support for revoked
+ * access.
+ */
+function AccountNoticePage({
+  notice,
+  offer,
+  onFinish,
+  status,
+}: {
+  notice: BillingNotice;
+  offer: Offer | undefined;
+  onFinish: () => void;
+  status: Status | undefined;
+}) {
   const [now] = useState(() => new Date());
-  const copy = noticeCopy({ kind: "payment-failed" }, now);
+  const openLink = useOpenExternalLink();
+  const step = nextStepFor(
+    { blocked: "models", notice, offer, otherModelCan: false, status },
+    now,
+  );
   const portal = useMutation(
     rpcClient.billing.openPortal.mutationOptions({
       onError: (error) => {
@@ -193,21 +232,26 @@ function PaymentFailedPage({ onFinish }: { onFinish: () => void }) {
       }
       hero={
         <span className="flex size-14 items-center justify-center rounded-2xl bg-muted">
-          <CreditCardIcon className="size-7 text-warning-700 dark:text-warning-300" />
+          <WarningIcon className="size-7 text-warning-700 dark:text-warning-300" />
         </span>
       }
-      subtitle={copy.line}
-      title={copy.title.replace(/\.$/, "")}
+      subtitle={step.line}
+      title={step.title.replace(/\.$/, "")}
     >
-      {copy.action && (
+      {step.action && (
         <Button
           className="mt-8 h-10 px-5 text-base"
           disabled={portal.isPending}
           onClick={() => {
-            portal.mutate(undefined);
+            if (step.action?.kind === "contact-support") {
+              openLink(SUPPORT_URL);
+              onFinish();
+            } else {
+              portal.mutate(undefined);
+            }
           }}
         >
-          {copy.action.label}
+          {step.action.label}
         </Button>
       )}
     </SetupPage>

@@ -29,6 +29,12 @@ vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     auth: { live: { hasToken: live("hasToken", () => true) } },
     billing: {
+      offer: {
+        queryOptions: () => ({
+          queryFn: () => Promise.resolve(null),
+          queryKey: ["offer"],
+        }),
+      },
       openPortal: { mutationOptions: (options: object) => options },
       status: {
         queryOptions: (options: object) => ({
@@ -51,6 +57,9 @@ vi.mock("@/client/components/billing/plan-pages", () => ({
 }));
 vi.mock("@/client/components/connect-button", () => ({
   ConnectButton: () => <button type="button">Continue with Google</button>,
+}));
+vi.mock("@/client/hooks/use-open-external-link", () => ({
+  useOpenExternalLink: () => vi.fn(),
 }));
 vi.mock("@/client/components/terms-footer", () => ({
   TermsFooter: () => null,
@@ -117,11 +126,19 @@ describe("nextAfterInstrumentSignIn", () => {
     {
       hasOwnAI: true,
       name: "a failed payment",
-      next: "payment-failed",
+      next: "notice",
       status: paymentFailed,
     },
+    {
+      hasOwnAI: true,
+      name: "revoked access",
+      next: "notice",
+      status: { ...noPlan, canSubscribe: false, plan: "none" },
+    },
   ])("$name goes to $next", ({ hasOwnAI, next, status }) => {
-    expect(nextAfterInstrumentSignIn({ hasOwnAI, status }).kind).toBe(next);
+    expect(
+      nextAfterInstrumentSignIn({ hasOwnAI, offer: undefined, status }).kind,
+    ).toBe(next);
   });
 });
 

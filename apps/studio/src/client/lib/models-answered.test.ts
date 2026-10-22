@@ -6,7 +6,7 @@ import { AIProviderConfigIdSchema, OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import { modelsAnswering } from "./models-answered";
+import { modelName, modelsAnswering } from "./models-answered";
 
 const params = {
   provider: OUR_MODELS.providerType,
@@ -17,10 +17,12 @@ const model = ({
   author,
   canonicalId,
   name,
+  sourceModelId,
 }: {
   author: string;
   canonicalId: string;
   name: string;
+  sourceModelId?: string;
 }) =>
   AIGatewayModel.Schema.parse({
     author,
@@ -30,6 +32,7 @@ const model = ({
     params,
     providerId: `${author}/${canonicalId}`,
     providerName: "Instrument",
+    sourceModelId,
     tags: [],
     uri: AIGatewayModelURI.fromModel({
       author,
@@ -38,7 +41,18 @@ const model = ({
     }),
   });
 
-const auto = model({ author: "instrument", canonicalId: "auto", name: "Auto" });
+const auto = model({
+  author: "instrument",
+  canonicalId: "auto",
+  name: "Auto",
+  sourceModelId: "anthropic/claude-haiku-5.5",
+});
+const claude = model({
+  author: "instrument",
+  canonicalId: "claude",
+  name: "Claude",
+  sourceModelId: "anthropic/claude-haiku-5.5",
+});
 const luna = model({
   author: "openai",
   canonicalId: "gpt-5.6-luna",
@@ -104,6 +118,28 @@ describe("modelsAnswering", () => {
         served: [{ model: { name: "GPT-5.6 Luna" } }],
       },
     ]);
+  });
+
+  it("reads one of our named models answered by its source as ordinary", () => {
+    expect(
+      modelsAnswering([
+        step({
+          aiGatewayModel: claude,
+          modelIdServed: "anthropic/claude-haiku-5.5",
+        }),
+      ]),
+    ).toMatchObject([{ kind: "ordinary", served: [] }]);
+  });
+
+  it("reads a router answered by its default as routed, named from the id", () => {
+    const [usage] = modelsAnswering([
+      step({
+        aiGatewayModel: auto,
+        modelIdServed: "anthropic/claude-haiku-5.5",
+      }),
+    ]);
+    expect(usage?.kind).toBe("routed");
+    expect(usage?.served.map(modelName)).toEqual(["Claude Haiku 5.5"]);
   });
 
   it("reads a named model answered by another as substituted", () => {

@@ -1,6 +1,7 @@
 import {
   type AIGatewayModel,
   isRouterModel,
+  modelDisplayName,
   namesSameModel,
 } from "@instrument-org/ai-gateway/client";
 import { type SessionMessage } from "@instrument-org/workspace/client";
@@ -30,7 +31,7 @@ export interface ModelUsage {
 }
 
 export function modelName(model: AnsweringModel): string {
-  return model.model?.name.trim() || model.providerId;
+  return modelDisplayName(model.providerId, model.model?.name);
 }
 
 /**
@@ -65,10 +66,7 @@ export function modelsAnswering(
     // Compared here as well as before it is stored, because a message recorded
     // before the field held only differences carries the requested id back as
     // though a provider had named it.
-    if (
-      modelIdServed &&
-      !namesSameModel(aiGatewayModel?.providerId, modelIdServed)
-    ) {
+    if (modelIdServed && !answeredAsAsked(aiGatewayModel, modelIdServed)) {
       if (!usage.served.some((s) => s.providerId === modelIdServed)) {
         usage.served.push({
           model: aiGatewayModelServed,
@@ -92,4 +90,23 @@ export function modelsAnswering(
   return [...usageByRequest.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, usage]) => usage);
+}
+
+/**
+ * Whether the served id is the model that was asked for. Besides the id
+ * itself, and a dated build of it, that is the model an alias stands for: one
+ * of our own named models (`instrument/claude`) is answered by the model its
+ * record names as its source, which is the alias working rather than the
+ * provider substituting. Not for a router, whose source is only its current
+ * default, and whose picks are what its card lists.
+ */
+function answeredAsAsked(
+  requested: AIGatewayModel.Type | undefined,
+  served: string,
+): boolean {
+  return (
+    namesSameModel(requested?.providerId, served) ||
+    (!isRouterModel(requested) &&
+      namesSameModel(requested?.sourceModelId, served))
+  );
 }

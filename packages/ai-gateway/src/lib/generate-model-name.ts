@@ -1,8 +1,6 @@
 import { capitalize } from "radashi";
 
-import { type AIGatewayModel } from "../schemas/model";
-
-export function generateModelName(modelId: AIGatewayModel.CanonicalId): string {
+export function generateModelName(modelId: string): string {
   const replacements: Record<string, string> = {
     chatgpt: "ChatGPT",
     codellama: "CodeLLaMa",

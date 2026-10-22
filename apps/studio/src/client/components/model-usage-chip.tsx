@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@instrument-org/ai-gateway/client";
 import { sift } from "radashi";
 
 import { modelName, type ModelUsage } from "../lib/models-answered";
@@ -88,7 +89,7 @@ function getModelInfoRows(usage: ModelUsage): {
             label: "Model:",
             value: firstAnswered
               ? modelName(firstAnswered)
-              : (requested?.name ?? usage.modelId),
+              : modelDisplayName(usage.modelId, requested?.name),
           },
           ...otherAnswered.map((model) => ({
             label: "",

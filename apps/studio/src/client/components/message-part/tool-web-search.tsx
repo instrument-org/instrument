@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   readWebSearchResults,
@@ -221,7 +222,8 @@ function SearchFacts({
     facts.push(formatDuration(endedAt - part.metadata.createdAt.getTime()));
   }
   const summary = results?.kind === "summary" ? results : undefined;
-  const modelName = summary?.modelIdServed ?? summary?.modelId;
+  const modelId = summary?.modelIdServed ?? summary?.modelId;
+  const modelName = modelId && modelDisplayName(modelId);
 
   if (!searching && !modelName && facts.length === 0) {
     return null;

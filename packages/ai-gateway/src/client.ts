@@ -1,5 +1,6 @@
 export { findReplacement, readModelURI } from "./lib/find-replacement";
 export { isRouterModel } from "./lib/is-router-model";
+export { modelDisplayName } from "./lib/model-display-name";
 export { modelNameFromURI } from "./lib/model-name-from-uri";
 export { namesSameModel } from "./lib/names-same-model";
 export {

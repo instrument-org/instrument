@@ -1,29 +1,5 @@
+import { modelDisplayName } from "@instrument-org/ai-gateway/client";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
-
-export function ModelChangeNote({
-  data,
-}: {
-  data: SessionMessageDataPart.ModelChangeDataPart;
-}) {
-  // The provider is named only when it changed: the same model from two
-  // providers, or two models with one name, would otherwise read as no move.
-  const providers =
-    data.from.providerName &&
-    data.to.providerName &&
-    data.from.providerName.trim() !== data.to.providerName.trim()
-      ? { from: data.from.providerName.trim(), to: data.to.providerName.trim() }
-      : undefined;
-  return (
-    <div className="my-4 w-full px-4 text-center text-xs text-balance text-muted-foreground">
-      Switched model from {displayName(data.from)}
-      {providers && ` on ${providers.from}`} to{" "}
-      <span className="font-medium text-muted-foreground">
-        {displayName(data.to)}
-        {providers && ` on ${providers.to}`}
-      </span>
-    </div>
-  );
-}
 
 /**
  * The turn where the task started asking a different model.
@@ -45,17 +21,31 @@ export function ModelChangeNote({
  * the model the user picked is a thing the user picked. It reads as a note
  * about their own action rather than as an admission about ours.
  *
- * Each side shows the display name recorded with the change, falling back to
- * the id when there is none. The name is what the user chose the model by, so
- * it is what they recognize; the id is what survives when a name was never
- * stored, and an id is still better than an empty space where a model should
- * be.
- *
- * Trimmed, because the gateway's names arrive with a leading space and this is
- * a sentence rather than a table cell: untrimmed they read as "from  Auto to
- * Gemini", with the gap visible mid-line. `ModelPicker` trims the same field
- * for the same reason.
+ * Each side shows the display name recorded with the change, or one derived
+ * from the id when none was stored (`modelDisplayName`). The name is what the
+ * user chose the model by, so it is what they recognize.
  */
-function displayName(side: { modelId: string; name?: string }): string {
-  return side.name?.trim() || side.modelId;
+export function ModelChangeNote({
+  data,
+}: {
+  data: SessionMessageDataPart.ModelChangeDataPart;
+}) {
+  // The provider is named only when it changed: the same model from two
+  // providers, or two models with one name, would otherwise read as no move.
+  const providers =
+    data.from.providerName &&
+    data.to.providerName &&
+    data.from.providerName.trim() !== data.to.providerName.trim()
+      ? { from: data.from.providerName.trim(), to: data.to.providerName.trim() }
+      : undefined;
+  return (
+    <div className="my-4 w-full px-4 text-center text-xs text-balance text-muted-foreground">
+      Switched model from {modelDisplayName(data.from.modelId, data.from.name)}
+      {providers && ` on ${providers.from}`} to{" "}
+      <span className="font-medium text-muted-foreground">
+        {modelDisplayName(data.to.modelId, data.to.name)}
+        {providers && ` on ${providers.to}`}
+      </span>
+    </div>
+  );
 }

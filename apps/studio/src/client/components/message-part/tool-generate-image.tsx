@@ -1,4 +1,7 @@
-import { isRouterModel } from "@instrument-org/ai-gateway/client";
+import {
+  isRouterModel,
+  modelDisplayName,
+} from "@instrument-org/ai-gateway/client";
 import { type AIProviderType, OUR_MODELS } from "@instrument-org/shared";
 import {
   type SessionMessagePart,
@@ -555,14 +558,10 @@ function qualityLabel(quality: string | undefined) {
     : undefined;
 }
 
-// A provider's model id is meaningful once its provider prefix is dropped.
 function resolveImageModelName(
   modelId: string | undefined,
 ): string | undefined {
-  if (!modelId) {
-    return undefined;
-  }
-  return modelId.split("/").at(-1) ?? modelId;
+  return modelId ? modelDisplayName(modelId) : undefined;
 }
 
 /** One of the images the prompt was drawn from, in the reference strip. */

@@ -31,6 +31,7 @@ import { keptAtom } from "@/client/lib/kept-state";
 import { toast } from "sonner";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCInput, type RPCOutput } from "@/client/rpc/client";
+import { modelDisplayName } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, AIProviderTypeSchema } from "@instrument-org/shared";
 import { ArrowDownIcon } from "@phosphor-icons/react/ArrowDown";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
@@ -281,8 +282,9 @@ function shortModel(id: null | string) {
 }
 
 /**
- * A model's name as the model picker shows it, or its short id for one the
- * catalog does not list (a decision model, or one no longer offered).
+ * A model's name as the model picker shows it, or one derived from its id for
+ * one the catalog does not list (a decision model, the model an alias or a
+ * router resolved to, or one no longer offered).
  */
 function useModelName() {
   const { data } = useQuery(
@@ -296,7 +298,7 @@ function useModelName() {
   return (id: null | string) =>
     id === null
       ? ""
-      : (names.get(id) ?? names.get(shortModel(id)) ?? shortModel(id));
+      : (names.get(id) ?? names.get(shortModel(id)) ?? modelDisplayName(id));
 }
 
 /** The screen a row's origin opens, when it is somewhere that still exists. */

@@ -1,4 +1,7 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
+import {
+  type AIGatewayModel,
+  modelDisplayName,
+} from "@instrument-org/ai-gateway/client";
 
 import { AIProviderIcon } from "./ai-provider-icon";
 
@@ -23,7 +26,11 @@ export function ModelChip({
   className = "",
   modelId,
 }: ModelChipProps) {
-  const displayName = answeredBy ?? aiGatewayModel?.name ?? modelId;
+  const displayName =
+    answeredBy ??
+    (modelId === undefined
+      ? aiGatewayModel?.name
+      : modelDisplayName(modelId, aiGatewayModel?.name));
   const provider = aiGatewayModel?.params.provider;
 
   if (!displayName) {

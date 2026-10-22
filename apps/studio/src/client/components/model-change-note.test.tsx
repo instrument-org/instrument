@@ -70,17 +70,20 @@ describe("ModelChangeNote", () => {
     );
   });
 
-  it("falls back to the id when no name was recorded", () => {
+  it("names a side from its id when no name was recorded", () => {
     renderWithProviders(
       <ModelChangeNote
-        data={change({ modelId: "older-model" }, { modelId: "auto" })}
+        data={change(
+          { modelId: "anthropic/claude-haiku-5.5" },
+          { modelId: "auto" },
+        )}
       />,
     );
 
-    expect(noteText()).toBe("Switched model from older-model to auto");
+    expect(noteText()).toBe("Switched model from Claude Haiku 5.5 to Auto");
   });
 
-  it("falls back to the id when the name is only whitespace", () => {
+  it("names a side from its id when the name is only whitespace", () => {
     renderWithProviders(
       <ModelChangeNote
         data={change(
@@ -90,6 +93,6 @@ describe("ModelChangeNote", () => {
       />,
     );
 
-    expect(noteText()).toBe("Switched model from older-model to Auto");
+    expect(noteText()).toBe("Switched model from Older Model to Auto");
   });
 });

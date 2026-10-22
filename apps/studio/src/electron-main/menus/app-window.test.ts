@@ -12,6 +12,7 @@ vi.mock("@/electron-main/rpc/publisher", () => ({ publisher: { publish } }));
 vi.mock("@/electron-main/stores/workspace/preferences", () => ({
   isDeveloperMode: () => false,
 }));
+vi.mock("@/electron-main/lib/setup-state", () => ({ isSetupUp: () => false }));
 vi.mock("./other-window", () => ({}));
 vi.mock("./utils", () => ({}));
 

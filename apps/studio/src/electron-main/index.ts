@@ -18,6 +18,7 @@ import {
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
+import { setupStateKnown } from "@/electron-main/lib/setup-state";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { finishPlacingLeftovers } from "@/electron-main/rpc/routes/files";
@@ -357,6 +358,9 @@ async function bootstrapPrimaryInstance() {
     });
   });
 
+  // The window opens at setup's size or its own, so it waits for setup's
+  // slow facts (a few seconds at most, and never once setup is finished).
+  await setupStateKnown();
   openAppWindow();
 
   // Let the initial window render before running the best-effort cache warmup.

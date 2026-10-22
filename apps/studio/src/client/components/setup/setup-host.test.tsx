@@ -16,10 +16,11 @@ vi.mock("@/client/components/network-status/network-status-pill", () => ({
   SetupNetworkStatusPill: () => null,
 }));
 
-// The host under test, not the steps' own pages: each step draws its name
-// and the host's ways on.
-vi.mock("./setup-pages", async () => {
-  const { SETUP_STEPS } = await import("@/shared/setup");
+// The host under test, not the way-in, plan and free-account pages, which
+// sign in and read billing: each draws its name and the host's ways on.
+vi.mock("./setup-pages", async (importOriginal) => {
+  const { SETUP_PAGES } =
+    await importOriginal<typeof import("./setup-pages")>();
   const { SetupFooter, SetupPage } = await import("./kit/setup-page");
   const Page = ({
     isLast,
@@ -40,7 +41,12 @@ vi.mock("./setup-pages", async () => {
     />
   );
   return {
-    SETUP_PAGES: Object.fromEntries(SETUP_STEPS.map((step) => [step, Page])),
+    SETUP_PAGES: {
+      ...SETUP_PAGES,
+      "free-account": Page,
+      plan: Page,
+      "way-in": Page,
+    },
   };
 });
 

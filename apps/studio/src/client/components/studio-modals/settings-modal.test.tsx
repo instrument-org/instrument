@@ -141,6 +141,9 @@ describe("Settings pages", () => {
       writable: true,
     });
     fireEvent.click(screen.getByRole("button", { name: "Storage" }));
-    expect(scroller.scrollTop).toBe(0);
+    // A page gets a scroller of its own, so it never inherits one's offset
+    // or the edge fade a longer page left on it.
+    expect(screen.getByRole("main")).not.toBe(scroller);
+    expect(screen.getByRole("main").scrollTop).toBe(0);
   });
 });

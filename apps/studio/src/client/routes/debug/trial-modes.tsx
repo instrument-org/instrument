@@ -4,6 +4,8 @@ import { PlanPages } from "@/client/components/billing/plan-pages";
 import { PlanSheet } from "@/client/components/billing/plan-sheet";
 import { PlanNeeded } from "@/client/components/model-picker";
 import { AccountSection } from "@/client/components/settings/account-section";
+import { SetupFooter } from "@/client/components/setup/kit/setup-page";
+import { FreeAccountPage } from "@/client/components/setup/steps/free-account";
 import { PlanStep } from "@/client/components/setup/steps/plan";
 import { WaysIn } from "@/client/components/setup/steps/ways-in";
 import { AddProviderSheet } from "@/client/components/studio-modals/add-provider-sheet";
@@ -155,6 +157,26 @@ const surfaces = [
       </div>
     ),
     signedIn: true,
+  },
+  {
+    id: "log-in-free-account",
+    label: "Log in: free account",
+    render: () => (
+      <div className="flex w-190 flex-col rounded-2xl border border-border bg-background">
+        <FreeAccountPage
+          calledOut="Dictation"
+          fit="dialog"
+          footer={
+            <SetupFooter
+              next="none"
+              skip={{ label: "Not now", onClick: noop }}
+            />
+          }
+          onSignedIn={noop}
+        />
+      </div>
+    ),
+    signedIn: false,
   },
 ] as const satisfies readonly {
   id: string;

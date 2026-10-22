@@ -12,7 +12,7 @@ async function collect() {
   for await (const event of streamOpenRouterImage({
     config: { id: "cfg-1" } as AIGatewayProviderConfig.Type,
     count: 1,
-    modelId: "instrument/auto-image-2",
+    modelId: "instrument/auto-image",
     prompt: "a cat",
     sessionId: "ses_1",
     signal: new AbortController().signal,

@@ -285,7 +285,7 @@ export const OUR_MODELS = {
   cacheIdentifier: OUR_MODELS_GROUP_ID,
   image: {
     // Should technically be a ProviderId, but that's defined in the ai-gateway package
-    id: `${OUR_MODELS_GROUP_ID}/auto-image-2`,
+    id: `${OUR_MODELS_GROUP_ID}/auto-image`,
     // Friendly label for the auto-selected image model, shown in place of the id.
     name: "Auto",
   },

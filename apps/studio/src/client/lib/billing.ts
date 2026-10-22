@@ -347,6 +347,14 @@ export function describeWhen(date: Date, now: Date) {
   return describeDate(date, now);
 }
 
+/**
+ * When a pause ends, after "until": "3:40 PM" later today, "tomorrow at
+ * 9:12 AM", "Monday at 9:12 AM", "November 5".
+ */
+function describeUntil(date: Date, now: Date) {
+  return describeWhen(date, now).replace(/^at /, "");
+}
+
 /** "November 5", with the year only when it is not this one. */
 export function describeDate(date: Date, now: Date) {
   return date.toLocaleDateString(displayLocale, {
@@ -641,6 +649,12 @@ const PURPOSE = {
   search: `use ${APP_NAME}'s web search`,
 } satisfies Record<BlockedThing, string>;
 
+/** What paused, said as the start of its note's title. */
+const PAUSED = {
+  images: "Images are paused",
+  search: `Web search through ${APP_NAME} is paused`,
+} satisfies Partial<Record<BlockedThing, string>>;
+
 /** Everything `nextStep` decides from. */
 export type NextStepInput = {
   /** What was held back. */
@@ -703,6 +717,35 @@ export function nextStep(
       };
     }
     case "plan-limit": {
+      // An image or a search stops on its own while the chat goes on with
+      // the person's own AI, so the note names what paused, not the chat.
+      if (blocked === "images" || blocked === "search") {
+        const until = notice.resetsAt
+          ? `until ${describeUntil(notice.resetsAt, now)}`
+          : "for now";
+        const action =
+          plan === "free"
+            ? (trialAction(trial) ?? choosePlan)
+            : plan === "trial"
+              ? choosePlan
+              : notice.upgradeTo
+                ? { kind: "upgrade" as const, label: "Upgrade" }
+                : undefined;
+        return {
+          ...(action && { action }),
+          changeModel,
+          // Whose usage it was, once the account is known.
+          ...(plan !== undefined && {
+            line:
+              plan === "free"
+                ? `Your free ${APP_NAME} usage ran out.`
+                : plan === "trial"
+                  ? "Your free trial's usage ran out."
+                  : "Your plan's usage ran out.",
+          }),
+          title: `${PAUSED[blocked]} ${until}.`,
+        };
+      }
       const line = notice.resetsAt
         ? `It resets ${describeWhen(notice.resetsAt, now)}.`
         : "It resets soon.";

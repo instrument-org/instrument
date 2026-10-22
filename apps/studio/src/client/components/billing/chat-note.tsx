@@ -8,11 +8,9 @@ import {
   accountNotice,
   type BillingNotice,
   type BillingRefusal,
-  canStartTrial,
   isNoteDismissed,
   noteDismissalKey,
   withNoteDismissed,
-  describeDate,
   featurePause,
   type BillingNoticeAction,
   type NextStep,
@@ -33,7 +31,7 @@ import {
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { APP_NAME, OUR_MODELS, SUPPORT_URL } from "@instrument-org/shared";
+import { OUR_MODELS, SUPPORT_URL } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { GaugeIcon } from "@phosphor-icons/react/Gauge";
@@ -404,16 +402,16 @@ export function useChatNote({
     !(imageOffer && isOfferDismissed(imageOffer))
   ) {
     const isReady = imageNotice.kind === "resumed";
-    const isSignIn = imageNotice.kind === "sign-in";
     return {
       holdsSend: false,
       rank: isReady ? "ready" : "quiet",
       render: (context) => (
         <BillingNote
           context={context}
-          icon={isSignIn ? ImageIcon : undefined}
+          icon={isReady ? undefined : ImageIcon}
           isBusy={portal.isPending || startTrial.isPending || signIn.waiting}
-          isReady={isReady || isSignIn}
+          isReady={isReady}
+          quiet
           kind={imageNotice.kind}
           onAct={(kind) => {
             if (kind === "continue") {
@@ -451,42 +449,35 @@ export function useChatNote({
     : undefined;
   const searchOffer = noteDismissalKey("search", "paused");
   if (searchPause && !isOfferDismissed(searchOffer)) {
-    const offerTrial = canStartTrial(status, offer);
     return {
       holdsSend: false,
       rank: "quiet",
-      render: () => (
-        <ReplyNote
-          action={
-            <>
-              {offerTrial && (
-                <ReplyNoteButton
-                  disabled={startTrial.isPending}
-                  onClick={() => {
-                    startTrial.mutate(undefined);
-                  }}
-                >
-                  Start free trial
-                </ReplyNoteButton>
-              )}
-              <ReplyNoteButton
-                onClick={() => {
-                  openPlanSheet();
-                }}
-              >
-                Choose a plan
-              </ReplyNoteButton>
-            </>
-          }
-          data-billing-search-paused=""
+      render: (context) => (
+        <BillingNote
+          context={context}
           icon={MagnifyingGlassIcon}
+          isBusy={startTrial.isPending}
+          isReady={false}
+          kind="plan-limit"
+          onAct={act}
           onDismiss={() => {
             dismissOffer(searchOffer);
           }}
-          tone="neutral"
-        >
-          {searchPauseText(searchPause.resetsAt, now)}
-        </ReplyNote>
+          quiet
+          step={nextStepFor(
+            {
+              blocked: "search",
+              notice: {
+                kind: "plan-limit",
+                ...(searchPause.resetsAt && { resetsAt: searchPause.resetsAt }),
+              },
+              offer,
+              otherModelCan: false,
+              status,
+            },
+            now,
+          )}
+        />
       ),
     };
   }
@@ -547,6 +538,7 @@ function BillingNote({
   kind,
   onAct,
   onDismiss,
+  quiet = false,
   step,
 }: {
   context: ChatNoteContext;
@@ -557,6 +549,11 @@ function BillingNote({
   kind: BillingNotice["kind"];
   onAct: (kind: BillingNoticeAction) => void;
   onDismiss?: () => void;
+  /**
+   * Something that stopped on its own while the chat goes on (an image, a
+   * search): neutral, never the warning a stopped chat gets.
+   */
+  quiet?: boolean;
   step: NextStep;
 }) {
   const { action, secondary } = step;
@@ -607,7 +604,7 @@ function BillingNote({
       icon={icon ?? (isReady ? CheckCircleIcon : WarningIcon)}
       nudge={context.nudge}
       onDismiss={onDismiss}
-      tone={isReady ? "neutral" : "warn"}
+      tone={isReady || quiet ? "neutral" : "warn"}
     >
       <span className="font-medium">{step.title}</span>
       {step.line && ` ${step.line}`}
@@ -723,12 +720,6 @@ function lastSearchPause(
     return undefined;
   }
   return { resetsAt: pause.resetsAt };
-}
-
-function searchPauseText(resetsAt: Date | undefined, now: Date) {
-  return resetsAt
-    ? `${APP_NAME}'s advanced web search is paused until ${describeDate(resetsAt, now)}.`
-    : `${APP_NAME}'s advanced web search is paused for now.`;
 }
 
 /**

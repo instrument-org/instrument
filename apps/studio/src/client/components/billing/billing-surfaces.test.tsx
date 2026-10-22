@@ -1017,11 +1017,14 @@ describe("the chat's billing notice", () => {
       />,
     );
 
-    expect(
-      await screen.findByText(
-        "You've reached your free account's limit for now.",
-      ),
-    ).toBeDefined();
+    expect(await screen.findByText(/^Images are paused until /)).toBeDefined();
+    await vi.waitFor(() => {
+      expect(
+        document.querySelector("[data-slot=reply-note]")?.textContent,
+      ).toContain("Your free Instrument usage ran out.");
+    });
+    // The chat goes on with the person's own AI, so nothing reads as stopped.
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(
       await screen.findByRole("button", { name: "Start free trial" }),
     ).toBeDefined();
@@ -1128,7 +1131,7 @@ describe("the chat's billing notice", () => {
 
     expect(
       await screen.findByText(
-        `Instrument's advanced web search is paused until ${periodEnd}.`,
+        `Web search through Instrument is paused until ${periodEnd}.`,
       ),
     ).toBeDefined();
     expect(

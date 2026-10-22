@@ -50,6 +50,7 @@ import {
 } from "@/electron-main/windows/app-window";
 
 import { openWorkspace } from "./open-workspace";
+import { requestQuitApproval } from "./quit";
 import { isSwitchingWorkspace, switchWorkspace } from "./live-workspace-switch";
 
 beforeEach(() => {
@@ -89,6 +90,26 @@ describe("switchWorkspace", () => {
     expect(isSwitchingWorkspace()).toBe(false);
     expect(openAppWindow).toHaveBeenCalledOnce();
     expect(relaunchApp).not.toHaveBeenCalled();
+  });
+
+  it("turns down a second switch asked while the first one's question is open", async () => {
+    let answer: (approved: boolean) => void = () => undefined;
+    vi.mocked(requestQuitApproval).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    const first = switchWorkspace({ choose: vi.fn() });
+    const secondChoice = vi.fn();
+
+    await expect(switchWorkspace({ choose: secondChoice })).resolves.toBe(
+      "canceled",
+    );
+    answer(false);
+    await expect(first).resolves.toBe("canceled");
+    expect(secondChoice).not.toHaveBeenCalled();
+    expect(isSwitchingWorkspace()).toBe(false);
   });
 
   it("restarts when the next workspace is refused", async () => {

@@ -66,12 +66,15 @@ export async function switchWorkspace({
   if (switching) {
     return "canceled";
   }
+  // Before the question, so a second switch asked while it is open is
+  // turned down rather than asking again.
+  switching = true;
   if (!(await requestQuitApproval())) {
+    switching = false;
     return "canceled";
   }
   // The approval was for this switch; a later quit asks again.
   withdrawQuitApproval();
-  switching = true;
   try {
     choose();
   } catch (error) {

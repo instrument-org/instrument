@@ -54,7 +54,8 @@ The seeded development task is that same task with two additions, and is what ma
 
 - Meet everything above, with `REMOTE_DEBUGGING_PORT` set to `devSeeded.cdpPort` instead.
 - Set `ELECTRON_USER_DATA_DIR` to `devSeeded.userDataDir`.
-- Set `SKIP_ONBOARDING` to `true`. A seeded workspace has no provider credentials and must not have any, so without it the app opens the onboarding window and never reveals the main one, which reads as a hang.
+- Set `SKIP_ONBOARDING` to `true`. A seeded workspace has no provider credentials and must not have any, so without it the app opens on setup and never reveals the workspace, which reads as a hang.
+- Set `INSTRUMENT_WORKSPACE` to the seeded workspace folder, `devSeeded.userDataDir` followed by `\workspace`. Setup is where a workspace is chosen, so a run that skips it names one, and the app refuses to start without it.
 - Redirect output to a different log than the development task, so a run against a seeded workspace is separable from a plain one.
 
 The installed task must:

@@ -1147,11 +1147,13 @@ async function cmdBoot(
         STUDIO_DRIVE_PURPOSE: purpose,
         STUDIO_DRIVE_VISIBLE: visible ? "1" : undefined,
         // A seeded workspace has no provider credentials and must not: they
-        // cannot be committed. Without this the app opens on setup.
+        // cannot be committed. Without this the app opens on setup, and a
+        // run that skips setup names the workspace setup would have chosen.
         ...(workspace && {
           ELECTRON_USER_DATA_DIR: workspace.userDataDir,
           INSTRUMENT_DATA_HOME: workspace.home,
           INSTRUMENT_OUTPUT_FOLDER: workspace.outputDir,
+          INSTRUMENT_WORKSPACE: path.join(workspace.userDataDir, "workspace"),
           SKIP_ONBOARDING: "true",
         }),
         // Pinned rather than switched to, so the developer's own instance keeps

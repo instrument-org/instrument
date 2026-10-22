@@ -403,6 +403,9 @@ describe("Studio Smoke Test", () => {
           DISABLE_AUTO_UPDATE_POLLING: "true",
           ELECTRON_ENABLE_CONSOLE_LOGGING: "true",
           ELECTRON_USER_DATA_DIR: tempUserDataDir,
+          // Setup is where a workspace is chosen, so a run that skips it
+          // names one.
+          INSTRUMENT_WORKSPACE: path.join(tempUserDataDir, "workspace"),
           SKIP_MOVE_TO_APPLICATIONS: "true",
           SKIP_ONBOARDING: "true",
         },

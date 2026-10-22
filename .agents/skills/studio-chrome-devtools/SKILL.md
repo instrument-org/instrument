@@ -101,7 +101,7 @@ node $DRIVE rpc workspaces.current '{}' --clean-room first-chat
 node $DRIVE boot --purpose "near limit" --workspace documents --account ~/.instrument/accounts/scenario-near-limit-4fa6.json
 ```
 
-Fixtures and clean rooms set `SKIP_ONBOARDING`, so they open on the app window whatever setup would say. `--scenario <name>` is for the states setup reads: it builds application data of its own from `fixtures/scenarios/<name>.yaml` (a workspace, where the folder is, sentinel sign-ins, setup's record, and the notification and network status a development build takes from the environment), rebuilds it on every boot, and leaves setup to decide. Like `--workspace`, it goes on every command. Read where setup landed from its state rather than the screen: `setup.live.state` is a live route, so take its first value in an `eval`, as below. `setup.answer`, `setup.finish` and `setup.dev.reset` go through `rpc`. `fixtures/scenarios/README.md` lists the scenarios and the file's keys; the dev panel's "Run setup again" forgets the record in any instance.
+Fixtures and clean rooms set `SKIP_ONBOARDING`, so they open on the app window whatever setup would say, and pin their workspace with `INSTRUMENT_WORKSPACE`, which a run that skips setup has to name. `--scenario <name>` is for the states setup reads: it builds application data of its own from `fixtures/scenarios/<name>.yaml` (a workspace, where the folder is, sentinel sign-ins, setup's record, and the notification and network status a development build takes from the environment), rebuilds it on every boot, and leaves setup to decide. Like `--workspace`, it goes on every command. Read where setup landed from its state rather than the screen: `setup.live.state` is a live route, so take its first value in an `eval`, as below. `setup.answer`, `setup.finish` and `setup.dev.reset` go through `rpc`. `fixtures/scenarios/README.md` lists the scenarios and the file's keys; the dev panel's "Run setup again" forgets the record in any instance.
 
 ```bash
 node $DRIVE boot --purpose "setup" --scenario beta-tester
@@ -261,7 +261,7 @@ node $(dirname $DRIVE)/main-stalls.mjs --port 9339 --seconds 15 --profile main.c
 
 It drives nothing, so it is safe while someone is at the machine. Read `stallsOver.60` first: a paste-based dictation tool that restores the clipboard after 60 ms loses text on any stall past about 40 ms. A quiet main thread has none over 30 ms. `--profile` writes a CPU profile of the same window for DevTools' Performance panel, which names what held the thread.
 
-To measure at a real workspace's scale, boot against a copy of it. `cp -cR` makes an instant copy-on-write clone of an Application Support `workspace` folder into a directory of your own, and `boot` hands its environment to the app, so `ELECTRON_USER_DATA_DIR=<that directory> SKIP_ONBOARDING=true node $DRIVE boot …` opens the copy. A copy has no provider credentials, so it measures the app, not a model turn.
+To measure at a real workspace's scale, boot against a copy of it. `cp -cR` makes an instant copy-on-write clone of an Application Support `workspace` folder into a directory of your own, and `boot` hands its environment to the app, so `ELECTRON_USER_DATA_DIR=<that directory> INSTRUMENT_WORKSPACE=<that directory>/workspace SKIP_ONBOARDING=true node $DRIVE boot …` opens the copy (a run that skips setup names its workspace, or the app refuses to start). A copy has no provider credentials, so it measures the app, not a model turn.
 
 ## States a dev build otherwise cannot reach
 

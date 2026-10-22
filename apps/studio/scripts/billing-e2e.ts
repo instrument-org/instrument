@@ -279,6 +279,8 @@ async function bootStudio(): Promise<StudioApp> {
         // Its own preferences, workspace, and session: never the shared dev
         // user data a person's instance runs on.
         ELECTRON_USER_DATA_DIR: userData,
+        // Setup is where a workspace is chosen, so a run that skips it names one.
+        INSTRUMENT_WORKSPACE: path.join(userData, "workspace"),
         MAIN_VITE_APP_API_BASE_URL: BASE_URL,
         SKIP_ONBOARDING: "true",
       },

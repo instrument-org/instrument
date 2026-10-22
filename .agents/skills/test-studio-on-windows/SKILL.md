@@ -190,6 +190,7 @@ you grant everything is measuring the session, not the sandbox.
 - `curl` reaches the forwarded endpoint but `studio-drive` reports no debug endpoint: the command runner is blocking Node's localhost access; rerun the driver with local-network permission.
 - Dev starts with the wrong Node or pnpm: the scheduled task must prepend the configured Node installation to `PATH` and run `pnpm.cmd run dev` from `apps/studio`, bypassing the root Turbo/Corepack re-entry.
 - The seeded target starts but only an onboarding window appears: its task is missing `SKIP_ONBOARDING=true`. `status` reports it as `devSeeded.validation.onboardingSkipped`.
+- The seeded target exits at once: its task sets `SKIP_ONBOARDING=true` without `INSTRUMENT_WORKSPACE` naming the seeded workspace (`<userDataDir>\workspace`). `status` reports it as `devSeeded.validation.workspacePinned`.
 - Seeding fails: the seeder's own message comes back on the remote command's stderr. Run `seed` alone to read it without a start timeout in the way.
 - `start --target dev-seeded` reports the running instance holds another fixture: stop that target, then start it again with the fixture you want.
 - Main-process hot reload loses CDP with `bind() failed: Address already in use`: stop the configured dev target and start it again.

@@ -954,12 +954,14 @@ function Get-TargetPage($cdp) {
   return Get-LaunchedPage $cdp 'http://localhost:*/renderer/*'
 }`;
   // A seeded workspace has no provider credentials and must not have any, so
-  // without SKIP_ONBOARDING the app opens the onboarding window and never
-  // reveals the main one, which reads as a hang rather than as a missing setting.
+  // without SKIP_ONBOARDING the app opens on setup and never reveals the
+  // workspace, which reads as a hang rather than as a missing setting. Setup
+  // is where the workspace is chosen, so the task names it in
+  // INSTRUMENT_WORKSPACE, or the app refuses to start.
   const seededContract = isSeeded
     ? `
-if ($taskArguments.IndexOf('ELECTRON_USER_DATA_DIR=' + $target.userDataDir, [StringComparison]::OrdinalIgnoreCase) -lt 0 -or $taskArguments -notmatch 'SKIP_ONBOARDING=true') {
-  throw "$($target.taskName) must point ELECTRON_USER_DATA_DIR at $($target.userDataDir) and set SKIP_ONBOARDING=true."
+if ($taskArguments.IndexOf('ELECTRON_USER_DATA_DIR=' + $target.userDataDir, [StringComparison]::OrdinalIgnoreCase) -lt 0 -or $taskArguments -notmatch 'SKIP_ONBOARDING=true' -or $taskArguments -notmatch 'INSTRUMENT_WORKSPACE=') {
+  throw "$($target.taskName) must point ELECTRON_USER_DATA_DIR at $($target.userDataDir), set SKIP_ONBOARDING=true, and set INSTRUMENT_WORKSPACE to its workspace folder ($($target.userDataDir)\\workspace)."
 }`
     : "";
   const taskContract =
@@ -1081,6 +1083,7 @@ function Get-TaskStatus($target, [string] $kind) {
       commandConfigured = $commandConfigured
       loopback = $loopback
       onboardingSkipped = $arguments -match 'SKIP_ONBOARDING=true'
+      workspacePinned = $arguments -match 'INSTRUMENT_WORKSPACE='
       ownerMatches = $ownerMatches
       rendererReady = $rendererReady
       seededWorkspaceConfigured = $target.userDataDir -and $arguments.IndexOf('ELECTRON_USER_DATA_DIR=' + $target.userDataDir, [StringComparison]::OrdinalIgnoreCase) -ge 0

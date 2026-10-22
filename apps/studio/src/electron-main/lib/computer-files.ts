@@ -12,7 +12,11 @@ import path from "node:path";
 import { COMPUTER_FILE_REFUSAL_HEADER } from "@/shared/computer-file-refusal";
 
 import { resolveAlias } from "./mac-native";
-import { isRecordPath, isRefusedByName, isRefusedFile } from "./refused-files";
+import {
+  isRecordByName,
+  isRefusedByName,
+  isRefusedFile,
+} from "./refused-files";
 import {
   fileThumbnail,
   fileThumbnailDeps,
@@ -105,7 +109,7 @@ export function hostPathOfComputerFileUrl(
   if (unsafe.test(decoded)) {
     return;
   }
-  if (isRecordPath(decoded)) {
+  if (isRecordByName(hostPath)) {
     return;
   }
   if (!hostPaths.isAbsolute(hostPath)) {

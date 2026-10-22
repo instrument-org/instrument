@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  isRecordByName,
   isRecordPath,
   isRefusedByName,
   isRefusedFile,
@@ -143,6 +144,37 @@ describe("isRefusedByName", () => {
         userDataViewRule({ userDataDir: USER_DATA, workspaceDir: USER_DATA }),
       ),
     ).toBe(true);
+  });
+});
+
+// The file channel turns a record away before it looks for the file, so a
+// chat's work folder, under `~/.instrument` in the installed app, has to read
+// as no record there, or every image the agent made draws as missing.
+describe("isRecordByName", () => {
+  const rule = userDataViewRule({
+    home: HOME,
+    userDataDir: USER_DATA,
+    workspaceDir: undefined,
+  });
+
+  it.each([
+    [
+      "an image the agent made",
+      work("workspace-x", "c", "dog", "dog.png"),
+      false,
+    ],
+    [
+      "a workspace's records the agent made in a work folder",
+      work("workspace-x", "c", "w", ".instrument", "workspace.json"),
+      true,
+    ],
+    [
+      "what else the app keeps in the home folder",
+      path.join(HOME, ".instrument", "other.json"),
+      true,
+    ],
+  ])("%s: %s is a record %s", (_case, hostPath, record) => {
+    expect(isRecordByName(hostPath, rule)).toBe(record);
   });
 });
 

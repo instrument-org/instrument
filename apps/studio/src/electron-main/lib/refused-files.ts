@@ -115,6 +115,22 @@ export function isRecordPath(
 }
 
 /**
+ * Whether an absolute path names one of the app's records ({@link isRecordPath}),
+ * read below a work folder from that folder down, since the folder itself is
+ * under `~/.instrument` in the installed app.
+ */
+export function isRecordByName(
+  asked: string,
+  rule: ViewRule = appViewRule(),
+): boolean {
+  const hostPath = opened(path.resolve(asked));
+  const work = rule.work.find((root) => isAtOrUnder(hostPath, root));
+  return isRecordPath(
+    work === undefined ? hostPath : hostPath.slice(opened(work).length),
+  );
+}
+
+/**
  * Whether the file an absolute path names is refused by its name alone,
  * with its steps up and in place taken first, so a viewable folder spelled
  * on the way to a refused one does not stand for it, and spelled as the
@@ -126,14 +142,7 @@ export function isRefusedByName(
   rule: ViewRule = appViewRule(),
 ): boolean {
   const hostPath = opened(path.resolve(asked));
-  // Below a work folder only what is below it says whether it is a record,
-  // since the folder itself is under `~/.instrument` in the installed app.
-  const work = rule.work.find((root) => isAtOrUnder(hostPath, root));
-  if (
-    isRecordPath(
-      work === undefined ? hostPath : hostPath.slice(opened(work).length),
-    )
-  ) {
+  if (isRecordByName(hostPath, rule)) {
     return true;
   }
   let deepest: undefined | { length: number; refused: boolean };

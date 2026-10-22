@@ -19,6 +19,10 @@ vi.mock(import("./file-thumbnails"), async (importOriginal) => ({
   fileThumbnailDeps: () => ({ dir: "" }),
 }));
 
+/** What the agent made in a chat's work folder, from the test's folder. */
+const WORK_IMAGE =
+  "home/.instrument/work/workspace-x/2026-10-01-chat/dog/dog.png";
+
 let folder: string;
 let file: string;
 let mtimeMs: number;
@@ -39,6 +43,13 @@ beforeAll(async () => {
   await fs.writeFile(path.join(folder, ".instrument", "chat.db"), "secret");
   const stats = await fs.stat(file);
   mtimeMs = stats.mtimeMs;
+
+  // The home folder the chats' work folders are in, `.instrument/work/`.
+  vi.stubEnv("INSTRUMENT_DATA_HOME", path.join(folder, "home"));
+  await fs.mkdir(path.dirname(path.join(folder, WORK_IMAGE)), {
+    recursive: true,
+  });
+  await fs.writeFile(path.join(folder, WORK_IMAGE), "an image");
 
   computerDir = path.join(folder, "user-data");
   vi.spyOn(app, "getPath").mockImplementation((name) =>
@@ -64,6 +75,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await fs.rm(folder, { force: true, recursive: true });
 });
 
@@ -105,6 +117,14 @@ describe("handleComputerFileRequest", () => {
       expect(await response.text()).toBe(relative);
     },
   );
+
+  // The installed app keeps work folders in `~/.instrument`, whose name is
+  // also the one a workspace's records are kept under.
+  it("serves what the agent made in a chat's work folder", async () => {
+    const response = await request(urlFor(path.join(folder, WORK_IMAGE)));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("an image");
+  });
 
   it("does not let an unversioned read be kept", async () => {
     const response = await request(urlFor(file));

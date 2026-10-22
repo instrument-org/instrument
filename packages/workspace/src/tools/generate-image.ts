@@ -20,7 +20,6 @@ import { prepareSourceImage } from "../lib/prepare-source-image";
 import { isMissing, sessionToolFs } from "../lib/tool-fs";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
-import { RelativePathSchema } from "../schemas/paths";
 import {
   BaseInputSchema,
   ProviderOutputSchema,
@@ -37,7 +36,9 @@ const INPUT_PARAMS = {
 } as const;
 
 const GeneratedImageFileSchema = z.object({
-  filePath: RelativePathSchema,
+  // Relative to the chat's work folder, or the absolute path in a writable
+  // folder, as the file tools name what they write.
+  filePath: z.string(),
   modifiedAt: z.number(),
 });
 
@@ -62,7 +63,7 @@ export const GenerateImage = setupTool({
         description: `Replace an existing file at ${INPUT_PARAMS.filePath} instead of saving under a new name. Only set when the user clearly wants to replace the earlier image in place.`,
       }),
     [INPUT_PARAMS.filePath]: z.string().meta({
-      description: `Relative path with filename but WITHOUT extension (e.g. ./poster/image-name); the extension is added automatically. For a revised or alternative image, prefer a fresh descriptive name; reusing an existing path saves under a new name (image-name-2) so earlier versions are kept. Generate after ${TOOL_EXPLANATION_PARAM_NAME}.`,
+      description: `Path with filename but WITHOUT extension, relative to your work folder (e.g. ./poster/image-name) or the full path in a folder you may write to; the extension is added automatically. For a revised or alternative image, prefer a fresh descriptive name; reusing an existing path saves under a new name (image-name-2) so earlier versions are kept. Generate after ${TOOL_EXPLANATION_PARAM_NAME}.`,
     }),
     [INPUT_PARAMS.parameters]: z
       .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
@@ -155,18 +156,17 @@ export const GenerateImage = setupTool({
       yield err(typed.error);
       return;
     }
-    // The tool's output contract is a path relative to the chat's folder, so
-    // generate into it and move the result instead.
-    if (!files.inWorkFolder(typed.value)) {
-      yield executeError(
-        `Images cannot be generated directly into "${files.shown(typed.value)}". ` +
-          `Generate into your work folder (e.g. poster/image.png), then move it there with the bash tool if it belongs in the folder.`,
-      );
-      return;
-    }
-
     // Strip extension if mistakenly provided
     const parsedPath = path.posix.parse(typed.value);
+
+    // A folder the rules keep closed refuses here, before the model is paid
+    // for, with the note that says what to ask for.
+    try {
+      await files.fs.mkdir(parsedPath.dir, { recursive: true });
+    } catch (error) {
+      yield await files.failure(error, parsedPath.dir);
+      return;
+    }
 
     // Auto-version the path unless allowOverwrite is set, so iterating on the
     // same filePath doesn't clobber an earlier image. Resolved once before
@@ -267,9 +267,7 @@ export const GenerateImage = setupTool({
           }
 
           return {
-            filePath: RelativePathSchema.parse(
-              normalizePath(files.shown(filename)),
-            ),
+            filePath: normalizePath(files.shown(filename)),
             ...dimensions,
             modifiedAt: stats.mtime.getTime(),
             sizeBytes: imageBuffer.length,

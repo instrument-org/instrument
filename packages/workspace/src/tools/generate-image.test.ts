@@ -231,20 +231,44 @@ describe("GenerateImage source images", () => {
     );
   });
 
-  // Everything below the path resolve assumes a path relative to the chat's folder, so a path in a
-  // folder has to be refused rather than joined onto the chat's folder.
-  it("refuses to generate into a folder", async () => {
+  // A finished image goes straight where it belongs, such as the chat's own
+  // folder, and is named back by its full path, as the file tools name it.
+  it("generates into a folder it may write to", async () => {
     const result = await runTool(GenerateImage, {
       ...makeExecuteArgs({
         explanation: "write into the folder",
-        filePath: photo("generated"),
+        filePath: photo("cats/generated"),
         prompt: "A cat",
       }),
     });
 
-    const error = result._unsafeUnwrapErr();
-    expect(error.message).toContain("cannot be generated directly into");
-    await expect(fs.readdir(photosDir)).resolves.toEqual([]);
+    const output = result._unsafeUnwrap();
+    expect(output.state === "success" && output.images[0]?.filePath).toBe(
+      photo("cats/generated.png"),
+    );
+    await expect(fs.readdir(path.join(photosDir, "cats"))).resolves.toEqual([
+      "generated.png",
+    ]);
+  });
+});
+
+describe("GenerateImage into a folder it may not write", () => {
+  it("refuses before the model is asked", async () => {
+    doGenerate.mockClear();
+    const elsewhere = path.join(root.path, "Elsewhere");
+    await fs.mkdir(elsewhere, { recursive: true });
+
+    const result = await runTool(GenerateImage, {
+      ...makeExecuteArgs({
+        explanation: "write outside",
+        filePath: shellPath(path.join(elsewhere, "generated")),
+        prompt: "A cat",
+      }),
+    });
+
+    expect(result.isErr()).toBe(true);
+    expect(doGenerate).not.toHaveBeenCalled();
+    await expect(fs.readdir(elsewhere)).resolves.toEqual([]);
   });
 });
 

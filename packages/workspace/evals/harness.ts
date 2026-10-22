@@ -51,6 +51,11 @@ import { type ChatId } from "../src/schemas/chat-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
+import {
+  cardOnlySignIns,
+  endSignIn,
+  type SignInOutcome,
+} from "./lib/sign-in-ends";
 import { createStandInWindow } from "./lib/stand-in-window";
 import { EVAL_MACHINE_DIR_NAME, recordRun } from "./lib/run-record";
 import { grantCaseFolders, startRun } from "./lib/start-run";
@@ -374,6 +379,15 @@ export interface EvalCase {
   declinesApps?: boolean;
   /** Every app the agent asks to use is answered as the user allowing it. */
   allowsApps?: boolean;
+  /**
+   * Every sign-in card the conversation's agent puts up (`connect_app` on an
+   * app that signs in) ends this way once its turn settles, as the app's
+   * callback would record it: the service refusing the account, a sign-in
+   * that failed, or one stopped or left to lapse. The chat is woken through
+   * the real app-event path. Chat cases only; the run's apps get a sign-in
+   * the card can start and nobody finishes.
+   */
+  signInsEndAs?: SignInOutcome;
   files?: FileUpload.Type[];
   /**
    * How many folder cards the user allows in this chat, in the order they
@@ -617,7 +631,12 @@ export async function runEvals(
   const runtimeDir = path.join(workspaceRootDir, "runtime");
   makeToolBinIn(runtimeDir);
 
-  const appsConfig = createMemoryAppsConfig();
+  const appsConfig = {
+    ...createMemoryAppsConfig(),
+    ...(evals.some((evalCase) => evalCase.signInsEndAs)
+      ? { oauth: cardOnlySignIns() }
+      : {}),
+  };
   const standInWindow = createStandInWindow();
   const stopStandInWindow = standInWindow.listen();
   const actor = createActor(workspaceMachine, {
@@ -818,6 +837,9 @@ export async function runEvals(
       // See `FollowUp.duringWork`: the run's own finished tool calls, and
       // who is waiting for one to be in flight after enough of them.
       const ownToolsDone = new Set<string>();
+      // The apps whose sign-in card the conversation put up, for
+      // `signInsEndAs` to end once its turn settles.
+      const signInCards = new Set<string>();
       const ownToolsStarted = new Set<string>();
       // The commands of the run's own `bash` calls in flight, by call.
       const ownCommandsInFlight = new Map<string, string>();
@@ -1128,6 +1150,15 @@ export async function runEvals(
             }
 
             if (
+              part.type === "tool-connect_app" &&
+              part.state === "output-available" &&
+              part.output.state === "asked" &&
+              part.output.kind === "sign-in"
+            ) {
+              signInCards.add(part.output.slug);
+            }
+
+            if (
               part.type === "tool-choose" &&
               part.state === "input-available"
             ) {
@@ -1214,6 +1245,16 @@ export async function runEvals(
           standInWindow,
           workspaceRef: actor,
         });
+      }
+
+      if (evalCase.signInsEndAs && !stoppedBy && outcome !== "timeout") {
+        for (const slug of signInCards) {
+          write(
+            `${evalPrefix(label)}${c.dim}Sign-in to ${slug} ends: ${evalCase.signInsEndAs.ended ?? "failed"}${c.reset}\n`,
+          );
+          await endSignIn(slug, evalCase.signInsEndAs);
+        }
+        signInCards.clear();
       }
 
       // Follow-ups run before the teardown below, so the caps timer and the

@@ -11,6 +11,7 @@ import {
 } from "@/electron-main/lib/mac-native";
 import {
   getResolvedWorkspace,
+  isWorkspacePlaced,
   readRegistry,
   workspaceHasChats,
 } from "@/electron-main/lib/workspaces";
@@ -102,11 +103,8 @@ let notifications: NotificationStatus["status"] = "unknown";
  * on every key press.
  */
 function readSetupFacts(): SetupFacts {
-  const workspace = getResolvedWorkspace();
   const token = getToken();
-  return {
-    folderSettled:
-      workspace.pinned || !workspaceInAppData() || hasPendingMove(workspace.id),
+  const account = {
     hasInstrumentAccount: hasToken(),
     hasInstrumentPlan:
       token !== undefined && planRead?.token === token && planRead.hasPlan,
@@ -114,7 +112,24 @@ function readSetupFacts(): SetupFacts {
     hasUsableAI: accountAnswers.hasUsableAI(getAllAIProviderConfigs()),
     notificationsAskable:
       notifications === "not-asked" || notifications === "provisional",
+  };
+  // A first launch before the folder step: no folder, so nothing in one.
+  if (!isWorkspacePlaced()) {
+    return {
+      ...account,
+      folderSettled: false,
+      hasChats: false,
+      hasWorkspace: false,
+      testedBefore: false,
+    };
+  }
+  const workspace = getResolvedWorkspace();
+  return {
+    ...account,
+    folderSettled:
+      workspace.pinned || !workspaceInAppData() || hasPendingMove(workspace.id),
     hasChats: workspaceHasChats(workspace.path),
+    hasWorkspace: true,
     testedBefore: testedBefore(workspace),
   };
 }

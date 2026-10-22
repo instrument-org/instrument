@@ -13,10 +13,10 @@ Pass `--scenario` to every command of the run, as with `--workspace`: it selects
 
 ```yaml
 description: What state this is, and where the app should open in it.
-workspace: documents # optional: a fixture from fixtures/workspaces/ to seed; none yet otherwise
+workspace: documents # optional: a fixture from fixtures/workspaces/ to seed in the app's own data, as earlier builds kept it; none yet otherwise
 outputFolder: documents # optional: finished work in a stand-in for the folder in Documents an earlier build used
-folder: move-pending # optional: app-data (the default), or a move recorded for this launch to make
-signIns: [chatgpt] # optional: sentinel sign-ins that count as connected and fail any real request
+folder: placed # optional: app-data (the default), placed (a new workspace in the folder setup's first step offers, with no fixture), or move-pending (a move recorded for this launch to make)
+signIns: [chatgpt] # optional: sentinel sign-ins that count as connected and fail any real request; needs a workspace, a fixture or placed
 accountCheck: ready # optional: what setup's launch check of each signed-in account answers (INSTRUMENT_ACCOUNT_CHECK): ready, no-plan, out-of-usage, signed-out
 notifications: not-asked # optional: what macOS says (INSTRUMENT_NOTIFICATION_STATUS)
 notificationAnswer: clicked # optional: how the prompt answers (INSTRUMENT_NOTIFICATION_ANSWER): allowed, denied, or clicked, allowed with the test notification clicked
@@ -27,20 +27,20 @@ setup: # optional: setup's record; none means setup never ran
   addedLater: [notifications] # with finished: steps a later build added, left unanswered
 ```
 
-Everything a scenario writes stays inside its own folders in studio-drive's cache, never the real home folder: `outputFolder: documents` is a folder named `Documents/Instrument Dev` (what `Documents/Instrument` is to a release build) with a few files in it, beside the scenario's application data, and a move goes to an `Instrument` folder there.
+Everything a scenario writes stays inside its own folders in studio-drive's cache, never the real home folder: `outputFolder: documents` is a folder named `Documents/Instrument Dev` (what `Documents/Instrument` is to a release build) with a few files in it, beside the scenario's application data, `folder: placed` puts the workspace in that same folder, and a move goes to an `Instrument` folder there. Setup's record goes in the workspace's machine folder (`machine/default/state.json`), where setup keeps it.
 
 `accountCheck`, `notifications`, `notificationAnswer` and `network` take effect only in a development build. Without `accountCheck`, a sentinel sign-in's launch check is refused like any real request, so it reads as signed out. `notifications` is any status the Mac bridge answers: `not-asked`, `provisional`, `allowed`, `denied`, `unknown`, `unsupported`.
 
 ## The scenarios
 
-| Scenario              | State                                                                       | Setup opens on               |
-| --------------------- | --------------------------------------------------------------------------- | ---------------------------- |
-| `new`                 | A first launch                                                              | `way-in`                     |
-| `beta-tester`         | Chats in the app's own data, ChatGPT, finished work in Documents, no record | `welcome-back`               |
-| `one-x-user`          | A 1.x task with no chat in the app's own data, ChatGPT, finished work in Documents, no record | `welcome-back` |
-| `quit-after-chatgpt`  | Connected ChatGPT, then quit                                                | `free-account`               |
-| `folder-move-pending` | The launch that makes the move the folder step recorded                     | `notifications`              |
-| `finished-new-step`   | Finished on a build without the notifications step                          | `notifications`, as new only |
-| `offline`             | A first launch with no network                                              | `way-in`                     |
+| Scenario              | State                                                                                         | Setup opens on               |
+| --------------------- | --------------------------------------------------------------------------------------------- | ---------------------------- |
+| `new`                 | A first launch, with no workspace yet                                                         | `folder`, as Welcome         |
+| `beta-tester`         | Chats in the app's own data, ChatGPT, finished work in Documents, no record                   | `welcome-back`               |
+| `one-x-user`          | A 1.x task with no chat in the app's own data, ChatGPT, finished work in Documents, no record | `welcome-back`               |
+| `quit-after-chatgpt`  | Picked the folder, connected ChatGPT, then quit                                               | `free-account`               |
+| `folder-move-pending` | A beta tester's launch that makes the move the folder step recorded                           | `free-account`               |
+| `finished-new-step`   | Finished on a build without the notifications step                                            | `notifications`, as new only |
+| `offline`             | A first launch with no network                                                                | `folder`, as Welcome         |
 
 Check where one landed by reading `setup.live.state` over the debug port rather than by looking.

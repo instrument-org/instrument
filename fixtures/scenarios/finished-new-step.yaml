@@ -1,4 +1,5 @@
 description: Finished setup on a build without the notifications step, then updated. Setup shows only that step, as one new thing to set up.
+folder: placed
 signIns: [chatgpt]
 accountCheck: ready
 notifications: not-asked

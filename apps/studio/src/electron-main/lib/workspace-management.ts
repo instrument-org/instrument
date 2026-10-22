@@ -393,7 +393,8 @@ function openMarkDirOf(
   );
 }
 
-function populateWorkspace({
+/** Makes `dir` a new workspace, with no machine data or registry entry yet. */
+export function populateWorkspace({
   color,
   dir,
   id,

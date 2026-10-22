@@ -17,7 +17,7 @@ const NEEDED: Record<
   (facts: SetupFacts, record: SetupRecord) => boolean
 > = {
   "free-account": (facts) => facts.hasUsableAI && !facts.hasInstrumentAccount,
-  folder: (facts) => !facts.folderSettled,
+  folder: (facts) => !facts.hasWorkspace || !facts.folderSettled,
   look: () => true,
   model: () => true,
   notifications: (facts) => facts.notificationsAskable,
@@ -32,12 +32,17 @@ const NEEDED: Record<
  * none. Before finishing, a fact settles a step as surely as an answer
  * does. Finishing answers every step, so afterwards only a step a later
  * build added can come up, and a fact that turns (signing out of every AI,
- * the folder back in app data) never reopens setup.
+ * the folder back in app data) never reopens setup. With no workspace yet,
+ * whatever the record says, the folder step is the one: nothing else can
+ * run until it places one.
  */
 export function currentSetupStep(
   facts: SetupFacts,
   record: SetupRecord,
 ): null | SetupStep {
+  if (!facts.hasWorkspace) {
+    return "folder";
+  }
   return (
     SETUP_STEPS.find(
       (step) =>
@@ -46,10 +51,15 @@ export function currentSetupStep(
   );
 }
 
-/** Setup is back after finishing, for only the steps added since. */
+/**
+ * Setup is back after finishing, for only the steps added since. Not for a
+ * workspace with no folder, whose folder step is setup's first.
+ */
 export function isNewStepOnly(facts: SetupFacts, record: SetupRecord): boolean {
   return (
-    record.finishedAt !== undefined && currentSetupStep(facts, record) !== null
+    facts.hasWorkspace &&
+    record.finishedAt !== undefined &&
+    currentSetupStep(facts, record) !== null
   );
 }
 
@@ -70,15 +80,12 @@ export function answeredStep(
 }
 
 /**
- * The record once setup's folder step has opened or moved a workspace and
- * the app is restarting into it: the folder answered, and Welcome back too,
- * since the person got past it to reach the folder. A workspace with chats
- * opened from there would otherwise greet them again after the restart.
+ * The record once setup's folder step has placed a first launch's workspace:
+ * the folder answered, and Welcome back too, which comes before it but was
+ * never asked with no workspace. An Instrument folder with chats opened
+ * there would otherwise greet the person after they picked it.
  */
-export function answeredByFolderChange(
-  record: SetupRecord,
-  at: Date,
-): SetupRecord {
+export function answeredByPlacing(record: SetupRecord, at: Date): SetupRecord {
   const time = at.toISOString();
   return {
     ...record,

@@ -4,18 +4,12 @@ import {
   getUserDataDir,
   workspaceInAppData,
   workspaceKeysDir,
-  workspaceMachineDir,
 } from "@/electron-main/lib/get-workspace-folder";
+import { placeWorkspace } from "@/electron-main/lib/place-workspace";
 import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
 import { refreshSetupFacts } from "@/electron-main/lib/setup-facts";
-import {
-  answerSetupFolderChange,
-  isSetupOnFolderStep,
-} from "@/electron-main/lib/setup-state";
-import {
-  carrySignIns,
-  macClaudeKeychain,
-} from "@/electron-main/lib/sign-in-carry";
+import { answerSetupByPlacing } from "@/electron-main/lib/setup-state";
+import { startWorkspace } from "@/electron-main/lib/start-workspace";
 import {
   createWorkspace,
   keysDirOf,
@@ -33,6 +27,7 @@ import {
 } from "@/electron-main/lib/workspace-move";
 import {
   getResolvedWorkspace,
+  getUnplacedWorkspace,
   machineDirOwnedBy,
   readRegistry,
   readWorkspaceIdentity,
@@ -45,10 +40,7 @@ import {
 import { FolderRefusalSchema } from "@/shared/workspace-folder-refusal";
 import { samePath } from "@/electron-main/lib/path-identity";
 import { base, devOnly } from "@/electron-main/rpc/base";
-import {
-  getDefaultModelURI,
-  isDeveloperMode,
-} from "@/electron-main/stores/workspace/preferences";
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import {
   platformApiBaseUrl,
   platformApiOrigin,
@@ -103,18 +95,26 @@ const WorkspaceRowSchema = z.object({
   path: z.string(),
 });
 
-/** Which workspace this window shows, for the window bar's name and stripe. */
+/**
+ * Which workspace this window shows, for the window bar's name and stripe.
+ * None before setup's first step gives a first launch's workspace a folder.
+ */
 const current = base
   .output(
-    z.object({
-      color: WorkspaceColorSchema,
-      id: z.string(),
-      isDefault: z.boolean(),
-      name: z.string(),
-      pinned: z.boolean(),
-    }),
+    z
+      .object({
+        color: WorkspaceColorSchema,
+        id: z.string(),
+        isDefault: z.boolean(),
+        name: z.string(),
+        pinned: z.boolean(),
+      })
+      .nullable(),
   )
   .handler(() => {
+    if (getUnplacedWorkspace()) {
+      return null;
+    }
     const workspace = getResolvedWorkspace();
     const identity = readWorkspaceIdentity(workspace.path);
     return {
@@ -321,6 +321,14 @@ function setupFolders() {
 }
 
 /**
+ * The folders setup's folder step offers: one named for the build in
+ * Documents first, and one in the home folder when Documents is refused.
+ */
+const offered = base
+  .output(z.object({ inDocuments: z.string(), inHome: z.string() }))
+  .handler(() => setupFolders());
+
+/**
  * Where the person's Instrument folder is: still in the app's own data, or a
  * folder they picked; and the folder the picker suggests for it.
  */
@@ -329,10 +337,6 @@ const folder = base
     z.object({
       inAppData: z.boolean(),
       path: z.string(),
-      /** The folder setup suggests first: one named for the build in Documents. */
-      inDocuments: z.string(),
-      /** Where setup puts it when Documents is refused: one named for the build in the home folder. */
-      inHome: z.string(),
       /** Set by `INSTRUMENT_WORKSPACE`, which keeps it where it is. */
       pinned: z.boolean(),
       suggested: z.string(),
@@ -342,7 +346,6 @@ const folder = base
     const workspace = getResolvedWorkspace();
     return {
       inAppData: workspaceInAppData(),
-      ...setupFolders(),
       path: workspace.path,
       pinned: workspace.pinned,
       suggested: instrumentFolderUnchosen(),
@@ -382,6 +385,17 @@ const summary = base
     };
   });
 
+/**
+ * The workspace a picked folder is checked against: the one this process
+ * runs, or a first launch's, which has no folder yet.
+ */
+function workspaceToPlace() {
+  const unplaced = getUnplacedWorkspace();
+  return unplaced
+    ? { id: unplaced.id, path: undefined, pinned: false }
+    : getResolvedWorkspace();
+}
+
 /** What a folder the person picked would be to their Instrument folder (`checkMoveTarget`). */
 const checkFolder = base
   .input(z.object({ path: z.string() }))
@@ -390,9 +404,60 @@ const checkFolder = base
     checkMoveTarget({
       target: input.path,
       userDataDir: getUserDataDir(),
-      workspace: getResolvedWorkspace(),
+      workspace: workspaceToPlace(),
     }),
   );
+
+/**
+ * Give a first launch's workspace its folder, from setup's first step: the
+ * folder the person picked, made first with `create` (where macOS asks about
+ * Documents), checked as a move to it would be, and then a new workspace made
+ * there or the one already there opened, under the local id the window
+ * already runs on. The workspace starts in this process, with no restart,
+ * and setup answers the folder step; the window then loads again to show
+ * it. A folder it can't take answers as `checkFolder` would, and one made
+ * for it is taken away again.
+ */
+const place = base
+  .input(z.object({ create: z.boolean().optional(), path: z.string() }))
+  .output(z.union([NotMovableSchema, z.object({ kind: z.literal("placed") })]))
+  .handler(async ({ errors, input }) => {
+    const unplaced = getUnplacedWorkspace();
+    if (!unplaced) {
+      throw errors.UNAUTHORIZED({ message: "The workspace has a folder" });
+    }
+    let made = false;
+    if (input.create === true && path.isAbsolute(input.path)) {
+      try {
+        fs.mkdirSync(input.path);
+        made = true;
+      } catch {
+        // Already there, or not makeable: the check says which.
+      }
+    }
+    const verdict = checkMoveTarget({
+      target: input.path,
+      userDataDir: getUserDataDir(),
+      workspace: { id: unplaced.id, path: undefined, pinned: false },
+    });
+    if (verdict.kind === "refused") {
+      if (made) {
+        removeIfEmptySync(input.path);
+      }
+      return verdict;
+    }
+    placeWorkspace({
+      dir: input.path,
+      log: logger,
+      packaged: app.isPackaged,
+      unplaced,
+      userDataDir: getUserDataDir(),
+    });
+    await startWorkspace();
+    answerSetupByPlacing();
+    refreshSetupFacts();
+    return { kind: "placed" as const };
+  });
 
 /**
  * Move the Instrument folder to a folder the person picked: checked again,
@@ -438,11 +503,7 @@ const move = base
       unmake();
       return verdict;
     }
-    const fromSetup = isSetupOnFolderStep();
     const request = () => {
-      if (fromSetup) {
-        answerSetupFolderChange();
-      }
       requestWorkspaceMove({
         target: input.path,
         userDataDir: getUserDataDir(),
@@ -469,9 +530,7 @@ const move = base
  * holds one, in place of this one, which stays where it is: checked for a
  * place no workspace can be, registered and made the one to open, then the
  * app restarted. A place the person is only warned of was shown to them
- * when they picked it (`checkFolder`), so it opens. Opened from setup's
- * folder step, it takes along the sign-ins and main model made in setup,
- * which are this workspace's, and setup picks up after the folder step.
+ * when they picked it (`checkFolder`), so it opens.
  */
 const open = base
   .input(z.object({ path: z.string() }))
@@ -509,12 +568,7 @@ const open = base
     if (registered === undefined) {
       return { outcome: "not-a-workspace" as const };
     }
-    const fromSetup = isSetupOnFolderStep();
     const choose = () => {
-      if (fromSetup) {
-        carryIntoOpened({ id: registered.id, path: input.path });
-        answerSetupFolderChange();
-      }
       updateRegistry(getUserDataDir(), (registry) => ({
         ...registry,
         active: registered.id,
@@ -527,25 +581,6 @@ const open = base
     return { outcome: await relaunchApp({ beforeRestart: choose }) };
   });
 
-/** The sign-ins and main model made in setup, into the workspace it opens. */
-function carryIntoOpened(workspace: { id: string; path: string }) {
-  try {
-    const done = carrySignIns({
-      fromMachineDir: workspaceMachineDir(),
-      keychain: process.platform === "darwin" ? macClaudeKeychain : undefined,
-      model: getDefaultModelURI(),
-      userDataDir: getUserDataDir(),
-      workspace,
-    });
-    logger.info("Carried setup's sign-ins into the opened workspace", {
-      done,
-    });
-  } catch (error) {
-    // The workspace still opens, signed out where nothing came along.
-    logger.error("Couldn't carry setup's sign-ins", error);
-  }
-}
-
 export const workspaces = {
   checkFolder,
   create,
@@ -553,7 +588,9 @@ export const workspaces = {
   folder,
   list,
   move,
+  offered,
   open,
+  place,
   register,
   remove,
   sizes,

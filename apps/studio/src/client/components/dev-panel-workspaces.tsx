@@ -43,7 +43,7 @@ import { toast } from "@/client/lib/toast";
  * plain rows rather than anything designed.
  */
 
-type WorkspaceColor = RPCOutput["workspaces"]["current"]["color"];
+type WorkspaceColor = NonNullable<RPCOutput["workspaces"]["current"]>["color"];
 type WorkspaceRow = RPCOutput["workspaces"]["list"]["workspaces"][number];
 
 const COLORS = Object.keys(WORKSPACE_COLOR_HEX) as WorkspaceColor[];

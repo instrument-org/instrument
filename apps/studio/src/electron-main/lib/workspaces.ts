@@ -921,19 +921,118 @@ function withRegistryLock<T>(userDataDir: string, run: () => T): T {
   }
 }
 
+/**
+ * A first launch's workspace before setup's first step places it: no folder
+ * yet, only the local id it will be registered under and this computer's
+ * folder for it, where the window's session and every sign-in made before
+ * the folder exists already live, so placing it moves nothing.
+ */
+export interface UnplacedWorkspace {
+  id: string;
+  machineDir: string;
+}
+
 let resolvedWorkspace: OpenWorkspace | undefined;
 
+let unplacedWorkspace: undefined | UnplacedWorkspace;
+
 /**
- * The workspace this process runs. Resolved once in `setup-environment.ts`; a
- * read before that would put a store in the wrong folder, so it throws instead.
+ * The workspace this process runs. Resolved once in `setup-environment.ts`,
+ * or by setup's folder step on a first launch (`placeWorkspace`); a read
+ * before that would put a store in the wrong folder, so it throws instead.
  */
 export function getResolvedWorkspace(): OpenWorkspace {
   if (!resolvedWorkspace) {
     throw new Error(
-      "The workspace was read before setup-environment resolved it",
+      unplacedWorkspace
+        ? "The workspace was read before setup placed it"
+        : "The workspace was read before setup-environment resolved it",
     );
   }
   return resolvedWorkspace;
+}
+
+/**
+ * The local id and machine folder of the workspace this process runs,
+ * placed or not: what is this computer's own about it is there from the
+ * start of a first launch.
+ */
+export function getLocalWorkspace(): { id: string; machineDir: string } {
+  const local = resolvedWorkspace ?? unplacedWorkspace;
+  if (!local) {
+    throw new Error(
+      "The workspace was read before setup-environment resolved it",
+    );
+  }
+  return local;
+}
+
+/** Whether the workspace has a folder: false only on a first launch until setup's folder step. */
+export function isWorkspacePlaced(): boolean {
+  return resolvedWorkspace !== undefined;
+}
+
+/** The unplaced workspace of a first launch, while it has no folder. */
+export function getUnplacedWorkspace(): undefined | UnplacedWorkspace {
+  return resolvedWorkspace ? undefined : unplacedWorkspace;
+}
+
+export function setUnplacedWorkspace(workspace: UnplacedWorkspace): void {
+  unplacedWorkspace = workspace;
+}
+
+/**
+ * Whether there is no workspace to open: the one the registry would open
+ * (`chooseWorkspace`, with no pin) is the default, still in the app's own
+ * data, and its folder is not there, with no 1.x settings at userData's root
+ * to bring into one. Nothing is made in its place: the launch places nothing
+ * until setup's first step picks the folder, since the app runs only from a
+ * workspace the person chose.
+ */
+export function needsPlacing(userDataDir: string): boolean {
+  const current = readRegistry(userDataDir);
+  const fallback = toResolved(
+    current.workspaces.find((entry) => entry.id === DEFAULT_WORKSPACE_ID) ?? {
+      id: DEFAULT_WORKSPACE_ID,
+      path: defaultWorkspacePath(userDataDir),
+    },
+    false,
+  );
+  const chosen = chooseWorkspace({
+    current,
+    fallback,
+    pin: undefined,
+    problems: [],
+    userDataDir,
+  });
+  return (
+    chosen.isDefault &&
+    current.workspaces.find((entry) => entry.id === chosen.id)?.pendingMove ===
+      undefined &&
+    pathWithin(chosen.path, userDataDir) &&
+    !fs.existsSync(chosen.path) &&
+    !fs.existsSync(path.join(userDataDir, "preferences.json"))
+  );
+}
+
+/**
+ * Takes the default local id's machine folder for a launch with no
+ * workspace, setting aside one a workspace that is gone left behind (its
+ * owner record says whose it was), before the window's session opens in it.
+ * The workspace setup places then starts from it as its own.
+ */
+export function claimUnplacedMachineDir(userDataDir: string): string {
+  const machineDir = workspaceMachineDirOf(userDataDir, DEFAULT_WORKSPACE_ID);
+  const owner = readOwner(machineDir);
+  if (owner !== undefined) {
+    const aside = `${machineDir}.${owner}`;
+    fs.renameSync(
+      machineDir,
+      fs.existsSync(aside) ? `${aside}.${Date.now().toString()}` : aside,
+    );
+  }
+  fs.mkdirSync(machineDir, { recursive: true });
+  return machineDir;
 }
 
 /**
@@ -1072,6 +1171,7 @@ export function releaseOpenMark(machineDir: string): void {
 
 export function setResolvedWorkspace(workspace: OpenWorkspace): void {
   resolvedWorkspace = workspace;
+  unplacedWorkspace = undefined;
 }
 
 function openPidPath(markDir: string) {

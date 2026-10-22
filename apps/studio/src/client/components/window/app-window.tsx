@@ -21,7 +21,10 @@ import { PageOpenContext } from "@/client/components/page-open-context";
 import { ThemeProvider } from "@/client/components/theme-provider";
 import { Spinner } from "@/client/components/ui/spinner";
 import { TooltipProvider } from "@/client/components/ui/tooltip";
+import { SetupHost } from "@/client/components/setup/setup-host";
 import { WindowBorder } from "@/client/components/window-border";
+import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import {
   ActiveTabProvider,
   TabIdProvider,
@@ -134,8 +137,42 @@ const RETIRED_GROUPS = [
  * mounted and live behind the one on screen, and around them what the window
  * keeps once whatever tab is up: the rail, the drafts and popped-out chats
  * along the foot, the window's browser, and its chords.
+ *
+ * A first launch has no workspace until setup's first step places one, so
+ * the window draws setup alone, and loads again once the workspace runs.
  */
 export function AppWindow() {
+  return window.api.initialSetupState?.facts.hasWorkspace === false ? (
+    <SetupWindow />
+  ) : (
+    <WorkspaceWindow />
+  );
+}
+
+/** The window before the workspace has a folder: setup over the window's own ground. */
+function SetupWindow() {
+  return (
+    <QueryClientProvider client={sharedQueryClient}>
+      <ThemeProvider>
+        {/* oxlint-disable-next-line studio/one-tooltip-provider */}
+        <TooltipProvider>
+          <IconContext.Provider value={ICON_CONTEXT_VALUE}>
+            <WindowZoomRoot>
+              <ChromeInsetProvider top={TOOLBAR_HEIGHT}>
+                <div className="relative h-full bg-ground">
+                  <SetupHost />
+                </div>
+              </ChromeInsetProvider>
+            </WindowZoomRoot>
+          </IconContext.Provider>
+          <WindowBorder />
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+}
+
+function WorkspaceWindow() {
   const model = useAtomValue(appTabsAtom);
   const routers = useTabRouters(model.tabs);
   const activeRouter = getTabRouter(model.selectedId);

@@ -1,6 +1,7 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceMachineDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { type SetupRecord, SetupRecordSchema } from "@/shared/setup";
 import { type ModelRoutes } from "@instrument-org/ai-gateway";
 import Store from "electron-store";
 import { z } from "zod";
@@ -16,6 +17,13 @@ const WorkspaceStateSchema = z.object({
   // through the same one here. This computer's alone, which is why it is
   // kept here rather than in the chat.
   modelRoutes: z.record(z.string(), z.string()).catch({}),
+  /**
+   * The steps of setup answered for this workspace, and when it finished
+   * (`lib/setup-state.ts`). Here rather than in the workspace, so it is there
+   * from the start of a first launch, before setup gives the workspace its
+   * folder.
+   */
+  setup: SetupRecordSchema.catch({ answered: {} }),
 });
 
 type WorkspaceState = z.output<typeof WorkspaceStateSchema>;
@@ -61,3 +69,12 @@ export const workspaceModelRoutes: ModelRoutes = {
     publisher.publish("model-routes.updated", null);
   },
 };
+
+/** Setup's record for this workspace. */
+export function readSetupRecord(): SetupRecord {
+  return getWorkspaceState().get("setup");
+}
+
+export function writeSetupRecord(record: SetupRecord): void {
+  getWorkspaceState().set("setup", record);
+}

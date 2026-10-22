@@ -1,5 +1,5 @@
 import {
-  answeredByFolderChange,
+  answeredByPlacing,
   answeredStep,
   finishedRecord,
   isEveryStepAnswered,
@@ -7,7 +7,16 @@ import {
   unansweredStep,
 } from "@/electron-main/lib/setup-step";
 import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  DEFAULT_WORKSPACE_ID,
+  getLocalWorkspace,
+  isWorkspacePlaced,
+} from "@/electron-main/lib/workspaces";
 import { getMachineState } from "@/electron-main/stores/machine/state";
+import {
+  readSetupRecord,
+  writeSetupRecord,
+} from "@/electron-main/stores/workspace/state";
 import {
   type SetupFacts,
   type SetupRecord,
@@ -47,14 +56,39 @@ function isSkipped() {
 // reads its file on every get. Only this module writes it.
 let record: SetupRecord | undefined;
 
+/**
+ * Setup's record, kept per workspace in its machine folder. The default
+ * workspace first takes in the record earlier builds kept once for the whole
+ * computer, which is then removed, so a computer that finished setup on one
+ * of them doesn't run it again.
+ */
 function readRecord(): SetupRecord {
-  record ??= getMachineState().get("setup");
+  record ??= carryMachineRecord() ?? readSetupRecord();
   return record;
+}
+
+function carryMachineRecord(): SetupRecord | undefined {
+  if (getLocalWorkspace().id !== DEFAULT_WORKSPACE_ID) {
+    return undefined;
+  }
+  const machine = getMachineState();
+  const carried = machine.get("setup");
+  if (carried === undefined) {
+    return undefined;
+  }
+  const own = readSetupRecord();
+  const kept =
+    own.finishedAt === undefined && Object.keys(own.answered).length === 0
+      ? carried
+      : own;
+  writeSetupRecord(kept);
+  machine.delete("setup");
+  return kept;
 }
 
 function writeRecord(next: SetupRecord) {
   record = next;
-  getMachineState().set("setup", next);
+  writeSetupRecord(next);
   publisher.publish("setup.updated", null);
 }
 
@@ -68,10 +102,19 @@ function writeRecord(next: SetupRecord) {
  */
 export async function setupStateKnown(): Promise<void> {
   const settling = facts().settle();
-  if (isSkipped() || isEveryStepAnswered(readRecord())) {
+  if (isSkipped() || isAnsweredAndPlaced()) {
     return;
   }
   await settling;
+}
+
+/**
+ * Every step answered, with a workspace to run: no fact can bring setup
+ * back. A first launch has no workspace whatever the record says, and setup
+ * places it.
+ */
+function isAnsweredAndPlaced() {
+  return isWorkspacePlaced() && isEveryStepAnswered(readRecord());
 }
 
 /**
@@ -98,7 +141,7 @@ export function setupStillAsks(): boolean {
 
 /** Whether setup is up, without reading the facts once every step is answered. */
 export function isSetupUp(): boolean {
-  if (isSkipped() || isEveryStepAnswered(readRecord())) {
+  if (isSkipped() || isAnsweredAndPlaced()) {
     return false;
   }
   return readSetupState().step !== null;
@@ -110,19 +153,11 @@ export function answerSetupStep(step: SetupStep): void {
 }
 
 /**
- * Whether setup is on its folder step, where opening or moving a workspace
- * is the answer to it.
+ * Records the folder step as answered by the workspace it placed, with
+ * Welcome back answered too, so setup goes on to the step after the folder.
  */
-export function isSetupOnFolderStep(): boolean {
-  return isSetupUp() && readSetupState().step === "folder";
-}
-
-/**
- * Records the folder step as answered by a workspace setup opened or moved,
- * with Welcome back answered too, so the restart lands on the step after.
- */
-export function answerSetupFolderChange(): void {
-  writeRecord(answeredByFolderChange(readRecord(), new Date()));
+export function answerSetupByPlacing(): void {
+  writeRecord(answeredByPlacing(readRecord(), new Date()));
 }
 
 /**

@@ -1,8 +1,9 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import {
-  type WorkspaceActorRef,
-  type WorkspaceConfig,
-} from "@instrument-org/workspace/electron";
+  getStartedWorkspace,
+  isWorkspaceStarted,
+  type StartedWorkspace,
+} from "@/electron-main/lib/started-workspace";
 import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
@@ -53,14 +54,31 @@ const handler = new RPCHandler<InitialRPCContext>(router, {
   ],
 });
 
+/**
+ * A stand-in for a part of the workspace a connection made before it
+ * started can't reach, which throws on any use. A first launch's window
+ * connects before setup places the workspace, draws only setup, and reloads
+ * once the workspace runs, so nothing it asks for reaches one of these.
+ */
+function notStarted<T extends object>(): T {
+  // Typed as the part it stands in for: no route that reads one gets past
+  // its first property.
+  return new Proxy({} as T, {
+    get: () => {
+      throw new Error("The workspace was asked for before it started");
+    },
+  });
+}
+
+/**
+ * Opens the router to each window that connects, with the running workspace
+ * in its context, or the stand-ins for a window that connects before the
+ * workspace starts.
+ */
 export function initializeRPC({
   appUpdater,
-  workspaceConfig,
-  workspaceRef,
 }: {
   appUpdater: AppUpdaterHandle;
-  workspaceConfig: WorkspaceConfig;
-  workspaceRef: WorkspaceActorRef;
 }) {
   ipcMain.on("start-orpc-server", (event) => {
     // The port handshake is the renderer's one route to the whole router, so
@@ -86,8 +104,12 @@ export function initializeRPC({
       context: {
         appUpdater,
         webContentsId,
-        workspaceConfig,
-        workspaceRef,
+        ...(isWorkspaceStarted()
+          ? getStartedWorkspace()
+          : ({
+              workspaceConfig: notStarted(),
+              workspaceRef: notStarted(),
+            } satisfies StartedWorkspace)),
       },
     });
     serverPort.start();

@@ -8,11 +8,11 @@ import { z } from "zod";
  */
 export const SETUP_STEPS = [
   "welcome-back",
+  "folder",
   "way-in",
   "plan",
   "free-account",
   "model",
-  "folder",
   "notifications",
   "look",
 ] as const;
@@ -51,6 +51,12 @@ export interface SetupFacts {
    */
   testedBefore: boolean;
   /**
+   * The workspace has a folder. False only on a first launch, until the
+   * folder step places it: until then the app has no workspace running, and
+   * the folder step is the only one setup can show.
+   */
+  hasWorkspace: boolean;
+  /**
    * The workspace is outside the app's data, pinned, or has a move recorded
    * that the next launch finishes.
    */
@@ -64,10 +70,11 @@ export interface SetupFacts {
 
 /**
  * What setup keeps: when each step was answered, and when setup finished.
- * Kept per computer, so a second workspace doesn't run setup again.
- * Finishing records every step this build knows as answered, so a step a
- * later build adds is the only one unanswered. Keyed by any name, so a step
- * from a newer build survives a run of an older one.
+ * Kept per workspace, in its machine folder, so it is there before setup
+ * gives a first launch's workspace its folder. Finishing records every step
+ * this build knows as answered, so a step a later build adds is the only one
+ * unanswered. Keyed by any name, so a step from a newer build survives a run
+ * of an older one.
  */
 export const SetupRecordSchema = z.object({
   answered: z.record(z.string(), z.string()).catch({}),

@@ -250,7 +250,7 @@ export function DevPanel() {
                     </span>
                   </>
                 )}
-                {currentWorkspace !== undefined && (
+                {currentWorkspace != null && (
                   <>
                     <span className="font-mono text-[9px] text-dev-500/60 dark:text-dev-400/50">
                       workspace

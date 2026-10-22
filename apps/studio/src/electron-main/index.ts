@@ -25,7 +25,6 @@ import { finishPlacingLeftovers } from "@/electron-main/rpc/routes/files";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
-  getAppWindow,
   openAppFile,
   openAppScreen,
   openAppWindow,
@@ -34,7 +33,6 @@ import {
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { showHeldWindows } from "@/electron-main/windows/on-screen";
-import { revealChat } from "@/electron-main/windows/reveal-chat";
 import {
   DEV_INSTANCE_COLORS,
   isDevInstanceColor,
@@ -58,7 +56,6 @@ import {
 } from "electron";
 import module from "node:module";
 
-import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
 import { serveDrafts } from "./drafts/serve-drafts";
 import { serveKeptState } from "./stores/workspace/kept-state";
 import { serveSetupState } from "./lib/serve-setup-state";
@@ -70,11 +67,6 @@ import {
 } from "./lib/app-session";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { timeBootStep } from "./lib/boot-timing";
-import { createWorkspaceActor } from "./lib/create-workspace-actor";
-import {
-  chooseLaunchDeviceId,
-  describeLaunchDevice,
-} from "./lib/launch-device-id";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
@@ -90,6 +82,8 @@ import {
   withdrawQuitApproval,
 } from "./lib/quit";
 import { getWorkspaceRefusal } from "./lib/workspace-refusal";
+import { isWorkspacePlaced } from "./lib/workspaces";
+import { startWorkspace } from "./lib/start-workspace";
 import { showWorkspaceRefusal } from "./lib/workspace-refusal-window";
 import { getUserDataDir } from "./lib/get-workspace-folder";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
@@ -276,6 +270,7 @@ async function bootstrapPrimaryInstance() {
   serveSetupState();
   serveKeptState();
   serveDrafts();
+  serveBookmarks();
   serveRendererExceptions();
   servePageEditorBoot();
 
@@ -296,16 +291,12 @@ async function bootstrapPrimaryInstance() {
   // anything is placed again.
   void finishPlacingLeftovers().catch(captureServerException);
 
-  // Chosen before the workspace starts, which writes every chat record
-  // under it.
-  const deviceId = await timeBootStep("chooseDeviceId", chooseLaunchDeviceId);
-  void describeLaunchDevice(deviceId);
-  const { actor: workspaceRef, workspaceConfig } = await timeBootStep(
-    "createWorkspaceActor",
-    () => createWorkspaceActor(deviceId),
-  );
-  // Before any window, whose preload reads them as it loads.
-  await timeBootStep("serveBookmarks", () => serveBookmarks(deviceId));
+  // A workspace with a folder starts before any window, whose preload reads
+  // its drafts and bookmarks as it loads. A first launch's starts once
+  // setup's first step places it (`workspaces.place`).
+  if (isWorkspacePlaced()) {
+    await startWorkspace();
+  }
 
   // A signed-in ChatGPT account's access token lasts an hour.
   scheduleChatGPTAccountRefresh();
@@ -326,15 +317,6 @@ async function bootstrapPrimaryInstance() {
     void refreshClaudeAccountStatus();
   });
 
-  startAgentCompletionNotifications({
-    // With no window, a notification's click opens one where the app stays
-    // running; elsewhere no window means the app is quitting.
-    canRevealChat: () => !quitsWithLastWindow || getAppWindow() !== null,
-    revealChat,
-    workspaceConfig,
-    workspaceRef,
-  });
-
   const updater = createStudioAppUpdater({
     // Approving the install approves the quit it ends in, so before-quit and
     // the window close go ahead without asking again. An install that then
@@ -351,11 +333,7 @@ async function bootstrapPrimaryInstance() {
   watchMainThreadStalls();
 
   await timeBootStep("initializeRPC", () => {
-    initializeRPC({
-      appUpdater: updater,
-      workspaceConfig,
-      workspaceRef,
-    });
+    initializeRPC({ appUpdater: updater });
   });
 
   // The window opens at setup's size or its own, so it waits for setup's

@@ -11,9 +11,13 @@ import {
   type WorkspaceRefusal,
 } from "./workspace-refusal";
 import {
+  claimUnplacedMachineDir,
+  DEFAULT_WORKSPACE_ID,
+  needsPlacing,
   type OpenWorkspace,
   type ResolvedWorkspace,
   resolveWorkspace,
+  type UnplacedWorkspace,
 } from "./workspaces";
 
 /** Where the launch steps say what they did. */
@@ -28,6 +32,11 @@ interface LaunchLog {
  * person picked, refuses a folder it cannot open, and brings the settings up
  * to this build. A refused workspace comes back with why, and nothing else
  * runs for it.
+ *
+ * A launch with no workspace to open (`needsPlacing`), a first launch
+ * above all, opens none: it answers the local id the workspace will have
+ * and this computer's folder for it, and setup's first step places the
+ * workspace where the person picks (`placeWorkspace`).
  */
 export function resolveLaunchWorkspace({
   log,
@@ -41,7 +50,21 @@ export function resolveLaunchWorkspace({
   /** `INSTRUMENT_WORKSPACE`: a registered id or an absolute path. */
   pin: string | undefined;
   userDataDir: string;
-}): { refusal?: WorkspaceRefusal; workspace: ResolvedWorkspace } {
+}):
+  | { kind: "open"; workspace: ResolvedWorkspace }
+  | { kind: "refused"; refusal: WorkspaceRefusal }
+  | { kind: "unplaced"; workspace: UnplacedWorkspace } {
+  if (pin === undefined && needsPlacing(userDataDir)) {
+    for (const step of migrateMachineSettings(userDataDir)) {
+      log.info(`Settings migration: ${step}`);
+    }
+    const machineDir = claimUnplacedMachineDir(userDataDir);
+    log.info("No workspace yet: setup's first step places it");
+    return {
+      kind: "unplaced",
+      workspace: { id: DEFAULT_WORKSPACE_ID, machineDir },
+    };
+  }
   const resolved = resolveWorkspace({ pin, userDataDir });
   for (const problem of resolved.problems) {
     log.warn(problem);
@@ -68,7 +91,7 @@ export function resolveLaunchWorkspace({
           ? `Not opening ${workspace.path}: no workspace can be there (${refusal.reason})`
           : `Not opening ${workspace.path}: it is ${refusal.why === "denied" ? "not readable" : "missing"}`,
     );
-    return { refusal, workspace };
+    return { kind: "refused", refusal };
   }
   for (const step of [
     ...migrateMachineSettings(userDataDir),
@@ -80,7 +103,7 @@ export function resolveLaunchWorkspace({
   ]) {
     log.info(`Settings migration: ${step}`);
   }
-  return { workspace };
+  return { kind: "open", workspace };
 }
 
 /**

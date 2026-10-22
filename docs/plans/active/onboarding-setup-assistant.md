@@ -16,36 +16,39 @@ The facts (`SetupFacts`, `shared/setup.ts`):
 | Instrument account | `hasToken()`, then `billing.status` and `billing.offer` for the plan step |
 | Has chats | the workspace has chats (`workspaceHasChats()`); the folder step's move copy keys on it |
 | Tested before | a chat in the workspace was started by a 2.0 beta (its own session's log header names the build) or came from 1.x or a `chat.db` (`workspaceTestedBefore()`); Welcome back keys on it |
+| Has a workspace | the launch opened one; false only when there was none to open (`needsPlacing`), until the folder step places it |
 | Folder settled | `workspaces.folder()` is outside app data, pinned, or has a move recorded and waiting on a restart |
 | Notifications | `mac.notifications.status`; `unknown` and `unsupported` count as done, so the step can't trap |
 
-The record (`SetupRecord`, machine state, so a second workspace on the same computer doesn't run setup again): the time each answered step was answered, and when setup finished. It replaces `onboardingVersion` and `hasCompletedProviderSetup`, and nothing else writes either.
+The record (`SetupRecord`, the workspace's state in its machine folder, keyed by the local id the launch resolves, so it is there before the folder is picked): the time each answered step was answered, and when setup finished. The default workspace takes in the record earlier builds kept once for the whole computer, which is then removed. It replaces `onboardingVersion` and `hasCompletedProviderSetup`, and nothing else writes either.
 
 The steps, in order (`SETUP_STEPS`):
 
 | Step | Needed while | Done by |
 |---|---|---|
 | `welcome-back` | tested before, and setup never finished | answering it |
+| `folder` | no workspace, or the folder isn't settled | the fact, and answering it; placing a first launch's workspace answers Welcome back too |
 | `way-in` | no usable AI | the fact (no answer is kept) |
 | `plan` | an Instrument account with no subscription and no running trial | answering it: a trial started, Checkout, the beta offer, or "Use it instead" |
 | `free-account` | usable AI and no Instrument account | answering it (Google or Not now) |
 | `model` | always | answering it |
-| `folder` | the folder isn't settled | the fact, and answering it |
 | `notifications` | status is `not-asked` or `provisional` | the fact, or answering it (Not now) |
 | `look` | always | answering it |
+
+With no workspace, the folder step is the only one, whatever the record says: nothing else can run until it places one. On a first launch it is Welcome with the folder (Documents suggested, the macOS prompt explained under it); Continue makes the folder there or opens the Instrument folder already in it, registers it under the local id the window's session already uses, starts the workspace in the same process, and loads the window again on the way in. The way in follows with no Back to the folder, since changing it then would be a move.
 
 Two rules keep this from trapping or nagging anyone:
 
 - **Before finishing, facts and answers both count. After finishing, only a missing answer brings setup back.** Signing out of every AI later, or a folder moved back into app data, never reopens setup; the app's own notes handle those. A step added by an update has no answer for anyone, so people who finished see only that step, under "One new thing to set up".
 - **Steps a person can't do here are skipped, not shown.** The plan step needs an Instrument account; notifications need macOS.
 
-`SKIP_ONBOARDING=true` hides setup without writing anything, for fixtures and smoke tests.
+`SKIP_ONBOARDING=true` hides setup without writing anything, for fixtures and smoke tests. It skips the step where the workspace is chosen, so it needs `INSTRUMENT_WORKSPACE` naming one, and the launch refuses to start without it.
 
-Welcome back is how a beta tester is found: the API has no beta flag, and its beta offer only means "account made before a cutoff, never subscribed". Their workspace is in app data with chats in it, and their finished work went to `~/Documents/Instrument`. The folder step asks them too, and Continue moves the chats there and restarts the app; the move is recorded before the restart, so the folder reads as settled afterwards and setup picks up at the next step.
+Welcome back is how a beta tester is found: the API has no beta flag, and its beta offer only means "account made before a cutoff, never subscribed". Their workspace is in app data with chats in it, and their finished work went to `~/Documents/Instrument`. The folder step, right after Welcome back, asks them too, and Continue moves the chats there and restarts the app; the move is recorded before the restart, so the folder reads as settled afterwards and setup picks up at the next step. That move is setup's only restart.
 
 ## The window
 
-Setup draws over the app window (no window of its own), with the app loaded behind it.
+Setup draws over the app window (no window of its own), with the app loaded behind it. On a launch with no workspace yet, the window draws setup alone until the folder step places one and the window loads again.
 
 - **Size.** A first launch opens at 1080×720, fixed (not resizable, maximizable or full-screen), centered on the pointer's display. Finishing turns resizing back on and sets the remembered bounds; the old onboarding window's grow animation and the warm-behind swap are gone with it. Bounds are never saved while setup is sized, on close and quit included (`trackWindowBounds`). Someone shown one new step after an update keeps the window as they left it. Off macOS, setup draws minimize and close itself.
 - **Held back while setup is up:** the minimal menu (`createOtherWindowMenu`), the window's chords (`bindAppWindowChords`), tab commands and the command menu (a window hold with no close), and swipe back and forward.
@@ -87,7 +90,7 @@ Four streams run in parallel, then the pages:
 
 ## Scenarios
 
-A scenario boots the app straight into one state: `studio-drive.mjs boot --scenario <name>` seeds a workspace and writes the facts and the record, so the gate follows from files alone. The first ones are setup's: new, beta tester (chats in app data, `~/Documents/Instrument` present), quit after connecting ChatGPT, waiting on the folder move's restart, finished with a step added later, and offline. Account states come from the preview test accounts (`--account`). Notification status comes from macOS, so the bridge takes a development-build override. This is the first part of [app-state-scenarios.md](app-state-scenarios.md), built on the record instead of `hasCompletedProviderSetup`.
+A scenario boots the app straight into one state: `studio-drive.mjs boot --scenario <name>` seeds a workspace and writes the facts and the record, so the gate follows from files alone. The first ones are setup's: new (no workspace), beta tester (chats in app data, `~/Documents/Instrument` present), quit after picking the folder and connecting ChatGPT, waiting on the folder move's restart, finished with a step added later, and offline. Account states come from the preview test accounts (`--account`). Notification status comes from macOS, so the bridge takes a development-build override. This is the first part of [app-state-scenarios.md](app-state-scenarios.md), built on the record instead of `hasCompletedProviderSetup`.
 
 ## Testing
 

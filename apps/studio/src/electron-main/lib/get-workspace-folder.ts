@@ -3,7 +3,7 @@ import { app } from "electron";
 import path from "node:path";
 
 import { pathWithin } from "./path-identity";
-import { getResolvedWorkspace } from "./workspaces";
+import { getLocalWorkspace, getResolvedWorkspace } from "./workspaces";
 
 export function getWorkspaceFolder(): string {
   return getResolvedWorkspace().path;
@@ -31,10 +31,11 @@ export function workspaceInAppData(): boolean {
 /**
  * This computer's folder for the resolved workspace,
  * `<userData>/machine/<local id>/`: what is secret, means something only
- * here, or is rebuilt here, none of which travels with it.
+ * here, or is rebuilt here, none of which travels with it. There from the
+ * start of a first launch, before setup gives the workspace its folder.
  */
 export function workspaceMachineDir(): string {
-  return getResolvedWorkspace().machineDir;
+  return getLocalWorkspace().machineDir;
 }
 
 /**

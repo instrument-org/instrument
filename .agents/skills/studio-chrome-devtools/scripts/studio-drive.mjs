@@ -583,7 +583,24 @@ function prepareScenario(name, { keepTabs }) {
     mkdirSync(base, { recursive: true });
   }
   const userDataDir = seeded?.userDataDir ?? base;
-  const workspaceDir = path.join(userDataDir, "workspace");
+  // The workspace's folder: in the app's own data, where a fixture is seeded
+  // and where earlier builds kept it, or the folder setup's first step
+  // placed it in (`folder: placed`). A scenario with neither has no
+  // workspace, as a first launch has none.
+  const placed = scenario.folder === "placed";
+  if (placed && (seeded || scenario.outputFolder !== undefined)) {
+    fail(
+      `folder: placed is a first launch's workspace, which has no fixture or earlier folder`,
+    );
+  }
+  if (!seeded && !placed && (scenario.signIns ?? []).length > 0) {
+    fail(
+      "signIns needs a workspace to sign in to: a fixture, or folder: placed",
+    );
+  }
+  const workspaceDir = placed
+    ? path.join(`${userDataDir}-home`, "Documents", "Instrument Dev")
+    : path.join(userDataDir, "workspace");
 
   // Where finished work goes. `documents` stands in for the folder in
   // Documents an earlier build sent it to, inside the scenario's own
@@ -651,8 +668,27 @@ function prepareScenario(name, { keepTabs }) {
         ],
       })}\n`,
     );
+  } else if (placed) {
+    // What Continue on setup's first step makes (`placeWorkspace`): a new
+    // workspace at the current format in the folder it offers in Documents,
+    // registered as the default and opened next. The versions are
+    // `WORKSPACE_FORMAT_VERSION` and `CURRENT_SETTINGS_VERSION`.
+    mkdirSync(path.join(workspaceDir, ".instrument"), { recursive: true });
+    writeFileSync(
+      path.join(workspaceDir, ".instrument", "workspace.json"),
+      `${JSON.stringify({ formatVersion: 2, name: "Default", settingsVersion: 2 })}\n`,
+    );
+    writeFileSync(
+      path.join(userDataDir, "workspaces.json"),
+      `${JSON.stringify({
+        active: "default",
+        workspaces: [{ id: "default", path: workspaceDir }],
+      })}\n`,
+    );
   } else if (scenario.folder !== undefined && scenario.folder !== "app-data") {
-    fail(`folder takes "app-data" or "move-pending", not ${scenario.folder}`);
+    fail(
+      `folder takes "app-data", "move-pending" or "placed", not ${scenario.folder}`,
+    );
   }
 
   for (const signIn of scenario.signIns ?? []) {
@@ -692,8 +728,12 @@ function prepareScenario(name, { keepTabs }) {
         .filter((step) => !(scenario.setup.addedLater ?? []).includes(step))
         .map((step) => [step, at]),
     );
+    // The workspace's own record, in its machine folder (the default local
+    // id's), where setup keeps it.
+    const machineDir = path.join(userDataDir, "machine", "default");
+    mkdirSync(machineDir, { recursive: true });
     writeFileSync(
-      path.join(userDataDir, "machine-state.json"),
+      path.join(machineDir, "state.json"),
       `${JSON.stringify({
         setup: {
           answered,

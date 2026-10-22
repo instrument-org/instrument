@@ -15,14 +15,39 @@ import path from "node:path";
 import { logger } from "../lib/electron-logger";
 import { createBookmarkStore, importBookmarksFile } from "./bookmark-store";
 
+let store: null | ReturnType<typeof createBookmarkStore> = null;
+
+/** What a window loading before the workspace opens reads. */
+const NO_BOOKMARKS: BookmarksSnapshot = { acks: {}, bookmarks: [] };
+
 /**
- * Opens the workspace's bookmarks and answers the windows about them: all of
- * them, synchronously, for a preload that is loading; and each batch of ops a
- * window sends, answered once it is on disk. Every change, whichever window
- * or device made it, reaches every window. A `bookmarks.json` an earlier
- * build left is taken in first. Called before any window exists.
+ * Answers the windows about the bookmarks: all of them, synchronously, for a
+ * preload that is loading; and each batch of ops a window sends, answered
+ * once it is on disk. Every change, whichever window or device made it,
+ * reaches every window. Registered before any window exists; until the
+ * workspace opens (`openBookmarks`) there are none.
  */
-export async function serveBookmarks(device: DeviceId): Promise<void> {
+export function serveBookmarks(): void {
+  ipcMain.on(BOOKMARKS_CHANNEL.load, (event) => {
+    event.returnValue = store?.snapshot() ?? NO_BOOKMARKS;
+  });
+  ipcMain.handle(BOOKMARKS_CHANNEL.apply, (_event, batch: unknown) => {
+    if (!isBatch(batch)) {
+      throw new Error("Not a batch of bookmark changes");
+    }
+    if (!store) {
+      throw new Error("The bookmarks were changed before the workspace opened");
+    }
+    return store.apply(batch);
+  });
+}
+
+/**
+ * Opens the workspace's bookmarks, once it has a folder: at launch, or once
+ * setup's first step places it. A `bookmarks.json` an earlier build left is
+ * taken in first.
+ */
+export async function openBookmarks(device: DeviceId): Promise<void> {
   const layout = workspaceLayout(getWorkspaceFolder());
   const synced = openSyncedStore({
     device,
@@ -32,7 +57,7 @@ export async function serveBookmarks(device: DeviceId): Promise<void> {
       logger.warn("Bookmarks: could not read another device's changes", error);
     },
   });
-  const store = createBookmarkStore({ onChange: tellWindows, store: synced });
+  const opened = createBookmarkStore({ onChange: tellWindows, store: synced });
   try {
     const imported = await importBookmarksFile(
       path.join(layout.dataDir, "bookmarks.json"),
@@ -50,15 +75,7 @@ export async function serveBookmarks(device: DeviceId): Promise<void> {
   app.on("browser-window-focus", () => {
     synced.look();
   });
-  ipcMain.on(BOOKMARKS_CHANNEL.load, (event) => {
-    event.returnValue = store.snapshot();
-  });
-  ipcMain.handle(BOOKMARKS_CHANNEL.apply, (_event, batch: unknown) => {
-    if (!isBatch(batch)) {
-      throw new Error("Not a batch of bookmark changes");
-    }
-    return store.apply(batch);
-  });
+  store = opened;
 }
 
 function tellWindows(snapshot: BookmarksSnapshot) {

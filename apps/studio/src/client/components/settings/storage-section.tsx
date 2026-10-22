@@ -235,6 +235,7 @@ export const REFUSALS: Record<MoveRefusal, string> = {
   current: "That’s where your Instrument folder already is.",
   inside: "That folder is inside your Instrument folder.",
   missing: "That folder isn’t there anymore.",
+  newer: `A newer version of ${APP_NAME} made that folder. Update ${APP_NAME} to open it.`,
   "not-absolute": "That folder isn’t there anymore.",
   pinned: `This copy of ${APP_NAME} is set to keep its folder where it is.`,
   taken: `It already has a folder named .instrument that ${APP_NAME} didn’t make.`,

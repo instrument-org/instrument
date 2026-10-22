@@ -32,6 +32,7 @@ import {
   markWorkspaceOpen,
   releaseOpenMark,
   setResolvedWorkspace,
+  setUnplacedWorkspace,
 } from "./lib/workspaces";
 
 // V8 keeps 10 frames by default, which an async call through the workspace
@@ -131,22 +132,35 @@ installAISDKWarningLogger();
  * person picked, brings its settings up to this build, and moves what is
  * this computer's own into its machine folder, before any store opens:
  * every workspace store reads its folder from the resolved workspace when it
- * is first asked for.
+ * is first asked for. A first launch settles only the machine folder, and
+ * setup's first step places the workspace.
  */
 function openWorkspace() {
   // First, before a move, a launch migration or a folder found moved by hand
   // writes a stored path where it went: each of those writes every store
   // registered here.
   registerAppStoredPaths();
+  // A run that skips setup skips the step where the person chooses the
+  // workspace, so it names one itself.
+  if (
+    process.env.SKIP_ONBOARDING === "true" &&
+    !process.env.INSTRUMENT_WORKSPACE
+  ) {
+    const message =
+      "SKIP_ONBOARDING skips setup, where the workspace is chosen, so it needs INSTRUMENT_WORKSPACE naming one: a registered id or an absolute path";
+    console.error(message);
+    logger.error(message);
+    process.exit(1);
+  }
   const userDataDir = getUserDataDir();
-  const { refusal, workspace } = resolveLaunchWorkspace({
+  const launch = resolveLaunchWorkspace({
     log: logger,
     packaged: app.isPackaged,
     pin: process.env.INSTRUMENT_WORKSPACE,
     userDataDir,
   });
-  if (refusal) {
-    setWorkspaceRefusal(refusal);
+  if (launch.kind === "refused") {
+    setWorkspaceRefusal(launch.refusal);
     return;
   }
   // After the machine settings migration, which writes the store this reads,
@@ -162,14 +176,25 @@ function openWorkspace() {
       : getMachinePreferences().get("platformApiServer"),
   );
 
-  const opened = settleMachineFolders({ log: logger, userDataDir, workspace });
-  setResolvedWorkspace(opened);
+  let machineDir: string;
+  if (launch.kind === "unplaced") {
+    setUnplacedWorkspace(launch.workspace);
+    ({ machineDir } = launch.workspace);
+  } else {
+    const opened = settleMachineFolders({
+      log: logger,
+      userDataDir,
+      workspace: launch.workspace,
+    });
+    setResolvedWorkspace(opened);
+    ({ machineDir } = opened);
+  }
 
-  markWorkspaceOpen(opened.machineDir);
+  markWorkspaceOpen(machineDir);
   // On process exit rather than `will-quit`: the quit teardown ends in
   // `app.exit`, which skips `will-quit`.
   process.on("exit", () => {
-    releaseOpenMark(opened.machineDir);
+    releaseOpenMark(machineDir);
   });
 }
 

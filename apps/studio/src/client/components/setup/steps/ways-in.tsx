@@ -41,7 +41,6 @@ import { BrandTile } from "../kit/brand-tile";
 import { SetupPageSwitch } from "../kit/setup-page-switch";
 import { SetupFooter, SetupPage } from "../kit/setup-page";
 import { SetupRow, SetupRowList } from "../kit/setup-row";
-import { WelcomeBurst } from "../welcome-burst";
 
 type PlanProvider = Exclude<ConnectProvider, "instrument">;
 
@@ -60,7 +59,8 @@ export type WaysInPage =
       previewCode?: string;
       provider: PlanProvider;
     }
-  | { kind: "welcome" };
+  /** The ways in, setup's first page of them. */
+  | { kind: "ways" };
 
 type Offer = RPCOutput["billing"]["offer"];
 
@@ -73,7 +73,7 @@ type Offer = RPCOutput["billing"]["offer"];
  * on screen (`hold`), so an account that connects and then turns out to have
  * no plan still lands on its answer here.
  *
- * The way-in step opens it on Welcome; the plan step opens it on the
+ * The way-in step opens it on the ways; the plan step opens it on the
  * subscriptions or the key, for "Use it instead" while no free trial can
  * start, where Google is already done.
  */
@@ -147,9 +147,9 @@ export function WaysIn({
 
   const shown = (): ReactNode => {
     switch (page.kind) {
-      case "welcome": {
+      case "ways": {
         return (
-          <WelcomePage
+          <WaysPage
             google={flows.instrument}
             onGoogle={() => {
               connect("instrument");
@@ -169,7 +169,7 @@ export function WaysIn({
               initial.kind === "subscriptions"
                 ? onLeave
                 : () => {
-                    setPage({ kind: "welcome" });
+                    setPage({ kind: "ways" });
                   }
             }
             onSignIn={connect}
@@ -279,11 +279,15 @@ const WAYS_IN_DEPTH: Record<WaysInPage["kind"], number> = {
   outcome: 3,
   subscriptions: 1,
   waiting: 2,
-  welcome: 0,
+  ways: 0,
 };
 
-/** The free trial's length, when the offer has one this account can start. */
-function WelcomePage({
+/**
+ * How the person brings AI: Google, a subscription they pay for, or a key.
+ * Welcome is on the folder step before it, so this page goes straight to
+ * the question.
+ */
+function WaysPage({
   google,
   onGoogle,
   onKey,
@@ -301,13 +305,8 @@ function WelcomePage({
     <SetupPage
       align="center"
       footer={<TermsFooter className="px-8 pt-5 pb-6" />}
-      hero={
-        <div className="mb-2">
-          <WelcomeBurst />
-        </div>
-      }
-      subtitle={`${APP_NAME} is a desktop app for doing your best work with AI. It works in your files and its own browser, and connects with all your favorite apps.`}
-      title={`Welcome to ${APP_NAME}`}
+      subtitle="Sign in with Google, or use a subscription or key you already pay for."
+      title="How would you like to use AI?"
     >
       <div className="mt-10 flex w-95 max-w-full flex-col gap-3">
         <BrowserHandoffButton

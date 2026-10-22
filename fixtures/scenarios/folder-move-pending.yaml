@@ -1,4 +1,4 @@
-description: The launch after Continue on the folder step. The move is recorded and this launch makes it, so the folder reads as settled and setup picks up at notifications.
+description: A beta tester's launch after Continue on the folder step. The move is recorded and this launch makes it, so the folder reads as settled and setup picks up at the free account.
 workspace: documents
 outputFolder: documents
 folder: move-pending
@@ -6,4 +6,4 @@ signIns: [chatgpt]
 accountCheck: ready
 notifications: not-asked
 setup:
-  answered: [welcome-back, free-account, model]
+  answered: [welcome-back]

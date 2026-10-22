@@ -8,11 +8,25 @@ import { BrowserWindow, ipcMain } from "electron";
 
 import { createDraftStore } from "./draft-store";
 
+/** What a window loading before the workspace opens reads. */
+const NO_DRAFTS: DraftsSnapshot = { acks: {}, drafts: [] };
+
 let STORE: null | ReturnType<typeof createDraftStore> = null;
 
 function getStore() {
+  if (!STORE) {
+    throw new Error("The drafts were changed before the workspace opened");
+  }
+  return STORE;
+}
+
+/**
+ * Opens the drafts in the workspace's `Drafts/` and watches them, once the
+ * workspace has a folder: at launch, or once setup's first step places it.
+ */
+export function openDrafts() {
   if (STORE) {
-    return STORE;
+    return;
   }
   STORE = createDraftStore({
     onChange: tellWindows,
@@ -20,7 +34,9 @@ function getStore() {
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
   STORE.load();
-  return STORE;
+  STORE.watch(() => {
+    getStore().reconcile();
+  });
 }
 
 function tellWindows(snapshot: DraftsSnapshot) {
@@ -36,14 +52,11 @@ function tellWindows(snapshot: DraftsSnapshot) {
  * preload that is loading; each batch of ops a window sends, answered once it
  * is on disk; and bytes pasted into a draft. Every change, whichever window
  * or file manager made it, reaches every window. Registered before any window
- * exists.
+ * exists; until the workspace opens (`openDrafts`) there are none.
  */
 export function serveDrafts() {
-  getStore().watch(() => {
-    getStore().reconcile();
-  });
   ipcMain.on(DRAFTS_CHANNEL.load, (event) => {
-    event.returnValue = getStore().snapshot();
+    event.returnValue = STORE?.snapshot() ?? NO_DRAFTS;
   });
   ipcMain.handle(DRAFTS_CHANNEL.apply, (_event, batch: unknown) => {
     if (!isBatch(batch)) {

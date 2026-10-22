@@ -47,9 +47,10 @@ export function setWorkspaceRefusal(refused: WorkspaceRefusal): void {
  * - the system refuses to let it be read (macOS took back the app's access
  *   to Documents, say);
  * - a folder the person picked, or its `.instrument/`, is gone (a disk not
- *   connected, a folder moved by hand). A folder the app made in its own
- *   data, or one pinned for the process, is made again instead, as a first
- *   launch makes the default one;
+ *   connected, a folder moved by hand). One pinned for the process is made
+ *   again instead, and a default one gone from the app's own data never gets
+ *   here: the launch asks for a folder, as a first launch does
+ *   (`needsPlacing`);
  * - a folder the person picked is somewhere no workspace can be, as an
  *   earlier build let it be. One somewhere the person is only warned about
  *   opens as any other does. One in the app's own data was made there by

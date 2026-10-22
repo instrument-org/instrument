@@ -86,14 +86,21 @@ async function seedAndLaunch(name: string) {
   };
   await seedWorkspace({ fixture, home, userDataDir });
 
-  const { refusal, workspace } = resolveLaunchWorkspace({
+  const launch = resolveLaunchWorkspace({
     log,
     packaged: false,
     pin: undefined,
     userDataDir,
   });
-  expect(refusal).toBeUndefined();
-  const opened = settleMachineFolders({ home, log, userDataDir, workspace });
+  if (launch.kind !== "open") {
+    throw new Error(`The seeded workspace did not open: ${launch.kind}`);
+  }
+  const opened = settleMachineFolders({
+    home,
+    log,
+    userDataDir,
+    workspace: launch.workspace,
+  });
   setResolvedWorkspace(opened);
   await sweepWorkspaceFolder({
     deviceId: newDeviceId(),

@@ -47,6 +47,7 @@ import {
   workspaceMachineDirOf,
   type WorkspaceRegistry,
   MACHINE_DATA_FORMAT_VERSION,
+  WORKSPACE_FORMAT_VERSION,
 } from "./workspaces";
 
 /**
@@ -74,6 +75,8 @@ const MoveRefusalSchema = z.enum([
   "inside",
   /** Not a folder that is there. */
   "missing",
+  /** Holds a workspace a newer build made, which this one can't open. */
+  "newer",
   /** Not a whole path. */
   "not-absolute",
   /** This process is pinned to its workspace by `INSTRUMENT_WORKSPACE`. */
@@ -149,6 +152,8 @@ const FILE_MANAGER_RECORDS = new Set([".DS_Store", "desktop.ini", "Thumbs.db"]);
  * Whether the workspace could move to `target`. A folder with other things
  * in it is fine (finished work in `~/Documents/Instrument`, say); one that
  * holds a workspace already is not a move, and the caller offers to open it.
+ * A first launch's workspace has no folder yet (`path` undefined), and the
+ * same answer says whether setup can place it there.
  */
 export function checkMoveTarget({
   target,
@@ -160,7 +165,9 @@ export function checkMoveTarget({
   /** The folders the system empties on its own (`systemTemporaryDirs`). */
   temporaryDirs?: string[];
   userDataDir: string;
-  workspace: ResolvedWorkspace;
+  workspace: Pick<ResolvedWorkspace, "id" | "pinned"> & {
+    path: string | undefined;
+  };
 }): MoveVerdict {
   const refused = (reason: MoveRefusal): MoveVerdict => ({
     kind: "refused",
@@ -190,7 +197,9 @@ export function checkMoveTarget({
       userDataDir,
     });
   const unsettled =
-    pathWithin(workspace.path, userDataDir) && !isSettled(workspace.path);
+    workspace.path !== undefined &&
+    pathWithin(workspace.path, userDataDir) &&
+    !isSettled(workspace.path);
   /** The better folder, offered only where the workspace could go. */
   const insteadOf = (dir: string): MoveVerdict["instead"] => {
     if (!entryExists(dir)) {
@@ -230,13 +239,13 @@ export function checkMoveTarget({
   if (entryExists(dataDir)) {
     // A link is no workspace's: it would have the move or the open act on
     // whatever it points to.
-    return isDirectorySync(dataDir) && hasWorkspaceIdentity(target)
-      ? {
-          kind: "workspace",
-          name: readWorkspaceIdentity(target).name,
-          ...warned,
-        }
-      : refused("taken");
+    if (!isDirectorySync(dataDir) || !hasWorkspaceIdentity(target)) {
+      return refused("taken");
+    }
+    const identity = readWorkspaceIdentity(target);
+    return identity.formatVersion > WORKSPACE_FORMAT_VERSION
+      ? { kind: "refused", reason: "newer", ...warned }
+      : { kind: "workspace", name: identity.name, ...warned };
   }
   if (!canWrite(target)) {
     return refused("unwritable");
@@ -266,13 +275,14 @@ export function checkPlace({
   temporaryDirs,
   userDataDir,
 }: {
-  from: string;
+  /** The workspace's folder now, or none for a first launch's not placed yet. */
+  from: string | undefined;
   id: string;
   target: string;
   temporaryDirs: string[];
   userDataDir: string;
 }): { instead?: string; refusal?: MoveRefusal; warning?: FolderWarning } {
-  if (samePath(target, from)) {
+  if (from !== undefined && samePath(target, from)) {
     return { refusal: "current" };
   }
   const opensInstead = hasWorkspaceIdentity(target);
@@ -301,6 +311,9 @@ export function checkPlace({
     )
       ? "apps-data"
       : undefined);
+  if (from === undefined) {
+    return { instead, warning };
+  }
   if (pathWithin(target, from)) {
     return { instead, refusal: "inside", warning };
   }

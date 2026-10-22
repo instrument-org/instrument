@@ -2,7 +2,7 @@ import { type SetupFacts, type SetupRecord, SETUP_STEPS } from "@/shared/setup";
 import { describe, expect, it } from "vitest";
 
 import {
-  answeredByFolderChange,
+  answeredByPlacing,
   answeredStep,
   currentSetupStep,
   finishedRecord,
@@ -13,17 +13,24 @@ import {
   unansweredStep,
 } from "./setup-step";
 
-/** A first launch on a Mac nobody has asked about notifications. */
+/**
+ * A first launch on a Mac nobody has asked about notifications: no
+ * workspace yet, so nothing in one.
+ */
 const NEW: SetupFacts = {
   folderSettled: false,
   hasInstrumentAccount: false,
   hasInstrumentPlan: false,
   hasUsableAI: false,
+  hasWorkspace: false,
   isCheckingPlan: false,
   notificationsAskable: true,
   hasChats: false,
   testedBefore: false,
 };
+
+/** The same launch once the folder step placed the workspace in a picked folder. */
+const PLACED: SetupFacts = { ...NEW, folderSettled: true, hasWorkspace: true };
 
 const EMPTY: SetupRecord = { answered: {} };
 const AT = new Date("2026-10-21T12:00:00.000Z");
@@ -57,19 +64,19 @@ function walk(
 }
 
 describe("currentSetupStep", () => {
-  it("walks a new person in through Google and a trial", () => {
+  it("walks a new person in through the folder, Google and a trial", () => {
     expect(
       walk(NEW, {
-        folder: { folderSettled: true },
+        folder: { folderSettled: true, hasWorkspace: true },
         plan: { hasInstrumentPlan: true },
         "way-in": { hasInstrumentAccount: true, hasUsableAI: true },
       }),
     ).toMatchInlineSnapshot(`
       [
+        "folder",
         "way-in",
         "plan",
         "model",
-        "folder",
         "notifications",
         "look",
       ]
@@ -79,14 +86,15 @@ describe("currentSetupStep", () => {
   it("walks a new person in through ChatGPT, offering the free account", () => {
     expect(
       walk(NEW, {
+        folder: { folderSettled: true, hasWorkspace: true },
         "way-in": { hasUsableAI: true },
       }),
     ).toMatchInlineSnapshot(`
       [
+        "folder",
         "way-in",
         "free-account",
         "model",
-        "folder",
         "notifications",
         "look",
       ]
@@ -96,123 +104,147 @@ describe("currentSetupStep", () => {
   it("walks a beta tester from Welcome back through the folder move", () => {
     expect(
       walk(
-        { ...NEW, hasUsableAI: true, hasChats: true, testedBefore: true },
+        {
+          ...NEW,
+          hasChats: true,
+          hasUsableAI: true,
+          hasWorkspace: true,
+          testedBefore: true,
+        },
         { folder: { folderSettled: true } },
       ),
     ).toMatchInlineSnapshot(`
       [
         "welcome-back",
+        "folder",
         "free-account",
         "model",
-        "folder",
         "notifications",
         "look",
       ]
     `);
   });
 
+  it("asks only the folder while there is no workspace, whatever the record says", () => {
+    const finished = finishedRecord(EMPTY, AT);
+    expect(currentSetupStep(NEW, finished)).toBe("folder");
+    expect(isNewStepOnly(NEW, finished)).toBe(false);
+    expect(
+      currentSetupStep(
+        { ...NEW, hasUsableAI: true, testedBefore: true },
+        EMPTY,
+      ),
+    ).toBe("folder");
+    expect(currentSetupStep(PLACED, finished)).toBeNull();
+  });
+
   // Each row is a relaunch: the facts as they stand, and the steps answered
   // before the quit. Setup picks up at the step the person quit on.
   it.each<[string, Partial<SetupFacts>, SetupRecord, null | string]>([
-    ["quit on the first page", {}, EMPTY, "way-in"],
+    ["quit on the first page", {}, EMPTY, "folder"],
+    ["quit after placing the folder", PLACED, answered("folder"), "way-in"],
     [
       "quit after connecting ChatGPT",
-      { hasUsableAI: true },
-      EMPTY,
+      { ...PLACED, hasUsableAI: true },
+      answered("folder"),
       "free-account",
     ],
     [
       "quit after signing in with Google, before a plan",
-      { hasInstrumentAccount: true, hasUsableAI: true },
-      EMPTY,
+      { ...PLACED, hasInstrumentAccount: true, hasUsableAI: true },
+      answered("folder"),
       "plan",
     ],
     [
       "quit after starting a trial",
       {
+        ...PLACED,
         hasInstrumentAccount: true,
         hasInstrumentPlan: true,
         hasUsableAI: true,
       },
-      EMPTY,
+      answered("folder"),
       "model",
     ],
     [
-      "quit on the folder",
-      { hasUsableAI: true },
-      answered("free-account", "model"),
-      "folder",
-    ],
-    [
-      "quit while the folder move waits on its restart",
-      { folderSettled: true, hasUsableAI: true },
-      answered("free-account", "model"),
-      "notifications",
-    ],
-    [
       "quit on notifications",
-      { folderSettled: true, hasUsableAI: true },
-      answered("free-account", "model", "folder"),
+      { ...PLACED, hasUsableAI: true },
+      answered("folder", "free-account", "model"),
       "notifications",
     ],
     [
       "quit on the look",
-      { folderSettled: true, hasUsableAI: true },
-      answered("free-account", "model", "folder", "notifications"),
+      { ...PLACED, hasUsableAI: true },
+      answered("folder", "free-account", "model", "notifications"),
       "look",
     ],
     [
       "answered everything but never finished",
-      { folderSettled: true, hasUsableAI: true },
-      answered("free-account", "model", "folder", "notifications", "look"),
+      { ...PLACED, hasUsableAI: true },
+      answered("folder", "free-account", "model", "notifications", "look"),
       null,
     ],
     [
       "a beta tester's first launch",
-      { hasUsableAI: true, hasChats: true, testedBefore: true },
+      {
+        hasChats: true,
+        hasUsableAI: true,
+        hasWorkspace: true,
+        testedBefore: true,
+      },
       EMPTY,
       "welcome-back",
     ],
     [
-      "a release user's chats on a second computer",
-      { hasUsableAI: true, hasChats: true },
-      EMPTY,
-      "free-account",
+      "a beta tester who quit after Welcome back",
+      {
+        hasChats: true,
+        hasUsableAI: true,
+        hasWorkspace: true,
+        testedBefore: true,
+      },
+      answered("welcome-back"),
+      "folder",
     ],
     [
-      "a beta tester who quit after Welcome back",
-      { hasUsableAI: true, hasChats: true, testedBefore: true },
+      "a beta tester while the folder move waits on its restart",
+      {
+        ...PLACED,
+        hasChats: true,
+        hasUsableAI: true,
+        testedBefore: true,
+      },
       answered("welcome-back"),
       "free-account",
     ],
     [
       "a beta tester signed out of everything",
-      { hasChats: true, testedBefore: true },
+      { ...PLACED, hasChats: true, testedBefore: true },
       answered("welcome-back"),
       "way-in",
     ],
     [
+      "a release user's chats on a second computer",
+      { ...PLACED, hasChats: true, hasUsableAI: true },
+      EMPTY,
+      "free-account",
+    ],
+    [
       "lost every AI before finishing",
-      { folderSettled: true },
-      answered("free-account", "model"),
+      PLACED,
+      answered("folder", "free-account", "model"),
       "way-in",
     ],
     [
       "notifications off macOS",
-      { folderSettled: true, hasUsableAI: true, notificationsAskable: false },
-      answered("free-account", "model"),
+      { ...PLACED, hasUsableAI: true, notificationsAskable: false },
+      answered("folder", "free-account", "model"),
       "look",
     ],
     [
-      "a pinned or picked folder",
-      { folderSettled: true, hasUsableAI: true },
-      answered("free-account", "model"),
-      "notifications",
-    ],
-    [
-      "folder answered while it stays in app data",
-      { hasUsableAI: true },
-      answered("free-account", "model", "folder"),
+      "folder kept in app data for now",
+      { hasUsableAI: true, hasWorkspace: true },
+      answered("folder", "free-account", "model"),
       "notifications",
     ],
   ])("%s", (_name, facts, record, expected) => {
@@ -222,7 +254,7 @@ describe("currentSetupStep", () => {
 
   it("asks the plan step only of an Instrument account without a plan", () => {
     const withAccount = {
-      ...NEW,
+      ...PLACED,
       hasInstrumentAccount: true,
       hasUsableAI: true,
     };
@@ -230,7 +262,7 @@ describe("currentSetupStep", () => {
     expect(
       currentSetupStep({ ...withAccount, hasInstrumentPlan: true }, EMPTY),
     ).toBe("model");
-    expect(currentSetupStep({ ...NEW, hasUsableAI: true }, EMPTY)).toBe(
+    expect(currentSetupStep({ ...PLACED, hasUsableAI: true }, EMPTY)).toBe(
       "free-account",
     );
   });
@@ -240,24 +272,24 @@ describe("after finishing", () => {
   const finished = finishedRecord(answered("free-account", "model"), AT);
 
   it.each<[string, Partial<SetupFacts>]>([
-    ["everything as it was", { folderSettled: true, hasUsableAI: true }],
+    ["everything as it was", { hasUsableAI: true }],
     ["signed out of everything", {}],
-    ["folder back in app data", { hasUsableAI: true }],
+    ["folder back in app data", { folderSettled: false, hasUsableAI: true }],
     ["tested before", { hasChats: true, testedBefore: true }],
     [
       "an Instrument account without a plan",
       { hasInstrumentAccount: true, hasUsableAI: true },
     ],
   ])("stays closed with %s", (_name, facts) => {
-    expect(currentSetupStep({ ...NEW, ...facts }, finished)).toBeNull();
-    expect(isNewStepOnly({ ...NEW, ...facts }, finished)).toBe(false);
+    expect(currentSetupStep({ ...PLACED, ...facts }, finished)).toBeNull();
+    expect(isNewStepOnly({ ...PLACED, ...facts }, finished)).toBe(false);
   });
 
   it("shows only a step a later build added", () => {
     // Finished on a build that had no notifications step.
     const { notifications: _added, ...older } = finished.answered;
     const record = { ...finished, answered: older };
-    const facts = { ...NEW, hasUsableAI: true };
+    const facts = { ...PLACED, hasUsableAI: true };
     expect(currentSetupStep(facts, record)).toBe("notifications");
     expect(isNewStepOnly(facts, record)).toBe(true);
     // The added step still has to be one the person can do here.
@@ -274,7 +306,7 @@ describe("after finishing", () => {
     const { "welcome-back": _added, ...older } = finished.answered;
     expect(
       currentSetupStep(
-        { ...NEW, hasChats: true, testedBefore: true },
+        { ...PLACED, hasChats: true, testedBefore: true },
         { ...finished, answered: older },
       ),
     ).toBeNull();
@@ -321,27 +353,31 @@ describe("the record", () => {
   });
 });
 
-describe("a workspace setup opened or moved", () => {
-  // A new person connected ChatGPT, chose a model and opened a folder that
-  // already holds a workspace with chats. After the restart the facts are
-  // that workspace's: used before, with the accounts carried over.
+describe("placing a first launch's workspace", () => {
+  // A new person picked a folder that already holds a workspace with a beta
+  // tester's chats. Placed, the facts are that workspace's: used before.
   const OPENED: SetupFacts = {
-    ...NEW,
-    folderSettled: true,
+    ...PLACED,
     hasChats: true,
-    hasUsableAI: true,
     testedBefore: true,
   };
-  const BEFORE_OPEN = answered("free-account", "model");
 
-  it("greets them again without the folder change answering Welcome back", () => {
-    expect(currentSetupStep(OPENED, BEFORE_OPEN)).toBe("welcome-back");
+  it("would greet them with Welcome back before the folder they just picked", () => {
+    expect(currentSetupStep(OPENED, EMPTY)).toBe("welcome-back");
   });
 
-  it("lands on the step after the folder", () => {
+  it("goes on to the way in, past Welcome back and the folder", () => {
+    expect(currentSetupStep(OPENED, answeredByPlacing(EMPTY, AT))).toBe(
+      "way-in",
+    );
+    // Back from there greets them, as any tester's Back does; the folder,
+    // placed, is never asked again.
+    expect(stepBefore(OPENED, answeredByPlacing(EMPTY, AT), "way-in")).toBe(
+      "welcome-back",
+    );
     expect(
-      currentSetupStep(OPENED, answeredByFolderChange(BEFORE_OPEN, AT)),
-    ).toBe("notifications");
+      stepBefore(PLACED, answeredByPlacing(EMPTY, AT), "way-in"),
+    ).toBeNull();
   });
 
   it("keeps a Welcome back answered earlier, and answers the folder", () => {
@@ -350,7 +386,7 @@ describe("a workspace setup opened or moved", () => {
       "welcome-back",
       new Date("2026-10-01T00:00:00.000Z"),
     );
-    expect(answeredByFolderChange(earlier, AT)).toMatchInlineSnapshot(`
+    expect(answeredByPlacing(earlier, AT)).toMatchInlineSnapshot(`
       {
         "answered": {
           "folder": "2026-10-21T12:00:00.000Z",
@@ -373,6 +409,7 @@ describe("setupStateFrom", () => {
             "hasInstrumentAccount": false,
             "hasInstrumentPlan": false,
             "hasUsableAI": false,
+            "hasWorkspace": false,
             "isCheckingPlan": false,
             "notificationsAskable": true,
             "testedBefore": false,
@@ -383,13 +420,13 @@ describe("setupStateFrom", () => {
       `);
     expect(
       setupStateFrom({ facts: NEW, record: EMPTY, skip: false }).step,
-    ).toBe("way-in");
+    ).toBe("folder");
   });
 });
 
 describe("stepBefore", () => {
   const signedIn: SetupFacts = {
-    ...NEW,
+    ...PLACED,
     hasInstrumentAccount: true,
     hasInstrumentPlan: true,
     hasUsableAI: true,
@@ -397,14 +434,23 @@ describe("stepBefore", () => {
 
   it("passes over a step a fact settled and one not needed", () => {
     // The plan was answered before a trial made it unneeded; way-in keeps
-    // no answer at all.
-    const record = answered("plan", "model");
-    expect(stepBefore(signedIn, record, "folder")).toBe("model");
+    // no answer at all, and the placed folder is settled.
+    const record = answered("folder", "plan", "model");
+    expect(stepBefore(signedIn, record, "notifications")).toBe("model");
     expect(stepBefore(signedIn, record, "model")).toBeNull();
   });
 
+  it("goes back from the folder to Welcome back, and from the way in past a moved folder", () => {
+    const tester = { ...PLACED, hasChats: true, testedBefore: true };
+    const record = answered("welcome-back");
+    expect(
+      stepBefore({ ...tester, folderSettled: false }, record, "folder"),
+    ).toBe("welcome-back");
+    expect(stepBefore(tester, record, "way-in")).toBe("welcome-back");
+  });
+
   it("goes back to an answered step that would ask again", () => {
-    const keyOnly = { ...NEW, hasUsableAI: true };
+    const keyOnly = { ...PLACED, hasUsableAI: true };
     const record = answered("free-account");
     expect(stepBefore(keyOnly, record, "model")).toBe("free-account");
     expect(

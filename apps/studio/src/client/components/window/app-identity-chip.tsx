@@ -4,7 +4,7 @@ import { APP_FLAVOR } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
-type WorkspaceColor = RPCOutput["workspaces"]["current"]["color"];
+type WorkspaceColor = NonNullable<RPCOutput["workspaces"]["current"]>["color"];
 
 /**
  * Each workspace color as the deep tier of the topic palette, so a workspace
@@ -40,7 +40,7 @@ export function AppIdentityChip() {
     rpcClient.preferences.platformApiServer.queryOptions(),
   );
   const customWorkspace =
-    workspace !== undefined && !workspace.isDefault ? workspace : undefined;
+    workspace != null && !workspace.isDefault ? workspace : undefined;
   const serverLabel = server?.label;
 
   if (

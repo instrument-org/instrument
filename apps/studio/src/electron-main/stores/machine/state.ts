@@ -51,11 +51,11 @@ const MachineStateSchema = z.object({
     .optional()
     .catch(undefined),
   /**
-   * The steps of setup answered on this computer, and when it finished
-   * (`lib/setup-state.ts`). Machine-wide, so a second workspace does not
-   * run setup again.
+   * Setup's record as earlier builds kept it, once for the whole computer.
+   * Carried into the default workspace's own state once and removed
+   * (`lib/setup-state.ts`); setup's record is the workspace's now.
    */
-  setup: SetupRecordSchema.catch({ answered: {} }),
+  setup: SetupRecordSchema.optional().catch(undefined),
   /**
    * Where setup's window was when the app last quit with setup up, so a
    * restart setup makes (the folder step's) opens it there again rather than

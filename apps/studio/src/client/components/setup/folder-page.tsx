@@ -2,7 +2,8 @@ import { REFUSALS } from "@/client/components/settings/storage-section";
 import { Spinner } from "@/client/components/ui/spinner";
 import { folderOf } from "@/client/components/window/host-path";
 import { toast } from "@/client/lib/toast";
-import { rpcClient } from "@/client/rpc/client";
+import { isMacOS } from "@/client/lib/utils";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { folderWarningSentence } from "@/shared/workspace-folder-refusal";
 import { skipToken, useQuery } from "@tanstack/react-query";
@@ -21,6 +22,7 @@ import {
 } from "./folder-flow";
 import { type SetupPageProps } from "./setup-page-props";
 import { useSetupState } from "./use-setup-state";
+import { WelcomeBurst } from "./welcome-burst";
 
 /** How long the page saying the app restarts shows before the restart. */
 const RESTART_NOTICE_MS = 3000;
@@ -28,33 +30,59 @@ const RESTART_NOTICE_MS = 3000;
 /** A note under the folder, for the folder it was found in. */
 type Note = FoundNote | { kind: "denied" } | { kind: "unfinished" };
 
+/** Why Continue can't keep the folder where it is on screen. */
+type Refusal = Extract<
+  RPCOutput["workspaces"]["move"],
+  { kind: "refused" }
+>["reason"];
+
 /**
  * Where the Instrument folder lives (frames 05 to 09). Documents is
  * suggested, and nothing is made there until Continue, which is when a Mac
  * that guards Documents asks. A refusal falls back to the home folder with a note
  * and Fix; a folder with things in it, or one that is already an Instrument
  * folder, says so as soon as it is on screen, and Continue goes on past it.
- * Moving the folder, or opening one that is already an Instrument folder,
- * restarts the app, so the page says that first and holds the step on screen
- * meanwhile.
+ *
+ * On a first launch it is setup's first page, Welcome with the folder
+ * (frame 26): Continue makes the folder there, or opens the Instrument
+ * folder already in it, and the app starts in it with no restart; the
+ * window loads again on the next step. For a workspace already running
+ * from the app's own data, moving it, or opening one that is already an
+ * Instrument folder, restarts the app, so the page says that first and
+ * holds the step on screen meanwhile.
  */
 export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
-  const { data: folder } = useQuery(rpcClient.workspaces.folder.queryOptions());
-  const hasChats = useSetupState()?.facts.hasChats ?? false;
+  const facts = useSetupState()?.facts;
+  const hasChats = facts?.hasChats ?? false;
+  // A first launch, with no workspace yet: this page places it.
+  const isFirst = facts?.hasWorkspace === false;
+  const { data: offered } = useQuery(
+    rpcClient.workspaces.offered.queryOptions(),
+  );
+  // Where the folder is now, for the chats a move would bring along.
+  const { data: folder } = useQuery({
+    ...rpcClient.workspaces.folder.queryOptions(),
+    enabled: hasChats,
+  });
   const [picked, setPicked] = useState<null | string>(null);
   const [note, setNote] = useState<Note | null>(null);
   const [busy, setBusy] = useState(false);
-  // What Continue is doing to the folder while the app restarts for it.
+  // What Continue is doing to the folder while it is made, or while the app
+  // restarts for it.
   const [moving, setMoving] = useState<"move" | "open" | null>(null);
 
   // The folder on screen: the one picked, or the one in Documents setup
-  // suggests, once the current folder has loaded.
-  const target = picked ?? folder?.inDocuments;
+  // suggests, once the offered folders have loaded.
+  const target = picked ?? offered?.inDocuments;
   // A risky place (Documents itself, a temporary folder) is said under it,
-  // and Continue can still go past it.
+  // and Continue can still go past it. On a first launch on a Mac, the
+  // folder suggested in Documents is looked at only on Continue, where the
+  // page has said the Mac will ask: looking sooner would ask at once.
+  const looksOnContinue = isFirst && isMacOS() && picked === null;
   const { data: targetCheck } = useQuery(
     rpcClient.workspaces.checkFolder.queryOptions({
-      input: target === undefined ? skipToken : { path: target },
+      input:
+        target === undefined || looksOnContinue ? skipToken : { path: target },
     }),
   );
   // What is in it already, so an Instrument folder with chats, or a folder
@@ -93,12 +121,65 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
     setNote(null);
   };
 
+  /** What Continue does with a folder it can't take: a note where the page has one, else a toast. */
+  const refuse = (
+    current: { inDocuments: string; inHome: string },
+    path: string,
+    reason: Refusal,
+  ) => {
+    setMoving(null);
+    if (reason === "unfinished") {
+      setNote({ kind: "unfinished" });
+    } else if (reason === "unwritable" && path === current.inDocuments) {
+      setPicked(current.inHome);
+      setNote({ kind: "denied" });
+    } else {
+      toast.error(`${APP_NAME} can’t keep your folder there`, {
+        description: REFUSALS[reason],
+      });
+    }
+  };
+
+  /**
+   * Places a first launch's workspace in `path`, made there or opened,
+   * then loads the window again, where setup goes on at the next step.
+   */
+  const place = async (
+    current: { inDocuments: string; inHome: string },
+    path: string,
+    how: { create: boolean; type: "move" } | { type: "open" },
+  ) => {
+    hold();
+    setMoving(how.type);
+    try {
+      const placed = await rpcClient.workspaces.place.call({
+        create: how.type === "move" && how.create,
+        path,
+      });
+      if (placed.kind === "placed") {
+        window.location.reload();
+        return;
+      }
+      if (placed.kind === "refused") {
+        refuse(current, path, placed.reason);
+        return;
+      }
+    } catch (error) {
+      toast.error(`${APP_NAME} couldn’t set up your folder`, { cause: error });
+    }
+    setMoving(null);
+  };
+
   /** Moves into `path` (or opens it), restarting the app. */
   const go = async (
     current: { inDocuments: string; inHome: string },
     path: string,
     how: { create: boolean; type: "move" } | { type: "open" },
   ) => {
+    if (isFirst) {
+      await place(current, path, how);
+      return;
+    }
     hold();
     setMoving(how.type);
     // The restart is said long enough to read before it happens.
@@ -126,20 +207,8 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
           return;
         }
         if (moved.kind === "refused") {
-          if (moved.reason === "unfinished") {
-            setMoving(null);
-            setNote({ kind: "unfinished" });
-            return;
-          }
-          if (moved.reason === "unwritable" && path === current.inDocuments) {
-            setMoving(null);
-            setPicked(current.inHome);
-            setNote({ kind: "denied" });
-            return;
-          }
-          toast.error(`${APP_NAME} can’t keep your folder there`, {
-            description: REFUSALS[moved.reason],
-          });
+          refuse(current, path, moved.reason);
+          return;
         }
       }
     } catch (error) {
@@ -149,7 +218,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   };
 
   const proceed = async () => {
-    if (!folder || target === undefined) {
+    if (!offered || target === undefined) {
       return;
     }
     setBusy(true);
@@ -169,13 +238,14 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
       switch (action.type) {
         case "move":
         case "open": {
-          await go(folder, target, action);
+          await go(offered, target, action);
           return;
         }
         case "exists": {
-          const current = hasChats
-            ? await rpcClient.workspaces.summary.call({ path: folder.path })
-            : null;
+          const current =
+            hasChats && folder
+              ? await rpcClient.workspaces.summary.call({ path: folder.path })
+              : null;
           setNote({
             items: action.items,
             kind: "exists",
@@ -188,8 +258,8 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
           return;
         }
         case "denied": {
-          if (target === folder.inDocuments) {
-            setPicked(folder.inHome);
+          if (target === offered.inDocuments) {
+            setPicked(offered.inHome);
             setNote({ kind: "denied" });
           } else {
             toast.error(`${APP_NAME} can’t keep your folder there`, {
@@ -246,7 +316,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
       page={moving === null ? "folder" : "moving"}
     >
       {moving !== null ? (
-        <MovingPage how={moving} hasChats={hasChats} />
+        <MovingPage how={moving} hasChats={hasChats} restarts={!isFirst} />
       ) : (
         <SetupPage
           footer={
@@ -259,11 +329,27 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
               pending={busy}
             />
           }
-          hero={<PackedFolder />}
-          subtitle={`This is where ${APP_NAME} keeps your chats, topics and the files it makes`}
-          title="Where should your Instrument folder live?"
+          hero={
+            isFirst ? (
+              <div className="mb-2">
+                <WelcomeBurst />
+              </div>
+            ) : (
+              <PackedFolder />
+            )
+          }
+          subtitle={
+            isFirst
+              ? `First, choose where ${APP_NAME} keeps your chats, topics and the files it makes.`
+              : `This is where ${APP_NAME} keeps your chats, topics and the files it makes`
+          }
+          title={
+            isFirst
+              ? `Welcome to ${APP_NAME}`
+              : "Where should your Instrument folder live?"
+          }
         >
-          <div className="mt-8">
+          <div className="mt-8 flex w-140 max-w-full flex-col">
             <FolderLocation
               onChange={
                 target === undefined
@@ -279,8 +365,8 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
                   action={{
                     label: "Fix",
                     onClick: () => {
-                      if (folder) {
-                        void choose(folderOf(folder.inDocuments));
+                      if (offered) {
+                        void choose(folderOf(offered.inDocuments));
                       }
                     },
                   }}
@@ -323,6 +409,15 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
                 />
               )}
             </FolderLocation>
+            {isFirst &&
+              isMacOS() &&
+              shown === null &&
+              target === offered?.inDocuments && (
+                <p className="mt-3 px-4 text-center text-sm text-muted-foreground">
+                  {/* oxlint-disable-next-line studio/no-os-words -- shown only on macOS */}
+                  {`Your Mac will ask whether ${APP_NAME} can use your Documents folder. Choose Allow to keep your folder there.`}
+                </p>
+              )}
           </div>
         </SetupPage>
       )}
@@ -331,24 +426,30 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
 }
 
 /**
- * What shows while the move, or the open of a folder that is already an
- * Instrument folder, restarts the app: the restart is said before it happens.
+ * What shows while Continue makes or opens the folder. Where that restarts
+ * the app (a move, or the open of a folder that is already an Instrument
+ * folder, with a workspace already running), the restart is said before it
+ * happens.
  */
 function MovingPage({
   how,
   hasChats,
+  restarts,
 }: {
   how: "move" | "open";
   hasChats: boolean;
+  restarts: boolean;
 }) {
   return (
     <SetupPage
       align="center"
       hero={<Spinner className="size-6 text-muted-foreground" />}
       subtitle={
-        how === "open"
-          ? `${APP_NAME} restarts once to open it, then picks up right here.`
-          : `${APP_NAME} restarts once to finish, then picks up right here.`
+        !restarts
+          ? undefined
+          : how === "open"
+            ? `${APP_NAME} restarts once to open it, then picks up right here.`
+            : `${APP_NAME} restarts once to finish, then picks up right here.`
       }
       title={
         how === "open"

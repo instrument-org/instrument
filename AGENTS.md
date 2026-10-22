@@ -133,6 +133,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/plans/` — execution plans for non-trivial work (`active/` vs `completed/`). One file per plan.
 - `docs/decisions/` — why we chose one approach over another, dated. One file per decision.
 - `docs/changes/`: dated, screenshot-backed summaries of user-facing changes for design follow-up and possible changelog input.
+- `docs/reviews/`: code reviews, the range each read and what came of each finding. Read before reviewing; a fix for a finding carries a `Review:` trailer.
 
 ## Additional guidance
 

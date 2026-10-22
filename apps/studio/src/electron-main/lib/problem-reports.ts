@@ -477,7 +477,8 @@ function diagnosticsItems(
   };
   const events = listExceptionEvents()
     .toSorted((a, b) => b.lastAt - a.lastAt)
-    .slice(0, MAX_REPORT_EVENTS);
+    .slice(0, MAX_REPORT_EVENTS)
+    .map(withProblemBreadcrumbs);
   const logLines = readLogLines(FEEDBACK_LOG_BYTES);
   return [
     feedbackItem({
@@ -518,6 +519,23 @@ function diagnosticsItems(
         ]
       : []),
   ];
+}
+
+/** The breadcrumb levels feedback's recent errors keep. */
+const PROBLEM_LEVELS = new Set(["error", "fatal", "warn", "warning"]);
+
+/**
+ * An error as feedback's "Recent errors" carries it: the trail of every log
+ * line and call before it cut to the warnings and failures, since the app
+ * log beside it already has the rest.
+ */
+export function withProblemBreadcrumbs(event: ExceptionEvent): ExceptionEvent {
+  return {
+    ...event,
+    breadcrumbs: event.breadcrumbs.filter((crumb) =>
+      PROBLEM_LEVELS.has(crumb.level),
+    ),
+  };
 }
 
 /** Feedback whose chat alone is more than one report may carry. */

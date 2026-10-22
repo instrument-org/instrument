@@ -254,6 +254,30 @@ describe("feedback", () => {
 
   const file = (name: string, content = `${name}\n`) => ({ content, name });
 
+  // The trail before an error is every log line and call, which read as a
+  // log of everything the person did under "Recent errors".
+  it("keeps only the warnings and failures in a recent error's trail", () => {
+    const crumb = (level: string, message: string) => ({
+      category: "rpc",
+      level,
+      message,
+      timestamp: 1,
+    });
+    const event = {
+      ...crashEvent(),
+      breadcrumbs: [
+        crumb("info", "chats.list ok"),
+        crumb("warn", "slow read"),
+        crumb("error", "chats.get failed: gone"),
+      ],
+    };
+    expect(
+      reports
+        .withProblemBreadcrumbs(event)
+        .breadcrumbs.map((each) => each.message),
+    ).toEqual(["slow read", "chats.get failed: gone"]);
+  });
+
   it("lays a chat's records out as its folder, a session per item and its settings last", () => {
     const items = reports.chatFeedbackItems({
       files: [

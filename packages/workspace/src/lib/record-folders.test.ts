@@ -8,7 +8,8 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { WINDOW_ID } from "../schemas/window-id";
 import { chatFolderName } from "./chat-folder-name";
-import { getChatInfos } from "./chat-info";
+import { chatSessions, chatTitle, getChatInfos } from "./chat-info";
+import { ChatWrites } from "./chat-writes";
 import { initializeChat } from "./initialize-chat";
 import { newChatId } from "./new-chat-id";
 import { writingChatRecords } from "./records/chat-records";
@@ -313,5 +314,41 @@ describe("a chat's own session", () => {
     await fs.mkdir(dir, { recursive: true });
 
     expect(chatSessionIn(dir)).toBeUndefined();
+  });
+});
+
+describe("chat titles", () => {
+  // The chat list shows an untitled chat by its opening words, and every
+  // other reader of its title (a report, a chip) has to say the same.
+  it("reads an untitled chat by its opening ask, as the list shows it", async () => {
+    const chat = await makeChat("2026-10-22-hello-world");
+    const createdAt = new Date();
+    const messageId = StoreId.newMessageId();
+    const written = await ChatWrites.saveMessageWithParts(
+      {
+        id: messageId,
+        metadata: { createdAt, sessionId: SESSION },
+        parts: [
+          {
+            metadata: {
+              createdAt,
+              id: StoreId.newPartId(),
+              messageId,
+              sessionId: SESSION,
+            },
+            text: "hello world",
+            type: "text",
+          },
+        ],
+        role: "user",
+      },
+      chat,
+    );
+    expect(written.isOk()).toBe(true);
+
+    expect(await chatTitle(chat)).toBe("hello world");
+    expect(await chatSessions(chat)).toEqual([
+      { id: SESSION, parentId: undefined, title: "hello world" },
+    ]);
   });
 });

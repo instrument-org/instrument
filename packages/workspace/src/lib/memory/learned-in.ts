@@ -1,5 +1,5 @@
 import { type ChatId } from "../../schemas/chat-id";
-import { ChatReads } from "../chat-reads";
+import { chatTitle } from "../chat-info";
 import { type Memory } from "./store";
 
 /**
@@ -21,9 +21,7 @@ export async function learnedIn(
   );
 }
 
-/** The title of the chat's own session, the one no other session started. */
+/** The chat's title as the chat list shows it. */
 async function titleOf(chatId: ChatId): Promise<string | undefined> {
-  const sessions = await ChatReads.sessions({ chatId });
-  const title = sessions.isOk() ? sessions.value[0]?.title.trim() : undefined;
-  return title || undefined;
+  return (await chatTitle(chatId))?.trim() || undefined;
 }

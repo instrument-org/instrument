@@ -13,6 +13,10 @@ import { isChatId } from "./is-chat-id";
 import { chatDir, chatIds, resolveChat, sessionOfChat } from "./record-folders";
 import { chatModelURI } from "./chat-settings";
 import { ChatReads } from "./chat-reads";
+import { shownTitle } from "./chat/shown-title";
+import { writingChatRecords } from "./records/chat-records";
+import { type FoldedChat, type FoldedSession } from "./records/fold";
+import { sessionOf } from "./records/session-of";
 
 export interface ChatInfoListOptions {
   direction: "asc" | "desc";
@@ -93,36 +97,54 @@ export async function chatStartedWithApp(
   return app.isOk() ? app.value : undefined;
 }
 
-/** A chat's title, from its own session's row, which is where a rename writes it. */
+/**
+ * A chat's title as the chat list shows it: its own session's title, or
+ * the opening ask's first words until the agent names it.
+ */
 export async function chatTitle(chatId: ChatId): Promise<string | undefined> {
-  const sessionId = sessionOfChat(chatId);
-  if (!sessionId) {
-    return undefined;
-  }
-  const session = await ChatReads.session({ chatId, sessionId });
-  return session.isOk() ? session.value.title : undefined;
+  const chat = await foldedChat(chatId);
+  const own = chat?.sessions.find((session) => !session.parent);
+  return own && sessionTitle(own);
 }
 
 /**
  * Every session of a chat as its records have them, the chat's own first and
- * then its tasks: each one's id, title and the session it was started from.
- * Empty for a chat with no records to read.
+ * then its tasks: each one's id, title as the chat list shows it, and the
+ * session it was started from. Empty for a chat with no records to read.
  */
 export async function chatSessions(
   chatId: ChatId,
 ): Promise<
   { id: StoreId.Session; parentId?: StoreId.Session; title: string }[]
 > {
-  const sessions = await ChatReads.sessions({
-    chatId,
-    includeChildSessions: true,
-  });
-  if (sessions.isErr()) {
-    return [];
-  }
-  return sort(sessions.value, (session) => (session.parentId ? 1 : 0)).map(
-    ({ id, parentId, title }) => ({ id, parentId, title }),
+  const chat = await foldedChat(chatId);
+  return sort(chat?.sessions ?? [], (session) => (session.parent ? 1 : 0)).map(
+    (session) => {
+      const { id, parentId } = sessionOf(session);
+      return { id, parentId, title: sessionTitle(session) };
+    },
   );
+}
+
+/** A session's title, standing in its opening ask's words while it has none. */
+function sessionTitle(session: FoldedSession): string {
+  return shownTitle(
+    sessionOf(session).title,
+    session.messages.find((message) => message.role === "user"),
+  );
+}
+
+/** The chat as its records stand, or undefined where they cannot be read. */
+async function foldedChat(chatId: ChatId): Promise<FoldedChat | undefined> {
+  const records = writingChatRecords();
+  if (!records) {
+    return undefined;
+  }
+  try {
+    return (await records.read(chatId)).chat;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The order the list asks for, over a set already read. */

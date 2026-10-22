@@ -16,6 +16,7 @@ import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { ChatReads } from "./chat-reads";
+import { shownTitle } from "./chat/shown-title";
 import { isToolPart } from "./is-tool-part";
 import { getUsageSummaryFromMessages } from "./usage-summary-compute";
 import { utcStamp } from "./utc-stamp";
@@ -133,7 +134,16 @@ export async function getSessionMarkdown({
     throw new Error(`Session ${sessionId} not found`);
   }
   return sessionToMarkdown(
-    { ...session.value, messages: messages.value },
+    {
+      ...session.value,
+      // Titled as the chat list shows it, by the opening ask until the agent
+      // names it.
+      title: shownTitle(
+        session.value.title,
+        messages.value.find((message) => message.role === "user"),
+      ),
+      messages: messages.value,
+    },
     { frontMatter, includeContextMessages },
   );
 }

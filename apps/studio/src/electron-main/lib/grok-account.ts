@@ -337,12 +337,14 @@ async function loadSignInSetup(signal: AbortSignal): Promise<GrokSignInSetup> {
 function saveUnlessReplaced(
   spent: Registration | undefined,
   next: null | Registration,
+  /** The workspace's store the request started in, which it saves into. */
+  store = getStore(),
 ): boolean {
   const id = spent?.id ?? next?.id;
   if (id === undefined) {
     return false;
   }
-  const stored = registrationById(id);
+  const stored = store.get("registrations")[id];
   const unchanged =
     spent === undefined
       ? stored === undefined
@@ -353,7 +355,6 @@ function saveUnlessReplaced(
     log.info("Grok grant changed while a request was out; dropping its answer");
     return false;
   }
-  const store = getStore();
   const { [id]: _replaced, ...rest } = store.get("registrations");
   store.set("registrations", next ? { ...rest, [id]: next } : rest);
   return true;
@@ -848,6 +849,9 @@ function withoutTokens(registration: Registration): Registration {
 }
 
 async function refreshTokens(id: string): Promise<RefreshOutcome> {
+  // The workspace's store as the refresh starts: one that switches away
+  // while the request is out still has its answer saved into its own.
+  const store = getStore();
   const registration = registrationById(id);
   if (!registration?.refreshToken) {
     return "ended";
@@ -871,6 +875,7 @@ async function refreshTokens(id: string): Promise<RefreshOutcome> {
     return saveUnlessReplaced(
       registration,
       registrationFromTokens(tokens, registration, registration),
+      store,
     )
       ? "refreshed"
       : "replaced";
@@ -880,7 +885,11 @@ async function refreshTokens(id: string): Promise<RefreshOutcome> {
       UNUSABLE_REFRESH_CODES.has(error.code ?? "")
     ) {
       log.warn("Grok session ended; signing in again is required");
-      return saveUnlessReplaced(registration, withoutTokens(registration))
+      return saveUnlessReplaced(
+        registration,
+        withoutTokens(registration),
+        store,
+      )
         ? "ended"
         : "replaced";
     }

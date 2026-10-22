@@ -308,6 +308,10 @@ export function useDictation({
       case "continue": {
         break;
       }
+      case "sign-in": {
+        openLogin({ instrumentOnly: true, reason: "dictation" });
+        break;
+      }
       case "update-card": {
         void safe(rpcClient.billing.openPortal.call());
         break;

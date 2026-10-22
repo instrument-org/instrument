@@ -46,5 +46,7 @@ export function useBillingStatus({ pollMs }: { pollMs?: number } = {}) {
     }
   }, [windowFocusChanged, isSignedIn, refetch]);
 
-  return { ...rest, isSignedIn, refetch };
+  // Known to be signed out, rather than not yet known either way.
+  const isSignedOut = hasToken === false;
+  return { ...rest, isSignedIn, isSignedOut, refetch };
 }

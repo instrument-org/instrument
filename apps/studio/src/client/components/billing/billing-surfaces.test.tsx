@@ -885,6 +885,7 @@ describe("the chat's billing notice", () => {
 
   it("offers Change model beside the fix while the chat can't run", async () => {
     platform.status = onBasic({}, 100);
+    platform.models = [{ params: { provider: "claude-account" } }];
     renderWithProviders(
       <ChatNoteHarness
         isAgentRunning={false}
@@ -903,6 +904,100 @@ describe("the chat's billing notice", () => {
           ?.getAttribute("data-holds-send"),
       ).toBe("true");
     });
+  });
+
+  it("leaves Change model out when Instrument's models are all there is", async () => {
+    platform.status = onBasic({}, 100);
+    renderWithProviders(
+      <ChatNoteHarness
+        isAgentRunning={false}
+        messages={refusedTurn({ code: "usage-limit-exceeded", window: "5h" })}
+      />,
+    );
+
+    expect(await screen.findByRole("alert")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Change model" })).toBeNull();
+  });
+
+  /** A turn in a Claude chat whose image call ran into `output`. */
+  const imageTurn = (output: object) =>
+    [
+      {
+        id: "msg_user",
+        metadata: { createdAt: new Date(Date.now() - 5000), sessionId: "s" },
+        parts: [],
+        role: "user",
+      },
+      {
+        id: "msg_image",
+        metadata: { createdAt: new Date(Date.now() - 4000), sessionId: "s" },
+        parts: [
+          {
+            input: { filePath: "header", prompt: "A help desk team" },
+            output: { errorMessage: "", state: "failure", ...output },
+            state: "output-available",
+            type: "tool-generate_image",
+          },
+        ],
+        role: "assistant",
+      },
+      {
+        id: "msg_reply",
+        metadata: { createdAt: new Date(Date.now() - 3000), sessionId: "s" },
+        parts: [{ text: "I couldn't make it.", type: "text" }],
+        role: "assistant",
+      },
+    ] as unknown as SessionMessage.WithParts[];
+
+  it("offers the free account in a Claude chat that couldn't make an image", async () => {
+    platform.signedIn = false;
+    platform.models = [{ params: { provider: "claude-account" } }];
+    renderWithProviders(
+      <ChatNoteHarness
+        isAgentRunning={false}
+        messages={imageTurn({ errorType: "no-image-model" })}
+        modelURI={CLAUDE}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Make images with a free Instrument account."),
+    ).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    ).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Change model" })).toBeNull();
+    expect(
+      document
+        .querySelector("[data-holds-send]")
+        ?.getAttribute("data-holds-send"),
+    ).toBe("false");
+  });
+
+  it("shows a spent free account's limit in a Claude chat, with its trial and no Change model", async () => {
+    platform.offer = OFFER_WITH_TRIAL;
+    platform.status = onFree({ resetsAt: SOON });
+    platform.models = [{ params: { provider: "claude-account" } }];
+    renderWithProviders(
+      <ChatNoteHarness
+        isAgentRunning={false}
+        messages={imageTurn({
+          errorType: "refused",
+          refusal: { code: "usage-limit-exceeded", resetsAt: SOON },
+        })}
+        modelURI={CLAUDE}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "You've reached your free account's limit for now.",
+      ),
+    ).toBeDefined();
+    expect(
+      await screen.findByRole("button", { name: "Start free trial" }),
+    ).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Change model" })).toBeNull();
   });
 
   it("offers Start free trial for a model refused with trial-available, then Continue", async () => {

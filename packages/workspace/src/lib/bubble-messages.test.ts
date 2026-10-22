@@ -139,6 +139,29 @@ describe("bubbleMessage", () => {
     ).toEqual(["tool-choose"]);
   });
 
+  it("keeps an image call only when it ran into a sign-in or the plan", () => {
+    const failed =
+      (errorType: "api-call" | "no-image-model" | "refused"): PartOf =>
+      (messageId) => ({
+        input: { filePath: "header", prompt: "A help desk team" },
+        metadata: { ...partMetadata(messageId), endedAt: at },
+        output: { errorMessage: "", errorType, state: "failure" },
+        state: "output-available",
+        toolCallId: StoreId.ToolCallSchema.parse("call-image"),
+        type: "tool-generate_image",
+      });
+    expect(
+      (["no-image-model", "refused", "api-call"] as const).map(
+        (errorType) =>
+          kinds(
+            bubbleMessage(assistant([failed(errorType)]), {
+              composing: false,
+            }),
+          )?.length,
+      ),
+    ).toEqual([1, 1, 0]);
+  });
+
   it("holds back the words of a reply still being written", () => {
     const message = assistant([text("Half a sen")], { finished: false });
     expect(kinds(bubbleMessage(message, { composing: true }))).toEqual([]);

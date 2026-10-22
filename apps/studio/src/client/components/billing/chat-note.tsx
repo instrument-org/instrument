@@ -7,11 +7,13 @@ import { useStartTrial } from "@/client/components/billing/use-start-trial";
 import {
   accountNotice,
   type BillingNotice,
+  type BillingRefusal,
   canStartTrial,
   describeDate,
   featurePause,
   type BillingNoticeAction,
-  noticeCopy,
+  type NextStep,
+  nextStepFor,
   refusalNotice,
   upgradePlan,
   usageWarning,
@@ -33,8 +35,11 @@ import { type SessionMessage } from "@instrument-org/workspace/client";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { GaugeIcon } from "@phosphor-icons/react/Gauge";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { ImageIcon } from "@phosphor-icons/react/Image";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { FcGoogle } from "react-icons/fc";
+import { useInstrumentConnect } from "@/client/hooks/use-connect";
 import { useAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 
@@ -104,12 +109,22 @@ export function useChatNote({
     data: status,
     dataUpdatedAt,
     isSignedIn,
+    isSignedOut,
     refetch,
   } = useBillingStatus();
   const { data: offer } = useQuery({
     ...rpcClient.billing.offer.queryOptions(),
     enabled: isSignedIn,
   });
+  // Whether a model on another connection could take a refused turn instead.
+  const { data: modelsData } = useQuery(
+    rpcClient.gateway.models.live.list.experimental_liveOptions(),
+  );
+  const hasOtherModel =
+    modelsData?.models.some(
+      (model) => model.params.provider !== OUR_MODELS.providerType,
+    ) ?? false;
+  const signIn = useInstrumentConnect();
   const openLink = useOpenExternalLink();
   const portal = useMutation(
     rpcClient.billing.openPortal.mutationOptions({
@@ -230,6 +245,10 @@ export function useChatNote({
         onContinue?.();
         break;
       }
+      case "sign-in": {
+        void signIn.start(undefined);
+        break;
+      }
       case "start-trial": {
         startTrial.mutate(undefined);
         break;
@@ -260,8 +279,8 @@ export function useChatNote({
           <BillingNote
             context={context}
             isBusy={portal.isPending || startTrial.isPending}
-            notice={billing}
-            now={now}
+            isReady={isReady}
+            kind={billing.kind}
             onAct={(kind) => {
               if (kind === "continue") {
                 setDismissed(key);
@@ -277,6 +296,16 @@ export function useChatNote({
                   }
                 : undefined
             }
+            step={nextStepFor(
+              {
+                blocked: "models",
+                notice: billing,
+                offer,
+                otherModelCan: hasOtherModel,
+                status,
+              },
+              now,
+            )}
           />
         ),
       };
@@ -309,6 +338,65 @@ export function useChatNote({
         ),
       };
     }
+  }
+
+  // An image nothing connected could make, or that Instrument refused, in
+  // any chat whatever its model: the free account, or what the account can
+  // do about its plan. The image never stopped the chat, so the note holds
+  // nothing back and can be set aside.
+  const image = refused ? imageBlock(messages) : undefined;
+  const imageNotice: BillingNotice | undefined =
+    image?.kind === "sign-in"
+      ? isSignedOut
+        ? { kind: "sign-in" }
+        : undefined
+      : image && refused
+        ? refusalNotice({
+            now,
+            offer,
+            refusal: image.refusal,
+            refusedAt: new Date(refused.metadata.createdAt),
+            status,
+            statusReadAt: dataUpdatedAt,
+          })
+        : undefined;
+  const imageKey =
+    imageNotice && refused && `${refused.id}:image:${imageNotice.kind}`;
+  if (imageNotice && imageKey && dismissed !== imageKey) {
+    const isReady = imageNotice.kind === "resumed";
+    const isSignIn = imageNotice.kind === "sign-in";
+    return {
+      holdsSend: false,
+      rank: isReady ? "ready" : "quiet",
+      render: (context) => (
+        <BillingNote
+          context={context}
+          icon={isSignIn ? ImageIcon : undefined}
+          isBusy={portal.isPending || startTrial.isPending || signIn.waiting}
+          isReady={isReady || isSignIn}
+          kind={imageNotice.kind}
+          onAct={(kind) => {
+            if (kind === "continue") {
+              setDismissed(imageKey);
+            }
+            act(kind);
+          }}
+          onDismiss={() => {
+            setDismissed(imageKey);
+          }}
+          step={nextStepFor(
+            {
+              blocked: "images",
+              notice: imageNotice,
+              offer,
+              otherModelCan: false,
+              status,
+            },
+            now,
+          )}
+        />
+      ),
+    };
   }
 
   // A search our endpoint refused while the free allowance is spent ran on
@@ -400,35 +488,47 @@ export function useChatNote({
   };
 }
 
-/** A notice about Instrument's plan: its fix, and Change model beside it while the chat can't run. */
+/**
+ * A note about Instrument's account: the next step `nextStep` decided, and
+ * Change model beside it where another model could do the job. A ready one,
+ * or one that asks nothing of the chat (signing in), is neutral; the rest
+ * are a warning.
+ */
 function BillingNote({
   context,
+  icon,
   isBusy,
-  notice,
-  now,
+  isReady,
+  kind,
   onAct,
   onDismiss,
+  step,
 }: {
   context: ChatNoteContext;
+  icon?: typeof WarningIcon;
   isBusy: boolean;
-  notice: BillingNotice;
-  now: Date;
+  isReady: boolean;
+  /** What the note is about, for tests and the debug pages to find it by. */
+  kind: BillingNotice["kind"];
   onAct: (kind: BillingNoticeAction) => void;
   onDismiss?: () => void;
+  step: NextStep;
 }) {
-  const copy = noticeCopy(notice, now);
-  const isReady = notice.kind === "resumed";
-  const { action, secondary } = copy;
+  const { action, secondary } = step;
   return (
     <ReplyNote
       action={
         <>
           {action && (
             <ReplyNoteButton
-              disabled={action.kind === "update-card" && isBusy}
+              disabled={
+                (action.kind === "update-card" || action.kind === "sign-in") &&
+                isBusy
+              }
               emphasis={
                 action.kind === "continue" ||
                 action.kind === "choose-plan" ||
+                action.kind === "sign-in" ||
                 action.kind === "start-trial" ||
                 action.kind === "update-card"
               }
@@ -436,6 +536,9 @@ function BillingNote({
                 onAct(action.kind);
               }}
             >
+              {action.kind === "sign-in" && (
+                <FcGoogle className="size-3.5 rounded-full bg-white p-px" />
+              )}
               {action.label}
             </ReplyNoteButton>
           )}
@@ -448,21 +551,21 @@ function BillingNote({
               {secondary.label}
             </ReplyNoteButton>
           )}
-          {!isReady && (
+          {step.changeModel && (
             <ReplyNoteButton onClick={context.openModelPicker}>
               Change model
             </ReplyNoteButton>
           )}
         </>
       }
-      data-billing-notice={notice.kind}
-      icon={isReady ? CheckCircleIcon : WarningIcon}
+      data-billing-notice={kind}
+      icon={icon ?? (isReady ? CheckCircleIcon : WarningIcon)}
       nudge={context.nudge}
       onDismiss={onDismiss}
       tone={isReady ? "neutral" : "warn"}
     >
-      <span className="font-medium">{copy.title}</span>
-      {copy.line && ` ${copy.line}`}
+      <span className="font-medium">{step.title}</span>
+      {step.line && ` ${step.line}`}
     </ReplyNote>
   );
 }
@@ -586,4 +689,38 @@ function searchPauseText(resetsAt: Date | undefined, now: Date) {
   return resetsAt
     ? `${APP_NAME}'s advanced web search is paused until ${describeDate(resetsAt, now)}.`
     : `${APP_NAME}'s advanced web search is paused for now.`;
+}
+
+/**
+ * What the last turn's last image call ran into: nothing connected that
+ * makes images (`sign-in`, since an account would), or Instrument's refusal
+ * for the plan. The turn is every reply since the last thing the person said.
+ */
+function imageBlock(
+  messages: SessionMessage.WithParts[],
+):
+  | { kind: "refused"; refusal: BillingRefusal }
+  | { kind: "sign-in" }
+  | undefined {
+  for (const message of messages.toReversed()) {
+    if (message.role !== "assistant") {
+      return undefined;
+    }
+    const part = message.parts.findLast(
+      (candidate) => candidate.type === "tool-generate_image",
+    );
+    if (part?.type !== "tool-generate_image") {
+      continue;
+    }
+    if (part.state !== "output-available" || part.output.state !== "failure") {
+      return undefined;
+    }
+    if (part.output.errorType === "no-image-model") {
+      return { kind: "sign-in" };
+    }
+    return part.output.errorType === "refused" && part.output.refusal
+      ? { kind: "refused", refusal: part.output.refusal }
+      : undefined;
+  }
+  return undefined;
 }

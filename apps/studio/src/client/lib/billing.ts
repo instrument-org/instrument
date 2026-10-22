@@ -390,9 +390,10 @@ export function windowLabel(key: string) {
 }
 
 /**
- * What the chat says over its reply box after the platform refused a turn,
- * or once the reason for the refusal has gone (`resumed`), when the stopped
- * turn can be sent again.
+ * What stands between the person and something Instrument does for them:
+ * the platform refused it, or the account as last read says it would, or
+ * nobody is signed in (`sign-in`). `resumed` is the reason for a refusal
+ * gone, when what was stopped can go again.
  */
 export type BillingNotice =
   | { kind: "access-revoked" }
@@ -400,9 +401,8 @@ export type BillingNotice =
   | { kind: "plan-limit"; resetsAt?: Date; upgradeTo?: OfferPlan }
   | {
       kind: "plan-required";
+      /** What the refusal said would unlock it (`trial-available`, `card-required`, ...). */
       reason?: string;
-      // What Checkout starts with, for a trial that needs one.
-      trialLine?: string;
     }
   | {
       /** What the refusal was about, when it was not a missing plan. */
@@ -410,6 +410,7 @@ export type BillingNotice =
       kind: "resumed";
       subscribed: boolean;
     }
+  | { kind: "sign-in" }
   | { kind: "trial-ended" };
 
 /**
@@ -464,14 +465,9 @@ export function refusalNotice({
       if (refusal.reason === "trial-ended" || refusal.reason === "trial-used") {
         return { kind: "trial-ended" };
       }
-      const trialLine =
-        refusal.reason === "card-required"
-          ? checkoutTrialLine(offer)
-          : undefined;
       return {
         kind: "plan-required",
         ...(refusal.reason && { reason: refusal.reason }),
-        ...(trialLine && { trialLine }),
       };
     }
     case "usage-limit-exceeded": {
@@ -564,25 +560,136 @@ export type BillingNoticeAction =
   | "choose-plan"
   | "contact-support"
   | "continue"
+  | "sign-in"
   | "start-trial"
   | "update-card"
   | "upgrade";
 
-export function noticeCopy(
-  notice: BillingNotice,
-  now: Date,
-): {
+/**
+ * What was held back: a turn on Instrument's models, an image, a dictation,
+ * or a web search through Instrument.
+ */
+export type BlockedThing = "dictation" | "images" | "models" | "search";
+
+/**
+ * The trial this account could start now, as the offer has it: in the app
+ * with no card (`in-app`), through Checkout (`checkout`, free with a card or
+ * at an intro price), held back while trials are paused or the month's are
+ * spent, or none to start (taken, running, or never offered).
+ */
+export type TrialOption =
+  | {
+      kind: "checkout";
+      /** The intro price, `$1`, when it isn't free. */ intro?: string;
+      line: string;
+    }
+  | { kind: "held-back" }
+  | { kind: "in-app" }
+  | { kind: "none" };
+
+/**
+ * The trial this account could start now. Read from the status and the offer
+ * when both are known; before that, from what a refusal said would unlock it
+ * (`reason`), so a refusal read before billing still offers its trial.
+ */
+export function trialOption(
+  status: Status | undefined,
+  offer: Offer | undefined,
+  reason?: string,
+): TrialOption {
+  if (status) {
+    if (
+      status.subscription ||
+      status.plan === "trial" ||
+      status.trial.state !== "available"
+    ) {
+      return { kind: "none" };
+    }
+    if (isTrialHeldBack(status, offer)) {
+      return { kind: "held-back" };
+    }
+  } else if (isTrialHeldBackReason(reason)) {
+    return { kind: "held-back" };
+  } else if (reason !== "trial-available" && reason !== "card-required") {
+    return { kind: "none" };
+  }
+  const trial = offer?.trial;
+  if (!trial) {
+    return reason === "trial-available" ? { kind: "in-app" } : { kind: "none" };
+  }
+  if (trial.available === false) {
+    return { kind: "none" };
+  }
+  const line = checkoutTrialLine(offer);
+  if (!line) {
+    return { kind: "in-app" };
+  }
+  return trial.mode === "intro" && trial.intro
+    ? {
+        intro: formatAmount({ ...trial.intro.price, interval: null }),
+        kind: "checkout",
+        line,
+      }
+    : { kind: "checkout", line };
+}
+
+/** The words after "to" for what was held back: "make images". */
+const PURPOSE = {
+  dictation: "use dictation",
+  images: "make images",
+  models: `use ${APP_NAME}'s models`,
+  search: `use ${APP_NAME}'s web search`,
+} satisfies Record<BlockedThing, string>;
+
+/** Everything `nextStep` decides from. */
+export type NextStepInput = {
+  /** What was held back. */
+  blocked: BlockedThing;
+  /** What stands in the way (`refusalNotice`, `accountNotice`), or `sign-in`. */
+  notice: BillingNotice;
+  /**
+   * Whether a model the person has could do it instead: another connection's
+   * model for a turn. Never for an image, which the chat's own provider or
+   * the person's own image keys would already have made.
+   */
+  otherModelCan: boolean;
+  /** The account's plan as billing names it: `none`, `free`, `trial`, or a paid plan's key. */
+  plan: string | undefined;
+  /** The trial this account could start now (`trialOption`). */
+  trial: TrialOption;
+};
+
+/** What to say, and the ways forward to offer, in the order to offer them. */
+export type NextStep = {
   action?: { kind: BillingNoticeAction; label: string };
+  /** Whether Change model goes beside the action. */
+  changeModel: boolean;
+  line?: string;
   /** A second way forward beside the first, quieter. */
   secondary?: { kind: BillingNoticeAction; label: string };
-  line?: string;
   title: string;
-} {
+};
+
+/**
+ * The next step this account can take toward what was held back, and how to
+ * say it. One decision for every surface that meets a refusal (a chat's note,
+ * a dictation toast, a sheet after sign-in), so each offers what the account
+ * can actually do now: sign in, start whichever trial the offer has, choose
+ * a plan, upgrade to a bigger one, update a card, or contact support. Change
+ * model only where another model could do the job.
+ */
+export function nextStep(
+  { blocked, notice, otherModelCan, plan, trial }: NextStepInput,
+  now: Date,
+): NextStep {
+  const changeModel = otherModelCan && notice.kind !== "resumed";
+  const purpose = PURPOSE[blocked];
   const choosePlan = { kind: "choose-plan" as const, label: "Choose a plan" };
   switch (notice.kind) {
     case "access-revoked": {
       return {
         action: { kind: "contact-support", label: "Contact support" },
+        changeModel,
         line: "Get in touch and we'll sort it out.",
         title: `${APP_NAME} isn't available on this account.`,
       };
@@ -590,49 +697,86 @@ export function noticeCopy(
     case "payment-failed": {
       return {
         action: { kind: "update-card", label: "Update card" },
+        changeModel,
         line: "Update your card to keep going.",
         title: "Your payment didn't go through.",
       };
     }
     case "plan-limit": {
-      const resets = notice.resetsAt
+      const line = notice.resetsAt
         ? `It resets ${describeWhen(notice.resetsAt, now)}.`
         : "It resets soon.";
+      if (plan === "free") {
+        return {
+          action: trialAction(trial) ?? choosePlan,
+          changeModel,
+          line,
+          title: `You've reached your free account's limit for now.`,
+        };
+      }
+      if (plan === "trial") {
+        return {
+          action: choosePlan,
+          changeModel,
+          line,
+          title: "You've reached your free trial's limit for now.",
+        };
+      }
       return {
         ...(notice.upgradeTo && {
           action: { kind: "upgrade" as const, label: "Upgrade" },
         }),
-        line: resets,
+        changeModel,
+        line,
         title: "You've reached your plan's limit for now.",
       };
     }
     case "plan-required": {
-      if (notice.reason === "trial-available") {
-        return {
-          action: { kind: "start-trial", label: "Start free trial" },
-          secondary: choosePlan,
-          title: `Start your free trial to use ${APP_NAME}'s models.`,
-        };
+      switch (trial.kind) {
+        case "checkout": {
+          return {
+            action: trialAction(trial) ?? choosePlan,
+            changeModel,
+            line: trial.line,
+            title: `Start your ${trial.intro ? "" : "free "}trial to ${purpose}.`,
+          };
+        }
+        case "held-back": {
+          // Said only once a refusal names it; before that, a plan is the
+          // way in, and trials go unmentioned.
+          return {
+            action: choosePlan,
+            changeModel,
+            title: isTrialHeldBackReason(notice.reason)
+              ? "Free trials aren't available right now."
+              : `Choose a plan to ${purpose}.`,
+          };
+        }
+        case "in-app": {
+          return {
+            action: { kind: "start-trial", label: "Start free trial" },
+            changeModel,
+            secondary: choosePlan,
+            title: `Start your free trial to ${purpose}.`,
+          };
+        }
+        case "none": {
+          return {
+            action: choosePlan,
+            changeModel,
+            title: `Choose a plan to ${purpose}.`,
+          };
+        }
+        default: {
+          trial satisfies never;
+          return { changeModel, title: "" };
+        }
       }
-      if (isTrialHeldBackReason(notice.reason)) {
-        return {
-          action: choosePlan,
-          title: "Free trials aren't available right now.",
-        };
-      }
-      return {
-        action: choosePlan,
-        ...(notice.reason === "card-required" &&
-          notice.trialLine && { line: notice.trialLine }),
-        title:
-          notice.reason === "card-required"
-            ? "Choose a plan to start."
-            : `${APP_NAME} needs a plan.`,
-      };
     }
     case "resumed": {
       return {
         action: { kind: "continue", label: "Continue" },
+        changeModel,
         title:
           notice.after === "payment-failed"
             ? "Your payment went through."
@@ -645,17 +789,84 @@ export function noticeCopy(
                   : "Your usage limit has reset.",
       };
     }
+    case "sign-in": {
+      return {
+        action: { kind: "sign-in", label: "Continue with Google" },
+        changeModel,
+        ...(blocked === "images"
+          ? {
+              line: "It works in any chat, whatever AI you use.",
+              title: `Make images with a free ${APP_NAME} account.`,
+            }
+          : { title: `Sign in to ${purpose}.` }),
+      };
+    }
     case "trial-ended": {
       return {
         action: choosePlan,
+        changeModel,
         title: "Your free trial has ended.",
       };
     }
     default: {
       notice satisfies never;
-      return { title: "" };
+      return { changeModel, title: "" };
     }
   }
+}
+
+/** The button that starts the trial on offer, when there is one to start. */
+function trialAction(trial: TrialOption) {
+  switch (trial.kind) {
+    case "checkout": {
+      return {
+        kind: "choose-plan" as const,
+        label: trial.intro ? `Start for ${trial.intro}` : "Start free trial",
+      };
+    }
+    case "in-app": {
+      return { kind: "start-trial" as const, label: "Start free trial" };
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+/**
+ * `nextStep` for a notice, with the plan and the trial read from the account
+ * as billing last described it.
+ */
+export function nextStepFor(
+  {
+    blocked,
+    notice,
+    offer,
+    otherModelCan,
+    status,
+  }: {
+    blocked: BlockedThing;
+    notice: BillingNotice;
+    offer: Offer | undefined;
+    otherModelCan: boolean;
+    status: Status | undefined;
+  },
+  now: Date,
+) {
+  return nextStep(
+    {
+      blocked,
+      notice,
+      otherModelCan,
+      plan: status?.plan,
+      trial: trialOption(
+        status,
+        offer,
+        notice.kind === "plan-required" ? notice.reason : undefined,
+      ),
+    },
+    now,
+  );
 }
 
 /**

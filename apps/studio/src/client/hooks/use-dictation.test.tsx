@@ -620,7 +620,7 @@ describe("useDictation", () => {
     });
     const options = toastOptions(mocks.toast.info.mock.calls[0]);
     expect(mocks.toast.info.mock.calls[0]?.[0]).toBe(
-      "Instrument needs a plan.",
+      "Choose a plan to use dictation.",
     );
     expect(options.action.label).toBe("Choose a plan");
     act(() => {
@@ -829,7 +829,7 @@ describe("useDictation with a live stream", () => {
     expect(mocks.transcribe).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(mocks.toast.info.mock.calls.at(-1)?.[0]).toBe(
-        "Instrument needs a plan.",
+        "Choose a plan to use dictation.",
       );
     });
     const options = toastOptions(mocks.toast.info.mock.calls.at(-1));
@@ -863,7 +863,7 @@ describe("useDictation with a live stream", () => {
     expect(mocks.transcribe).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(mocks.toast.info.mock.calls.at(-1)?.[0]).toBe(
-        "Instrument needs a plan.",
+        "Choose a plan to use dictation.",
       );
     });
   });

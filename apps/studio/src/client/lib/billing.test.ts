@@ -13,11 +13,15 @@ import {
   hasNoPlan,
   isAccessRevoked,
   isTrialHeldBack,
-  noticeCopy,
+  type BillingNotice,
+  nextStep,
+  type NextStepInput,
+  nextStepFor,
   planCardAction,
   refusalNotice,
   stopLineText,
   subscriptionPhaseLine,
+  trialOption,
   upgradePlan,
   usageWarning,
   usageWarningText,
@@ -58,6 +62,23 @@ const offer: Offer = {
 // Local time throughout, so the words do not depend on the machine's zone.
 const NOW = new Date(2026, 9, 5, 12, 0);
 const LATER = NOW.getTime() + 60_000;
+
+/** What a chat on Instrument's models says for `notice`, with another model to change to. */
+const copy = (
+  notice: BillingNotice,
+  status?: Status,
+  theOffer: Offer | undefined = offer,
+) =>
+  nextStepFor(
+    {
+      blocked: "models",
+      notice,
+      offer: theOffer,
+      otherModelCan: true,
+      status,
+    },
+    NOW,
+  );
 
 const trialActive: Status = {
   canSubscribe: true,
@@ -236,7 +257,7 @@ describe("refusalNotice", () => {
       { code: "subscription-required", reason },
       onPlan("basic"),
     );
-    expect(resumed && noticeCopy(resumed, NOW).title).toBe(title);
+    expect(resumed && copy(resumed, onPlan("basic")).title).toBe(title);
   });
 
   // The trial isn't over, so the way forward is a plan rather than waiting.
@@ -244,12 +265,13 @@ describe("refusalNotice", () => {
     "offers the plans when a trial can't start (%s)",
     (reason) => {
       const held = notice({ code: "subscription-required", reason }, noPlan);
-      expect(held && noticeCopy(held, NOW)).toMatchInlineSnapshot(`
+      expect(held && copy(held)).toMatchInlineSnapshot(`
         {
           "action": {
             "kind": "choose-plan",
             "label": "Choose a plan",
           },
+          "changeModel": true,
           "title": "Free trials aren't available right now.",
         }
       `);
@@ -291,16 +313,18 @@ describe("refusalNotice", () => {
       kind: "plan-limit",
       upgradeTo: { key: "pro" },
     });
-    expect(limit && noticeCopy(limit, NOW)).toMatchInlineSnapshot(`
-      {
-        "action": {
-          "kind": "upgrade",
-          "label": "Upgrade",
-        },
-        "line": "It resets at 3:40 PM.",
-        "title": "You've reached your plan's limit for now.",
-      }
-    `);
+    expect(limit && copy(limit, onPlan("basic", {}, [100, 40, 20])))
+      .toMatchInlineSnapshot(`
+        {
+          "action": {
+            "kind": "upgrade",
+            "label": "Upgrade",
+          },
+          "changeModel": true,
+          "line": "It resets at 3:40 PM.",
+          "title": "You've reached your plan's limit for now.",
+        }
+      `);
   });
 
   it("offers nothing but the reset on the biggest plan", () => {
@@ -312,12 +336,14 @@ describe("refusalNotice", () => {
       },
       onPlan("pro", {}, [30, 100, 20]),
     );
-    expect(limit && noticeCopy(limit, NOW)).toMatchInlineSnapshot(`
-      {
-        "line": "It resets October 12.",
-        "title": "You've reached your plan's limit for now.",
-      }
-    `);
+    expect(limit && copy(limit, onPlan("pro", {}, [30, 100, 20])))
+      .toMatchInlineSnapshot(`
+        {
+          "changeModel": true,
+          "line": "It resets October 12.",
+          "title": "You've reached your plan's limit for now.",
+        }
+      `);
   });
 
   it("turns into Continue once the window has reset", () => {
@@ -339,12 +365,13 @@ describe("refusalNotice", () => {
 });
 
 it("offers support rather than a plan when access was revoked", () => {
-  expect(noticeCopy({ kind: "access-revoked" }, NOW)).toMatchInlineSnapshot(`
+  expect(copy({ kind: "access-revoked" }, noPlan)).toMatchInlineSnapshot(`
     {
       "action": {
         "kind": "contact-support",
         "label": "Contact support",
       },
+      "changeModel": true,
       "line": "Get in touch and we'll sort it out.",
       "title": "Instrument isn't available on this account.",
     }
@@ -652,9 +679,12 @@ describe("checkoutTrialLine", () => {
       statusReadAt: 0,
     });
 
-    expect(notice && noticeCopy(notice, NOW)).toMatchObject({
+    expect(
+      notice && copy(notice, undefined, { ...offer, trial: intro }),
+    ).toMatchObject({
+      action: { kind: "choose-plan", label: "Start for $1" },
       line: "Your first month is $1.",
-      title: "Choose a plan to start.",
+      title: "Start your trial to use Instrument's models.",
     });
   });
 });
@@ -717,9 +747,9 @@ describe("the free allowance", () => {
       };
       const notice = accountNotice(status, { ...offer, trial: null });
       expect(notice).toEqual({ kind: "plan-required" });
-      expect(notice && noticeCopy(notice, NOW).title).toBe(
-        "Instrument needs a plan.",
-      );
+      expect(
+        notice && copy(notice, status, { ...offer, trial: null }).title,
+      ).toBe("Choose a plan to use Instrument's models.");
     },
   );
 
@@ -811,8 +841,9 @@ describe("the free allowance", () => {
       status: onFree(),
       statusReadAt: LATER,
     });
-    expect(refused && noticeCopy(refused, NOW)).toEqual({
+    expect(refused && copy(refused, onFree())).toEqual({
       action: { kind: "start-trial", label: "Start free trial" },
+      changeModel: true,
       secondary: { kind: "choose-plan", label: "Choose a plan" },
       title: "Start your free trial to use Instrument's models.",
     });
@@ -829,5 +860,317 @@ describe("the free allowance", () => {
     expect(stopLineText(refusal)).toBe(
       "Stopped: start your free trial to keep going.",
     );
+  });
+});
+
+describe("trialOption", () => {
+  const intro = {
+    available: true,
+    cardRequired: true,
+    days: 0,
+    intro: { months: 1, price: { currency: "usd", unitAmount: 100 } },
+    mode: "intro" as const,
+  };
+  it.each([
+    { expected: "in-app", name: "a no-card trial", offer, status: onFree() },
+    {
+      expected:
+        "checkout: Free for 7 days. You won't be charged if you cancel before it ends.",
+      name: "a card trial",
+      offer: {
+        ...offer,
+        trial: {
+          available: true,
+          cardRequired: true,
+          days: 7,
+          mode: "card" as const,
+        },
+      },
+      status: onFree(),
+    },
+    {
+      expected: "checkout $1: Your first month is $1.",
+      name: "an intro price",
+      offer: { ...offer, trial: intro },
+      status: onFree(),
+    },
+    {
+      expected: "held-back",
+      name: "trials held back",
+      offer: { ...offer, trial: null },
+      status: onFree(),
+    },
+    {
+      expected: "none",
+      name: "a trial taken",
+      offer,
+      status: { ...onFree(), trial: { state: "ended" } } satisfies Status,
+    },
+    { expected: "none", name: "a trial running", offer, status: trialActive },
+    { expected: "none", name: "a plan", offer, status: onPlan("basic") },
+    {
+      expected: "in-app",
+      name: "a trial-available refusal before billing is read",
+      offer: undefined,
+      reason: "trial-available",
+      status: undefined,
+    },
+    {
+      expected: "held-back",
+      name: "a trial-paused refusal before billing is read",
+      offer: undefined,
+      reason: "trial-paused",
+      status: undefined,
+    },
+    {
+      expected: "none",
+      name: "nothing read and no reason",
+      offer,
+      status: undefined,
+    },
+  ] satisfies {
+    expected: string;
+    name: string;
+    offer: Offer | undefined;
+    reason?: string;
+    status: Status | undefined;
+  }[])("$name: $expected", (row) => {
+    const option = trialOption(row.status, row.offer, row.reason);
+    expect(
+      option.kind === "checkout"
+        ? `checkout${option.intro ? ` ${option.intro}` : ""}: ${option.line}`
+        : option.kind,
+    ).toBe(row.expected);
+  });
+});
+
+describe("nextStep", () => {
+  const cardTrial = {
+    kind: "checkout",
+    line: "Free for 7 days. You won't be charged if you cancel before it ends.",
+  } as const;
+  const introTrial = {
+    intro: "$1",
+    kind: "checkout",
+    line: "Your first month is $1.",
+  } as const;
+  const resetsAt = new Date(2026, 9, 6, 9, 12);
+  const pro = offer.plans.find((plan) => plan.key === "pro");
+
+  /** Every input that decides the step, in a row, and what each gets. */
+  const rows: [
+    string,
+    Partial<NextStepInput> & Pick<NextStepInput, "notice">,
+  ][] = [
+    ["signed out, an image", { notice: { kind: "sign-in" } }],
+    [
+      "signed out, dictation",
+      { blocked: "dictation", notice: { kind: "sign-in" } },
+    ],
+    [
+      "free, spent, no-card trial",
+      {
+        notice: { kind: "plan-limit", resetsAt },
+        plan: "free",
+        trial: { kind: "in-app" },
+      },
+    ],
+    [
+      "free, spent, card trial",
+      {
+        notice: { kind: "plan-limit", resetsAt },
+        plan: "free",
+        trial: cardTrial,
+      },
+    ],
+    [
+      "free, spent, $1 trial",
+      {
+        notice: { kind: "plan-limit", resetsAt },
+        plan: "free",
+        trial: introTrial,
+      },
+    ],
+    [
+      "free, spent, trials held back",
+      {
+        notice: { kind: "plan-limit", resetsAt },
+        plan: "free",
+        trial: { kind: "held-back" },
+      },
+    ],
+    [
+      "free, spent, trial taken",
+      { notice: { kind: "plan-limit" }, plan: "free" },
+    ],
+    [
+      "on the trial, spent",
+      { notice: { kind: "plan-limit", resetsAt }, plan: "trial" },
+    ],
+    [
+      "on a plan, spent, bigger plan",
+      {
+        notice: {
+          kind: "plan-limit",
+          resetsAt,
+          ...(pro && { upgradeTo: pro }),
+        },
+        plan: "basic",
+      },
+    ],
+    [
+      "on the biggest plan, spent",
+      { notice: { kind: "plan-limit", resetsAt }, plan: "pro" },
+    ],
+    [
+      "no plan, no-card trial",
+      {
+        notice: { kind: "plan-required", reason: "trial-available" },
+        plan: "free",
+        trial: { kind: "in-app" },
+      },
+    ],
+    [
+      "no plan, card trial",
+      {
+        notice: { kind: "plan-required", reason: "card-required" },
+        plan: "free",
+        trial: cardTrial,
+      },
+    ],
+    [
+      "no plan, $1 trial",
+      {
+        notice: { kind: "plan-required", reason: "card-required" },
+        plan: "free",
+        trial: introTrial,
+      },
+    ],
+    [
+      "no plan, trials paused, refused for it",
+      {
+        notice: { kind: "plan-required", reason: "trial-paused" },
+        plan: "free",
+        trial: { kind: "held-back" },
+      },
+    ],
+    [
+      "no plan, trials held back, not refused for it",
+      {
+        notice: { kind: "plan-required" },
+        plan: "free",
+        trial: { kind: "held-back" },
+      },
+    ],
+    [
+      "no plan, trial taken",
+      { notice: { kind: "plan-required" }, plan: "none" },
+    ],
+    [
+      "no plan, a search",
+      { blocked: "search", notice: { kind: "plan-required" }, plan: "free" },
+    ],
+    ["trial ended", { notice: { kind: "trial-ended" }, plan: "trial" }],
+    ["card failed", { notice: { kind: "payment-failed" }, plan: "none" }],
+    ["access revoked", { notice: { kind: "access-revoked" }, plan: "none" }],
+    ["usage back", { notice: { kind: "resumed", subscribed: false } }],
+    ["subscribed since", { notice: { kind: "resumed", subscribed: true } }],
+    [
+      "trial started since",
+      {
+        notice: { after: "trial-started", kind: "resumed", subscribed: false },
+      },
+    ],
+    [
+      "card fixed since",
+      {
+        notice: { after: "payment-failed", kind: "resumed", subscribed: true },
+      },
+    ],
+    [
+      "access back since",
+      {
+        notice: { after: "access-revoked", kind: "resumed", subscribed: true },
+      },
+    ],
+    [
+      "a turn, another model to use",
+      {
+        blocked: "models",
+        notice: { kind: "plan-limit", resetsAt },
+        otherModelCan: true,
+        plan: "basic",
+      },
+    ],
+    [
+      "a turn, only Instrument's models",
+      {
+        blocked: "models",
+        notice: { kind: "plan-required", reason: "trial-available" },
+        plan: "free",
+        trial: { kind: "in-app" },
+      },
+    ],
+    [
+      "a turn back, another model to use",
+      {
+        blocked: "models",
+        notice: { kind: "resumed", subscribed: false },
+        otherModelCan: true,
+      },
+    ],
+  ];
+
+  it("decides every state", () => {
+    const table = rows.map(([name, input]) => {
+      const step = nextStep(
+        {
+          blocked: "images",
+          otherModelCan: false,
+          plan: undefined,
+          trial: { kind: "none" },
+          ...input,
+        },
+        NOW,
+      );
+      const buttons = [
+        step.action && `[${step.action.label}→${step.action.kind}]`,
+        step.secondary && `[${step.secondary.label}→${step.secondary.kind}]`,
+        step.changeModel && "[Change model]",
+      ].filter(Boolean);
+      return `${name}: ${step.title}${step.line ? ` ${step.line}` : ""} ${buttons.join(" ")}`.trim();
+    });
+    expect(table).toMatchInlineSnapshot(`
+      [
+        "signed out, an image: Make images with a free Instrument account. It works in any chat, whatever AI you use. [Continue with Google→sign-in]",
+        "signed out, dictation: Sign in to use dictation. [Continue with Google→sign-in]",
+        "free, spent, no-card trial: You've reached your free account's limit for now. It resets tomorrow at 9:12 AM. [Start free trial→start-trial]",
+        "free, spent, card trial: You've reached your free account's limit for now. It resets tomorrow at 9:12 AM. [Start free trial→choose-plan]",
+        "free, spent, $1 trial: You've reached your free account's limit for now. It resets tomorrow at 9:12 AM. [Start for $1→choose-plan]",
+        "free, spent, trials held back: You've reached your free account's limit for now. It resets tomorrow at 9:12 AM. [Choose a plan→choose-plan]",
+        "free, spent, trial taken: You've reached your free account's limit for now. It resets soon. [Choose a plan→choose-plan]",
+        "on the trial, spent: You've reached your free trial's limit for now. It resets tomorrow at 9:12 AM. [Choose a plan→choose-plan]",
+        "on a plan, spent, bigger plan: You've reached your plan's limit for now. It resets tomorrow at 9:12 AM. [Upgrade→upgrade]",
+        "on the biggest plan, spent: You've reached your plan's limit for now. It resets tomorrow at 9:12 AM.",
+        "no plan, no-card trial: Start your free trial to make images. [Start free trial→start-trial] [Choose a plan→choose-plan]",
+        "no plan, card trial: Start your free trial to make images. Free for 7 days. You won't be charged if you cancel before it ends. [Start free trial→choose-plan]",
+        "no plan, $1 trial: Start your trial to make images. Your first month is $1. [Start for $1→choose-plan]",
+        "no plan, trials paused, refused for it: Free trials aren't available right now. [Choose a plan→choose-plan]",
+        "no plan, trials held back, not refused for it: Choose a plan to make images. [Choose a plan→choose-plan]",
+        "no plan, trial taken: Choose a plan to make images. [Choose a plan→choose-plan]",
+        "no plan, a search: Choose a plan to use Instrument's web search. [Choose a plan→choose-plan]",
+        "trial ended: Your free trial has ended. [Choose a plan→choose-plan]",
+        "card failed: Your payment didn't go through. Update your card to keep going. [Update card→update-card]",
+        "access revoked: Instrument isn't available on this account. Get in touch and we'll sort it out. [Contact support→contact-support]",
+        "usage back: Your usage limit has reset. [Continue→continue]",
+        "subscribed since: You're subscribed. [Continue→continue]",
+        "trial started since: Your free trial has started. [Continue→continue]",
+        "card fixed since: Your payment went through. [Continue→continue]",
+        "access back since: Instrument is available again. [Continue→continue]",
+        "a turn, another model to use: You've reached your plan's limit for now. It resets tomorrow at 9:12 AM. [Change model]",
+        "a turn, only Instrument's models: Start your free trial to use Instrument's models. [Start free trial→start-trial] [Choose a plan→choose-plan]",
+        "a turn back, another model to use: Your usage limit has reset. [Continue→continue]",
+      ]
+    `);
   });
 });

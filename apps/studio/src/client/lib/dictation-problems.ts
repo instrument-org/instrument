@@ -1,6 +1,7 @@
 import {
   type BillingNoticeAction,
-  noticeCopy,
+  type NextStep,
+  nextStepFor,
   refusalNotice,
 } from "@/client/lib/billing";
 import { type RPCOutput } from "@/client/rpc/client";
@@ -69,17 +70,20 @@ function describeBillingRefusal(
     status: billing?.status,
     statusReadAt: refusal ? (billing?.statusReadAt ?? 0) : 0,
   });
-  const copy = notice
-    ? noticeCopy(notice, now)
+  const copy: Pick<NextStep, "action" | "line" | "title"> = notice
+    ? nextStepFor(
+        {
+          blocked: "dictation",
+          notice,
+          offer: billing?.offer,
+          otherModelCan: false,
+          status: billing?.status,
+        },
+        now,
+      )
     : { title: "Couldn't transcribe that" };
-  const { action } = copy;
+  const { action, title } = copy;
   const line = refusal ? copy.line : undefined;
-  // Billing's own title for this one names the models, and here it was
-  // dictation that was refused.
-  const title =
-    notice?.kind === "plan-required" && notice.reason === "trial-available"
-      ? "Start your free trial to use dictation."
-      : copy.title;
   return {
     action: action?.kind === "continue" ? (kept ? "retry" : undefined) : action,
     description: kept

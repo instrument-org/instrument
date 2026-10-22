@@ -147,7 +147,7 @@ describe("billing refusals", () => {
         "take ended, billing silent": "You've reached your plan's limit for now. /  [upgrade: Upgrade]",
         "upload over the plan's limit": "You've reached your plan's limit for now. / It resets soon. Your recording is safe, so you can send it later. [upgrade: Upgrade]",
         "upload with a trial to start": "Start your free trial to use dictation. / Your recording is safe, so you can send it later. [start-trial: Start free trial]",
-        "upload with no plan": "Instrument needs a plan. / Your recording is safe, so you can send it later. [choose-plan: Choose a plan]",
+        "upload with no plan": "Choose a plan to use dictation. / Your recording is safe, so you can send it later. [choose-plan: Choose a plan]",
       }
     `);
   });

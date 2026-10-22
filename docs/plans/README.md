@@ -59,6 +59,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Background shell processes](active/background-shell-processes.md) | built, live log and cap notice open |
 | [Wake on background job exit](active/wake-on-background-job-exit.md) | draft, not started |
 | [Agent turn off the main thread](active/agent-turn-off-the-main-thread.md) | worker thread landed, utility process not started |
+| [The workspace as a host every client attaches to](active/workspace-host-and-protocol.md): the protocol, the command line, several workspaces, a cloud host | proposed, nothing built |
 
 ### The browser
 

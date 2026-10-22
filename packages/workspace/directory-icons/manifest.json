@@ -290,9 +290,28 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "google-docs": {
+    "source": "dashboard-icons",
+    "path": "svg/google-docs.svg",
+    "version": "adca944175c9a3eb0471f78a4da87f237476d585",
+    "license": "Apache-2.0",
+    "override": "svgl has no Docs mark and thesvg carries a one-color glyph rather than the app icon"
+  },
   "google-drive": {
     "source": "svgl",
     "path": "drive.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "google-sheets": {
+    "source": "svgl",
+    "path": "google-sheets.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "google-slides": {
+    "source": "svgl",
+    "path": "google-slides.svg",
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },

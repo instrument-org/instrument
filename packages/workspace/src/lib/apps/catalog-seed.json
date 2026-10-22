@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-10-21T22:32:45.600Z",
-  "entriesHash": "7a7a3fbd864c3629",
+  "revision": "2026-10-22T13:27:29.348Z",
+  "entriesHash": "37f2f8ae843c548b",
   "entries": [
     {
       "slug": "ahrefs",
@@ -1844,6 +1844,47 @@
       "accountHome": "https://calendar.google.com/calendar/?authuser={account}"
     },
     {
+      "slug": "google-docs",
+      "name": "Google Docs",
+      "tagline": "Documents, comments, and edits.",
+      "examples": [
+        "Summarize the doc I edited last",
+        "Draft a project brief as a new doc",
+        "What changed in our team doc this week?"
+      ],
+      "description": "Google's documents. Reached through Google's Docs MCP server once Instrument's Google client clears review; until then the web app.",
+      "domain": "docs.google.com",
+      "home": "https://docs.google.com/document/",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "Google sign-in",
+          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then the user signs in on the web."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Google Docs MCP server",
+          "endpoint": "https://docsmcp.googleapis.com/mcp/v1",
+          "auth": "oauth-client",
+          "tokenExchange": "api",
+          "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent"
+          }
+        }
+      ],
+      "category": "notes",
+      "family": "google",
+      "tier": "featured",
+      "rank": 18,
+      "signIn": "https://accounts.google.com/ServiceLogin?service=wise&continue=https://docs.google.com/document/",
+      "addAccount": "https://accounts.google.com/AddSession?service=wise&continue=https://docs.google.com/document/",
+      "accountHome": "https://docs.google.com/document/?authuser={account}"
+    },
+    {
       "slug": "google-drive",
       "name": "Google Drive",
       "tagline": "Files, Docs, Sheets, and Slides.",
@@ -1877,20 +1918,94 @@
         }
       ],
       "category": "files",
-      "aliases": [
-        "google docs",
-        "google sheets",
-        "google slides",
-        "docs",
-        "sheets",
-        "slides"
-      ],
       "family": "google",
       "tier": "featured",
       "rank": 1,
       "signIn": "https://accounts.google.com/ServiceLogin?service=wise&continue=https://drive.google.com/drive/",
       "addAccount": "https://accounts.google.com/AddSession?service=wise&continue=https://drive.google.com/drive/",
       "accountHome": "https://drive.google.com/drive/?authuser={account}"
+    },
+    {
+      "slug": "google-sheets",
+      "name": "Google Sheets",
+      "tagline": "Spreadsheets, tabs, and cells.",
+      "examples": [
+        "What are the totals in my budget sheet?",
+        "Add this week’s numbers to my tracker",
+        "Make a sheet from this list"
+      ],
+      "description": "Google's spreadsheets. Reached through Google's Sheets MCP server once Instrument's Google client clears review; until then the web app.",
+      "domain": "sheets.google.com",
+      "home": "https://docs.google.com/spreadsheets/",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "Google sign-in",
+          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then the user signs in on the web."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Google Sheets MCP server",
+          "endpoint": "https://sheetsmcp.googleapis.com/mcp/v1",
+          "auth": "oauth-client",
+          "tokenExchange": "api",
+          "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent"
+          }
+        }
+      ],
+      "category": "data",
+      "family": "google",
+      "tier": "featured",
+      "rank": 1,
+      "signIn": "https://accounts.google.com/ServiceLogin?service=wise&continue=https://docs.google.com/spreadsheets/",
+      "addAccount": "https://accounts.google.com/AddSession?service=wise&continue=https://docs.google.com/spreadsheets/",
+      "accountHome": "https://docs.google.com/spreadsheets/?authuser={account}"
+    },
+    {
+      "slug": "google-slides",
+      "name": "Google Slides",
+      "tagline": "Presentations, slides, and speaker notes.",
+      "examples": [
+        "Summarize my latest deck",
+        "Make a five-slide deck from these notes",
+        "What’s on the last slide of the quarterly review?"
+      ],
+      "description": "Google's presentations. Reached through Google's Slides MCP server once Instrument's Google client clears review; until then the web app.",
+      "domain": "slides.google.com",
+      "home": "https://docs.google.com/presentation/",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "Google sign-in",
+          "note": "Needs Instrument's own sign-in client, which is in review with the vendor; until then the user signs in on the web."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Google Slides MCP server",
+          "endpoint": "https://slidesmcp.googleapis.com/mcp/v1",
+          "auth": "oauth-client",
+          "tokenExchange": "api",
+          "scope": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/presentations",
+          "authorizationParams": {
+            "access_type": "offline",
+            "prompt": "consent"
+          }
+        }
+      ],
+      "category": "notes",
+      "family": "google",
+      "tier": "featured",
+      "rank": 19,
+      "signIn": "https://accounts.google.com/ServiceLogin?service=wise&continue=https://docs.google.com/presentation/",
+      "addAccount": "https://accounts.google.com/AddSession?service=wise&continue=https://docs.google.com/presentation/",
+      "accountHome": "https://docs.google.com/presentation/?authuser={account}"
     },
     {
       "slug": "grafana",

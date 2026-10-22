@@ -159,7 +159,8 @@ describe("app catalog", () => {
     ["jira", "atlassian"],
     ["excel", "onedrive"],
     ["imessage", "apple-messages"],
-    ["google docs", "google-drive"],
+    ["google docs", "google-docs"],
+    ["sheets", "google-sheets"],
     // A documentation server comes back when named, and only then.
     ["context7", "context7"],
   ])("answers %s with %s first", async (query, slug) => {
@@ -169,7 +170,17 @@ describe("app catalog", () => {
   // The vendor's name reaches every product it signs in to, ahead of any
   // service that only mentions it.
   it.each([
-    ["google", ["gmail", "google-calendar", "google-drive"]],
+    [
+      "google",
+      [
+        "gmail",
+        "google-calendar",
+        "google-docs",
+        "google-drive",
+        "google-sheets",
+        "google-slides",
+      ],
+    ],
     ["microsoft", ["onedrive", "outlook", "teams"]],
   ])("answers %s with its products first", (query, slugs) => {
     expect(

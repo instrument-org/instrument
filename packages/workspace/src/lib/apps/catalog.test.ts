@@ -22,6 +22,10 @@ describe("catalogEntryAt", () => {
     ["https://mail.google.com/mail/u/1/", "gmail"],
     ["https://mail.google.com/mail/?authuser=jeremy%40example.com", "gmail"],
     ["https://calendar.google.com/calendar/r", "google-calendar"],
+    ["https://docs.google.com/document/d/abc/edit", "google-docs"],
+    ["https://docs.google.com/spreadsheets/d/abc/edit", "google-sheets"],
+    ["https://docs.google.com/presentation/d/abc/edit", "google-slides"],
+    ["https://docs.google.com/forms/d/abc/edit", undefined],
     ["https://example.invalid/", undefined],
   ])("finds %s as %s", (address, slug) => {
     expect(catalogEntryAt(address)?.slug).toBe(slug);
@@ -51,6 +55,9 @@ describe("a Google product the directory gives no client", () => {
     "https://gmailmcp.googleapis.com/mcp/v1",
     "https://calendarmcp.googleapis.com/mcp/v1",
     "https://drivemcp.googleapis.com/mcp/v1",
+    "https://docsmcp.googleapis.com/mcp/v1",
+    "https://sheetsmcp.googleapis.com/mcp/v1",
+    "https://slidesmcp.googleapis.com/mcp/v1",
   ])("still needs a client at %s", (endpoint) => {
     expect(catalogEndpointNeedsClient(endpoint)).toBe(true);
     expect(catalogRegisteredClient(endpoint)).toBeUndefined();

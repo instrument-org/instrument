@@ -1,3 +1,8 @@
+import {
+  currentWorkspaceScope,
+  perWorkspace,
+} from "@/electron-main/lib/workspace-scope";
+import { publisher } from "@/electron-main/rpc/publisher";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import { fetchResources, FiltersEngine, Request } from "@ghostery/adblocker";
@@ -70,7 +75,18 @@ const log = logger.scope("content-blocking");
 
 let engine: FiltersEngine | null = null;
 let loading: Promise<void> | null = null;
-let blockAds: boolean | null = null;
+/**
+ * Whether the open workspace blocks ads, read once per workspace and again
+ * after its preferences change.
+ */
+const blockAdsInScope = perWorkspace((): { value: boolean | null } => ({
+  value: null,
+}));
+publisher.subscribe("preferences.updated", () => {
+  if (!currentWorkspaceScope().closed) {
+    blockAdsInScope().value = null;
+  }
+});
 let isExempt: (webContentsId: number) => boolean = () => false;
 /** The guest sessions, one per workspace opened, whose pages alone ask the engine for anything. */
 const blockingSessions = new Set<Session>();
@@ -265,14 +281,14 @@ function injectCosmeticFilters(
 
 /** Whether the person has blocking on for this workspace. */
 export function isBlocking() {
-  if (blockAds === null) {
-    const preferences = getWorkspacePreferences();
-    blockAds = preferences.get("blockAds");
-    preferences.onDidChange("blockAds", (value) => {
-      blockAds = value ?? true;
-    });
+  // A page that asks while a workspace switch has closed one is in a guest
+  // on its way out.
+  if (currentWorkspaceScope().closed) {
+    return false;
   }
-  return blockAds;
+  const preference = blockAdsInScope();
+  preference.value ??= getWorkspacePreferences().get("blockAds");
+  return preference.value;
 }
 
 /**

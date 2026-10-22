@@ -1,6 +1,6 @@
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
+import { publisher } from "@/electron-main/rpc/publisher";
 import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
-import { getSessionStore } from "@/electron-main/stores/workspace/session";
 import { applyServedAppCatalog } from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import fs from "node:fs";
@@ -130,8 +130,9 @@ export function startAppCatalog() {
       void fetchAppCatalog();
     }
   });
-  // After any ask already under way, which carried the account as it was.
-  getSessionStore().onDidChange("apiBearerTokens", () => {
+  // After any ask already under way, which carried the account as it was;
+  // through the sign-in's event, so it follows whichever workspace is open.
+  publisher.subscribe("session.apiBearerToken.updated", () => {
     void (inFlight ?? Promise.resolve()).then(fetchAppCatalog);
   });
 }

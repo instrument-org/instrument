@@ -7,6 +7,7 @@ import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-mo
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 
 import { timeBootStep } from "./boot-timing";
+import { applyThemePreference } from "./theme-utils";
 import { createWorkspaceActor } from "./create-workspace-actor";
 import { chooseLaunchDeviceId, describeLaunchDevice } from "./launch-device-id";
 import {
@@ -33,6 +34,8 @@ export async function startWorkspace(): Promise<RunningWorkspace> {
   // Before any window, whose preload reads them as it loads.
   await timeBootStep("openBookmarks", () => openBookmarks(deviceId));
   openDrafts();
+  // Its own theme, which another workspace's may differ from.
+  applyThemePreference();
 
   // A signed-in ChatGPT account's access token lasts an hour.
   scheduleChatGPTAccountRefresh();

@@ -1,3 +1,4 @@
+import { publisher } from "@/electron-main/rpc/publisher";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import { RESOLVE_THEME_CHANNEL } from "@/shared/constants";
 import { ipcMain, nativeTheme } from "electron";
@@ -22,19 +23,28 @@ export function serveResolvedTheme() {
   });
 }
 
+/** What else follows the theme, once `watchThemePreferenceAndApply` names it. */
+let onThemeApplied: (() => void) | undefined;
+
+/**
+ * Applies the theme the open workspace's preferences name, and again
+ * whenever they change: through the preferences' event rather than one
+ * store's, so it follows whichever workspace is open.
+ */
 export function watchThemePreferenceAndApply(callback?: () => void): void {
-  const preferencesStore = getWorkspacePreferences();
-  applyNativeThemeFromPreferences();
-  preferencesStore.onDidChange("theme", () => {
-    applyNativeThemeFromPreferences();
-    callback?.();
+  onThemeApplied = callback;
+  applyThemePreference();
+  publisher.subscribe("preferences.updated", () => {
+    if (nativeTheme.themeSource !== getWorkspacePreferences().get("theme")) {
+      applyThemePreference();
+    }
   });
 }
 
-function applyNativeThemeFromPreferences(): void {
-  const preferencesStore = getWorkspacePreferences();
-  const theme = preferencesStore.get("theme");
-  nativeTheme.themeSource = theme;
+/** Applies the open workspace's theme, as a switch to another one has to. */
+export function applyThemePreference(): void {
+  nativeTheme.themeSource = getWorkspacePreferences().get("theme");
+  onThemeApplied?.();
 }
 
 function shouldUseDarkMode(): boolean {

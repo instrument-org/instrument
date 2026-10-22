@@ -32,7 +32,7 @@ export const developerModeAtom = atom(false);
  * Whether the transcript is drawn as a chat draws it, each reply in a bubble on
  * a card, or as a task page does, straight on the background.
  */
-export const chatPresentationAtom = atom(false);
+export const chatPresentationAtom = atom(true);
 
 /**
  * Whether the transcript arrives a step at a time, or is simply there.

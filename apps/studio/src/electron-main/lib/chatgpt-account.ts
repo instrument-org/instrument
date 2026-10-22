@@ -1,4 +1,7 @@
-import { perWorkspace } from "@/electron-main/lib/workspace-scope";
+import {
+  currentWorkspaceScope,
+  perWorkspace,
+} from "@/electron-main/lib/workspace-scope";
 import { createLoopbackSignIn } from "@/electron-main/auth/loopback-sign-in";
 import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { logger } from "@/electron-main/lib/electron-logger";
@@ -580,6 +583,10 @@ async function runSignIn({
   state: string;
   target: Registration | undefined;
 }): Promise<ChatGPTSignInResult> {
+  // The workspace the sign-in started in: one that closes before it lands
+  // ends it, so it never lands in the workspace opened after.
+  const scope = currentWorkspaceScope();
+  scope.onClose(cancelChatGPTSignIn);
   // A sign-in given up while the setup was on its way opens no browser. The
   // timeout's rejection is caught here as well as below, where it is reported.
   const setup = await Promise.race([
@@ -672,6 +679,9 @@ async function runSignIn({
     );
   }
 
+  if (scope.closed) {
+    return { outcome: "canceled" };
+  }
   // A registration OpenAI handed back again, for an account this host already
   // knows, updates that account rather than listing it twice.
   const existing =

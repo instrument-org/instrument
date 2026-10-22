@@ -1,3 +1,4 @@
+import { cancelSignInSocial } from "@/electron-main/auth/client";
 import { platformApiQueryClient } from "@/electron-main/platform-api/client";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -8,6 +9,8 @@ import { app } from "electron";
 import { noop } from "radashi";
 
 import { captureServerException } from "./capture-server-exception";
+import { cancelClaudeSignIn } from "./claude-account";
+import { cancelOpenRouterConnect } from "./openrouter-connect";
 import { logger } from "./electron-logger";
 import { openWorkspace, releaseWorkspaceOpenMark } from "./open-workspace";
 import { requestQuitApproval, withdrawQuitApproval } from "./quit";
@@ -26,7 +29,8 @@ let switching = false;
 /**
  * Whether a switch closes this workspace and opens the next in this process.
  * `INSTRUMENT_LIVE_WORKSPACE_SWITCH=0` keeps the restart, for comparing the
- * two or getting past a switch that goes wrong.
+ * two or getting past a switch that goes wrong; `fail` makes a development
+ * build's switch fail once the workspace has closed, which restarts it.
  */
 export function switchesLive(): boolean {
   return process.env.INSTRUMENT_LIVE_WORKSPACE_SWITCH !== "0";
@@ -85,6 +89,11 @@ async function runSwitch() {
   };
   try {
     log.info(`Closing ${from.id} at ${from.path}`);
+    // A sign-in still waiting on the browser is the closing workspace's.
+    // ChatGPT's and Grok's end with its scope.
+    cancelSignInSocial();
+    cancelOpenRouterConnect();
+    cancelClaudeSignIn();
     await closeAppWindowForSwitch();
     step("Closed the window");
     const running = runningWorkspace();
@@ -97,6 +106,15 @@ async function runSwitch() {
     // The sign-in these answered for is the closed workspace's.
     platformApiQueryClient.clear();
     step("Closed its stores");
+    // A development build can be told to fail here, to exercise the fallback.
+    if (
+      !app.isPackaged &&
+      process.env.INSTRUMENT_LIVE_WORKSPACE_SWITCH === "fail"
+    ) {
+      throw new Error(
+        "Failing the switch, as INSTRUMENT_LIVE_WORKSPACE_SWITCH asks",
+      );
+    }
 
     const opened = openWorkspace({ atLaunch: false });
     if (opened.kind === "refused") {

@@ -1,4 +1,7 @@
-import { perWorkspace } from "@/electron-main/lib/workspace-scope";
+import {
+  currentWorkspaceScope,
+  perWorkspace,
+} from "@/electron-main/lib/workspace-scope";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { noteSignedOut } from "@/electron-main/lib/notices";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
@@ -612,6 +615,12 @@ export async function signInWithGrok(): Promise<GrokSignInResult> {
   pending?.controller.abort();
   const controller = new AbortController();
   const { signal } = controller;
+  // The workspace the sign-in started in: one that closes before it lands
+  // ends it, so it never lands in the workspace opened after.
+  const scope = currentWorkspaceScope();
+  scope.onClose(() => {
+    controller.abort();
+  });
   try {
     pending = { controller };
     const setup = await loadSignInSetup(signal);
@@ -682,6 +691,9 @@ export async function signInWithGrok(): Promise<GrokSignInResult> {
       }
       if (!tokens.refresh_token) {
         throw new Error("Grok sign-in left the account without a session");
+      }
+      if (scope.closed) {
+        return { outcome: "canceled" };
       }
       const subject = subjectOf(tokens);
       const existing = registrations().find(

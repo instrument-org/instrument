@@ -434,6 +434,16 @@ describe("how a ChatGPT sign-in ends", () => {
     await expect(ended).resolves.toEqual({ outcome: "canceled" });
   });
 
+  it("is canceled when its workspace closes, landing in neither workspace", async () => {
+    stored = { registrations: {} };
+    const { ended } = await start();
+    const scope = await import("@/electron-main/lib/workspace-scope");
+    await scope.currentWorkspaceScope().close(() => undefined);
+    scope.openWorkspaceScope();
+    await expect(ended).resolves.toEqual({ outcome: "canceled" });
+    expect(stored.registrations).toEqual({});
+  });
+
   it("is canceled when a newer sign-in takes its place", async () => {
     stored = { registrations: {} };
     const { ended } = await start();

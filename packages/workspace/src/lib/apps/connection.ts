@@ -29,7 +29,7 @@ export type AppConnectionStatus = z.output<typeof AppConnectionStatusSchema>;
  * take), the user stopped it, or nobody came back before it lapsed. A user who
  * turned the sign-in down is `declined`, not this.
  */
-export const SignInEndSchema = z.enum(["canceled", "expired", "refused"]);
+const SignInEndSchema = z.enum(["canceled", "expired", "refused"]);
 
 export type SignInEnd = z.output<typeof SignInEndSchema>;
 

@@ -1,6 +1,6 @@
 # Plan: the app directory, made connectable and drawn well
 
-Status: in progress. Landed: an app's own icon (`app icon`), bundled directory icons for 121 entries (`packages/workspace/directory-icons/`), set-up lines that carry an MCP server's key and skip servers whose sign-in needs a client we have not registered (`oauth-client`), and the data fixes the audit verified (Globalping, Semgrep, HubSpot, Shopify, Canva). Open: everything under Shape and Listing, the Craft ideas, and the vendor clients (tracked in Linear FP-1324).
+Status: in progress. Landed: an app's own icon (`app icon`), bundled directory icons for 121 entries (`packages/workspace/directory-icons/`), set-up lines that carry an MCP server's key and skip servers whose sign-in needs a client we have not registered (`oauth-client`), the data fixes the audit verified (Globalping, Semgrep, HubSpot, Shopify, Canva), and the probe as a report (`script:probe-app-directory`). Open: everything under Shape and Listing, the Craft ideas, and the vendor clients (tracked in Linear FP-1324).
 
 The directory (`packages/workspace/src/lib/apps/catalog-seed.json`, read through `catalog.ts` and `app catalog`) is a curated snapshot of a public integrations index: 127 entries, each with a domain, interfaces, and auth kinds. It is what the chat matches a request against and what the Apps page lists. An audit of every entry (endpoints probed for OAuth metadata, vendor docs read) found it mostly connectable, unevenly described, and missing whole families people ask for by name.
 
@@ -35,7 +35,7 @@ Kinds: `mcp-oauth` (registration `dcr`, `cimd`, or `preregistered`), `mcp-key`, 
 
 **Other fields.** `aliases` (matched at the top rank), `icon` (per product, never per family), `blockedBy` on vendor-gated entries (`vendor-review`, `admin-consent`, `partner-only`, `allowlist`, with a link and rough wait), a fixed list of about 15 categories, and a tagline rule: a noun phrase, no "agent", no marketing.
 
-**A probe.** A script that walks every entry's endpoints, checks OAuth metadata and registration, and writes `verifiedAt`, run before each release, so a stale endpoint shows up as a diff rather than as a user's failed connection.
+**A probe.** A script that walks every entry's endpoints, checks OAuth metadata and registration, and writes `verifiedAt`, run before each release, so a stale endpoint shows up as a diff rather than as a user's failed connection. The reading half exists as a report: `pnpm --filter @instrument-org/workspace script:probe-app-directory` (`packages/workspace/scripts/probe-app-directory.ts`) reads each hosted MCP server's protected-resource and authorization-server metadata and lists the entries marked `auth: "oauth"` whose server advertises neither a registration endpoint nor CIMD, the ones that answer with no sign-in at all, and every server it could not read. Writing `verifiedAt` from it is still to come.
 
 ## Listing
 

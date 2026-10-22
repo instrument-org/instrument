@@ -15,10 +15,13 @@ vi.mock("@/electron-main/rpc/publisher", () => ({
 }));
 vi.mock("@/electron-main/windows/app-window", () => ({
   closeAppWindowForSwitch: vi.fn(() => Promise.resolve()),
-  openAppWindow: vi.fn(),
+  openAppWindowAfterSwitch: vi.fn(),
 }));
 vi.mock("./capture-server-exception", () => ({
   captureServerException: vi.fn(),
+}));
+vi.mock("./agent-completion-notifications", () => ({
+  closeCompletionNotifications: vi.fn(),
 }));
 vi.mock("./claude-account", () => ({ cancelClaudeSignIn: vi.fn() }));
 vi.mock("./openrouter-connect", () => ({ cancelOpenRouterConnect: vi.fn() }));
@@ -46,7 +49,7 @@ vi.mock("./workspaces", () => ({
 
 import {
   closeAppWindowForSwitch,
-  openAppWindow,
+  openAppWindowAfterSwitch,
 } from "@/electron-main/windows/app-window";
 
 import { openWorkspace } from "./open-workspace";
@@ -56,7 +59,7 @@ import { isSwitchingWorkspace, switchWorkspace } from "./live-workspace-switch";
 beforeEach(() => {
   approval.approved = true;
   relaunchApp.mockClear();
-  vi.mocked(openAppWindow).mockClear();
+  vi.mocked(openAppWindowAfterSwitch).mockClear();
   vi.mocked(openWorkspace).mockReturnValue({ kind: "open" });
 });
 
@@ -88,7 +91,7 @@ describe("switchWorkspace", () => {
     expect(choose).toHaveBeenCalledOnce();
     expect(switchingAsTheWindowCloses).toBe(true);
     expect(isSwitchingWorkspace()).toBe(false);
-    expect(openAppWindow).toHaveBeenCalledOnce();
+    expect(openAppWindowAfterSwitch).toHaveBeenCalledOnce();
     expect(relaunchApp).not.toHaveBeenCalled();
   });
 
@@ -131,6 +134,6 @@ describe("switchWorkspace", () => {
     await settle();
 
     expect(relaunchApp).toHaveBeenCalledOnce();
-    expect(openAppWindow).not.toHaveBeenCalled();
+    expect(openAppWindowAfterSwitch).not.toHaveBeenCalled();
   });
 });

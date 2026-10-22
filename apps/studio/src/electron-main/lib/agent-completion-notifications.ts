@@ -248,6 +248,18 @@ function latestTurnText(messages: Messages): string | undefined {
   return bodyOf(messages.slice(turnStart + 1));
 }
 
+/**
+ * Takes down the notifications still showing, whose clicks would open a
+ * chat of a workspace that is closing.
+ */
+export function closeCompletionNotifications() {
+  for (const notification of liveNotifications) {
+    notification.removeAllListeners("click");
+    notification.close();
+  }
+  liveNotifications.clear();
+}
+
 function presentNotification({
   body,
   onClick,

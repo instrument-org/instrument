@@ -58,6 +58,13 @@ export function createAppWindowAsks({
         deliver(ask);
       }
     },
+    /** Drops what waits, asked of a window that is not coming back. */
+    forget() {
+      if (pending.length > 0) {
+        pending = [];
+        changed();
+      }
+    },
     /** The page went away or is loading afresh, and is not listening. */
     stopTaking() {
       isTaking = false;

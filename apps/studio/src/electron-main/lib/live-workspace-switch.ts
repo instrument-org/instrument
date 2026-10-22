@@ -3,11 +3,12 @@ import { platformApiQueryClient } from "@/electron-main/platform-api/client";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   closeAppWindowForSwitch,
-  openAppWindow,
+  openAppWindowAfterSwitch,
 } from "@/electron-main/windows/app-window";
 import { app } from "electron";
 import { noop } from "radashi";
 
+import { closeCompletionNotifications } from "./agent-completion-notifications";
 import { captureServerException } from "./capture-server-exception";
 import { cancelClaudeSignIn } from "./claude-account";
 import { cancelOpenRouterConnect } from "./openrouter-connect";
@@ -105,6 +106,9 @@ async function runSwitch() {
     cancelSignInSocial();
     cancelOpenRouterConnect();
     cancelClaudeSignIn();
+    // A notification of the closing workspace's names a chat the next one
+    // does not have.
+    closeCompletionNotifications();
     await closeAppWindowForSwitch();
     step("Closed the window");
     const running = runningWorkspace();
@@ -140,7 +144,7 @@ async function runSwitch() {
     // What reads the sign-in, setup's plan fact among them, reads it again.
     publisher.publish("session.apiBearerToken.updated", null);
     refreshSetupFacts();
-    openAppWindow();
+    openAppWindowAfterSwitch();
     step(`Opened ${to.id} in process ${process.pid.toString()}`);
   } catch (error) {
     log.error("The switch failed; restarting instead", error);

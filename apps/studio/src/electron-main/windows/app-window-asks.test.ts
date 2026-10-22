@@ -25,6 +25,14 @@ function asks({ held = false } = {}) {
 }
 
 describe("createAppWindowAsks", () => {
+  it("forgets what waited for a window that is not coming back, and keeps what is asked after", () => {
+    const { queue } = asks();
+    queue.ask(link);
+    queue.forget();
+    queue.ask(file);
+    expect(queue.take()).toEqual([file]);
+  });
+
   it("delivers at once to a page that is listening", () => {
     const { deliver, queue } = asks();
     queue.take();

@@ -109,7 +109,14 @@ export function openAppScreen(href: string) {
  * The app window: the inbox of chats, the tasks they started, and the tabs
  * the user and the agents open. Its renderer hosts every task's browser guest.
  */
-export function openAppWindow(): BrowserWindow {
+export function openAppWindow(): BrowserWindow | null {
+  // A switch of workspace has closed the window and opens the next
+  // workspace's itself (`openAppWindowAfterSwitch`), which takes what was
+  // asked of the window meanwhile. One opened now would run on the closed
+  // workspace's session, with no workspace to answer it.
+  if (heldForSwitch) {
+    return null;
+  }
   if (appWindow && !appWindow.isDestroyed()) {
     if (!isHeldOffScreen(appWindow)) {
       appWindow.focus();
@@ -157,6 +164,7 @@ export function openAppWindow(): BrowserWindow {
   const tracked = trackWindowBounds(appWindow, "app", {
     isHeld: () => isSetupSized,
   });
+  saveBoundsOf.set(appWindow, tracked.saveNow);
   // Setup's window comes back where it was after a restart setup makes,
   // which is a quit like any other.
   const setupWindow = appWindow;
@@ -315,16 +323,29 @@ export function openAppWindow(): BrowserWindow {
 /** The windows closed for a switch of workspace, which opens the next one's window. */
 const closedForSwitch = new WeakSet<BrowserWindow>();
 
+/** How each app window saves its size and place at once. */
+const saveBoundsOf = new WeakMap<BrowserWindow, () => void>();
+
+/** Set from the window closing for a switch of workspace until the switch opens the next one's. */
+let heldForSwitch = false;
+
 /**
  * Closes the app window for a switch of workspace: at once, asking nothing
  * (the switch asked), and without the close counting as the last window's,
  * which outside macOS would quit the app. Resolves once it is closed.
  */
 export async function closeAppWindowForSwitch(): Promise<void> {
+  heldForSwitch = true;
+  // What was asked of the closing workspace's window (a chat of its to
+  // reveal) means nothing in the next one; what is asked from here on waits
+  // for the next one's window.
+  asks.forget();
   const window = getAppWindow();
   if (!window) {
     return;
   }
+  // Its size and place, saved now: `destroy` skips the close that would.
+  saveBoundsOf.get(window)?.();
   closedForSwitch.add(window);
   appWindow = null;
   isSetupSized = false;
@@ -338,6 +359,15 @@ export async function closeAppWindowForSwitch(): Promise<void> {
   });
   window.destroy();
   await closed;
+}
+
+/**
+ * Opens the next workspace's window once a switch has opened that workspace,
+ * with what was asked of the window while there was none.
+ */
+export function openAppWindowAfterSwitch(): void {
+  heldForSwitch = false;
+  openAppWindow();
 }
 
 /** Where the app window opens: where it was left, or its first-time shape. */

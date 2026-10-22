@@ -53,7 +53,9 @@ export function DictationButton({
             aria-label={working ? "Transcribing" : "Stop"}
             className={cn(
               box,
-              "shrink-0 rounded-full bg-foreground p-0 text-background hover:bg-foreground/85 disabled:opacity-100",
+              // Solid in both themes, its hover included: the button's own
+              // card colors would otherwise show through on hover and in dark.
+              "shrink-0 rounded-full bg-foreground p-0 text-background not-disabled:hover:bg-foreground/85 disabled:opacity-100 dark:bg-foreground dark:text-background dark:not-disabled:hover:bg-foreground/85",
               className,
             )}
             disabled={working}

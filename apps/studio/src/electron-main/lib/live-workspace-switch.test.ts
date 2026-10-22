@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const approval = vi.hoisted(() => ({ approved: true }));
+const approval = vi.hoisted(() => ({ approved: true, quitting: false }));
 const relaunchApp = vi.hoisted(() =>
   vi.fn(() => Promise.resolve("relaunching")),
 );
@@ -35,8 +35,13 @@ vi.mock("./open-workspace", () => ({
   releaseWorkspaceOpenMark: vi.fn(),
 }));
 vi.mock("./quit", () => ({
+  isQuitUnderway: () => approval.quitting,
   requestQuitApproval: vi.fn(() => Promise.resolve(approval.approved)),
   withdrawQuitApproval: vi.fn(),
+}));
+vi.mock("./quit-machine", () => ({ BROWSER_SESSIONS_CLOSE_MS: 3000 }));
+vi.mock("@instrument-org/workspace/electron", () => ({
+  BACKGROUND_PROCESS_TEARDOWN_MS: 5000,
 }));
 vi.mock("./relaunch", () => ({ canRelaunch: () => true, relaunchApp }));
 vi.mock("./setup-facts", () => ({ refreshSetupFacts: vi.fn() }));
@@ -54,14 +59,27 @@ import {
 
 import { openWorkspace } from "./open-workspace";
 import { requestQuitApproval } from "./quit";
+import {
+  type RunningWorkspace,
+  setRunningWorkspace,
+  workspaceSwitchSettled,
+} from "./running-workspace";
 import { isSwitchingWorkspace, switchWorkspace } from "./live-workspace-switch";
 
 beforeEach(() => {
   approval.approved = true;
+  approval.quitting = false;
+  setRunningWorkspace(undefined);
   relaunchApp.mockClear();
   vi.mocked(openAppWindowAfterSwitch).mockClear();
+  vi.mocked(openWorkspace).mockClear();
   vi.mocked(openWorkspace).mockReturnValue({ kind: "open" });
 });
+
+/** A running workspace whose close is `close`; the switch reads nothing else of it, hence the cast. */
+function fakeRunning(close: () => Promise<void>) {
+  return { close } as unknown as RunningWorkspace;
+}
 
 /** Lets the switch that runs after the answer finish. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
@@ -113,6 +131,56 @@ describe("switchWorkspace", () => {
     await expect(first).resolves.toBe("canceled");
     expect(secondChoice).not.toHaveBeenCalled();
     expect(isSwitchingWorkspace()).toBe(false);
+  });
+
+  it("is turned down once a quit is under way", async () => {
+    approval.quitting = true;
+    const choose = vi.fn();
+
+    await expect(switchWorkspace({ choose })).resolves.toBe("canceled");
+    expect(choose).not.toHaveBeenCalled();
+  });
+
+  it("leaves the next workspace to the next launch when a quit comes while it closes", async () => {
+    let closed: () => void = () => undefined;
+    setRunningWorkspace(
+      fakeRunning(
+        () =>
+          new Promise<void>((resolve) => {
+            closed = resolve;
+          }),
+      ),
+    );
+    await switchWorkspace({ choose: vi.fn() });
+    await settle();
+    approval.quitting = true;
+    const quitWaited = vi.fn();
+    const waiting = workspaceSwitchSettled().then(quitWaited);
+    await settle();
+    // The quit waits for the switch to finish closing before it reads it.
+    expect(quitWaited).not.toHaveBeenCalled();
+
+    closed();
+    await waiting;
+
+    expect(openWorkspace).not.toHaveBeenCalled();
+    expect(openAppWindowAfterSwitch).not.toHaveBeenCalled();
+  });
+
+  it("restarts when closing the workspace runs past its deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      setRunningWorkspace(
+        fakeRunning(() => new Promise<void>(() => undefined)),
+      );
+      await switchWorkspace({ choose: vi.fn() });
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      expect(relaunchApp).toHaveBeenCalledOnce();
+      expect(openAppWindowAfterSwitch).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("restarts when the next workspace is refused", async () => {

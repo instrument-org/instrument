@@ -24,6 +24,20 @@ export function isQuitGuardForcedInDev() {
 }
 
 /**
+ * Whether the app is on its way out: a quit asked for (approved or still
+ * being asked about) or its teardown running.
+ */
+export function isQuitUnderway(): boolean {
+  const snapshot = quit?.getSnapshot();
+  return (
+    snapshot !== undefined &&
+    (snapshot.context.quitAfterApproval ||
+      snapshot.matches("tearingDown") ||
+      snapshot.matches("exiting"))
+  );
+}
+
+/**
  * Asks about running agents unless this quit is already approved, sharing a
  * prompt that is already open. Resolves to whether the quit may go ahead.
  * Before boot has started the quit there is nothing to ask about.

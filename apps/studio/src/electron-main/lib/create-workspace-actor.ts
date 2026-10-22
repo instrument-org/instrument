@@ -107,7 +107,11 @@ import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { quitPrompt, runningJobNames } from "./quit-prompt";
 import { getRegistryDir } from "./registry-dir";
-import { type RunningWorkspace, runningWorkspace } from "./running-workspace";
+import {
+  type RunningWorkspace,
+  runningWorkspace,
+  workspaceSwitchSettled,
+} from "./running-workspace";
 import { currentWorkspaceScope } from "./workspace-scope";
 import { quitExitCode } from "./relaunch";
 import { getRuntimeDir, removeFormerRuntime } from "./runtime-dir";
@@ -451,7 +455,9 @@ export function startWorkspaceQuit() {
           // Agent-started servers and watchers outlive the turn that started
           // them, so quitting is what ends them. The tasks at work are
           // stopped and their chats told first, while what each has running
-          // can still be named.
+          // can still be named. A switch closing the workspace finishes
+          // first, so the two never tear the same one down at once.
+          await workspaceSwitchSettled();
           const running = runningWorkspace();
           await (
             running ? interruptTasksForQuit(running.actor) : Promise.resolve()

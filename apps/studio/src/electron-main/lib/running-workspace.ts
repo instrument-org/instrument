@@ -30,3 +30,19 @@ export function runningWorkspace(): RunningWorkspace | undefined {
 export function setRunningWorkspace(next: RunningWorkspace | undefined): void {
   running = next;
 }
+
+let settling: Promise<void> = Promise.resolve();
+
+/**
+ * Settles once no switch of workspace is under way: what the quit waits on
+ * before it reads the running workspace, so it never tears one down
+ * alongside a switch closing it.
+ */
+export function workspaceSwitchSettled(): Promise<void> {
+  return settling;
+}
+
+/** Marks a switch under way until `switched` settles. */
+export function noteWorkspaceSwitch(switched: Promise<void>): void {
+  settling = switched.catch(() => undefined);
+}

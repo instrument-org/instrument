@@ -5,7 +5,9 @@ import {
   closeAppWindowForSwitch,
   openAppWindowAfterSwitch,
 } from "@/electron-main/windows/app-window";
+import { BACKGROUND_PROCESS_TEARDOWN_MS } from "@instrument-org/workspace/electron";
 import { app } from "electron";
+import ms from "ms";
 import { noop } from "radashi";
 
 import { closeCompletionNotifications } from "./agent-completion-notifications";
@@ -14,9 +16,18 @@ import { cancelClaudeSignIn } from "./claude-account";
 import { cancelOpenRouterConnect } from "./openrouter-connect";
 import { logger } from "./electron-logger";
 import { openWorkspace, releaseWorkspaceOpenMark } from "./open-workspace";
-import { requestQuitApproval, withdrawQuitApproval } from "./quit";
+import {
+  isQuitUnderway,
+  requestQuitApproval,
+  withdrawQuitApproval,
+} from "./quit";
+import { BROWSER_SESSIONS_CLOSE_MS } from "./quit-machine";
 import { canRelaunch, relaunchApp } from "./relaunch";
-import { runningWorkspace, setRunningWorkspace } from "./running-workspace";
+import {
+  noteWorkspaceSwitch,
+  runningWorkspace,
+  setRunningWorkspace,
+} from "./running-workspace";
 import { refreshSetupFacts } from "./setup-facts";
 import { startWorkspace } from "./start-workspace";
 import { getResolvedWorkspace } from "./workspaces";
@@ -64,13 +75,20 @@ export async function switchWorkspace({
   if (!switchesLive()) {
     return relaunchApp({ beforeRestart: choose });
   }
-  if (switching) {
+  // A quit on its way out tears the workspace down itself.
+  if (switching || isQuitUnderway()) {
     return "canceled";
   }
   // Before the question, so a second switch asked while it is open is
   // turned down rather than asking again.
   switching = true;
   if (!(await requestQuitApproval())) {
+    switching = false;
+    return "canceled";
+  }
+  // A quit asked for while the question was open shared its answer, and
+  // goes ahead without the switch.
+  if (isQuitUnderway()) {
     switching = false;
     return "canceled";
   }
@@ -82,11 +100,17 @@ export async function switchWorkspace({
     switching = false;
     throw error;
   }
-  setTimeout(() => {
-    void runSwitch().finally(() => {
-      switching = false;
-    });
-  });
+  let started: () => void = noop;
+  noteWorkspaceSwitch(
+    new Promise<void>((resolve) => {
+      started = resolve;
+    }).then(() =>
+      runSwitch().finally(() => {
+        switching = false;
+      }),
+    ),
+  );
+  setTimeout(started);
   return "switching";
 }
 
@@ -111,9 +135,11 @@ async function runSwitch() {
     closeCompletionNotifications();
     await closeAppWindowForSwitch();
     step("Closed the window");
+    // Running until it has closed, so a quit that comes meanwhile and waits
+    // for the switch reads it as gone only once it is.
     const running = runningWorkspace();
+    await withDeadline(running?.close(), CLOSE_DEADLINE_MS);
     setRunningWorkspace(undefined);
-    await running?.close();
     step("Closed the workspace");
     await currentWorkspaceScope().close(captureServerException);
     releaseWorkspaceOpenMark();
@@ -131,6 +157,14 @@ async function runSwitch() {
       );
     }
 
+    // A quit asked for while the workspace closed ends the app here; its
+    // next launch opens what the switch recorded.
+    if (isQuitUnderway()) {
+      log.info(
+        "A quit came while closing; leaving the next workspace to the next launch",
+      );
+      return;
+    }
     const opened = openWorkspace({ atLaunch: false });
     if (opened.kind === "refused") {
       log.warn(`Not opening the next workspace (${opened.refusal.kind})`);
@@ -150,6 +184,39 @@ async function runSwitch() {
     log.error("The switch failed; restarting instead", error);
     captureServerException(error);
     fallBack();
+  }
+}
+
+/**
+ * How long closing the workspace may take: its sessions' stop (10 seconds,
+ * `closeWorkspace`), the agent-browser sessions and the background processes
+ * as the quit bounds them, and slack. Past it the switch restarts the app.
+ */
+const CLOSE_DEADLINE_MS =
+  ms("10 seconds") +
+  BROWSER_SESSIONS_CLOSE_MS +
+  BACKGROUND_PROCESS_TEARDOWN_MS +
+  ms("5 seconds");
+
+/** `work`, or a rejection once `deadlineMs` passes without it settling. */
+async function withDeadline(
+  work: Promise<void> | undefined,
+  deadlineMs: number,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      work,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            new Error(`Closing the workspace took over ${ms(deadlineMs)}`),
+          );
+        }, deadlineMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

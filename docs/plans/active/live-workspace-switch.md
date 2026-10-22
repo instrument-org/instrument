@@ -1,6 +1,6 @@
 # Plan: switch, open and move workspaces without restarting
 
-Status: built. `switch`, `open` and `move` close the workspace and open the next in process, falling back to the restart on any failure (`INSTRUMENT_LIVE_WORKSPACE_SWITCH=0` keeps the restart). Not yet checked: an agent turn after a switch, a switch while a turn runs, Windows and Linux, and the fallback itself.
+Status: built. `switch`, `open` and `move` close the workspace and open the next in process, falling back to the restart on any failure (`INSTRUMENT_LIVE_WORKSPACE_SWITCH=0` keeps the restart; `fail` makes a development build's switch fail, to exercise it). Checked on macOS in development builds (below); Windows and Linux only by reading the code.
 
 `workspaces.switch`, `workspaces.open` and `workspaces.move` (`apps/studio/src/electron-main/rpc/routes/workspaces.ts`) record the choice and restart the app (`relaunchApp`), because the main process opens one workspace at boot and much of it hangs off that workspace for the life of the process. This plan closes what is open for one workspace and opens the next in the same process, so the three routes answer without a restart, and falls back to the restart when anything in the live path fails.
 
@@ -115,11 +115,26 @@ The running half (`RunningWorkspace`: actor, config, device, browser view manage
 | A holder missed: something reads the old workspace after the switch (a store, a timer, a grant) | Unit tests per holder that open a scope, use the holder, close it, and see the next use open the new folder; a real boot that switches and reads chats, providers, model and setup in the new workspace; the log scanned for writes under the old folder after the switch |
 | A subscription left running doubles a wake or a retitle | Test that `attachChats`' detach ends its loops: a `session.done` after the detach reaches no handler |
 | A turn's last writes lost | The switch asks first and stops tasks the way the quit does; chat records are disposed (landed and synced) before the actor stops |
-| The window's close quits the app on Windows and Linux | The close during a switch is marked; tested in the window module |
+| The window's close quits the app on Windows and Linux | The window's own `closed` handler skips a window closed for a switch, and `window-all-closed` skips while a switch is under way (`isSwitchingWorkspace`), unit-tested in the switch's test |
 | A move fails part-way in process | `finishPendingMove`'s existing tests, plus one that runs it after a workspace was open and closed in the same process |
 | The Chromium session of the old workspace keeps files open (Windows) | Its folder is in the machine folder, which a move does not move; noted for Windows, not checked here |
-| A sign-in in flight lands in the next workspace | The account sign-in and app OAuth callbacks write through the store open at the time they finish; the prompt does not count them. Left as a known gap |
+| A sign-in in flight lands in the next workspace | A ChatGPT or Grok sign-in is tied to the scope it started in: the scope closing cancels it, and tokens that arrive after save nothing, so it lands in neither (unit-tested for ChatGPT). The switch cancels the Instrument, OpenRouter and Claude sign-ins waiting on the browser; one of those whose token exchange is already in flight as the switch runs can still land in the next workspace. App OAuth is not covered |
 | A failure leaves the process half closed | Every failure from step 4 on restarts the app |
+
+## What the boots showed
+
+Development builds on macOS, each from a fresh `studio-drive` scenario, off screen. The main process's id is the same before and after every live switch.
+
+| Check | Result |
+|---|---|
+| Setup's folder step, scenario `new` | Continue moved the workspace into Documents in process, in under 100ms; setup went on to notifications |
+| A move with chats, scenario `beta-tester` | The chat and the ChatGPT account came along; setup went on to notifications; no errors in the log after |
+| Opening another workspace from the folder step | Setup's sign-ins were carried into it and showed there; setup went on |
+| An agent reply after a switch | A switch to a second workspace, then a message on Workers AI's GLM 5.3 Flash, answered |
+| A switch while a turn runs | A development build skips the running-agents question, as it does for a quit (`isQuitGuardForcedInDev`); a packaged build asks it, and a no keeps the workspace (unit-tested). The turn's record ends cleanly: its running command is written as interrupted (`INTERRUPTED_TOOL_CALL_ERROR_TEXT`, whose words say the app closed) and nothing is left in flight |
+| The fallback | With the switch made to fail after the workspace closed, the app went through its quit teardown with no workspace running, restarted (a new process), and opened the workspace the switch had recorded |
+
+On Windows and Linux, read rather than run: destroying the only window fires `window-all-closed`, which quits there, so it is skipped while a switch is under way. The other place Windows differs is the move: every file under the workspace is closed before it (records disposed, watches stopped, `workspace.db` and the stores in the machine folder, which does not move), and the old window's Chromium profile is in the machine folder too, so no handle should stand in the rename's way; not checked on a Windows host.
 
 ## What it changes in setup
 

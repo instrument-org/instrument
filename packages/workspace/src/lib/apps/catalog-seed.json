@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-10-22T13:27:29.348Z",
-  "entriesHash": "37f2f8ae843c548b",
+  "revision": "2026-10-22T13:48:34.455Z",
+  "entriesHash": "a154d07757cc7b01",
   "entries": [
     {
       "slug": "ahrefs",
@@ -385,13 +385,13 @@
         "What’s assigned to me that’s overdue?",
         "How are my projects going?"
       ],
-      "description": "Coordinate work across teams while connecting AI insights to real deliverables.",
+      "description": "Coordinate work across teams while connecting AI insights to real deliverables. Reached through Asana's MCP server once Instrument's Asana client is open to everyone; until then through the REST API with a personal access token, or the web app.",
       "domain": "asana.com",
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Asana sign-in",
+          "note": "Needs Instrument's own sign-in client, which isn't open to everyone yet; until then a personal access token, or the user signs in on the web."
         },
         {
           "type": "pat",
@@ -404,7 +404,8 @@
           "format": "mcp",
           "name": "Asana MCP server",
           "endpoint": "https://mcp.asana.com/v2/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "tokenExchange": "api"
         },
         {
           "format": "openapi",
@@ -2169,9 +2170,14 @@
         "What contacts were added this week?",
         "Which deals have gone quiet?"
       ],
-      "description": "Query key CRM objects like contacts, deals, companies, and tickets based on your permissions, all without switching contexts.",
+      "description": "Query key CRM objects like contacts, deals, companies, and tickets based on your permissions, all without switching contexts. Reached through HubSpot's MCP server once Instrument's HubSpot client is open to everyone; until then the web app, or the REST API with a private app token.",
       "domain": "hubspot.com",
       "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "HubSpot sign-in",
+          "note": "Needs Instrument's own sign-in client, which isn't open to everyone yet; until then the user signs in on the web, or makes a private app token."
+        },
         {
           "type": "token",
           "label": "Private app token",
@@ -2183,7 +2189,8 @@
           "format": "mcp",
           "name": "HubSpot MCP server",
           "endpoint": "https://mcp.hubspot.com",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "tokenExchange": "api"
         },
         {
           "format": "openapi",

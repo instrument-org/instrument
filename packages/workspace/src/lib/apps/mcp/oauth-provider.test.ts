@@ -495,3 +495,148 @@ describe("a registered client whose secret our API holds", () => {
     `);
   });
 });
+
+describe("HubSpot's and Asana's registered clients", () => {
+  const loopbackRedirectUrl = "http://127.0.0.1:49200/auth/callback/app";
+
+  /** Each server's discovery as it answers, and our API's token route. */
+  const vendors = {
+    asana: {
+      authorizationServer: {
+        authorization_endpoint: "https://app.asana.com/-/oauth_authorize",
+        code_challenge_methods_supported: ["S256"],
+        issuer: "https://app.asana.com",
+        response_types_supported: ["code"],
+        token_endpoint: "https://app.asana.com/-/oauth_token",
+        token_endpoint_auth_methods_supported: [
+          "client_secret_post",
+          "client_secret_basic",
+        ],
+      },
+      authorizationServerUrl:
+        "https://app.asana.com/.well-known/oauth-authorization-server",
+      resource: {
+        authorization_servers: ["https://app.asana.com"],
+        resource: "https://mcp.asana.com/v2/mcp",
+        scopes_supported: ["default"],
+      },
+      resourceUrl:
+        "https://mcp.asana.com/.well-known/oauth-protected-resource/v2/mcp",
+      // Asana lists one scope, so the SDK asks for it.
+      opens: {
+        page: "https://app.asana.com/-/oauth_authorize",
+        params: {
+          client_id: "asana-client",
+          code_challenge_method: "S256",
+          redirect_uri: "https://api.example/oauth/asana/callback",
+          resource: "https://mcp.asana.com/v2/mcp",
+          response_type: "code",
+          scope: "default",
+        },
+      },
+      serverUrl: "https://mcp.asana.com/v2/mcp",
+    },
+    hubspot: {
+      authorizationServer: {
+        authorization_endpoint: "https://mcp.hubspot.com/oauth/authorize/user",
+        code_challenge_methods_supported: ["S256"],
+        issuer: "https://mcp.hubspot.com",
+        response_types_supported: ["code"],
+        scopes_supported: [],
+        token_endpoint: "https://mcp.hubspot.com/oauth/v3/token",
+        token_endpoint_auth_methods_supported: ["client_secret_post"],
+      },
+      authorizationServerUrl:
+        "https://mcp.hubspot.com/.well-known/oauth-authorization-server",
+      resource: {
+        authorization_servers: ["https://mcp.hubspot.com"],
+        resource: "https://mcp.hubspot.com",
+        scopes_supported: [],
+      },
+      resourceUrl:
+        "https://mcp.hubspot.com/.well-known/oauth-protected-resource",
+      // HubSpot assigns the scopes at install and lists none, so none is sent.
+      opens: {
+        page: "https://mcp.hubspot.com/oauth/authorize/user",
+        params: {
+          client_id: "hubspot-client",
+          code_challenge_method: "S256",
+          redirect_uri: "https://api.example/oauth/hubspot/callback",
+          resource: "https://mcp.hubspot.com",
+          response_type: "code",
+        },
+      },
+      serverUrl: "https://mcp.hubspot.com",
+    },
+  } as const;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetServedAppCatalog();
+  });
+
+  it.each(["hubspot", "asana"] as const)(
+    "opens %s's own authorization page and redeems at our API",
+    async (slug) => {
+      const vendor = vendors[slug];
+      serveRegisteredClient(slug, `${slug}-client`);
+      const tokenUrls: string[] = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const url = input instanceof Request ? input.url : input.toString();
+        if (url === vendor.resourceUrl) {
+          return Response.json(vendor.resource);
+        }
+        if (url === vendor.authorizationServerUrl) {
+          return Response.json(vendor.authorizationServer);
+        }
+        if (url.endsWith("/token")) {
+          tokenUrls.push(url);
+          return Response.json({
+            access_token: "at",
+            refresh_token: "rt",
+            token_type: "Bearer",
+          });
+        }
+        return new Response(null, { status: 404 });
+      });
+      const { serverUrl } = vendor;
+      const openAuthorization = vi.fn<(url: URL) => void>();
+      const provider = createMcpOAuthProvider({
+        ...mcpSignInClient({
+          loopbackRedirectUrl,
+          relayRedirectUrl: (service) =>
+            `https://api.example/oauth/${service}/callback`,
+          relayTokenUrl: (service) =>
+            `https://api.example/oauth/${service}/token`,
+          serverUrl,
+        }),
+        openAuthorization,
+        origin: new URL(serverUrl).origin,
+        slug,
+        store: inMemoryStore(),
+      });
+
+      expect(await auth(provider, { fetchFn: fetchForMcp, serverUrl })).toBe(
+        "REDIRECT",
+      );
+      const page = openAuthorization.mock.calls[0]?.[0];
+      expect({
+        page: `${page?.origin ?? ""}${page?.pathname ?? ""}`,
+        params: Object.fromEntries(
+          [...(page?.searchParams ?? [])].filter(
+            ([name]) => !["code_challenge", "state"].includes(name),
+          ),
+        ),
+      }).toEqual(vendor.opens);
+
+      expect(
+        await auth(provider, {
+          authorizationCode: "the-code",
+          fetchFn: fetchForMcp,
+          serverUrl,
+        }),
+      ).toBe("AUTHORIZED");
+      expect(tokenUrls).toEqual([`https://api.example/oauth/${slug}/token`]);
+    },
+  );
+});

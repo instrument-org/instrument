@@ -64,6 +64,52 @@ describe("a Google product the directory gives no client", () => {
   });
 });
 
+describe("HubSpot's and Asana's MCP sign-in", () => {
+  const servers = [
+    ["hubspot", "https://mcp.hubspot.com", "web"],
+    ["asana", "https://mcp.asana.com/v2/mcp", "api"],
+  ] as const;
+  const entry = (slug: string) => {
+    const found = getAppCatalog().find((candidate) => candidate.slug === slug);
+    if (!found) {
+      throw new Error(`No ${slug} in the directory`);
+    }
+    return found;
+  };
+
+  afterEach(() => {
+    resetServedAppCatalog();
+  });
+
+  // The client is served only to admins; everyone else keeps a token or the web.
+  it.each(servers)(
+    "leaves %s off its MCP server without the client",
+    (slug, endpoint, fallback) => {
+      expect(catalogEndpointNeedsClient(endpoint)).toBe(true);
+      expect(catalogRegisteredClient(endpoint)).toBeUndefined();
+      expect(catalogWayIn(entry(slug)).kind).toBe(fallback);
+    },
+  );
+
+  it.each(servers)(
+    "signs %s in to its MCP server with the client and the API token route",
+    (slug, endpoint) => {
+      serveRegisteredClient(slug, `${slug}-client`);
+      expect(catalogWayIn(entry(slug))).toMatchObject({
+        endpoint,
+        kind: "mcp",
+      });
+      expect(catalogRegisteredClient(endpoint)).toEqual({
+        authorizationParams: undefined,
+        clientId: `${slug}-client`,
+        scope: undefined,
+        service: slug,
+        tokenExchange: "api",
+      });
+    },
+  );
+});
+
 describe("Microsoft Graph's sign-in", () => {
   const graph = "https://graph.microsoft.com/v1.0";
   const entry = (slug: string) => {
@@ -84,7 +130,11 @@ describe("Microsoft Graph's sign-in", () => {
     (slug) => {
       expect(catalogWayIn(entry(slug)).kind).toBe("web");
       expect(
-        catalogApiSignInClient(slug, { service: slug, type: "api", url: graph }),
+        catalogApiSignInClient(slug, {
+          service: slug,
+          type: "api",
+          url: graph,
+        }),
       ).toBeUndefined();
     },
   );

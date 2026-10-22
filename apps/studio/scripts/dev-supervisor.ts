@@ -76,6 +76,13 @@ let stopping = false;
  * every clone on com.github.Electron it could open another checkout's copy
  * instead. So each one has its own notification answer and Settings row, and
  * its own privacy grants under `--own-privacy`.
+ *
+ * macOS also opens a clone on its own, with no arguments: a click on its Dock
+ * tile once the run is gone (the Dock can keep a dead run's tile), on one of
+ * its notifications, or on a link in its URL scheme. Electron with no app to
+ * load shows its stock welcome window, so the clone's `LSEnvironment`, which
+ * only such an open applies, makes that launch plain Node, which exits at
+ * once. electron-vite starts the executable directly and never sees it.
  */
 function namedElectron(name: string) {
   if (process.platform !== "darwin") {
@@ -100,6 +107,12 @@ function namedElectron(name: string) {
     );
     const executable = path.join(bundle, "Contents/MacOS/Electron");
     if (existsSync(executable)) {
+      // A clone made before it quit when opened bare.
+      if (quitWhenOpenedBare(path.join(bundle, "Contents/Info.plist"))) {
+        execFileSync("codesign", ["--force", "--sign", "-", bundle], {
+          stdio: "ignore",
+        });
+      }
       return executable;
     }
     // The clone an earlier layout kept straight under the version, on
@@ -128,6 +141,7 @@ function namedElectron(name: string) {
       bundleId,
       plist,
     ]);
+    quitWhenOpenedBare(plist);
     execFileSync("codesign", ["--force", "--sign", "-", building], {
       stdio: "ignore",
     });
@@ -143,6 +157,24 @@ function namedElectron(name: string) {
       `[dev-supervisor] running as Electron, since a bundle named ${JSON.stringify(name)} could not be made: ${String(error)}\n`,
     );
     return;
+  }
+}
+
+/**
+ * Sets `ELECTRON_RUN_AS_NODE` in the bundle's `LSEnvironment`, beside the
+ * `MallocNanoZone` Electron ships there. Answers whether it had to, which
+ * leaves the bundle needing a new signature.
+ */
+function quitWhenOpenedBare(plist: string) {
+  const keyPath = "LSEnvironment.ELECTRON_RUN_AS_NODE";
+  try {
+    execFileSync("plutil", ["-extract", keyPath, "raw", plist], {
+      stdio: "ignore",
+    });
+    return false;
+  } catch {
+    execFileSync("plutil", ["-replace", keyPath, "-string", "1", plist]);
+    return true;
   }
 }
 

@@ -77,7 +77,7 @@ export function AccountInfo() {
                   type={OUR_MODELS.providerType}
                 />
                 <p className="text-base font-medium">Log in to {APP_NAME}</p>
-                <p className="max-w-96 text-sm text-muted-foreground">
+                <p className="max-w-96 text-sm text-pretty text-muted-foreground">
                   Your plan, usage and billing show up here once you log in.
                 </p>
                 <Button

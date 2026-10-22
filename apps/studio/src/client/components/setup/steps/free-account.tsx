@@ -97,14 +97,18 @@ export function FreeAccountPage({
       <div className="mt-7 flex max-w-full flex-wrap justify-center gap-1">
         {PERKS.map((perk) => (
           <div
-            className="relative flex h-35 w-58 flex-col gap-3 rounded-[20px] border bg-setup-tile p-4 dark:border-white/8"
+            className={cn(
+              "relative flex min-h-35 flex-col gap-3 rounded-[20px] border bg-setup-tile p-4 dark:border-white/8",
+              // Narrower in a dialog, so the three still share a row.
+              fit === "dialog" ? "w-52" : "w-58",
+            )}
             data-called-out={perk.title === calledOut || undefined}
             key={perk.title}
           >
             {perk.title === calledOut && (
               <span
                 aria-hidden
-                className="pointer-events-none absolute -inset-px animate-[pulse_1.4s_ease-in-out_3] rounded-[20px] ring-2 ring-brand-500/60 motion-reduce:animate-none"
+                className="pointer-events-none absolute -inset-px animate-[pulse_1.4s_ease-in-out_3] rounded-[20px] ring-2 ring-brand-500 motion-reduce:animate-none dark:ring-brand-400"
               />
             )}
             <span

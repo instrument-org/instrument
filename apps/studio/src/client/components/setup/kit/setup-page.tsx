@@ -77,7 +77,7 @@ export function SetupPage({
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-3 max-w-150 text-center text-base text-muted-foreground">
+            <p className="mt-3 max-w-150 text-center text-base text-pretty text-muted-foreground">
               {subtitle}
             </p>
           )}

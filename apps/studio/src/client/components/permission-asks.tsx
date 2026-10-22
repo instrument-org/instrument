@@ -314,7 +314,7 @@ function MacFixes({
   const choose = async () => {
     const picked = await rpcClient.utils.showFolderPicker.call({
       buttonLabel: "Allow",
-      message: `Choose ${name} to let Instrument in.`,
+      message: `Choose ${name} to allow Instrument to access this folder.`,
       startingAt: ask.target,
     });
     if (picked) {

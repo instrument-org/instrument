@@ -31,8 +31,6 @@ Grouped by area; status is the short form of each file's own line.
 
 | Finding | Status |
 | --- | --- |
-| [Code review 2026-07 to 08](code-review-2026-07-to-08.md) — guards over real binaries and mounts that do not hold | one finding + three nits open |
-| [Code review 2026-08-29](code-review-2026-08-29.md): the month's new machinery, audited with usage evidence | open items; one moot |
 | [Private-dir masking is not a boundary](private-dir-masking-is-not-a-boundary.md) — the mask stops the shell, not native interpreters | open, known gap |
 | [The WASM Python aborts at exit on some install paths](the-wasm-python-aborts-at-exit-on-some-install-paths.md) — the worker's own path length decides whether finalization survives; pinned, offered upstream as #423 to #425 | contained; pin merged upstream |
 | [The loopback block is curl-only](loopback-block-is-curl-only.md) — same shape, different command | open, working as designed |

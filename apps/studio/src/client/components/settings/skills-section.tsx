@@ -38,8 +38,9 @@ const SKILL_CREATOR = skillMentionToken("skill-creator");
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 
 /**
- * The skills a task can load. A skill is a folder, so a row opens that
- * folder in Files, where it can be read, changed, or handed to a chat.
+ * The skills a task can load. A skill is a folder, so a row of one the app
+ * doesn't ship opens that folder in Files, where it can be read, changed, or
+ * handed to a chat.
  * Making a skill is an ask like any other: it opens a draft with the start
  * of the sentence in it and closes Settings, since the draft is written on
  * the window under it.

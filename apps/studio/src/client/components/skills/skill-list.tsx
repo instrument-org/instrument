@@ -38,8 +38,8 @@ const SOURCE_RANK: Record<Skill["source"], number> = {
 
 /**
  * Every skill a task can load, searchable and grouped by where it comes
- * from, each a row that `onOpen` takes to the skill's folder, with `menu`
- * drawn at its end.
+ * from, each a row that `onOpen` takes to the skill's folder (except the ones
+ * the app ships), with `menu` drawn at its end.
  */
 export function SkillList({
   menu,
@@ -211,8 +211,8 @@ function showsSourcePaths(source: Skill["source"]) {
 
 /**
  * One skill: its name the way it is invoked, what it is, and how much it
- * brings with it. The row opens the skill's folder, and `menu` sits at its
- * end.
+ * brings with it. The row opens the skill's folder unless the app ships the
+ * skill, and `menu` sits at its end.
  *
  * Two lines rather than columns, because the pane this stands in is narrow:
  * a name column wide enough for the longest name left the description no
@@ -229,47 +229,60 @@ function SkillRow({
   ranges: SkillMatch<Skill> | undefined;
   skill: Skill;
 }) {
-  return (
-    <div className="flex items-center hover:bg-accent/40">
-      <button
-        className={cn(
-          "flex min-w-0 flex-1 items-start gap-3 py-2.5 pl-4 text-left",
-          menu ? "pr-2" : "pr-4",
-        )}
-        onClick={() => {
-          onOpen(skill);
-        }}
-        type="button"
-      >
-        <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="truncate font-mono text-sm font-medium">
-              {skill.userInvocable ? "/" : null}
-              <FuzzyHighlight
-                matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
-                ranges={ranges?.nameRanges ?? null}
-                text={skill.name}
-              />
-            </span>
-            <SkillBadges
-              className="flex shrink-0 flex-wrap gap-1"
-              skill={skill}
-            />
-          </span>
-          <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+  const rowClassName = cn(
+    "flex min-w-0 flex-1 items-start gap-3 py-2.5 pl-4 text-left",
+    menu ? "pr-2" : "pr-4",
+  );
+  const content = (
+    <>
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="truncate font-mono text-sm font-medium">
+            {skill.userInvocable ? "/" : null}
             <FuzzyHighlight
-              ranges={ranges?.descriptionRanges ?? null}
-              text={skill.description}
+              matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
+              ranges={ranges?.nameRanges ?? null}
+              text={skill.name}
             />
           </span>
+          <SkillBadges
+            className="flex shrink-0 flex-wrap gap-1"
+            skill={skill}
+          />
         </span>
-        {skill.fileCount > 1 ? (
-          <span className="flex shrink-0 items-center gap-1 pt-1 text-xs text-muted-foreground">
-            <FilesIcon className="size-3.5" />
-            {fileCountLabel(skill)}
-          </span>
-        ) : null}
-      </button>
+        <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+          <FuzzyHighlight
+            ranges={ranges?.descriptionRanges ?? null}
+            text={skill.description}
+          />
+        </span>
+      </span>
+      {skill.fileCount > 1 ? (
+        <span className="flex shrink-0 items-center gap-1 pt-1 text-xs text-muted-foreground">
+          <FilesIcon className="size-3.5" />
+          {fileCountLabel(skill)}
+        </span>
+      ) : null}
+    </>
+  );
+  // A skill the app ships lives deep in its own files, where there is
+  // nothing for a person to read or change, so its row opens nothing.
+  const opens = !isProvidedSource(skill.source);
+  return (
+    <div className={cn("flex items-center", opens && "hover:bg-accent/40")}>
+      {opens ? (
+        <button
+          className={rowClassName}
+          onClick={() => {
+            onOpen(skill);
+          }}
+          type="button"
+        >
+          {content}
+        </button>
+      ) : (
+        <div className={rowClassName}>{content}</div>
+      )}
       {menu ? <span className="shrink-0 pr-2">{menu}</span> : null}
     </div>
   );

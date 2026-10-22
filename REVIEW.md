@@ -21,6 +21,7 @@ Naming, structure, refactors, prose, and test layout are Nits at most.
 - What `pnpm check-and-test` already enforces: formatting, lint, types, spelling, unused code, the lockfile, and its other checks.
 - Anything in `registry/`, generated files, and version bumps in release commits.
 - A tradeoff a record in `docs/decisions/` already accepts.
+- A what-if outside the threat model, such as the agent writing a file (or planting a link) that a later agent or the app then reads, and speculative performance worries with no measured cost. Report what breaks on given inputs, or a design flaw that will cost a migration later.
 - Documentation style or completeness. A doc claim the code contradicts is worth reporting.
 - General requests for more tests. Name a missing test only when the behavior matters and an existing test project could observe it.
 

@@ -40,6 +40,7 @@ declare namespace NodeJS {
       ELECTRON_ENABLE_CONSOLE_LOGGING: string | undefined;
       ELECTRON_RENDERER_URL: string | undefined;
       ELECTRON_USER_DATA_DIR: string | undefined;
+      FAKE_MICROPHONE: string | undefined;
       FORCE_DEV_AUTO_UPDATE: string | undefined;
       GDK_BACKEND: string | undefined;
       HOME: string | undefined; // Only used in workspace

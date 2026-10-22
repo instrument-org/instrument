@@ -64,6 +64,30 @@ export const SETTINGS_INDEX = [
     title: "Notify when tasks finish",
   },
   {
+    detail: "Pick the microphone you dictate into.",
+    id: "dictation-microphone",
+    tab: "General",
+    title: "Dictation microphone",
+  },
+  {
+    detail: "Pick the language you speak, or let dictation detect it.",
+    id: "dictation-language",
+    tab: "General",
+    title: "Dictation language",
+  },
+  {
+    detail: "A sound when dictation starts and stops.",
+    id: "dictation-sounds",
+    tab: "General",
+    title: "Dictation sounds",
+  },
+  {
+    detail: `Whether macOS lets ${APP_NAME} use the microphone.`,
+    id: "microphone-access",
+    tab: "General",
+    title: "Microphone access",
+  },
+  {
     detail: `Which version of ${APP_NAME} you have, and updates`,
     id: "version",
     tab: "General",
@@ -284,7 +308,7 @@ export const SETTINGS_PAGES: Record<
   { detail: string; developerOnly?: true; shownWhen?: string }
 > = {
   General: {
-    detail: `How ${APP_NAME} looks, notifications, updates, and the diagnostic log.`,
+    detail: `How ${APP_NAME} looks, notifications, dictation, updates, and the diagnostic log.`,
   },
   Account: {
     detail: `Who you're logged in to ${APP_NAME} as, your plan and its usage limits, and billing.`,

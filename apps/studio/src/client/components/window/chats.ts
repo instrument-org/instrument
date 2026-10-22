@@ -1,3 +1,4 @@
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import { type RPCOutput } from "@/client/rpc/client";
 import { placeholderTitle } from "@instrument-org/shared";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
@@ -309,7 +310,7 @@ export function byActivity<T extends { updatedAt: number }>(chats: T[]): T[] {
  */
 export function draftTitle(words: string): string {
   return placeholderTitle(
-    stripMarkdown(renderSkillMentionsAsText(words))
+    stripMarkdown(stripDictatedMarks(renderSkillMentionsAsText(words)))
       .split("\n")
       .map((line) => line.trim())
       .find(Boolean) ?? "New chat",

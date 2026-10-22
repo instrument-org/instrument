@@ -7,6 +7,8 @@ export interface LoginModalProps {
   // Otherwise the Add a provider sheet opens, with Instrument's free trial
   // in it while signed out.
   instrumentOnly?: boolean;
+  // Why it opened: `dictation` says that signing in is what dictation needs.
+  reason?: "dictation";
 }
 
 interface LoginModalState {

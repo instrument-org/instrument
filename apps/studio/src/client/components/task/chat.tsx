@@ -150,6 +150,7 @@ export function ChatConversation({
   const id = chatInfo.id;
 
   const promptInputRef = useRef<PromptInputRef>(null);
+  const [composerDictating, setComposerDictating] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const [scrollToEndSignal, setScrollToEndSignal] = useState(0);
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
@@ -365,9 +366,10 @@ export function ChatConversation({
   /**
    * Puts one of the chat's other waiting replies in the box: the box writes
    * into it from here, and is given its words and what was attached to it.
+   * Not while the box is dictating, whose words belong to the reply in it.
    */
   const swapInReply = (draftId: string) => {
-    if (draftKey.scope !== "chat") {
+    if (draftKey.scope !== "chat" || composerDictating) {
       return;
     }
     const picked = swapInReplyDraft({
@@ -450,6 +452,7 @@ export function ChatConversation({
       lead={composerLead}
       modelURI={selectedModelURI}
       note={note}
+      onDictatingChange={setComposerDictating}
       onItemsChange={draftKey.scope === "chat" ? staging.keepItems : undefined}
       onModelChange={setSelectedModelURI}
       onSubmit={(sending) => {
@@ -664,6 +667,7 @@ export function ChatConversation({
               {draftKey.scope === "chat" && (
                 <RepliesWaiting
                   chatId={draftKey.chatId}
+                  disabled={composerDictating}
                   onSwapIn={swapInReply}
                 />
               )}

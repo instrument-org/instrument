@@ -7,6 +7,7 @@ import {
   wrapLinesClassName,
 } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
+import { DictationSettings } from "@/client/components/settings/dictation-settings";
 import { ExternalLink } from "@/client/components/external-link";
 import { ThemeToggle } from "@/client/components/theme-toggle";
 import { Button } from "@/client/components/ui/button";
@@ -96,6 +97,9 @@ export function GeneralSection() {
     <div className="space-y-4">
       <InterfaceAndTheme />
       <Notifications />
+      <SettingsSection title="Dictation">
+        <DictationSettings />
+      </SettingsSection>
       <About />
       <PlatformApiServerSetting />
       <ReleaseChannel />

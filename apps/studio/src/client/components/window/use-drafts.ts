@@ -251,10 +251,11 @@ export function useDrafts({
    * keeps a draft, with a toast offering to go to Drafts or to discard it,
    * and one with nothing written is thrown away, whatever it gathered, so
    * a draft opened and closed again leaves nothing behind. The words come
-   * from the window, since the record follows the box a beat behind.
+   * from the window, since the record follows the box a beat behind. One
+   * still dictating is kept, since the words on their way land in it.
    */
-  const closeDraft = (id: string, words: string) => {
-    if (words.trim() === "") {
+  const closeDraft = (id: string, words: string, dictating = false) => {
+    if (words.trim() === "" && !dictating) {
       deleteDraft(id);
       return;
     }

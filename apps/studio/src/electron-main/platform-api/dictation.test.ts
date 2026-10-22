@@ -1,0 +1,225 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { transcribeDictation } from "./dictation";
+import { getToken } from "./utils";
+
+vi.mock(import("./headers"), () => ({
+  getPlatformApiHeaders: () => ({
+    authorization: "Bearer test-token",
+    "user-agent": "Instrument/1.4.2",
+    "x-client-arch": "arm64",
+    "x-client-name": "studio",
+    "x-client-os-version": "15.6",
+    "x-client-platform": "darwin",
+    "x-client-version": "1.4.2",
+  }),
+}));
+vi.mock(import("./utils"), () => ({
+  getToken: vi.fn(),
+}));
+vi.mock(import("./base-url"), () => ({
+  platformApiBaseUrl: () => "https://api.example.test",
+}));
+
+const mockGetToken = vi.mocked(getToken);
+
+const audio = new Blob([new Uint8Array([1, 2, 3])], {
+  type: "audio/webm;codecs=opus",
+});
+
+describe("transcribeDictation", () => {
+  beforeEach(() => {
+    mockGetToken.mockReturnValue("test-token");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("asks for a sign-in without making a request when signed out", async () => {
+    mockGetToken.mockReturnValue(undefined);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const result = await transcribeDictation({ audio, surface: "composer" });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "failure": {
+          "kind": "signed-out",
+        },
+        "ok": false,
+      }
+    `);
+  });
+
+  it("posts the raw recording with its type, surface, and language", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        Response.json({ durationSeconds: 4.2, text: "Hello there." }),
+      );
+
+    const result = await transcribeDictation({
+      audio,
+      language: "fr",
+      surface: "report",
+    });
+
+    const [url, init] = fetchSpy.mock.calls[0] ?? [];
+    expect(url).toBe("https://api.example.test/dictation?language=fr");
+    expect(init?.body).toBe(audio);
+    expect(init?.method).toBe("POST");
+    expect(init?.headers).toMatchInlineSnapshot(`
+      {
+        "authorization": "Bearer test-token",
+        "content-type": "audio/webm;codecs=opus",
+        "user-agent": "Instrument/1.4.2",
+        "x-client-arch": "arm64",
+        "x-client-name": "studio",
+        "x-client-os-version": "15.6",
+        "x-client-platform": "darwin",
+        "x-client-version": "1.4.2",
+        "x-instrument-dictation-surface": "report",
+      }
+    `);
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "ok": true,
+        "text": "Hello there.",
+      }
+    `);
+  });
+
+  it("leaves the language out when none was picked", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ durationSeconds: 1, text: "Hi" }));
+
+    await transcribeDictation({ audio, surface: "composer" });
+
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      "https://api.example.test/dictation",
+    );
+  });
+
+  it.each([
+    [401, { error: "Unauthorized" }, { kind: "signed-out" }],
+    [
+      429,
+      {
+        error: {
+          code: "rate-limit-exceeded",
+          message: "Slow down",
+          retryable: true,
+        },
+      },
+      { kind: "rate-limited" },
+    ],
+    [
+      429,
+      {
+        error: {
+          code: "usage-limit-exceeded",
+          message: "You've reached your limit",
+          resetsAt: "2026-10-14T00:00:00.000Z",
+          retryable: false,
+          window: "5h",
+          windows: [],
+        },
+      },
+      {
+        kind: "billing-refused",
+        refusal: {
+          code: "usage-limit-exceeded",
+          resetsAt: "2026-10-14T00:00:00.000Z",
+        },
+      },
+    ],
+    [
+      402,
+      {
+        error: {
+          code: "subscription-required",
+          message: "Choose a plan",
+          reason: "trial-ended",
+        },
+      },
+      {
+        kind: "billing-refused",
+        refusal: { code: "subscription-required", reason: "trial-ended" },
+      },
+    ],
+    [
+      429,
+      { error: { code: "concurrency-limit", retryable: true } },
+      { kind: "rate-limited" },
+    ],
+    [
+      503,
+      { error: { code: "meter-unavailable", retryable: true } },
+      { kind: "server" },
+    ],
+    [
+      413,
+      { error: { code: "too-large", message: "Too big", retryable: false } },
+      { kind: "too-large" },
+    ],
+    [
+      502,
+      { error: { code: "upstream-failed", message: "Nope", retryable: true } },
+      { kind: "server" },
+    ],
+    [502, { error: "Transcription failed" }, { kind: "server" }],
+    [413, { error: "Recording too large" }, { kind: "too-large" }],
+    [400, { error: "No audio" }, { kind: "no-audio" }],
+    [400, { error: "Unsupported language" }, { kind: "rejected" }],
+    [415, { error: "Unsupported audio type" }, { kind: "unsupported-audio" }],
+    [500, "not json", { kind: "server" }],
+  ])("maps a %i response to a failure", async (status, body, failure) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      typeof body === "string"
+        ? new Response(body, { status })
+        : Response.json(body, { status }),
+    );
+
+    const result = await transcribeDictation({ audio, surface: "composer" });
+
+    expect(result).toEqual({ failure, ok: false });
+  });
+
+  it("reports a request that never got an answer as a lost connection", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      new TypeError("fetch failed"),
+    );
+
+    const result = await transcribeDictation({ audio, surface: "composer" });
+
+    expect(result).toEqual({ failure: { kind: "connection" }, ok: false });
+  });
+
+  it("reports a request the renderer abandoned as canceled", async () => {
+    const controller = new AbortController();
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+      controller.abort();
+      return Promise.reject(new DOMException("aborted", "AbortError"));
+    });
+
+    const result = await transcribeDictation({
+      audio,
+      signal: controller.signal,
+      surface: "composer",
+    });
+
+    expect(result).toEqual({ failure: { kind: "canceled" }, ok: false });
+  });
+
+  it("treats a success it can't read as a server failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ words: "Hello" }),
+    );
+
+    const result = await transcribeDictation({ audio, surface: "composer" });
+
+    expect(result).toEqual({ failure: { kind: "server" }, ok: false });
+  });
+});

@@ -19,11 +19,11 @@ function reply(id: string, daysAgo: number, words: string): Draft {
   return { chatId: CHAT, createdAt: updatedAt, id, updatedAt, words };
 }
 
-function show(drafts: Draft[], boxes: ChatBoxes = {}) {
+function show(drafts: Draft[], boxes: ChatBoxes = {}, disabled = false) {
   const onSwapIn = vi.fn();
   resetDrafts(drafts);
   const { store } = renderWithProviders(
-    <RepliesWaiting chatId={CHAT} onSwapIn={onSwapIn} />,
+    <RepliesWaiting chatId={CHAT} disabled={disabled} onSwapIn={onSwapIn} />,
   );
   act(() => {
     store.set(chatBoxesAtom, boxes);
@@ -83,6 +83,30 @@ describe("a chat's other replies waiting", () => {
     fireEvent.click(screen.getByText("Thanks, that worked"));
 
     expect(onSwapIn).toHaveBeenCalledWith("only");
+  });
+
+  it("opens no menu while the box is dictating", () => {
+    const { onSwapIn } = show(
+      [reply("first", 2, "one"), reply("second", 1, "two")],
+      {},
+      true,
+    );
+
+    expect(openMenu()).toHaveProperty("disabled", true);
+    expect(screen.queryByRole("menuitem")).toBeNull();
+    expect(onSwapIn).not.toHaveBeenCalled();
+  });
+
+  it("offers dictated words as the plain words said", () => {
+    show([
+      reply("first", 2, "[Ask about the](dictated:) warranty"),
+      reply("second", 1, "two"),
+    ]);
+    openMenu();
+
+    expect(screen.getByRole("menuitem").textContent).toBe(
+      "Ask about the warranty2 days ago",
+    );
   });
 
   it("counts no reply of another chat's", () => {

@@ -4,6 +4,7 @@ import {
   replyInBox,
 } from "@/client/drafts/chat-box";
 import { draftsAtom } from "@/client/drafts/store";
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { useAtomValue } from "jotai";
@@ -33,9 +34,12 @@ const WORDS_SHOWN = 120;
  */
 export function RepliesWaiting({
   chatId,
+  disabled = false,
   onSwapIn,
 }: {
   chatId: ChatId;
+  /** Shown but not opened: while the box is dictating into the reply in it. */
+  disabled?: boolean;
   /** Puts that reply in the box, words and attachments both. */
   onSwapIn: (draftId: string) => void;
 }) {
@@ -50,7 +54,7 @@ export function RepliesWaiting({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger asChild disabled={disabled}>
         <Button
           className="mb-1.5 text-muted-foreground"
           size="xs"
@@ -93,7 +97,7 @@ function countOf(waiting: number, inTheBox: boolean): string {
 }
 
 function firstWords(words: string) {
-  const text = words.trim();
+  const text = stripDictatedMarks(words).trim();
   return text.length > WORDS_SHOWN
     ? `${text.slice(0, WORDS_SHOWN).trimEnd()}…`
     : text;

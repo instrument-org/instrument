@@ -90,7 +90,7 @@ export interface DraftSend {
 const BAR_MARKS = 4;
 
 /** The most the words take before they scroll, whatever the window could give them. */
-const WORDS_MAX_HEIGHT = 400;
+const WORDS_MAX_HEIGHT = 192;
 
 /** A docked window's height, in layout px, however long the words run: they scroll inside it, and Expand is there for more room. */
 const COMPOSE_HEIGHT = 640;
@@ -229,8 +229,8 @@ export function ComposeWindow({
   draft: Draft;
   modelURI: AIGatewayModelURI.Type | undefined;
   onChange: (update: (draft: Draft) => Draft) => void;
-  /** The window's close, with the words as the box has them that moment: the caller keeps or throws the draft away by them. */
-  onClose: (words: string) => void;
+  /** The window's close, with the words as the box has them that moment and whether it is dictating more: the caller keeps or throws the draft away by them. */
+  onClose: (words: string, dictating: boolean) => void;
   /** Throws the draft away, from the head's trash, offered while it has words to lose. */
   onDiscard: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
@@ -276,6 +276,7 @@ export function ComposeWindow({
   const words = useAtomValue(storedWordsAtom(key));
 
   const inputRef = useRef<PromptInputRef>(null);
+  const [dictating, setDictating] = useState(false);
 
   // What the box holds besides its words, kept with the draft.
   const { asStaged, keepItems } = useDraftStaging({
@@ -571,11 +572,15 @@ export function ComposeWindow({
                   ref={setHeadSlot}
                 />
                 <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-border pl-2">
-                  {words.trim() !== "" && (
-                    <WindowButton label="Discard draft" onClick={onDiscard}>
-                      <TrashIcon className="size-4" />
-                    </WindowButton>
-                  )}
+                  {/* Always there, so words landing in the draft don't move the
+                      buttons beside it. */}
+                  <WindowButton
+                    disabled={words.trim() === ""}
+                    label="Discard draft"
+                    onClick={onDiscard}
+                  >
+                    <TrashIcon className="size-4" />
+                  </WindowButton>
                   <WindowButton
                     label="Minimize"
                     onClick={() => {
@@ -600,7 +605,7 @@ export function ComposeWindow({
                   <WindowButton
                     label="Close"
                     onClick={() => {
-                      onClose(words);
+                      onClose(words, dictating);
                     }}
                   >
                     <XIcon className="size-4" />
@@ -633,6 +638,7 @@ export function ComposeWindow({
                   className="min-h-0 flex-1"
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
+                  onDictatingChange={setDictating}
                   onItemsChange={keepItems}
                   // The window becomes the chat's at the press, so the
                   // box is never left waiting on a send.
@@ -705,11 +711,13 @@ export function ComposeWindow({
  */
 export function WindowButton({
   children,
+  disabled,
   keepsFocus = false,
   label,
   onClick,
 }: {
   children: ReactNode;
+  disabled?: boolean;
   keepsFocus?: boolean;
   label: string;
   onClick: () => void;
@@ -719,6 +727,7 @@ export function WindowButton({
       <Button
         aria-label={label}
         className="size-7 text-muted-foreground hover:text-foreground"
+        disabled={disabled}
         onClick={onClick}
         onMouseDown={
           keepsFocus

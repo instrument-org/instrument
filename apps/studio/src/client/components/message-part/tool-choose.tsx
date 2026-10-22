@@ -7,12 +7,13 @@ import {
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useEffectEvent, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
-import { Textarea } from "../ui/textarea";
+import { DictatedTextarea, useDictatedText } from "../dictation-controls";
+import { isDictating } from "@/client/hooks/use-dictation";
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
 
 /** An answer to a question: a choice, the person's own words, or a skip. */
@@ -54,6 +55,23 @@ export function QuestionCard({
 
   const isOpen = status === "open";
   const isSending = sending !== undefined;
+  const noteDictation = useDictatedText({
+    onChange: setNote,
+    surface: "question-note",
+    value: note,
+  });
+  // The note's box goes once the question stops being open, so a take still
+  // recording into it is thrown away rather than left on with no controls.
+  const cancelNoteDictation = useEffectEvent(() => {
+    noteDictation.cancel();
+  });
+  useEffect(() => {
+    if (!isOpen) {
+      cancelNoteDictation();
+    }
+  }, [isOpen]);
+  // Answering waits for dictated words, so the note goes with them.
+  const isHolding = isSending || isDictating(noteDictation.phase);
   const shown = output ?? sending;
   const selected =
     shown && "selectedChoice" in shown ? shown.selectedChoice : undefined;
@@ -66,6 +84,9 @@ export function QuestionCard({
   const answer = (
     answered: { declined: true } | { selectedChoice: string },
   ) => {
+    if (isHolding) {
+      return;
+    }
     const trimmed = note.trim();
     onAnswer(trimmed ? { ...answered, note: trimmed } : answered);
   };
@@ -99,7 +120,7 @@ export function QuestionCard({
               <button
                 aria-checked={isSelected}
                 className={className}
-                disabled={isSending}
+                disabled={isHolding}
                 key={index}
                 onClick={() => {
                   answer({ selectedChoice: choice });
@@ -160,7 +181,7 @@ export function QuestionCard({
                   "size-6 rounded-sm",
                   (isSending || !ownAnswer.trim()) && "invisible",
                 )}
-                disabled={isSending || !ownAnswer.trim()}
+                disabled={isHolding || !ownAnswer.trim()}
                 onClick={sendOwnAnswer}
                 size="icon-sm"
                 variant="brand"
@@ -178,7 +199,7 @@ export function QuestionCard({
         {isOpen ? (
           <>
             {isNoteOpen ? (
-              <Textarea
+              <DictatedTextarea
                 aria-label="Note"
                 autoFocus
                 className="mt-3 min-h-12"
@@ -186,6 +207,7 @@ export function QuestionCard({
                 onChange={(event) => {
                   setNote(event.target.value);
                 }}
+                dictation={noteDictation}
                 placeholder="A note to go with your answer"
                 value={note}
               />
@@ -210,7 +232,7 @@ export function QuestionCard({
               )}
               <Button
                 className="text-muted-foreground"
-                disabled={isSending}
+                disabled={isHolding}
                 onClick={() => {
                   answer({ declined: true });
                 }}

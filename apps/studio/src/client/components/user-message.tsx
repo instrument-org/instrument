@@ -1,3 +1,4 @@
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import { MESSAGE_FOOTER_ICON_SIZE, SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
@@ -55,7 +56,9 @@ export const UserMessage = memo(function UserMessage({
   const handleCopy = async () => {
     // Copy what is on screen. Neither form round trips back into the composer
     // as a token, so the serialized one is only noise to whoever pastes it.
-    await navigator.clipboard.writeText(renderSkillMentionsAsText(messageText));
+    await navigator.clipboard.writeText(
+      stripDictatedMarks(renderSkillMentionsAsText(messageText)),
+    );
   };
 
   useEffect(() => {

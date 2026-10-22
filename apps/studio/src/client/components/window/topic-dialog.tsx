@@ -21,7 +21,11 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
-import { Textarea } from "@/client/components/ui/textarea";
+import {
+  DictatedTextarea,
+  useDictatedText,
+} from "@/client/components/dictation-controls";
+import { isDictating } from "@/client/hooks/use-dictation";
 import {
   starterEmoji,
   TOPIC_COLORS,
@@ -434,6 +438,13 @@ function TopicForm({
   const [emoji, setEmoji] = useState(initial.emoji);
   const [color, setColor] = useState(initial.color);
   const [instructions, setInstructions] = useState(initial.instructions);
+  const instructionsDictation = useDictatedText({
+    onChange: setInstructions,
+    surface: "topic-instructions",
+    value: instructions ?? "",
+  });
+  // Saving waits for dictated words, so the instructions keep them.
+  const isHolding = isDictating(instructionsDictation.phase);
   const [folders, setFolders] = useState(initial.folders);
   const [isPicking, setPicking] = useState(false);
   // A new topic's mark follows the best fit for its name until one is chosen
@@ -454,6 +465,10 @@ function TopicForm({
       setPicking(false);
       setFollows(isNew);
       setFilingFits(false);
+    } else {
+      // The form outlives the dialog, so a take still recording into the
+      // instructions is thrown away rather than left on with no controls.
+      instructionsDictation.cancel();
     }
   }
   const fits = useTopicBackfill({ candidates, name, open });
@@ -485,6 +500,9 @@ function TopicForm({
 
   const problem = nameProblem(name, otherNames);
   const commit = () => {
+    if (isHolding) {
+      return;
+    }
     const trimmed = name.trim();
     if (!trimmed || problem) {
       return;
@@ -570,8 +588,9 @@ function TopicForm({
         >
           Instructions
         </label>
-        <Textarea
+        <DictatedTextarea
           className="max-h-64 min-h-24 text-sm"
+          dictation={instructionsDictation}
           id="topic-instructions"
           onChange={(event) => {
             setInstructions(event.target.value);
@@ -603,7 +622,7 @@ function TopicForm({
             Cancel
           </Button>
           <Button
-            disabled={!name.trim() || problem !== undefined}
+            disabled={!name.trim() || problem !== undefined || isHolding}
             onClick={commit}
           >
             {action}

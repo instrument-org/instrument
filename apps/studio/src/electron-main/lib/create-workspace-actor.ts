@@ -63,6 +63,7 @@ import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
 import { captureFor, captureServerException } from "./capture-server-exception";
+import { isDictationInProgress } from "./dictation-in-progress";
 import { logger } from "./electron-logger";
 import {
   getUserDataDir,
@@ -268,6 +269,28 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
     }
   });
 
+  // Quitting mid-dictation throws away what was said, which the person likely
+  // forgot was still recording, so it asks before anything else.
+  const confirmQuitWhileDictating = async (): Promise<boolean> => {
+    if (!isDictationInProgress()) {
+      return true;
+    }
+    const options: Electron.MessageBoxOptions = {
+      buttons: ["Cancel", "Quit"],
+      cancelId: 0,
+      defaultId: 0,
+      detail: "Your dictation will be lost.",
+      message: "Quit while dictating?",
+      noLink: true,
+      type: "warning",
+    };
+    const parentWindow = getForegroundWindow();
+    const { response } = await (parentWindow
+      ? dialog.showMessageBox(parentWindow, options)
+      : dialog.showMessageBox(options));
+    return response === 1;
+  };
+
   // Warn before stopping in-flight agents and the jobs chats left running.
   // Fails open so a count error never blocks quitting.
   const confirmQuitWithRunningWork = async (): Promise<boolean> => {
@@ -345,7 +368,9 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           if (is.dev && !isQuitGuardForcedInDev()) {
             return Promise.resolve(true);
           }
-          return confirmQuitWithRunningWork();
+          return confirmQuitWhileDictating().then(
+            (quit) => quit && confirmQuitWithRunningWork(),
+          );
         }),
         closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
         stopServices: fromPromise(async () => {

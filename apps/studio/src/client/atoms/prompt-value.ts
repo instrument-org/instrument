@@ -9,6 +9,8 @@ import {
 import { flushWords, settleWords } from "@/client/drafts/settle-words";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
 import { type ChatId } from "@instrument-org/workspace/client";
+import { appendDictatedText } from "@/client/lib/dictation-text";
+import { dictatedToken } from "@instrument-org/shared/dictated-text";
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
 import { isEqual } from "radashi";
@@ -125,6 +127,25 @@ export function promptDraftRefAtom(key: PromptDraftKey) {
   return promptDraftRefFamily(draftKeyString(key));
 }
 
+/**
+ * A composer going away lets go of its draft, unless another tab's composer
+ * for the same draft has since become the live one: that one keeps it, so
+ * words written into the draft still reach the editor the person is using.
+ */
+export const releasePromptDraftRefAtom = atom(
+  null,
+  (
+    get,
+    set,
+    { editor, keyed }: { editor: null | PromptEditorRef; keyed: string },
+  ) => {
+    const ref = promptDraftRefFamily(keyed);
+    if (get(ref) === editor) {
+      set(ref, null);
+    }
+  },
+);
+
 /** Drop a transient draft so re-opening the surface starts from its prefill. */
 export function removeTransientDraft(id: string) {
   transientDraftFamily.remove(id);
@@ -166,5 +187,32 @@ export const appendToPromptAtom = atom(
     }
     editor.focus();
     editor.insertText(text);
+  },
+);
+
+/**
+ * Dictated words for a draft: at the end, after a space on its last line,
+ * whether or not its composer is still up. A composer that
+ * went away while the words were being transcribed gets them in its stored
+ * value, which is what it is built from when it comes back.
+ */
+export const appendDictationToPromptAtom = atom(
+  null,
+  (get, set, { key, text }: { key: PromptDraftKey; text: string }) => {
+    const editor = get(promptDraftRefAtom(key));
+    if (editor) {
+      editor.appendDictation(text);
+      return;
+    }
+    // Marked as dictated, as the composer marks them, so the model still
+    // hears they were spoken once the draft comes back.
+    flushWords(draftKeyString(key));
+    set(commitWordsAtom, {
+      key,
+      words: appendDictatedText(
+        get(storedWordsAtom(key)),
+        dictatedToken(text.trim()),
+      ),
+    });
   },
 );

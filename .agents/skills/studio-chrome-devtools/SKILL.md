@@ -272,6 +272,8 @@ Both have a dev panel entry under the `dev` badge:
 
 The quit prompt is a native `showMessageBox`, outside the web contents. CDP cannot capture it.
 
+Dictation needs a microphone, and a real one raises the system's permission prompt in front of whoever is at the machine. Boot with `FAKE_MICROPHONE=true node $DRIVE boot …` and the app records Chromium's test tone instead, with access reported as granted. To dictate real words, set it to the path of a WAV file instead (`FAKE_MICROPHONE=/path/speech.wav`), which the fake device plays on a loop; `say -o speech.wav --data-format=LEI16@16000 "…"` makes one. Main reads it at launch, so it takes a fresh boot.
+
 ## Traps
 
 - `element.click()` from an evaluated script dispatches a bare `click`, so it misses a handler mounted on an ancestor (how file cards and list rows are built) and every menu, popover and select, whose Radix triggers open on `pointerdown` and carry no click handler at all. It returns normally either way, so the run carries on against an unchanged UI. Use real input.

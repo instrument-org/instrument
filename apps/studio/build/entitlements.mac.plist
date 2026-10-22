@@ -17,6 +17,11 @@
     <true/>
     <key>com.apple.security.personal-information.calendars</key>
     <true/>
+    <!-- Lets dictation record from the microphone. Under the hardened
+         runtime audio input is refused without it; with it, macOS asks the
+         user once. A hardened-runtime key, not one a profile grants. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
     <!-- Lets the app's own scripts control Mail, Notes and Messages for a
          task. Under the hardened runtime, Apple Events the app is
          responsible for are refused without asking unless this is claimed;

@@ -12,6 +12,7 @@ import { chatLocation } from "./chat-location";
 import { chatgptAccount } from "./chatgpt-account";
 import { claudeAccount } from "./claude-account";
 import { debug } from "./debug";
+import { dictation } from "./dictation";
 import { features } from "./features";
 import { files } from "./files";
 import { gateway } from "./gateway";
@@ -46,6 +47,7 @@ export const router = {
   chatgptAccount,
   claudeAccount,
   debug,
+  dictation,
   features,
   files,
   gateway,

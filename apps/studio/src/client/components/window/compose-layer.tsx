@@ -60,8 +60,8 @@ export function ComposeLayer({
   onChangeDraft: (id: string, update: (draft: Draft) => Draft) => void;
   /** A chat's small view closed: the window goes, and the chat is as it was in Chat. */
   onCloseChat: (chatId: ChatId) => void;
-  /** A window closed, with the words as its box had them: the draft is kept or thrown away by them. */
-  onCloseDraft: (id: string, words: string) => void;
+  /** A window closed, with the words as its box had them and whether it was dictating more: the draft is kept or thrown away by them. */
+  onCloseDraft: (id: string, words: string, dictating?: boolean) => void;
   /** A tab closed from a chat window's tiles: asks first while a task is working in it. */
   onCloseTab: (id: string) => void;
   /** A draft thrown away from its window's head. */
@@ -258,8 +258,8 @@ export function ComposeLayer({
               onChange={(update) => {
                 onChangeDraft(draft.id, update);
               }}
-              onClose={(words) => {
-                onCloseDraft(draft.id, words);
+              onClose={(words, dictating) => {
+                onCloseDraft(draft.id, words, dictating);
               }}
               onDiscard={() => {
                 onDiscardDraft(draft.id);

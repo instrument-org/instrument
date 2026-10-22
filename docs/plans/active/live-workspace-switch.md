@@ -113,13 +113,17 @@ The running half (`RunningWorkspace`: actor, config, device, browser view manage
 | Risk | Check |
 |---|---|
 | A holder missed: something reads the old workspace after the switch (a store, a timer, a grant) | Unit tests per holder that open a scope, use the holder, close it, and see the next use open the new folder; a real boot that switches and reads chats, providers, model and setup in the new workspace; the log scanned for writes under the old folder after the switch |
-| A subscription left running doubles a wake or a retitle | Test that `attachChats`' detach ends its loops: a `session.done` after the detach reaches no handler |
+| A subscription left running doubles a wake or a retitle, or acts on the closing workspace | The chat wiring detaches before anything is stopped, and its detach settles only once every loop has finished the event it was handling (`SubscriberLoop.ended`, tested on the app events loop) |
 | A turn's last writes lost | The switch asks first and stops tasks the way the quit does; chat records are disposed (landed and synced) before the actor stops |
 | The window's close quits the app on Windows and Linux | The window's own `closed` handler skips a window closed for a switch, and `window-all-closed` skips while a switch is under way (`isSwitchingWorkspace`), unit-tested in the switch's test |
 | A move fails part-way in process | `finishPendingMove`'s existing tests, plus one that runs it after a workspace was open and closed in the same process |
 | The Chromium session of the old workspace keeps files open (Windows) | Its folder is in the machine folder, which a move does not move; noted for Windows, not checked here |
 | A sign-in in flight lands in the next workspace | A ChatGPT or Grok sign-in is tied to the scope it started in: the scope closing cancels it, and tokens that arrive after save nothing, so it lands in neither (unit-tested for ChatGPT). The switch cancels the Instrument, OpenRouter and Claude sign-ins waiting on the browser; one of those whose token exchange is already in flight as the switch runs can still land in the next workspace. App OAuth is not covered |
-| A failure leaves the process half closed | Every failure from step 4 on restarts the app |
+| A failure leaves the process half closed | Every failure from step 4 on restarts the app, and so does closing the workspace past its deadline (its sessions' stop, the agent-browser and background-process bounds the quit uses, and slack; unit-tested) |
+| Something opens a window mid-switch (the Dock, a second launch, a file or link from outside, a notification) | `openAppWindow` does nothing while a switch holds the window; what was asked waits in the asks queue for the window the switch opens. The closing workspace's waiting asks and its notifications still showing are dropped |
+| A quit and a switch at once | A switch is turned down once a quit is under way, including one asked for while the switch's own question was open; the quit's teardown waits for a switch in progress (`workspaceSwitchSettled`), and a switch that finds a quit under way once it has closed opens nothing (unit-tested) |
+| Two switches at once | The switch is marked under way before its question, so a second is turned down (unit-tested) |
+| Listeners bound to the first workspace's stores | The theme, ad blocking's cached preference and the app catalog's refetch on a sign-in follow process-wide events and the open scope; the Claude account's reading and any read of the closed workspace's folder are forgotten, and the next workspace's is read at once; a token refresh and a download finish into the workspace they started in (the download unit-tested) |
 
 ## What the boots showed
 
@@ -133,6 +137,14 @@ Development builds on macOS, each from a fresh `studio-drive` scenario, off scre
 | An agent reply after a switch | A switch to a second workspace, then a message on Workers AI's GLM 5.3 Flash, answered |
 | A switch while a turn runs | A development build skips the running-agents question, as it does for a quit (`isQuitGuardForcedInDev`); a packaged build asks it, and a no keeps the workspace (unit-tested). The turn's record ends cleanly: its running command is written as interrupted (`INTERRUPTED_TOOL_CALL_ERROR_TEXT`, whose words say the app closed) and nothing is left in flight |
 | The fallback | With the switch made to fail after the workspace closed, the app went through its quit teardown with no workspace running, restarted (a new process), and opened the workspace the switch had recorded |
+
+A later boot, on macOS, checked the races (main process 30013 throughout):
+
+| Check | Result |
+|---|---|
+| The Dock asking for a window mid-switch | `app.emit("activate")` every 5ms from the main process's inspector across a switch: five ticks fell between the windows, none opened one, and the only window afterwards was the switch's, its RPC answered |
+| Two switches asked at once | One switched, the other answered `canceled`; the log shows one switch |
+| Theme differing between workspaces | Dark in the first, system in the second: `nativeTheme` followed each switch, and the window came up dark on the way back |
 
 On Windows, a development build of this branch on the Windows test host, with an application data folder and a home for setup's folders of its own, kept one main process through every switch, and the log showed no error and no `EBUSY` or `EPERM`:
 

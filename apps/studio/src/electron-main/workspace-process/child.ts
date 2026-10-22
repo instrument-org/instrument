@@ -28,7 +28,9 @@ process.parentPort.on("message", (event) => {
         return true;
       } catch (error) {
         // EPERM is a process that exists and is someone else's.
-        return error instanceof Error && "code" in error && error.code === "EPERM";
+        return (
+          error instanceof Error && "code" in error && error.code === "EPERM"
+        );
       }
     },
     pid: process.pid,

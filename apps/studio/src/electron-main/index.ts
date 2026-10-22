@@ -65,6 +65,7 @@ import {
   followForeground,
   startWorkspaceQuit,
 } from "./lib/create-workspace-actor";
+import { isSwitchingWorkspace } from "./lib/live-workspace-switch";
 import { startWorkspace } from "./lib/start-workspace";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
@@ -423,7 +424,8 @@ function handleDeepLink(url: string) {
 // handler has already asked about running work. On macOS the app stays in the
 // Dock with its work going, and Cmd+Q asks.
 app.on("window-all-closed", () => {
-  if (quitsWithLastWindow) {
+  // A switch of workspace closes the window and opens the next one's.
+  if (quitsWithLastWindow && !isSwitchingWorkspace()) {
     app.quit();
   }
 });

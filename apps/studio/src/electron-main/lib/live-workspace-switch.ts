@@ -27,6 +27,14 @@ const log = logger.scope("workspace-switch");
 let switching = false;
 
 /**
+ * Whether a switch is under way: its window closing is not the last
+ * window's, which outside macOS would quit the app.
+ */
+export function isSwitchingWorkspace(): boolean {
+  return switching;
+}
+
+/**
  * Whether a switch closes this workspace and opens the next in this process.
  * `INSTRUMENT_LIVE_WORKSPACE_SWITCH=0` keeps the restart, for comparing the
  * two or getting past a switch that goes wrong; `fail` makes a development

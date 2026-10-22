@@ -44,10 +44,13 @@ vi.mock("./workspaces", () => ({
   getResolvedWorkspace: () => ({ id: "default", path: "/workspace" }),
 }));
 
-import { openAppWindow } from "@/electron-main/windows/app-window";
+import {
+  closeAppWindowForSwitch,
+  openAppWindow,
+} from "@/electron-main/windows/app-window";
 
 import { openWorkspace } from "./open-workspace";
-import { switchWorkspace } from "./live-workspace-switch";
+import { isSwitchingWorkspace, switchWorkspace } from "./live-workspace-switch";
 
 beforeEach(() => {
   approval.approved = true;
@@ -71,11 +74,19 @@ describe("switchWorkspace", () => {
 
   it("records the choice and opens the next workspace's window in process", async () => {
     const choose = vi.fn();
+    // Read as the window closes, where `window-all-closed` asks it.
+    let switchingAsTheWindowCloses = false;
+    vi.mocked(closeAppWindowForSwitch).mockImplementationOnce(() => {
+      switchingAsTheWindowCloses = isSwitchingWorkspace();
+      return Promise.resolve();
+    });
 
     await expect(switchWorkspace({ choose })).resolves.toBe("switching");
     await settle();
 
     expect(choose).toHaveBeenCalledOnce();
+    expect(switchingAsTheWindowCloses).toBe(true);
+    expect(isSwitchingWorkspace()).toBe(false);
     expect(openAppWindow).toHaveBeenCalledOnce();
     expect(relaunchApp).not.toHaveBeenCalled();
   });

@@ -14,7 +14,8 @@ import { getPlatformApiHeaders } from "./headers";
 import { PATHS_TO_DEDUPE } from "./paths-to-dedupe";
 import {
   isPlatformApiUnreachable,
-  notePlatformApiOutcome,
+  notePlatformApiAnswered,
+  notePlatformApiFailed,
 } from "./reachability";
 import { forgetRefusedToken } from "./utils";
 
@@ -26,10 +27,10 @@ const RPC_LINK = new RPCLink({
     try {
       response = await fetch(request, init);
     } catch (error) {
-      notePlatformApiOutcome(error);
+      notePlatformApiFailed(error);
       throw error;
     }
-    notePlatformApiOutcome(response);
+    notePlatformApiAnswered();
     if (
       response.status === 401 &&
       forgetRefusedToken(request.headers.get("authorization"))

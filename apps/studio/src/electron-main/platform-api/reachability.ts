@@ -34,7 +34,7 @@ let onChange: ((reachability: Reachability) => void) | undefined;
 
 /**
  * Whether the platform API answers. Requests to it report what they learned
- * (`notePlatformApiOutcome`), and once one finds nothing listening a probe
+ * (`notePlatformApiAnswered`, `notePlatformApiFailed`), and once one finds nothing listening a probe
  * keeps asking, backing off, until it answers. Any HTTP response counts as
  * an answer: the question is whether something is listening, not whether it
  * is healthy. A development build also asks once at launch, so the first
@@ -57,11 +57,19 @@ export function isPlatformApiUnreachable() {
   return reachability === "unreachable";
 }
 
-/** What a request to the platform API learned about whether it answers. */
-export function notePlatformApiOutcome(outcome: unknown) {
-  if (outcome instanceof Response) {
-    setReachability("reachable");
-  } else if (isExpectedNetworkError(outcome)) {
+/**
+ * A request to the platform API got an answer, whatever its status. Callers
+ * say so rather than hand over the response to be recognized: the workspace
+ * server puts @hono/node-server's `Response` on the global, and what `fetch`
+ * resolves to in this process is not an instance of it.
+ */
+export function notePlatformApiAnswered() {
+  setReachability("reachable");
+}
+
+/** A request to the platform API failed without an answer. */
+export function notePlatformApiFailed(error: unknown) {
+  if (isExpectedNetworkError(error)) {
     setReachability("unreachable");
   }
 }
@@ -84,13 +92,13 @@ export function probePlatformApiNow() {
 async function probe() {
   probeTimer = undefined;
   try {
-    const response = await fetch(platformApiBaseUrl(), {
+    await fetch(platformApiBaseUrl(), {
       method: "HEAD",
       signal: AbortSignal.timeout(PROBE_TIMEOUT),
     });
-    notePlatformApiOutcome(response);
+    notePlatformApiAnswered();
   } catch (error) {
-    notePlatformApiOutcome(error);
+    notePlatformApiFailed(error);
   }
   if (reachability === "unreachable") {
     failedProbes += 1;

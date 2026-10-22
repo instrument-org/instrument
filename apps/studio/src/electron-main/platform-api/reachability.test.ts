@@ -64,9 +64,27 @@ describe("platform API reachability", () => {
   it("leaves a failure that is not about the connection alone", async () => {
     const reachability = await load();
 
-    reachability.notePlatformApiOutcome(new Error("bad payload"));
+    reachability.notePlatformApiFailed(new Error("bad payload"));
 
     expect(reachability.getPlatformApiReachability()).toBe("unknown");
+  });
+
+  it("comes back up when the global Response is not the class fetch answers with", async () => {
+    electronApp.isPackaged = true;
+    // What @hono/node-server leaves on the global in the main process.
+    vi.stubGlobal("Response", class LightweightResponse {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 404 }),
+    );
+    const reachability = await load();
+    reachability.startPlatformApiReachability({ onChange: vi.fn() });
+
+    reachability.notePlatformApiFailed(refused());
+    expect(reachability.isPlatformApiUnreachable()).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(reachability.getPlatformApiReachability()).toBe("reachable");
   });
 
   it("asks from a packaged build only after a request failed, backing off", async () => {
@@ -79,7 +97,7 @@ describe("platform API reachability", () => {
     await vi.advanceTimersByTimeAsync(60_000);
     expect(fetch).not.toHaveBeenCalled();
 
-    reachability.notePlatformApiOutcome(refused());
+    reachability.notePlatformApiFailed(refused());
     expect(reachability.isPlatformApiUnreachable()).toBe(true);
 
     const askedAt: number[] = [];
@@ -109,7 +127,7 @@ describe("platform API reachability", () => {
     vi.stubGlobal("fetch", fetch);
     const reachability = await load();
     reachability.startPlatformApiReachability({ onChange: vi.fn() });
-    reachability.notePlatformApiOutcome(refused());
+    reachability.notePlatformApiFailed(refused());
     await vi.advanceTimersByTimeAsync(100_000);
     fetch.mockClear();
 

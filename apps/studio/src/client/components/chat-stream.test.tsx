@@ -1529,31 +1529,72 @@ describe("ChatStream's developer card for what was on screen", () => {
   });
 });
 
-// The dots promise a reply: they stand only while a step is writing words,
-// and every other kind of working is said under the chat's title instead.
+// The dots promise a reply: they stand from the user's message until the
+// agent has said something under it, and after that only while a step is
+// writing words; every other kind of working is said under the chat's title.
 describe("ChatBubbles, and the typing dots", () => {
+  const answered = assistantMessage([prose("Looking now.")], {
+    finishedAt: new Date(1),
+  });
   it.each<[string, unknown[], boolean]>([
-    ["the turn just sent", [userMessage("Check the listing")], false],
+    ["the turn just sent", [userMessage("Check the listing")], true],
     [
-      "a step calling a tool",
+      "a first step calling a tool",
       [
         userMessage("Check the listing"),
+        assistantMessage([read({ explanation: "Reading", running: true })]),
+      ],
+      true,
+    ],
+    [
+      "a step calling a tool after a reply",
+      [
+        userMessage("Check the listing"),
+        answered,
         assistantMessage([read({ explanation: "Reading", running: true })]),
       ],
       false,
     ],
     [
-      "a step writing its reply",
-      [
-        userMessage("Check the listing"),
-        assistantMessage([{ ...prose("It is out"), state: "streaming" }]),
-      ],
+      "a message sent after the reply",
+      [userMessage("Check the listing"), answered, userMessage("And Q2?")],
       true,
     ],
   ])("over %s", (_, messages, hasDots) => {
     renderMessages(messages, { isAgentRunning: true, presentation: "chat" });
 
     expect(screen.queryByLabelText("Typing") !== null).toBe(hasDots);
+  });
+
+  it("stands for a later step's words once they have gone on past a flash", () => {
+    vi.useFakeTimers();
+    try {
+      renderMessages(
+        [
+          userMessage("Check the listing"),
+          answered,
+          assistantMessage([{ ...prose("It is out"), state: "streaming" }]),
+        ],
+        { isAgentRunning: true, presentation: "chat" },
+      );
+      expect(screen.queryByLabelText("Typing")).toBeNull();
+
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      expect(screen.queryByLabelText("Typing")).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stands for no reply once the agent has stopped", () => {
+    renderMessages([userMessage("Check the listing")], {
+      isAgentRunning: false,
+      presentation: "chat",
+    });
+
+    expect(screen.queryByLabelText("Typing")).toBeNull();
   });
 });
 

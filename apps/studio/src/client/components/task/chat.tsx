@@ -622,6 +622,9 @@ export function ChatConversation({
                     <NoMessages />
                   ) : (
                     <TranscriptStream
+                      awaitingReply={
+                        isAgentAlive || shownMessages.length > messages.length
+                      }
                       chatInfo={chatInfo}
                       drafting={messagesQuery.data?.drafting ?? false}
                       isAgentRunning={isAgentRunning || runTurn.isPending}

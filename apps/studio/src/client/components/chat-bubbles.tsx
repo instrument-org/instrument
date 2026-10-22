@@ -50,6 +50,7 @@ import { SentChips } from "./window/context-chip";
  * boxes it changed.
  */
 export function ChatBubbles({
+  awaitingReply = false,
   chatInfo,
   drafting,
   isAgentRunning,
@@ -60,6 +61,11 @@ export function ChatBubbles({
   onRetry,
   onRunAgain,
 }: {
+  /**
+   * A reply to the user's last message is on its way though the agent is not
+   * running yet: the message is still being sent, or its session is starting.
+   */
+  awaitingReply?: boolean;
   chatInfo: ChatInfo;
   /** The conversation is writing words the user will get; see `BubbleFeed`. */
   drafting: boolean;
@@ -78,8 +84,10 @@ export function ChatBubbles({
     onRetry,
     onRunAgain,
   });
+  const lastingDrafting = useLastingDrafting(isAgentRunning && drafting);
   const derived = bubbleBoxes(messages, {
-    drafting: isAgentRunning && drafting,
+    awaitingReply: isAgentRunning || awaitingReply,
+    drafting: lastingDrafting,
     isAgentRunning,
     isDeveloperMode,
   });
@@ -136,6 +144,31 @@ export function ChatBubbles({
   );
 }
 
+/**
+ * How long a step has to go on writing before the dots stand for it. A reply
+ * that arrives in one piece is written and lands within a few frames, and
+ * dots drawn for that long only flash in and out ahead of it.
+ */
+const DRAFTING_DOTS_DELAY_MS = 400;
+
+/** Whether the conversation has been writing words for longer than a flash. */
+function useLastingDrafting(drafting: boolean): boolean {
+  const [lasting, setLasting] = useState(false);
+  useEffect(() => {
+    if (!drafting) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      setLasting(true);
+    }, DRAFTING_DOTS_DELAY_MS);
+    return () => {
+      window.clearTimeout(timeout);
+      setLasting(false);
+    };
+  }, [drafting]);
+  return drafting && lasting;
+}
+
 /** One thing a box draws, in the order it draws them. */
 type BubbleRow =
   | { kind: "card"; part: SessionMessagePart.ToolPart }
@@ -190,10 +223,16 @@ export interface BubbleBox {
 function bubbleBoxes(
   messages: readonly SessionMessage.WithParts[],
   {
+    awaitingReply,
     drafting,
     isAgentRunning,
     isDeveloperMode,
-  }: { drafting: boolean; isAgentRunning: boolean; isDeveloperMode: boolean },
+  }: {
+    awaitingReply: boolean;
+    drafting: boolean;
+    isAgentRunning: boolean;
+    isDeveloperMode: boolean;
+  },
 ): { boxes: BubbleBox[]; followed: string[] } {
   const regular = messages.filter(
     (message) => message.role !== "session-context",
@@ -235,11 +274,14 @@ function bubbleBoxes(
   // The words the turn last said. A model that retries a failed command says
   // its line again first, and the second copy is the same reply twice.
   let lastSaid: string | undefined;
+  // The user's last message has nothing of the agent's under it yet.
+  let unanswered = false;
 
   for (const [index, message] of regular.entries()) {
     const isLastMessage = index === regular.length - 1;
     if (message.role === "user") {
       lastSaid = undefined;
+      unanswered = true;
       const { bubbles, rows } = userRows(message, separators.get(message.id));
       if (rows.length > 0) {
         push(
@@ -317,6 +359,15 @@ function bubbleBoxes(
       });
     }
 
+    if (
+      turn.rows.some(
+        (row) =>
+          row.kind === "text" || row.kind === "card" || row.kind === "error",
+      )
+    ) {
+      unanswered = false;
+    }
+
     if (regular[index + 1]?.role !== "assistant") {
       if (turn.rows.length > 0) {
         push(
@@ -329,8 +380,10 @@ function bubbleBoxes(
     }
   }
 
-  // The dots stand where the words will land, as the last bubble of the run.
-  if (drafting) {
+  // The dots stand where the words will land, as the last bubble of the run:
+  // while the agent writes words, and from the moment the user's message is
+  // sent until the agent has put anything of its own under it.
+  if (drafting || (awaitingReply && unanswered)) {
     push(
       { key: "typing", rows: [{ kind: "typing" }], speaker: "assistant" },
       ["typing"],

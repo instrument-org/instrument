@@ -3,7 +3,7 @@ import { type PlatformRefusal } from "@instrument-org/ai-gateway";
 import { type FeatureAvailability } from "../platform-api/contract";
 import { getToken } from "../platform-api/utils";
 
-type HostedFeature = "decisions" | "dictation" | "models" | "search";
+type HostedFeature = "decisions" | "dictation" | "images" | "models" | "search";
 
 type Features = Partial<Record<HostedFeature, FeatureAvailability>> & {
   search?: { forEveryModel?: boolean };

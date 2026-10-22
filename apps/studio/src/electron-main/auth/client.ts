@@ -13,6 +13,7 @@ import {
   setSessionToken,
 } from "@/electron-main/stores/workspace/session";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
+import { accountSignedIn } from "@instrument-org/workspace/electron";
 import { createAuthClient } from "better-auth/client";
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
@@ -145,6 +146,8 @@ export async function signInSocial(): Promise<
     // Instrument's models become the default only when nothing is chosen:
     // someone who came in on a plan or a key keeps the model they picked.
     void setDefaultModel({ replacing: "nothing" });
+    // A chat that asked for an image nothing else could make goes on with it.
+    accountSignedIn();
     return { email, outcome: "signed-in" };
   });
   return result.outcome;

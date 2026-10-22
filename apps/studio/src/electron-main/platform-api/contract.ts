@@ -43,6 +43,8 @@ const BillingStatusSchema = z.object({
       decisions: FeatureAvailabilitySchema,
       /** Absent from a platform that predates dictation's metering. */
       dictation: FeatureAvailabilitySchema.optional(),
+      /** Absent from a platform that predates the free account's images. */
+      images: FeatureAvailabilitySchema.optional(),
       models: FeatureAvailabilitySchema,
       search: FeatureAvailabilitySchema.extend({
         /**

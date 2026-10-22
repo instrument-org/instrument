@@ -14,7 +14,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { DeviceIdSchema } from "../records/device-id";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { closeWorkspaceDb } from "../workspace-db";
-import { lineOf } from "./log-file";
+import { lineOf, rowOf } from "./log-file";
 import { activityTelemetry, registerActivityTelemetry } from "./record";
 import { type ActivityEntry } from "./schema";
 import {
@@ -296,7 +296,7 @@ describe("the store", () => {
     expect(header?.split(",").length).toBe(row?.split(",").length);
     // The request id is generated, so the line is compared without it.
     expect(row?.replace(/,[0-9A-Z]{26},/, ",<id>,")).toMatchInlineSnapshot(
-      `"2026-10-09T00:00:00.000Z,,finished,decision,settings-search,,,settings,dev_A1B2C3D4,,,clef,5000,,,,,5000,,,<id>,"`,
+      `"2026-10-09T00:00:00.000Z,,finished,decision,settings-search,,,settings,dev_A1B2C3D4,,,clef,,5000,,,,,5000,,,<id>,"`,
     );
   });
 });
@@ -325,6 +325,7 @@ describe("the log in the workspace", () => {
       error: null,
       finishReason: "stop",
       id,
+      imageQuality: null,
       inputTokens: 1401,
       kind: "language",
       modelRequested: "claude-haiku-5-5",
@@ -339,6 +340,17 @@ describe("the log in the workspace", () => {
       surface: null,
       totalTokens: 1419,
     });
+
+  it("keeps an image's quality through its line", () => {
+    const row = rowOf(theirs("01MIMAGE"), OTHER);
+    if (!row) {
+      throw new Error("the line did not read back");
+    }
+    const line = lineOf({ ...row, imageQuality: "low", kind: "image" });
+    expect(line).toContain('"imageQuality":"low"');
+    expect(rowOf(line, OTHER)?.imageQuality).toBe("low");
+    expect(rowOf(theirs("01MTEXT"), OTHER)?.imageQuality).toBeNull();
+  });
 
   const fileOf = (device: string, month: string) =>
     path.join(

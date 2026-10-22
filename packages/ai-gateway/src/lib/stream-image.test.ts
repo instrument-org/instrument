@@ -26,7 +26,7 @@ async function collect(type = "openrouter") {
   return events;
 }
 
-function sseResponse(events: unknown[]) {
+function sseResponse(events: unknown[], headers: Record<string, string> = {}) {
   const encoder = new TextEncoder();
   const body = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -40,7 +40,7 @@ function sseResponse(events: unknown[]) {
     },
   });
   return new Response(body, {
-    headers: { "content-type": "text/event-stream" },
+    headers: { "content-type": "text/event-stream", ...headers },
     status: 200,
   });
 }
@@ -188,6 +188,30 @@ describe("streamOpenRouterImage", () => {
         message: "Image stream failed: HTTP 500",
         responseBody: "nope",
         type: "error",
+      },
+    ]);
+  });
+
+  it("names the quality the platform says the image was generated at", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          sseResponse(
+            [{ b64_json: "done", type: "image_generation.completed" }],
+            { "x-instrument-image-quality": "low" },
+          ),
+        ),
+    );
+
+    expect(await collect(OUR_PROVIDER_CONFIG.type)).toEqual([
+      {
+        base64: "done",
+        mediaType: "image/png",
+        quality: "low",
+        type: "completed",
+        usage: undefined,
       },
     ]);
   });

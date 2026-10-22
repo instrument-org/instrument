@@ -382,10 +382,20 @@ function ModelLabel({ mark = true, row }: { mark?: boolean; row: Row }) {
       {modelOf(row) === null ? (
         <span className="truncate text-muted-foreground italic">Unknown</span>
       ) : (
-        <span className="truncate">{modelName(modelOf(row))}</span>
+        <span className="truncate">
+          {modelName(modelOf(row))}
+          {row.imageQuality && (
+            <span className="text-muted-foreground">{` · ${qualityWord(row.imageQuality)}`}</span>
+          )}
+        </span>
       )}
     </span>
   );
+}
+
+/** An image's quality as the log says it: "Low", "Medium". */
+function qualityWord(quality: string) {
+  return quality.charAt(0).toUpperCase() + quality.slice(1);
 }
 
 function ProviderLabel({ row }: { row: Row }) {
@@ -1300,6 +1310,11 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
               <Detail code={row.modelServed !== null} label="Answered by">
                 {row.modelServed ?? "Not reported separately"}
               </Detail>
+              {row.imageQuality ? (
+                <Detail label="Image quality">
+                  {qualityWord(row.imageQuality)}
+                </Detail>
+              ) : null}
             </DetailGroup>
             <DetailGroup title="Tokens">
               <Detail label="Input">

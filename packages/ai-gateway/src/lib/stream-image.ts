@@ -11,6 +11,13 @@ import { internalURL } from "./internal-url";
 import { internalAPIKey } from "./key-for-provider";
 import { type PlanRefusal, planRefusalIn } from "./read-platform-refusal";
 
+/**
+ * The header Instrument's platform names an image's generated quality in:
+ * the quality its policy and ceiling settled on, which the upstream's own
+ * events do not always say.
+ */
+export const IMAGE_QUALITY_HEADER = "x-instrument-image-quality";
+
 export interface ImageStreamUsage {
   inputTokens?: number;
   outputTokens?: number;
@@ -28,6 +35,8 @@ export type OpenRouterImageStreamEvent =
        * records the alias and nothing about what drew it.
        */
       modelId?: string;
+      /** The quality it was generated at, when the platform says. */
+      quality?: string;
       type: "completed";
       usage?: ImageStreamUsage;
     }
@@ -152,6 +161,7 @@ export async function* streamOpenRouterImage({
   // still yield their frames; the caller keeps the last partial.
   let sawFrame = false;
   let sawError = false;
+  const quality = response.headers.get(IMAGE_QUALITY_HEADER) ?? undefined;
 
   while (true) {
     const { done, value } = await events.read();
@@ -178,6 +188,7 @@ export async function* streamOpenRouterImage({
           base64: event.b64_json,
           mediaType: event.media_type ?? "image/png",
           ...(event.model ? { modelId: event.model } : {}),
+          ...(quality && { quality }),
           type: "completed",
           usage: toUsage(event.usage),
         };

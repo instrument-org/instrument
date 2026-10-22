@@ -40,6 +40,7 @@ const LineSchema = z.object({
   error: nullish(z.string()),
   finish: nullish(z.string()),
   id: z.string().min(1),
+  imageQuality: nullish(z.string()),
   kind: ActivityKindSchema,
   model: nullish(
     z.object({ requested: nullish(z.string()), served: nullish(z.string()) }),
@@ -117,6 +118,7 @@ export function lineOf(row: ActivityRow): string {
     surface: row.surface,
     connection: present({ name: row.connectionName, type: row.connectionType }),
     model: present({ requested: row.modelRequested, served: row.modelServed }),
+    imageQuality: row.imageQuality,
     responseId: row.responseId,
     tokens: present({
       cacheRead: row.cacheReadTokens,
@@ -154,6 +156,7 @@ export function rowOf(line: string, device: string): ActivityRow | undefined {
     error: read.error ?? null,
     finishReason: read.finish ?? null,
     id: read.id,
+    imageQuality: read.imageQuality ?? null,
     inputTokens: read.tokens?.input ?? null,
     kind: read.kind,
     modelRequested: read.model?.requested ?? null,

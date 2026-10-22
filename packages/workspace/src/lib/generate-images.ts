@@ -4,6 +4,7 @@ import {
   type AISDKImageModelResult,
   CLIENT_SESSION_ID_HEADER,
   getImageModelFor,
+  IMAGE_QUALITY_HEADER,
   type ImageGenerationProviderType,
   imageModelSupportsStreaming,
   namesSameModel,
@@ -79,7 +80,22 @@ interface ImageStreamChunk {
    * nothing, so an equal id is not evidence of anything.
    */
   modelIdServed?: string;
+  /**
+   * The quality the image was generated at: what Instrument's platform said
+   * it settled on, or the quality the request asked a provider for.
+   */
+  quality?: string;
   usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+}
+
+/** The quality an image was generated at, by what said so, if anything did. */
+function generatedQuality(
+  said: string | undefined,
+  applied: ImageGenerationParameters,
+) {
+  return (
+    said ?? (typeof applied.quality === "string" ? applied.quality : undefined)
+  );
 }
 
 type ResolvedImageModel = AISDKImageModelResult & {
@@ -233,17 +249,22 @@ export async function generateBufferedImage({
         providerOptions,
       });
 
+      const appliedParameters = appliedParametersFrom({
+        aspectRatio,
+        providerParams,
+      });
       return {
-        appliedParameters: appliedParametersFrom({
-          aspectRatio,
-          providerParams,
-        }),
+        appliedParameters,
         config,
         images: imageResult.images,
         modelId: model.modelId,
         modelIdServed: servedModelId(
           model.modelId,
           imageResult.responses[0]?.modelId,
+        ),
+        quality: generatedQuality(
+          imageResult.responses[0]?.headers?.[IMAGE_QUALITY_HEADER],
+          appliedParameters,
         ),
         usage: imageResult.usage,
       };
@@ -325,6 +346,7 @@ export async function* generateImageStream(args: ImageStreamArgs) {
         durationMs: Date.now() - startedAt,
         error: failure ?? null,
         inputTokens: final?.usage?.inputTokens ?? null,
+        imageQuality: final?.quality ?? null,
         modelRequested: final?.modelId ?? null,
         modelServed: final?.modelIdServed ?? null,
         outputTokens: final?.usage?.outputTokens ?? null,
@@ -417,6 +439,7 @@ async function* imagesFrom(
     kind: "final",
     modelId: value.modelId,
     modelIdServed: value.modelIdServed,
+    ...("quality" in value && value.quality && { quality: value.quality }),
     usage: {
       inputTokens: value.usage.inputTokens,
       outputTokens: value.usage.outputTokens,
@@ -488,6 +511,10 @@ async function* streamViaOpenRouter(args: {
         modelIdServed:
           event.type === "completed"
             ? servedModelId(modelId, event.modelId)
+            : undefined,
+        quality:
+          event.type === "completed"
+            ? generatedQuality(event.quality, appliedParameters)
             : undefined,
         usage: event.type === "completed" ? event.usage : undefined,
       });

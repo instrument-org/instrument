@@ -212,6 +212,44 @@ describe("generateImageStream", () => {
     expect(generateImage).not.toHaveBeenCalled();
   });
 
+  it("keeps the quality Instrument says an image was generated at", async () => {
+    mockImageModel(OUR_MODELS.providerType);
+    vi.mocked(streamOpenRouterImage).mockImplementation(function* () {
+      yield {
+        base64: "done",
+        mediaType: "image/png",
+        quality: "low",
+        type: "completed",
+      };
+    } as never);
+
+    const [only] = await collectStream();
+
+    expect(only?.isOk() && only.value.quality).toBe("low");
+  });
+
+  it("takes the quality asked of a provider of the person's own", async () => {
+    mockImageModel("openai");
+
+    const chunks = [];
+    for await (const chunk of generateImageStream({
+      callingModel: {} as never,
+      chatId: ChatIdSchema.parse("images"),
+      configs: [] as never,
+      count: 1,
+      parameters: { quality: "high" },
+      prompt: "a cat",
+      sessionId: SESSION_ID,
+      signal: new AbortController().signal,
+      workspaceConfig,
+      workspaceServerURL: "http://localhost" as never,
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks[0]?.isOk() && chunks[0].value.quality).toBe("high");
+  });
+
   it("defers to the buffered path when a test image override is present", async () => {
     mockImageProviders({
       [TEST_IMAGE_MODEL_OVERRIDE_KEY]: {},

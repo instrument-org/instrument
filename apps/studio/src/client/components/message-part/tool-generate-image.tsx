@@ -221,6 +221,7 @@ export function ToolGenerateImage({
               {modelName && (
                 <ModelChip
                   chose={isRouter ? servedModelName : undefined}
+                  detail={qualityLabel(successOutput?.quality)}
                   displayName={
                     isOurs ? undefined : successOutput?.provider.displayName
                   }
@@ -458,12 +459,15 @@ function ImageActions({ filePath, id }: { filePath: string; id: ChatId }) {
  */
 function ModelChip({
   chose,
+  detail,
   displayName,
   name,
   providerType,
   replacedBy,
 }: {
   chose?: string;
+  /** A word after the name, set off quieter: the image's quality. */
+  detail?: string;
   displayName?: string;
   name: string;
   providerType?: AIProviderType;
@@ -489,6 +493,9 @@ function ModelChip({
           </>
         ) : (
           name
+        )}
+        {detail && (
+          <span className="font-normal text-muted-foreground">{` · ${detail}`}</span>
         )}
       </span>
     </span>
@@ -539,6 +546,13 @@ function PromptText({ prompt }: { prompt: string }) {
       <p className="text-sm text-muted-foreground">{prompt}</p>
     </div>
   );
+}
+
+/** An image's quality as the card says it: "Low", "Medium". */
+function qualityLabel(quality: string | undefined) {
+  return quality
+    ? quality.charAt(0).toUpperCase() + quality.slice(1)
+    : undefined;
 }
 
 // A provider's model id is meaningful once its provider prefix is dropped.

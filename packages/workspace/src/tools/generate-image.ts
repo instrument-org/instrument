@@ -96,6 +96,8 @@ export const GenerateImage = setupTool({
       // Present only when the provider served a different model, which is what
       // our image alias does on every call.
       modelIdServed: z.string().optional(),
+      // The quality the image was generated at, when it is known.
+      quality: z.string().optional(),
       provider: ProviderOutputSchema,
       // The requested path was taken, so the image was saved under a new name.
       renamedToAvoidOverwrite: z.boolean(),
@@ -348,6 +350,7 @@ export const GenerateImage = setupTool({
         kind,
         modelId,
         modelIdServed,
+        quality,
         usage,
       } = chunk.value;
 
@@ -366,6 +369,7 @@ export const GenerateImage = setupTool({
         images: writtenImages,
         modelId,
         modelIdServed,
+        ...(quality && { quality }),
         provider: {
           displayName: config.displayName,
           id: config.id,

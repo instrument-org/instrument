@@ -31,7 +31,7 @@ import {
  * only what a file gained. A request this device makes goes to its own file
  * and into the table at once.
  */
-const ACTIVITY_VERSION = 2;
+const ACTIVITY_VERSION = 3;
 
 const COLUMNS = {
   cacheReadTokens: "cache_read_tokens",
@@ -44,6 +44,7 @@ const COLUMNS = {
   error: "error",
   finishReason: "finish_reason",
   id: "id",
+  imageQuality: "image_quality",
   inputTokens: "input_tokens",
   kind: "kind",
   modelRequested: "model_requested",
@@ -108,7 +109,13 @@ let reported = false;
 function makeActivityTable(database: DatabaseSync): void {
   database.exec("BEGIN");
   try {
-    versionMatches(database, "activity", ACTIVITY_VERSION);
+    // The table is an index of the files, so one made by an earlier build
+    // is dropped and read again from them.
+    if (!versionMatches(database, "activity", ACTIVITY_VERSION)) {
+      database.exec(
+        "DROP TABLE IF EXISTS activity; DROP TABLE IF EXISTS activity_files;",
+      );
+    }
     database.exec(`
       CREATE TABLE IF NOT EXISTS activity (
         id TEXT PRIMARY KEY,
@@ -133,7 +140,8 @@ function makeActivityTable(database: DatabaseSync): void {
         output_tokens INTEGER,
         reasoning_tokens INTEGER,
         total_tokens INTEGER,
-        device TEXT
+        device TEXT,
+        image_quality TEXT
       ) STRICT;
       CREATE TABLE IF NOT EXISTS activity_files (
         path TEXT PRIMARY KEY,
@@ -281,6 +289,7 @@ export function insertActivity(entry: ActivityEntry): void {
     error: entry.error ?? null,
     finishReason: entry.finishReason ?? null,
     id: ulid(entry.startedAt),
+    imageQuality: entry.imageQuality ?? null,
     inputTokens: entry.inputTokens ?? null,
     kind: entry.kind,
     modelRequested: entry.modelRequested ?? null,
@@ -428,6 +437,7 @@ const CSV_COLUMNS: [
   ["Connection", (row) => row.connectionName ?? row.connectionType],
   ["Model asked for", (row) => row.modelRequested],
   ["Model answered", (row) => row.modelServed],
+  ["Image quality", (row) => row.imageQuality],
   ["Input tokens", (row) => row.inputTokens],
   ["Cache read tokens", (row) => row.cacheReadTokens],
   ["Cache write tokens", (row) => row.cacheWriteTokens],

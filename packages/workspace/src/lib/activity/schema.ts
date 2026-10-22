@@ -63,6 +63,8 @@ export const ActivityRowSchema = z.object({
   error: z.string().nullable(),
   finishReason: z.string().nullable(),
   id: z.string(),
+  /** The quality an image request was generated at, when it was said. */
+  imageQuality: z.string().nullable(),
   inputTokens: z.number().nullable(),
   kind: ActivityKindSchema,
   modelRequested: z.string().nullable(),

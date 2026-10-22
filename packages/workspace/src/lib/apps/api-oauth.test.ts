@@ -273,8 +273,9 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
   });
 
   it("asks for a new sign-in once Microsoft refuses the refresh token", async () => {
+    // A refresh token no other test spends, since fetchForMcp shares a
+    // successful refresh of one token for a minute.
     const microsoft = serveMicrosoft();
-    microsoft.refreshTokens.clear();
     microsoft.graph.accepts = "at-none";
     const manifest = {
       auth: { kind: "oauth" },
@@ -287,7 +288,7 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
       origin: "https://graph.microsoft.com",
       value: {
         access_token: "at-1",
-        refresh_token: "rt-1",
+        refresh_token: "rt-revoked",
         token_type: "Bearer",
       },
     });

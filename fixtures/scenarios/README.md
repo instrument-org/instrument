@@ -16,7 +16,7 @@ description: What state this is, and where the app should open in it.
 workspace: documents # optional: a fixture from fixtures/workspaces/ to seed in the app's own data, as earlier builds kept it; none yet otherwise
 outputFolder: documents # optional: finished work in a stand-in for the folder in Documents an earlier build used
 folder: placed # optional: app-data (the default), placed (a new workspace in the folder setup's first step offers, with no fixture), or move-pending (a move recorded for this launch to make)
-signIns: [chatgpt] # optional: sentinel sign-ins that count as connected and fail any real request; needs a workspace, a fixture or placed
+signIns: [chatgpt] # optional: sentinel sign-ins that count as connected and fail any real request, or workers-ai, a real key from the evals' pair in packages/workspace/.env; needs a workspace, a fixture or placed
 accountCheck: ready # optional: what setup's launch check of each signed-in account answers (INSTRUMENT_ACCOUNT_CHECK): ready, no-plan, out-of-usage, signed-out
 notifications: not-asked # optional: what macOS says (INSTRUMENT_NOTIFICATION_STATUS)
 notificationAnswer: clicked # optional: how the prompt answers (INSTRUMENT_NOTIFICATION_ANSWER): allowed, denied, or clicked, allowed with the test notification clicked
@@ -40,6 +40,7 @@ Everything a scenario writes stays inside its own folders in studio-drive's cach
 | `one-x-user`          | A 1.x task with no chat in the app's own data, ChatGPT, finished work in Documents, no record | `welcome-back`               |
 | `quit-after-chatgpt`  | Picked the folder, connected ChatGPT, then quit                                               | `free-account`               |
 | `folder-move-pending` | A beta tester's launch that makes the move the folder step recorded                           | `free-account`               |
+| `own-key-and-account` | Picked the folder with a Workers AI key; boot with `--account` for a no-plan account | `model`, past the plan |
 | `finished-new-step`   | Finished on a build without the notifications step                                            | `notifications`, as new only |
 | `offline`             | A first launch with no network                                                                | `folder`, as Welcome         |
 

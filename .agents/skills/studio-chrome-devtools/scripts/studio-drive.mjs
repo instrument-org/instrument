@@ -527,6 +527,52 @@ const SCENARIO_KEYS = new Set([
   "workspace",
 ]);
 
+/**
+ * A real Workers AI key, from the pair the evals read in
+ * packages/workspace/.env, so a scenario starts with a key whose models list.
+ * Written as a development build keeps the providers store: plain JSON.
+ */
+function writeWorkersAiKey(keysDir) {
+  const env = Object.fromEntries(
+    (existsSync(path.join(REPO_ROOT, "packages", "workspace", ".env"))
+      ? readFileSync(
+          path.join(REPO_ROOT, "packages", "workspace", ".env"),
+          "utf8",
+        )
+      : ""
+    )
+      .split("\n")
+      .map((line) => /^([A-Z_]+)=(.*)$/.exec(line.trim()))
+      .filter(Boolean)
+      .map(([, key, value]) => [key, value.replace(/^["']|["']$/g, "")]),
+  );
+  const apiKey = env.CLOUDFLARE_WORKERS_AI_API_KEY;
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
+  if (!apiKey || !accountId) {
+    fail(
+      "signIns: workers-ai needs CLOUDFLARE_WORKERS_AI_API_KEY and CLOUDFLARE_ACCOUNT_ID in packages/workspace/.env",
+    );
+  }
+  mkdirSync(keysDir, { recursive: true });
+  writeFileSync(
+    path.join(keysDir, "providers.json"),
+    `${JSON.stringify({
+      disabled: [],
+      providers: [
+        {
+          apiKey,
+          baseURL: `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`,
+          cacheIdentifier: "scenario-workers-ai",
+          displayName: "Workers AI",
+          id: "scenario-workers-ai",
+          type: "openai-compatible",
+        },
+      ],
+    })}\n`,
+    { mode: 0o600 },
+  );
+}
+
 function readScenario(name) {
   const file = path.join(SCENARIOS_DIR, `${name}.yaml`);
   if (!existsSync(file)) {
@@ -692,8 +738,12 @@ function prepareScenario(name, { keepTabs }) {
   }
 
   for (const signIn of scenario.signIns ?? []) {
+    if (signIn === "workers-ai") {
+      writeWorkersAiKey(keysDirOf(userDataDir, workspaceDir));
+      continue;
+    }
     if (signIn !== "chatgpt") {
-      fail(`signIns takes only "chatgpt", not ${signIn}`);
+      fail(`signIns takes "chatgpt" or "workers-ai", not ${signIn}`);
     }
     // A sign-in that passes every check the app makes on disk and fails any
     // real request: the token is not one.

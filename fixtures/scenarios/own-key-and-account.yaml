@@ -1,0 +1,6 @@
+description: Picked the folder with a Workers AI key already set, signed in to Instrument with no plan (pass --account with a no-plan account). Setup skips the ways in and the plan, and opens on the model step with the key's models.
+folder: placed
+signIns: [workers-ai]
+setup:
+  answered: [welcome-back, folder]
+notifications: not-asked

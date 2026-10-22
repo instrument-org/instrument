@@ -101,6 +101,23 @@ describe("prepareBundledSkills", () => {
     );
   });
 
+  it("copies what a skill links to, so the prepared folder needs nothing outside it", async () => {
+    const { config, prepared } = await setup();
+    const store = path.join(path.dirname(config.registryDir), "store");
+    await write(path.join(store, "lib", "index.js"), "linked");
+    const skill = path.join(config.registryDir, "skills", "pdf");
+    await write(path.join(skill, "SKILL.md"), "pdf");
+    await fs.symlink(path.join(store, "lib"), path.join(skill, "lib"));
+
+    await prepareBundledSkills(config);
+
+    const copied = path.join(prepared, "pdf", "lib");
+    expect((await fs.lstat(copied)).isSymbolicLink()).toBe(false);
+    expect(await fs.readFile(path.join(copied, "index.js"), "utf8")).toBe(
+      "linked",
+    );
+  });
+
   it("prepares an empty folder when the bundled sources are missing", async () => {
     const { config, prepared } = await setup();
 

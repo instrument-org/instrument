@@ -1,5 +1,8 @@
+import { execFile } from "node:child_process";
+import { constants } from "node:fs";
 import { cp, mkdir, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { type WorkspaceConfig } from "../types";
@@ -21,8 +24,9 @@ let latest: Promise<void> = Promise.resolve();
  * one folder the bundled skills mount reads them from: the app bundle is
  * signed and replaced whole by the updater, so nothing reads from it in place.
  *
- * Copied fresh at every launch, a few megabytes, so the folder always holds
- * the build that is running and a skill dropped from the app is gone from
+ * Copied fresh at every launch, as copy-on-write clones where the file
+ * system makes them (`copySkill`), so the folder always holds the build
+ * that is running and a skill dropped from the app is gone from
  * it. The copy is made beside the folder and swapped in, so an agent shell
  * reading the folder meanwhile sees the whole old set or the whole new one.
  * Where two bundled sources hold a skill of one name, the first source wins,
@@ -81,13 +85,9 @@ async function prepare(config: PreparedSkillsConfig): Promise<void> {
         continue;
       }
       copied.add(entry.name);
-      await cp(
+      await copySkill(
         path.join(source.dir, entry.name),
         path.join(staging, entry.name),
-        {
-          dereference: true,
-          recursive: true,
-        },
       );
     }
   }
@@ -97,4 +97,28 @@ async function prepare(config: PreparedSkillsConfig): Promise<void> {
   }
   await rename(staging, target);
   await rm(previous, { force: true, recursive: true });
+}
+
+/**
+ * A skill folder copied with its links followed, as clones that share the
+ * source's blocks until either side changes: a development build's skills
+ * carry their own virtualenvs and packages, a gigabyte copied at every
+ * launch otherwise. Node's clone flag is a plain copy on macOS, so there
+ * `cp -c` makes them, which copies where the volume cannot clone. Elsewhere
+ * the flag clones where the file system can and copies where it cannot.
+ */
+async function copySkill(from: string, to: string): Promise<void> {
+  if (process.platform === "darwin") {
+    try {
+      await promisify(execFile)("/bin/cp", ["-cRL", from, to]);
+      return;
+    } catch {
+      await rm(to, { force: true, recursive: true });
+    }
+  }
+  await cp(from, to, {
+    dereference: true,
+    mode: constants.COPYFILE_FICLONE,
+    recursive: true,
+  });
 }

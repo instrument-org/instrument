@@ -1,7 +1,11 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
+import {
+  CHAT_FOLDER_NAMES,
+  CHATS_FOLDER_NAME,
+  TASKS_DIR_NAME,
+} from "../constants";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
@@ -10,6 +14,7 @@ import {
   WorkspaceFilePathSchema,
 } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
+import { toldOutputFolders } from "./environment";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
 import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
@@ -75,9 +80,69 @@ export async function resolveWorkspaceFilePaths<Given extends string>({
   chatId: ChatId;
 }): Promise<Map<Given, AbsolutePath | null>> {
   const layout = await sessionLayout({ chatId });
+  const moved = await movedChatFolder(layout, chatId, filePaths);
   return new Map(
-    filePaths.map((given) => [given, onDiskOrNull(layout, given)]),
+    filePaths.map((given) => [given, onDiskOrNull(layout, given, moved)]),
   );
+}
+
+/**
+ * The names the chat's own folder had and the one it has, in the shell's
+ * spelling. The folder is named for the chat's first words until its title
+ * settles, after the first turn, so a file that turn made is named in the
+ * folder under its first name and found in the titled folder after it.
+ */
+interface MovedChatFolder {
+  from: string[];
+  to: string;
+}
+
+/**
+ * The names the chat's folder had are the output folders its sessions were
+ * told, which is the path the agent wrote with. A name another chat holds
+ * now still means this chat's folder in this chat's messages. Read only when
+ * a path names something in `Chats/`, since it reads the chat's history.
+ */
+async function movedChatFolder(
+  layout: WorkspaceFsLayout,
+  chatId: ChatId,
+  filePaths: readonly string[],
+): Promise<MovedChatFolder | undefined> {
+  const to = layout.folder?.shellRoot;
+  if (to === undefined) {
+    return undefined;
+  }
+  const chats = shellPath(
+    path.join(getWorkspaceConfig().rootDir, CHATS_FOLDER_NAME),
+  );
+  const inChats = filePaths.some((given) =>
+    normalizePath(shellPath(given.trim())).startsWith(`${chats}/`),
+  );
+  if (!inChats) {
+    return undefined;
+  }
+  const from = [...(await toldOutputFolders(chatId))].filter(
+    (folder) => folder !== to && path.posix.dirname(folder) === chats,
+  );
+  return from.length === 0 ? undefined : { from, to };
+}
+
+/** A path in the chat's folder under a name it had, spelled under the one it has. */
+function underCurrentName(
+  spelled: string,
+  moved: MovedChatFolder | undefined,
+): string {
+  if (moved === undefined) {
+    return spelled;
+  }
+  const normalized = normalizePath(spelled);
+  for (const folder of moved.from) {
+    const rest = relativeWithin(folder, normalized);
+    if (rest !== null) {
+      return rest === "/" ? moved.to : `${moved.to}${rest}`;
+    }
+  }
+  return spelled;
 }
 
 const WINDOWS_ABSOLUTE = /^[a-z]:[\\/]/i;
@@ -85,6 +150,7 @@ const WINDOWS_ABSOLUTE = /^[a-z]:[\\/]/i;
 function onDiskOrNull(
   layout: WorkspaceFsLayout,
   given: string,
+  moved: MovedChatFolder | undefined,
 ): AbsolutePath | null {
   // A Windows path in the shell's spelling (`/c/Users/sam`) on Windows; on
   // any other system it names nothing here and fails the parse below.
@@ -96,7 +162,7 @@ function onDiskOrNull(
     return null;
   }
   try {
-    return storedPathOnDisk(layout, parsed.data);
+    return storedPathOnDisk(layout, parsed.data, moved);
   } catch {
     return null;
   }
@@ -125,6 +191,7 @@ function onDiskOrNull(
 function storedPathOnDisk(
   layout: WorkspaceFsLayout,
   stored: string,
+  moved: MovedChatFolder | undefined,
 ): AbsolutePath | null {
   const trimmed = stored.trim();
   // A file kept by its place in the workspace is under the workspace's root
@@ -140,7 +207,7 @@ function storedPathOnDisk(
   // which the layout resolves.
   const spelled = shellPath(trimmed);
   const found = path.posix.isAbsolute(spelled)
-    ? absoluteOnDisk(layout, spelled)
+    ? absoluteOnDisk(layout, underCurrentName(spelled, moved))
     : relativeOnDisk(layout, spelled);
   return found === null ? null : spelledOnDisk(found);
 }

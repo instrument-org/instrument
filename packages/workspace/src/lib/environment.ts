@@ -75,6 +75,50 @@ function imageOptionsFor(runsOn: AIGatewayModelURI.Type | undefined) {
   });
 }
 
+/**
+ * Every output folder any session of the chat was told, in the shell's
+ * spelling: its baselines' and each note's since. A chat's own folder moves
+ * when its title settles, so a path the agent wrote into the folder as it
+ * was told it then names the folder by a name it no longer has. Empty for a
+ * chat whose records cannot be read.
+ */
+export async function toldOutputFolders(chatId: ChatId): Promise<Set<string>> {
+  const told = new Set<string>();
+  const sessions = await ChatReads.sessions({
+    chatId,
+    includeChildSessions: true,
+  });
+  if (sessions.isErr()) {
+    return told;
+  }
+  for (const session of sessions.value) {
+    const history = await ChatReads.history({
+      chatId,
+      sessionId: session.id,
+    });
+    if (history.isErr()) {
+      continue;
+    }
+    for (const message of history.value) {
+      if (message.role === "session-context") {
+        const folder = message.metadata.environment?.outputFolder;
+        if (folder !== undefined) {
+          told.add(folder);
+        }
+      }
+      for (const part of message.parts) {
+        if (
+          part.type === "data-environmentChange" &&
+          part.data.outputFolder !== undefined
+        ) {
+          told.add(part.data.outputFolder);
+        }
+      }
+    }
+  }
+  return told;
+}
+
 /** Each fact of `current` that differs from `told`, or undefined when none does. */
 export function environmentChange(
   told: Environment,

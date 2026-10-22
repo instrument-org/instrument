@@ -492,7 +492,7 @@ export function cancelClaudeSignIn() {
  */
 let installing: Promise<void> | undefined;
 
-export function installClaudeCode(): Promise<void> {
+function installClaudeCode(): Promise<void> {
   installing ??= runInstall().finally(() => {
     installing = undefined;
   });

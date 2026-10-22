@@ -356,7 +356,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
           subtitle={
             isFirst
               ? `First, choose where ${APP_NAME} keeps your chats, topics and the files it makes.`
-              : `This is where ${APP_NAME} keeps your chats, topics and the files it makes`
+              : `This is where ${APP_NAME} keeps your chats, topics and the files it makes.`
           }
           title={
             isFirst
@@ -415,8 +415,16 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
               {shown?.kind === "earlier" && (
                 <FolderNote
                   action={{ label: "Show folder", onClick: showFolder }}
-                  line={`We'll open ${them(shown.chats)}, so you can pick up where you left off.`}
-                  title={`This folder has ${count(shown.chats, "chat")} from ${APP_NAME}.`}
+                  line={
+                    shown.chats > 0
+                      ? `We'll open ${them(shown.chats)}, so you can pick up where you left off.`
+                      : "We'll open it, so you can pick up where you left off."
+                  }
+                  title={
+                    shown.chats > 0
+                      ? `This folder has ${count(shown.chats, "chat")} from ${APP_NAME}.`
+                      : `This is an ${APP_NAME} folder you used before.`
+                  }
                 />
               )}
               {shown?.kind === "unfinished" && (

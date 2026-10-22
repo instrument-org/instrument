@@ -18,11 +18,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { ModelGroupLabel, ModelRow } from "./kit/model-row";
 import { SetupFooter, SetupPage } from "./kit/setup-page";
+import { type ConnectedWay, connectedWay } from "./connected-way";
 import {
   choosableModels,
   isShortList,
   longListGroups,
   makerOf,
+  modelsOfWay,
   recommendedModel,
   shortList,
 } from "./model-choices";
@@ -43,7 +45,8 @@ export const MAIN_MODEL_TITLE = "Pick your main model";
  * Continue makes the one picked the default.
  */
 export function ModelPage({ onBack, onContinue }: SetupPageProps) {
-  const choice = useMainModelChoice();
+  const [way] = useState(connectedWay);
+  const choice = useMainModelChoice(way);
   return (
     <SetupPage
       footer={
@@ -74,11 +77,12 @@ type MainModelChoice = ReturnType<typeof useMainModelChoice>;
 
 /**
  * The main model's choice, wherever it is asked (setup's model step, the
- * Add a provider sheet once a provider connects): the models to pick from,
+ * Add a provider sheet once a provider connects): the models to pick from
+ * (the way in setup connected's, when `way` names one),
  * the one recommended and the one picked, the line under the title, and
  * `save`, which makes the one picked the default for new chats.
  */
-export function useMainModelChoice() {
+export function useMainModelChoice(way?: ConnectedWay) {
   const { data: list, isLoading } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
@@ -94,7 +98,7 @@ export function useMainModelChoice() {
   if (entry === undefined && !isDefaultPending) {
     setEntry({ defaultURI });
   }
-  const models = choosableModels(list?.models ?? []);
+  const models = modelsOfWay(choosableModels(list?.models ?? []), way);
   const recommended = recommendedModel(models, entry?.defaultURI);
   const [picked, setPicked] = useState<string | undefined>(undefined);
   const chosen = picked ?? recommended?.uri;

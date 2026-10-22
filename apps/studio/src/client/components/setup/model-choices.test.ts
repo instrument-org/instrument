@@ -9,6 +9,7 @@ import {
   choosableModels,
   isShortList,
   longListGroups,
+  modelsOfWay,
   recommendedModel,
   shortList,
 } from "./model-choices";
@@ -204,5 +205,42 @@ describe("setup's model choices", () => {
     expect(
       longListGroups({ models, query: "zzzz", recommended: models[0] }),
     ).toEqual([]);
+  });
+
+  it("lists the way in just connected, else every connection", () => {
+    const models = choosableModels([...instrumentPlan, ...openRouter]);
+    const key = AIProviderConfigIdSchema.parse("openrouter");
+    expect(
+      modelsOfWay(models, { kind: "sign-in", provider: "instrument" }).map(
+        (m) => m.name,
+      ),
+    ).toEqual(["Claude", "Auto", "ChatGPT"]);
+    expect(
+      modelsOfWay(models, { kind: "key", providerConfigId: key }),
+    ).toHaveLength(8);
+    expect(modelsOfWay(models, undefined)).toBe(models);
+    // Grok's models not listed yet: every connection's rather than none.
+    expect(modelsOfWay(models, { kind: "sign-in", provider: "grok" })).toBe(
+      models,
+    );
+  });
+
+  it("groups several connections' long list by connection", () => {
+    const models = choosableModels([...instrumentPlan, ...openRouter]);
+    expect(
+      names(
+        longListGroups({
+          models,
+          query: "",
+          recommended: recommendedModel(models, undefined),
+        }),
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "Suggested: Auto, Claude Sonnet 5.5, GPT-5.5",
+        "Instrument: ChatGPT, Claude",
+        "OpenRouter: Claude Haiku 5.5, Claude Opus 5.5, DeepSeek V4, Gemini 3 Flash, Gemini 3 Flash Lite, Gemini 3 Pro",
+      ]
+    `);
   });
 });

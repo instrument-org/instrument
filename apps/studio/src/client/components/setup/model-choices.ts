@@ -1,6 +1,15 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
-import { OUR_MODELS } from "@instrument-org/shared";
+import {
+  CHATGPT_ACCOUNT_PROVIDER_CONFIG,
+  CLAUDE_ACCOUNT_PROVIDER_CONFIG,
+  GROK_ACCOUNT_PROVIDER_CONFIG,
+  OUR_MODELS,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
+import { type ConnectProvider } from "@/shared/connect-outcome";
+
+import { type ConnectedWay } from "./connected-way";
 
 /**
  * What setup's model step lists, as data: the models worth picking for new
@@ -66,6 +75,34 @@ export function choosableModels(
   );
 }
 
+/** The config type each sign-in's connection has. */
+const SIGN_IN_TYPES: Record<ConnectProvider, string> = {
+  chatgpt: CHATGPT_ACCOUNT_PROVIDER_CONFIG.type,
+  claude: CLAUDE_ACCOUNT_PROVIDER_CONFIG.type,
+  grok: GROK_ACCOUNT_PROVIDER_CONFIG.type,
+  instrument: OUR_PROVIDER_CONFIG.type,
+};
+
+/**
+ * The models of the way in setup just connected, or every connection's when
+ * it connected none (the person came with their own) or its models haven't
+ * listed yet.
+ */
+export function modelsOfWay(
+  models: AIGatewayModel.Type[],
+  way: ConnectedWay | undefined,
+): AIGatewayModel.Type[] {
+  if (way === undefined) {
+    return models;
+  }
+  const own = models.filter((model) =>
+    way.kind === "key"
+      ? model.params.providerConfigId === way.providerConfigId
+      : model.params.provider === SIGN_IN_TYPES[way.provider],
+  );
+  return own.length > 0 ? own : models;
+}
+
 /**
  * The one setup recommends: the default already set, which a sign-in set
  * to what suits it, when it is among them; otherwise the one the app would
@@ -109,8 +146,10 @@ const fuzzy = boundedFuzzy({ intraMode: 1 });
 /**
  * A long list's groups. With no search: Suggested (the recommended model,
  * then a few the catalogs recommend), then every other model under its
- * maker. Under a search: every match, under its maker, best first within
- * each.
+ * group. Under a search: every match, under its group, best first within
+ * each. A group is the model's connection where the list has several, as
+ * the picker buckets them, and its maker where one connection serves many
+ * makers' models.
  */
 export function longListGroups({
   models,
@@ -121,6 +160,12 @@ export function longListGroups({
   query: string;
   recommended: AIGatewayModel.Type | undefined;
 }): ModelGroup[] {
+  const byConnection =
+    new Set(models.map((model) => model.params.providerConfigId)).size > 1;
+  const grouped = (found: AIGatewayModel.Type[]) =>
+    groupedBy(found, (model) =>
+      byConnection ? model.providerName.trim() : makerName(makerOf(model)),
+    );
   const needle = query.trim();
   if (needle !== "") {
     const names = models.map((model) => model.name.trim());
@@ -134,7 +179,7 @@ export function longListGroups({
       const model = models[info.idx[at] ?? -1];
       return model ? [model] : [];
     });
-    return byMaker(found);
+    return grouped(found);
   }
   const suggested = [
     ...(recommended ? [recommended] : []),
@@ -151,15 +196,18 @@ export function longListGroups({
     ...(suggested.length > 0
       ? [{ label: "Suggested", models: suggested }]
       : []),
-    ...byMaker(rest),
+    ...grouped(rest),
   ];
 }
 
-/** Grouped under each maker's name, makers in name order, models in the order given. */
-function byMaker(models: AIGatewayModel.Type[]): ModelGroup[] {
+/** Grouped under each label, labels in name order, models in the order given. */
+function groupedBy(
+  models: AIGatewayModel.Type[],
+  labelOf: (model: AIGatewayModel.Type) => string,
+): ModelGroup[] {
   const groups = new Map<string, AIGatewayModel.Type[]>();
   for (const model of models) {
-    const label = makerName(makerOf(model));
+    const label = labelOf(model);
     groups.set(label, [...(groups.get(label) ?? []), model]);
   }
   return [...groups]

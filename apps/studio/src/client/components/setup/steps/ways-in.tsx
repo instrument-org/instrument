@@ -37,6 +37,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 
+import { noteConnectedWay } from "../connected-way";
 import { BrandTile } from "../kit/brand-tile";
 import { SetupPageSwitch } from "../kit/setup-page-switch";
 import { SetupFooter, SetupPage } from "../kit/setup-page";
@@ -125,6 +126,7 @@ export function WaysIn({
       if (outcome.kind === "canceled") {
         setPage(from);
       } else if (outcome.kind === "ready") {
+        noteConnectedWay({ kind: "sign-in", provider });
         onDone();
       } else {
         setPage({ kind: "outcome", outcome, provider });
@@ -224,7 +226,10 @@ export function WaysIn({
               setPage(waitedFrom);
             }}
             onConnect={connect}
-            onContinue={onDone}
+            onContinue={() => {
+              noteConnectedWay({ kind: "sign-in", provider: page.provider });
+              onDone();
+            }}
             onKey={openKey}
             outcome={page.outcome}
             provider={page.provider}
@@ -234,7 +239,12 @@ export function WaysIn({
       case "key": {
         return (
           <KeyPage
-            onAdded={onDone}
+            onAdded={(providerConfigId) => {
+              if (providerConfigId) {
+                noteConnectedWay({ kind: "key", providerConfigId });
+              }
+              onDone();
+            }}
             onBack={
               keyFrom.kind === "key" && onLeave
                 ? onLeave
@@ -258,7 +268,13 @@ export function WaysIn({
               setPage({ kind: "key" });
             }}
             onConnect={connect}
-            onCredited={onDone}
+            onCredited={() => {
+              noteConnectedWay({
+                kind: "key",
+                providerConfigId: page.providerId,
+              });
+              onDone();
+            }}
             providerId={page.providerId}
           />
         );
@@ -731,7 +747,8 @@ function KeyPage({
   onBack,
   onNoCredits,
 }: {
-  onAdded: () => void;
+  /** The key added, by its config, when the list says which it is. */
+  onAdded: (providerConfigId?: AIProviderConfigId) => void;
   onBack: () => void;
   onNoCredits: (providerId: AIProviderConfigId) => void;
 }) {
@@ -747,13 +764,13 @@ function KeyPage({
     const list = await rpcClient.providerConfig.list
       .call({})
       .catch(() => undefined);
-    const openRouter = list?.find(
-      (provider) => provider.type === "openrouter" && !known?.has(provider.id),
-    );
-    if (openRouter && known && (await hasNoCredits(openRouter.id))) {
-      onNoCredits(openRouter.id);
+    const fresh = known
+      ? list?.find((provider) => !known.has(provider.id))
+      : undefined;
+    if (fresh?.type === "openrouter" && (await hasNoCredits(fresh.id))) {
+      onNoCredits(fresh.id);
     } else {
-      onAdded();
+      onAdded(fresh?.id);
     }
   };
   return (

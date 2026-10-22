@@ -1,6 +1,7 @@
 import { type FeedbackRequest } from "@/client/atoms/report-dialog";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
+import { Spinner } from "@/client/components/ui/spinner";
 import {
   DialogContent,
   DialogDescription,
@@ -46,6 +47,13 @@ const ITEM_ICONS: Record<FeedbackItem["kind"], Icon> = {
   settings: GearSixIcon,
   task: ListChecksIcon,
 };
+
+/**
+ * One size for every step (the form, a file being read, the thanks), so
+ * moving between them, opening a part or loading what goes never resizes
+ * the dialog. The window caps it where it is smaller.
+ */
+const DIALOG_SIZE = { height: "36rem", width: "35rem" };
 
 type Part = {
   id: string;
@@ -139,7 +147,13 @@ export function FeedbackDialogContent({
 
   if (send.isSuccess) {
     return (
-      <DialogContent maxWidth="35rem" onExitComplete={onExitComplete}>
+      <DialogContent
+        className="flex flex-col items-center justify-center"
+        maxHeight={DIALOG_SIZE.height}
+        maxWidth={DIALOG_SIZE.width}
+        onExitComplete={onExitComplete}
+        style={{ height: DIALOG_SIZE.height }}
+      >
         <div className="flex flex-col items-center gap-2 py-6 text-center">
           <CheckCircleIcon className="size-7 text-brand-600" />
           <DialogTitle>Thanks, we got your feedback.</DialogTitle>
@@ -155,8 +169,8 @@ export function FeedbackDialogContent({
     return (
       <DialogContent
         className="flex flex-col gap-0 p-0"
-        maxHeight="40rem"
-        maxWidth="35rem"
+        maxHeight={DIALOG_SIZE.height}
+        maxWidth={DIALOG_SIZE.width}
         onEscapeKeyDown={(event) => {
           // Escape goes back to the list, as the arrow does.
           event.preventDefault();
@@ -164,6 +178,7 @@ export function FeedbackDialogContent({
         }}
         onExitComplete={onExitComplete}
         showCloseButton={false}
+        style={{ height: DIALOG_SIZE.height }}
       >
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Button
@@ -210,9 +225,12 @@ export function FeedbackDialogContent({
 
   return (
     <DialogContent
-      maxWidth="35rem"
+      className="flex flex-col overflow-hidden"
+      maxHeight={DIALOG_SIZE.height}
+      maxWidth={DIALOG_SIZE.width}
       onExitComplete={onExitComplete}
       showCloseButton={false}
+      style={{ height: DIALOG_SIZE.height }}
     >
       <div className="flex flex-col gap-1">
         <DialogTitle>Send feedback</DialogTitle>
@@ -221,12 +239,13 @@ export function FeedbackDialogContent({
         </DialogDescription>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex shrink-0 flex-col gap-1.5">
         <label className="text-xs font-medium" htmlFor={noteId}>
           Comments
         </label>
         <Textarea
           autoFocus
+          className="max-h-40"
           id={noteId}
           maxLength={5000}
           onChange={(event) => {
@@ -237,28 +256,33 @@ export function FeedbackDialogContent({
         />
       </div>
 
-      {described.isPending && (
-        <p className="text-sm text-muted-foreground">Gathering the details…</p>
-      )}
-      {parts.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {parts.map((part) => (
-            <FeedbackPart
-              key={part.id}
-              leftOut={leftOut}
-              onLeftOut={setLeftOut}
-              onToggleOpen={() => {
-                setOpened((current) => toggleItem(part.id, current));
-              }}
-              onView={setViewing}
-              open={opened.has(part.id)}
-              part={part}
-            />
-          ))}
-        </div>
-      )}
+      {/* What goes takes the room left, and scrolls in it. */}
+      <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+        {described.isPending && (
+          <p className="text-sm text-muted-foreground">
+            Gathering the details…
+          </p>
+        )}
+        {parts.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {parts.map((part) => (
+              <FeedbackPart
+                key={part.id}
+                leftOut={leftOut}
+                onLeftOut={setLeftOut}
+                onToggleOpen={() => {
+                  setOpened((current) => toggleItem(part.id, current));
+                }}
+                onView={setViewing}
+                open={opened.has(part.id)}
+                part={part}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <div className="min-w-0 flex-1">
           {problem && (
             <p className="flex items-start gap-1.5 text-xs text-destructive">
@@ -282,7 +306,16 @@ export function FeedbackDialogContent({
           }}
           variant="brand"
         >
-          {send.isError ? "Try again" : "Send"}
+          {send.isPending ? (
+            <>
+              <Spinner className="size-3.5" />
+              Sending…
+            </>
+          ) : send.isError ? (
+            "Try again"
+          ) : (
+            "Send"
+          )}
         </Button>
       </div>
     </DialogContent>

@@ -460,6 +460,35 @@ describe("a chat written through its records", () => {
     expect(log.match(/"t":"stop"/g)).toHaveLength(1);
   });
 
+  // Stop pressed as the turn ends on its own: the press and the turn's save
+  // of its stop race, and neither waits for the other.
+  it.each(["press first", "save first"])(
+    "writes the person's Stop once when it races the turn's own save of it, %s",
+    async (order) => {
+      const { chatId, sessionId } = await startChat();
+      const pressed = new Date(NOW.getTime() - 5000);
+      const session = (
+        await ChatReads.session({ chatId, sessionId })
+      )._unsafeUnwrap();
+      const press = () => markChatStopped(chatId, pressed);
+      const save = () =>
+        ChatWrites.saveSession({ ...session, stoppedBy: "person" }, chatId);
+
+      const [first, second] =
+        order === "press first" ? [press(), save()] : [save(), press()];
+      await Promise.all([first, second]);
+
+      const log = await fs.readFile(
+        path.join(
+          records.dirOf(chatId),
+          `${sessionId}.${records.service.device}.jsonl`,
+        ),
+        "utf8",
+      );
+      expect(log.match(/"t":"stop"/g)).toHaveLength(1);
+    },
+  );
+
   it("says each mark the person made, with the moment they made it", async () => {
     const { chatId } = await startChat();
     const topic = await createTopic({ name: "Travel" });

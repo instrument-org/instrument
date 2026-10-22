@@ -448,14 +448,10 @@ export class ChatRecords {
         saved.rolloverWindows,
       );
     }
-    // Against the session as it reads, whose stop a turn after it retires:
-    // a row re-saved with the stop it still reads with says nothing new, and
-    // a row read once a turn retired the stop carries none, so a stop that
-    // differs is a new one, even by whoever made the last.
-    if (
-      saved.stoppedBy !== undefined &&
-      (known ? sessionOf(known).stoppedBy : undefined) !== saved.stoppedBy
-    ) {
+    // A row re-saved with the stop it still reads with says nothing new, and
+    // a row read once a turn retired the stop carries none; `stopped` tells
+    // the two apart against the session as it reads when it writes.
+    if (saved.stoppedBy !== undefined) {
       await this.stopped(chatId, saved.id, saved.stoppedBy);
     }
     // A session just started has the title its header carries and no settings.
@@ -619,7 +615,14 @@ export class ChatRecords {
     });
   }
 
-  /** Who stopped the session's turn; it holds until a turn starts after it. */
+  /**
+   * Who stopped the session's turn; it holds until a turn starts after it.
+   * A stop by the same stopper the session already reads with, one that
+   * still holds or was made from `asked` on, is this stop, and nothing is
+   * written. Checked in the same tick that queues the record, against what
+   * is queued too, so two callers recording one stop leave one record
+   * whichever comes first.
+   */
   stopped(
     chatId: ChatId,
     sessionId: StoreId.Session,
@@ -628,6 +631,21 @@ export class ChatRecords {
     asked?: Date,
   ): Promise<void> {
     return this.#with(chatId, (chat) => {
+      const read = withPending(
+        chat.fold.chat(),
+        chat.pending,
+        chat.id,
+        this.device,
+      ).sessions.find(({ id }) => id === sessionId);
+      const known = read?.stopped;
+      if (
+        read &&
+        known?.by === by &&
+        (sessionOf(read).stoppedBy === by ||
+          (asked !== undefined && known.at >= asked))
+      ) {
+        return undefined;
+      }
       const at = asked ?? this.#now();
       return this.#log(chat, sessionId, {
         at,

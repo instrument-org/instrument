@@ -354,7 +354,7 @@ export async function setChatTopic(
  * pressed Stop, as a `stop` record in its session's log: the chat reads as
  * stopped until a turn starts after it. A user's stop already there from
  * that moment on (the turn's own, saved as it ended) is that stop, and
- * nothing more is written.
+ * nothing more is written (`ChatRecords.stopped` checks that as it writes).
  */
 export async function markChatStopped(
   chatId: ChatId,
@@ -363,13 +363,6 @@ export async function markChatStopped(
   const sessionId = sessionOfChat(chatId);
   if (!sessionId) {
     return false;
-  }
-  const known = await ChatReads.stopped({ chatId, sessionId });
-  if (known.isErr()) {
-    return false;
-  }
-  if (known.value?.by === "person" && known.value.at >= at) {
-    return true;
   }
   const written = await ChatWrites.stopped(chatId, sessionId, "person", at);
   return written.isOk();

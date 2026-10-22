@@ -180,8 +180,20 @@ export function useDictation({
   const [live, setLive] = useState<LiveText>();
   const [micStream, setMicStream] = useState<MediaStream>();
   // Each dictation's toasts are its own, so one box starting or landing never
-  // takes away another's Try Again and strands its recording.
-  const toastId = `dictation:${surface}:${useId()}`;
+  // takes away another's Try Again and strands its recording. Each toast gets
+  // a fresh id: Sonner merges a toast into an earlier one with its id, buttons
+  // included, and applies a dismiss a frame late to whatever has that id then.
+  // An error toast's id is otherwise its title.
+  const toastKey = `dictation:${surface}:${useId()}`;
+  const toastCount = useRef(0);
+  const nextToastId = () => `${toastKey}:${++toastCount.current}`;
+  const shownToast = useRef<number | string>(undefined);
+  const dismissToast = () => {
+    if (shownToast.current !== undefined) {
+      toast.dismiss(shownToast.current);
+      shownToast.current = undefined;
+    }
+  };
 
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
@@ -361,13 +373,13 @@ export function useDictation({
       description: notice.description,
       // A toast that holds a recording stays until it is answered.
       ...(notice.keepsRecording && { duration: Number.POSITIVE_INFINITY }),
-      id: toastId,
+      id: nextToastId(),
     };
-    if (notice.tone === "info") {
-      toast.info(notice.title, options);
-    } else {
-      toast.error(notice.title, options);
-    }
+    dismissToast();
+    shownToast.current =
+      notice.tone === "info"
+        ? toast.info(notice.title, options)
+        : toast.error(notice.title, options);
   };
 
   const finish = (text: string, deliver: (text: string) => void) => {
@@ -397,7 +409,7 @@ export function useDictation({
     }
     if (result.ok) {
       kept.current = undefined;
-      toast.dismiss(toastId);
+      dismissToast();
       if (finish(result.text, deliver)) {
         onLanded?.();
       }
@@ -508,7 +520,7 @@ export function useDictation({
           clearLive();
           setPhase({ kind: "idle" });
           kept.current = undefined;
-          toast.dismiss(toastId);
+          dismissToast();
           if (finish(text, current.deliver)) {
             onLanded?.();
           }
@@ -656,9 +668,10 @@ export function useDictation({
       if (surface === "composer") {
         openLogin({ instrumentOnly: true, reason: "dictation" });
       } else {
-        toast.info("Log in to dictate", {
+        dismissToast();
+        shownToast.current = toast.info("Log in to dictate", {
           description: `Dictation comes with an ${APP_NAME} account.`,
-          id: toastId,
+          id: nextToastId(),
         });
       }
       return;
@@ -682,7 +695,7 @@ export function useDictation({
     };
 
     kept.current = undefined;
-    toast.dismiss(toastId);
+    dismissToast();
     // The stream opens while the microphone does, and hears the take from
     // its first chunk once it is ready.
     openLive(current);

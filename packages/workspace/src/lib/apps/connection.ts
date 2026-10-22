@@ -23,6 +23,16 @@ const AppConnectionStatusSchema = z.enum([
 
 export type AppConnectionStatus = z.output<typeof AppConnectionStatusSchema>;
 
+/**
+ * How a sign-in that started ended without connecting: the service refused
+ * the account (a vendor policy, an admin's consent, a client it will not
+ * take), the user stopped it, or nobody came back before it lapsed. A user who
+ * turned the sign-in down is `declined`, not this.
+ */
+export const SignInEndSchema = z.enum(["canceled", "expired", "refused"]);
+
+export type SignInEnd = z.output<typeof SignInEndSchema>;
+
 export const AppConnectionSchema = z.object({
   /** Whom the service says the connection belongs to, when it tells us. */
   account: z.string().optional(),
@@ -33,6 +43,8 @@ export const AppConnectionSchema = z.object({
    */
   approvedManifestHash: z.string().optional(),
   connectedAt: z.number().optional(),
+  /** For a failed sign-in, how it ended, when that was more than an error. */
+  ended: SignInEndSchema.optional(),
   /** Why the last test failed, for the card and the page. */
   error: z.string().optional(),
   /**
@@ -170,6 +182,7 @@ export async function recordConnection(
     ...(patch.status === "connected"
       ? {}
       : { error: patch.error, manifestHash: undefined }),
+    ended: patch.ended,
     status: patch.status,
     updatedAt: Date.now(),
   };

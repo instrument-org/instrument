@@ -164,15 +164,54 @@ export async function disconnectApp(
 export type AppCallbackOutcome =
   | { opensIn: "app" | "external"; outcome: "connected"; slug: string }
   | { outcome: "declined"; slug: string }
+  /** The service would not let this account connect, by its own rule. */
+  | { outcome: "refused"; slug: string }
   /** The browser came back to a sign-in nobody was waiting for. */
   | { outcome: "expired" }
   | { error: string; outcome: "failed"; slug: string };
 
+// What a vendor writes when the person on its page turned the sign-in
+// down: the RFC's own words, and Microsoft's code for a declined consent.
+const USER_DENIAL =
+  /\bAADSTS65004\b|\buser (?:has )?(?:denied|declined|cancell?ed)\b|\bdenied by (?:the )?user\b|\bresource owner or authorization server denied\b/i;
+
+// What a vendor writes when its own rule stops the account: a Microsoft
+// AADSTS code, an administrator's consent or approval, a policy.
+const VENDOR_POLICY =
+  /\bAADSTS\d+|\badmin(?:istrator)?\b|\bpolicy\b|\bconsent\b|\bapproval\b|\borgani[sz]ation\b|\btenant\b|\bnot (?:allowed|permitted|authorized)\b|\bblocked\b/i;
+
+/**
+ * Whether an OAuth error the provider sent the browser back with is the user
+ * turning the sign-in down on its page, or the service refusing the account.
+ * Only `access_denied` with nothing but a denial in its description is the
+ * user's doing; any other error, or a denial whose description names a
+ * policy (an admin's consent, an AADSTS code), is the service's.
+ */
+export function signInRefusalOf({
+  description,
+  error,
+}: {
+  description: string | undefined;
+  error: string;
+}): "declined" | "refused" {
+  if (error !== "access_denied") {
+    return "refused";
+  }
+  if (description === undefined || description.trim() === "") {
+    return "declined";
+  }
+  if (USER_DENIAL.test(description)) {
+    return "declined";
+  }
+  return VENDOR_POLICY.test(description) ? "refused" : "declined";
+}
+
 /**
  * Finish the parked sign-in an app's provider sent the browser back for: the
- * code becomes tokens and the app becomes connected, or a denial is a
- * decline, the same as "Not now" on the card. Either way the window and the
- * chat hear of it.
+ * code becomes tokens and the app becomes connected; the user turning it down
+ * on the provider's page is a decline, the same as "Not now" on the card;
+ * and the service refusing the account is a failed sign-in whose next step
+ * is the web. Either way the window and the chat hear of it.
  */
 export async function receiveAppCallback(
   params: URLSearchParams,
@@ -180,6 +219,7 @@ export async function receiveAppCallback(
   const code = params.get("code") ?? undefined;
   const state = params.get("state") ?? undefined;
   const oauthError = params.get("error") ?? undefined;
+  const oauthErrorDescription = params.get("error_description") ?? undefined;
   const appsDir = getAppsDir();
   const slug = state === undefined ? undefined : pendingMcpOAuthSlug(state);
   // The sign-in's pages in the window's browser end with this one: where
@@ -188,10 +228,33 @@ export async function receiveAppCallback(
     settleSignIn(slug);
   }
   if (state !== undefined && (oauthError !== undefined || code === undefined)) {
-    // Denied or abandoned in the provider's page: the flow is torn down.
+    // Denied, refused, or abandoned in the provider's page: the flow is torn
+    // down.
     await cancelMcpOAuth(state);
     if (slug === undefined || !appsDir) {
       return { outcome: "expired" };
+    }
+    if (oauthError === undefined) {
+      // Neither a code nor an error: the service broke off the sign-in
+      // without saying why, which is nothing the user said.
+      const error = "The service sent the sign-in back without finishing it.";
+      await settleConnection(slug, { error, status: "failed" });
+      return { error, outcome: "failed", slug };
+    }
+    if (
+      signInRefusalOf({
+        description: oauthErrorDescription,
+        error: oauthError,
+      }) === "refused"
+    ) {
+      await settleConnection(slug, {
+        ended: "refused",
+        error: oauthErrorDescription
+          ? `${oauthError}: ${oauthErrorDescription}`
+          : oauthError,
+        status: "failed",
+      });
+      return { outcome: "refused", slug };
     }
     await settleConnection(slug, { status: "declined" });
     return { outcome: "declined", slug };

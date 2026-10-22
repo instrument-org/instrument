@@ -14,7 +14,8 @@ import {
   startApiSignIn,
 } from "../api-oauth";
 import { catalogApiSignInClient } from "../catalog";
-import { recordConnection } from "../connection";
+import { appChanged } from "../changed";
+import { readConnection, recordConnection } from "../connection";
 import { type ApiAppManifest } from "../manifest";
 import { boundTo, credentialOrigin } from "../origin-bound";
 import { loadApp } from "../store";
@@ -53,6 +54,7 @@ type PendingFlow = PendingApiFlow | PendingMcpFlow;
 interface PendingApiFlow {
   appsDir: AbsolutePath;
   expiresAt: number;
+  expiry?: ReturnType<typeof setTimeout>;
   kind: "api";
   opensIn: SignInOpensIn;
   /** Redeem the code the callback brings, keeping the tokens. */
@@ -64,6 +66,7 @@ interface PendingApiFlow {
 interface PendingMcpFlow {
   appsDir: AbsolutePath;
   expiresAt: number;
+  expiry?: ReturnType<typeof setTimeout>;
   kind: "mcp";
   opensIn: SignInOpensIn;
   provider: ReturnType<typeof createMcpOAuthProvider>;
@@ -76,9 +79,10 @@ interface PendingMcpFlow {
   url: string;
 }
 
-// A sign-in the user never finishes (declined, closed the tab) would otherwise
-// leak a transport forever. Evict parked flows after this long.
-const PENDING_FLOW_TTL_MS = 10 * 60 * 1000;
+// A sign-in the user never finishes (closed the tab, walked away) would
+// otherwise leak a transport forever and leave the chat waiting on it. A
+// parked flow lapses after this long, and the chat hears that it did.
+export const PENDING_FLOW_TTL_MS = 10 * 60 * 1000;
 
 // How long an API app's sign-in waits on the request that says whether the
 // sign-in it already has still works.
@@ -237,7 +241,7 @@ export async function beginMcpOAuth({
       reason: "unauthorized",
     });
   }
-  pendingFlows.set(state, {
+  park(state, {
     appsDir,
     expiresAt: now + PENDING_FLOW_TTL_MS,
     kind: "mcp",
@@ -330,7 +334,7 @@ async function beginApiOAuth({
       reason: "connect",
     });
   }
-  pendingFlows.set(started.state, {
+  park(started.state, {
     appsDir,
     expiresAt: now + PENDING_FLOW_TTL_MS,
     kind: "api",
@@ -361,11 +365,10 @@ async function beginApiOAuth({
  * and clears transient PKCE material. Safe to call for an unknown state.
  */
 export async function cancelMcpOAuth(state: string): Promise<void> {
-  const flow = pendingFlows.get(state);
+  const flow = forget(state);
   if (!flow) {
     return;
   }
-  pendingFlows.delete(state);
   await closeFlow(flow);
   await flow.store.clearTransient(flow.slug).catch(noop);
 }
@@ -382,7 +385,7 @@ export async function completeMcpOAuth({
     McpConnectionError
   >
 > {
-  const flow = pendingFlows.get(state);
+  const flow = forget(state);
   if (!flow) {
     return err({
       message:
@@ -390,7 +393,6 @@ export async function completeMcpOAuth({
       reason: "unauthorized",
     });
   }
-  pendingFlows.delete(state);
   if (flow.kind === "api") {
     return completeApiOAuth(flow, code);
   }
@@ -539,8 +541,8 @@ function dropPendingFlowsForSlug(slug: string): void {
   // pending sign-in" error instead of a PKCE mismatch.
   for (const [state, flow] of pendingFlows) {
     if (flow.slug === slug) {
+      forget(state);
       void closeFlow(flow);
-      pendingFlows.delete(state);
     }
   }
 }
@@ -548,8 +550,58 @@ function dropPendingFlowsForSlug(slug: string): void {
 function evictExpiredFlows(now: number): void {
   for (const [state, flow] of pendingFlows) {
     if (flow.expiresAt <= now) {
+      forget(state);
       void closeFlow(flow);
-      pendingFlows.delete(state);
     }
   }
+}
+
+/** Keep a flow for its callback, until it lapses. */
+function park(state: string, flow: PendingFlow): void {
+  const expiry = setTimeout(() => {
+    void lapse(state);
+  }, flow.expiresAt - Date.now());
+  // A sign-in left open never holds the process up.
+  expiry.unref?.();
+  pendingFlows.set(state, { ...flow, expiry });
+}
+
+/** Take a parked flow out of waiting, so its lapse never fires. */
+function forget(state: string): PendingFlow | undefined {
+  const flow = pendingFlows.get(state);
+  if (flow) {
+    clearTimeout(flow.expiry);
+    pendingFlows.delete(state);
+  }
+  return flow;
+}
+
+/**
+ * A sign-in nobody finished in time: the flow lets go of what it held, and
+ * the app records the sign-in as lapsed, which wakes the chats waiting on it
+ * with the way on (signing in on the web, or trying again).
+ */
+async function lapse(state: string): Promise<void> {
+  const flow = forget(state);
+  if (!flow) {
+    return;
+  }
+  await closeFlow(flow);
+  await flow.store.clearTransient(flow.slug).catch(noop);
+  const connection = await readConnection(flow.slug);
+  if (connection?.status === "connected") {
+    return;
+  }
+  const error =
+    "The sign-in page was left open without finishing, and the sign-in lapsed.";
+  await recordConnection(flow.slug, {
+    ended: "expired",
+    error,
+    status: "failed",
+  });
+  await appChanged(flow.slug, {
+    detail: error,
+    ended: "expired",
+    event: "failed",
+  });
 }

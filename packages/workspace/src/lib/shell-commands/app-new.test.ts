@@ -802,6 +802,35 @@ describe("app new refuses what cannot connect", () => {
 
     expect(await guideOf("switcher")).not.toBe(before);
   });
+
+  it("moves an app whose sign-in failed to the web, keeping its name", async () => {
+    await app(
+      "new",
+      "linear",
+      "--name",
+      "Linear Work",
+      "--mcp",
+      "https://mcp.linear.app/mcp",
+    );
+
+    const moved = await app(
+      "new",
+      "linear",
+      "--web",
+      "https://linear.app",
+      "--force",
+    );
+
+    expect(moved.exitCode).toBe(0);
+    expect((await appOf("linear")).name).toBe("Linear Work");
+    expect(await manifestOf("linear")).toMatchInlineSnapshot(`
+      {
+        "service": "linear",
+        "type": "web",
+        "url": "https://linear.app",
+      }
+    `);
+  });
 });
 
 describe("app account", () => {

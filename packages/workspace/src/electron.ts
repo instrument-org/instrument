@@ -26,6 +26,7 @@ export {
   isConnected,
   nameAppAccount,
   recordConnection,
+  type SignInEnd,
 } from "./lib/apps/connection";
 export {
   type AppManifest,
@@ -65,7 +66,7 @@ export {
   readDirectoryIcons,
 } from "./lib/apps/directory-icon";
 export { findAppIcon } from "./lib/apps/icon";
-export { setUpFromDirectory } from "./lib/apps/set-up";
+export { moveAppToWeb, setUpFromDirectory } from "./lib/apps/set-up";
 export { listApps, loadApp, readAppGuide } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {

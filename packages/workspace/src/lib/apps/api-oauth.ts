@@ -10,6 +10,7 @@ import { type Result } from "neverthrow";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type ApiSignInClient, catalogApiSignInClient } from "./catalog";
 import { type ApiAppManifest } from "./manifest";
+import { describeMcpFailure } from "./mcp/client";
 import { fetchForMcp } from "./mcp/fetch";
 import { type McpOAuthStore } from "./mcp/oauth-provider";
 import { boundTo, credentialOrigin } from "./origin-bound";
@@ -18,6 +19,8 @@ import {
   type AppResponse,
   performAppRequest,
 } from "./request";
+import { webInsteadUrl } from "./site";
+import { webInsteadCommand } from "./web-instead";
 
 /**
  * Sign-in for an API app (`type: "api"`, `auth: { kind: "oauth" }`), with the
@@ -29,11 +32,33 @@ import {
  * a bearer token, refreshing it once when the API answers 401.
  */
 
-/** Thrown when only a new sign-in by the user gets the app a token again. */
+/**
+ * Thrown when only a new sign-in by the user gets the app a token again, with
+ * the web named for when that sign-in will not take.
+ */
 export class SignInNeededError extends Error {
-  constructor(options?: ErrorOptions) {
+  constructor(
+    { manifest, slug }: { manifest: ApiAppManifest; slug: string },
+    options?: ErrorOptions,
+  ) {
     super(
-      "This app needs the user to sign in again. Ask with connect_app.",
+      `This app needs the user to sign in again. Ask with connect_app; if that sign-in fails or is refused, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`,
+      options,
+    );
+  }
+}
+
+/**
+ * Thrown when a refresh fails for a reason a new sign-in does not fix, such
+ * as the token route being down: another try later, then the web.
+ */
+class RefreshFailedError extends Error {
+  constructor(
+    { manifest, slug }: { manifest: ApiAppManifest; slug: string },
+    options: ErrorOptions & { cause: unknown },
+  ) {
+    super(
+      `Refreshing ${slug}'s sign-in failed: ${describeMcpFailure(options.cause)}. Signing in again does not change this. Try again in a minute; if it keeps failing, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`,
       options,
     );
   }
@@ -155,15 +180,22 @@ async function apiAccessToken(
   const origin = credentialOrigin(manifest);
   const tokens = boundTo(await oauth.store.getTokens(slug), origin);
   if (tokens === undefined) {
-    throw new SignInNeededError();
+    throw new SignInNeededError({ manifest, slug });
   }
   if (!fresh) {
     return tokens.access_token;
   }
   const client = catalogApiSignInClient(slug, manifest);
   const refreshToken = tokens.refresh_token;
-  if (client === undefined || refreshToken === undefined) {
-    throw new SignInNeededError();
+  if (client === undefined) {
+    // With no client a new sign-in cannot start either, so the web is all
+    // that is left.
+    throw new Error(
+      `The directory no longer has a sign-in client for ${manifest.url}, so "${slug}" can neither refresh its sign-in nor start a new one. Sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`,
+    );
+  }
+  if (refreshToken === undefined) {
+    throw new SignInNeededError({ manifest, slug });
   }
   const running = refreshing.get(slug);
   if (running) {
@@ -185,9 +217,9 @@ async function apiAccessToken(
       // being unreachable, leaves the sign-in for the next try.
       if (error instanceof InvalidGrantError) {
         await oauth.store.clearTokens(slug);
-        throw new SignInNeededError({ cause: error });
+        throw new SignInNeededError({ manifest, slug }, { cause: error });
       }
-      throw error;
+      throw new RefreshFailedError({ manifest, slug }, { cause: error });
     }
   })().finally(() => {
     refreshing.delete(slug);

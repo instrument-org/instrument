@@ -296,6 +296,20 @@ function authFailure(error: unknown): "forbidden" | "unauthorized" | undefined {
   return undefined;
 }
 
+/**
+ * Whether the server refused Instrument's sign-in client itself
+ * (`invalid_client`, `unauthorized_client`), which a new sign-in meets again:
+ * the SDK has already cleared the registration and retried by the time one
+ * reaches here.
+ */
+export function clientRefused(error: unknown): boolean {
+  return (
+    error instanceof OAuthError &&
+    (error.errorCode === "invalid_client" ||
+      error.errorCode === "unauthorized_client")
+  );
+}
+
 function connectionError(
   error: unknown,
   phase: "connect" | "protocol",

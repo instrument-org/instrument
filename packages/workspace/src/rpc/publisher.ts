@@ -1,6 +1,7 @@
 import { EventPublisher } from "@orpc/server";
 
 import { type AppEvent } from "../lib/apps/changed";
+import { type SignInEnd } from "../lib/apps/connection";
 import { type RecordChanged } from "../lib/record-changes";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -24,6 +25,11 @@ export const publisher = new EventPublisher<{
     detail?: string;
     event: AppEvent;
     name: string;
+    /** For a sign-in of the app's own that did not connect: how it ended, and the site to sign in on instead. */
+    signIn?: {
+      ended: "failed" | SignInEnd;
+      web?: string;
+    };
     slug: string;
     /** For a web app, the site the work happens on. */
     web?: string;

@@ -43,8 +43,9 @@ import {
   redactorFor,
   requireAppCredential,
 } from "../apps/credential-origin";
-import { callMcpTool, listMcpTools } from "../apps/mcp/client";
+import { callMcpTool, clientRefused, listMcpTools } from "../apps/mcp/client";
 import { withAppMcpClient } from "../apps/mcp/run";
+import { SignInAgainError } from "../apps/mcp/tool-auth";
 import { credentialOrigin } from "../apps/origin-bound";
 import { performSignedInRequest } from "../apps/api-oauth";
 import { performAppRequest, redactCredential } from "../apps/request";
@@ -61,6 +62,8 @@ import {
 import { checkAppIcon, writeAppIcon } from "../apps/icon";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
 import { catalogWayIn, parseAuth } from "../apps/way-in";
+import { webInsteadUrl } from "../apps/site";
+import { webInsteadCommand } from "../apps/web-instead";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
 import {
   appGuideHandedOver,
@@ -144,8 +147,10 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       services). --web names a service worked on its own site in
       ${APP_NAME}'s browser, for one with no sign-in the card can open: the
       user signs in there (at --sign-in, when the login page is not the
-      url), and a task works the site in a tab. Refuses to overwrite
-      an app that is already there without --force. You can also write the
+      url), and a task works the site in a tab. It is also where an app
+      goes when its own sign-in fails or is refused: \`${APP_COMMAND.name} new <slug>
+      --web <url> --force\` moves it there, keeping its name. Refuses to
+      overwrite an app that is already there without --force. You can also write the
       file yourself with your file tools.
   ${APP_COMMAND.name} test <slug>
       The red/green loop: manifest, guide, key or sign-in, a scan for secrets in
@@ -496,13 +501,23 @@ async function callAppTool({
     slug: app.slug,
   });
   if (result.isErr()) {
+    const web = `\`${webInsteadCommand(app.slug, webInsteadUrl(app.slug, manifest))}\`, then connect_app`;
     const next: Partial<Record<typeof result.error.reason, string>> = {
       forbidden: ` A 403 usually means the account lacks a permission, scope or plan on the service's side, which signing in again does not change; tell the user what the server said. Some servers send it for a bad key too: \`${APP_COMMAND.name} test ${app.slug}\` checks the key.`,
-      unauthorized: ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with connect_app.`,
+      unauthorized:
+        manifest.auth.kind === "oauth"
+          ? ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with connect_app, and if that sign-in fails or is refused, sign in on the web instead: ${web}.`
+          : ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with connect_app.`,
     };
-    throw new Error(
-      `${redact(result.error.message)}${next[result.error.reason] ?? ""}`,
-    );
+    // A sign-in the server will never take from this client, or one whose
+    // message already says what to do, needs nothing more said.
+    const hint =
+      result.error.cause instanceof SignInAgainError
+        ? ""
+        : clientRefused(result.error.cause)
+          ? ` The server refuses ${APP_NAME}'s sign-in client, so signing in again meets the same refusal. Sign in on the web instead: ${web}.`
+          : (next[result.error.reason] ?? "");
+    throw new Error(`${redact(result.error.message)}${hint}`);
   }
   return { ...result.value, app, redact, tool };
 }
@@ -882,7 +897,12 @@ async function runNew(input: SubcommandInput) {
     );
   }
   const slug = slugResult.data;
-  const givenName = input.value("name")?.trim();
+  const appsDir = getWorkspaceConfig().appsDir;
+  const existing = await loadApp(appsDir, slug);
+  // An app written over keeps its name unless another is given.
+  const givenName =
+    input.value("name")?.trim() ||
+    (existing.isOk() && force ? existing.value.name : undefined);
   if (!givenName) {
     throw new Error("new needs --name '<Name>', the service's own name.");
   }
@@ -899,7 +919,6 @@ async function runNew(input: SubcommandInput) {
     slug,
     web,
   });
-  const appsDir = getWorkspaceConfig().appsDir;
   const siblings =
     entry === undefined
       ? []
@@ -1004,7 +1023,6 @@ async function runNew(input: SubcommandInput) {
     );
   }
   const manifest: AppManifest = parsed.data;
-  const existing = await loadApp(appsDir, slug);
   if (existing.isOk() && !force) {
     throw new Error(
       `${appsFolder()}/${existing.value.name}/${APP_FILE_NAME} is already "${slug}". Edit it with your file tools, or pass --force to replace it.`,

@@ -33,7 +33,9 @@ import {
   listApps,
   listMcpTools,
   loadApp,
+  moveAppToWeb,
   nameAppAccount,
+  pendingMcpOAuthSlug,
   removeLocalServer,
   setUpFromDirectory,
   requireAppCredential,
@@ -646,19 +648,49 @@ const startOAuth = base
   });
 
 /**
- * The user gave up on a sign-in that was started, to try it again: the flow is
- * torn down, so its callback is refused, and the app is left as it was. A
- * decline is "Not now", not this.
+ * The user stopped a sign-in that was started: the flow is torn down, so its
+ * callback is refused. A sign-in that was still waiting is recorded as
+ * stopped, which wakes the chat that asked with the way on (the web, or
+ * another try) and puts both on the card. A decline is "Not now", not this.
  */
 const cancelOAuth = base
   .input(z.object({ slug: AppSlugSchema }))
   .handler(async ({ input }) => {
     settleSignIn(input.slug);
     const state = await appOAuthStore.getState(input.slug);
+    const waiting =
+      state !== undefined && pendingMcpOAuthSlug(state) === input.slug;
     if (state !== undefined) {
       await cancelMcpOAuth(state);
     }
     await appOAuthStore.clearTransient(input.slug);
+    if (waiting) {
+      await settleConnection(input.slug, {
+        ended: "canceled",
+        error: "The sign-in was stopped before it finished.",
+        status: "failed",
+      });
+    }
+  });
+
+/**
+ * "Sign in on the web" on a card whose sign-in did not connect: the app moves
+ * to the service's site, to be signed in to in the window's browser, where
+ * the site's cookies keep it. Answers the page to open; "Done signing in"
+ * connects it as a web app, which wakes the chat.
+ */
+const signInOnWeb = base
+  .input(z.object({ slug: AppSlugSchema }))
+  .output(z.object({ signIn: z.string() }))
+  .handler(async ({ errors, input }) => {
+    try {
+      const { signIn } = await moveAppToWeb(input.slug);
+      return { signIn };
+    } catch (error) {
+      throw errors.NOT_FOUND({
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
 
 /**
@@ -853,6 +885,7 @@ export const apps = {
   setAccount,
   setCredential,
   setUp,
+  signInOnWeb,
   startOAuth,
   test,
 };

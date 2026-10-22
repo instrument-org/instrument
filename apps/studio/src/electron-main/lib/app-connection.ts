@@ -3,6 +3,7 @@ import {
   type AppEvent,
   appChanged,
   recordConnection,
+  type SignInEnd,
 } from "@instrument-org/workspace/electron";
 import { z } from "zod";
 
@@ -44,8 +45,8 @@ export type ConnectionOutcome =
   | { manifestHash: string; status: "connected" }
   /** "Not now", on the card or the provider's page. */
   | { status: "declined" }
-  /** A sign-in that could not start or finish. */
-  | { error: string; status: "failed" }
+  /** A sign-in that could not start or finish, and how it ended when that was more than an error. */
+  | { ended?: SignInEnd; error: string; status: "failed" }
   /** The user allowed a local server to run, pinned to the manifest they saw. */
   | { approvedManifestHash: string; status: "needs-approval" }
   /** The server refused the key or sign-in the app holds, or the key is gone. */
@@ -87,14 +88,18 @@ export async function settleConnection(
 
 function eventOf(
   outcome: ConnectionOutcome,
-): undefined | { detail?: string; event: AppEvent } {
+): undefined | { detail?: string; ended?: SignInEnd; event: AppEvent } {
   switch (outcome.status) {
     case "connected":
     case "declined": {
       return { event: outcome.status };
     }
     case "failed": {
-      return { detail: outcome.error, event: "failed" };
+      return {
+        detail: outcome.error,
+        ...(outcome.ended === undefined ? {} : { ended: outcome.ended }),
+        event: "failed",
+      };
     }
     case "needs-approval":
     case "needs-key":

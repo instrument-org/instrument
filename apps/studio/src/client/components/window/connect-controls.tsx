@@ -35,7 +35,9 @@ export function ConnectControls({
   dismissible = false,
   kind,
   label,
+  leading,
   name,
+  opened = false,
   runs,
   slug,
 }: {
@@ -48,7 +50,15 @@ export function ConnectControls({
   kind: "key" | "run" | "sign-in" | "web";
   /** The sign-in button's words; the app's name is the default. */
   label?: string;
+  /**
+   * One more control at the start of the row, which becomes its primary: a
+   * sign-in's own button steps back beside it, and the user's own browser is
+   * not offered.
+   */
+  leading?: ReactNode;
   name: string;
+  /** For a web app, whether its site was already opened, so the controls ask for the word that the sign-in is done. */
+  opened?: boolean;
   /** For a local app, what would run on this machine, in words. */
   runs?: string;
   slug: string;
@@ -58,7 +68,7 @@ export function ConnectControls({
   const [value, setValue] = useState("");
   // Whether a web app's site has been opened from here, after which the
   // controls ask for the word that the sign-in there is done.
-  const [openedSite, setOpenedSite] = useState(false);
+  const [openedSite, setOpenedSite] = useState(opened);
   // The default browser, for the button that sends the sign-in there.
   const browser = useQuery(
     rpcClient.utils.browserOpenTarget.queryOptions({
@@ -72,7 +82,7 @@ export function ConnectControls({
   // so it outlives these controls (see `useSignInLanding`).
   const [signInsWaiting, setSignInsWaiting] = useAtom(signInsWaitingAtom);
   const waiting = signInsWaiting.has(slug);
-  const setWaiting = (isWaiting: boolean, from?: string) => {
+  const setWaiting = (isWaiting: boolean, from?: number) => {
     setSignInsWaiting((current) => {
       const next = new Map(current);
       if (isWaiting) {
@@ -85,7 +95,6 @@ export function ConnectControls({
   };
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const listed = apps.data?.apps.find((app) => app.slug === slug);
-  const standing = listed?.standing;
   // Where a key or sign-in given here goes. It is shown, and sent back with
   // the key or the sign-in, so main refuses if the app was pointed elsewhere
   // after the user read it.
@@ -114,7 +123,7 @@ export function ConnectControls({
       {
         onSuccess: (result) => {
           if (result.status === "started") {
-            setWaiting(true, standing);
+            setWaiting(true, listed?.connection?.updatedAt);
             openAuthorization(result.url, where);
           }
         },
@@ -281,6 +290,7 @@ export function ConnectControls({
         {/* In a column too narrow for three buttons in a row they stack, each
           the column's width, rather than wrapping into a ragged pair. */}
         <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
+          {leading}
           <BrowserHandoffButton
             disabled={busy}
             onCancel={() => {
@@ -291,11 +301,12 @@ export function ConnectControls({
               signIn("app");
             }}
             size="sm"
+            variant={leading === undefined ? "default" : "outline"}
             waiting={waiting}
           >
             {label ?? "Sign in here"}
           </BrowserHandoffButton>
-          {waiting ? null : (
+          {waiting || leading !== undefined ? null : (
             <Button
               disabled={busy}
               onClick={() => {

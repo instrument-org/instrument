@@ -10,7 +10,12 @@ import { performSignedInRequest } from "./api-oauth";
 import { resetServedAppCatalog } from "./catalog";
 import { type ApiAppManifest } from "./manifest";
 import { createMemoryAppsConfig } from "./memory-config";
-import { beginMcpOAuth, completeMcpOAuth } from "./mcp/oauth-flow";
+import { publisher } from "../../rpc/publisher";
+import {
+  beginMcpOAuth,
+  completeMcpOAuth,
+  PENDING_FLOW_TTL_MS,
+} from "./mcp/oauth-flow";
 import { type McpOAuthStore } from "./mcp/oauth-provider";
 import { type OriginBound } from "./origin-bound";
 import { setUpFromDirectory } from "./set-up";
@@ -85,6 +90,10 @@ function serveMicrosoft() {
         ),
       );
       tokenRequests.push(body);
+      // Our token route down, which says nothing about the sign-in itself.
+      if (body.refresh_token === "rt-unreachable") {
+        return new Response("Service Unavailable", { status: 503 });
+      }
       const issued =
         body.grant_type === "authorization_code" && body.code === "the-code"
           ? { access_token: "at-1", refresh_token: "rt-1" }
@@ -303,10 +312,108 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
         signal: AbortSignal.timeout(5000),
         slug: "outlook",
       }),
-    ).rejects.toThrow(
-      "This app needs the user to sign in again. Ask with connect_app.",
+    ).rejects.toThrowErrorMatchingInlineSnapshot(
+      `[Error: This app needs the user to sign in again. Ask with connect_app; if that sign-in fails or is refused, sign in on the web instead: \`instrument app new outlook --web https://outlook.office.com --force\`, then connect_app.]`,
     );
     expect(await store.getTokens("outlook")).toBeUndefined();
+  });
+
+  it("keeps the sign-in and names the web when the token route is down", async () => {
+    const microsoft = serveMicrosoft();
+    microsoft.graph.accepts = "at-none";
+    await store.saveTokens("outlook", {
+      origin: "https://graph.microsoft.com",
+      value: {
+        access_token: "at-1",
+        refresh_token: "rt-unreachable",
+        token_type: "Bearer",
+      },
+    });
+
+    await expect(
+      performSignedInRequest({
+        body: undefined,
+        manifest: {
+          auth: { kind: "oauth" },
+          service: "outlook",
+          test: { path: "/me" },
+          type: "api",
+          url: "https://graph.microsoft.com/v1.0",
+        },
+        method: "GET",
+        params: {},
+        path: "/me",
+        signal: AbortSignal.timeout(5000),
+        slug: "outlook",
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(
+      `[Error: Refreshing outlook's sign-in failed: OAuth server_error: HTTP 503: Invalid OAuth error response: SyntaxError: Unexpected token 'S', "Service Unavailable" is not valid JSON. Raw body: Service Unavailable. Signing in again does not change this. Try again in a minute; if it keeps failing, sign in on the web instead: \`instrument app new outlook --web https://outlook.office.com --force\`, then connect_app.]`,
+    );
+    expect((await store.getTokens("outlook"))?.value.refresh_token).toBe(
+      "rt-unreachable",
+    );
+  });
+
+  it("lapses a sign-in nobody finishes, and tells the chat the web is next", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const heard: { name: string; slug: string }[] = [];
+    const stop = publisher.subscribe("app.event", (event) => {
+      heard.push(event);
+    });
+    try {
+      const { appsDir } = getWorkspaceConfig();
+      const setUp = await setUpFromDirectory({ slug: "outlook" });
+      if (setUp.kind !== "set-up") {
+        throw new Error("Expected Outlook to be set up from the directory");
+      }
+      const begun = (
+        await beginMcpOAuth({
+          appsDir,
+          redirectUrl: LOOPBACK,
+          relayRedirectUrl,
+          relayTokenUrl,
+          slug: setUp.slug,
+          store,
+        })
+      )._unsafeUnwrap();
+      if (begun.alreadyConnected) {
+        throw new Error("Expected a sign-in to start");
+      }
+      await vi.advanceTimersByTimeAsync(PENDING_FLOW_TTL_MS);
+      await vi.waitFor(() => {
+        expect(heard).toHaveLength(1);
+      });
+
+      // Named by whichever Outlook this run set up, the directory's slug
+      // being taken by the tests before it.
+      expect(heard.map((event) => ({ ...event, name: "", slug: "" })))
+        .toMatchInlineSnapshot(`
+        [
+          {
+            "detail": "The sign-in page was left open without finishing, and the sign-in lapsed.",
+            "event": "failed",
+            "name": "",
+            "signIn": {
+              "ended": "expired",
+              "web": "https://outlook.office.com",
+            },
+            "slug": "",
+          },
+        ]
+      `);
+      expect(
+        await getWorkspaceConfig().apps.connections.get(setUp.slug),
+      ).toMatchObject({ ended: "expired", status: "failed" });
+      // The page coming back after the lapse finds nothing waiting.
+      expect(
+        (
+          await completeMcpOAuth({ code: "the-code", state: begun.state })
+        )._unsafeUnwrapErr().message,
+      ).toMatch(/No pending sign-in/);
+    } finally {
+      stop();
+      vi.useRealTimers();
+    }
   });
 
   it("never sends a sign-in to another origin than the one it was given for", async () => {

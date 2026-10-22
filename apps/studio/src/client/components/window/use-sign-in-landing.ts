@@ -7,13 +7,13 @@ import { toast } from "@/client/lib/toast";
 
 /**
  * The app sign-ins started from the window and not yet finished, by slug,
- * with the standing each app had when its sign-in started and whether it
- * started in a chat. Held by the window rather than by the controls that
+ * with when the app's connection record was last written as the sign-in
+ * started and whether it started in a chat. Held by the window rather than by the controls that
  * started one, since opening the sign-in page in the window's browser can
  * take the screen those controls were on.
  */
 export const signInsWaitingAtom = atom<
-  ReadonlyMap<string, { from: string | undefined; inChat: boolean }>
+  ReadonlyMap<string, { from: number | undefined; inChat: boolean }>
 >(new Map());
 
 /**
@@ -35,9 +35,8 @@ export function useSignInLanding(openScreen: (href: string) => void) {
     }
     const settled = new Set<string>();
     for (const [slug, { from, inChat }] of waiting) {
-      const standing = apps.data.apps.find(
-        (app) => app.slug === slug,
-      )?.standing;
+      const app = apps.data.apps.find((candidate) => candidate.slug === slug);
+      const standing = app?.standing;
       if (standing === "connected") {
         settled.add(slug);
         toast.success(`Connected ${appsBySlug.get(slug)?.name ?? slug}`, {
@@ -47,7 +46,9 @@ export function useSignInLanding(openScreen: (href: string) => void) {
           openScreen(`/apps/${slug}`);
         }
       } else if (
-        standing !== from &&
+        // Written since the sign-in started: a second failure in a row is
+        // news as much as the first.
+        app?.connection?.updatedAt !== from &&
         (standing === "declined" || standing === "failed")
       ) {
         settled.add(slug);

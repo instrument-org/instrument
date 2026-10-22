@@ -244,6 +244,17 @@ export function createAuthCallbackApp() {
         focusAppWindow();
         return c.html(renderAuthPage({ kind: "declined", service }));
       }
+      case "refused": {
+        // The card back in the app offers signing in on the web.
+        focusAppWindow();
+        return c.html(
+          renderAuthPage({
+            headline: `${name} won’t let this account connect directly`,
+            kind: "declined",
+            service,
+          }),
+        );
+      }
       case "failed": {
         const page = failed(new Error(`App sign-in failed: ${result.error}`), {
           connecting: name,

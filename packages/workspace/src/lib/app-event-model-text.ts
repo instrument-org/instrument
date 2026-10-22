@@ -2,6 +2,7 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 import { APP_NAME } from "@instrument-org/shared";
 
 import { APP_COMMAND } from "./shell-commands/app-command";
+import { webInsteadCommand, webInsteadStep } from "./apps/web-instead";
 import { systemNote } from "./system-note";
 
 /**
@@ -41,6 +42,9 @@ export function appEventModelNote(
           : `- ${event.name} (${event.slug}) was disconnected. Do not work its site until the user signs in again.`;
       }
       case "failed": {
+        if (event.signIn !== undefined) {
+          return signInEnded(event, event.signIn, detail);
+        }
         return `- Connecting ${event.name} (${event.slug}) failed${detail ? `: ${detail}` : ""}. Read \`${APP_COMMAND.name} list\`, fix what you can, and tell the user in a line what happened.`;
       }
       case "removed": {
@@ -64,6 +68,38 @@ export function appEventModelNote(
   return systemNote`
     ${said.join("\n")}
   `;
+}
+
+type AppEventLine = SessionMessageDataPart.AppEventDataPart["events"][number];
+
+/**
+ * A sign-in of the app's own that did not connect, and the way on from it:
+ * the web, where the service's own sign-in page works in the window's
+ * browser. A refusal or a failure goes there; a sign-in the user stopped or
+ * left to lapse may only want another try, which the card offers beside it.
+ */
+function signInEnded(
+  { name, slug }: AppEventLine,
+  { ended, web }: NonNullable<AppEventLine["signIn"]>,
+  detail: string | undefined,
+): string {
+  const said = detail ? `: ${detail}` : "";
+  switch (ended) {
+    case "canceled":
+    case "expired": {
+      const what =
+        ended === "canceled"
+          ? `The user stopped signing in to ${name} (${slug}) before it finished.`
+          : `The sign-in to ${name} (${slug}) was left unfinished and lapsed.`;
+      return `- ${what} The card offers signing in on the web or trying again; ask which in a line. For the web: \`${webInsteadCommand(slug, web)}\`, then connect_app. To try again: connect_app as it is.`;
+    }
+    case "failed": {
+      return `- Signing in to ${name} (${slug}) failed${said}. ${webInsteadStep(slug, web)}`;
+    }
+    case "refused": {
+      return `- ${name} (${slug}) refused to connect this account directly${said}. That is the service's rule, not the user declining, and trying the same sign-in again meets it again. ${webInsteadStep(slug, web)}`;
+    }
+  }
 }
 
 /**

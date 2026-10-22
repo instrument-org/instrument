@@ -50,3 +50,22 @@ export function appSiteFor(
   const host = url.hostname.replace(/^(?:api|mcp|www)\./, "");
   return `https://${host}`;
 }
+
+/** The site an app's web sign-in starts at, undefined for a web app or one with no site. */
+export function webInsteadUrl(
+  slug: string,
+  manifest: AppManifest,
+): string | undefined {
+  if (manifest.type === "web" || manifest.type === "mcp-local") {
+    return undefined;
+  }
+  return appHomeFor(slug, manifest);
+}
+
+/** Whether an app connects through a sign-in of its own, which the web can stand in for. */
+export function signsInDirectly(manifest: AppManifest): boolean {
+  return (
+    (manifest.type === "mcp" || manifest.type === "api") &&
+    manifest.auth.kind === "oauth"
+  );
+}

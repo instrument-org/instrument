@@ -38,7 +38,7 @@ vi.mock("@instrument-org/workspace/electron", () => ({
   pendingMcpOAuthSlug: (state: string) => mocks.pending.get(state),
 }));
 
-import { receiveAppCallback, rememberAppsDir } from "./apps";
+import { receiveAppCallback, rememberAppsDir, signInRefusalOf } from "./apps";
 
 beforeEach(() => {
   mocks.calls.length = 0;
@@ -56,6 +56,10 @@ describe("receiveAppCallback", () => {
     const settled: Record<string, unknown> = {};
     for (const [name, query] of [
       ["a denial", "state=waiting&error=access_denied"],
+      [
+        "a vendor's refusal",
+        "state=waiting&error=access_denied&error_description=AADSTS65001%3A+The+user+or+administrator+has+not+consented+to+use+the+application",
+      ],
       ["an abandoned sign-in", "state=waiting"],
       ["a denial nobody waits on", "state=gone&error=access_denied"],
       ["no state", "code=code"],
@@ -121,6 +125,31 @@ describe("receiveAppCallback", () => {
             "outcome": "expired",
           },
         },
+        "a vendor's refusal": {
+          "calls": [
+            [
+              "settleSignIn",
+              "linear",
+            ],
+            [
+              "cancelMcpOAuth",
+              "waiting",
+            ],
+            [
+              "settleConnection",
+              "linear",
+              {
+                "ended": "refused",
+                "error": "access_denied: AADSTS65001: The user or administrator has not consented to use the application",
+                "status": "failed",
+              },
+            ],
+          ],
+          "outcome": {
+            "outcome": "refused",
+            "slug": "linear",
+          },
+        },
         "an abandoned sign-in": {
           "calls": [
             [
@@ -135,12 +164,14 @@ describe("receiveAppCallback", () => {
               "settleConnection",
               "linear",
               {
-                "status": "declined",
+                "error": "The service sent the sign-in back without finishing it.",
+                "status": "failed",
               },
             ],
           ],
           "outcome": {
-            "outcome": "declined",
+            "error": "The service sent the sign-in back without finishing it.",
+            "outcome": "failed",
             "slug": "linear",
           },
         },
@@ -185,5 +216,39 @@ describe("receiveAppCallback", () => {
         },
       }
     `);
+  });
+});
+
+describe("signInRefusalOf", () => {
+  it.each([
+    ["access_denied", undefined, "declined"],
+    ["access_denied", "The user denied access", "declined"],
+    [
+      "access_denied",
+      "AADSTS65004: User declined to consent to access the app.",
+      "declined",
+    ],
+    [
+      "access_denied",
+      "The resource owner or authorization server denied the request.",
+      "declined",
+    ],
+    [
+      "access_denied",
+      "AADSTS65001: The user or administrator has not consented to use the application.",
+      "refused",
+    ],
+    [
+      "access_denied",
+      "AADSTS90094: Admin approval required for this app.",
+      "refused",
+    ],
+    ["access_denied", "Blocked by your organization's policy.", "refused"],
+    ["unauthorized_client", undefined, "refused"],
+    ["invalid_client", "Client authentication failed", "refused"],
+    ["consent_required", undefined, "refused"],
+    ["server_error", undefined, "refused"],
+  ] as const)("%s (%s) is %s", (error, description, expected) => {
+    expect(signInRefusalOf({ description, error })).toBe(expected);
   });
 });

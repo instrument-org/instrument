@@ -669,6 +669,17 @@ export namespace SessionMessageDataPart {
             "removed",
           ]),
           name: z.string(),
+          /**
+           * For a sign-in of the app's own that did not connect: how it
+           * ended, and the service's site, where signing in on the web is
+           * the next step.
+           */
+          signIn: z
+            .object({
+              ended: z.enum(["canceled", "expired", "failed", "refused"]),
+              web: z.string().optional(),
+            })
+            .optional(),
           slug: z.string(),
           /** For a web app, the site the work happens on. */
           web: z.string().optional(),

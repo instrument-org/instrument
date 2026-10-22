@@ -74,4 +74,32 @@ describe("mcpAuthProviderForCommand", () => {
     expect(await store.getState("linear")).toBe("open-state");
     expect(await store.getCodeVerifier("linear")).toBe("open-verifier");
   });
+
+  it("names the web for when signing in again will not take", () => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      apps: {
+        ...createMemoryAppsConfig(),
+        oauth: {
+          redirectUrl: () => "http://127.0.0.1:1/auth/callback/app",
+          relayRedirectUrl: (service) =>
+            `https://api.example/oauth/${service}/callback`,
+          relayTokenUrl: (service) =>
+            `https://api.example/oauth/${service}/token`,
+          store: storeWithSignInOpen(),
+        },
+      },
+    });
+    const provider = mcpAuthProviderForCommand("linear", {
+      auth: { kind: "oauth" },
+      type: "mcp",
+      url: "https://mcp.linear.app/mcp",
+    });
+
+    expect(() =>
+      provider?.redirectToAuthorization(new URL("https://linear.app/oauth")),
+    ).toThrowErrorMatchingInlineSnapshot(
+      `[Error: This app needs the user to sign in again. Ask with connect_app; if that sign-in fails or is refused, sign in on the web instead: \`instrument app new linear --web https://linear.app --force\`, then connect_app.]`,
+    );
+  });
 });

@@ -1,10 +1,14 @@
+import { Button } from "@/client/components/ui/button";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
+import { WindowContext } from "@/client/components/window/context";
+import { toast } from "@/client/lib/toast";
 import { osConventions } from "@/client/lib/utils";
 import { ConnectControls } from "@/client/components/window/connect-controls";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useContext, useState } from "react";
 
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
 
@@ -53,7 +57,10 @@ function ConnectCard({
   >;
   reason: string;
 }) {
-  const { kind, name, runs, site, slug } = output;
+  const { name, runs, site, slug } = output;
+  // Whether this card moved the app to the web and opened its site, so the
+  // controls ask for the word that the sign-in there is done.
+  const [movedToWeb, setMovedToWeb] = useState(false);
 
   // The app's standing, live: the record the sign-in callback or the key
   // writes, which is what settles the card.
@@ -65,17 +72,34 @@ function ConnectCard({
   // since. It says so rather than offering a sign-in to nothing.
   const removed = apps.data !== undefined && app === undefined;
   const standing = app?.standing;
+  // An app moved to the web since the card was drawn signs in there.
+  const kind = app?.type === "web" ? "web" : output.kind;
   const settled =
     removed ||
     standing === "connected" ||
     standing === "declined" ||
     standing === "stale";
   const failed = standing === "failed";
+  const ended = app?.connection?.ended;
+  // A sign-in of the app's own, or a server that wanted none, that did not
+  // connect: the service's site is the next step.
+  const webOffered = kind === "sign-in" || kind === "none";
   // What the service, the SDK, or the server said, kept whole and kept out of
   // the card's own sentences: it is machine text, usually one long line of it,
   // and the reader's use for it is to copy it somewhere rather than to read it
-  // as prose.
-  const detail = failed ? app?.connection?.error : undefined;
+  // as prose. A sign-in stopped or left to lapse has none worth showing.
+  const detail =
+    failed && ended !== "canceled" && ended !== "expired"
+      ? app?.connection?.error
+      : undefined;
+  const signInOnWeb = (
+    <SignInOnWebButton
+      onOpened={() => {
+        setMovedToWeb(true);
+      }}
+      slug={slug}
+    />
+  );
 
   return (
     <ToolCard>
@@ -108,20 +132,28 @@ function ConnectCard({
                   ? "Not now."
                   : "Connected, then changed; Instrument will test it again."}
           </p>
-        ) : failed ? (
-          // A failure the user can act on where they read about it: the same
-          // controls the card opened with, since nothing about the app changed
-          // and the next thing to do is the thing that did not work.
+        ) : failed && kind !== "web" ? (
+          // A failure the user can act on where they read about it. A sign-in
+          // that did not connect goes on to the service's site, with another
+          // try beside it; anything else offers the same controls again,
+          // since the next thing to do is the thing that did not work.
           <>
             <p className="mt-3 text-xs text-muted-foreground">
-              Could not connect to {name}.
+              {failedLine({ ended, name, webOffered })}
             </p>
-            {kind === "none" ? null : (
+            {kind === "none" ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {signInOnWeb}
+              </div>
+            ) : (
               <div className="mt-3">
                 <ConnectControls
+                  // Where the direct sign-in goes says nothing about the web.
+                  describesDestination={!webOffered}
                   dismissible
                   kind={kind}
                   label="Try again"
+                  leading={webOffered ? signInOnWeb : undefined}
                   name={name}
                   runs={runs}
                   slug={slug}
@@ -140,6 +172,7 @@ function ConnectCard({
               dismissible
               kind={kind}
               name={name}
+              opened={movedToWeb}
               runs={runs}
               slug={slug}
             />
@@ -161,5 +194,70 @@ function ConnectCard({
         </ToolCardSection>
       ) : null}
     </ToolCard>
+  );
+}
+
+/** What the card says when connecting did not work, and what it offers next. */
+function failedLine({
+  ended,
+  name,
+  webOffered,
+}: {
+  ended: "canceled" | "expired" | "refused" | undefined;
+  name: string;
+  webOffered: boolean;
+}): string {
+  if (!webOffered) {
+    return `Could not connect to ${name}.`;
+  }
+  switch (ended) {
+    case "canceled": {
+      return `Signing in to ${name} stopped before it finished. You can sign in on the web instead, or try again.`;
+    }
+    case "expired": {
+      return `The sign-in to ${name} timed out. You can sign in on the web instead, or try again.`;
+    }
+    case "refused": {
+      return `${name} won’t let this account connect directly. You can sign in to ${name} on the web instead.`;
+    }
+    case undefined: {
+      return `Instrument couldn’t connect to ${name}. You can sign in on the web instead, or try again.`;
+    }
+  }
+}
+
+/**
+ * Moves the app to the service's site and opens it in the window's browser,
+ * where the site's own sign-in works and its cookies keep it.
+ */
+function SignInOnWebButton({
+  onOpened,
+  slug,
+}: {
+  onOpened: () => void;
+  slug: string;
+}) {
+  const appWindow = useContext(WindowContext);
+  const move = useMutation(
+    rpcClient.apps.signInOnWeb.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't open the site", { cause: error });
+      },
+      onSuccess: ({ signIn }) => {
+        appWindow?.openPage(signIn);
+        onOpened();
+      },
+    }),
+  );
+  return (
+    <Button
+      disabled={move.isPending || !appWindow?.browser}
+      onClick={() => {
+        move.mutate({ slug });
+      }}
+      size="sm"
+    >
+      Sign in on the web
+    </Button>
   );
 }

@@ -2,10 +2,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { APP_FILE_NAME } from "./app-file";
 import { createMemoryAppsConfig } from "./memory-config";
-import { setUpFromDirectory } from "./set-up";
+import { recordConnection } from "./connection";
+import { moveAppToWeb, setUpFromDirectory } from "./set-up";
 import { loadApp } from "./store";
 import { runAppTest } from "./test-app";
 
@@ -109,5 +111,50 @@ describe("setUpFromDirectory", () => {
     "no-such-service",
   ])("hands %s to the agent", async (slug) => {
     expect(await setUpFromDirectory({ slug })).toEqual({ kind: "agent" });
+  });
+});
+
+describe("moveAppToWeb", () => {
+  it("moves an app whose sign-in was refused to the service's site, still waited on", async () => {
+    await setUpFromDirectory({ slug: "ahrefs" });
+    await recordConnection("ahrefs", {
+      ended: "refused",
+      error: "access_denied: AADSTS65001",
+      status: "failed",
+      waitingChats: [ChatIdSchema.parse("asked-for-ahrefs")],
+    });
+
+    expect(await moveAppToWeb("ahrefs")).toEqual({
+      name: "Ahrefs",
+      signIn: "https://app.ahrefs.com",
+    });
+    expect(await manifestOf("ahrefs")).toMatchInlineSnapshot(`
+      {
+        "service": "ahrefs",
+        "type": "web",
+        "url": "https://app.ahrefs.com",
+      }
+    `);
+    const connection =
+      await getWorkspaceConfig().apps.connections.get("ahrefs");
+    expect({
+      ended: connection?.ended,
+      error: connection?.error,
+      status: connection?.status,
+      waitingChats: connection?.waitingChats,
+    }).toMatchInlineSnapshot(`
+      {
+        "ended": undefined,
+        "error": undefined,
+        "status": "needs-sign-in",
+        "waitingChats": [
+          "asked-for-ahrefs",
+        ],
+      }
+    `);
+    // Pressed again, it opens the same page and writes nothing.
+    expect((await moveAppToWeb("ahrefs")).signIn).toBe(
+      "https://app.ahrefs.com",
+    );
   });
 });

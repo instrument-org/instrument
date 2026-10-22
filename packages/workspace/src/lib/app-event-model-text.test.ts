@@ -64,4 +64,64 @@ describe("the note an app event wakes the chat with", () => {
       </instrument-system-note>"
     `);
   });
+
+  it("gives a sign-in that did not connect the way on to the web", () => {
+    const ended = (["refused", "failed", "canceled", "expired"] as const).map(
+      (how) =>
+        appEventModelNote({
+          apps: {},
+          events: [
+            {
+              detail:
+                how === "refused"
+                  ? "access_denied: AADSTS65001: The user or administrator has not consented to use the application."
+                  : how === "failed"
+                    ? "HTTP 500: registration failed"
+                    : undefined,
+              event: "failed",
+              name: "Outlook",
+              signIn: { ended: how, web: "https://outlook.office.com" },
+              slug: "outlook",
+            },
+          ],
+        }).split("\n")[3],
+    );
+    expect(ended).toMatchInlineSnapshot(`
+      [
+        "- Outlook (outlook) refused to connect this account directly: access_denied: AADSTS65001: The user or administrator has not consented to use the application. That is the service's rule, not the user declining, and trying the same sign-in again meets it again. Next, sign in on the web in Instrument's browser: \`instrument app new outlook --web https://outlook.office.com --force\`, then connect_app; its card opens the site, and the app is worked in a tab there.",
+        "- Signing in to Outlook (outlook) failed: HTTP 500: registration failed. Next, sign in on the web in Instrument's browser: \`instrument app new outlook --web https://outlook.office.com --force\`, then connect_app; its card opens the site, and the app is worked in a tab there.",
+        "- The user stopped signing in to Outlook (outlook) before it finished. The card offers signing in on the web or trying again; ask which in a line. For the web: \`instrument app new outlook --web https://outlook.office.com --force\`, then connect_app. To try again: connect_app as it is.",
+        "- The sign-in to Outlook (outlook) was left unfinished and lapsed. The card offers signing in on the web or trying again; ask which in a line. For the web: \`instrument app new outlook --web https://outlook.office.com --force\`, then connect_app. To try again: connect_app as it is.",
+      ]
+    `);
+  });
+
+  it("names the site to find when the directory has none", () => {
+    expect(
+      appEventModelNote({
+        apps: {},
+        events: [
+          {
+            event: "failed",
+            name: "Acme",
+            signIn: { ended: "failed" },
+            slug: "acme",
+          },
+        ],
+      }).split("\n")[3],
+    ).toMatchInlineSnapshot(
+      `"- Signing in to Acme (acme) failed. Next, sign in on the web in Instrument's browser: \`instrument app new acme --web <the service's site> --force\`, then connect_app; its card opens the site, and the app is worked in a tab there."`,
+    );
+  });
+
+  it("keeps a decline a decline", () => {
+    expect(
+      appEventModelNote({
+        apps: {},
+        events: [{ event: "declined", name: "Outlook", slug: "outlook" }],
+      }).split("\n")[3],
+    ).toMatchInlineSnapshot(
+      `"- The user declined to connect Outlook (outlook). Do not ask again unless they bring it up; say what you cannot do without it, in a line, and carry on with what you can."`,
+    );
+  });
 });

@@ -104,4 +104,53 @@ describe("appChanged", () => {
       ["app.updated", { event: "removed", name: "gone", slug: "gone" }],
     );
   });
+
+  it("gives a sign-in of the app's own that failed the site to sign in on instead", async () => {
+    await fs.mkdir(path.join(appsDir, "Linear"));
+    await fs.writeFile(
+      path.join(appsDir, "Linear", APP_FILE_NAME),
+      [
+        "---",
+        "id: linear",
+        "type: mcp",
+        "url: https://mcp.linear.app/mcp",
+        "auth:",
+        "  kind: oauth",
+        "---",
+        "",
+      ].join("\n"),
+    );
+    expect(
+      await heard(async () => {
+        await appChanged("linear", {
+          detail: "access_denied: AADSTS65001",
+          ended: "refused",
+          event: "failed",
+        });
+        // A local server's failure has no site to go to.
+        await appChanged("drafts", { detail: "exit 1", event: "failed" });
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "app.updated",
+        {
+          "detail": "access_denied: AADSTS65001",
+          "event": "failed",
+          "name": "Linear",
+          "signIn": {
+            "ended": "refused",
+            "web": "https://linear.app",
+          },
+          "slug": "linear",
+        },
+        "app.updated",
+        {
+          "detail": "exit 1",
+          "event": "failed",
+          "name": "Drafts",
+          "slug": "drafts",
+        },
+      ]
+    `);
+  });
 });

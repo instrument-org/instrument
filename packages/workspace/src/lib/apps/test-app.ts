@@ -16,11 +16,13 @@ import {
   isMcpManifest,
   type WebAppManifest,
 } from "./manifest";
-import { listMcpTools } from "./mcp/client";
+import { clientRefused, listMcpTools } from "./mcp/client";
 import { withAppMcpClient } from "./mcp/run";
 import { mcpAuthProviderForCommand } from "./mcp/tool-auth";
 import { credentialOrigin } from "./origin-bound";
 import { performSignedInRequest, SignInNeededError } from "./api-oauth";
+import { webInsteadUrl } from "./site";
+import { webInsteadCommand } from "./web-instead";
 import { performAppRequest, redactCredential } from "./request";
 import { scanAppFolder } from "./secret-scan";
 import {
@@ -303,9 +305,21 @@ export async function runAppTest({
       ) {
         missing = "sign-in";
       }
+      // A server that refuses the sign-in client itself refuses every new
+      // sign-in the same way, so the web is the way on.
+      const refusedClient =
+        manifest.type === "mcp" &&
+        manifest.auth.kind === "oauth" &&
+        clientRefused(mcpResult.error.cause);
       checks.push({
         name: "canary",
-        ...failure(redact(mcpResult.error.message)),
+        ...failure(
+          `${redact(mcpResult.error.message)}${
+            refusedClient
+              ? ` The server refuses ${APP_NAME}'s sign-in client, so signing in again meets the same refusal. Sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`
+              : ""
+          }`,
+        ),
       });
       return finish(report());
     }
@@ -371,7 +385,7 @@ export async function runAppTest({
       ...failure(
         `${canaryMethod} ${manifest.test.path} returned ${canary.value.status}. ${
           signedIn && canary.value.status === 401
-            ? `The sign-in was refused even after a refresh. Ask the user to sign in again with connect_app.`
+            ? `The sign-in was refused even after a refresh. Ask the user to sign in again with connect_app; if that sign-in fails or is refused, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`
             : signedIn && rejected
               ? `The API knows the signed-in account and refuses it this request: the account, or what the sign-in asked for, lacks a permission it needs.`
               : rejected

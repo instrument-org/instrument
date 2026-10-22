@@ -10,6 +10,9 @@ import { apps } from "./apps";
 const mocks = vi.hoisted(() => ({
   appChanged: vi.fn(() => Promise.resolve()),
   beginMcpOAuth: vi.fn(),
+  cancelMcpOAuth: vi.fn(() => Promise.resolve()),
+  oauthState: undefined as string | undefined,
+  pending: new Map<string, string>(),
   recordConnection: vi.fn(),
   requireAppCredential: vi.fn(() => Promise.resolve(null)),
   runAppTest: vi.fn(),
@@ -31,7 +34,10 @@ vi.mock("@/electron-main/stores/workspace/app-credentials", () => ({
   setAppCredential: mocks.setAppCredential,
 }));
 vi.mock("@/electron-main/stores/workspace/app-oauth", () => ({
-  appOAuthStore: {},
+  appOAuthStore: {
+    clearTransient: () => Promise.resolve(),
+    getState: () => Promise.resolve(mocks.oauthState),
+  },
 }));
 vi.mock("../../lib/apps", () => ({
   announceConnected: vi.fn(),
@@ -50,6 +56,8 @@ vi.mock(
     // workspace to say it to here.
     appChanged: mocks.appChanged,
     beginMcpOAuth: mocks.beginMcpOAuth,
+    cancelMcpOAuth: mocks.cancelMcpOAuth,
+    pendingMcpOAuthSlug: (state: string) => mocks.pending.get(state),
     recordConnection: mocks.recordConnection,
     requireAppCredential: mocks.requireAppCredential,
     runAppTest: mocks.runAppTest,
@@ -75,6 +83,8 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.clearAllMocks();
+  mocks.oauthState = undefined;
+  mocks.pending.clear();
   await fs.rm(appsDir, { force: true, recursive: true });
 });
 
@@ -235,6 +245,56 @@ describe("inspect", () => {
       call(apps.inspect, { slug: "signed-in" }, options),
     ).rejects.toMatchObject({ code: "API_ERROR" });
     expect(mocks.recordConnection).not.toHaveBeenCalled();
+  });
+});
+
+describe("cancelOAuth", () => {
+  it("wakes the chat with the way on when a waiting sign-in is stopped", async () => {
+    mocks.oauthState = "open";
+    mocks.pending.set("open", "signed-in");
+
+    await call(apps.cancelOAuth, { slug: "signed-in" }, options);
+
+    expect(mocks.cancelMcpOAuth).toHaveBeenCalledWith("open");
+    expect(mocks.recordConnection.mock.calls).toMatchInlineSnapshot(`
+      [
+        [
+          "signed-in",
+          {
+            "ended": "canceled",
+            "error": "The sign-in was stopped before it finished.",
+            "status": "failed",
+          },
+        ],
+      ]
+    `);
+    expect(mocks.appChanged.mock.calls).toMatchInlineSnapshot(`
+      [
+        [
+          "signed-in",
+          {
+            "detail": "The sign-in was stopped before it finished.",
+            "ended": "canceled",
+            "event": "failed",
+          },
+        ],
+      ]
+    `);
+  });
+
+  it("says nothing when no sign-in was waiting", async () => {
+    await call(apps.cancelOAuth, { slug: "signed-in" }, options);
+
+    expect(mocks.recordConnection).not.toHaveBeenCalled();
+    expect(mocks.appChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe("signInOnWeb", () => {
+  it("refuses an app that is not there", async () => {
+    await expect(
+      call(apps.signInOnWeb, { slug: "missing" }, options),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
 

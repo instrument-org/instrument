@@ -1,6 +1,8 @@
 import { publisher } from "../../rpc/publisher";
 import { getWorkspaceConfig } from "../workspace-config";
+import { type SignInEnd } from "./connection";
 import { loadApp } from "./store";
+import { signsInDirectly, webInsteadUrl } from "./site";
 
 /** What the user did to an app outside the conversation, which the chat is told. */
 export type AppEvent =
@@ -19,7 +21,12 @@ export type AppEvent =
  */
 export async function appChanged(
   slug: string,
-  happened?: { detail?: string; event: AppEvent },
+  happened?: {
+    detail?: string;
+    /** For a failed sign-in, how it ended, when that was more than an error. */
+    ended?: SignInEnd;
+    event: AppEvent;
+  },
 ): Promise<void> {
   publisher.publish("app.updated", null);
   if (!happened) {
@@ -36,5 +43,21 @@ export async function appChanged(
     slug,
     // A web app is worked on its own site, which the chat is told.
     ...(manifest?.type === "web" ? { web: manifest.url } : {}),
+    // A sign-in of the app's own that did not connect leaves the service's
+    // site, where the chat is told to go next.
+    ...(happened.event === "failed" &&
+    manifest !== undefined &&
+    signsInDirectly(manifest)
+      ? {
+          signIn: {
+            ended: happened.ended ?? "failed",
+            ...withWeb(webInsteadUrl(slug, manifest)),
+          },
+        }
+      : {}),
   });
+}
+
+function withWeb(web: string | undefined): { web?: string } {
+  return web === undefined ? {} : { web };
 }

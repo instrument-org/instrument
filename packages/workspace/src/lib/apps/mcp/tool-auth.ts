@@ -6,11 +6,20 @@ import {
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type McpAppManifest } from "../manifest";
 import { credentialOrigin } from "../origin-bound";
+import { webInsteadUrl } from "../site";
+import { webInsteadCommand } from "../web-instead";
 import {
   createMcpOAuthProvider,
   mcpSignInClient,
   type McpOAuthStore,
 } from "./oauth-provider";
+
+/**
+ * What a command meets when an MCP app's sign-in is gone and only the user can
+ * give it again: its message says how, and where to go when that sign-in will
+ * not take.
+ */
+export class SignInAgainError extends UnauthorizedError {}
 
 /**
  * The OAuth provider an `app` command uses to reach an OAuth MCP app. It reads
@@ -48,8 +57,8 @@ export function mcpAuthProviderForCommand(
   return createMcpOAuthProvider({
     ...signIn,
     openAuthorization: () => {
-      throw new UnauthorizedError(
-        "This app needs the user to sign in again. Ask with connect_app.",
+      throw new SignInAgainError(
+        `This app needs the user to sign in again. Ask with connect_app; if that sign-in fails or is refused, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`,
       );
     },
     origin: credentialOrigin(manifest),

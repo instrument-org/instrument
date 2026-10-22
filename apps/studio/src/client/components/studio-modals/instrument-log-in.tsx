@@ -54,6 +54,21 @@ export function nextAfterInstrumentSignIn({
 }
 
 /**
+ * Whether AI of the person's own already works: a saved key, or a ChatGPT,
+ * Claude or Grok plan signed in. Undefined until both are read.
+ */
+export function useHasOwnAI(): boolean | undefined {
+  const { data: keys } = useQuery(
+    rpcClient.providerConfig.live.list.experimental_liveOptions(),
+  );
+  const plans = useConnectedPlans();
+  if (keys === undefined || plans === undefined) {
+    return undefined;
+  }
+  return keys.length > 0 || Object.values(plans).some(Boolean);
+}
+
+/**
  * The plain log-in page every Instrument log-in outside setup starts on:
  * Continue with Google, which logs in or makes the account.
  */
@@ -116,10 +131,7 @@ export function AfterInstrumentSignIn({
     }),
   );
   const offer = useQuery(rpcClient.billing.offer.queryOptions());
-  const { data: keys } = useQuery(
-    rpcClient.providerConfig.live.list.experimental_liveOptions(),
-  );
-  const plans = useConnectedPlans();
+  const hasOwnAI = useHasOwnAI();
 
   // Decided once: starting a trial or subscribing on the plans changes the
   // status, and the pages that follow are theirs to finish.
@@ -129,12 +141,11 @@ export function AfterInstrumentSignIn({
     status.isFetchedAfterMount &&
     !status.isFetching &&
     !offer.isPending &&
-    keys !== undefined &&
-    plans !== undefined
+    hasOwnAI !== undefined
   ) {
     setNext(
       nextAfterInstrumentSignIn({
-        hasOwnAI: keys.length > 0 || Object.values(plans).some(Boolean),
+        hasOwnAI,
         offer: offer.data,
         status: status.data,
       }),

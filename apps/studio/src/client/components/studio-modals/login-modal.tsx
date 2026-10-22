@@ -2,10 +2,13 @@ import {
   loginModalAtom,
   type LoginModalProps,
 } from "@/client/atoms/login-modal";
+import { SetupFooter } from "@/client/components/setup/kit/setup-page";
+import { FreeAccountPage } from "@/client/components/setup/steps/free-account";
 import { AddProviderSheet } from "@/client/components/studio-modals/add-provider-sheet";
 import {
   AfterInstrumentSignIn,
   InstrumentLogInPage,
+  useHasOwnAI,
 } from "@/client/components/studio-modals/instrument-log-in";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -96,6 +99,10 @@ function LoginModalContent({
   props?: LoginModalProps;
 }) {
   const instrumentOnly = props?.instrumentOnly === true;
+  // The mic asked, from someone whose own AI already works: the free
+  // account's page, since dictation is one of what it adds.
+  const hasOwnAI = useHasOwnAI();
+  const freeAccount = props?.reason === "dictation" && hasOwnAI === true;
   // Signed in to Instrument with Google here, and from which page.
   const [signedIn, setSignedIn] = useState<{
     from: "log-in" | "sheet";
@@ -138,6 +145,21 @@ function LoginModalContent({
           }
           onFinish={onComplete}
           result={signedIn.result}
+        />
+      ) : freeAccount ? (
+        <FreeAccountPage
+          calledOut="Dictation"
+          fit="dialog"
+          footer={
+            <SetupFooter
+              next="none"
+              skip={{ label: "Not now", onClick: onDismiss }}
+            />
+          }
+          onSignedIn={(result) => {
+            onSignedIn();
+            setSignedIn({ from: "log-in", result });
+          }}
         />
       ) : instrumentOnly ? (
         <InstrumentLogInPage

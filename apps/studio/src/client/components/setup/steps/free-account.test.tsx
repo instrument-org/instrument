@@ -3,7 +3,7 @@ import { renderWithDefaultStore } from "@/tests/render";
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { FreeAccountStep } from "./free-account";
+import { FreeAccountPage, FreeAccountStep } from "./free-account";
 
 const calls = vi.hoisted(() => [] as string[]);
 
@@ -80,5 +80,21 @@ describe("FreeAccountStep", () => {
     renderStep();
     fireEvent.click(screen.getByRole("button", { name: "Not now" }));
     expect(calls).toEqual(["continue"]);
+  });
+});
+
+describe("FreeAccountPage", () => {
+  it("calls out the perk a feature opened it for, and only that one", () => {
+    renderWithDefaultStore(
+      <FreeAccountPage
+        calledOut="Dictation"
+        footer={null}
+        onSignedIn={vi.fn()}
+      />,
+    );
+
+    const called = document.querySelectorAll("[data-called-out]");
+    expect(called).toHaveLength(1);
+    expect(called[0]?.textContent).toContain("Dictation");
   });
 });

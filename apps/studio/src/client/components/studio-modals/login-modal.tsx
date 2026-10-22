@@ -19,7 +19,7 @@ import { type ConnectResult } from "@/client/hooks/use-connect-flow";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtom } from "jotai";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 /**
  * App-wide login / add-provider modal, mounted once at the window root: the
@@ -27,7 +27,8 @@ import { useState } from "react";
  * plain log-in page. A Google sign-in from either goes on to what the
  * account needs next (`AfterInstrumentSignIn`).
  * Reads `loginModalAtom` (opened via `openLogin`); traps tab navigation while
- * open. Finishing the flow fires the caller's `onCompleted`; dismissing does not.
+ * open. Finishing the flow fires the caller's `onCompleted`, and so does
+ * closing it once a sign-in has gone through; dismissing before that does not.
  */
 export function LoginModal() {
   const [state, setState] = useAtom(loginModalAtom);
@@ -37,20 +38,28 @@ export function LoginModal() {
   // the instant the dialog starts closing.
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
-  useModalBack(() => {
-    setState(null);
-  }, isOpen);
-
+  // Signed in during this opening, so closing it counts as finishing.
+  const signedIn = useRef(false);
   const complete = () => {
+    signedIn.current = false;
     state?.onCompleted?.();
     setState(null);
   };
+  const close = () => {
+    if (signedIn.current) {
+      complete();
+    } else {
+      setState(null);
+    }
+  };
+
+  useModalBack(close, isOpen);
 
   return (
     <Dialog
       onOpenChange={(open) => {
         if (!open) {
-          setState(null);
+          close();
         }
       }}
       open={isOpen}
@@ -63,6 +72,9 @@ export function LoginModal() {
             setState(null);
           }}
           onExitComplete={onExitComplete}
+          onSignedIn={() => {
+            signedIn.current = true;
+          }}
           props={content.props}
         />
       )}
@@ -74,11 +86,13 @@ function LoginModalContent({
   onComplete,
   onDismiss,
   onExitComplete,
+  onSignedIn,
   props,
 }: {
   onComplete: () => void;
   onDismiss: () => void;
   onExitComplete: () => void;
+  onSignedIn: () => void;
   props?: LoginModalProps;
 }) {
   const instrumentOnly = props?.instrumentOnly === true;
@@ -128,6 +142,7 @@ function LoginModalContent({
       ) : instrumentOnly ? (
         <InstrumentLogInPage
           onSignedIn={(result) => {
+            onSignedIn();
             setSignedIn({ from: "log-in", result });
           }}
         />
@@ -136,6 +151,7 @@ function LoginModalContent({
           onComplete={onComplete}
           onDone={onDismiss}
           onInstrumentSignedIn={(result) => {
+            onSignedIn();
             setSignedIn({ from: "sheet", result });
           }}
         />

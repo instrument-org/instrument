@@ -359,7 +359,7 @@ export function instrumentWayCopy(
     };
   }
   return {
-    action: "Sign in",
+    action: "Log in",
     isTrial: false,
     line: "Sign in with Google and choose a plan.",
     title: APP_NAME,

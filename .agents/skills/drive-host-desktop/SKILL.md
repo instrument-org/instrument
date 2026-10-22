@@ -1,11 +1,11 @@
 ---
 name: drive-host-desktop
-description: Drive a test host's desktop outside Studio (system file pickers, permission prompts, installers, the default browser during sign-in) through Cua Driver over SSH, reading accessibility trees instead of screenshots wherever it can. Use alongside test-studio-on-windows or test-studio-on-linux whenever a check leaves Studio's own window, or to see what is on a test host's screen.
+description: Drive a test host's desktop outside Studio (system file pickers, permission prompts, installers, the default browser during sign-in) through Cua Driver over SSH, reading accessibility trees instead of screenshots wherever it can. Use alongside test-studio-on-windows, test-studio-on-linux or test-studio-on-mac whenever a check leaves Studio's own window, or to see what is on a test host's screen.
 ---
 
 # Drive a host's desktop
 
-Studio's own window is driven over CDP with `studio-drive` (`studio-chrome-devtools`, plus `test-studio-on-windows` or `test-studio-on-linux` for the tunnel). That stays the first choice for anything inside the app: it is exact and cheap. This skill covers what CDP cannot reach: native dialogs the app opens, the system browser a sign-in hands off to, an installer, a notification, the desktop itself.
+Studio's own window is driven over CDP with `studio-drive` (`studio-chrome-devtools`, plus the host's `test-studio-on-*` skill for the tunnel). That stays the first choice for anything inside the app: it is exact and cheap. This skill covers what CDP cannot reach: native dialogs the app opens, the system browser a sign-in hands off to, an installer, a notification, the desktop itself.
 
 ```bash
 DESK=.agents/skills/drive-host-desktop/scripts/desk.mjs
@@ -60,6 +60,8 @@ Actions go to the window in the background by default, without raising it, so th
 
   Coordinates are screen pixels; `get_desktop_state`'s note gives the factor from its image to the screen. If a consent dialog does come up, an agent cancels it, never approves it.
 
+- **macOS menus need a window.** `invoke_menu` takes a `window_id`, so an app with no window open (Finder, at login) has no menu to reach; open one first (`open -g /Applications` over SSH gives Finder one). The Apple menu is `path='["Apple","Shut Down…"]'` on the frontmost app's window. A menu item is more reliable than a toolbar or title-bar button, which can read as an unnamed `AXButton` whose press does nothing.
+- **macOS system dialogs are not in `list_windows`.** The shutdown confirmation, drawn by loginwindow, appeared only in `get_desktop_state`; a `click scope=desktop` at its image coordinates pressed its button.
 - **UAC prompts** sit on a secure desktop that no driver can reach. The Windows driver runs elevated (see enrollment), so it can drive apps run as administrator, which also means it can do anything an administrator can.
 
 ## Host enrollment

@@ -66,4 +66,12 @@ WantedBy=graphical-session.target
 
 ## macOS
 
-Not enrolled yet. The driver needs Accessibility and Screen Recording granted to the process that runs it; `cua-driver permissions grant` raises both prompts on the Mac's own screen.
+The macOS test VM is enrolled as part of its base: see `test-studio-on-mac`'s [host enrollment](../../test-studio-on-mac/references/host-enrollment.md). In short, `CuaDriver.app` in `/Applications` holds the Accessibility and Screen Recording grants (`cua-driver permissions grant` raises both on the Mac's own screen, for a person to approve), a LaunchAgent starts its daemon at login, and the host profile needs no socket path, since `cua-driver mcp` reaches the logged-in daemon itself:
+
+```json
+"desktop": {
+  "mcp": "/Users/<user>/.local/bin/cua-driver mcp"
+}
+```
+
+Clones of the base keep the grants, because they attach to CuaDriver's signature.

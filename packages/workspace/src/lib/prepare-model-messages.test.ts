@@ -1240,6 +1240,29 @@ describe("prepareModelMessages", () => {
         expect(await storedModelChangeParts()).toHaveLength(1);
       });
 
+      it("tells the model of the switch on the turn it starts answering", async () => {
+        await save(userMessage("First question"));
+        await save(fromAnotherModel(assistantMessageWithUsage("answer", 100)));
+        await save(userMessage("Next question"));
+
+        const told = (texts: string[]) =>
+          texts.filter((text) => text.includes("switched this chat's model"));
+
+        expect(told(modelTexts(await prepare(smallWindowModel))))
+          .toMatchInlineSnapshot(`
+          [
+            "
+          <instrument-system-note>
+          The user switched this chat's model from Roomy Model Id to Mock Model. From this turn on you run on Mock Model from Test Provider; this supersedes the model named above.
+          </instrument-system-note>",
+          ]
+        `);
+        // The same bytes on the next turn, so the cached prefix holds.
+        expect(told(modelTexts(await prepare(smallWindowModel)))).toHaveLength(
+          1,
+        );
+      });
+
       it("records nothing for a session that never switched", async () => {
         await save(userMessage("First question"));
         await save(assistantMessageWithUsage("plenty of room", 100));

@@ -12,9 +12,12 @@ export interface Agent<T extends AgentTools> {
   getMessages: ({
     sessionId,
     chatId,
+    model,
   }: {
     sessionId: StoreId.Session;
     chatId: ChatId;
+    /** The model the request writing the baseline runs on. */
+    model: AIGatewayModel.Type;
   }) =>
     | Promise<SessionMessage.ContextWithParts[]>
     | SessionMessage.ContextWithParts[];

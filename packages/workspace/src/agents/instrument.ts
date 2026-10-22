@@ -27,6 +27,7 @@ import { ChatWrites } from "../lib/chat-writes";
 import { folderReach } from "../lib/chat/folder-reach";
 import { endOfTurnNote } from "../lib/end-of-turn-checks";
 import { currentEnvironment } from "../lib/environment";
+import { runningModelText } from "../lib/model-change-model-text";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
 import { PYTHON_BASE_PACKAGES, pythonBaseReady } from "../lib/python-base";
@@ -103,7 +104,7 @@ export const instrumentAgent = setupAgent({
   ]),
   name: "instrument",
 }).create(({ name }) => ({
-  getMessages: async ({ sessionId, chatId }) => {
+  getMessages: async ({ sessionId, chatId, model }) => {
     const now = getCurrentDate();
 
     const systemMessage = createSystemMessage({
@@ -142,6 +143,7 @@ export const instrumentAgent = setupAgent({
           environment,
           network: `\`curl\` and \`${TOOL_NAMES.webFetch}\` reach the internet and the local network. \`${NODE_COMMAND.name}\` and \`${PYTHON_COMMAND.name}\` are real programs on this computer, with its network.`,
         }),
+        runningModelText(model),
         await getUserText(),
         pythonBaseText(),
         foldersText,

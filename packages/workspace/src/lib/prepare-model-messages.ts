@@ -5,6 +5,7 @@ import { alphabetical } from "radashi";
 import { type AnyAgent } from "../agents/types";
 import { type Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
+import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
@@ -150,38 +151,48 @@ export async function prepareModelMessages({
     isSessionContextMessage,
   );
 
-  const allNonContextMessages = messages.filter(
+  const storedNonContextMessages = messages.filter(
     (message) => !isSessionContextMessage(message),
   );
 
   // Recorded before anything is measured or reset, so the transcript says the
   // model moved even on a turn that then fails. Attached to the newest message
-  // the task has, which is the turn the new model is about to answer.
+  // the task has, which is the turn the new model is about to answer, and to
+  // this request's copy of it too, so the model is told on the turn it starts
+  // answering rather than one turn late.
   const modelChange = modelChangeSincePreviousTurn({
-    messages: allNonContextMessages,
+    messages: storedNonContextMessages,
     model,
   });
-  const newestMessage = allNonContextMessages.at(-1);
+  const newestMessage = storedNonContextMessages.at(-1);
+  let modelChangePart: SessionMessagePart.DataPart | undefined;
 
   if (
     modelChange &&
     newestMessage &&
     !newestMessage.parts.some((part) => part.type === "data-modelChange")
   ) {
-    await ChatWrites.savePart(
-      {
-        data: modelChange,
-        metadata: {
-          createdAt: new Date(),
-          id: StoreId.newPartId(),
-          messageId: newestMessage.id,
-          sessionId,
-        },
-        type: "data-modelChange",
+    modelChangePart = {
+      data: modelChange,
+      metadata: {
+        createdAt: new Date(),
+        id: StoreId.newPartId(),
+        messageId: newestMessage.id,
+        sessionId,
       },
-      chatId,
-    );
+      type: "data-modelChange",
+    };
+    await ChatWrites.savePart(modelChangePart, chatId);
   }
+
+  const allNonContextMessages =
+    modelChangePart === undefined
+      ? storedNonContextMessages
+      : storedNonContextMessages.map((message) =>
+          message === newestMessage
+            ? { ...message, parts: [...message.parts, modelChangePart] }
+            : message,
+        );
 
   // A boundary drawn when a smaller model ran out stops narrowing the history
   // once a model with room for it is the one being asked, as recorded above.
@@ -319,6 +330,7 @@ export async function prepareModelMessages({
     agent,
     chatId,
     contextMessages: existingSessionContextMessages,
+    model,
     rolledOverAfterMessageId,
     sessionId,
   });

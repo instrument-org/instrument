@@ -1,3 +1,4 @@
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { err, ok, Result } from "neverthrow";
 import { alphabetical } from "radashi";
 
@@ -106,12 +107,14 @@ export async function sessionBaseline({
   agent,
   chatId,
   contextMessages,
+  model,
   rolledOverAfterMessageId,
   sessionId,
 }: {
   agent: AnyAgent;
   chatId: ChatId;
   contextMessages: SessionMessage.ContextWithParts[];
+  model: AIGatewayModel.Type;
   rolledOverAfterMessageId: StoreId.Message | undefined;
   sessionId: StoreId.Session;
 }) {
@@ -131,7 +134,7 @@ export async function sessionBaseline({
     }
   }
 
-  const written = (await agent.getMessages({ chatId, sessionId })).map(
+  const written = (await agent.getMessages({ chatId, model, sessionId })).map(
     (message) => ({
       ...message,
       metadata: {

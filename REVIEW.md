@@ -31,3 +31,4 @@ Naming, structure, refactors, prose, and test layout are Nits at most.
 - Report the root cause once, not once per call site.
 - Keep it to five Nits; mention the rest as "plus N similar".
 - On a second pass over the same work, raise only new Important findings and Nits in code added since.
+- Past reviews and what came of each finding are in [`docs/reviews/`](docs/reviews/README.md). A finding that reverses a declined one there, a `Rejected:` or `Commits-to:` trailer on the lines it cites, or a record in `docs/decisions/` names that record and says why its reason no longer holds.

@@ -5,8 +5,8 @@ import { cn } from "@/client/lib/utils";
  * A link to a page, answering the gestures every openable thing answers.
  *
  * A click opens the page in the app wherever the surface has a place for it
- * (the tab or the chat it was clicked in), and in the OS browser only where
- * nothing in the app is; a middle or Cmd-click opens a tab of its own; a right
+ * (the tab or the chat it was clicked in), and in the OS browser where the
+ * surface has none (Settings, setup, a dialog); a middle or Cmd-click opens a tab of its own; a right
  * click offers the rest, the OS browser included. The anchor keeps its href so
  * the URL is inspectable and copyable; the navigation it would do belongs to
  * the gestures.

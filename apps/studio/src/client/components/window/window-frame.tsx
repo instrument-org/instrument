@@ -3,6 +3,7 @@ import { SetupHost } from "@/client/components/setup/setup-host";
 import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
 import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { Toaster } from "@/client/components/ui/sonner";
+import { PageOpenContext } from "@/client/components/page-open-context";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { useAtomValue } from "jotai";
@@ -96,7 +97,12 @@ export function WindowFrame({
         {overlay}
         {!isSetupUp && (
           <>
-            <StudioModals />
+            {/* Settings, the report and the other dialogs belong to no
+              chat, so a page they link to opens in the default browser
+              rather than beside whatever chat is on screen behind them. */}
+            <PageOpenContext value={null}>
+              <StudioModals />
+            </PageOpenContext>
             {isFilePreviewOpen && (
               <Suspense fallback={null}>
                 <LazyFilePreviewModal />
@@ -113,7 +119,9 @@ export function WindowFrame({
           </>
         )}
       </div>
-      <SetupHost />
+      <PageOpenContext value={null}>
+        <SetupHost />
+      </PageOpenContext>
     </ChromeInsetProvider>
   );
 }

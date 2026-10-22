@@ -24,7 +24,11 @@ function onSurface(children: ReactNode) {
   return <PageOpenContext value={openPageHere}>{children}</PageOpenContext>;
 }
 
-function inWindow(children: ReactNode, surface?: Partial<WindowContextValue>) {
+function inWindow(
+  children: ReactNode,
+  surface?: Partial<WindowContextValue>,
+  { opensPages = true }: { opensPages?: boolean } = {},
+) {
   const openPage = vi.fn();
   const browserOpen = vi.fn();
   const context = {
@@ -51,7 +55,9 @@ function inWindow(children: ReactNode, surface?: Partial<WindowContextValue>) {
   return {
     browserOpen,
     element: (
-      <WindowContext value={context}>{onSurface(children)}</WindowContext>
+      <WindowContext value={context}>
+        {opensPages ? onSurface(children) : children}
+      </WindowContext>
     ),
     openPage,
   };
@@ -166,6 +172,25 @@ describe("ExternalLink", () => {
     expect(openExternalLink).toHaveBeenCalledWith("https://example.com/page", {
       addReferral: true,
     });
+  });
+
+  // Settings over a chat is in the window but is not the chat's, so its
+  // links leave rather than landing in the browser beside that chat.
+  it("leaves for the OS browser in a window whose surface opens no pages", () => {
+    const { browserOpen, element, openPage } = inWindow(
+      <ExternalLink href="https://example.com/page">A page</ExternalLink>,
+      undefined,
+      { opensPages: false },
+    );
+    renderWithProviders(element);
+
+    fireEvent.click(screen.getByText("A page"));
+
+    expect(openExternalLink).toHaveBeenCalledWith("https://example.com/page", {
+      addReferral: true,
+    });
+    expect(openPage).not.toHaveBeenCalled();
+    expect(browserOpen).not.toHaveBeenCalled();
   });
 
   it("keeps the page in the app on a surface that opens pages", () => {

@@ -82,8 +82,8 @@ export function useGesturesFor() {
   const destinationsFor = useDestinationsFor();
   return (target: OpenTarget, options?: { addReferral?: boolean }) => {
     const destinations = destinationsFor(target, options);
-    // The first place on the list, which is the app's own wherever the app
-    // has one: the OS browser is first only where nothing in the app is.
+    // The first place on the list, which is the surface's own wherever it
+    // has one: the OS browser is first only where the surface has none.
     const primary = destinations.find(
       (destination) => destination.id !== "copy",
     );
@@ -208,9 +208,9 @@ export function wantsNewTab(event: { ctrlKey: boolean; metaKey: boolean }) {
  * OS browser is a row of the menu, chosen on purpose.
  *
  * What is on the list is decided by the surface rather than by the component:
- * a window with tabs offers a tab, a surface that says where pages go offers
- * that, and anything drawn outside both offers only the places outside the
- * app.
+ * a surface that says where pages go opens a page there, anything else
+ * (Settings, setup, a dialog) opens it in the OS browser, and a window with
+ * tabs also offers a tab of its own.
  *
  * Asked per target, for a list whose rows each name a different one: a row
  * cannot call a hook of its own, so the surface reads what it is once and
@@ -263,17 +263,24 @@ function useDestinationsFor(): (
         ];
       }
       return [
-        ...(openPageOnSurface
-          ? [
-              {
-                id: "open" as const,
-                label: "Open",
-                run: () => {
-                  openPageOnSurface(url);
-                },
+        // The surface's own place for a page, or the default browser where
+        // the surface has none: a page is never opened beside a chat by
+        // something that is not that chat's.
+        openPageOnSurface
+          ? {
+              id: "open" as const,
+              label: "Open",
+              run: () => {
+                openPageOnSurface(url);
               },
-            ]
-          : []),
+            }
+          : {
+              id: "openBrowser" as const,
+              label: "Open in Default Browser",
+              run: () => {
+                openExternalLink(url, { addReferral });
+              },
+            },
         ...(appWindow
           ? [
               {
@@ -285,21 +292,6 @@ function useDestinationsFor(): (
               },
             ]
           : []),
-        // The default browser only where nothing in the app can open the
-        // page: the app's own browser is where a page opens, and its Open in
-        // button is the way out of it, so a menu offering both was offering
-        // to leave by default.
-        ...(openPageOnSurface || appWindow
-          ? []
-          : [
-              {
-                id: "openBrowser" as const,
-                label: "Open in Default Browser",
-                run: () => {
-                  openExternalLink(url, { addReferral });
-                },
-              },
-            ]),
         ...copy,
       ];
     }

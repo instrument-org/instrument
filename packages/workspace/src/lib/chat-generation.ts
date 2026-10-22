@@ -13,12 +13,6 @@ import { type StoreId } from "../schemas/store-id";
 const BY_SESSION = new Map<string, number>();
 /** Changes to the chat itself rather than to one session: every session's. */
 const WHOLE_CHAT = new Map<ChatId, number>();
-let epoch = 0;
-
-/** Every chat changed at once: a test clearing the folder they share. */
-export function bumpEveryChatGeneration() {
-  epoch += 1;
-}
 
 /**
  * Counts a change to a chat: to one session, or to the whole chat where no
@@ -85,5 +79,5 @@ function sessionKey(chatId: ChatId, sessionId: StoreId.Session) {
 
 /** A session's change count in its chat, comparable only for equality. */
 function chatGeneration(chatId: ChatId, sessionId: StoreId.Session): string {
-  return `${epoch}:${WHOLE_CHAT.get(chatId) ?? 0}:${BY_SESSION.get(sessionKey(chatId, sessionId)) ?? 0}`;
+  return `${WHOLE_CHAT.get(chatId) ?? 0}:${BY_SESSION.get(sessionKey(chatId, sessionId)) ?? 0}`;
 }

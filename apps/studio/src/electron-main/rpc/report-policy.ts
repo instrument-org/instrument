@@ -50,6 +50,7 @@ export const RPC_ERROR_CODES = {
   NOT_UTF8: "expected",
   UNSUPPORTED_PLATFORM: "expected",
   UNSUPPORTED_TYPE: "expected",
+  WINDOWS_PROTECTION: "expected",
 
   // oRPC's own: a handler that threw something other than an ORPCError, or
   // returned output its schema refuses.

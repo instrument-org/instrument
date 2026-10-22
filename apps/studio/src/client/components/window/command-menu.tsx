@@ -954,6 +954,7 @@ export function CommandMenuField({
       <input
         aria-activedescendant={at === -1 ? undefined : `${listId}-${at}`}
         aria-autocomplete="list"
+        aria-label={placeholder}
         aria-controls={listId}
         aria-expanded
         autoComplete="off"

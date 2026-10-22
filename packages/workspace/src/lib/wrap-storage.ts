@@ -4,7 +4,7 @@ import { type Storage } from "unstorage";
 import { TypedError } from "./errors";
 
 /** One row a batch writes: its value as stored, or its removal. */
-export type StoreWrite =
+type StoreWrite =
   | { key: string; remove: true }
   | { key: string; value: string };
 

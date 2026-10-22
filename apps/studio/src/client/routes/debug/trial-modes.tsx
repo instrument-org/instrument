@@ -15,9 +15,14 @@ import { type ReactNode, useState } from "react";
 import { z } from "zod";
 
 import { getDebugRoute } from "./-debug-routes";
-import { OUR_MODEL, platformFailure } from "./-transcript/parts";
+import {
+  CLAUDE_ACCOUNT_MODEL,
+  OUR_MODEL,
+  platformFailure,
+} from "./-transcript/parts";
 import { buildFrames } from "./-transcript/frames";
-import { fail, user } from "./-transcript/script";
+import { fail, prose, user } from "./-transcript/script";
+import { imageRefused, imageUnavailable } from "./-transcript/tools";
 import {
   getTrialMode,
   type TrialModeId,
@@ -104,6 +109,18 @@ const surfaces = [
     label: "Chat note after a refused turn",
     render: (mode: TrialModeId) => <ChatNoteSample mode={mode} refused />,
     signedIn: true,
+  },
+  {
+    id: "chat-note-image",
+    label: "Chat note after a refused image",
+    render: () => <ImageNoteSample />,
+    signedIn: true,
+  },
+  {
+    id: "chat-note-image-signed-out",
+    label: "Chat note for an image, signed out",
+    render: () => <ImageNoteSample signedOut />,
+    signedIn: false,
   },
   {
     id: "plan-sheet",
@@ -298,6 +315,49 @@ function ChatNoteSample({
     isAgentRunning: false,
     messages,
     modelURI: OUR_MODEL.uri,
+  });
+  return (
+    <div className="w-160 p-3">
+      {note?.render({ nudge: 0, openModelPicker: noop }) ?? (
+        <p className="text-sm text-muted-foreground">No note.</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The note over a Claude chat's reply box after its image ran into the free
+ * account: spent for now, which offers the mode's trial, or nothing to make
+ * images with while signed out.
+ */
+function ImageNoteSample({ signedOut = false }: { signedOut?: boolean }) {
+  const [messages] = useState(
+    () =>
+      buildFrames(
+        [
+          user("Make a header image for our pricing page."),
+          signedOut
+            ? imageUnavailable({
+                filePath: "./pricing-header",
+                prompt: "A help desk team, flat illustration",
+              })
+            : imageRefused({
+                filePath: "./pricing-header",
+                prompt: "A help desk team, flat illustration",
+                refusal: {
+                  code: "usage-limit-exceeded",
+                  resetsAt: new Date(Date.now() + 21 * 3_600_000).toISOString(),
+                },
+              }),
+          prose("I couldn't make the image."),
+        ],
+        Date.now() - 60_000,
+      ).at(-1)?.messages ?? [],
+  );
+  const note = useChatNote({
+    isAgentRunning: false,
+    messages,
+    modelURI: CLAUDE_ACCOUNT_MODEL.uri,
   });
   return (
     <div className="w-160 p-3">

@@ -1,4 +1,8 @@
-import { OUR_MODELS, OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  OUR_MODELS,
+  OUR_PROVIDER_CONFIG,
+} from "@instrument-org/shared";
 import { RelativePathSchema } from "@instrument-org/workspace/client";
 
 import { call, type ToolCall, type ToolOutput } from "./script";
@@ -145,7 +149,8 @@ export function generated({
  * A call that reached the tool and got a refusal from it, rather than throwing.
  *
  * The row this draws says the agent tried and could not, which is a different
- * thing from the tool breaking: nothing is configured to do the work at all.
+ * thing from the tool breaking: nothing connected makes images, and no
+ * Instrument account is signed in.
  */
 export function imageUnavailable({
   explanation,
@@ -159,9 +164,40 @@ export function imageUnavailable({
   return call({
     input: { explanation, filePath, prompt },
     output: {
-      errorMessage:
-        "No AI provider with image generation capability is available.",
+      errorMessage: `Making images needs a free ${APP_NAME} account.`,
       errorType: "no-image-model",
+      state: "failure",
+    },
+    type: "tool-generate_image",
+  });
+}
+
+/**
+ * A call Instrument turned away for the account's plan: its usage spent
+ * until `resetsAt`, or no plan that covers images.
+ */
+export function imageRefused({
+  explanation,
+  filePath,
+  prompt,
+  refusal,
+}: {
+  explanation?: string;
+  filePath: string;
+  prompt: string;
+  refusal:
+    | { code: "subscription-required"; reason?: string }
+    | { code: "usage-limit-exceeded"; resetsAt?: string };
+}): ToolCall {
+  return call({
+    input: { explanation, filePath, prompt },
+    output: {
+      errorMessage:
+        refusal.code === "usage-limit-exceeded"
+          ? `Your ${APP_NAME} usage has run out for now.`
+          : `Your ${APP_NAME} account needs a plan to make images.`,
+      errorType: "refused",
+      refusal,
       state: "failure",
     },
     type: "tool-generate_image",

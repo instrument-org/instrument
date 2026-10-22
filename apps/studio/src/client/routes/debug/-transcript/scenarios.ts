@@ -32,6 +32,7 @@ import {
   edited,
   fetched,
   generated,
+  imageRefused,
   imageUnavailable,
   loadedSkill,
   ran,
@@ -1238,6 +1239,60 @@ done`,
       }),
       prose(
         "Lint is failing in four places, the build is clean, and the slugify change is in. The runner guide says the config is read per package, so the override we have is doing what we thought.",
+      ),
+    ],
+  },
+  {
+    // What a chat's image request runs into, one turn each: the image made
+    // on Instrument (its card names ChatGPT images), then nothing connected
+    // that makes images while signed out, then Instrument's refusals. The
+    // note over the reply box reads the last turn's call, in any chat.
+    id: "images",
+    name: "Images, made and refused",
+    script: [
+      user(
+        "Make a header image for our new pricing page: a small help desk team at work, flat illustration, calm greens.",
+      ),
+      generated({
+        explanation: "Making the header image",
+        filePath: "./pricing-header",
+        prompt:
+          "Flat illustration of a small help desk team at their desks answering customer messages, calm green palette, soft light, wide banner composition",
+      }),
+      prose(
+        "Here's the header: three people at their desks, in the greens from your pricing page.",
+      ),
+      user("Now one for the careers page."),
+      imageUnavailable({
+        explanation: "Making the careers header",
+        filePath: "./careers-header",
+        prompt: "Flat illustration of a team planning at a whiteboard",
+      }),
+      prose(
+        "I can't make images here yet, but a free Instrument account can. Sign in and I'll make it right away.",
+      ),
+      user("Can you make a second one with a darker background?"),
+      imageRefused({
+        explanation: "Making a darker version",
+        filePath: "./pricing-header-dark",
+        prompt: "The same header on a dark green background",
+        refusal: {
+          code: "usage-limit-exceeded",
+          resetsAt: new Date(Date.now() + 21 * 3_600_000).toISOString(),
+        },
+      }),
+      prose(
+        "I couldn't make this one, because your Instrument usage has run out for now.",
+      ),
+      user("And a square one for the newsletter?"),
+      imageRefused({
+        explanation: "Making the newsletter image",
+        filePath: "./newsletter",
+        prompt: "The header as a square tile",
+        refusal: { code: "subscription-required", reason: "trial-available" },
+      }),
+      prose(
+        "I couldn't make this one: your Instrument account needs a plan or a trial for images.",
       ),
     ],
   },

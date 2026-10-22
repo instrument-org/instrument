@@ -85,7 +85,11 @@ const paymentFailed: Status = {
 const subscribed: Status = {
   ...paymentFailed,
   plan: "basic",
-  subscription: { ...paymentFailed.subscription!, status: "active" },
+  subscription: {
+    cancelAtPeriodEnd: false,
+    currentPeriodEnd: "2099-01-01T00:00:00Z",
+    status: "active",
+  },
 };
 
 describe("nextAfterInstrumentSignIn", () => {

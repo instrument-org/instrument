@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 
+import { publisher } from "../../rpc/publisher";
 import { type ChatId } from "../../schemas/chat-id";
 import { getWorkspaceConfig } from "../workspace-config";
 import { renameChatFolder } from "./chat-folder";
@@ -49,6 +50,7 @@ export async function followTitle(
       const folder = await renameChatFolder({ from, rootDir, title });
       if (folder.name !== from) {
         await recordChatFolderName(workspaceMachineDir, chatId, folder.name);
+        publisher.publish("chat.folderMoved", { id: chatId });
       }
       // The transcript was written when the turn ended, which is before a
       // title settled from that turn landed; its front matter names the

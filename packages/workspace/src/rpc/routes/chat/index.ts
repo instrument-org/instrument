@@ -20,7 +20,7 @@ import { liveChatActivity } from "./activity";
 import { agentStatus } from "./agent-status";
 import { chatBackgroundProcesses } from "./background-processes";
 import { chatFiles } from "./files";
-import { liveChatFolders } from "./folders";
+import { liveChatFolders, liveChatOwnFolder } from "./folders";
 
 /**
  * Where the user left off in a chat: the tabs its sessions drive, each with
@@ -112,6 +112,7 @@ export const chatRoutes = {
     ...live,
     activity: liveChatActivity,
     folders: liveChatFolders,
+    ownFolder: liveChatOwnFolder,
     usageSummary: liveUsageSummary,
   },
   state,

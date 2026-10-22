@@ -70,6 +70,14 @@ export const publisher = new EventPublisher<{
     sessionId: StoreId.Session;
   };
   /**
+   * A chat's own folder under `Chats/` moved to its title. Published by
+   * `followTitle` once the new name is recorded; what a chat's messages
+   * name in the folder is found again under it.
+   */
+  "chat.folderMoved": {
+    id: ChatId;
+  };
+  /**
    * An agent sent a command to a guest. One per command rather than a
    * start/stop pair: the agent's browser work arrives as separate tool calls
    * seconds apart, so where one stretch of it ends is a question for whoever

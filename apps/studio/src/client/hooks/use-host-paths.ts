@@ -13,19 +13,34 @@ import { unique } from "radashi";
  * Asked for the whole surface at once rather than per file, against one
  * reading of the task's layout. The answer from the last set stays up while
  * a larger one is asked for, so a transcript that grows does not blink.
+ *
+ * Asked again when the chat's own folder moves to its title: a file the
+ * first turn put there is answered under the folder's first name until then.
  */
 export function useHostPaths(
   chatId: ChatId | undefined,
   filePaths: readonly string[],
 ): Record<string, null | string> {
   const asked = unique(filePaths).toSorted();
-  const { data } = useQuery(
-    chatId !== undefined && asked.length > 0
-      ? rpcClient.workspace.chats.files.hostPaths.queryOptions({
-          input: { filePaths: asked, chatId },
-          placeholderData: keepPreviousData,
-          refetchOnWindowFocus: false,
+  const isAsking = chatId !== undefined && asked.length > 0;
+  const { data: ownFolder } = useQuery(
+    isAsking
+      ? rpcClient.workspace.chats.live.ownFolder.experimental_liveOptions({
+          input: { id: chatId },
         })
+      : { queryFn: skipToken, queryKey: ["own-folder", "nothing"] },
+  );
+  const { data } = useQuery(
+    isAsking
+      ? (() => {
+          const options =
+            rpcClient.workspace.chats.files.hostPaths.queryOptions({
+              input: { filePaths: asked, chatId },
+              placeholderData: keepPreviousData,
+              refetchOnWindowFocus: false,
+            });
+          return { ...options, queryKey: [...options.queryKey, ownFolder] };
+        })()
       : // Nothing to ask, and nothing to reach for: a surface outside a task
         // renders without a client that knows the workspace at all.
         { queryFn: skipToken, queryKey: ["host-paths", "nothing"] },

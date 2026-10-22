@@ -73,6 +73,25 @@ describe("a chat's folder following its title", () => {
     expect(await folderNames()).toContain("Dinner for six");
   });
 
+  it("tells a live reader of the chat's folder where it moved", async () => {
+    const chatId = await ensureChat(StoreId.newSessionId(), "Say hi");
+    const controller = new AbortController();
+    const live = await call(
+      chats.live.ownFolder,
+      { id: chatId },
+      { context, signal: controller.signal },
+    );
+    const named = (next: IteratorResult<null | string>) =>
+      next.done || next.value === null ? undefined : path.basename(next.value);
+    expect(named(await live.next())).toBe("Say hi");
+
+    await call(chats.rename, { id: chatId, title: "Greetings" }, { context });
+
+    expect(named(await live.next())).toBe("Greetings");
+    controller.abort();
+    await live.return?.(undefined).catch(() => undefined);
+  });
+
   it("follows a name the user asked the model for", async () => {
     const chatId = await ensureChat(StoreId.newSessionId(), "Find a flight");
     vi.mocked(retitleChat).mockImplementation(async ({ id }) => {

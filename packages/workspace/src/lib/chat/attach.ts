@@ -20,20 +20,26 @@ import { startWorkDirReap } from "./work-dir-reap";
  * Called once per actor by whoever creates one, rather than by the machine
  * itself, so a test that builds a machine does not also start a subscriber
  * it never stops. Answers what detaches them all again, for a workspace
- * that closes while the process goes on.
+ * that closes while the process goes on, settling once the event each was
+ * handling is handled.
  */
-export function attachChats(workspaceRef: WorkspaceActorRef): () => void {
+export function attachChats(
+  workspaceRef: WorkspaceActorRef,
+): () => Promise<void> {
   setWorkspaceActorRef(workspaceRef);
   const attached = new AbortController();
   const { signal } = attached;
-  startChatWake(workspaceRef, signal);
-  startJobWake(workspaceRef, { signal });
-  startAppEvents(workspaceRef, signal);
-  startChatRetitle(signal);
-  startChatUnreadOnSettle(signal);
-  startChatFolderWrites(signal);
-  startWorkDirReap(workspaceRef, signal);
-  return () => {
+  const loops = [
+    startChatWake(workspaceRef, signal),
+    startJobWake(workspaceRef, { signal }),
+    startAppEvents(workspaceRef, signal),
+    startChatRetitle(signal),
+    startChatUnreadOnSettle(signal),
+    startChatFolderWrites(signal),
+    startWorkDirReap(workspaceRef, signal),
+  ];
+  return async () => {
     attached.abort();
+    await Promise.all(loops.map((loop) => loop.ended));
   };
 }

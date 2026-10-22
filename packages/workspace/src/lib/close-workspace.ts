@@ -1,3 +1,4 @@
+import { closeClaudeAccountSessions } from "@instrument-org/ai-gateway";
 import ms from "ms";
 import { waitFor } from "xstate";
 
@@ -16,12 +17,13 @@ const SESSIONS_STOP_MS = ms("10 seconds");
 
 /**
  * Closes the workspace `workspaceRef` runs, for a process that goes on to
- * open another: the tasks at work are stopped and their chats told as a quit
- * does, every other running session is stopped, what agents left running
- * ends, `detach` takes the chat wiring off, the records are landed and
- * synced, the actor stops (its server with it), and every module this
- * package keeps for the open workspace lets it go (`workspace.db`, the chat
- * index, the bash worker), so the next actor's config is the one they read.
+ * open another: `detach` takes the chat wiring off, the tasks at work are
+ * stopped and their chats told as a quit does, every other running session
+ * is stopped, what agents left running ends (the Claude Code sessions
+ * included), the records are landed and synced, the actor stops (its server
+ * with it), and every module this package keeps for the open workspace lets
+ * it go (`workspace.db`, the chat index, the bash worker), so the next
+ * actor's config is the one they read.
  *
  * Never throws: each step's failure goes to `onError` and the next runs.
  */
@@ -30,7 +32,7 @@ export async function closeWorkspace({
   onError,
   workspaceRef,
 }: {
-  detach: () => void;
+  detach: () => Promise<void> | void;
   onError: (error: unknown) => void;
   workspaceRef: WorkspaceActorRef;
 }): Promise<void> {
@@ -41,11 +43,16 @@ export async function closeWorkspace({
       onError(error);
     }
   };
+  // First, so the stops below start no wake, retitle or folder write on a
+  // workspace that is closing, and every one already running has finished.
+  await step(detach);
   await step(() => interruptTasksForQuit(workspaceRef));
   await step(() => stopRunningSessions(workspaceRef));
   await step(() => killAllBackgroundProcesses());
   await step(() => closeAllAgentBrowserSessions());
-  await step(detach);
+  // The Claude Code sessions its turns kept open, which run in its work
+  // folders.
+  await step(closeClaudeAccountSessions);
   await step(stopRecordArrivals);
   await step(() => chatRecords().dispose());
   await step(() => {

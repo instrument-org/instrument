@@ -123,6 +123,12 @@ export const publisher = new EventPublisher<{
 type PublishedEvents =
   typeof publisher extends EventPublisher<infer Events> ? Events : never;
 
+/** A subscriber's loop over published events, and when it has ended. */
+export interface SubscriberLoop {
+  /** Settles once the loop has stopped, its last event handled. */
+  ended: Promise<void>;
+}
+
 /**
  * Each `event` published from now on, until `signal` ends the listening,
  * which ends a loop over it rather than throwing into it.

@@ -4,7 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { publishedUntil } from "../../rpc/publisher";
+import { publishedUntil, type SubscriberLoop } from "../../rpc/publisher";
 import { ChatWrites } from "../chat-writes";
 import { recordChanged } from "../record-changes";
 import { type Ask } from "../../schemas/chat-state";
@@ -186,8 +186,8 @@ async function onItsWay<Value>(
 export function startChatWake(
   workspaceRef: WorkspaceActorRef,
   signal?: AbortSignal,
-): void {
-  void (async () => {
+): SubscriberLoop {
+  const loop = (async () => {
     for await (const payload of publishedUntil("session.done", signal)) {
       try {
         await onSessionDone(payload, workspaceRef);
@@ -217,6 +217,7 @@ export function startChatWake(
     },
     { once: true },
   );
+  return { ended: loop };
 }
 
 /**

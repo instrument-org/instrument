@@ -1,7 +1,7 @@
 import { fetchModel } from "@instrument-org/ai-gateway";
 import { alphabetical } from "radashi";
 
-import { publishedUntil } from "../../rpc/publisher";
+import { publishedUntil, type SubscriberLoop } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
@@ -117,8 +117,8 @@ export async function retitleChat({
  * runs) waits for the one that settles it, the same moment a notification
  * treats as news.
  */
-export function startChatRetitle(signal?: AbortSignal): void {
-  void (async () => {
+export function startChatRetitle(signal?: AbortSignal): SubscriberLoop {
+  const loop = (async () => {
     for await (const payload of publishedUntil("session.done", signal)) {
       try {
         await retitleOnSettle(payload);
@@ -127,6 +127,7 @@ export function startChatRetitle(signal?: AbortSignal): void {
       }
     }
   })();
+  return { ended: loop };
 }
 
 function isRoot(

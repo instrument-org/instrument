@@ -1,4 +1,4 @@
-import { publishedUntil } from "../../rpc/publisher";
+import { publishedUntil, type SubscriberLoop } from "../../rpc/publisher";
 import { sessionRole } from "../chat/children";
 import { getWorkspaceConfig } from "../workspace-config";
 import { rewriteChatFolder } from "./write-chat-folder";
@@ -13,8 +13,8 @@ import { rewriteChatFolder } from "./write-chat-folder";
  * has a transcript that moved. Nothing is written when the bytes read the
  * same, which is the usual answer for a turn that only a task ran.
  */
-export function startChatFolderWrites(signal?: AbortSignal): void {
-  void (async () => {
+export function startChatFolderWrites(signal?: AbortSignal): SubscriberLoop {
+  const loop = (async () => {
     for await (const { id, sessionId } of publishedUntil(
       "session.done",
       signal,
@@ -30,4 +30,5 @@ export function startChatFolderWrites(signal?: AbortSignal): void {
       }
     }
   })();
+  return { ended: loop };
 }

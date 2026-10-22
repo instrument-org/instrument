@@ -2,7 +2,7 @@ import { readdirSync, rmdirSync, unlinkSync } from "node:fs";
 import path from "node:path";
 
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { publishedUntil } from "../../rpc/publisher";
+import { publishedUntil, type SubscriberLoop } from "../../rpc/publisher";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { listChatBackgroundProcesses } from "../background-processes";
 import { resolveChat } from "../record-folders";
@@ -30,13 +30,13 @@ const SYSTEM_LITTER = new Set([".DS_Store"]);
 export function startWorkDirReap(
   workspaceRef: WorkspaceActorRef,
   signal?: AbortSignal,
-): void {
+): SubscriberLoop {
   try {
     reapWorkDirs(workspaceRef);
   } catch (error) {
     getWorkspaceConfig().captureException(error);
   }
-  void (async () => {
+  const loop = (async () => {
     for await (const { id } of publishedUntil("session.done", signal)) {
       try {
         reapWorkDir(id, workspaceRef);
@@ -45,6 +45,7 @@ export function startWorkDirReap(
       }
     }
   })();
+  return { ended: loop };
 }
 
 /**

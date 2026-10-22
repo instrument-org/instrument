@@ -1,5 +1,5 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { publishedUntil } from "../../rpc/publisher";
+import { publishedUntil, type SubscriberLoop } from "../../rpc/publisher";
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import {
@@ -61,8 +61,8 @@ export function startJobWake(
     debounceMs = JOB_WAKE_DEBOUNCE_MS,
     signal,
   }: { debounceMs?: number; signal?: AbortSignal } = {},
-): void {
-  void (async () => {
+): SubscriberLoop {
+  const loop1 = (async () => {
     for await (const { id, sessionId } of publishedUntil(
       "backgroundProcess.settled",
       signal,
@@ -70,7 +70,7 @@ export function startJobWake(
       schedule(id, sessionId, workspaceRef, debounceMs);
     }
   })();
-  void (async () => {
+  const loop2 = (async () => {
     for await (const { id, notice, sessionId } of publishedUntil(
       "session.done",
       signal,
@@ -94,6 +94,7 @@ export function startJobWake(
     },
     { once: true },
   );
+  return { ended: Promise.all([loop1, loop2]).then(() => undefined) };
 }
 
 function schedule(

@@ -1,5 +1,5 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { publishedUntil } from "../../rpc/publisher";
+import { publishedUntil, type SubscriberLoop } from "../../rpc/publisher";
 import { wakeChatForApp } from "../chat/wake";
 import { getWorkspaceConfig } from "../workspace-config";
 import { readConnection } from "./connection";
@@ -24,8 +24,8 @@ import { readConnection } from "./connection";
 export function startAppEvents(
   workspaceRef: WorkspaceActorRef,
   signal?: AbortSignal,
-): void {
-  void (async () => {
+): SubscriberLoop {
+  const loop = (async () => {
     for await (const event of publishedUntil("app.event", signal)) {
       if (event.event === "disconnected" || event.event === "removed") {
         continue;
@@ -46,4 +46,5 @@ export function startAppEvents(
       }
     }
   })();
+  return { ended: loop };
 }

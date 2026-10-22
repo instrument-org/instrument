@@ -74,3 +74,30 @@ describe("startAppEvents", () => {
     );
   });
 });
+
+describe("a stopped subscriber", () => {
+  it("ends once the event it was handling is handled, and hears no more", async () => {
+    let wake: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      wake = resolve;
+    });
+    woken.mockImplementation(() => held);
+    const stop = new AbortController();
+    const { ended } = startAppEvents({} as WorkspaceActorRef, stop.signal);
+    await answer("connected");
+    const done = vi.fn();
+    void ended.then(done);
+
+    stop.abort();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // Still handling the wake it started.
+    expect(done).not.toHaveBeenCalled();
+    wake();
+    await ended;
+    woken.mockReset();
+    await answer("connected");
+
+    // Only the file's own subscriber heard this one.
+    expect(woken).toHaveBeenCalledTimes(1);
+  });
+});

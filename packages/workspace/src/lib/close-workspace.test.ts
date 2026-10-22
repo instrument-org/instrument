@@ -83,8 +83,7 @@ describe("attachChats", () => {
     await settle();
     expect(publisher.size).toBeGreaterThan(before);
 
-    detach();
-    await settle();
+    await detach();
 
     expect(publisher.size).toBe(before);
     actor.stop();

@@ -12,6 +12,7 @@ import {
   openDevLog,
   writeDevLogEntry,
 } from "./dev-file-logger";
+import { guardLogger } from "./log-guards";
 
 const IS_DEV = process.env.NODE_ENV === "development";
 
@@ -71,6 +72,12 @@ log.transports.file.maxSize = MAX_LOG_FILE_BYTES;
 log.transports.file.sync = false;
 
 log.transports.console.level = getConsoleLevel();
+
+/**
+ * Turn the console transport off for good, for a failed write to the
+ * terminal the crash diagnostics are handed rather than the stream itself.
+ */
+export const { stopConsole: stopConsoleLogging } = guardLogger(log);
 
 export { default as logger } from "electron-log";
 

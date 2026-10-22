@@ -5,6 +5,7 @@ import {
   formatExceptionEvent,
 } from "@instrument-org/shared/exceptions";
 import { crashReporter } from "electron";
+import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -12,9 +13,10 @@ import {
   buildMainExceptionEvent,
   recordExceptionEvent,
 } from "./capture-server-exception";
-import { createScopedLogger } from "./electron-logger";
+import { createScopedLogger, stopConsoleLogging } from "./electron-logger";
 import { storeExceptionEvent } from "./exception-store";
 import { recordEndedSession } from "./problem-reports";
+import { createRepeatLimiter } from "./repeat-limiter";
 
 const log = createScopedLogger("CrashDiagnostics");
 
@@ -61,6 +63,18 @@ let isWritingCrashRecord = false;
  * marker, written at start and removed on the way out, says the last session
  * ended some other way than exiting: a force-quit after a freeze, a native
  * crash in main, a power loss.
+ *
+ * Reporting an error must never cause the next one. Logging it can fail (a
+ * full disk, a closed terminal), and that failure arrives later as an error
+ * of its own, so a handler that reports whatever it is handed reports its own
+ * fallout forever. Three things stop that. An error raised by anything
+ * reporting started, however much later, is counted once and dropped: the
+ * reporting runs in an async context its continuations inherit. A failed
+ * write to the terminal or the disk is the environment rather than a bug: it
+ * is said once, and a broken terminal turns console logging off. And each
+ * problem, by fingerprint, is recorded a few times a minute at most, with
+ * every problem together capped, the next recorded event counting the ones
+ * held back.
  */
 export function registerCrashDiagnostics(app: Electron.App) {
   // Before ready, so every process the app starts is watched.
@@ -77,35 +91,52 @@ export function registerCrashDiagnostics(app: Electron.App) {
     unclean: exit.unclean,
   });
 
+  const gate = createFaultGate();
+  // The event the monitor built for the throw the listener is about to get,
+  // none when the gate held it back.
+  let monitored:
+    | { error: unknown; event: ExceptionEvent | undefined }
+    | undefined;
+
   // Written synchronously, ahead of the listeners below, so the record exists
   // whatever reporting does. See `writeCrashRecord`. A network drop is left
   // out, since the listener below already logs it and it is not a bug. The
   // event is the one the listener then records, so the crash record and the
   // exception store hold the same event under one id.
   process.on("uncaughtExceptionMonitor", (error, origin) => {
-    if (isExpectedNetworkError(error)) {
-      return;
-    }
-    try {
-      const event = buildMainExceptionEvent(error, {
-        handled: false,
-        mechanism: origin,
-      });
-      monitored = { error, event };
-      writeCrashRecord(app, event);
-    } catch {
-      // An `uncaughtException` listener that throws ends the process.
-    }
+    gate.handle(error, () => {
+      if (isExpectedNetworkError(error)) {
+        return;
+      }
+      monitored = { error, event: undefined };
+      const event = gate.admit(
+        buildMainExceptionEvent(error, { handled: false, mechanism: origin }),
+      );
+      monitored.event = event;
+      if (event) {
+        writeCrashRecord(app, event);
+      }
+    });
   });
 
   process.on("uncaughtException", (error) => {
-    const event = monitored?.error === error ? monitored.event : undefined;
+    const seen = monitored?.error === error ? monitored : undefined;
     monitored = undefined;
-    reportProcessError(error, "uncaughtException", event);
+    gate.handle(error, () => {
+      if (seen) {
+        if (seen.event) {
+          recordExceptionEvent(seen.event);
+        }
+        return;
+      }
+      reportProcessError(error, "uncaughtException", gate);
+    });
   });
 
   process.on("unhandledRejection", (error) => {
-    reportProcessError(error, "unhandledRejection");
+    gate.handle(error, () => {
+      reportProcessError(error, "unhandledRejection", gate);
+    });
   });
 
   app.on("render-process-gone", (_event, webContents, details) => {
@@ -113,6 +144,7 @@ export function registerCrashDiagnostics(app: Electron.App) {
       return;
     }
     logProcessGone(
+      gate,
       details,
       `render-process-gone ${identifyWebContents(webContents)} reason=${details.reason} exitCode=${details.exitCode}`,
       {
@@ -133,6 +165,7 @@ export function registerCrashDiagnostics(app: Electron.App) {
     }
     const name = details.name ?? details.serviceName ?? "unknown";
     logProcessGone(
+      gate,
       details,
       `child-process-gone type=${details.type} name=${name} reason=${details.reason} exitCode=${details.exitCode}`,
       {
@@ -149,8 +182,116 @@ export function registerCrashDiagnostics(app: Electron.App) {
   });
 }
 
-/** The event the monitor built for the throw the listener is about to get. */
-let monitored: { error: unknown; event: ExceptionEvent } | undefined;
+/** How long the limits below count over. */
+const FAULT_INTERVAL_MS = 60_000;
+
+/** How often one problem, by fingerprint, is recorded per interval. */
+const RECORDS_PER_FAULT = 5;
+
+/** How many records of any problem are made per interval. */
+const RECORDS_PER_INTERVAL = 30;
+
+// A failed write to a stream: stdout or stderr gone (EPIPE), a terminal that
+// closed under a running process (EIO), a descriptor no longer open (EBADF),
+// a full disk (ENOSPC).
+const WRITE_FAILURE_CODES = new Set(["EBADF", "EIO", "ENOSPC", "EPIPE"]);
+const BROKEN_STREAM_CODES = new Set(["EBADF", "EIO", "EPIPE"]);
+
+function writeFailureCode(error: unknown): string | undefined {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    "syscall" in error &&
+    error.syscall === "write" &&
+    typeof error.code === "string" &&
+    WRITE_FAILURE_CODES.has(error.code)
+  ) {
+    return error.code;
+  }
+  return undefined;
+}
+
+type FaultGate = ReturnType<typeof createFaultGate>;
+
+/**
+ * What stands between an error and its report: the reentrancy guard, the
+ * write-failure check, and the repeat limits. One per registration.
+ */
+function createFaultGate() {
+  // Set for the whole of a report, and inherited by every timer, tick and
+  // promise the report starts, so an error any of them raises is known to
+  // come from reporting. Node delivers an uncaught throw and a rejection in
+  // the async context of the code that raised it.
+  const reporting = new AsyncLocalStorage<true>();
+  const sameFault = createRepeatLimiter({
+    intervalMs: FAULT_INTERVAL_MS,
+    limit: RECORDS_PER_FAULT,
+  });
+  const anyFault = createRepeatLimiter({
+    intervalMs: FAULT_INTERVAL_MS,
+    limit: RECORDS_PER_INTERVAL,
+  });
+  let raisedWhileReporting = 0;
+  let writeFailures = 0;
+
+  /** Run `report` for `error`, unless reporting or the environment raised it. */
+  const handle = (error: unknown, report: () => void) => {
+    try {
+      if (reporting.getStore()) {
+        raisedWhileReporting += 1;
+        if (raisedWhileReporting === 1) {
+          reporting.run(true, () => {
+            log.warn(
+              "Reporting an error raised another; it and any more like it are left out",
+              error,
+            );
+          });
+        }
+        return;
+      }
+      const code = writeFailureCode(error);
+      if (code) {
+        if (BROKEN_STREAM_CODES.has(code)) {
+          stopConsoleLogging();
+        }
+        writeFailures += 1;
+        if (writeFailures === 1) {
+          reporting.run(true, () => {
+            log.warn(`A write failed with ${code}; later ones are left out`);
+          });
+        }
+        return;
+      }
+      reporting.run(true, report);
+    } catch {
+      // An `uncaughtException` listener that throws ends the process, which
+      // is worse than losing one report.
+    }
+  };
+
+  /**
+   * The event to record, or none when its problem has been recorded enough
+   * for now. The first one through after a quiet spell counts the ones held
+   * back.
+   */
+  const admit = (event: ExceptionEvent): ExceptionEvent | undefined => {
+    const now = Date.now();
+    const same = sameFault(event.fingerprint, now);
+    if (!same.allowed) {
+      return undefined;
+    }
+    const any = anyFault("", now);
+    if (!any.allowed) {
+      return undefined;
+    }
+    return same.suppressed > 0
+      ? { ...event, count: event.count + same.suppressed }
+      : event;
+  };
+
+  return { admit, handle };
+}
 
 // SIGTERM is how a quit, and a dev relaunch, ends every child process, so a
 // process killed by it is ordinary teardown rather than something that went
@@ -158,6 +299,7 @@ let monitored: { error: unknown; event: ExceptionEvent } | undefined;
 const SIGTERM_EXIT_CODE = 15;
 
 function logProcessGone(
+  gate: FaultGate,
   details: { exitCode: number; reason: string },
   line: string,
   gone: { data: Record<string, unknown>; type: string; value: string },
@@ -166,13 +308,12 @@ function logProcessGone(
     log.info(line);
     return;
   }
-  log.error(line);
-  try {
-    // No stack to show: the process took its own with it. The error is made
-    // here only to carry the type and the words, so its stack is dropped.
-    const error = Object.assign(new Error(gone.value), { name: gone.type });
-    error.stack = `${gone.type}: ${gone.value}`;
-    recordExceptionEvent(
+  // No stack to show: the process took its own with it. The error is made
+  // here only to carry the type and the words, so its stack is dropped.
+  const error = Object.assign(new Error(gone.value), { name: gone.type });
+  error.stack = `${gone.type}: ${gone.value}`;
+  gate.handle(error, () => {
+    const event = gate.admit(
       buildMainExceptionEvent(error, {
         data: gone.data,
         handled: false,
@@ -180,9 +321,11 @@ function logProcessGone(
         mechanism: "process-gone",
       }),
     );
-  } catch {
-    // The log line above is the record either way.
-  }
+    if (event) {
+      log.error(line);
+      recordExceptionEvent(event);
+    }
+  });
 }
 
 function getSessionMarkerPath(app: Electron.App) {
@@ -397,20 +540,17 @@ function reportPreviousCrash(app: Electron.App): ExceptionEvent | undefined {
 function reportProcessError(
   error: unknown,
   origin: "uncaughtException" | "unhandledRejection",
-  event?: ExceptionEvent,
+  gate: FaultGate,
 ) {
-  try {
-    if (isExpectedNetworkError(error)) {
-      log.warn(`${origin} from a network failure`, error);
-      return;
-    }
-    recordExceptionEvent(
-      event ??
-        buildMainExceptionEvent(error, { handled: false, mechanism: origin }),
-    );
-  } catch {
-    // A throw from an `uncaughtException` listener ends the process, which is
-    // worse than losing one report.
+  if (isExpectedNetworkError(error)) {
+    log.warn(`${origin} from a network failure`, error);
+    return;
+  }
+  const event = gate.admit(
+    buildMainExceptionEvent(error, { handled: false, mechanism: origin }),
+  );
+  if (event) {
+    recordExceptionEvent(event);
   }
 }
 

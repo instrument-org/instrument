@@ -30,6 +30,7 @@ const {
   log,
   recordEndedSession,
   recordExceptionEvent,
+  stopConsoleLogging,
   storeExceptionEvent,
 } = vi.hoisted(() => ({
   buildMainExceptionEvent: vi.fn(),
@@ -37,13 +38,17 @@ const {
   log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
   recordEndedSession: vi.fn(),
   recordExceptionEvent: vi.fn(),
+  stopConsoleLogging: vi.fn(),
   storeExceptionEvent: vi.fn(),
 }));
 
 vi.mock("electron", () => ({ crashReporter }));
 vi.mock("./problem-reports", () => ({ recordEndedSession }));
 
-vi.mock("./electron-logger", () => ({ createScopedLogger: () => log }));
+vi.mock("./electron-logger", () => ({
+  createScopedLogger: () => log,
+  stopConsoleLogging,
+}));
 vi.mock("./capture-server-exception", () => ({
   buildMainExceptionEvent,
   recordExceptionEvent,
@@ -376,6 +381,114 @@ describe("registerCrashDiagnostics", () => {
       error,
       expect.objectContaining({ mechanism: "uncaughtException" }),
     );
+  });
+
+  // A failed console write surfaces a tick later as an error of its own, and
+  // reporting that one logs again: the loop that once logged over a million
+  // errors overnight against a full disk.
+  it("leaves out an error its own reporting raised, however late it arrives", async () => {
+    registerCrashDiagnostics(createFakeApp().app);
+    const [listener] = addedUncaughtListeners();
+    let fallout = 0;
+    recordExceptionEvent.mockImplementation(() => {
+      // Bounded, so the unguarded loop ends the test rather than hanging it.
+      if (fallout < 100) {
+        fallout += 1;
+        setImmediate(() => {
+          listener?.(new Error("logging failed"), "uncaughtException");
+        });
+      }
+    });
+
+    listener?.(new Error("boom"), "uncaughtException");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(recordExceptionEvent).toHaveBeenCalledOnce();
+    expect(log.warn).toHaveBeenCalledOnce();
+
+    recordExceptionEvent.mockReset();
+    listener?.(new Error("unrelated, later"), "uncaughtException");
+    expect(recordExceptionEvent).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["EIO", true],
+    ["EPIPE", true],
+    ["ENOSPC", false],
+  ])(
+    "says once and records nothing for a write that failed with %s",
+    (code, stopsConsole) => {
+      registerCrashDiagnostics(createFakeApp().app);
+      const [monitor] = addedMonitorListeners();
+      const [listener] = addedUncaughtListeners();
+
+      for (let index = 0; index < 50; index += 1) {
+        const error = Object.assign(new Error(`write ${code}`), {
+          code,
+          syscall: "write",
+        });
+        monitor?.(error, "uncaughtException");
+        listener?.(error, "uncaughtException");
+      }
+
+      expect(buildMainExceptionEvent).not.toHaveBeenCalled();
+      expect(recordExceptionEvent).not.toHaveBeenCalled();
+      expect(fs.existsSync(crashRecordPath())).toBe(false);
+      expect(log.warn).toHaveBeenCalledOnce();
+      expect(stopConsoleLogging.mock.calls.length > 0).toBe(stopsConsole);
+    },
+  );
+
+  it("records one problem a few times a minute and counts the rest", () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    const writeFileSync = vi.spyOn(fs, "writeFileSync");
+    try {
+      registerCrashDiagnostics(createFakeApp().app);
+      writeFileSync.mockClear();
+      const [monitor] = addedMonitorListeners();
+      const [listener] = addedUncaughtListeners();
+      const throwOnce = () => {
+        const error = new Error("boom");
+        monitor?.(error, "uncaughtException");
+        listener?.(error, "uncaughtException");
+      };
+
+      for (let index = 0; index < 50; index += 1) {
+        throwOnce();
+      }
+      expect(recordExceptionEvent).toHaveBeenCalledTimes(5);
+      expect(writeFileSync).toHaveBeenCalledTimes(5);
+
+      now.mockReturnValue(1_060_000);
+      throwOnce();
+      expect(recordExceptionEvent).toHaveBeenLastCalledWith(
+        expect.objectContaining({ count: 46 }),
+      );
+    } finally {
+      now.mockRestore();
+      writeFileSync.mockRestore();
+    }
+  });
+
+  it("records a child process that keeps crashing a few times a minute", () => {
+    const { app, emit } = createFakeApp();
+    registerCrashDiagnostics(app);
+
+    for (let index = 0; index < 50; index += 1) {
+      emit(
+        "child-process-gone",
+        {},
+        {
+          exitCode: 5,
+          name: "Network Service",
+          reason: "crashed",
+          type: "Utility",
+        },
+      );
+    }
+
+    expect(recordExceptionEvent).toHaveBeenCalledTimes(5);
+    expect(log.error).toHaveBeenCalledTimes(5);
   });
 
   it("writes an uncaught throw somewhere a quit cannot lose it", () => {

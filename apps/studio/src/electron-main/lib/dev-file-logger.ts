@@ -13,6 +13,10 @@ const CURRENT_SYMLINK = path.join(LOG_DIR, "current.jsonl");
 // grows by thousands.
 const KEPT_LOG_FILES = 50;
 
+// One boot's file stops growing here, so a loop that gets past the logger's
+// repeat limits still cannot fill the disk.
+const MAX_LOG_FILE_BYTES = 256 * 1024 * 1024;
+
 function getLogFilePath() {
   const stamp = new Date()
     .toISOString()
@@ -23,6 +27,7 @@ function getLogFilePath() {
 
 let logFilePath: string | undefined;
 let logStream: fs.WriteStream | undefined;
+let bytesWritten = 0;
 
 export function getDevLogFilePath() {
   return logFilePath;
@@ -39,6 +44,10 @@ export function openDevLog() {
 
   logFilePath = getLogFilePath();
   logStream = fs.createWriteStream(logFilePath, { flags: "a" });
+  // A write stream with no `error` listener turns a failed write (a full
+  // disk) into an uncaught exception, which is logged here again. The file
+  // is given up instead, and the terminal still shows warnings and errors.
+  logStream.on("error", closeDevLog);
 
   // Symlinks are unreliable on Windows without Developer Mode or admin rights.
   if (process.platform !== "win32") {
@@ -46,6 +55,12 @@ export function openDevLog() {
     fs.symlinkSync(logFilePath, temporarySymlink);
     fs.renameSync(temporarySymlink, CURRENT_SYMLINK);
   }
+}
+
+function closeDevLog() {
+  const stream = logStream;
+  logStream = undefined;
+  stream?.destroy();
 }
 
 /** Deletes all but the newest {@link KEPT_LOG_FILES} earlier boot files. */
@@ -103,6 +118,14 @@ export function writeDevLogEntry(
       ...(source ? { source } : {}),
       ...(scope ? { scope } : {}),
     });
+  }
+  bytesWritten += line.length + 1;
+  if (bytesWritten > MAX_LOG_FILE_BYTES) {
+    logStream.end(
+      `${JSON.stringify({ level: "warn", msg: "[dev-log] This boot's log is full; nothing more is written to it.", time: entry.time })}\n`,
+    );
+    logStream = undefined;
+    return;
   }
   logStream.write(line + "\n");
 }

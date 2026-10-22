@@ -12,7 +12,13 @@ import { FolderLocation, FolderNote } from "./kit/folder-row";
 import { SetupFooter, SetupPage } from "./kit/setup-page";
 import { SetupPageSwitch } from "./kit/setup-page-switch";
 import { PackedFolder } from "./folder-illustration";
-import { count, folderAction, type FoundNote, foundNote } from "./folder-flow";
+import {
+  count,
+  folderAction,
+  type FoundNote,
+  foundNote,
+  them,
+} from "./folder-flow";
 import { type SetupPageProps } from "./setup-page-props";
 import { useSetupState } from "./use-setup-state";
 
@@ -287,8 +293,8 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
                   action={{ label: "Show folder", onClick: showFolder }}
                   line={
                     shown.moving > 0
-                      ? `We'll keep them and move your ${count(shown.moving, "chat")} in beside them.`
-                      : "We'll keep them and add your chats and files beside them."
+                      ? `We'll keep ${them(shown.items)} and move your ${count(shown.moving, "chat")} in beside ${them(shown.items)}.`
+                      : `We'll keep ${them(shown.items)} and add your chats and files beside ${them(shown.items)}.`
                   }
                   title={`This folder already has ${count(shown.items, "item")}.`}
                 />
@@ -296,7 +302,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
               {shown?.kind === "earlier" && (
                 <FolderNote
                   action={{ label: "Show folder", onClick: showFolder }}
-                  line="We'll open them, so you can pick up where you left off."
+                  line={`We'll open ${them(shown.chats)}, so you can pick up where you left off.`}
                   title={`This folder has ${count(shown.chats, "chat")} from ${APP_NAME}.`}
                 />
               )}

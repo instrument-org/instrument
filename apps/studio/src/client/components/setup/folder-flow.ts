@@ -95,6 +95,11 @@ export function foundNote(
   }
 }
 
+/** "it" for one thing, "them" for any other number, to follow `count`. */
+export function them(n: number): string {
+  return n === 1 ? "it" : "them";
+}
+
 /** "1 item", "214 items". */
 export function count(n: number, noun: string): string {
   return `${String(n)} ${noun}${n === 1 ? "" : "s"}`;

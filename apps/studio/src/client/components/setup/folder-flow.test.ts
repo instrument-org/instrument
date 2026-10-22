@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { count, folderAction, foundNote } from "./folder-flow";
+import { count, folderAction, foundNote, them } from "./folder-flow";
 
 const empty = { chats: 0, items: 0 };
 
@@ -79,6 +79,10 @@ describe("folderAction", () => {
       "1 chat",
       "12 chats",
     ]);
+  });
+
+  it("says it for one thing and them for more", () => {
+    expect([them(1), them(2)]).toEqual(["it", "them"]);
   });
 });
 

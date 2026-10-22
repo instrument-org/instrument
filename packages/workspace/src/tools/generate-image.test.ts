@@ -247,3 +247,37 @@ describe("GenerateImage source images", () => {
     await expect(fs.readdir(photosDir)).resolves.toEqual([]);
   });
 });
+
+describe("GenerateImage with nothing that makes images", () => {
+  it("tells the agent what the person sees and to leave the image", async () => {
+    const claude = createMockAIGatewayModel({ provider: "claude-account" });
+    const chatDir = path.join(root.path, "tasks", "claude");
+    await fs.mkdir(chatDir, { recursive: true });
+    const claudeChat = createMockChatConfigForDir(chatDir, { model: claude });
+    const input = {
+      explanation: "make the header",
+      filePath: "header",
+      prompt: "A help desk team, flat illustration",
+    };
+
+    const result = await runTool(GenerateImage, {
+      chatId: claudeChat,
+      input,
+      model: claude,
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    const output = result._unsafeUnwrap();
+    expect(output).toMatchObject({
+      errorType: "no-image-model",
+      state: "failure",
+    });
+    expect(GenerateImage.toModelOutput({ input, output, toolCallId: "call_1" }))
+      .toMatchInlineSnapshot(`
+      {
+        "type": "error-text",
+        "value": "Nothing connected here makes images. The person sees a note above their message box offering a free Instrument account, which makes images in any chat. Say so in one plain sentence and leave the image for now: when they sign in, you are woken to make it.",
+      }
+    `);
+  });
+});

@@ -1,20 +1,27 @@
 import {
-  getImageModel,
+  getImageModelFor,
+  selectImageProviderConfigs,
   streamOpenRouterImage,
   TEST_IMAGE_MODEL_OVERRIDE_KEY,
 } from "@instrument-org/ai-gateway";
 import { OUR_MODELS } from "@instrument-org/shared";
-import { generateImage } from "ai";
+import { APICallError, generateImage } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { type WorkspaceConfig } from "../types";
-import { generateBufferedImage, generateImageStream } from "./generate-images";
+import {
+  generateBufferedImage,
+  generateImageStream,
+  ImageRefused,
+  NoImageProvider,
+} from "./generate-images";
 
 vi.mock("@instrument-org/ai-gateway", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  getImageModel: vi.fn(),
+  getImageModelFor: vi.fn(),
+  selectImageProviderConfigs: vi.fn(),
   streamOpenRouterImage: vi.fn(),
 }));
 
@@ -64,24 +71,35 @@ function lastProviderOptions() {
   return call?.[0].providerOptions;
 }
 
-function mockImageModel(configType: string) {
-  // generateImageStream consumes `.toTuple()` from the resolved result.
-  vi.mocked(getImageModel).mockResolvedValue({
-    toTuple: () => [
-      {
-        config: { displayName: "Test", id: "cfg-1", type: configType },
-        model: { modelId: "test-model" },
-        type: "image",
-      },
-      undefined,
-    ],
-  } as unknown as Awaited<ReturnType<typeof getImageModel>>);
+/**
+ * The chat's image providers, in the order they are tried, each set up as a
+ * model; every buffered call answers with an image.
+ */
+function mockImageProviders(
+  ...providers: (Record<string, unknown> & { type: string })[]
+) {
+  const configs = providers.map((provider, index) => ({
+    displayName: "Test",
+    id: `cfg-${index + 1}`,
+    ...provider,
+  }));
+  vi.mocked(selectImageProviderConfigs).mockReturnValue(configs as never);
+  vi.mocked(getImageModelFor).mockImplementation(({ config }) =>
+    Promise.resolve({
+      ok: true,
+      value: { config, model: { modelId: "test-model" }, type: "image" },
+    } as never),
+  );
   vi.mocked(generateImage).mockResolvedValue({
     images: [{ base64: "aGk=", mediaType: "image/png" }],
     // Always an array from the real call, one entry per request it made.
     responses: [],
     usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
   } as unknown as Awaited<ReturnType<typeof generateImage>>);
+}
+
+function mockImageModel(configType: string) {
+  mockImageProviders({ type: configType });
 }
 
 describe("generateBufferedImage parameter mapping", () => {
@@ -142,7 +160,10 @@ describe("generateBufferedImage parameter mapping", () => {
   });
 });
 
-async function collectStream(signal = new AbortController().signal) {
+async function collectStream(
+  signal = new AbortController().signal,
+  sourceImages?: Buffer[],
+) {
   const chunks = [];
   for await (const chunk of generateImageStream({
     callingModel: {} as never,
@@ -152,6 +173,7 @@ async function collectStream(signal = new AbortController().signal) {
     prompt: "a cat",
     sessionId: SESSION_ID,
     signal,
+    sourceImages,
     workspaceConfig,
     workspaceServerURL: "http://localhost" as never,
   })) {
@@ -191,25 +213,10 @@ describe("generateImageStream", () => {
   });
 
   it("defers to the buffered path when a test image override is present", async () => {
-    vi.mocked(getImageModel).mockResolvedValue({
-      toTuple: () => [
-        {
-          config: {
-            id: "cfg-1",
-            [TEST_IMAGE_MODEL_OVERRIDE_KEY]: {},
-            type: OUR_MODELS.providerType,
-          },
-          model: { modelId: "mock-image-model" },
-          type: "image",
-        },
-        undefined,
-      ],
-    } as unknown as Awaited<ReturnType<typeof getImageModel>>);
-    vi.mocked(generateImage).mockResolvedValue({
-      images: [{ base64: "file", mediaType: "image/png" }],
-      responses: [],
-      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-    } as unknown as Awaited<ReturnType<typeof generateImage>>);
+    mockImageProviders({
+      [TEST_IMAGE_MODEL_OVERRIDE_KEY]: {},
+      type: OUR_MODELS.providerType,
+    });
 
     const chunks = await collectStream();
 
@@ -273,5 +280,76 @@ describe("generateImageStream", () => {
 
     expect(chunks.at(-1)?.isErr()).toBe(true);
     expect(workspaceConfig.captureException).not.toHaveBeenCalled();
+  });
+
+  const spent = {
+    code: "usage-limit-exceeded",
+    resetsAt: "2026-10-23T09:12:00.000Z",
+  } as const;
+
+  it("moves on from Instrument's refusal to the person's own provider", async () => {
+    mockImageProviders({ type: OUR_MODELS.providerType }, { type: "google" });
+    vi.mocked(streamOpenRouterImage).mockImplementation(function* () {
+      yield { refusal: spent, type: "refused" };
+    } as never);
+
+    const chunks = await collectStream();
+
+    expect(
+      chunks.map((chunk) => chunk.isOk() && chunk.value.config.id),
+    ).toEqual(["cfg-2"]);
+    expect(workspaceConfig.captureException).not.toHaveBeenCalled();
+  });
+
+  it("ends on an own provider's failure rather than spending Instrument's", async () => {
+    mockImageProviders({ type: "google" }, { type: OUR_MODELS.providerType });
+    vi.mocked(generateImage).mockRejectedValueOnce(new Error("quota"));
+
+    const chunks = await collectStream();
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]?.isErr() && chunks[0].error.type).toBe(
+      "workspace-api-call-error",
+    );
+  });
+
+  it("reads a refusal off Instrument's buffered path too", async () => {
+    mockImageProviders({ type: OUR_MODELS.providerType });
+    vi.mocked(generateImage).mockRejectedValueOnce(
+      new APICallError({
+        message: "Too Many Requests",
+        requestBodyValues: {},
+        responseBody: JSON.stringify({ error: spent }),
+        statusCode: 429,
+        url: "http://localhost/images",
+      }),
+    );
+
+    // A source image keeps Instrument's image on the buffered path.
+    const [only] = await collectStream(undefined, [Buffer.from("png")]);
+
+    expect(only?.isErr() && only.error).toBeInstanceOf(ImageRefused);
+    expect(workspaceConfig.captureException).not.toHaveBeenCalled();
+  });
+
+  it("says Instrument refused when it is the last provider to try", async () => {
+    mockImageProviders({ type: OUR_MODELS.providerType });
+    vi.mocked(streamOpenRouterImage).mockImplementation(function* () {
+      yield { refusal: spent, type: "refused" };
+    } as never);
+
+    const [only] = await collectStream();
+
+    expect(only?.isErr() && only.error).toBeInstanceOf(ImageRefused);
+    expect(only?.isErr() && only.error).toMatchObject({ refusal: spent });
+    expect(workspaceConfig.captureException).not.toHaveBeenCalled();
+  });
+
+  it("says nothing connected makes images when there is no provider", async () => {
+    mockImageProviders();
+
+    const [only] = await collectStream();
+
+    expect(only?.isErr() && only.error).toBeInstanceOf(NoImageProvider);
   });
 });

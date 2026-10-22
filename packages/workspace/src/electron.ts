@@ -14,6 +14,7 @@ export {
   searchAppCatalogByMeaning,
 } from "./lib/apps/catalog";
 export { type AppEvent, appChanged } from "./lib/apps/changed";
+export { accountSignedIn } from "./lib/chat/sign-in-wake";
 export {
   type AccountCheck,
   checkAccountWithRequest,

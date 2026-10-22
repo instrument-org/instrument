@@ -21,6 +21,7 @@ import { CHAT_FOLDER_NAMES } from "../../constants";
 import { appEventModelNote } from "../../lib/app-event-model-text";
 import { permissionAnswerModelNote } from "../../lib/permission-answer-model-text";
 import { questionAnswerModelNote } from "../../lib/question-answer-model-text";
+import { signedInModelNote } from "../../lib/signed-in-model-text";
 import { asksModelNote } from "../../lib/asks-model-text";
 import { folderChangesModelNote } from "../../lib/folder-changes-model-text";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
@@ -667,6 +668,7 @@ const USER_TURN_NOTES = [
   noted("appEvent", ({ data }) => appEventModelNote(data)),
   noted("permissionAnswer", ({ data }) => permissionAnswerModelNote(data)),
   noted("questionAnswer", ({ data }) => questionAnswerModelNote(data)),
+  noted("signedIn", ({ data }) => signedInModelNote(data)),
   noted("viewContext", stated),
   noted("asks", ({ data }) => asksModelNote(data)),
   noted("reply", ({ data }) => replyModelNote(data)),

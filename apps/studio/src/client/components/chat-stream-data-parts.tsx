@@ -93,7 +93,8 @@ export function renderDataPart({
     }
     case "data-attachments":
     case "data-questionAnswer":
-    case "data-reply": {
+    case "data-reply":
+    case "data-signedIn": {
       return null;
     }
     case "data-backgroundProcesses": {

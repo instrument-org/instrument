@@ -68,6 +68,7 @@ export type WakePart =
       type: "data-questionAnswer";
     }
   | { data: SessionMessageDataPart.JobEventDataPart; type: "data-jobEvent" }
+  | { data: SessionMessageDataPart.SignedInDataPart; type: "data-signedIn" }
   | { data: SessionMessageDataPart.TaskEventDataPart; type: "data-taskEvent" };
 
 type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
@@ -261,6 +262,22 @@ export async function wakeAskers(
       wakeWith(chatId, part, workspaceRef, sessionId),
     ),
   );
+}
+
+/**
+ * Wakes a session, a task's or the chat's own, that waited on the person
+ * signing in to Instrument, or joins its turn when it is still going.
+ */
+export async function wakeSessionForSignIn(
+  part: Extract<WakePart, { type: "data-signedIn" }>,
+  workspaceRef: WorkspaceActorRef,
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<void> {
+  if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
+    return;
+  }
+  await wakeWith(chatId, part, workspaceRef, sessionId);
 }
 
 /**

@@ -14,6 +14,12 @@ import { type BrowserTargetId } from "../types";
 
 export const publisher = new EventPublisher<{
   /**
+   * The person signed in to Instrument. Published by `accountSignedIn`,
+   * which the host app calls when a sign-in lands; the sessions waiting on
+   * one are woken with it.
+   */
+  "account.signedIn": null;
+  /**
    * The user acted on an app outside the conversation: finished a sign-in,
    * saved a key, declined, disconnected. Published only by `appChanged`,
    * which the host app calls from the surfaces it owns; the chat is woken

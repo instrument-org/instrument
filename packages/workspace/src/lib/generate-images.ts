@@ -3,15 +3,22 @@ import {
   type AIGatewayProviderConfig,
   type AISDKImageModelResult,
   CLIENT_SESSION_ID_HEADER,
-  getImageModel,
+  getImageModelFor,
   type ImageGenerationProviderType,
   imageModelSupportsStreaming,
   namesSameModel,
+  type PlanRefusal,
+  planRefusalIn,
   resolveImageParameters,
+  selectImageProviderConfigs,
   streamOpenRouterImage,
   TEST_IMAGE_MODEL_OVERRIDE_KEY,
 } from "@instrument-org/ai-gateway";
-import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  OUR_MODELS,
+  type WorkspaceServerURL,
+} from "@instrument-org/shared";
 import {
   APICallError,
   generateImage,
@@ -25,6 +32,29 @@ import { type ChatId } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
 import { recordActivity } from "./activity/record";
 import { TypedError } from "./errors";
+
+/**
+ * Our platform turned an image away for the account's plan: no plan that
+ * covers it, or its usage spent until a reset. The person's to resolve, so
+ * it is never reported as a failure of ours.
+ */
+export class ImageRefused extends Error {
+  readonly refusal: PlanRefusal;
+  readonly type = "workspace-image-refused-error";
+
+  constructor(refusal: PlanRefusal) {
+    super(`${APP_NAME} refused the image: ${refusal.code}`);
+    this.refusal = refusal;
+  }
+}
+
+/**
+ * Nothing connected makes images: no provider of the person's own does, and
+ * they are not signed in to Instrument, whose account would.
+ */
+export class NoImageProvider extends Error {
+  readonly type = "workspace-no-image-provider-error";
+}
 
 // Loose agent-supplied image parameters. Validated and routed per selected
 // model by resolveImageParameters; unsupported knobs are dropped.
@@ -218,11 +248,18 @@ export async function generateBufferedImage({
         usage: imageResult.usage,
       };
     })(),
-    (generationError) => {
+    (generationError): ImageRefused | TypedError.APICall => {
       const message = `Failed to generate image: ${generationError instanceof Error ? generationError.message : "Unknown error"}`;
       const responseBody = APICallError.isInstance(generationError)
         ? generationError.responseBody
         : undefined;
+      const refusal =
+        config.type === OUR_MODELS.providerType
+          ? planRefusalIn(responseBody)
+          : undefined;
+      if (refusal) {
+        return new ImageRefused(refusal);
+      }
       const error = new TypedError.APICall(message, {
         cause: generationError,
         responseBody,
@@ -298,21 +335,50 @@ export async function* generateImageStream(args: ImageStreamArgs) {
   }
 }
 
-// Resolves the image model once, then streams partial frames for our default
-// model (text-to-image only) or yields a single buffered chunk for every other
-// path.
+/**
+ * Tries the chat's image providers in order (`selectImageProviderConfigs`),
+ * moving on from one our platform refused to the next, so a refusal of
+ * Instrument's never hides a provider of the person's own. Ends on the
+ * refusal when nothing after it makes the image.
+ */
 async function* streamImages(args: ImageStreamArgs) {
-  const modelResult = await getImageModel({
+  const configs = selectImageProviderConfigs({
     callingModel: args.callingModel,
     configs: args.configs,
-    workspaceServerURL: args.workspaceServerURL,
   });
-  const [resolved, modelError] = modelResult.toTuple();
-  if (modelError) {
-    yield err(modelError);
-    return;
+  let refused: ImageRefused | undefined;
+  for (const config of configs) {
+    const resolved = await getImageModelFor({
+      config,
+      workspaceServerURL: args.workspaceServerURL,
+    });
+    if (!resolved.ok) {
+      continue;
+    }
+    refused = undefined;
+    for await (const chunk of imagesFrom(args, resolved.value)) {
+      if (chunk.isErr() && chunk.error instanceof ImageRefused) {
+        refused = chunk.error;
+        break;
+      }
+      yield chunk;
+    }
+    if (!refused) {
+      return;
+    }
   }
+  yield err(
+    refused ??
+      new NoImageProvider("No AI provider with image generation is connected."),
+  );
+}
 
+// Streams partial frames for our default model (text-to-image only), or
+// yields a single buffered chunk for every other path.
+async function* imagesFrom(
+  args: ImageStreamArgs,
+  resolved: ResolvedImageModel,
+) {
   // Stream only our default model for text-to-image. A test-injected model has
   // no HTTP endpoint to stream from, so it takes the buffered path too.
   const canStream =
@@ -399,6 +465,10 @@ async function* streamViaOpenRouter(args: {
       signal: args.signal,
       workspaceServerURL: args.workspaceServerURL,
     })) {
+      if (event.type === "refused") {
+        yield err(new ImageRefused(event.refusal));
+        return;
+      }
       if (event.type === "error") {
         yield fail(event.message, event.responseBody);
         return;

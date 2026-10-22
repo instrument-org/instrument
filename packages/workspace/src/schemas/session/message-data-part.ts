@@ -29,6 +29,7 @@ export namespace SessionMessageDataPart {
     "jobEvent",
     "setupChanges",
     "setupNews",
+    "signedIn",
     "skillMentions",
     "maxSteps",
     "memory",
@@ -97,6 +98,7 @@ export namespace SessionMessageDataPart {
     reply: "event",
     setupChanges: "event",
     setupNews: "diff",
+    signedIn: "event",
     skillMentions: "event",
     taskEvent: "event",
     topic: "state",
@@ -716,6 +718,18 @@ export namespace SessionMessageDataPart {
     typeof PermissionAnswerDataPartSchema
   >;
 
+  /**
+   * The person signed in to Instrument while the session waited on it: an
+   * image nothing connected could make, which their account makes. Like a
+   * permission answer, it wakes the session that asked.
+   */
+  export const SignedInDataPartSchema = z.object({
+    /** What the session was waiting to do. */
+    waitedFor: z.literal("image"),
+  });
+
+  export type SignedInDataPart = z.output<typeof SignedInDataPartSchema>;
+
   const QuestionNoteSchema = z.string().trim().min(1).optional();
 
   /**
@@ -1149,6 +1163,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.reply]: ReplyDataPartSchema,
     [NameSchema.enum.setupChanges]: SetupChangesDataPartSchema,
     [NameSchema.enum.setupNews]: SetupNewsDataPartSchema,
+    [NameSchema.enum.signedIn]: SignedInDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,

@@ -18,6 +18,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-permissionAnswer": "always",
   // The card the question was asked on shows the answer.
   "data-questionAnswer": "hidden",
+  // The note over the reply box that asked for it is gone once it lands.
+  "data-signedIn": "hidden",
   "data-attachments": "hidden",
   // Deliberately not "always". This part is a persisted record of what was
   // running when the turn began, and a card in the transcript saying "2 still

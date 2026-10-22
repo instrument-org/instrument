@@ -7,7 +7,10 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { APP_NAME } from "@instrument-org/shared";
+
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { waitForSignIn } from "../lib/chat/sign-in-wake";
 import { executeError } from "../lib/execute-error";
 import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
@@ -102,7 +105,22 @@ export const GenerateImage = setupTool({
     }),
     z.object({
       errorMessage: z.string(),
-      errorType: z.enum(["api-call", "no-image-model", "provider-limitation"]),
+      // `no-image-model`: nothing connected makes images, and no Instrument
+      // account is signed in. `refused`: Instrument's platform turned the
+      // image away for the account's plan, as `refusal` says.
+      errorType: z.enum([
+        "api-call",
+        "no-image-model",
+        "provider-limitation",
+        "refused",
+      ]),
+      refusal: z
+        .object({
+          code: z.enum(["subscription-required", "usage-limit-exceeded"]),
+          reason: z.string().optional(),
+          resetsAt: z.string().optional(),
+        })
+        .optional(),
       responseBody: z.string().optional(),
       state: z.literal("failure"),
     }),
@@ -276,11 +294,24 @@ export const GenerateImage = setupTool({
         const generateError = chunk.error;
 
         switch (generateError.type) {
-          case "gateway-not-found-error": {
+          case "workspace-no-image-provider-error": {
+            waitForSignIn(chatId, sessionId);
+            yield ok({
+              errorMessage: `Making images needs a free ${APP_NAME} account.`,
+              errorType: "no-image-model" as const,
+              state: "failure" as const,
+            });
+            return;
+          }
+          case "workspace-image-refused-error": {
+            const { refusal } = generateError;
             yield ok({
               errorMessage:
-                "No AI provider with image generation capability is available.",
-              errorType: "no-image-model" as const,
+                refusal.code === "usage-limit-exceeded"
+                  ? `Your ${APP_NAME} usage has run out for now.`
+                  : `Your ${APP_NAME} account needs a plan to make images.`,
+              errorType: "refused" as const,
+              refusal,
               state: "failure" as const,
             });
             return;
@@ -359,7 +390,7 @@ export const GenerateImage = setupTool({
     if (output.state === "failure") {
       return {
         type: "error-text",
-        value: output.errorMessage,
+        value: failureForModel(output),
       };
     }
 
@@ -403,6 +434,33 @@ export const GenerateImage = setupTool({
     };
   },
 });
+
+/**
+ * What the agent is told of a failure. Where the person has something to do
+ * (sign in, or deal with their plan), a note above their message box shows
+ * them, so the agent says one line and leaves the image for now.
+ */
+function failureForModel(output: {
+  errorMessage: string;
+  errorType: "api-call" | "no-image-model" | "provider-limitation" | "refused";
+  refusal?: { code: string };
+}) {
+  switch (output.errorType) {
+    case "no-image-model": {
+      return `Nothing connected here makes images. The person sees a note above their message box offering a free ${APP_NAME} account, which makes images in any chat. Say so in one plain sentence and leave the image for now: when they sign in, you are woken to make it.`;
+    }
+    case "refused": {
+      const why =
+        output.refusal?.code === "usage-limit-exceeded"
+          ? `their ${APP_NAME} usage has run out for now`
+          : `their ${APP_NAME} account has no plan that covers it`;
+      return `${APP_NAME} turned the image away: ${why}. The person sees a note above their message box with what they can do. Say so in one plain sentence and leave the image for now.`;
+    }
+    default: {
+      return output.errorMessage;
+    }
+  }
+}
 
 // Extension-less names of a directory's entries, for collision checks before
 // the model-derived output extension is known. Empty if the dir is absent.

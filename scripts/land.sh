@@ -66,10 +66,11 @@ node -e '
   const found = [];
   for (const sha of writers) {
     const [subject, ...body] = git("log", "-1", "--format=%B", sha).split("\n");
-    // A value wrapped onto unindented lines still reads as one contract.
+    // A value wrapped onto unindented lines still reads as one contract, up to
+    // the next trailer; a wrapped line that only looks like `Word: ...` is prose.
     let contract;
     for (const line of [...body, ""]) {
-      if (contract !== undefined && line.trim() !== "" && !/^[\w-]+: /.test(line)) {
+      if (contract !== undefined && line.trim() !== "" && !/^(Rejected|Commits-to|Not-tested|Tested|Related|Review|Upstream|Co-Authored-By|Signed-off-by): /i.test(line)) {
         contract += " " + line.trim();
         continue;
       }

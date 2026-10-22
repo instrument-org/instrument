@@ -100,6 +100,8 @@ let install: ClaudeCodeInstall | undefined;
 let lastRefresh = 0;
 let refreshing: Promise<ClaudeAccountStatus> | undefined;
 let finishing = false;
+/** Counts the workspaces read from, so a read of a closed one is dropped. */
+let readsOf = 0;
 
 const signIn = createActor(
   claudeSignInMachine.provide({
@@ -220,6 +222,7 @@ export function refreshClaudeAccountStatus({
   if (!force && Date.now() - lastRefresh < REFRESH_INTERVAL_MS) {
     return Promise.resolve(claudeAccountStatus());
   }
+  const workspace = readsOf;
   refreshing = readStatus()
     .then((next) => {
       // Only from a reading Claude Code gave, and a sign-out the person asked
@@ -239,15 +242,33 @@ export function refreshClaudeAccountStatus({
       return reading;
     })
     .then((next) => {
+      // Read from the account folder of a workspace that has since closed.
+      if (workspace !== readsOf) {
+        return claudeAccountStatus();
+      }
       lastRefresh = Date.now();
       reading = next;
       announce();
       return claudeAccountStatus();
     })
     .finally(() => {
-      refreshing = undefined;
+      if (workspace === readsOf) {
+        refreshing = undefined;
+      }
     });
   return refreshing;
+}
+
+/**
+ * Forgets the reading of the workspace that is closing, and drops a read of
+ * its account folder still out, so the next workspace's first read is its
+ * own: its account folder is in its machine folder.
+ */
+export function forgetClaudeAccountReading(): void {
+  readsOf += 1;
+  refreshing = undefined;
+  lastRefresh = 0;
+  reading = { canInstall: false, kind: "not-installed" };
 }
 
 /**

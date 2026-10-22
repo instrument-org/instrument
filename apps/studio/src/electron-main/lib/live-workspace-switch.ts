@@ -12,7 +12,10 @@ import { noop } from "radashi";
 
 import { closeCompletionNotifications } from "./agent-completion-notifications";
 import { captureServerException } from "./capture-server-exception";
-import { cancelClaudeSignIn } from "./claude-account";
+import {
+  cancelClaudeSignIn,
+  forgetClaudeAccountReading,
+} from "./claude-account";
 import { cancelOpenRouterConnect } from "./openrouter-connect";
 import { logger } from "./electron-logger";
 import { openWorkspace, releaseWorkspaceOpenMark } from "./open-workspace";
@@ -142,6 +145,7 @@ async function runSwitch() {
     setRunningWorkspace(undefined);
     step("Closed the workspace");
     await currentWorkspaceScope().close(captureServerException);
+    forgetClaudeAccountReading();
     releaseWorkspaceOpenMark();
     openWorkspaceScope();
     // The sign-in these answered for is the closed workspace's.

@@ -23,7 +23,10 @@ vi.mock("./capture-server-exception", () => ({
 vi.mock("./agent-completion-notifications", () => ({
   closeCompletionNotifications: vi.fn(),
 }));
-vi.mock("./claude-account", () => ({ cancelClaudeSignIn: vi.fn() }));
+vi.mock("./claude-account", () => ({
+  cancelClaudeSignIn: vi.fn(),
+  forgetClaudeAccountReading: vi.fn(),
+}));
 vi.mock("./openrouter-connect", () => ({ cancelOpenRouterConnect: vi.fn() }));
 vi.mock("./electron-logger", () => ({
   logger: {

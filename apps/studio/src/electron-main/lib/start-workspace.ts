@@ -41,7 +41,7 @@ export async function startWorkspace(): Promise<RunningWorkspace> {
   // The Claude account is whatever the CLI says, in the workspace's own
   // account folder. A workspace with no model chosen yet runs on the
   // subscription it found.
-  void refreshClaudeAccountStatus().then(async (found) => {
+  void refreshClaudeAccountStatus({ force: true }).then(async (found) => {
     if (found.kind === "signed-in" && !getDefaultModelURI()) {
       await setClaudeAccountDefaultModel();
     }

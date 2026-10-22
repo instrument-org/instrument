@@ -31,6 +31,7 @@ import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
 import { workspaceModelRoutes } from "@/electron-main/stores/workspace/state";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
+import { stopWorkspaceProcess } from "@/electron-main/workspace-process";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
@@ -353,12 +354,16 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           // them, so quitting is what ends them. The tasks at work are
           // stopped and their chats told first, while what each has running
           // can still be named.
-          await interruptTasksForQuit(actor)
-            .catch((error: unknown) => {
-              captureServerException(error);
-            })
-            .then(() => killAllBackgroundProcesses())
-            .catch(noop);
+          await Promise.all([
+            interruptTasksForQuit(actor)
+              .catch((error: unknown) => {
+                captureServerException(error);
+              })
+              .then(() => killAllBackgroundProcesses())
+              .catch(noop),
+            // Bounded at three seconds, under the processes' grace.
+            stopWorkspaceProcess(),
+          ]);
           stopRecordArrivals();
           // Last, so the stops the tasks just wrote are on disk: every chat's
           // records are landed and synced before the process goes.

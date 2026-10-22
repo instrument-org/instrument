@@ -85,6 +85,8 @@ declare namespace NodeJS {
        * without changing which one the app opens next. See lib/workspaces.ts.
        */
       INSTRUMENT_WORKSPACE: string | undefined;
+      /** `1` starts the workspace utility process, which hosts nothing yet. See electron-main/workspace-process. */
+      INSTRUMENT_WORKSPACE_PROCESS: string | undefined;
       NODE_ENV: string | undefined;
       /** Windows only: where OneDrive keeps its folder, set by OneDrive. */
       OneDrive: string | undefined;

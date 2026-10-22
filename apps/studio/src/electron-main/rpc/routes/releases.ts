@@ -1,3 +1,6 @@
+import { logger } from "@/electron-main/lib/electron-logger";
+import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
+import { getAnonymousPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { base } from "@/electron-main/rpc/base";
 import { APP_NAME, APP_REPO_NAME, GITHUB_ORG } from "@instrument-org/shared";
 import { app } from "electron";
@@ -101,6 +104,53 @@ function showsPrereleases() {
   return !app.isPackaged || semver.prerelease(app.getVersion()) !== null;
 }
 
+const log = logger.scope("release-notes");
+
+const NotesSchema = z.object({
+  notes: z
+    .object({
+      highlights: z.array(z.string()),
+      publishedAt: z.string(),
+      summary: z.string(),
+      url: z.string(),
+      version: z.string(),
+    })
+    .nullable(),
+});
+
+/**
+ * What a build waiting to be installed changes, cut down to its summary and a
+ * few lead sentences by our API, which reads them from GitHub so the app makes
+ * no request there. Null when the release has no notes yet, or when the API
+ * cannot be reached, which the card says the same way. Sent without the
+ * account token, so the fetch stays unlinked to the account.
+ */
+const notesFor = base
+  .input(z.object({ version: z.string() }))
+  .handler(async ({ input }) => {
+    const apiBase = platformApiBaseUrl();
+    if (!apiBase) {
+      return null;
+    }
+    const url = new URL("/release-notes", apiBase);
+    url.searchParams.set("version", input.version);
+    try {
+      const response = await fetch(url, {
+        headers: getAnonymousPlatformApiHeaders(),
+        signal: AbortSignal.timeout(ms("10 seconds")),
+      });
+      if (!response.ok) {
+        log.warn(`release notes answered ${String(response.status)}`);
+        return null;
+      }
+      return NotesSchema.parse(await response.json()).notes;
+    } catch (error) {
+      log.warn("release notes could not be fetched", error);
+      return null;
+    }
+  });
+
 export const releases = {
   list,
+  notesFor,
 };

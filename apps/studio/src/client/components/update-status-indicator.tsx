@@ -1,5 +1,14 @@
 import { openSettings } from "@/client/atoms/settings-modal";
+import { Button } from "@/client/components/ui/button";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/client/components/ui/hover-card";
 import { Spinner } from "@/client/components/ui/spinner";
+import { useAppTabs } from "@/client/components/window/app-tabs";
+import { useNow } from "@/client/components/window/use-now";
+import { formatRelativeTime } from "@/client/lib/relative-time";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -8,7 +17,13 @@ import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import ms from "ms";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useEffect,
+  useState,
+} from "react";
 import { toast } from "@/client/lib/toast";
 
 const PROGRESS_RING_CIRCUMFERENCE = 44;
@@ -191,7 +206,16 @@ export function UpdateStatusIndicator() {
           key={visibleBadge.type}
           transition={{ duration: 0.28, ease: "easeOut" }}
         >
-          <UpdateStatusBadge onClick={handleClick} state={visibleBadge} />
+          {visibleBadge.type === "downloaded" ? (
+            <UpdateReadyCard
+              onRestart={handleClick}
+              version={visibleBadge.version}
+            >
+              <UpdateStatusBadge onClick={handleClick} state={visibleBadge} />
+            </UpdateReadyCard>
+          ) : (
+            <UpdateStatusBadge onClick={handleClick} state={visibleBadge} />
+          )}
         </motion.div>
       )}
     </AnimatePresence>
@@ -355,12 +379,9 @@ function renderTriggerIcon(state: UpdateStatusBadgeState) {
 }
 
 function UpdateStatusBadge({
-  onClick,
   state,
-}: {
-  onClick: () => void;
-  state: UpdateStatusBadgeState;
-}) {
+  ...props
+}: ComponentProps<"button"> & { state: UpdateStatusBadgeState }) {
   return (
     <button
       aria-label={getAriaLabel(state)}
@@ -368,13 +389,120 @@ function UpdateStatusBadge({
         "inline-flex h-5 shrink-0 items-center justify-center gap-1 rounded-full border px-1.5 text-xs leading-none font-semibold whitespace-nowrap shadow-xs [-webkit-app-region:no-drag]",
         BADGE_META[state.type].className,
       )}
-      onClick={onClick}
       type="button"
+      {...props}
     >
       <span className="flex size-3.5 shrink-0 items-center justify-center">
         {renderTriggerIcon(state)}
       </span>
       <span>{BADGE_META[state.type].label}</span>
     </button>
+  );
+}
+
+// A release published moments ago may have no notes yet, so a card that found
+// none asks again once this old.
+const NOTES_STALE_MS = ms("10 minutes");
+
+function notesQuery(version: string | undefined) {
+  return rpcClient.releases.notesFor.queryOptions({
+    enabled: version !== undefined,
+    input: { version: version ?? "" },
+    staleTime: NOTES_STALE_MS,
+  });
+}
+
+/**
+ * What the staged build changes, over the Update pill. Clicking the pill still
+ * installs straight away; the card only lets someone see what they are about
+ * to get first. The notes are fetched as soon as the pill shows, so the card
+ * opens with them.
+ */
+function UpdateReadyCard({
+  children,
+  onRestart,
+  version,
+}: {
+  children: ReactNode;
+  onRestart: () => void;
+  version: string | undefined;
+}) {
+  useQuery(notesQuery(version));
+  return (
+    <HoverCard closeDelay={150} openDelay={300}>
+      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
+      <HoverCardContent align="end" className="w-85 p-4">
+        <UpdateReadyCardBody onRestart={onRestart} version={version} />
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+function UpdateReadyCardBody({
+  onRestart,
+  version,
+}: {
+  onRestart: () => void;
+  version: string | undefined;
+}) {
+  // Mounting again on each open refetches notes that have gone stale.
+  const { data: notes, isPending } = useQuery(notesQuery(version));
+  const appTabs = useAppTabs();
+  const now = useNow();
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-start gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-500/15 text-brand-text">
+          <ArrowsClockwiseIcon className="size-4.5" weight="bold" />
+        </span>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold">
+            {version ? `Version ${version} is ready` : "An update is ready"}
+          </div>
+          {notes && (
+            <div className="text-xs text-muted-foreground">
+              Released{" "}
+              {formatRelativeTime(new Date(notes.publishedAt), now.getTime())}
+            </div>
+          )}
+        </div>
+      </div>
+      {notes ? (
+        <div className="flex flex-col gap-2 text-[13px] leading-5">
+          <p>{notes.summary}</p>
+          {notes.highlights.length > 0 && (
+            <ul className="flex flex-col gap-1.5 text-foreground/80">
+              {notes.highlights.map((highlight) => (
+                <li className="flex gap-2" key={highlight}>
+                  <span className="mt-2 size-1 shrink-0 rounded-full bg-foreground/40" />
+                  {highlight}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        !isPending && (
+          <p className="text-[13px] leading-5 text-muted-foreground">
+            We couldn't load the notes for this version yet.
+          </p>
+        )
+      )}
+      <div className="flex items-center justify-between">
+        <Button
+          className="px-0 text-brand-text"
+          onClick={() => {
+            appTabs.open("/release-notes");
+          }}
+          size="sm"
+          variant="link"
+        >
+          {notes ? "See what's new" : "Release notes"}
+        </Button>
+        <Button onClick={onRestart} size="sm" variant="brand">
+          Restart to update
+        </Button>
+      </div>
+    </div>
   );
 }

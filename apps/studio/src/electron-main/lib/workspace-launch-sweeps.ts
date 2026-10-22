@@ -36,7 +36,7 @@ import { workspaceLayoutMarks } from "./workspaces";
  * workspace starts: what earlier builds left is brought into the shape this
  * build reads, every chat is put on its records, and the person's own
  * folders come out of `.instrument/`. Reads the workspace the launch
- * resolved (`setResolvedWorkspace`) for its machine and work folders. Each
+ * resolved (`placeRun`) for its machine and work folders. Each
  * step is idempotent and none blocks the launch.
  */
 export async function sweepWorkspaceFolder({

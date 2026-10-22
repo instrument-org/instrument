@@ -60,13 +60,13 @@ export function inspectWorkspaceFolder({
       "utf8",
     );
   } catch (error) {
+    if (workspace.pinned) {
+      return undefined;
+    }
     const code =
       error instanceof Error && "code" in error ? error.code : undefined;
     if (code === "EACCES" || code === "EPERM") {
       return "lost";
-    }
-    if (workspace.pinned) {
-      return undefined;
     }
     return pathWithin(workspace.path, userDataDir) &&
       (fs.existsSync(workspace.path) ||

@@ -1,9 +1,9 @@
 import { logger } from "@/electron-main/lib/electron-logger";
+import { getWorkspaceRun } from "@/electron-main/lib/workspace-run";
 import {
-  getStartedWorkspace,
-  isWorkspaceStarted,
-  type StartedWorkspace,
-} from "@/electron-main/lib/started-workspace";
+  type WorkspaceActorRef,
+  type WorkspaceConfig,
+} from "@instrument-org/workspace/electron";
 import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
@@ -99,17 +99,21 @@ export function initializeRPC({
     }
 
     const webContentsId = event.sender.id;
+    const run = getWorkspaceRun();
 
     handler.upgrade(serverPort, {
       context: {
         appUpdater,
         webContentsId,
-        ...(isWorkspaceStarted()
-          ? getStartedWorkspace()
-          : ({
-              workspaceConfig: notStarted(),
-              workspaceRef: notStarted(),
-            } satisfies StartedWorkspace)),
+        ...(run.kind === "started"
+          ? {
+              workspaceConfig: run.workspaceConfig,
+              workspaceRef: run.workspaceRef,
+            }
+          : {
+              workspaceConfig: notStarted<WorkspaceConfig>(),
+              workspaceRef: notStarted<WorkspaceActorRef>(),
+            }),
       },
     });
     serverPort.start();

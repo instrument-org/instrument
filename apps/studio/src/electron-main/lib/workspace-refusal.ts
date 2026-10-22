@@ -2,7 +2,6 @@ import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
-import { type FolderRefusal } from "../../shared/workspace-folder-refusal";
 import { pathWithin } from "./path-identity";
 import {
   type ResolvedWorkspace,
@@ -14,19 +13,9 @@ import {
 /**
  * Why the resolved workspace is not opened, said back to the person in a
  * window of its own (`workspace-refusal-window.ts`) rather than thrown: a
- * folder made by a newer build, which this one could only damage; a folder
- * it cannot read, which it never stands a new one in for; or a folder in a
- * place no workspace can be (`folderConcern`), such as the home folder.
+ * folder made by a newer build, which this one could only damage.
  */
-export type WorkspaceRefusal =
-  | { kind: "misplaced"; reason: FolderRefusal; workspace: ResolvedWorkspace }
-  | { kind: "newer"; workspace: ResolvedWorkspace }
-  | {
-      kind: "unreadable";
-      /** Missing: the folder or its `.instrument/` is gone. Denied: the system will not let the app read it. */
-      why: "denied" | "missing";
-      workspace: ResolvedWorkspace;
-    };
+export type WorkspaceRefusal = { kind: "newer"; workspace: ResolvedWorkspace };
 
 let refusal: undefined | WorkspaceRefusal;
 
@@ -40,21 +29,22 @@ export function setWorkspaceRefusal(refused: WorkspaceRefusal): void {
 }
 
 /**
- * Whether this build can open the resolved workspace, as a value. Read
- * before anything else touches the folder:
+ * Whether this build can open the resolved workspace, read before anything
+ * else touches the folder:
  *
- * - its `workspace.json` names a format newer than this build knows;
- * - the system refuses to let it be read (macOS took back the app's access
- *   to Documents, say);
- * - a folder the person picked, or its `.instrument/`, is gone (a disk not
- *   connected, a folder moved by hand). One pinned for the process is made
- *   again instead, and a default one gone from the app's own data never gets
- *   here: the launch asks for a folder, as a first launch does
- *   (`needsPlacing`);
- * - a folder the person picked is somewhere no workspace can be, as an
- *   earlier build let it be. One somewhere the person is only warned about
- *   opens as any other does. One in the app's own data was made there by
- *   the app, and one pinned for the process is the pin's to place.
+ * - `newer`: its `workspace.json` names a format newer than this build
+ *   knows, which only an update opens;
+ * - `lost`: the folder can't be opened where it is. It's gone (a disk not
+ *   connected, a folder moved or deleted by hand), the system won't let it
+ *   be read (macOS took back the app's access to Documents, say), or it's
+ *   somewhere no workspace can be, as an earlier build let it be. Setup's
+ *   folder step asks for it again. One somewhere the person is only warned
+ *   about opens as any other does.
+ *
+ * One pinned for the process is the pin's to place, and is made where it
+ * isn't. One in the app's own data whose folder is there but holds no
+ * workspace yet (1.x tasks, or settings 1.x left at userData's root to take
+ * in) opens, for the migrations to make it one.
  */
 export function inspectWorkspaceFolder({
   userDataDir,
@@ -62,7 +52,7 @@ export function inspectWorkspaceFolder({
 }: {
   userDataDir: string;
   workspace: ResolvedWorkspace;
-}): undefined | WorkspaceRefusal {
+}): "lost" | undefined | WorkspaceRefusal {
   let raw: string;
   try {
     raw = fs.readFileSync(
@@ -73,21 +63,27 @@ export function inspectWorkspaceFolder({
     const code =
       error instanceof Error && "code" in error ? error.code : undefined;
     if (code === "EACCES" || code === "EPERM") {
-      return { kind: "unreadable", why: "denied", workspace };
+      return "lost";
     }
-    return workspace.pinned || pathWithin(workspace.path, userDataDir)
+    if (workspace.pinned) {
+      return undefined;
+    }
+    return pathWithin(workspace.path, userDataDir) &&
+      (fs.existsSync(workspace.path) ||
+        fs.existsSync(path.join(userDataDir, "preferences.json")))
       ? undefined
-      : { kind: "unreadable", why: "missing", workspace };
+      : "lost";
   }
-  if (!workspace.pinned && !pathWithin(workspace.path, userDataDir)) {
-    const concern = workspacePlaceConcern({
+  if (
+    !workspace.pinned &&
+    !pathWithin(workspace.path, userDataDir) &&
+    workspacePlaceConcern({
       dir: workspace.path,
       id: workspace.id,
       userDataDir,
-    });
-    if (concern?.kind === "refused") {
-      return { kind: "misplaced", reason: concern.reason, workspace };
-    }
+    })?.kind === "refused"
+  ) {
+    return "lost";
   }
   let identity: unknown;
   try {

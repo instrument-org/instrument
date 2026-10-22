@@ -3,7 +3,7 @@ import { app } from "electron";
 import path from "node:path";
 
 import { pathWithin } from "./path-identity";
-import { getLocalWorkspace, getResolvedWorkspace } from "./workspaces";
+import { getLocalWorkspace, getResolvedWorkspace } from "./workspace-run";
 
 export function getWorkspaceFolder(): string {
   return getResolvedWorkspace().path;

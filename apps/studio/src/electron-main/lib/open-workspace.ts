@@ -10,14 +10,15 @@ import {
   inspectWorkspaceFolder,
   type WorkspaceRefusal,
 } from "./workspace-refusal";
+import { type WorkspaceRun } from "./workspace-run";
 import {
   claimUnplacedMachineDir,
   DEFAULT_WORKSPACE_ID,
-  needsPlacing,
+  isFirstLaunch,
   type OpenWorkspace,
   type ResolvedWorkspace,
   resolveWorkspace,
-  type UnplacedWorkspace,
+  workspaceMachineDirOf,
 } from "./workspaces";
 
 /** Where the launch steps say what they did. */
@@ -29,14 +30,15 @@ interface LaunchLog {
 /**
  * The first half of opening a workspace at launch, before any store opens:
  * settles which workspace this process runs, makes a move to a folder the
- * person picked, refuses a folder it cannot open, and brings the settings up
- * to this build. A refused workspace comes back with why, and nothing else
- * runs for it.
+ * person picked, and brings the settings up to this build.
  *
- * A launch with no workspace to open (`needsPlacing`), a first launch
- * above all, opens none: it answers the local id the workspace will have
- * and this computer's folder for it, and setup's first step places the
- * workspace where the person picks (`placeWorkspace`).
+ * The app runs only from a workspace the person chose, so a launch with no
+ * folder to open opens none: a first launch (`isFirstLaunch`), and one whose
+ * folder is lost (`inspectWorkspaceFolder`), which comes back with where it
+ * was. Either answers the local id and this computer's folder for it, and
+ * setup's folder step places it where the person picks or finds it
+ * (`placeWorkspace`). A folder made by a newer build is refused, and nothing
+ * else runs for it.
  */
 export function resolveLaunchWorkspace({
   log,
@@ -53,16 +55,16 @@ export function resolveLaunchWorkspace({
 }):
   | { kind: "open"; workspace: ResolvedWorkspace }
   | { kind: "refused"; refusal: WorkspaceRefusal }
-  | { kind: "unplaced"; workspace: UnplacedWorkspace } {
-  if (pin === undefined && needsPlacing(userDataDir)) {
+  | Extract<WorkspaceRun, { kind: "unplaced" }> {
+  if (pin === undefined && isFirstLaunch(userDataDir)) {
     for (const step of migrateMachineSettings(userDataDir)) {
       log.info(`Settings migration: ${step}`);
     }
-    const machineDir = claimUnplacedMachineDir(userDataDir);
     log.info("No workspace yet: setup's first step places it");
     return {
+      id: DEFAULT_WORKSPACE_ID,
       kind: "unplaced",
-      workspace: { id: DEFAULT_WORKSPACE_ID, machineDir },
+      machineDir: claimUnplacedMachineDir(userDataDir),
     };
   }
   const resolved = resolveWorkspace({ pin, userDataDir });
@@ -79,19 +81,24 @@ export function resolveLaunchWorkspace({
   log.info(
     `Workspace ${workspace.id}${workspace.pinned ? " (pinned)" : ""}: ${workspace.path}`,
   );
-  // A folder made by a newer build, one that cannot be read, or one in a
-  // place no workspace can be is not opened: the boot says so in a window of
-  // its own and starts nothing else.
-  const refusal = inspectWorkspaceFolder({ userDataDir, workspace });
-  if (refusal) {
+  const inspected = inspectWorkspaceFolder({ userDataDir, workspace });
+  if (inspected === "lost") {
+    for (const step of migrateMachineSettings(userDataDir)) {
+      log.info(`Settings migration: ${step}`);
+    }
     log.warn(
-      refusal.kind === "newer"
-        ? `Not opening ${workspace.path}: a newer build made it`
-        : refusal.kind === "misplaced"
-          ? `Not opening ${workspace.path}: no workspace can be there (${refusal.reason})`
-          : `Not opening ${workspace.path}: it is ${refusal.why === "denied" ? "not readable" : "missing"}`,
+      `Not opening ${workspace.path}: it can't be opened there; setup asks for it`,
     );
-    return { kind: "refused", refusal };
+    return {
+      id: workspace.id,
+      kind: "unplaced",
+      lost: workspace.path,
+      machineDir: workspaceMachineDirOf(userDataDir, workspace.id),
+    };
+  }
+  if (inspected) {
+    log.warn(`Not opening ${workspace.path}: a newer build made it`);
+    return { kind: "refused", refusal: inspected };
   }
   for (const step of [
     ...migrateMachineSettings(userDataDir),

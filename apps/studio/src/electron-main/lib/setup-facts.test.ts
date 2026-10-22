@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     path: "/home/casey/Documents/Instrument",
     pinned: false,
   })),
+  lost: undefined as string | undefined,
   placed: false,
   read: undefined as (() => SetupFacts) | undefined,
 }));
@@ -26,9 +27,18 @@ vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
 vi.mock("@/electron-main/lib/mac-native", () => ({
   notificationStatus: () => Promise.resolve({ status: "not-asked" }),
 }));
+vi.mock("@/electron-main/lib/workspace-run", () => ({
+  getWorkspaceRun: () =>
+    mocks.placed
+      ? { kind: "started", workspace: mocks.getResolvedWorkspace() }
+      : {
+          id: "default",
+          kind: "unplaced",
+          lost: mocks.lost,
+          machineDir: "/data/machine/default",
+        },
+}));
 vi.mock("@/electron-main/lib/workspaces", () => ({
-  getResolvedWorkspace: mocks.getResolvedWorkspace,
-  isWorkspacePlaced: () => mocks.placed,
   readRegistry: () => ({ workspaces: [] }),
   workspaceHasChats: () => true,
 }));
@@ -73,11 +83,21 @@ describe("setup's facts", () => {
         "hasUsableAI": false,
         "hasWorkspace": false,
         "isCheckingPlan": false,
+        "lostFolder": null,
         "notificationsAskable": false,
         "testedBefore": false,
       }
     `);
     expect(mocks.getResolvedWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("say where a lost folder was", () => {
+    mocks.lost = "/home/casey/Documents/Instrument";
+    refreshSetupFacts();
+    expect(read()).toMatchObject({
+      hasWorkspace: false,
+      lostFolder: "/home/casey/Documents/Instrument",
+    });
   });
 
   it("read the placed workspace once there is one", () => {
@@ -87,6 +107,7 @@ describe("setup's facts", () => {
       folderSettled: true,
       hasChats: true,
       hasWorkspace: true,
+      lostFolder: null,
       testedBefore: true,
     });
   });

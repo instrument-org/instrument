@@ -20,7 +20,7 @@ The facts (`SetupFacts`, `shared/setup.ts`):
 | Folder settled | `workspaces.folder()` is outside app data, pinned, or has a move recorded and waiting on a restart |
 | Notifications | `mac.notifications.status`; `unknown` and `unsupported` count as done, so the step can't trap |
 
-The record (`SetupRecord`, the workspace's state in its machine folder, keyed by the local id the launch resolves, so it is there before the folder is picked): the time each answered step was answered, and when setup finished. The default workspace takes in the record earlier builds kept once for the whole computer, which is then removed. It replaces `onboardingVersion` and `hasCompletedProviderSetup`, and nothing else writes either.
+The record (`SetupRecord`, the workspace's state in its machine folder, keyed by the local id the launch resolves, so it is there before the folder is picked): the time each answered step was answered, and when setup finished. The first workspace a launch opens with a folder, unless pinned, takes in the record earlier builds kept once for the whole computer, which is then removed. It replaces `onboardingVersion` and `hasCompletedProviderSetup`, and nothing else writes either.
 
 The steps, in order (`SETUP_STEPS`):
 

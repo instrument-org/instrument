@@ -28,12 +28,8 @@ import { setupDBusEnvironment } from "./lib/setup-dbus-env";
 import { settlePlatformApiServer } from "./platform-api/base-url";
 import { getMachinePreferences } from "./stores/machine/preferences";
 import { setWorkspaceRefusal } from "./lib/workspace-refusal";
-import {
-  markWorkspaceOpen,
-  releaseOpenMark,
-  setResolvedWorkspace,
-  setUnplacedWorkspace,
-} from "./lib/workspaces";
+import { beginWorkspaceRun } from "./lib/workspace-run";
+import { markWorkspaceOpen, releaseOpenMark } from "./lib/workspaces";
 
 // V8 keeps 10 frames by default, which an async call through the workspace
 // uses up before reaching the code that started it. As many as an event keeps.
@@ -178,15 +174,15 @@ function openWorkspace() {
 
   let machineDir: string;
   if (launch.kind === "unplaced") {
-    setUnplacedWorkspace(launch.workspace);
-    ({ machineDir } = launch.workspace);
+    beginWorkspaceRun(launch);
+    ({ machineDir } = launch);
   } else {
     const opened = settleMachineFolders({
       log: logger,
       userDataDir,
       workspace: launch.workspace,
     });
-    setResolvedWorkspace(opened);
+    beginWorkspaceRun({ kind: "placed", workspace: opened });
     ({ machineDir } = opened);
   }
 

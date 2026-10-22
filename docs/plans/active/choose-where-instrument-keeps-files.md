@@ -27,7 +27,7 @@ Two things can ship before it, and are worth shipping before it, since they are 
 
 A first install has nothing to bring over: the settings migration, the machine-data move and the layout sweeps all run at the first launch and find nothing, so the step can take a folder as soon as it is picked. An install that upgraded is the case to design for, and only an install with chats from 1.x or an early beta is one.
 
-The order the app already keeps: everything starts in the app's own data (`<userData>/workspace`), the sweeps run there, and a pick is recorded in the registry entry and made by the next launch before any store opens. The step needs nothing of its own for that; `workspaces.current`, `workspaces.checkFolder` and `workspaces.move` are what it calls.
+The order the app keeps: a first launch makes no workspace until setup's first step places it where the person picks, with no restart; a workspace an earlier build kept in the app's own data (`<userData>/workspace`) runs its sweeps there, and a pick for it is recorded in the registry entry and made by the next launch before any store opens. The step needs nothing of its own for that; `workspaces.current`, `workspaces.checkFolder` and `workspaces.move` are what it calls.
 
 Two things to build the step against:
 

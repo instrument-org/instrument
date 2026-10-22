@@ -3,38 +3,22 @@ import {
   MANUAL_DOWNLOAD_URL,
   typedHostPath,
 } from "@instrument-org/shared";
-import { app, BrowserWindow, dialog, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, nativeTheme, shell } from "electron";
 import os from "node:os";
-import path from "node:path";
 
 import { publisher } from "../rpc/publisher";
 import { type AppUpdaterHandle } from "./create-app-updater";
-import { restartNow } from "./relaunch";
 import { createStudioAppUpdater } from "./update";
 import { type AppUpdaterStatus } from "./update-status";
-import { startWorkspaceAfresh } from "./workspace-management";
-import {
-  FOLDER_REFUSAL_COPY,
-  folderWarningSentence,
-} from "../../shared/workspace-folder-refusal";
 import { type WorkspaceRefusal } from "./workspace-refusal";
-import {
-  registerWorkspaceFolder,
-  updateRegistry,
-  workspaceFolderState,
-  workspacePlaceConcern,
-} from "./workspaces";
 
 /**
- * The window a refused workspace is said in, before anything else opens: a
- * page of its own with no workspace, no stores and no script behind it,
- * each button a link to an action here, each step drawn as a page anew.
- * For a folder made by a newer build it offers to update, which runs the
- * updater with no workspace; for one it cannot read, or one somewhere no
- * workspace can be, to choose the folder again (the system's own panel,
- * which is also how macOS gives back access to Documents) or to start over
- * with a new one. A chosen folder somewhere the person is only warned of
- * says why, and opens if they go ahead. Closing it quits.
+ * The window a folder made by a newer build is said in, before anything
+ * else opens: a page of its own with no workspace, no stores and no script
+ * behind it, each button a link to an action here, each step drawn as a
+ * page anew. It offers to update, which runs the updater with no workspace,
+ * or to quit. Closing it quits. A folder that is missing or can't be read
+ * is setup's folder step instead (`resolveLaunchWorkspace`).
  */
 
 /** The links the page's buttons are, read here rather than followed. */
@@ -42,15 +26,7 @@ const ACTION_SCHEME = "refusal:";
 
 const WIDTH = 480;
 
-type Action =
-  | "back"
-  | "check-for-updates"
-  | "choose-folder"
-  | "download"
-  | "open-anyway"
-  | "quit"
-  | "start-over"
-  | "start-over-confirmed";
+type Action = "check-for-updates" | "download" | "quit";
 
 interface View {
   body: string[];
@@ -62,10 +38,8 @@ interface View {
 
 export async function showWorkspaceRefusal({
   refusal,
-  userDataDir,
 }: {
   refusal: WorkspaceRefusal;
-  userDataDir: string;
 }): Promise<void> {
   // Spelled as Settings spells it, and free to wrap after a separator rather
   // than in the middle of a name, though not right after where it starts
@@ -73,7 +47,6 @@ export async function showWorkspaceRefusal({
   const where = escapeHtml(
     typedHostPath(refusal.workspace.path, os.homedir()),
   ).replaceAll(/(?<=[^/\\~:])[/\\]/g, "$&<wbr>");
-  const pinned = refusal.workspace.pinned;
   const window = new BrowserWindow({
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#1c1c1e" : "#ffffff",
     fullscreenable: false,
@@ -124,159 +97,17 @@ export async function showWorkspaceRefusal({
     }
   };
 
-  const folderButtons: View["buttons"] = pinned
-    ? [{ action: "quit", label: "Quit", primary: true }]
-    : [
-        { action: "quit", label: "Quit" },
-        { action: "start-over", label: "Start Over" },
-        { action: "choose-folder", label: "Choose Folder…", primary: true },
-      ];
-  const first: View =
-    refusal.kind === "newer"
-      ? {
-          body: [
-            `Update ${APP_NAME} to open it. It’s at <code>${where}</code>.`,
-          ],
-          buttons: [
-            { action: "quit", label: "Quit" },
-            {
-              action: "check-for-updates",
-              label: "Check for Updates",
-              primary: true,
-            },
-          ],
-          title: `Your Instrument folder was made by a newer version of ${APP_NAME}`,
-        }
-      : refusal.kind === "misplaced"
-        ? {
-            body: [
-              `It’s at <code>${where}</code>. ${FOLDER_REFUSAL_COPY[refusal.reason].why}, so ${APP_NAME} won’t keep your chats there.`,
-              "Choose a different Instrument folder, or start over with a new one.",
-            ],
-            buttons: folderButtons,
-            title: `${APP_NAME} can’t use your Instrument folder where it is`,
-          }
-        : refusal.why === "denied"
-          ? {
-              body: [
-                `It’s at <code>${where}</code>, and ${APP_NAME} doesn’t have permission to read it.`,
-                pinned
-                  ? `Give ${APP_NAME} access to it, then open ${APP_NAME} again.`
-                  : `Choose the folder again to give ${APP_NAME} access to it, or start over with a new one.`,
-              ],
-              buttons: folderButtons,
-              title: `${APP_NAME} can’t open your Instrument folder`,
-            }
-          : {
-              body: [
-                `It was at <code>${where}</code>.`,
-                pinned
-                  ? `Put it back there, then open ${APP_NAME} again.`
-                  : "If you moved it, or it’s on a disk that isn’t connected, choose where it is now. You can also start over with a new one.",
-              ],
-              buttons: folderButtons,
-              title: `${APP_NAME} can’t find your Instrument folder`,
-            };
-
-  /**
-   * Restarts into what the person chose, or, in a run that can't restart
-   * itself, says what it will do once they open it again.
-   */
-  const reopen = async (onceOpen: string) => {
-    leaving = true;
-    if (!restartNow()) {
-      leaving = false;
-      await show({
-        body: [`When you open ${APP_NAME} again, it will ${onceOpen}.`],
-        buttons: [{ action: "quit", label: "Quit", primary: true }],
-        title: `Quit and open ${APP_NAME} again`,
-      });
-    }
-  };
-
-  /** A chosen folder the person was warned of, opened if they go ahead. */
-  let warnedOf: string | undefined;
-
-  const chooseFolder = async () => {
-    const result = await dialog.showOpenDialog(window, {
-      buttonLabel: "Choose",
-      defaultPath: refusal.workspace.path,
-      message: "Choose your Instrument folder.",
-      properties: ["openDirectory", "createDirectory"],
-      // What the panel's own title bar says on Linux and Windows, where it
-      // would otherwise read "Open File".
-      title: "Choose your Instrument folder",
-    });
-    const [dir] = result.canceled ? [] : result.filePaths;
-    if (dir === undefined) {
-      return;
-    }
-    const found = workspaceFolderState(dir);
-    if (found === "denied") {
-      // Whether the chats are there can't be told, so starting over is not
-      // offered as if the folder were empty.
-      await show({
-        body: [
-          `${APP_NAME} doesn’t have permission to read “${escapeHtml(path.basename(dir))}”. Give ${APP_NAME} access to it, then choose it again.`,
-        ],
-        buttons: [
-          { action: "quit", label: "Quit" },
-          { action: "choose-folder", label: "Choose Folder…", primary: true },
-        ],
-        title: `${APP_NAME} can’t read that folder`,
-      });
-      return;
-    }
-    const concern =
-      found === "workspace"
-        ? workspacePlaceConcern({ dir, userDataDir })
-        : undefined;
-    if (concern?.kind === "refused") {
-      await show({
-        body: [
-          `${FOLDER_REFUSAL_COPY[concern.reason].why}. Choose a different one, or start over with a new one.`,
-        ],
-        buttons: folderButtons,
-        title: `${APP_NAME} can’t use that folder`,
-      });
-      return;
-    }
-    if (concern?.kind === "warning") {
-      warnedOf = dir;
-      await show({
-        body: [folderWarningSentence(concern.reason)],
-        buttons: [
-          { action: "choose-folder", label: "Choose Folder…" },
-          { action: "open-anyway", label: "Open Anyway", primary: true },
-        ],
-        title: "Open your Instrument folder from there?",
-      });
-      return;
-    }
-    await openChosen(dir);
-  };
-
-  /** Opens the Instrument folder in `dir`, or says there's none there. */
-  const openChosen = async (dir: string) => {
-    const registered =
-      workspaceFolderState(dir) === "workspace"
-        ? registerWorkspaceFolder({ dir, userDataDir })
-        : undefined;
-    if (registered === undefined) {
-      await show({
-        body: [
-          `“${escapeHtml(path.basename(dir))}” doesn’t have your chats in it. Choose the folder that does, or start over with a new one.`,
-        ],
-        buttons: folderButtons,
-        title: "There’s no Instrument folder there",
-      });
-      return;
-    }
-    updateRegistry(userDataDir, (registry) => ({
-      ...registry,
-      active: registered.id,
-    }));
-    await reopen("open the folder you chose");
+  const first: View = {
+    body: [`Update ${APP_NAME} to open it. It’s at <code>${where}</code>.`],
+    buttons: [
+      { action: "quit", label: "Quit" },
+      {
+        action: "check-for-updates",
+        label: "Check for Updates",
+        primary: true,
+      },
+    ],
+    title: `Your Instrument folder was made by a newer version of ${APP_NAME}`,
   };
 
   let updater: AppUpdaterHandle | undefined;
@@ -394,52 +225,16 @@ export async function showWorkspaceRefusal({
 
   const act = async (action: string) => {
     switch (action) {
-      case "back": {
-        await show(first);
-        return;
-      }
       case "check-for-updates": {
         await checkForUpdates();
-        return;
-      }
-      case "choose-folder": {
-        await chooseFolder();
         return;
       }
       case "download": {
         await shell.openExternal(MANUAL_DOWNLOAD_URL);
         return;
       }
-      case "open-anyway": {
-        if (warnedOf !== undefined) {
-          await openChosen(warnedOf);
-        }
-        return;
-      }
       case "quit": {
         app.exit(0);
-        return;
-      }
-      case "start-over": {
-        await show({
-          body: [
-            `${APP_NAME} will start with no chats, and you’ll stay signed in. Your old folder is left as it is, so you can open it again later.`,
-          ],
-          buttons: [
-            { action: "back", label: "Back" },
-            {
-              action: "start-over-confirmed",
-              label: "Start Over",
-              primary: true,
-            },
-          ],
-          title: "Start over with a new Instrument folder?",
-        });
-        return;
-      }
-      case "start-over-confirmed": {
-        startWorkspaceAfresh({ id: refusal.workspace.id, userDataDir });
-        await reopen("start with a new Instrument folder");
         return;
       }
     }

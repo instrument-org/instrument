@@ -12,7 +12,6 @@ import {
 import {
   createdWorkspacesDir,
   DEFAULT_WORKSPACE_ID,
-  defaultWorkspacePath,
   hasWorkspaceIdentity,
   machineDirOwnedBy,
   openElsewhereBy,
@@ -126,57 +125,6 @@ export function createWorkspace({
     copySignIns(copySignInsFrom, machineDir);
   }
   return { id, path: dir };
-}
-
-/**
- * Give a registered workspace whose folder cannot be read a new, empty one
- * in the app's own data, and make it the one opened next: under the same
- * local id and the same workspace id, so this computer's data for it
- * (sign-ins, keys, folder rules) carries on with it. The folder it could
- * not read is left as it is. Answers the new folder.
- */
-export function startWorkspaceAfresh({
-  id,
-  userDataDir,
-}: {
-  id: string;
-  userDataDir: string;
-}): string {
-  let dir = "";
-  updateRegistry(userDataDir, (current) => {
-    const entry = current.workspaces.find((other) => other.id === id);
-    dir =
-      id === DEFAULT_WORKSPACE_ID &&
-      !fs.existsSync(defaultWorkspacePath(userDataDir))
-        ? defaultWorkspacePath(userDataDir)
-        : freeFolderIn(createdWorkspacesDir(userDataDir), id);
-    populateWorkspace({
-      color: "gray",
-      dir,
-      ...(entry?.workspaceId === undefined ? {} : { id: entry.workspaceId }),
-      name: id === DEFAULT_WORKSPACE_ID ? "Default" : id,
-    });
-    return {
-      active: id,
-      workspaces: current.workspaces.map((other) => {
-        if (other.id !== id) {
-          return other;
-        }
-        const { pendingMove: _abandoned, ...rest } = other;
-        return { ...rest, path: dir };
-      }),
-    };
-  });
-  return dir;
-}
-
-/** A folder of this name in `parent` no one has, numbered past those that are taken. */
-function freeFolderIn(parent: string, name: string) {
-  let dir = path.join(parent, name);
-  for (let n = 2; fs.existsSync(dir); n++) {
-    dir = path.join(parent, `${name}-${n.toString()}`);
-  }
-  return dir;
 }
 
 /**

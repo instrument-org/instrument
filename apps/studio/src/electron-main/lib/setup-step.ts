@@ -17,7 +17,7 @@ const NEEDED: Record<
   (facts: SetupFacts, record: SetupRecord) => boolean
 > = {
   "free-account": (facts) => facts.hasUsableAI && !facts.hasInstrumentAccount,
-  folder: (facts) => !facts.hasWorkspace || !facts.folderSettled,
+  folder: (facts) => !facts.folderSettled,
   look: () => true,
   model: () => true,
   notifications: (facts) => facts.notificationsAskable,

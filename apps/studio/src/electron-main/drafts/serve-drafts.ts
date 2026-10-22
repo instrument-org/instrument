@@ -37,6 +37,8 @@ export function openDrafts() {
   STORE.watch(() => {
     getStore().reconcile();
   });
+  // A window that loaded before the workspace opened read none.
+  tellWindows(STORE.snapshot());
 }
 
 function tellWindows(snapshot: DraftsSnapshot) {

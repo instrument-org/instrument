@@ -1,3 +1,4 @@
+import { getResolvedWorkspace } from "./workspace-run";
 import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import {
   canonicalizeThroughMissing,
@@ -13,11 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { getUserDataDir } from "./get-workspace-folder";
-import {
-  createdWorkspacesDir,
-  defaultWorkspacePath,
-  getResolvedWorkspace,
-} from "./workspaces";
+import { createdWorkspacesDir, defaultWorkspacePath } from "./workspaces";
 
 /**
  * The files the app's own ways of showing one refuse, whoever asks: the file

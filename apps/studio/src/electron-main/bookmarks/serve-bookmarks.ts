@@ -76,6 +76,8 @@ export async function openBookmarks(device: DeviceId): Promise<void> {
     synced.look();
   });
   store = opened;
+  // A window that loaded before the workspace opened read none.
+  tellWindows(opened.snapshot());
 }
 
 function tellWindows(snapshot: BookmarksSnapshot) {

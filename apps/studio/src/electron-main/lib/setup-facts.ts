@@ -9,9 +9,8 @@ import {
   type NotificationStatus,
   notificationStatus,
 } from "@/electron-main/lib/mac-native";
+import { getWorkspaceRun } from "@/electron-main/lib/workspace-run";
 import {
-  getResolvedWorkspace,
-  isWorkspacePlaced,
   readRegistry,
   workspaceHasChats,
 } from "@/electron-main/lib/workspaces";
@@ -113,23 +112,26 @@ function readSetupFacts(): SetupFacts {
     notificationsAskable:
       notifications === "not-asked" || notifications === "provisional",
   };
-  // A first launch before the folder step: no folder, so nothing in one.
-  if (!isWorkspacePlaced()) {
+  // Before the folder step places it: no folder, so nothing in one.
+  const run = getWorkspaceRun();
+  if (run.kind === "unplaced") {
     return {
       ...account,
       folderSettled: false,
       hasChats: false,
       hasWorkspace: false,
+      lostFolder: run.lost ?? null,
       testedBefore: false,
     };
   }
-  const workspace = getResolvedWorkspace();
+  const { workspace } = run;
   return {
     ...account,
     folderSettled:
       workspace.pinned || !workspaceInAppData() || hasPendingMove(workspace.id),
     hasChats: workspaceHasChats(workspace.path),
     hasWorkspace: true,
+    lostFolder: null,
     testedBefore: testedBefore(workspace),
   };
 }

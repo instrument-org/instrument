@@ -17,7 +17,7 @@ import { workspaceInAppData } from "./get-workspace-folder";
 import { resolveLaunchWorkspace, settleMachineFolders } from "./open-workspace";
 import { isRefusedFile, userDataViewRule } from "./refused-files";
 import { sweepWorkspaceFolder } from "./workspace-launch-sweeps";
-import { setResolvedWorkspace } from "./workspaces";
+import { beginWorkspaceRun } from "./workspace-run";
 
 /**
  * The guard over the committed fixtures (`fixtures/workspaces/`): each is
@@ -101,7 +101,7 @@ async function seedAndLaunch(name: string) {
     userDataDir,
     workspace: launch.workspace,
   });
-  setResolvedWorkspace(opened);
+  beginWorkspaceRun({ kind: "placed", workspace: opened });
   await sweepWorkspaceFolder({
     deviceId: newDeviceId(),
     inAppData: workspaceInAppData(),

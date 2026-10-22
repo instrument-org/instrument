@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { freeNameIn } from "../drafts/draft-store";
+import { pathWithin } from "./path-identity";
 
 import {
   hasWorkspaceIdentity,
@@ -155,6 +156,10 @@ export function migrateWorkspaceSettings({
   const done: string[] = [];
   try {
     const hadIdentity = hasWorkspaceIdentity(workspace.path);
+    // Only the default workspace in the app's own data predates workspaces:
+    // the root files are its, and the app made its folder.
+    const inAppData =
+      workspace.isDefault && pathWithin(workspace.path, userDataDir);
     const identity = readWorkspaceIdentity(workspace.path);
     if (identity.settingsVersion >= CURRENT_SETTINGS_VERSION) {
       return done;
@@ -165,7 +170,7 @@ export function migrateWorkspaceSettings({
         workspaceSettingsDirOf(workspace.path),
         TAKE_IN_MARKER,
       );
-      if (workspace.isDefault) {
+      if (inAppData) {
         const overwrite = fs.existsSync(marker);
         writeJsonAtomic(marker, { pid: process.pid });
         takeInLegacyRootFiles({
@@ -181,12 +186,12 @@ export function migrateWorkspaceSettings({
         // A folder no build made a workspace of holds nothing kept in an
         // older format, so it starts at this one, and the machine data move
         // never takes the person's own top-level files for the app's.
-        ...(hadIdentity || workspace.isDefault
+        ...(hadIdentity || inAppData
           ? {}
           : { formatVersion: WORKSPACE_FORMAT_VERSION }),
         // A folder pinned from outside with nothing to say about itself is
         // named after the folder.
-        name: workspace.isDefault
+        name: inAppData
           ? "Default"
           : hadIdentity
             ? identity.name

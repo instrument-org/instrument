@@ -2,6 +2,7 @@ import { REFUSALS } from "@/client/components/settings/storage-section";
 import { Spinner } from "@/client/components/ui/spinner";
 import { folderOf } from "@/client/components/window/host-path";
 import { toast } from "@/client/lib/toast";
+import { displayPath } from "@/client/lib/path-utils";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -46,7 +47,9 @@ type Refusal = Extract<
  * On a first launch it is setup's first page, Welcome with the folder
  * (frame 26): Continue makes the folder there, or opens the Instrument
  * folder already in it, and the app starts in it with no restart; the
- * window loads again on the next step. For a workspace already running
+ * window loads again on the next step. When the folder a workspace had went
+ * missing, or can't be read, the page says where it was, and the person
+ * finds it (Choose Folder…) or makes a new one the same way. For a workspace already running
  * from the app's own data, moving it, or opening one that is already an
  * Instrument folder, restarts the app, so the page says that first and
  * holds the step on screen meanwhile.
@@ -54,8 +57,10 @@ type Refusal = Extract<
 export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   const facts = useSetupState()?.facts;
   const hasChats = facts?.hasChats ?? false;
-  // A first launch, with no workspace yet: this page places it.
-  const isFirst = facts?.hasWorkspace === false;
+  // No workspace yet: this page places it. A first launch, or a folder lost.
+  const isUnplaced = facts?.hasWorkspace === false;
+  const lostFolder = facts?.lostFolder ?? null;
+  const isFirst = isUnplaced && lostFolder === null;
   const { data: offered } = useQuery(
     rpcClient.workspaces.offered.queryOptions(),
   );
@@ -78,7 +83,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
   // and Continue can still go past it. On a first launch on a Mac, the
   // folder suggested in Documents is looked at only on Continue, where the
   // page has said the Mac will ask: looking sooner would ask at once.
-  const looksOnContinue = isFirst && isMacOS() && picked === null;
+  const looksOnContinue = isUnplaced && isMacOS() && picked === null;
   const { data: targetCheck } = useQuery(
     rpcClient.workspaces.checkFolder.queryOptions({
       input:
@@ -133,6 +138,11 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
     } else if (reason === "unwritable" && path === current.inDocuments) {
       setPicked(current.inHome);
       setNote({ kind: "denied" });
+    } else if (reason === "missing" && path === current.inDocuments) {
+      // A computer with no Documents folder (some Linux desktops): the
+      // home folder is where it goes instead.
+      setPicked(current.inHome);
+      setNote(null);
     } else {
       toast.error(`${APP_NAME} can’t keep your folder there`, {
         description: REFUSALS[reason],
@@ -160,6 +170,10 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
         window.location.reload();
         return;
       }
+      // Another workspace, opened by a restart (`choosePlacement`).
+      if (placed.kind === "relaunching" || placed.kind === "on-next-launch") {
+        return;
+      }
       if (placed.kind === "refused") {
         refuse(current, path, placed.reason);
         return;
@@ -176,7 +190,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
     path: string,
     how: { create: boolean; type: "move" } | { type: "open" },
   ) => {
-    if (isFirst) {
+    if (isUnplaced) {
       await place(current, path, how);
       return;
     }
@@ -316,7 +330,7 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
       page={moving === null ? "folder" : "moving"}
     >
       {moving !== null ? (
-        <MovingPage how={moving} hasChats={hasChats} restarts={!isFirst} />
+        <MovingPage how={moving} hasChats={hasChats} restarts={!isUnplaced} />
       ) : (
         <SetupPage
           footer={
@@ -360,6 +374,18 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
               }
               path={target}
             >
+              {shown === null && lostFolder !== null && (
+                <FolderNote
+                  action={{
+                    label: "Choose Folder…",
+                    onClick: () => {
+                      void choose(folderOf(lostFolder));
+                    },
+                  }}
+                  line={`It was in ${displayPath(lostFolder)}. If you moved it, choose where it is now. Or continue to make a new one.`}
+                  title={`${APP_NAME} can’t find your Instrument folder.`}
+                />
+              )}
               {shown?.kind === "denied" && (
                 <FolderNote
                   action={{
@@ -402,15 +428,18 @@ export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
                   title={`${APP_NAME} is still updating your folder from an earlier version.`}
                 />
               )}
-              {shown === null && warning !== undefined && (
-                <FolderNote
-                  line={folderWarningSentence(warning)}
-                  title={`This might not be the best place for your ${APP_NAME} folder.`}
-                />
-              )}
+              {shown === null &&
+                lostFolder === null &&
+                warning !== undefined && (
+                  <FolderNote
+                    line={folderWarningSentence(warning)}
+                    title={`This might not be the best place for your ${APP_NAME} folder.`}
+                  />
+                )}
             </FolderLocation>
-            {isFirst &&
+            {isUnplaced &&
               isMacOS() &&
+              lostFolder === null &&
               shown === null &&
               target === offered?.inDocuments && (
                 <p className="mt-3 px-4 text-center text-sm text-muted-foreground">

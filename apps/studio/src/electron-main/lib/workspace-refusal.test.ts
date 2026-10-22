@@ -60,24 +60,36 @@ describe("inspectWorkspaceFolder", () => {
     ).toMatchObject({ kind: "newer" });
   });
 
-  it("refuses a picked folder that is gone, or has lost its records", () => {
+  it("finds a picked folder lost when it is gone, or has lost its records", () => {
     const gone = path.join(root, "Gone");
     const emptied = path.join(root, "Emptied");
     fs.mkdirSync(emptied);
     for (const dir of [gone, emptied]) {
-      expect(
-        inspectWorkspaceFolder({ userDataDir, workspace: at(dir) }),
-      ).toMatchObject({ kind: "unreadable", why: "missing" });
+      expect(inspectWorkspaceFolder({ userDataDir, workspace: at(dir) })).toBe(
+        "lost",
+      );
     }
   });
 
-  it("makes again a folder in the app's own data, or one pinned", () => {
+  it("finds the default folder in the app's own data lost once it is gone", () => {
+    const inAppData = path.join(userDataDir, "workspace");
     expect(
-      inspectWorkspaceFolder({
-        userDataDir,
-        workspace: at(path.join(userDataDir, "workspace")),
-      }),
+      inspectWorkspaceFolder({ userDataDir, workspace: at(inAppData) }),
+    ).toBe("lost");
+    // There with no workspace yet (1.x tasks), or 1.x settings to take in:
+    // opened for the migrations.
+    fs.mkdirSync(path.join(inAppData, "tasks"), { recursive: true });
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: at(inAppData) }),
     ).toBeUndefined();
+    fs.rmSync(inAppData, { recursive: true });
+    fs.writeFileSync(path.join(userDataDir, "preferences.json"), "{}");
+    expect(
+      inspectWorkspaceFolder({ userDataDir, workspace: at(inAppData) }),
+    ).toBeUndefined();
+  });
+
+  it("makes again a folder pinned for the process", () => {
     expect(
       inspectWorkspaceFolder({
         userDataDir,
@@ -86,7 +98,7 @@ describe("inspectWorkspaceFolder", () => {
     ).toBeUndefined();
   });
 
-  it("refuses a picked folder somewhere no workspace can be, but not one in the app's data or pinned", () => {
+  it("finds a picked folder somewhere no workspace can be lost, but not one in the app's data or pinned", () => {
     const projects = path.join(root, "Projects");
     const picked = path.join(projects, "Instrument");
     const inAppData = path.join(userDataDir, "workspaces", "lab");
@@ -102,9 +114,9 @@ describe("inspectWorkspaceFolder", () => {
       ],
     }));
     const picking = { ...at(picked), id: "picked", isDefault: false };
-    expect(
-      inspectWorkspaceFolder({ userDataDir, workspace: picking }),
-    ).toMatchObject({ kind: "misplaced", reason: "other-workspace" });
+    expect(inspectWorkspaceFolder({ userDataDir, workspace: picking })).toBe(
+      "lost",
+    );
     expect(
       inspectWorkspaceFolder({
         userDataDir,
@@ -117,7 +129,7 @@ describe("inspectWorkspaceFolder", () => {
   });
 
   it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
-    "refuses a folder it may not read",
+    "finds a folder it may not read lost",
     () => {
       const picked = path.join(root, "Instrument");
       writeWorkspaceIdentity(picked, identity(WORKSPACE_FORMAT_VERSION));
@@ -125,7 +137,7 @@ describe("inspectWorkspaceFolder", () => {
       try {
         expect(
           inspectWorkspaceFolder({ userDataDir, workspace: at(picked) }),
-        ).toMatchObject({ kind: "unreadable", why: "denied" });
+        ).toBe("lost");
       } finally {
         fs.chmodSync(workspaceLayout(picked).dataDir, 0o755);
       }

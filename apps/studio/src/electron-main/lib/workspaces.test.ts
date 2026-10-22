@@ -24,7 +24,6 @@ import {
   updateRegistry,
   workspaceLayoutMarks,
   workspaceMachineDirOf,
-  workspaceFolderState,
   writeWorkspaceIdentity,
 } from "./workspaces";
 
@@ -370,48 +369,6 @@ describe("workspace ids", () => {
       fs.rmSync(clone, { force: true, recursive: true });
     }
   });
-});
-
-describe("workspaceFolderState", () => {
-  it("tells a workspace, a folder with none, and one that is not there", () => {
-    const dir = path.join(userDataDir, "elsewhere", "Lab");
-    writeWorkspaceIdentity(dir, {
-      color: "gray",
-      createdBy: { kind: "person" },
-      formatVersion: 1,
-      name: "Lab",
-      settingsVersion: 2,
-    });
-    const empty = path.join(userDataDir, "elsewhere", "Empty");
-    fs.mkdirSync(empty, { recursive: true });
-
-    expect(workspaceFolderState(dir)).toBe("workspace");
-    expect(workspaceFolderState(empty)).toBe("none");
-    expect(workspaceFolderState(path.join(userDataDir, "nowhere"))).toBe(
-      "none",
-    );
-  });
-
-  // Permissions bind neither Windows nor root.
-  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
-    "tells a folder it may not read from one with no workspace",
-    () => {
-      const dir = path.join(userDataDir, "elsewhere", "Locked");
-      writeWorkspaceIdentity(dir, {
-        color: "gray",
-        createdBy: { kind: "person" },
-        formatVersion: 1,
-        name: "Locked",
-        settingsVersion: 2,
-      });
-      fs.chmodSync(dir, 0o000);
-      try {
-        expect(workspaceFolderState(dir)).toBe("denied");
-      } finally {
-        fs.chmodSync(dir, 0o755);
-      }
-    },
-  );
 });
 
 describe("registerWorkspaceFolder", () => {

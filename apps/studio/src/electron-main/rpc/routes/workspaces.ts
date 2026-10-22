@@ -5,11 +5,28 @@ import {
   workspaceInAppData,
   workspaceKeysDir,
 } from "@/electron-main/lib/get-workspace-folder";
-import { placeWorkspace } from "@/electron-main/lib/place-workspace";
-import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
+import {
+  choosePlacement,
+  placeWorkspace,
+} from "@/electron-main/lib/place-workspace";
+import {
+  canRelaunch,
+  relaunchApp,
+  restartNow,
+} from "@/electron-main/lib/relaunch";
 import { refreshSetupFacts } from "@/electron-main/lib/setup-facts";
-import { answerSetupByPlacing } from "@/electron-main/lib/setup-state";
+import {
+  answerSetupByPlacing,
+  answerSetupIn,
+  isSetupUp,
+  rereadSetupRecord,
+} from "@/electron-main/lib/setup-state";
 import { startWorkspace } from "@/electron-main/lib/start-workspace";
+import {
+  getResolvedWorkspace,
+  getWorkspaceRun,
+  placeRun,
+} from "@/electron-main/lib/workspace-run";
 import {
   createWorkspace,
   keysDirOf,
@@ -26,8 +43,7 @@ import {
   requestWorkspaceMove,
 } from "@/electron-main/lib/workspace-move";
 import {
-  getResolvedWorkspace,
-  getUnplacedWorkspace,
+  DEFAULT_WORKSPACE_ID,
   machineDirOwnedBy,
   readRegistry,
   readWorkspaceIdentity,
@@ -35,6 +51,7 @@ import {
   updateRegistry,
   WorkspaceColorSchema,
   WorkspaceIdentitySchema,
+  workspaceMachineDirOf,
   workspacePlaceConcern,
 } from "@/electron-main/lib/workspaces";
 import { FolderRefusalSchema } from "@/shared/workspace-folder-refusal";
@@ -97,26 +114,33 @@ const WorkspaceRowSchema = z.object({
 
 /**
  * Which workspace this window shows, for the window bar's name and stripe.
- * None before setup's first step gives a first launch's workspace a folder.
+ * Before setup places it, the one it will be, with no folder to name it.
  */
 const current = base
   .output(
-    z
-      .object({
-        color: WorkspaceColorSchema,
-        id: z.string(),
-        isDefault: z.boolean(),
-        name: z.string(),
-        pinned: z.boolean(),
-      })
-      .nullable(),
+    z.object({
+      color: WorkspaceColorSchema,
+      id: z.string(),
+      isDefault: z.boolean(),
+      name: z.string(),
+      pinned: z.boolean(),
+    }),
   )
   .handler(() => {
-    if (getUnplacedWorkspace()) {
-      return null;
-    }
-    const workspace = getResolvedWorkspace();
-    const identity = readWorkspaceIdentity(workspace.path);
+    const run = getWorkspaceRun();
+    const workspace =
+      run.kind === "unplaced"
+        ? {
+            id: run.id,
+            isDefault: run.id === DEFAULT_WORKSPACE_ID,
+            path: undefined,
+            pinned: false,
+          }
+        : run.workspace;
+    const identity =
+      workspace.path === undefined
+        ? WorkspaceIdentitySchema.parse({})
+        : readWorkspaceIdentity(workspace.path);
     return {
       color: identity.color,
       id: workspace.id,
@@ -387,13 +411,48 @@ const summary = base
 
 /**
  * The workspace a picked folder is checked against: the one this process
- * runs, or a first launch's, which has no folder yet.
+ * runs, or one with no folder yet.
  */
 function workspaceToPlace() {
-  const unplaced = getUnplacedWorkspace();
-  return unplaced
-    ? { id: unplaced.id, path: undefined, pinned: false }
-    : getResolvedWorkspace();
+  const run = getWorkspaceRun();
+  return run.kind === "unplaced"
+    ? { id: run.id, path: undefined, pinned: false }
+    : run.workspace;
+}
+
+/**
+ * Checks a folder the person picked as a place for the workspace, made first
+ * with `create` (where macOS asks about Documents). `unmake` takes a folder
+ * this made away again, still empty, for a caller that ends up not using it.
+ */
+function checkPicked({
+  makeFirst,
+  target,
+}: {
+  makeFirst: boolean | undefined;
+  target: string;
+}) {
+  let made = false;
+  if (makeFirst === true && path.isAbsolute(target)) {
+    try {
+      fs.mkdirSync(target);
+      made = true;
+    } catch {
+      // Already there, or not makeable: the check says which.
+    }
+  }
+  return {
+    unmake: () => {
+      if (made) {
+        removeIfEmptySync(target);
+      }
+    },
+    verdict: checkMoveTarget({
+      target,
+      userDataDir: getUserDataDir(),
+      workspace: workspaceToPlace(),
+    }),
+  };
 }
 
 /** What a folder the person picked would be to their Instrument folder (`checkMoveTarget`). */
@@ -409,50 +468,60 @@ const checkFolder = base
   );
 
 /**
- * Give a first launch's workspace its folder, from setup's first step: the
- * folder the person picked, made first with `create` (where macOS asks about
- * Documents), checked as a move to it would be, and then a new workspace made
- * there or the one already there opened, under the local id the window
- * already runs on. The workspace starts in this process, with no restart,
- * and setup answers the folder step; the window then loads again to show
- * it. A folder it can't take answers as `checkFolder` would, and one made
- * for it is taken away again.
+ * Give an unplaced workspace its folder, from setup's folder step: the
+ * folder the person picked or found, checked as a move to it would be, then
+ * a new workspace made there or the one already there opened. One this
+ * launch's local id can take as it is starts in this process, with no
+ * restart, and the window loads again to show it; any other is registered
+ * (re-pointing the entry of the same workspace on this computer, so its
+ * sign-ins carry on) and opened by a restart (`choosePlacement`), with setup
+ * answered there. A placed workspace whose start failed is started again.
+ * A folder it can't take answers as `checkFolder` would.
  */
 const place = base
   .input(z.object({ create: z.boolean().optional(), path: z.string() }))
-  .output(z.union([NotMovableSchema, z.object({ kind: z.literal("placed") })]))
+  .output(
+    z.union([
+      NotMovableSchema,
+      z.object({ kind: z.enum(["on-next-launch", "placed", "relaunching"]) }),
+    ]),
+  )
   .handler(async ({ errors, input }) => {
-    const unplaced = getUnplacedWorkspace();
-    if (!unplaced) {
+    const run = getWorkspaceRun();
+    if (run.kind === "started") {
       throw errors.UNAUTHORIZED({ message: "The workspace has a folder" });
     }
-    let made = false;
-    if (input.create === true && path.isAbsolute(input.path)) {
-      try {
-        fs.mkdirSync(input.path);
-        made = true;
-      } catch {
-        // Already there, or not makeable: the check says which.
+    if (run.kind === "unplaced") {
+      const picked = checkPicked({
+        makeFirst: input.create,
+        target: input.path,
+      });
+      if (picked.verdict.kind === "refused") {
+        picked.unmake();
+        return picked.verdict;
       }
-    }
-    const verdict = checkMoveTarget({
-      target: input.path,
-      userDataDir: getUserDataDir(),
-      workspace: { id: unplaced.id, path: undefined, pinned: false },
-    });
-    if (verdict.kind === "refused") {
-      if (made) {
-        removeIfEmptySync(input.path);
+      const how = choosePlacement({
+        dir: input.path,
+        unplaced: run,
+        userDataDir: getUserDataDir(),
+      });
+      if (how.kind === "restart") {
+        answerSetupIn(workspaceMachineDirOf(getUserDataDir(), how.id));
+        // Nothing runs yet, so there is nothing to ask about or stop.
+        return { kind: restartNow() ? "relaunching" : "on-next-launch" };
       }
-      return verdict;
+      placeRun(
+        placeWorkspace({
+          dir: input.path,
+          log: logger,
+          packaged: app.isPackaged,
+          unplaced: run,
+          userDataDir: getUserDataDir(),
+        }),
+      );
+      // The record a launch with a folder reads, the machine-wide one taken in.
+      rereadSetupRecord();
     }
-    placeWorkspace({
-      dir: input.path,
-      log: logger,
-      packaged: app.isPackaged,
-      unplaced,
-      userDataDir: getUserDataDir(),
-    });
     await startWorkspace();
     answerSetupByPlacing();
     refreshSetupFacts();
@@ -480,24 +549,9 @@ const move = base
   )
   .handler(async ({ input }) => {
     const workspace = getResolvedWorkspace();
-    let made = false;
-    if (input.create === true && path.isAbsolute(input.path)) {
-      try {
-        fs.mkdirSync(input.path);
-        made = true;
-      } catch {
-        // Already there, or not makeable: the check says which.
-      }
-    }
-    const unmake = () => {
-      if (made) {
-        removeIfEmptySync(input.path);
-      }
-    };
-    const verdict = checkMoveTarget({
+    const { unmake, verdict } = checkPicked({
+      makeFirst: input.create,
       target: input.path,
-      userDataDir: getUserDataDir(),
-      workspace,
     });
     if (verdict.kind !== "movable") {
       unmake();
@@ -529,8 +583,11 @@ const move = base
  * Open the Instrument folder in a folder the person picked that already
  * holds one, in place of this one, which stays where it is: checked for a
  * place no workspace can be, registered and made the one to open, then the
- * app restarted. A place the person is only warned of was shown to them
- * when they picked it (`checkFolder`), so it opens.
+ * app restarted. The same workspace as an entry on this computer whose own
+ * folder no longer holds it re-points that entry, so its sign-ins carry on;
+ * any other gets a local id of its own. A place the person is only warned
+ * of was shown to them when they picked it (`checkFolder`), so it opens.
+ * Opened from setup's folder step, the restart picks up after the folder.
  */
 const open = base
   .input(z.object({ path: z.string() }))
@@ -568,7 +625,11 @@ const open = base
     if (registered === undefined) {
       return { outcome: "not-a-workspace" as const };
     }
+    const fromSetup = isSetupUp();
     const choose = () => {
+      if (fromSetup) {
+        answerSetupIn(workspaceMachineDirOf(getUserDataDir(), registered.id));
+      }
       updateRegistry(getUserDataDir(), (registry) => ({
         ...registry,
         active: registered.id,

@@ -7,15 +7,16 @@ import { timeBootStep } from "./boot-timing";
 import { createWorkspaceActor } from "./create-workspace-actor";
 import { chooseLaunchDeviceId, describeLaunchDevice } from "./launch-device-id";
 import { quitsWithLastWindow } from "./quit";
-import { setStartedWorkspace } from "./started-workspace";
+import { startRun } from "./workspace-run";
 
 let starting: Promise<void> | undefined;
 
 /**
- * Starts the workspace the process resolved, once: the device it writes as,
+ * Starts the workspace the process placed, once: the device it writes as,
  * its actor, the bookmarks and drafts kept in it, and the notifications its
  * chats send. At launch for a workspace that has a folder, and from setup's
- * folder step on a first launch, once it has placed one.
+ * folder step once it has placed one. A start that fails can be asked for
+ * again.
  */
 export function startWorkspace(): Promise<void> {
   starting ??= (async () => {
@@ -39,7 +40,10 @@ export function startWorkspace(): Promise<void> {
       workspaceConfig,
       workspaceRef,
     });
-    setStartedWorkspace({ workspaceConfig, workspaceRef });
-  })();
+    startRun({ workspaceConfig, workspaceRef });
+  })().catch((error: unknown) => {
+    starting = undefined;
+    throw error;
+  });
   return starting;
 }

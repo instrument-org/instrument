@@ -318,6 +318,33 @@ function InstrumentFolder() {
     setPicked({ path: choice.path, verdict });
   };
 
+  /**
+   * Another Instrument folder to switch to, which the same dialog opens with
+   * one restart. Both folders stay as they are.
+   */
+  const chooseAnother = async () => {
+    const choice = await rpcClient.utils.showFolderPicker.call({
+      buttonLabel: "Open",
+      message: "Choose an Instrument folder to open.",
+      startingAt: folder.suggested,
+    });
+    if (!choice) {
+      return;
+    }
+    const verdict = await rpcClient.workspaces.checkFolder.call({
+      path: choice.path,
+    });
+    if (verdict.kind === "workspace") {
+      setPicked({ path: choice.path, verdict });
+    } else if (verdict.kind === "refused" && verdict.reason !== "missing") {
+      refuse(verdict.reason, choice.path);
+    } else {
+      toast.error(`“${folderLabel(choice.path)}” isn’t an Instrument folder`, {
+        description: "Choose the folder that has your chats in it.",
+      });
+    }
+  };
+
   /** Moves to, or opens, the folder picked or the better one offered. */
   const confirm = async (choice: "instead" | "picked") => {
     if (!picked) {
@@ -458,6 +485,18 @@ function InstrumentFolder() {
           path={folder.path}
         />
       </div>
+      {!folder.pinned && (
+        <Button
+          className="h-auto px-0 text-muted-foreground"
+          onClick={() => {
+            void chooseAnother();
+          }}
+          size="sm"
+          variant="link"
+        >
+          Open another folder…
+        </Button>
+      )}
       <AlertDialog
         onOpenChange={(open) => {
           if (!open && !restarting) {

@@ -99,6 +99,7 @@ function loadedWith(step: SetupState["step"], back: SetupState["back"] = null) {
       hasInstrumentPlan: false,
       hasUsableAI: false,
       hasWorkspace: true,
+      lostFolder: null,
       isCheckingPlan: false,
       notificationsAskable: false,
       hasChats: false,

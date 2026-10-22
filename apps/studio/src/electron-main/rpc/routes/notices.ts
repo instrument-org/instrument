@@ -4,7 +4,6 @@ import {
   dismissNotice,
   listNotices,
   markNoticesSeen,
-  missingFolderNames,
   signedOutAccounts,
 } from "@/electron-main/lib/notices";
 import { base } from "@/electron-main/rpc/base";
@@ -21,12 +20,6 @@ const live = {
       changes: [changes, preferences],
       read: () => listNotices(),
     });
-  }),
-  // The folders of the six that have gone, so a column with nothing in it can
-  // say why rather than inviting the person to start something.
-  missingFolders: base.handler(async function* ({ signal }) {
-    const changes = publisher.subscribe("notices.updated", { signal });
-    yield* liveRead({ changes: [changes], read: () => missingFolderNames() });
   }),
   // The accounts signed out without the person asking, so the composer can
   // ask them to sign in again rather than to pick another model.

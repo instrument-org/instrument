@@ -82,10 +82,9 @@ import {
   withdrawQuitApproval,
 } from "./lib/quit";
 import { getWorkspaceRefusal } from "./lib/workspace-refusal";
-import { isWorkspacePlaced } from "./lib/workspaces";
+import { getWorkspaceRun } from "./lib/workspace-run";
 import { startWorkspace } from "./lib/start-workspace";
 import { showWorkspaceRefusal } from "./lib/workspace-refusal-window";
-import { getUserDataDir } from "./lib/get-workspace-folder";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
   serveResolvedTheme,
@@ -175,7 +174,7 @@ async function bootstrapPrimaryInstance() {
   // nothing else starts: no stores, no workspace, no other window.
   const refusal = getWorkspaceRefusal();
   if (refusal) {
-    await showWorkspaceRefusal({ refusal, userDataDir: getUserDataDir() });
+    await showWorkspaceRefusal({ refusal });
     return;
   }
 
@@ -294,7 +293,7 @@ async function bootstrapPrimaryInstance() {
   // A workspace with a folder starts before any window, whose preload reads
   // its drafts and bookmarks as it loads. A first launch's starts once
   // setup's first step places it (`workspaces.place`).
-  if (isWorkspacePlaced()) {
+  if (getWorkspaceRun().kind === "placed") {
     await startWorkspace();
   }
 

@@ -17,12 +17,6 @@ import {
   resolveAlias,
 } from "@/electron-main/lib/mac-native";
 import {
-  missingKeyFolders,
-  recordFoldersThere,
-  watchKeyFolders,
-} from "@/electron-main/lib/missing-key-folders";
-import { noteMissingFolders } from "@/electron-main/lib/notices";
-import {
   isQuitGuardForcedInDev,
   requestQuit,
   startQuit,
@@ -109,11 +103,6 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   // tasks.
   const inAppData = workspaceInAppData();
   await sweepWorkspaceFolder({ deviceId, inAppData, rootDir });
-  // Every folder of the six that is there now is one the app made, so it is
-  // recorded as one to expect, and the check runs once before the watch does.
-  // After the sweeps, so a workspace that just gained its folders records them
-  // rather than reading them as gone.
-  watchTopLevelFolders(rootDir);
 
   // The build emits the worker as its own chunk. Every agent shell runs there,
   // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
@@ -424,32 +413,3 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
  * before the workspace opens it. Every workspace, wherever it is kept; a
  * failure must not block boot.
  */
-/**
- * Records which of the six folders the workspace's top level has, and watches
- * for one going away, so the bell can say so.
- *
- * Best effort, and never blocks the launch: a top level that cannot be read
- * or watched leaves the bell with nothing to say, which is what a person saw
- * before this existed.
- */
-function watchTopLevelFolders(rootDir: string) {
-  const report = (missing: string[]) => {
-    noteMissingFolders(rootDir, missing);
-  };
-  try {
-    stopWatchingFolders?.();
-    stopWatchingFolders = watchKeyFolders(rootDir, report);
-  } catch (error) {
-    logger.warn("Could not watch the workspace's folders", error);
-  }
-  // The same record-then-read the watch does, once at the launch, which is
-  // the backstop for a folder that went while the app was closed.
-  void recordFoldersThere(rootDir)
-    .then(() => missingKeyFolders(rootDir))
-    .then(report, (error: unknown) => {
-      logger.warn("Could not check the workspace's folders", error);
-    });
-}
-
-/** The watch on the top level of the workspace open now, dropped when another opens. */
-let stopWatchingFolders: (() => void) | undefined;

@@ -27,8 +27,8 @@ const NoticeMarksSchema = z.object({
 const NoticesStoreSchema = z.object({
   /**
    * How many chats of the workspace open now are still on a database the
-   * conversion would not replace, so they read as empty. One slot, like
-   * `missingFolders` below, and a different count is a different notice.
+   * conversion would not replace, so they read as empty. One slot: a
+   * different count is a different notice.
    */
   chatsLeftBehind: z
     .object({ at: z.number(), count: z.number().min(1) })
@@ -37,19 +37,6 @@ const NoticesStoreSchema = z.object({
   etag: z.string().optional(),
   fetchedAt: z.number().default(0),
   marks: z.record(z.string(), NoticeMarksSchema).default({}),
-  /**
-   * The folders of the six that have gone from the workspace open now. One
-   * slot, like `updated` below: a workspace is open at a time, and a
-   * different set of folders is a different notice.
-   */
-  missingFolders: z
-    .object({
-      at: z.number(),
-      names: z.array(z.string()).min(1),
-      root: z.string(),
-    })
-    .optional()
-    .catch(undefined),
   notices: z.array(NoticeSchema).default([]),
   pollAfter: z.number().default(DEFAULT_POLL_SECONDS),
   /**

@@ -155,10 +155,7 @@ export function listNotices(now = Date.now()): BellNotice[] {
   if (chromiumSandboxOff()) {
     all.push(browserSandboxOffNotice());
   }
-  const { chatsLeftBehind, missingFolders } = getNoticesStore().store;
-  if (missingFolders) {
-    all.push(missingFoldersNotice(missingFolders));
-  }
+  const { chatsLeftBehind } = getNoticesStore().store;
   if (chatsLeftBehind) {
     all.push(chatsLeftBehindNotice(chatsLeftBehind));
   }
@@ -360,36 +357,6 @@ function browserSandboxOffNotice(): Omit<BellNotice, "seen"> {
 }
 
 /**
- * The notice for folders that have gone from the workspace's top level, which
- * the app makes itself. It only says so: nothing is restored or recreated, and
- * the next thing the app writes there makes the folder again.
- *
- * Its id carries when as well as which, like the update notice, so a folder
- * that goes again after the person dismissed the last one is a notice of its
- * own. Without the stamp, dismissing it once silenced that folder for good.
- */
-function missingFoldersNotice({
-  at,
-  names,
-}: NonNullable<NoticesStore["missingFolders"]>): Omit<BellNotice, "seen"> {
-  const listed = formatList(names);
-  return {
-    body:
-      names.length > 1
-        ? `Your ${listed} folders aren't in your Instrument folder any more. Nothing is lost, and Instrument makes them again the next time it saves a chat.`
-        : `Your ${listed} folder isn't in your Instrument folder any more. Nothing is lost, and Instrument makes it again the next time it saves a chat.`,
-    id: `missing-folders-${[...names].toSorted().join("-")}-${at}`,
-    kind: "announcement",
-    publishedAt: new Date(at).toISOString(),
-    severity: "info",
-    title:
-      names.length > 1
-        ? "Some of your folders are gone"
-        : `Your ${listed} folder is gone`,
-  };
-}
-
-/**
  * The notice for chats the conversion left on their database, which read as
  * empty until a later launch brings them over. The app makes it itself.
  *
@@ -437,49 +404,6 @@ export function noteChatsLeftBehind(count: number): void {
     return;
   }
   getNoticesStore().set("chatsLeftBehind", { at: Date.now(), count });
-}
-
-/**
- * Records which of the six folders have gone from the workspace open now, or
- * clears the record when none has.
- *
- * Writing the same set again changes nothing, so a watch that fires on every
- * save does not keep remaking a notice the person dismissed.
- */
-export function noteMissingFolders(root: string, names: string[]): void {
-  const held = getNoticesStore().store.missingFolders;
-  if (names.length === 0) {
-    if (held) {
-      getNoticesStore().delete("missingFolders");
-    }
-    return;
-  }
-  if (
-    held?.root === root &&
-    held.names.length === names.length &&
-    held.names.every((name, index) => name === names[index])
-  ) {
-    return;
-  }
-  getNoticesStore().set("missingFolders", { at: Date.now(), names, root });
-}
-
-/**
- * The folders of the six that have gone, for the list that would be empty
- * because of one. The bell says it too; this is so the column the person is
- * looking at can say it before they go looking for the bell.
- */
-export function missingFolderNames(): string[] {
-  return getNoticesStore().store.missingFolders?.names ?? [];
-}
-
-/** `Chats`, `Chats and Drafts`, `Chats, Drafts and Topics`. */
-function formatList(names: readonly string[]): string {
-  const last = names.at(-1);
-  if (names.length <= 1 || last === undefined) {
-    return names[0] ?? "";
-  }
-  return `${names.slice(0, -1).join(", ")} and ${last}`;
 }
 
 /**

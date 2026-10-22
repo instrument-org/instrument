@@ -13,7 +13,6 @@ import {
   listWorkspaces,
   registerStray,
   removeFolderIfEmpty,
-  startWorkspaceAfresh,
   unregisterWorkspace,
   whyNotDeletable,
 } from "./workspace-management";
@@ -256,37 +255,6 @@ describe("listWorkspaces", () => {
     expect(ids).toEqual(
       foldsCase ? ["default", "kept"] : ["default", "kept", "kept-shouting"],
     );
-  });
-});
-
-describe("startWorkspaceAfresh", () => {
-  it("gives a workspace it cannot read a new folder in the app's data, keeping its ids", () => {
-    const unreadable = path.join(userDataDir, "..", "Unplugged", "Instrument");
-    updateRegistry(userDataDir, (registry) => ({
-      ...registry,
-      workspaces: registry.workspaces.map((entry) => ({
-        ...entry,
-        path: unreadable,
-        pendingMove: { from: unreadable, to: "/elsewhere" },
-        workspaceId: "01K0000000000000000000KEEP",
-      })),
-    }));
-
-    const dir = startWorkspaceAfresh({ id: "default", userDataDir });
-
-    expect(dir).toBe(defaultWorkspacePath(userDataDir));
-    expect(readWorkspaceIdentity(dir)).toMatchObject({
-      id: "01K0000000000000000000KEEP",
-      layoutVersion: WORKSPACE_LAYOUT_VERSION,
-      name: "Default",
-    });
-    expect(readRegistry(userDataDir)).toMatchObject({
-      active: "default",
-      workspaces: [{ id: "default", path: dir }],
-    });
-    expect(
-      readRegistry(userDataDir).workspaces[0]?.pendingMove,
-    ).toBeUndefined();
   });
 });
 

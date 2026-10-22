@@ -264,7 +264,9 @@ function takeInClaudeAccount(
   },
   done: string[],
 ) {
-  if (!workspace.isDefault) {
+  // Only the default workspace in the app's own data takes in what predates
+  // workspaces.
+  if (!workspace.isDefault || !pathWithin(workspace.path, userDataDir)) {
     return;
   }
   const from = path.join(userDataDir, WORKSPACE_MACHINE_ENTRIES.claudeAccount);

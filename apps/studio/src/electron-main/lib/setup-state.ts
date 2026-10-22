@@ -8,10 +8,13 @@ import {
 } from "@/electron-main/lib/setup-step";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
-  DEFAULT_WORKSPACE_ID,
   getLocalWorkspace,
-  isWorkspacePlaced,
-} from "@/electron-main/lib/workspaces";
+  getWorkspaceRun,
+} from "@/electron-main/lib/workspace-run";
+import { writeJsonAtomic } from "@/electron-main/lib/workspaces";
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+import fs from "node:fs";
+import path from "node:path";
 import { getMachineState } from "@/electron-main/stores/machine/state";
 import {
   readSetupRecord,
@@ -20,6 +23,7 @@ import {
 import {
   type SetupFacts,
   type SetupRecord,
+  SetupRecordSchema,
   type SetupState,
   type SetupStep,
 } from "@/shared/setup";
@@ -57,8 +61,9 @@ function isSkipped() {
 let record: SetupRecord | undefined;
 
 /**
- * Setup's record, kept per workspace in its machine folder. The default
- * workspace first takes in the record earlier builds kept once for the whole
+ * Setup's record, kept per workspace in its machine folder. The first
+ * workspace a launch opens with a folder, unless it is pinned for the
+ * process, takes in the record earlier builds kept once for the whole
  * computer, which is then removed, so a computer that finished setup on one
  * of them doesn't run it again.
  */
@@ -67,8 +72,17 @@ function readRecord(): SetupRecord {
   return record;
 }
 
+/**
+ * Reads the record again once setup's folder step has placed the
+ * workspace, which can take in the machine-wide one only then.
+ */
+export function rereadSetupRecord(): void {
+  record = undefined;
+}
+
 function carryMachineRecord(): SetupRecord | undefined {
-  if (getLocalWorkspace().id !== DEFAULT_WORKSPACE_ID) {
+  const run = getWorkspaceRun();
+  if (run.kind === "unplaced" || run.workspace.pinned) {
     return undefined;
   }
   const machine = getMachineState();
@@ -114,7 +128,9 @@ export async function setupStateKnown(): Promise<void> {
  * places it.
  */
 function isAnsweredAndPlaced() {
-  return isWorkspacePlaced() && isEveryStepAnswered(readRecord());
+  return (
+    getWorkspaceRun().kind !== "unplaced" && isEveryStepAnswered(readRecord())
+  );
 }
 
 /**
@@ -158,6 +174,40 @@ export function answerSetupStep(step: SetupStep): void {
  */
 export function answerSetupByPlacing(): void {
   writeRecord(answeredByPlacing(readRecord(), new Date()));
+}
+
+/**
+ * The same, for a workspace the folder step opens by restarting into it
+ * under another local id: written into that workspace's own machine state,
+ * from its own record when it has one and this one's when not, so the
+ * restart picks up after the folder rather than at Welcome back.
+ */
+export function answerSetupIn(machineDir: string): void {
+  if (machineDir === getLocalWorkspace().machineDir) {
+    answerSetupByPlacing();
+    return;
+  }
+  const file = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.state);
+  let state: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (parsed !== null && typeof parsed === "object") {
+      state = { ...parsed };
+    }
+  } catch {
+    // None yet: a workspace this computer hasn't opened.
+  }
+  const own = SetupRecordSchema.safeParse(state.setup);
+  const from =
+    own.success &&
+    (own.data.finishedAt !== undefined ||
+      Object.keys(own.data.answered).length > 0)
+      ? own.data
+      : readRecord();
+  writeJsonAtomic(file, {
+    ...state,
+    setup: answeredByPlacing(from, new Date()),
+  });
 }
 
 /**

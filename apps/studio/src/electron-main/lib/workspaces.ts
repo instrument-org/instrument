@@ -275,28 +275,6 @@ export function hasWorkspaceIdentity(workspacePath: string): boolean {
   );
 }
 
-/**
- * What a folder holds for the app: a workspace, nothing it can tell because
- * the system will not let it read there (a folder it was given no access
- * to), or no workspace. `hasWorkspaceIdentity` takes a refused read for no
- * workspace, which would tell the person their chats are not there.
- */
-export function workspaceFolderState(
-  dir: string,
-): "denied" | "none" | "workspace" {
-  try {
-    fs.readFileSync(
-      path.join(workspaceLayout(dir).dataDir, IDENTITY_FILENAME),
-      "utf8",
-    );
-    return "workspace";
-  } catch (error) {
-    const code =
-      error instanceof Error && "code" in error ? error.code : undefined;
-    return code === "EACCES" || code === "EPERM" ? "denied" : "none";
-  }
-}
-
 export function readRegistry(userDataDir: string): WorkspaceRegistry {
   return readRegistryFile(userDataDir).registry;
 }
@@ -732,16 +710,21 @@ function idForPath(registry: WorkspaceRegistry, workspacePath: string) {
 }
 
 /**
- * The entry of a workspace whose folder is gone and whose id the folder at
- * `workspacePath` carries: the same workspace, moved, which keeps its local id
- * and with it its machine folder.
+ * The entry of a workspace whose id the folder at `workspacePath` carries
+ * and whose own folder no longer holds it (gone, unreadable, or something
+ * else there now): the same workspace, moved, which keeps its local id and
+ * with it its machine folder, sign-ins included. A copy, whose original is
+ * still where its entry says, is a workspace of its own.
  */
 function movedTo(registry: WorkspaceRegistry, workspacePath: string) {
   const { id } = readWorkspaceIdentity(workspacePath);
   return id === undefined
     ? undefined
     : registry.workspaces.find(
-        (entry) => entry.workspaceId === id && !isDirectory(entry.path),
+        (entry) =>
+          entry.workspaceId === id &&
+          !samePath(entry.path, workspacePath) &&
+          readWorkspaceIdentity(entry.path).id !== id,
       );
 }
 
@@ -922,104 +905,25 @@ function withRegistryLock<T>(userDataDir: string, run: () => T): T {
 }
 
 /**
- * A first launch's workspace before setup's first step places it: no folder
- * yet, only the local id it will be registered under and this computer's
- * folder for it, where the window's session and every sign-in made before
- * the folder exists already live, so placing it moves nothing.
- */
-export interface UnplacedWorkspace {
-  id: string;
-  machineDir: string;
-}
-
-let resolvedWorkspace: OpenWorkspace | undefined;
-
-let unplacedWorkspace: undefined | UnplacedWorkspace;
-
-/**
- * The workspace this process runs. Resolved once in `setup-environment.ts`,
- * or by setup's folder step on a first launch (`placeWorkspace`); a read
- * before that would put a store in the wrong folder, so it throws instead.
- */
-export function getResolvedWorkspace(): OpenWorkspace {
-  if (!resolvedWorkspace) {
-    throw new Error(
-      unplacedWorkspace
-        ? "The workspace was read before setup placed it"
-        : "The workspace was read before setup-environment resolved it",
-    );
-  }
-  return resolvedWorkspace;
-}
-
-/**
- * The local id and machine folder of the workspace this process runs,
- * placed or not: what is this computer's own about it is there from the
- * start of a first launch.
- */
-export function getLocalWorkspace(): { id: string; machineDir: string } {
-  const local = resolvedWorkspace ?? unplacedWorkspace;
-  if (!local) {
-    throw new Error(
-      "The workspace was read before setup-environment resolved it",
-    );
-  }
-  return local;
-}
-
-/** Whether the workspace has a folder: false only on a first launch until setup's folder step. */
-export function isWorkspacePlaced(): boolean {
-  return resolvedWorkspace !== undefined;
-}
-
-/** The unplaced workspace of a first launch, while it has no folder. */
-export function getUnplacedWorkspace(): undefined | UnplacedWorkspace {
-  return resolvedWorkspace ? undefined : unplacedWorkspace;
-}
-
-export function setUnplacedWorkspace(workspace: UnplacedWorkspace): void {
-  unplacedWorkspace = workspace;
-}
-
-/**
- * Whether there is no workspace to open: the one the registry would open
- * (`chooseWorkspace`, with no pin) is the default, still in the app's own
- * data, and its folder is not there, with no 1.x settings at userData's root
- * to bring into one. Nothing is made in its place: the launch places nothing
- * until setup's first step picks the folder, since the app runs only from a
+ * Whether this computer has never had a workspace: no registry, no default
+ * workspace folder in the app's own data, and no settings 1.x left at its
+ * root. Such a launch opens none, registers none, and setup's first step
+ * places one where the person picks, since the app runs only from a
  * workspace the person chose.
  */
-export function needsPlacing(userDataDir: string): boolean {
-  const current = readRegistry(userDataDir);
-  const fallback = toResolved(
-    current.workspaces.find((entry) => entry.id === DEFAULT_WORKSPACE_ID) ?? {
-      id: DEFAULT_WORKSPACE_ID,
-      path: defaultWorkspacePath(userDataDir),
-    },
-    false,
-  );
-  const chosen = chooseWorkspace({
-    current,
-    fallback,
-    pin: undefined,
-    problems: [],
-    userDataDir,
-  });
-  return (
-    chosen.isDefault &&
-    current.workspaces.find((entry) => entry.id === chosen.id)?.pendingMove ===
-      undefined &&
-    pathWithin(chosen.path, userDataDir) &&
-    !fs.existsSync(chosen.path) &&
-    !fs.existsSync(path.join(userDataDir, "preferences.json"))
-  );
+export function isFirstLaunch(userDataDir: string): boolean {
+  return ![
+    registryPath(userDataDir),
+    defaultWorkspacePath(userDataDir),
+    path.join(userDataDir, "preferences.json"),
+  ].some((entry) => fs.existsSync(entry));
 }
 
 /**
- * Takes the default local id's machine folder for a launch with no
- * workspace, setting aside one a workspace that is gone left behind (its
- * owner record says whose it was), before the window's session opens in it.
- * The workspace setup places then starts from it as its own.
+ * Takes the default local id's machine folder for a first launch, setting
+ * aside one a workspace no registry lists left behind (its owner record says
+ * whose it was), before the window's session opens in it. The workspace
+ * setup places then starts from it as its own.
  */
 export function claimUnplacedMachineDir(userDataDir: string): string {
   const machineDir = workspaceMachineDirOf(userDataDir, DEFAULT_WORKSPACE_ID);
@@ -1169,17 +1073,12 @@ export function releaseOpenMark(machineDir: string): void {
   }
 }
 
-export function setResolvedWorkspace(workspace: OpenWorkspace): void {
-  resolvedWorkspace = workspace;
-  unplacedWorkspace = undefined;
-}
-
 function openPidPath(markDir: string) {
   return path.join(markDir, WORKSPACE_MACHINE_ENTRIES.openMark);
 }
 
 /** The workspace id a machine folder's record says it belongs to. */
-function readOwner(machineDir: string): string | undefined {
+export function readOwner(machineDir: string): string | undefined {
   const parsed = z
     .object({ workspaceId: WorkspaceIdSchema })
     .safeParse(

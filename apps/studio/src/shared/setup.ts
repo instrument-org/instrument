@@ -57,6 +57,12 @@ export interface SetupFacts {
    */
   hasWorkspace: boolean;
   /**
+   * Where the workspace's folder was, when the launch found it missing or
+   * couldn't read it: the folder step says so, and the person finds it or
+   * makes a new one. Null otherwise.
+   */
+  lostFolder: null | string;
+  /**
    * The workspace is outside the app's data, pinned, or has a move recorded
    * that the next launch finishes.
    */

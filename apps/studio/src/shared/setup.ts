@@ -31,6 +31,12 @@ export interface SetupFacts {
    * ready or out of usage. An account with no paid plan does not count.
    */
   hasUsableAI: boolean;
+  /**
+   * A model to run on that isn't Instrument's: a key, or an account the
+   * account check calls ready or out of usage. Someone with one has no plan
+   * to pick.
+   */
+  hasOwnAI: boolean;
   /** Signed in to Instrument. */
   hasInstrumentAccount: boolean;
   /**

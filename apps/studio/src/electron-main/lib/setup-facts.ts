@@ -25,6 +25,7 @@ import { getToken, hasToken } from "@/electron-main/platform-api/utils";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type ConnectOutcome } from "@/shared/connect-outcome";
 import { type SetupFacts } from "@/shared/setup";
+import { OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 import { app } from "electron";
 import { z } from "zod";
 
@@ -103,12 +104,16 @@ let notifications: NotificationStatus["status"] = "unknown";
  */
 function readSetupFacts(): SetupFacts {
   const token = getToken();
+  const configs = getAllAIProviderConfigs();
   const account = {
     hasInstrumentAccount: hasToken(),
     hasInstrumentPlan:
       token !== undefined && planRead?.token === token && planRead.hasPlan,
     isCheckingPlan: token !== undefined && planTriedFor !== token,
-    hasUsableAI: accountAnswers.hasUsableAI(getAllAIProviderConfigs()),
+    hasOwnAI: accountAnswers.hasUsableAI(
+      configs.filter(({ type }) => type !== OUR_PROVIDER_CONFIG.type),
+    ),
+    hasUsableAI: accountAnswers.hasUsableAI(configs),
     notificationsAskable:
       notifications === "not-asked" || notifications === "provisional",
   };

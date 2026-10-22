@@ -21,7 +21,8 @@ const NEEDED: Record<
   look: () => true,
   model: () => true,
   notifications: (facts) => facts.notificationsAskable,
-  plan: (facts) => facts.hasInstrumentAccount && !facts.hasInstrumentPlan,
+  plan: (facts) =>
+    facts.hasInstrumentAccount && !facts.hasInstrumentPlan && !facts.hasOwnAI,
   "way-in": (facts) => !facts.hasUsableAI,
   "welcome-back": (facts, record) =>
     facts.testedBefore && record.finishedAt === undefined,

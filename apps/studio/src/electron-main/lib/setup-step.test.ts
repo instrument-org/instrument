@@ -21,6 +21,7 @@ const NEW: SetupFacts = {
   folderSettled: false,
   hasInstrumentAccount: false,
   hasInstrumentPlan: false,
+  hasOwnAI: false,
   hasUsableAI: false,
   hasWorkspace: false,
   isCheckingPlan: false,
@@ -267,6 +268,20 @@ describe("currentSetupStep", () => {
       "free-account",
     );
   });
+
+  it("skips the plan for an Instrument account beside a key or subscription of its own", () => {
+    expect(
+      currentSetupStep(
+        {
+          ...PLACED,
+          hasInstrumentAccount: true,
+          hasOwnAI: true,
+          hasUsableAI: true,
+        },
+        EMPTY,
+      ),
+    ).toBe("model");
+  });
 });
 
 describe("after finishing", () => {
@@ -409,6 +424,7 @@ describe("setupStateFrom", () => {
             "hasChats": false,
             "hasInstrumentAccount": false,
             "hasInstrumentPlan": false,
+            "hasOwnAI": false,
             "hasUsableAI": false,
             "hasWorkspace": false,
             "isCheckingPlan": false,

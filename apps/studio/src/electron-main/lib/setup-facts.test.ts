@@ -2,6 +2,7 @@ import { type SetupFacts } from "@/shared/setup";
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  configs: [] as { id: string; type: string }[],
   getResolvedWorkspace: vi.fn(() => ({
     id: "default",
     machineDir: "/data/machine/default",
@@ -18,7 +19,7 @@ vi.mock("@/electron-main/lib/claude-account", () => ({
   claudeAccountStatusKnown: () => Promise.resolve(),
 }));
 vi.mock("@/electron-main/lib/get-ai-provider-configs", () => ({
-  getAllAIProviderConfigs: () => [],
+  getAllAIProviderConfigs: () => mocks.configs,
 }));
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
   getUserDataDir: () => "/data",
@@ -80,6 +81,7 @@ describe("setup's facts", () => {
         "hasChats": false,
         "hasInstrumentAccount": false,
         "hasInstrumentPlan": false,
+        "hasOwnAI": false,
         "hasUsableAI": false,
         "hasWorkspace": false,
         "isCheckingPlan": false,
@@ -110,5 +112,19 @@ describe("setup's facts", () => {
       lostFolder: null,
       testedBefore: true,
     });
+  });
+
+  it.each([
+    ["Instrument alone", ["instrument"], { hasOwnAI: false, hasUsableAI: true }],
+    [
+      "Instrument and a key",
+      ["instrument", "openai-compatible"],
+      { hasOwnAI: true, hasUsableAI: true },
+    ],
+    ["a key alone", ["anthropic"], { hasOwnAI: true, hasUsableAI: true }],
+  ])("count %s as AI of the person's own or not", (_, types, expected) => {
+    mocks.configs = types.map((type) => ({ id: type, type }));
+    refreshSetupFacts();
+    expect(read()).toMatchObject(expected);
   });
 });

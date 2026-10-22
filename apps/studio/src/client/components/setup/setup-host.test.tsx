@@ -97,6 +97,7 @@ function loadedWith(step: SetupState["step"], back: SetupState["back"] = null) {
       folderSettled: true,
       hasInstrumentAccount: false,
       hasInstrumentPlan: false,
+      hasOwnAI: false,
       hasUsableAI: false,
       hasWorkspace: true,
       lostFolder: null,

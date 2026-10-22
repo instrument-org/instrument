@@ -60,7 +60,6 @@ import {
   type CSSProperties,
   type RefObject,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -213,14 +212,10 @@ function SettingsModalContent({
       ? { id: opened.mark, mark: opened.mark, n: 1 }
       : null,
   );
+  // Each page gets a scroller of its own (keyed by its tab below), so it opens
+  // at its top, and a short page never keeps the edge fade a long one left on
+  // a shared scroller. A jump to a row scrolls in `useFlashSetting`.
   const contentRef = useRef<HTMLElement>(null);
-  // Every page shares this scroller, so each one opens at its top. A jump to a
-  // row scrolls after this, in `useFlashSetting`.
-  useLayoutEffect(() => {
-    if (contentRef.current) {
-      contentRef.current.scrollTop = 0;
-    }
-  }, [activeTab]);
   useFlashSetting(contentRef, jump);
   // ⌘F anywhere in Settings is its search, over any list's own inside it.
   const searchRef = useRef<HTMLInputElement>(null);
@@ -375,7 +370,11 @@ function SettingsModalContent({
                 )}
               </SidebarContent>
             </Sidebar>
-            <SidebarInset className="min-w-0 overflow-y-auto" ref={contentRef}>
+            <SidebarInset
+              className="min-w-0 overflow-y-auto scroll-fade-y"
+              key={activeTab}
+              ref={contentRef}
+            >
               <div className="flex flex-1 flex-col gap-4 p-6">
                 <SettingsSectionBody tab={activeTab} />
               </div>

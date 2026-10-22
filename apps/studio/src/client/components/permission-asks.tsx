@@ -143,7 +143,8 @@ function PermissionAskCard({
   const holds = isFolder ? signInLine(ask.target) : undefined;
   const pending = answer.isPending ? answer.variables.decision : undefined;
   const choice = (decision: Decision) => ({
-    disabled: busy,
+    disabled: false,
+    held: busy,
     onClick: () => {
       answer.mutate({ askId: ask.id, decision, id: chatId });
     },
@@ -153,7 +154,8 @@ function PermissionAskCard({
   return (
     <div
       className={cn(
-        "relative rounded-2xl border bg-card p-3 shadow-xs",
+        // Rises in the way a message arrives in the chat above it.
+        "relative animate-in rounded-2xl border bg-card p-3 shadow-xs duration-200 ease-out fade-in-0 fill-mode-both slide-in-from-bottom-2 motion-reduce:animate-none",
         refused || isPrivate || blocked
           ? "border-warning-300 dark:border-warning-700"
           : "border-border",
@@ -443,14 +445,17 @@ function WindowsFixes({
 // oxlint-enable studio/no-os-words
 
 /**
- * One answer. Pressed, it keeps its label and the others are disabled; only a
- * wait long enough to notice (the first macOS prompt for a folder) covers the
- * label with a spinner, at the button's own width.
+ * One answer. Pressed, it keeps its label and every answer stops taking
+ * clicks (`held`) while looking as it did, since the card usually goes a
+ * moment later and dimming it first makes it flicker; only a wait long
+ * enough to notice (the first macOS prompt for a folder) covers the label
+ * with a spinner, at the button's own width.
  */
 function AnswerButton({
   children,
   className,
   disabled,
+  held = false,
   onClick,
   pending,
   variant = "brand",
@@ -458,15 +463,17 @@ function AnswerButton({
   children: string;
   className?: string;
   disabled: boolean;
+  held?: boolean;
   onClick: () => void;
   pending: boolean;
   variant?: "brand" | "ghost" | "outline";
 }) {
   return (
     <Button
+      aria-disabled={held || undefined}
       className={cn("relative", className)}
       disabled={disabled}
-      onClick={onClick}
+      onClick={held ? undefined : onClick}
       size="sm"
       variant={variant}
     >

@@ -14,19 +14,31 @@ const KEEP = 100;
 // every chunk it writes.
 const PROGRESS_INTERVAL_MS = 250;
 
-// The list of the workspace open now, read from its store on first use.
-const held = perWorkspace((): { list: BrowserDownload[] | null } => ({
-  list: null,
-}));
-// The transfers still running, for a cancel to reach.
-const running = new Map<string, DownloadItem>();
+/**
+ * The downloads of one workspace: its list, read from its store on first
+ * use, and its transfers still running, for a cancel to reach. A transfer
+ * keeps the one it started in, so one that finishes after a switch of
+ * workspace lands in its own workspace's list.
+ */
+interface WorkspaceDownloads {
+  list: BrowserDownload[] | null;
+  running: Map<string, DownloadItem>;
+  store: ReturnType<typeof getDownloadsStore>;
+}
+
+const held = perWorkspace(
+  (): WorkspaceDownloads => ({
+    list: null,
+    running: new Map(),
+    store: getDownloadsStore(),
+  }),
+);
 let progressTimer: null | ReturnType<typeof setTimeout> = null;
 
 // The list as last saved. A download that was running when the app last quit
 // stopped with it, so it reads as failed.
-function list(): BrowserDownload[] {
-  const box = held();
-  box.list ??= getDownloadsStore()
+function list(box = held()): BrowserDownload[] {
+  box.list ??= box.store
     .get("downloads")
     .map((download) =>
       download.state === "progressing" || download.state === "interrupted"
@@ -36,12 +48,12 @@ function list(): BrowserDownload[] {
   return box.list;
 }
 
-function changed() {
+function changed(box = held()) {
   if (progressTimer) {
     clearTimeout(progressTimer);
     progressTimer = null;
   }
-  getDownloadsStore().set("downloads", list());
+  box.store.set("downloads", list(box));
   publisher.publish("browser.downloads-changed", null);
 }
 
@@ -54,8 +66,12 @@ function progressed() {
   }, PROGRESS_INTERVAL_MS);
 }
 
-function update(id: string, patch: Partial<BrowserDownload>) {
-  held().list = list().map((download) =>
+function update(
+  box: WorkspaceDownloads,
+  id: string,
+  patch: Partial<BrowserDownload>,
+) {
+  box.list = list(box).map((download) =>
     download.id === id ? { ...download, ...patch } : download,
   );
 }
@@ -72,6 +88,8 @@ export function trackDownload(
   savePath: null | string,
   { asked = false }: { asked?: boolean } = {},
 ) {
+  const box = held();
+  const { running } = box;
   const id = crypto.randomUUID();
   const download: BrowserDownload = {
     filename: item.getFilename(),
@@ -83,16 +101,16 @@ export function trackDownload(
     totalBytes: item.getTotalBytes(),
     url: item.getURL(),
   };
-  const finished = list().filter((entry) => !running.has(entry.id));
+  const finished = list(box).filter((entry) => !running.has(entry.id));
   const dropped = new Set(finished.slice(KEEP - 1).map((entry) => entry.id));
-  held().list = [download, ...list().filter((entry) => !dropped.has(entry.id))];
-  changed();
+  box.list = [download, ...list(box).filter((entry) => !dropped.has(entry.id))];
+  changed(box);
   if (!savePath && !asked) {
     return;
   }
   running.set(id, item);
   item.on("updated", (_event, state) => {
-    update(id, {
+    update(box, id, {
       path: item.getSavePath() || savePath,
       receivedBytes: item.getReceivedBytes(),
       state,
@@ -102,7 +120,7 @@ export function trackDownload(
   });
   item.once("done", (_event, state) => {
     running.delete(id);
-    update(id, {
+    update(box, id, {
       path: item.getSavePath() || savePath,
       receivedBytes: item.getReceivedBytes(),
       state:
@@ -113,7 +131,7 @@ export function trackDownload(
             : "failed",
       totalBytes: item.getTotalBytes(),
     });
-    changed();
+    changed(box);
   });
 }
 
@@ -133,20 +151,22 @@ export function listDownloads(): (BrowserDownload & { exists: boolean })[] {
 
 /** Stops a running download; its `done` takes it off the running list. */
 export function cancelDownload(id: string) {
-  running.get(id)?.cancel();
+  held().running.get(id)?.cancel();
 }
 
 /** Takes a finished download off the list. The file stays where it is. */
 export function removeDownload(id: string) {
-  if (running.has(id)) {
+  const box = held();
+  if (box.running.has(id)) {
     return;
   }
-  held().list = list().filter((download) => download.id !== id);
-  changed();
+  box.list = list(box).filter((download) => download.id !== id);
+  changed(box);
 }
 
 /** Takes every finished download off the list, keeping the running ones. */
 export function clearDownloads() {
-  held().list = list().filter((download) => running.has(download.id));
-  changed();
+  const box = held();
+  box.list = list(box).filter((download) => box.running.has(download.id));
+  changed(box);
 }

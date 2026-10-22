@@ -281,19 +281,21 @@ function quietLine({ live, phase }: Dictation) {
 
 /**
  * The words to show where they will land, for a box that shows them in its
- * text: what has been heard, or the line about live text not working.
+ * text: what has been heard, or the line about live text not working, after
+ * what was heard before the stream went away.
  */
 export function landingWords(dictation: Dictation): {
   interim: string;
   settled: string;
 } {
   const quiet = quietLine(dictation);
+  const settled = dictation.live?.settled ?? "";
   return quiet === "Listening…"
-    ? {
-        interim: dictation.live?.interim ?? "",
-        settled: dictation.live?.settled ?? "",
-      }
-    : { interim: quiet, settled: "" };
+    ? { interim: dictation.live?.interim ?? "", settled }
+    : {
+        interim: quiet,
+        settled: dictation.live?.status === "lost" ? settled : "",
+      };
 }
 
 /**
@@ -310,12 +312,11 @@ function DictationReadout({
   className?: string;
   dictation: Dictation;
 }) {
-  const { live, phase } = dictation;
+  const { phase } = dictation;
   const line = useRef<HTMLSpanElement>(null);
   const words = useRef<HTMLSpanElement>(null);
   const [overflowing, setOverflowing] = useState(false);
-  const settled = live?.settled ?? "";
-  const interim = live?.interim ?? "";
+  const shown = landingWords(dictation);
   // The words against the line rather than the line's own scroll width,
   // which stops counting them once they overflow at the start.
   useLayoutEffect(() => {
@@ -324,7 +325,7 @@ function DictationReadout({
         words.current !== null &&
         words.current.offsetWidth > line.current.clientWidth,
     );
-  }, [settled, interim]);
+  }, [shown.settled, shown.interim]);
   if (!isDictating(phase)) {
     return null;
   }
@@ -341,11 +342,11 @@ function DictationReadout({
       ref={line}
       role="status"
     >
-      {(settled || interim) && quiet === "Listening…" ? (
+      {shown.settled || (shown.interim && quiet === "Listening…") ? (
         <span className="shrink-0" ref={words}>
-          {settled}
-          {settled && interim ? " " : ""}
-          <span className="text-muted-foreground">{interim}</span>
+          {shown.settled}
+          {shown.settled && shown.interim ? " " : ""}
+          <span className="text-muted-foreground">{shown.interim}</span>
         </span>
       ) : (
         <span className="truncate text-muted-foreground">{quiet}</span>

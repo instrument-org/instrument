@@ -136,6 +136,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statfsSync,
   statSync,
   utimesSync,
   writeFileSync,
@@ -212,6 +213,10 @@ const CHECKOUT_MARKER = "checkout";
 // only part deleting does not invalidate. So they go sooner than the workspace does.
 const WORK_ARTIFACT_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 const WORK_ARTIFACT_NAMES = new Set([".venv", "node_modules"]);
+// What a fixture, clean room or scenario boot needs free on the cache's volume
+// before it builds application data there: a full disk fails every process on
+// the machine, other sessions' shells included.
+const MIN_FREE_GB = Number(process.env.STUDIO_DRIVE_MIN_FREE_GB ?? 15);
 
 // Read off the raw argv rather than the parsed tail: which instance a command
 // talks to has to be settled before anything reads a session record.
@@ -925,6 +930,30 @@ async function servesThisCheckout(port) {
   }
 }
 
+/**
+ * Fails the boot when the volume the caches live on has less than
+ * `MIN_FREE_GB` free, naming what can go. Measured on the nearest folder that
+ * exists, since the first boot of a checkout has not made its own yet.
+ */
+function refuseWhenDiskIsLow() {
+  const caches = path.dirname(WORKSPACE_CACHE_ROOT);
+  let dir = WORKSPACE_CACHE_ROOT;
+  while (!existsSync(dir) && path.dirname(dir) !== dir) {
+    dir = path.dirname(dir);
+  }
+  const { bavail, bsize } = statfsSync(dir);
+  const freeGb = (Number(bavail) * Number(bsize)) / 1024 ** 3;
+  if (freeGb >= MIN_FREE_GB) {
+    return;
+  }
+  fail(
+    `Only ${freeGb.toFixed(1)} GB is free on the volume with studio-drive's caches, under the ${MIN_FREE_GB} GB a boot needs (STUDIO_DRIVE_MIN_FREE_GB sets it).\n` +
+      `Each checkout's caches are a folder in ${caches}, named by a hash of its path, with a \`checkout\` file naming the checkout. ` +
+      `Inside, \`scenario-<name>\` (with its \`-home\` and \`-output\`), each fixture's folder and \`clean-rooms/<name>\` are rebuilt on the next boot, so they can go once their instance is stopped (\`studio-drive.mjs stop --scenario <name>\`, \`--workspace <fixture>\` or \`--clean-room <name>\`, run from that checkout). ` +
+      `Never delete one whose instance is running.`,
+  );
+}
+
 async function cmdBoot(
   explicitPort,
   {
@@ -1034,6 +1063,9 @@ async function cmdBoot(
     );
   }
 
+  if (WORKSPACE || CLEAN_ROOM || SCENARIO) {
+    refuseWhenDiskIsLow();
+  }
   const workspace = WORKSPACE
     ? prepareWorkspace(WORKSPACE, { fresh, keepTabs })
     : undefined;

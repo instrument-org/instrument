@@ -25,6 +25,30 @@ export const LEFT_OUT_SECTIONS = [
   "## Global flags worth knowing",
   "## Observability Dashboard",
   "## When to load another skill",
+  // Teaches `fill`, the credential vault and plugins, all refused or advised
+  // against here.
+  "### Log in",
+  // Needs the React DevTools hook installed at launch, which a browser the
+  // app owns is not.
+  "## React / Web Vitals (built-in, any React app)",
+  // Lists references that `skills get core --full` does not carry.
+  "## Full reference",
+  // Its one concrete instruction, importing cookies, is one the addendum
+  // forbids; the addendum carries the rest.
+  "## Working safely",
+] as const;
+
+/**
+ * Paragraphs left out of the sections kept, by how they start: each teaches a
+ * flag or setup this app refuses or manages itself.
+ */
+export const LEFT_OUT_PARAGRAPHS = [
+  // `--allowed-domains`, which rejects the provider connection the app uses.
+  "For sessions that handle sensitive data",
+  // Relaunching with `--webgpu` or `--headed`, and `doctor`.
+  "**WebGPU page renders black in screenshots**",
+  // `--session` and `--restore`, both refused.
+  "**Authentication expires mid-workflow**",
 ] as const;
 
 /** The references the guide links to that apply here, kept for `skills get core --full`. */
@@ -59,7 +83,10 @@ export function coreGuideFrom(coreDir: string): {
   references: string;
 } {
   return {
-    guide: withoutSections(upstreamCoreGuide(coreDir), LEFT_OUT_SECTIONS)
+    guide: withoutParagraphs(
+      withoutSections(upstreamCoreGuide(coreDir), LEFT_OUT_SECTIONS),
+      LEFT_OUT_PARAGRAPHS,
+    )
       .trim()
       .concat("\n"),
     references: REFERENCE_FILES.map(
@@ -100,6 +127,63 @@ export function withoutSections(
     }
   }
   return kept.join("\n");
+}
+
+/**
+ * A Markdown text with the paragraphs starting with any of `starts` removed,
+ * along with the blank line after each. A paragraph is a run of lines between
+ * blank lines, outside a fenced code block.
+ */
+export function withoutParagraphs(
+  markdown: string,
+  starts: readonly string[],
+): string {
+  const kept: string[] = [];
+  let inFence = false;
+  let skipping = false;
+  let atParagraphStart = true;
+  for (const line of markdown.split("\n")) {
+    if (line.startsWith("```")) {
+      inFence = !inFence;
+    }
+    if (!inFence && atParagraphStart && line.trim() !== "") {
+      skipping = starts.some((start) => line.startsWith(start));
+    }
+    if (line.trim() === "") {
+      atParagraphStart = !inFence;
+      if (skipping) {
+        skipping = false;
+        continue;
+      }
+    } else {
+      atParagraphStart = false;
+    }
+    if (!skipping) {
+      kept.push(line);
+    }
+  }
+  return kept.join("\n");
+}
+
+/** The paragraphs of a Markdown text, by their first line, outside fenced code. */
+export function paragraphStartsOf(markdown: string): string[] {
+  const starts: string[] = [];
+  let inFence = false;
+  let atParagraphStart = true;
+  for (const line of markdown.split("\n")) {
+    if (line.startsWith("```")) {
+      inFence = !inFence;
+    }
+    if (line.trim() === "") {
+      atParagraphStart = !inFence;
+    } else {
+      if (!inFence && atParagraphStart) {
+        starts.push(line);
+      }
+      atParagraphStart = false;
+    }
+  }
+  return starts;
 }
 
 /** The headings of a Markdown text, outside fenced code. */

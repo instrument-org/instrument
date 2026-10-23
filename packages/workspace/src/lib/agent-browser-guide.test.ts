@@ -6,8 +6,11 @@ import {
   generatedGuideModule,
   headingsOf,
   installedAgentBrowser,
+  LEFT_OUT_PARAGRAPHS,
   LEFT_OUT_SECTIONS,
+  paragraphStartsOf,
   upstreamCoreGuide,
+  withoutParagraphs,
   withoutSections,
 } from "./agent-browser-guide-source";
 import {
@@ -53,6 +56,15 @@ describe("the agent-browser guide", () => {
     ).toEqual([]);
   });
 
+  it("leaves out only paragraphs the installed release has", () => {
+    const starts = paragraphStartsOf(upstreamCoreGuide(installed.coreDir));
+    expect(
+      LEFT_OUT_PARAGRAPHS.filter(
+        (left) => !starts.some((start) => start.startsWith(left)),
+      ),
+    ).toEqual([]);
+  });
+
   it("names, in the addendum, every refused subcommand and flag the upstream guide still teaches", () => {
     const subcommands = [
       ...AGENT_BROWSER_CORE_GUIDE.matchAll(/agent-browser ([a-z][a-z-]*)/g),
@@ -80,6 +92,32 @@ describe("the agent-browser guide", () => {
       expect(headingsOf(guide)).not.toContain(left);
     }
     expect(headingsOf(guide)).toContain("## The core loop");
+  });
+
+  it("drops a whole paragraph by how it starts, and nothing in a code fence", () => {
+    const markdown = [
+      "Keep this.",
+      "",
+      "**Drop me** and",
+      "my second line.",
+      "",
+      "```bash",
+      "**Drop me** inside a fence stays",
+      "```",
+      "",
+      "Keep this too.",
+    ].join("\n");
+    expect(withoutParagraphs(markdown, ["**Drop me**"])).toBe(
+      [
+        "Keep this.",
+        "",
+        "```bash",
+        "**Drop me** inside a fence stays",
+        "```",
+        "",
+        "Keep this too.",
+      ].join("\n"),
+    );
   });
 
   it("reads a line starting with # inside a code fence as code, not a heading", () => {

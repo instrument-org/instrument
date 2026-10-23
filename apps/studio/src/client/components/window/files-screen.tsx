@@ -43,7 +43,7 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import {
   type ReactNode,
@@ -105,6 +105,11 @@ const BESIDE_BOUNDS: RailBounds = {
   max: 640,
   min: 260,
 };
+/**
+ * The least room a file opening needs beside the folder or the tree, in CSS
+ * px. A tab narrower than that opens the file with them folded away.
+ */
+const FILE_ROOM = 420;
 /** How the file fades as it slides away, as long as the folder takes to widen. */
 const BESIDE_EXIT_TRANSITION = {
   duration: 0.38,
@@ -168,6 +173,10 @@ export function FilesScreen({
   const appTabId = useTabId();
   const isActiveTab = useIsActiveTab();
   const [isTreeOpen, setTreeOpen] = useAtom(fileTreeOpenAtom);
+  const treeWidth = useAtomValue(fileTreeWidthAtom);
+  // Folded for want of room as a file opened, which leaves the tree as the
+  // person last set it for a tab wide enough.
+  const [isTreeFolded, setTreeFolded] = useState(false);
   const router = useRouter();
   const navigate = useNavigate();
   // The tab of a chat's or a draft's group this screen is in, when it is
@@ -243,7 +252,6 @@ export function FilesScreen({
     setWasFileOpen(isFileOpen);
     setClosing(!isFileOpen);
     if (isFileOpen) {
-      setFolderShown(true);
       setBesidePicked([]);
     }
   }
@@ -278,6 +286,24 @@ export function FilesScreen({
       ? Number.POSITIVE_INFINITY
       : Math.max(BESIDE_BOUNDS.min, Math.round(layoutWidth / 2)),
   );
+  // A file opening, from the folder or straight into the tab, leaves the
+  // folder or the tree beside it only when the tab has room for both,
+  // measured once the tab has a width.
+  const isFileShown = file !== undefined;
+  const [wasFileShown, setWasFileShown] = useState(isFileShown);
+  const [isFitPending, setFitPending] = useState(isFileShown);
+  if (wasFileShown !== isFileShown) {
+    setWasFileShown(isFileShown);
+    setFitPending(isFileShown);
+  }
+  if (isFitPending && layoutWidth !== null) {
+    setFitPending(false);
+    if (isBesideLayout) {
+      setFolderShown(layoutWidth - besideWidth >= FILE_ROOM);
+    } else {
+      setTreeFolded(layoutWidth - treeWidth < FILE_ROOM);
+    }
+  }
   const clampBesideWidth = (width: number) =>
     Math.min(BESIDE_BOUNDS.max, Math.max(BESIDE_BOUNDS.min, Math.round(width)));
   const closeBeside = () => {
@@ -885,7 +911,7 @@ export function FilesScreen({
           base={folderOf(activeFile.hostPath)}
           openFile={openLinkedFile}
         >
-          <div className="flex h-full min-h-0">
+          <div className="flex h-full min-h-0" ref={setLayout}>
             {/* Beside the document the way the window's own rail is: its edge
               drags, an over-drag closes it, and it slides at its width. It
               stays mounted while closed, so what it had open is still open
@@ -893,7 +919,8 @@ export function FilesScreen({
               panel, so the tree reads as the list it was opened from. */}
             <StudioSidebarRail
               bounds={TREE_BOUNDS}
-              isOpen={isTreeOpen}
+              isAtOnce={isTreeFolded}
+              isOpen={isTreeOpen && !isTreeFolded}
               label="Resize the tree"
               onCollapse={() => {
                 setTreeOpen(false);
@@ -911,9 +938,14 @@ export function FilesScreen({
             {rowLead &&
               createPortal(
                 <TreeToggle
-                  isOpen={isTreeOpen}
+                  isOpen={isTreeOpen && !isTreeFolded}
                   onToggle={() => {
-                    setTreeOpen((open) => !open);
+                    if (isTreeFolded) {
+                      setTreeFolded(false);
+                      setTreeOpen(true);
+                    } else {
+                      setTreeOpen((open) => !open);
+                    }
                   }}
                 />,
                 rowLead,
@@ -928,7 +960,7 @@ export function FilesScreen({
                   editable
                   file={viewerFile}
                   key={activeFile.hostPath}
-                  {...pageInSlot(isTreeOpen)}
+                  {...pageInSlot(isTreeOpen && !isTreeFolded)}
                 />
               )}
               {/* A page in Edit keeps its asks in its own dock instead. */}
@@ -943,7 +975,7 @@ export function FilesScreen({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col" ref={setLayout}>
       <div className="relative min-h-0 flex-1">
         {activeFile && viewerFile ? (
           // Where the file sits on the Mac is the row above, which every tab

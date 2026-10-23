@@ -26,8 +26,8 @@ import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 
-import { ChatMarkDot } from "./app-rail";
 import { INBOX_HREF } from "./app-tabs";
+import { ChatMarkIcon } from "./chat-mark";
 import { chatTabMark, type RailChatMark } from "./chats";
 import { useAppTabPresentation, useClosedAppTabs } from "./closed-app-tabs";
 import { ClosedTabsMenu } from "./closed-tabs-menu";
@@ -95,14 +95,7 @@ export function AppTabStrip({
     );
     return {
       ...tab,
-      icon: dot ? (
-        <span className="relative flex">
-          {tab.icon}
-          <ChatMarkDot className="size-2" mark={dot} />
-        </span>
-      ) : (
-        tab.icon
-      ),
+      icon: <ChatMarkIcon dot={dot} icon={tab.icon} />,
       isWorking,
       title: short.get(tab.key) ?? tab.title,
     };

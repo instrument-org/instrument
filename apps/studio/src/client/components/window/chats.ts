@@ -347,24 +347,34 @@ export function railMarkOf(
 }
 
 /**
- * What a window tab standing at `href` wears for its chat: its title
- * shimmers while the chat works, and the rail's dot sits on its icon for a
- * reply not yet seen or a question waiting, except on the tab up, which is
- * the chat on screen.
+ * What one chat wears where it stands outside the chat itself, in its window
+ * tab or its bar along the foot: its title shimmers while it works, and the
+ * rail's dot sits on its icon for a reply not yet seen or a question waiting,
+ * except where the chat is up, which is the chat on screen.
  */
-export function chatTabMark(
-  href: string,
-  chatMarks: ReadonlyMap<ChatId, RailChatMark>,
+export function chatMarkShown(
+  mark: RailChatMark | undefined,
   { isUp }: { isUp: boolean },
 ): { dot?: "unread" | "waiting"; isWorking: boolean } {
-  const screen = matchScreen(href);
-  const mark = screen.kind === "chat" ? chatMarks.get(screen.chat) : undefined;
   return {
     ...(!isUp && (mark === "unread" || mark === "waiting")
       ? { dot: mark }
       : {}),
     isWorking: mark === "working",
   };
+}
+
+/** What a window tab standing at `href` wears for its chat (`chatMarkShown`). */
+export function chatTabMark(
+  href: string,
+  chatMarks: ReadonlyMap<ChatId, RailChatMark>,
+  { isUp }: { isUp: boolean },
+): { dot?: "unread" | "waiting"; isWorking: boolean } {
+  const screen = matchScreen(href);
+  return chatMarkShown(
+    screen.kind === "chat" ? chatMarks.get(screen.chat) : undefined,
+    { isUp },
+  );
 }
 
 /** Chats by when the user last messaged them, newest first. */

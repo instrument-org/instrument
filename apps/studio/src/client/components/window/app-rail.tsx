@@ -1,6 +1,7 @@
 import { openSettings } from "@/client/atoms/settings-modal";
 import { type AppPlace } from "@/client/atoms/window";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import { type RailChatMark } from "@/client/components/window/chats";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import {
@@ -182,33 +183,6 @@ function RailEntry({
         {label}
       </span>
     </button>
-  );
-}
-
-/**
- * The dot on Chat's corner, ringed in the rail's ground so it reads clear of
- * the mark: amber and still while a chat waits on the user, pulsing green
- * while one works, and still green while one has something not yet seen.
- * A chat's window tab wears the same dot on its icon, smaller.
- */
-export function ChatMarkDot({
-  className,
-  mark,
-}: {
-  className?: string;
-  mark: RailChatMark;
-}) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "absolute -top-0.5 -right-1 size-2.5 rounded-full ring-2 ring-ground",
-        mark === "waiting" ? "bg-warning-500" : "bg-brand-500",
-        mark === "working" && "motion-safe:animate-pulse",
-        className,
-      )}
-      data-chat-mark={mark}
-    />
   );
 }
 

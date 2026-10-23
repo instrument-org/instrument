@@ -22,7 +22,14 @@ import { type PageChromeSlots } from "./browser-tabs";
 import { ChatHeader } from "./chat-header";
 import { ChatScreen } from "./chat-screen";
 import { ChatTiles } from "./chat-tiles";
-import { type Chat, draftTitle, type Topic } from "./chats";
+import { ChatMarkIcon } from "./chat-mark";
+import {
+  type Chat,
+  chatMarkShown,
+  draftTitle,
+  railMarkOf,
+  type Topic,
+} from "./chats";
 import {
   CHAT_WINDOW_WIDTH,
   COMPOSE_BAR_WIDTH,
@@ -63,7 +70,11 @@ export function ChatBar({
   /** Where the bar stands along the foot, in layout px from the right edge. */
   right: number;
 }) {
-  const isWorking = chat?.state === "working";
+  // Put down, the chat is off screen, so it wears what its tab behind would.
+  const { dot, isWorking } = chatMarkShown(
+    chat ? railMarkOf([chat]) : undefined,
+    { isUp: false },
+  );
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
@@ -79,7 +90,12 @@ export function ChatBar({
         onClick={onOpen}
         type="button"
       >
-        <ChatsCircleIcon className="size-3.5 shrink-0" />
+        <ChatMarkIcon
+          dot={dot}
+          icon={<ChatsCircleIcon className="size-3.5 shrink-0" />}
+          // The bar's own ground, dark in either theme.
+          ring="ring-gray-900 dark:ring-gray-800"
+        />
         {/* The title shimmers while the chat works, the way a tab's does. The
           bar is dark in either theme, so the shimmer takes the dark theme's
           brighter green, which the `dark` around it selects. */}

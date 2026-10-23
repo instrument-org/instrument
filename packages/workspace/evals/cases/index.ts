@@ -6,6 +6,7 @@ import { APP_SCRIPTING_EVALS } from "./app-scripting";
 import { APP_SIGN_IN_REFUSED_EVALS } from "./app-sign-in-refused";
 import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { PROCESS_CONTROL_EVALS } from "./process-control";
+import { BROWSER_DATA_EVALS } from "./browser-data";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { CHAT_HISTORY_EVALS } from "./chat-history";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
@@ -53,6 +54,7 @@ export const EVALS = [
   ...APP_SIGN_IN_REFUSED_EVALS,
   ...BACKGROUND_PROCESS_EVALS,
   ...PROCESS_CONTROL_EVALS,
+  ...BROWSER_DATA_EVALS,
   ...BROWSER_SELECTION_EVALS,
   ...CHAT_HISTORY_EVALS,
   ...CONTEXT_ROLLOVER_EVALS,

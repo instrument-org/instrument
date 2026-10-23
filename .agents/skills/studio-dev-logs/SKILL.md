@@ -67,6 +67,6 @@ tail -f apps/studio/.logs/current.jsonl | jq .
 
 ## Notes
 
-- Logs are only written when `NODE_ENV=development`. No log files are created in production builds.
+- These JSONL logs are only written when `NODE_ENV=development`. Packaged builds use rotating diagnostic logs under the app's userData directory.
 - The `.logs/` directory is gitignored.
-- Each boot keeps the 50 most recent earlier boot files and deletes the rest.
+- Each boot keeps up to 10 earlier boot files within a 128 MiB directory budget, reserving 8 MiB for its own file. Each boot stops writing at 8 MiB of UTF-8 output. Oversized entries are truncated, and output is dropped while pending writes reach 1 MiB.

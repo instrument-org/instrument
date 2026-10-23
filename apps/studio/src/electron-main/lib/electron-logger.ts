@@ -5,6 +5,7 @@ import log, {
   type Transport,
 } from "electron-log";
 import path from "node:path";
+import { inspect } from "node:util";
 
 import { breadcrumbLogTransport } from "./breadcrumbs";
 import {
@@ -14,6 +15,7 @@ import {
 } from "./dev-file-logger";
 import { guardLogger } from "./log-guards";
 import { redactLogger } from "./log-redaction";
+import { createRotatingLogWriter } from "./rotating-log-writer";
 
 const IS_DEV = process.env.NODE_ENV === "development";
 
@@ -67,10 +69,30 @@ log.transports.file.resolvePathFn = getMainLogFilePath;
 log.transports.file.level = IS_DEV ? false : "info";
 log.transports.file.maxSize = MAX_LOG_FILE_BYTES;
 
-// The file transport writes synchronously by default, which puts a blocking
-// syscall per line on the thread that owns the window. Queue writes instead:
-// the trade is that lines still queued when the process dies are lost.
-log.transports.file.sync = false;
+// Bound queued bytes and rotate before each asynchronous append. Lines still
+// queued when the process dies are lost.
+const fileWriter = createRotatingLogWriter(
+  getMainLogFilePath,
+  MAX_LOG_FILE_BYTES,
+);
+const fileTransport = log.transports.file;
+log.transports.file = Object.assign((message: Parameters<Transport>[0]) => {
+  const data: unknown[] = message.data;
+  const text = data
+    .map((part) =>
+      typeof part === "string"
+        ? part
+        : inspect(part, {
+            depth: 5,
+            maxArrayLength: 100,
+            maxStringLength: 64 * 1024,
+          }),
+    )
+    .join(" ");
+  fileWriter.write(
+    `[${message.date.toISOString()}] [${message.level}]${message.scope ? ` (${message.scope})` : ""} ${text}`,
+  );
+}, fileTransport);
 
 log.transports.console.level = getConsoleLevel();
 

@@ -558,9 +558,8 @@ function reportProcessError(
  * Put an uncaught throw's event somewhere it will still be there.
  *
  * Written synchronously rather than through the logger or the exception
- * store. `electron-log`'s file transport is in async mode here: it queues a
- * line and drains it through `fs.writeFile`, with no flush API and no drain
- * on exit, and the store waits a moment to write a burst at once, so
+ * store. The file logger queues asynchronous appends with no drain on exit,
+ * and the store waits a moment to write a burst at once, so
  * anything queued just before the process ends is never read. A main-process
  * throw leaves the app running, but it is the throw most likely to be
  * followed by a quit or a force-quit, and this record has to outlive either.

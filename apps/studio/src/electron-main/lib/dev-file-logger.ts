@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { boundedLogLine } from "./rotating-log-writer";
+
 // At runtime the compiled main bundle lives at out/main/*.js, so two levels
 // up from import.meta.dirname lands at apps/studio/ — where we want .logs/.
 const LOG_DIR = path.join(import.meta.dirname, "..", "..", ".logs");
@@ -11,11 +13,13 @@ const CURRENT_SYMLINK = path.join(LOG_DIR, "current.jsonl");
 // Earlier boots kept on disk beside the current one. Each boot is one file, and
 // a dev session relaunches on every main-process save, so an unpruned directory
 // grows by thousands.
-const KEPT_LOG_FILES = 50;
+const KEPT_LOG_FILES = 10;
 
 // One boot's file stops growing here, so a loop that gets past the logger's
 // repeat limits still cannot fill the disk.
-const MAX_LOG_FILE_BYTES = 256 * 1024 * 1024;
+const MAX_LOG_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_DIRECTORY_BYTES = 128 * 1024 * 1024;
+const MAX_PENDING_BYTES = 1024 * 1024;
 
 function getLogFilePath() {
   const stamp = new Date()
@@ -43,6 +47,7 @@ export function openDevLog() {
   pruneOldLogs();
 
   logFilePath = getLogFilePath();
+  bytesWritten = fs.existsSync(logFilePath) ? fs.statSync(logFilePath).size : 0;
   logStream = fs.createWriteStream(logFilePath, { flags: "a" });
   // A write stream with no `error` listener turns a failed write (a full
   // disk) into an uncaught exception, which is logged here again. The file
@@ -70,8 +75,20 @@ function pruneOldLogs() {
     .readdirSync(LOG_DIR)
     .filter((name) => /^\d{4}-.*\.jsonl$/.test(name))
     .toSorted();
-  for (const name of bootFiles.slice(0, -KEPT_LOG_FILES)) {
-    fs.rmSync(path.join(LOG_DIR, name), { force: true });
+  let retainedBytes = 0;
+  let retainedFiles = 0;
+  for (const name of bootFiles.toReversed()) {
+    const file = path.join(LOG_DIR, name);
+    const bytes = fs.statSync(file).size;
+    if (
+      retainedFiles >= KEPT_LOG_FILES ||
+      retainedBytes + bytes > MAX_DIRECTORY_BYTES - MAX_LOG_FILE_BYTES
+    ) {
+      fs.rmSync(file, { force: true });
+    } else {
+      retainedFiles++;
+      retainedBytes += bytes;
+    }
   }
 }
 
@@ -81,6 +98,9 @@ export function writeDevLogEntry(
   { scope, source }: { scope?: string; source?: string } = {},
 ) {
   if (!logStream) {
+    return;
+  }
+  if (logStream.writableLength >= MAX_PENDING_BYTES) {
     return;
   }
 
@@ -119,14 +139,22 @@ export function writeDevLogEntry(
       ...(scope ? { scope } : {}),
     });
   }
-  bytesWritten += line.length + 1;
-  if (bytesWritten > MAX_LOG_FILE_BYTES) {
-    logStream.end(
-      `${JSON.stringify({ level: "warn", msg: "[dev-log] This boot's log is full; nothing more is written to it.", time: entry.time })}\n`,
-    );
+  if (Buffer.byteLength(line) + 1 > 64 * 1024) {
+    line = JSON.stringify({
+      ...entry,
+      msg: boundedLogLine(line).slice(0, 4096) + " [log entry truncated]",
+    });
+  }
+  const bytes = Buffer.byteLength(line) + 1;
+  if (logStream.writableLength + bytes > MAX_PENDING_BYTES) {
+    return;
+  }
+  if (bytesWritten + bytes > MAX_LOG_FILE_BYTES) {
+    logStream.end();
     logStream = undefined;
     return;
   }
+  bytesWritten += bytes;
   logStream.write(line + "\n");
 }
 

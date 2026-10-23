@@ -37,20 +37,23 @@ function imageResult(index: number, bytes = 3): ModelMessage {
 describe("firstKept", () => {
   it.each([
     [0, 0],
-    [20, 0],
-    [21, 10],
-    [30, 10],
-    [31, 20],
-    [45, 30],
+    [90, 0],
+    [91, 41],
+    [131, 41],
+    [132, 82],
   ])("with %i small images keeps from %i", (count, expected) => {
     expect(firstKept(Array.from({ length: count }, () => SMALL))).toBe(
       expected,
     );
   });
 
-  it("keeps only the newest images that fit the byte budget", () => {
-    const fiveMegabytes = 5 * 1024 * 1024;
-    expect(firstKept(Array.from({ length: 6 }, () => fiveMegabytes))).toBe(2);
+  it("cuts to the byte target once the byte trigger passes, then holds", () => {
+    const megabyte = 1024 * 1024;
+    // 26 one-megabyte images pass 25 MB: the oldest leave until 15 remain.
+    expect(firstKept(Array.from({ length: 25 }, () => megabyte))).toBe(0);
+    expect(firstKept(Array.from({ length: 26 }, () => megabyte))).toBe(11);
+    // Ten more stay under the trigger, so the cut does not move.
+    expect(firstKept(Array.from({ length: 36 }, () => megabyte))).toBe(11);
   });
 });
 
@@ -61,17 +64,17 @@ describe("limitModelImages", () => {
   });
 
   it("puts a note where each of the oldest images was and keeps the newest", async () => {
-    const messages = Array.from({ length: 21 }, (_, index) =>
+    const messages = Array.from({ length: 91 }, (_, index) =>
       imageResult(index),
     );
     const limited = await limitModelImages(messages);
     const kinds = limited.map((message) =>
       JSON.stringify(message).includes("image/png") ? "image" : "note",
     );
-    expect(kinds.filter((kind) => kind === "note")).toHaveLength(10);
-    expect(kinds.slice(10).every((kind) => kind === "image")).toBe(true);
+    expect(kinds.filter((kind) => kind === "note")).toHaveLength(41);
+    expect(kinds.slice(41).every((kind) => kind === "image")).toBe(true);
     expect(JSON.stringify(limited[0])).toContain(
-      "An earlier image was left out",
+      "This image was left out",
     );
   });
 });

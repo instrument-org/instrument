@@ -3,36 +3,31 @@ import type { ModelMessage } from "ai";
 import { mapModelMessageParts } from "./model-message-parts";
 
 /**
- * Most images one request carries. Providers refuse a request past a count of
- * their own (Anthropic's is 100) or past a total size, and a refused request
- * is sent again unchanged on every later turn, so a chat that crossed the
- * line could never answer again. Screenshots come back with browser commands
- * on their own, so a long browsing session reaches a count no one chose.
+ * When the images in one request pass either trigger, the oldest leave until
+ * both targets hold. The triggers sit just under the hardest limits a
+ * provider refuses a request at (Anthropic: 100 images for a model with a
+ * 200k-token window, 32 MB for the whole request), since a refused request
+ * is sent again unchanged on every later turn and the chat could never answer
+ * again. Below them nothing is left out: images count toward the context
+ * like anything else and the window's rollover bounds them.
+ *
+ * The gap between trigger and target is what keeps the cached request prefix
+ * stable: a new image moves the cut only once the images since the last cut
+ * fill that gap again, rather than on every request.
  */
-const MAX_IMAGES = 20;
-
-/**
- * How many of the oldest images leave at once when the count passes
- * {@link MAX_IMAGES}. Each removal changes an earlier message and with it the
- * request prefix a provider caches, so the cut moves in steps of this size
- * rather than with every new image.
- */
-const DROP_STEP = 10;
-
-/**
- * Most image bytes one request carries, base64-encoded as they are sent.
- * Under Anthropic's 32 MB request ceiling with room for the text, since one
- * preview may be close to 4 MB.
- */
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const IMAGE_COUNT_TRIGGER = 90;
+const IMAGE_COUNT_TARGET = 50;
+/** Base64-encoded, as the images are sent. */
+const IMAGE_BYTES_TRIGGER = 25 * 1024 * 1024;
+const IMAGE_BYTES_TARGET = 15 * 1024 * 1024;
 
 const DROPPED_NOTE = `<system_note>
-An earlier image was left out of this request to keep it within what a model accepts at once; the newest images are kept. Read the file again if you need to see it.
+This image was left out of this request to keep it within what a model accepts at once, and is no longer visible to you. Do not describe it from memory; read the file again if you need it.
 </system_note>`;
 
 /**
- * Leave the oldest images out of a request once it carries more than a model
- * accepts at once, by count and by size, replacing each with a note.
+ * Leave the oldest images out of a request that would carry more than a
+ * provider accepts at once, replacing each with a note.
  *
  * Runs on the request rather than on the stored history, which keeps every
  * image; the newest are the ones kept, since they are what the work in front
@@ -72,20 +67,27 @@ export async function limitModelImages(
   });
 }
 
-/** The index of the oldest image the request keeps, given every image's encoded size in order. */
+/**
+ * The index of the oldest image the request keeps, given every image's
+ * encoded size in order: the images are replayed oldest first, and whenever
+ * those kept pass a trigger the oldest leave until both targets hold.
+ */
 export function firstKept(sizes: readonly number[]): number {
-  const count = sizes.length;
-  let keepFrom =
-    count <= MAX_IMAGES
-      ? 0
-      : Math.ceil((count - MAX_IMAGES) / DROP_STEP) * DROP_STEP;
-  let total = 0;
-  for (let index = count - 1; index >= keepFrom; index--) {
-    total += sizes[index] ?? 0;
-    if (total > MAX_IMAGE_BYTES) {
-      keepFrom = index + 1;
-      break;
+  let cut = 0;
+  let bytes = 0;
+  for (let index = 0; index < sizes.length; index++) {
+    bytes += sizes[index] ?? 0;
+    const count = index + 1 - cut;
+    if (count <= IMAGE_COUNT_TRIGGER && bytes <= IMAGE_BYTES_TRIGGER) {
+      continue;
+    }
+    while (
+      cut <= index &&
+      (index + 1 - cut > IMAGE_COUNT_TARGET || bytes > IMAGE_BYTES_TARGET)
+    ) {
+      bytes -= sizes[cut] ?? 0;
+      cut += 1;
     }
   }
-  return keepFrom;
+  return cut;
 }

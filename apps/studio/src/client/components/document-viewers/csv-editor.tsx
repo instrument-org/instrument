@@ -386,7 +386,7 @@ function LiveTable({
   // the editor over.
   const markUpdated = useMarkUpdated();
   const onUpdated = useEffectEvent(() => {
-    markUpdated();
+    markUpdated(modifiedAt);
   });
 
   useEffect(() => {
@@ -433,7 +433,9 @@ function LiveTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  usePullOnDiskChange(hostPath, session, { enabled: session !== null });
+  const modifiedAt = usePullOnDiskChange(hostPath, session, {
+    enabled: session !== null,
+  });
 
   const width = widthOf(doc);
   const header = doc.values[doc.headerRecord] ?? [];

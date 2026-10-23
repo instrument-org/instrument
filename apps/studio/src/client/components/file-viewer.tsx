@@ -897,7 +897,9 @@ export function FileViewer({
     const before = shownUrl.current;
     shownUrl.current = url;
     if (before !== url && /[?&]version=/.test(before) && !pullsWrites) {
-      markUpdated();
+      // The version is when the file was written, for a write said late.
+      const version = Number(/[?&]version=([^&]*)/.exec(url)?.[1]);
+      markUpdated(Number.isFinite(version) ? version : undefined);
     }
   }, [markUpdated, pullsWrites, url]);
   const fileActions = useFileActionVisibility(file);
@@ -989,7 +991,11 @@ export function FileViewer({
   const actions = (
     <>
       {noteInto === undefined && (
-        <UpdatedNote shown={updated.shown} turn={updated.turn} />
+        <UpdatedNote
+          ago={updated.ago}
+          shown={updated.shown}
+          turn={updated.turn}
+        />
       )}
       {actionsLead}
       {showsSource && (
@@ -1137,7 +1143,11 @@ export function FileViewer({
       )}
       {noteInto &&
         createPortal(
-          <UpdatedNote shown={updated.shown} turn={updated.turn} />,
+          <UpdatedNote
+            ago={updated.ago}
+            shown={updated.shown}
+            turn={updated.turn}
+          />,
           noteInto,
         )}
 

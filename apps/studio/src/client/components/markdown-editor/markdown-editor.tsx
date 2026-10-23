@@ -277,7 +277,7 @@ function LiveDocument({
   const gesturesRef = useRef(gesturesFor);
   gesturesRef.current = gesturesFor;
 
-  usePullOnDiskChange(hostPath, session);
+  const modifiedAt = usePullOnDiskChange(hostPath, session);
 
   /** Which way a change the agent made lies, when it is out of view. */
   const noteChange = (change: ExternalChange) => {
@@ -305,7 +305,7 @@ function LiveDocument({
   // the editor over.
   const markUpdated = useMarkUpdated();
   const onUpdated = useEffectEvent(() => {
-    markUpdated();
+    markUpdated(modifiedAt);
   });
 
   useEffect(() => {

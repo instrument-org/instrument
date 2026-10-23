@@ -122,7 +122,7 @@ function LiveCodeDocument({
   const wrapRef = useRef(wrapLines);
   wrapRef.current = wrapLines;
 
-  usePullOnDiskChange(hostPath, session);
+  const modifiedAt = usePullOnDiskChange(hostPath, session);
   // The editor's own keymap answers ⌘F with the caret in it; this is the same
   // panel for a press anywhere else in the viewer.
   useFindTarget({
@@ -142,7 +142,7 @@ function LiveCodeDocument({
   // the editor over.
   const markUpdated = useMarkUpdated();
   const onUpdated = useEffectEvent(() => {
-    markUpdated();
+    markUpdated(modifiedAt);
   });
 
   useEffect(() => {

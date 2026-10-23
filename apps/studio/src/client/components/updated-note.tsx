@@ -1,35 +1,97 @@
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { AnimatePresence, motion } from "motion/react";
-import { createContext, useContext, useEffect, useState } from "react";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { formatRelativeTime } from "@/client/lib/relative-time";
+import { whenWindowSeen } from "@/client/lib/window-seen";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 /** How long a view says what it shows was just updated. */
 const UPDATED_NOTE_MS = 3000;
+/** How old a write said late has to be before the note says how long ago. */
+const SAY_AGO_MS = 60_000;
+/** How soon after a tab comes back a write counts as taken in on the way back. */
+const RETURN_MS = 2000;
 
 /**
  * Whether a view of a file was updated a moment ago, and the way to say it
  * just was. Each update starts the moment over, so a file an agent is still
- * writing keeps saying so until it stops.
+ * writing keeps saying so until it stops. Updates while the person is
+ * elsewhere (another tab up, the window not seen) are said once, when they
+ * come back, with how long ago the last one was.
  */
 export function useUpdatedNote() {
-  const [updates, setUpdates] = useState<null | number>(null);
+  const isActiveTab = useIsActiveTab();
+  const tabLeftAt = useRef<null | number>(null);
+  const tabBackAt = useRef<null | number>(null);
   useEffect(() => {
-    if (updates === null) {
+    if (isActiveTab) {
+      tabBackAt.current = Date.now();
+    } else {
+      tabLeftAt.current = Date.now();
+    }
+  }, [isActiveTab]);
+  // The latest write not yet said: when the file says it was written, and
+  // when the view found out.
+  const [unsaid, setUnsaid] = useState<null | { at: number; markedAt: number }>(
+    null,
+  );
+  const [note, setNote] = useState<null | {
+    ago: null | string;
+    turn: number;
+  }>(null);
+  useEffect(() => {
+    if (unsaid === null || !isActiveTab) {
+      return;
+    }
+    return whenWindowSeen(() => {
+      const now = Date.now();
+      const left = tabLeftAt.current;
+      const back = tabBackAt.current;
+      // A tab behind another takes nothing in, so a write it found on the
+      // way back happened while it was away: the file's own time says when,
+      // kept within that time away, since a copied or unpacked file can carry
+      // a time from long before. Otherwise the view found out as it happened.
+      const onReturn =
+        left !== null &&
+        back !== null &&
+        back > left &&
+        unsaid.markedAt >= back &&
+        unsaid.markedAt - back < RETURN_MS;
+      const written = onReturn
+        ? Math.min(Math.max(unsaid.at, left), unsaid.markedAt)
+        : unsaid.markedAt;
+      setUnsaid(null);
+      setNote((last) => ({
+        ago:
+          now - written >= SAY_AGO_MS
+            ? formatRelativeTime(new Date(written), now)
+            : null,
+        turn: (last?.turn ?? 0) + 1,
+      }));
+    });
+  }, [isActiveTab, unsaid]);
+  useEffect(() => {
+    if (note === null) {
       return;
     }
     const timer = setTimeout(() => {
-      setUpdates(null);
+      setNote(null);
     }, UPDATED_NOTE_MS);
     return () => {
       clearTimeout(timer);
     };
-  }, [updates]);
+  }, [note]);
   return {
-    mark: () => {
-      setUpdates((count) => (count ?? 0) + 1);
+    /** How long ago the update said late was, past a minute. */
+    ago: note?.ago ?? null,
+    /** Takes when the file says it was written, which defaults to now. */
+    mark: (at?: number) => {
+      const now = Date.now();
+      setUnsaid({ at: at ?? now, markedAt: now });
     },
-    shown: updates !== null,
+    shown: note !== null,
     /** Which update the view is saying it had, so each one turns the arrow again. */
-    turn: updates ?? 0,
+    turn: note?.turn ?? 0,
   };
 }
 
@@ -38,13 +100,15 @@ export function useUpdatedNote() {
  * in itself rather than being handed a new version: a live editor merging an
  * agent's edit. Absent outside a viewer that says it, where it does nothing.
  */
-export const UpdatedNoteContext = createContext<(() => void) | null>(null);
+export const UpdatedNoteContext = createContext<((at?: number) => void) | null>(
+  null,
+);
 
 /** Tells the viewer around this one that its file was just updated, when there is one. */
 export function useMarkUpdated() {
   const mark = useContext(UpdatedNoteContext);
-  return () => {
-    mark?.();
+  return (at?: number) => {
+    mark?.(at);
   };
 }
 
@@ -53,7 +117,15 @@ export function useMarkUpdated() {
  * view took the new version in. The part that changed is often off screen, so
  * without it the view can look as though nothing happened.
  */
-export function UpdatedNote({ shown, turn }: { shown: boolean; turn: number }) {
+export function UpdatedNote({
+  ago,
+  shown,
+  turn,
+}: {
+  ago: null | string;
+  shown: boolean;
+  turn: number;
+}) {
   return (
     <AnimatePresence initial={false}>
       {shown && (
@@ -78,7 +150,7 @@ export function UpdatedNote({ shown, turn }: { shown: boolean; turn: number }) {
           >
             <ArrowClockwiseIcon className="size-3" weight="bold" />
           </motion.span>
-          Updated
+          {ago === null ? "Updated" : `Updated ${ago}`}
         </motion.span>
       )}
     </AnimatePresence>

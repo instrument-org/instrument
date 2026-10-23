@@ -863,7 +863,7 @@ function FilePageReload({
       const guest = getGuest(target);
       if (guest) {
         guest.reload();
-        markUpdated();
+        markUpdated(modifiedAt);
       }
     }
     shown.current = modifiedAt;
@@ -871,7 +871,11 @@ function FilePageReload({
 
   return fieldInto && isShown
     ? createPortal(
-        <UpdatedNote shown={updated.shown} turn={updated.turn} />,
+        <UpdatedNote
+          ago={updated.ago}
+          shown={updated.shown}
+          turn={updated.turn}
+        />,
         fieldInto,
       )
     : null;

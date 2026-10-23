@@ -3,9 +3,10 @@
  * queue its saves and reads run through, the save that follows the person
  * leaving, and the watch that pulls the agent's writes in.
  */
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { logger } from "@/client/lib/logger";
 import { rpcClient } from "@/client/rpc/client";
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 export type SaveStatus = "error" | "saved" | "saving" | "unsaved";
@@ -183,17 +184,25 @@ export function flushOnLeave(flush: () => Promise<void>, editor?: HTMLElement) {
 }
 
 /**
- * Watches the file on disk, four times a second while it is open, and pulls
- * each change into the editor's session once it has one.
+ * Watches the file on disk, four times a second while it is open in the tab
+ * up, and pulls each change into the editor's session once it has one. A tab
+ * behind another stops watching, and coming back to it takes in what changed
+ * meanwhile in one pull, in front of the person. Returns when the file was
+ * last written, as the watch last saw it.
  */
 export function usePullOnDiskChange(
   hostPath: string,
   session: null | { pull: () => void },
   { enabled = true }: { enabled?: boolean } = {},
 ) {
+  const isActiveTab = useIsActiveTab();
   const watched = useQuery({
     ...rpcClient.files.live.info.experimental_liveOptions({
-      input: { intervalMs: WATCH_INTERVAL_MS, path: hostPath },
+      // A key of its own rather than `enabled`, which would leave the watch
+      // running under an observer that only stopped reading it.
+      input: isActiveTab
+        ? { intervalMs: WATCH_INTERVAL_MS, path: hostPath }
+        : skipToken,
     }),
     enabled,
   });
@@ -203,4 +212,5 @@ export function usePullOnDiskChange(
       session?.pull();
     }
   }, [modifiedAt, session]);
+  return modifiedAt;
 }

@@ -24,6 +24,11 @@ export const PageAfterSchema = z.object({
   /** Lines of a full snapshot left out to keep the attachment bounded. */
   omittedLines: z.number().int().optional(),
   /**
+   * A delta whose changed region was too long to show, given instead as the
+   * controls that came, went or were renamed.
+   */
+  summarized: z.boolean().optional(),
+  /**
    * What the page itself says went wrong or went through, from the element it
    * marked as its message. A control renaming itself is all the snapshot
    * shows of a refused sign-in; this is the sentence beside it.
@@ -68,6 +73,15 @@ const NO_CONTROLS = "(no interactive elements)";
  * rest, rather than every later step carrying the whole of it.
  */
 const FULL_SNAPSHOT_CHAR_BUDGET = 10_000;
+
+/**
+ * Characters of a delta's changed region shown as the page's own lines. The
+ * CLI's delta is the span from the first changed line to the last, so a
+ * change near the top and another near the bottom carry the whole page
+ * between them: on real task history a click's delta averaged as long as a
+ * full snapshot. Past this the delta is told as the controls it changed.
+ */
+const DELTA_CHAR_BUDGET = 2000;
 
 /** How long the follow-up snapshot may take before the call returns without it. */
 const FOLLOW_UP_TIMEOUT_MS = 10_000;
@@ -270,7 +284,15 @@ export function savedScreenshotPath(stdout: string): string | undefined {
 }
 
 const DeltaSchema = z.object({
-  changes: z.array(z.object({ op: z.string(), ref: z.string() })),
+  changes: z.array(
+    z.object({
+      field: z.string().optional(),
+      node: z.object({ name: z.string(), role: z.string() }).optional(),
+      op: z.string(),
+      ref: z.string(),
+      value: z.unknown().optional(),
+    }),
+  ),
   kind: z.literal("delta"),
   treeChange: z.object({ lines: z.array(z.string()) }),
 });
@@ -307,27 +329,40 @@ export function parseFollowUpSnapshot(
       const removed = delta.changes
         .filter(({ op }) => op === "remove")
         .map(({ ref }) => ref);
+      const gone =
+        removed.length > 0
+          ? [`No longer on the page: ${removed.join(", ")}`]
+          : [];
+      if (delta.treeChange.lines.join("\n").length <= DELTA_CHAR_BUDGET) {
+        return {
+          after,
+          kind: "delta",
+          text: [...gone, ...delta.treeChange.lines].join("\n"),
+        };
+      }
+      const changed = delta.changes.flatMap(
+        ({ field, node, op, ref, value }) =>
+          op === "add" && node
+            ? [
+                `- ${node.role} ${JSON.stringify(node.name)} [ref=${ref.slice(1)}]`,
+              ]
+            : op === "replace" && typeof value === "string"
+              ? [`- ${ref} ${field ?? "name"} is now ${JSON.stringify(value)}`]
+              : [],
+      );
+      const kept = withinBudget(changed, DELTA_CHAR_BUDGET);
       return {
         after,
         kind: "delta",
-        text: [
-          ...(removed.length > 0
-            ? [`No longer on the page: ${removed.join(", ")}`]
-            : []),
-          ...delta.treeChange.lines,
-        ].join("\n"),
+        ...(changed.length > kept.length
+          ? { omittedLines: changed.length - kept.length }
+          : {}),
+        summarized: true,
+        text: [...gone, ...kept].join("\n"),
       };
     }
   }
-  const kept: string[] = [];
-  let used = 0;
-  for (const line of body) {
-    if (used + line.length + 1 > FULL_SNAPSHOT_CHAR_BUDGET) {
-      break;
-    }
-    kept.push(line);
-    used += line.length + 1;
-  }
+  const kept = withinBudget(body, FULL_SNAPSHOT_CHAR_BUDGET);
   const omittedLines = body.length - kept.length;
   return {
     after,
@@ -335,6 +370,20 @@ export function parseFollowUpSnapshot(
     ...(omittedLines > 0 ? { omittedLines } : {}),
     text: kept.join("\n"),
   };
+}
+
+/** The leading lines that fit in `budget` characters. */
+function withinBudget(lines: readonly string[], budget: number): string[] {
+  const kept: string[] = [];
+  let used = 0;
+  for (const line of lines) {
+    if (used + line.length + 1 > budget) {
+      break;
+    }
+    kept.push(line);
+    used += line.length + 1;
+  }
+  return kept;
 }
 
 function parseDelta(text: string) {
@@ -366,6 +415,17 @@ export function pageAfterText(page: PageAfter): string {
       ].join("\n");
     }
     case "delta": {
+      if (page.summarized) {
+        const omitted =
+          page.omittedLines === undefined
+            ? ""
+            : `\n${page.omittedLines} more changed controls are not shown.`;
+        return [
+          `${head}: much of the page changed since its last snapshot, so below are only the controls added, removed or renamed, and every other ref is as it was. Run \`agent-browser snapshot -i\` for the page as it is now, or add \`-s <selector>\` for one region.`,
+          ...said,
+          (page.text || "No control was added, removed or renamed.") + omitted,
+        ].join("\n");
+      }
       return [
         `${head}: only what changed since the page's last snapshot is below, and every other element and ref is as it was. If you no longer have that snapshot, run \`agent-browser snapshot -i\`.`,
         ...said,

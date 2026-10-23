@@ -163,6 +163,40 @@ describe("parseFollowUpSnapshot", () => {
     `);
   });
 
+  it("tells a delta with a long changed region as the controls it changed", () => {
+    const long = JSON.stringify({
+      baseRevision: 3,
+      changes: [
+        { node: { name: "Save", role: "button" }, op: "add", ref: "@e90" },
+        { field: "name", op: "replace", ref: "@e4", value: "Page 2" },
+        { op: "remove", ref: "@e7" },
+      ],
+      kind: "delta",
+      revision: 4,
+      treeChange: {
+        deleteCount: 300,
+        lines: Array.from(
+          { length: 300 },
+          (_, index) => `- link "Row ${index}" [ref=e${index + 100}]`,
+        ),
+        startLine: 1,
+      },
+    });
+    const parsed = parseFollowUpSnapshot(long, "click");
+    expect(parsed).toMatchObject({ kind: "delta", summarized: true });
+    expect(parsed?.text).toMatchInlineSnapshot(`
+      "No longer on the page: @e7
+      - button "Save" [ref=e90]
+      - @e4 name is now "Page 2""
+    `);
+    expect(parsed && pageAfterText(parsed)).toMatchInlineSnapshot(`
+      "Page after \`click\` (\`agent-browser snapshot -i --delta\`, run for you): much of the page changed since its last snapshot, so below are only the controls added, removed or renamed, and every other ref is as it was. Run \`agent-browser snapshot -i\` for the page as it is now, or add \`-s <selector>\` for one region.
+      No longer on the page: @e7
+      - button "Save" [ref=e90]
+      - @e4 name is now "Page 2""
+    `);
+  });
+
   it("cuts a long full snapshot and counts what it left out", () => {
     const lines = Array.from(
       { length: 500 },

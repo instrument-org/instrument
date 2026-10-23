@@ -17,8 +17,7 @@ const MAX_LINKS = 40;
  * path as far as it got joined to the rest.
  */
 export async function realPathByLinks(hostPath: string): Promise<string> {
-  let pending = path.resolve(hostPath).split(path.sep).filter(Boolean);
-  let current = path.parse(path.resolve(hostPath)).root;
+  let { parts: pending, root: current } = rootAndParts(path.resolve(hostPath));
   let links = 0;
   while (pending.length > 0) {
     const [part, ...rest] = pending;
@@ -37,11 +36,23 @@ export async function realPathByLinks(hostPath: string): Promise<string> {
       return path.join(candidate, ...rest);
     }
     const target = await fs.readlink(candidate);
-    const resolved = path.resolve(current, target);
-    current = path.parse(resolved).root;
-    pending = [...resolved.split(path.sep).filter(Boolean), ...rest];
+    const resolved = rootAndParts(path.resolve(current, target));
+    current = resolved.root;
+    pending = [...resolved.parts, ...rest];
   }
   return current;
+}
+
+/**
+ * An absolute path's root and the names below it. The root stays whole, so
+ * a Windows drive (`C:\`) is never also taken as the first name.
+ */
+function rootAndParts(resolved: string): { parts: string[]; root: string } {
+  const { root } = path.parse(resolved);
+  return {
+    parts: resolved.slice(root.length).split(path.sep).filter(Boolean),
+    root,
+  };
 }
 
 /** A skills folder skipped because macOS guards where it really is. */

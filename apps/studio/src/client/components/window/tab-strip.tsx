@@ -522,7 +522,7 @@ function Tab({
     isFixed
       ? cn("shrink-0", density !== "full" && "w-8")
       : cn(
-          "max-w-48 flex-1",
+          "max-w-60 flex-1",
           { compact: "min-w-15", full: "min-w-20", icon: "min-w-8" }[density],
         ),
     density === "full" ? "gap-2 px-2.5" : "justify-center px-1",

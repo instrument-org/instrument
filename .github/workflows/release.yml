@@ -358,8 +358,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
 
-      - name: Build Slack summary and release body
-        id: slack_summary
+      - name: Build release body
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -452,16 +451,7 @@ jobs:
           fi
           printf '%s\n' "$APP_COMMITS" > /tmp/app-commits.txt
           printf '%s\n' "$REGISTRY_COMMITS" > /tmp/skills-commits.txt
-          SLACK=$(
-            node apps/studio/scripts/release-summary.ts slack \
-              --notes /tmp/release-notes.md \
-              --commits /tmp/app-commits.txt \
-              --skills-commits /tmp/skills-commits.txt
-          )
           COUNT=$(printf '%s\n%s\n' "$APP_COMMITS" "$REGISTRY_COMMITS" | sed '/^$/d' | wc -l | tr -d ' ')
-          # Escape for JSON: backslash, double-quote, then newlines → \n
-          SLACK_JSON=$(printf '%s' "$SLACK" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | sed 's/\\n$//')
-          echo "slack_log_json=$SLACK_JSON" >> "$GITHUB_OUTPUT"
           if [ -n "$(tr -d '[:space:]' < /tmp/release-notes.md)" ]; then
             cp /tmp/release-notes.md /tmp/release-body.md
           else
@@ -542,67 +532,19 @@ jobs:
           name: "*"
           failOnError: false
 
-      - name: Notify Slack
-        if: contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')
-        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
-        with:
-          webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
-          errors: true
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Instrument ${{ contains(github.ref_name, '-alpha') && 'alpha' || 'beta' }} *${{ github.ref_name }}* is now available. <${{ steps.release.outputs.url }}|View release notes>"
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "${{ steps.slack_summary.outputs.slack_log_json }}"
-                  }
-                }
-              ]
-            }
-
-      # Two links, deliberately. The version links to the tag page, which 404s
-      # until the draft is published but is the permanent address afterwards.
-      # The nudge's draft link is an `untagged-` editing URL that only works
-      # until someone publishes, at which point the tag link takes over.
-      - name: Notify Slack with release notes nudge
-        if: ${{ !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-alpha') }}
-        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
-        with:
-          webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
-          errors: true
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Instrument *<https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}|${{ github.ref_name }}>* is now available."
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "${{ steps.slack_summary.outputs.slack_log_json }}"
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "${{ vars.SLACK_RELEASE_NOTES_MENTION || '<!channel>' }}: review and publish the draft GitHub release notes for this version. <${{ steps.release.outputs.url }}|Open the draft>"
-                  }
-                }
-              ]
-            }
+      # A stable release's card asks someone to publish its draft notes. Its
+      # link is the draft's `untagged-` editing URL, which only works until
+      # someone publishes, after which the tag page is the permanent address.
+      - name: Post to Slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_RELEASE_CHANNEL: ${{ vars.SLACK_RELEASE_CHANNEL }}
+          SLACK_RELEASE_WEBHOOK_URL: ${{ secrets.SLACK_RELEASE_WEBHOOK_URL }}
+        run: |
+          node apps/studio/scripts/release-summary.ts post \
+            --tag "$GITHUB_REF_NAME" \
+            --release-url "${{ steps.release.outputs.url }}" \
+            --mention "${{ vars.SLACK_RELEASE_NOTES_MENTION || '<!channel>' }}" \
+            --notes /tmp/release-notes.md \
+            --commits /tmp/app-commits.txt \
+            --skills-commits /tmp/skills-commits.txt

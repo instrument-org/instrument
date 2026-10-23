@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { mrkdwn, summarizeCommits, summarizeNotes } from "./release-summary";
+import {
+  buildPost,
+  mrkdwn,
+  summarizeCommits,
+  summarizeNotes,
+} from "./release-summary";
 
 const NOTES = `A release focused on a cleaner, more private built-in browser, more ways to connect AI providers, and app icons.
 
@@ -103,5 +108,111 @@ describe("mrkdwn", () => {
     },
   ])("converts $input", ({ expected, input }) => {
     expect(mrkdwn(input)).toBe(expected);
+  });
+});
+
+describe("buildPost", () => {
+  const release = {
+    commits:
+      "abc1234 studio: show typing dots right after you send\nabc1235 ci: cache the build",
+    mention: "<!channel>",
+    notes: NOTES,
+    releaseUrl: "https://github.com/o/r/releases/tag/v2.0.0-beta.101",
+    skillsCommits: "def5678 skills: teach the page skill to share",
+    tag: "v2.0.0-beta.101",
+  };
+
+  it("leads a beta card with the notes and puts every bullet in the thread", () => {
+    const { card, thread } = buildPost(release);
+    expect(card).toMatchInlineSnapshot(`
+      {
+        "attachments": [
+          {
+            "blocks": [
+              {
+                "text": {
+                  "text": ":desktop_computer: *Instrument beta v2.0.0-beta.101 is out*",
+                  "type": "mrkdwn",
+                },
+                "type": "section",
+              },
+              {
+                "text": {
+                  "text": "A release focused on a cleaner, more private built-in browser, more ways to connect AI providers, and app icons.
+      *Browser*: Ads and trackers are blocked by default; Searches go to DuckDuckGo _(+1 more)_
+      *Providers*: Sign in to several ChatGPT accounts
+      *Fixes and polish*: Tasks refuse instructions that point at places they cannot reach",
+                  "type": "mrkdwn",
+                },
+                "type": "section",
+              },
+              {
+                "elements": [
+                  {
+                    "text": "2 changes · 1 skill change · <https://github.com/o/r/releases/tag/v2.0.0-beta.101|Release notes>",
+                    "type": "mrkdwn",
+                  },
+                ],
+                "type": "context",
+              },
+            ],
+            "color": "#14B8A6",
+          },
+        ],
+        "text": "Instrument beta v2.0.0-beta.101 is out",
+        "unfurl_links": false,
+        "unfurl_media": false,
+      }
+    `);
+    expect(thread).toMatchInlineSnapshot(`
+      "*Browser*
+      • Ads and trackers are blocked by default. The filter lists are the ones popular ad blockers use; turn it off from "Block ads" in a page's menu.
+      • Searches go to DuckDuckGo. Address bar suggestions come from DuckDuckGo too.
+      • Agents can lift blocking for their own tabs. Your setting stays as you left it.
+
+      *Providers*
+      • Sign in to several ChatGPT accounts. Each is listed as its own provider.
+
+      *Fixes and polish*
+      • Tasks refuse instructions that point at places they cannot reach."
+    `);
+  });
+
+  it("asks for the draft to be published on a stable release", () => {
+    const { card } = buildPost({ ...release, notes: "", tag: "v2.1.0" });
+    expect(card.blocks).toMatchInlineSnapshot(`
+      [
+        {
+          "text": {
+            "text": "<!channel>: review and publish the draft GitHub release notes for this version.",
+            "type": "mrkdwn",
+          },
+          "type": "section",
+        },
+      ]
+    `);
+  });
+
+  it("marks a big release without notes", () => {
+    const commits = Array.from(
+      { length: 16 },
+      (_, i) => `${String(i).padStart(7, "0")} studio: change ${i}`,
+    ).join("\n");
+    const { card, thread } = buildPost({ ...release, commits, notes: "" });
+    expect(card.attachments[0]?.blocks[1]).toMatchInlineSnapshot(`
+      {
+        "text": {
+          "text": ":warning: *Big release:* 16 changes went out without release notes.",
+          "type": "mrkdwn",
+        },
+        "type": "section",
+      }
+    `);
+    expect(thread?.split("\n").slice(0, 2)).toMatchInlineSnapshot(`
+      [
+        "*App* (16)",
+        "• change 0",
+      ]
+    `);
   });
 });

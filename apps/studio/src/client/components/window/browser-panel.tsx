@@ -736,23 +736,11 @@ export function BrowserPanel({
               {/* In a row of the window's the app is the address field's own
                   button, and the menu names it too, with the others that
                   could open a page's file. */}
-              {typeof chrome === "object" && openInTarget ? (
+              {typeof chrome === "object" && openInTarget && (
                 <OpenInAppMenuItems
                   menuComponents={dropdownMenuComponents}
                   target={openInTarget}
                 />
-              ) : (
-                <DropdownMenuItem
-                  disabled={!pageUrl}
-                  onSelect={() => {
-                    if (pageUrl) {
-                      openExternalLink.mutate({ url: pageUrl });
-                    }
-                  }}
-                >
-                  <ArrowSquareOutIcon className="size-4" />
-                  Open in external browser
-                </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuSub>

@@ -1,4 +1,3 @@
-import { openExternal } from "@/electron-main/lib/open-external";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import {
   clipboard,
@@ -91,14 +90,6 @@ function contextMenuTemplate(
           label: "Open Link in New Tab",
         });
       }
-    }
-    if (isHttpUrl(url)) {
-      items.push({
-        click: () => {
-          void openExternal(url);
-        },
-        label: "Open Link in Default Browser",
-      });
     }
     items.push(
       {

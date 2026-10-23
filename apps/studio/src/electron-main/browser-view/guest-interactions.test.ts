@@ -204,7 +204,6 @@ describe("the guest context menu", () => {
         "---",
         "Open Link",
         "Open Link in New Tab",
-        "Open Link in Default Browser",
         "Copy Link",
         "---",
         "Open Image in New Tab",

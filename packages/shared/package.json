@@ -21,6 +21,7 @@
     "./exceptions": "./src/exceptions/index.ts",
     "./icons": "./src/icons.ts",
     "./merge-generators": "./src/merge-generators.ts",
+    "./secrets": "./src/secrets.ts",
     "./skill-mention": "./src/skill-mention.ts",
     "./strip-markdown": "./src/strip-markdown.ts"
   },

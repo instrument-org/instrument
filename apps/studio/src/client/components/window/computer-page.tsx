@@ -2635,6 +2635,7 @@ export function ComputerPage({
                   {...(beside === undefined
                     ? {}
                     : {
+                        besideResizing: beside.isResizing,
                         besideWidth: beside.width,
                       })}
                   {...(toolsInRow

@@ -354,6 +354,8 @@ export type FileSystemProps = {
    * for a sideways scroll to reach rather than dropping them.
    */
   besideWidth?: number;
+  /** Whether `besideWidth` is being dragged, when the folder follows it with no slide. */
+  besideResizing?: boolean;
   /**
    * Where the toolbar's controls go instead of a header of their own: `lead`
    * takes the views, sort and filter, and `tail` the host's primary action,
@@ -1775,6 +1777,7 @@ const VIEW_OPTIONS: Array<{
   { icon: LayoutThreeColumnGlyph, label: "Columns", value: "columns" },
 ];
 export function FileSystem({
+  besideResizing = false,
   besideWidth,
   className,
   columnWidth: columnWidthProp,
@@ -2931,6 +2934,7 @@ export function FileSystem({
   const treeExpansionRef = React.useRef(new Map<string, readonly string[]>());
   const viewProps: FileSystemViewProps = {
     attachedStagePaths,
+    besideResizing,
     besideWidth,
     columnWidth: columnWidthProp,
     currentPath,
@@ -3643,6 +3647,7 @@ function FileSystemSortMenu({
 type FileSystemViewProps = {
   /** Pooled paths currently attached to the DOM (reveal instantly). */
   attachedStagePaths: string[];
+  besideResizing: boolean;
   besideWidth: number | undefined;
   columnWidth?: number;
   currentPath: string;
@@ -4758,6 +4763,7 @@ function FileSystemListHeader({
  * them, and only those in view are drawn.
  */
 function FileSystemListView({
+  besideResizing,
   besideWidth,
   currentPath,
   draggable,
@@ -4965,19 +4971,23 @@ function FileSystemListView({
     observer.observe(root);
     return () => observer.disconnect();
   }, []);
-  // Beside a file the list never scrolls sideways: it keeps the name and
-  // the column it is sorted by (Date Modified for the name), cut short to
-  // fit, and more of the others as the folder is dragged wider. While the
-  // folder narrows or widens it keeps the layout of its full width, drawn at
-  // that width and cut off at the folder's edge, so the columns go under the
-  // file and come back out from under it, and the cut layout takes over
-  // once the folder stands at its width beside the file.
+  // Beside a file the list never scrolls sideways: of the columns turned on,
+  // it keeps the name and the one it is sorted by first (Date Modified for
+  // the name), cut short to fit, and more of the others as the folder is
+  // dragged wider. While the folder slides in or out it keeps the layout of
+  // its full width, drawn at that width and cut off at the folder's edge, so
+  // the columns go under the file and come back out from under it, and the
+  // cut layout takes over once the folder stands at its width beside the
+  // file. A drag of that width is never a slide, even on a frame where the
+  // measured width trails it.
   const [wideWidth, setWideWidth] = React.useState<null | number>(null);
   if (besideWidth === undefined && width !== null && width !== wideWidth) {
     setWideWidth(width);
   }
   const isBesideNarrow =
-    besideWidth !== undefined && width !== null && width <= besideWidth + 2;
+    besideWidth !== undefined &&
+    width !== null &&
+    (besideResizing || width <= besideWidth + 2);
   const heldWidth =
     besideWidth !== undefined &&
     !isBesideNarrow &&
@@ -4997,21 +5007,20 @@ function FileSystemListView({
     if (layoutWidth === null) return shown;
     const keptKey =
       sort.key === "name" || sort.key === "openedAt" ? "updatedAt" : sort.key;
-    const kept = LIST_COLUMNS.find((column) => column.key === keptKey);
-    const ordered =
-      isBesideNarrow && kept
-        ? [
-            { ...kept, width: listColumnWidths[kept.key] ?? kept.width },
-            ...shown.filter((column) => column.key !== kept.key),
-          ]
-        : shown;
+    const kept = isBesideNarrow
+      ? shown.find((column) => column.key === keptKey)
+      : undefined;
+    const ordered = kept
+      ? [kept, ...shown.filter((column) => column !== kept)]
+      : shown;
     let room = layoutWidth - LIST_EDGE_PADDING - LIST_NAME_MIN_WIDTH;
     const fitted = ordered.filter((column) => {
       room -= column.width;
       return room >= 0;
     });
-    return isBesideNarrow && kept && fitted.length === 0
-      ? [{ ...kept, compact: true, width: kept.shortWidth }]
+    const first = ordered[0];
+    return isBesideNarrow && first && fitted.length === 0
+      ? [{ ...first, compact: true, width: first.shortWidth }]
       : fitted;
   })();
   const { end, start } = useVirtualWindow({

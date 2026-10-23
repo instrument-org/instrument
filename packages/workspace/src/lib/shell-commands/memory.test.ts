@@ -110,6 +110,21 @@ describe("memory", () => {
     );
   });
 
+  it("refuses a memory with a key in it, and keeps nothing", async () => {
+    const key = `sk-ant-api03-${"aB3dE5gH7j".repeat(9)}aBAA`;
+    const refused = await run(
+      ["save", "anthropic-key"],
+      `Anthropic key for the newsletter script: ${key}`,
+    );
+
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toMatchInlineSnapshot(`
+      "instrument memory: save: not saved, it has a secret in it (Anthropic key). A memory never keeps a key or password: save the fact without it. A service's key belongs to its app (\`instrument app new\`).
+      "
+    `);
+    expect(await listMemories(memoryDir())).toEqual([]);
+  });
+
   it("replaces under the same name, and says so", async () => {
     await run(["save", "sweetener"], "No stevia.");
 

@@ -1,3 +1,4 @@
+import { findSecrets } from "@instrument-org/shared/secrets";
 import { type ByteString, defineCommand } from "just-bash";
 
 import {
@@ -12,6 +13,7 @@ import {
 } from "../memory/store";
 import { learnedIn } from "../memory/learned-in";
 import { recordSetupTouch } from "../setup-changes";
+import { APP_COMMAND } from "./app-command";
 import { MEMORY_COMMAND } from "./memory-command";
 import { defineSubcommands, subcommand } from "./subcommands";
 import { subprocessStdin } from "./utils";
@@ -141,6 +143,12 @@ async function runSave(
   if (!text) {
     throw new Error(
       `save: the memory is required, on stdin through a quoted heredoc.\n\n${USAGE}`,
+    );
+  }
+  const secrets = [...new Set(findSecrets(text).map(({ label }) => label))];
+  if (secrets.length > 0) {
+    throw new Error(
+      `save: not saved, it has a secret in it (${secrets.join(", ")}). A memory never keeps a key or password: save the fact without it. A service's key belongs to its app (\`${APP_COMMAND.name} new\`).`,
     );
   }
   const { memory, replaced } = await saveMemory(memoryDir(), {

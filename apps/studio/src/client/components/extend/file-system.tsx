@@ -4694,7 +4694,7 @@ function FileSystemListHeader({
       <ContextMenuTrigger asChild>
         <div className="flex h-7 shrink-0 items-stretch border-b px-3 text-xs font-medium text-muted-foreground select-none">
           <FileSystemListColumnHeader
-            className="flex-1 pl-5.5"
+            className="flex-1 pl-4"
             label={nameLabel}
             onClick={onSortColumnClick}
             sort={sort}
@@ -5217,7 +5217,7 @@ function FileSystemListView({
                     return (
                       <div
                         aria-hidden
-                        className="flex h-6 shrink-0 items-end bg-background pr-3 pb-0.5 pl-14 text-xs font-semibold text-muted-foreground"
+                        className="flex h-6 shrink-0 items-end bg-background pr-3 pb-0.5 pl-12.5 text-xs font-semibold text-muted-foreground"
                         key={`heading:${row.heading}:${row.group}`}
                       >
                         {row.heading === "name" ? (
@@ -5231,9 +5231,9 @@ function FileSystemListView({
                       <div
                         className="mx-1.5 flex h-6 shrink-0 items-center px-1.5 text-xs text-muted-foreground"
                         key={`note:${row.notePath}`}
-                        style={{ paddingLeft: depth * LIST_INDENT + 6 }}
+                        style={{ paddingLeft: depth * LIST_INDENT + 4 }}
                       >
-                        <span className="ml-5.5 truncate">{row.note}</span>
+                        <span className="ml-4.5 truncate">{row.note}</span>
                       </div>
                     );
                   }
@@ -5243,9 +5243,9 @@ function FileSystemListView({
                         aria-hidden
                         className="mx-1.5 flex h-6 shrink-0 items-center px-1.5"
                         key={`loading:${"loadingPath" in row ? row.loadingPath : ""}`}
-                        style={{ paddingLeft: depth * LIST_INDENT + 6 }}
+                        style={{ paddingLeft: depth * LIST_INDENT + 4 }}
                       >
-                        <span className="ml-5.5 h-2.5 w-32 animate-pulse rounded-full bg-foreground/10 motion-reduce:animate-none" />
+                        <span className="ml-4.5 h-2.5 w-32 animate-pulse rounded-full bg-foreground/10 motion-reduce:animate-none" />
                       </div>
                     );
                   }
@@ -5261,7 +5261,7 @@ function FileSystemListView({
                       }
                       aria-selected={isSelected}
                       className={cn(
-                        "mx-1.5 flex h-6 shrink-0 items-center rounded-md px-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                        "mx-1.5 flex h-6 shrink-0 items-center rounded-md pr-1.5 pl-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                         isSelected && SELECTED_ROW_CLASSNAME,
                         entry.path === menuTargetPath && MENU_TARGET_CLASSNAME,
                       )}
@@ -5331,7 +5331,7 @@ function FileSystemListView({
                       >
                         <span
                           aria-hidden
-                          className="flex h-6 w-4 shrink-0 items-center justify-center"
+                          className="flex h-6 w-3.5 shrink-0 items-center justify-center"
                           // The chevron opens and closes the folder and does
                           // nothing else: the press never reaches the row, so
                           // the selection stays where it was.
@@ -5364,7 +5364,7 @@ function FileSystemListView({
                           ) : null}
                         </span>
                         <span
-                          className="ml-1.5 flex size-4 shrink-0 items-center justify-center"
+                          className="ml-1 flex size-4 shrink-0 items-center justify-center"
                           data-file-system-glyph=""
                         >
                           <FileSystemRowGlyph entry={entry} />

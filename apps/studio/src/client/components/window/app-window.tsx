@@ -304,6 +304,12 @@ function WindowShell({
   const chatTitles = new Map<ChatId, string>(
     chats.data?.map((chat) => [chat.id, chat.title]) ?? [],
   );
+  const chatMarks = new Map(
+    chats.data?.flatMap((chat) => {
+      const mark = railMarkOf([chat]);
+      return mark ? [[chat.id, mark] as const] : [];
+    }) ?? [],
+  );
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
   const drafts = useAtomValue(draftsAtom);
@@ -851,6 +857,7 @@ function WindowShell({
                 leading={<NavControls steps={windowSteps} />}
                 tabs={
                   <AppTabStrip
+                    chatMarks={chatMarks}
                     chatTitles={chatTitles}
                     childTitles={childTitles}
                     onClose={appTabs.close}

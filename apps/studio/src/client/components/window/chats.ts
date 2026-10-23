@@ -1,4 +1,5 @@
 import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { type RPCOutput } from "@/client/rpc/client";
 import { placeholderTitle } from "@instrument-org/shared";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
@@ -6,6 +7,7 @@ import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { format, isSameYear } from "date-fns";
 
 import { nameOf } from "./host-path";
+import { matchScreen } from "./window-href";
 
 /** A chat as the chat lists it: the first message, the title, and where it stands. */
 export type Chat = NonNullable<RPCOutput["workspace"]["chats"]["byId"]>;
@@ -342,6 +344,27 @@ export function railMarkOf(
     return "working";
   }
   return inbox.some((chat) => chat.unread) ? "unread" : undefined;
+}
+
+/**
+ * What a window tab standing at `href` wears for its chat: its title
+ * shimmers while the chat works, and the rail's dot sits on its icon for a
+ * reply not yet seen or a question waiting, except on the tab up, which is
+ * the chat on screen.
+ */
+export function chatTabMark(
+  href: string,
+  chatMarks: ReadonlyMap<ChatId, RailChatMark>,
+  { isUp }: { isUp: boolean },
+): { dot?: "unread" | "waiting"; isWorking: boolean } {
+  const screen = matchScreen(href);
+  const mark = screen.kind === "chat" ? chatMarks.get(screen.chat) : undefined;
+  return {
+    ...(!isUp && (mark === "unread" || mark === "waiting")
+      ? { dot: mark }
+      : {}),
+    isWorking: mark === "working",
+  };
 }
 
 /** Chats by when the user last messaged them, newest first. */

@@ -1,3 +1,4 @@
+import { type ChatId, ChatIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,6 +7,7 @@ import {
   byActivity,
   byLastUserMessage,
   type ChatFilters,
+  chatTabMark,
   choose,
   draftTitle,
   type Filterable,
@@ -14,11 +16,13 @@ import {
   matchesFilters,
   NO_FILTERS,
   outsideFilters,
+  type RailChatMark,
   railMarkOf,
   topicSearch,
   widenToSearch,
   wordRanges,
 } from "./chats";
+import { chatHref } from "./window-href";
 
 function chat({
   holds,
@@ -567,5 +571,50 @@ describe("the rail's Chat dot", () => {
     ],
   ])("%s: %j", (_label, chats, mark) => {
     expect(railMarkOf(chats)).toBe(mark);
+  });
+});
+
+describe("chatTabMark", () => {
+  const ONE = ChatIdSchema.parse("2026-10-23-pricing-ab12");
+  const OTHER = ChatIdSchema.parse("2026-10-23-quotes-cd34");
+  const marks = new Map<ChatId, RailChatMark>([
+    [ONE, "unread"],
+    [OTHER, "waiting"],
+  ]);
+
+  it.each<
+    [
+      string,
+      string,
+      Map<ChatId, RailChatMark>,
+      boolean,
+      ReturnType<typeof chatTabMark>,
+    ]
+  >([
+    [
+      "an unread chat behind",
+      chatHref(ONE),
+      marks,
+      false,
+      { dot: "unread", isWorking: false },
+    ],
+    ["the same chat up", chatHref(ONE), marks, true, { isWorking: false }],
+    [
+      "a chat waiting behind",
+      chatHref(OTHER),
+      marks,
+      false,
+      { dot: "waiting", isWorking: false },
+    ],
+    [
+      "a working chat up",
+      chatHref(ONE),
+      new Map([[ONE, "working"]]),
+      true,
+      { isWorking: true },
+    ],
+    ["the inbox", "/chats", marks, false, { isWorking: false }],
+  ])("%s", (_label, href, chatMarks, isUp, expected) => {
+    expect(chatTabMark(href, chatMarks, { isUp })).toEqual(expected);
   });
 });

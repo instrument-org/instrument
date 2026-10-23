@@ -26,7 +26,9 @@ import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 
+import { ChatMarkDot } from "./app-rail";
 import { INBOX_HREF } from "./app-tabs";
+import { chatTabMark, type RailChatMark } from "./chats";
 import { useAppTabPresentation, useClosedAppTabs } from "./closed-app-tabs";
 import { ClosedTabsMenu } from "./closed-tabs-menu";
 import { siteTabTitles } from "./site-tab-titles";
@@ -39,6 +41,7 @@ import { TabStrip } from "./tab-strip";
  * right click, and the plus at the end opens a new tab.
  */
 export function AppTabStrip({
+  chatMarks,
   chatTitles,
   childTitles,
   onClose,
@@ -52,6 +55,8 @@ export function AppTabStrip({
   selectedId,
   tabs,
 }: {
+  /** Each chat's mark, as the rail would wear it for that chat alone. */
+  chatMarks: Map<ChatId, RailChatMark>;
   chatTitles: Map<ChatId, string>;
   childTitles: Map<StoreId.Session, string>;
   onClose: (id: TabId) => void;
@@ -82,10 +87,26 @@ export function AppTabStrip({
   // Tabs of one site say only what tells them apart, the site's part of
   // their titles left to the favicon beside each.
   const short = siteTabTitles(whole);
-  const presented = whole.map(({ url: _url, ...tab }) => ({
-    ...tab,
-    title: short.get(tab.key) ?? tab.title,
-  }));
+  const presented = whole.map(({ url: _url, ...tab }, index) => {
+    const { dot, isWorking } = chatTabMark(
+      tabs[index]?.pathname || INBOX_HREF,
+      chatMarks,
+      { isUp: tab.key === selectedId },
+    );
+    return {
+      ...tab,
+      icon: dot ? (
+        <span className="relative flex">
+          {tab.icon}
+          <ChatMarkDot className="size-2" mark={dot} />
+        </span>
+      ) : (
+        tab.icon
+      ),
+      isWorking,
+      title: short.get(tab.key) ?? tab.title,
+    };
+  });
   // The window is called what its tab up is, alone, as a document window is:
   // the OS already names the app beside it in the Dock, the switcher and
   // Mission Control. Whole, since the window's title stands alone.

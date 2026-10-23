@@ -30,6 +30,14 @@ vi.mock("@instrument-org/workspace/electron", () => ({
   },
   chatSessions: () => Promise.resolve([]),
   chatStartedWithApp: () => Promise.resolve(undefined),
+  listMemories: () => Promise.resolve([]),
+  memoryDir: () => "/no-memory",
+}));
+
+vi.mock("@/electron-main/lib/get-signed-in-user", () => ({
+  knownSignedInPeople: () => [
+    { email: "sam.rivera@example.com", name: "Sam Rivera" },
+  ],
 }));
 
 vi.mock("electron", () => ({
@@ -240,6 +248,23 @@ describe("problem reports", () => {
 
     expect(details).toContain("ENOENT: open '~/Documents/notes.md'");
     expect(details).not.toContain(os.homedir());
+  });
+
+  it("takes the person and any secret out of the details and the events", () => {
+    const token = `ghp_${"aB3dE5gH7j".repeat(3)}aB3dE5`;
+    const event = crashEvent(
+      THROW,
+      `Sync for Sam Rivera <sam.rivera@example.com> failed with ${token}`,
+    );
+    const { details, events } = reports.describeProblem({
+      lead: event,
+      surface: "route-error",
+    });
+
+    const expected =
+      "Sync for [name] <[email]> failed with [secret: GitHub token]";
+    expect(details).toContain(expected);
+    expect(events[0]?.exceptions.at(-1)?.value).toBe(expected);
   });
 });
 

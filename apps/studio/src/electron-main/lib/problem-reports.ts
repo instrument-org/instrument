@@ -1,5 +1,6 @@
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
+import { knownSignedInPeople } from "@/electron-main/lib/get-signed-in-user";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getProblemsStore } from "@/electron-main/stores/machine/problems";
 import {
@@ -17,6 +18,7 @@ import { osConventionsFor } from "@/shared/os-conventions";
 import { app } from "electron";
 import {
   type ExceptionEvent,
+  ExceptionEventSchema,
   formatExceptionEvent,
 } from "@instrument-org/shared/exceptions";
 import {
@@ -24,6 +26,8 @@ import {
   type ChatId,
   chatSessions,
   chatStartedWithApp,
+  listMemories,
+  memoryDir,
 } from "@instrument-org/workspace/electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -33,6 +37,10 @@ import { z } from "zod";
 
 import { createScopedLogger, getMainLogFilePath } from "./electron-logger";
 import { listExceptionEvents } from "./exception-store";
+import {
+  createReportRedactor,
+  type ReportKnownValues,
+} from "./report-redaction";
 
 const log = createScopedLogger("ProblemReports");
 
@@ -173,7 +181,8 @@ export async function sendPendingAutomatically() {
  * whole. `lead` is the exception the report is about, first; the others are
  * the recorded problems seen most recently. The oldest are left out until
  * the details fit their cap and the whole report fits the service's. The
- * home folder reads `~`. Which account sent it is the reports service's to
+ * home folder reads `~`, and the person's name, email and login and any
+ * secret are taken out of the details and the events. Which account sent it is the reports service's to
  * know, from the token the request carries.
  */
 export function describeProblem({
@@ -203,8 +212,9 @@ export function describeProblem({
   const tail = readLogLines(LOG_TAIL_BYTES).slice(-LOG_TAIL_LINES);
   const logLines =
     tail.length > 0 ? ["Last log lines:", ...tail].join("\n") : undefined;
+  const redactor = reportRedactor();
   const compose = (events: readonly ExceptionEvent[]) =>
-    scrubHome(
+    redactor.text(
       [
         head,
         ...events.map((event, index) =>
@@ -232,7 +242,41 @@ export function describeProblem({
     events.pop();
     details = compose(events);
   }
-  return { details: details.slice(0, MAX_REPORT_DETAILS), events };
+  return {
+    details: details.slice(0, MAX_REPORT_DETAILS),
+    events: events.map((event) => redactEvent(redactor, event)),
+  };
+}
+
+type ReportRedactor = ReturnType<typeof createReportRedactor>;
+
+/**
+ * What a report takes out, from what this computer knows without waiting:
+ * the accounts signed in, the home folder and the login, and whatever the
+ * caller adds.
+ */
+function reportRedactor(
+  extra: Pick<ReportKnownValues, "chatId" | "memories"> = {},
+): ReportRedactor {
+  let login: string | undefined;
+  try {
+    login = os.userInfo().username;
+  } catch {
+    // No user record for this process's uid, as in some containers.
+  }
+  return createReportRedactor({
+    ...extra,
+    home: os.homedir(),
+    login,
+    people: knownSignedInPeople(),
+  });
+}
+
+function redactEvent(
+  redactor: ReportRedactor,
+  event: ExceptionEvent,
+): ExceptionEvent {
+  return ExceptionEventSchema.parse(redactor.deep(event));
 }
 
 // Room left in the service's cap for the note, the title, and the rest.
@@ -262,11 +306,6 @@ function readLogLines(bytes: number): string[] {
     // No log in development, or none written yet.
     return [];
   }
-}
-
-function scrubHome(text: string) {
-  const home = os.homedir();
-  return home ? text.split(home).join("~") : text;
 }
 
 export function fingerprintOf(signature: string, kind: string) {
@@ -413,12 +452,20 @@ function jsonBytes(value: unknown) {
 
 /**
  * What feedback can carry, for the dialog to offer: the chat it is about,
- * when there is one, read from its record folder, and the diagnostics.
+ * when there is one, read from its record folder, and the diagnostics. Each
+ * is redacted here, before the dialog sees it, so what Show details shows is
+ * what is sent.
  */
 export async function describeFeedback(
   chatId: ChatId | undefined,
 ): Promise<FeedbackDescription> {
-  const chat = chatId ? await describeChatFeedback(chatId) : undefined;
+  const redactor = reportRedactor({
+    chatId,
+    memories: await listMemories(memoryDir()),
+  });
+  const chat = chatId
+    ? await describeChatFeedback(chatId, redactor)
+    : undefined;
   return {
     chat: chat && {
       items: chat.items,
@@ -427,12 +474,13 @@ export async function describeFeedback(
     diagnostics: {
       items: diagnosticsItems(
         chatId && { id: chatId, startedWith: chat?.startedWith },
+        redactor,
       ),
     },
   };
 }
 
-async function describeChatFeedback(chatId: ChatId) {
+async function describeChatFeedback(chatId: ChatId, redactor: ReportRedactor) {
   const dir = chatDir(chatId);
   const entries = await fs.promises.readdir(dir, { withFileTypes: true });
   const files = await Promise.all(
@@ -444,18 +492,22 @@ async function describeChatFeedback(chatId: ChatId) {
       })),
   );
   return {
-    items: chatFeedbackItems({ files, sessions: await chatSessions(chatId) }),
+    items: chatFeedbackItems({
+      files: redactor.chatFiles(files),
+      sessions: await chatSessions(chatId),
+    }),
     startedWith: await chatStartedWithApp(chatId),
   };
 }
 
 /**
  * The diagnostics feedback offers: what app and computer it came from, the
- * errors recorded lately, and the end of the app's log with the home folder
- * read as `~`. An item with nothing in it is left out.
+ * errors recorded lately, and the end of the app's log, redacted as the chat
+ * is. An item with nothing in it is left out.
  */
 function diagnosticsItems(
   chat: undefined | { id: ChatId; startedWith: string | undefined },
+  redactor: ReportRedactor,
 ): FeedbackItem[] {
   const about = {
     app: { packaged: app.isPackaged, version: app.getVersion() },
@@ -478,7 +530,7 @@ function diagnosticsItems(
   const events = listExceptionEvents()
     .toSorted((a, b) => b.lastAt - a.lastAt)
     .slice(0, MAX_REPORT_EVENTS)
-    .map(withProblemBreadcrumbs);
+    .map((event) => redactEvent(redactor, withProblemBreadcrumbs(event)));
   const logLines = readLogLines(FEEDBACK_LOG_BYTES);
   return [
     feedbackItem({
@@ -508,7 +560,7 @@ function diagnosticsItems(
           feedbackItem({
             files: [
               {
-                content: scrubHome(`${logLines.join("\n")}\n`),
+                content: redactor.text(`${logLines.join("\n")}\n`),
                 path: FEEDBACK_LOG_PATH,
               },
             ],

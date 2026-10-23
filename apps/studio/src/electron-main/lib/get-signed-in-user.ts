@@ -30,3 +30,19 @@ export async function getSignedInUser(): Promise<
     return chatGPTAccountUser();
   }
 }
+
+/**
+ * Every account signed in that is known without a request, for a report to
+ * take out of what it sends: the Instrument account as last fetched, and the
+ * ChatGPT account signed in for a plan.
+ */
+export function knownSignedInPeople(): { email: string; name?: string }[] {
+  const me = platformApiQueryClient.getQueryData(
+    platformApiRpcClient.users.getMe.queryKey(),
+  );
+  const chatGPT = chatGPTAccountUser();
+  return [
+    ...(me ? [{ email: me.email, name: me.name }] : []),
+    ...(chatGPT ? [chatGPT] : []),
+  ];
+}

@@ -126,6 +126,7 @@ export { convertChatSettingsFiles } from "./lib/records/convert/convert-chat-set
 export { giveChatsTheirFolders } from "./lib/chat-folders/first-folders";
 export { type DraftsSettled, settleDrafts } from "./lib/drafts/boot";
 export { type MemoriesMoved, moveMemoriesToFolder } from "./lib/memory/move";
+export { listMemories, memoryDir } from "./lib/memory/store";
 export {
   type AppFilesConverted,
   convertAppsToAppFiles,

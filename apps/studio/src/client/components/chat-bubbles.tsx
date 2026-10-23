@@ -238,8 +238,8 @@ function bubbleBoxes(
     isDeveloperMode: boolean;
   },
 ): { boxes: BubbleBox[]; followed: string[] } {
-  const regular = messages.filter(
-    (message) => message.role !== "session-context",
+  const regular = inLandingOrder(
+    messages.filter((message) => message.role !== "session-context"),
   );
   const separators = chatSeparators(regular);
   const boxes: BubbleBox[] = [];
@@ -400,6 +400,42 @@ function bubbleBoxes(
   }
   endRun();
   return { boxes, followed };
+}
+
+/**
+ * The messages in the order they reached the reader. A reply's words are held
+ * back until it finishes, so a message sent while it was being written reached
+ * the reader first and sits above it, the way crossed messages read in any
+ * text chat.
+ */
+function inLandingOrder(
+  messages: SessionMessage.WithParts[],
+): SessionMessage.WithParts[] {
+  const ordered: SessionMessage.WithParts[] = [];
+  for (const message of messages) {
+    let at = ordered.length;
+    if (message.role !== "assistant") {
+      const sentAt = message.metadata.createdAt.getTime();
+      while (at > 0 && isWrittenAt(ordered[at - 1], sentAt)) {
+        at--;
+      }
+    }
+    ordered.splice(at, 0, message);
+  }
+  return ordered;
+}
+
+/** Whether a reply was still being written at `time`. */
+function isWrittenAt(
+  message: SessionMessage.WithParts | undefined,
+  time: number,
+): boolean {
+  if (message?.role !== "assistant") {
+    return false;
+  }
+  const finishedAt =
+    message.metadata.finishedAt?.getTime() ?? Number.POSITIVE_INFINITY;
+  return message.metadata.createdAt.getTime() < time && time < finishedAt;
 }
 
 function userRows(

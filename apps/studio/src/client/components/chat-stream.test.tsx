@@ -1384,6 +1384,41 @@ describe("ChatBubbles and a task's news the reply tells", () => {
   });
 });
 
+describe("ChatBubbles and a message sent while a reply is written", () => {
+  it.each<[string, number, string[]]>([
+    [
+      "draws the reply under it, where it landed",
+      2,
+      ["Find me some sets", "Also check the charts", "Here are three sets."],
+    ],
+    [
+      "keeps a message sent after the reply landed under it",
+      4,
+      ["Find me some sets", "Here are three sets.", "Also check the charts"],
+    ],
+  ])("%s", (_, sentAt, order) => {
+    const { container } = renderMessages(
+      [
+        userMessage("Find me some sets"),
+        assistantMessage([prose("Here are three sets.")], {
+          createdAt: new Date(1),
+          finishedAt: new Date(3),
+        }),
+        {
+          ...userMessage("Also check the charts"),
+          metadata: { createdAt: new Date(sentAt), sessionId },
+        },
+      ],
+      { presentation: "chat" },
+    );
+
+    const text = container.textContent ?? "";
+    const positions = order.map((words) => text.indexOf(words));
+    expect(positions).not.toContain(-1);
+    expect(positions).toEqual(positions.toSorted((a, b) => a - b));
+  });
+});
+
 describe("ChatBubbles and what a message went with", () => {
   it("draws the chips a message was sent with over its words, and only those", () => {
     const { container } = renderMessages(

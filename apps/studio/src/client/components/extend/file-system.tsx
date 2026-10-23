@@ -3083,6 +3083,7 @@ export function FileSystem({
           : SORT_OPTIONS
       }
       group={group}
+      onClosed={focusListing}
       onGroupChange={setGroup}
       onKeyChange={applySortKey}
       onShowHiddenFilesChange={setShowHiddenFiles}
@@ -3555,6 +3556,7 @@ function FileSystemSearchField({
 // which rows the folder lists, as the Finder's view options do.
 function FileSystemSortMenu({
   group,
+  onClosed,
   onGroupChange,
   onKeyChange,
   onShowHiddenFilesChange,
@@ -3563,6 +3565,8 @@ function FileSystemSortMenu({
   sort,
 }: {
   group: FileSystemGroupKey | null;
+  /** Put away, for the keyboard to go back to the listing rather than stay on the button. */
+  onClosed: () => void;
   onGroupChange: (group: FileSystemGroupKey | null) => void;
   onKeyChange: (key: FileSystemSortKey) => void;
   onShowHiddenFilesChange: (showHiddenFiles: boolean) => void;
@@ -3586,7 +3590,14 @@ function FileSystemSortMenu({
           <ChevronDown className="opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-44">
+      <DropdownMenuContent
+        align="end"
+        className="min-w-44"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          onClosed();
+        }}
+      >
         {/* Grouped, the groups are the order, so Sort by goes the way the
             Finder's does; List's column headers still order the rows within
             each group. */}

@@ -13,6 +13,7 @@ import {
   writeDevLogEntry,
 } from "./dev-file-logger";
 import { guardLogger } from "./log-guards";
+import { redactLogger } from "./log-redaction";
 
 const IS_DEV = process.env.NODE_ENV === "development";
 
@@ -78,6 +79,8 @@ log.transports.console.level = getConsoleLevel();
  * terminal the crash diagnostics are handed rather than the stream itself.
  */
 export const { stopConsole: stopConsoleLogging } = guardLogger(log);
+
+redactLogger(log);
 
 export { default as logger } from "electron-log";
 

@@ -690,7 +690,17 @@ export function folderToAskFor({
   if (rule?.place === "passwords") {
     return rule.path;
   }
-  const root = rule && !rule.dotEntries ? rule.path : rules.home;
+  // A rule over a folder holding the home folder (the drive it is on, a
+  // folder rule on `/Users`) asks from the home folder down for a path in
+  // it, as no rule would: one level below that rule is the home folder or a
+  // folder holding it, which is never the thing to ask for.
+  const ruleRoot = rule && !rule.dotEntries ? rule.path : undefined;
+  const root =
+    ruleRoot === undefined ||
+    (hostPathWithin(ruleRoot, rules.home) !== null &&
+      hostPathWithin(rules.home, hostPath) !== null)
+      ? rules.home
+      : ruleRoot;
   const within = hostPathWithin(root, hostPath);
   if (within === null) {
     return isDirectory ? hostPath : path.dirname(hostPath);

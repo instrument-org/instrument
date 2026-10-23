@@ -9,6 +9,7 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { shellPath } from "../lib/workspace-fs-layout";
 import { runTool } from "../test/helpers/run-tool";
 import { AskPermission } from "./ask-permission";
 
@@ -20,6 +21,19 @@ for (const folder of ["Desktop", "Music"]) {
   mkdirSync(path.join(home, folder));
 }
 vi.spyOn(os, "homedir").mockReturnValue(home);
+
+/** `value` with the home folder written `~`, as the host or the shell spells it. */
+function inHome(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value), (_key, field: unknown) =>
+    typeof field === "string" &&
+    (field.includes(home) || field.includes(shellPath(home)))
+      ? field
+          .replaceAll(home, "~")
+          .replaceAll(shellPath(home), "~")
+          .replaceAll(path.sep, "/")
+      : field,
+  );
+}
 
 async function ask(
   chatId: ReturnType<typeof createMockChatConfig>,
@@ -56,8 +70,7 @@ describe("ask_permission", () => {
     ]) {
       decided[target] = await ask(chatId, "folder", target);
     }
-    expect(JSON.parse(JSON.stringify(decided).replaceAll(home, "~")))
-      .toMatchInlineSnapshot(`
+    expect(inHome(decided)).toMatchInlineSnapshot(`
         {
           "Desktop": {
             "message": ""Desktop" is not a full path. Ask for the folder by its full path.",

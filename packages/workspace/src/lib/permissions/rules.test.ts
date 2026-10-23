@@ -259,6 +259,31 @@ describe("folderToAskFor", () => {
     ).toBe(inHome("Projects"));
   });
 
+  // A home on a drive the drives place asks about, or under a folder rule
+  // the person set: one level below that rule is the home folder, or a
+  // folder holding it.
+  it.each([
+    [inHome("Music/Loops"), inHome("Music"), true],
+    [inHome("notes.md"), home, false],
+    [home, home, true],
+  ])(
+    "asks from the home folder down under a rule holding it: %s asks for %s",
+    (hostPath, expected, isDirectory) => {
+      expect(
+        folderToAskFor({
+          hostPath,
+          isDirectory,
+          rule: {
+            level: "ask",
+            path: nodePath.dirname(nodePath.dirname(home)),
+            source: "folder",
+          },
+          rules: rulesFor({ home, settings }),
+        }),
+      ).toBe(expected);
+    },
+  );
+
   // The app's own data in a place that asks, as this computer's folder sits
   // in the Library on a Mac: a card for something beside it names the folder
   // below the one that holds it, and one with nothing below asks for the

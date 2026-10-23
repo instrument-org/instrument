@@ -98,6 +98,11 @@ export function getWindowState(
   return keepBelowAutoMaximize(ensureWindowVisible(merged, size));
 }
 
+/** Whether a size and place was ever remembered for the window. */
+export function hasWindowState(name: WindowStateName) {
+  return getStore().store.windows?.[name]?.bounds !== undefined;
+}
+
 export function isWindowBoundsVisible(bounds: WindowBounds) {
   return screen.getAllDisplays().some((display) => {
     return isWindowWithinBounds(bounds, display.bounds);

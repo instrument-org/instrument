@@ -19,6 +19,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import {
   getAppZoom,
   getWindowState,
+  hasWindowState,
 } from "@/electron-main/stores/workspace/window-state";
 import {
   isDrivenInstance,
@@ -32,6 +33,7 @@ import {
 import {
   opensSetupSized,
   forgetSetupWindowPlace,
+  grownFromSetup,
   keepSetupWindowPlace,
   setupBounds,
 } from "@/electron-main/windows/setup-size";
@@ -362,7 +364,17 @@ function leaveSetupSize() {
   window.setResizable(true);
   window.setMaximizable(true);
   window.setFullScreenable(true);
-  const { bounds, isMaximized } = rememberedAppWindowState();
+  // A window never sized before grows where setup was, rather than jumping
+  // to the middle of the main display.
+  const { bounds, isMaximized } = hasWindowState("app")
+    ? rememberedAppWindowState()
+    : {
+        bounds: grownFromSetup(window.getBounds(), {
+          height: WINDOW_HEIGHT,
+          width: WINDOW_WIDTH,
+        }),
+        isMaximized: false,
+      };
   window.setBounds(bounds);
   if (isMaximized) {
     window.maximize();

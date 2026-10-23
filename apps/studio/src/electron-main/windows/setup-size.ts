@@ -1,6 +1,11 @@
 import { getMachineState } from "@/electron-main/stores/machine/state";
+import {
+  shrinkBelowAutoMaximize,
+  type WindowBounds,
+} from "@/electron-main/stores/workspace/window-state";
 import { type SetupState } from "@/shared/setup";
 import { screen } from "electron";
+import { clamp } from "radashi";
 
 /** The app window's shape while setup is up on a first run. */
 const SETUP_WIDTH = 1080;
@@ -33,6 +38,34 @@ export function setupBounds() {
     x: workArea.x + Math.round((workArea.width - SETUP_WIDTH) / 2),
     y: workArea.y + Math.round((workArea.height - SETUP_HEIGHT) / 2),
   };
+}
+
+/**
+ * The window's first shape once setup is done, for a window nothing was
+ * remembered for: `size`, grown out from the middle of where setup's window
+ * is, and kept inside that display's work area.
+ */
+export function grownFromSetup(
+  setup: WindowBounds,
+  size: { height: number; width: number },
+): WindowBounds {
+  const { workArea } = screen.getDisplayMatching(setup);
+  const width = Math.min(size.width, workArea.width);
+  const height = Math.min(size.height, workArea.height);
+  return shrinkBelowAutoMaximize({
+    height,
+    width,
+    x: clamp(
+      Math.round(setup.x + (setup.width - width) / 2),
+      workArea.x,
+      workArea.x + workArea.width - width,
+    ),
+    y: clamp(
+      Math.round(setup.y + (setup.height - height) / 2),
+      workArea.y,
+      workArea.y + workArea.height - height,
+    ),
+  });
 }
 
 /** Keeps where setup's window is, for the next launch to open it there. */

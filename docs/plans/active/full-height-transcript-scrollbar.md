@@ -76,7 +76,7 @@ Test first. This is layout and scroll behavior, so jsdom cannot see any of it: t
    - Composer grows while scrolled up: the view does not move.
    - Submit lands the view at the bottom.
    - Typing in the composer never scrolls the transcript (see risks).
-   - An anchored turn holds the reading line, the scroll-to-latest button stays dark while it does, and the reply hands off to follow-bottom with its last line clear of the composer. This is the set the composer's DOM position decides, and `chat-stream-anchoring.browser.test.tsx` is the harness to extend rather than a new one.
+   - An anchored turn holds the reading line, the scroll-to-latest button stays dark while it does, and the reply hands off to follow-bottom with its last line clear of the composer. This is the set the composer's DOM position decides.
 2. Flip the layout: composer becomes a sticky child of the viewport, with its backdrop. Add `overflow-anchor: none` and `scrollbar-gutter: stable`.
 3. Re-run the same tests unchanged. Green means the contract held; red names the actual mechanism instead of another round of reasoning about a commit message.
 4. Check the pane under UI zoom and on Windows, where scrollbar metrics and the gutter differ.

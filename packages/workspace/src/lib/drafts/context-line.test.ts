@@ -8,7 +8,8 @@ import {
   pastedPathOf,
 } from "./context-line";
 
-const rootDir = path.join(path.sep, "Users", "sam", "Workspace");
+// Resolved, so on Windows it has a drive, as a workspace's root always does.
+const rootDir = path.resolve(path.sep, "Users", "sam", "Workspace");
 const dir = path.join(rootDir, "Drafts", "2026-10-14");
 const base = { dir, rootDir };
 

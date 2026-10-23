@@ -79,21 +79,37 @@ afterAll(async () => {
 });
 
 it("keeps the output before a redirect outside every folder, and runs what follows", async () => {
-  expect(
-    await run(
-      `echo before; echo x >> ${outside}/file; echo after rc=$?; echo kept > here.txt`,
-    ),
-  ).toMatchInlineSnapshot(`
-    {
-      "exitCode": 0,
-      "stderr": "bash: <tmp>/outside/file: Read-only file system
-    "<tmp>/outside/file" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
-    ",
-      "stdout": "before
-    after rc=1
-    ",
-    }
-  `);
+  const result = await run(
+    `echo before; echo x >> ${outside}/file; echo after rc=$?; echo kept > here.txt`,
+  );
+  // On Windows the look at the folder ahead of the write is refused too, as
+  // for a closed folder below.
+  if (process.platform === "win32") {
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "exitCode": 0,
+        "stderr": "bash: <tmp>/outside/file: Read-only file system
+      "<tmp>/outside" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
+      "<tmp>/outside/file" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
+      ",
+        "stdout": "before
+      after rc=1
+      ",
+      }
+    `);
+  } else {
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "exitCode": 0,
+        "stderr": "bash: <tmp>/outside/file: Read-only file system
+      "<tmp>/outside/file" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
+      ",
+        "stdout": "before
+      after rc=1
+      ",
+      }
+    `);
+  }
   await expect(
     fs.readFile(path.join(chatRoot, "here.txt"), "utf8"),
   ).resolves.toBe("kept\n");
@@ -134,8 +150,23 @@ it("fails a redirect into a closed folder with its refusal note", async () => {
 });
 
 it("stops on the failed redirect under set -e", async () => {
-  expect(await run(`set -e; echo before; echo x > ${outside}/file; echo never`))
-    .toMatchInlineSnapshot(`
+  const result = await run(
+    `set -e; echo before; echo x > ${outside}/file; echo never`,
+  );
+  if (process.platform === "win32") {
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "exitCode": 1,
+        "stderr": "bash: <tmp>/outside/file: Read-only file system
+      "<tmp>/outside" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
+      "<tmp>/outside/file" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
+      ",
+        "stdout": "before
+      ",
+      }
+    `);
+  } else {
+    expect(result).toMatchInlineSnapshot(`
       {
         "exitCode": 1,
         "stderr": "bash: <tmp>/outside/file: Read-only file system
@@ -145,6 +176,7 @@ it("stops on the failed redirect under set -e", async () => {
       ",
       }
     `);
+  }
 });
 
 it("reports tee and cp into a refused place and goes on", async () => {

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
+import { shellPath } from "../workspace-fs-layout";
 import { APP_FILE_NAME, renderAppFile } from "./app-file";
 import { findAppIcon, writeAppIcon } from "./icon";
 import { AppManifestSchema, AppSlugSchema } from "./manifest";
@@ -206,7 +207,7 @@ describe("writing an app's folder", () => {
         slug: AppSlugSchema.parse("linear"),
       }),
     ).rejects.toThrow(
-      `${path.join(apps, "Linear", APP_FILE_NAME)} is already "linear" and cannot be read: ${APP_FILE_NAME}'s front matter is not YAML`,
+      `${shellPath(path.join(apps, "Linear", APP_FILE_NAME))} is already "linear" and cannot be read: ${APP_FILE_NAME}'s front matter is not YAML`,
     );
     expect(await fs.readdir(apps)).toEqual(["Linear"]);
   });

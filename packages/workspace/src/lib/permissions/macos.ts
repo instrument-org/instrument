@@ -27,12 +27,9 @@ export function macosGuardedHomeFolders({
   platform = process.platform,
 }: { home?: string; platform?: NodeJS.Platform } = {}): string[] {
   return platform === "darwin"
-    ? [
-        "Desktop",
-        "Documents",
-        "Downloads",
-        nodePath.join("Library", "Mobile Documents"),
-      ].map((name) => nodePath.join(home, name))
+    ? ["Desktop", "Documents", "Downloads", "Library/Mobile Documents"].map(
+        (name) => nodePath.posix.join(home, name),
+      )
     : [];
 }
 

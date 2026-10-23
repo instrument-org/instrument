@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
@@ -9,6 +10,7 @@ import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 import { brokenLinksIn } from "./broken-links";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { shellPath } from "./workspace-fs-layout";
 
 const REFERENCE = `# Instrument reference
 
@@ -77,7 +79,7 @@ describe("brokenLinksIn", () => {
     ],
     ["a path in angle brackets", "[f](<Drafts (2026)/a b.txt>)"],
     ["a path with parentheses", "[f](Drafts%20(2026)/a%20b.txt)"],
-    ["a file: URL", "[r](file://CHATROOT/sales/report.md)"],
+    ["a file: URL", "[r](REPORTURL)"],
     ["a reference link", "See [the report][r].\n\n[r]: sales/report.md"],
     ["link text with brackets", "[Q3 [v2] report](sales/report.md)"],
     ["a memory", "[no stevia](instrument://memory/no-stevia)"],
@@ -97,8 +99,18 @@ describe("brokenLinksIn", () => {
       "Write `[x](missing.md)` and\n```md\n[y](gone.md)\n```",
     ],
   ])("passes %s", async (_label, text) => {
+    // A path in a link is the shell's spelling of it, as the agent writes
+    // it, and a file: URL is the file's own.
     expect(
-      await check(text.replace("CHATROOT", chatRoot).replace("CHAT", chatId)),
+      await check(
+        text
+          .replace("CHATROOT", shellPath(chatRoot))
+          .replace(
+            "REPORTURL",
+            pathToFileURL(path.join(chatRoot, "sales", "report.md")).href,
+          )
+          .replace("CHAT", chatId),
+      ),
     ).toEqual([]);
   });
 

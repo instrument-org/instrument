@@ -11,6 +11,7 @@ import { grantFolder } from "./chat/grants";
 import { detectFolderChanges } from "./folder-changes";
 import { sessionOfChat } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { shellPath } from "./workspace-fs-layout";
 import { initializeTestChat } from "../test/helpers/initialize-test-chat";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 import { writeBaseline, writeMessage } from "../test/helpers/told-history";
@@ -88,7 +89,9 @@ describe("detectFolderChanges", () => {
 
     const changes = await changesSince([]);
 
-    expect(changes?.added).toEqual([{ agentPath: downloads, path: downloads }]);
+    expect(changes?.added).toEqual([
+      { agentPath: shellPath(downloads), path: downloads },
+    ]);
   });
 
   it("reports a removal beside a folder granted since", async () => {
@@ -98,8 +101,12 @@ describe("detectFolderChanges", () => {
 
     const changes = await changesSince([{ path: gone }]);
 
-    expect(changes?.added).toEqual([{ agentPath: downloads, path: downloads }]);
-    expect(changes?.removed).toEqual([{ agentPath: gone, path: gone }]);
+    expect(changes?.added).toEqual([
+      { agentPath: shellPath(downloads), path: downloads },
+    ]);
+    expect(changes?.removed).toEqual([
+      { agentPath: shellPath(gone), path: gone },
+    ]);
   });
 
   it("reports nothing when the folders are as the model last saw them", async () => {
@@ -119,7 +126,7 @@ describe("detectFolderChanges", () => {
   it("counts a folder the last note told as told", async () => {
     await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
     expect((await changesSince([]))?.added).toEqual([
-      { agentPath: downloads, path: downloads },
+      { agentPath: shellPath(downloads), path: downloads },
     ]);
 
     expect(await detect()).toBeUndefined();

@@ -30,9 +30,10 @@ it("names the folder to ask for, and raises no card itself", async () => {
     hostPath: path.join(home, "Documents", "Clients", "a.pdf"),
     op: "read",
     rules,
-    spell: (hostPath) => hostPath,
+    spell: (hostPath) =>
+      `~/${path.relative(home, hostPath).replaceAll(path.sep, "/")}`,
   });
-  expect(refusal?.replaceAll(home, "~")).toMatchInlineSnapshot(
+  expect(refusal).toMatchInlineSnapshot(
     `""~/Documents/Clients/a.pdf" needs the person's yes. If the work needs it, ask for "~/Documents/Clients" with ask_permission."`,
   );
   expect(await openAsks(chatId)).toEqual([]);

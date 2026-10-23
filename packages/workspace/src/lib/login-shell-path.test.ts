@@ -55,10 +55,15 @@ describe("parseShellPath", () => {
   });
 });
 
+/** A PATH written with colons, in this platform's delimiter (`;` on Windows). */
+const listed = (colonList: string) => colonList.replaceAll(":", path.delimiter);
+/** A PATH in this platform's delimiter, written back with colons. */
+const colons = (list: string) => list.replaceAll(path.delimiter, ":");
+
 describe("joinPaths", () => {
   it("keeps each folder at its first appearance and drops empty entries", () => {
     expect(
-      joinPaths("/a:/b::/a", undefined, ["/c", "/b", ""], "/d"),
+      colons(joinPaths(listed("/a:/b::/a"), undefined, ["/c", "/b", ""], "/d")),
     ).toMatchInlineSnapshot(`"/a:/b:/c:/d"`);
   });
 });
@@ -66,12 +71,14 @@ describe("joinPaths", () => {
 describe("applyShellPath", () => {
   it("keeps what the app put in front since startup, then the shell's, then the launch PATH", () => {
     expect(
-      applyShellPath({
-        current: "/app/bin:/saved/old:/usr/bin:/bin",
-        launched: "/usr/bin:/bin:/launcher/only",
-        shell: "/opt/homebrew/bin:/usr/bin:/bin",
-        startup: "/saved/old:/usr/bin:/bin",
-      }),
+      colons(
+        applyShellPath({
+          current: listed("/app/bin:/saved/old:/usr/bin:/bin"),
+          launched: listed("/usr/bin:/bin:/launcher/only"),
+          shell: listed("/opt/homebrew/bin:/usr/bin:/bin"),
+          startup: listed("/saved/old:/usr/bin:/bin"),
+        }),
+      ),
     ).toMatchInlineSnapshot(
       `"/app/bin:/opt/homebrew/bin:/usr/bin:/bin:/launcher/only"`,
     );

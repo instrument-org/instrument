@@ -1,27 +1,19 @@
 import { type AppPlace } from "@/client/atoms/window";
-import { FinderIcon } from "@/client/components/icons/finder-icon";
-import { isMacOS } from "@/client/lib/utils";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { type ComponentType } from "react";
 
 type PlaceIconProps = { className?: string; weight?: "fill" | "regular" };
 
-/**
- * The Finder's face on the Mac, where the place is the Finder's own ground; a
- * folder everywhere else.
- */
-function FilesPlaceIcon(props: PlaceIconProps) {
-  return isMacOS() ? <FinderIcon {...props} /> : <FolderIcon {...props} />;
-}
-
+// Files is the same folder on every system: the Finder's face belongs to the
+// Finder itself, which `RevealInFolderIcon` draws with its real icon.
 const PLACE_ICONS = {
   apps: ShapesIcon,
   browser: GlobeIcon,
   chat: ChatCircleIcon,
-  files: FilesPlaceIcon,
+  files: FolderSimpleIcon,
 } satisfies Record<AppPlace, ComponentType<PlaceIconProps>>;
 
 /**

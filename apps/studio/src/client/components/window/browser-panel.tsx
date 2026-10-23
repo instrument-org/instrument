@@ -171,7 +171,7 @@ export function BrowserPanel({
    * which holds the address the page arrives at out of it.
    */
   focusAddress?: boolean;
-  /** Drawn inside an overlay (Quick Look), which parks every other guest but not this one. */
+  /** Drawn inside an overlay (Quick Look), whose own cover leaves this page the one Cmd+F reaches. */
   insideOverlay?: boolean;
   /**
    * The window layer the guest is shown on; see showOverSlot. A panel drawn
@@ -257,10 +257,9 @@ export function BrowserPanel({
   // its request waits.
   const signIn = useGuestSignIn(active ? targetId : null);
 
-  // Read once and give both hooks the same answer: a panel that parks its guest
-  // under an overlay must also stop being the Cmd+F target, or the overlay's
-  // own host claims the single find-opener slot, clears it on unmount, and this
-  // panel never re-registers.
+  // A page under an overlay stays in view, since the dim layer stacks over it,
+  // but stops being the Cmd+F target: the overlay's own host claims the single
+  // find-opener slot, clears it on unmount, and this panel has to re-register.
   const covered = useIsGuestCovered({ insideOverlay });
   const surfaceRef = useRef<HTMLDivElement>(null);
   const find = useBrowserFind({
@@ -272,7 +271,6 @@ export function BrowserPanel({
   });
   const slotRef = useBrowserSlot({
     active,
-    covered,
     emulatedDeviceHeight: emulatedDevice?.height,
     emulatedDeviceWidth: emulatedDevice?.width,
     // A guest raised above its floating host is above the card this panel

@@ -23,8 +23,8 @@ export function useBrowserFind({
 }: {
   active: boolean;
   // This host is behind a full-window overlay, so it is not the one Cmd+F
-  // should reach. The opener is a single slot: without this, a host that parks
-  // its guest keeps claiming it, and an overlay that takes the slot and clears
+  // should reach. The opener is a single slot: without this, a covered host
+  // keeps claiming it, and an overlay that takes the slot and clears
   // it on unmount leaves the panel -- whose own inputs never changed -- never
   // re-registering, so Cmd+F stops working entirely.
   covered?: boolean;

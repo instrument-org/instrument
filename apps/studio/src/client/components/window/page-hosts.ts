@@ -18,7 +18,7 @@ export interface PageHost {
    * no row says no.
    */
   chrome: boolean | PageChromeSlots;
-  /** Drawn inside an overlay, whose own cover does not park the page; see BrowserPanel. */
+  /** Drawn inside an overlay, whose own cover does not count against the page; see BrowserPanel. */
   insideOverlay?: boolean;
   into: HTMLElement;
   isActive: boolean;

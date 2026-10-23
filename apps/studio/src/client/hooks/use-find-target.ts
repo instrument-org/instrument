@@ -5,7 +5,7 @@ import { type RefObject, useEffect, useRef } from "react";
  * Makes the search behind `openFind` the one Cmd+F opens while the keyboard is
  * in this surface (the nearest `[data-find-surface]` around `anchor`), or was
  * last; see find-targets for the whole rule. `enabled: false` takes it out,
- * for a surface that is mounted but should not answer (a page parked under an
+ * for a surface that is mounted but should not answer (a page under an
  * overlay).
  */
 export function useFindTarget({

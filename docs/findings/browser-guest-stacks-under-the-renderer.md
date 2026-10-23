@@ -1,6 +1,6 @@
 # The browser guest stacks under the renderer's own layers
 
-**Status:** verified on macOS. The 2.0 window no longer parks the pane's page under a draft window or a thread's small view. Dialogs, sheets and alert dialogs still register through `useCoversGuests`, and `BrowserPanel` reads the count through `useIsGuestCovered` (`hooks/use-guest-covered.ts`) to park its page while a dialog covers it. Checked 2026-10-02.
+**Status:** verified on macOS. No overlay parks a shown page: a draft window, a thread's small view, a menu and a dialog's dim layer all draw over it. Dialogs, sheets and alert dialogs still register through `useCoversGuests`, and `BrowserPanel` reads the count through `useIsGuestCovered` (`hooks/use-guest-covered.ts`) only so a covered page stops taking Cmd+F and Cmd+R.
 
 ## The belief
 
@@ -27,5 +27,3 @@ Covering a guest with the renderer's own content does not disturb the agent: `ca
 Stacking works within one stacking context. An overlay whose ancestor forms a stacking context of its own that paints below a body-level element loses to the guest no matter how high its own `z-index` is; that is the [leaking-z-index-stacks](leaking-z-index-stacks.md) rule from the other side, and the likeliest shape of the dialog problem once reported, though it did not reproduce. Keep the compose layer and the portal target out of any wrapper that makes a stacking context (`isolate`, `transform`, `contain`, `opacity`, a `container-type`).
 
 Two shown guests both register for the Cmd+F and Cmd+R chords; the registry keeps the last one, so with a draft's page open the chord reaches the draft's page rather than the pane's.
-
-The classic window's coverage count still parks its guest under every dialog. It is not needed for stacking, and it is harmless, so it stays until that window is next worked on.

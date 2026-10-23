@@ -3,13 +3,9 @@ import { useAtomValue } from "jotai";
 
 /**
  * Whether a full-window overlay is currently drawn over the page, for a host
- * that shows a browser guest.
- *
- * The guest is mounted on `document.body`, outside every dialog's subtree, so no
- * overlay occludes it the way it occludes ordinary content -- it keeps painting
- * over the dim layer as though nothing opened. Opening a dialog is also not a
- * tab switch, which is the only park signal `useBrowserSlot` otherwise receives,
- * so a covered host has to say so itself.
+ * that shows a browser guest. The dim layer stacks over the guest like over
+ * any other element, so the page stays in view; a covered host only stops
+ * being the page Cmd+F and Cmd+R reach.
  *
  * Every overlay registers itself through `useCoversGuests`, so this answers for
  * the app-wide studio modals, the command palette, the contextual dialogs that

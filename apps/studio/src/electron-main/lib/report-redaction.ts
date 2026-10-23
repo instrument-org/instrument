@@ -1,3 +1,4 @@
+import { homeSpellings } from "@instrument-org/shared/home-folder";
 import { redactSecrets } from "@instrument-org/shared/secrets";
 
 /** Someone a report may name: an account signed in on this computer. */
@@ -86,8 +87,8 @@ export function createReportRedactor(known: ReportKnownValues) {
       const literal = escapeRegExp(value);
       sources.push(bounded ? `(?<![\\w-])${literal}(?![\\w-])` : literal);
     };
-    if (known.home) {
-      add(known.home, "~", false);
+    for (const spelling of homeSpellings(known.home ?? "")) {
+      add(spelling, "~", false);
     }
     for (const [text, replacement] of memoryTexts) {
       add(text, replacement, false);

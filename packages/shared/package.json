@@ -19,6 +19,7 @@
     "./decision-bars": "./src/decision-bars.ts",
     "./dictated-text": "./src/dictated-text.ts",
     "./exceptions": "./src/exceptions/index.ts",
+    "./home-folder": "./src/home-folder.ts",
     "./icons": "./src/icons.ts",
     "./merge-generators": "./src/merge-generators.ts",
     "./secrets": "./src/secrets.ts",

@@ -1,3 +1,4 @@
+import { homeSpellings } from "../home-folder";
 import { redactSecrets, redactUrlQueries } from "../secrets";
 import { type CaptureContext } from "../types/exceptions";
 import { ForwardedException } from "./forwarded";
@@ -309,7 +310,9 @@ type Scrubber = {
  * and takes out secrets and web addresses' queries.
  */
 function eventScrubber(home: string | undefined): Scrubber {
-  const path = (value: string) => (home ? value.split(home).join("~") : value);
+  const spellings = homeSpellings(home ?? "");
+  const path = (value: string) =>
+    spellings.reduce((text, spelling) => text.split(spelling).join("~"), value);
   const text = (value: string) =>
     redactUrlQueries(redactSecrets(path(value)));
   const deep = (value: unknown): unknown => {

@@ -203,4 +203,16 @@ describe("createReportRedactor", () => {
       redactor.text("Signed in as sam.rivera@example.com (Sam Rivera)."),
     ).toMatchInlineSnapshot(`"Signed in as [email] ([name])."`);
   });
+
+  it("reads a Windows home as ~ in each of its spellings", () => {
+    const redactor = createReportRedactor({
+      home: "C:\\Users\\sam-r",
+      login: "sam-r",
+    });
+    expect(
+      redactor.text(
+        "at file:///C:/Users/sam-r/AppData/x.js; cwd /c/Users/sam-r/chat; C:\\Users\\sam-r\\notes.md",
+      ),
+    ).toMatchInlineSnapshot(`"at file:///~/AppData/x.js; cwd ~/chat; ~\\notes.md"`);
+  });
 });

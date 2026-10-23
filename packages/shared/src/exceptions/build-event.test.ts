@@ -403,3 +403,21 @@ describe("what an event leaves out", () => {
     `);
   });
 });
+
+describe("a Windows home folder", () => {
+  it("reads as ~ however a message spells it", () => {
+    const event = buildExceptionEvent(
+      new Error(
+        "Failed at file:///C:/Users/sam/AppData/Local/x.js, opening C:\\Users\\sam\\notes.md from /c/Users/sam/chat",
+      ),
+      {
+        breadcrumbs: [],
+        contexts: CONTEXTS,
+        defaultArea: "studio",
+        now: Date.UTC(2026, 9, 19, 12),
+        paths: { home: "C:\\Users\\sam" },
+      },
+    );
+    expect(event.exceptions.at(-1)?.value).toMatchInlineSnapshot(`"Failed at file:///~/AppData/Local/x.js, opening ~\\notes.md from ~/chat"`);
+  });
+});

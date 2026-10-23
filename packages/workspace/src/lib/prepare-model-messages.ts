@@ -38,6 +38,7 @@ import {
 } from "./handoff-notes";
 import { modelChangeSincePreviousTurn } from "./model-change";
 import { modelWindow } from "./model-window";
+import { limitModelImages } from "./limit-model-images";
 import { normalizeModelImages } from "./normalize-model-images";
 import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { chatDir } from "./record-folders";
@@ -392,8 +393,11 @@ export async function prepareModelMessages({
     signal,
   });
 
+  // After resizing, so the size budget counts the bytes actually sent.
+  const limitedMessages = await limitModelImages(normalizedMessages);
+
   const cachedModelMessages = addCacheControlToMessages({
-    messages: await sanitizeModelText(normalizedMessages),
+    messages: await sanitizeModelText(limitedMessages),
     model,
   });
 

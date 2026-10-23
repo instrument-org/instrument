@@ -338,7 +338,10 @@ export function createBrowserViewManager(): BrowserViewManager {
       exceptions: certificateExceptions,
       signIns: guestSignIns,
     });
-    // Mute: the page may be agent-driven and not visible to the user.
+    // Muted until a person uses the page: an agent drives it, often while
+    // nobody is looking, and its CDP clicks count as the user gesture a page
+    // needs to start sound. The first click, tap or key press of a person's
+    // in the tab lets it play sound for the rest of the tab's life.
     guest.setAudioMuted(true);
     // Keep the guest's timers and animations running while the Studio window
     // is minimized or occluded (e.g. the agent works while the user is in
@@ -425,11 +428,14 @@ export function createBrowserViewManager(): BrowserViewManager {
       focusGuard.onGuestFocus(targetId);
     });
     guest.on("input-event", (_event, input) => {
-      noteUserInput(
+      const byPerson = noteUserInput(
         guests.get(guest.id),
         input.type,
         focusGuard.isGuarded(targetId),
       );
+      if (byPerson && guest.isAudioMuted()) {
+        guest.setAudioMuted(false);
+      }
     });
 
     guest.on(

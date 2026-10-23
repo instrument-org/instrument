@@ -22,17 +22,20 @@ const ACTIVATING_INPUT = new Set<InputEvent["type"]>([
  * Records a person's click, tap or key press in a guest. `byAgent` is whether
  * an agent's CDP command owns the guest right now: its dispatched input
  * reaches the guest as the same events a person's does, and counting it would
- * let a page the agent clicks open apps on the user's computer.
+ * let a page the agent clicks open apps on the user's computer. Returns
+ * whether it counted the input as a person's.
  */
 export function noteUserInput(
   record: Pick<GuestRecord, "userInputAt"> | undefined,
   type: InputEvent["type"],
   byAgent: boolean,
   now = Date.now(),
-) {
+): boolean {
   if (record && !byAgent && ACTIVATING_INPUT.has(type)) {
     record.userInputAt = now;
+    return true;
   }
+  return false;
 }
 
 /**

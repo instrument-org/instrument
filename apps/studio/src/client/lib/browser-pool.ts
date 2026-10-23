@@ -40,7 +40,9 @@ const GUEST_RASTER_BUDGET = 1.3;
  *    still paints it on-screen, so `wc.capturePage()` capture and CDP input keep
  *    working headlessly (capture needs the guest composited into the window,
  *    which is why we can't truly hide it; a covered or minimized window is made
- *    to draw by the main process's `whileEmbedderComposites`).
+ *    to draw by the main process's `whileEmbedderComposites`). A guest main
+ *    has put to sleep is parked with `visibility: hidden` instead, drawing
+ *    nothing until a command or a slot wakes it (`guest-sleep.ts`).
  *  - visible: positioned over a host slot (e.g. the task page's browser panel,
  *    measured by that component) and scaled to fit, with input enabled.
  *
@@ -60,6 +62,9 @@ interface Bounds {
 }
 
 interface PooledWebview {
+  // Whether main put the guest to sleep, which hides it while parked so it
+  // draws nothing. A slot showing it wakes it.
+  asleep: boolean;
   container: HTMLDivElement;
   // A size the agent asked this guest to lay out at, which outranks
   // `lastVisibleBounds` while parked. Null means "whatever the panel last
@@ -741,7 +746,9 @@ function applyPaintHost(pooled: PooledWebview) {
     position: "fixed",
     top: "0",
     transform: "translate3d(0, 0, 0)",
-    visibility: "visible",
+    // A sleeping guest is hidden outright, which stops it drawing; main has
+    // turned its background throttling back on to go with it.
+    visibility: pooled.asleep ? "hidden" : "visible",
     width: `${width}px`,
     willChange: "transform",
     zIndex: "2147483647",
@@ -828,6 +835,7 @@ function ensureWebview(
   document.body.append(container);
 
   const pooled: PooledWebview = {
+    asleep: false,
     container,
     desiredSurface: desiredSurfaces.get(targetId) ?? null,
     generation,
@@ -1121,7 +1129,13 @@ function reconcile(targets: BrowserGuestTarget[]) {
     if (pooled && pooled.generation !== target.generation) {
       disposeWebview(target.id);
     }
-    ensureWebview(target.id, target.generation);
+    const kept = ensureWebview(target.id, target.generation);
+    if (kept.asleep !== target.asleep) {
+      kept.asleep = target.asleep;
+      if (!paintOwners.has(target.id)) {
+        applyPaintHost(kept);
+      }
+    }
   }
   // Snapshot the keys to dispose first; disposeWebview mutates the pool.
   const stale = [...pool.keys()].filter((targetId) => !desired.has(targetId));

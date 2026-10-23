@@ -47,6 +47,8 @@ export interface BrowserConfig {
    * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
    */
   hasNoWindow: boolean;
+  /** Whether the guest is asleep (`sleepGuest`), until a command or the window showing it wakes it. */
+  isGuestAsleep: (targetId: BrowserTargetId) => boolean;
   /**
    * Whether the guest is in the middle of something its page cannot get
    * back after a reload: playing sound, downloading, or open in DevTools.
@@ -96,6 +98,13 @@ export interface BrowserConfig {
    * `location`), so the agent cannot use a page of its own to open a file it
    * could not open itself.
    */
+  /**
+   * Stops a guest drawing while no slot shows it: no frames, no animation
+   * frames, throttled timers, its page kept as it is. The next command sent to
+   * it, or the window showing it, wakes it. Ignored for a guest the window
+   * shows, in HTML full screen, being recorded, or busy (`isGuestBusy`).
+   */
+  sleepGuest: (targetId: BrowserTargetId) => void;
   setAgentFileRoots: (
     targetId: BrowserTargetId,
     roots: null | readonly string[],

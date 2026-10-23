@@ -33,6 +33,9 @@ export const BROWSER_GUEST_VIEWPORT = { height: 800, width: 1280 };
  * only attached targets as "live" (guest present, not a placeholder).
  */
 export interface BrowserGuestTarget {
+  // Whether the guest is asleep (BrowserEntry.asleep): the pool hides its
+  // element so it draws nothing while no slot shows it.
+  asleep: boolean;
   attached: boolean;
   // Per-entry generation (see BrowserEntry.generation). The id is stable across
   // a destroy+recreate of the same (task, session), so the pool diffs the

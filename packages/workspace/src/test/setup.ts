@@ -53,6 +53,7 @@ setWorkspaceConfig({
   browser: {
     closeTarget: () => Promise.resolve(),
     hasNoWindow: false,
+    isGuestAsleep: () => false,
     isGuestBusy: () => false,
     createTarget: rejectBrowserTarget,
     contentBlocking: () => ({ task: true, workspace: true }),
@@ -65,6 +66,7 @@ setWorkspaceConfig({
     onTargetDestroyed: noopCleanup,
     sendCommand: () => Promise.resolve({}),
     setAgentFileRoots: noop,
+    sleepGuest: noop,
     stopScreencast: noop,
     subscribeEvents: noopCleanup,
   },

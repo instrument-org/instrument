@@ -28,6 +28,31 @@ async function* quiet(signal?: AbortSignal) {
   yield* [];
 }
 
+// What main says next about the target, which a test sends when it needs to.
+const targets = vi.hoisted(() => {
+  const queued: boolean[] = [];
+  let waiting: ((asleep: boolean) => void) | null = null;
+  return {
+    next: (asleep: boolean) => {
+      if (waiting) {
+        waiting(asleep);
+        waiting = null;
+      } else {
+        queued.push(asleep);
+      }
+    },
+    take: () =>
+      new Promise<boolean>((resolve) => {
+        const asleep = queued.shift();
+        if (asleep === undefined) {
+          waiting = resolve;
+        } else {
+          resolve(asleep);
+        }
+      }),
+  };
+});
+
 vi.mock("@/client/lib/browser-host", () => ({ WINDOW_BROWSER_HOST: "main" }));
 vi.mock("@/client/lib/capture-exception", () => ({
   captureException: vi.fn(),
@@ -51,10 +76,13 @@ vi.mock("@/client/rpc/client", () => {
             call: (_input: unknown, options?: { signal?: AbortSignal }) =>
               Promise.resolve(
                 (async function* () {
-                  yield [
-                    { attached: true, generation: 1, host: "main", id: target },
+                  const snapshot = (asleep: boolean) => [
+                    { asleep, attached: true, generation: 1, id: target },
                   ];
-                  yield* quiet(options?.signal);
+                  yield snapshot(false);
+                  while (!options?.signal?.aborted) {
+                    yield snapshot(await targets.take());
+                  }
                 })(),
               ),
           },
@@ -87,6 +115,8 @@ const placement = () => {
   const { style } = element()?.parentElement ?? {};
   return { left: style?.left, opacity: style?.opacity, zIndex: style?.zIndex };
 };
+
+const visibility = () => element()?.parentElement?.style.visibility;
 
 const inline = Symbol("inline pane");
 const popOut = Symbol("popped-out window");
@@ -235,4 +265,26 @@ it("hands out the guest only once it is ready, and never throws for one gone", (
   expect(guest?.url()).toBe("");
   expect(guest?.step("back")).toBe(false);
   expect(() => guest?.reload()).not.toThrow();
+});
+
+it("hides a parked page while main has it asleep, and shows it in a slot at once", async () => {
+  expect(visibility()).toBe("visible");
+
+  targets.next(true);
+  await vi.waitFor(() => {
+    expect(visibility()).toBe("hidden");
+  });
+
+  // The slot does not wait for main to wake it.
+  const slot = Symbol("slot");
+  showOverSlot(target, inlineBounds, slot);
+  expect(visibility()).toBe("visible");
+
+  // Parked again before main has woken it, it stays hidden until main has.
+  setPaintHost(target, slot);
+  expect(visibility()).toBe("hidden");
+  targets.next(false);
+  await vi.waitFor(() => {
+    expect(visibility()).toBe("visible");
+  });
 });

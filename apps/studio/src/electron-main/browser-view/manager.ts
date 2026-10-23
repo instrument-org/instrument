@@ -50,6 +50,7 @@ import {
   guardGuestSecurity,
 } from "./guest-security";
 import { configureGuestSession } from "./guest-session";
+import { mayGuestSleep, sleepGuest, wakeGuest } from "./guest-sleep";
 import {
   noteRestored,
   signInAt,
@@ -706,6 +707,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       }
       return { partitionDir: entry.partitionDir };
     },
+    isGuestAsleep: (targetId) => entries.get(targetId)?.asleep ?? false,
     isGuestBusy: (targetId) => {
       const entry = entries.get(targetId);
       const guest = entry?.webContents;
@@ -738,6 +740,12 @@ export function createBrowserViewManager(): BrowserViewManager {
       params?: unknown,
       frameSession?: string,
     ) => {
+      // Every command reaches the page through here, so a sleeping guest is
+      // woken, and has drawn a frame, before any of them is sent.
+      const entry = entries.get(targetId);
+      if (entry) {
+        await wakeGuest(entry, notifyEntriesChanged);
+      }
       const dispatch = () =>
         sendCommand({
           describeHost,
@@ -763,6 +771,23 @@ export function createBrowserViewManager(): BrowserViewManager {
         settle();
       }
     }) satisfies BrowserConfig["sendCommand"],
+    sleepGuest: (targetId) => {
+      const entry = entries.get(targetId);
+      const guest = entry?.webContents;
+      if (!entry || entry.asleep || !guest || guest.isDestroyed()) {
+        return;
+      }
+      if (
+        !mayGuestSleep(entry, {
+          busy: browser.isGuestBusy(targetId),
+          fullScreen: guests.get(guest.id)?.htmlFullScreen ?? false,
+        })
+      ) {
+        return;
+      }
+      sleepGuest(entry, guest);
+      notifyEntriesChanged();
+    },
     setAgentFileRoots: (targetId, roots) => {
       const entry = entries.get(targetId);
       if (entry) {
@@ -841,6 +866,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     },
     getTargets: () =>
       [...entries.values()].map((entry) => ({
+        asleep: entry.asleep,
         attached: hasGuest(entry),
         generation: entry.generation,
         id: entry.targetId,
@@ -852,6 +878,9 @@ export function createBrowserViewManager(): BrowserViewManager {
       const entry = entries.get(targetId);
       if (entry) {
         entry.shown = shown;
+        if (shown) {
+          void wakeGuest(entry, notifyEntriesChanged);
+        }
       }
     },
     setHostFocus,

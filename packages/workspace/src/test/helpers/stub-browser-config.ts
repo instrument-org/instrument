@@ -14,6 +14,7 @@ export function createStubBrowserConfig(): BrowserConfig {
     contentBlocking: () => ({ task: true, workspace: true }),
     getTargetMeta: () => null,
     hasNoWindow: false,
+    isGuestAsleep: () => false,
     isGuestBusy: () => false,
     getTargetUrl: (): string | undefined => {
       // No guest is ever live here, so there is no address to report.
@@ -23,6 +24,7 @@ export function createStubBrowserConfig(): BrowserConfig {
     onTargetDestroyed: () => noop,
     sendCommand: () => Promise.resolve({}),
     setAgentFileRoots: noop,
+    sleepGuest: noop,
     stopScreencast: noop,
     subscribeEvents: () => noop,
   };

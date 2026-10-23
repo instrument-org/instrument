@@ -77,6 +77,9 @@ export interface BrowserEntry {
   // by the CDP bridge; null until an agent has driven it. See
   // `mayPageNavigateTo`.
   agentFileRoots: null | readonly string[];
+  // Whether the guest is asleep: hidden in the pool and throttled, drawing
+  // nothing until a command or a slot wakes it (`guest-sleep.ts`).
+  asleep: boolean;
   // Resolves when the guest attaches, rejects if the entry is removed first.
   attach: AttachSignal;
   authorizedDownloadPath: null | string;
@@ -155,6 +158,7 @@ export function createEntry({
 }): BrowserEntry {
   return {
     agentFileRoots: null,
+    asleep: false,
     attach: createAttachSignal(),
     authorizedDownloadPath: null,
     destructionListeners: new Set(),

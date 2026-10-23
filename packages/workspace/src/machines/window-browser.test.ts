@@ -13,15 +13,19 @@ import {
   AGENT_PROTECTION_MS,
   DISCARD_CHECK_MS,
   SEEN_TAB_DISCARD_MS,
+  SLEEP_AFTER_MS,
+  SLEEP_CHECK_MS,
   UNSEEN_TAB_DISCARD_MS,
   windowBrowserLogic,
 } from "./window-browser";
 
-/** A browser whose guests live until closed, with the closes it was asked for. */
+/** A browser whose guests live until closed, with the closes and sleeps it was asked for. */
 function makeBrowser() {
   const destroyed = new Map<BrowserTargetId, () => void>();
   const busy = new Set<BrowserTargetId>();
   const closed: BrowserTargetId[] = [];
+  const asleep = new Set<BrowserTargetId>();
+  const slept: BrowserTargetId[] = [];
   const browser: BrowserConfig = {
     closeTarget: (targetId) => {
       closed.push(targetId);
@@ -33,6 +37,7 @@ function makeBrowser() {
     getTargetMeta: () => null,
     getTargetUrl: () => undefined,
     hasNoWindow: false,
+    isGuestAsleep: (targetId) => asleep.has(targetId),
     isGuestBusy: (targetId) => busy.has(targetId),
     listTargets: () => Promise.resolve([]),
     onTargetDestroyed: (targetId, listener) => {
@@ -43,13 +48,19 @@ function makeBrowser() {
     },
     sendCommand: () => Promise.resolve({}),
     setAgentFileRoots: noop,
+    sleepGuest: (targetId) => {
+      slept.push(targetId);
+      asleep.add(targetId);
+    },
     stopScreencast: noop,
     subscribeEvents: () => noop,
   };
   return {
+    asleep,
     browser,
     busy,
     closed,
+    slept,
     /** The guest goes on its own: its tab closed, or its renderer crashed. */
     destroy: (targetId: BrowserTargetId) => destroyed.get(targetId)?.(),
   };
@@ -239,5 +250,99 @@ describe("windowBrowserLogic", () => {
     await pass(UNSEEN_TAB_DISCARD_MS + DISCARD_CHECK_MS * 3);
 
     expect(closed).toEqual([page]);
+  });
+
+  describe("sleep", () => {
+    it("puts a page to sleep once it has been off screen for a while", async () => {
+      const { send, slept } = start();
+      const page = tab();
+      send("registerTarget", page);
+
+      await pass(SLEEP_AFTER_MS - SLEEP_CHECK_MS);
+      expect(slept).toEqual([]);
+
+      await pass(SLEEP_CHECK_MS);
+      expect(slept).toEqual([page]);
+    });
+
+    it("never puts a drawn page to sleep", async () => {
+      const { send, slept } = start();
+      const page = tab();
+      send("acquireVisible", page);
+      send("registerTarget", page);
+
+      await pass(SLEEP_AFTER_MS * 10);
+
+      expect(slept).toEqual([]);
+    });
+
+    it("counts from when the page last left the screen", async () => {
+      const { send, slept } = start();
+      const page = tab();
+      send("registerTarget", page);
+      await pass(SLEEP_AFTER_MS - SLEEP_CHECK_MS);
+      send("acquireVisible", page);
+      send("releaseVisible", page);
+
+      await pass(SLEEP_AFTER_MS - SLEEP_CHECK_MS);
+      expect(slept).toEqual([]);
+      await pass(SLEEP_CHECK_MS);
+      expect(slept).toEqual([page]);
+    });
+
+    it("keeps a page awake while a working agent drives it", async () => {
+      const { send, slept } = start();
+      const page = tab();
+      driven.add(page);
+      send("registerTarget", page);
+
+      await pass(SLEEP_AFTER_MS * 10);
+      expect(slept).toEqual([]);
+
+      driven.delete(page);
+      await pass(SLEEP_CHECK_MS);
+      expect(slept).toEqual([page]);
+    });
+
+    it("keeps a page awake for a while after an agent's command", async () => {
+      const { send, slept } = start();
+      const page = tab();
+      send("registerTarget", page);
+      await pass(SLEEP_AFTER_MS - SLEEP_CHECK_MS);
+      noteBrowserAgentActivity(page);
+
+      await pass(SLEEP_AFTER_MS - SLEEP_CHECK_MS);
+      expect(slept).toEqual([]);
+      await pass(SLEEP_CHECK_MS * 2);
+      expect(slept).toEqual([page]);
+    });
+
+    it("keeps a busy page awake", async () => {
+      const { busy, send, slept } = start();
+      const page = tab();
+      busy.add(page);
+      send("registerTarget", page);
+
+      await pass(SLEEP_AFTER_MS * 10);
+      expect(slept).toEqual([]);
+
+      busy.delete(page);
+      await pass(SLEEP_CHECK_MS);
+      expect(slept).toEqual([page]);
+    });
+
+    it("asks once while the page stays asleep, and again once it was woken", async () => {
+      const { asleep, send, slept } = start();
+      const page = tab();
+      send("registerTarget", page);
+
+      await pass(SLEEP_AFTER_MS * 3);
+      expect(slept).toEqual([page]);
+
+      // A command or a slot showing it woke it, out of this actor's sight.
+      asleep.delete(page);
+      await pass(SLEEP_CHECK_MS);
+      expect(slept).toEqual([page, page]);
+    });
   });
 });

@@ -17,6 +17,16 @@ export const AGENT_PROTECTION_MS = ms("10 minutes");
 /** How often hidden tabs are checked against their clocks. */
 export const DISCARD_CHECK_MS = ms("1 minute");
 
+/**
+ * How long a tab's page is off screen, and an agent's last command to it
+ * past, before its guest sleeps: it stops drawing until the next command or
+ * the window showing it wakes it.
+ */
+export const SLEEP_AFTER_MS = ms("30 seconds");
+
+/** How often hidden tabs are checked for sleep. */
+export const SLEEP_CHECK_MS = ms("10 seconds");
+
 export type WindowBrowserEvent =
   /** A tab's page is drawn: the tab up in its group, a page beside a chat, in a draft's band, or Quick Look. */
   | { type: "acquireVisible"; value: { targetId: BrowserTargetId } }
@@ -50,6 +60,12 @@ interface Guest {
  * command in the last ten minutes, while a working agent drives it, or while
  * the guest is busy (playing sound, downloading, or open in DevTools); such a
  * tab waits for the next check.
+ *
+ * Long before that, a tab off screen for `SLEEP_AFTER_MS` sleeps
+ * (`BrowserConfig.sleepGuest`) unless a working agent drives it or an agent
+ * sent it a command in that time: a guest out of sight otherwise draws every
+ * frame its page animates. A command or the window showing it wakes it again,
+ * and it sleeps once more on a later check.
  *
  * Opening and closing tabs is not this actor's: a guest is made when a tab
  * is opened or shown and destroyed when its tab closes, and this only follows
@@ -118,6 +134,45 @@ export const windowBrowserLogic = fromCallback<
     }
   };
 
+  const checkSleep = async () => {
+    const at = now();
+    for (const [targetId, guest] of guests) {
+      if (
+        guest.discarding ||
+        guest.hiddenSince === null ||
+        at - guest.hiddenSince < SLEEP_AFTER_MS ||
+        browser.isGuestAsleep(targetId) ||
+        browser.isGuestBusy(targetId)
+      ) {
+        continue;
+      }
+      const agentAt = lastBrowserAgentActivity(targetId);
+      if (
+        (agentAt !== undefined && Date.now() - agentAt < SLEEP_AFTER_MS) ||
+        // A tab whose drivers cannot be read is left for the next check.
+        (await isDrivenByWorkingAgent(targetId).catch(() => true))
+      ) {
+        continue;
+      }
+      // Drawn again while the working agents were asked about.
+      if (guest.hiddenSince === null || guests.get(targetId) !== guest) {
+        continue;
+      }
+      browser.sleepGuest(targetId);
+    }
+  };
+
+  let sleeping = false;
+  const sleepInterval = setInterval(() => {
+    if (sleeping) {
+      return;
+    }
+    sleeping = true;
+    void checkSleep().finally(() => {
+      sleeping = false;
+    });
+  }, SLEEP_CHECK_MS);
+
   let checking = false;
   const interval = setInterval(() => {
     if (checking) {
@@ -163,6 +218,7 @@ export const windowBrowserLogic = fromCallback<
 
   return () => {
     clearInterval(interval);
+    clearInterval(sleepInterval);
     for (const guest of guests.values()) {
       guest.unwatch();
     }

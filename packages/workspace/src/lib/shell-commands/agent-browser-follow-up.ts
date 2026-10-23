@@ -189,6 +189,24 @@ export class BrowserFollowUp {
     }
   }
 
+  #screenshot: string | undefined;
+
+  /**
+   * A screenshot one of the call's commands wrote, by where it is on the
+   * host. The last one wins: a call that takes several is shown the newest,
+   * which keeps what one call adds to the context to a single image.
+   */
+  noteScreenshot(hostPath: string) {
+    this.#screenshot = hostPath;
+  }
+
+  /** The screenshot to show the model, once. */
+  takeScreenshot(): string | undefined {
+    const screenshot = this.#screenshot;
+    this.#screenshot = undefined;
+    return screenshot;
+  }
+
   /** Read the page if it is still pending, once. */
   async take(signal: AbortSignal): Promise<PageAfter | undefined> {
     const pending = this.#pending;
@@ -241,6 +259,15 @@ export function currentBrowserFollowUp(): BrowserFollowUp | undefined {
 }
 
 const UNCHANGED = /^unchanged \(revision \d+\)$/;
+
+// The CLI's own line for a screenshot it wrote (`--if-changed` prints another
+// for one it skipped), colored only on a terminal, which this never is.
+const SCREENSHOT_SAVED = /Screenshot saved to (.+)$/m;
+
+/** Where a `screenshot` command's output says it wrote the image. */
+export function savedScreenshotPath(stdout: string): string | undefined {
+  return SCREENSHOT_SAVED.exec(stdout)?.[1]?.trim() || undefined;
+}
 
 const DeltaSchema = z.object({
   changes: z.array(z.object({ op: z.string(), ref: z.string() })),

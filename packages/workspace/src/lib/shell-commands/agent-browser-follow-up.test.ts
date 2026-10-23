@@ -6,6 +6,7 @@ import {
   pageAfterText,
   pageEffect,
   parseFollowUpSnapshot,
+  savedScreenshotPath,
 } from "./agent-browser-follow-up";
 
 // Recorded from agent-browser 0.38.1 (`snapshot -i --delta`) against a local
@@ -200,6 +201,30 @@ const TABS = JSON.stringify({
     ],
   },
   success: true,
+});
+
+describe("savedScreenshotPath", () => {
+  it.each([
+    ["✓ Screenshot saved to /work/screenshots/shot-1.png\n", "/work/screenshots/shot-1.png"],
+    [
+      "✓ Screenshot saved to map.png\n   [1] @e1 button \"Save\"\n",
+      "map.png",
+    ],
+    ["✓ Screenshot unchanged (revision 3, 0.0000% pixels changed)\n", undefined],
+    ["✗ Element not found\n", undefined],
+  ])("reads %j", (stdout, expected) => {
+    expect(savedScreenshotPath(stdout)).toBe(expected);
+  });
+});
+
+describe("BrowserFollowUp screenshots", () => {
+  it("hands over the last screenshot once", () => {
+    const followUp = new BrowserFollowUp();
+    followUp.noteScreenshot("/a.png");
+    followUp.noteScreenshot("/b.png");
+    expect(followUp.takeScreenshot()).toBe("/b.png");
+    expect(followUp.takeScreenshot()).toBeUndefined();
+  });
 });
 
 describe("activeTab", () => {

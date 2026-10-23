@@ -169,6 +169,83 @@ describe("BashTool", () => {
       `);
     });
 
+    it("shows the screenshot a browser command took", () => {
+      const result = BashTool.toModelOutput({
+        input: { command: "agent-browser screenshot", yieldMs: 1000 },
+        output: {
+          ...BASE_OUTPUT,
+          command: "agent-browser screenshot",
+          commands: ["agent-browser"],
+          durationMs: 300,
+          output: "✓ Screenshot saved to screenshots/shot.png\n",
+          screenshot: {
+            base64Data: "iVBORw0KGgo=",
+            height: 1600,
+            mimeType: "image/png",
+            viewHeight: 800,
+            viewWidth: 1280,
+            width: 2560,
+          },
+        },
+        toolCallId: "1",
+      });
+      expect(result).toMatchInlineSnapshot(`
+        {
+          "type": "content",
+          "value": [
+            {
+              "text": "Exit code: 0
+
+        Command output:
+
+        ✓ Screenshot saved to screenshots/shot.png
+
+        Duration: 300 ms
+
+        The screenshot the call took, as \`read_file\` would show it (shown to you at 1280x800 px; the file on disk is 2560x1600). Small text and closely spaced lines may not survive at that size; read it again with a \`region\` to magnify part of it. A region's corners are pixels in that 1280x800 space, not in the file's larger one:",
+              "type": "text",
+            },
+            {
+              "data": {
+                "data": "iVBORw0KGgo=",
+                "type": "data",
+              },
+              "mediaType": "image/png",
+              "type": "file",
+            },
+          ],
+        }
+      `);
+    });
+
+    it("leaves the screenshot out of a call that failed", () => {
+      const result = BashTool.toModelOutput({
+        input: {
+          command: "agent-browser screenshot && agent-browser click @e9",
+          yieldMs: 1000,
+        },
+        output: {
+          ...BASE_OUTPUT,
+          command: "agent-browser screenshot && agent-browser click @e9",
+          commands: ["agent-browser"],
+          durationMs: 300,
+          exitCode: 1,
+          output:
+            "✓ Screenshot saved to screenshots/shot.png\n✗ Unknown ref: e9\n",
+          screenshot: {
+            base64Data: "iVBORw0KGgo=",
+            height: 800,
+            mimeType: "image/png",
+            viewHeight: 800,
+            viewWidth: 1280,
+            width: 1280,
+          },
+        },
+        toolCallId: "1",
+      });
+      expect(result.type).toBe("error-text");
+    });
+
     it("formats duration in seconds for longer commands", () => {
       const result = BashTool.toModelOutput({
         input: { command: "sleep 2", yieldMs: 1000 },

@@ -37,6 +37,11 @@ import {
   JOBS_COMMAND,
   KILL_COMMAND,
 } from "../lib/shell-commands/background-jobs";
+import {
+  browserScreenshot,
+  BrowserScreenshotSchema,
+} from "../lib/browser-screenshot";
+import { describeImageSize } from "../lib/image-preview";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import {
   BrowserFollowUp,
@@ -190,6 +195,61 @@ async function startedOrDone(handle: BackgroundRunHandle) {
   }
 }
 
+const bashOutputSchema = z.object({
+  /**
+   * The apps whose guides the call's `app` commands handed the model whole,
+   * each with a digest of the guide as it was (`guide-hand-off.ts`).
+   */
+  appGuides: z.array(AppGuideHandOffSchema).optional(),
+  /** Set when a trailing `&` sent the command to the background. */
+  backgrounded: z.boolean().optional(),
+  /**
+   * The `agent-browser` skill's instructions, set on the first result in the
+   * model's view of the session that ran the command.
+   */
+  browserSkill: BrowserSkillSchema.optional(),
+  command: z.string(),
+  commands: z.array(z.string()),
+  durationMs: z.number().default(0),
+  /** Absent when the command was still running when the call returned. */
+  exitCode: z.number().optional(),
+  /** The tasks the call's `task` commands handed work to, when any did. */
+  handOffs: z.array(HandOffSchema).optional(),
+  /**
+   * What answered each command the shell ran, and under which sandbox; for
+   * the session log, never the model. A promoted command's is what it had
+   * run when the call returned.
+   */
+  ran: z.array(CommandRunSchema).optional(),
+  /**
+   * The page after the call's agent-browser commands changed it, when
+   * nothing in the call read it afterwards.
+   */
+  pageAfter: PageAfterSchema.optional(),
+  /**
+   * The last screenshot the call's agent-browser commands took, shown to a
+   * model that takes images as part of the result.
+   */
+  screenshot: BrowserScreenshotSchema.optional(),
+  /** Set when the command was promoted; holds its bounded process log. */
+  logFilePath: RelativePathSchema.optional(),
+  logOmittedBytes: z.number().optional(),
+  logWriteError: z.string().optional(),
+  /**
+   * Set when a message arriving mid-call, rather than `yieldMs`, moved the
+   * command to the background: who wrote it.
+   */
+  movedForMessageFrom: z.enum(["other", "user"]).optional(),
+  /** Output dropped because a promoted command outpaced the pending buffer. */
+  omittedBytes: z.number().default(0),
+  output: z.string(),
+  /** The real pids of what a promoted command was running when it moved. */
+  pids: z.array(z.number()).optional(),
+  /** Set when the command outlived `yieldMs` and is still running. */
+  processId: z.string().optional(),
+  spillFilePath: RelativePathSchema.optional(),
+});
+
 export const BashTool = setupTool({
   inputSchema: BaseInputSchema.extend({
     command: z.string().meta({ description: "The bash command to run" }),
@@ -210,55 +270,7 @@ export const BashTool = setupTool({
       }),
   }),
   name: "bash",
-  outputSchema: z.object({
-    /**
-     * The apps whose guides the call's `app` commands handed the model whole,
-     * each with a digest of the guide as it was (`guide-hand-off.ts`).
-     */
-    appGuides: z.array(AppGuideHandOffSchema).optional(),
-    /** Set when a trailing `&` sent the command to the background. */
-    backgrounded: z.boolean().optional(),
-    /**
-     * The `agent-browser` skill's instructions, set on the first result in the
-     * model's view of the session that ran the command.
-     */
-    browserSkill: BrowserSkillSchema.optional(),
-    command: z.string(),
-    commands: z.array(z.string()),
-    durationMs: z.number().default(0),
-    /** Absent when the command was still running when the call returned. */
-    exitCode: z.number().optional(),
-    /** The tasks the call's `task` commands handed work to, when any did. */
-    handOffs: z.array(HandOffSchema).optional(),
-    /**
-     * What answered each command the shell ran, and under which sandbox; for
-     * the session log, never the model. A promoted command's is what it had
-     * run when the call returned.
-     */
-    ran: z.array(CommandRunSchema).optional(),
-    /**
-     * The page after the call's agent-browser commands changed it, when
-     * nothing in the call read it afterwards.
-     */
-    pageAfter: PageAfterSchema.optional(),
-    /** Set when the command was promoted; holds its bounded process log. */
-    logFilePath: RelativePathSchema.optional(),
-    logOmittedBytes: z.number().optional(),
-    logWriteError: z.string().optional(),
-    /**
-     * Set when a message arriving mid-call, rather than `yieldMs`, moved the
-     * command to the background: who wrote it.
-     */
-    movedForMessageFrom: z.enum(["other", "user"]).optional(),
-    /** Output dropped because a promoted command outpaced the pending buffer. */
-    omittedBytes: z.number().default(0),
-    output: z.string(),
-    /** The real pids of what a promoted command was running when it moved. */
-    pids: z.array(z.number()).optional(),
-    /** Set when the command outlived `yieldMs` and is still running. */
-    processId: z.string().optional(),
-    spillFilePath: RelativePathSchema.optional(),
-  }),
+  outputSchema: bashOutputSchema,
 }).create({
   // Built per call: the command list it renders describes capabilities that a
   // feature flag can turn on and off while the app is running.
@@ -457,6 +469,11 @@ export const BashTool = setupTool({
     }
 
     const pageAfter = await browserFollowUp.take(signal);
+    const screenshotPath = browserFollowUp.takeScreenshot();
+    const screenshot =
+      screenshotPath !== undefined && model.features.includes("inputImage")
+        ? await browserScreenshot(screenshotPath, signal)
+        : undefined;
     const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
       ? await browserSkillToDeliver({
           sessionId,
@@ -478,12 +495,40 @@ export const BashTool = setupTool({
       output: outcome.output,
       ...(pageAfter ? { pageAfter } : {}),
       ...ran(),
+      ...(screenshot ? { screenshot } : {}),
       spillFilePath,
     });
   },
   readOnly: false,
   timeoutMs: ({ input }) => bashToolCallTimeoutMs(input.yieldMs),
   toModelOutput: ({ output }) => {
+    const text = bashOutputText(output);
+    if (!output.screenshot || text.type === "error-text") {
+      return text;
+    }
+    return {
+      type: "content",
+      value: [
+        {
+          text: `${text.value}\n\nThe screenshot the call took, as \`read_file\` would show it${describeImageSize(output.screenshot)}:`,
+          type: "text",
+        },
+        {
+          data: { data: output.screenshot.base64Data, type: "data" },
+          mediaType: output.screenshot.mimeType,
+          type: "file",
+        },
+      ],
+    };
+  },
+});
+
+/** The call's result as text: its output, and what the browser attached. */
+function bashOutputText(output: z.output<typeof bashOutputSchema>): {
+  type: "error-text" | "text";
+  value: string;
+} {
+  {
     const { content, omittedLines, totalBytes, totalLines, truncated } =
       truncateMiddle(output.output);
 
@@ -605,8 +650,8 @@ export const BashTool = setupTool({
         ...browserSkillSection,
       ].join("\n"),
     };
-  },
-});
+  }
+}
 
 /**
  * The skill's instructions after the command that brought them, led by a note

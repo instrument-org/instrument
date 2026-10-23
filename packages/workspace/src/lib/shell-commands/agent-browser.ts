@@ -56,6 +56,7 @@ import {
   FOLLOW_UP_SNAPSHOT_ARGS,
   FOLLOW_UP_TABS_ARGS,
   FOLLOW_UP_WAIT_ARGS,
+  savedScreenshotPath,
 } from "./agent-browser-follow-up";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
 import { recordProgramStart } from "./command-runs";
@@ -958,6 +959,16 @@ export function createAgentBrowserCommand({
         0,
         commandArgs.length - resolvedArgs.length,
       );
+      const screenshot =
+        exitCode === 0 &&
+        parseAgentBrowserArgs(resolvedArgs).subcommand === "screenshot"
+          ? savedScreenshotPath(result.stdout)
+          : undefined;
+      if (screenshot !== undefined) {
+        currentBrowserFollowUp()?.noteScreenshot(
+          path.resolve(hostCwd, screenshot),
+        );
+      }
       currentBrowserFollowUp()?.note({
         args: resolvedArgs,
         exitCode,

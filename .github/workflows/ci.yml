@@ -101,6 +101,34 @@ jobs:
             apps/studio/src/**/__screenshots__
           retention-days: 7
 
+  # What this push to main changed against the run before it: tests newly
+  # failing, with the commits between the two, and jobs green again. Silent
+  # when a run fails exactly as the last one did.
+  report:
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      # #notifications
+      SLACK_CHANNEL: C07R4FUL073
+    if: ${{ !cancelled() && github.event_name == 'push' }}
+    name: Report
+    needs: [check, workspace-windows, browser]
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: |
+            .node-version
+            scripts/ci-report.ts
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .node-version
+      - run: node scripts/ci-report.ts
+
 concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
   group: ci-${{ github.ref }}

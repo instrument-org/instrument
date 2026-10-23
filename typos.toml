@@ -45,6 +45,8 @@ PN = "PN"
 # Web Audio's own names, which the platform spells the British way.
 AnalyserNode = "AnalyserNode"
 createAnalyser = "createAnalyser"
+# The Slack channel CI reports to; "corrected", it names no channel.
+C07R4FUL073 = "C07R4FUL073"
 
 [default.extend-words]
 # AsyncLocalStorage, as the comments that compare against it write it.

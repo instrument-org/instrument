@@ -30,10 +30,22 @@ export function useInstrumentConnect(): ConnectFlow<void> {
     onCancel: () => {
       void rpcClient.auth.cancelSignIn.call();
     },
-    run: async () => {
+    run: async (_, { onPhase, signal }) => {
       const outcome = await rpcClient.auth.signInSocial.call().catch(failed);
       if (typeof outcome !== "string") {
         return outcome;
+      }
+      if (outcome === "on-web") {
+        onPhase("on-web");
+        const back = await rpcClient.auth.finishOnWeb
+          .call(undefined, { signal })
+          .catch(() => "signed-in" as const);
+        return {
+          outcome:
+            back === "use-subscription"
+              ? { kind: "ready", next: "subscriptions" }
+              : { kind: "ready" },
+        };
       }
       return {
         outcome:

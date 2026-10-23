@@ -30,6 +30,8 @@ export type AuthOutcome =
     }
   /** The link matches no sign-in waiting for it: an old tab, a second visit, or the app restarted. */
   | { kind: "expired" }
+  /** The website's Open Instrument button brought the window forward. */
+  | { kind: "opened" }
   /** Signed in with Google, and the API wouldn't create an account for that address. */
   | { kind: "sign-up-refused" }
   /** The service said yes and the rest went wrong. `connecting` names what was being connected; absent, it was signing in. */
@@ -227,6 +229,14 @@ function renderOutcome(outcome: AuthOutcome) {
         title: signIn ? "Sign-in canceled" : "Not connected",
       };
     }
+    case "opened": {
+      return {
+        arrive: true,
+        body: html`${appMark("size-20")}
+        ${group(heading(`${APP_NAME} is open`), subline("You can close this tab."))}`,
+        title: `${APP_NAME} is open`,
+      };
+    }
     case "expired": {
       return {
         body: html`${glyph(
@@ -309,6 +319,7 @@ export const previewOutcomes = (
     },
   },
   { label: "Expired", outcome: { kind: "expired" } },
+  { label: "Opened", outcome: { kind: "opened" } },
   { label: "Sign-up refused", outcome: { kind: "sign-up-refused" } },
   {
     label: "Failed",

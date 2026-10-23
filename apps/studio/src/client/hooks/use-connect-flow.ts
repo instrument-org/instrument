@@ -1,8 +1,11 @@
 import { type ConnectOutcome } from "@/shared/connect-outcome";
 import { useEffect, useRef, useState } from "react";
 
-/** Where a connect stands: idle, waiting on the browser, or checking the plan. */
-export type ConnectPhase = "checking" | "idle" | "signing-in";
+/**
+ * Where a connect stands: idle, waiting on the browser, checking the plan,
+ * or signed in with the website taking the person through its plans.
+ */
+export type ConnectPhase = "checking" | "idle" | "on-web" | "signing-in";
 
 /** How a connect ended, with the model it made the default when it made one. */
 export interface ConnectResult {

@@ -22,8 +22,12 @@ export type ConnectOutcome =
   | { kind: "no-plan"; plan?: string }
   /** Signed in, and the plan hit its limit; usage comes back at `resetsAt`. */
   | { kind: "out-of-usage"; resetsAt?: string }
-  /** Ready to run on. */
-  | { kind: "ready"; plan?: string }
+  /**
+   * Ready to run on. `next: "subscriptions"`: signed in to Instrument, and
+   * the person chose on the website to use a subscription they already pay
+   * for, which setup offers next.
+   */
+  | { kind: "ready"; next?: "subscriptions"; plan?: string }
   /** The service's sign-in is gone or was never finished. */
   | { kind: "signed-out" }
   /** Instrument wouldn't create an account for that address. */

@@ -4,11 +4,13 @@ const mocks = vi.hoisted(() => ({
   chatgpt: vi.fn(),
   openrouter: vi.fn(),
   instrument: vi.fn(),
+  open: vi.fn(),
   capture: vi.fn(),
   app: vi.fn<(params: URLSearchParams) => Promise<unknown>>(),
 }));
 
 vi.mock("./client", () => ({
+  receiveAppOpen: mocks.open,
   receiveInstrumentCallback: mocks.instrument,
 }));
 vi.mock("./page", () => ({
@@ -38,7 +40,7 @@ vi.mock("../lib/directory-icons", () => ({ directoryIconDataUri: vi.fn() }));
 vi.mock("../windows/foreground", () => ({ focusAppWindow: vi.fn() }));
 
 import { createAuthCallbackApp } from "./server";
-import { AUTH_CALLBACK_PATHS } from "./routes";
+import { APP_OPEN_PATH, AUTH_CALLBACK_PATHS } from "./routes";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -73,6 +75,30 @@ describe("the assembled auth callback server", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("declined");
     expect(mocks.chatgpt).not.toHaveBeenCalled();
+  });
+
+  it("sends the browser on to the website when the sign-in names it", async () => {
+    mocks.instrument.mockResolvedValue({
+      email: "dana@example.com",
+      next: "https://tryinstrument.com/welcome?port=51234",
+      outcome: "signed-in",
+    });
+    const response = await createAuthCallbackApp().request(
+      `${AUTH_CALLBACK_PATHS.instrument}?state=instrument-state&token=t`,
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "https://tryinstrument.com/welcome?port=51234",
+    );
+  });
+
+  it("opens the app for the website's button, passing on its step", async () => {
+    const response = await createAuthCallbackApp().request(
+      `${APP_OPEN_PATH}?step=subscriptions`,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("opened");
+    expect(mocks.open).toHaveBeenCalledWith("subscriptions");
   });
 
   // An address the API won't create an account for is an answer, not a bug.

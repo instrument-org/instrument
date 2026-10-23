@@ -1,5 +1,6 @@
 import { createLoopbackSignIn } from "@/electron-main/auth/loopback-sign-in";
 import { getAuthServerPort } from "@/electron-main/auth/state";
+import { platformApiRpcClient } from "@/electron-main/platform-api/client";
 import { openExternal } from "@/electron-main/lib/open-external";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { getAnonymousPlatformApiHeaders } from "@/electron-main/platform-api/headers";
@@ -13,6 +14,7 @@ import {
   setSessionToken,
 } from "@/electron-main/stores/workspace/session";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
+import { APP_DOMAIN } from "@instrument-org/shared";
 import { accountSignedIn } from "@instrument-org/workspace/electron";
 import { createAuthClient } from "better-auth/client";
 import { createHash, randomBytes } from "node:crypto";
@@ -26,6 +28,8 @@ function authClientFor(baseUrl: string) {
 }
 
 const DesktopSignInSchema = z.object({
+  /** The website page the browser goes on to, when the website takes over. */
+  next: z.string().optional(),
   token: z.string().min(1),
   user: z.object({ email: z.string() }),
 });
@@ -63,7 +67,12 @@ async function exchangeDesktopSignIn({
  * One that went wrong rejects instead, with what went wrong.
  */
 type InstrumentSignInResult =
-  | { email: string; outcome: Extract<SignInOutcome, "signed-in"> }
+  | {
+      email: string;
+      /** The website page to send the browser on to, with the port added. */
+      next?: string;
+      outcome: Extract<SignInOutcome, "signed-in">;
+    }
   | {
       outcome: Extract<
         SignInOutcome,
@@ -98,7 +107,7 @@ export function receiveInstrumentCallback(
  * land. Resolves "canceled" when the user gives up from the app.
  */
 export async function signInSocial(): Promise<
-  InstrumentSignInResult["outcome"]
+  "on-web" | InstrumentSignInResult["outcome"]
 > {
   const authServerPort = getAuthServerPort();
   if (authServerPort === null) {
@@ -133,6 +142,7 @@ export async function signInSocial(): Promise<
     }
     const token = params.get("token");
     let email: string;
+    let next: string | undefined;
     try {
       if (token === null) {
         throw new Error(`Sign-in ended with ${ended ?? "no token"}`);
@@ -140,6 +150,7 @@ export async function signInSocial(): Promise<
       const signedIn = await exchangeDesktopSignIn({ codeVerifier, token });
       setSessionToken(platformApiOrigin(), signedIn.token);
       email = signedIn.user.email;
+      next = continueOnWebsite(signedIn.next, authServerPort);
     } catch (error) {
       throw new Error("Login failed", { cause: error });
     }
@@ -148,14 +159,113 @@ export async function signInSocial(): Promise<
     void setDefaultModel({ replacing: "nothing" });
     // A chat that asked for an image nothing else could make goes on with it.
     accountSignedIn();
-    return { email, outcome: "signed-in" };
+    return { email, ...(next && { next }), outcome: "signed-in" };
   });
+  if (result.outcome === "signed-in" && result.next) {
+    webWait = startWebWait();
+    return "on-web";
+  }
   return result.outcome;
+}
+
+/**
+ * `next` with this app's loopback port added, when it is a page on the
+ * website this build talks to: the same host family as the platform API
+ * (tryinstrument.com and its subdomains, or a local API's localhost).
+ * Anything else is dropped, so the sign-in ends on the app's own page.
+ */
+export function continueOnWebsite(next: string | undefined, port: number) {
+  if (!next || !URL.canParse(next)) {
+    return undefined;
+  }
+  const url = new URL(next);
+  const api = new URL(platformApiBaseUrl()).hostname;
+  const isLocal = (host: string) => host === "localhost" || host === "127.0.0.1";
+  const allowed = isLocal(api)
+    ? isLocal(url.hostname)
+    : url.protocol === "https:" &&
+      (url.hostname === APP_DOMAIN || url.hostname.endsWith(`.${APP_DOMAIN}`));
+  if (!allowed) {
+    return undefined;
+  }
+  url.searchParams.set("port", String(port));
+  return url.toString();
+}
+
+/** How long the app waits on the website before it moves on by itself. */
+const WEB_WAIT_MS = 30 * 60 * 1000;
+/** How often it reads the account while it waits, within the API's limit. */
+const WEB_POLL_MS = 10_000;
+
+/** How a sign-up that went on to the website came back. */
+export type WebOutcome = "signed-in" | "use-subscription";
+
+let webWait:
+  | { finish: (outcome: WebOutcome) => void; finished: Promise<WebOutcome> }
+  | undefined;
+
+/**
+ * Waits on the website after a sign-in it took over: ends once the account
+ * has a plan or a running trial (read every few seconds), once the website
+ * sends the browser back for a subscription the person already pays for,
+ * when the person gives up in the app, or after half an hour. Every ending
+ * but the subscription is "signed-in": the account is signed in either way.
+ */
+function startWebWait() {
+  webWait?.finish("signed-in");
+  let finish: (outcome: WebOutcome) => void = () => {};
+  const finished = new Promise<WebOutcome>((resolve) => {
+    finish = resolve;
+  });
+  const poll = setInterval(() => {
+    void platformApiRpcClient.billing.status
+      .call()
+      .then((status) => {
+        if (status.subscription || status.trial.state === "active") {
+          wait.finish("signed-in");
+        }
+      })
+      .catch(() => {});
+  }, WEB_POLL_MS);
+  const timeout = setTimeout(() => {
+    wait.finish("signed-in");
+  }, WEB_WAIT_MS);
+  const wait = {
+    finish: (outcome: WebOutcome) => {
+      clearInterval(poll);
+      clearTimeout(timeout);
+      if (webWait === wait) {
+        webWait = undefined;
+      }
+      finish(outcome);
+    },
+    finished,
+  };
+  return wait;
+}
+
+/**
+ * Resolves how the sign-up the website took over ended; "signed-in" at once
+ * when none is waiting.
+ */
+export function finishOnWeb(): Promise<WebOutcome> {
+  return webWait?.finished ?? Promise.resolve("signed-in");
+}
+
+/**
+ * The website's Open Instrument button reached the loopback: `subscriptions`
+ * ends the wait so setup can offer the person's own subscription.
+ */
+export function receiveAppOpen(step: string | undefined) {
+  if (step === "subscriptions") {
+    webWait?.finish("use-subscription");
+  }
 }
 
 /** Cancel the Google sign-in waiting on the browser, if there is one. */
 export function cancelSignInSocial() {
   signIns.supersede();
+  webWait?.finish("signed-in");
 }
 
 /**

@@ -1,4 +1,7 @@
-import { receiveInstrumentCallback } from "@/electron-main/auth/client";
+import {
+  receiveAppOpen,
+  receiveInstrumentCallback,
+} from "@/electron-main/auth/client";
 import {
   GOOGLE_MARK,
   newAuthReference,
@@ -7,7 +10,10 @@ import {
   previewOutcomes,
   renderAuthPage,
 } from "@/electron-main/auth/page";
-import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
+import {
+  APP_OPEN_PATH,
+  AUTH_CALLBACK_PATHS,
+} from "@/electron-main/auth/routes";
 import { setAuthServerPort } from "@/electron-main/auth/state";
 import {
   appMark,
@@ -200,6 +206,11 @@ export function createAuthCallbackApp() {
         return c.html(renderAuthPage({ kind: "sign-up-refused" }), 403);
       }
       case "signed-in": {
+        // The website takes the account from here: the browser goes on to
+        // it, and the window stays where it is while the person is there.
+        if (result.next) {
+          return c.redirect(result.next, 302);
+        }
         // Delay focus so the renderer has time to navigate to the success
         // screen before the window comes to front -- keeps the entrance
         // animation visible.
@@ -213,6 +224,13 @@ export function createAuthCallbackApp() {
         );
       }
     }
+  });
+
+  // The website's Open Instrument buttons land here.
+  get(APP_OPEN_PATH, (c) => {
+    receiveAppOpen(c.req.query("step"));
+    focusAppWindow();
+    return c.html(renderAuthPage({ kind: "opened" }));
   });
 
   // An app's sign-in lands here after the user approves. The page opened in

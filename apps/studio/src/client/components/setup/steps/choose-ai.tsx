@@ -106,6 +106,9 @@ export function ChooseAI({
     instrument: useInstrumentConnect(),
   };
   const [page, setPage] = useState<ChooseAIPage>(initial);
+  // Signed in on the website, which sent the person back for a
+  // subscription: Instrument's own account is no longer one to offer.
+  const [signedInOnWeb, setSignedInOnWeb] = useState(false);
   // Where Back and Cancel return to from a sign-in's wait.
   const [waitedFrom, setWaitedFrom] = useState<ChooseAIPage>(initial);
   const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
@@ -130,6 +133,9 @@ export function ChooseAI({
       const { outcome } = result;
       if (outcome.kind === "canceled") {
         setPage(from);
+      } else if (outcome.kind === "ready" && outcome.next === "subscriptions") {
+        setSignedInOnWeb(true);
+        setPage({ kind: "subscriptions" });
       } else if (outcome.kind === "ready") {
         noteConnection({ kind: "sign-in", provider });
         onDone();
@@ -171,7 +177,7 @@ export function ChooseAI({
       case "subscriptions": {
         return (
           <SubscriptionsPage
-            offerInstrument={offerInstrument}
+            offerInstrument={offerInstrument && !signedInOnWeb}
             onBack={
               initial.kind === "subscriptions"
                 ? onLeave
@@ -328,9 +334,12 @@ function ChoicesPage({
   onKey: () => void;
   onSubscription: () => void;
 }) {
-  const line = google.waiting
-    ? "Finish signing in with Google in your browser."
-    : undefined;
+  const line =
+    google.phase === "on-web"
+      ? "Finish choosing your plan in your browser."
+      : google.waiting
+        ? "Finish signing in with Google in your browser."
+        : undefined;
   return (
     <SetupPage
       align="center"

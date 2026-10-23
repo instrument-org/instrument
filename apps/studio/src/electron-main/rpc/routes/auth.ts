@@ -1,6 +1,7 @@
 import { liveRead } from "@instrument-org/workspace/electron";
 import {
   cancelSignInSocial,
+  finishOnWeb as finishOnWebFn,
   signInSocial as signInSocialFn,
   signOut as signOutFn,
 } from "@/electron-main/auth/client";
@@ -39,6 +40,12 @@ const signInSocial = base.handler(async ({ errors }) => {
   }
 });
 
+/**
+ * After a sign-in answered "on-web": waits while the website has the
+ * account, and says how it came back.
+ */
+const finishOnWeb = base.handler(() => finishOnWebFn());
+
 /** The user gave up on the sign-in waiting in their browser. */
 const cancelSignIn = base.handler(() => {
   cancelSignInSocial();
@@ -46,6 +53,7 @@ const cancelSignIn = base.handler(() => {
 
 export const auth = {
   cancelSignIn,
+  finishOnWeb,
   hasToken,
   live,
   signInSocial,

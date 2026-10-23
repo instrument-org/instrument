@@ -7,3 +7,10 @@ export const AUTH_CALLBACK_PATHS = {
   openrouter: "/auth/callback/openrouter",
   app: "/auth/callback/app",
 } as const;
+
+/**
+ * Where the website's Open Instrument buttons send the browser: brings the
+ * window forward, and with `?step=subscriptions` takes a sign-up that went
+ * on to the website back to the subscriptions in setup.
+ */
+export const APP_OPEN_PATH = "/open";

@@ -12,12 +12,17 @@ Studio receives browser sign-in results on an HTTP server bound to `127.0.0.1`. 
 | `/auth/callback/instrument` | Instrument account sign-in |
 | `/auth/callback/openrouter` | OpenRouter |
 | `/auth/callback/app` | Connected apps |
+| `/open` | The website's Open Instrument buttons |
 
 ChatGPT retains its registered redirect path, with only the port varying when another listener occupies the preferred port. The authorization request and token exchange use the same exact redirect URI.
 
 ## Instrument sign-in
 
 [client.ts](../../apps/studio/src/electron-main/auth/client.ts) requests `callback_version=2` when starting Instrument sign-in through the API, which then returns the browser to `/auth/callback/instrument`. An API that ignores that parameter returns to `/auth/callback`, where ChatGPT's handler answers with the expired page because the state is not its own.
+
+## Continuing on the website
+
+The API's exchange may name `next`, a page on the website that takes the account from there (its plan pages, while the API's `plansOnWebsite` setting is on and the account has no plan or trial). [client.ts](../../apps/studio/src/electron-main/auth/client.ts) keeps `next` only when it is on the website this build talks to (`continueOnWebsite`: tryinstrument.com and its subdomains over HTTPS, or localhost for a local API) and adds the loopback's `port`; the Instrument callback then redirects the browser there instead of rendering the signed-in page, and leaves the window where it is. `signInSocial` answers `on-web`, and `auth.finishOnWeb` waits until billing shows a plan or a running trial, the website's "Use your existing subscriptions" opens `/open?step=subscriptions`, the person cancels in the app, or half an hour passes. The website builds `/open` only from a validated port on `127.0.0.1`, and nothing secret rides on it: a forged link can do no more than bring the window forward.
 
 ## Pending sign-ins
 

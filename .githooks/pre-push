@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Refuses a push whose registry submodule names a skills commit the skills
+# remote does not have, which every checkout of it (CI's first) then fails to
+# fetch. Push the skills commit first. `git push --no-verify` skips this.
+set -euo pipefail
+
+registry=registry
+[[ -e "$registry/.git" ]] || exit 0
+
+zero=0000000000000000000000000000000000000000
+fetched=false
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [[ "$local_sha" == "$zero" ]] && continue
+  pin=$(git ls-tree "$local_sha" "$registry" | awk '$2 == "commit" { print $3 }')
+  [[ -n "$pin" ]] || continue
+  if [[ "$fetched" == false ]]; then
+    git -C "$registry" fetch --quiet origin || {
+      echo "pre-push: could not reach the skills remote to check the registry pin; pushing anyway" >&2
+      exit 0
+    }
+    fetched=true
+  fi
+  if [[ -z "$(git -C "$registry" branch --remotes --contains "$pin" 2> /dev/null)" ]]; then
+    echo "pre-push: registry is pinned to skills commit ${pin:0:9}, which no branch on the skills remote has." >&2
+    echo "pre-push: push that commit to the skills repo first, then push this again." >&2
+    exit 1
+  fi
+done

@@ -33,6 +33,7 @@
     "fix:lint": "oxlint --type-aware --fix scripts *.ts",
     "fix:spelling": "node scripts/typos.ts --write-changes",
     "fix:unused": "knip --fix",
+    "prepare": "git config core.hooksPath .githooks || true",
     "scripts:rebuild-just-bash-patch": "node scripts/rebuild-just-bash-patch.ts",
     "scripts:update-registry": "node scripts/update-registry.ts",
     "studio": "node scripts/prepare.ts && pnpm --filter @instrument-org/studio dev",

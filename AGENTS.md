@@ -49,6 +49,8 @@ Plans, pricing, and usage limits belong to the API, which enforces them and reco
 
 **NEVER edit `registry/`.** It is the `instrument-org/skills` git submodule. Read freely; do not create, edit, or delete files there.
 
+Move its pin with `pnpm scripts:update-registry`, which takes the skills repo's pushed `main`. A pin to a skills commit that is not pushed yet breaks every checkout, CI's included, so the `pre-push` hook in `.githooks/` (set up by `pnpm install`) refuses a push carrying one.
+
 ## TypeScript
 
 - Avoid casts. Prefer `satisfies`; use `as` only for genuinely different types (e.g. unknown payloads), and say why.

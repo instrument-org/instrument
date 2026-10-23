@@ -10,7 +10,6 @@ import { chatFor } from "../test/helpers/chat-record";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
-import { chatDir } from "./record-folders";
 import { workDir } from "./work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
@@ -31,7 +30,7 @@ const model = createMockAIGatewayModel();
 
 let tmpDir: string;
 let chatId: ChatId;
-let recordFolder: string;
+let devicesDir: string;
 
 async function run(command: string) {
   const bash = await createBashEnv({
@@ -57,9 +56,15 @@ beforeEach(async () => {
     workspaceMachineDir: AbsolutePathSchema.parse(machineDir),
   });
   chatId = await chatFor();
-  recordFolder = chatDir(chatId);
   await fs.mkdir(path.join(workDir(chatId), "work"), { recursive: true });
-  await fs.writeFile(path.join(recordFolder, "chat.db"), "needle sentinel\n");
+  // Every chat's records are open to reading; the rest of the app's own
+  // data in the workspace is not.
+  devicesDir = workspaceLayout(rootDir).devicesDir;
+  await fs.mkdir(path.join(devicesDir, "this-device"), { recursive: true });
+  await fs.writeFile(
+    path.join(devicesDir, "this-device", "bookmarks.jsonl"),
+    "needle sentinel\n",
+  );
 });
 
 afterEach(async () => {
@@ -79,8 +84,8 @@ describe.skipIf(process.platform !== "win32")("a rule without a drive", () => {
     expect(result.exitCode).toBe(0);
   });
 
-  it("leaves the workspace's own records out of a search of them", async () => {
-    const result = await run(`rg -uu needle '${shellPath(recordFolder)}'`);
+  it("leaves the app's own data in the workspace out of a search of it", async () => {
+    const result = await run(`rg -uu needle '${shellPath(devicesDir)}'`);
 
     expect(result.stdout).not.toContain("sentinel");
     expect(result.exitCode).not.toBe(0);

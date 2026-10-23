@@ -1,10 +1,13 @@
+import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
+import { type BrowserTargetId } from "../types";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { BLANK_PAGE_URL } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
 import { sessionLayout } from "./session-layout";
-import { heldTabs } from "./held-tabs";
+import { heldTabs, takeClosedTabs } from "./held-tabs";
+import { tabLifetime } from "../machines/window-browser";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createBrowserStatusPart({
@@ -24,14 +27,27 @@ export async function createBrowserStatusPart({
     const layout = await sessionLayout({ chatId, sessionId });
     const spell = (url: string) => agentSpellingOfFileUrls(url, layout);
     const held = await heldTabsStatus({ sessionId, chatId }, spell);
-    return held !== null
-      ? createPart({
-          createdAt,
-          data: { status: "tabs", tabs: held },
-          messageId,
-          sessionId,
-        })
-      : undefined;
+    if (held === null) {
+      return undefined;
+    }
+    const closed = (await takeClosedTabs(chatId, sessionId)).map(
+      ({ id, reason, title, url }) => ({
+        id,
+        reason,
+        ...(title ? { title } : {}),
+        url: spell(url),
+      }),
+    );
+    return createPart({
+      createdAt,
+      data: {
+        ...(closed.length > 0 ? { closed } : {}),
+        status: "tabs",
+        tabs: held,
+      },
+      messageId,
+      sessionId,
+    });
   } catch (error) {
     getWorkspaceConfig().captureException(error);
     return undefined;
@@ -73,10 +89,7 @@ function createPart({
 async function heldTabsStatus(
   { sessionId, chatId }: { sessionId: StoreId.Session; chatId: ChatId },
   spell: (url: string) => string,
-): Promise<
-  | null
-  | { id: string; openedBy: "handed" | "task"; title?: string; url: string }[]
-> {
+): Promise<null | SessionMessageDataPart.BrowserStatusDataPart["tabs"]> {
   const { browser } = getWorkspaceConfig();
   if (browser.hasNoWindow) {
     return null;
@@ -101,7 +114,34 @@ async function heldTabsStatus(
         openedBy: tab.openedBy,
         ...(title ? { title } : {}),
         url: spell(url ?? BLANK_PAGE_URL),
+        ...tabStanding(tab.id),
       },
     ];
   });
+}
+
+/**
+ * Where a tab stands and what it costs, coarse enough that the note reads
+ * the same from turn to turn while nothing much changes: memory to 10 MB,
+ * CPU to a whole percent and none under one, the time left to five minutes.
+ */
+function tabStanding(targetId: BrowserTargetId) {
+  const { browser } = getWorkspaceConfig();
+  const life = tabLifetime(targetId);
+  const cost = browser.guestCost(targetId);
+  const cpu = cost ? Math.round(cost.cpuPercent) : 0;
+  return {
+    ...(life ? { onScreen: life.drawn } : {}),
+    ...(browser.isGuestAsleep(targetId) ? { asleep: true } : {}),
+    ...(cost
+      ? { memoryMb: Math.max(10, Math.round(cost.memoryBytes / 1e7) * 10) }
+      : {}),
+    ...(cpu >= 1 ? { cpuPercent: cpu } : {}),
+    ...(cost && cost.sharedWith.length > 0
+      ? { sharedWith: cost.sharedWith }
+      : {}),
+    ...(life?.unloadsInMs != null
+      ? { unloadsInMin: Math.max(5, Math.ceil(life.unloadsInMs / 300_000) * 5) }
+      : {}),
+  };
 }

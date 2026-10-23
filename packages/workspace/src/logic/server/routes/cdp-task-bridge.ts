@@ -7,6 +7,7 @@ import { resolveChat } from "../../../lib/record-folders";
 import { askWindow, requestWindowTab } from "../../../lib/chat/window-tab";
 import { sessionLayout } from "../../../lib/session-layout";
 import { heldTabs, updateHeldTabs } from "../../../lib/held-tabs";
+import { closeTabsOverCap } from "../../../lib/chat/tab-cap";
 import { getBrowserSessionDir } from "../../../lib/chat-dir-utils";
 import { publisher } from "../../../rpc/publisher";
 import { StoreId } from "../../../schemas/store-id";
@@ -421,6 +422,8 @@ export function handleTaskCdpClient(
     // any tab: `tab new <url>` then reads the page it asked for.
     await loadInNewTab(browser, targetId, address);
     await holdOpened(targetId, { inWindow: true });
+    // One more tab out of sight may put the chat past what it may keep.
+    void closeTabsOverCap(chatId).catch(workspaceConfig.captureException);
     await announce({
       inWindow: true,
       live: true,

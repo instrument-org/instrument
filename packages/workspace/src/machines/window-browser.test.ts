@@ -1,3 +1,4 @@
+import ms from "ms";
 import { noop } from "radashi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createActor } from "xstate";
@@ -13,8 +14,10 @@ import {
   AGENT_PROTECTION_MS,
   DISCARD_CHECK_MS,
   SEEN_TAB_DISCARD_MS,
+  DRIVEN_SLEEP_AFTER_MS,
   SLEEP_AFTER_MS,
-  SLEEP_CHECK_MS,
+  SLEEP_RECHECK_MS,
+  tabLifetime,
   UNSEEN_TAB_DISCARD_MS,
   windowBrowserLogic,
 } from "./window-browser";
@@ -37,6 +40,7 @@ function makeBrowser() {
     getTargetMeta: () => null,
     getTargetUrl: () => undefined,
     hasNoWindow: false,
+    guestCost: () => null,
     isGuestAsleep: (targetId) => asleep.has(targetId),
     isGuestBusy: (targetId) => busy.has(targetId),
     listTargets: () => Promise.resolve([]),
@@ -253,15 +257,15 @@ describe("windowBrowserLogic", () => {
   });
 
   describe("sleep", () => {
-    it("puts a page to sleep once it has been off screen for a while", async () => {
+    it("puts a page to sleep once it has been off screen for a few seconds", async () => {
       const { send, slept } = start();
       const page = tab();
       send("registerTarget", page);
 
-      await pass(SLEEP_AFTER_MS - SLEEP_CHECK_MS);
+      await pass(SLEEP_AFTER_MS - 1);
       expect(slept).toEqual([]);
 
-      await pass(SLEEP_CHECK_MS);
+      await pass(1);
       expect(slept).toEqual([page]);
     });
 
@@ -271,7 +275,7 @@ describe("windowBrowserLogic", () => {
       send("acquireVisible", page);
       send("registerTarget", page);
 
-      await pass(SLEEP_AFTER_MS * 10);
+      await pass(DRIVEN_SLEEP_AFTER_MS * 2);
 
       expect(slept).toEqual([]);
     });
@@ -280,40 +284,58 @@ describe("windowBrowserLogic", () => {
       const { send, slept } = start();
       const page = tab();
       send("registerTarget", page);
-      await pass(SLEEP_AFTER_MS - SLEEP_CHECK_MS);
+      await pass(SLEEP_AFTER_MS - 1);
       send("acquireVisible", page);
+      await pass(SLEEP_AFTER_MS * 4);
       send("releaseVisible", page);
 
-      await pass(SLEEP_AFTER_MS - SLEEP_CHECK_MS);
+      await pass(SLEEP_AFTER_MS - 1);
       expect(slept).toEqual([]);
-      await pass(SLEEP_CHECK_MS);
+      await pass(1);
       expect(slept).toEqual([page]);
     });
 
-    it("keeps a page awake while a working agent drives it", async () => {
+    it("counts from an agent's last command when that came later", async () => {
+      const { send, slept } = start();
+      const page = tab();
+      send("registerTarget", page);
+      await pass(SLEEP_AFTER_MS - 1);
+      noteBrowserAgentActivity(page);
+
+      await pass(SLEEP_AFTER_MS - 1);
+      expect(slept).toEqual([]);
+      await pass(1);
+      expect(slept).toEqual([page]);
+    });
+
+    it("lets a working agent's tab sleep only once the agent has left it alone for minutes", async () => {
       const { send, slept } = start();
       const page = tab();
       driven.add(page);
       send("registerTarget", page);
+      noteBrowserAgentActivity(page);
 
-      await pass(SLEEP_AFTER_MS * 10);
+      await pass(DRIVEN_SLEEP_AFTER_MS - SLEEP_RECHECK_MS);
       expect(slept).toEqual([]);
 
-      driven.delete(page);
-      await pass(SLEEP_CHECK_MS);
+      await pass(SLEEP_RECHECK_MS);
       expect(slept).toEqual([page]);
     });
 
-    it("keeps a page awake for a while after an agent's command", async () => {
+    it("keeps a working agent's tab awake while it sends commands", async () => {
       const { send, slept } = start();
       const page = tab();
+      driven.add(page);
       send("registerTarget", page);
-      await pass(SLEEP_AFTER_MS - SLEEP_CHECK_MS);
-      noteBrowserAgentActivity(page);
-
-      await pass(SLEEP_AFTER_MS - SLEEP_CHECK_MS);
+      for (let minute = 0; minute < 5; minute += 1) {
+        noteBrowserAgentActivity(page);
+        await pass(DRIVEN_SLEEP_AFTER_MS / 2);
+      }
       expect(slept).toEqual([]);
-      await pass(SLEEP_CHECK_MS * 2);
+
+      // The turn ends: the short wait applies again.
+      driven.delete(page);
+      await pass(SLEEP_RECHECK_MS);
       expect(slept).toEqual([page]);
     });
 
@@ -323,11 +345,11 @@ describe("windowBrowserLogic", () => {
       busy.add(page);
       send("registerTarget", page);
 
-      await pass(SLEEP_AFTER_MS * 10);
+      await pass(DRIVEN_SLEEP_AFTER_MS * 2);
       expect(slept).toEqual([]);
 
       busy.delete(page);
-      await pass(SLEEP_CHECK_MS);
+      await pass(SLEEP_RECHECK_MS);
       expect(slept).toEqual([page]);
     });
 
@@ -336,13 +358,66 @@ describe("windowBrowserLogic", () => {
       const page = tab();
       send("registerTarget", page);
 
-      await pass(SLEEP_AFTER_MS * 3);
+      await pass(SLEEP_AFTER_MS + SLEEP_RECHECK_MS * 3);
       expect(slept).toEqual([page]);
 
-      // A command or a slot showing it woke it, out of this actor's sight.
+      // The window showed it and hid it again: it slept once more.
       asleep.delete(page);
-      await pass(SLEEP_CHECK_MS);
+      await pass(SLEEP_RECHECK_MS);
       expect(slept).toEqual([page, page]);
+    });
+
+    it("puts a page woken by a command back to sleep once it is quiet again", async () => {
+      const { asleep, send, slept } = start();
+      const page = tab();
+      send("registerTarget", page);
+      await pass(SLEEP_AFTER_MS);
+      expect(slept).toEqual([page]);
+
+      asleep.delete(page);
+      noteBrowserAgentActivity(page);
+      await pass(SLEEP_AFTER_MS - 1);
+      expect(slept).toEqual([page]);
+      await pass(1);
+      expect(slept).toEqual([page, page]);
+    });
+  });
+
+  describe("tabLifetime", () => {
+    it("says how long a hidden page has before it is unloaded", async () => {
+      const { send } = start();
+      const page = tab();
+      send("registerTarget", page);
+      await pass(ms("5 minutes"));
+
+      expect(tabLifetime(page)).toEqual({
+        drawn: false,
+        hiddenForMs: ms("5 minutes"),
+        unloadsInMs: UNSEEN_TAB_DISCARD_MS - ms("5 minutes"),
+      });
+    });
+
+    it("counts an agent's recent command as protection", async () => {
+      const { send } = start();
+      const page = tab();
+      send("registerTarget", page);
+      await pass(UNSEEN_TAB_DISCARD_MS - ms("1 minute"));
+      noteBrowserAgentActivity(page);
+
+      expect(tabLifetime(page)?.unloadsInMs).toBe(AGENT_PROTECTION_MS);
+    });
+
+    it("says a drawn page is drawn", () => {
+      const { send } = start();
+      const page = tab();
+      send("acquireVisible", page);
+      send("registerTarget", page);
+
+      expect(tabLifetime(page)).toEqual({
+        drawn: true,
+        hiddenForMs: null,
+        unloadsInMs: null,
+      });
     });
   });
 });

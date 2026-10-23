@@ -33,6 +33,30 @@ const HeldTabSchema = z.object({
 
 export type HeldTab = z.output<typeof HeldTabSchema>;
 
+/**
+ * How many tabs a chat may keep out of the user's sight that its agents
+ * opened themselves, across its conversation and its tasks. Tabs handed to
+ * them, and the user's own, never count and are never closed for it.
+ */
+export const CHAT_HIDDEN_TAB_CAP = 20;
+
+/**
+ * A tab an agent opened that the app closed on its own, waiting for the
+ * session that drove it to be told: the next browser note it gets says so,
+ * and takes it from here.
+ */
+const ClosedTabSchema = z.object({
+  /** The session that drove it, as `HeldTab.driver`. */
+  driver: StoreId.SessionSchema.optional(),
+  id: z.string(),
+  /** Why: the chat had more tabs it opened itself out of sight than it may keep. */
+  reason: z.literal("tabCap"),
+  title: z.string().optional(),
+  url: z.string(),
+});
+
+export type ClosedTab = z.output<typeof ClosedTabSchema>;
+
 /** A session that asked what a card asks, the chat's own or one of its tasks'. */
 const AskerSchema = z.object({
   /** The call that asked, by its part's id. */
@@ -134,6 +158,7 @@ export type Ask = z.output<typeof AskSchema>;
 // through `openPermissionAsks`.
 export const StoredChatStateSchema = z.object({
   browserTabs: z.array(HeldTabSchema).default([]),
+  closedTabs: z.array(ClosedTabSchema).catch([]).default([]),
   // The folders and apps the agent is waiting on the person to allow,
   // oldest first: this computer's to grant. One that will not parse costs
   // the chat its open cards alone.

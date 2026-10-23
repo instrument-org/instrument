@@ -207,14 +207,41 @@ export namespace SessionMessageDataPart {
     typeof BackgroundProcessesDataPartSchema
   >;
 
-  /** The tabs of the user's chat a task holds, each by the id `agent-browser tab` takes. */
+  /**
+   * The tabs of the user's chat a session holds, each by the id
+   * `agent-browser tab` takes, with where each stands and what it costs.
+   * The figures are coarse (memory to 10 MB, CPU to a whole percent and left
+   * out under one, the time left to five minutes) so the picture reads the
+   * same from turn to turn while nothing much changes.
+   */
   const BrowserStatusDataPartSchema = z.object({
+    /** Tabs the app closed since the session was last told, and why. */
+    closed: z
+      .array(
+        z.object({
+          id: z.string(),
+          reason: z.literal("tabCap"),
+          title: z.string().optional(),
+          url: z.string(),
+        }),
+      )
+      .optional(),
     status: z.literal("tabs"),
     tabs: z.array(
       z.object({
+        /** Its page stopped drawing until the next command or the user looking. */
+        asleep: z.boolean().optional(),
+        cpuPercent: z.number().optional(),
         id: z.string(),
+        memoryMb: z.number().optional(),
+        /** Whether the user's window draws it now. */
+        onScreen: z.boolean().optional(),
         openedBy: z.enum(["handed", "task"]),
+        /** The other tabs its process draws too, whose cost this is as well. */
+        sharedWith: z.array(z.string()).optional(),
         title: z.string().optional(),
+        /** Minutes until its page is unloaded unless it is used. */
+        unloadsInMin: z.number().optional(),
         url: z.string(),
       }),
     ),

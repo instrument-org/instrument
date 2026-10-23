@@ -49,6 +49,7 @@ import {
   createSignInRequests,
   guardGuestSecurity,
 } from "./guest-security";
+import { guestCost } from "./guest-cost";
 import { configureGuestSession } from "./guest-session";
 import { mayGuestSleep, sleepGuest, wakeGuest } from "./guest-sleep";
 import {
@@ -707,6 +708,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       }
       return { partitionDir: entry.partitionDir };
     },
+    guestCost: (targetId) => guestCost(entries, targetId),
     isGuestAsleep: (targetId) => entries.get(targetId)?.asleep ?? false,
     isGuestBusy: (targetId) => {
       const entry = entries.get(targetId);

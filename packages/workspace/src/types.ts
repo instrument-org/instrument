@@ -47,6 +47,18 @@ export interface BrowserConfig {
    * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
    */
   hasNoWindow: boolean;
+  /**
+   * What the guest's renderer process costs, from the main process's process
+   * metrics: its memory, and its CPU averaged since the previous reading
+   * (taken at most every few seconds). Null for a guest with no process.
+   * `sharedWith` names the other guests the same process draws, whose cost
+   * this is too.
+   */
+  guestCost: (targetId: BrowserTargetId) => null | {
+    cpuPercent: number;
+    memoryBytes: number;
+    sharedWith: BrowserTargetId[];
+  };
   /** Whether the guest is asleep (`sleepGuest`), until a command or the window showing it wakes it. */
   isGuestAsleep: (targetId: BrowserTargetId) => boolean;
   /**

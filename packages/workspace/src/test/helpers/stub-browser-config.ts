@@ -14,6 +14,7 @@ export function createStubBrowserConfig(): BrowserConfig {
     contentBlocking: () => ({ task: true, workspace: true }),
     getTargetMeta: () => null,
     hasNoWindow: false,
+    guestCost: () => null,
     isGuestAsleep: () => false,
     isGuestBusy: () => false,
     getTargetUrl: (): string | undefined => {

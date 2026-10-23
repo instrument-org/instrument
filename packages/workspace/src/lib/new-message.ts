@@ -203,20 +203,15 @@ export async function newMessage({
     parts.push(backgroundProcessesPart);
   }
 
-  // A chat has no browser of its own: it drives whichever of the
-  // window's tabs is on screen, which the view note on each message names,
-  // so the open-and-closed bookkeeping of a task's browser would only tell
-  // it tales about tabs it never owned. A task of the chat's, in the same
-  // store, is told as a task.
   const isChat = sessionRole(chatId, sessionId) === "chat";
-  const browserStatusPart = isChat
-    ? undefined
-    : await createBrowserStatusPart({
-        createdAt,
-        messageId,
-        sessionId,
-        chatId,
-      });
+  // The tabs the session holds, the chat's own conversation included: the
+  // tabs it opened itself and those no task drives.
+  const browserStatusPart = await createBrowserStatusPart({
+    createdAt,
+    messageId,
+    sessionId,
+    chatId,
+  });
   if (browserStatusPart) {
     parts.push(browserStatusPart);
   }

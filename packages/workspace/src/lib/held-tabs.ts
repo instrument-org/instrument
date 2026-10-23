@@ -1,6 +1,6 @@
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { type HeldTab } from "../schemas/chat-state";
+import { type ClosedTab, type HeldTab } from "../schemas/chat-state";
 import { sessionRole } from "./chat/children";
 import { chatDir } from "./record-folders";
 import { getChatState, updateChatState } from "./chat-record";
@@ -19,6 +19,29 @@ export async function heldTabs(
   return (await getChatState(chatDir(chatId))).browserTabs.filter(
     (tab) => tab.driver === driver,
   );
+}
+
+/**
+ * The tabs of the session's the app closed on its own since it was last
+ * told, taken from the chat's state: whoever reads them tells the session.
+ */
+export async function takeClosedTabs(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<ClosedTab[]> {
+  const driver = driverOf(chatId, sessionId);
+  const { closedTabs } = await getChatState(chatDir(chatId));
+  if (!closedTabs.some((tab) => tab.driver === driver)) {
+    return [];
+  }
+  let taken: ClosedTab[] = [];
+  await updateChatState(chatDir(chatId), (state) => {
+    taken = state.closedTabs.filter((tab) => tab.driver === driver);
+    return {
+      closedTabs: state.closedTabs.filter((tab) => tab.driver !== driver),
+    };
+  });
+  return taken;
 }
 
 /**

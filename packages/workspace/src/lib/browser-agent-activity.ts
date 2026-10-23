@@ -7,6 +7,19 @@ const KEPT = 256;
 /** When each guest last had an agent's command, oldest first. */
 const lastAt = new Map<BrowserTargetId, number>();
 
+/** Told of each command as it is noted, in this process. */
+const listeners = new Set<(targetId: BrowserTargetId) => void>();
+
+/** Calls `listener` with the guest each time an agent sends one a command; returns the way to stop. */
+export function onBrowserAgentActivity(
+  listener: (targetId: BrowserTargetId) => void,
+): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 /** When an agent last worked in a guest, in ms, or nothing when none has since launch. */
 export function lastBrowserAgentActivity(
   targetId: BrowserTargetId,
@@ -29,4 +42,7 @@ export function noteBrowserAgentActivity(targetId: BrowserTargetId): void {
     lastAt.delete(oldest);
   }
   publisher.publish("browser.agentActivity", { targetId });
+  for (const listener of listeners) {
+    listener(targetId);
+  }
 }

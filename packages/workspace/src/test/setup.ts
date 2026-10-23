@@ -53,6 +53,7 @@ setWorkspaceConfig({
   browser: {
     closeTarget: () => Promise.resolve(),
     hasNoWindow: false,
+    guestCost: () => null,
     isGuestAsleep: () => false,
     isGuestBusy: () => false,
     createTarget: rejectBrowserTarget,

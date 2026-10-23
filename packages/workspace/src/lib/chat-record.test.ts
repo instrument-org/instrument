@@ -63,6 +63,7 @@ describe("this device's state", () => {
   it("answers empty for a chat with no state file", async () => {
     await expect(getChatState(chatDir(chatId))).resolves.toEqual({
       browserTabs: [],
+      closedTabs: [],
       waitingOn: [],
     });
   });
@@ -99,6 +100,7 @@ describe("this device's state", () => {
 
     expect(await getChatState(chatDir(chatId))).toEqual({
       browserTabs: [tabB, tabD],
+      closedTabs: [],
       waitingOn: [],
     });
     expect(await readJson(statePath(other))).toEqual({
@@ -112,6 +114,7 @@ describe("this device's state", () => {
 
     expect(await getChatState(chatDir(chatId))).toEqual({
       browserTabs: [],
+      closedTabs: [],
       waitingOn: [],
     });
   });

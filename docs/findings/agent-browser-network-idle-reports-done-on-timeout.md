@@ -1,6 +1,6 @@
 # agent-browser's network-idle wait reports success when it times out
 
-**Status:** worked around in the wrapper (`agent-browser-wait.ts`), which gives an uncapped `wait --load networkidle` a five-second timeout and says so when the network stayed busy. The upstream bug is open; nothing has been filed.
+**Status:** worked around in the wrapper (`agent-browser-wait.ts`), which gives an uncapped `wait --load networkidle` a five-second timeout and says so when the network stayed busy. The upstream fix is open as [vercel-labs/agent-browser#2123](https://github.com/vercel-labs/agent-browser/pull/2123).
 
 ## Symptom
 

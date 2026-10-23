@@ -70,8 +70,10 @@ it.each(CASES)(
     });
     const click = nextClickPrevented();
 
+    // The window stubs pin the platform to macOS, so the command key is Meta
+    // whatever host runs the suite; ControlOrMeta would send Control on Linux.
     await userEvent.click(view.dom.querySelector("a") ?? view.dom, {
-      modifiers: ["ControlOrMeta"],
+      modifiers: ["Meta"],
     });
 
     expect(click.prevented).toBe(true);

@@ -1,3 +1,4 @@
+import { findSecrets } from "@instrument-org/shared/secrets";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -12,24 +13,6 @@ interface SecretFinding {
   file: string;
 }
 
-// Deliberately small, high-signal set: app folders are tiny and these
-// cover the token shapes agents actually paste by mistake. The stored
-// credential itself is checked verbatim separately.
-// cspell:ignore abprs AKIA bntn bxox oprsu
-const SECRET_PATTERNS: { name: string; pattern: RegExp }[] = [
-  { name: "OpenAI-style key", pattern: /\bsk-[\w-]{16,}\b/ },
-  { name: "GitHub token", pattern: /\bgh[oprsu]_[A-Za-z0-9]{20,}\b/ },
-  { name: "Slack token", pattern: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/ },
-  { name: "AWS access key id", pattern: /\bAKIA[0-9A-Z]{16}\b/ },
-  { name: "Notion token", pattern: /\bntn_[A-Za-z0-9]{20,}\b/ },
-  { name: "Private key block", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
-  { name: "JWT", pattern: /\beyJ[\w-]{8,}\.eyJ[\w-]{8,}\./ },
-  {
-    name: "Inline credential assignment",
-    pattern:
-      /["'`]?(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)["'`]?\s*[:=]\s*["'`][^"'`\s]{16,}["'`]/i,
-  },
-];
 
 /**
  * Scan every file in a app folder for secret-shaped strings and for the
@@ -104,7 +87,5 @@ export async function scanAppFolder({
 }
 
 function scanTextForSecrets(text: string): string[] {
-  return SECRET_PATTERNS.filter(({ pattern }) => pattern.test(text)).map(
-    ({ name }) => name,
-  );
+  return [...new Set(findSecrets(text).map(({ label }) => label))];
 }

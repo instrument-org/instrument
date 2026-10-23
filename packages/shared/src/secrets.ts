@@ -236,6 +236,7 @@ const SECRET_RULES: readonly SecretRule[] = [
     keywords: ["earer"],
     label: "bearer token",
     pattern: /\b[Bb]earer\s+([A-Za-z0-9._~+/-]{16,}=*)/g,
+    plausible: (token) => !isPlaceholder(token),
   },
   {
     group: true,

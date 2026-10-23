@@ -8,9 +8,9 @@ import { APP_NAME } from "@instrument-org/shared";
 import { useReducedMotion } from "motion/react";
 import { useState } from "react";
 
-import { SetupFooter, SetupPage } from "./kit/setup-page";
-import { SetupPageSwitch } from "./kit/setup-page-switch";
-import { type SetupPageProps } from "./setup-page-props";
+import { SetupFooter, SetupPage } from "../kit/setup-page";
+import { SetupPageSwitch } from "../kit/setup-page-switch";
+import { type SetupStepProps } from "../step-props";
 
 type ThemeOption = "dark" | "light" | "system";
 
@@ -25,12 +25,12 @@ const THEMES: { label: string; value: ThemeOption }[] = [
  * Continue leads to All set, whose button finishes setup, so the step is
  * answered only by finishing and a quit at All set comes back here.
  */
-export function LookPage({
+export function LookStep({
   isLast,
   onBack,
   onContinue,
   onFinish,
-}: SetupPageProps) {
+}: SetupStepProps) {
   const { setTheme, theme } = useTheme();
   const [isAllSet, setIsAllSet] = useState(false);
   const isReduced = useReducedMotion() ?? false;

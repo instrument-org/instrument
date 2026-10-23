@@ -9,7 +9,7 @@ import {
 import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 import { type ConnectProvider } from "@/shared/connect-outcome";
 
-import { type ConnectedWay } from "./connected-way";
+import { type LastConnection } from "./last-connection";
 
 /**
  * What setup's model step lists, as data: the models worth picking for new
@@ -84,21 +84,21 @@ const SIGN_IN_TYPES: Record<ConnectProvider, string> = {
 };
 
 /**
- * The models of the way in setup just connected, or every connection's when
+ * The models of the connection setup just made, or every connection's when
  * it connected none (the person came with their own) or its models haven't
  * listed yet.
  */
-export function modelsOfWay(
+export function modelsOfConnection(
   models: AIGatewayModel.Type[],
-  way: ConnectedWay | undefined,
+  connection: LastConnection | undefined,
 ): AIGatewayModel.Type[] {
-  if (way === undefined) {
+  if (connection === undefined) {
     return models;
   }
   const own = models.filter((model) =>
-    way.kind === "key"
-      ? model.params.providerConfigId === way.providerConfigId
-      : model.params.provider === SIGN_IN_TYPES[way.provider],
+    connection.kind === "key"
+      ? model.params.providerConfigId === connection.providerConfigId
+      : model.params.provider === SIGN_IN_TYPES[connection.provider],
   );
   return own.length > 0 ? own : models;
 }

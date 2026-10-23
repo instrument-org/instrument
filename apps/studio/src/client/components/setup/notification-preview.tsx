@@ -52,7 +52,7 @@ const SCREEN_EDGE: Record<NotificationLook, string> = {
  * one, in the corner of the screen it shows up in. Only the words and the
  * icon are ours in the real one; the rest follows the system.
  */
-export function SampleNotification() {
+export function NotificationPreview() {
   const look = notificationLook();
   return (
     <div

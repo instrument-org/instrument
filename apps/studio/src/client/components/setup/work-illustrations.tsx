@@ -10,11 +10,11 @@ import { type CSSProperties, type ReactNode } from "react";
  */
 
 /** A sheet: a green header row over a grid with one cell picked. */
-export function SheetVignette() {
+export function SheetIllustration() {
   const columns = [0, 26.43, 48.62, 70.81];
   const widths = [25.43, 21.19, 21.19, 21.19];
   return (
-    <VignetteCard className="h-16 w-23 bg-vignette-ink-faint">
+    <IllustrationCard className="h-16 w-23 bg-vignette-ink-faint">
       {columns.map((left, index) => (
         <div
           className="absolute top-0 h-2.75 bg-vignette-head"
@@ -41,14 +41,14 @@ export function SheetVignette() {
           </div>
         )),
       )}
-    </VignetteCard>
+    </IllustrationCard>
   );
 }
 
 /** A document: a yellow kicker, a heading and four lines. */
-export function DocVignette() {
+export function DocIllustration() {
   return (
-    <VignetteCard className="h-20 w-24">
+    <IllustrationCard className="h-20 w-24">
       <Bar className="top-2.25 left-2.25 h-1 w-[29.6px] bg-yellow-300" />
       <Bar className="top-4.5 left-2.25 h-1.5 w-[62.4px] bg-vignette-ink" />
       {[31, 39, 47, 55].map((top, index) => (
@@ -58,14 +58,14 @@ export function DocVignette() {
           style={{ top, width: [73.3, 59.3, 68.6, 46.8][index] }}
         />
       ))}
-    </VignetteCard>
+    </IllustrationCard>
   );
 }
 
 /** A browser page: its address bar, a banner and three lines. */
-export function PageVignette() {
+export function PageIllustration() {
   return (
-    <VignetteCard className="h-18.5 w-25">
+    <IllustrationCard className="h-18.5 w-25">
       <div className="absolute inset-x-0 top-0 h-3.5 bg-vignette-band" />
       <Bar className="top-1 left-5.5 h-1.5 w-14 rounded-[3px] bg-vignette-paper" />
       <Bar className="top-5.25 left-1.75 h-6 w-21.5 rounded-[5px] bg-linear-to-b from-vignette-banner-top to-vignette-banner-bottom" />
@@ -77,12 +77,12 @@ export function PageVignette() {
           style={{ top, width: [81, 60][index] }}
         />
       ))}
-    </VignetteCard>
+    </IllustrationCard>
   );
 }
 
 /** A bar chart with its tallest bar picked out. */
-export function ChartVignette() {
+export function ChartIllustration() {
   const bars: [left: number, top: number, height: number, faint: boolean][] = [
     [8, 50.36, 17.64, true],
     [23.2, 41.12, 26.88, true],
@@ -91,7 +91,7 @@ export function ChartVignette() {
     [68.8, 37.76, 30.24, true],
   ];
   return (
-    <VignetteCard className="h-18 w-22">
+    <IllustrationCard className="h-18 w-22">
       <Bar className="top-2 left-2 h-1 w-[38.9px] bg-vignette-ink" />
       <Bar className="top-3.75 left-2 h-0.75 w-[24.5px] bg-vignette-ink-faint" />
       {bars.map(([left, top, height, faint]) => (
@@ -105,33 +105,33 @@ export function ChartVignette() {
         />
       ))}
       <div className="absolute top-17 left-2 h-px w-18 bg-vignette-edge" />
-    </VignetteCard>
+    </IllustrationCard>
   );
 }
 
 /** A photo, a picture in either theme. */
-export function PhotoVignette() {
+export function PhotoIllustration() {
   return (
-    <VignetteCard className="h-18 w-15">
+    <IllustrationCard className="h-18 w-15">
       <img
         alt=""
         className="absolute top-1 left-1 h-16 w-13 max-w-none"
         src={photoSrc}
       />
-    </VignetteCard>
+    </IllustrationCard>
   );
 }
 
 /** A PDF, by its icon. */
-export function PdfVignette() {
+export function PdfIllustration() {
   return (
-    <VignetteCard className="flex h-17 w-14 items-center justify-center text-brand-500">
+    <IllustrationCard className="flex h-17 w-14 items-center justify-center text-brand-500">
       <FilePdfIcon className="size-5.5" />
-    </VignetteCard>
+    </IllustrationCard>
   );
 }
 
-function VignetteCard({
+function IllustrationCard({
   children,
   className,
 }: {

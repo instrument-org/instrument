@@ -13,7 +13,7 @@ import { lazy, Suspense, useState } from "react";
 
 import { SetupPageSwitch } from "./kit/setup-page-switch";
 
-import { SETUP_PAGES } from "./setup-pages";
+import { SETUP_PAGES } from "./step-pages";
 import { useSetupState } from "./use-setup-state";
 
 // The developer panel, for Skip setup: loaded only in developer mode.

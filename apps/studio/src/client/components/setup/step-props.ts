@@ -1,7 +1,7 @@
 import { type SetupStep } from "@/shared/setup";
 
 /** What every setup page is handed. */
-export type SetupPageProps = {
+export type SetupStepProps = {
   /**
    * Keeps this step's page on screen while it finishes something that
    * settles the step on its own (notifications allowed, a folder move

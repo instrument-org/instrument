@@ -9,7 +9,7 @@ import { z } from "zod";
 export const SETUP_STEPS = [
   "welcome-back",
   "folder",
-  "way-in",
+  "choose-ai",
   "plan",
   "free-account",
   "model",
@@ -89,7 +89,16 @@ export interface SetupFacts {
  * of an older one.
  */
 export const SetupRecordSchema = z.object({
-  answered: z.record(z.string(), z.string()).catch({}),
+  answered: z
+    .record(z.string(), z.string())
+    .catch({})
+    // Earlier builds named choose-ai `way-in`; its answer carries over, and
+    // the old key stays for a build that still reads it.
+    .transform((answered) =>
+      answered["way-in"] !== undefined && answered["choose-ai"] === undefined
+        ? { ...answered, "choose-ai": answered["way-in"] }
+        : answered,
+    ),
   finishedAt: z.string().optional().catch(undefined),
 });
 

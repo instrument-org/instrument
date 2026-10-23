@@ -9,7 +9,7 @@ import {
   choosableModels,
   isShortList,
   longListGroups,
-  modelsOfWay,
+  modelsOfConnection,
   recommendedModel,
   shortList,
 } from "./model-choices";
@@ -207,22 +207,23 @@ describe("setup's model choices", () => {
     ).toEqual([]);
   });
 
-  it("lists the way in just connected, else every connection", () => {
+  it("lists the connection just made, else every connection", () => {
     const models = choosableModels([...instrumentPlan, ...openRouter]);
     const key = AIProviderConfigIdSchema.parse("openrouter");
     expect(
-      modelsOfWay(models, { kind: "sign-in", provider: "instrument" }).map(
-        (m) => m.name,
-      ),
+      modelsOfConnection(models, {
+        kind: "sign-in",
+        provider: "instrument",
+      }).map((m) => m.name),
     ).toEqual(["Claude", "Auto", "ChatGPT"]);
     expect(
-      modelsOfWay(models, { kind: "key", providerConfigId: key }),
+      modelsOfConnection(models, { kind: "key", providerConfigId: key }),
     ).toHaveLength(8);
-    expect(modelsOfWay(models, undefined)).toBe(models);
+    expect(modelsOfConnection(models, undefined)).toBe(models);
     // Grok's models not listed yet: every connection's rather than none.
-    expect(modelsOfWay(models, { kind: "sign-in", provider: "grok" })).toBe(
-      models,
-    );
+    expect(
+      modelsOfConnection(models, { kind: "sign-in", provider: "grok" }),
+    ).toBe(models);
   });
 
   it("groups several connections' long list by connection", () => {

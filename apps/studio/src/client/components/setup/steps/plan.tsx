@@ -6,16 +6,16 @@ import {
 import { useEffect, useState } from "react";
 
 import { SetupPageSwitch } from "../kit/setup-page-switch";
-import { type SetupPageProps } from "../setup-page-props";
+import { type SetupStepProps } from "../step-props";
 import { useSetupState } from "../use-setup-state";
-import { previewPage } from "./preview";
-import { WaysIn, type WaysInPage } from "./ways-in";
+import { previewPage } from "../preview-page";
+import { ChooseAI, type ChooseAIPage } from "./choose-ai";
 
 /** How long the account check may take before the plans show anyway. */
 const SLOW_CHECK_MS = 10_000;
 
-/** The plan step's pages: the plan pages, and the other ways in under them. */
-type PlanStepPage = PlanPage | { initial: WaysInPage; kind: "use-instead" };
+/** The plan step's pages: the plan pages, and the other AI choices under them. */
+type PlanStepPage = PlanPage | { initial: ChooseAIPage; kind: "use-instead" };
 
 /**
  * The plan, for someone signed in to Instrument with no subscription and no
@@ -24,9 +24,9 @@ type PlanStepPage = PlanPage | { initial: WaysInPage; kind: "use-instead" };
  * an API key too. Answered once a trial starts, Checkout completes, or
  * another way connects.
  */
-export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
+export function PlanStep({ hold, onBack, onContinue }: SetupStepProps) {
   const [preview] = useState(() => previewPage<PlanStepPage>("plan"));
-  const [useInstead, setUseInstead] = useState<null | WaysInPage>(
+  const [useInstead, setUseInstead] = useState<null | ChooseAIPage>(
     preview?.kind === "use-instead" ? preview.initial : null,
   );
   // Until the account's billing status is read, the plans may not be asked
@@ -82,7 +82,7 @@ export function PlanStep({ hold, onBack, onContinue }: SetupPageProps) {
       page={useInstead ? "use-instead" : plan.kind}
     >
       {useInstead ? (
-        <WaysIn
+        <ChooseAI
           hold={hold}
           initial={useInstead}
           offerInstrument={false}

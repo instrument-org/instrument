@@ -10,20 +10,20 @@ import { folderWarningSentence } from "@/shared/workspace-folder-refusal";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { FolderLocation, FolderNote } from "./kit/folder-row";
-import { SetupFooter, SetupPage } from "./kit/setup-page";
-import { SetupPageSwitch } from "./kit/setup-page-switch";
-import { PackedFolder } from "./folder-illustration";
+import { FolderLocation, FolderNote } from "../kit/folder-row";
+import { SetupFooter, SetupPage } from "../kit/setup-page";
+import { SetupPageSwitch } from "../kit/setup-page-switch";
+import { PackedFolder } from "../folder-illustration";
 import {
   count,
   folderAction,
   type FoundNote,
   foundNote,
   them,
-} from "./folder-flow";
-import { type SetupPageProps } from "./setup-page-props";
-import { useSetupState } from "./use-setup-state";
-import { WelcomeBurst } from "./welcome-burst";
+} from "../folder-flow";
+import { type SetupStepProps } from "../step-props";
+import { useSetupState } from "../use-setup-state";
+import { WelcomeBurst } from "../welcome-burst";
 
 /** How long the page saying the app restarts shows before the restart. */
 const RESTART_NOTICE_MS = 3000;
@@ -54,7 +54,7 @@ type Refusal = Extract<
  * Instrument folder, restarts the app, so the page says that first and
  * holds the step on screen meanwhile.
  */
-export function FolderPage({ hold, onBack, onContinue }: SetupPageProps) {
+export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
   const facts = useSetupState()?.facts;
   const hasChats = facts?.hasChats ?? false;
   // No workspace yet: this page places it. A first launch, or a folder lost.

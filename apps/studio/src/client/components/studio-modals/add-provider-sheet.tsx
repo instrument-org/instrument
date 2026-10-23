@@ -33,7 +33,7 @@ import {
   MAIN_MODEL_TITLE,
   MainModelList,
   useMainModelChoice,
-} from "@/client/components/setup/model-page";
+} from "@/client/components/setup/steps/model";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {

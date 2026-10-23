@@ -16,19 +16,19 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import { ModelGroupLabel, ModelRow } from "./kit/model-row";
-import { SetupFooter, SetupPage } from "./kit/setup-page";
-import { type ConnectedWay, connectedWay } from "./connected-way";
+import { ModelGroupLabel, ModelRow } from "../kit/model-row";
+import { SetupFooter, SetupPage } from "../kit/setup-page";
+import { type LastConnection, lastConnection } from "../last-connection";
 import {
   choosableModels,
   isShortList,
   longListGroups,
   makerOf,
-  modelsOfWay,
+  modelsOfConnection,
   recommendedModel,
   shortList,
-} from "./model-choices";
-import { type SetupPageProps } from "./setup-page-props";
+} from "../model-choices";
+import { type SetupStepProps } from "../step-props";
 
 /** How long the list may load before Continue becomes a skip. */
 const SLOW_LIST_MS = 10_000;
@@ -44,9 +44,9 @@ export const MAIN_MODEL_TITLE = "Pick your main model";
  * suggestions. The recommended row is what the default would have been, and
  * Continue makes the one picked the default.
  */
-export function ModelPage({ onBack, onContinue }: SetupPageProps) {
-  const [way] = useState(connectedWay);
-  const choice = useMainModelChoice(way);
+export function ModelStep({ onBack, onContinue }: SetupStepProps) {
+  const [connection] = useState(lastConnection);
+  const choice = useMainModelChoice(connection);
   return (
     <SetupPage
       footer={
@@ -78,11 +78,11 @@ type MainModelChoice = ReturnType<typeof useMainModelChoice>;
 /**
  * The main model's choice, wherever it is asked (setup's model step, the
  * Add a provider sheet once a provider connects): the models to pick from
- * (the way in setup connected's, when `way` names one),
+ * (the connection setup just made, when `connection` names one),
  * the one recommended and the one picked, the line under the title, and
  * `save`, which makes the one picked the default for new chats.
  */
-export function useMainModelChoice(way?: ConnectedWay) {
+export function useMainModelChoice(connection?: LastConnection) {
   const { data: list, isLoading } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
@@ -98,7 +98,10 @@ export function useMainModelChoice(way?: ConnectedWay) {
   if (entry === undefined && !isDefaultPending) {
     setEntry({ defaultURI });
   }
-  const models = modelsOfWay(choosableModels(list?.models ?? []), way);
+  const models = modelsOfConnection(
+    choosableModels(list?.models ?? []),
+    connection,
+  );
   const recommended = recommendedModel(models, entry?.defaultURI);
   const [picked, setPicked] = useState<string | undefined>(undefined);
   const chosen = picked ?? recommended?.uri;

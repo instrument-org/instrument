@@ -3,17 +3,17 @@ import { APP_NAME } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { SetupFooter, SetupPage } from "./kit/setup-page";
-import { NotificationRow } from "./kit/setup-row";
+import { SetupFooter, SetupPage } from "../kit/setup-page";
+import { NotificationRow } from "../kit/setup-row";
 import {
   continueFor,
   type NotificationsEvent,
   notificationsStep,
   type NotificationsState,
-} from "./notifications-flow";
-import { type SetupPageProps } from "./setup-page-props";
-import { SampleNotification } from "./sample-notification";
-import { sendTestNotification } from "./test-notification";
+} from "../notifications-flow";
+import { type SetupStepProps } from "../step-props";
+import { NotificationPreview } from "../notification-preview";
+import { sendTestNotification } from "../test-notification";
 
 /**
  * Notifications (frames 10 to 13). Allow asks the system; on a yes, a real
@@ -21,14 +21,14 @@ import { sendTestNotification } from "./test-notification";
  * row Allowed. The step settles itself the moment the system says yes, so
  * the page holds it on screen until Continue. Continue is always there.
  */
-export function NotificationsPage({
+export function NotificationsStep({
   hold,
   isLast,
   isNewStepOnly,
   onBack,
   onContinue,
   onFinish,
-}: SetupPageProps) {
+}: SetupStepProps) {
   const [state, setState] = useState<NotificationsState>("ask");
   const dispatch = (event: NotificationsEvent) => {
     setState((current) => notificationsStep(current, event));
@@ -81,7 +81,7 @@ export function NotificationsPage({
               One new thing to set up
             </p>
           )}
-          <SampleNotification />
+          <NotificationPreview />
         </div>
       }
       subtitle="Get a heads-up when a task is done or needs you"

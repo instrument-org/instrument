@@ -40,18 +40,20 @@ import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 
-import { noteConnectedWay } from "../connected-way";
+import { noteConnection } from "../last-connection";
 import { BrandTile } from "../kit/brand-tile";
 import { SetupPageSwitch } from "../kit/setup-page-switch";
 import { SetupFooter, SetupPage } from "../kit/setup-page";
 import { SetupRow, SetupRowList } from "../kit/setup-row";
+import { previewPage } from "../preview-page";
+import { type SetupStepProps } from "../step-props";
 
 type PlanProvider = Exclude<ConnectProvider, "instrument">;
 
 const PLAN_PROVIDERS: PlanProvider[] = ["chatgpt", "claude", "grok"];
 
-/** A page of the ways in. Kept in the step's own state, never saved. */
-export type WaysInPage =
+/** A page of choosing AI. Kept in the step's own state, never saved. */
+export type ChooseAIPage =
   | { kind: "key" }
   /** An OpenRouter key just added, on an account with nothing to spend. */
   | { kind: "no-credits"; providerId: AIProviderConfigId }
@@ -63,8 +65,8 @@ export type WaysInPage =
       previewCode?: string;
       provider: PlanProvider;
     }
-  /** The ways in, setup's first page of them. */
-  | { kind: "ways" };
+  /** The choices: Google, a subscription or a key. */
+  | { kind: "choices" };
 
 type Offer = RPCOutput["billing"]["offer"];
 
@@ -77,11 +79,11 @@ type Offer = RPCOutput["billing"]["offer"];
  * on screen (`hold`), so an account that connects and then turns out to have
  * no plan still lands on its answer here.
  *
- * The way-in step opens it on the ways; the plan step opens it on the
+ * The choose-AI step opens it on the choices; the plan step opens it on the
  * subscriptions or the key, for "Use it instead" while no free trial can
  * start, where Google is already done.
  */
-export function WaysIn({
+export function ChooseAI({
   hold,
   initial,
   offerInstrument,
@@ -89,10 +91,10 @@ export function WaysIn({
   onLeave,
 }: {
   hold: () => void;
-  initial: WaysInPage;
+  initial: ChooseAIPage;
   /** Signed out: Google and its trial are offered beside the rest. */
   offerInstrument: boolean;
-  /** A way in is ready (or out of usage and kept), or a key was added. */
+  /** A sign-in is ready (or out of usage and kept), or a key was added. */
   onDone: () => void;
   /** Back from the first page, for a step with a page of its own before. */
   onLeave?: () => void;
@@ -103,9 +105,9 @@ export function WaysIn({
     grok: useGrokConnect(),
     instrument: useInstrumentConnect(),
   };
-  const [page, setPage] = useState<WaysInPage>(initial);
+  const [page, setPage] = useState<ChooseAIPage>(initial);
   // Where Back and Cancel return to from a sign-in's wait.
-  const [waitedFrom, setWaitedFrom] = useState<WaysInPage>(initial);
+  const [waitedFrom, setWaitedFrom] = useState<ChooseAIPage>(initial);
   const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
 
   const connect = (provider: ConnectProvider) => {
@@ -129,7 +131,7 @@ export function WaysIn({
       if (outcome.kind === "canceled") {
         setPage(from);
       } else if (outcome.kind === "ready") {
-        noteConnectedWay({ kind: "sign-in", provider });
+        noteConnection({ kind: "sign-in", provider });
         onDone();
       } else {
         setPage({ kind: "outcome", outcome, provider });
@@ -138,7 +140,7 @@ export function WaysIn({
   };
 
   // Where Back returns to from the key page.
-  const [keyFrom, setKeyFrom] = useState<WaysInPage>(initial);
+  const [keyFrom, setKeyFrom] = useState<ChooseAIPage>(initial);
   const openKey = () => {
     hold();
     setKeyFrom(page);
@@ -152,9 +154,9 @@ export function WaysIn({
 
   const shown = (): ReactNode => {
     switch (page.kind) {
-      case "ways": {
+      case "choices": {
         return (
-          <WaysPage
+          <ChoicesPage
             google={flows.instrument}
             onGoogle={() => {
               connect("instrument");
@@ -174,7 +176,7 @@ export function WaysIn({
               initial.kind === "subscriptions"
                 ? onLeave
                 : () => {
-                    setPage({ kind: "ways" });
+                    setPage({ kind: "choices" });
                   }
             }
             onSignIn={connect}
@@ -239,7 +241,7 @@ export function WaysIn({
             }}
             onConnect={connect}
             onContinue={() => {
-              noteConnectedWay({ kind: "sign-in", provider: page.provider });
+              noteConnection({ kind: "sign-in", provider: page.provider });
               onDone();
             }}
             onKey={openKey}
@@ -253,7 +255,7 @@ export function WaysIn({
           <KeyPage
             onAdded={(providerConfigId) => {
               if (providerConfigId) {
-                noteConnectedWay({ kind: "key", providerConfigId });
+                noteConnection({ kind: "key", providerConfigId });
               }
               onDone();
             }}
@@ -281,7 +283,7 @@ export function WaysIn({
             }}
             onConnect={connect}
             onCredited={() => {
-              noteConnectedWay({
+              noteConnection({
                 kind: "key",
                 providerConfigId: page.providerId,
               });
@@ -294,20 +296,20 @@ export function WaysIn({
     }
   };
   return (
-    <SetupPageSwitch depth={WAYS_IN_DEPTH[page.kind]} page={page.kind}>
+    <SetupPageSwitch depth={PAGE_DEPTH[page.kind]} page={page.kind}>
       {shown()}
     </SetupPageSwitch>
   );
 }
 
-/** How far into the ways in each page is, so going to a shallower one reads as Back. */
-const WAYS_IN_DEPTH: Record<WaysInPage["kind"], number> = {
+/** How far into choosing AI each page is, so going to a shallower one reads as Back. */
+const PAGE_DEPTH: Record<ChooseAIPage["kind"], number> = {
   key: 1,
   "no-credits": 2,
   outcome: 3,
   subscriptions: 1,
   waiting: 2,
-  ways: 0,
+  choices: 0,
 };
 
 /**
@@ -315,7 +317,7 @@ const WAYS_IN_DEPTH: Record<WaysInPage["kind"], number> = {
  * Welcome is on the folder step before it, so this page goes straight to
  * the question.
  */
-function WaysPage({
+function ChoicesPage({
   google,
   onGoogle,
   onKey,
@@ -414,7 +416,7 @@ function SubscriptionsPage({
   );
 }
 
-/** A subscription in a list of ways in: its tile, its paid plans, Sign in. */
+/** A subscription in the list of them: its tile, its paid plans, Sign in. */
 function SubscriptionRow({
   onSignIn,
   provider,
@@ -493,8 +495,8 @@ function WaitingPage({
 }
 
 /**
- * How a sign-in ended when it isn't ready: the way in's mark with what went
- * wrong, the shared words, a row for each other way still open, and links
+ * How a sign-in ended when it isn't ready: the sign-in.s mark with what went
+ * wrong, the shared words, a row for each other choice still open, and links
  * to a key and to trying again. Out of usage keeps the account and goes on.
  */
 function OutcomePage({
@@ -556,7 +558,7 @@ function OutcomePage({
       subtitle={copy?.subtitle}
       title={copy?.title}
     >
-      <OtherWays
+      <OtherChoices
         flows={flows}
         instrumentLabel={outcome.kind === "no-plan" ? "Learn more" : undefined}
         offer={offer}
@@ -583,7 +585,7 @@ function OutcomePage({
 }
 
 /**
- * An OpenRouter key whose account has nothing to spend: every other way in,
+ * An OpenRouter key whose account has nothing to spend: every other choice,
  * another key, and a check again once credits are added.
  */
 function NoCreditsPage({
@@ -628,7 +630,7 @@ function NoCreditsPage({
       subtitle={noCreditsCopy.subtitle}
       title={noCreditsCopy.title}
     >
-      <OtherWays
+      <OtherChoices
         flows={flows}
         offer={offer}
         offerInstrument={offerInstrument}
@@ -657,11 +659,11 @@ function NoCreditsPage({
 }
 
 /**
- * The ways in still open, as rows in one card: Instrument with its trial
+ * The choices still open, as rows in one card: Instrument with its trial
  * when the offer has one (and this account isn't signed in yet), then each
  * subscription.
  */
-function OtherWays({
+function OtherChoices({
   flows,
   instrumentLabel,
   offer,
@@ -716,7 +718,7 @@ function OtherWays({
   );
 }
 
-/** Under the rows: another key, and trying the same way in again. */
+/** Under the rows: another key, and trying the same sign-in again. */
 function OutcomeLinks({
   keyLabel,
   onKey,
@@ -764,7 +766,7 @@ async function hasNoCredits(providerId: AIProviderConfigId) {
 }
 
 /**
- * The key way in: the app's Add a provider form, with OpenRouter's browser
+ * The key choice: the app's Add a provider form, with OpenRouter's browser
  * sign-in inside it. A key the provider accepts ends the step, unless it's
  * an OpenRouter key on an account with no credits.
  */
@@ -838,6 +840,21 @@ function SubscriptionMark({
       className={className}
       colored
       type={SUBSCRIPTION_TYPES[provider]}
+    />
+  );
+}
+
+/**
+ * Setup's step for choosing AI: Google, a subscription or a key. Done once
+ * one is ready; an account with no plan stays here on its answer.
+ */
+export function ChooseAIStep({ hold, onContinue }: SetupStepProps) {
+  return (
+    <ChooseAI
+      hold={hold}
+      initial={previewPage<ChooseAIPage>("choose-ai") ?? { kind: "choices" }}
+      offerInstrument
+      onDone={onContinue}
     />
   );
 }

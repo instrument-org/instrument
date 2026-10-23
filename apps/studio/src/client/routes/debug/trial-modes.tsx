@@ -7,7 +7,7 @@ import { AccountSection } from "@/client/components/settings/account-section";
 import { SetupFooter } from "@/client/components/setup/kit/setup-page";
 import { FreeAccountPage } from "@/client/components/setup/steps/free-account";
 import { PlanStep } from "@/client/components/setup/steps/plan";
-import { WaysIn } from "@/client/components/setup/steps/ways-in";
+import { ChooseAI } from "@/client/components/setup/steps/choose-ai";
 import { AddProviderSheet } from "@/client/components/studio-modals/add-provider-sheet";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
@@ -65,7 +65,7 @@ const surfaces = [
     label: "Setup: sign-in outcome",
     render: () => (
       <div className="flex h-170 w-240 flex-col">
-        <WaysIn
+        <ChooseAI
           hold={noop}
           initial={{
             kind: "outcome",

@@ -5,12 +5,12 @@ import { cn } from "@/client/lib/utils";
 import { type ReactNode } from "react";
 
 import {
-  ChartVignette,
-  DocVignette,
-  PdfVignette,
-  PhotoVignette,
-  SheetVignette,
-} from "./vignettes";
+  ChartIllustration,
+  DocIllustration,
+  PdfIllustration,
+  PhotoIllustration,
+  SheetIllustration,
+} from "./work-illustrations";
 
 /**
  * Figma's packed folder (Illustration/Packed folder): the Instrument folder
@@ -37,31 +37,31 @@ export function PackedFolder() {
         burst="[--burst-delay:150ms] [--burst-rotate:30deg] [--burst-x:107px] [--burst-y:35px]"
         className="top-8.5 left-[127px] h-[88px] w-[92.4px]"
       >
-        <PhotoVignette />
+        <PhotoIllustration />
       </Tilted>
       <Tilted
         burst="[--burst-delay:210ms] [--burst-rotate:30deg] [--burst-x:-107px] [--burst-y:40px]"
         className="top-8 left-86 h-[82.5px] w-[86.9px]"
       >
-        <PdfVignette />
+        <PdfIllustration />
       </Tilted>
       <Tilted
         burst="[--burst-delay:270ms] [--burst-rotate:-30deg] [--burst-x:50px] [--burst-y:74px]"
         className="top-[-12.4px] left-[174.2px] h-[101.4px] w-[111.7px]"
       >
-        <SheetVignette />
+        <SheetIllustration />
       </Tilted>
       <Tilted
         burst="[--burst-delay:330ms] [--burst-rotate:30deg] [--burst-x:-48px] [--burst-y:74px]"
         className="top-[-14.4px] left-[271.9px] h-[106.4px] w-[112.2px]"
       >
-        <ChartVignette />
+        <ChartIllustration />
       </Tilted>
       <Tilted
         burst="[--burst-delay:390ms] [--burst-rotate:0deg] [--burst-x:0px] [--burst-y:67px]"
         className="top-[6px] left-58 h-20 w-24"
       >
-        <DocVignette />
+        <DocIllustration />
       </Tilted>
       <img
         alt=""

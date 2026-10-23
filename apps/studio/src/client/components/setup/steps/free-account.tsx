@@ -9,7 +9,7 @@ import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
 import { type ReactNode } from "react";
 
 import { SetupFooter, SetupPage } from "../kit/setup-page";
-import { type SetupPageProps } from "../setup-page-props";
+import { type SetupStepProps } from "../step-props";
 
 type PerkTitle = "Dictation" | "Images" | "Web search";
 
@@ -44,7 +44,7 @@ const PERKS: {
  * brought the AI: what it adds, Google, or Not now. Signing in answers the
  * plan step too, since someone running on their own AI has no plan to pick.
  */
-export function FreeAccountStep({ hold, onBack, onContinue }: SetupPageProps) {
+export function FreeAccountStep({ hold, onBack, onContinue }: SetupStepProps) {
   return (
     <FreeAccountPage
       footer={

@@ -7,7 +7,7 @@ import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { MainModelList, useMainModelChoice } from "./model-page";
+import { MainModelList, useMainModelChoice } from "./model";
 
 function model(canonicalId: string, name: string) {
   const params = {

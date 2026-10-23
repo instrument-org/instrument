@@ -3,17 +3,17 @@ import { cn } from "@/client/lib/utils";
 import { type ReactNode } from "react";
 
 import {
-  ChartVignette,
-  DocVignette,
-  PageVignette,
-  PdfVignette,
-  PhotoVignette,
-  SheetVignette,
-} from "./vignettes";
+  ChartIllustration,
+  DocIllustration,
+  PageIllustration,
+  PdfIllustration,
+  PhotoIllustration,
+  SheetIllustration,
+} from "./work-illustrations";
 
 /**
  * Each page around the icon: where it ends and its size (Figma's 01 Welcome,
- * at the 560-wide size the vignettes are drawn at), and in its classes where
+ * at the 560-wide size the work illustrations are drawn at), and in its classes where
  * it springs from, its tilt and when it goes.
  */
 const PAGES: {
@@ -25,37 +25,37 @@ const PAGES: {
     burst:
       "[--burst-delay:850ms] [--burst-rotate:-6deg] [--burst-x:84px] [--burst-y:40px]",
     className: "top-6 left-37.5 z-2",
-    page: <SheetVignette />,
+    page: <SheetIllustration />,
   },
   {
     burst:
       "[--burst-delay:910ms] [--burst-rotate:5deg] [--burst-x:-78px] [--burst-y:42px]",
     className: "top-[17px] left-77 z-2",
-    page: <PageVignette />,
+    page: <PageIllustration />,
   },
   {
     burst:
       "[--burst-delay:970ms] [--burst-rotate:-9deg] [--burst-x:128px] [--burst-y:-22px]",
     className: "top-19.5 left-26 z-3",
-    page: <DocVignette />,
+    page: <DocIllustration />,
   },
   {
     burst:
       "[--burst-delay:1030ms] [--burst-rotate:8deg] [--burst-x:-128px] [--burst-y:-20px]",
     className: "top-20 left-91 z-3",
-    page: <ChartVignette />,
+    page: <ChartIllustration />,
   },
   {
     burst:
       "[--burst-delay:1090ms] [--burst-rotate:7deg] [--burst-x:62px] [--burst-y:-54px]",
     className: "top-28.5 left-47 z-4",
-    page: <PhotoVignette />,
+    page: <PhotoIllustration />,
   },
   {
     burst:
       "[--burst-delay:1150ms] [--burst-rotate:-8deg] [--burst-x:-68px] [--burst-y:-56px]",
     className: "top-29.5 left-80 z-4",
-    page: <PdfVignette />,
+    page: <PdfIllustration />,
   },
 ];
 

@@ -81,21 +81,21 @@ vi.mock("@/client/lib/toast", async (importOriginal) => ({
   toast: { error: toastError },
 }));
 
-// The other ways in, as the plan step opens them: the page it starts on,
-// and a way that connects.
+// The other AI choices, as the plan step opens them: the page it starts on,
+// and a sign-in that connects.
 // Setup's state says the plan is known, so the plan step draws its cards.
 vi.mock("@/client/components/setup/use-setup-state", () => ({
   useSetupState: () => null,
 }));
-vi.mock("../setup/steps/ways-in", () => ({
-  WaysIn: ({
+vi.mock("../setup/steps/choose-ai", () => ({
+  ChooseAI: ({
     initial,
     onDone,
   }: {
     initial: { kind: string };
     onDone: () => void;
   }) => (
-    <div data-ways-in={initial.kind}>
+    <div data-choose-ai={initial.kind}>
       <button onClick={onDone} type="button">
         Connected
       </button>
@@ -583,7 +583,9 @@ describe("setup's plan step", () => {
         }),
       );
       expect(
-        document.querySelector("[data-ways-in]")?.getAttribute("data-ways-in"),
+        document
+          .querySelector("[data-choose-ai]")
+          ?.getAttribute("data-choose-ai"),
       ).toBe("subscriptions");
       fireEvent.click(screen.getByRole("button", { name: "Connected" }));
       expect(onContinue).toHaveBeenCalledOnce();
@@ -598,7 +600,9 @@ describe("setup's plan step", () => {
       await screen.findByRole("button", { name: "add an API key" }),
     );
     expect(
-      document.querySelector("[data-ways-in]")?.getAttribute("data-ways-in"),
+      document
+        .querySelector("[data-choose-ai]")
+        ?.getAttribute("data-choose-ai"),
     ).toBe("key");
   });
 
@@ -648,7 +652,9 @@ describe("setup's plan step", () => {
       screen.getByRole("button", { name: "Use your existing subscriptions" }),
     );
     expect(
-      document.querySelector("[data-ways-in]")?.getAttribute("data-ways-in"),
+      document
+        .querySelector("[data-choose-ai]")
+        ?.getAttribute("data-choose-ai"),
     ).toBe("subscriptions");
   });
 });

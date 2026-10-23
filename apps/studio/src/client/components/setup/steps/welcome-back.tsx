@@ -2,11 +2,11 @@ import { BrandMark } from "@/client/components/brand-mark";
 import { Button } from "@/client/components/ui/button";
 import { APP_NAME } from "@instrument-org/shared";
 
-import { SetupPage } from "./kit/setup-page";
-import { type SetupPageProps } from "./setup-page-props";
+import { SetupPage } from "../kit/setup-page";
+import { type SetupStepProps } from "../step-props";
 
 /** Welcome back (frame 30), for someone who used a beta: no footer, and Get started answers it. */
-export function WelcomeBackPage({ onContinue }: SetupPageProps) {
+export function WelcomeBackStep({ onContinue }: SetupStepProps) {
   return (
     <SetupPage
       className="pt-26.5"

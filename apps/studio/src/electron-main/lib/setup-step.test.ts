@@ -1,4 +1,9 @@
-import { type SetupFacts, type SetupRecord, SETUP_STEPS } from "@/shared/setup";
+import {
+  type SetupFacts,
+  type SetupRecord,
+  SetupRecordSchema,
+  SETUP_STEPS,
+} from "@/shared/setup";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -56,8 +61,8 @@ function walk(
   while (step !== null && seen.length < 20) {
     seen.push(step);
     facts = { ...facts, ...act[step] };
-    // `way-in` keeps no answer: connecting is what moves past it.
-    if (step !== "way-in") {
+    // `choose-ai` keeps no answer: connecting is what moves past it.
+    if (step !== "choose-ai") {
       record = answeredStep(record, step, AT);
     }
     step = currentSetupStep(facts, record);
@@ -71,12 +76,12 @@ describe("currentSetupStep", () => {
       walk(NEW, {
         folder: { folderSettled: true, hasWorkspace: true },
         plan: { hasInstrumentPlan: true },
-        "way-in": { hasInstrumentAccount: true, hasUsableAI: true },
+        "choose-ai": { hasInstrumentAccount: true, hasUsableAI: true },
       }),
     ).toMatchInlineSnapshot(`
       [
         "folder",
-        "way-in",
+        "choose-ai",
         "plan",
         "model",
         "notifications",
@@ -89,12 +94,12 @@ describe("currentSetupStep", () => {
     expect(
       walk(NEW, {
         folder: { folderSettled: true, hasWorkspace: true },
-        "way-in": { hasUsableAI: true },
+        "choose-ai": { hasUsableAI: true },
       }),
     ).toMatchInlineSnapshot(`
       [
         "folder",
-        "way-in",
+        "choose-ai",
         "free-account",
         "model",
         "notifications",
@@ -144,7 +149,7 @@ describe("currentSetupStep", () => {
   // before the quit. Setup picks up at the step the person quit on.
   it.each<[string, Partial<SetupFacts>, SetupRecord, null | string]>([
     ["quit on the first page", {}, EMPTY, "folder"],
-    ["quit after placing the folder", PLACED, answered("folder"), "way-in"],
+    ["quit after placing the folder", PLACED, answered("folder"), "choose-ai"],
     [
       "quit after connecting ChatGPT",
       { ...PLACED, hasUsableAI: true },
@@ -223,7 +228,7 @@ describe("currentSetupStep", () => {
       "a beta tester signed out of everything",
       { ...PLACED, hasChats: true, testedBefore: true },
       answered("welcome-back"),
-      "way-in",
+      "choose-ai",
     ],
     [
       "a release user's chats on a second computer",
@@ -235,7 +240,7 @@ describe("currentSetupStep", () => {
       "lost every AI before finishing",
       PLACED,
       answered("folder", "free-account", "model"),
-      "way-in",
+      "choose-ai",
     ],
     [
       "notifications off macOS",
@@ -345,13 +350,13 @@ describe("the record", () => {
       {
         "answered": {
           "a-step-from-a-newer-build": "2026-01-01T00:00:00.000Z",
+          "choose-ai": "2026-10-21T12:00:00.000Z",
           "folder": "2026-10-21T12:00:00.000Z",
           "free-account": "2026-10-21T12:00:00.000Z",
           "look": "2026-10-21T12:00:00.000Z",
           "model": "2026-10-01T00:00:00.000Z",
           "notifications": "2026-10-21T12:00:00.000Z",
           "plan": "2026-10-21T12:00:00.000Z",
-          "way-in": "2026-10-21T12:00:00.000Z",
           "welcome-back": "2026-10-21T12:00:00.000Z",
         },
         "finishedAt": "2026-10-21T12:00:00.000Z",
@@ -382,17 +387,17 @@ describe("placing a first launch's workspace", () => {
     expect(currentSetupStep(OPENED, EMPTY)).toBe("welcome-back");
   });
 
-  it("goes on to the way in, past Welcome back and the folder", () => {
+  it("goes on to choosing AI, past Welcome back and the folder", () => {
     expect(currentSetupStep(OPENED, answeredByPlacing(EMPTY, AT))).toBe(
-      "way-in",
+      "choose-ai",
     );
     // Back from there greets them, as any tester's Back does; the folder,
     // placed, is never asked again.
-    expect(stepBefore(OPENED, answeredByPlacing(EMPTY, AT), "way-in")).toBe(
+    expect(stepBefore(OPENED, answeredByPlacing(EMPTY, AT), "choose-ai")).toBe(
       "welcome-back",
     );
     expect(
-      stepBefore(PLACED, answeredByPlacing(EMPTY, AT), "way-in"),
+      stepBefore(PLACED, answeredByPlacing(EMPTY, AT), "choose-ai"),
     ).toBeNull();
   });
 
@@ -451,20 +456,20 @@ describe("stepBefore", () => {
   };
 
   it("passes over a step a fact settled and one not needed", () => {
-    // The plan was answered before a trial made it unneeded; way-in keeps
+    // The plan was answered before a trial made it unneeded; choose-ai keeps
     // no answer at all, and the placed folder is settled.
     const record = answered("folder", "plan", "model");
     expect(stepBefore(signedIn, record, "notifications")).toBe("model");
     expect(stepBefore(signedIn, record, "model")).toBeNull();
   });
 
-  it("goes back from the folder to Welcome back, and from the way in past a moved folder", () => {
+  it("goes back from the folder to Welcome back, and from choosing AI past a moved folder", () => {
     const tester = { ...PLACED, hasChats: true, testedBefore: true };
     const record = answered("welcome-back");
     expect(
       stepBefore({ ...tester, folderSettled: false }, record, "folder"),
     ).toBe("welcome-back");
-    expect(stepBefore(tester, record, "way-in")).toBe("welcome-back");
+    expect(stepBefore(tester, record, "choose-ai")).toBe("welcome-back");
   });
 
   it("goes back to an answered step that would ask again", () => {
@@ -479,5 +484,21 @@ describe("stepBefore", () => {
   it("has nowhere to go once setup finished", () => {
     const record = { ...answered("model"), finishedAt: AT.toISOString() };
     expect(stepBefore(signedIn, record, "notifications")).toBeNull();
+  });
+});
+
+describe("a record an earlier build wrote", () => {
+  it("counts the way-in answer as choose-ai's, keeping the old key", () => {
+    const record = SetupRecordSchema.parse({
+      answered: { "way-in": AT.toISOString() },
+      finishedAt: AT.toISOString(),
+    });
+    expect(record.answered).toMatchInlineSnapshot(`
+      {
+        "choose-ai": "2026-10-21T12:00:00.000Z",
+        "way-in": "2026-10-21T12:00:00.000Z",
+      }
+    `);
+    expect(isEveryStepAnswered(record)).toBe(false);
   });
 });

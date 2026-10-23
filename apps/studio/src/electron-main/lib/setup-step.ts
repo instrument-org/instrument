@@ -23,7 +23,7 @@ const NEEDED: Record<
   notifications: (facts) => facts.notificationsAskable,
   plan: (facts) =>
     facts.hasInstrumentAccount && !facts.hasInstrumentPlan && !facts.hasOwnAI,
-  "way-in": (facts) => !facts.hasUsableAI,
+  "choose-ai": (facts) => !facts.hasUsableAI,
   "welcome-back": (facts, record) =>
     facts.testedBefore && record.finishedAt === undefined,
 };
@@ -100,7 +100,7 @@ export function answeredByPlacing(record: SetupRecord, at: Date): SetupRecord {
 
 /**
  * The step Back returns to from `step`: the nearest one before it that was
- * answered and would still ask something. A step settled by a fact (`way-in`)
+ * answered and would still ask something. A step settled by a fact (`choose-ai`)
  * keeps no answer, so Back passes over it. None once setup has finished,
  * since a step added later is all that is left to ask.
  */

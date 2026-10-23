@@ -16,11 +16,10 @@ vi.mock("@/client/components/network-status/network-status-pill", () => ({
   SetupNetworkStatusPill: () => null,
 }));
 
-// The host under test, not the way-in, plan and free-account pages, which
+// The host under test, not the choose-AI, plan and free-account pages, which
 // sign in and read billing: each draws its name and the host's ways on.
-vi.mock("./setup-pages", async (importOriginal) => {
-  const { SETUP_PAGES } =
-    await importOriginal<typeof import("./setup-pages")>();
+vi.mock("./step-pages", async (importOriginal) => {
+  const { SETUP_PAGES } = await importOriginal<typeof import("./step-pages")>();
   const { SetupFooter, SetupPage } = await import("./kit/setup-page");
   const Page = ({
     isLast,
@@ -28,7 +27,7 @@ vi.mock("./setup-pages", async (importOriginal) => {
     onContinue,
     onFinish,
     step,
-  }: import("./setup-page-props").SetupPageProps) => (
+  }: import("./step-props").SetupStepProps) => (
     <SetupPage
       footer={
         <SetupFooter
@@ -45,7 +44,7 @@ vi.mock("./setup-pages", async (importOriginal) => {
       ...SETUP_PAGES,
       "free-account": Page,
       plan: Page,
-      "way-in": Page,
+      "choose-ai": Page,
     },
   };
 });
@@ -120,9 +119,9 @@ afterEach(() => {
 
 describe("SetupHost", () => {
   it("draws the step it loaded on, and holds the window with no close", () => {
-    loadedWith("way-in");
+    loadedWith("choose-ai");
     renderWithDefaultStore(<SetupHost />);
-    expect(screen.getByRole("heading").textContent).toBe("way-in");
+    expect(screen.getByRole("heading").textContent).toBe("choose-ai");
     const holds = getDefaultStore().get(windowHoldsAtom);
     expect(holds).toHaveLength(1);
     expect(holds[0]?.close).toBeUndefined();

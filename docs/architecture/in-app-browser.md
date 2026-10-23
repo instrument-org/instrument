@@ -154,8 +154,8 @@ Each page that is drawn (the tab up in its group, a page beside a chat or in a d
 
 | Tab | Discarded after |
 | --- | --- |
-| The person has seen its page | 4 hours off screen (`SEEN_TAB_DISCARD_MS`, Chromium's Memory Saver default) |
-| Only an agent opened it, and nobody has looked | 1 hour (`UNSEEN_TAB_DISCARD_MS`) |
+| The person has seen its page | 1 hour off screen (`SEEN_TAB_DISCARD_MS`) |
+| Only an agent opened it, and nobody has looked | 15 minutes (`UNSEEN_TAB_DISCARD_MS`) |
 
 A tab is kept past its clock while an agent sent it a command in the last 10 minutes, while an agent with a turn running drives it (a task it was handed to, or the chat's own conversation), or while its guest is playing sound, downloading, or open in DevTools. The clock is `performance.now()`, which stops while the computer sleeps.
 

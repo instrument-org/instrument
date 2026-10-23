@@ -5,11 +5,11 @@ import { type ActorRefFrom, fromCallback } from "xstate";
 import { lastBrowserAgentActivity } from "../lib/browser-agent-activity";
 import { type BrowserConfig, type BrowserTargetId } from "../types";
 
-/** How long a tab the person has looked at keeps its page once off screen: Chromium's Memory Saver default. */
-export const SEEN_TAB_DISCARD_MS = ms("4 hours");
+/** How long a tab the person has looked at keeps its page once off screen. */
+export const SEEN_TAB_DISCARD_MS = ms("1 hour");
 
 /** How long a tab only an agent opened, and nobody has looked at, keeps its page. */
-export const UNSEEN_TAB_DISCARD_MS = ms("1 hour");
+export const UNSEEN_TAB_DISCARD_MS = ms("15 minutes");
 
 /** How long an agent's last command keeps a tab's page, whatever its clock says. */
 export const AGENT_PROTECTION_MS = ms("10 minutes");

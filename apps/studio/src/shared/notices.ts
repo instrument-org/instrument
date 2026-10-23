@@ -26,14 +26,7 @@ export const NoticeSchema = z.object({
   body: z.string(),
   endsAt: z.iso.datetime().optional(),
   id: z.string().min(1),
-  kind: z.enum([
-    "account",
-    "update",
-    "whats-new",
-    "announcement",
-    "security",
-    "fixed",
-  ]),
+  kind: z.enum(["account", "update", "whats-new", "announcement", "security"]),
   publishedAt: z.iso.datetime(),
   /**
    * How loud it is: `info` is a dot on the bell, `important` adds one toast,

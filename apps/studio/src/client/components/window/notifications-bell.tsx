@@ -17,7 +17,6 @@ import { type PendingProblem } from "@/shared/problem-reports";
 import { APP_NAME } from "@instrument-org/shared";
 import { BellIcon } from "@phosphor-icons/react/Bell";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
-import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
 import { NewspaperClippingIcon } from "@phosphor-icons/react/NewspaperClipping";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
@@ -205,7 +204,6 @@ function warns(notice: BellNotice): boolean {
 const NOTICE_ICON = {
   account: UserCircleIcon,
   announcement: MegaphoneSimpleIcon,
-  fixed: CheckCircleIcon,
   security: ShieldCheckIcon,
   update: ArrowsClockwiseIcon,
   "whats-new": NewspaperClippingIcon,
@@ -233,9 +231,7 @@ function NoticeItem({
           "mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted",
           warns(notice)
             ? "text-warning-700 dark:text-warning-300"
-            : notice.kind === "fixed"
-              ? "text-success-700"
-              : "text-brand-600",
+            : "text-brand-600",
         )}
       >
         <Icon className="size-4" />

@@ -95,7 +95,7 @@ What the hook does not cover: type errors, tests in another package that import 
 - **Vite** 8.x (Rolldown/Oxc) / **Vitest** 5.x (browser locators and `toHaveTextContent` match exactly; `toMatchTextContent` takes a substring or RegExp)
 - **AI SDK** 7.x
 - **better-auth** 1.7.x
-- **pnpm** 11.28.0 (`packageManager`) / **Node** >=24.21.0 (`engines`)
+- **pnpm** 11.28.0 (`packageManager`) / **Node** >=24.22.0 (`engines`)
 
 ## Package management
 

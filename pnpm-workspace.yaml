@@ -59,6 +59,11 @@ ignoredOptionalDependencies:
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - agent-browser
+  # Security release (GHSA-jr5w-w6x2-84p9, compromised eMudhra intermediate
+  # CAs) taken ahead of the age cutoff. Exact version, so the age guard still
+  # covers every later Electron release; the entry goes inert once 44.9.3
+  # passes the cutoff and can be dropped.
+  - "electron@44.9.3"
   # Document-viewer libraries pinned to exact pre-1.0 versions. The viewers are
   # written against these exact releases, so a newer publish is a deliberate
   # upgrade rather than something to float onto.

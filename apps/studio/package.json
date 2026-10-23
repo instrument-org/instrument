@@ -198,7 +198,7 @@
     "devtools-protocol": "^0.0.1617013",
     "diff-match-patch-es": "2.0.1",
     "dotenv": "^16.6.1",
-    "electron": "^44.7.0",
+    "electron": "^44.9.3",
     "electron-builder": "26.17.0",
     "electron-vite": "6.0.0-beta.1",
     "hast-util-from-html": "^2.0.3",
@@ -263,7 +263,7 @@
     "@vscode/ripgrep-win32-x64": "1.18.0"
   },
   "engines": {
-    "node": ">=24.21.0"
+    "node": ">=24.22.0"
   },
   "productName": "Instrument"
 }

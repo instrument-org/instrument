@@ -83,6 +83,9 @@ const FULL_SNAPSHOT_CHAR_BUDGET = 10_000;
  */
 const DELTA_CHAR_BUDGET = 2000;
 
+/** Characters of the refs a delta says left the page, before the rest are only counted. */
+const GONE_CHAR_BUDGET = 400;
+
 /** How long the follow-up snapshot may take before the call returns without it. */
 const FOLLOW_UP_TIMEOUT_MS = 10_000;
 
@@ -329,9 +332,12 @@ export function parseFollowUpSnapshot(
       const removed = delta.changes
         .filter(({ op }) => op === "remove")
         .map(({ ref }) => ref);
+      const goneShown = withinBudget(removed, GONE_CHAR_BUDGET);
       const gone =
         removed.length > 0
-          ? [`No longer on the page: ${removed.join(", ")}`]
+          ? [
+              `No longer on the page: ${goneShown.join(", ")}${removed.length > goneShown.length ? `, and ${removed.length - goneShown.length} more` : ""}`,
+            ]
           : [];
       if (delta.treeChange.lines.join("\n").length <= DELTA_CHAR_BUDGET) {
         return {
@@ -346,8 +352,10 @@ export function parseFollowUpSnapshot(
             ? [
                 `- ${node.role} ${JSON.stringify(node.name)} [ref=${ref.slice(1)}]`,
               ]
-            : op === "replace" && typeof value === "string"
-              ? [`- ${ref} ${field ?? "name"} is now ${JSON.stringify(value)}`]
+            : op === "replace"
+              ? [
+                  `- ${ref} ${field ?? "name"} is now ${typeof value === "string" && value !== "" ? JSON.stringify(value) : "empty"}`,
+                ]
               : [],
       );
       const kept = withinBudget(changed, DELTA_CHAR_BUDGET);
@@ -421,7 +429,7 @@ export function pageAfterText(page: PageAfter): string {
             ? ""
             : `\n${page.omittedLines} more changed controls are not shown.`;
         return [
-          `${head}: much of the page changed since its last snapshot, so below are only the controls added, removed or renamed, and every other ref is as it was. Run \`agent-browser snapshot -i\` for the page as it is now, or add \`-s <selector>\` for one region.`,
+          `${head}: much of the page changed since its last snapshot, so below are only the controls added, removed or renamed. A control's state (checked, expanded, its value) is not compared here. Run \`agent-browser snapshot -i\` for the page as it is now, or add \`-s <selector>\` for one region.`,
           ...said,
           (page.text || "No control was added, removed or renamed.") + omitted,
         ].join("\n");

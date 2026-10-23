@@ -190,11 +190,27 @@ describe("parseFollowUpSnapshot", () => {
       - @e4 name is now "Page 2""
     `);
     expect(parsed && pageAfterText(parsed)).toMatchInlineSnapshot(`
-      "Page after \`click\` (\`agent-browser snapshot -i --delta\`, run for you): much of the page changed since its last snapshot, so below are only the controls added, removed or renamed, and every other ref is as it was. Run \`agent-browser snapshot -i\` for the page as it is now, or add \`-s <selector>\` for one region.
+      "Page after \`click\` (\`agent-browser snapshot -i --delta\`, run for you): much of the page changed since its last snapshot, so below are only the controls added, removed or renamed. A control's state (checked, expanded, its value) is not compared here. Run \`agent-browser snapshot -i\` for the page as it is now, or add \`-s <selector>\` for one region.
       No longer on the page: @e7
       - button "Save" [ref=e90]
       - @e4 name is now "Page 2""
     `);
+  });
+
+  it("counts the removed refs past what fits rather than listing them all", () => {
+    const removedMany = JSON.stringify({
+      baseRevision: 3,
+      changes: Array.from({ length: 300 }, (_, index) => ({
+        op: "remove",
+        ref: `@e${index + 1}`,
+      })),
+      kind: "delta",
+      revision: 4,
+      treeChange: { deleteCount: 300, lines: [], startLine: 0 },
+    });
+    const text = parseFollowUpSnapshot(removedMany, "click")?.text ?? "";
+    expect(text.length).toBeLessThan(600);
+    expect(text).toMatch(/, and \d+ more$/);
   });
 
   it("cuts a long full snapshot and counts what it left out", () => {

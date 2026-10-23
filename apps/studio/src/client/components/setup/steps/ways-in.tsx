@@ -3,6 +3,7 @@ import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { BrandMark } from "@/client/components/brand-mark";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { ClaudeSignInCode } from "@/client/components/claude-sign-in-code";
+import { StateArrival } from "@/client/components/state-arrival";
 import {
   claudeWaitingLine,
   grokWaitingLine,
@@ -23,6 +24,8 @@ import {
   connectPageCopy,
   instrumentWayCopy,
   noCreditsPageCopy,
+  type WaitingStage,
+  waitingPageCopy,
 } from "@/client/lib/connect-copy";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
@@ -192,6 +195,14 @@ export function WaysIn({
                     claudeStatus?.finishing)
                 ? claudeWaitingLine(claudeStatus)
                 : `Waiting for ${CONNECT_NAMES[provider]}…`;
+        const stage: WaitingStage =
+          provider === "claude" &&
+          claudeStatus?.install?.state === "downloading"
+            ? "preparing"
+            : flow.phase === "checking" ||
+                (provider === "claude" && claudeStatus?.finishing)
+              ? "back"
+              : "browser";
         const claudeLink =
           provider === "claude" &&
           flows.claude.phase === "signing-in" &&
@@ -213,6 +224,7 @@ export function WaysIn({
               leaveWait(provider);
             }}
             provider={provider}
+            stage={stage}
           />
         );
       }
@@ -429,19 +441,25 @@ function SubscriptionRow({
   );
 }
 
-/** A subscription's sign-in, while the browser has it and while its plan is checked. */
+/**
+ * A subscription's sign-in, from Claude Code getting ready through the browser
+ * to its plan being checked, the title and the line under it settling in anew
+ * at each stage.
+ */
 function WaitingPage({
   below,
   line,
   onCancel,
   provider,
+  stage,
 }: {
   below?: ReactNode;
   line: ReactNode;
   onCancel: () => void;
   provider: PlanProvider;
+  stage: WaitingStage;
 }) {
-  const name = CONNECT_NAMES[provider];
+  const copy = waitingPageCopy(provider, stage);
   return (
     <SetupPage
       align="center"
@@ -451,8 +469,16 @@ function WaitingPage({
           <SubscriptionMark provider={provider} />
         </BrandTile>
       }
-      subtitle={`We opened ${name} in your browser. ${APP_NAME} picks it up as soon as you're done.`}
-      title={`Finish signing in to ${name}`}
+      subtitle={
+        <StateArrival as="span" className="block" ring={false} state={stage}>
+          {copy.subtitle}
+        </StateArrival>
+      }
+      title={
+        <StateArrival as="span" className="block" ring={false} state={stage}>
+          {copy.title}
+        </StateArrival>
+      }
     >
       <div className="mt-8 flex max-w-130 items-center gap-3 text-sm text-muted-foreground">
         <Spinner className="size-4 shrink-0" delay={0} />

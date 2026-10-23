@@ -56,6 +56,41 @@ export interface ConnectPageCopy {
   title: string;
 }
 
+/**
+ * Where a subscription's sign-in stands while setup waits on it: Claude Code
+ * getting ready before the browser opens, the browser having it, or back from
+ * the browser while the account is connected and its plan checked.
+ */
+export type WaitingStage = "back" | "browser" | "preparing";
+
+/** The waiting page's title and the line under it, for each stage. */
+export function waitingPageCopy(
+  provider: Exclude<ConnectProvider, "instrument">,
+  stage: WaitingStage,
+): ConnectPageCopy {
+  const name = CONNECT_NAMES[provider];
+  switch (stage) {
+    case "back": {
+      return {
+        subtitle: `You can close the browser tab. ${APP_NAME} is getting your ${name} account ready.`,
+        title: `You're signed in to ${name}`,
+      };
+    }
+    case "browser": {
+      return {
+        subtitle: `We opened ${name} in your browser. ${APP_NAME} picks it up as soon as you're done.`,
+        title: `Finish signing in to ${name}`,
+      };
+    }
+    case "preparing": {
+      return {
+        subtitle: `${APP_NAME} is setting up Claude Code first. Your browser opens as soon as it's ready.`,
+        title: `Getting ready to sign in to ${name}`,
+      };
+    }
+  }
+}
+
 /** A page's title and the line under it. */
 export function connectPageCopy(
   outcome: ConnectOutcome,

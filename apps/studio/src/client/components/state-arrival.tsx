@@ -8,12 +8,18 @@ import { type ReactNode, useState } from "react";
  * and the first value after loading (`undefined`), shows without motion.
  */
 export function StateArrival({
+  as: Tag = "div",
   children,
   className,
+  ring = true,
   state,
 }: {
+  /** `span` for words inside a heading or a paragraph. */
+  as?: "div" | "span";
   children: ReactNode;
   className?: string;
+  /** False settles the words in without the ring a card gets. */
+  ring?: boolean;
   state: string | undefined;
 }) {
   const [seen, setSeen] = useState(state);
@@ -26,8 +32,14 @@ export function StateArrival({
   }
   // Keyed by the count, so each change mounts afresh and plays again.
   return (
-    <div className={cn(changes > 0 && "state-arrive", className)} key={changes}>
+    <Tag
+      className={cn(
+        changes > 0 && (ring ? "state-arrive" : "state-arrive-quiet"),
+        className,
+      )}
+      key={changes}
+    >
       {children}
-    </div>
+    </Tag>
   );
 }

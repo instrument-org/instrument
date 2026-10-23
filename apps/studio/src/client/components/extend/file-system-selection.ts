@@ -193,3 +193,21 @@ export function marqueeSelection(
         ];
   return selectExactly(base, paths);
 }
+
+/**
+ * What the Finder selects once these go to the Trash: the first row after the
+ * last of them that stays, a folder's own rows going with it. Nothing when
+ * they were the last rows.
+ */
+export function rowAfterRemoving(
+  order: readonly string[],
+  removed: readonly string[],
+): null | string {
+  const goes = (path: string) =>
+    removed.some(
+      (each) => each === path || (each.endsWith("/") && path.startsWith(each)),
+    );
+  const last = order.findLastIndex((path) => removed.includes(path));
+  if (last === -1) return null;
+  return order.slice(last + 1).find((path) => !goes(path)) ?? null;
+}

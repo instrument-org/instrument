@@ -6,6 +6,7 @@ import {
   marqueeSelection,
   NOTHING_SELECTED,
   normalizeSelection,
+  rowAfterRemoving,
   type Selection,
   selectedPathsOf,
   selectExactly,
@@ -126,4 +127,24 @@ describe("a box dragged across the rows", () => {
       );
     },
   );
+});
+
+describe("what is selected once rows go to the Trash", () => {
+  it.each([
+    { removed: ["b"], next: "c" },
+    { removed: ["b", "c"], next: "d" },
+    // The last one going leaves nothing selected, the way the Finder does.
+    { removed: ["e"], next: null },
+    { removed: ["d", "e"], next: null },
+    // Picked apart, the row after the last of them.
+    { removed: ["a", "c"], next: "d" },
+    { removed: ["x"], next: null },
+  ])("$removed leaves $next", ({ next, removed }) => {
+    expect(rowAfterRemoving(ORDER, removed)).toBe(next);
+  });
+
+  it("passes over the rows of an open folder that goes", () => {
+    const rows = ["a.txt", "docs/", "docs/b.txt", "docs/c.txt", "d.txt"];
+    expect(rowAfterRemoving(rows, ["docs/"])).toBe("d.txt");
+  });
 });

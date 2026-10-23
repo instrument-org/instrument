@@ -531,6 +531,17 @@ describe("FileSystem", () => {
       expect(trashed()).toEqual(["b.txt", "d.txt"]);
     });
 
+    it("names the row after what is trashed, for the page to select", () => {
+      const handle = React.createRef<FileSystemHandle>();
+      renderWithProviders(
+        <FileSystem defaultView="list" items={FILES} ref={handle} />,
+      );
+
+      expect(handle.current?.rowAfter(["b.txt"])).toBe("c.txt");
+      expect(handle.current?.rowAfter(["c.txt", "d.txt"])).toBe("e.txt");
+      expect(handle.current?.rowAfter(["e.txt"])).toBeNull();
+    });
+
     it("draws every selected row as selected", () => {
       const { row, selected } = renderList();
 

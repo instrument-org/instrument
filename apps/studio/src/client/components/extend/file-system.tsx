@@ -118,6 +118,7 @@ import {
   marqueeSelection,
   normalizeSelection,
   NOTHING_SELECTED,
+  rowAfterRemoving,
   sameSelection,
   type Selection,
   selectedPathsOf,
@@ -407,6 +408,11 @@ export type FileSystemHandle = {
   startRename: (path: string) => void;
   /** Exactly these selected, by path, the first the one the keyboard is on. */
   select: (paths: readonly string[]) => void;
+  /**
+   * The row on screen the Finder selects once these go: the first after the
+   * last of them, or null when they were the last.
+   */
+  rowAfter: (paths: readonly string[]) => null | string;
 };
 export type FileSystemView = "columns" | "gallery" | "icons" | "list";
 type FileEntry = FileSystemFileItem & {
@@ -2615,6 +2621,11 @@ export function FileSystem({
   React.useImperativeHandle(
     ref,
     () => ({
+      rowAfter: (paths) =>
+        rowAfterRemoving(
+          listingNavRef.current?.rows.map((entry) => entry.path) ?? [],
+          paths,
+        ),
       select: (paths) => {
         commitSelection(selectExactly(selectOnly(null), paths));
       },

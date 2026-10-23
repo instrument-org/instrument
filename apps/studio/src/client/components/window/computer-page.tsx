@@ -785,6 +785,9 @@ export function ComputerPage({
     // Undo is about these whatever is done after them.
     const undoable: string[] = [];
     let moved = 0;
+    // Read before they go, while their rows still say what follows them.
+    const next =
+      fileSystemRef.current?.rowAfter(picked.map((item) => item.path)) ?? null;
     try {
       // One at a time, so a failure stops short of the rest rather than
       // leaving which of them went to chance.
@@ -797,15 +800,22 @@ export function ComputerPage({
           undoable.push(journalId);
         }
       }
-      // The columns open as far as the selection reaches, so they stay in
-      // the folder that held what went, with that folder selected the way
-      // the Finder leaves it.
+      // The row after what went is selected, the way the Finder leaves it,
+      // so another press of the key trashes that one too. With nothing
+      // after it, the columns open as far as the selection reaches, so they
+      // stay in the folder that held what went, with that folder selected.
       const first = picked[0]?.path;
       const holder =
         first === undefined
           ? current
           : first.slice(0, first.lastIndexOf("/", first.length - 2) + 1);
-      setSelectedPath(view === "columns" && holder !== current ? holder : null);
+      if (next !== null) {
+        fileSystemRef.current?.select([next]);
+      } else {
+        setSelectedPath(
+          view === "columns" && holder !== current ? holder : null,
+        );
+      }
       focusBrowser();
     } catch (error) {
       fileActionFailed(

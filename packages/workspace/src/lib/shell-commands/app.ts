@@ -1,4 +1,5 @@
 import { APP_NAME } from "@instrument-org/shared";
+import { findSecrets } from "@instrument-org/shared/secrets";
 import { APP_CATEGORIES } from "@instrument-org/shared/app-directory";
 import { type ByteString, defineCommand, EMPTY_BYTES } from "just-bash";
 import ms from "ms";
@@ -723,6 +724,15 @@ async function runGuide(args: string[], stdin: ByteString) {
   const app = await requireApp(args[0], { connected: false });
   const written = subprocessStdin(stdin)?.toString("utf8").trim();
   if (written) {
+    // Every later chat reads the guide, so a key written into it would be
+    // in front of every one of them; refused here rather than found later by
+    // `test`.
+    const secrets = [...new Set(findSecrets(written).map(({ label }) => label))];
+    if (secrets.length > 0) {
+      throw new Error(
+        `guide: not written, it has a secret in it (${secrets.join(", ")}). A guide never keeps a key, token or password: write how the service works without it. The app's key is kept apart from its folder and added to each request.`,
+      );
+    }
     writeAppGuide(app.dir, written);
     const stored = await readAppGuide(app.dir);
     if (stored !== null) {

@@ -215,6 +215,32 @@ describe("app test and the guide skeleton", () => {
     expect(result.stderr).toContain("PASS guide:");
   });
 
+  it("refuses a guide with a key in it and keeps the one it had", async () => {
+    await app(
+      "new",
+      "keyed-guide",
+      "--name",
+      "Unknown",
+      "--api",
+      "https://api.unknown.invalid/v1",
+      "--test",
+      "/me",
+    );
+    const before = await guideOf("keyed-guide");
+    const key = `sk-ant-api03-${"aB3dE5gH7j".repeat(9)}aBAA`;
+
+    const written = await appWithStdin(
+      `# Unknown\n\nSend \`Authorization: Bearer ${key}\` with each request.\n`,
+      "guide",
+      "keyed-guide",
+    );
+
+    expect(written.exitCode).not.toBe(0);
+    expect(written.stderr).toContain("not written, it has a secret in it");
+    expect(written.stderr).not.toContain(key);
+    expect(await guideOf("keyed-guide")).toBe(before);
+  });
+
   it("says which prompts a written guide still carries", async () => {
     await app(
       "new",

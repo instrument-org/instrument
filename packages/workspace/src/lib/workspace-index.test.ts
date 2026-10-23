@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
@@ -9,6 +9,8 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { chatDir } from "./record-folders";
+import { ChatRecords, installChatRecords } from "./records/chat-records";
+import { DEVICE_A, DEVICE_B } from "./records/test-records";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { closeWorkspaceDb } from "./workspace-db";
 import { indexedByRecords, kept, unkept } from "./workspace-index";
@@ -202,6 +204,72 @@ describe("indexedByRecords", () => {
     expect(beside.filter((name) => name.includes(".unreadable-"))).toEqual([
       expect.stringMatching(/^workspace\.db\.unreadable-\d+$/),
     ]);
+  });
+
+  it("answers from a write still on its way rather than a row for the files without it", async () => {
+    await nextLaunch()(chatId, SESSION, () =>
+      Promise.resolve(kept({ said: "before" })),
+    );
+    const records = new ChatRecords({
+      app: "0.0.0-test",
+      device: DEVICE_A,
+      dirOf: chatDir,
+      fsync: false,
+    });
+    vi.spyOn(records, "isWriting").mockReturnValue(true);
+    installChatRecords(records);
+    try {
+      expect(
+        await nextLaunch()(chatId, SESSION, () =>
+          Promise.resolve(kept({ said: "written" })),
+        ),
+      ).toEqual({ said: "written" });
+    } finally {
+      installChatRecords(undefined);
+      await records.dispose();
+    }
+    // Nothing was saved over the row while the write was out.
+    expect(
+      await nextLaunch()(chatId, SESSION, () =>
+        Promise.resolve(kept({ said: "derived" })),
+      ),
+    ).toEqual({ said: "before" });
+  });
+
+  it("keeps a value for what the chat held had read, not for a file it has yet to fold", async () => {
+    await fs.rm(path.join(chatDir(chatId), `${SESSION}.dev_AAAAAAAA.jsonl`));
+    const records = new ChatRecords({
+      app: "0.0.0-test",
+      device: DEVICE_A,
+      dirOf: chatDir,
+      fsync: false,
+    });
+    installChatRecords(records);
+    try {
+      await records.startSession(chatId, {
+        createdAt: new Date(),
+        id: SESSION,
+      });
+      // Another computer's records, synced in before this one folds them.
+      await fs.writeFile(
+        path.join(chatDir(chatId), `${SESSION}.${DEVICE_B}.jsonl`),
+        '{"t":"message","seq":0}\n',
+      );
+      expect(
+        await nextLaunch()(chatId, SESSION, () =>
+          Promise.resolve(kept({ said: "without theirs" })),
+        ),
+      ).toEqual({ said: "without theirs" });
+    } finally {
+      installChatRecords(undefined);
+      await records.dispose();
+    }
+
+    expect(
+      await nextLaunch()(chatId, SESSION, () =>
+        Promise.resolve(kept({ said: "with theirs" })),
+      ),
+    ).toEqual({ said: "with theirs" });
   });
 
   it("keeps its rows for another release", async () => {

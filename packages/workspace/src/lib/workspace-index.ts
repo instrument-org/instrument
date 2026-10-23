@@ -6,6 +6,8 @@ import { type ChatId } from "../schemas/chat-id";
 import { type StoreId } from "../schemas/store-id";
 import { cacheByChatGeneration } from "./chat-generation";
 import { chatDir } from "./record-folders";
+import { writingChatRecords } from "./records/chat-records";
+import { parseRecordFileName } from "./records/file-names";
 import { getWorkspaceConfig } from "./workspace-config";
 import { versionMatches, workspaceTables } from "./workspace-db";
 
@@ -16,7 +18,7 @@ import { versionMatches, workspaceTables } from "./workspace-db";
  * built under another version is thrown away and rebuilt from the records as it
  * is read: the index is derived, so it is never migrated. Its tables are in `workspace.db`, beside tables it never touches.
  */
-const INDEX_VERSION = 15;
+const INDEX_VERSION = 16;
 
 /**
  * What the index keeps, one row per session: each a value derived from that
@@ -51,10 +53,17 @@ export function unkept<Value>(value: Value): Derived<Value> {
  * A value derived from one session in a chat's store, kept until it changes:
  * in memory by that session's write count, which every write to it in this
  * process moves and a write to another session does not, and across launches
- * in the index, by the store's files' sizes and modification times, which
- * also move for a write made while the app was closed. Only a value whose
- * session has moved is computed again, and one the computation marks
- * `unkept` is kept in neither place.
+ * in the index, by how much of each of the chat's files it was read from.
+ * Only a value whose session has moved is computed again, and one the
+ * computation marks `unkept` is kept in neither place.
+ *
+ * A row's stamp says what its value was read from, never merely what the
+ * files held around the time: for a chat held in memory, how far its fold has
+ * read each file; for one that is not, each file's size, which is how far a
+ * fold of it reads. A value is kept only when that stamp is the same before
+ * and after it is computed, so nothing landed or folded in meanwhile, and
+ * no row is read or kept while the chat has writes not yet in its files,
+ * since a read then answers from those writes.
  *
  * The index only ever speeds a read up: a row it cannot read or write is
  * derived as though it were absent.
@@ -70,12 +79,14 @@ export function indexedByRecords<Value>(table: IndexTable) {
       compute: () => Promise<Derived<Value>>,
     ) =>
     async (): Promise<Derived<Value>> => {
-      // Taken before the value is computed: an append that lands meanwhile
-      // leaves a stamp older than the records, which only costs a recompute.
-      const stamp = await recordsStamp(chatDir(chatId));
-      if (stamp !== undefined) {
+      const before = await stampOf(chatId);
+      if (before === WRITING) {
+        return compute();
+      }
+      // Checked again, since a write may have started while the files were read.
+      if (before !== undefined && stampHeld(chatId) !== WRITING) {
         const row = guarded(() => indexTables()?.read.get(table)?.get(key));
-        if (row?.stamp === stamp && typeof row.value === "string") {
+        if (row?.stamp === before && typeof row.value === "string") {
           const value = row.value;
           const parsed = guarded(() => ({
             value: superjson.parse<Value>(value),
@@ -86,11 +97,12 @@ export function indexedByRecords<Value>(table: IndexTable) {
         }
       }
       const derived = await compute();
-      if (derived.keep && stamp !== undefined) {
+      const after = await stampOf(chatId);
+      if (derived.keep && typeof after === "string" && after === before) {
         guarded(() =>
           indexTables()
             ?.write.get(table)
-            ?.run(key, stamp, superjson.stringify(derived.value)),
+            ?.run(key, after, superjson.stringify(derived.value)),
         );
       }
       return derived;
@@ -178,27 +190,58 @@ function guarded<T>(operation: () => T): T | undefined {
   }
 }
 
+/** A chat with writes not yet in its files, whose reads no row stands for. */
+const WRITING = Symbol("writing");
+
 /**
- * The chat's records as one string a read can compare: every log and marks
- * file in its folder, with its size and modification time. Undefined for a
- * chat with no record file at all, since there is then nothing for a row to
- * stand for.
+ * What a value read of the chat now is read from, as one string a row can
+ * compare: every log and settings file and how much of it is read. Undefined
+ * for a chat with no record file at all, or one a file of which could not be
+ * looked at, since there is then nothing for a row to stand for.
  */
-async function recordsStamp(dir: string): Promise<string | undefined> {
+async function stampOf(
+  chatId: ChatId,
+): Promise<string | typeof WRITING | undefined> {
+  return stampHeld(chatId) ?? (await filesStamp(chatDir(chatId)));
+}
+
+/** The stamp of the chat as held in memory, or null for a chat not held. */
+function stampHeld(chatId: ChatId): string | typeof WRITING | null {
+  const records = writingChatRecords();
+  if (records?.isWriting(chatId)) {
+    return WRITING;
+  }
+  const readTo = records?.readTo(chatId);
+  return readTo ? (stampFrom([...readTo]) ?? null) : null;
+}
+
+/** The stamp of a chat no one holds: each file read to its end. */
+async function filesStamp(dir: string): Promise<string | undefined> {
   const names = await fs.promises.readdir(dir).catch(() => undefined);
-  const records = names?.filter((name) => name.endsWith(".jsonl")).toSorted();
-  if (!records || records.length === 0) {
+  const records = names?.filter(
+    (name) => parseRecordFileName(name) !== undefined,
+  );
+  if (!records) {
     return undefined;
   }
-  const stats = await Promise.allSettled(
-    records.map((name) => fs.promises.stat(path.join(dir, name))),
+  const sizes = await Promise.all(
+    records.map((name) =>
+      fs.promises.stat(path.join(dir, name)).then(
+        ({ size }): [string, number] => [name, size],
+        () => undefined,
+      ),
+    ),
   );
-  return records
-    .map((name, index) => {
-      const stat = stats[index];
-      return stat?.status === "fulfilled"
-        ? `${name}:${stat.value.size}:${stat.value.mtimeMs}`
-        : `${name}:-`;
-    })
-    .join("|");
+  return sizes.every((size) => size !== undefined)
+    ? stampFrom(sizes)
+    : undefined;
+}
+
+function stampFrom(files: [string, number][]): string | undefined {
+  return files.length === 0
+    ? undefined
+    : files
+        .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([name, size]) => `${name}:${size}`)
+        .join("|");
 }

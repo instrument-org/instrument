@@ -253,6 +253,13 @@ export class ChatFold {
     );
   }
 
+  /** How far each file has been read, by name: what the chat as folded was read from. */
+  readTo(): Map<string, number> {
+    return new Map(
+      [...this.#files].map(([name, file]) => [name, file.cursor.offset]),
+    );
+  }
+
   /**
    * The chat as the records folded so far say it is. A session nothing new
    * was folded for since the last call is the same object it was then.

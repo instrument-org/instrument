@@ -335,6 +335,23 @@ export class ChatRecords {
     }
   }
 
+  /**
+   * Whether the chat has records written here that are not yet in its
+   * files: a read of it then has them over what its files say.
+   */
+  isWriting(chatId: ChatId): boolean {
+    const chat = this.#chats.get(chatId)?.open;
+    return chat !== undefined && chat.pending.size > 0;
+  }
+
+  /**
+   * How far the chat as held here has read each of its files, or nothing
+   * for a chat not held, which a read folds from its files as they are.
+   */
+  readTo(chatId: ChatId): Map<string, number> | undefined {
+    return this.#chats.get(chatId)?.open?.fold.readTo();
+  }
+
   /** The chat as it stands: its fold with what is pending over it, and its running turns. */
   read(chatId: ChatId): Promise<ChatRead> {
     return this.#with(chatId, (chat) => ({

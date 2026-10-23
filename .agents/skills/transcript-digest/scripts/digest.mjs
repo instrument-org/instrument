@@ -85,7 +85,8 @@ function duplicates(f, exportedSession) {
     .filter((n) => n.endsWith(".md") && path.join(dir, n) !== path.resolve(f))
     .flatMap((n) => {
       const text = fs.readFileSync(path.join(dir, n), "utf8");
-      if (!text.slice(0, 3000).includes(`sessionId: "${exportedSession}"`)) return [];
+      if (!text.slice(0, 3000).includes(`sessionId: "${exportedSession}"`))
+        return [];
       const exportedAt =
         text.slice(0, 3000).match(/transcriptGeneratedAt: "([^"]+)"/)?.[1] ??
         "?";

@@ -63,7 +63,9 @@ describe("redactSecrets", () => {
       redactSecrets(
         `postgres://app_user:${run(12)}@db.example.com:5432/prod https://${run(8)}:${run(40)}@github.com/org/repo.git`,
       ),
-    ).toMatchInlineSnapshot(`"postgres://app_user:[secret: password]@db.example.com:5432/prod https://dK2xdK2x:[secret: password]@github.com/org/repo.git"`);
+    ).toMatchInlineSnapshot(
+      `"postgres://app_user:[secret: password]@db.example.com:5432/prod https://dK2xdK2x:[secret: password]@github.com/org/repo.git"`,
+    );
   });
 
   it("leaves a template's placeholder password", () => {
@@ -101,6 +103,8 @@ describe("redactUrlQueries", () => {
       redactUrlQueries(
         "Failed to load URL: https://sync.example.com/api/v1/start?gdpr=0&global_user_id=0f93d1df, then https://example.com/callback#access_token=abc and https://example.com/plain.",
       ),
-    ).toMatchInlineSnapshot(`"Failed to load URL: https://sync.example.com/api/v1/start?[query], then https://example.com/callback?[query] and https://example.com/plain."`);
+    ).toMatchInlineSnapshot(
+      `"Failed to load URL: https://sync.example.com/api/v1/start?[query], then https://example.com/callback?[query] and https://example.com/plain."`,
+    );
   });
 });

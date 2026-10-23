@@ -14,7 +14,11 @@ function apiCallError(body: unknown, statusCode = 429) {
 }
 
 const refusal = apiCallError({
-  error: { code: "usage-limit-exceeded", message: "Usage limit reached.", retryable: false },
+  error: {
+    code: "usage-limit-exceeded",
+    message: "Usage limit reached.",
+    retryable: false,
+  },
 });
 
 describe("isNonRetryableGatewayError", () => {

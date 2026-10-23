@@ -156,9 +156,7 @@ describe("createGitCommand arg policy", () => {
     const result = await command.execute(args, mockCtx);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(
-      "points outside your work folder",
-    );
+    expect(result.stderr).toContain("points outside your work folder");
   });
 
   it.each([
@@ -440,9 +438,7 @@ describe("createGitCommand over folder mounts", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(
-      "points outside your work folder",
-    );
+    expect(result.stderr).toContain("points outside your work folder");
   });
 
   it("refuses a folder that is not attached", async () => {
@@ -452,9 +448,7 @@ describe("createGitCommand over folder mounts", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(
-      "points outside your work folder",
-    );
+    expect(result.stderr).toContain("points outside your work folder");
   });
 });
 

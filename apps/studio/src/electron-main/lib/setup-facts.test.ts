@@ -115,7 +115,11 @@ describe("setup's facts", () => {
   });
 
   it.each([
-    ["Instrument alone", ["instrument"], { hasOwnAI: false, hasUsableAI: true }],
+    [
+      "Instrument alone",
+      ["instrument"],
+      { hasOwnAI: false, hasUsableAI: true },
+    ],
     [
       "Instrument and a key",
       ["instrument", "openai-compatible"],

@@ -192,7 +192,9 @@ describe("createReportRedactor", () => {
       redactor.text(
         "sam ran `date`; the timezone is Central time, so meetings after 9.",
       ),
-    ).toMatchInlineSnapshot(`"sam ran \`date\`; the timezone is [memory-1 text]"`);
+    ).toMatchInlineSnapshot(
+      `"sam ran \`date\`; the timezone is [memory-1 text]"`,
+    );
   });
 
   it("takes an email out whatever its case", () => {
@@ -213,6 +215,8 @@ describe("createReportRedactor", () => {
       redactor.text(
         "at file:///C:/Users/sam-r/AppData/x.js; cwd /c/Users/sam-r/chat; C:\\Users\\sam-r\\notes.md",
       ),
-    ).toMatchInlineSnapshot(`"at file:///~/AppData/x.js; cwd ~/chat; ~\\notes.md"`);
+    ).toMatchInlineSnapshot(
+      `"at file:///~/AppData/x.js; cwd ~/chat; ~\\notes.md"`,
+    );
   });
 });

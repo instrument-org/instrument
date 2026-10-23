@@ -306,7 +306,9 @@ export function catalogEndpointNeedsClient(endpoint: string): boolean {
  * Matched on the endpoint rather than the app's slug, so the client is only
  * ever offered to the server it was issued for.
  */
-export function catalogRegisteredClient(endpoint: string):
+export function catalogRegisteredClient(
+  endpoint: string,
+):
   | undefined
   | (Pick<
       CatalogInterface,

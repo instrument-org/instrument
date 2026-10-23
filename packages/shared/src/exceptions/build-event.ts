@@ -313,8 +313,7 @@ function eventScrubber(home: string | undefined): Scrubber {
   const spellings = homeSpellings(home ?? "");
   const path = (value: string) =>
     spellings.reduce((text, spelling) => text.split(spelling).join("~"), value);
-  const text = (value: string) =>
-    redactUrlQueries(redactSecrets(path(value)));
+  const text = (value: string) => redactUrlQueries(redactSecrets(path(value)));
   const deep = (value: unknown): unknown => {
     if (typeof value === "string") {
       return text(value);

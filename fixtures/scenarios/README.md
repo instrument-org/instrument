@@ -40,7 +40,7 @@ Everything a scenario writes stays inside its own folders in studio-drive's cach
 | `one-x-user`          | A 1.x task with no chat in the app's own data, ChatGPT, finished work in Documents, no record | `welcome-back`               |
 | `quit-after-chatgpt`  | Picked the folder, connected ChatGPT, then quit                                               | `free-account`               |
 | `folder-move-pending` | A beta tester's launch that makes the move the folder step recorded                           | `free-account`               |
-| `own-key-and-account` | Picked the folder with a Workers AI key; boot with `--account` for a no-plan account | `model`, past the plan |
+| `own-key-and-account` | Picked the folder with a Workers AI key; boot with `--account` for a no-plan account          | `model`, past the plan       |
 | `finished-new-step`   | Finished on a build without the notifications step                                            | `notifications`, as new only |
 | `offline`             | A first launch with no network                                                                | `folder`, as Welcome         |
 

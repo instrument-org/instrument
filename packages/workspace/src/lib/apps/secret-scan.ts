@@ -13,7 +13,6 @@ interface SecretFinding {
   file: string;
 }
 
-
 /**
  * Scan every file in a app folder for secret-shaped strings and for the
  * app's actual stored credential. App folders must never contain

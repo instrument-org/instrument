@@ -18,7 +18,6 @@ export const SKILL_ARTIFACT_IGNORE = [
   "venv",
 ];
 
-
 /** Authored files omitted from a Node skill's built copy. */
 export const SKILL_COPY_IGNORE = [
   "SKILL.template.md",

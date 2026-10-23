@@ -38,9 +38,8 @@ it("names each kind of secret an app's files hold, and passes placeholders", asy
     dir: AbsolutePathSchema.parse(dir),
   });
 
-  expect(
-    findings.map(({ detail, file }) => `${file}: ${detail}`).toSorted(),
-  ).toMatchInlineSnapshot(`
+  expect(findings.map(({ detail, file }) => `${file}: ${detail}`).toSorted())
+    .toMatchInlineSnapshot(`
     [
       "APP.md: Contains a string that looks like a secret (Linear key). App files must not contain secrets.",
       "config.json: Contains a string that looks like a secret (Google API key). App files must not contain secrets.",

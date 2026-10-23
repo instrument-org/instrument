@@ -350,5 +350,3 @@ export const computerColumnWidthAtom = keptAtom<number>(
   "computer-column-width.v1",
   240,
 );
-
-

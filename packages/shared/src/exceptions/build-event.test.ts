@@ -372,7 +372,9 @@ describe("what an event leaves out", () => {
         breadcrumbs: [
           {
             category: "log",
-            data: { url: "https://accounts.example.com/callback?code=4/0AVG7&state=x9" },
+            data: {
+              url: "https://accounts.example.com/callback?code=4/0AVG7&state=x9",
+            },
             level: "error",
             message: `electron: Failed to load URL: https://sync.example.com/start?uid=0f93d1df in ${HOME}/Library`,
             timestamp: 0,
@@ -418,6 +420,8 @@ describe("a Windows home folder", () => {
         paths: { home: "C:\\Users\\sam" },
       },
     );
-    expect(event.exceptions.at(-1)?.value).toMatchInlineSnapshot(`"Failed at file:///~/AppData/Local/x.js, opening ~\\notes.md from ~/chat"`);
+    expect(event.exceptions.at(-1)?.value).toMatchInlineSnapshot(
+      `"Failed at file:///~/AppData/Local/x.js, opening ~\\notes.md from ~/chat"`,
+    );
   });
 });

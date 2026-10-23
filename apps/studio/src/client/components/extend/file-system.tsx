@@ -2952,6 +2952,7 @@ export function FileSystem({
     draggable: dragArea.draggable,
     enabledListColumns: listColumns,
     entries: currentEntries,
+    groupedBy: group,
     grouping,
     index: sortedIndex,
     listColumnWidths,
@@ -3681,6 +3682,8 @@ type FileSystemViewProps = {
   draggable: boolean;
   enabledListColumns: FileSystemListColumn[];
   entries: FileSystemEntry[];
+  /** What the rows are grouped by, if anything. */
+  groupedBy: FileSystemGroupKey | null;
   /** Each row's group, where the rows are grouped: headings go between groups. */
   grouping: Grouping | null;
   index: FileSystemIndex;
@@ -4558,7 +4561,8 @@ function formatListDate(value: string | undefined) {
 }
 // A date short enough for the narrow column beside a file, the way the
 // Finder shortens one as its column narrows: today by its time, yesterday by
-// name, this year by its month and day, and earlier years in figures.
+// name, this year by its month and day, and earlier years in figures. Under
+// a heading that already names its day, yesterday is by its time as well.
 const SHORT_DAY_FORMAT = new Intl.DateTimeFormat(displayLocale, {
   day: "numeric",
   month: "short",
@@ -4568,7 +4572,10 @@ const FIGURES_DAY_FORMAT = new Intl.DateTimeFormat(displayLocale, {
   month: "numeric",
   year: "2-digit",
 });
-function formatShortListDate(value: string | undefined) {
+function formatShortListDate(
+  value: string | undefined,
+  { isDayNamed = false } = {},
+) {
   if (!value) return "--";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "--";
@@ -4579,7 +4586,7 @@ function formatShortListDate(value: string | undefined) {
     return TIME_FORMAT.format(date);
   }
   if (calendarDayKey(date) === calendarDayKey(yesterday)) {
-    return "Yesterday";
+    return isDayNamed ? TIME_FORMAT.format(date) : "Yesterday";
   }
   return date.getFullYear() === today.getFullYear()
     ? SHORT_DAY_FORMAT.format(date)
@@ -4588,9 +4595,10 @@ function formatShortListDate(value: string | undefined) {
 function listCellText(
   entry: FileSystemEntry,
   column: FileSystemListColumn,
-  { short = false } = {},
+  { isDayNamed = false, short = false } = {},
 ) {
-  const formatDate = short ? formatShortListDate : formatListDate;
+  const formatDate = (value: string | undefined) =>
+    short ? formatShortListDate(value, { isDayNamed }) : formatListDate(value);
   switch (column) {
     case "createdAt": {
       return formatDate(entry.createdAt);
@@ -4790,6 +4798,7 @@ function FileSystemListView({
   currentPath,
   draggable,
   enabledListColumns,
+  groupedBy,
   grouping,
   index,
   listColumnWidths,
@@ -5386,6 +5395,11 @@ function FileSystemListView({
                           style={{ width: column.width }}
                         >
                           {listCellText(entry, column.key, {
+                            // Its group's heading names the day by the
+                            // date this column shows.
+                            isDayNamed:
+                              row.group !== undefined &&
+                              groupedBy === column.key,
                             short: column.compact,
                           })}
                         </span>

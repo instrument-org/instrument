@@ -168,7 +168,7 @@
     "react/unsupported-syntax": "warn",
     "react/use-memo": "warn",
     "react/void-use-memo": "warn",
-    "tailwindcss/enforce-sort-order": "error",
+    "tailwindcss/enforce-sort-order": "warn",
     "tailwindcss/no-conflicting-classes": "error",
     "tailwindcss/no-deprecated-classes": "error",
     "tailwindcss/no-duplicate-classes": "error",

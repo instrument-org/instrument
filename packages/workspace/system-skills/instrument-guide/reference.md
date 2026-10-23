@@ -16,7 +16,7 @@ How Instrument looks, notifications, dictation, updates, and the diagnostic log.
 - **Dictation microphone** (`dictation-microphone`): Pick the microphone you dictate into.
 - **Dictation language** (`dictation-language`): Pick the language you speak, or let dictation detect it.
 - **Dictation sounds** (`dictation-sounds`): A sound when dictation starts and stops.
-- **Microphone access** (`microphone-access`): Whether macOS lets Instrument use the microphone.
+- **Microphone access** (`microphone-access`): Whether your computer lets Instrument use the microphone.
 - **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: Release notes (`release-notes`), Check for updates (`check-for-updates`).
 - **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Send feedback (`send-feedback`), Third-party licenses (`third-party-licenses`).
 - **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).

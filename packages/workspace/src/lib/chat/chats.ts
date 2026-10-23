@@ -101,6 +101,10 @@ export const ChatSchema = z.object({
   lastStep: z.object({ at: z.number(), text: z.string() }).optional(),
   /** When the user last sent a message, in ms, wake notes aside; the chat's creation before one is saved. */
   lastUserMessageAt: z.number(),
+  /** The step the chat's own turn is on, while it has one; never a task's. */
+  ownStep: z.string().optional(),
+  /** Whether the chat's own session has a turn under way, whatever its tasks do. */
+  ownWorking: z.boolean(),
   /** The user's first message, whatever it carried; absent only before one is saved. */
   root: SessionMessage.UserSchemaWithParts.optional(),
   /** The tasks filed from this chat that are at work right now. */
@@ -576,6 +580,8 @@ async function chatFor(
       : { lastReplyAt: digest.lastReplyAt }),
     ...(digest.lastStep ? { lastStep: digest.lastStep } : {}),
     lastUserMessageAt: digest.lastUserMessageAt ?? createdAt,
+    ...(ownStep ? { ownStep } : {}),
+    ownWorking,
     ...(state === "limited" && {
       stoppedFor: digest.planRefusal ?? ("usage" as const),
     }),

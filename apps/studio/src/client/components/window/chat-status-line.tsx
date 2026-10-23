@@ -60,7 +60,8 @@ export function ChatStatusLine({
   chat,
   onOpenTask,
 }: {
-  chat: Parameters<typeof statusLine>[0]["chat"] & Pick<Chat, "id">;
+  chat: Parameters<typeof statusLine>[0]["chat"] &
+    Pick<Chat, "id" | "ownStep" | "ownWorking">;
   /** Opens one of the chat's tasks beside it. */
   onOpenTask: (sessionId: StoreId.Session) => void;
 }) {
@@ -124,13 +125,18 @@ export function ChatStatusLine({
         align="center"
         chatId={chat.id}
         onOpen={onOpenTask}
+        // The chat's own row says only what its own session did: the line
+        // above speaks for the tasks too, and a task's step or name there
+        // would read as the chat's.
         own={{
-          line:
-            line?.tone === "run" || line?.tone === "done"
-              ? line.text
+          line: chat.ownWorking
+            ? (chat.ownStep ?? WORKING)
+            : chat.lastStep &&
+                (chat.state === "idle" || chat.state === "working")
+              ? DONE
               : undefined,
           title: chat.title,
-          working: chat.state === "working",
+          working: chat.ownWorking,
         }}
         tasks={chat.runningTasks}
         trigger={

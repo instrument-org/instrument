@@ -51,6 +51,7 @@ function chat(): Chat {
     holds: { apps: [], files: [], sites: [] },
     id: CHAT_ID,
     lastUserMessageAt: at.getTime(),
+    ownWorking: false,
     root: {
       id: messageId,
       metadata: { createdAt: at, sessionId },

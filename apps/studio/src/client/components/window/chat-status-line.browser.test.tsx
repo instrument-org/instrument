@@ -81,6 +81,7 @@ const chat = (state: "idle" | "working") => ({
   lastUserMessageAt: 1,
   latest: { at: 2, kind: "step" as const, text: "Reading the fares" },
   lastStep: { at: 2, text: "Reading the fares" },
+  ownWorking: state === "working",
   runningTasks: [],
   state,
   title: "Lisbon trip",

@@ -154,6 +154,7 @@ function chat(overrides: Partial<Chat> = {}): Chat {
     id: CHAT_ID,
     lastReplyAt: MOVED_AT.getTime(),
     lastUserMessageAt: STARTED_AT.getTime(),
+    ownWorking: false,
     latest: { at: MOVED_AT.getTime(), kind: "reply", text: REPLY },
     root: {
       id: messageId,

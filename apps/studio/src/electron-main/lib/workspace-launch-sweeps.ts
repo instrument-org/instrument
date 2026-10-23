@@ -147,13 +147,29 @@ function nameChatDatabases(rootDir: string) {
 
 /** What naming a chat's database, or splitting its records, did. */
 function reportChatRecords(records: ChatRecordsSplit) {
-  for (const step of records.done) {
-    logger.info(`Chat records: ${step}`);
-  }
+  logDone("Chat records", records.done);
   if (records.failed > 0) {
     logger.warn(
       `Left ${records.failed} chat entr${records.failed === 1 ? "y" : "ies"} to move on the next boot`,
     );
+  }
+}
+
+/**
+ * Says how many steps a sweep took, naming only the ones that went wrong. A
+ * chat's id spells out its title and the log goes out with every report, so
+ * a launch that converts hundreds of chats would otherwise send each one's
+ * name; a step that left something behind is still said whole, since that
+ * is the line a fix needs.
+ */
+function logDone(sweep: string, done: readonly string[]) {
+  const problems = done.filter((step) => /^left |\bcould not\b/.test(step));
+  const moved = done.length - problems.length;
+  if (moved > 0) {
+    logger.info(`${sweep}: ${moved} step${moved === 1 ? "" : "s"} done`);
+  }
+  for (const step of problems) {
+    logger.info(`${sweep}: ${step}`);
   }
 }
 
@@ -197,9 +213,7 @@ async function convertChatDatabases(
       machineDir: workspaceMachineDir(),
       rootDir,
     });
-    for (const step of converted.done) {
-      logger.info(`Chat records: ${step}`);
-    }
+    logDone("Chat records", converted.done);
     for (const { reason, where } of converted.left) {
       logger.warn(
         `Chat records: left ${where} on its database and will try again next launch: ${reason}`,
@@ -229,9 +243,7 @@ async function convertChatSettings(deviceId: DeviceId, rootDir: string) {
       deviceId,
       machineDir: workspaceMachineDir(),
     });
-    for (const step of converted.done) {
-      logger.info(`Chat settings: ${step}`);
-    }
+    logDone("Chat settings", converted.done);
     for (const { reason, where } of converted.left) {
       logger.warn(
         `Chat settings: left ${where} for the next launch: ${reason}`,

@@ -7,6 +7,7 @@ import {
 import { type RPCOutput } from "@/client/rpc/client";
 import { type PlanRefusal } from "@/shared/billing";
 import { type DictationFailure } from "@/shared/dictation";
+import { type Os } from "@/shared/os-conventions";
 import { APP_NAME } from "@instrument-org/shared";
 
 /** Everything that can stop a dictation from landing as text. */
@@ -20,6 +21,11 @@ export type DictationProblem =
   | { kind: "capture-failed" }
   | { kind: "microphone-busy" }
   | { kind: "microphone-refused" }
+  /**
+   * Refused as far as this run can tell, after System Settings was opened:
+   * only a relaunch hears whether the switch was turned on there.
+   */
+  | { kind: "microphone-reopen" }
   | { kind: "no-microphone" }
   | { kind: "nothing-heard" }
   | { kind: "too-short" };
@@ -28,6 +34,7 @@ export type DictationProblem =
 export type DictationNotice = {
   action?:
     | "open-settings"
+    | "reopen"
     | "retry"
     | "sign-in"
     /** Billing's own way forward, as the chat's billing note offers it. */
@@ -99,10 +106,7 @@ function describeBillingRefusal(
 
 export function describeDictationProblem(
   problem: DictationProblem,
-  {
-    billing,
-    canOpenSettings,
-  }: { billing?: DictationBilling; canOpenSettings: boolean },
+  { billing, os }: { billing?: DictationBilling; os: Os },
 ): DictationNotice {
   switch (problem.kind) {
     case "billing-refused": {
@@ -139,21 +143,34 @@ export function describeDictationProblem(
       };
     }
     case "microphone-refused": {
-      return canOpenSettings
+      return os === "linux"
         ? {
-            action: "open-settings",
-            // oxlint-disable-next-line studio/no-os-words -- only on macOS (`canOpenSettings`)
-            description: `You can let ${APP_NAME} use the microphone in System Settings.`,
+            description: `Your system isn't letting ${APP_NAME} use the microphone.`,
             keepsRecording: false,
             title: "Couldn't use the microphone",
             tone: "error",
           }
         : {
-            description: `Your system isn't letting ${APP_NAME} use the microphone.`,
+            action: "open-settings",
+            description:
+              os === "mac"
+                ? // oxlint-disable-next-line studio/no-os-words -- only on macOS
+                  `You can let ${APP_NAME} use the microphone in System Settings.`
+                : // oxlint-disable-next-line studio/no-os-words -- only on Windows
+                  `You can let ${APP_NAME} use the microphone in Windows privacy settings.`,
             keepsRecording: false,
             title: "Couldn't use the microphone",
             tone: "error",
           };
+    }
+    case "microphone-reopen": {
+      return {
+        action: "reopen",
+        description: `Reopen ${APP_NAME} to use the microphone.`,
+        keepsRecording: false,
+        title: "Couldn't use the microphone",
+        tone: "error",
+      };
     }
     case "no-microphone": {
       return {

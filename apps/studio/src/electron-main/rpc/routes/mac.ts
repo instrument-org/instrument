@@ -6,11 +6,6 @@ import {
 import { getMacAppIconUrl } from "@/electron-main/lib/file-open-target";
 import { refreshNotificationsForSetup } from "@/electron-main/lib/setup-facts";
 import { showTestNotification } from "@/electron-main/lib/test-notification";
-import {
-  microphoneAccess,
-  openMicrophoneSettings,
-  requestMicrophoneAccess,
-} from "@/electron-main/lib/microphone-access";
 import { base } from "@/electron-main/rpc/base";
 import { appBundleId } from "@instrument-org/workspace/electron";
 import { z } from "zod";
@@ -18,8 +13,7 @@ import { z } from "zod";
 /**
  * The Mac bridge (lib/mac-native.ts), for pages that ask the user for
  * something macOS guards before the first task needs it: setup's
- * notifications and Mac-data steps, dictation asking for the microphone, and
- * Settings showing where each stands.
+ * notifications and Mac-data steps, and Settings showing where each stands.
  * Off macOS, every status is `unsupported`.
  */
 
@@ -71,13 +65,4 @@ const appIcon = base
     };
   });
 
-const microphone = {
-  /** Granted, denied, restricted, or never asked; `unsupported` off macOS. */
-  status: base.handler(() => microphoneAccess()),
-  /** The system's prompt when nobody has answered it; the standing answer otherwise. */
-  request: base.handler(() => requestMicrophoneAccess()),
-  /** The microphone pane of System Settings, where a refusal is undone. */
-  openSettings: base.handler(() => openMicrophoneSettings()),
-};
-
-export const mac = { access, appIcon, microphone, notifications };
+export const mac = { access, appIcon, notifications };

@@ -12,6 +12,7 @@ describe("describeDictationProblem", () => {
     "connection",
     "microphone-busy",
     "microphone-refused",
+    "microphone-reopen",
     "no-microphone",
     "nothing-heard",
     "rate-limited",
@@ -29,7 +30,7 @@ describe("describeDictationProblem", () => {
         // `as`: every kind listed here needs nothing beside it.
         const problem = { kind } as DictationProblem;
         const notice = describeDictationProblem(problem, {
-          canOpenSettings: true,
+          os: "mac",
         });
         expect(notice.keepsRecording).toBe(
           notice.action === "retry" || notice.action === "sign-in",
@@ -46,6 +47,7 @@ describe("describeDictationProblem", () => {
         "connection": "error: Couldn't reach Instrument / Your recording is safe. Check your connection, then try again. [retry]",
         "microphone-busy": "error: Couldn't start recording / Another app is using the microphone. Close it, then try again.",
         "microphone-refused": "error: Couldn't use the microphone / You can let Instrument use the microphone in System Settings. [open-settings]",
+        "microphone-reopen": "error: Couldn't use the microphone / Reopen Instrument to use the microphone. [reopen]",
         "no-microphone": "error: Couldn't find a microphone / Plug one in, then try again.",
         "nothing-heard": "info: Didn't quite catch that / There were no words in that recording. Try again.",
         "rate-limited": "error: Couldn't transcribe that yet / Your recording is safe. Wait a moment, then try again. [retry]",
@@ -59,14 +61,17 @@ describe("describeDictationProblem", () => {
     `);
   });
 
-  it("does not offer System Settings where there is none to open", () => {
-    expect(
-      describeDictationProblem(
-        { kind: "microphone-refused" },
-        { canOpenSettings: false },
-      ).action,
-    ).toBeUndefined();
-  });
+  it.each([
+    ["linux", undefined],
+    ["windows", "open-settings"],
+  ] as const)(
+    "offers the system's settings for a refusal only where it has a switch (%s)",
+    (os, action) => {
+      expect(
+        describeDictationProblem({ kind: "microphone-refused" }, { os }).action,
+      ).toBe(action);
+    },
+  );
 });
 
 describe("billing refusals", () => {
@@ -128,7 +133,7 @@ describe("billing refusals", () => {
       cases.map(([name, problem, billing]) => {
         const notice = describeDictationProblem(problem, {
           billing,
-          canOpenSettings: true,
+          os: "mac",
         });
         expect(notice.keepsRecording).toBe(problem.kind === "billing-refused");
         const action =

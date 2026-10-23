@@ -9,6 +9,7 @@ import {
   SelectTrigger,
 } from "@/client/components/ui/select";
 import { Switch } from "@/client/components/ui/switch";
+import { StateArrival } from "@/client/components/state-arrival";
 import {
   microphoneName,
   microphoneNames,
@@ -17,12 +18,14 @@ import {
 } from "@/client/lib/dictation-microphone";
 import { toast } from "@/client/lib/toast";
 import { isMacOS } from "@/client/lib/utils";
+import { type RPCOutput } from "@/client/rpc/client";
 import { rpcClient } from "@/client/rpc/client";
 import {
   DICTATION_LANGUAGES,
   DictationLanguageSchema,
 } from "@/shared/dictation";
 import { APP_NAME } from "@instrument-org/shared";
+import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -55,11 +58,49 @@ function useInputDevices() {
 }
 
 /**
- * Dictation's settings: which microphone it records from, which language it
- * listens for, whether it plays sounds, and on a Mac that keeps the app from
- * the microphone, where to change that.
+ * Dictation's settings, or in their place, until the system lets the app use
+ * the microphone, one card that asks for it. The microphone list has no
+ * names to show before then anyway. The answer is read again whenever the
+ * window takes focus, which is when someone comes back from the system's
+ * settings, and the settings settle in once it changes.
  */
 export function DictationSettings() {
+  const access = useQuery(rpcClient.dictation.access.status.queryOptions());
+  const { data: windowFocusChanged } = useQuery(
+    rpcClient.utils.events.windowFocusChanged.experimental_liveOptions(),
+  );
+  const { refetch } = access;
+  useEffect(() => {
+    void refetch();
+  }, [windowFocusChanged, refetch]);
+  const status = access.data;
+  const gate =
+    status === "not-determined" ||
+    status === "denied" ||
+    status === "restricted" ||
+    status === "reopen"
+      ? status
+      : undefined;
+  return (
+    <StateArrival
+      state={status === undefined ? undefined : (gate ?? "allowed")}
+    >
+      {gate ? (
+        <MicrophoneAccessCard
+          onAnswered={() => {
+            void refetch();
+          }}
+          state={gate}
+        />
+      ) : (
+        <DictationChoices />
+      )}
+    </StateArrival>
+  );
+}
+
+/** Which microphone dictation records from, which language it listens for, and its sounds. */
+function DictationChoices() {
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
@@ -152,8 +193,6 @@ export function DictationSettings() {
           </Select>
         </div>
 
-        {isMacOS() && <MicrophoneAccessRow />}
-
         <div
           className="flex items-start justify-between gap-4"
           {...settingAnchor("dictation-language")}
@@ -217,58 +256,103 @@ export function DictationSettings() {
 }
 
 /**
- * Where to undo a refusal, shown only while macOS keeps the app from the
- * microphone, read again whenever the window takes focus, which is when
- * someone comes back from System Settings. Until macOS has asked, there is no
- * switch in System Settings to send anyone to, so nothing shows.
+ * Where the system stands on the microphone, and the one thing to do about
+ * it: allow it, turn it on in the system's settings, or reopen so macOS's
+ * new answer reaches the app.
  */
-function MicrophoneAccessRow() {
-  const access = useQuery(rpcClient.mac.microphone.status.queryOptions());
-  const { data: windowFocusChanged } = useQuery(
-    rpcClient.utils.events.windowFocusChanged.experimental_liveOptions(),
+function MicrophoneAccessCard({
+  onAnswered,
+  state,
+}: {
+  onAnswered: () => void;
+  state: Exclude<
+    RPCOutput["dictation"]["access"]["status"],
+    "granted" | "unsupported"
+  >;
+}) {
+  const request = useMutation(
+    rpcClient.dictation.access.request.mutationOptions({
+      onSettled: onAnswered,
+    }),
   );
-  const { refetch } = access;
-  useEffect(() => {
-    void refetch();
-  }, [windowFocusChanged, refetch]);
   const openSettings = useMutation(
-    rpcClient.mac.microphone.openSettings.mutationOptions(),
+    rpcClient.dictation.access.openSettings.mutationOptions(),
   );
-
-  const status = access.data;
-  if (status !== "denied" && status !== "restricted") {
-    return null;
-  }
+  const reopen = useMutation(
+    rpcClient.dictation.access.reopen.mutationOptions(),
+  );
+  const mac = isMacOS();
   const detail = {
-    denied:
-      // oxlint-disable-next-line studio/no-os-words -- this row shows only on macOS
-      "Microphone access is off in System Settings, so you can't dictate.",
-    restricted:
-      // oxlint-disable-next-line studio/no-os-words -- this row shows only on macOS
-      "This Mac doesn't allow microphone access, so you can't dictate.",
-  }[status];
-
-  return (
-    <div
-      className="flex items-center justify-between gap-4"
-      {...settingAnchor("microphone-access")}
+    denied: mac
+      ? // oxlint-disable-next-line studio/no-os-words -- only on macOS
+        "Turned off in System Settings."
+      : // oxlint-disable-next-line studio/no-os-words -- only on Windows
+        "Turned off in Windows privacy settings.",
+    "not-determined": "Needed for dictation.",
+    reopen: `Reopen ${APP_NAME} to start using it.`,
+    // oxlint-disable-next-line studio/no-os-words -- macOS alone restricts it
+    restricted: "This Mac doesn't allow it.",
+  }[state];
+  const openSettingsButton = (
+    <Button
+      className="shrink-0 rounded-full px-5"
+      disabled={openSettings.isPending}
+      onClick={() => {
+        openSettings.mutate(undefined);
+      }}
+      size="sm"
+      variant="outline"
     >
-      <div className="min-w-0 space-y-0.5">
-        <Label>Microphone access</Label>
-        <p className="text-xs text-muted-foreground">{detail}</p>
-      </div>
-      <Button
-        className="shrink-0"
-        disabled={openSettings.isPending}
-        onClick={() => {
-          openSettings.mutate(undefined);
-        }}
-        size="sm"
-        variant="outline"
+      {mac
+        ? // oxlint-disable-next-line studio/no-os-words -- only on macOS
+          "Open System Settings"
+        : "Open settings"}
+    </Button>
+  );
+  return (
+    <Card className="p-4">
+      <div
+        className="flex items-center gap-3.5"
+        {...settingAnchor("microphone-access")}
       >
-        {/* oxlint-disable-next-line studio/no-os-words -- this row shows only on macOS */}
-        Open System Settings
-      </Button>
-    </div>
+        <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-brand-600 text-white">
+          <MicrophoneIcon className="size-5" weight="fill" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p className="text-sm font-medium">Microphone access</p>
+          <p className="text-xs text-muted-foreground">{detail}</p>
+        </div>
+        {state === "not-determined" && (
+          <Button
+            className="shrink-0 rounded-full px-5"
+            disabled={request.isPending}
+            onClick={() => {
+              request.mutate(undefined);
+            }}
+            size="sm"
+            variant="brand"
+          >
+            Allow
+          </Button>
+        )}
+        {state === "denied" && openSettingsButton}
+        {state === "reopen" && (
+          <div className="flex shrink-0 items-center gap-2">
+            {openSettingsButton}
+            <Button
+              className="shrink-0 rounded-full px-5"
+              disabled={reopen.isPending}
+              onClick={() => {
+                reopen.mutate(undefined);
+              }}
+              size="sm"
+              variant="brand"
+            >
+              Reopen
+            </Button>
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }

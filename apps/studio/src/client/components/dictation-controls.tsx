@@ -269,16 +269,19 @@ function DictationWave({
 }
 
 /**
- * What stands in for the words when there are none to show: that it is
- * listening, that the words will come at Stop when live text isn't working,
- * or that they are on their way.
+ * What stands in for the words when there are none to show: that it waits
+ * on the system's microphone prompt, that it is listening, that the words
+ * will come at Stop when live text isn't working, or that they are on their
+ * way.
  */
 function quietLine({ live, phase }: Dictation) {
-  return live?.status === "lost" || live?.status === "unavailable"
-    ? "Live text unavailable"
-    : phase.kind === "transcribing" && !phase.live
-      ? "Transcribing…"
-      : "Listening…";
+  return phase.kind === "starting" && phase.asking
+    ? "Waiting for microphone access…"
+    : live?.status === "lost" || live?.status === "unavailable"
+      ? "Live text unavailable"
+      : phase.kind === "transcribing" && !phase.live
+        ? "Transcribing…"
+        : "Listening…";
 }
 
 /**

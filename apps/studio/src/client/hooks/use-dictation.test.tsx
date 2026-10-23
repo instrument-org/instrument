@@ -12,6 +12,8 @@ import {
 } from "./use-dictation";
 
 const mocks = vi.hoisted(() => ({
+  access: "granted" as string,
+  askAccess: vi.fn(),
   billingStatus: {} as Record<string, unknown>,
   feed: vi.fn(),
   finish: vi.fn(),
@@ -59,18 +61,17 @@ vi.mock(import("@/client/rpc/client"), () => ({
       },
     },
     dictation: {
+      access: {
+        openSettings: { call: vi.fn() },
+        reopen: { call: vi.fn() },
+        request: { call: mocks.askAccess },
+        status: { call: () => Promise.resolve(mocks.access) },
+      },
       feed: { call: mocks.feed },
       finish: { call: mocks.finish },
       listen: { call: mocks.listen },
       recording: { call: mocks.recording },
       transcribe: { call: mocks.transcribe },
-    },
-    mac: {
-      microphone: {
-        openSettings: { call: vi.fn() },
-        request: { call: vi.fn() },
-        status: { call: () => Promise.resolve("granted") },
-      },
     },
     preferences: {
       live: {
@@ -208,14 +209,25 @@ function fakeStream() {
   };
 }
 
-function setup({ finishOnUnmount = false } = {}) {
+function setup({
+  finishOnUnmount = false,
+  phases,
+}: { finishOnUnmount?: boolean; phases?: DictationPhase["kind"][] } = {}) {
   const onText = vi.fn();
   const client = new QueryClient();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
   const hook = renderHook(
-    () => useDictation({ finishOnUnmount, onText, surface: "composer" }),
+    () => {
+      const dictation = useDictation({
+        finishOnUnmount,
+        onText,
+        surface: "composer",
+      });
+      phases?.push(dictation.phase.kind);
+      return dictation;
+    },
     { wrapper },
   );
   return { ...hook, client, onText };
@@ -235,6 +247,7 @@ async function startRecording(result: {
 }
 
 beforeEach(() => {
+  mocks.access = "granted";
   mocks.billingStatus = {};
   mocks.offer = {};
   mocks.hasToken = true;
@@ -484,6 +497,61 @@ describe("useDictation", () => {
     expect(mocks.open).not.toHaveBeenCalled();
     expect(mocks.toast.info).not.toHaveBeenCalled();
     expect(result.current.phase.kind).toBe("idle");
+  });
+
+  it.each([
+    ["denied", "microphone in System Settings"],
+    ["reopen", "Reopen Instrument to use the microphone."],
+  ])(
+    "says a %s microphone at once, without starting",
+    async (access, words) => {
+      mocks.access = access;
+      const phases: DictationPhase["kind"][] = [];
+      const { result } = setup({ phases });
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+      act(() => {
+        result.current.start();
+      });
+      await waitFor(() => {
+        expect(mocks.toast.error).toHaveBeenCalledWith(
+          "Couldn't use the microphone",
+          expect.objectContaining({
+            description: expect.stringContaining(words),
+          }),
+        );
+      });
+      expect(new Set(phases)).toEqual(new Set(["idle"]));
+      expect(mocks.open).not.toHaveBeenCalled();
+      expect(mocks.listen).not.toHaveBeenCalled();
+    },
+  );
+
+  it("says it waits on the system's prompt until it is answered", async () => {
+    mocks.access = "not-determined";
+    let answer: (value: string) => void = () => undefined;
+    mocks.askAccess.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    mocks.open.mockResolvedValue(fakeCapture());
+    const { result } = setup();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    act(() => {
+      result.current.start();
+    });
+    await waitFor(() => {
+      expect(result.current.phase).toEqual({ asking: true, kind: "starting" });
+    });
+    expect(mocks.listen).not.toHaveBeenCalled();
+
+    await act(async () => {
+      answer("granted");
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(result.current.phase.kind).toBe("recording");
+    });
   });
 
   it("drops a take under a second without sending it", async () => {

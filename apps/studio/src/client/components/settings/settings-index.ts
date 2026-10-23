@@ -83,7 +83,7 @@ export const SETTINGS_INDEX = [
     title: "Dictation sounds",
   },
   {
-    detail: `Whether macOS lets ${APP_NAME} use the microphone.`,
+    detail: `Whether your computer lets ${APP_NAME} use the microphone.`,
     id: "microphone-access",
     tab: "General",
     title: "Microphone access",

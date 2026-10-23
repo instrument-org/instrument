@@ -5,6 +5,12 @@ import {
   listenForDictation,
 } from "@/electron-main/platform-api/dictation-stream";
 import { holdDictation } from "@/electron-main/lib/dictation-in-progress";
+import {
+  microphoneAccess,
+  openMicrophoneSettings,
+  requestMicrophoneAccess,
+} from "@/electron-main/lib/microphone-access";
+import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
 import { base } from "@/electron-main/rpc/base";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import {
@@ -103,7 +109,27 @@ const setSounds = base
     getMachinePreferences().set("dictationSounds", input.on);
   });
 
+/** Where the system stands on the app using the microphone, and the ways to change it. */
+const access = {
+  /** Granted, denied, restricted, never asked, or `reopen`; `unsupported` on Linux. */
+  status: base.handler(() => microphoneAccess()),
+  /** The system's prompt when nobody has answered it; the standing answer otherwise. */
+  request: base.handler(() => requestMicrophoneAccess()),
+  /** The system's microphone privacy settings, where a refusal is undone. */
+  openSettings: base.handler(() => openMicrophoneSettings()),
+  /**
+   * Quits and starts again, asking about running work first, so macOS's
+   * new answer reaches the app.
+   */
+  reopen: base.handler(async () =>
+    canRelaunch()
+      ? await relaunchApp({ beforeRestart: () => undefined })
+      : "unsupported",
+  ),
+};
+
 export const dictation = {
+  access,
   feed,
   finish,
   listen,

@@ -19,7 +19,7 @@ import {
 } from "@/client/lib/dictation-problems";
 import { playDictationCue } from "@/client/lib/dictation-sounds";
 import { toast } from "@/client/lib/toast";
-import { isMacOS } from "@/client/lib/utils";
+import { currentOs, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type DictationStreamEvent,
@@ -106,7 +106,8 @@ type LiveText = {
 export type DictationPhase =
   | { kind: "idle" }
   | { kind: "recording" }
-  | { kind: "starting" }
+  /** `asking` while the system's microphone prompt waits on an answer. */
+  | { asking?: true; kind: "starting" }
   /**
    * `live` while the stream settles its last words, rather than the whole
    * take being transcribed.
@@ -338,7 +339,7 @@ export function useDictation({
   ) => {
     const notice = describeDictationProblem(problem, {
       billing,
-      canOpenSettings: isMacOS(),
+      os: currentOs(),
     });
     const billingAction =
       typeof notice.action === "object" ? notice.action : undefined;
@@ -364,13 +365,22 @@ export function useDictation({
             }
           : notice.action === "open-settings"
             ? {
-                // oxlint-disable-next-line studio/no-os-words -- offered only on macOS (`canOpenSettings`)
-                label: "Open System Settings",
+                label: isMacOS()
+                  ? // oxlint-disable-next-line studio/no-os-words -- only on macOS
+                    "Open System Settings"
+                  : "Open settings",
                 onClick: () => {
-                  void rpcClient.mac.microphone.openSettings.call();
+                  void rpcClient.dictation.access.openSettings.call();
                 },
               }
-            : undefined;
+            : notice.action === "reopen"
+              ? {
+                  label: "Reopen",
+                  onClick: () => {
+                    void rpcClient.dictation.access.reopen.call();
+                  },
+                }
+              : undefined;
     const options = {
       action,
       // Billing's way forward leads; the held recording is sent from beside it.
@@ -429,7 +439,7 @@ export function useDictation({
     const problem: DictationProblem =
       failure.kind === "no-audio" ? { kind: "nothing-heard" } : failure;
     const notice = describeDictationProblem(problem, {
-      canOpenSettings: isMacOS(),
+      os: currentOs(),
     });
     kept.current = notice.keepsRecording
       ? { audio, deliver, onLanded }
@@ -688,7 +698,6 @@ export function useDictation({
       ended: false,
     };
     session.current = current;
-    setPhase({ kind: "starting" });
 
     const giveUp = (problem?: DictationProblem) => {
       if (session.current === current) {
@@ -701,18 +710,19 @@ export function useDictation({
       }
     };
 
-    kept.current = undefined;
-    dismissToast();
-    // The stream opens while the microphone does, and hears the take from
-    // its first chunk once it is ready.
-    openLive(current);
-
-    // macOS asks once; until then getUserMedia would fail without asking.
-    const [, access] = await safe(rpcClient.mac.microphone.status.call());
-    const answer =
-      access === "not-determined"
-        ? (await safe(rpcClient.mac.microphone.request.call()))[1]
-        : access;
+    // A refusal is known before anything starts, so it goes straight to the
+    // toast. macOS asks once, and until then getUserMedia would fail without
+    // asking, so the box says it waits on that answer meanwhile.
+    const [, access] = await safe(rpcClient.dictation.access.status.call());
+    let answer = access;
+    if (answer === "not-determined") {
+      setPhase({ asking: true, kind: "starting" });
+      answer = (await safe(rpcClient.dictation.access.request.call()))[1];
+    }
+    if (answer === "reopen") {
+      giveUp({ kind: "microphone-reopen" });
+      return;
+    }
     if (answer === "denied" || answer === "restricted") {
       giveUp({ kind: "microphone-refused" });
       return;
@@ -722,6 +732,13 @@ export function useDictation({
       giveUp();
       return;
     }
+    setPhase({ kind: "starting" });
+
+    kept.current = undefined;
+    dismissToast();
+    // The stream opens while the microphone does, and hears the take from
+    // its first chunk once it is ready.
+    openLive(current);
 
     const devices = await navigator.mediaDevices
       .enumerateDevices()

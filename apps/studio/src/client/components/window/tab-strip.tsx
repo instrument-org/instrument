@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 /** A tab on the strip: what it is called and what stands for it. */
 export interface StripTab {
@@ -587,6 +588,7 @@ function Tab({
         )}
       >
         {tab.title}
+        {tab.isWorking && <ShimmerSweep text={tab.title} />}
       </span>
       {tab.badge}
       {isClosable && density !== "icon" && (

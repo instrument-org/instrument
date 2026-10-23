@@ -19,6 +19,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "./ui/collapsible";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 // How long a thought has to run before the row starts counting it up. Short
 // enough that a wait worth noticing is still reported, long enough that the
@@ -160,6 +161,7 @@ export const ReasoningMessage = memo(function ReasoningMessage({
           )}
         >
           {label}
+          {showsLiveIndicator && <ShimmerSweep text={label} />}
         </span>
         {(hasText || groupHead !== null) && (
           <RunRowChevron

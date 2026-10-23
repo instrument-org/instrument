@@ -13,6 +13,7 @@ import {
   type StoreId,
 } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 /** One task as the list needs it. */
 export interface TaskListItem {
@@ -153,6 +154,9 @@ export function ChatTaskList({
                     {(item.standing === "done" &&
                       taskStoppedLine(item.stoppedBy)) ||
                       item.line}
+                    {item.standing === "running" && (
+                      <ShimmerSweep text={item.line} />
+                    )}
                   </span>
                 </span>
               </button>

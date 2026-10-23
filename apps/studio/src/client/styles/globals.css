@@ -1079,12 +1079,12 @@ a.cursor-pointer {
   cursor: pointer;
 }
 
-@keyframes shine {
-  0% {
-    background-position: 100%;
+@keyframes shimmer-sweep {
+  from {
+    translate: -100% 0;
   }
-  100% {
-    background-position: -100%;
+  to {
+    translate: 100% 0;
   }
 }
 
@@ -1660,71 +1660,80 @@ a.cursor-pointer {
    * setting, and `system` resolves to the same class, so the media query read
    * the wrong one for anyone whose app and desktop disagree. */
   .shiny-text {
-    color: #4a4a4a;
-    background: linear-gradient(
-      120deg,
-      #4a4a4a 40%,
-      rgba(180, 180, 180, 0.8) 50%,
-      #4a4a4a 60%
-    );
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    display: inline-block;
-    animation: shine 3s linear infinite;
+    --shimmer-base: #4a4a4a;
+    --shimmer-glint: rgba(180, 180, 180, 0.8);
   }
 
   .dark .shiny-text {
-    color: #b5b5b5a4;
-    background: linear-gradient(
-      120deg,
-      rgba(255, 255, 255, 0) 40%,
-      rgba(255, 255, 255, 0.8) 50%,
-      rgba(255, 255, 255, 0) 60%
-    );
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-  }
-
-  .shiny-text.disabled {
-    animation: none;
+    --shimmer-base: #b5b5b5a4;
+    --shimmer-glint: rgba(255, 255, 255, 0.8);
   }
 
   /* Brand-tinted sibling of .shiny-text, for text that sits alongside the
    * planning dot while the agent is working. */
   .brand-shiny-text {
-    color: #17604a;
-    background: linear-gradient(
-      270deg,
-      #17604a 24.14%,
-      #55e8bb 34.66%,
-      #17604a 60.34%
-    );
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    display: inline-block;
-    animation: shine 3s linear infinite;
+    --shimmer-base: #17604a;
+    --shimmer-glint: #55e8bb;
   }
 
   /* The light base green clears 2.3:1 on the dark surface, so the stretch
    * between shimmer passes is unreadable. A brighter base off the same ramp
-   * reaches 5.2:1; the highlight is bright enough to carry over unchanged.
-   * The `background` shorthand resets size and clip, so both are restated. */
+   * reaches 5.2:1; the glint is bright enough to carry over unchanged. */
   .dark .brand-shiny-text {
-    color: #2e9e79;
+    --shimmer-base: #2e9e79;
+  }
+
+  .shiny-text,
+  .brand-shiny-text {
+    position: relative;
+    display: inline-block;
+    color: var(--shimmer-base);
+  }
+
+  /* The glint (`ShimmerSweep`): a copy of the text laid over it and masked to
+   * its glyphs, with a bar sliding across the copy. Only the bar's `translate`
+   * animates, so the GPU moves it and the text is never repainted for it;
+   * stepping it at 15 fps also keeps the GPU from drawing a frame at every
+   * display refresh. The copy lays out as the text under it does, ellipsis
+   * included, since it fills the same box with the same text. */
+  .shimmer-sweep {
+    position: absolute;
+    inset: 0;
+    overflow: clip;
+    text-overflow: inherit;
+    color: transparent;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(#fff, #fff);
+    mask-image: linear-gradient(#fff, #fff);
+    -webkit-mask-clip: text;
+  }
+
+  .shimmer-sweep::before {
+    content: attr(data-text);
+  }
+
+  .shimmer-sweep::after {
+    content: "";
+    position: absolute;
+    inset: 0;
     background: linear-gradient(
-      270deg,
-      #2e9e79 24.14%,
-      #55e8bb 34.66%,
-      #2e9e79 60.34%
+      90deg,
+      transparent 30%,
+      var(--shimmer-glint) 50%,
+      transparent 70%
     );
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
+    will-change: transform;
+    animation: shimmer-sweep 3s steps(45) infinite;
+  }
+
+  .shiny-text.disabled > .shimmer-sweep {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shimmer-sweep {
+      display: none;
+    }
   }
 
   .planning-dot-core {

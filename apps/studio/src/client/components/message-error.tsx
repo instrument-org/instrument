@@ -13,7 +13,10 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { SIGN_IN_ACCOUNT_NAMES, type SignInAccountType } from "@/shared/notices";
+import {
+  SIGN_IN_ACCOUNT_NAMES,
+  type SignInAccountType,
+} from "@/shared/notices";
 
 import { openSettings } from "../atoms/settings-modal";
 import { useSignInAgain } from "../hooks/use-sign-in-again";
@@ -30,6 +33,7 @@ import { CopyButton } from "./copy-button";
 import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
 import { Button } from "./ui/button";
 import { Spinner } from "./ui/spinner";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 interface ErrorAction {
   label: string;
@@ -553,6 +557,7 @@ function WaitingForCapacityLine() {
       <Spinner className="size-3.5 text-muted-foreground" delay={0} />
       <span className="brand-shiny-text">
         Waiting for one of your other tasks to finish
+        <ShimmerSweep text="Waiting for one of your other tasks to finish" />
       </span>
     </div>
   );

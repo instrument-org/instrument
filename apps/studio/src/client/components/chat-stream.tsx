@@ -67,6 +67,7 @@ import { Button } from "./ui/button";
 import { MessageScrollerItem } from "./ui/message-scroller";
 import { SentChips } from "./window/context-chip";
 import { Wordmark } from "./wordmark";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 // How far the rows a group holds sit inside its head line: the room a working
 // heading's live indicator takes, which is the dot's 20px slot and the row's 8px
@@ -915,7 +916,10 @@ function AwaitingFirstRow() {
     <div className={STEP_RUN}>
       <div className={cn(TRANSCRIPT_ROW, "animate-in fill-mode-both fade-in")}>
         <PlanningDotIcon />
-        <span className="brand-shiny-text text-sm">Planning</span>
+        <span className="brand-shiny-text text-sm">
+          Planning
+          <ShimmerSweep text="Planning" />
+        </span>
       </div>
     </div>
   );

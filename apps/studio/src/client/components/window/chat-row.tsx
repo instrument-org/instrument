@@ -50,6 +50,7 @@ import { TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
 import { useChatRename } from "./use-chat-rename";
 import { useTitleArrival } from "./use-title-arrival";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 /** How long the corner's bar stays after the topic list closes: the list's exit animation. */
 const PICKER_LEAVE_MS = 250;
@@ -640,6 +641,7 @@ function WorkingPeek({ chat }: { chat: Chat }) {
   return (
     <span className="brand-shiny-text min-w-0 truncate">
       {step ?? "Instrument is working"}
+      <ShimmerSweep text={step ?? "Instrument is working"} />
     </span>
   );
 }

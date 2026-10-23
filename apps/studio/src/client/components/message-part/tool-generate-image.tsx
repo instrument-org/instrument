@@ -35,6 +35,7 @@ import {
   ToolCardSection,
   ToolChip,
 } from "./tool-card";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 /**
  * The room the picture takes, held from the moment the tool starts drawing.
@@ -393,7 +394,10 @@ function GeneratingPill() {
 
   return (
     <span className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-background/70 px-2 py-0.5 text-[11px] font-medium ring-1 ring-border/50 backdrop-blur-sm">
-      <span className="shiny-text">Generating</span>
+      <span className="shiny-text">
+        Generating
+        <ShimmerSweep text="Generating" />
+      </span>
       {/* Reassure the user it isn't frozen once it's been a few seconds. */}
       {elapsedMs >= 3000 && (
         <span className="text-[10px] text-muted-foreground/70 tabular-nums">

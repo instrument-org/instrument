@@ -35,6 +35,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useComputerVolumes } from "./computer-volumes";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { thumbnailKey } from "./use-page-thumbnail-housekeeping";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 /** How much of the row a page leaves in view on its far side: about a tile, so the reader keeps their place. */
 const PAGE_KEEP = 96;
@@ -660,6 +661,7 @@ function ChatTile({
       >
         <span className={cn("truncate", isWorking && "brand-shiny-text")}>
           {title}
+          {isWorking && <ShimmerSweep text={title} />}
         </span>
       </span>
     </button>

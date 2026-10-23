@@ -18,6 +18,7 @@ import { useMutation } from "@tanstack/react-query";
 import { ChatTasksPopover } from "./chat-activity";
 import { useChatTasks } from "./child-tasks-query";
 import { type Chat, limitedText } from "./chats";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 /**
  * What the line under a chat's title says, and in which voice. `stopped` is
@@ -93,6 +94,7 @@ export function ChatStatusLine({
           )}
         >
           {line.text}
+          {line.tone === "run" && <ShimmerSweep text={line.text} />}
         </span>
       )}
       {line && jobsLine && (

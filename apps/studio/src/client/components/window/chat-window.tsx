@@ -41,6 +41,7 @@ import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { useTaskTitles } from "./task-titles";
 import { useChatContext } from "./use-chat-context";
 import { useWindowTabs } from "./window-tabs";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 /** A chat's small view's height, in layout px: enough of the conversation to follow a reply arriving. */
 const CHAT_WINDOW_HEIGHT = 560;
@@ -90,6 +91,7 @@ export function ChatBar({
             )}
           >
             {chat?.title ?? "Chat"}
+            {isWorking && <ShimmerSweep text={chat?.title ?? "Chat"} />}
           </span>
         </span>
         {chat && <BarMarks group={chat.id} />}

@@ -32,6 +32,7 @@ import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
 import { WebSearchChip } from "./tool-web-search";
 import { TRANSCRIPT_ROW, useTranscriptGroup } from "./transcript-group";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 export function ToolCallSummary({
   children,
@@ -150,6 +151,7 @@ export function ToolCallSummary({
         )}
       >
         {deadLabel ?? label}
+        {showsLiveIndicator && <ShimmerSweep text={deadLabel ?? label} />}
       </span>
 
       {browserInfo && <BrowserChip info={browserInfo} />}

@@ -13,6 +13,7 @@ import { StopProcessButton } from "../task/stop-process-button";
 import { useChildTask } from "./child-tasks-query";
 import { useWindow } from "./context";
 import { taskHref } from "./tab-location";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 /**
  * The task a command in the conversation created, inside the reply that
@@ -108,6 +109,9 @@ export function CreatedTaskCard({ chatId }: { chatId: string }) {
               </span>
             </>
           ) : null}
+          {isWorking && (
+            <ShimmerSweep text={line ? `${title} · ${line}` : title} />
+          )}
         </span>
         {/* Where the tool call's row keeps its chevron, and shown the same way:
           faded rather than absent, so the row is one width whether or not it

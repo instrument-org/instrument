@@ -33,6 +33,7 @@ import { type Chat } from "./chats";
 import { taskStoppedLine } from "./task-stopped-line";
 import { taskTimeLabel } from "./task-time";
 import { useNow } from "./use-now";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 /** A job's elapsed time shows seconds, so its clock ticks every second while the list is open. */
 const ELAPSED_TICK_MS = 1000;
@@ -77,7 +78,9 @@ export function ChatTasksPopover({
   const listed = useChatTasks(chatId).data;
   const jobs = useTaskBackgroundProcesses(chatId);
   const chatSession = useQuery({
-    ...rpcClient.workspace.chats.session.queryOptions({ input: { id: chatId } }),
+    ...rpcClient.workspace.chats.session.queryOptions({
+      input: { id: chatId },
+    }),
     enabled: isOpen,
   }).data?.sessionId;
   const hasList = (listed?.length ?? tasks.length) > 0 || jobs.length > 0;
@@ -537,6 +540,7 @@ function WorkLine({
   return (
     <span className="brand-shiny-text min-w-0 truncate">
       {task.step ?? task.title}
+      <ShimmerSweep text={task.step ?? task.title} />
     </span>
   );
 }

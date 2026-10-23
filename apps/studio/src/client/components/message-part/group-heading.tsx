@@ -6,6 +6,7 @@ import { PlanningDotSlot } from "../planning-dot-slot";
 import { RunRowChevron } from "../run-row-chevron";
 import { RunningBadge } from "../task/running-badge";
 import { TRANSCRIPT_ROW, useTranscriptGroup } from "./transcript-group";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 /**
  * The one line a group of steps costs when it is folded.
@@ -68,6 +69,7 @@ export function GroupHeading({
         )}
       >
         {title}
+        {isRunning && <ShimmerSweep text={title} />}
       </span>
       {runningCount > 0 && <RunningBadge count={runningCount} />}
       {canExpand && <RunRowChevron isOpen={isExpanded} />}

@@ -129,14 +129,39 @@ const SILENT_COMMANDS = new Set(["Page.screencastFrameAck"]);
 /**
  * Commands the agent may still send while its tab shows a file it could not
  * read: leaving or reloading the page, switching on the event domains
- * agent-browser opens a connection with, and undoing a pause it set up before
- * the tab got there. Anything that reads the page, acts in it, or could hold
- * or change it for the person (a request interception, a debugger, blocked
- * addresses, emulation) is refused, and so is any `Target.*` command the
- * bridge does not answer itself.
+ * agent-browser opens a connection with (the page's frames among them, which
+ * are announced only once the gate opens), and undoing a pause it set up
+ * before the tab got there. Anything that reads the page, acts in it, or
+ * could hold or change it for the person (a request interception, a
+ * debugger, blocked addresses, emulation) is refused, and so is any
+ * `Target.*` command the bridge does not answer itself.
  */
 const PASSES_CLOSED_FILE_GATE =
-  /^(?:(?:Page|Runtime|Network|DOM|CSS|Log|Accessibility|Inspector|Security|Performance)\.enable|Page\.(?:navigate|navigateToHistoryEntry|reload|stopLoading|stopScreencast|screencastFrameAck|setLifecycleEventsEnabled)|Fetch\.(?:disable|continueRequest|continueWithAuth|failRequest)|Debugger\.(?:disable|resume))$/;
+  /^(?:(?:Page|Runtime|Network|DOM|CSS|Log|Accessibility|Inspector|Security|Performance)\.enable|Page\.(?:navigate|navigateToHistoryEntry|reload|stopLoading|stopScreencast|screencastFrameAck|setLifecycleEventsEnabled)|Fetch\.(?:disable|continueRequest|continueWithAuth|failRequest)|Debugger\.(?:disable|resume)|Target\.setAutoAttach)$/;
+
+/**
+ * How a page's frames are attached when the agent asks for it: only a frame
+ * that runs in a process of its own (a cross-site iframe), never a worker or
+ * anything else the page starts, and never paused at its start, so a frame
+ * the person is looking at never waits on an agent that went away before
+ * letting it run.
+ */
+const FRAME_AUTO_ATTACH = {
+  filter: [{ type: "iframe" }, { exclude: true }],
+  flatten: true,
+  waitForDebuggerOnStart: false,
+} satisfies Omit<Protocol.Target.SetAutoAttachRequest, "autoAttach">;
+
+/**
+ * What a closing connection lets go of on a page and on each of its frames:
+ * an interception or a debugger it set up would otherwise go on holding them
+ * for the person with nobody left to release it.
+ */
+const RELEASED_ON_LEAVING: [string, Record<string, unknown>][] = [
+  ["Fetch.disable", {}],
+  ["Network.setRequestInterception", { patterns: [] }],
+  ["Debugger.disable", {}],
+];
 
 /**
  * Events that carry a page's content or its addresses, held back while the
@@ -283,12 +308,34 @@ function undoLeftOnPage(left: LeftOnPage): [string, Record<string, unknown>][] {
 
 /** One page an agent's connection drives, under the session id its frames carry. */
 export interface TargetSession {
-  /** Stops listening to the page and puts back what the agent changed on it. */
+  /** Stops listening to the page and puts back what the agent changed on it and its frames. */
   end: () => void;
-  /** Handles one of the agent's commands for this page, in arrival order. */
+  /** Whether a session id is this page's own or one of its frames'. */
+  owns: (sessionId: string) => boolean;
+  /** Handles one of the agent's commands for this page or one of its frames, in arrival order. */
   run: (message: CdpRequest) => void;
   sessionId: string;
   targetId: BrowserTargetId;
+}
+
+/**
+ * A frame of the page that runs in a process of its own, which the guest's
+ * debugger attaches under a session of its own once the agent asks for the
+ * page's frames (`Target.setAutoAttach`). The agent addresses it by that
+ * session id, as Chromium gave it.
+ */
+interface Frame {
+  /** Whether the agent was told of it; a frame it never heard of takes no commands. */
+  announced: boolean;
+  /** Its frame id, which Chromium uses as its target id. */
+  frameId: string;
+  left: LeftOnPage;
+  /** The session it was announced on: the page's, or the frame it is inside. */
+  parent: string | undefined;
+  /** The address of its document, as its attachment and its own navigations name it. */
+  url: string | undefined;
+  /** Whether the agent sent it anything, so a closing connection knows what to put back. */
+  used: boolean;
 }
 
 /**
@@ -433,7 +480,181 @@ export function openTargetSession({
     (connectionsByTarget.get(targetId) ?? 0) + 1,
   );
 
-  const onEvent = (method: string, params: unknown) => {
+  /** Sends a command to the page, or to one of its frames by its session. */
+  const toGuest = (
+    method: string,
+    params: unknown,
+    frameSession: string | undefined,
+  ) =>
+    frameSession === undefined
+      ? workspaceConfig.browser.sendCommand(targetId, method, params)
+      : workspaceConfig.browser.sendCommand(
+          targetId,
+          method,
+          params,
+          frameSession,
+        );
+
+  /**
+   * Lets go of a pause the agent set up before the page or frame got
+   * somewhere it may not see, which would otherwise hold it for the person;
+   * the bridge does it rather than the agent, who never hears of the pause.
+   */
+  const releaseWithheld = (
+    method: string,
+    params: unknown,
+    frameSession: string | undefined,
+  ) => {
+    if (method === "Fetch.requestPaused") {
+      const { requestId } = params as Protocol.Fetch.RequestPausedEvent;
+      void toGuest("Fetch.continueRequest", { requestId }, frameSession).catch(
+        noop,
+      );
+    }
+    if (method === "Network.requestIntercepted") {
+      const { interceptionId } =
+        params as Protocol.Network.RequestInterceptedEvent;
+      void toGuest(
+        "Network.continueInterceptedRequest",
+        { interceptionId },
+        frameSession,
+      ).catch(noop);
+    }
+    if (method === "Debugger.paused") {
+      void toGuest("Debugger.resume", {}, frameSession).catch(noop);
+    }
+  };
+
+  // The page's frames that run in processes of their own, by the session id
+  // each is attached under. A frame is closed to the agent whenever its page
+  // is, and whenever it shows a file the agent could not read itself.
+  const frames = new Map<string, Frame>();
+  const frameIsClosed = (frame: Frame) =>
+    fileGate.isClosed() || fileGate.hides(frame.url);
+
+  /** Forgets a frame and every frame inside it, telling the agent of each it knew. */
+  const dropFrame = (frameSession: string) => {
+    const frame = frames.get(frameSession);
+    if (!frame) {
+      return;
+    }
+    frames.delete(frameSession);
+    for (const [inner, { parent }] of frames) {
+      if (parent === frameSession) {
+        dropFrame(inner);
+      }
+    }
+    if (frame.announced) {
+      send({
+        method: "Target.detachedFromTarget",
+        params: { sessionId: frameSession, targetId: frame.frameId },
+        sessionId: frame.parent ?? sessionId,
+      });
+    }
+  };
+
+  /**
+   * A frame attached or detached, as the page (`parent` undefined) or a
+   * frame inside it reports. Anything attached that is not a frame is let
+   * go of at once; a frame is announced to the agent on the session it came
+   * on unless it is closed to the agent as it attaches.
+   */
+  const onAttachment = (
+    method: string,
+    params: unknown,
+    parent: string | undefined,
+  ) => {
+    if (method === "Target.detachedFromTarget") {
+      const { sessionId: detached } =
+        params as Protocol.Target.DetachedFromTargetEvent;
+      if (detached !== undefined) {
+        dropFrame(detached);
+      }
+      return;
+    }
+    const { sessionId: attached, targetInfo } =
+      params as Protocol.Target.AttachedToTargetEvent;
+    if (targetInfo.type !== "iframe") {
+      void toGuest(
+        "Target.detachFromTarget",
+        { sessionId: attached },
+        parent,
+      ).catch(noop);
+      return;
+    }
+    const frame: Frame = {
+      announced: false,
+      frameId: targetInfo.targetId,
+      left: { bindings: new Set(), changed: new Set(), scripts: new Set() },
+      parent,
+      url: targetInfo.url,
+      used: false,
+    };
+    frames.set(attached, frame);
+    if (frameIsClosed(frame)) {
+      return;
+    }
+    frame.announced = true;
+    send({
+      method: "Target.attachedToTarget",
+      params: {
+        ...(params as Protocol.Target.AttachedToTargetEvent),
+        waitingForDebugger: false,
+      },
+      sessionId: parent ?? sessionId,
+    });
+  };
+
+  /** An event from one of the page's frames, sent on under its own session. */
+  const onFrameEvent = (
+    method: string,
+    params: unknown,
+    frameSession: string,
+  ) => {
+    const frame = frames.get(frameSession);
+    if (!frame) {
+      return;
+    }
+    if (
+      method === "Target.attachedToTarget" ||
+      method === "Target.detachedFromTarget"
+    ) {
+      onAttachment(method, params, frameSession);
+      return;
+    }
+    if (method === "Page.frameNavigated") {
+      const navigated = (params as Protocol.Page.FrameNavigatedEvent).frame;
+      if (navigated.id === frame.frameId) {
+        frame.url = navigated.url;
+      }
+    }
+    if (
+      !frame.announced ||
+      (WITHHELD_EVENTS.test(method) && frameIsClosed(frame)) ||
+      (ADDRESSED_EVENTS.test(method) && fileGate.hides(addressOfEvent(params)))
+    ) {
+      releaseWithheld(method, params, frameSession);
+      return;
+    }
+    send({
+      method: method as CdpEventName,
+      params: params as CdpEventParams<CdpEventName>,
+      sessionId: frameSession,
+    });
+  };
+
+  const onEvent = (method: string, params: unknown, frameSession?: string) => {
+    if (frameSession !== undefined) {
+      onFrameEvent(method, params, frameSession);
+      return;
+    }
+    if (
+      method === "Target.attachedToTarget" ||
+      method === "Target.detachedFromTarget"
+    ) {
+      onAttachment(method, params, undefined);
+      return;
+    }
     // A request's events come before the document it loads, so one taking the
     // tab to a file the agent may not see is held back on its address alone.
     // Every event still counts toward a held navigation's load, whether or not
@@ -443,28 +664,7 @@ export function openTargetSession({
       (WITHHELD_EVENTS.test(method) && fileGate.isClosed()) ||
       (ADDRESSED_EVENTS.test(method) && fileGate.hides(addressOfEvent(params)))
     ) {
-      // A pause the agent set up before the tab got here would hold a page
-      // it may not see; the bridge lets it go rather than the agent.
-      if (method === "Fetch.requestPaused") {
-        const { requestId } = params as Protocol.Fetch.RequestPausedEvent;
-        void workspaceConfig.browser
-          .sendCommand(targetId, "Fetch.continueRequest", { requestId })
-          .catch(noop);
-      }
-      if (method === "Network.requestIntercepted") {
-        const { interceptionId } =
-          params as Protocol.Network.RequestInterceptedEvent;
-        void workspaceConfig.browser
-          .sendCommand(targetId, "Network.continueInterceptedRequest", {
-            interceptionId,
-          })
-          .catch(noop);
-      }
-      if (method === "Debugger.paused") {
-        void workspaceConfig.browser
-          .sendCommand(targetId, "Debugger.resume", {})
-          .catch(noop);
-      }
+      releaseWithheld(method, params, undefined);
       return;
     }
 
@@ -505,7 +705,34 @@ export function openTargetSession({
   );
 
   const handleCommand = async (message: CdpRequest) => {
-    const { id, method, params } = message;
+    const { id, method } = message;
+    // A command on a frame's session goes to that frame, behind the same
+    // gate as its page and its own address besides; one on the page's own
+    // session id goes straight to the page's debugger without it.
+    const frameSession =
+      message.sessionId !== undefined && message.sessionId !== sessionId
+        ? message.sessionId
+        : undefined;
+    const frame =
+      frameSession === undefined ? undefined : frames.get(frameSession);
+    if (frameSession !== undefined && !frame?.announced) {
+      send({
+        error: { code: -32_000, message: `No session ${frameSession}` },
+        id,
+      });
+      return;
+    }
+    // Asked for the page's frames, the guest attaches only frames, never
+    // paused (see FRAME_AUTO_ATTACH).
+    const params =
+      method === "Target.setAutoAttach"
+        ? {
+            autoAttach:
+              (message.params as undefined | { autoAttach?: unknown })
+                ?.autoAttach === true,
+            ...FRAME_AUTO_ATTACH,
+          }
+        : message.params;
 
     // A local file opens at its `file://` address for the agent exactly as it
     // does for the person, and only when the agent's own tools could read it:
@@ -535,6 +762,21 @@ export function openTargetSession({
       });
       return;
     }
+    if (
+      frame &&
+      frameIsClosed(frame) &&
+      !PASSES_CLOSED_FILE_GATE.test(method)
+    ) {
+      send({
+        error: {
+          code: -32_000,
+          message:
+            "This frame is showing a file outside the folders you can read, so it cannot be read or used from here.",
+        },
+        id,
+      });
+      return;
+    }
 
     // Real inbound command from agent-browser: count it as agent activity and
     // make the page known to the browser's lifetime. The agent is the only
@@ -552,17 +794,18 @@ export function openTargetSession({
 
     // Arm the main-frame-load wait before forwarding the navigate, so a load
     // that lands between the command resolving and the await cannot be missed.
+    // A frame's own navigate is answered as the guest answers it.
     const heldNavigate =
-      method === "Page.navigate"
+      method === "Page.navigate" && !frame
         ? loadGate.nextMainFrameLoad(NAVIGATE_HOLD_CAP_MS)
         : undefined;
 
-    // The session id the agent sent is ours, so the command goes straight to
-    // the page's own debugger without it.
-    workspaceConfig.browser
-      .sendCommand(targetId, method, params ?? {})
+    if (frame) {
+      frame.used = true;
+    }
+    toGuest(method, params ?? {}, frameSession)
       .then(async (result) => {
-        noteLeftOnPage(leftOnPage, method, params, result);
+        noteLeftOnPage(frame?.left ?? leftOnPage, method, params, result);
         // Electron answers `Page.navigate` as soon as the load is committed,
         // and agent-browser's `open` returns on that answer rather than
         // blocking for the load event -- so a read one step later saw an empty
@@ -602,23 +845,12 @@ export function openTargetSession({
       return;
     }
     ended = true;
-    // An interception or a debugger this connection set up would otherwise
-    // go on holding the person's page with nobody left to release it.
-    void workspaceConfig.browser
-      .sendCommand(targetId, "Fetch.disable", {})
-      .catch(noop);
-    void workspaceConfig.browser
-      .sendCommand(targetId, "Network.setRequestInterception", { patterns: [] })
-      .catch(noop);
-    void workspaceConfig.browser
-      .sendCommand(targetId, "Debugger.disable", {})
-      .catch(noop);
-    // Nor may anything it set up to change the page go on changing it for
-    // the person: blocked addresses, disabled scripts, a throttled CPU or
-    // network.
-    // Nor may anything it left to run on every later load, or a check it
-    // switched off, outlive it.
+    // What this connection set up must not outlive it on the page or on any
+    // frame it drove: an interception or a debugger holding them, blocked
+    // addresses, disabled scripts, a throttled CPU or network, anything it
+    // left to run on every later load, or a check it switched off.
     for (const [method, params] of [
+      ...RELEASED_ON_LEAVING,
       ...TEARDOWN_RESETS,
       ...undoLeftOnPage(leftOnPage),
     ]) {
@@ -626,17 +858,42 @@ export function openTargetSession({
         .sendCommand(targetId, method, params)
         .catch(noop);
     }
+    for (const [frameSession, frame] of frames) {
+      if (!frame.used) {
+        continue;
+      }
+      for (const [method, params] of [
+        ...RELEASED_ON_LEAVING,
+        ...TEARDOWN_RESETS,
+        ...undoLeftOnPage(frame.left),
+      ]) {
+        void toGuest(method, params, frameSession).catch(noop);
+      }
+    }
+    for (const frameSession of frames.keys()) {
+      if (frames.get(frameSession)?.parent === undefined) {
+        dropFrame(frameSession);
+      }
+    }
     const remaining = (connectionsByTarget.get(targetId) ?? 1) - 1;
     if (remaining > 0) {
       connectionsByTarget.set(targetId, remaining);
     } else {
       connectionsByTarget.delete(targetId);
       workspaceConfig.browser.setAgentFileRoots(targetId, null);
+      // With no agent left, nothing is watching the page's frames.
+      void workspaceConfig.browser
+        .sendCommand(targetId, "Target.setAutoAttach", {
+          autoAttach: false,
+          ...FRAME_AUTO_ATTACH,
+        })
+        .catch(noop);
     }
   };
 
   return {
     end,
+    owns: (id) => id === sessionId || frames.get(id)?.announced === true,
     run: (message) => {
       queue = queue
         .then(() => handleCommand(message))

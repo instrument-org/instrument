@@ -92,7 +92,7 @@ function connect() {
     BrowserTargetId,
     {
       onDetach: () => void;
-      onEvent: (method: string, params: unknown) => void;
+      onEvent: (method: string, params: unknown, frameSession?: string) => void;
     }[]
   >();
   const pages = new Map<BrowserTargetId, { title: string; url: string }>();
@@ -135,7 +135,11 @@ function connect() {
       subscribeEvents: (
         targetId: BrowserTargetId,
         onDetach: () => void,
-        onEvent: (method: string, params: unknown) => void,
+        onEvent: (
+          method: string,
+          params: unknown,
+          frameSession?: string,
+        ) => void,
       ) => {
         subscribers.set(targetId, [
           ...(subscribers.get(targetId) ?? []),
@@ -184,6 +188,18 @@ function connect() {
     /** A tab of the window coming open, as one handed over is. */
     appears: (targetId: BrowserTargetId) => {
       live.add(targetId);
+    },
+    /** An event from a tab's guest, from one of its frames when `frameSession` names one. */
+    emit: async (
+      targetId: BrowserTargetId,
+      method: string,
+      params: unknown,
+      frameSession?: string,
+    ) => {
+      for (const { onEvent } of subscribers.get(targetId) ?? []) {
+        onEvent(method, params, frameSession);
+      }
+      await flush();
     },
     closeByUser: (targetId: BrowserTargetId) => {
       live.delete(targetId);
@@ -280,6 +296,60 @@ describe("a task's browser", () => {
     expect(sendCommand).not.toHaveBeenCalledWith(
       first.held.id,
       "Runtime.evaluate",
+      expect.anything(),
+    );
+  });
+
+  it("reaches a tab's cross-site frame through the tab's session, and only once its page asked for frames", async () => {
+    const only = tab();
+    record.browserTabs = [only.held];
+    const { command, emit, events, sendCommand } = connect();
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: only.tabId,
+    });
+    const page = attached.result?.sessionId as string;
+
+    await command(
+      "Target.setAutoAttach",
+      { autoAttach: true, flatten: true, waitForDebuggerOnStart: true },
+      page,
+    );
+    await emit(only.held.id, "Target.attachedToTarget", {
+      sessionId: "frame-1",
+      targetInfo: {
+        targetId: "F1",
+        type: "iframe",
+        url: "https://pay.example/",
+      },
+      waitingForDebugger: false,
+    });
+    const read = await command("DOM.getDocument", {}, "frame-1");
+    const front = await command("Page.bringToFront", {}, "frame-1");
+
+    expect(sendCommand).toHaveBeenCalledWith(
+      only.held.id,
+      "Target.setAutoAttach",
+      expect.objectContaining({
+        autoAttach: true,
+        waitForDebuggerOnStart: false,
+      }),
+    );
+    expect(events("Target.attachedToTarget")).toEqual([
+      expect.objectContaining({ sessionId: "frame-1" }),
+    ]);
+    expect(read.error).toBeUndefined();
+    expect(sendCommand).toHaveBeenCalledWith(
+      only.held.id,
+      "DOM.getDocument",
+      {},
+      "frame-1",
+    );
+    expect(front.result).toEqual({});
+    expect(sendCommand).not.toHaveBeenCalledWith(
+      expect.anything(),
+      "Page.bringToFront",
+      expect.anything(),
       expect.anything(),
     );
   });

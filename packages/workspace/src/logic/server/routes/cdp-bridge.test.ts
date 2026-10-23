@@ -247,9 +247,16 @@ describe("openTargetSession on a local page", () => {
     const guest = { url: own as string | undefined };
     const sent: unknown[] = [];
     let scripts = 0;
-    const events: { emit?: (method: string, params: unknown) => void } = {};
+    const events: {
+      emit?: (method: string, params: unknown, frameSession?: string) => void;
+    } = {};
     const sendCommand = vi.fn(
-      (_target: unknown, method: string, params: unknown) => {
+      (
+        _target: unknown,
+        method: string,
+        params: unknown,
+        _frameSession?: string,
+      ) => {
         const expression = (params as { expression?: string }).expression ?? "";
         const assigned = /location\.href\s*=\s*'([^']+)'/.exec(expression);
         if (method === "Runtime.evaluate" && assigned) {
@@ -281,7 +288,11 @@ describe("openTargetSession on a local page", () => {
         subscribeEvents: (
           _target: unknown,
           _onDetach: unknown,
-          onEvent: (method: string, params: unknown) => void,
+          onEvent: (
+            method: string,
+            params: unknown,
+            frameSession?: string,
+          ) => void,
         ) => {
           events.emit = onEvent;
           return vi.fn();
@@ -299,9 +310,13 @@ describe("openTargetSession on a local page", () => {
       workspaceRef: { send: vi.fn() } as unknown as WorkspaceServerParentRef,
     });
     let nextId = 0;
-    const command = async (method: string, params: unknown = {}) => {
+    const command = async (
+      method: string,
+      params: unknown = {},
+      sessionId?: string,
+    ) => {
       const id = ++nextId;
-      session.run({ id, method, params });
+      session.run({ id, method, params, ...(sessionId ? { sessionId } : {}) });
       for (let i = 0; i < 20; i++) {
         await flush();
       }
@@ -313,10 +328,11 @@ describe("openTargetSession on a local page", () => {
     return {
       close: session.end,
       command,
-      emit: (m: string, p: unknown) => {
-        events.emit?.(m, p);
+      emit: (m: string, p: unknown, frameSession?: string) => {
+        events.emit?.(m, p, frameSession);
       },
       guest,
+      owns: session.owns,
       sendCommand,
       sent,
       setAgentFileRoots,
@@ -683,5 +699,283 @@ describe("openTargetSession on a local page", () => {
     expect(first.setAgentFileRoots).not.toHaveBeenCalledWith(target, null);
     second.close();
     expect(second.setAgentFileRoots).toHaveBeenCalledWith(target, null);
+  });
+});
+
+describe("openTargetSession with a frame in a process of its own", () => {
+  const page = fileUrl(path.join(TASK, "output", "embeds.html"));
+  const secret = fileUrl(path.resolve("/Users/me/other/secret.html"));
+  const FRAME = "frame-session-1";
+  let targets = 0;
+
+  /** A connection to a page of its own, so no other test's connection shares it. */
+  function connect() {
+    const target = BrowserTargetIdSchema.parse(
+      `ses_0000000001777777777777777${String(++targets)}`,
+    );
+    const guest = { url: page as string | undefined };
+    const sent: { id?: number; method?: string; sessionId?: string }[] = [];
+    const events: {
+      emit?: (method: string, params: unknown, frameSession?: string) => void;
+    } = {};
+    const sendCommand = vi.fn(
+      (
+        _target: unknown,
+        method: string,
+        _params: unknown,
+        _frameSession?: string,
+      ) =>
+        Promise.resolve(
+          method === "Page.addScriptToEvaluateOnNewDocument"
+            ? { identifier: "frame-script" }
+            : {},
+        ),
+    );
+    const config = {
+      browser: {
+        getTargetMeta: () => ({ partitionDir: "/tmp/profile" }),
+        getTargetUrl: () => guest.url,
+        sendCommand,
+        setAgentFileRoots: vi.fn(),
+        stopScreencast: vi.fn(),
+        subscribeEvents: (
+          _target: unknown,
+          _onDetach: unknown,
+          onEvent: (
+            method: string,
+            params: unknown,
+            frameSession?: string,
+          ) => void,
+        ) => {
+          events.emit = onEvent;
+          return vi.fn();
+        },
+      },
+      captureException: vi.fn(),
+    } as unknown as WorkspaceConfig;
+    const session = openTargetSession({
+      onDetach: vi.fn(),
+      readLayout: chatLayout,
+      send: (frame) => sent.push(frame),
+      sessionId: "page-session",
+      targetId: target,
+      workspaceConfig: config,
+      workspaceRef: { send: vi.fn() } as unknown as WorkspaceServerParentRef,
+    });
+    let nextId = 0;
+    const command = async (
+      method: string,
+      params: unknown = {},
+      sessionId?: string,
+    ) => {
+      const id = ++nextId;
+      session.run({ id, method, params, ...(sessionId ? { sessionId } : {}) });
+      for (let i = 0; i < 20; i++) {
+        await flush();
+      }
+      return sent.find((frame) => frame.id === id) as {
+        error?: { message: string };
+        result?: unknown;
+      };
+    };
+    const emit = (method: string, params: unknown, frameSession?: string) => {
+      events.emit?.(method, params, frameSession);
+    };
+    /** The page's frame attaching, as the guest reports it once auto-attach is on. */
+    const attaches = (
+      type: string,
+      url: string,
+      attached = FRAME,
+      on?: string,
+    ) => {
+      emit(
+        "Target.attachedToTarget",
+        {
+          sessionId: attached,
+          targetInfo: {
+            attached: true,
+            canAccessOpener: false,
+            targetId: `${attached}-target`,
+            title: "",
+            type,
+            url,
+          },
+          waitingForDebugger: false,
+        },
+        on,
+      );
+    };
+    const toAgent = (method: string) =>
+      sent.filter((frame) => frame.method === method);
+    return {
+      attaches,
+      close: session.end,
+      command,
+      emit,
+      guest,
+      owns: session.owns,
+      sendCommand,
+      target,
+      toAgent,
+    };
+  }
+
+  it("asks the guest for the page's frames alone, never paused at their start", async () => {
+    const { command, sendCommand, target } = connect();
+
+    const reply = await command(
+      "Target.setAutoAttach",
+      { autoAttach: true, flatten: true, waitForDebuggerOnStart: true },
+      "page-session",
+    );
+
+    expect(reply.error).toBeUndefined();
+    expect(sendCommand).toHaveBeenCalledWith(target, "Target.setAutoAttach", {
+      autoAttach: true,
+      filter: [{ type: "iframe" }, { exclude: true }],
+      flatten: true,
+      waitForDebuggerOnStart: false,
+    });
+  });
+
+  it("announces a frame on the page's session and sends the frame's commands and events through it", async () => {
+    const { attaches, command, emit, owns, sendCommand, target, toAgent } =
+      connect();
+    await command("Page.enable");
+    attaches("iframe", "https://booking.example/widget");
+
+    expect(toAgent("Target.attachedToTarget")).toEqual([
+      expect.objectContaining({ sessionId: "page-session" }),
+    ]);
+    expect(owns(FRAME)).toBe(true);
+
+    const reply = await command("Accessibility.getFullAXTree", {}, FRAME);
+    emit("Runtime.consoleAPICalled", { args: [] }, FRAME);
+
+    expect(reply.error).toBeUndefined();
+    expect(sendCommand).toHaveBeenCalledWith(
+      target,
+      "Accessibility.getFullAXTree",
+      {},
+      FRAME,
+    );
+    expect(toAgent("Runtime.consoleAPICalled")).toEqual([
+      expect.objectContaining({ sessionId: FRAME }),
+    ]);
+  });
+
+  it("lets go of anything attached that is not a frame, and never tells the agent of it", async () => {
+    const { attaches, command, owns, sendCommand, target, toAgent } = connect();
+    await command("Page.enable");
+    attaches("worker", "https://booking.example/worker.js", "worker-session");
+
+    expect(sendCommand).toHaveBeenCalledWith(
+      target,
+      "Target.detachFromTarget",
+      { sessionId: "worker-session" },
+    );
+    expect(toAgent("Target.attachedToTarget")).toEqual([]);
+    expect(owns("worker-session")).toBe(false);
+    expect(
+      (await command("Runtime.evaluate", {}, "worker-session")).error?.message,
+    ).toBe("No session worker-session");
+  });
+
+  it("closes a frame to the agent while its page shows a file it may not see", async () => {
+    const { attaches, command, emit, guest, sendCommand, toAgent } = connect();
+    await command("Page.enable");
+    attaches("iframe", "https://booking.example/widget");
+    sendCommand.mockClear();
+
+    guest.url = secret;
+    const read = await command("Runtime.evaluate", {}, FRAME);
+    emit("Runtime.consoleAPICalled", { args: [] }, FRAME);
+
+    expect(read.error?.message).toContain("outside the folders you can read");
+    expect(sendCommand).not.toHaveBeenCalled();
+    expect(toAgent("Runtime.consoleAPICalled")).toEqual([]);
+  });
+
+  it("closes a frame to the agent once it shows a file it may not see", async () => {
+    const { attaches, command, emit, sendCommand, toAgent } = connect();
+    await command("Page.enable");
+    attaches("iframe", "https://booking.example/widget");
+    emit(
+      "Page.frameNavigated",
+      { frame: { id: `${FRAME}-target`, parentId: "main", url: secret } },
+      FRAME,
+    );
+    sendCommand.mockClear();
+
+    const read = await command("Runtime.evaluate", {}, FRAME);
+    emit("Fetch.requestPaused", { requestId: "r1" }, FRAME);
+
+    expect(read.error?.message).toContain("This frame is showing a file");
+    expect(toAgent("Fetch.requestPaused")).toEqual([]);
+    expect(sendCommand.mock.calls).toEqual([
+      [expect.anything(), "Fetch.continueRequest", { requestId: "r1" }, FRAME],
+    ]);
+  });
+
+  it("tells the agent of no frame that attaches while the page is closed to it", async () => {
+    const { attaches, command, guest, owns, toAgent } = connect();
+    await command("Page.enable");
+    guest.url = secret;
+
+    attaches("iframe", "https://booking.example/widget");
+
+    expect(toAgent("Target.attachedToTarget")).toEqual([]);
+    expect(owns(FRAME)).toBe(false);
+  });
+
+  it("forgets a frame that detaches, and every frame inside it", async () => {
+    const { attaches, command, emit, owns, toAgent } = connect();
+    await command("Page.enable");
+    attaches("iframe", "https://booking.example/widget");
+    attaches("iframe", "https://pay.example/", "inner-session", FRAME);
+
+    emit("Target.detachedFromTarget", { sessionId: FRAME });
+
+    expect([owns(FRAME), owns("inner-session")]).toEqual([false, false]);
+    expect(
+      toAgent("Target.detachedFromTarget").map((frame) => frame.sessionId),
+    ).toEqual([FRAME, "page-session"]);
+  });
+
+  it("puts back what the agent left on a frame, and stops attaching frames, when it leaves", async () => {
+    const { attaches, close, command, sendCommand, target } = connect();
+    await command("Page.enable");
+    attaches("iframe", "https://booking.example/widget");
+    await command(
+      "Page.addScriptToEvaluateOnNewDocument",
+      { source: "1" },
+      FRAME,
+    );
+    sendCommand.mockClear();
+
+    close();
+
+    expect(sendCommand).toHaveBeenCalledWith(
+      target,
+      "Page.removeScriptToEvaluateOnNewDocument",
+      { identifier: "frame-script" },
+      FRAME,
+    );
+    expect(sendCommand).toHaveBeenCalledWith(
+      target,
+      "Fetch.disable",
+      {},
+      FRAME,
+    );
+    expect(sendCommand).toHaveBeenLastCalledWith(
+      target,
+      "Target.setAutoAttach",
+      {
+        autoAttach: false,
+        filter: [{ type: "iframe" }, { exclude: true }],
+        flatten: true,
+        waitForDebuggerOnStart: false,
+      },
+    );
   });
 });

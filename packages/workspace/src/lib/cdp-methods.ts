@@ -18,6 +18,12 @@
  * attached to a tab goes through. The task endpoint does what a session
  * does unless its own entry says otherwise.
  *
+ * A cross-site frame of a tab, which runs in a process of its own, is
+ * attached under a session of its own once the agent asks for the page's
+ * frames, and its commands go through its tab's session the same way, to
+ * the frame. Main refuses every command it overrides when it is sent to a
+ * frame, since each of those answers for the whole tab.
+ *
  * - `passthrough`: sent to the guest's debugger as it came.
  * - `wrapped`: sent to the debugger, with work around it (a gate, a held
  *   answer, a longer budget, a measurement checked).
@@ -286,7 +292,7 @@ export const CDP_METHODS = {
   },
   "Target.detachFromTarget": {
     task: "refuse",
-    why: "the task endpoint refuses a Target command it does not answer itself",
+    why: "the task endpoint refuses a Target command it does not answer itself; a tab's session sends it to let go of anything attached to the page that is not a frame",
   },
   "Target.disposeBrowserContext": {
     task: "override",
@@ -301,8 +307,9 @@ export const CDP_METHODS = {
     why: TARGET_TREE,
   },
   "Target.setAutoAttach": {
+    session: "wrapped",
     task: "override",
-    why: "forwarded, it would announce the page's frames as sessions of their own, whose ids then misroute agent-browser's commands",
+    why: `with no session, ${TARGET_TREE}; on a tab's or a frame's session it is forwarded to attach that page's cross-site frames alone, never paused at their start, and switched off when the tab's last connection closes`,
   },
   "Target.setDiscoverTargets": {
     task: "override",

@@ -1122,6 +1122,120 @@ describe("sendCommand", () => {
   });
 });
 
+describe("a frame in a process of its own", () => {
+  const FRAME = "frame-session-1";
+  const box = (y: number) => ({
+    model: { content: [0, y, 10, y, 10, y + 10, 0, y + 10] },
+  });
+
+  it("sends the frame's command to the frame's session", async () => {
+    const wcSendCommand = vi.fn().mockResolvedValue({ result: {} });
+    const entry = makeEntry({ sendCommand: wcSendCommand });
+
+    await dispatch({
+      ensureDebuggerAttached: vi.fn(),
+      entries: new Map([[TARGET_ID, entry]]),
+      frameSession: FRAME,
+      method: "Accessibility.getFullAXTree",
+      params: {},
+      targetId: TARGET_ID,
+    });
+
+    expect(wcSendCommand).toHaveBeenCalledWith(
+      "Accessibility.getFullAXTree",
+      {},
+      FRAME,
+    );
+  });
+
+  it.each(cdpMethodsHandled("main", "override"))(
+    "refuses %s, which main answers for the whole tab",
+    async (method) => {
+      const wcSendCommand = vi.fn().mockResolvedValue({});
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+
+      await expect(
+        dispatch({
+          ensureDebuggerAttached: vi.fn(),
+          entries: new Map([[TARGET_ID, entry]]),
+          frameSession: FRAME,
+          method,
+          params: {},
+          targetId: TARGET_ID,
+        }),
+      ).rejects.toThrow(/works on the whole tab, not inside a frame/);
+      expect(wcSendCommand).not.toHaveBeenCalled();
+    },
+  );
+
+  // A press is checked against the last measurement only when both went to
+  // the same frame, since each is in that frame's own coordinates.
+  it.each([
+    {
+      label: "re-aims a press in the frame that measured it, measuring there",
+      measuredIn: FRAME,
+      sentAt: { x: 5, y: 361 },
+    },
+    {
+      label: "sends a frame's press as it came after a measurement of the page",
+      measuredIn: undefined,
+      sentAt: { x: 5, y: 398 },
+    },
+  ])("$label", async ({ measuredIn, sentAt }) => {
+    const answers: unknown[] = [box(393), box(356), box(356)];
+    const wcSendCommand = vi
+      .fn()
+      .mockImplementation((method: string) =>
+        Promise.resolve(method === "DOM.getBoxModel" ? answers.shift() : {}),
+      );
+    const entry = makeEntry({ sendCommand: wcSendCommand });
+    const entries = new Map([[TARGET_ID, entry]]);
+    const send = (method: string, params: unknown, frameSession?: string) =>
+      dispatch({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        frameSession,
+        method,
+        params,
+        targetId: TARGET_ID,
+      });
+    const click = { button: "left", clickCount: 1, x: 5, y: 398 };
+
+    await send("DOM.getBoxModel", { backendNodeId: 7 }, measuredIn);
+    await send(
+      "Input.dispatchMouseEvent",
+      { ...click, type: "mousePressed" },
+      FRAME,
+    );
+    await send(
+      "Input.dispatchMouseEvent",
+      { ...click, type: "mouseReleased" },
+      FRAME,
+    );
+
+    expect(
+      wcSendCommand.mock.calls.filter(([m]) => m === "DOM.getBoxModel"),
+    ).toEqual(
+      (measuredIn ? [0, 1, 2] : [0]).map(() =>
+        measuredIn
+          ? ["DOM.getBoxModel", { backendNodeId: 7 }, measuredIn]
+          : ["DOM.getBoxModel", { backendNodeId: 7 }],
+      ),
+    );
+    expect(
+      wcSendCommand.mock.calls.filter(
+        ([m]) => m === "Input.dispatchMouseEvent",
+      ),
+    ).toEqual(
+      ["mousePressed", "mouseReleased"].map((type) => [
+        "Input.dispatchMouseEvent",
+        { ...click, ...sentAt, type },
+        FRAME,
+      ]),
+    );
+  });
+});
+
 describe("the table of CDP methods", () => {
   it("lists exactly the commands main answers without the debugger", () => {
     expect(Object.keys(MAIN_OVERRIDES).toSorted()).toEqual(

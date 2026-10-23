@@ -78,10 +78,16 @@ export interface BrowserConfig {
     method: M,
     ...args: CdpSendArgs<M>
   ): Promise<CdpReturn<M>>;
+  /**
+   * `frameSession` sends the command to a frame of the page that runs in a
+   * process of its own, by the session id the guest's debugger attached it
+   * under (`Target.attachedToTarget`), rather than to the page.
+   */
   sendCommand(
     targetId: BrowserTargetId,
     method: string,
     params: unknown,
+    frameSession?: string,
   ): Promise<unknown>;
   /**
    * The folders on this computer the agent driving a guest can read, or null
@@ -95,10 +101,15 @@ export interface BrowserConfig {
     roots: null | readonly string[],
   ) => void;
   stopScreencast: (targetId: BrowserTargetId) => void;
+  /**
+   * Every event of the guest's debugger. `frameSession` is set on an event
+   * from a frame attached under a session of its own (see `sendCommand`), and
+   * absent on the page's own.
+   */
   subscribeEvents: (
     targetId: BrowserTargetId,
     onDetach: () => void,
-    onEvent: (method: string, params: unknown) => void,
+    onEvent: (method: string, params: unknown, frameSession?: string) => void,
   ) => () => void;
 }
 

@@ -251,7 +251,10 @@ export function handleTaskCdpClient(
     };
     watches.set(
       tab.tabId,
-      browser.subscribeEvents(tab.targetId, noop, (method, params) => {
+      browser.subscribeEvents(tab.targetId, noop, (method, params, frame) => {
+        if (frame !== undefined) {
+          return;
+        }
         if (
           method === "Page.loadEventFired" ||
           (method === "Page.frameNavigated" && isMainFrame(params))
@@ -574,15 +577,15 @@ export function handleTaskCdpClient(
     if (!message) {
       return;
     }
-    const session = message.sessionId
-      ? [...sessions.values()].find(
-          (entry) => entry.sessionId === message.sessionId,
-        )
+    const { sessionId: on } = message;
+    const session = on
+      ? [...sessions.values()].find((entry) => entry.owns(on))
       : undefined;
     // The Target domain is answered here over the tabs the task holds,
     // whichever session it arrives on: forwarded on a tab's session it would
     // reach a debugger that sees every Electron target, the app window among
-    // them.
+    // them. Asking for a page's frames is the one exception, which the tab's
+    // session forwards with only frames attached.
     if (
       message.sessionId &&
       message.method.startsWith("Target.") &&
@@ -598,13 +601,9 @@ export function handleTaskCdpClient(
         refuse(message.id, `No session ${message.sessionId}`);
         return;
       }
-      // A page's own auto-attach would announce its frames as sessions of
-      // their own, and bringing a page to the front would pull the user's
-      // window to it; neither is the agent's to do.
-      if (
-        message.method === "Target.setAutoAttach" ||
-        message.method === "Page.bringToFront"
-      ) {
+      // Bringing a page to the front would pull the user's window to it,
+      // which is not the agent's to do.
+      if (message.method === "Page.bringToFront") {
         answer(message.id, {});
         return;
       }
@@ -659,9 +658,15 @@ async function loadInNewTab(
   url: string,
 ): Promise<void> {
   const gate = createMainFrameLoadGate();
-  const stop = browser.subscribeEvents(targetId, noop, (method, params) => {
-    gate.observe(method, params);
-  });
+  const stop = browser.subscribeEvents(
+    targetId,
+    noop,
+    (method, params, frame) => {
+      if (frame === undefined) {
+        gate.observe(method, params);
+      }
+    },
+  );
   try {
     await browser.sendCommand(targetId, "Page.enable", {});
     const load = gate.nextMainFrameLoad(NAVIGATE_HOLD_CAP_MS);

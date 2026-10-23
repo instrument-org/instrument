@@ -230,18 +230,24 @@ export function createBrowserViewManager(): BrowserViewManager {
     // the only side that needs the debugger.
     applyProductBrandedMetadata(wc);
 
-    wc.debugger.on("message", (_event, method, params: unknown) => {
-      const current = entries.get(targetId);
-      if (!current) {
-        return;
-      }
-      if (method === "Page.downloadWillBegin") {
-        captureDownloadWillBeginGuid(current, params);
-      }
-      for (const listener of current.eventListeners) {
-        listener(method, params);
-      }
-    });
+    // An event from a frame the debugger attached under a session of its own
+    // carries that session's id; the page's own carry an empty one.
+    wc.debugger.on(
+      "message",
+      (_event, method, params: unknown, sessionId: string) => {
+        const current = entries.get(targetId);
+        if (!current) {
+          return;
+        }
+        const frameSession = sessionId || undefined;
+        if (method === "Page.downloadWillBegin" && frameSession === undefined) {
+          captureDownloadWillBeginGuid(current, params);
+        }
+        for (const listener of current.eventListeners) {
+          listener(method, params, frameSession);
+        }
+      },
+    );
 
     wc.debugger.on("detach", () => {
       handleDetach(entries, targetId);
@@ -723,13 +729,15 @@ export function createBrowserViewManager(): BrowserViewManager {
     sendCommand: (async (
       targetId: BrowserTargetId,
       method: string,
-      params?: Record<string, unknown>,
+      params?: unknown,
+      frameSession?: string,
     ) => {
       const dispatch = () =>
         sendCommand({
           describeHost,
           ensureDebuggerAttached,
           entries,
+          frameSession,
           method,
           params,
           requestGuestFocus,

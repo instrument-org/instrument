@@ -92,7 +92,10 @@ export interface BrowserEntry {
   disposers: Set<() => void>;
   /** Downloads the guest started that have not finished, which keep it from being discarded. */
   downloadsRunning: number;
-  eventListeners: Set<(method: string, params: unknown) => void>;
+  /** Every event of the guest's debugger; `frameSession` names the frame session one came from, and is absent on the page's own. */
+  eventListeners: Set<
+    (method: string, params: unknown, frameSession?: string) => void
+  >;
   // Monotonic per-entry id, bumped on every createEntry. The renderer pool keys
   // its `<webview>` by targetId, which is stable across a destroy+recreate of
   // the same tab; the generation lets the pool notice that recreate
@@ -217,7 +220,7 @@ export function subscribeEvents({
   ensureDebuggerAttached: (entry: BrowserEntry) => void;
   entries: Map<BrowserTargetId, BrowserEntry>;
   onDetach: () => void;
-  onEvent: (method: string, params: unknown) => void;
+  onEvent: (method: string, params: unknown, frameSession?: string) => void;
   targetId: BrowserTargetId;
 }): () => void {
   const entry = entries.get(targetId);

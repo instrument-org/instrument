@@ -70,7 +70,13 @@ const GUEST_PROBE_TIMEOUT_MS = 1000;
 // kept briefly so the press that follows can be checked against it.
 const lastMeasurement = new WeakMap<
   BrowserEntry,
-  { at: number; method: string; params: unknown; result: unknown }
+  {
+    at: number;
+    frameSession: string | undefined;
+    method: string;
+    params: unknown;
+    result: unknown;
+  }
 >();
 const MEASUREMENT_FRESH_MS = 2000;
 // Half a CSS pixel is rounding, not movement.
@@ -98,6 +104,7 @@ export async function sendCommand({
   describeHost,
   ensureDebuggerAttached,
   entries,
+  frameSession,
   method,
   params,
   requestGuestFocus,
@@ -108,6 +115,8 @@ export async function sendCommand({
   describeHost: (targetId: BrowserTargetId) => Promise<string>;
   ensureDebuggerAttached: (entry: BrowserEntry) => void;
   entries: Map<BrowserTargetId, BrowserEntry>;
+  /** The session of the frame the command is for, when it is for a frame in a process of its own rather than the page. */
+  frameSession?: string;
   method: string;
   params: unknown;
   requestGuestFocus: (targetId: BrowserTargetId) => void;
@@ -128,6 +137,7 @@ export async function sendCommand({
     forwardToDebugger({
       describeHost,
       entry,
+      frameSession,
       method,
       params,
       requestGuestFocus,
@@ -136,6 +146,13 @@ export async function sendCommand({
   const override = isKnownCdpMethod(method)
     ? MAIN_OVERRIDES[method]
     : undefined;
+  // What main answers itself, it answers for the whole tab (its surface, its
+  // size, its reload, its downloads), which a frame has none of its own.
+  if (override && frameSession !== undefined) {
+    throw new Error(
+      `${method} works on the whole tab, not inside a frame. Send it to the tab itself.`,
+    );
+  }
   return override
     ? await override({ entry, forward, params, targetId })
     : await forward();
@@ -307,6 +324,7 @@ function noteUnknownMethod(method: string) {
 async function forwardToDebugger({
   describeHost,
   entry,
+  frameSession,
   method,
   params,
   requestGuestFocus,
@@ -314,6 +332,7 @@ async function forwardToDebugger({
 }: {
   describeHost: (targetId: BrowserTargetId) => Promise<string>;
   entry: BrowserEntry;
+  frameSession: string | undefined;
   method: string;
   params: unknown;
   requestGuestFocus: (targetId: BrowserTargetId) => void;
@@ -347,13 +366,18 @@ async function forwardToDebugger({
   let press: null | { at: number; context: string } = null;
   let delivered = params;
   if (method === "Input.dispatchMouseEvent" && isPress(params)) {
-    delivered = await aimPressAtElement(entry, params);
+    delivered = await aimPressAtElement(entry, params, frameSession);
     press = {
       at: Date.now(),
-      context: await describePress(entry, delivered, describeHost),
+      context: await describePress(
+        entry,
+        delivered,
+        frameSession,
+        describeHost,
+      ),
     };
   } else if (method === "Input.dispatchMouseEvent" && isRelease(params)) {
-    delivered = releaseWherePressed(entry, params);
+    delivered = releaseWherePressed(entry, params, frameSession);
   }
 
   if (
@@ -414,12 +438,14 @@ async function forwardToDebugger({
     >(["Input.dispatchMouseEvent", "Input.synthesizeTapGesture"]);
     const timeoutMs = SLOW_COMMANDS.has(method) ? 20_000 : 5000;
     let timeout: ReturnType<typeof setTimeout> | undefined;
-    const sent = wc.debugger.sendCommand(
+    const sent = sendToDebugger(
+      wc,
       method,
       withMacEditingCommands(
         method,
         withoutMacNativeKeyCode(method, delivered),
       ),
+      frameSession,
     );
     // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
@@ -456,14 +482,23 @@ async function forwardToDebugger({
     // once the element's box has held still makes the measurement that follows
     // see the settled layout.
     if (method === "DOM.getBoxModel") {
-      lastMeasurement.set(entry, { at: Date.now(), method, params, result });
+      lastMeasurement.set(entry, {
+        at: Date.now(),
+        frameSession,
+        method,
+        params,
+        result,
+      });
     }
     if (method === "DOM.scrollIntoViewIfNeeded") {
       await remeasureUntilStable(
         wc,
         "DOM.getBoxModel",
         params,
-        await wc.debugger.sendCommand("DOM.getBoxModel", params).catch(noop),
+        await sendToDebugger(wc, "DOM.getBoxModel", params, frameSession).catch(
+          noop,
+        ),
+        frameSession,
       );
     }
     // Selector and `find` clicks scroll and measure inside one script, so the
@@ -472,9 +507,16 @@ async function forwardToDebugger({
     // element and scrolls only when it is out of view, so a repeat moves
     // nothing that has already settled.
     if (measuresAfterScrolling(method, params)) {
-      const settled = await remeasureUntilStable(wc, method, params, result);
+      const settled = await remeasureUntilStable(
+        wc,
+        method,
+        params,
+        result,
+        frameSession,
+      );
       lastMeasurement.set(entry, {
         at: Date.now(),
+        frameSession,
         method,
         params,
         result: settled,
@@ -630,7 +672,10 @@ function isNear(a: { x?: number; y?: number }, b: Point): boolean {
 // Chromium sends the click to the nearest element under both the press and
 // the release, so a release left at the old point would click whatever
 // contains the two instead.
-const redirectedPress = new WeakMap<BrowserEntry, { from: Point; to: Point }>();
+const redirectedPress = new WeakMap<
+  BrowserEntry,
+  { frameSession: string | undefined; from: Point; to: Point }
+>();
 
 /**
  * The press params to send: unchanged unless this press is aimed at an element
@@ -641,12 +686,20 @@ const redirectedPress = new WeakMap<BrowserEntry, { from: Point; to: Point }>();
 async function aimPressAtElement(
   entry: BrowserEntry,
   params: unknown,
+  frameSession: string | undefined,
 ): Promise<unknown> {
   redirectedPress.delete(entry);
   const wc = entry.webContents;
   const measured = lastMeasurement.get(entry);
   lastMeasurement.delete(entry);
-  if (!wc || !measured || Date.now() - measured.at > MEASUREMENT_FRESH_MS) {
+  // A measurement and a press are in the coordinates of the page or frame
+  // they were sent to, so only a press to the same one is checked against it.
+  if (
+    !wc ||
+    !measured ||
+    measured.frameSession !== frameSession ||
+    Date.now() - measured.at > MEASUREMENT_FRESH_MS
+  ) {
     return params;
   }
   const then = pointOf(measured.result);
@@ -659,9 +712,10 @@ async function aimPressAtElement(
   // not answer in time and so says nothing either way.
   const remeasure = () =>
     withinGuestProbeTimeout<null | Point | undefined>(
-      wc.debugger
-        .sendCommand(measured.method, measured.params)
-        .then(pointOf, () => null),
+      sendToDebugger(wc, measured.method, measured.params, frameSession).then(
+        pointOf,
+        () => null,
+      ),
       () => undefined,
     );
   const now = await remeasure();
@@ -690,17 +744,25 @@ async function aimPressAtElement(
     );
   }
   log.info(`re-aimed press targetId=${entry.targetId}: ${moved}`);
-  redirectedPress.set(entry, { from: then, to: settled });
+  redirectedPress.set(entry, { frameSession, from: then, to: settled });
   return { ...press, x: settled.x, y: settled.y };
 }
 
 // The release of a press that was sent to an element's new point, sent there
 // too; any other release is sent as it came.
-function releaseWherePressed(entry: BrowserEntry, params: unknown): unknown {
+function releaseWherePressed(
+  entry: BrowserEntry,
+  params: unknown,
+  frameSession: string | undefined,
+): unknown {
   const redirect = redirectedPress.get(entry);
   redirectedPress.delete(entry);
   const release = params as { x?: number; y?: number };
-  if (!redirect || !isNear(release, redirect.from)) {
+  if (
+    !redirect ||
+    redirect.frameSession !== frameSession ||
+    !isNear(release, redirect.from)
+  ) {
     return params;
   }
   return { ...release, x: redirect.to.x, y: redirect.to.y };
@@ -719,6 +781,7 @@ const describeHitScript = (x: number, y: number) => `(() => {
 async function describePress(
   entry: BrowserEntry,
   params: unknown,
+  frameSession: string | undefined,
   describeHost: (targetId: BrowserTargetId) => Promise<string>,
 ): Promise<string> {
   const { x, y } = params as { x?: number; y?: number };
@@ -726,17 +789,33 @@ async function describePress(
     return "at=unknown";
   }
   const wc = entry.webContents;
-  const hit: Promise<unknown> = wc
-    ? withinGuestProbeTimeout(
-        wc.executeJavaScript(describeHitScript(x, y)),
-        () => "hit=unknown",
-      )
-    : Promise.resolve(undefined);
+  // A press to a frame is in the frame's coordinates, which the page's own
+  // hit test cannot place.
+  const hit: Promise<unknown> = frameSession
+    ? Promise.resolve("hit=in-frame")
+    : wc
+      ? withinGuestProbeTimeout(
+          wc.executeJavaScript(describeHitScript(x, y)),
+          () => "hit=unknown",
+        )
+      : Promise.resolve(undefined);
   const [what, host] = await Promise.all([
     hit.then(String, () => "hit=unknown"),
     describeHost(entry.targetId).catch(() => "host=unknown"),
   ]);
   return [`at=${x},${y}`, what, host].filter(Boolean).join(" ");
+}
+
+/** A command to the guest's debugger: to the page, or to a frame by its session. */
+function sendToDebugger(
+  wc: WebContents,
+  method: string,
+  params: unknown,
+  frameSession: string | undefined,
+): Promise<unknown> {
+  return frameSession === undefined
+    ? wc.debugger.sendCommand(method, params)
+    : wc.debugger.sendCommand(method, params, frameSession);
 }
 
 // Rounds of "wait two frames, measure again" before settling for the latest
@@ -748,12 +827,13 @@ async function remeasureUntilStable(
   method: string,
   params: unknown,
   first: unknown,
+  frameSession: string | undefined,
 ): Promise<unknown> {
   let previous = first;
   for (let round = 0; round < MAX_REMEASURES; round++) {
     await waitForTwoFrames(wc);
     const current: unknown = await withinGuestProbeTimeout(
-      wc.debugger.sendCommand(method, params).catch(noop),
+      sendToDebugger(wc, method, params, frameSession).catch(noop),
       noop,
     );
     if (

@@ -96,7 +96,7 @@ const trafficLights = `<div class="flex w-20 shrink-0 items-center gap-2 pl-3"><
 
 /** A window tab in the bar. `t` is a tab ({site} | {file} | {folder} | {newtab}) or {chats: true, title}. */
 const barTab = (t, { on = false } = {}) => `
-  <div class="relative flex h-8 max-w-60 min-w-20 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm font-medium ${on ? "bg-background shadow-xs" : "text-foreground/55"}">
+  <div class="relative flex h-8 max-w-48 min-w-20 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm font-medium ${on ? "bg-background shadow-xs" : "text-foreground/55"}">
     ${t.chats ? `<i class="ph ph-chat-circle text-[14px]"></i>` : tabMark(t)}
     <span class="min-w-0 flex-1 truncate">${t.chats ? t.title || "Chats" : tabTitle(t)}</span>${t.agent ? pulse : ""}
     ${on ? `<i class="ph ph-x text-[12px]"></i>` : ""}

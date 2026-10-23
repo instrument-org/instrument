@@ -95,6 +95,7 @@ import { startNetworkStatus } from "./lib/network-status";
 import { platformApiQueryClient } from "./platform-api/client";
 import { initializeRPC } from "./rpc/initialize";
 import { watchMainThreadStalls } from "./lib/main-thread-stalls";
+import { watchProcessCpu } from "./lib/process-cpu";
 
 // Dev skips the single-instance lock so multiple worktrees can boot side by
 // side. Packaged builds keep it so second launches (deep links) forward to
@@ -330,6 +331,7 @@ async function bootstrapPrimaryInstance() {
   registerFileDragHandler();
 
   watchMainThreadStalls();
+  watchProcessCpu();
 
   await timeBootStep("initializeRPC", () => {
     initializeRPC({ appUpdater: updater });

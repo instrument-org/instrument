@@ -26,6 +26,7 @@ import { AttachmentsCard } from "./attachments-card";
 import { FollowedBubblesContext } from "./bubble-run-context";
 import { ChatSeparatorRow } from "./chat-separator";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
+import { type RenderPartContext } from "./chat-stream-render-part";
 import { TailFirst, TypingRow } from "./chat-stream";
 import { MessageError } from "./message-error";
 import { ToolCallBody } from "./message-part/tool-call";
@@ -87,6 +88,7 @@ export function ChatBubbles({
   const lastingDrafting = useLastingDrafting(isAgentRunning && drafting);
   const derived = bubbleBoxes(messages, {
     awaitingReply: isAgentRunning || awaitingReply,
+    chatInfo,
     drafting: lastingDrafting,
     isAgentRunning,
     isDeveloperMode,
@@ -224,11 +226,13 @@ function bubbleBoxes(
   messages: readonly SessionMessage.WithParts[],
   {
     awaitingReply,
+    chatInfo,
     drafting,
     isAgentRunning,
     isDeveloperMode,
   }: {
     awaitingReply: boolean;
+    chatInfo: ChatInfo;
     drafting: boolean;
     isAgentRunning: boolean;
     isDeveloperMode: boolean;
@@ -282,7 +286,11 @@ function bubbleBoxes(
     if (message.role === "user") {
       lastSaid = undefined;
       unanswered = true;
-      const { bubbles, rows } = userRows(message, separators.get(message.id));
+      const { bubbles, rows } = userRows(
+        message,
+        separators.get(message.id),
+        chatInfo,
+      );
       if (rows.length > 0) {
         push(
           { key: message.id, rows, speaker: "user" },
@@ -336,7 +344,7 @@ function bubbleBoxes(
         ) {
           turn.rows.push({ kind: "card", part: stored });
         }
-      } else if (isDataPart(stored)) {
+      } else if (isDataPart(stored) && drawsInChat(stored, chatInfo, paths)) {
         turn.rows.push({
           kind: "note",
           part: stored,
@@ -397,6 +405,7 @@ function bubbleBoxes(
 function userRows(
   message: SessionMessage.WithParts,
   separator: ChatSeparator | undefined,
+  chatInfo: ChatInfo,
 ): { bubbles: string[]; rows: BubbleRow[] } {
   const rows: BubbleRow[] = [];
   const bubbles: string[] = [];
@@ -416,7 +425,7 @@ function userRows(
       }
       rows.push({ kind: "text", part, role: "user" });
       bubbles.push(part.metadata.id);
-    } else if (isDataPart(part)) {
+    } else if (isDataPart(part) && drawsInChat(part, chatInfo, undefined)) {
       rows.push({ kind: "note", part, pathsAlreadyShown: undefined });
     }
   }
@@ -440,6 +449,46 @@ function userRows(
     rows.unshift({ kind: "separator", separator });
   }
   return { bubbles, rows };
+}
+
+/**
+ * The context a note is drawn with in the chat, where the developer's notes
+ * stay out of it.
+ */
+function chatNoteContext(
+  chatInfo: ChatInfo,
+  onRetry: (prompt: string) => void,
+): RenderPartContext {
+  return {
+    chatInfo,
+    isAgentRunning: false,
+    isDeveloperMode: false,
+    isToolStreaming: () => false,
+    lastMessageId: undefined,
+    onRetry,
+    presentation: "chat",
+  };
+}
+
+/**
+ * Whether a note draws anything in the chat. One that draws nothing, such as
+ * the news of a finished task the reply already tells, makes no row: a row
+ * takes its gap whatever it draws, and a box of notes alone splits the reply
+ * around it in two.
+ */
+function drawsInChat(
+  part: SessionMessagePart.DataPart,
+  chatInfo: ChatInfo,
+  pathsAlreadyShown: ReadonlySet<string> | undefined,
+): boolean {
+  return (
+    renderDataPart({
+      ctx: chatNoteContext(chatInfo, () => {}),
+      part,
+      pathsAlreadyShown,
+      stateNote: undefined,
+    }) !== null
+  );
 }
 
 function isSameRefusal(
@@ -767,15 +816,7 @@ const RecordRowView = memo(function RecordRowView({
     );
   }
   return renderDataPart({
-    ctx: {
-      chatInfo,
-      isAgentRunning: false,
-      isDeveloperMode: false,
-      isToolStreaming: () => false,
-      lastMessageId: undefined,
-      onRetry: actions.onRetry,
-      presentation: "chat",
-    },
+    ctx: chatNoteContext(chatInfo, actions.onRetry),
     part: row.part,
     pathsAlreadyShown: row.pathsAlreadyShown,
     stateNote: undefined,

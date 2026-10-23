@@ -1341,6 +1341,49 @@ describe("ChatBubbles, and a reply", () => {
   });
 });
 
+describe("ChatBubbles and a task's news the reply tells", () => {
+  it("draws no row for it, so the reply around it stays one run", () => {
+    const { container } = renderMessages(
+      [
+        userMessage("Find me some sets"),
+        assistantMessage([prose("YouTube Music logs every play.")], {
+          finishedAt: new Date(1),
+        }),
+        {
+          ...userMessage(""),
+          parts: [
+            {
+              data: {
+                events: [
+                  {
+                    handle: "t1",
+                    sessionId: StoreId.newSessionId(),
+                    status: "done",
+                    summary: "The shortlist is ready.",
+                    title: "Hot EDM sets",
+                  },
+                ],
+              },
+              metadata: metadata(),
+              type: "data-taskEvent",
+            },
+          ],
+        },
+        assistantMessage([prose("The charts came back.")], {
+          finishedAt: new Date(2),
+        }),
+      ],
+      { presentation: "chat" },
+    );
+
+    const items = container.querySelectorAll(
+      '[data-slot="message-scroller-item"]',
+    );
+    expect(items).toHaveLength(3);
+    expect(items[2]?.className).toContain("-mt-3");
+  });
+});
+
 describe("ChatBubbles and what a message went with", () => {
   it("draws the chips a message was sent with over its words, and only those", () => {
     const { container } = renderMessages(

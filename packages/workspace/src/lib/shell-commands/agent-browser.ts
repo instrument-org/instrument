@@ -126,7 +126,7 @@ export const BLOCKED_SUBCOMMANDS = new Set([
   "connect", // Sticky daemon connection state; per-invocation --cdp expresses the same thing without hidden routing state.
   "dashboard", // We have our own UI.
   "doctor", // Diagnoses real Chrome installs, not our Electron bridge.
-  "inspect", // Opens Chrome DevTools, which doesn't work against our WebContentsView CDP bridge.
+  "inspect", // Opens Chrome DevTools, which doesn't work against our `<webview>` CDP bridge.
   "install", // Browser binary is bundled with the app.
   "launch", // Daemon pre-launch; a command that needs a page already launches on demand. (`read` never does, with or without this: it is skip-launch upstream.)
   "mcp", // MCP tool hosting is managed outside the in-app browser wrapper.
@@ -826,7 +826,7 @@ export function createAgentBrowserCommand({
 
     if (isInfoOnly) {
       // Info-only invocations (--help, --version) print and exit without ever
-      // touching a browser target, so don't spin up a WebContentsView or attach
+      // touching a browser target, so don't spin up a `<webview>` guest or attach
       // to the CDP bridge.
       commandArgs.push(...resolvedArgs);
     } else if (browserFreeRead) {

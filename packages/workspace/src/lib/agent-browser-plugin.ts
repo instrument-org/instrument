@@ -13,7 +13,7 @@ const PLUGIN_FILENAME = "instrument-provider.mjs";
  * agent-browser `browser.provider` plugin (agent-browser.plugin.v1): one JSON
  * request on stdin, one JSON response on stdout. `browser.launch` answers with
  * the workspace CDP bridge URL received as argv[2]; `browser.close` is a no-op
- * because Studio owns the WebContentsView lifecycle and a CDP disconnect is
+ * because Studio owns the `<webview>` guest's lifecycle and a CDP disconnect is
  * all the daemon needs. Standalone ESM with no imports so any node-compatible
  * runtime (node in dev/tests, Electron with ELECTRON_RUN_AS_NODE in packaged
  * builds) can execute it.

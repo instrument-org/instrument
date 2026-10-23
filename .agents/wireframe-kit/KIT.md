@@ -6,7 +6,7 @@ The pieces of Studio, for drawing a proposed flow with the `wireframe` skill. Th
 
 ## The window
 
-`window.js` is the window as built (the rail, the window bar and its tabs, Chat with its inbox and pane, the places, the floating chat, and the onboarding window), measured off the running app and redrawn at 1280x800 in the light theme; `brands.js` holds the brand marks it draws, as data URIs. A page is a **part**: a script that defines `META` and `states`, and nothing else. `build.mjs` puts the part, the kit and the template's marks into a copy of the skill's starter and template, and evaluates every frame in Node first, so a frame that renders `undefined` or lacks a caption fails the build rather than the page:
+`window.js` is the window as built (the rail, the window bar and its tabs, Chat with its inbox and pane, the places, the floating chat, and setup), measured off the running app and redrawn at 1280x800 in the light theme; `brands.js` holds the brand marks it draws, as data URIs. A page is a **part**: a script that defines `META` and `states`, and nothing else. `build.mjs` puts the part, the kit and the template's marks into a copy of the skill's starter and template, and evaluates every frame in Node first, so a frame that renders `undefined` or lacks a caption fails the build rather than the page:
 
 ```bash
 node .agents/wireframe-kit/build.mjs part.js ~/wireframes/YYYY-MM-DD-<surface>-<variant>.html
@@ -77,7 +77,11 @@ const states = [
 | `replyBoxOpen({ extras, text })`, `modelProblem(text, { action })`, `plusMenu({ left, top, w, model })`        | The reply box opened up with a row over the words (the amber model bar, with its fix at the end, leads it), and its plus menu as wide as the reply box: Browser, This Mac, Attach files, Add a folder, Apps, Skills, and the model                                                                                                                                                                                      |
 | `modelPicker({ open, held, list, q, mark })`, `pickerPop(inner, { left, top })`, `pickerCrop(inner)`           | The model picker at its built 680x520 (`PICKER_W`, `PICKER_H`): search over the rail of `PICKER_CONNS` and the open connection's `list`; `held` checks the connection with the chosen model, `q` searches across all of them; place it over a window with `pickerPop`, or fill a frame with `pickerCrop`                                                                                                                |
 | `pickerRow(name, { mark, sub, on })`, `pickerHead(t, mark)`, `pickerAutoRow({ on })`, `pickerAutoOnly({ on })` | Its list: a model row (the maker's mark, an optional line under the name, tint and check when chosen), a group label, Auto leading a longer list with its rule, and Auto alone and centered with its button                                                                                                                                                                                                             |
-| `onboardWin({ body, foot, tone })`, `onboardLogin()`, `brandMark(cls)`                                         | Onboarding's own 480x600 window (brand or subtle gradient), its sign-in step as built, and the app mark                                                                                                                                                                                                                                                                                                                 |
+| `setupWin({ body, foot, over })`, `setupPage({ hero, title, sub, body, align })`, `setupFoot({ back, next, skip, off })`, `SETUP` | Setup filling the app window at its own 1080x720 (pass `...SETUP` as the frame size): the sage-to-paper ground and the lights, a page (serif title, gray line, its content; `align: "center"` sits mid-window), and the footer with Back and Continue |
+| `setupChooseAI({ waiting, google, subs })`, `setupSubscriptions({ sub, pick })`, `setupButton(label, { tone, marks, waiting })` | The step a new person signs in on ("How would you like to use AI?": Google, an existing subscription, an API provider; `waiting` is Google's button in its browser wait), "Which subscription do you have?" with ChatGPT, Claude and Grok, and setup's 380px button. `google`, `subs` and `pick[key]` wrap a button, for a mark |
+| `setupRows(rows)`, `setupRowButton(label)` | The white card of hairline-divided rows setup lists ways in with: `[mark, title, line, end]` each |
+| `planCard({ name, amount, usage, filled, features, cta, heaviest, free, badge })`, `planButton(label, { leading })`, `OFFER_PLANS` | A plan card as `PlanCards` draws it in setup and the plan sheet (name, price, the usage box with its meter and makers, features, button), its button, and the offer's Basic and Pro; `free` prices the beta offer's free months |
+| `brandMark(cls)` | The app mark |
 
 A tab is `{ site }` (a key of `SITES`), `{ file }` (a key of `FILES`), `{ folder }`, `{ browser: true }` or `{ newtab: true }`, with `agent: true` on one a task is driving. The shared scenario is the thread "Help desk pricing against competitors" (`PRICING_TITLE`, `pricing(stage)` for its transcript): someone at a help desk company lining up competitors' list prices against their own plans. Keep to it so a round's files compare, and keep new scenario data to work people do for a business, not errands from home. It and the other `ROWS` are invented, as are the prices on the competitors' pages, rather than taken from the documents fixture, which holds one chat, and a page's `source` line says so.
 
@@ -88,7 +92,7 @@ A tab is `{ site }` (a key of `SITES`), `{ file }` (a key of `FILES`), `{ folder
 | Function                                              | Draws                                                                                                         |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `macDesktop({ bar, windows, dock, over, wallpaper })` | The 1512x982 desktop: wallpaper, menu bar, Dock, `windows` and `over` placed absolutely                       |
-| `placed(html, { left, top, w, h, scale })`            | A true-size frame (`appWindow`, `onboardWin`, `browserWindow`, `finderWindow`) scaled into place, 0.8 default |
+| `placed(html, { left, top, w, h, scale })`            | A true-size frame (`appWindow`, `setupWin`, `browserWindow`, `finderWindow`) scaled into place, 0.8 default |
 | `menuBar({ app, menus, extra, lit })`                 | The menu bar; `extra` puts Instrument's glyph among the status items, `lit` draws it pressed                  |
 | `menuBarPanel(inner, { right, w, h })`                | A panel hanging from that glyph                                                                               |
 | `dock({ apps, running, mark })`                       | The Dock; `"instrument"` is the app mark, `mark` hangs annotations on an icon                                 |
@@ -101,7 +105,7 @@ Unlike the window, these are drawn from macOS and a generic browser rather than 
 
 ## The baseline
 
-[`baseline.js`](baseline.js) is a part with one frame per surface as it stands: Chat empty, in Drafts, at work and with its pane, Files with and without its places and with a file open, Browser with and without a page, the floating chat, a menu and a sheet, onboarding, and the desktop, menu bar extra, notification, context menu and website. Build it and look at it before drawing a round, and start each proposal from the nearest frame, changing only what the proposal argues about:
+[`baseline.js`](baseline.js) is a part with one frame per surface as it stands: Chat empty, in Drafts, at work and with its pane, Files with and without its places and with a file open, Browser with and without a page, the floating chat, a menu and a sheet, setup's sign-in, and the desktop, menu bar extra, notification, context menu and website. Build it and look at it before drawing a round, and start each proposal from the nearest frame, changing only what the proposal argues about:
 
 ```bash
 node .agents/wireframe-kit/build.mjs .agents/wireframe-kit/baseline.js ~/wireframes/kit-baseline.html
@@ -124,7 +128,7 @@ The kit is meant to be edited by whoever draws with it. When a round draws a sur
 
 Marks come from the template (`clickable`, `fresh`, `noted`, `ann`, `cursor`) and are in scope for a part. Icons are Phosphor regular only (`ph ph-name`): the starter loads no other weight, so `ph-fill` draws nothing, and a lit rail place keeps its outline icon in the brand color where the app swaps to the fill weight.
 
-The kit draws Studio in its light theme whatever theme the reader has picked: `[color-scheme:light]` on `appWindow` and `onboardWin` is what the skin's `light-dark()` tokens resolve against inside the frame. Anything drawn outside them sets its own `text-foreground` and ground, or it inherits the reader's theme. Write class names out whole, since a class built by interpolation (`bg-${tone}-500`) is invisible to Tailwind's scanner and produces no styles. Placeholder prose is `h-[7px] rounded-full bg-gray-300` at varying widths (`bars2`). A third party's logo is inlined in `brands.js`, never a runtime URL into an icon CDN.
+The kit draws Studio in its light theme whatever theme the reader has picked: `[color-scheme:light]` on `appWindow` and `setupWin` is what the skin's `light-dark()` tokens resolve against inside the frame. Anything drawn outside them sets its own `text-foreground` and ground, or it inherits the reader's theme. Write class names out whole, since a class built by interpolation (`bg-${tone}-500`) is invisible to Tailwind's scanner and produces no styles. Placeholder prose is `h-[7px] rounded-full bg-gray-300` at varying widths (`bars2`). A third party's logo is inlined in `brands.js`, never a runtime URL into an icon CDN.
 
 When the product moves, measure it again rather than trusting this file: boot a disposable instance (`studio-drive.mjs boot --purpose "kit measure" --workspace documents`), screenshot it in the light theme, then correct `window.js` to match.
 
@@ -132,7 +136,7 @@ When the product moves, measure it again rather than trusting this file: boot a 
 
 The `wireframe` skill sets the rules. A page is named for the surface, a colon, then what this version tries. Each frame is named like an artboard, with the screen's name in a word or two, and its note says in one first-person sentence what we're doing there and why. When a frame shows Studio as it ships today, add _(Current design)_ to its title, as in _Welcome (Current design)_. Use these names for the surfaces:
 
-Rail, Window bar, Window tabs, Inbox, Chat, Reply box, Pane, Chat tiles, Floating chat, Draft window, Files, Browser, Apps, Onboarding, Settings; outside the window, Desktop, Menu bar, Dock, Notification, Finder, Website.
+Rail, Window bar, Window tabs, Inbox, Chat, Reply box, Pane, Chat tiles, Floating chat, Draft window, Files, Browser, Apps, Setup, Settings; outside the window, Desktop, Menu bar, Dock, Notification, Finder, Website.
 
 A page about how two surfaces share the screen names both of them (_Page and chat: chat as corner picture_). Versions that answer the same question start with the same surface, so they sort together: _Chat tiles: dock over reply box_, _Chat tiles: dock under reply box_.
 

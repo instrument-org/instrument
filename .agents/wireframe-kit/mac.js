@@ -4,7 +4,7 @@
 
 const DESKTOP = { w: 1512, h: 982 };
 
-/** A true-size frame scaled into place on the desktop: the 1280x800 window, onboarding, a browser. */
+/** A true-size frame scaled into place on the desktop: the 1280x800 window, setup, a browser. */
 const placed = (
   html,
   { left, top, w = 1280, h = 800, scale = 0.8, shadow = true } = {},

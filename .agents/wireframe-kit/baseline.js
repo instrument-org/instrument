@@ -5,7 +5,7 @@
 
 const META = {
   title: "Kit baseline: every surface as built",
-  line: "Everything the wireframe kit draws as the app ships today, from the window's places, the chat and the floating chat to onboarding and the Mac and web around the app.",
+  line: "Everything the wireframe kit draws as the app ships today, from the window's places, the chat and the floating chat to setup and the Mac and web around the app.",
   source:
     "We drew the window frames with window.js, which we measured from the running app on the documents fixture. The desktop, menu bar, notification, Finder and website frames come from mac.js, which we drew from macOS and a generic browser without measuring.",
   slotH: 300,
@@ -310,11 +310,10 @@ const states = [
     }),
   },
   {
-    title: "Onboarding sign-in",
-    note: "Onboarding runs in its own 480x600 window, and this is the sign-in step as it ships.",
-    w: 480,
-    h: 600,
-    body: onboardWin({ body: onboardLogin() }),
+    title: "Setup sign-in",
+    note: "Setup fills the app window at its own 1080x720, and this is the step a new person signs in on.",
+    ...SETUP,
+    body: setupChooseAI(),
   },
   {
     title: "Desktop",

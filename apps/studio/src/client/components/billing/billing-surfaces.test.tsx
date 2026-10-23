@@ -569,7 +569,7 @@ describe("setup's plan step", () => {
       },
     },
   ])(
-    "offers a plan or another way in with $name, and connecting answers it",
+    "offers a plan or another way to use AI with $name, and connecting answers it",
     async ({ offer }) => {
       platform.offer = offer;
       platform.status = neverTrialed();

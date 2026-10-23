@@ -40,7 +40,7 @@ describe("connectPageCopy", () => {
   it("says no paid plan for ChatGPT", () => {
     expect(connectPageCopy({ kind: "no-plan" }, "chatgpt")).toEqual({
       subtitle:
-        "Instrument only works with paid ChatGPT plans. Upgrade and try again, or pick another way in.",
+        "Instrument only works with paid ChatGPT plans. Upgrade and try again, or choose another way to use AI.",
       title: "Your ChatGPT account doesn't have a paid plan",
     });
   });
@@ -50,7 +50,7 @@ describe("connectPageCopy", () => {
       connectPageCopy({ kind: "out-of-usage", resetsAt }, "claude", { now }),
     ).toEqual({
       subtitle:
-        "Your Claude plan hit its limit, and Claude says it resets around 3:40 PM. You can keep going and use it then, or pick another way in now.",
+        "Your Claude plan hit its limit, and Claude says it resets around 3:40 PM. You can keep going and use it then, or choose another way to use AI now.",
       title: "Claude is out of usage for now",
     });
   });
@@ -77,23 +77,23 @@ describe("connectPageCopy", () => {
       {
         "canceled": undefined,
         "declined": {
-          "subtitle": "Try again, or pick another way in.",
+          "subtitle": "Try again, or choose another way to use AI.",
           "title": "You didn't finish signing in to Grok",
         },
         "failed": {
-          "subtitle": "Something went wrong. Try again, or pick another way in.",
+          "subtitle": "Something went wrong. Try again, or choose another way to use AI.",
           "title": "Couldn't sign in to Grok",
         },
         "no-plan": {
-          "subtitle": "Your plan needs to include Grok API access. If you pay through X, link your X account at accounts.x.ai. Upgrade and try again, or pick another way in.",
+          "subtitle": "Your plan needs to include Grok API access. If you pay through X, link your X account at accounts.x.ai. Upgrade and try again, or choose another way to use AI.",
           "title": "Your Grok account doesn't have a paid plan",
         },
         "out-of-usage": {
-          "subtitle": "Your Grok plan hit its limit for now. You can keep going and use it once it resets, or pick another way in now.",
+          "subtitle": "Your Grok plan hit its limit for now. You can keep going and use it once it resets, or choose another way to use AI now.",
           "title": "Grok is out of usage for now",
         },
         "out-of-usage with reset": {
-          "subtitle": "Your Grok plan hit its limit, and Grok says it resets around 3:40 PM. You can keep going and use it then, or pick another way in now.",
+          "subtitle": "Your Grok plan hit its limit, and Grok says it resets around 3:40 PM. You can keep going and use it then, or choose another way to use AI now.",
           "title": "Grok is out of usage for now",
         },
         "ready": {
@@ -109,7 +109,7 @@ describe("connectPageCopy", () => {
           "title": "You're signed out of Grok",
         },
         "timed-out": {
-          "subtitle": "Instrument couldn't check your Grok plan. Try again, or pick another way in.",
+          "subtitle": "Instrument couldn't check your Grok plan. Try again, or choose another way to use AI.",
           "title": "Grok didn't answer in time",
         },
       }

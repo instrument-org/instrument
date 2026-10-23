@@ -109,25 +109,26 @@ export function connectPageCopy(
             title: `${APP_NAME} can't use your ChatGPT plan yet`,
           }
         : {
-            subtitle: "Try again, or pick another way in.",
+            subtitle: "Try again, or choose another way to use AI.",
             title: `You didn't finish signing in ${signInTo(provider)}`,
           };
     }
     case "failed": {
       return {
-        subtitle: "Something went wrong. Try again, or pick another way in.",
+        subtitle:
+          "Something went wrong. Try again, or choose another way to use AI.",
         title: `Couldn't sign in ${signInTo(provider)}`,
       };
     }
     case "no-plan": {
       return {
-        subtitle: `${noPlanReason(provider)} Upgrade and try again, or pick another way in.`,
+        subtitle: `${noPlanReason(provider)} Upgrade and try again, or choose another way to use AI.`,
         title: noPlanTitle(provider),
       };
     }
     case "out-of-usage": {
       return {
-        subtitle: `${usageLimitReason(provider, outcome.resetsAt, now)} You can keep going and use it ${outcome.resetsAt ? "then" : "once it resets"}, or pick another way in now.`,
+        subtitle: `${usageLimitReason(provider, outcome.resetsAt, now)} You can keep going and use it ${outcome.resetsAt ? "then" : "once it resets"}, or choose another way to use AI now.`,
         title: `${name} is out of usage for now`,
       };
     }
@@ -154,7 +155,7 @@ export function connectPageCopy(
     }
     case "timed-out": {
       return {
-        subtitle: `${APP_NAME} couldn't check your ${name} plan. Try again, or pick another way in.`,
+        subtitle: `${APP_NAME} couldn't check your ${name} plan. Try again, or choose another way to use AI.`,
         title: `${name} didn't answer in time`,
       };
     }
@@ -339,7 +340,7 @@ function noPlanReason(provider: ConnectProvider) {
  */
 export function noCreditsPageCopy(): ConnectPageCopy {
   return {
-    subtitle: `${APP_NAME} needs credits on the account to use most OpenRouter models. Add some and try again, or pick another way in.`,
+    subtitle: `${APP_NAME} needs credits on the account to use most OpenRouter models. Add some and try again, or choose another way to use AI.`,
     title: "Your OpenRouter account has no credits",
   };
 }

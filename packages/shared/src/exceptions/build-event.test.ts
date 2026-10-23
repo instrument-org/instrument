@@ -362,3 +362,44 @@ describe("formatExceptionEvent", () => {
       `);
   });
 });
+
+describe("what an event leaves out", () => {
+  it("takes secrets and web addresses' queries out of messages and data", () => {
+    const token = `lin_api_${"aB3dE5gH7j".repeat(4)}`;
+    const event = buildExceptionEvent(
+      new Error(`401 from api.linear.app, token ${token} was rejected`),
+      {
+        breadcrumbs: [
+          {
+            category: "log",
+            data: { url: "https://accounts.example.com/callback?code=4/0AVG7&state=x9" },
+            level: "error",
+            message: `electron: Failed to load URL: https://sync.example.com/start?uid=0f93d1df in ${HOME}/Library`,
+            timestamp: 0,
+          },
+        ],
+        contexts: CONTEXTS,
+        defaultArea: "studio",
+        now: Date.UTC(2026, 9, 19, 12),
+        paths: { appRoot: APP, home: HOME },
+      },
+    );
+    expect({
+      breadcrumb: event.breadcrumbs[0],
+      value: event.exceptions.at(-1)?.value,
+    }).toMatchInlineSnapshot(`
+      {
+        "breadcrumb": {
+          "category": "log",
+          "data": {
+            "url": "https://accounts.example.com/callback?[query]",
+          },
+          "level": "error",
+          "message": "electron: Failed to load URL: https://sync.example.com/start?[query] in ~/Library",
+          "timestamp": 0,
+        },
+        "value": "401 from api.linear.app, token [secret: Linear key] was rejected",
+      }
+    `);
+  });
+});

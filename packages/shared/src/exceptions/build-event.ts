@@ -1,3 +1,4 @@
+import { redactSecrets, redactUrlQueries } from "../secrets";
 import { type CaptureContext } from "../types/exceptions";
 import { ForwardedException } from "./forwarded";
 import { normalize } from "./normalize";
@@ -34,7 +35,8 @@ const FINGERPRINT_FRAMES = 5;
  * with its frames parsed, in-app decided on the real path and the path then
  * rewritten; the error's own properties as data; the caller's context; and a
  * fingerprint that stays the same across builds. The home folder reads `~`
- * everywhere in it, and nothing else is taken out.
+ * everywhere in it, and the messages, values and data have their secrets
+ * and web addresses' queries taken out; nothing else is.
  */
 export function buildExceptionEvent(
   error: unknown,
@@ -59,7 +61,7 @@ export function buildExceptionEvent(
   const forwarded = error instanceof ForwardedException ? error : undefined;
   const serialized = forwarded?.serialized ?? serializeError(error);
   const mechanism = context.mechanism ?? "generic";
-  const scrub = homeScrubber(paths.home);
+  const scrub = eventScrubber(paths.home);
   const exceptions = linkExceptions(serialized, mechanism, paths, scrub);
   return {
     area: context.area ?? defaultArea,
@@ -107,7 +109,7 @@ function linkExceptions(
     const value: ExceptionValue = {
       ...(error.data && { data: toRecord(scrub.deep(error.data)) }),
       frames: parseStack(error.stack ?? "").map((frame) =>
-        toFrame(frame, paths, scrub.text),
+        toFrame(frame, paths, scrub.path),
       ),
       mechanism: {
         exceptionId,
@@ -297,12 +299,19 @@ function toRecord(value: unknown): Record<string, unknown> {
 
 type Scrubber = {
   deep: (value: unknown) => unknown;
+  /** A frame's file, which only has the home folder read as `~`. */
+  path: (text: string) => string;
   text: (text: string) => string;
 };
 
-/** Reads the home folder as `~` in a string, or in every string of a value. */
-function homeScrubber(home: string | undefined): Scrubber {
-  const text = (value: string) => (home ? value.split(home).join("~") : value);
+/**
+ * Reads the home folder as `~` in a string, or in every string of a value,
+ * and takes out secrets and web addresses' queries.
+ */
+function eventScrubber(home: string | undefined): Scrubber {
+  const path = (value: string) => (home ? value.split(home).join("~") : value);
+  const text = (value: string) =>
+    redactUrlQueries(redactSecrets(path(value)));
   const deep = (value: unknown): unknown => {
     if (typeof value === "string") {
       return text(value);
@@ -317,5 +326,5 @@ function homeScrubber(home: string | undefined): Scrubber {
     }
     return value;
   };
-  return { deep, text };
+  return { deep, path, text };
 }

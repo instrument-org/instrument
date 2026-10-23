@@ -53,6 +53,42 @@ for (const [i, s] of states.entries()) {
     throw new Error(`frame ${i + 1} lacks a title or note`);
 }
 
+// A class naming one of Studio's colors that the skill's skin does not define draws
+// nothing: Tailwind skips it and the element falls back to inherited ink. That is
+// what a class copied from the app (`text-brand-foreground`) runs into.
+const colorNames = (/** @type {string} */ css) =>
+  new Set(Array.from(css.matchAll(/--color-([a-z0-9-]+):/g), (m) => m[1]));
+// Tailwind's own keywords, which need no token.
+const skinColors = new Set([
+  ...colorNames(starter),
+  "current",
+  "inherit",
+  "transparent",
+]);
+const studioColors = colorNames(
+  fs.readFileSync(
+    path.join(here, "../../apps/studio/src/client/styles/globals.css"),
+    "utf8",
+  ),
+);
+const COLOR_CLASS =
+  /^-?(?:text|bg|border(?:-[trblxyse])?|ring(?:-offset)?|inset-ring|fill|stroke|outline|from|via|to|shadow|inset-shadow|accent|divide|placeholder|caret|decoration)-([a-z0-9-]+?)(?:\/[\w.[\]]+)?!?$/;
+for (const [i, s] of states.entries()) {
+  const missing = new Set();
+  for (const [, classes] of s.body.matchAll(/class="([^"]*)"/g)) {
+    for (const token of classes.split(/\s+/)) {
+      const name = token.replace(/^.*:/, "").replace(/^!/, "");
+      const color = COLOR_CLASS.exec(name)?.[1];
+      if (color && studioColors.has(color) && !skinColors.has(color))
+        missing.add(name);
+    }
+  }
+  if (missing.size > 0)
+    throw new Error(
+      `frame ${i + 1} uses colors the skin does not define, so they draw nothing: ${[...missing].join(", ")}. Add them to the skill's shell.html @theme, or use a kit class.`,
+    );
+}
+
 main = cut(main, "// ---- the kit", "// ---- annotations", kit);
 main = cut(main, "// ---- the frames", "// ---- render", part);
 main = main.replace(

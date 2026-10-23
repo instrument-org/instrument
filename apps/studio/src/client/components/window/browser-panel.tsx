@@ -79,6 +79,8 @@ import {
   READ_RESPONSE_DOCUMENT,
 } from "@/client/lib/failed-load-copy";
 import { segmentsOf } from "@/client/components/window/host-path";
+import { isSiteGroup } from "@/client/components/window/app-tabs";
+import { windowTabsAtom } from "@/client/components/window/window-tabs";
 import { type TypedPath } from "@/client/lib/typed-path";
 import { fileHref } from "@/shared/computer-href";
 import { displayHostPath } from "@instrument-org/shared";
@@ -104,6 +106,7 @@ import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
+import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DeviceMobileIcon } from "@phosphor-icons/react/DeviceMobile";
@@ -559,6 +562,18 @@ export function BrowserPanel({
   // task's own browser has no such view to keep them on.
   const windowContext = useContext(WindowContext);
   const inWindow = windowContext !== null;
+  // A page of a chat's or a draft's opens again in a browser tab of the
+  // window's own, as a copy at its address; the chat keeps its page. A
+  // browser tab has Duplicate Tab in the bar for the same.
+  const group = useAtomValue(windowTabsAtom).tabs.find(
+    (tab) => tab.id === sessionId,
+  )?.group;
+  const openInBrowserTab =
+    windowContext && group !== undefined && !isSiteGroup(group)
+      ? (url: string) => {
+          windowContext.openPage(url, { newTab: true });
+        }
+      : undefined;
   const bookmarks = useAtomValue(bookmarksAtom);
   const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
   const isBookmarked = bookmarks.some((bookmark) => bookmark.url === pageUrl);
@@ -637,6 +652,22 @@ export function BrowserPanel({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
+              {openInBrowserTab && (
+                <>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      const url = currentUrl();
+                      if (url) {
+                        openInBrowserTab(url);
+                      }
+                    }}
+                  >
+                    <BrowsersIcon className="size-4" />
+                    Open in Browser Tab
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <BrowserHistoryMenu onOpen={navigateTo} />
               {inWindow && (
                 <DropdownMenuItem onSelect={toggleBookmark}>

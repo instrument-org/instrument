@@ -7,6 +7,13 @@ import {
 } from "@/client/components/extend/file-system";
 import { useTheme } from "@/client/components/theme-provider";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -22,17 +29,20 @@ import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
+import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, Reorder } from "motion/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 
 import { useComputerVolumes } from "./computer-volumes";
+import { WindowContext } from "./context";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { thumbnailKey } from "./use-page-thumbnail-housekeeping";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
@@ -579,6 +589,7 @@ function ChatTile({
   taskTitles: Parameters<typeof screenPresentation>[1]["taskTitles"];
 }) {
   const volumes = useComputerVolumes();
+  const windowContext = useContext(WindowContext);
   const title =
     tab.kind === "page"
       ? tab.title || hostOf(tab.url ?? tab.openedUrl ?? "")
@@ -666,7 +677,7 @@ function ChatTile({
       </span>
     </button>
   );
-  const tile = (isWorking: boolean) => (
+  const plate = (isWorking: boolean) => (
     // The one up sits on a plate, the way the rail lights the place the
     // window is in.
     <div
@@ -696,6 +707,42 @@ function ChatTile({
       </button>
     </div>
   );
+  const pageUrl = tab.kind === "page" ? (tab.url ?? tab.openedUrl) : undefined;
+  // A page's tile opens a copy of it in a browser tab of the window's own,
+  // the chat keeping its page, without showing it beside the chat first.
+  const tile = (isWorking: boolean) =>
+    pageUrl === undefined ? (
+      plate(isWorking)
+    ) : (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{plate(isWorking)}</ContextMenuTrigger>
+        <ContextMenuContent>
+          {windowContext && (
+            <ContextMenuItem
+              onSelect={() => {
+                windowContext.openPage(pageUrl, { newTab: true });
+              }}
+            >
+              <BrowsersIcon className="size-4" />
+              Open in Browser Tab
+            </ContextMenuItem>
+          )}
+          <ContextMenuItem
+            onSelect={() => {
+              void navigator.clipboard.writeText(pageUrl);
+            }}
+          >
+            <CopyIcon className="size-4" />
+            Copy URL
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem onSelect={onClose}>
+            <XIcon className="size-4" />
+            Close
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
   return tab.kind === "page" ? (
     <PageWorking isChatWorking={isChatWorking} targetId={targetOf(tab)}>
       {tile}

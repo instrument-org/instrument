@@ -1141,6 +1141,7 @@ describe("the row's actions", () => {
       "Rename",
       "Topic",
       osConventions().showInFileManager,
+      "Send feedback…",
       "Archive",
       "Delete chat…",
     ]);

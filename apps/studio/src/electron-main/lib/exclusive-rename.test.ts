@@ -53,12 +53,13 @@ const MODULE = path.join(
 describe.runIf(process.platform === "darwin" && existsSync(MODULE))(
   "the Mac module's rename",
   () => {
-    // `as`: a native module's exports are untyped; this is FUNCTIONS in addon.m.
-    const native = createRequire(import.meta.url)(MODULE) as {
-      renameExclusive: (from: string, to: string) => Promise<string>;
-    };
-
     it("refuses a taken name in one step, and renames to a free one", async () => {
+      // Required here rather than in the suite's body, which vitest runs
+      // while collecting even a suite `runIf` skips.
+      // `as`: a native module's exports are untyped; this is FUNCTIONS in addon.m.
+      const native = createRequire(import.meta.url)(MODULE) as {
+        renameExclusive: (from: string, to: string) => Promise<string>;
+      };
       expect(
         JSON.parse(
           await native.renameExclusive(

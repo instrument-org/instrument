@@ -477,8 +477,10 @@ describe("carrying out a plan", () => {
       op: "move",
       sources: ["src/a.txt", "src/b.txt"],
     });
-    await fs.rm(at("src/a.txt"));
-    await write({ "src/a.txt": "a new a" });
+    // Saved over as an editor does, a new file renamed onto the name: a
+    // delete then a write can get the freed inode back on Linux.
+    await write({ "src/a.txt.new": "a new a" });
+    await fs.rename(at("src/a.txt.new"), at("src/a.txt"));
 
     const outcome = await executePlacing("move", steps, ops());
 

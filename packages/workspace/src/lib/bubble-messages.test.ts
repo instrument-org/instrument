@@ -261,6 +261,18 @@ describe("BubbleProjection", () => {
     expect(kinds(feed.messages[1])).toEqual([]);
   });
 
+  it("holds back a reply behind a message that lands while it is written", () => {
+    const asked = user("Find me some sets");
+    const writing = assistant([text("Here are")], { finished: false });
+    const sentMeanwhile = user("Also check the charts");
+    const { feed } = new BubbleProjection().update({
+      isRunning: true,
+      messages: [asked, writing, sentMeanwhile],
+    });
+    expect(feed.drafting).toBe(true);
+    expect(kinds(feed.messages[1])).toEqual([]);
+  });
+
   it("shows a reply whose run ended before it finished", () => {
     const projection = new BubbleProjection();
     const cut = assistant([text("Cut off mid")], { finished: false });

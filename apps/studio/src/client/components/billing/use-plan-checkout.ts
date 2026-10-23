@@ -29,8 +29,6 @@ export function usePlanCheckout({
   // that goes through anyway is still noticed.
   const [openedFor, setOpenedFor] = useState<null | string>(null);
   const [isWaiting, setIsWaiting] = useState(false);
-  // The offer Checkout was opened with, so opening it again keeps it.
-  const offer = useRef<"beta" | undefined>(undefined);
   const { data: status } = useBillingStatus({
     pollMs: isWaiting ? WAITING_POLL_MS : undefined,
   });
@@ -62,7 +60,7 @@ export function usePlanCheckout({
     notified.current = null;
     setOpenedFor(plan);
     setIsWaiting(true);
-    checkout.mutate({ plan, ...(offer.current && { offer: offer.current }) });
+    checkout.mutate({ plan });
   };
 
   return {
@@ -75,16 +73,12 @@ export function usePlanCheckout({
     isWaiting,
     /** The plan Checkout was last opened for, waiting on it or not. */
     openedFor,
-    /** A fresh Checkout for the same plan and offer. */
+    /** A fresh Checkout for the same plan. */
     retry: () => {
       if (openedFor) {
         open(openedFor);
       }
     },
-    /** With `offer: "beta"`, Checkout carries the beta offer's free months. */
-    start: (plan: string, options: { offer?: "beta" } = {}) => {
-      offer.current = options.offer;
-      open(plan);
-    },
+    start: open,
   };
 }

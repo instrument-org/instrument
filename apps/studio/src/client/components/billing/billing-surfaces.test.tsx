@@ -46,7 +46,7 @@ const { mutation, platform, query, toastError } = vi.hoisted(() => {
     models: unknown[];
     offer: unknown;
     signedIn: boolean;
-    startTrial: () => Promise<unknown>;
+    startTrial: (input?: RPCInput["billing"]["startTrial"]) => Promise<unknown>;
     status: unknown;
   } = {
     changePlan: () => Promise.resolve(null),
@@ -133,7 +133,10 @@ vi.mock("@/client/rpc/client", () => ({
       openCheckout: { mutationOptions: mutation() },
       openPortal: { mutationOptions: mutation() },
       startTrial: {
-        mutationOptions: mutation(() => platform.startTrial()),
+        mutationOptions: mutation(
+          (input: RPCInput["billing"]["startTrial"]) =>
+            platform.startTrial(input),
+        ),
       },
       status: {
         key: () => ["status"],
@@ -637,6 +640,21 @@ describe("setup's plan step", () => {
       ).toBeDefined();
     },
   );
+
+  it("claims the beta offer as a trial, with no Checkout", async () => {
+    platform.offer = { ...OFFER_WITH_TRIAL, beta: { months: 1, plan: "pro" } };
+    platform.status = onFree();
+    const startTrial = vi.fn(() => Promise.resolve(onTrial()));
+    platform.startTrial = startTrial;
+    renderStep();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Claim your free month" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Your trial has started" }),
+    ).toBeDefined();
+    expect(startTrial).toHaveBeenCalledWith({ offer: "beta" });
+  });
 
   it("offers a subscription but no key while a trial can start", async () => {
     platform.offer = OFFER_WITH_TRIAL;

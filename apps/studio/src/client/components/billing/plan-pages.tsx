@@ -208,12 +208,28 @@ export function usePlanPages({
               ) : beta && betaPlan ? (
                 <PlanCards
                   beta={beta}
-                  busyPlan={checkout.isOpening ? betaPlan.key : null}
+                  busyPlan={startTrial.isPending ? betaPlan.key : null}
                   offer={offer}
-                  onChoose={(plan) => {
+                  onChoose={() => {
                     hold();
-                    checkout.start(plan.key, { offer: "beta" });
-                    setPage({ kind: "checkout" });
+                    startTrial.mutate(
+                      { offer: "beta" },
+                      {
+                        onSuccess: (started) => {
+                          const endsAt = started.trial.endsAt;
+                          setPage({
+                            days: endsAt
+                              ? Math.round(
+                                  (Date.parse(endsAt) - Date.now()) /
+                                    86_400_000,
+                                )
+                              : 0,
+                            ...(endsAt && { endsAt }),
+                            kind: "trial-started",
+                          });
+                        },
+                      },
+                    );
                   }}
                   status={status}
                 />
@@ -273,7 +289,7 @@ function cardsCopy(
     const months =
       beta.months === 1 ? "a month" : `${String(beta.months)} months`;
     return {
-      subtitle: `Thanks for testing ${APP_NAME}. No card needed. You'll finish in your browser.`,
+      subtitle: `Thanks for testing ${APP_NAME}. No card needed, and nothing renews on its own.`,
       title: `${betaPlan.name} is on us for ${months}`,
     };
   }

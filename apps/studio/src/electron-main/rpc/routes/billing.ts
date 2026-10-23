@@ -75,15 +75,11 @@ setHostedFeaturesReader(readStatus);
 
 const status = authenticated.handler(readStatus);
 
-/**
- * Stripe's hosted Checkout for one plan, in the system browser; with
- * `offer: "beta"`, the beta offer's free months of it.
- */
+/** Stripe's hosted Checkout for one plan, in the system browser. */
 const openCheckout = authenticated
-  .input(z.object({ offer: z.literal("beta").optional(), plan: z.string() }))
+  .input(z.object({ plan: z.string() }))
   .handler(async ({ input }) => {
     const { url } = await platformApiRpcClient.billing.createCheckout.call({
-      ...(input.offer && { offer: input.offer }),
       plan: input.plan,
     });
     await openBillingPage(url);
@@ -120,13 +116,16 @@ const changePlan = authenticated
 /**
  * Starts the free trial, the only way it starts, when the person picks it
  * (setup, the plan sheet, a refused chat); answers the billing status
- * with the trial's end date.
+ * with the trial's end date. With `offer: "beta"`, claims the beta offer's
+ * free months as the trial.
  */
-const startTrial = authenticated.handler(async () => {
-  const started = await platformApiRpcClient.billing.startTrial.call();
-  recordHostedFeatures(started.features);
-  return started;
-});
+const startTrial = authenticated
+  .input(z.object({ offer: z.literal("beta").optional() }).optional())
+  .handler(async ({ input }) => {
+    const started = await platformApiRpcClient.billing.startTrial.call(input);
+    recordHostedFeatures(started.features);
+    return started;
+  });
 
 const lastRefusal = base.handler(() => lastPlatformRefusal() ?? null);
 

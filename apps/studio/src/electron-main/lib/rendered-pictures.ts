@@ -6,6 +6,7 @@ import {
   type NativeImage,
   type OnBeforeRequestListenerDetails,
   session,
+  type WebContents,
 } from "electron";
 import fs from "node:fs/promises";
 import { pathToFileURL } from "node:url";
@@ -53,7 +54,7 @@ const PAGE_VIEWPORT = { height: 1312, width: 1024 };
 const DOCUMENT_VIEWPORT = { height: 1026, width: 800 };
 /** The longer side of what comes out, in px: the largest size a thumbnail is asked for. */
 const PICTURE_HEIGHT = 1024;
-/** The largest SVG drawn here; its data URL has to stay inside Chromium's 2MB for a URL. */
+/** The largest SVG drawn here; a larger one is left to the system rather than copied whole into a window. */
 const PICTURE_BYTES_MAX = 1024 * 1024;
 /** Windows drawn in at once; each holds one file. */
 const WINDOWS = 2;
@@ -77,7 +78,11 @@ const OFFSCREEN_SETTLE_MS = 150;
 /** The room a page's deferred scripts have to draw once it has loaded and its fonts are in. */
 const SETTLE_MS = 250;
 const SETTLE_TIMEOUT_MS = 1500;
-const IDLE_CLOSE_MS = 15_000;
+/**
+ * How long the windows wait for another file before they close. Starting one
+ * costs about 400ms, which a card in a chat would otherwise pay on most asks.
+ */
+const IDLE_CLOSE_MS = 120_000;
 /** How long a theme change is waited on before the load goes ahead without its answer. */
 const EMULATE_WAIT_MS = 300;
 /** How much of a file a document is set from; a thumbnail shows its first page. */
@@ -135,11 +140,10 @@ export async function renderPicture(
     window.setContentSize(viewport.width, viewport.height);
     const contents = window.webContents;
     try {
-      const load = contents.loadURL(
+      const load =
         document === undefined
-          ? pathToFileURL(hostPath).href
-          : `data:text/html;charset=utf-8,${encodeURIComponent(document)}`,
-      );
+          ? contents.loadURL(pathToFileURL(hostPath).href)
+          : writeDocument(contents, document);
       load.catch(() => {
         // A load still going when the picture is taken can fail after it,
         // with nothing waiting to hear so.
@@ -176,8 +180,9 @@ export async function renderPicture(
       });
       return { complete: loaded, image };
     } finally {
-      // Let the page go rather than leave its scripts running unseen.
-      if (!contents.isDestroyed()) {
+      // Let a page go rather than leave its scripts running unseen; a
+      // document runs nothing and stays until the next is written over it.
+      if (!contents.isDestroyed() && kind === "page") {
         void contents.loadURL("about:blank").catch(() => {
           // The window may be on its way out, which is the same end.
         });
@@ -189,7 +194,7 @@ export async function renderPicture(
 /**
  * An SVG as a browser draws it inline, in its own shape, {@link PICTURE_HEIGHT}
  * along its longer side. Drawn as an image, so the file runs no script and
- * loads nothing; one too large to pass as a data URL is left to the system.
+ * loads nothing; one past {@link PICTURE_BYTES_MAX} is left to the system.
  */
 async function drawPicture(
   window: BrowserWindow,
@@ -209,42 +214,50 @@ async function drawPicture(
   // shape is the rectangle photographed from that corner.
   window.setContentSize(PICTURE_HEIGHT, PICTURE_HEIGHT);
   const contents = window.webContents;
-  try {
-    await contents.loadURL(
-      `data:text/html;charset=utf-8,${encodeURIComponent(document)}`,
-    );
-    // Rejects for a file that is not a picture, which leaves it to the system.
-    const natural: unknown = await contents.executeJavaScript(
-      `(async () => { const image = document.images[0]; await image.decode(); await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))); return [image.naturalWidth, image.naturalHeight]; })()`,
-      true,
-    );
-    const [width, height] =
-      Array.isArray(natural) &&
-      natural.length === 2 &&
-      natural.every((side) => Number(side) > 0)
-        ? [Number(natural[0]), Number(natural[1])]
-        : [1, 1];
-    const scale = PICTURE_HEIGHT / Math.max(width, height);
-    const box = {
-      height: Math.max(1, Math.round(height * scale)),
-      width: Math.max(1, Math.round(width * scale)),
-    };
-    if (OFFSCREEN) {
-      await sleep(OFFSCREEN_SETTLE_MS);
-    }
-    const shot = await captureFrame(contents, {
-      deadlineMs: CAPTURE_TIMEOUT_MS,
-      rect: { ...box, x: 0, y: 0 },
-      rejectEmpty: true,
-    });
-    return { complete: true, image: shot.resize({ ...box, quality: "good" }) };
-  } finally {
-    if (!contents.isDestroyed()) {
-      void contents.loadURL("about:blank").catch(() => {
-        // The window may be on its way out, which is the same end.
-      });
-    }
+  await writeDocument(contents, document);
+  // Rejects for a file that is not a picture, which leaves it to the system.
+  const natural: unknown = await contents.executeJavaScript(
+    `(async () => { const image = document.images[0]; await image.decode(); await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))); return [image.naturalWidth, image.naturalHeight]; })()`,
+    true,
+  );
+  const [width, height] =
+    Array.isArray(natural) &&
+    natural.length === 2 &&
+    natural.every((side) => Number(side) > 0)
+      ? [Number(natural[0]), Number(natural[1])]
+      : [1, 1];
+  const scale = PICTURE_HEIGHT / Math.max(width, height);
+  const box = {
+    height: Math.max(1, Math.round(height * scale)),
+    width: Math.max(1, Math.round(width * scale)),
+  };
+  if (OFFSCREEN) {
+    await sleep(OFFSCREEN_SETTLE_MS);
   }
+  const shot = await captureFrame(contents, {
+    deadlineMs: CAPTURE_TIMEOUT_MS,
+    rect: { ...box, x: 0, y: 0 },
+    rejectEmpty: true,
+  });
+  return { complete: true, image: shot.resize({ ...box, quality: "good" }) };
+}
+
+/**
+ * The document written into the window's blank page. A navigation to it as a
+ * `data:` URL is a new document in a new origin every time, measured at about
+ * 70ms a file against about 10ms for this. The page is blanked again only
+ * when a page's file was the last thing in it. The policy every document
+ * carries stays with the page once written, so the next one is held to it as
+ * well as its own.
+ */
+async function writeDocument(contents: WebContents, html: string) {
+  if (contents.getURL() !== "about:blank") {
+    await contents.loadURL("about:blank");
+  }
+  await contents.executeJavaScript(
+    `document.open(); document.write(${JSON.stringify(html)}); document.close();`,
+    true,
+  );
 }
 
 /** The file set as a sheet of HTML that runs nothing and loads nothing. */

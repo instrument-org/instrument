@@ -73,6 +73,31 @@ function FileThumbnailLoadingOverlay() {
     </div>
   );
 }
+// What the box shows while its picture is on the way, where the caller says
+// what stands in for one: that, faded in once INSTANT_REVEAL_MS has passed
+// like the overlay, and faded out as the picture fades in over it, so a grid
+// scrolled faster than its pictures arrive shows each file's type.
+function FileThumbnailWaiting({
+  children,
+  isWaiting,
+}: {
+  children: React.ReactNode;
+  isWaiting: boolean;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cx(
+        "absolute inset-0 z-10 transition-opacity duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+        isWaiting ? "opacity-100" : "pointer-events-none opacity-0",
+      )}
+    >
+      <div className="size-full animate-in duration-300 fade-in-0 [animation-delay:300ms] [animation-fill-mode:backwards]">
+        {children}
+      </div>
+    </div>
+  );
+}
 export function FileThumbnail({
   bare = false,
   className,
@@ -217,7 +242,16 @@ export function FileThumbnail({
             {previewContent}
           </div>
         ) : null}
-        {showLoading ? <FileThumbnailLoadingOverlay /> : null}
+        {previewImageUrl &&
+        previewUnavailableContent &&
+        !imageFailed &&
+        instantPreviewImageUrl !== previewImageUrl ? (
+          <FileThumbnailWaiting isWaiting={showLoading}>
+            {previewUnavailableContent}
+          </FileThumbnailWaiting>
+        ) : showLoading ? (
+          <FileThumbnailLoadingOverlay />
+        ) : null}
         {showFallback ? (
           previewUnavailableContent ? (
             <div className="absolute inset-0 size-full">

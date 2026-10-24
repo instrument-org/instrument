@@ -66,18 +66,25 @@ const KEPT_BYTES = 256 * 1024 * 1024;
 const KEPT_MS = 60 * 24 * 60 * 60 * 1000;
 /** How many are drawn at once: the system's generator runs out of process. */
 const CONCURRENCY = 4;
+/** Sharp enough that a page's small type reads as it does in a PNG. */
+const JPEG_QUALITY = 90;
 
 export interface Deps {
   dir: string;
 }
 
+/** A picture encoded, and the format it is in, which is also its file's extension. */
+interface Encoded {
+  bytes: Buffer;
+  format: "jpg" | "png";
+}
+
 /**
- * A thumbnail as a PNG. An incomplete one is a page photographed before it
+ * A thumbnail encoded. An incomplete one is a page photographed before it
  * finished loading: shown, but kept nowhere, so the next ask draws it again.
  */
-export interface Thumbnail {
+export interface Thumbnail extends Encoded {
   complete: boolean;
-  png: Buffer;
 }
 
 /** Where thumbnails are kept: beside the app's other caches of the person's files. */
@@ -113,11 +120,10 @@ export async function fileThumbnail(
     return pending;
   }
   const request = (async () => {
-    const stored = path.join(deps.dir, `${key}.png`);
     const none = path.join(deps.dir, `${key}.none`);
-    const kept = await fs.readFile(stored).catch(() => null);
+    const kept = await readKept(deps.dir, key);
     if (kept) {
-      return { complete: true, png: kept };
+      return { complete: true, ...kept };
     }
     if (
       await fs.stat(none).then(
@@ -155,21 +161,54 @@ export async function fileThumbnail(
       await fs.writeFile(none, "");
       return null;
     }
-    const png = image.toPNG();
+    const encoded = encode(image);
     if (!complete) {
-      return { complete, png };
+      return { complete, ...encoded };
     }
-    await fs.writeFile(stored, png);
+    await fs.writeFile(
+      path.join(deps.dir, `${key}.${encoded.format}`),
+      encoded.bytes,
+    );
     written += 1;
     if (written % 200 === 1) {
       void pruneThumbnails(deps.dir);
     }
-    return { complete, png };
+    return { complete, ...encoded };
   })().finally(() => {
     inFlight.delete(key);
   });
   inFlight.set(key, request);
   return request;
+}
+
+/**
+ * The picture as a JPEG where every pixel is opaque, and as a PNG where any
+ * of it shows through. Both encode on the main thread, and a JPEG takes a
+ * tenth to a fiftieth of a PNG's time there and comes out far smaller, which
+ * is most of what a folder of thumbnails costs the app's own thread.
+ */
+function encode(image: NativeImage): Encoded {
+  const bitmap = image.toBitmap();
+  // Four bytes a pixel, alpha last whichever order the other three are in.
+  for (let at = 3; at < bitmap.length; at += 4) {
+    if (bitmap[at] !== 0xff) {
+      return { bytes: image.toPNG(), format: "png" };
+    }
+  }
+  return { bytes: image.toJPEG(JPEG_QUALITY), format: "jpg" };
+}
+
+/** The picture kept on disk under `key`, in whichever format it was kept in. */
+async function readKept(dir: string, key: string): Promise<Encoded | null> {
+  for (const format of ["jpg", "png"] as const) {
+    const bytes = await fs
+      .readFile(path.join(dir, `${key}.${format}`))
+      .catch(() => null);
+    if (bytes) {
+      return { bytes, format };
+    }
+  }
+  return null;
 }
 
 /** Whether macOS's privacy controls keep the app from opening the file. */
@@ -341,16 +380,22 @@ async function renderedAt(
   let pending = renderedInFlight.get(key);
   if (!pending) {
     pending = (async () => {
-      const stored = path.join(deps.dir, `${key}.png`);
-      const kept = await fs.readFile(stored).catch(() => null);
+      const kept = await readKept(deps.dir, key);
       if (kept) {
-        return { complete: true, image: nativeImage.createFromBuffer(kept) };
+        return {
+          complete: true,
+          image: nativeImage.createFromBuffer(kept.bytes),
+        };
       }
       try {
         const { complete, image } = await renderPicture(hostPath, theme);
         if (complete) {
+          const encoded = encode(image);
           await fs.mkdir(deps.dir, { recursive: true });
-          await fs.writeFile(stored, image.toPNG());
+          await fs.writeFile(
+            path.join(deps.dir, `${key}.${encoded.format}`),
+            encoded.bytes,
+          );
         }
         return { complete, image };
       } catch {

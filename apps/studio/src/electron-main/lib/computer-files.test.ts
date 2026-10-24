@@ -133,20 +133,22 @@ describe("handleComputerFileRequest", () => {
   });
 
   it.each([
-    [true, "public, max-age=31536000, immutable"],
-    [false, "no-store"],
-  ])(
-    "answers a versioned thumbnail drawn complete: %s with %s",
-    async (complete, cacheControl) => {
+    [true, "jpg", "public, max-age=31536000, immutable", "image/jpeg"],
+    [false, "png", "no-store", "image/png"],
+  ] as const)(
+    "answers a versioned thumbnail drawn complete: %s as %s with %s",
+    async (complete, format, cacheControl, contentType) => {
       vi.mocked(fileThumbnail).mockResolvedValueOnce({
+        bytes: Buffer.from("picture"),
         complete,
-        png: Buffer.from("png"),
+        format,
       });
       const response = await request(
         urlFor(file, `?thumbnail=512&version=${mtimeMs}`),
       );
       expect(response.status).toBe(200);
       expect(response.headers.get("Cache-Control")).toBe(cacheControl);
+      expect(response.headers.get("Content-Type")).toBe(contentType);
     },
   );
 

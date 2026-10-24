@@ -206,20 +206,36 @@ function ThumbnailPicture({
     version: URL.parse(file.url)?.searchParams.get("version") ?? undefined,
   });
   const [failed, setFailed] = useState<string>();
+  const [loaded, setLoaded] = useState<string>();
   if (!picture || failed === picture) {
     return fallback;
   }
   return (
-    <ThumbnailFrame isActive={isActive} variant="primary">
-      <img
-        alt=""
-        className="size-full object-cover object-top"
-        draggable={false}
-        onError={() => {
-          setFailed(picture);
-        }}
-        src={picture}
-      />
-    </ThumbnailFrame>
+    <div className="relative shrink-0">
+      <ThumbnailFrame isActive={isActive} variant="primary">
+        <img
+          alt=""
+          className="size-full object-cover object-top"
+          draggable={false}
+          onError={() => {
+            setFailed(picture);
+          }}
+          onLoad={() => {
+            setLoaded(picture);
+          }}
+          src={picture}
+        />
+      </ThumbnailFrame>
+      {/* The file's mark over the frame while its picture is drawn, after a
+          moment, so a picture already on hand never shows it. */}
+      {loaded === picture ? null : (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 animate-in duration-300 fade-in-0 [animation-delay:300ms] [animation-fill-mode:backwards]"
+        >
+          {fallback}
+        </div>
+      )}
+    </div>
   );
 }

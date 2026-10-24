@@ -182,8 +182,11 @@ app.all("/*", async (c) => {
         : "no-cache";
     }
     c.header("Cache-Control", cacheControl);
-    c.header("Content-Type", "image/png");
-    return c.body(new Uint8Array(drawn.png));
+    c.header(
+      "Content-Type",
+      drawn.format === "jpg" ? "image/jpeg" : "image/png",
+    );
+    return c.body(new Uint8Array(drawn.bytes));
   }
   // A file's stat answers where opening it is refused (macOS in a folder it
   // refuses the app, any system for a file the account can't read), so the

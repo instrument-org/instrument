@@ -48,6 +48,8 @@ export const RPC_ERROR_CODES = {
   NOT_A_FOLDER: "expected",
   NOTHING_TO_UNDO: "expected",
   NOT_UTF8: "expected",
+  // A system folder, or the workspace's own, that Files leaves in place.
+  PROTECTED: "expected",
   UNSUPPORTED_PLATFORM: "expected",
   UNSUPPORTED_TYPE: "expected",
   WINDOWS_PROTECTION: "expected",

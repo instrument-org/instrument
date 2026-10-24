@@ -93,7 +93,24 @@ describe("titleLabel", () => {
       "https://news.ycombinator.com/item?id=1",
       "Ask HN: What are you working on?",
     ],
-    ["Serious Eats", "https://www.seriouseats.com/", "Serious Eats"],
+    [
+      "File:Joseph Severn - Ariel riding on a Bat.jpg - Wikimedia Commons",
+      "https://commons.wikimedia.org/wiki/File:Joseph_Severn.jpg",
+      "File:Joseph Severn - Ariel riding on a Bat.jpg",
+    ],
+    [
+      "ElevenLabs: Create natural AI voices instantly in any language | Product Hunt",
+      "https://www.producthunt.com/products/elevenlabs",
+      "ElevenLabs: Create natural AI voices instantly in any language",
+    ],
+    [
+      "Download and Install Code Signing Certificate :: GlobalSign Support",
+      "https://support.globalsign.com/code-signing/install",
+      "Download and Install Code Signing Certificate",
+    ],
+    // The site's name alone is what a page behind a sign-in answers with.
+    ["Notion", "https://app.notion.com/p/d2344fda0d8a", undefined],
+    ["Reddit", "https://www.reddit.com/r/espresso/", undefined],
   ])("labels %s", (title, href, label) => {
     expect(titleLabel(title, href)).toBe(label);
   });

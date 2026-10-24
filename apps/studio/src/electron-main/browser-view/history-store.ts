@@ -128,6 +128,13 @@ CREATE TABLE IF NOT EXISTS file_opens (
 ) STRICT;
 CREATE INDEX IF NOT EXISTS file_opens_file ON file_opens(file_id);
 CREATE INDEX IF NOT EXISTS files_last_open ON files(last_open);
+-- Titles asked of pages a person's sent message linked to, which no tab has
+-- opened; kept here so clearing history clears them too.
+CREATE TABLE IF NOT EXISTS fetched_titles (
+  url TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  at INTEGER NOT NULL
+) STRICT;
 `;
 
 /** A visit that counts toward history: the person's own, and not hidden. */
@@ -276,6 +283,9 @@ export function createHistoryStore(file: string) {
       database.exec(
         "DELETE FROM urls WHERE id NOT IN (SELECT DISTINCT url_id FROM visits)",
       );
+      database
+        .prepare("DELETE FROM fetched_titles WHERE at >= ?")
+        .run(since ?? 0);
       database.exec(REFRESH);
       changed();
       return { removed };
@@ -365,6 +375,7 @@ export function createHistoryStore(file: string) {
 
     /** Takes a page off the person's history: their visits to it, and the row once nothing else visited it. */
     remove(url: string) {
+      database.prepare("DELETE FROM fetched_titles WHERE url = ?").run(url);
       const row = statements.urlId.get(url);
       if (row === undefined) {
         return;
@@ -392,6 +403,16 @@ export function createHistoryStore(file: string) {
       if (Number(result.changes) > 0) {
         changed();
       }
+    },
+
+    /** The title a page a person's message linked to gave when asked. */
+    setFetchedTitle(url: string, title: string, at: number) {
+      database
+        .prepare(
+          "INSERT INTO fetched_titles (url, title, at) VALUES (?, ?, ?) ON CONFLICT(url) DO UPDATE SET title = excluded.title, at = excluded.at",
+        )
+        .run(url, title, at);
+      changed();
     },
 
     /** A title for the addresses of the given visits, which a redirect chain shares. */
@@ -426,17 +447,24 @@ export function createHistoryStore(file: string) {
 
     /**
      * The title a page set when last opened, by the person or an agent, for
-     * a link written as the page's address to be drawn as. A page whose every
-     * visit failed or was replaced has none worth showing. An address and the
-     * same one with or without a closing slash are the same page here.
+     * a link written as the page's address to be drawn as, or else the one it
+     * gave when a person's message linked to it. A page whose every visit
+     * failed or was replaced has none worth showing. An address and the same
+     * one with or without a closing slash are the same page here.
      */
     titleOf(url: string): string | undefined {
       const other = url.endsWith("/") ? url.slice(0, -1) : `${url}/`;
-      const row = database
-        .prepare(
-          "SELECT title FROM urls WHERE url IN (?, ?) AND title != '' AND EXISTS (SELECT 1 FROM visits WHERE url_id = urls.id AND hidden_by IS NULL) ORDER BY url = ? DESC LIMIT 1",
-        )
-        .get(url, other, url);
+      const row =
+        database
+          .prepare(
+            "SELECT title FROM urls WHERE url IN (?, ?) AND title != '' AND EXISTS (SELECT 1 FROM visits WHERE url_id = urls.id AND hidden_by IS NULL) ORDER BY url = ? DESC LIMIT 1",
+          )
+          .get(url, other, url) ??
+        database
+          .prepare(
+            "SELECT title FROM fetched_titles WHERE url IN (?, ?) ORDER BY url = ? DESC LIMIT 1",
+          )
+          .get(url, other, url);
       return row === undefined ? undefined : String(row.title);
     },
 

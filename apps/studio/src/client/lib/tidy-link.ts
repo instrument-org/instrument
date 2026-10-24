@@ -72,15 +72,23 @@ function decodeReadable(text: string): string {
 const MAX_TITLE_LENGTH = 80;
 
 // What a page puts between its own name and the site's: "Chili | Serious
-// Eats", "Amazon.com: Voss Water", "Fix · GitHub".
-const TITLE_SEPARATOR = /(\s[|·•–—-]\s|:\s)/u;
+// Eats", "Amazon.com: Voss Water", "Fix · GitHub", "Install :: Support".
+const TITLE_SEPARATOR = /(\s(?:[|·•–—-]|::)\s|:\s)/u;
 
 /**
  * A page's title as a link's label: without the site's name at either end,
  * which the site's icon in front already says, and cut at a reading length.
+ * Undefined when the title is the site's name and nothing else, which a page
+ * behind a sign-in answers with: a link to one page labeled "Notion" says
+ * less than its address does.
  */
-export function titleLabel(title: string, href: string): string {
-  const trimmed = withoutSiteName(title.trim(), href);
+export function titleLabel(title: string, href: string): string | undefined {
+  const names = siteNamesOf(href);
+  const whole = title.trim();
+  if (isSiteName(whole, names)) {
+    return undefined;
+  }
+  const trimmed = withoutSiteName(whole, names);
   if (trimmed.length <= MAX_TITLE_LENGTH) {
     return trimmed;
   }
@@ -89,25 +97,28 @@ export function titleLabel(title: string, href: string): string {
   return `${(lastSpace > MAX_TITLE_LENGTH / 2 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
 
-function withoutSiteName(title: string, href: string): string {
-  const names = siteNamesOf(href);
-  const isSiteName = (segment: string) => {
-    const folded = segment.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
-    // A little past the name, for a ".com" or a "Blog" after it.
-    return names.some(
-      (name) => folded.startsWith(name) && folded.length <= name.length + 6,
-    );
-  };
+/**
+ * Whether a piece of a title is the site's name: a few words spelling one of
+ * the words in its host, the way "Wikimedia Commons" spells commons.wikimedia.org.
+ */
+function isSiteName(segment: string, names: string[]): boolean {
+  const folded = segment.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  return (
+    segment.split(/\s+/u).length <= 3 &&
+    names.some((name) => folded.includes(name))
+  );
+}
+
+function withoutSiteName(title: string, names: string[]): string {
   // Segments at the even places, the separators between them at the odd.
   const parts = title.split(TITLE_SEPARATOR);
   if (parts.length < 3) {
     return title;
   }
-  const last = parts.at(-1) ?? "";
-  if (isSiteName(last)) {
+  if (isSiteName(parts.at(-1) ?? "", names)) {
     return parts.slice(0, -2).join("").trim();
   }
-  if (isSiteName(parts[0] ?? "")) {
+  if (isSiteName(parts[0] ?? "", names)) {
     return parts.slice(2).join("").trim();
   }
   return title;

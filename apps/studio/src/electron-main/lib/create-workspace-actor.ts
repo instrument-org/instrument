@@ -2,6 +2,7 @@ import {
   isHostedFeatureAvailable,
   isPlatformSearchForEveryModel,
 } from "@/electron-main/lib/hosted-features";
+import { lookUpSentLinkTitles } from "@/electron-main/browser-view/sent-link-titles";
 import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
@@ -138,6 +139,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       ),
       getAIProviderConfigs,
       getUser: getSignedInUser,
+      lookUpSentLinkTitles,
       // This computer's folder, and in it the workspace's: where the
       // folder rules, the browser profile and the apps' servers are, which
       // the agent never reaches.

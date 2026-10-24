@@ -340,6 +340,11 @@ export interface WorkspaceConfig {
    */
   programsWithoutSandbox?: boolean;
   pnpmBinPath: AbsolutePath;
+  /**
+   * Told the words of each message a person sends, for the app to look up the
+   * titles of the pages it links to by their bare addresses.
+   */
+  lookUpSentLinkTitles?: (text: string) => void;
   /** Told about each hosted request our platform refused (no plan, a spent window). */
   reportPlatformRefusal?: ReportPlatformRefusal;
   registryDir: AbsolutePath;

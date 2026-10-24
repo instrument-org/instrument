@@ -4,7 +4,7 @@ import {
   splitSkillMention,
 } from "@instrument-org/shared/skill-mention";
 
-import { type LinkTextSegment, splitLinks } from "./link-text";
+import { type LinkTextSegment, splitLinks } from "@/shared/link-text";
 
 /** A sent message's segments: the skill references, plus the links. */
 export type MessageTextSegment =

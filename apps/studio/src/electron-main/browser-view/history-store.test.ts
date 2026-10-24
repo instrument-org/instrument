@@ -65,6 +65,29 @@ describe("history store", () => {
     expect(history.titleOf("https://a.test/other")).toBeUndefined();
   });
 
+  it("knows a title asked of a page a sent message linked to, until history is cleared", () => {
+    const history = store();
+    history.setFetchedTitle("https://a.test/page", "Asked", 5);
+    expect(history.titleOf("https://a.test/page")).toBe("Asked");
+    history.clear(10);
+    expect(history.titleOf("https://a.test/page")).toBe("Asked");
+    history.clear(5);
+    expect(history.titleOf("https://a.test/page")).toBeUndefined();
+  });
+
+  it("prefers the title a tab saw over one asked for", () => {
+    const history = store();
+    history.setFetchedTitle("https://a.test/", "Asked", 1);
+    const visit = history.addVisit({
+      actor: "user",
+      at: 2,
+      transition: "link",
+      url: "https://a.test/",
+    });
+    history.setTitle([visit], "Seen");
+    expect(history.titleOf("https://a.test/")).toBe("Seen");
+  });
+
   it("knows no title for a page that only failed to load", () => {
     const history = store();
     const visit = history.addVisit({

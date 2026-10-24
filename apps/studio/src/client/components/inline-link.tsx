@@ -501,13 +501,16 @@ function WebLink({
   const url = webUrl(href);
   const label = textOf(children);
   const tidy = label === undefined ? undefined : tidyLink(href, label);
-  // Only a title this computer already has: asking the page for one would
-  // tell whoever wrote the address that it was read.
+  // Only a title this computer already has. Nothing here asks a page for
+  // one, which would tell whoever wrote the address that it was read; the
+  // pages a person's own message links to are asked once when it is sent
+  // (`lookUpSentLinkTitles`).
   const { data: pageTitle } = useQuery(
     rpcClient.history.live.title.experimental_liveOptions({
       input: tidy ? { url: href } : skipToken,
     }),
   );
+  const titled = pageTitle ? titleLabel(pageTitle, href) : undefined;
 
   const anchor = (
     <ExternalLink
@@ -530,8 +533,8 @@ function WebLink({
         <bdi
           className={cn("whitespace-normal", INLINE_LINK_UNDERLINE_CLASS_NAME)}
         >
-          {tidy && pageTitle ? (
-            titleLabel(pageTitle, href)
+          {tidy && titled ? (
+            titled
           ) : tidy ? (
             <TidyLabel tidy={tidy} />
           ) : (

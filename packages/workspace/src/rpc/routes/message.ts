@@ -194,6 +194,7 @@ const create = base
         if (written.isErr()) {
           throw toORPCError(written.error, errors);
         }
+        context.workspaceConfig.lookUpSentLinkTitles?.(prompt);
         // The chat's `CHAT.md` takes the message the person just sent,
         // without the send waiting on it, unless what they sent is still to
         // move into the chat's folder: the turn names each file where it is,

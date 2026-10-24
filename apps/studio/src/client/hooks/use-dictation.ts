@@ -388,8 +388,11 @@ export function useDictation({
         notice.keepsRecording &&
         retry && { cancel: { label: "Try again", onClick: retry } }),
       description: notice.description,
-      // A toast that holds a recording stays until it is answered.
-      ...(notice.keepsRecording && { duration: Number.POSITIVE_INFINITY }),
+      // A toast that holds a recording stays until it is answered, and so
+      // does Reopen, the one place a chat says a restart is needed.
+      ...((notice.keepsRecording || notice.action === "reopen") && {
+        duration: Number.POSITIVE_INFINITY,
+      }),
       id: nextToastId(),
     };
     dismissToast();

@@ -7,12 +7,14 @@ const log = createScopedLogger("mainThread");
 const TICK_MS = 100;
 const STALL_MS = 250;
 
-/** RPC procedures running now, by call, so two calls of one path count twice. */
+/** RPC procedures in flight now, by call, so two calls of one path count twice. */
 const running = new Map<symbol, string>();
 /**
- * Every procedure that ran at some point since the last tick. A handler that
- * blocks in a synchronous call has usually finished by the time the late tick
- * runs, so what is running then would leave out the one that stalled.
+ * Every procedure that started or settled since the last tick: the moments a
+ * handler's own code runs on this thread. A handler that blocks in a
+ * synchronous call has usually settled by the time the late tick runs, so
+ * what is in flight then would leave out the one that stalled, and a call
+ * merely waiting on the network would be named beside every stall it spans.
  */
 let ranSinceTick = new Set<string>();
 
@@ -33,6 +35,7 @@ export async function trackRPCForStalls<T>(options: {
     return await options.next();
   } finally {
     running.delete(call);
+    ranSinceTick.add(path);
   }
 }
 
@@ -60,14 +63,26 @@ export function watchMainThreadStalls() {
     const late = now - last - TICK_MS;
     last = now;
     const ran = ranSinceTick;
-    ranSinceTick = new Set(running.values());
+    ranSinceTick = new Set();
     if (isSuspended || late < STALL_MS) {
       return;
     }
     log.warn(
       `Main thread stalled for ${Math.round(late)}ms`,
-      ran.size > 0 ? `during ${[...ran].join(", ")}` : "outside RPC",
+      describeStall(ran, running.values()),
     );
   }, TICK_MS);
   timer.unref();
+}
+
+/**
+ * Names what ran during a stall apart from what was only in flight across
+ * it, since a call awaiting a reply holds no thread.
+ */
+export function describeStall(ran: Set<string>, inFlight: Iterable<string>) {
+  const waiting = [...new Set(inFlight)].filter((path) => !ran.has(path));
+  const during = ran.size > 0 ? `during ${[...ran].join(", ")}` : "outside RPC";
+  return waiting.length > 0
+    ? `${during} (in flight: ${waiting.join(", ")})`
+    : during;
 }

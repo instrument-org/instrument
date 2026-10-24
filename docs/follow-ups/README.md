@@ -29,7 +29,7 @@ Open first, earliest check first; closed ones after.
 
 | Follow-up | Check after | Status |
 | --- | --- | --- |
-| [How often and how long the main thread stalls](main-thread-stalls.md) | 2026-11-07, once stall attribution is fixed | open, signal needs fixing |
+| [How often and how long the main thread stalls](main-thread-stalls.md) | 2026-11-14, after a week on a beta with the attribution fix | open |
 | [Which processes stay busy, and whether tab sleep ended the hidden-tab cost](sustained-cpu-and-tab-sleep.md) | 2026-11-07, after a week on beta 102 | open |
 | [Why Claude account sessions cold-start](claude-account-cold-starts.md) | 2026-11-07, after a week of Claude account chats | open |
 | [Why an agent-browser command sometimes never comes back](stuck-agent-browser-commands.md) | 2026-11-21, after a week on the test hosts | open |

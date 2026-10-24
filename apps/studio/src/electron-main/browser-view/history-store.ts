@@ -425,6 +425,22 @@ export function createHistoryStore(file: string) {
     },
 
     /**
+     * The title a page set when last opened, by the person or an agent, for
+     * a link written as the page's address to be drawn as. A page whose every
+     * visit failed or was replaced has none worth showing. An address and the
+     * same one with or without a closing slash are the same page here.
+     */
+    titleOf(url: string): string | undefined {
+      const other = url.endsWith("/") ? url.slice(0, -1) : `${url}/`;
+      const row = database
+        .prepare(
+          "SELECT title FROM urls WHERE url IN (?, ?) AND title != '' AND EXISTS (SELECT 1 FROM visits WHERE url_id = urls.id AND hidden_by IS NULL) ORDER BY url = ? DESC LIMIT 1",
+        )
+        .get(url, other, url);
+      return row === undefined ? undefined : String(row.title);
+    },
+
+    /**
      * What clearing from `since` would take, as the person sees it: how many
      * pages they visited visibly in that time, and the hosts of those pages,
      * most-visited first.

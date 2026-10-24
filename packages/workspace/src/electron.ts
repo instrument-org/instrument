@@ -206,7 +206,7 @@ export {
 } from "./machines/workspace";
 export { router as workspaceRouter } from "./rpc";
 export type { WorkspaceRPCContext } from "./rpc/base";
-export { liveRead, where } from "./rpc/live-read";
+export { distinct, liveRead, where } from "./rpc/live-read";
 export {
   type AbsolutePath,
   RelativePathSchema,

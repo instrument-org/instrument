@@ -51,6 +51,33 @@ describe("history store", () => {
     ]);
   });
 
+  it("knows the title of a page an agent opened, with or without a closing slash", () => {
+    const history = store();
+    const visit = history.addVisit({
+      actor: "agent",
+      at: 1,
+      transition: "link",
+      url: "https://a.test/page",
+    });
+    history.setTitle([visit], "A page");
+    expect(history.titleOf("https://a.test/page")).toBe("A page");
+    expect(history.titleOf("https://a.test/page/")).toBe("A page");
+    expect(history.titleOf("https://a.test/other")).toBeUndefined();
+  });
+
+  it("knows no title for a page that only failed to load", () => {
+    const history = store();
+    const visit = history.addVisit({
+      actor: "user",
+      at: 1,
+      transition: "link",
+      url: "https://a.test/",
+    });
+    history.setTitle([visit], "Not Found");
+    history.hideVisit(visit, "error");
+    expect(history.titleOf("https://a.test/")).toBeUndefined();
+  });
+
   it("keeps a page visible elsewhere when one of its visits turns out to be a redirect", () => {
     const history = store();
     history.addVisit({

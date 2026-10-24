@@ -67,3 +67,57 @@ function decodeReadable(text: string): string {
     }
   });
 }
+
+/** How long a page's title runs as a link's label before it is cut. */
+const MAX_TITLE_LENGTH = 80;
+
+// What a page puts between its own name and the site's: "Chili | Serious
+// Eats", "Amazon.com: Voss Water", "Fix · GitHub".
+const TITLE_SEPARATOR = /(\s[|·•–—-]\s|:\s)/u;
+
+/**
+ * A page's title as a link's label: without the site's name at either end,
+ * which the site's icon in front already says, and cut at a reading length.
+ */
+export function titleLabel(title: string, href: string): string {
+  const trimmed = withoutSiteName(title.trim(), href);
+  if (trimmed.length <= MAX_TITLE_LENGTH) {
+    return trimmed;
+  }
+  const cut = trimmed.slice(0, MAX_TITLE_LENGTH);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > MAX_TITLE_LENGTH / 2 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+
+function withoutSiteName(title: string, href: string): string {
+  const names = siteNamesOf(href);
+  const isSiteName = (segment: string) => {
+    const folded = segment.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+    // A little past the name, for a ".com" or a "Blog" after it.
+    return names.some(
+      (name) => folded.startsWith(name) && folded.length <= name.length + 6,
+    );
+  };
+  // Segments at the even places, the separators between them at the odd.
+  const parts = title.split(TITLE_SEPARATOR);
+  if (parts.length < 3) {
+    return title;
+  }
+  const last = parts.at(-1) ?? "";
+  if (isSiteName(last)) {
+    return parts.slice(0, -2).join("").trim();
+  }
+  if (isSiteName(parts[0] ?? "")) {
+    return parts.slice(2).join("").trim();
+  }
+  return title;
+}
+
+/** The words a site's name is spelled from in its host: `seriouseats` for www.seriouseats.com. */
+function siteNamesOf(href: string): string[] {
+  const host = URL.parse(href)?.hostname ?? "";
+  return host
+    .split(".")
+    .slice(0, -1)
+    .filter((label) => label.length >= 3 && label !== "www");
+}

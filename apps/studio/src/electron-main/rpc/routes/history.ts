@@ -3,7 +3,7 @@ import {
   getHistoryStore,
   recordFileOpen,
 } from "@/electron-main/browser-view/history-store";
-import { liveRead } from "@instrument-org/workspace/electron";
+import { distinct, liveRead } from "@instrument-org/workspace/electron";
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
@@ -107,6 +107,23 @@ const live = {
         changes: [store.changes.subscribe("changed", { signal })],
         read: () => store.significant(LIMIT_MAX, Date.now()),
       });
+    }),
+  /**
+   * The title a page set when last opened in the app's browser, for a link
+   * written as its address; null when no tab has opened it.
+   */
+  title: base
+    .input(z.object({ url: z.string() }))
+    .output(eventIterator(z.string().nullable()))
+    .handler(async function* ({ input, signal }) {
+      const store = getHistoryStore();
+      // Every visit anywhere is a change; only one to this title is news.
+      yield* distinct(
+        liveRead({
+          changes: [store.changes.subscribe("changed", { signal })],
+          read: () => store.titleOf(input.url) ?? null,
+        }),
+      );
     }),
   /** The person's visible pages, newest first. */
   recent: base

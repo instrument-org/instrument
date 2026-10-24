@@ -69,16 +69,32 @@ vi.mock("@/client/components/theme-provider", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }));
 
-vi.mock("@/client/rpc/client", () => ({
-  rpcClient: {
-    utils: {
-      openExternalLink: { mutationOptions: () => ({ mutationFn: vi.fn() }) },
+vi.mock("@/client/rpc/client", async () => {
+  const { skipToken } = await import("@tanstack/react-query");
+  return {
+    rpcClient: {
+      // No tab has opened any page here, so a bare address is never a title.
+      history: {
+        live: {
+          title: {
+            experimental_liveOptions: ({ input }: { input: unknown }) => ({
+              queryFn: skipToken,
+              queryKey: ["history", "title", input],
+            }),
+          },
+        },
+      },
+      utils: {
+        openExternalLink: { mutationOptions: () => ({ mutationFn: vi.fn() }) },
+      },
+      get workspace(): never {
+        throw new Error(
+          "a rendering file link resolved a file over the network",
+        );
+      },
     },
-    get workspace(): never {
-      throw new Error("a rendering file link resolved a file over the network");
-    },
-  },
-}));
+  };
+});
 
 // The channel a person's viewers read a file through, hoisted for the mock
 // below it: a `vi.mock` factory runs before the module's own bindings exist.

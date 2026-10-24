@@ -11,8 +11,9 @@ import {
   mailtoAddress,
   webUrl,
 } from "@/client/lib/link-target";
-import { type TidyLink, tidyLink } from "@/client/lib/tidy-link";
+import { type TidyLink, tidyLink, titleLabel } from "@/client/lib/tidy-link";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { settingsPathOf } from "@/client/components/settings/settings-index";
 import { type InstrumentLink, instrumentLinkOf } from "@instrument-org/shared";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
@@ -22,6 +23,7 @@ import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { Children, type ReactNode } from "react";
 
 import { EmailLink } from "./email-link";
@@ -475,8 +477,9 @@ function textOf(children: ReactNode): string | undefined {
  * The alternative was a chip wherever the label happened to be exactly an
  * origin, and the rule deciding that was invisible to anyone who did not
  * already know it: two links a line apart, one boxed and one not, with nothing
- * on screen saying why. A label that is the address itself is drawn short
- * ({@link TidyLabel}), since the tooltip has the rest of it.
+ * on screen saying why. A label that is the address itself is drawn as the
+ * page's title when the app's browser has opened the page, and short
+ * ({@link TidyLabel}) otherwise, since the tooltip has the rest of it.
  *
  * The whole thing is one anchor, so a click anywhere on it opens the same URL,
  * and the label is wrapped in `bdi` so a right-to-left one cannot reorder
@@ -498,6 +501,13 @@ function WebLink({
   const url = webUrl(href);
   const label = textOf(children);
   const tidy = label === undefined ? undefined : tidyLink(href, label);
+  // Only a title this computer already has: asking the page for one would
+  // tell whoever wrote the address that it was read.
+  const { data: pageTitle } = useQuery(
+    rpcClient.history.live.title.experimental_liveOptions({
+      input: tidy ? { url: href } : skipToken,
+    }),
+  );
 
   const anchor = (
     <ExternalLink
@@ -520,7 +530,13 @@ function WebLink({
         <bdi
           className={cn("whitespace-normal", INLINE_LINK_UNDERLINE_CLASS_NAME)}
         >
-          {tidy ? <TidyLabel tidy={tidy} /> : children}
+          {tidy && pageTitle ? (
+            titleLabel(pageTitle, href)
+          ) : tidy ? (
+            <TidyLabel tidy={tidy} />
+          ) : (
+            children
+          )}
         </bdi>
       </span>
     </ExternalLink>

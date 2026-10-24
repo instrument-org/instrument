@@ -44,6 +44,7 @@ import { WEB_SEARCH_EVALS } from "./web-search";
 import { WINDOW_TABS_EVALS } from "./window-tabs";
 import { WORKER_EVALS } from "./worker";
 import { WORK_FOLDER_EVALS } from "./work-folder";
+import { WORKSPACE_HYGIENE_EVALS } from "./workspace-hygiene";
 import { WORKSPACE_PARTS_EVALS } from "./workspace-parts";
 
 export const EVALS = [
@@ -72,6 +73,7 @@ export const EVALS = [
   ...INSTRUMENT_GUIDE_EVALS,
   ...MEMORY_EVALS,
   ...WORKSPACE_PARTS_EVALS,
+  ...WORKSPACE_HYGIENE_EVALS,
   ...MESSAGE_BLOCK_EVALS,
   ...CHAT_EVALS,
   ...OUTBOUND_EVALS,

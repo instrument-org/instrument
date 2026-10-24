@@ -13,7 +13,7 @@ The facts (`SetupFacts`, `shared/setup.ts`):
 | Fact | Read from |
 |---|---|
 | Usable AI | `getAllAIProviderConfigs()`, with each ChatGPT, Claude and Grok account checked again (`checkAccount`): an account the check calls ready or out of usage counts, one with no paid plan does not. Claude's status is waited on with a deadline, so a Claude-only person never flashes as new. |
-| Instrument account | `hasToken()`, then `billing.status` and `billing.offer` for the plan step |
+| Instrument account | `hasToken()`, then `billing.status` for whether it has a plan or a running trial |
 | Has chats | the workspace has chats (`workspaceHasChats()`); the folder step's move copy keys on it |
 | Tested before | a chat in the workspace was started by a 2.0 beta (its own session's log header names the build) or came from 1.x or a `chat.db` (`workspaceTestedBefore()`); Welcome back keys on it |
 | Has a workspace | the launch opened one; false only when there was none to open (`needsPlacing`), until the folder step places it |
@@ -28,8 +28,7 @@ The steps, in order (`SETUP_STEPS`):
 |---|---|---|
 | `welcome-back` | tested before, and setup never finished | answering it |
 | `folder` | no workspace, or the folder isn't settled | the fact, and answering it; placing a first launch's workspace answers Welcome back too |
-| `way-in` | no usable AI | the fact (no answer is kept) |
-| `plan` | an Instrument account with no subscription and no running trial | answering it: a trial started, Checkout, the beta offer, or "Use it instead" |
+| `choose-ai` | no usable AI, or an Instrument account with no subscription, no running trial and no AI of its own | the fact, or answering it once a way in is ready |
 | `free-account` | usable AI and no Instrument account | answering it (Google or Not now) |
 | `model` | always | answering it |
 | `notifications` | status is `not-asked` or `provisional` | the fact, or answering it (Not now) |
@@ -40,7 +39,7 @@ With no workspace, the folder step is the only one, whatever the record says: no
 Two rules keep this from trapping or nagging anyone:
 
 - **Before finishing, facts and answers both count. After finishing, only a missing answer brings setup back.** Signing out of every AI later, or a folder moved back into app data, never reopens setup; the app's own notes handle those. A step added by an update has no answer for anyone, so people who finished see only that step, under "One new thing to set up".
-- **Steps a person can't do here are skipped, not shown.** The plan step needs an Instrument account; notifications need macOS.
+- **Steps a person can't do here are skipped, not shown.** Notifications need macOS.
 
 `SKIP_ONBOARDING=true` hides setup without writing anything, for fixtures and smoke tests. It skips the step where the workspace is chosen, so it needs `INSTRUMENT_WORKSPACE` naming one, and the launch refuses to start without it.
 
@@ -68,13 +67,9 @@ A result that arrives after the person has left the page is dropped, and a retry
 
 ## Plans and the trial
 
-The plan step is the app's plan cards (`PlanCards` with `trial`) and reads only the server's answers:
+Plans, trials and the beta offer are chosen on the website, never in the app ([auth-callback-server.md](../../architecture/auth-callback-server.md)). A Google sign-in for an account with no plan goes on to the website's plans, and choosing AI waits there until a plan or a trial lands. Canceling that wait leaves the account signed in, so Google's button becomes See plans, which opens the plans again and waits the same way, beside the subscriptions and a key.
 
-- **No-card trial** (`offer.trial.mode` `no_card`): Start free trial runs `useStartTrial`, then Trial started. Nothing else starts a trial.
-- **Card or intro trial** (`card`, `intro`): the cards say so (`checkoutTrialLine`), and the button opens Checkout.
-- **Trials held back** (`isTrialHeldBack`): Choose a plan, with Subscribe.
-- **Beta offer** (`offer.beta`): one card for the free months, claimed through Checkout (`offer: "beta"`).
-- **ChatGPT, Claude, Grok and keys need no plan**, so those ways never see the plan step; they see the free-account offer instead.
+- **ChatGPT, Claude, Grok and keys need no plan**, so those ways never see the plans; they see the free-account offer instead.
 
 ## Building it
 

@@ -77,27 +77,19 @@ type Offer = RPCOutput["billing"]["offer"];
  * isn't ready. Sign-in runs through the shared connect flows and its words
  * come from `connect-copy`; this only draws them. Any sign-in keeps the step
  * on screen (`hold`), so an account that connects and then turns out to have
- * no plan still lands on its answer here.
- *
- * The choose-AI step opens it on the choices; the plan step opens it on the
- * subscriptions or the key, for "Use it instead" while no free trial can
- * start, where Google is already done.
+ * no plan still lands on its answer here. Signed in to Instrument with no
+ * plan, Google's place among the choices is See plans, which waits on the
+ * website's plans as the sign-in did.
  */
 export function ChooseAI({
   hold,
   initial,
-  offerInstrument,
   onDone,
-  onLeave,
 }: {
   hold: () => void;
   initial: ChooseAIPage;
-  /** Signed out: Google and its trial are offered beside the rest. */
-  offerInstrument: boolean;
   /** A sign-in is ready (or out of usage and kept), or a key was added. */
   onDone: () => void;
-  /** Back from the first page, for a step with a page of its own before. */
-  onLeave?: () => void;
 }) {
   const flows = {
     chatgpt: useChatGPTConnect(),
@@ -106,14 +98,18 @@ export function ChooseAI({
     instrument: useInstrumentConnect(),
   };
   const [page, setPage] = useState<ChooseAIPage>(initial);
-  // Signed in on the website, which sent the person back for a
-  // subscription: Instrument's own account is no longer one to offer.
-  const [signedInOnWeb, setSignedInOnWeb] = useState(false);
+  // Signed in to Instrument already: Google and its trial are no longer
+  // offered beside the rest, and Google's place goes to the website's plans.
+  const { data: hasToken } = useQuery(
+    rpcClient.auth.live.hasToken.experimental_liveOptions(),
+  );
+  const signedIn = hasToken === true;
   // Where Back and Cancel return to from a sign-in's wait.
   const [waitedFrom, setWaitedFrom] = useState<ChooseAIPage>(initial);
   const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
 
-  const connect = (provider: ConnectProvider) => {
+  /** Starts `provider`'s sign-in, or with `plans`, the website's plans. */
+  const connect = (provider: ConnectProvider, plans = false) => {
     // One sign-in at a time: the browser has room for one.
     for (const other of Object.keys(flows) as ConnectProvider[]) {
       if (other !== provider) {
@@ -126,7 +122,11 @@ export function ChooseAI({
     if (provider !== "instrument") {
       setPage({ kind: "waiting", provider });
     }
-    void flows[provider].start().then((result) => {
+    const started =
+      provider === "instrument"
+        ? flows.instrument.start(plans ? { plans } : undefined)
+        : flows[provider].start();
+    void started.then((result) => {
       if (!result) {
         return;
       }
@@ -134,7 +134,6 @@ export function ChooseAI({
       if (outcome.kind === "canceled") {
         setPage(from);
       } else if (outcome.kind === "ready" && outcome.next === "subscriptions") {
-        setSignedInOnWeb(true);
         setPage({ kind: "subscriptions" });
       } else if (outcome.kind === "ready") {
         noteConnection({ kind: "sign-in", provider });
@@ -165,26 +164,23 @@ export function ChooseAI({
           <ChoicesPage
             google={flows.instrument}
             onGoogle={() => {
-              connect("instrument");
+              connect("instrument", signedIn);
             }}
             onKey={openKey}
             onSubscription={() => {
               setPage({ kind: "subscriptions" });
             }}
+            signedIn={signedIn}
           />
         );
       }
       case "subscriptions": {
         return (
           <SubscriptionsPage
-            offerInstrument={offerInstrument && !signedInOnWeb}
-            onBack={
-              initial.kind === "subscriptions"
-                ? onLeave
-                : () => {
-                    setPage({ kind: "choices" });
-                  }
-            }
+            offerInstrument={!signedIn}
+            onBack={() => {
+              setPage({ kind: "choices" });
+            }}
             onSignIn={connect}
           />
         );
@@ -241,7 +237,7 @@ export function ChooseAI({
           <OutcomePage
             flows={flows}
             offer={offer}
-            offerInstrument={offerInstrument}
+            offerInstrument={!signedIn}
             onBack={() => {
               setPage(waitedFrom);
             }}
@@ -265,13 +261,9 @@ export function ChooseAI({
               }
               onDone();
             }}
-            onBack={
-              keyFrom.kind === "key" && onLeave
-                ? onLeave
-                : () => {
-                    setPage(keyFrom);
-                  }
-            }
+            onBack={() => {
+              setPage(keyFrom);
+            }}
             onNoCredits={(providerId) => {
               setPage({ kind: "no-credits", providerId });
             }}
@@ -283,7 +275,7 @@ export function ChooseAI({
           <NoCreditsPage
             flows={flows}
             offer={offer}
-            offerInstrument={offerInstrument}
+            offerInstrument={!signedIn}
             onBack={() => {
               setPage({ kind: "key" });
             }}
@@ -321,21 +313,24 @@ const PAGE_DEPTH: Record<ChooseAIPage["kind"], number> = {
 /**
  * How the person brings AI: Google, a subscription they pay for, or a key.
  * Welcome is on the folder step before it, so this page goes straight to
- * the question.
+ * the question. Signed in to Instrument already, Google's button is See
+ * plans.
  */
 function ChoicesPage({
   google,
   onGoogle,
   onKey,
   onSubscription,
+  signedIn,
 }: {
   google: ConnectFlow<void>;
   onGoogle: () => void;
   onKey: () => void;
   onSubscription: () => void;
+  signedIn: boolean;
 }) {
   const line =
-    google.phase === "on-web"
+    google.phase === "on-web" || (signedIn && google.waiting)
       ? "Finish choosing your plan in your browser."
       : google.waiting
         ? "Finish signing in with Google in your browser."
@@ -344,19 +339,23 @@ function ChoicesPage({
     <SetupPage
       align="center"
       footer={<TermsFooter className="px-8 pt-5 pb-6" />}
-      subtitle="Sign in with Google, or use a subscription or key you already pay for."
+      subtitle={
+        signedIn
+          ? `You're signed in to ${APP_NAME}. Choose a plan, or use a subscription or key you already pay for.`
+          : "Sign in with Google, or use a subscription or key you already pay for."
+      }
       title="How would you like to use AI?"
     >
       <div className="mt-10 flex w-95 max-w-full flex-col gap-3">
         <BrowserHandoffButton
           className="h-10 w-full text-base"
-          icon={<FcGoogle className="size-4" />}
+          icon={signedIn ? undefined : <FcGoogle className="size-4" />}
           onCancel={google.cancel}
           onStart={onGoogle}
           variant="default"
           waiting={google.waiting}
         >
-          Continue with Google
+          {signedIn ? "See plans" : "Continue with Google"}
         </BrowserHandoffButton>
         <Button
           className="h-10 w-full bg-white/30 text-base text-foreground dark:bg-white/5"
@@ -862,7 +861,6 @@ export function ChooseAIStep({ hold, onContinue }: SetupStepProps) {
     <ChooseAI
       hold={hold}
       initial={previewPage<ChooseAIPage>("choose-ai") ?? { kind: "choices" }}
-      offerInstrument
       onDone={onContinue}
     />
   );

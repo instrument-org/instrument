@@ -17,9 +17,8 @@ let lastRefusalRead = 0;
 let readStatus: (() => Promise<unknown>) | undefined;
 
 /**
- * What the platform last said would run, from any billing status read (the
- * app's own, or the one `billing.startTrial` answers). Kept per sign-in, so
- * another account's answer never stands in.
+ * What the platform last said would run, from the last billing status
+ * read. Kept per sign-in, so another account's answer never stands in.
  */
 export function recordHostedFeatures(features: Features | undefined) {
   last = { features: features ?? {}, token: getToken() };

@@ -3,8 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   accountNotice,
-  allowanceLabel,
-  allowanceMeter,
   canStartTrial,
   checkoutTrialLine,
   describeWhen,
@@ -20,7 +18,6 @@ import {
   nextStep,
   type NextStepInput,
   nextStepFor,
-  planCardAction,
   refusalNotice,
   stopLineText,
   subscriptionPhaseLine,
@@ -457,82 +454,7 @@ describe("stopLineText", () => {
   });
 });
 
-describe("planCardAction", () => {
-  const [standard, plus] = offer.plans;
-  it.each([
-    { expected: "subscribe", name: "no plan", plan: standard, status: noPlan },
-    {
-      expected: "trial",
-      name: "a new account in setup",
-      plan: standard,
-      status: undefined,
-      trial: true,
-    },
-    {
-      expected: "current",
-      name: "the plan they are on",
-      plan: standard,
-      status: onPlan("basic"),
-    },
-    {
-      expected: "switch",
-      name: "the other plan",
-      plan: plus,
-      status: onPlan("basic"),
-    },
-    {
-      expected: "keep",
-      name: "the plan they are on while a downgrade waits",
-      plan: plus,
-      status: onPlan("pro", {
-        scheduledChange: { at: NOW.toISOString(), plan: "basic" },
-      }),
-    },
-    {
-      expected: "scheduled",
-      name: "the plan a waiting downgrade moves to",
-      plan: standard,
-      status: onPlan("pro", {
-        scheduledChange: { at: NOW.toISOString(), plan: "basic" },
-      }),
-    },
-  ])("$name: $expected", ({ expected, plan, status, trial }) => {
-    expect(plan && planCardAction(plan, status, { trial })).toBe(expected);
-  });
-
-  it("names allowance against the first plan", () => {
-    expect(offer.plans.map((plan) => allowanceLabel(plan))).toEqual([
-      "Standard",
-      "4× Standard",
-    ]);
-  });
-
-  it.each([
-    { expected: [1, 4], multiples: [1, 4] },
-    { expected: [1, 2, 4], multiples: [1, 2, 4] },
-    { expected: [1], multiples: [1] },
-    { expected: [1, 8], multiples: [1, 20] },
-    { expected: [2, 3], multiples: [2, 3] },
-  ])(
-    "fills a meter of $multiples by share of the biggest",
-    ({ expected, multiples }) => {
-      const plans = multiples.map((multiple) => ({
-        allowance: { multiple, windows },
-        description: null,
-        features: [],
-        key: String(multiple),
-        name: String(multiple),
-        price: null,
-      }));
-      expect(plans.map((plan) => allowanceMeter(plan, plans))).toEqual(
-        expected.map((filled) => ({
-          filled,
-          segments: Math.min(Math.ceil(Math.max(...multiples)), 8),
-        })),
-      );
-    },
-  );
-
+describe("upgradePlan", () => {
   it("has no plan above the biggest", () => {
     expect(upgradePlan(offer, onPlan("pro"))).toBeUndefined();
     expect(upgradePlan(offer, onPlan("basic"))?.key).toBe("pro");
@@ -865,7 +787,6 @@ describe("the free allowance", () => {
     expect(refused && copy(refused, onFree())).toEqual({
       action: { kind: "start-trial", label: "Start free trial" },
       changeModel: true,
-      secondary: { kind: "choose-plan", label: "Choose a plan" },
       title: "Start your free trial to use Instrument's models.",
     });
     expect(
@@ -1186,7 +1107,6 @@ describe("nextStep", () => {
       );
       const buttons = [
         step.action && `[${step.action.label}→${step.action.kind}]`,
-        step.secondary && `[${step.secondary.label}→${step.secondary.kind}]`,
         step.changeModel && "[Change model]",
       ].filter(Boolean);
       return `${name}: ${step.title}${step.line ? ` ${step.line}` : ""} ${buttons.join(" ")}`.trim();
@@ -1203,7 +1123,7 @@ describe("nextStep", () => {
         "on the trial, spent: Images are paused until tomorrow at 9:12 AM. Your free trial's usage ran out. [Choose a plan→choose-plan]",
         "on a plan, spent, bigger plan: Images are paused until tomorrow at 9:12 AM. Your plan's usage ran out. [Upgrade→upgrade]",
         "on the biggest plan, spent: Images are paused until tomorrow at 9:12 AM. Your plan's usage ran out.",
-        "no plan, no-card trial: Start your free trial to make images. [Start free trial→start-trial] [Choose a plan→choose-plan]",
+        "no plan, no-card trial: Start your free trial to make images. [Start free trial→start-trial]",
         "no plan, card trial: Start your free trial to make images. Free for 7 days. You won't be charged if you cancel before it ends. [Start free trial→choose-plan]",
         "no plan, $1 trial: Start your trial to make images. Your first month is $1. [Start for $1→choose-plan]",
         "no plan, trials paused, refused for it: Free trials aren't available right now. [Choose a plan→choose-plan]",
@@ -1223,7 +1143,7 @@ describe("nextStep", () => {
         "dictation, free, spent: You've reached your free account's limit for now. It resets tomorrow at 9:12 AM. [Start free trial→start-trial]",
         "a turn, free, spent: You've reached your free account's limit for now. It resets tomorrow at 9:12 AM. [Choose a plan→choose-plan]",
         "a turn, another model to use: You've reached your plan's limit for now. It resets tomorrow at 9:12 AM. [Change model]",
-        "a turn, only Instrument's models: Start your free trial to use Instrument's models. [Start free trial→start-trial] [Choose a plan→choose-plan]",
+        "a turn, only Instrument's models: Start your free trial to use Instrument's models. [Start free trial→start-trial]",
         "a turn back, another model to use: Your usage limit has reset. [Continue→continue]",
       ]
     `);

@@ -180,7 +180,8 @@ export function continueOnWebsite(next: string | undefined, port: number) {
   }
   const url = new URL(next);
   const api = new URL(platformApiBaseUrl()).hostname;
-  const isLocal = (host: string) => host === "localhost" || host === "127.0.0.1";
+  const isLocal = (host: string) =>
+    host === "localhost" || host === "127.0.0.1";
   const allowed = isLocal(api)
     ? isLocal(url.hostname)
     : url.protocol === "https:" &&
@@ -205,8 +206,8 @@ let webWait:
   | undefined;
 
 /**
- * Waits on the website after a sign-in it took over: ends once the account
- * has a plan or a running trial (read every few seconds), once the website
+ * Waits on the website after a sign-in it took over, or after the app sent
+ * the person to its plans: ends once the account has a plan or a running trial (read every few seconds), once the website
  * sends the browser back for a subscription the person already pays for,
  * when the person gives up in the app, or after half an hour. Every ending
  * but the subscription is "signed-in": the account is signed in either way.
@@ -242,6 +243,14 @@ function startWebWait() {
     finished,
   };
   return wait;
+}
+
+/**
+ * Waits on the website the way a sign-in it took over does, for a plan the
+ * person chooses there after signing in from the app.
+ */
+export function waitOnWebsite() {
+  webWait = startWebWait();
 }
 
 /**

@@ -62,7 +62,11 @@ function InstrumentConnectButton(props: Props) {
       icon={<FcGoogle />}
       label="Continue with Google"
       provider="instrument"
-      waitingLine="Finish signing in with Google in your browser"
+      waitingLine={
+        flow.phase === "on-web"
+          ? "Finish choosing your plan in your browser"
+          : "Finish signing in with Google in your browser"
+      }
     />
   );
 }

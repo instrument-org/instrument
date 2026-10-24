@@ -1,7 +1,6 @@
 import { displayLocale } from "@/client/lib/display-locale";
 import { type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { ORPCError } from "@orpc/client";
 import { PAYMENT_FAILED_STATUSES } from "@/shared/billing";
 
 type Offer = RPCOutput["billing"]["offer"];
@@ -28,8 +27,8 @@ export function formatPlanPrice(price: OfferPlan["price"]) {
   return price?.interval ? `${amount}/${price.interval}` : amount;
 }
 
-/** `$10`, the number on a plan's card and its button. */
-export function formatAmount(price: OfferPlan["price"]) {
+/** `$10`, a plan's price alone. */
+function formatAmount(price: OfferPlan["price"]) {
   if (!price || price.unitAmount === null) {
     return "";
   }
@@ -93,37 +92,6 @@ export function subscriptionPhaseLine(
   return phase.key === "trialing"
     ? `Free trial${until}${then}`
     : `Intro price${until}${then}`;
-}
-
-/**
- * How much AI a plan carries, against the first plan offered: "Standard" for
- * that one, "4× Standard" for one with four times its limits. Never dollars.
- */
-export function allowanceLabel(plan: OfferPlan) {
-  const multiple = plan.allowance.multiple;
-  return multiple <= 1 ? "Standard" : `${multiple}× Standard`;
-}
-
-/** The most segments a plan card's usage meter draws. */
-const METER_SEGMENTS_MOST = 8;
-
-/**
- * A plan card's usage meter, against the biggest plan offered: one segment
- * per Standard up to the biggest plan's multiple (at most eight), filled by
- * this plan's share of it. The biggest plan fills the meter; any plan fills
- * at least one.
- */
-export function allowanceMeter(plan: OfferPlan, plans: readonly OfferPlan[]) {
-  const most = Math.max(
-    plan.allowance.multiple,
-    ...plans.map((other) => other.allowance.multiple),
-  );
-  const segments = Math.min(Math.max(Math.ceil(most), 1), METER_SEGMENTS_MOST);
-  const filled =
-    most > 0
-      ? Math.max(Math.round((plan.allowance.multiple / most) * segments), 1)
-      : segments;
-  return { filled, segments };
 }
 
 /**
@@ -241,72 +209,6 @@ export function scheduledPlanChange(
       offer?.plans.find((plan) => plan.key === change.plan)?.name ??
       change.plan,
   };
-}
-
-/**
- * Whether `plan` costs less than the one this account pays for, which the
- * API holds until the period ends rather than applying now.
- */
-export function isDowngrade(
-  plan: OfferPlan,
-  status: Status | undefined,
-  offer: Offer | undefined,
-) {
-  const from = subscribedPlan(status, offer)?.price?.unitAmount;
-  const to = plan.price?.unitAmount;
-  return typeof from === "number" && typeof to === "number" && to < from;
-}
-
-/**
- * The `data.code` a platform refusal carries (`cancel-scheduled`, say), when
- * the error is one.
- */
-export function platformRefusalCode(error: unknown) {
-  if (!(error instanceof ORPCError)) {
-    return undefined;
-  }
-  const data: unknown = error.data;
-  return typeof data === "object" &&
-    data !== null &&
-    "code" in data &&
-    typeof data.code === "string"
-    ? data.code
-    : undefined;
-}
-
-/**
- * What a plan card's button does for this account: subscribe, switch a live
- * subscription to it, start the trial on it, or nothing, on the plan they are
- * on. While a downgrade waits, the plan they are on offers to keep it, and
- * the plan it moves to offers nothing.
- */
-export type PlanCardAction =
-  | "current"
-  | "keep"
-  | "scheduled"
-  | "subscribe"
-  | "switch"
-  | "trial";
-
-export function planCardAction(
-  plan: OfferPlan,
-  status: Status | undefined,
-  { trial = false }: { trial?: boolean } = {},
-): PlanCardAction {
-  const scheduled = status?.subscription?.scheduledChange?.plan;
-  if (
-    status?.subscription &&
-    (status.subscription.plan ?? status.plan) === plan.key
-  ) {
-    return scheduled ? "keep" : "current";
-  }
-  if (scheduled === plan.key) {
-    return "scheduled";
-  }
-  if (status?.subscription && !status.canSubscribe) {
-    return "switch";
-  }
-  return trial ? "trial" : "subscribe";
 }
 
 /** The plan above the one this account pays for, when there is one. */
@@ -679,8 +581,6 @@ export type NextStep = {
   /** Whether Change model goes beside the action. */
   changeModel: boolean;
   line?: string;
-  /** A second way forward beside the first, quieter. */
-  secondary?: { kind: BillingNoticeAction; label: string };
   title: string;
 };
 
@@ -799,7 +699,6 @@ export function nextStep(
           return {
             action: { kind: "start-trial", label: "Start free trial" },
             changeModel,
-            secondary: choosePlan,
             title: `Start your free trial to ${purpose}.`,
           };
         }
@@ -1087,9 +986,9 @@ export function freeAllowancePause(status: Status | undefined, now: Date) {
 }
 
 /**
- * Whether this account can start its no-card trial in the app now: it has
- * never had one or a subscription, trials are open, and the offer's trial
- * starts here rather than through Checkout.
+ * Whether this account can start its no-card trial now: it has never had
+ * one or a subscription, trials are open, and the offer's trial needs no
+ * card.
  */
 export function canStartTrial(
   status: Status | undefined,

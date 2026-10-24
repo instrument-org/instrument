@@ -1,7 +1,6 @@
 import { ConnectButton } from "@/client/components/connect-button";
 import { type ConnectResult } from "@/client/hooks/use-connect-flow";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { GlobeSimpleIcon } from "@phosphor-icons/react/GlobeSimple";
 import { ImageIcon } from "@phosphor-icons/react/Image";
@@ -41,8 +40,7 @@ const PERKS: {
 
 /**
  * The free Instrument account, offered once a subscription or a key has
- * brought the AI: what it adds, Google, or Not now. Signing in answers the
- * plan step too, since someone running on their own AI has no plan to pick.
+ * brought the AI: what it adds, Google, or Not now.
  */
 export function FreeAccountStep({ hold, onBack, onContinue }: SetupStepProps) {
   return (
@@ -54,11 +52,7 @@ export function FreeAccountStep({ hold, onBack, onContinue }: SetupStepProps) {
           skip={{ label: "Not now", onClick: onContinue }}
         />
       }
-      onSignedIn={() => {
-        // The plan step comes before this one, and the account just
-        // made would ask it; answered first, setup skips it.
-        void rpcClient.setup.answer.call({ step: "plan" }).finally(onContinue);
-      }}
+      onSignedIn={onContinue}
       onWaitingChange={(waiting) => {
         if (waiting) {
           hold();

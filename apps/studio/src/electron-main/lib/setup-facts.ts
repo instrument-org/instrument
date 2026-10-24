@@ -85,9 +85,8 @@ function checkAccountsAtLaunch(): void {
 /**
  * The plan the last billing status read found, for the sign-in it was read
  * under. Unknown until a read answers (offline, the API down, a read still
- * out), and then the plan step counts it as no plan: the step is the one
- * place that reads the status again and says what went wrong, and a status
- * that arrives later moves setup past the step.
+ * out), and then choosing AI counts it as no plan, and a status that
+ * arrives later moves setup past it.
  */
 let planRead: undefined | { hasPlan: boolean; token: string };
 

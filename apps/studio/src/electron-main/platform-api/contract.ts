@@ -158,9 +158,9 @@ const BillingOfferSchema = z.object({
     })
     .nullable(),
   /**
-   * Free months of a plan this account can claim as a trial
-   * (`startTrial` with `offer: "beta"`); null for everyone else, and absent
-   * from an API older than the offer.
+   * Free months of a plan this account can claim as a trial on the
+   * website; null for everyone else, and absent from an API older than the
+   * offer.
    */
   beta: z
     .object({ months: z.number(), plan: z.string() })
@@ -170,40 +170,7 @@ const BillingOfferSchema = z.object({
 
 export const contract = {
   billing: {
-    /**
-     * Moves a live subscription to another offered plan. An upgrade charges
-     * the difference now, and its limits apply once that payment succeeds
-     * (`pending` until then). A downgrade is `scheduled` for the period's end
-     * (`effectiveAt`), with nothing credited. Choosing the current plan again
-     * drops a scheduled downgrade and answers `applied`.
-     */
-    changePlan: base.input(z.object({ plan: z.string() })).output(
-      z.object({
-        /** When a `scheduled` change takes effect: the period's end. */
-        effectiveAt: z.string().optional(),
-        /** Where the change's invoice is paid while it is pending. */
-        invoiceUrl: z.string().optional(),
-        /**
-         * The plan in effect now: the old one while the change is pending or
-         * scheduled.
-         */
-        plan: z.string().nullable(),
-        status: z.enum(["applied", "pending", "scheduled"]),
-      }),
-    ),
-    createCheckout: base
-      .input(z.object({ plan: z.string() }))
-      .output(z.object({ url: z.string() })),
-    createPortal: base.input(z.void()).output(z.object({ url: z.string() })),
     offer: base.input(z.void()).output(BillingOfferSchema),
-    /**
-     * Starts the free trial, the only way it starts; a no-op when there is
-     * none to start. With `offer: "beta"`, claims the beta offer's free
-     * months as the trial instead.
-     */
-    startTrial: base
-      .input(z.object({ offer: z.literal("beta").optional() }).optional())
-      .output(BillingStatusSchema),
     status: base.input(z.void()).output(BillingStatusSchema),
   },
   users: {

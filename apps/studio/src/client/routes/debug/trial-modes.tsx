@@ -1,19 +1,14 @@
-import { planSheetAtom } from "@/client/atoms/plan-sheet";
 import { useChatNote } from "@/client/components/billing/chat-note";
-import { PlanPages } from "@/client/components/billing/plan-pages";
-import { PlanSheet } from "@/client/components/billing/plan-sheet";
 import { PlanNeeded } from "@/client/components/model-picker";
 import { AccountSection } from "@/client/components/settings/account-section";
 import { SetupFooter } from "@/client/components/setup/kit/setup-page";
 import { FreeAccountPage } from "@/client/components/setup/steps/free-account";
-import { PlanStep } from "@/client/components/setup/steps/plan";
 import { ChooseAI } from "@/client/components/setup/steps/choose-ai";
 import { AddProviderSheet } from "@/client/components/studio-modals/add-provider-sheet";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { createStore, Provider as JotaiProvider } from "jotai";
 import { type ReactNode, useState } from "react";
 import { z } from "zod";
 
@@ -43,24 +38,6 @@ const noop = () => {};
  */
 const surfaces = [
   {
-    id: "setup-plan",
-    label: "Setup: plan",
-    render: () => (
-      <div className="flex h-170 w-240 flex-col">
-        <PlanStep
-          hold={noop}
-          isLast={false}
-          isNewStepOnly={false}
-          onBack={noop}
-          onContinue={noop}
-          onFinish={noop}
-          step="plan"
-        />
-      </div>
-    ),
-    signedIn: true,
-  },
-  {
     id: "setup-outcome",
     label: "Setup: sign-in outcome",
     render: () => (
@@ -72,7 +49,6 @@ const surfaces = [
             outcome: { kind: "no-plan" },
             provider: "chatgpt",
           }}
-          offerInstrument
           onDone={noop}
         />
       </div>
@@ -126,12 +102,6 @@ const surfaces = [
     signedIn: false,
   },
   {
-    id: "plan-sheet",
-    label: "Plan sheet",
-    render: () => <PlanSheetOpen />,
-    signedIn: true,
-  },
-  {
     id: "add-provider",
     label: "Add a provider",
     render: () => (
@@ -144,19 +114,6 @@ const surfaces = [
       </div>
     ),
     signedIn: false,
-  },
-  {
-    id: "log-in-plans",
-    label: "Log in: plans",
-    render: () => (
-      <div className="flex w-190 flex-col rounded-2xl border border-border bg-background">
-        <PlanPages
-          cardsFooter={{ skip: { label: "Not now", onClick: noop } }}
-          onDone={noop}
-        />
-      </div>
-    ),
-    signedIn: true,
   },
   {
     id: "log-in-free-account",
@@ -405,19 +362,5 @@ function ImageNoteSample({ signedOut = false }: { signedOut?: boolean }) {
         <p className="text-sm text-muted-foreground">No note.</p>
       )}
     </div>
-  );
-}
-
-/** The plan sheet, open in a store of its own so the app's stays closed. */
-function PlanSheetOpen() {
-  const [store] = useState(() => {
-    const scoped = createStore();
-    scoped.set(planSheetAtom, {});
-    return scoped;
-  });
-  return (
-    <JotaiProvider store={store}>
-      <PlanSheet />
-    </JotaiProvider>
   );
 }

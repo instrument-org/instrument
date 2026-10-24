@@ -53,7 +53,7 @@ Scenarios that need no account (onboarding, signed-out states, layout) run witho
 
 1. **Workspace stores in the manifest.** Let a scenario write setup's record (`setup` in machine state), provider configs, and app connections. Sign-in records hold sentinel tokens that pass validation and fail any real call.
 2. **`--scenario` in studio-drive**, with the account steps above. Start with six scenarios: signed out, trial available, trial ending, window used up, payment owed, access revoked.
-3. **Screens you can link to.** Each scenario's `open` should be a URL. Where the screen it needs is held in component state (the plan sheet, a Settings section, an onboarding step, the add-provider dialog), move it into a search param. One at a time, only as a scenario needs it; no general UI-state serializer.
+3. **Screens you can link to.** Each scenario's `open` should be a URL. Where the screen it needs is held in component state (a Settings section, an onboarding step, the add-provider dialog), move it into a search param. One at a time, only as a scenario needs it; no general UI-state serializer.
 4. **A contact sheet.** It boots every scenario, captures its `open` screen, and writes one page of captures. It runs locally first, and in CI once the seeded-workspaces CI step lands ([seeded-test-workspaces.md](./seeded-test-workspaces.md)).
 
 ## Open questions

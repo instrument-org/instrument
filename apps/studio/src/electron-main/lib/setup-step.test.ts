@@ -75,14 +75,16 @@ describe("currentSetupStep", () => {
     expect(
       walk(NEW, {
         folder: { folderSettled: true, hasWorkspace: true },
-        plan: { hasInstrumentPlan: true },
-        "choose-ai": { hasInstrumentAccount: true, hasUsableAI: true },
+        "choose-ai": {
+          hasInstrumentAccount: true,
+          hasInstrumentPlan: true,
+          hasUsableAI: true,
+        },
       }),
     ).toMatchInlineSnapshot(`
       [
         "folder",
         "choose-ai",
-        "plan",
         "model",
         "notifications",
         "look",
@@ -160,7 +162,7 @@ describe("currentSetupStep", () => {
       "quit after signing in with Google, before a plan",
       { ...PLACED, hasInstrumentAccount: true, hasUsableAI: true },
       answered("folder"),
-      "plan",
+      "choose-ai",
     ],
     [
       "quit after starting a trial",
@@ -259,22 +261,25 @@ describe("currentSetupStep", () => {
     expect(isNewStepOnly({ ...NEW, ...facts }, record)).toBe(false);
   });
 
-  it("asks the plan step only of an Instrument account without a plan", () => {
+  it("asks choosing AI again of an Instrument account without a plan, once its status is read", () => {
     const withAccount = {
       ...PLACED,
       hasInstrumentAccount: true,
       hasUsableAI: true,
     };
-    expect(currentSetupStep(withAccount, EMPTY)).toBe("plan");
+    expect(currentSetupStep(withAccount, EMPTY)).toBe("choose-ai");
     expect(
       currentSetupStep({ ...withAccount, hasInstrumentPlan: true }, EMPTY),
+    ).toBe("model");
+    expect(
+      currentSetupStep({ ...withAccount, isCheckingPlan: true }, EMPTY),
     ).toBe("model");
     expect(currentSetupStep({ ...PLACED, hasUsableAI: true }, EMPTY)).toBe(
       "free-account",
     );
   });
 
-  it("skips the plan for an Instrument account beside a key or subscription of its own", () => {
+  it("skips choosing AI for an Instrument account beside a key or subscription of its own", () => {
     expect(
       currentSetupStep(
         {
@@ -356,7 +361,6 @@ describe("the record", () => {
           "look": "2026-10-21T12:00:00.000Z",
           "model": "2026-10-01T00:00:00.000Z",
           "notifications": "2026-10-21T12:00:00.000Z",
-          "plan": "2026-10-21T12:00:00.000Z",
           "welcome-back": "2026-10-21T12:00:00.000Z",
         },
         "finishedAt": "2026-10-21T12:00:00.000Z",
@@ -456,9 +460,8 @@ describe("stepBefore", () => {
   };
 
   it("passes over a step a fact settled and one not needed", () => {
-    // The plan was answered before a trial made it unneeded; choose-ai keeps
-    // no answer at all, and the placed folder is settled.
-    const record = answered("folder", "plan", "model");
+    // choose-ai keeps no answer at all, and the placed folder is settled.
+    const record = answered("folder", "model");
     expect(stepBefore(signedIn, record, "notifications")).toBe("model");
     expect(stepBefore(signedIn, record, "model")).toBeNull();
   });

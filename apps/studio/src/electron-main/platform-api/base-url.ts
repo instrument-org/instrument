@@ -4,7 +4,7 @@ import {
   resolvePlatformApiBaseUrl,
   trimBaseUrl,
 } from "@/shared/platform-api-server";
-import { APP_FLAVOR } from "@instrument-org/shared";
+import { APP_DOMAIN, APP_FLAVOR, APP_URL } from "@instrument-org/shared";
 
 let settled: string | undefined;
 
@@ -40,4 +40,24 @@ export function platformApiBaseUrl(): string {
 /** The origin of {@link platformApiBaseUrl}, which sign-ins are kept under. */
 export function platformApiOrigin(): string {
   return platformApiOriginOf(platformApiBaseUrl());
+}
+
+/** The website a local API's account pages are served from. */
+const LOCAL_WEBSITE_URL = "http://localhost:49110";
+
+/**
+ * The website that goes with the platform API this process talks to: the
+ * API's host without its `api.` (`staging.api.tryinstrument.com` has
+ * `staging.tryinstrument.com`), the local website for a local API, and
+ * tryinstrument.com for any other server.
+ */
+export function websiteBaseUrl(): string {
+  const host = URL.parse(platformApiBaseUrl())?.hostname ?? "";
+  if (host === "localhost" || host === "127.0.0.1") {
+    return LOCAL_WEBSITE_URL;
+  }
+  if (host === `api.${APP_DOMAIN}` || host.endsWith(`.api.${APP_DOMAIN}`)) {
+    return `https://${host.replace(/(^|\.)api\./, "$1")}`;
+  }
+  return APP_URL;
 }

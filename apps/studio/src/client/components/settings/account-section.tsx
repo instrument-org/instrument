@@ -1,4 +1,3 @@
-import { openPlanSheet } from "@/client/atoms/plan-sheet";
 import { AccountInfo } from "@/client/components/account-info";
 import { SettingsSection } from "@/client/components/settings/general-section";
 import { settingAnchor } from "@/client/components/settings/settings-index";
@@ -9,7 +8,6 @@ import { Progress } from "@/client/components/ui/progress";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { useStartTrial } from "@/client/components/billing/use-start-trial";
 import {
   canStartTrial,
   checkoutTrialLine,
@@ -27,23 +25,23 @@ import {
   subscriptionPhaseLine,
   windowLabel,
 } from "@/client/lib/billing";
+import { openAccount, openPlans } from "@/client/lib/billing-website";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
-import { toast } from "@/client/lib/toast";
 
 type Status = RPCOutput["billing"]["status"];
 
 /**
  * Settings > Account: who is logged in, then the plan and how it is paid,
  * then how much of its limits is used, as percentages and reset times.
- * Changing the plan opens the plan sheet, and keeping it while a downgrade
- * waits drops that downgrade; the card, invoices, and canceling are Stripe's
- * portal. A ChatGPT or Claude account is a provider, so it lives in
- * Providers, not here.
+ * Choosing, changing, keeping and paying for the plan all happen on the
+ * website: the plans for an account with none, the account's page for one
+ * with a subscription. A ChatGPT or Claude account is a provider, so it
+ * lives in Providers, not here.
  */
 export function AccountSection() {
   const { isSignedIn } = useBillingStatus();
@@ -105,37 +103,12 @@ function PlanAndLimits() {
 function PlanGroup({ status }: { status: Status }) {
   const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
   const openLink = useOpenExternalLink();
-  const portal = useMutation(
-    rpcClient.billing.openPortal.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't open billing", { cause: error });
-      },
-    }),
-  );
-  const openPortal = () => {
-    portal.mutate(undefined);
-  };
-  const { refetch } = useBillingStatus();
-  // Choosing the plan they are on again drops the downgrade waiting on it.
-  const keepPlan = useMutation(
-    rpcClient.billing.changePlan.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't keep your plan", {
-          description: error.message,
-        });
-      },
-      onSettled: () => {
-        void refetch();
-      },
-    }),
-  );
-  const startTrial = useStartTrial();
   const now = new Date();
   const plan = subscribedPlan(status, offer);
   const change = scheduledPlanChange(status, offer);
   const subscription = status.subscription;
-  // The plan settles in when a change made in Stripe's portal or Checkout
-  // lands as the window takes focus.
+  // The plan settles in when a change made on the website lands as the
+  // window takes focus.
   const arrival = [
     status.plan,
     subscription?.status,
@@ -169,11 +142,7 @@ function PlanGroup({ status }: { status: Status }) {
               detail="Your card and invoices, in Stripe"
               title="Payment method and invoices"
             >
-              <Button
-                disabled={portal.isPending}
-                onClick={openPortal}
-                size="sm"
-              >
+              <Button onClick={openAccount} size="sm">
                 Manage billing
               </Button>
             </Row>
@@ -205,11 +174,7 @@ function PlanGroup({ status }: { status: Status }) {
                   Your payment didn&rsquo;t go through. {APP_NAME}&rsquo;s AI is
                   paused until it does.
                 </p>
-                <Button
-                  disabled={portal.isPending}
-                  onClick={openPortal}
-                  size="sm"
-                >
+                <Button onClick={openAccount} size="sm">
                   Update card
                 </Button>
               </div>
@@ -239,31 +204,12 @@ function PlanGroup({ status }: { status: Status }) {
               }
             >
               {paymentFailed ? null : endsAt ? (
-                <Button
-                  disabled={portal.isPending}
-                  onClick={openPortal}
-                  size="sm"
-                >
-                  Keep my plan
-                </Button>
-              ) : change && plan ? (
-                <Button
-                  disabled={keepPlan.isPending}
-                  onClick={() => {
-                    keepPlan.mutate({ plan: plan.key });
-                  }}
-                  size="sm"
-                >
+                <Button onClick={openAccount} size="sm">
                   Keep my plan
                 </Button>
               ) : (
-                <Button
-                  onClick={() => {
-                    openPlanSheet();
-                  }}
-                  size="sm"
-                >
-                  Change plan
+                <Button onClick={openAccount} size="sm">
+                  {change ? "Keep my plan" : "Change plan"}
                 </Button>
               )}
             </Row>
@@ -273,11 +219,7 @@ function PlanGroup({ status }: { status: Status }) {
               detail="Your card and invoices, in Stripe"
               title="Payment method and invoices"
             >
-              <Button
-                disabled={portal.isPending}
-                onClick={openPortal}
-                size="sm"
-              >
+              <Button onClick={openAccount} size="sm">
                 Manage billing
               </Button>
             </Row>
@@ -297,28 +239,15 @@ function PlanGroup({ status }: { status: Status }) {
   const offerTrial = canStartTrial(status, offer);
   const freePause = freeAllowancePause(status, now);
   const actions = (
-    <div className="flex shrink-0 gap-2">
-      {offerTrial && (
-        <Button
-          disabled={startTrial.isPending}
-          onClick={() => {
-            startTrial.mutate(undefined);
-          }}
-          size="sm"
-        >
-          Start free trial
-        </Button>
-      )}
-      <Button
-        onClick={() => {
-          openPlanSheet();
-        }}
-        size="sm"
-        variant={offerTrial ? "outline" : "default"}
-      >
-        Choose a plan
-      </Button>
-    </div>
+    <Button
+      className="shrink-0"
+      onClick={() => {
+        openPlans();
+      }}
+      size="sm"
+    >
+      {offerTrial ? "Start free trial" : "Choose a plan"}
+    </Button>
   );
   return (
     <SettingsSection title="Plan">
@@ -360,7 +289,7 @@ function PlanGroup({ status }: { status: Status }) {
             {isTrial ? (
               <Button
                 onClick={() => {
-                  openPlanSheet();
+                  openPlans();
                 }}
                 size="sm"
               >

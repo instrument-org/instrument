@@ -19,13 +19,12 @@ const mocks = vi.hoisted(() => ({
   finish: vi.fn(),
   listen: vi.fn(),
   recording: vi.fn(),
-  startTrial: vi.fn(),
   hasToken: true,
   offer: {} as Record<string, unknown>,
   open: vi.fn(),
   openLink: vi.fn(),
   openLogin: vi.fn(),
-  openPlanSheet: vi.fn(),
+  openPlans: vi.fn(),
   playCue: vi.fn(),
   preferences: {} as Record<string, unknown>,
   toast: { dismiss: vi.fn(), error: vi.fn(), info: vi.fn() },
@@ -52,7 +51,6 @@ vi.mock(import("@/client/rpc/client"), () => ({
           queryKey: ["offer"],
         }),
       },
-      openPortal: { call: vi.fn() },
       status: {
         queryOptions: () => ({
           queryFn: () => Promise.resolve(mocks.billingStatus),
@@ -95,12 +93,9 @@ vi.mock(import("@/client/lib/dictation-sounds"), () => ({
 vi.mock(import("@/client/atoms/login-modal"), () => ({
   openLogin: mocks.openLogin,
 }));
-vi.mock(import("@/client/atoms/plan-sheet"), () => ({
-  openPlanSheet: mocks.openPlanSheet,
-}));
-vi.mock(import("@/client/components/billing/use-start-trial"), () => ({
-  // `as`: the hook only calls `mutate`.
-  useStartTrial: () => ({ mutate: mocks.startTrial }) as never,
+vi.mock(import("@/client/lib/billing-website"), () => ({
+  openAccount: vi.fn(),
+  openPlans: mocks.openPlans,
 }));
 vi.mock(import("@/client/hooks/use-open-external-link"), () => ({
   useOpenExternalLink: () => mocks.openLink,
@@ -663,7 +658,7 @@ describe("useDictation", () => {
     act(() => {
       options.action.onClick({ preventDefault });
     });
-    expect(mocks.openPlanSheet).toHaveBeenCalledWith({ preselect: "max" });
+    expect(mocks.openPlans).toHaveBeenCalledWith("max");
     expect(preventDefault).toHaveBeenCalled();
 
     act(() => {
@@ -701,7 +696,7 @@ describe("useDictation", () => {
     act(() => {
       options.action.onClick({ preventDefault: vi.fn() });
     });
-    expect(mocks.openPlanSheet).toHaveBeenCalledWith();
+    expect(mocks.openPlans).toHaveBeenCalledWith();
   });
 
   it("asks a signed-out person to log in instead of recording", async () => {

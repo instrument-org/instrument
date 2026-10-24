@@ -1,18 +1,12 @@
-import { planSheetAtom } from "@/client/atoms/plan-sheet";
 import { type RPCInput, type RPCOutput } from "@/client/rpc/client";
 import { renderWithProviders } from "@/tests/render";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { type SessionMessage } from "@instrument-org/workspace/client";
-import { ORPCError } from "@orpc/client";
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AccountSection } from "../settings/account-section";
-import { PlanStep } from "../setup/steps/plan";
 import { useChatNote } from "./chat-note";
-import { PlanSheet } from "./plan-sheet";
-
-type ChangePlan = RPCOutput["billing"]["changePlan"];
 
 const OURS =
   "instrument/auto?provider=instrument&providerConfigId=instrument" as AIGatewayModelURI.Type;
@@ -40,67 +34,46 @@ type Offer = RPCOutput["billing"]["offer"];
 type Status = RPCOutput["billing"]["status"];
 
 // What the mocked platform answers, set per test.
-const { mutation, platform, query, toastError } = vi.hoisted(() => {
-  const answers: {
-    changePlan: (input: RPCInput["billing"]["changePlan"]) => Promise<unknown>;
-    models: unknown[];
-    offer: unknown;
-    signedIn: boolean;
-    startTrial: (input?: RPCInput["billing"]["startTrial"]) => Promise<unknown>;
-    status: unknown;
-  } = {
-    changePlan: () => Promise.resolve(null),
-    models: [],
-    offer: null,
-    signedIn: true,
-    startTrial: () => Promise.resolve(null),
-    status: null,
-  };
-  return {
-    mutation:
-      (
-        answer: (input: never) => Promise<unknown> = () =>
-          Promise.resolve({ url: "" }),
-      ) =>
-      (options?: object) => ({
-        mutationFn: answer,
+const { mutation, openWebsite, platform, query, toastError } = vi.hoisted(
+  () => {
+    const answers: {
+      models: unknown[];
+      offer: unknown;
+      signedIn: boolean;
+      status: unknown;
+    } = {
+      models: [],
+      offer: null,
+      signedIn: true,
+      status: null,
+    };
+    return {
+      mutation:
+        (
+          answer: (input: never) => Promise<unknown> = () =>
+            Promise.resolve({ url: "" }),
+        ) =>
+        (options?: object) => ({
+          mutationFn: answer,
+          ...options,
+        }),
+      openWebsite: vi.fn((_input: RPCInput["billing"]["openWebsite"]) =>
+        Promise.resolve(),
+      ),
+      platform: answers,
+      query: (key: string, read: () => unknown) => (options?: object) => ({
+        queryFn: () => Promise.resolve(read()),
+        queryKey: [key],
         ...options,
       }),
-    platform: answers,
-    query: (key: string, read: () => unknown) => (options?: object) => ({
-      queryFn: () => Promise.resolve(read()),
-      queryKey: [key],
-      ...options,
-    }),
-    toastError: vi.fn(),
-  };
-});
+      toastError: vi.fn(),
+    };
+  },
+);
 
 vi.mock("@/client/lib/toast", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   toast: { error: toastError },
-}));
-
-// The other AI choices, as the plan step opens them: the page it starts on,
-// and a sign-in that connects.
-// Setup's state says the plan is known, so the plan step draws its cards.
-vi.mock("@/client/components/setup/use-setup-state", () => ({
-  useSetupState: () => null,
-}));
-vi.mock("../setup/steps/choose-ai", () => ({
-  ChooseAI: ({
-    initial,
-    onDone,
-  }: {
-    initial: { kind: string };
-    onDone: () => void;
-  }) => (
-    <div data-choose-ai={initial.kind}>
-      <button onClick={onDone} type="button">
-        Connected
-      </button>
-    </div>
-  ),
 }));
 
 vi.mock("@/client/rpc/client", () => ({
@@ -124,20 +97,8 @@ vi.mock("@/client/rpc/client", () => ({
       },
     },
     billing: {
-      changePlan: {
-        mutationOptions: mutation((input: RPCInput["billing"]["changePlan"]) =>
-          platform.changePlan(input),
-        ),
-      },
       offer: { queryOptions: query("offer", () => platform.offer) },
-      openCheckout: { mutationOptions: mutation() },
-      openPortal: { mutationOptions: mutation() },
-      startTrial: {
-        mutationOptions: mutation(
-          (input: RPCInput["billing"]["startTrial"]) =>
-            platform.startTrial(input),
-        ),
-      },
+      openWebsite: { call: openWebsite },
       status: {
         key: () => ["status"],
         queryOptions: query("status", () => platform.status),
@@ -267,8 +228,7 @@ const onTrial = (): Status => ({
 });
 
 beforeEach(() => {
-  platform.changePlan = () => Promise.resolve(null);
-  platform.startTrial = () => Promise.resolve(onTrial());
+  openWebsite.mockClear();
   toastError.mockClear();
   platform.models = [];
   platform.offer = OFFER;
@@ -333,12 +293,8 @@ describe("Settings > Account", () => {
     }
   });
 
-  it("says when a scheduled downgrade starts, and keeps the plan on request", async () => {
+  it("says when a scheduled downgrade starts, and keeps the plan on the website", async () => {
     platform.status = onProSwitchingToBasic();
-    const changePlan = vi.fn(() =>
-      Promise.resolve({ plan: "pro", status: "applied" } satisfies ChangePlan),
-    );
-    platform.changePlan = changePlan;
     renderWithProviders(<AccountSection />);
 
     expect(
@@ -350,9 +306,7 @@ describe("Settings > Account", () => {
     expect(screen.queryByText("Change plan")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Keep my plan" }));
-    await vi.waitFor(() => {
-      expect(changePlan).toHaveBeenCalledWith({ plan: "pro" });
-    });
+    expect(openWebsite).toHaveBeenCalledWith({ page: "account" });
   });
 
   // The status still calls the trial available; the offer has dropped it.
@@ -371,11 +325,9 @@ describe("Settings > Account", () => {
     expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
   });
 
-  it("offers the free trial beside the plans on the free allowance, and starts it", async () => {
+  it("offers the free trial on the free allowance, on the website", async () => {
     platform.offer = OFFER_WITH_TRIAL;
     platform.status = onFree();
-    const startTrial = vi.fn(() => Promise.resolve(onTrial()));
-    platform.startTrial = startTrial;
     renderWithProviders(<AccountSection />);
 
     expect(
@@ -384,12 +336,8 @@ describe("Settings > Account", () => {
     expect(screen.queryByText(/free web search/)).toBeNull();
     // The free window is not a plan's limit, so it gets no meter.
     expect(screen.queryByText(/% used/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Start free trial" }));
-    await vi.waitFor(() => {
-      expect(startTrial).toHaveBeenCalled();
-    });
-    expect(await screen.findAllByText("Free trial")).not.toHaveLength(0);
+    expect(openWebsite).toHaveBeenCalledWith({ page: "plans" });
   });
 
   it("says when free search and suggestions come back once the allowance is spent", async () => {
@@ -405,7 +353,6 @@ describe("Settings > Account", () => {
     expect(
       await screen.findByRole("button", { name: "Start free trial" }),
     ).toBeDefined();
-    expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
   });
 
   it("offers only a way to log in while logged out", async () => {
@@ -451,371 +398,6 @@ describe("Settings > Account", () => {
   });
 });
 
-describe("the plan cards", () => {
-  const cards = async () => {
-    platform.status = {
-      canSubscribe: true,
-      plan: "none",
-      trial: { state: "ended" },
-      windows: [],
-    } satisfies Status;
-    const { store } = renderWithProviders(<PlanSheet />);
-    act(() => {
-      store.set(planSheetAtom, {});
-    });
-    await screen.findByText("Choose a plan");
-    await vi.waitFor(() => {
-      expect(document.querySelector('[data-plan-card="pro"]')).not.toBe(null);
-    });
-    const of = (plan: string) =>
-      document.querySelector<HTMLElement>(`[data-plan-card="${plan}"]`);
-    return of;
-  };
-
-  it("fills the meter by share of the biggest plan, and tints the biggest", async () => {
-    const of = await cards();
-    expect(
-      ["basic", "pro"].map((plan) => [
-        of(plan)?.querySelector("[data-allowance]")?.textContent,
-        of(plan)
-          ?.querySelector("[data-allowance-meter]")
-          ?.getAttribute("data-allowance-meter"),
-        of(plan)?.hasAttribute("data-heaviest"),
-      ]),
-    ).toEqual([
-      ["Standard", "1/4", false],
-      ["4× Standard", "4/4", true],
-    ]);
-  });
-
-  it("lists the offer's features on each card", async () => {
-    platform.offer = {
-      ...OFFER,
-      plans: OFFER.plans.map((plan) => ({
-        ...plan,
-        features: [`${plan.name} search`, `${plan.name} images`],
-      })),
-    } satisfies Offer;
-    const of = await cards();
-    expect(
-      [...(of("pro")?.querySelectorAll("li") ?? [])].map(
-        (item) => item.textContent,
-      ),
-    ).toEqual(["Pro search", "Pro images"]);
-  });
-
-  it.each([
-    {
-      expected: 0,
-      models: undefined,
-      name: "no models row when the offer names none",
-    },
-    {
-      expected: 2,
-      models: [
-        { maker: "anthropic", name: "Claude Haiku 5.5" },
-        { maker: "xai", name: "Grok 5" },
-        { maker: "x-ai", name: "Grok 5 Fast" },
-        { name: "Auto" },
-      ],
-      name: "the makers of the plan's own models",
-    },
-  ])("shows $name", async ({ expected, models }) => {
-    platform.offer = {
-      ...OFFER,
-      plans: OFFER.plans.map((plan) => ({ ...plan, models })),
-    } satisfies Offer;
-    const of = await cards();
-    await vi.waitFor(() => {
-      expect(
-        of("basic")?.querySelector("[data-plan-makers]")?.children.length ?? 0,
-      ).toBe(expected);
-    });
-  });
-});
-
-describe("setup's plan step", () => {
-  const renderStep = () => {
-    const onContinue = vi.fn();
-    renderWithProviders(
-      <PlanStep
-        hold={vi.fn()}
-        isLast={false}
-        isNewStepOnly={false}
-        onContinue={onContinue}
-        onFinish={vi.fn()}
-        step="plan"
-      />,
-    );
-    return onContinue;
-  };
-  const neverTrialed = (): Status => ({
-    canSubscribe: true,
-    plan: "free",
-    trial: { state: "available" },
-    windows: [],
-  });
-
-  it.each([
-    { name: "trials held back", offer: { ...OFFER, trial: null } },
-    {
-      name: "an intro price",
-      offer: {
-        ...OFFER,
-        trial: {
-          available: true,
-          cardRequired: true,
-          days: 7,
-          intro: { months: 1, price: { currency: "usd", unitAmount: 100 } },
-          mode: "intro" as const,
-        },
-      },
-    },
-  ])(
-    "offers a plan or another way to use AI with $name, and connecting answers it",
-    async ({ offer }) => {
-      platform.offer = offer;
-      platform.status = neverTrialed();
-      const onContinue = renderStep();
-
-      expect(await screen.findByText("Choose a plan")).toBeDefined();
-      expect(screen.queryByText(/paused|aren't available/)).toBeNull();
-      fireEvent.click(
-        await screen.findByRole("button", {
-          name: "Use your existing subscriptions",
-        }),
-      );
-      expect(
-        document
-          .querySelector("[data-choose-ai]")
-          ?.getAttribute("data-choose-ai"),
-      ).toBe("subscriptions");
-      fireEvent.click(screen.getByRole("button", { name: "Connected" }));
-      expect(onContinue).toHaveBeenCalledOnce();
-    },
-  );
-
-  it("opens the key page from the same line", async () => {
-    platform.offer = { ...OFFER, trial: null };
-    platform.status = neverTrialed();
-    renderStep();
-    fireEvent.click(
-      await screen.findByRole("button", { name: "add an API key" }),
-    );
-    expect(
-      document
-        .querySelector("[data-choose-ai]")
-        ?.getAttribute("data-choose-ai"),
-    ).toBe("key");
-  });
-
-  it.each([
-    {
-      button: "Claim 3 free months",
-      months: 3,
-      title: "Pro is on us for 3 months",
-    },
-    {
-      button: "Claim your free month",
-      months: 1,
-      title: "Pro is on us for a month",
-    },
-  ])(
-    "shows the beta offer as Pro's card alone, free for $months month(s)",
-    async ({ button, months, title }) => {
-      platform.offer = { ...OFFER_WITH_TRIAL, beta: { months, plan: "pro" } };
-      platform.status = onFree();
-      renderStep();
-      expect(await screen.findByRole("heading", { name: title })).toBeDefined();
-      const cards = document.querySelectorAll("[data-plan-card]");
-      expect(
-        [...cards].map((card) => card.getAttribute("data-plan-card")),
-      ).toEqual(["pro"]);
-      expect(cards[0]?.querySelector("[data-plan-price]")?.textContent).toBe(
-        `$0for ${months === 1 ? "1 month" : `${String(months)} months`}then $40/month`,
-      );
-      expect(screen.getByRole("button", { name: button })).toBeDefined();
-      expect(
-        screen.getByRole("button", { name: "Use your existing subscriptions" }),
-      ).toBeDefined();
-    },
-  );
-
-  it("claims the beta offer as a trial, with no Checkout", async () => {
-    platform.offer = { ...OFFER_WITH_TRIAL, beta: { months: 1, plan: "pro" } };
-    platform.status = onFree();
-    const startTrial = vi.fn(() => Promise.resolve(onTrial()));
-    platform.startTrial = startTrial;
-    renderStep();
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Claim your free month" }),
-    );
-    expect(
-      await screen.findByRole("heading", { name: "Your trial has started" }),
-    ).toBeDefined();
-    expect(startTrial).toHaveBeenCalledWith({ offer: "beta" });
-  });
-
-  it("offers a subscription but no key while a trial can start", async () => {
-    platform.offer = OFFER_WITH_TRIAL;
-    platform.status = onFree();
-    renderStep();
-    expect(
-      await screen.findByRole("heading", {
-        name: "Try Instrument free for 7 days",
-      }),
-    ).toBeDefined();
-    expect(screen.queryByRole("button", { name: "add an API key" })).toBeNull();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Use your existing subscriptions" }),
-    );
-    expect(
-      document
-        .querySelector("[data-choose-ai]")
-        ?.getAttribute("data-choose-ai"),
-    ).toBe("subscriptions");
-  });
-});
-
-describe("the plan sheet", () => {
-  const openSheet = async (status: Status) => {
-    platform.status = status;
-    const { store } = renderWithProviders(<PlanSheet />);
-    act(() => {
-      store.set(planSheetAtom, {});
-    });
-    await screen.findByText("Change your plan");
-  };
-  const card = async (plan: string) => {
-    await vi.waitFor(() => {
-      expect(document.querySelector(`[data-plan-card="${plan}"]`)).not.toBe(
-        null,
-      );
-    });
-    const element = document.querySelector<HTMLElement>(
-      `[data-plan-card="${plan}"]`,
-    );
-    return within(element ?? document.body);
-  };
-
-  // Checkout is handed off the way a sign-in is: a spinner and Cancel while
-  // the browser has it, then Try again, and a payment made after the cancel
-  // still closes the sheet.
-  it("waits on Checkout with Cancel, then offers Try again", async () => {
-    platform.status = {
-      canSubscribe: true,
-      plan: "none",
-      trial: { state: "ended" },
-      windows: [],
-    } satisfies Status;
-    const { queryClient, store } = renderWithProviders(<PlanSheet />);
-    act(() => {
-      store.set(planSheetAtom, {});
-    });
-    fireEvent.click(
-      (await card("basic")).getByRole("button", { name: "Subscribe for $10" }),
-    );
-
-    expect(await screen.findByText("Finish in your browser")).toBeDefined();
-    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
-    fireEvent.click(screen.getByText("Cancel"));
-
-    expect(await screen.findByText("No payment yet")).toBeDefined();
-    expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
-    expect(screen.getByRole("button", { name: "Close" })).toBeDefined();
-
-    platform.status = onBasic();
-    await act(() => queryClient.refetchQueries({ queryKey: ["status"] }));
-    await vi.waitFor(() => {
-      expect(store.get(planSheetAtom)).toBeNull();
-    });
-  });
-
-  it("says a smaller plan starts when the period ends, before it is chosen", async () => {
-    await openSheet({ ...onBasic({ plan: "pro" }), plan: "pro" });
-
-    expect(
-      screen.getByText(
-        `A smaller plan starts on ${periodEnd}, and you keep Pro until then.`,
-      ),
-    ).toBeDefined();
-    const basic = await card("basic");
-    expect(basic.getByText(`Starts ${periodEnd}`)).toBeDefined();
-    expect(
-      basic.getByRole("button", { name: "Switch to Basic" }),
-    ).toBeDefined();
-  });
-
-  it("says when a scheduled downgrade starts once it is chosen", async () => {
-    await openSheet({ ...onBasic({ plan: "pro" }), plan: "pro" });
-    platform.changePlan = () =>
-      Promise.resolve({
-        effectiveAt: NEXT_MONTH,
-        plan: "pro",
-        status: "scheduled",
-      } satisfies ChangePlan);
-
-    fireEvent.click(
-      (await card("basic")).getByRole("button", { name: "Switch to Basic" }),
-    );
-
-    expect(
-      await screen.findByText(`Switching to Basic on ${periodEnd}`),
-    ).toBeDefined();
-    expect(
-      screen.getByText("You keep Pro and its limits until then."),
-    ).toBeDefined();
-  });
-
-  it("offers to keep the plan while a downgrade waits", async () => {
-    const changePlan = vi.fn(() =>
-      Promise.resolve({ plan: "pro", status: "applied" } satisfies ChangePlan),
-    );
-    platform.changePlan = changePlan;
-    await openSheet(onProSwitchingToBasic());
-
-    expect(
-      screen.getByText(
-        `Your plan switches to Basic on ${periodEnd}, and you keep Pro until then.`,
-      ),
-    ).toBeDefined();
-    const basic = await card("basic");
-    expect(basic.getByText(`Starts ${periodEnd}`)).toBeDefined();
-    expect(basic.queryByRole("button")).toBeNull();
-    const pro = await card("pro");
-    expect(pro.getByText(`Until ${periodEnd}`)).toBeDefined();
-
-    fireEvent.click(pro.getByRole("button", { name: "Keep Pro" }));
-    await vi.waitFor(() => {
-      expect(changePlan).toHaveBeenCalledWith({ plan: "pro" });
-    });
-  });
-
-  it("says why a plan set to end can't switch, with the way to resume it", async () => {
-    const message =
-      "Your plan is set to end. Resume it in billing settings to switch plans.";
-    platform.changePlan = () =>
-      Promise.reject(
-        new ORPCError("CONFLICT", {
-          data: { code: "cancel-scheduled" },
-          message,
-        }),
-      );
-    await openSheet({ ...onBasic({ plan: "pro" }), plan: "pro" });
-
-    fireEvent.click(
-      (await card("basic")).getByRole("button", { name: "Switch to Basic" }),
-    );
-
-    await vi.waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith("Couldn't change your plan", {
-        action: { label: "Manage billing", onClick: expect.any(Function) },
-        description: message,
-      });
-    });
-  });
-});
-
 describe("the chat's billing notice", () => {
   const refusedTurn = (body: object, status = 429) =>
     [
@@ -848,7 +430,7 @@ describe("the chat's billing notice", () => {
       { id: "msg_context", metadata: {}, parts: [], role: "session-context" },
     ] as unknown as SessionMessage.WithParts[];
 
-  it("offers Upgrade, without naming a plan, at a limit on the lower plan", async () => {
+  it("offers Upgrade at a limit on the lower plan, leading with the next plan", async () => {
     platform.status = onBasic({}, 100);
     renderWithProviders(
       <ChatNoteHarness
@@ -861,10 +443,9 @@ describe("the chat's billing notice", () => {
       />,
     );
 
-    expect(
-      await screen.findByRole("button", { name: "Upgrade" }),
-    ).toBeDefined();
+    fireEvent.click(await screen.findByRole("button", { name: "Upgrade" }));
     expect(screen.getByText(/It resets/)).toBeDefined();
+    expect(openWebsite).toHaveBeenCalledWith({ page: "plans", plan: "pro" });
   });
 
   it("offers Continue once a plan has been bought", async () => {
@@ -1058,13 +639,7 @@ describe("the chat's billing notice", () => {
   it("offers Start free trial for a model refused with trial-available, then Continue", async () => {
     platform.offer = OFFER_WITH_TRIAL;
     platform.status = onFree();
-    // Reads after the start find the trial running, as the API would.
-    const startTrial = vi.fn(() => {
-      platform.status = onTrial();
-      return Promise.resolve(onTrial());
-    });
-    platform.startTrial = startTrial;
-    renderWithProviders(
+    const { queryClient } = renderWithProviders(
       <ChatNoteHarness
         isAgentRunning={false}
         messages={refusedTurn(
@@ -1079,14 +654,19 @@ describe("the chat's billing notice", () => {
         "Start your free trial to use Instrument's models.",
       ),
     ).toBeDefined();
-    expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Start free trial" }));
+    expect(openWebsite).toHaveBeenCalledWith({ page: "plans" });
 
+    // The trial starts on the website, and coming back to the window reads
+    // it running.
+    platform.status = onTrial();
+    act(() => {
+      queryClient.setQueryData(["focus"], 1);
+    });
     expect(
       await screen.findByRole("button", { name: "Continue" }),
     ).toBeDefined();
     expect(screen.getByText("Your free trial has started.")).toBeDefined();
-    expect(startTrial).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await vi.waitFor(() => {
       expect(screen.queryByText("Your free trial has started.")).toBeNull();

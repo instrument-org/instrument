@@ -1,3 +1,5 @@
+import { waitOnWebsite } from "@/electron-main/auth/client";
+import { getAuthServerPort } from "@/electron-main/auth/state";
 import {
   recordHostedFeatures,
   setHostedFeaturesReader,
@@ -14,6 +16,7 @@ import {
   platformApiOrigin,
 } from "@/electron-main/platform-api/base-url";
 import { platformApiRpcClient } from "@/electron-main/platform-api/client";
+import { websitePageUrl } from "@/electron-main/platform-api/web-link";
 import { getToken } from "@/electron-main/platform-api/utils";
 import { authenticated, base, devOnly } from "@/electron-main/rpc/base";
 import { setSessionToken } from "@/electron-main/stores/workspace/session";
@@ -22,17 +25,17 @@ import { readPlatformRefusal } from "@instrument-org/ai-gateway";
 import { app } from "electron";
 import { z } from "zod";
 
-/** The Stripe page an agent-driven instance last held back; see `openBillingPage`. */
+/** The billing page an agent-driven instance last held back; see `openBillingPage`. */
 let heldBackPage: null | string = null;
 
 /**
- * Opens a Stripe page (Checkout, the portal) in the system browser. A dev
+ * Opens a page of the website's billing in the system browser. A dev
  * instance an agent drives (`studio-drive boot` sets STUDIO_DRIVE_PURPOSE)
  * keeps it instead, for the run to complete in a headless browser, so a run
  * never opens one on the machine it shares with a person.
  */
 async function openBillingPage(url: string) {
-  // An agent's instance keeps Stripe out of the person's browser; one booted
+  // An agent's instance keeps billing out of the person's browser; one booted
   // to be seen (`--visible`) has a person driving it, who means to pay.
   if (
     !app.isPackaged &&
@@ -75,56 +78,40 @@ setHostedFeaturesReader(readStatus);
 
 const status = authenticated.handler(readStatus);
 
-/** Stripe's hosted Checkout for one plan, in the system browser. */
-const openCheckout = authenticated
-  .input(z.object({ plan: z.string() }))
-  .handler(async ({ input }) => {
-    const { url } = await platformApiRpcClient.billing.createCheckout.call({
-      plan: input.plan,
-    });
-    await openBillingPage(url);
-    return { url };
-  });
-
-/** Stripe's Customer Portal, where every plan change and cancellation happens. */
-const openPortal = authenticated.handler(async () => {
-  const { url } = await platformApiRpcClient.billing.createPortal.call();
-  await openBillingPage(url);
-  return { url };
-});
+/** The website's pages for choosing a plan and for the account's own. */
+const WEBSITE_PAGES = { account: "/account", plans: "/welcome" } as const;
 
 /**
- * Moves a live subscription to another plan through the API. An upgrade
- * charges the difference with Stripe's pending updates so the higher limits
- * wait on the payment; when that payment needs the person (a card to
- * confirm), the API hands back the invoice's page, opened like Checkout. A
- * downgrade is scheduled for the end of the period, and choosing the current
- * plan again drops it.
+ * Opens a page of the website in the system browser, signed in as this
+ * account when there is one: `plans` to choose a plan or start a trial
+ * (`plan` leading), `account` to change or resume the plan and reach
+ * Stripe's billing portal. Both offer a way back through the loopback's
+ * `/open`. With `wait`, waits on the website the way a sign-in it took over
+ * does, for `auth.finishOnWeb` to say when a plan lands.
  */
-const changePlan = authenticated
-  .input(z.object({ plan: z.string() }))
+const openWebsite = base
+  .input(
+    z.object({
+      page: z.enum(["account", "plans"]),
+      plan: z.string().optional(),
+      wait: z.boolean().optional(),
+    }),
+  )
   .handler(async ({ input }) => {
-    const result = await platformApiRpcClient.billing.changePlan.call({
-      plan: input.plan,
-    });
-    if (result.status === "pending" && result.invoiceUrl) {
-      await openBillingPage(result.invoiceUrl);
+    const query = new URLSearchParams();
+    const port = getAuthServerPort();
+    if (port !== null) {
+      query.set("port", String(port));
     }
-    return result;
-  });
-
-/**
- * Starts the free trial, the only way it starts, when the person picks it
- * (setup, the plan sheet, a refused chat); answers the billing status
- * with the trial's end date. With `offer: "beta"`, claims the beta offer's
- * free months as the trial.
- */
-const startTrial = authenticated
-  .input(z.object({ offer: z.literal("beta").optional() }).optional())
-  .handler(async ({ input }) => {
-    const started = await platformApiRpcClient.billing.startTrial.call(input);
-    recordHostedFeatures(started.features);
-    return started;
+    if (input.plan) {
+      query.set("plan", input.plan);
+    }
+    const search = query.size > 0 ? `?${query.toString()}` : "";
+    const url = await websitePageUrl(`${WEBSITE_PAGES[input.page]}${search}`);
+    if (input.wait) {
+      waitOnWebsite();
+    }
+    await openBillingPage(url);
   });
 
 const lastRefusal = base.handler(() => lastPlatformRefusal() ?? null);
@@ -143,7 +130,7 @@ const localDev = devOnly.use(({ errors, next }) => {
   return next();
 });
 
-/** The Stripe page an agent-driven instance held back instead of opening. */
+/** The billing page an agent-driven instance held back instead of opening. */
 const heldBackBillingPage = localDev.handler(() => ({ url: heldBackPage }));
 
 /** Where this build sends platform requests, for the debug page to show. */
@@ -210,12 +197,9 @@ const burn = localDev
   });
 
 export const billing = {
-  changePlan,
   dev: { burn, environment, heldBackBillingPage, setDevToken },
   lastRefusal,
   offer,
-  openCheckout,
-  openPortal,
-  startTrial,
+  openWebsite,
   status,
 };

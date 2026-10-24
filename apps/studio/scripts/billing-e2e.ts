@@ -1,6 +1,6 @@
 /**
  * Billing end to end, driven through a real Studio instance against a local
- * API: a fresh user starts on the free allowance, Start free trial starts
+ * API: a fresh user starts on the free allowance, billing.startTrial starts
  * the trial, which runs out into 402 subscription-required, Stripe Checkout (test mode, card 4242)
  * subscribes them to the lower plan, the webhook flips their status, the 5h window
  * fills into 429 usage-limit-exceeded with Retry-After, an operator reset
@@ -21,9 +21,10 @@
  * other request is answered by the API's stub upstream.
  *
  * Studio gets no operator power: limits change through `pnpm billing`, and
- * the checkout and portal URLs come from the user's own
- * `billing.createCheckout` and `billing.createPortal`, driven in a headless
- * browser so the system one never opens.
+ * the trial, the plan change, and the checkout and portal URLs come from the
+ * user's own calls to the API (Studio sends people to the website for
+ * those), with the pages driven in a headless browser so the system one
+ * never opens.
  */
 import { type Browser, chromium } from "playwright";
 import { execFile } from "node:child_process";
@@ -646,9 +647,9 @@ async function main() {
     },
   );
 
-  await step("Start free trial starts the trial", async () => {
+  await step("billing.startTrial starts the trial", async () => {
     const started = StatusSchema.parse(
-      await studioRpc(app, "billing.startTrial"),
+      await userRpc(token, "billing/startTrial"),
     );
     assert(started.trial.state === "active", JSON.stringify(started.trial));
     if (flags["real-calls"]) {
@@ -860,7 +861,7 @@ async function main() {
   await step("billing.changePlan switches to the higher plan", async () => {
     const result = z
       .object({ plan: z.string().nullable(), status: z.string() })
-      .parse(await studioRpc(app, "billing.changePlan", { plan: higherPlan }));
+      .parse(await userRpc(token, "billing/changePlan", { plan: higherPlan }));
     await eventually(
       async () => {
         const current = await status();

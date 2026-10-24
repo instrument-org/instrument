@@ -38,7 +38,7 @@ vi.mock("@/client/rpc/client", () => ({
           queryKey: ["offer"],
         }),
       },
-      openPortal: { mutationOptions: (options: object) => options },
+      openWebsite: { call: vi.fn() },
       status: {
         queryOptions: (options: object) => ({
           ...options,
@@ -54,9 +54,6 @@ vi.mock("@/client/rpc/client", () => ({
     grokAccount: { live: { status: live("grok", () => ({ accounts: [] })) } },
     providerConfig: { live: { list: live("keys", () => account.keys) } },
   },
-}));
-vi.mock("@/client/components/billing/plan-pages", () => ({
-  PlanPages: () => <p>Plan pages</p>,
 }));
 vi.mock("@/client/components/connect-button", () => ({
   ConnectButton: () => <button type="button">Continue with Google</button>,
@@ -221,10 +218,14 @@ describe("AfterInstrumentSignIn", () => {
     });
   });
 
-  it("shows the plans to an account with no plan and no AI of its own", async () => {
+  it("offers the website's plans to an account with no plan and no AI of its own", async () => {
     account.status = noPlan;
     const onFinish = renderAfter();
-    expect(await screen.findByText("Plan pages")).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "Choose a plan" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "See plans" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Not now" })).toBeTruthy();
     expect(onFinish).not.toHaveBeenCalled();
   });
 
@@ -237,6 +238,6 @@ describe("AfterInstrumentSignIn", () => {
       }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Update card" })).toBeTruthy();
-    expect(screen.queryByText("Plan pages")).toBeNull();
+    expect(screen.queryByRole("button", { name: "See plans" })).toBeNull();
   });
 });

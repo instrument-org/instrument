@@ -24,28 +24,53 @@ const failed = (error: unknown): ConnectResult => ({
   },
 });
 
-/** Signing in to Instrument with Google. Its plan comes from billing. */
-export function useInstrumentConnect(): ConnectFlow<void> {
-  return useConnectFlow<void>({
+/**
+ * While the website has the account (`on-web`), waits for it to come back:
+ * with a plan or a trial, or sent back for a subscription the person
+ * already pays for.
+ */
+async function finishOnWeb(signal: AbortSignal): Promise<ConnectResult> {
+  const back = await rpcClient.auth.finishOnWeb
+    .call(undefined, { signal })
+    .catch(() => "signed-in" as const);
+  return {
+    outcome:
+      back === "use-subscription"
+        ? { kind: "ready", next: "subscriptions" }
+        : { kind: "ready" },
+  };
+}
+
+/**
+ * Signing in to Instrument with Google. Its plan comes from billing. With
+ * `plans`, an account already signed in goes to the website's plans instead,
+ * and the flow waits there as it does after a sign-in the website took over.
+ */
+export function useInstrumentConnect(): ConnectFlow<{
+  plans?: boolean;
+} | void> {
+  return useConnectFlow<{ plans?: boolean } | void>({
     onCancel: () => {
       void rpcClient.auth.cancelSignIn.call();
     },
-    run: async (_, { onPhase, signal }) => {
+    run: async (input, { onPhase, signal }) => {
+      if (input?.plans) {
+        const opened = await rpcClient.billing.openWebsite
+          .call({ page: "plans", wait: true })
+          .then(() => undefined, failed);
+        if (opened) {
+          return opened;
+        }
+        onPhase("on-web");
+        return finishOnWeb(signal);
+      }
       const outcome = await rpcClient.auth.signInSocial.call().catch(failed);
       if (typeof outcome !== "string") {
         return outcome;
       }
       if (outcome === "on-web") {
         onPhase("on-web");
-        const back = await rpcClient.auth.finishOnWeb
-          .call(undefined, { signal })
-          .catch(() => "signed-in" as const);
-        return {
-          outcome:
-            back === "use-subscription"
-              ? { kind: "ready", next: "subscriptions" }
-              : { kind: "ready" },
-        };
+        return finishOnWeb(signal);
       }
       return {
         outcome:

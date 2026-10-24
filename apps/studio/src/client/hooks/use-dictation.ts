@@ -1,6 +1,5 @@
 import { openLogin } from "@/client/atoms/login-modal";
-import { openPlanSheet } from "@/client/atoms/plan-sheet";
-import { useStartTrial } from "@/client/components/billing/use-start-trial";
+import { openAccount, openPlans } from "@/client/lib/billing-website";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import {
   type BillingNoticeAction,
@@ -207,7 +206,6 @@ export function useDictation({
   );
   const queryClient = useQueryClient();
   const openLink = useOpenExternalLink();
-  const startTrial = useStartTrial();
 
   // Read when a recording starts, not when this rendered.
   const latest = useRef({ hasToken, onText, preferences });
@@ -297,12 +295,9 @@ export function useDictation({
     billing: DictationBilling | undefined,
   ) => {
     switch (kind) {
-      case "choose-plan": {
-        openPlanSheet();
-        break;
-      }
+      case "choose-plan":
       case "start-trial": {
-        startTrial.mutate(undefined);
+        openPlans();
         break;
       }
       case "contact-support": {
@@ -317,13 +312,11 @@ export function useDictation({
         break;
       }
       case "update-card": {
-        void safe(rpcClient.billing.openPortal.call());
+        openAccount();
         break;
       }
       case "upgrade": {
-        openPlanSheet({
-          preselect: upgradePlan(billing?.offer, billing?.status)?.key,
-        });
+        openPlans(upgradePlan(billing?.offer, billing?.status)?.key);
         break;
       }
       default: {

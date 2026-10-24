@@ -7,7 +7,6 @@ import { ModelStep } from "./steps/model";
 import { NotificationsStep } from "./steps/notifications";
 import { type SetupStepProps } from "./step-props";
 import { FreeAccountStep } from "./steps/free-account";
-import { PlanStep } from "./steps/plan";
 import { ChooseAIStep } from "./steps/choose-ai";
 import { WelcomeBackStep } from "./steps/welcome-back";
 
@@ -18,7 +17,6 @@ export const SETUP_PAGES: Record<SetupStep, ComponentType<SetupStepProps>> = {
   look: LookStep,
   model: ModelStep,
   notifications: NotificationsStep,
-  plan: PlanStep,
   "choose-ai": ChooseAIStep,
   "welcome-back": WelcomeBackStep,
 };

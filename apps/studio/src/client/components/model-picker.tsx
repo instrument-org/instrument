@@ -1,6 +1,4 @@
-import { openPlanSheet } from "@/client/atoms/plan-sheet";
 import { openSettings } from "@/client/atoms/settings-modal";
-import { useStartTrial } from "@/client/components/billing/use-start-trial";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -29,6 +27,7 @@ import {
   canStartTrial,
   hasNoPlan,
 } from "@/client/lib/billing";
+import { openPlans } from "@/client/lib/billing-website";
 import { type ModelAction, type ModelNotice } from "@/client/lib/model-status";
 import { cn } from "@/client/lib/utils";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
@@ -994,8 +993,8 @@ function FailedConnection({
 
 /**
  * Over Instrument's models while the account has no plan for them (the free
- * allowance covers search and suggestions alone): how to get them, the free
- * trial first while it can start. Picking one stays possible; the chat says
+ * allowance covers search and suggestions alone): the website's plans, led
+ * by the free trial while it can start. Picking one stays possible; the chat says
  * the same if a message is sent on it.
  */
 export function PlanNeeded() {
@@ -1004,7 +1003,6 @@ export function PlanNeeded() {
     ...rpcClient.billing.offer.queryOptions(),
     enabled: isSignedIn,
   });
-  const startTrial = useStartTrial();
   if (!isSignedIn || !hasNoPlan(status)) {
     return null;
   }
@@ -1019,25 +1017,13 @@ export function PlanNeeded() {
           ? `Start your free trial to use ${APP_NAME}'s models.`
           : `${APP_NAME}'s models need a plan.`}
       </p>
-      {offerTrial && (
-        <Button
-          disabled={startTrial.isPending}
-          onClick={() => {
-            startTrial.mutate(undefined);
-          }}
-          size="sm"
-        >
-          Start free trial
-        </Button>
-      )}
       <Button
         onClick={() => {
-          openPlanSheet();
+          openPlans();
         }}
         size="sm"
-        variant={offerTrial ? "outline" : "default"}
       >
-        Choose a plan
+        {offerTrial ? "Start free trial" : "Choose a plan"}
       </Button>
     </div>
   );

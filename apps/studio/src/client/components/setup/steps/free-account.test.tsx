@@ -34,18 +34,6 @@ vi.mock("@/client/components/connect-button", () => ({
     </>
   ),
 }));
-vi.mock("@/client/rpc/client", () => ({
-  rpcClient: {
-    setup: {
-      answer: {
-        call: ({ step }: { step: string }) => {
-          calls.push(`answer ${step}`);
-          return Promise.resolve();
-        },
-      },
-    },
-  },
-}));
 
 function renderStep() {
   calls.length = 0;
@@ -62,12 +50,10 @@ function renderStep() {
 }
 
 describe("FreeAccountStep", () => {
-  it("answers the plan before going on, once Google signs in", async () => {
+  it("goes on once Google signs in", () => {
     renderStep();
     fireEvent.click(screen.getByRole("button", { name: "Google ready" }));
-    await vi.waitFor(() => {
-      expect(calls).toEqual(["answer plan", "continue"]);
-    });
+    expect(calls).toEqual(["continue"]);
   });
 
   it("stays put when the account isn't made", () => {
@@ -76,7 +62,7 @@ describe("FreeAccountStep", () => {
     expect(calls).toEqual([]);
   });
 
-  it("goes on with Not now, leaving the plan alone", () => {
+  it("goes on with Not now", () => {
     renderStep();
     fireEvent.click(screen.getByRole("button", { name: "Not now" }));
     expect(calls).toEqual(["continue"]);

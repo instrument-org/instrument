@@ -16,7 +16,7 @@ vi.mock("@/client/components/network-status/network-status-pill", () => ({
   SetupNetworkStatusPill: () => null,
 }));
 
-// The host under test, not the choose-AI, plan and free-account pages, which
+// The host under test, not the choose-AI and free-account pages, which
 // sign in and read billing: each draws its name and the host's ways on.
 vi.mock("./step-pages", async (importOriginal) => {
   const { SETUP_PAGES } = await importOriginal<typeof import("./step-pages")>();
@@ -43,7 +43,6 @@ vi.mock("./step-pages", async (importOriginal) => {
     SETUP_PAGES: {
       ...SETUP_PAGES,
       "free-account": Page,
-      plan: Page,
       "choose-ai": Page,
     },
   };
@@ -128,24 +127,24 @@ describe("SetupHost", () => {
   });
 
   it("answers the step on Continue", async () => {
-    loadedWith("plan");
+    loadedWith("free-account");
     renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await vi.waitFor(() => {
-      expect(rpc.answer.mock.calls[0]?.[0]).toEqual({ step: "plan" });
+      expect(rpc.answer.mock.calls[0]?.[0]).toEqual({ step: "free-account" });
     });
   });
 
   it("offers Back only where there is a step to go back to", async () => {
-    loadedWith("plan");
+    loadedWith("free-account");
     const { unmount } = renderWithDefaultStore(<SetupHost />);
     expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
     unmount();
-    loadedWith("plan", "welcome-back");
+    loadedWith("free-account", "welcome-back");
     renderWithDefaultStore(<SetupHost />);
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     await vi.waitFor(() => {
-      expect(rpc.back.mock.calls[0]?.[0]).toEqual({ step: "plan" });
+      expect(rpc.back.mock.calls[0]?.[0]).toEqual({ step: "free-account" });
     });
   });
 
@@ -161,7 +160,7 @@ describe("SetupHost", () => {
   });
 
   it("finishes from the only step an update added", async () => {
-    loadedWith("plan");
+    loadedWith("free-account");
     const loaded = window.api.initialSetupState;
     if (!loaded) {
       throw new Error("loadedWith sets the state");

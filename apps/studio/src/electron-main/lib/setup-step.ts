@@ -8,9 +8,9 @@ import {
 
 /**
  * When each step has something to ask, by the facts and the record. A step
- * a person can't do here (the plan without an Instrument account,
- * notifications off macOS) is never needed, so it is skipped rather than
- * shown.
+ * a person can't do here (notifications off macOS) is never needed, so it
+ * is skipped rather than shown. Choosing AI also asks an Instrument account
+ * with no plan and no AI of its own, whose way on is the website's plans.
  */
 const NEEDED: Record<
   SetupStep,
@@ -21,9 +21,12 @@ const NEEDED: Record<
   look: () => true,
   model: () => true,
   notifications: (facts) => facts.notificationsAskable,
-  plan: (facts) =>
-    facts.hasInstrumentAccount && !facts.hasInstrumentPlan && !facts.hasOwnAI,
-  "choose-ai": (facts) => !facts.hasUsableAI,
+  "choose-ai": (facts) =>
+    !facts.hasUsableAI ||
+    (facts.hasInstrumentAccount &&
+      !facts.isCheckingPlan &&
+      !facts.hasInstrumentPlan &&
+      !facts.hasOwnAI),
   "welcome-back": (facts, record) =>
     facts.testedBefore && record.finishedAt === undefined,
 };

@@ -1,9 +1,7 @@
-import { openPlanSheet } from "@/client/atoms/plan-sheet";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { ReplyNote, ReplyNoteButton } from "@/client/components/reply-note";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { useStartTrial } from "@/client/components/billing/use-start-trial";
 import {
   accountNotice,
   type BillingNotice,
@@ -20,6 +18,7 @@ import {
   usageWarning,
   usageWarningText,
 } from "@/client/lib/billing";
+import { openAccount, openPlans } from "@/client/lib/billing-website";
 import { keptAtom } from "@/client/lib/kept-state";
 import { parsePlatformApiError } from "@/client/lib/parse-platform-api-error";
 import {
@@ -28,7 +27,6 @@ import {
   planAccountNoteText,
   type PlanAccountStop,
 } from "@/client/lib/plan-account-stop";
-import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS, SUPPORT_URL } from "@instrument-org/shared";
@@ -38,7 +36,7 @@ import { GaugeIcon } from "@phosphor-icons/react/Gauge";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { FcGoogle } from "react-icons/fc";
 import { useInstrumentConnect } from "@/client/hooks/use-connect";
 import { useAtom } from "jotai";
@@ -143,19 +141,9 @@ export function useChatNote({
     ) ?? false;
   const signIn = useInstrumentConnect();
   const openLink = useOpenExternalLink();
-  const portal = useMutation(
-    rpcClient.billing.openPortal.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't open billing", { cause: error });
-      },
-    }),
-  );
+  // When Start free trial sent the person to the website, so the trial
+  // that starts there leads back into the chat.
   const [trialStartedAt, setTrialStartedAt] = useState<number>();
-  const startTrial = useStartTrial({
-    onStarted: () => {
-      setTrialStartedAt(Date.now());
-    },
-  });
   const [dismissed, setDismissed] = useState<null | string>(null);
   const [dismissedWarning, setDismissedWarning] = useAtom(
     dismissedUsageWarningAtom,
@@ -214,8 +202,8 @@ export function useChatNote({
           statusReadAt: dataUpdatedAt,
         })
       : undefined;
-  // A trial started from this note leads back into the chat once the status
-  // has it running, whatever the stopped turn's record says.
+  // A trial started from this note's button leads back into the chat once
+  // the status has it running, whatever the stopped turn's record says.
   const startedTrial =
     trialStartedAt !== undefined &&
     status?.plan === "trial" &&
@@ -261,7 +249,7 @@ export function useChatNote({
   const act = (kind: BillingNoticeAction) => {
     switch (kind) {
       case "choose-plan": {
-        openPlanSheet();
+        openPlans();
         break;
       }
       case "contact-support": {
@@ -277,15 +265,16 @@ export function useChatNote({
         break;
       }
       case "start-trial": {
-        startTrial.mutate(undefined);
+        setTrialStartedAt(Date.now());
+        openPlans();
         break;
       }
       case "update-card": {
-        portal.mutate(undefined);
+        openAccount();
         break;
       }
       case "upgrade": {
-        openPlanSheet({ preselect: upgradePlan(offer, status)?.key });
+        openPlans(upgradePlan(offer, status)?.key);
         break;
       }
       default: {
@@ -305,7 +294,6 @@ export function useChatNote({
         render: (context) => (
           <BillingNote
             context={context}
-            isBusy={portal.isPending || startTrial.isPending}
             isReady={isReady}
             kind={billing.kind}
             onAct={(kind) => {
@@ -409,7 +397,7 @@ export function useChatNote({
         <BillingNote
           context={context}
           icon={isReady ? undefined : ImageIcon}
-          isBusy={portal.isPending || startTrial.isPending || signIn.waiting}
+          isBusy={signIn.waiting}
           isReady={isReady}
           quiet
           kind={imageNotice.kind}
@@ -456,7 +444,6 @@ export function useChatNote({
         <BillingNote
           context={context}
           icon={MagnifyingGlassIcon}
-          isBusy={startTrial.isPending}
           isReady={false}
           kind="plan-limit"
           onAct={act}
@@ -499,12 +486,11 @@ export function useChatNote({
           canGoUp && (
             <ReplyNoteButton
               onClick={() => {
-                openPlanSheet({
-                  preselect:
-                    warning.kind === "trial"
-                      ? undefined
-                      : upgradePlan(offer, status)?.key,
-                });
+                openPlans(
+                  warning.kind === "trial"
+                    ? undefined
+                    : upgradePlan(offer, status)?.key,
+                );
               }}
             >
               See plans
@@ -533,7 +519,7 @@ export function useChatNote({
 function BillingNote({
   context,
   icon,
-  isBusy,
+  isBusy = false,
   isReady,
   kind,
   onAct,
@@ -543,7 +529,8 @@ function BillingNote({
 }: {
   context: ChatNoteContext;
   icon?: typeof WarningIcon;
-  isBusy: boolean;
+  /** A sign-in under way, which holds its button. */
+  isBusy?: boolean;
   isReady: boolean;
   /** What the note is about, for tests and the debug pages to find it by. */
   kind: BillingNotice["kind"];
@@ -556,17 +543,14 @@ function BillingNote({
   quiet?: boolean;
   step: NextStep;
 }) {
-  const { action, secondary } = step;
+  const { action } = step;
   return (
     <ReplyNote
       action={
         <>
           {action && (
             <ReplyNoteButton
-              disabled={
-                (action.kind === "update-card" || action.kind === "sign-in") &&
-                isBusy
-              }
+              disabled={action.kind === "sign-in" && isBusy}
               emphasis={
                 action.kind === "continue" ||
                 action.kind === "choose-plan" ||
@@ -582,15 +566,6 @@ function BillingNote({
                 <FcGoogle className="size-3.5 rounded-full bg-white p-px" />
               )}
               {action.label}
-            </ReplyNoteButton>
-          )}
-          {secondary && (
-            <ReplyNoteButton
-              onClick={() => {
-                onAct(secondary.kind);
-              }}
-            >
-              {secondary.label}
             </ReplyNoteButton>
           )}
           {step.changeModel && (

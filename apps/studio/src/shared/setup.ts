@@ -10,7 +10,6 @@ export const SETUP_STEPS = [
   "welcome-back",
   "folder",
   "choose-ai",
-  "plan",
   "free-account",
   "model",
   "notifications",
@@ -40,13 +39,13 @@ export interface SetupFacts {
   /** Signed in to Instrument. */
   hasInstrumentAccount: boolean;
   /**
-   * Signed in to Instrument with a subscription or a trial running, so the
-   * plan step has nothing to ask. False while the status is unknown.
+   * Signed in to Instrument with a subscription or a trial running, so
+   * choosing AI has no plan to ask for. False while the status is unknown.
    */
   hasInstrumentPlan: boolean;
   /**
    * Signed in to Instrument and the billing status not yet read for that
-   * sign-in, so whether the plan step asks anything isn't known yet.
+   * sign-in, so whether the account still needs a plan isn't known yet.
    */
   isCheckingPlan: boolean;
   /** The workspace has chats. */

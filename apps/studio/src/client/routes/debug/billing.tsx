@@ -52,11 +52,8 @@ function RouteComponent() {
   const burn = useMutation(
     rpcClient.billing.dev.burn.mutationOptions({ onSettled: refresh }),
   );
-  const openCheckout = useMutation(
-    rpcClient.billing.openCheckout.mutationOptions(),
-  );
-  const openPortal = useMutation(
-    rpcClient.billing.openPortal.mutationOptions(),
+  const openWebsite = useMutation(
+    rpcClient.billing.openWebsite.mutationOptions(),
   );
 
   const refusal = lastRefusal.data;
@@ -210,22 +207,22 @@ function RouteComponent() {
               <Button
                 key={plan.key}
                 onClick={() => {
-                  openCheckout.mutate({ plan: plan.key });
+                  openWebsite.mutate({ page: "plans", plan: plan.key });
                 }}
                 size="sm"
                 variant="outline"
               >
-                Checkout {plan.key}
+                Plans with {plan.key}
               </Button>
             ))}
             <Button
               onClick={() => {
-                openPortal.mutate(undefined);
+                openWebsite.mutate({ page: "account" });
               }}
               size="sm"
               variant="outline"
             >
-              Open Customer Portal
+              Account page
             </Button>
           </div>
           <div className="flex items-center gap-2">
@@ -255,14 +252,7 @@ function RouteComponent() {
               </span>
             )}
           </div>
-          <ErrorLine
-            error={openCheckout.error ?? openPortal.error ?? burn.error}
-          />
-          {(openCheckout.data ?? openPortal.data) && (
-            <p className="text-xs break-all text-muted-foreground">
-              Opened {(openCheckout.data ?? openPortal.data)?.url}
-            </p>
-          )}
+          <ErrorLine error={openWebsite.error ?? burn.error} />
         </Section>
 
         <Section title="billing.offer">

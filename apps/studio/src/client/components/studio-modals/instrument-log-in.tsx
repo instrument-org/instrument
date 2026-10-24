@@ -1,5 +1,5 @@
-import { PlanPages } from "@/client/components/billing/plan-pages";
 import { BrandMark } from "@/client/components/brand-mark";
+import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { ConnectButton } from "@/client/components/connect-button";
 import {
   SetupFooter,
@@ -7,6 +7,7 @@ import {
 } from "@/client/components/setup/kit/setup-page";
 import { TermsFooter } from "@/client/components/terms-footer";
 import { Button } from "@/client/components/ui/button";
+import { useInstrumentConnect } from "@/client/hooks/use-connect";
 import { type ConnectResult } from "@/client/hooks/use-connect-flow";
 import { useConnectedPlans } from "@/client/hooks/use-connected-plans";
 import {
@@ -14,13 +15,13 @@ import {
   type BillingNotice,
   nextStepFor,
 } from "@/client/lib/billing";
+import { openAccount } from "@/client/lib/billing-website";
 import { showConnectToast } from "@/client/lib/connect-toast";
-import { toast } from "@/client/lib/toast";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 type Offer = RPCOutput["billing"]["offer"];
@@ -111,7 +112,8 @@ export type AfterSignInPage = Exclude<
  * Reads the account after a Google sign-in in a dialog and says once where
  * it goes: done for an account with a plan, a running trial, or AI of its
  * own, which shows the signed-in toast and calls `onFinish`; otherwise
- * `onNext` with billing's next step or setup's plan pages. It draws nothing,
+ * `onNext` with billing's next step or the way to the website's plans. It
+ * draws nothing,
  * so the page the person signed in from stays up, at its size, while the
  * account is read. Mount one per sign-in.
  */
@@ -138,8 +140,8 @@ export function InstrumentSignInCheck({
   const offer = useQuery(rpcClient.billing.offer.queryOptions());
   const hasOwnAI = useHasOwnAI();
 
-  // Decided once: starting a trial or subscribing on the plans changes the
-  // status, and the pages that follow are theirs to finish.
+  // Decided once: starting a trial or subscribing on the website changes
+  // the status, and the pages that follow are theirs to finish.
   const [next, setNext] = useState<InstrumentSignInNext>();
   if (
     next === undefined &&
@@ -176,8 +178,8 @@ export function InstrumentSignInCheck({
 /**
  * The page a sign-in goes on to when it isn't done: billing's next step for
  * a payment that didn't go through or access that was revoked, otherwise
- * setup's plan pages. `onBack` puts Back on the plans, for a dialog with a
- * page to go back to; without it they offer Not now.
+ * the way to the website's plans. `onBack` puts Back on the plans page, for
+ * a dialog with a page to go back to; without it, it offers Not now.
  */
 export function AfterInstrumentSignIn({
   next,
@@ -195,14 +197,7 @@ export function AfterInstrumentSignIn({
     onFinish();
   };
   return next.kind === "plans" ? (
-    <PlanPages
-      cardsFooter={
-        onBack
-          ? { onBack }
-          : { skip: { label: "Not now", onClick: finishSignedIn } }
-      }
-      onDone={onFinish}
-    />
+    <SeePlansPage onBack={onBack} onFinish={onFinish} onSkip={finishSignedIn} />
   ) : (
     <AccountNoticePage
       notice={next.notice}
@@ -210,6 +205,62 @@ export function AfterInstrumentSignIn({
       onFinish={finishSignedIn}
       status={next.status}
     />
+  );
+}
+
+/**
+ * Signed in with no plan: See plans opens the website's plans in the
+ * browser and waits there, as a sign-in the website took over does, until
+ * a plan or a trial lands.
+ */
+function SeePlansPage({
+  onBack,
+  onFinish,
+  onSkip,
+}: {
+  onBack?: () => void;
+  onFinish: () => void;
+  onSkip: () => void;
+}) {
+  const plans = useInstrumentConnect();
+  return (
+    <SetupPage
+      align="center"
+      fit="dialog"
+      footer={
+        <SetupFooter
+          next="none"
+          onBack={onBack}
+          skip={onBack ? undefined : { label: "Not now", onClick: onSkip }}
+        />
+      }
+      hero={<BrandMark className="size-16" />}
+      subtitle={`You're signed in. Choose a plan on the website to use ${APP_NAME}'s models.`}
+      title="Choose a plan"
+    >
+      <div className="mt-8 flex flex-col items-center gap-y-2">
+        <BrowserHandoffButton
+          className="h-10 px-5 text-base"
+          onCancel={plans.cancel}
+          onStart={() => {
+            void plans.start({ plans: true }).then((result) => {
+              if (result?.outcome.kind === "ready") {
+                onFinish();
+              }
+            });
+          }}
+          variant="default"
+          waiting={plans.waiting}
+        >
+          See plans
+        </BrowserHandoffButton>
+        {plans.waiting && (
+          <p className="text-center text-xs text-foreground/60">
+            Finish choosing your plan in your browser.
+          </p>
+        )}
+      </div>
+    </SetupPage>
   );
 }
 
@@ -235,14 +286,6 @@ function AccountNoticePage({
     { blocked: "models", notice, offer, otherModelCan: false, status },
     now,
   );
-  const portal = useMutation(
-    rpcClient.billing.openPortal.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't open billing", { cause: error });
-      },
-      onSuccess: onFinish,
-    }),
-  );
   return (
     <SetupPage
       align="center"
@@ -264,14 +307,13 @@ function AccountNoticePage({
       {step.action && (
         <Button
           className="mt-8 h-10 px-5 text-base"
-          disabled={portal.isPending}
           onClick={() => {
             if (step.action?.kind === "contact-support") {
               openLink(SUPPORT_URL);
-              onFinish();
             } else {
-              portal.mutate(undefined);
+              openAccount();
             }
+            onFinish();
           }}
         >
           {step.action.label}

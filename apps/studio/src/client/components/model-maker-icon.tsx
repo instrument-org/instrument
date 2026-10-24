@@ -67,11 +67,6 @@ const MAKERS: Record<string, { src: string }> = {
   "zai-org": { src: zhipu },
 };
 
-/** Whether `author` has a mark of its own rather than the neutral glyph. */
-export function hasMakerMark(author: string): boolean {
-  return author in MAKERS;
-}
-
 /** Whose model it is, in color where the maker has a mark, else a neutral glyph. */
 export function ModelMakerIcon({
   author,

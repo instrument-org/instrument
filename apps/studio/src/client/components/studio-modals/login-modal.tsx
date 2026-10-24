@@ -43,15 +43,17 @@ export function LoginModal() {
   // the instant the dialog starts closing.
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
-  // Signed in during this opening, so closing it counts as finishing.
-  const signedIn = useRef(false);
+  // The opening a sign-in went through in, so closing that opening counts as
+  // finishing. Every opening is a new state, so one left any other way
+  // (dismissed, or replaced by another modal) cannot finish the next.
+  const signedInFor = useRef<typeof state>(null);
   const complete = () => {
-    signedIn.current = false;
+    signedInFor.current = null;
     state?.onCompleted?.();
     setState(null);
   };
   const close = () => {
-    if (signedIn.current) {
+    if (state !== null && signedInFor.current === state) {
       complete();
     } else {
       setState(null);
@@ -78,7 +80,7 @@ export function LoginModal() {
           }}
           onExitComplete={onExitComplete}
           onSignedIn={() => {
-            signedIn.current = true;
+            signedInFor.current = state;
           }}
           props={content.props}
         />

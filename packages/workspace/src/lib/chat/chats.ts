@@ -288,6 +288,7 @@ export async function markChatUnread(
 /**
  * Marks a chat unread each time it settles: its agent and every task filed
  * from it have stopped, whether on a reply, a question, or an error. A turn
+ * the person stopped is no news to them, so it leaves the mark as it was. A turn
  * that leaves something of the chat's still working waits for the one that
  * settles it, the same moment its title is settled and a notification
  * treats as news. A chat the user is looking at as it settles is marked
@@ -295,10 +296,13 @@ export async function markChatUnread(
  */
 export function startChatUnreadOnSettle(): void {
   void (async () => {
-    for await (const { id, sessionId } of publisher.subscribe("session.done")) {
+    for await (const { id, notice, sessionId } of publisher.subscribe(
+      "session.done",
+    )) {
       try {
         // A task's turn ending is news the chat's own next reply carries.
         if (
+          notice?.by !== "person" &&
           sessionRole(id, sessionId) === "chat" &&
           !(await chatIsWorking(id))
         ) {

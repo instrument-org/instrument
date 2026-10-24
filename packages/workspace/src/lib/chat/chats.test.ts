@@ -617,6 +617,22 @@ describe("listChats", () => {
     expect(waking?.unread).toBe(false);
   });
 
+  it("leaves a chat read when the person stopped its turn", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    startChatUnreadOnSettle();
+
+    publisher.publish("session.done", {
+      id: await chatFor(sessionId),
+      notice: { by: "person", wakesChat: false },
+      sessionId,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const [stopped] = await listChats();
+    expect(stopped?.unread).toBe(false);
+  });
+
   it("keeps a mark the user set theirs when the chat settles under it", async () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");

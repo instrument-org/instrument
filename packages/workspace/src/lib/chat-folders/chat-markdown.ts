@@ -312,7 +312,7 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
             : `You said no to ${name}.`;
         }
         case "gone": {
-          return `${name[0]?.toUpperCase()}${name.slice(1)} closed before you answered.`;
+          return `${name.charAt(0).toUpperCase()}${name.slice(1)} closed before you answered.`;
         }
       }
     }

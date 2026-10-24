@@ -335,7 +335,7 @@ export const WINDOW_TABS_EVALS = [
     kind: "chat",
     name: "window-tabs-their-page",
     prompt:
-      "check my recent history of ordres on amazon, find protein shakes. i want best price ones added to cart based on current deals. i really like the can ones i just got recentlh, but also open to others.\n\nif you find really good deals, that's fine to top prioritze. i do like vanilla a lot",
+      "check my recent history of ordres on amazon, find protein shakes. i want best price ones added to cart based on current deals. i really like the can ones i just got recentlh, but also open to others.\n\nif you find really good deals, that's fine to top prioritize. i do like vanilla a lot",
     viewing: theirPage(
       "Amazon.com. Spend less. Smile more.",
       "https://www.amazon.com/?ref_=nav_signin",

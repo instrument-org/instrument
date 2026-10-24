@@ -477,7 +477,7 @@ async function moveTabIn(
   if (!closed) {
     return;
   }
-  const answer = await askWindow({
+  const took = await askWindow({
     action: { kind: "take", tabId: ask.target },
     askedBy: chatId,
     group: chatId,
@@ -485,7 +485,7 @@ async function moveTabIn(
   const tabId = parseBrowserTargetId(ask.target);
   const driver = closed.askers[0]?.sessionId;
   const moved =
-    answer !== undefined && answer.error === undefined && tabId !== null;
+    took !== undefined && took.error === undefined && tabId !== null;
   if (moved && driver !== undefined) {
     await updateHeldTabs(chatId, driver, (tabs) => [
       ...tabs.filter((tab) => tab.id !== tabId),

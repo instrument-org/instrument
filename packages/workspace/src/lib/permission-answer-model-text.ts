@@ -37,7 +37,7 @@ function tabAnswer({
       return `The user kept ${named} for themselves.${page ? ` Open ${page.url} in a tab of your own if the work still needs the page; it has their sign-ins, not what they had typed or scrolled to.` : ""}`;
     }
     case "gone": {
-      return `${named[0]?.toUpperCase()}${named.slice(1)} closed before the user answered.`;
+      return `${named.charAt(0).toUpperCase()}${named.slice(1)} closed before the user answered.`;
     }
     default: {
       return `The user moved ${named} into this chat, the page as they left it, and it is on their screen. It is this chat's now: agent-browser works in it, and \`instrument task new --tab ${target}\` hands it to a task.`;

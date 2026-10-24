@@ -172,9 +172,9 @@ export function createStandInWindow() {
     },
     /** Opens the tabs a case's note names, under the ids the note gives them. */
     seed(viewing: SessionMessageDataPart.ViewContextDataPart | undefined) {
-      const page = viewing?.page;
-      if (page?.tab !== undefined && page.theirs === true) {
-        theirs.set(page.tab, { at: page.url, id: page.tab, kind: "page" });
+      const shown = viewing?.page;
+      if (shown?.tab !== undefined && shown.theirs === true) {
+        theirs.set(shown.tab, { at: shown.url, id: shown.tab, kind: "page" });
       }
       for (const tab of [
         ...(viewing?.tabs ?? []),

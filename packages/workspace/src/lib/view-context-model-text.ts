@@ -136,9 +136,10 @@ function pageNote(data: ViewContext) {
       : theirs
         ? `, in their own tab ${page.tab}, outside this chat`
         : ` (this chat's tab ${page.tab}${heldClause(shown?.heldBy)})`;
-  const ways = theirs
-    ? ` To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to, or \`${TAB_COMMAND.name} request ${page.tab}\` asks them to move this tab into the chat as it stands.`
-    : "";
+  const ways =
+    theirs && page.tab !== undefined
+      ? ` To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to, or \`${TAB_COMMAND.name} request ${page.tab}\` asks them to move this tab into the chat as it stands.`
+      : "";
   const others = (page.tabs ?? []).filter((other) => other.id !== page.tab);
   const tabs =
     others.length > 0

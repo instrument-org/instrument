@@ -25,9 +25,10 @@ const log = createScopedLogger("FileThumbnails");
  * does not come to hold a picture of every version of every file the person
  * has ever looked at.
  *
- * Pages, Markdown and code are the exception: the app draws those itself
- * (`rendered-pictures.ts`), since the system runs no page's scripts and has
- * no picture of Markdown or code off a Mac. One drawing at the largest size
+ * Pages, Markdown, code and SVGs are the exception: the app draws those
+ * itself (`rendered-pictures.ts`), since the system runs no page's scripts,
+ * has no picture of Markdown or code off a Mac, and draws an SVG sized in
+ * points cut short. One drawing at the largest size
  * is kept, and the smaller sizes are scaled from it.
  *
  * Where the system draws nothing (Linux, or a picture it would not read), a
@@ -321,10 +322,11 @@ export async function pruneThumbnails(dir: string, keep: Keep = KEEP) {
 }
 
 /**
- * The file as the app draws it, scaled to `size` tall from the one drawing
- * kept at the largest size; null when it could not be drawn, which leaves it
- * to the system. A page photographed before it finished loading comes back
- * marked incomplete and is not kept, so the next ask draws it again.
+ * The file as the app draws it, scaled to `size` along its longer side from
+ * the one drawing kept at the largest size; null when it could not be drawn,
+ * which leaves it to the system. A page photographed before it finished
+ * loading comes back marked incomplete and is not kept, so the next ask draws
+ * it again.
  */
 async function renderedAt(
   hostPath: string,
@@ -365,15 +367,16 @@ async function renderedAt(
   }
   const { complete, image: full } = drawn;
   const { height, width } = full.getSize();
-  if (height <= size) {
+  const longer = Math.max(height, width);
+  if (longer <= size) {
     return drawn;
   }
   return {
     complete,
     image: full.resize({
-      height: size,
+      height: Math.max(1, Math.round((height * size) / longer)),
       quality: "good",
-      width: Math.max(1, Math.round((width * size) / height)),
+      width: Math.max(1, Math.round((width * size) / longer)),
     }),
   };
 }

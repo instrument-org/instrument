@@ -53,6 +53,8 @@ const PAGE_VIEWPORT = { height: 1312, width: 1024 };
 const DOCUMENT_VIEWPORT = { height: 1026, width: 800 };
 /** The longer side of what comes out, in px: the largest size a thumbnail is asked for. */
 const PICTURE_HEIGHT = 1024;
+/** The largest SVG drawn here; its data URL has to stay inside Chromium's 2MB for a URL. */
+const PICTURE_BYTES_MAX = 1024 * 1024;
 /** Windows drawn in at once; each holds one file. */
 const WINDOWS = 2;
 const LOAD_TIMEOUT_MS = 6000;
@@ -123,6 +125,9 @@ export async function renderPicture(
   // thread while it runs, happens two files at a time rather than for every
   // file a folder asks for at once.
   return withWindow(async (window) => {
+    if (kind === "picture") {
+      return drawPicture(window, hostPath, theme);
+    }
     const document =
       kind === "page" ? undefined : await documentOf(hostPath, kind, theme);
     await emulateTheme(window, theme);
@@ -181,10 +186,71 @@ export async function renderPicture(
   });
 }
 
+/**
+ * An SVG as a browser draws it inline, in its own shape, {@link PICTURE_HEIGHT}
+ * along its longer side. Drawn as an image, so the file runs no script and
+ * loads nothing; one too large to pass as a data URL is left to the system.
+ */
+async function drawPicture(
+  window: BrowserWindow,
+  hostPath: string,
+  theme: "dark" | "light",
+): Promise<{ complete: boolean; image: NativeImage }> {
+  const { size } = await fs.stat(hostPath);
+  if (size > PICTURE_BYTES_MAX) {
+    throw new Error(`${hostPath} is too large to draw here`);
+  }
+  const source = (await fs.readFile(hostPath)).toString("base64");
+  const document = `<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
+<style>html, body { margin: 0; overflow: hidden; } img { display: block; width: 100vw; height: 100vh; object-fit: contain; object-position: left top; }</style></head><body><img src="data:image/svg+xml;base64,${source}"></body></html>`;
+  await emulateTheme(window, theme);
+  // Laid out in a square and fitted to its top left, so the picture's own
+  // shape is the rectangle photographed from that corner.
+  window.setContentSize(PICTURE_HEIGHT, PICTURE_HEIGHT);
+  const contents = window.webContents;
+  try {
+    await contents.loadURL(
+      `data:text/html;charset=utf-8,${encodeURIComponent(document)}`,
+    );
+    // Rejects for a file that is not a picture, which leaves it to the system.
+    const natural: unknown = await contents.executeJavaScript(
+      `(async () => { const image = document.images[0]; await image.decode(); await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))); return [image.naturalWidth, image.naturalHeight]; })()`,
+      true,
+    );
+    const [width, height] =
+      Array.isArray(natural) &&
+      natural.length === 2 &&
+      natural.every((side) => Number(side) > 0)
+        ? [Number(natural[0]), Number(natural[1])]
+        : [1, 1];
+    const scale = PICTURE_HEIGHT / Math.max(width, height);
+    const box = {
+      height: Math.max(1, Math.round(height * scale)),
+      width: Math.max(1, Math.round(width * scale)),
+    };
+    if (OFFSCREEN) {
+      await sleep(OFFSCREEN_SETTLE_MS);
+    }
+    const shot = await captureFrame(contents, {
+      deadlineMs: CAPTURE_TIMEOUT_MS,
+      rect: { ...box, x: 0, y: 0 },
+      rejectEmpty: true,
+    });
+    return { complete: true, image: shot.resize({ ...box, quality: "good" }) };
+  } finally {
+    if (!contents.isDestroyed()) {
+      void contents.loadURL("about:blank").catch(() => {
+        // The window may be on its way out, which is the same end.
+      });
+    }
+  }
+}
+
 /** The file set as a sheet of HTML that runs nothing and loads nothing. */
 async function documentOf(
   hostPath: string,
-  kind: Exclude<RenderedKind, "page">,
+  kind: Exclude<RenderedKind, "page" | "picture">,
   theme: "dark" | "light",
 ) {
   const { cut, text } = await readHead(hostPath);

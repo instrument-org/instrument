@@ -4,9 +4,21 @@
  * nothing and loads none of the drawing's machinery.
  */
 
-export type RenderedKind = "code" | "markdown" | "page" | "table" | "text";
+export type RenderedKind =
+  | "code"
+  | "markdown"
+  | "page"
+  | "picture"
+  | "table"
+  | "text";
 
 const PAGE_EXTENSIONS = new Set(["htm", "html"]);
+/**
+ * Pictures the system's thumbnailer draws wrong: Quick Look reads an SVG's
+ * size in points as pixels, cutting the drawing short, and sets a wide one at
+ * the top of a white square.
+ */
+const PICTURE_EXTENSIONS = new Set(["svg"]);
 const MARKDOWN_EXTENSIONS = new Set(["markdown", "md", "mdx"]);
 /** Code, set as a sheet: highlighted where there is a grammar for it, plain where not. */
 const CODE_EXTENSIONS = new Set([
@@ -60,6 +72,9 @@ export function renderedKindOf(hostPath: string): RenderedKind | undefined {
   const extension = extensionOf(hostPath);
   if (PAGE_EXTENSIONS.has(extension)) {
     return "page";
+  }
+  if (PICTURE_EXTENSIONS.has(extension)) {
+    return "picture";
   }
   if (MARKDOWN_EXTENSIONS.has(extension)) {
     return "markdown";

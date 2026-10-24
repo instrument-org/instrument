@@ -230,7 +230,10 @@ function messageOf(
   sessionId: StoreId.Session,
   nextId: (seedTime?: number) => string,
 ): SessionMessage.WithParts | undefined {
-  const text = [imported.text.trim(), omittedLine(imported.omitted)]
+  const text = [
+    imported.text.trim(),
+    omittedLine(imported.omitted, { italic: imported.role === "assistant" }),
+  ]
     .filter(Boolean)
     .join("\n\n");
   if (text === "") {
@@ -282,8 +285,15 @@ function messageOf(
   };
 }
 
-/** What a message left behind, in a short italic line the person reads. */
-export function omittedLine(omitted: ImportOmitted | undefined): string {
+/**
+ * What a message left behind, in a short line the person reads: italic in a
+ * reply, which shows as Markdown, and plain in their own message, which
+ * shows as typed.
+ */
+export function omittedLine(
+  omitted: ImportOmitted | undefined,
+  { italic = true }: { italic?: boolean } = {},
+): string {
   const calls = Object.values(omitted?.toolCalls ?? {}).reduce(
     (total, count) => total + count,
     0,
@@ -293,7 +303,11 @@ export function omittedLine(omitted: ImportOmitted | undefined): string {
     calls > 0 ? counted(calls, "tool call") : undefined,
     attachments > 0 ? counted(attachments, "attachment") : undefined,
   ].filter((each) => each !== undefined);
-  return said.length === 0 ? "" : `_Not imported: ${said.join(" and ")}._`;
+  if (said.length === 0) {
+    return "";
+  }
+  const line = `Not imported: ${said.join(" and ")}.`;
+  return italic ? `_${line}_` : line;
 }
 
 function counted(count: number, noun: string): string {

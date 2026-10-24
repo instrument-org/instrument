@@ -169,7 +169,7 @@ describe("writeImportedChat", () => {
           "model": null,
           "role": "user",
           "text": [
-            "_Not imported: 1 attachment._",
+            "Not imported: 1 attachment.",
           ],
         },
         {

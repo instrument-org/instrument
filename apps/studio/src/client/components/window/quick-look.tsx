@@ -22,8 +22,9 @@ export function useQuickLook({
   dialog: ReactNode;
   /** Spread onto the folder browser. */
   props: {
-    onQuickLook: (tab: FileTab) => void;
-    onQuickLookFollow: (tab: FileTab) => void;
+    /** `from` finds the file's place on screen, for the panel to grow out of. */
+    onQuickLook: (tab: FileTab, from?: () => Element | null) => void;
+    onQuickLookFollow: (tab: FileTab, from?: () => Element | null) => void;
     quickLookOpen: boolean;
   };
 } {
@@ -31,10 +32,12 @@ export function useQuickLook({
   // Where the keyboard was when the panel opened, so closing it puts the
   // keyboard back on the row rather than at the top of the screen.
   const origin = useRef<HTMLElement | null>(null);
+  const place = useRef<(() => Element | null) | undefined>(undefined);
 
   return {
     dialog: (
       <LookPanel
+        from={() => place.current?.() ?? null}
         onClose={() => {
           setFile(null);
         }}
@@ -49,14 +52,18 @@ export function useQuickLook({
       />
     ),
     props: {
-      onQuickLook: (tab) => {
+      onQuickLook: (tab, from) => {
+        place.current = from;
         if (document.activeElement instanceof HTMLElement) {
           origin.current = document.activeElement;
         }
         // The same file again puts the panel away, the way Space does twice.
         setFile((current) => (current?.hostPath === tab.hostPath ? null : tab));
       },
-      onQuickLookFollow: setFile,
+      onQuickLookFollow: (tab, from) => {
+        place.current = from;
+        setFile(tab);
+      },
       quickLookOpen: file !== null,
     },
   };

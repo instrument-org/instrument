@@ -313,9 +313,9 @@ export function ComputerPage({
   /** A file the user opened, when a granted folder covers it. */
   onOpenFile: (file: FileTab) => void;
   /** The selected file, on Space. Left out, Space is not watched for at all. */
-  onQuickLook?: (file: FileTab) => void;
+  onQuickLook?: (file: FileTab, from?: () => Element | null) => void;
   /** The file the selection moved to while Quick Look is up, for it to show. */
-  onQuickLookFollow?: (file: FileTab) => void;
+  onQuickLookFollow?: (file: FileTab, from?: () => Element | null) => void;
   path: string;
   /** What the folder opens searched for: this step's search, from the address. */
   query?: string;
@@ -1634,7 +1634,7 @@ export function ComputerPage({
         return;
       }
       event.preventDefault();
-      onQuickLook(quickLookTab);
+      onQuickLook(quickLookTab, () => selectedRowIn(browserRef.current));
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
@@ -1719,17 +1719,7 @@ export function ComputerPage({
       if (!event.isTrusted || !event.key.startsWith("Arrow")) {
         return;
       }
-      // The selected row the keyboard is on, of several.
-      const row =
-        browserRef.current?.querySelector<HTMLElement>(
-          '[role="option"][aria-selected="true"][tabindex="0"]',
-        ) ??
-        browserRef.current?.querySelector<HTMLElement>(
-          '[role="option"][aria-selected="true"]',
-        ) ??
-        browserRef.current?.querySelector<HTMLElement>(
-          '[role="option"][tabindex="0"]',
-        );
+      const row = selectedRowIn(browserRef.current);
       if (!row) {
         return;
       }
@@ -1743,7 +1733,9 @@ export function ComputerPage({
   }, [quickLookOpen]);
   useEffect(() => {
     if (quickLookOpen && quickLookTab) {
-      onQuickLookFollow?.(quickLookTab);
+      onQuickLookFollow?.(quickLookTab, () =>
+        selectedRowIn(browserRef.current),
+      );
     }
     // The tab is rebuilt with the items on every re-read; its path is its identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1987,7 +1979,13 @@ export function ComputerPage({
       (() => {
         const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
         if (tab) {
-          onQuickLook(tab);
+          onQuickLook(tab, () =>
+            item
+              ? (browserRef.current?.querySelector(
+                  `[data-file-system-item="${CSS.escape(item.path)}"]`,
+                ) ?? null)
+              : null,
+          );
         }
       }),
     onShowPackageContents: (() => {
@@ -3737,6 +3735,20 @@ const THUMBNAIL_EXTENSIONS = new Set([
 ]);
 
 /** The tab a file opens in: the file by where it is on the computer. */
+/** The selected row the keyboard is on, of several. */
+function selectedRowIn(browser: HTMLElement | null) {
+  return (
+    browser?.querySelector<HTMLElement>(
+      '[role="option"][aria-selected="true"][tabindex="0"]',
+    ) ??
+    browser?.querySelector<HTMLElement>(
+      '[role="option"][aria-selected="true"]',
+    ) ??
+    browser?.querySelector<HTMLElement>('[role="option"][tabindex="0"]') ??
+    null
+  );
+}
+
 function fileTabOf(file: FileSystemFileItem): FileTab | undefined {
   const hostPath = file.metadata?.hostPath;
   if (typeof hostPath !== "string") {

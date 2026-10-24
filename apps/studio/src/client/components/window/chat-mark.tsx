@@ -21,12 +21,19 @@ export function ChatMarkDot({
       aria-hidden
       className={cn(
         "absolute -top-0.5 -right-1 size-2.5 rounded-full ring-2 ring-ground",
-        mark === "waiting" ? "bg-warning-500" : "bg-brand-500",
-        mark === "working" && "motion-safe:animate-pulse",
+        mark === "waiting" && "bg-warning-500",
+        mark === "unread" && "bg-brand-500",
+        // Filled with its ring's color, so the pulse inside fades to what
+        // the dot sits on and never shows the icon's lines through it.
+        mark === "working" && "bg-(--tw-ring-color)",
         className,
       )}
       data-chat-mark={mark}
-    />
+    >
+      {mark === "working" && (
+        <span className="absolute inset-0 rounded-full bg-brand-500 motion-safe:animate-pulse" />
+      )}
+    </span>
   );
 }
 

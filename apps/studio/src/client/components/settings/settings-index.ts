@@ -155,6 +155,13 @@ export const SETTINGS_INDEX = [
   },
   {
     detail:
+      "Bring in your past chats from ChatGPT, Claude, Claude Code, Codex, or Cursor.",
+    id: "chat-import",
+    tab: "Memory",
+    title: "Import chats",
+  },
+  {
+    detail:
       "Open the folder of your memories, where each one is a file you can read or change.",
     id: "memory-folder",
     tab: "Memory",

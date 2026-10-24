@@ -75,6 +75,7 @@ describe("matchSettings", () => {
   it("finds the rows on a page by the page name under them, after title matches", () => {
     expect(titles("memory")).toEqual([
       "Memory folder",
+      "Import chats",
       "Import from another AI",
     ]);
   });

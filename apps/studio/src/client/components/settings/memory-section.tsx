@@ -1,4 +1,5 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { ChatImport } from "@/client/components/chat-import/chat-import";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { VendorMark } from "@/client/components/vendor-mark";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
@@ -44,6 +45,7 @@ import { type ChatId, type Memory } from "@instrument-org/workspace/client";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
@@ -117,12 +119,14 @@ export function MemorySection() {
   // when no file has it any more, which is said once the list is known.
   const named = useAtomValue(settingsModalAtom)?.memory;
   // A link to a memory while the import page is up goes back to the list.
-  const [isImporting, setIsImporting] = useState(false);
+  const [importing, setImporting] = useState<"chats" | "memories" | null>(
+    null,
+  );
   const [seenNamed, setSeenNamed] = useState(named);
   if (named !== seenNamed) {
     setSeenNamed(named);
     if (named !== undefined) {
-      setIsImporting(false);
+      setImporting(null);
     }
   }
   const isNamedMissing =
@@ -132,8 +136,8 @@ export function MemorySection() {
   // Back from the import page returns to the list rather than closing
   // Settings, since the page sits inside it.
   useModalBack(() => {
-    setIsImporting(false);
-  }, isImporting);
+    setImporting(null);
+  }, importing === "memories");
   useEffect(() => {
     if (isNamedMissing) {
       toast(`No memory named “${named}”`, {
@@ -144,26 +148,34 @@ export function MemorySection() {
     }
   }, [isNamedMissing, named]);
 
-  if (isImporting) {
+  const backToList = () => {
+    setImporting(null);
+  };
+  if (importing === "chats") {
+    return <ChatImport backLabel="Memory" onBack={backToList} />;
+  }
+  if (importing === "memories") {
     return (
       <div className="space-y-6">
         <button
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            setIsImporting(false);
-          }}
+          onClick={backToList}
           type="button"
         >
           <ArrowLeftIcon className="size-4" />
           Memory
         </button>
-        <ImportPage />
+        <ImportPage
+          onImportChats={() => {
+            setImporting("chats");
+          }}
+        />
       </div>
     );
   }
 
   const openImport = () => {
-    setIsImporting(true);
+    setImporting("memories");
   };
 
   return (
@@ -185,6 +197,11 @@ export function MemorySection() {
           offer itself, and a row that vanishes as the list arrives is a
           jump. */}
       {memories.length > 0 && <ImportEntry onOpen={openImport} />}
+      <ChatImportEntry
+        onOpen={() => {
+          setImporting("chats");
+        }}
+      />
 
       <Memories
         isLoading={data === undefined}
@@ -226,6 +243,32 @@ function ImportEntry({ onOpen }: { onOpen: () => void }) {
         <span className="block text-xs text-muted-foreground">
           Bring in what ChatGPT, Claude, Gemini, or any other AI knows about
           you.
+        </span>
+      </span>
+      <CaretRightIcon className="size-4 shrink-0 text-muted-foreground" />
+    </button>
+  );
+}
+
+/**
+ * Importing the chats themselves, as a row beside importing memories: the
+ * person thinks of bringing their things over from ChatGPT, not of which
+ * kind of thing it is, so both sit where "Import from another AI" is.
+ */
+function ChatImportEntry({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      className="flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left hover:bg-accent/50 focus-visible:outline-2 focus-visible:outline-ring"
+      onClick={onOpen}
+      type="button"
+      {...settingAnchor("chat-import")}
+    >
+      <ChatsCircleIcon className="size-5 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">Import chats</span>
+        <span className="block text-xs text-muted-foreground">
+          Bring in your past conversations from ChatGPT, Claude, or the coding
+          agents on your computer.
         </span>
       </span>
       <CaretRightIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -554,7 +597,7 @@ function FromChat({ chatId, title }: { chatId: ChatId; title: string }) {
  * the computer is read off the disk; what is on the web needs a browser and
  * a sign-in that is the person's to give.
  */
-function ImportPage() {
+function ImportPage({ onImportChats }: { onImportChats: () => void }) {
   const appWindow = useContext(WindowContext);
   const closeSettings = useSetAtom(settingsModalAtom);
   const { data: sources } = useQuery(
@@ -575,7 +618,14 @@ function ImportPage() {
         <h3 className="text-base font-semibold">Import memories</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Importing adds to what {APP_NAME} remembers, so you can bring in
-          memories from every AI you use.
+          memories from every AI you use.{" "}
+          <button
+            className="text-foreground underline decoration-border underline-offset-2 hover:decoration-foreground"
+            onClick={onImportChats}
+            type="button"
+          >
+            You can import your chats too.
+          </button>
         </p>
       </div>
       <PasteImport

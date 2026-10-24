@@ -14,6 +14,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { useQuery } from "@tanstack/react-query";
@@ -22,8 +23,8 @@ import { useWindow } from "./context";
 
 /**
  * What can be done to a place in the sidebar or a part of the address: the
- * folder menu's ways of opening it and pointing at it, and none of the ways
- * of changing it. A place is a folder a person keeps things in, and Rename,
+ * folder menu's ways of opening it, copying it and pointing at it, and none
+ * of the ways of changing it. A place is a folder a person keeps things in, and Rename,
  * Duplicate or the Trash one misplaced click away from the whole of it is not
  * worth the row.
  */
@@ -80,6 +81,18 @@ export function PlaceMenu({
         </ContextMenuItem>
       )}
       <ContextMenuSeparator />
+      <ContextMenuItem
+        onClick={() =>
+          void rpcClient.files.copyToClipboard
+            .call({ paths: [hostPath] })
+            .catch((error: unknown) => {
+              placeActionFailed("Couldn't copy that", error);
+            })
+        }
+      >
+        <CopyIcon className="size-4" />
+        <span>Copy</span>
+      </ContextMenuItem>
       <ContextMenuItem
         onClick={() =>
           void navigator.clipboard

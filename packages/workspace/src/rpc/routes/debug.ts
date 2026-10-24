@@ -25,6 +25,9 @@ const RUN_BASH_STREAM_LIMIT = 256 * 1024;
 const RUN_BASH_DEFAULT_TIMEOUT_MS = ms("2 minutes");
 const RUN_BASH_MAX_TIMEOUT_MS = ms("10 minutes");
 
+/** How long past its timeout a command runs before the log says it never stopped. */
+const RUN_BASH_OVERDUE_MS = ms("30 seconds");
+
 function clampStream(stream: string) {
   return stream.slice(0, RUN_BASH_STREAM_LIMIT);
 }
@@ -86,6 +89,14 @@ const runBash = base
 
     const startedAt = performance.now();
     const timeout = AbortSignal.timeout(input.timeoutMs);
+    // A command the abort does not end would otherwise hold its reply with
+    // nothing in the log to say so.
+    const overdue = setTimeout(() => {
+      console.warn(
+        `Debug shell command still running ${Math.round(RUN_BASH_OVERDUE_MS / 1000)}s after its ${Math.round(input.timeoutMs / 1000)}s timeout`,
+      );
+    }, input.timeoutMs + RUN_BASH_OVERDUE_MS);
+    overdue.unref();
 
     try {
       const result = await bash.exec(input.command, {
@@ -114,6 +125,8 @@ const runBash = base
         stdout: "",
         truncated: false,
       };
+    } finally {
+      clearTimeout(overdue);
     }
   });
 

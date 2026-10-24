@@ -49,6 +49,7 @@ import {
   parseAgentBrowserArgs,
 } from "./agent-browser-args";
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
+import { watchSlowInvocation } from "./agent-browser-slow";
 import {
   currentBrowserFollowUp,
   activeTab,
@@ -1192,8 +1193,10 @@ async function spawnAgentBrowser({
     await fs.writeFile(managedConfigPath, "{}\n");
   }
 
+  const { subcommand } = parseAgentBrowserArgs(args);
+
   if (process.platform !== "win32") {
-    return await execa(AGENT_BROWSER_PATH, managedArgs, {
+    const subprocess = execa(AGENT_BROWSER_PATH, managedArgs, {
       cancelSignal,
       cwd,
       env,
@@ -1209,6 +1212,12 @@ async function spawnAgentBrowser({
       // return, so both paths keep stdout and stderr separate.
       stripFinalNewline: false,
     });
+    const settled = watchSlowInvocation(subcommand, subprocess);
+    try {
+      return await subprocess;
+    } finally {
+      settled();
+    }
   }
 
   await fs.mkdir(stateDir, { recursive: true });
@@ -1233,6 +1242,7 @@ async function spawnAgentBrowser({
     fsSync.closeSync(stdoutFd);
     fsSync.closeSync(stderrFd);
 
+    const settled = watchSlowInvocation(subcommand, child);
     const exitCode = await new Promise<number | undefined>(
       (resolve, reject) => {
         const abort = () => {
@@ -1255,7 +1265,7 @@ async function spawnAgentBrowser({
           child.stdin?.end(input);
         }
       },
-    );
+    ).finally(settled);
 
     const [stdout, stderr] = await Promise.all([
       fs.readFile(stdoutPath, "utf8").catch(() => ""),

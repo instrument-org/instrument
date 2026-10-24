@@ -29,9 +29,12 @@ export async function answerAgentBrowser(
       ? answer(Array.isArray(args) ? args.map(String) : [])
       : answer;
   const { execa } = await import("execa");
-  // execa's result carries far more than a run of the CLI reads back.
+  // execa's result carries far more than a run of the CLI reads back, and
+  // its subprocess more than the `exit` listener the command adds.
   vi.mocked(execa).mockImplementation(((...given: unknown[]) =>
-    Promise.resolve(answerFor(given[1]))) as never);
+    Object.assign(Promise.resolve(answerFor(given[1])), {
+      once: () => undefined,
+    })) as never);
   if (process.platform !== "win32") {
     return;
   }

@@ -62,12 +62,12 @@ The starting point is the head the 10-22 review recorded. Five blind readers too
 
 ### G. The Windows microphone card can show no way forward
 
-- Status: open
+- Status: not a defect
 - Where: [microphone-access.ts](/apps/studio/src/electron-main/lib/microphone-access.ts), [dictation-settings.tsx:285](/apps/studio/src/client/components/settings/dictation-settings.tsx#L285)
 - What: Electron on Windows answers `restricted` when system-wide microphone access is off. The card for `restricted` has no button, says "This Mac doesn't allow it.", and hides the microphone, language and sound settings. If Windows answers `not-determined`, Allow does nothing off macOS and the card never clears.
 - Verification: static trace and Electron's Windows source only; not run on Windows. Medium confidence.
 - History: `bafc2b9b5`, which carries `Not-tested: the Windows card and toast on a real Windows host`.
-- Note: `461e4bab2` names the computer from the OS conventions in place of "This Mac"; the card offering no way forward on Windows waits for a check on the Windows test host.
+- Note: checked on the Windows test host with Electron 44.7.0, turning each switch in Settings › Privacy & security › Microphone: "Microphone access", "Let apps access your microphone" and "Let desktop apps access your microphone" each read `denied`, which the card shows with Open settings. `restricted` is left for a device whose policy refuses the microphone, where no setting the person can reach helps, and `not-determined` never came up for a desktop app. Writing those switches straight into the registry changes nothing Electron reads; only Settings does. `461e4bab2` names the computer in the `restricted` line.
 
 ### H. Nits
 

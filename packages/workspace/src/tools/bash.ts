@@ -60,6 +60,7 @@ import {
   withHandOffs,
 } from "../lib/shell-commands/task-hand-off";
 import { systemNote } from "../lib/system-note";
+import { sessionToolFs } from "../lib/tool-fs";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,
@@ -472,7 +473,11 @@ export const BashTool = setupTool({
     const screenshotPath = browserFollowUp.takeScreenshot();
     const screenshot =
       screenshotPath !== undefined && model.features.includes("inputImage")
-        ? await browserScreenshot(screenshotPath, signal)
+        ? await browserScreenshot({
+            files: await sessionToolFs({ chatId, partId, sessionId }),
+            hostPath: screenshotPath,
+            signal,
+          })
         : undefined;
     const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
       ? await browserSkillToDeliver({

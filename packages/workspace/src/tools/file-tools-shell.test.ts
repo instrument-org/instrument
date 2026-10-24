@@ -1,13 +1,17 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import { execa } from "execa";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { browserScreenshot } from "../lib/browser-screenshot";
 import { grantFolder } from "../lib/chat/grants";
 import { folderReach } from "../lib/chat/folder-reach";
 import { createLocalBashEnv } from "../lib/create-bash-env";
+import { FFMPEG_PATH } from "../lib/ffmpeg";
 import { updatePermissionSettings } from "../lib/permissions/rules";
+import { sessionToolFs } from "../lib/tool-fs";
 import { chatDir } from "../lib/record-folders";
 import { workDir } from "../lib/work-dir";
 import { shellPath } from "../lib/workspace-fs-layout";
@@ -377,5 +381,55 @@ describe("a name macOS spells another way than the model typed it", () => {
         `./${onDisk}`.normalize("NFC"),
       );
     }
+  });
+});
+
+// The app attaches the screenshot a browser command saved to the bash
+// result after the whole call has run, by which time a later command in it
+// may have put a link at that name.
+describe.skipIf(process.platform === "win32")("a browser screenshot", () => {
+  async function drawPng(destination: string) {
+    await execa(FFMPEG_PATH, [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc=size=40x30:duration=1:rate=1",
+      "-frames:v",
+      "1",
+      destination,
+    ]);
+  }
+
+  async function screenshotAt(hostPath: string) {
+    return browserScreenshot({
+      files: await sessionToolFs({ chatId, sessionId }),
+      hostPath,
+      signal: AbortSignal.timeout(30_000),
+    });
+  }
+
+  it("is shown from the work folder", async () => {
+    await drawPng(path.join(work, "shot.png"));
+
+    expect(await screenshotAt(path.join(work, "shot.png"))).toMatchObject({
+      height: 30,
+      width: 40,
+    });
+  });
+
+  it("is left out when its name is a link to a closed folder", async () => {
+    await drawPng(path.join(docs, "locked", "private.png"));
+    await fs.symlink(
+      path.join(docs, "locked", "private.png"),
+      path.join(work, "shot-link.png"),
+    );
+
+    expect(await screenshotAt(path.join(work, "shot-link.png"))).toBe(
+      undefined,
+    );
   });
 });

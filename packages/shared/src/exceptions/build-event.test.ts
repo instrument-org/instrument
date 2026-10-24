@@ -424,4 +424,23 @@ describe("a Windows home folder", () => {
       `"Failed at file:///~/AppData/Local/x.js, opening ~\\notes.md from ~/chat"`,
     );
   });
+
+  it("leaves no part of a home with a space or accent in the raw stack", () => {
+    const error = new Error("boom");
+    error.stack = [
+      "Error: boom",
+      "    at render (file:///C:/Users/Jos%C3%A9%20Garc%C3%ADa/AppData/Local/x.js:1:2)",
+    ].join("\n");
+    const event = buildExceptionEvent(error, {
+      breadcrumbs: [],
+      contexts: CONTEXTS,
+      defaultArea: "studio",
+      now: Date.UTC(2026, 9, 19, 12),
+      paths: { home: "C:\\Users\\José García" },
+    });
+    expect(event.exceptions.at(-1)?.rawStack).toMatchInlineSnapshot(`
+      "Error: boom
+          at render (file:///~/AppData/Local/x.js:1:2)"
+    `);
+  });
 });

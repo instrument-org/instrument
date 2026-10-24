@@ -21,3 +21,13 @@ it("leaves a macOS or Linux home as it is", () => {
   expect(homeSpellings("/Users/sam")).toEqual(["/Users/sam"]);
   expect(homeSpellings("")).toEqual([]);
 });
+
+it("adds the percent-encoded spelling a file:// address gives a home with a space or accent", () => {
+  expect(homeSpellings("C:\\Users\\José García")).toContain(
+    "C:/Users/Jos%C3%A9%20Garc%C3%ADa",
+  );
+  expect(homeSpellings("/Users/Jane Doe")).toEqual([
+    "/Users/Jane%20Doe",
+    "/Users/Jane Doe",
+  ]);
+});

@@ -110,7 +110,10 @@ function readConversationOrThrow(raw: unknown): ImportedTranscript | undefined {
     return undefined;
   }
   const opened = dateOf(raw.create_time);
-  const messages = readBranch(mapping, text(raw.current_node), opened);
+  const messages = readBranch(mapping, text(raw.current_node), {
+    opened,
+    defaultModel: text(raw.default_model_slug),
+  });
   const createdAt = opened ?? messages[0]?.createdAt ?? dateOf(raw.update_time);
   if (!createdAt) {
     return undefined;
@@ -153,10 +156,17 @@ function branchNodes(
   return nodes.reverse();
 }
 
+/**
+ * The newest message no other node names as its parent. Leaves are found
+ * from `parent` links alone, since exports from 2026 on drop `children`.
+ */
 function newestLeaf(mapping: Record<string, unknown>): string | undefined {
+  const parents = new Set(
+    Object.values(mapping).map((node) => text(record(node).parent)),
+  );
   let best: { id: string; time: number } | undefined;
   for (const [id, node] of Object.entries(mapping)) {
-    if (list(record(node).children).length > 0) {
+    if (parents.has(id)) {
       continue;
     }
     const time = Number(record(record(node).message).create_time) || 0;
@@ -175,7 +185,10 @@ function newestLeaf(mapping: Record<string, unknown>): string | undefined {
 function readBranch(
   mapping: Record<string, unknown>,
   currentNode: string | undefined,
-  opened: Date | undefined,
+  {
+    opened,
+    defaultModel,
+  }: { opened: Date | undefined; defaultModel: string | undefined },
 ): ImportedMessage[] {
   const messages: ImportedMessage[] = [];
   let reply: ImportedMessage | undefined;
@@ -218,7 +231,12 @@ function readBranch(
       countToolCall(reply, recipient);
       continue;
     }
-    const model = text(metadata.model_slug);
+    // Later exports leave `model_slug` off many messages and name the model
+    // on the conversation instead.
+    const model =
+      text(metadata.model_slug) ??
+      text(metadata.default_model_slug) ??
+      defaultModel;
     if (role === "assistant" && model) {
       reply.model = model;
     }

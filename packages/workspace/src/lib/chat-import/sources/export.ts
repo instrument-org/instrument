@@ -36,7 +36,12 @@ export async function openExport(
       ? error
       : new Error(NOT_AN_EXPORT, { cause: error });
   }
-  const found = locate(files.names, isChatGptConversationsFile);
+  let found = locate(files.names, isChatGptConversationsFile);
+  if (!found) {
+    const nested = await openNestedExport(files);
+    files = nested?.files ?? files;
+    found = nested?.found;
+  }
   if (!found) {
     throw new Error(NOT_AN_EXPORT);
   }
@@ -57,7 +62,14 @@ export async function openExport(
       chats: chatGptExportSource(files, found.files),
     };
   }
-  const projects = `${found.prefix}projects.json`;
+  const prefix = found.prefix;
+  const projectFiles = files.names.filter(
+    (name) =>
+      name === `${prefix}projects.json` ||
+      (name.startsWith(`${prefix}projects/`) &&
+        name.endsWith(".json") &&
+        !name.slice(prefix.length + "projects/".length).includes("/")),
+  );
   return {
     source: {
       from: { type: "export", path: exportPath },
@@ -68,10 +80,35 @@ export async function openExport(
     },
     chats: claudeExportSource(
       files,
-      `${found.prefix}conversations.json`,
-      files.names.includes(projects) ? projects : undefined,
+      `${prefix}conversations.json`,
+      projectFiles,
     ),
   };
+}
+
+/**
+ * The export inside an export: an archive whose only way in is a zip it
+ * holds, as some ChatGPT exports arrive.
+ */
+async function openNestedExport(
+  files: ExportFiles,
+): Promise<
+  { files: ExportFiles; found: { prefix: string; files: string[] } } | undefined
+> {
+  const inner = files.names.filter(
+    (name) => name.endsWith(".zip") && !name.startsWith("__MACOSX/"),
+  );
+  if (!files.openNested || inner.length === 0) {
+    return undefined;
+  }
+  for (const name of inner) {
+    const nested = await files.openNested(name);
+    const found = locate(nested.names, isChatGptConversationsFile);
+    if (found) {
+      return { files: nested, found };
+    }
+  }
+  return undefined;
 }
 
 type Service = "chatgpt" | "claude";

@@ -3,7 +3,11 @@ import { createReadStream, openAsBlob } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
-import type { ImportCandidate, ImportedTranscript } from "../model";
+import type {
+  ImportCandidate,
+  ImportedMessage,
+  ImportedTranscript,
+} from "../model";
 
 /**
  * The files of a chat service's export, read the same way whether the person
@@ -19,6 +23,12 @@ export type ExportFiles = {
   names: readonly string[];
   /** One file's bytes as they inflate or come off the disk. */
   stream(name: string): AsyncIterable<Uint8Array>;
+  /**
+   * A zip inside a zip, read in place. Only a zip's members have it, and it
+   * rejects for one stored compressed, which cannot be read without
+   * inflating the whole of it first.
+   */
+  openNested?(name: string): Promise<ExportFiles>;
 };
 
 /** Thrown when a path is not a zip or folder that can be read at all. */
@@ -45,8 +55,16 @@ export async function openExportFiles(
 /** What every zip starts with, `PK\x03\x04`, damaged or not. */
 const ZIP_SIGNATURE = [0x50, 0x4b, 0x03, 0x04];
 
+/** A zip member's compression method when it is stored as is. */
+const STORED = 0;
+
+const LOCAL_HEADER_LENGTH = 30;
+
 async function openZip(zipPath: string): Promise<ExportFiles> {
-  const blob = await openAsBlob(zipPath);
+  return await openZipBlob(await openAsBlob(zipPath));
+}
+
+async function openZipBlob(blob: Blob): Promise<ExportFiles> {
   const reader = new ZipReader(new BlobReader(blob), { useWebWorkers: false });
   let entries: FileEntry[];
   try {
@@ -72,6 +90,27 @@ async function openZip(zipPath: string): Promise<ExportFiles> {
         throw new Error(`The export has no ${name}.`);
       }
       return inflate(entry);
+    },
+    async openNested(name) {
+      const entry = byName.get(name);
+      if (!entry || entry.compressionMethod !== STORED || entry.encrypted) {
+        throw new UnreadableExportError(
+          "This export has another zip inside it. Unzip it first, then pick the zip that was inside.",
+        );
+      }
+      // A stored member's bytes are one range of the outer file, after its
+      // local header: 30 bytes, then its name and extra field.
+      const header = new DataView(
+        await blob
+          .slice(entry.offset, entry.offset + LOCAL_HEADER_LENGTH)
+          .arrayBuffer(),
+      );
+      const start =
+        entry.offset +
+        LOCAL_HEADER_LENGTH +
+        header.getUint16(26, true) +
+        header.getUint16(28, true);
+      return await openZipBlob(blob.slice(start, start + entry.compressedSize));
     },
   };
 }
@@ -362,6 +401,44 @@ export function finishTranscript(
     ...(preview ? { preview } : {}),
     ...(!opening || !replied ? { incidental: true } : {}),
   };
+}
+
+/**
+ * Messages with each reply as one message, where the source wrote a reply
+ * that used tools as several in a row: their words joined, what they
+ * omitted added up, dated when the reply began.
+ */
+export function mergeReplies(messages: ImportedMessage[]): ImportedMessage[] {
+  const merged: ImportedMessage[] = [];
+  for (const message of messages) {
+    const previous = merged.at(-1);
+    if (previous?.role !== "assistant" || message.role !== "assistant") {
+      merged.push(message);
+      continue;
+    }
+    const toolCalls = { ...previous.omitted?.toolCalls };
+    for (const [name, count] of Object.entries(
+      message.omitted?.toolCalls ?? {},
+    )) {
+      toolCalls[name] = (toolCalls[name] ?? 0) + count;
+    }
+    const attachments =
+      (previous.omitted?.attachments ?? 0) +
+      (message.omitted?.attachments ?? 0);
+    const omitted = {
+      ...(attachments ? { attachments } : {}),
+      ...(Object.keys(toolCalls).length ? { toolCalls } : {}),
+    };
+    const model = message.model ?? previous.model;
+    merged[merged.length - 1] = {
+      role: "assistant",
+      text: [previous.text, message.text].filter(Boolean).join("\n\n"),
+      createdAt: previous.createdAt,
+      ...(model ? { model } : {}),
+      ...(Object.keys(omitted).length ? { omitted } : {}),
+    };
+  }
+  return merged;
 }
 
 export function candidateOf(transcript: ImportedTranscript): ImportCandidate {

@@ -78,19 +78,33 @@ describe("readConversation", () => {
     `);
   });
 
-  it("follows the newest leaf when there is no current node", () => {
-    const conversation = chatGptRemodel();
-    delete conversation.current_node;
-    const read = readConversation(conversation);
-    expect(read?.messages.map((message) => message.text))
-      .toMatchInlineSnapshot(`
-      [
+  it.each([
+    ["with children", true],
+    ["without children, as exports from 2026 on", false],
+  ])(
+    "follows the newest leaf when there is no current node, nodes %s",
+    (_, children) => {
+      const conversation = chatGptRemodel({ children });
+      delete conversation.current_node;
+      const read = readConversation(conversation);
+      expect(read?.messages.map((message) => message.text)).toEqual([
         "Help me plan a kitchen remodel.",
         "Start with a budget. Then pick a layout.",
         "What about tile floors like this?",
         "Here is a sketch of a herringbone tile floor.",
-      ]
-    `);
+      ]);
+    },
+  );
+
+  it("names the conversation's model on a reply whose message names none", () => {
+    const read = readConversation({
+      ...chatGptUntitled(),
+      default_model_slug: "gpt-5-mini",
+    });
+    expect(read?.messages.map((message) => message.model)).toEqual([
+      undefined,
+      "gpt-5-mini",
+    ]);
   });
 
   it.each([

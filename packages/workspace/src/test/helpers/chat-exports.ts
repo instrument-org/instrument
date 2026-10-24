@@ -11,11 +11,15 @@ import path from "node:path";
 
 export type ExportFileMap = Record<string, string | Uint8Array>;
 
-export async function writeZip(
-  zipPath: string,
+/** A zip's bytes; `stored` leaves every member uncompressed. */
+export async function zipBytes(
   files: ExportFileMap,
-): Promise<void> {
-  const writer = new ZipWriter(new BlobWriter(), { useWebWorkers: false });
+  { stored = false }: { stored?: boolean } = {},
+): Promise<Uint8Array> {
+  const writer = new ZipWriter(new BlobWriter(), {
+    useWebWorkers: false,
+    level: stored ? 0 : 6,
+  });
   for (const [name, content] of Object.entries(files)) {
     await writer.add(
       name,
@@ -27,7 +31,14 @@ export async function writeZip(
     );
   }
   const blob = await writer.close();
-  await fs.writeFile(zipPath, new Uint8Array(await blob.arrayBuffer()));
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+export async function writeZip(
+  zipPath: string,
+  files: ExportFileMap,
+): Promise<void> {
+  await fs.writeFile(zipPath, await zipBytes(files));
 }
 
 export async function writeFolder(
@@ -89,7 +100,11 @@ const textContent = (...parts: unknown[]) => ({
   parts,
 });
 
-function mapping(nodes: GptNode[]): Record<string, unknown> {
+/** Nodes as the export maps them; exports from 2026 on leave out `children`. */
+function mapping(
+  nodes: GptNode[],
+  { children = true }: { children?: boolean } = {},
+): Record<string, unknown> {
   return Object.fromEntries(
     nodes.map((node) => [
       node.id,
@@ -97,9 +112,13 @@ function mapping(nodes: GptNode[]): Record<string, unknown> {
         id: node.id,
         message: node.message ?? null,
         parent: node.parent ?? null,
-        children: nodes
-          .filter((child) => child.parent === node.id)
-          .map((child) => child.id),
+        ...(children
+          ? {
+              children: nodes
+                .filter((child) => child.parent === node.id)
+                .map((child) => child.id),
+            }
+          : {}),
       },
     ]),
   );
@@ -112,7 +131,9 @@ function mapping(nodes: GptNode[]): Record<string, unknown> {
  * image the person sent, an image the reply generated through a tool, and a
  * user message with no `model_slug`.
  */
-export function chatGptRemodel(): Record<string, unknown> {
+export function chatGptRemodel({
+  children = true,
+}: { children?: boolean } = {}): Record<string, unknown> {
   const nodes: GptNode[] = [
     { id: "root" },
     {
@@ -294,7 +315,7 @@ export function chatGptRemodel(): Record<string, unknown> {
     title: "Kitchen remodel",
     create_time: T0,
     update_time: T0 + 95,
-    mapping: mapping(nodes),
+    mapping: mapping(nodes, { children }),
     moderation_results: [],
     current_node: "a3",
     plugin_ids: null,

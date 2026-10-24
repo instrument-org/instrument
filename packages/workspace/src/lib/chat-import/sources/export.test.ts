@@ -8,6 +8,7 @@ import {
   claudeConversation,
   writeFolder,
   writeZip,
+  zipBytes,
 } from "../../../test/helpers/chat-exports";
 import { withTempDir } from "../../../test/helpers/temp-dir";
 import type { ChatSource } from "../model";
@@ -140,6 +141,49 @@ describe("openExport", () => {
     `);
     const [garden] = await chats.list();
     expect(garden?.project).toBe("Backyard");
+  });
+
+  it("reads a Claude export's projects folder", async () => {
+    const zip = path.join(dir.path, "claude.zip");
+    await writeZip(zip, {
+      "users.json": "[]",
+      "memories.json": "[]",
+      "projects/p1.json": JSON.stringify({ uuid: "p1", name: "Backyard" }),
+      "design_chats/d1.json": JSON.stringify({ uuid: "d1" }),
+      "conversations.json": JSON.stringify([
+        claudeConversation({ project_uuid: "p1" }),
+      ]),
+    });
+    const [garden] = await (await openExport(zip)).chats.list();
+    expect(garden?.project).toBe("Backyard");
+  });
+
+  it("reads a ChatGPT export stored as a zip inside a zip", async () => {
+    const zip = path.join(dir.path, "privacy-export.zip");
+    const inner = await zipBytes({
+      ...chatGptFiles,
+      "conversations-000.json": JSON.stringify([chatGptRemodel()]),
+    });
+    await fs.writeFile(
+      zip,
+      await zipBytes(
+        { "README.txt": "hi", "export.zip": inner },
+        { stored: true },
+      ),
+    );
+    const { source, chats } = await openExport(zip);
+    expect(source.kind).toBe("chatgpt-export");
+    expect(await listed(chats)).toEqual(["gpt-remodel: Kitchen remodel (4)"]);
+  });
+
+  it("asks for a compressed zip inside a zip to be unzipped first", async () => {
+    const zip = path.join(dir.path, "privacy-export.zip");
+    await writeZip(zip, {
+      "export.zip": await zipBytes({ "conversations.json": "[]" }),
+    });
+    await expect(openExport(zip)).rejects.toThrowErrorMatchingInlineSnapshot(
+      `[Error: This export has another zip inside it. Unzip it first, then pick the zip that was inside.]`,
+    );
   });
 
   it("tells an export with no conversations apart by the files beside it", async () => {

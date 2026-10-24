@@ -13,7 +13,9 @@ import {
   isRecord,
   jsonArrayObjects,
   list,
+  mergeReplies,
   newestFirst,
+  readJson,
   record,
   text,
 } from "./export-files";
@@ -21,8 +23,9 @@ import {
 /**
  * Claude's data export (Settings > Privacy > Export data): a
  * `conversations.json` array of conversations, each with its
- * `chat_messages`, beside `users.json` and, when the person had projects,
- * `projects.json`.
+ * `chat_messages`, beside `users.json` and the person's projects, as a
+ * `projects.json` or a `projects/` folder of one file each. A reply that
+ * used tools can be several assistant messages in a row, read as one.
  *
  * A message's `content` blocks are read when it has them, since they keep
  * the reply's words apart from its thinking and tool calls; its `text` is the
@@ -33,13 +36,13 @@ import {
 export function claudeExportSource(
   files: ExportFiles,
   conversationsFile: string,
-  projectsFile: string | undefined,
+  projectFiles: readonly string[],
 ): ChatSource {
   let listing: Promise<ImportCandidate[]> | undefined;
   let projects: Promise<Map<string, string>> | undefined;
 
   async function* conversations(): AsyncIterable<ImportedTranscript> {
-    projects ??= projectNames(files, projectsFile);
+    projects ??= projectNames(files, projectFiles);
     const names = await projects;
     for await (const raw of jsonArrayObjects(files.stream(conversationsFile))) {
       const transcript = readConversation(raw, names);
@@ -80,26 +83,36 @@ export function claudeExportSource(
   };
 }
 
-/** Each project's name by its id, streamed since a project keeps its documents. */
+/**
+ * Each project's name by its id, from a `projects.json` array or a
+ * `projects/` folder of one file per project. The array is streamed, since a
+ * project keeps its documents.
+ */
 async function projectNames(
   files: ExportFiles,
-  projectsFile: string | undefined,
+  projectFiles: readonly string[],
 ): Promise<Map<string, string>> {
   const names = new Map<string, string>();
-  if (!projectsFile) {
-    return names;
-  }
-  try {
-    for await (const raw of jsonArrayObjects(files.stream(projectsFile))) {
-      const project = record(raw);
-      const id = text(project.uuid);
-      const name = text(project.name);
-      if (id && name) {
-        names.set(id, name);
-      }
+  const add = (raw: unknown) => {
+    const project = record(raw);
+    const id = text(project.uuid);
+    const name = text(project.name);
+    if (id && name) {
+      names.set(id, name);
     }
-  } catch {
-    // A project file that cannot be read leaves chats unfiled, not unread.
+  };
+  for (const file of projectFiles) {
+    try {
+      if (file.endsWith("/projects.json") || file === "projects.json") {
+        for await (const raw of jsonArrayObjects(files.stream(file))) {
+          add(raw);
+        }
+      } else {
+        add(await readJson(files, file));
+      }
+    } catch {
+      // A project file that cannot be read leaves its chats unfiled.
+    }
   }
   return names;
 }
@@ -169,7 +182,7 @@ function readConversationOrThrow(
     title: text(raw.name) ?? "",
     createdAt,
     updatedAt: updatedAt < createdAt ? createdAt : updatedAt,
-    messages,
+    messages: mergeReplies(messages),
     ...(project ? { project } : {}),
   });
 }

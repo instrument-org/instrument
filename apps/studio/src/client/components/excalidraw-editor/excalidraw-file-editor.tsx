@@ -13,7 +13,9 @@ import {
   type ExcalidrawImperativeAPI,
   type ExcalidrawInitialDataState,
 } from "@excalidraw/excalidraw/types";
+import { zoomAtom } from "@/client/atoms/zoom";
 import { useQuery } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import {
@@ -64,6 +66,7 @@ function LiveCanvas({
   initial: { content: string; version: string };
 }) {
   const { resolvedTheme } = useTheme();
+  const appZoom = useAtomValue(zoomAtom);
   const [scene] = useState(() => readDiskScene(initial.content));
   // Read once: the canvas takes its initial data on mount only.
   const [initialData] = useState(() =>
@@ -73,6 +76,12 @@ function LiveCanvas({
   const [session, setSession] = useState<ExcalidrawSession | null>(null);
   const [status, setStatus] = useState<SaveStatus>("saved");
   const sessionRef = useRef<ExcalidrawSession | null>(null);
+
+  // The canvas measures its box on a window resize; a zoom change moves it
+  // without one.
+  useEffect(() => {
+    api?.refresh();
+  }, [api, appZoom]);
 
   const modifiedAt = usePullOnDiskChange(hostPath, session, {
     enabled: session !== null,
@@ -136,21 +145,27 @@ function LiveCanvas({
 
   return (
     <div className="relative size-full min-h-0" data-status={status}>
-      <Excalidraw
-        excalidrawAPI={setApi}
-        initialData={initialData}
-        onChange={(elements) => {
-          sessionRef.current?.onCanvasChange(elements);
-        }}
-        theme={resolvedTheme}
-        UIOptions={{
-          canvasActions: {
-            export: false,
-            loadScene: false,
-            saveToActiveFile: false,
-          },
-        }}
-      />
+      {/* Excalidraw maps the pointer from on-screen px, so under the app's
+          zoom it draws a zoom-factor away from the pointer. Zoomed back to 1
+          here, it measures true; its own zoom control scales the drawing.
+          Percentages are not zoomed, so the box still fills its parent. */}
+      <div className="absolute inset-0" style={{ zoom: 1 / appZoom }}>
+        <Excalidraw
+          excalidrawAPI={setApi}
+          initialData={initialData}
+          onChange={(elements) => {
+            sessionRef.current?.onCanvasChange(elements);
+          }}
+          theme={resolvedTheme}
+          UIOptions={{
+            canvasActions: {
+              export: false,
+              loadScene: false,
+              saveToActiveFile: false,
+            },
+          }}
+        />
+      </div>
       {status === "error" && (
         <div className="pointer-events-none absolute inset-x-0 bottom-16 z-10 flex justify-center">
           <SaveFailedPill

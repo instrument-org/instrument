@@ -10,6 +10,7 @@ import {
 } from "@/client/hooks/use-file-presence";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
+import { displayPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
 import { nameOfPath } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -154,7 +155,7 @@ export function FolderRowCard({
       <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 flex-col justify-center text-left">
         <span
           className="truncate text-sm leading-5 text-foreground"
-          title={path}
+          title={displayPath(path)}
         >
           {name}
         </span>

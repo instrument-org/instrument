@@ -12,7 +12,8 @@ import {
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
 import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
-import { folderOf, homeRelative } from "@/client/components/window/host-path";
+import { folderOf } from "@/client/components/window/host-path";
+import { displayPath } from "@/client/lib/path-utils";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { useTheme } from "@/client/components/theme-provider";
@@ -614,12 +615,12 @@ export function useCommandMenuRows({
         {
           items: fuzzyMatch(
             recentFiles,
-            (file) => [file.name, homeRelative(file.path, window.api.homeDir)],
+            (file) => [file.name, displayPath(file.path)],
             words,
           )
             .slice(0, FILES_SHOWN)
             .map(({ item: file, ranges }) => ({
-              detail: homeRelative(folderOf(file.path), window.api.homeDir),
+              detail: displayPath(folderOf(file.path)),
               icon: <FileTypeIcon fileName={file.name} />,
               id: `file:${file.path}`,
               label: file.name,

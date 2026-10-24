@@ -21,7 +21,11 @@ import {
 
 import { type ChatSeparator, chatSeparators } from "../lib/chat-separators";
 import { cn } from "../lib/utils";
-import { AssistantMessage, hasBubbleWords } from "./assistant-message";
+import {
+  AssistantMessage,
+  hasBubbleWords,
+  saysNothing,
+} from "./assistant-message";
 import { AttachmentsCard } from "./attachments-card";
 import { FollowedBubblesContext } from "./bubble-run-context";
 import { ChatSeparatorRow } from "./chat-separator";
@@ -315,7 +319,7 @@ function bubbleBoxes(
       if (stored.type === "text") {
         if (
           superseded ||
-          (stored.state === "done" && stored.text.trim() === "")
+          (stored.state === "done" && saysNothing(stored.text))
         ) {
           continue;
         }

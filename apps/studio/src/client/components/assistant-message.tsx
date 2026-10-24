@@ -85,6 +85,15 @@ function messageSegments(
 }
 
 /** Whether a reply's text draws any words in a bubble, not only cards. */
+/**
+ * Whether a finished reply says nothing: blank, or only fence marks, which a
+ * model that opened a code block and stopped leaves, and which would draw
+ * as an empty block in a bubble.
+ */
+export function saysNothing(text: string): boolean {
+  return /^[\s`~]*$/.test(text);
+}
+
 export function hasBubbleWords(text: string): boolean {
   return messageSegments(text.replace(FILES_FENCE, "")).some(
     (segment) => segment.kind === "words",

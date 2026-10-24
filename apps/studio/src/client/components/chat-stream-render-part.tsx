@@ -6,7 +6,7 @@ import {
   type ChatInfo,
 } from "@instrument-org/workspace/client";
 
-import { AssistantMessage } from "./assistant-message";
+import { AssistantMessage, saysNothing } from "./assistant-message";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
 import { ToolCall } from "./message-part/tool-call";
 import {
@@ -64,7 +64,7 @@ export function renderChatPart({
   stateNote: string | undefined;
 }): React.ReactNode {
   if (part.type === "text") {
-    if (part.state === "done" && part.text.trim() === "") {
+    if (part.state === "done" && saysNothing(part.text)) {
       return null;
     }
 

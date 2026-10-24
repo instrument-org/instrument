@@ -28,6 +28,8 @@ worktree_root=$(git rev-parse --show-toplevel)
 main_root=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
 [[ "$worktree_root" != "$main_root" ]] ||
   fail "run this from a linked worktree, not the primary checkout"
+# The checks below name files from the repo's top, wherever this was run from.
+cd "$worktree_root"
 
 # A worktree made with plain `git worktree add` has had no setup hook run.
 if [[ ! -d "$worktree_root/node_modules" ]]; then
@@ -39,8 +41,12 @@ branch=$(git branch --show-current)
 [[ -n "$branch" ]] || fail "the worktree is on a detached HEAD; commit on a branch first"
 [[ "$(git -C "$main_root" branch --show-current)" == "main" ]] ||
   fail "the primary checkout at $main_root is not on main"
-[[ -z "$(git status --porcelain --untracked-files=no)" ]] ||
-  fail "commit or drop the worktree's changes first"
+# Untracked files count: removing the worktree once it lands deletes them.
+uncommitted() {
+  git -C "$worktree_root" status --porcelain --ignore-submodules=untracked
+}
+[[ -z "$(uncommitted)" ]] ||
+  fail "commit or drop the worktree's changes first, new files included"
 
 # Main may have moved since the worktree started; commits it already holds
 # under other hashes drop out of the rebase.
@@ -217,6 +223,13 @@ fi
 if [[ "$keep" == false ]] &&
   git worktree list --porcelain | grep -A5 -Fx "worktree $worktree_root" | grep -q '^locked'; then
   echo "land: $worktree_root is locked by the harness, which removes it later"
+  keep=true
+fi
+
+# Files written while the checks ran are on no branch.
+if [[ "$keep" == false && -n "$(uncommitted)" ]]; then
+  echo "land: kept $worktree_root, which has changes no commit holds:" >&2
+  uncommitted >&2
   keep=true
 fi
 

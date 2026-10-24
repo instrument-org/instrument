@@ -10,6 +10,7 @@ import { chatGrants } from "./chat/grants";
 import { folderReach } from "./chat/folder-reach";
 import { baselineRecorded, partsAfter } from "./last-told";
 import { shellPath } from "./shell-path";
+import { getWorkspaceConfig } from "./workspace-config";
 
 /**
  * The granted folders the session's model was last told it reaches: what its
@@ -36,27 +37,29 @@ function lastToldFolders(
       ...kept,
       ...note.data.added
         .filter(({ path }) => !known.has(path))
-        .map(({ path }) => ({ path })),
+        .map(({ device, path }) => ({ ...(device && { device }), path })),
     ];
   }, recorded.value);
 }
 
 /**
- * The folders granted in the chat, as its agent reaches them: what a
- * baseline records it told, and what a later message is measured by.
+ * The folders granted in the chat on this computer, as its agent reaches
+ * them, each marked as this computer's: what a baseline records it told, and
+ * what a later message is measured by.
  */
 export async function grantedFolders(chatId: ChatId): Promise<ToldFolders> {
+  const { deviceId } = getWorkspaceConfig();
   const grants = await chatGrants(chatId);
   const granted = new Set<string>(grants.map((grant) => grant.path));
   return Object.values(await folderReach(chatId, grants))
     .filter((folder) => granted.has(folder.path))
-    .map((folder) => ({ path: folder.path }));
+    .map((folder) => ({ device: deviceId, path: folder.path }));
 }
 
 /**
- * Diffs the folders granted in the chat, as the agent reaches them, against
- * what the session was last told (`lastToldFolders`) to find folders granted
- * or taken back since. The standing folder list lives in the session
+ * Diffs the folders granted in the chat on this computer, as the agent
+ * reaches them, against what the session was last told (`lastToldFolders`)
+ * to find folders granted or taken back since. The standing folder list lives in the session
  * context, which is written once, so this is what tells the session the same
  * turn. Returns a `data-folderChanges` part to attach to the user message,
  * which is itself the record of the telling, or undefined when there is no
@@ -84,6 +87,7 @@ export function detectFolderChanges({
       if (!told) {
         return ok(undefined);
       }
+      const { deviceId } = getWorkspaceConfig();
       const current = await grantedFolders(chatId);
 
       const currentPaths = new Set(current.map((folder) => folder.path));
@@ -94,7 +98,13 @@ export function detectFolderChanges({
       // carries is the telling, without which the model has a folder it was
       // never told it had and a standing list that contradicts it.
       const added = current.filter((folder) => !toldPaths.has(folder.path));
-      const removed = told.filter((folder) => !currentPaths.has(folder.path));
+      // Taken back only where this computer granted it: a grant is one
+      // computer's, so a folder told on another one is simply not granted
+      // here, and reaching for it raises a card like any other.
+      const removed = told.filter(
+        (folder) =>
+          folder.device === deviceId && !currentPaths.has(folder.path),
+      );
       if (added.length === 0 && removed.length === 0) {
         return ok(undefined);
       }
@@ -102,7 +112,11 @@ export function detectFolderChanges({
       // Spelled now, as the shell spells them on this computer, so the note
       // reads the same wherever the chat is read later.
       const spelled = (folders: ToldFolders) =>
-        folders.map(({ path }) => ({ agentPath: shellPath(path), path }));
+        folders.map(({ device, path }) => ({
+          agentPath: shellPath(path),
+          ...(device && { device }),
+          path,
+        }));
       return ok({
         data: { added: spelled(added), removed: spelled(removed) },
         metadata: {

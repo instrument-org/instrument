@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DeviceIdSchema } from "../device-id";
 import { EnvironmentChangeSchema } from "../environment";
 import {
   AbsolutePathSchema,
@@ -107,10 +108,10 @@ export namespace SessionMessageDataPart {
     workspaceInstructions: "state",
   } satisfies Record<Name, Cadence>;
 
-  // Folders granted in the chat or taken back since the session last heard --
-  // attached to the user message that starts the next turn so the model knows
-  // of a folder granted mid-conversation and stops relying on one that has
-  // gone. The standing folder
+  // Folders granted in the chat or taken back on this computer since the
+  // session last heard -- attached to the user message that starts the next
+  // turn so the model knows of a folder granted mid-conversation and stops
+  // relying on one that has gone. The standing folder
   // list lives in the session context, which is written once and rebuilt at
   // most hourly, so this is what gets a change to the model the same turn.
   const ChangedFolderSchema = z.object({
@@ -120,6 +121,11 @@ export namespace SessionMessageDataPart {
      * was kept.
      */
     agentPath: z.string().optional(),
+    /**
+     * The computer whose grant this is, on a folder added; see `ToldFolders`.
+     * Absent on a note written before it was kept.
+     */
+    device: DeviceIdSchema.optional(),
     path: z.string(),
   });
   const FolderChangesDataPartSchema = z.object({

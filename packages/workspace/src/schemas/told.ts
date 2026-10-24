@@ -34,8 +34,15 @@ export const ToldAppsSchema = z.record(
 
 export type ToldApps = z.output<typeof ToldAppsSchema>;
 
-/** The folders granted in the chat the session was told it reaches, by path. */
-export const ToldFoldersSchema = z.array(z.object({ path: z.string() }));
+/**
+ * The folders granted in the chat the session was told it reaches, by path.
+ * A grant is one computer's (`permissions.json`), so `device` names the
+ * computer whose grant was told: only that computer can take it back. None
+ * on an entry written before this was recorded, which no computer claims.
+ */
+export const ToldFoldersSchema = z.array(
+  z.object({ device: DeviceIdSchema.optional(), path: z.string() }),
+);
 
 export type ToldFolders = z.output<typeof ToldFoldersSchema>;
 

@@ -5,9 +5,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
+import { type ToldFolders } from "../schemas/told";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { folderReach } from "./chat/folder-reach";
 import { grantFolder } from "./chat/grants";
+import { chatRules } from "./permissions/chat-rules";
+import { reachOf } from "./permissions/rules";
+import { newDeviceId } from "./records/device-id";
 import { detectFolderChanges } from "./folder-changes";
 import { sessionOfChat } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -25,7 +30,7 @@ let rootDir: string;
 let sessionId: StoreId.Session;
 let downloads: string;
 
-async function changesSince(baseline: { path: string }[]) {
+async function changesSince(baseline: ToldFolders) {
   await writeBaseline(CHAT_ID, sessionId, { folders: baseline });
   return detect();
 }
@@ -90,7 +95,11 @@ describe("detectFolderChanges", () => {
     const changes = await changesSince([]);
 
     expect(changes?.added).toEqual([
-      { agentPath: shellPath(downloads), path: downloads },
+      {
+        agentPath: shellPath(downloads),
+        device: getWorkspaceConfig().deviceId,
+        path: downloads,
+      },
     ]);
   });
 
@@ -99,20 +108,32 @@ describe("detectFolderChanges", () => {
     await fs.mkdir(gone);
     await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
 
-    const changes = await changesSince([{ path: gone }]);
+    const changes = await changesSince([
+      { device: getWorkspaceConfig().deviceId, path: gone },
+    ]);
 
     expect(changes?.added).toEqual([
-      { agentPath: shellPath(downloads), path: downloads },
+      {
+        agentPath: shellPath(downloads),
+        device: getWorkspaceConfig().deviceId,
+        path: downloads,
+      },
     ]);
     expect(changes?.removed).toEqual([
-      { agentPath: shellPath(gone), path: gone },
+      {
+        agentPath: shellPath(gone),
+        device: getWorkspaceConfig().deviceId,
+        path: gone,
+      },
     ]);
   });
 
   it("reports nothing when the folders are as the model last saw them", async () => {
     await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
 
-    const changes = await changesSince([{ path: downloads }]);
+    const changes = await changesSince([
+      { device: getWorkspaceConfig().deviceId, path: downloads },
+    ]);
 
     expect(changes).toBeUndefined();
   });
@@ -126,9 +147,71 @@ describe("detectFolderChanges", () => {
   it("counts a folder the last note told as told", async () => {
     await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
     expect((await changesSince([]))?.added).toEqual([
-      { agentPath: shellPath(downloads), path: downloads },
+      {
+        agentPath: shellPath(downloads),
+        device: getWorkspaceConfig().deviceId,
+        path: downloads,
+      },
     ]);
 
     expect(await detect()).toBeUndefined();
+  });
+
+  // A grant is one computer's. A folder told on another computer, or in a
+  // baseline from before the computer was recorded, was never this one's to
+  // take back: here it is simply not granted, and reaching for it asks.
+  it.each([
+    ["another computer", { device: newDeviceId() }],
+    ["no computer recorded", {}],
+  ])("reports nothing for a folder told on %s", async (_name, told) => {
+    const elsewhere = path.join(rootDir, "Elsewhere");
+
+    expect(await changesSince([{ ...told, path: elsewhere }])).toBeUndefined();
+  });
+});
+
+describe("a chat continued on a second computer", () => {
+  it("neither removes nor mounts the first computer's folders, and asks", async () => {
+    const project = path.join(rootDir, "Project");
+    await fs.mkdir(project);
+    // The first computer: the folder granted there, and a baseline that
+    // told it.
+    await grantFolder({ chatId: CHAT_ID, path: project, source: "attached" });
+    expect(await changesSince([])).toMatchObject({
+      added: [{ path: project }],
+    });
+
+    // The second computer reads the same records with a permission file of
+    // its own, which grants nothing.
+    const first = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...first,
+      deviceId: newDeviceId(),
+      workspaceMachineDir: AbsolutePathSchema.parse(
+        path.join(rootDir, "second-machine"),
+      ),
+    });
+
+    expect(await detect()).toBeUndefined();
+    expect(Object.keys(await folderReach(CHAT_ID))).not.toContain(project);
+    // Changing anything there asks, as in a folder this chat never had.
+    expect(
+      reachOf(
+        await chatRules({ chatId: CHAT_ID }),
+        path.join(project, "notes.md"),
+        "write",
+      ).level,
+    ).toBe("ask");
+
+    // Back on the first computer, its grant still holds and nothing changed.
+    setWorkspaceConfig(first);
+    expect(await detect()).toBeUndefined();
+    expect(
+      reachOf(
+        await chatRules({ chatId: CHAT_ID }),
+        path.join(project, "notes.md"),
+        "write",
+      ).level,
+    ).toBe("allow");
   });
 });

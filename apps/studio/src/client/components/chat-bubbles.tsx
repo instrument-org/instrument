@@ -874,6 +874,7 @@ const BubbleRowView = memo(function BubbleRowView({
     case "error": {
       return (
         <MessageError
+          compact
           isAgentRunning={row.isAgentRunning}
           isDeveloperMode={row.isDeveloperMode}
           isLastMessage={row.isLastMessage}

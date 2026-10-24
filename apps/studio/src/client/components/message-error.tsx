@@ -45,6 +45,11 @@ type MessageErrorData = NonNullable<
 >;
 
 interface MessageErrorProps {
+  /**
+   * One quiet line in the reply's column, for the bubbles: what happened and
+   * the actions, with our sentence and the provider's account under Details.
+   */
+  compact?: boolean;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isLastMessage: boolean;
@@ -71,6 +76,7 @@ interface MessageErrorProps {
  * summary, since the turn after it is what the reader is following.
  */
 export function MessageError({
+  compact = false,
   isAgentRunning,
   isDeveloperMode,
   isLastMessage,
@@ -200,6 +206,53 @@ export function MessageError({
         <WarningIcon className="size-3.5 shrink-0 text-warning-700 dark:text-warning-300" />
         <span className="truncate">{title}</span>
       </button>
+    );
+  }
+
+  if (compact) {
+    return (
+      <div className="flex flex-col gap-1 px-3 text-xs" role="alert">
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+          {isHiddenFromReader && <DeveloperModeBadge />}
+          <WarningIcon className="mr-1 size-3.5 shrink-0 text-warning-700 dark:text-warning-300" />
+          <span className="mr-1 text-foreground/80">{title}</span>
+          {showActions &&
+            actions.map((action) => (
+              <Button
+                className="-my-1 font-medium"
+                key={action.label}
+                onClick={action.onClick}
+                size="xs"
+                variant="ghost"
+              >
+                {action.label}
+              </Button>
+            ))}
+          <Button
+            aria-expanded={showDetails}
+            className="-my-1 text-muted-foreground"
+            onClick={() => {
+              setShowDetails(!showDetails);
+            }}
+            size="xs"
+            variant="ghost"
+          >
+            <CaretRightIcon
+              className={cn("transition-transform", showDetails && "rotate-90")}
+            />
+            Details
+          </Button>
+        </div>
+        {showDetails && (
+          <div className="flex flex-col gap-1 pl-5.5 text-muted-foreground">
+            <p>{body}</p>
+            {providerLine && <p className="text-muted-foreground/80">{providerLine}</p>}
+            {canReadProviderText && (
+              <ErrorDetails error={error} message={message} />
+            )}
+          </div>
+        )}
+      </div>
     );
   }
 

@@ -9,6 +9,8 @@ import {
   UndoRefusedError,
 } from "@/electron-main/lib/file-journal";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
+import { pathWithin } from "@/electron-main/lib/path-identity";
 import {
   executePlacing,
   fileSystemOps,
@@ -43,6 +45,7 @@ import {
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getMachineState } from "@/electron-main/stores/machine/state";
 import { copyName, newFolderName, osOf } from "@/shared/os-conventions";
+import { isProtectedFolder } from "@/shared/protected-folders";
 import { moveSidebarPlaces } from "@/shared/sidebar-places";
 import { resolveThroughAliases } from "@instrument-org/workspace/electron";
 import { eventIterator, ORPCError } from "@orpc/server";
@@ -102,6 +105,34 @@ async function freePath(
 const HostPathSchema = z.string().refine((value) => path.isAbsolute(value), {
   message: "Not a path on this computer",
 });
+
+/**
+ * Refused to every action here but making a folder: the folders the system
+ * keeps (`isProtectedFolder`), and the workspace's own folder or one around
+ * it, which the app is running from. Checked here as well as in the menus,
+ * so a press that reaches a route the person did not mean to still changes
+ * nothing. A link is only a link, and goes wherever it points.
+ */
+const PROTECTED_ERRORS = {
+  PROTECTED: {
+    message:
+      "That’s one of your computer’s own folders, so Instrument leaves it alone.",
+  },
+} as const;
+
+/** Why a path is left alone, as the person reads it, or undefined when it may change. */
+async function keptInPlace(at: string): Promise<string | undefined> {
+  if (isProtectedFolder(at, { home: os.homedir(), os: OS })) {
+    return PROTECTED_ERRORS.PROTECTED.message;
+  }
+  const isLink = await fs.lstat(at).then(
+    (stats) => stats.isSymbolicLink(),
+    () => false,
+  );
+  return !isLink && pathWithin(getWorkspaceFolder(), at)
+    ? "Instrument keeps its workspace in that folder, so it leaves it alone."
+    : undefined;
+}
 
 const NAME_ERRORS = {
   NAME_IN_USE: { message: "Something with that name is already there" },
@@ -184,10 +215,14 @@ const newFolder = base
   });
 
 const rename = base
-  .errors({ ...NAME_ERRORS, ...PROTECTION_ERRORS })
+  .errors({ ...NAME_ERRORS, ...PROTECTED_ERRORS, ...PROTECTION_ERRORS })
   .input(z.object({ name: z.string(), path: HostPathSchema }))
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
+    const kept = await keptInPlace(input.path);
+    if (kept) {
+      throw errors.PROTECTED({ message: kept });
+    }
     const name = input.name.trim();
     if (!isUsableName(name)) {
       throw errors.NAME_INVALID();
@@ -226,11 +261,16 @@ const rename = base
 const duplicate = base
   .errors({
     CANNOT_WRITE: { message: "That folder cannot be written to" },
+    ...PROTECTED_ERRORS,
     ...PROTECTION_ERRORS,
   })
   .input(z.object({ path: HostPathSchema }))
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
+    const kept = await keptInPlace(input.path);
+    if (kept) {
+      throw errors.PROTECTED({ message: kept });
+    }
     // Named the way the system's file manager names a copy, with the
     // extension kept on the end where every system expects to find it.
     const extension = path.extname(input.path);
@@ -326,6 +366,7 @@ function placeRoute(op: "copy" | "move") {
   return base
     .errors({
       CANNOT_PLACE: { message: "That couldn’t be done" },
+      ...PROTECTED_ERRORS,
     })
     .input(PlaceInputSchema)
     .output(
@@ -359,6 +400,19 @@ function placeRoute(op: "copy" | "move") {
       }),
     )
     .handler(async ({ errors, input }) => {
+      // What a move takes away, and what a Replace puts in the Trash.
+      const displaced = input.paths.flatMap((source) => [
+        ...(op === "move" ? [source] : []),
+        ...(input.resolutions?.[source] === "replace"
+          ? [path.join(input.folder, path.basename(source))]
+          : []),
+      ]);
+      for (const at of displaced) {
+        const kept = await keptInPlace(at);
+        if (kept) {
+          throw errors.PROTECTED({ message: kept });
+        }
+      }
       const plan = planPlacing(
         await gatherPlaceRequest({
           answers: input.resolutions ?? {},
@@ -609,7 +663,10 @@ const missing = base
   });
 
 const trash = base
-  .errors({ CANNOT_TRASH: { message: "That could not be moved to the trash" } })
+  .errors({
+    CANNOT_TRASH: { message: "That could not be moved to the trash" },
+    ...PROTECTED_ERRORS,
+  })
   .input(z.object({ path: HostPathSchema }))
   .output(
     z.object({
@@ -618,6 +675,10 @@ const trash = base
     }),
   )
   .handler(async ({ errors, input }) => {
+    const kept = await keptInPlace(input.path);
+    if (kept) {
+      throw errors.PROTECTED({ message: kept });
+    }
     const identity = await identityOf(input.path);
     try {
       await shell.trashItem(input.path);

@@ -47,7 +47,6 @@ import {
   ContextMenuItem,
   ContextMenuRadioGroup,
   ContextMenuRadioItem,
-  ContextMenuSeparator,
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
@@ -89,8 +88,9 @@ import {
 } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { COMPUTER_ROOT, fileHref, folderHref } from "@/shared/computer-href";
+import { isProtectedFolder } from "@/shared/protected-folders";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
-import { folderNameFromPath } from "@instrument-org/shared";
+import { expandHomePath, folderNameFromPath } from "@instrument-org/shared";
 import {
   type ComputerFolder,
   type ComputerRefusal,
@@ -136,6 +136,7 @@ import { createPortal } from "react-dom";
 import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useWindow } from "./context";
+import { PlaceMenu } from "./place-menu";
 import { FileThumbnail } from "./file-thumbnail";
 import { ComputerOverview } from "./computer-overview";
 import { FolderMark } from "./folder-mark";
@@ -727,6 +728,10 @@ export function ComputerPage({
     reread();
   };
   const duplicate = async (picked: FileSystemItem[]) => {
+    if (picked.some(isKeptInPlace)) {
+      keptInPlaceToast("Couldn't make a copy");
+      return;
+    }
     try {
       for (const item of picked) {
         const hostPath = hostPathOfItem(item);
@@ -779,6 +784,10 @@ export function ComputerPage({
   const trash = async (picked: FileSystemItem[]) => {
     const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
     if (hostPaths.length === 0) {
+      return;
+    }
+    if (hostPaths.some(isKeptInPlace)) {
+      keptInPlaceToast(`Couldn't move that to the ${osConventions().trash}`);
       return;
     }
     // What went, by the journal entries that bring each back: the toast's
@@ -856,6 +865,13 @@ export function ComputerPage({
     into: { hostPath: string; prefix: string },
   ) => {
     if (sources.length === 0) {
+      return;
+    }
+    if (
+      mode === "move" &&
+      sources.some((source) => isKeptInPlace(source.hostPath))
+    ) {
+      keptInPlaceToast("Couldn't move that");
       return;
     }
     const paths = sources.map((source) => source.hostPath);
@@ -1811,12 +1827,15 @@ export function ComputerPage({
       onOpenInNewTab={() => {
         openPlaceInNewTab(place);
       }}
-      onUnpin={
+      pin={
         isPinned
-          ? () =>
-              void rpcClient.preferences.unpinSidebarPlace
-                .call({ path: place })
-                .catch(sidebarChangeFailed)
+          ? {
+              isPinned,
+              onToggle: () =>
+                void rpcClient.preferences.unpinSidebarPlace
+                  .call({ path: place })
+                  .catch(sidebarChangeFailed),
+            }
           : undefined
       }
     />
@@ -1859,6 +1878,7 @@ export function ComputerPage({
     const picked = group ?? (item ? [item] : []);
     return {
       ...menuActionsForOne(item),
+      kept: picked.some(isKeptInPlace),
       onCopy: () => void copyFiles(picked),
       onDuplicate: () => void duplicate(picked),
       onNewDraft:
@@ -2476,6 +2496,7 @@ export function ComputerPage({
                   onPathChange={setCurrent}
                   onOpenFolderChange={isRecents ? undefined : changeOpenFolder}
                   onRenameCommit={rename}
+                  canRenameItem={(item) => !isKeptInPlace(item)}
                   onSearchChange={setSearchText}
                   onSelectionChange={(item, all) => {
                     setSelectedPath(item?.path ?? null);
@@ -2519,7 +2540,7 @@ export function ComputerPage({
                   // Resting on a folder reads it ahead, so opening it in place
                   // is the listing already in hand.
                   prefetchChildren={(prefix) => {
-                    if (isRecents) {
+                    if (isRecents || macosAsksFirst(hostPathOf(prefix))) {
                       return;
                     }
                     void queryClient.prefetchQuery({
@@ -2723,6 +2744,12 @@ function ICloudAccessBanner() {
 
 /** What a row's menus do, by the menu's own components; see `FolderMenu`. */
 type FolderMenuActions = {
+  /**
+   * One of the computer's own folders among what the menu acts on
+   * (`isProtectedFolder`): Move to Trash, Rename and Duplicate are there,
+   * and off.
+   */
+  kept?: boolean;
   onCopy: () => void;
   onCopyPath: () => void;
   onDuplicate: () => void;
@@ -2880,6 +2907,7 @@ function FolderOverflowMenu({
 function FolderMenuItems({
   emptyTail,
   item,
+  kept = false,
   menuComponents,
   newFolderFirst = false,
   onCopy,
@@ -3005,14 +3033,14 @@ function FolderMenuItems({
             </Item>
           ) : null}
           <Separator />
-          <Item onClick={onTrash} variant="destructive">
+          <Item disabled={kept} onClick={onTrash} variant="destructive">
             <TrashIcon className="size-4" />
             <span>Move to {osConventions().trash}</span>
             <Shortcut>{keys.trash}</Shortcut>
           </Item>
           <Separator />
           {onRename ? (
-            <Item onClick={onRename}>
+            <Item disabled={kept} onClick={onRename}>
               <PencilSimpleIcon className="size-4" />
               <span>Rename</span>
               <Shortcut>{keys.rename}</Shortcut>
@@ -3023,7 +3051,7 @@ function FolderMenuItems({
             <span>Copy</span>
             <Shortcut>{keys.copy}</Shortcut>
           </Item>
-          <Item onClick={onDuplicate}>
+          <Item disabled={kept} onClick={onDuplicate}>
             <CopyIcon className="size-4" />
             <span>Duplicate</span>
             {keys.duplicate ? <Shortcut>{keys.duplicate}</Shortcut> : null}
@@ -3196,6 +3224,7 @@ const SPOKEN_FILE_ERRORS = [
   "NAME_IN_USE",
   "NAME_INVALID",
   "NOTHING_TO_UNDO",
+  "PROTECTED",
 ];
 
 /** Says a file action didn't happen, with the reason when it is one a person can use. */
@@ -3277,6 +3306,49 @@ function protectionBlocked({
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
   return typeof hostPath === "string" ? hostPath : "";
+}
+
+/**
+ * Whether macOS asks the person before the app reads a folder, the first
+ * time it does: in Desktop, Documents, Downloads, iCloud Drive or a disk
+ * (`macosGuardedRoot`, which main answers by). A pointer passing over one is
+ * no reason to raise that question, so these are read when opened.
+ */
+function macosAsksFirst(hostPath: string) {
+  if (!isMacOS()) {
+    return false;
+  }
+  const home = window.api.homeDir;
+  const at = expandHomePath(hostPath, home);
+  return (
+    // oxlint-disable-next-line studio/no-os-words -- a folder name, never shown
+    ["Desktop", "Documents", "Downloads", "Library/Mobile Documents"].some(
+      (name) => {
+        const root = `${home}/${name}`;
+        return at === root || at.startsWith(`${root}/`);
+      },
+    ) || /^\/Volumes\/[^/]+/.test(at)
+  );
+}
+
+/** One of the computer's own folders, which Files never trashes, renames, duplicates or moves. */
+function isKeptInPlace(item: FileSystemItem | string) {
+  const hostPath = typeof item === "string" ? item : hostPathOfItem(item);
+  return (
+    hostPath !== "" &&
+    isProtectedFolder(expandHomePath(hostPath, window.api.homeDir), {
+      home: window.api.homeDir,
+      os: currentOs(),
+    })
+  );
+}
+
+/** Says an action was left undone because it would change one of the computer's own folders. */
+function keptInPlaceToast(title: string) {
+  toast.error(title, {
+    description:
+      "That’s one of your computer’s own folders, so Instrument leaves it alone.",
+  });
 }
 
 /**
@@ -3764,90 +3836,6 @@ function PlaceList({
         })}
       </ul>
     </div>
-  );
-}
-
-/**
- * What can be done to a place in the sidebar: the folder menu's ways of
- * opening it and pointing at it, and none of the ways of changing it. A place
- * is a folder a person keeps things in, and Rename, Duplicate or the Trash one
- * misplaced click away from the whole of it is not worth the row.
- */
-function PlaceMenu({
-  hostPath,
-  onNewDraft,
-  onOpenInNewTab,
-  onUnpin,
-}: {
-  hostPath: string;
-  /** Left out where no draft can be opened. */
-  onNewDraft: (() => void) | undefined;
-  onOpenInNewTab: () => void;
-  /** Left out for a place that is not pinned: the app's own, and the disks. */
-  onUnpin: (() => void) | undefined;
-}) {
-  return (
-    <ContextMenuContent className="min-w-48">
-      {onNewDraft ? (
-        <>
-          <ContextMenuItem onClick={onNewDraft}>
-            <InstrumentGlyph className="size-4 text-brand-600 dark:text-brand-400" />
-            <span>Ask</span>
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-        </>
-      ) : null}
-      <ContextMenuItem onClick={onOpenInNewTab}>
-        <NewTabIcon className="size-4" />
-        <span>Open in New Tab</span>
-      </ContextMenuItem>
-      {/* The Open in list already offers the Finder, so a row of its own
-          would name it twice. */}
-      {isMacOS() ? (
-        <OpenInMenu
-          file={{ hostPath }}
-          menuComponents={contextMenuComponents}
-        />
-      ) : (
-        <ContextMenuItem
-          onClick={() =>
-            void rpcClient.utils.showFileInFolder
-              .call({ filepath: hostPath })
-              .catch((error: unknown) => {
-                fileActionFailed(
-                  `Couldn't show it in ${osConventions().inFileManager}`,
-                  error,
-                );
-              })
-          }
-        >
-          <RevealInFolderIcon className="size-4" />
-          <span>{osConventions().showInFileManager}</span>
-        </ContextMenuItem>
-      )}
-      <ContextMenuSeparator />
-      <ContextMenuItem
-        onClick={() =>
-          void navigator.clipboard
-            .writeText(hostPath)
-            .catch((error: unknown) => {
-              fileActionFailed("Couldn't copy the path", error);
-            })
-        }
-      >
-        <ClipboardTextIcon className="size-4" />
-        <span>Copy Path</span>
-      </ContextMenuItem>
-      {onUnpin ? (
-        <>
-          <ContextMenuSeparator />
-          <ContextMenuItem onClick={onUnpin}>
-            <PushPinSlashIcon className="size-4" />
-            <span>Unpin from Sidebar</span>
-          </ContextMenuItem>
-        </>
-      ) : null}
-    </ContextMenuContent>
   );
 }
 

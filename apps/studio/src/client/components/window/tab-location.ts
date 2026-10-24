@@ -22,7 +22,7 @@ export interface LocationCrumb {
   label: string;
   /** Where a press on it goes; absent on the last, which is where the tab is. */
   to?: OpenTarget;
-  /** The folder it names, for a part of a path on the computer. */
+  /** The folder it names, or the file for the last part of a file's path, for a path on the computer. */
   path?: string;
 }
 
@@ -258,8 +258,11 @@ function pathCrumbs(
           ? home
           : (volume?.path ?? startOf(name, separator))
         : join(at, name, separator);
-    return !rooted || (index === names.length - 1 && !linksLast)
-      ? { label: name }
+    if (!rooted) {
+      return { label: name };
+    }
+    return index === names.length - 1 && !linksLast
+      ? { label: name, path: at }
       : { label: name, path: at, to: { href: folderHref(at), kind: "screen" } };
   });
 }

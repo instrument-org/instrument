@@ -10,6 +10,10 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import {
+  ContextMenu,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -17,6 +21,10 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { FoldingTrail } from "@/client/components/window/folding-trail";
+import {
+  PlaceMenu,
+  usePlaceMenuProps,
+} from "@/client/components/window/place-menu";
 import {
   lookAtAtom,
   type LookTarget,
@@ -161,9 +169,10 @@ export function TabLocationRow({
           openIn && "pr-2",
         )}
         onPointerDown={(event) => {
+          // Only a primary press edits: a right press on the place is its menu.
           if (
-            event.target instanceof Element &&
-            event.target.closest("button")
+            event.button !== 0 ||
+            (event.target instanceof Element && event.target.closest("button"))
           ) {
             return;
           }
@@ -265,6 +274,7 @@ function Field({ location }: { location: TabLocation }) {
     }),
   );
   const gesturesFor = useGesturesFor();
+  const placeMenuProps = usePlaceMenuProps();
   const crumbs = locationCrumbs(location, {
     home: window.api.homeDir,
     ...(places.data ? { volumes: places.data.volumes } : {}),
@@ -322,36 +332,57 @@ function Field({ location }: { location: TabLocation }) {
       : crumb.label.length <= 2
         ? "shrink-0"
         : "min-w-6 max-w-max flex-1 truncate";
+    // A part of a path on the computer offers what the sidebar offers for a
+    // place, the last one included: a press there still opens the field, and
+    // its pill shows only while its menu is up.
+    const menu =
+      crumb.path === undefined || isCount ? undefined : (
+        <PlaceMenu
+          {...placeMenuProps(
+            crumb.path,
+            isHere && location.kind === "file" ? "file" : "folder",
+          )}
+        />
+      );
+    const part = open ? (
+      <button
+        className={cn(
+          "cursor-default rounded px-1 py-0.5 text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground",
+          size,
+        )}
+        onAuxClick={gestures?.onAuxClick}
+        onClick={() => {
+          open.run();
+        }}
+        {...(menu ? {} : { onContextMenu: gestures?.onContextMenu })}
+        type="button"
+      >
+        {crumb.label}
+      </button>
+    ) : (
+      <span
+        className={cn(
+          "px-1 select-text",
+          size,
+          // A part with nowhere to go, before the last, is a place
+          // the window cannot open: it reads as the lead it is.
+          !isHere && "text-muted-foreground",
+          menu && "rounded data-[state=open]:bg-foreground/8",
+        )}
+      >
+        {crumb.label}
+      </span>
+    );
     return (
       <Fragment key={`${index}:${crumb.label}`}>
         {index > 0 ? separator : null}
-        {open ? (
-          <button
-            className={cn(
-              "cursor-default rounded px-1 py-0.5 text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground",
-              size,
-            )}
-            onAuxClick={gestures?.onAuxClick}
-            onClick={() => {
-              open.run();
-            }}
-            onContextMenu={gestures?.onContextMenu}
-            type="button"
-          >
-            {crumb.label}
-          </button>
+        {menu ? (
+          <ContextMenu>
+            <ContextMenuTrigger asChild>{part}</ContextMenuTrigger>
+            {menu}
+          </ContextMenu>
         ) : (
-          <span
-            className={cn(
-              "px-1 select-text",
-              size,
-              // A part with nowhere to go, before the last, is a place
-              // the window cannot open: it reads as the lead it is.
-              !isHere && "text-muted-foreground",
-            )}
-          >
-            {crumb.label}
-          </span>
+          part
         )}
       </Fragment>
     );

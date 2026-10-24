@@ -1,6 +1,6 @@
 import { call, os } from "@orpc/server";
 import fs from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -92,6 +92,12 @@ vi.mock(
   }),
 );
 
+// The folder the workspace is kept in, which a test sets.
+const workspace = vi.hoisted(() => ({ folder: "/nowhere/workspace" }));
+vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
+  getWorkspaceFolder: () => workspace.folder,
+}));
+
 // Neither route reads its context, and the base it is built on is mocked
 // out, so an empty one stands in for the window's.
 const options = { context: {} as InitialRPCContext };
@@ -102,6 +108,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   closedFolders.length = 0;
+  workspace.folder = "/nowhere/workspace";
   protection.block = undefined;
   await fs.rm(dir, { force: true, recursive: true });
 });
@@ -120,6 +127,27 @@ it("neither reads nor writes the app's own data", async () => {
     call(files.write, { content: "replaced", path: file }, options),
   ).rejects.toMatchObject({ code: "FORBIDDEN" });
   expect(await fs.readFile(file, "utf8")).toBe("secret");
+});
+
+it("leaves the home folder and the workspace's folder where they are", async () => {
+  const around = path.join(dir, "projects");
+  workspace.folder = path.join(around, "Instrument");
+  await fs.mkdir(workspace.folder, { recursive: true });
+  const into = path.join(dir, "elsewhere");
+  await fs.mkdir(into);
+
+  for (const attempt of [
+    call(files.rename, { name: "Gone", path: homedir() }, options),
+    call(files.duplicate, { path: homedir() }, options),
+    call(files.trash, { path: homedir() }, options),
+    call(files.rename, { name: "Moved", path: around }, options),
+    call(files.moveInto, { folder: into, paths: [around] }, options),
+    call(files.trash, { path: workspace.folder }, options),
+  ]) {
+    await expect(attempt).rejects.toMatchObject({ code: "PROTECTED" });
+  }
+  expect(await fs.readdir(dir)).toEqual(["elsewhere", "projects"]);
+  expect(await fs.readdir(around)).toEqual(["Instrument"]);
 });
 
 it("lets only one of two writers holding the same version write", async () => {

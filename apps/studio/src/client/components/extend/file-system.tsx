@@ -319,6 +319,8 @@ export type FileSystemProps = {
    * what was typed, so a name that could not be used is not lost.
    */
   onRenameCommit?: (item: FileSystemItem, name: string) => Promise<void> | void;
+  /** Whether an item's name can be changed at all; left out, every one can. */
+  canRenameItem?: (item: FileSystemItem) => boolean;
   /** A folder opened or closed in place in the list, by its path. */
   onOpenFolderChange?: (path: string, open: boolean) => void;
   /** The search field's text changed, typed or cleared, or emptied by walking to a folder. */
@@ -1785,6 +1787,7 @@ const VIEW_OPTIONS: Array<{
 export function FileSystem({
   besideResizing = false,
   besideWidth,
+  canRenameItem,
   className,
   columnWidth: columnWidthProp,
   contextMenuPath = null,
@@ -2614,9 +2617,11 @@ export function FileSystem({
   const startRename = React.useCallback(
     (path: string) => {
       if (!canRename) return;
+      const entry = entryOf(path);
+      if (entry && canRenameItem && !canRenameItem(entry)) return;
       sendRename({ name: listedNameOf(path), path, type: "start" });
     },
-    [canRename, listedNameOf, sendRename],
+    [canRename, canRenameItem, entryOf, listedNameOf, sendRename],
   );
   React.useImperativeHandle(
     ref,

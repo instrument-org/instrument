@@ -4,6 +4,7 @@ import { ok } from "neverthrow";
 
 import { type FileUpload } from "../schemas/file-upload";
 import { type MountedFolder } from "../schemas/mounted-folder";
+import { AbsolutePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
@@ -20,12 +21,13 @@ import { detectDateChange } from "./date-change";
 import { detectEnvironmentChange } from "./environment";
 import { ChatReads } from "./chat-reads";
 import { detectMessageGap } from "./message-gap";
+import { pathExists } from "./path-exists";
 import { folderReach } from "./chat/folder-reach";
 import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
 import { chatDir, resolveChat } from "./record-folders";
 import { chatModelURI, setChatModel } from "./chat-settings";
-import { grantFile } from "./chat/grants";
+import { grantFile, grantFolder } from "./chat/grants";
 import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
@@ -123,6 +125,11 @@ export async function newMessage({
   }
 
   if (viewing) {
+    for (const chosen of viewing.chosen ?? []) {
+      if (chosen.kind === "folder") {
+        await grantAttachedFolder(chatId, chosen.path);
+      }
+    }
     parts.push({
       data: withAgentPaths(await withTabHolders(chatId, viewing)),
       metadata: {
@@ -177,6 +184,9 @@ export async function newMessage({
       if ("path" in file) {
         await grantFile({ chatId, path: file.path });
       }
+    }
+    for (const folder of folders ?? []) {
+      await grantAttachedFolder(chatId, folder.path);
     }
 
     const { part } = uploadResult.value;
@@ -355,6 +365,19 @@ export async function newMessage({
   }
 
   return ok(message);
+}
+
+/**
+ * Grants the chat a folder the person attached to a message, on this
+ * computer: attaching one says where the work is and opens it to the chat.
+ * A path not on this disk, such as one a draft synced from another computer
+ * names, grants nothing.
+ */
+async function grantAttachedFolder(chatId: ChatId, folderPath: string) {
+  const parsed = AbsolutePathSchema.safeParse(folderPath);
+  if (parsed.success && (await pathExists(parsed.data))) {
+    await grantFolder({ chatId, path: parsed.data, source: "attached" });
+  }
 }
 
 /** The topic the chat is filed under, named for the model, or null for none. */

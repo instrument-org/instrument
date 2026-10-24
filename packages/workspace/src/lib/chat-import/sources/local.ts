@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import type { ChatSource, ImportSource } from "../model";
+import type { ChatSource, ImportCandidate, ImportSource } from "../model";
 import { claudeCodeSource } from "./claude-code";
 import { codexSource } from "./codex";
 import { cursorSource, cursorUserDir } from "./cursor";
@@ -37,14 +37,33 @@ export function openLocalSource(
   if (held) {
     return held;
   }
-  const source =
+  const source = sharedListing(
     kind === "claude-code"
       ? claudeCodeSource({ homeDir })
       : kind === "codex"
         ? codexSource({ homeDir })
-        : cursorSource({ homeDir });
+        : cursorSource({ homeDir }),
+  );
   opened.set(key, source);
   return source;
+}
+
+/**
+ * The source, with a listing asked for while one is running answered by
+ * that one: the listing `localSources` starts and the picker's own would
+ * otherwise read every log twice at once.
+ */
+function sharedListing(source: ChatSource): ChatSource {
+  let running: Promise<ImportCandidate[]> | undefined;
+  return {
+    ...source,
+    list() {
+      running ??= source.list().finally(() => {
+        running = undefined;
+      });
+      return running;
+    },
+  };
 }
 
 /**

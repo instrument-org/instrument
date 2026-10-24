@@ -125,11 +125,6 @@ export async function newMessage({
   }
 
   if (viewing) {
-    for (const chosen of viewing.chosen ?? []) {
-      if (chosen.kind === "folder") {
-        await grantAttachedFolder(chatId, chosen.path);
-      }
-    }
     parts.push({
       data: withAgentPaths(await withTabHolders(chatId, viewing)),
       metadata: {
@@ -369,7 +364,10 @@ export async function newMessage({
 
 /**
  * Grants the chat a folder the person attached to a message, on this
- * computer: attaching one says where the work is and opens it to the chat.
+ * computer: attaching one with the folder picker, or dropping it in, says
+ * where the work is and opens it to the chat. A folder in a chip over the
+ * words (`viewContext.chosen`, or the one a screen in view shows) is a hint,
+ * which the agent still asks for.
  * A path not on this disk, such as one a draft synced from another computer
  * names, grants nothing.
  */

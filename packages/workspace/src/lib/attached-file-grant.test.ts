@@ -118,24 +118,27 @@ describe("sending a file from the disk", () => {
     );
   });
 
-  // Attaching a folder says where the work is and opens it to the chat on
-  // this computer, however it was attached: sent with the message, or picked
-  // into the composer's chips.
+  // Attaching a folder with the folder picker, or dropping one in, says
+  // where the work is and opens it to the chat on this computer. A folder
+  // that rides along as a chip over the words is a hint: the agent still
+  // asks for it.
   it.each([
     [
-      "sent with the message",
+      "grants a folder sent with the message",
       (folder: string) => ({ folders: [{ path: folder }] }),
+      true,
     ],
     [
-      "picked into the composer",
+      "grants nothing for a folder in a chip over the words",
       (folder: string) => ({
         viewing: {
           chosen: [{ kind: "folder" as const, name: "Private", path: folder }],
           screen: "conversation" as const,
         },
       }),
+      false,
     ],
-  ])("grants a folder %s", async (_how, attach) => {
+  ])("%s", async (_how, attach, granted) => {
     const chatId = ChatIdSchema.parse(`attached-folder-${++chatCount}`);
     createMockChatConfigForDir(path.join(root, "tasks", chatId), {
       unplaced: true,
@@ -164,6 +167,10 @@ describe("sending a file from the disk", () => {
 
     expect(sent.isOk()).toBe(true);
     const grants = await chatGrants(chatId);
+    if (!granted) {
+      expect(grants).toEqual([]);
+      return;
+    }
     expect(grants).toMatchObject([{ path: closed, source: "attached" }]);
     // The grant outranks the folder's Not allowed, as an Allow on a card does.
     expect(

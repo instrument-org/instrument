@@ -521,8 +521,11 @@ describe("useDictation", () => {
         );
       });
       // Reopen stays until it is answered; the refusal goes on its timer.
-      expect(mocks.toast.error.mock.lastCall?.[1]?.duration).toBe(
-        access === "reopen" ? Number.POSITIVE_INFINITY : undefined,
+      expect(mocks.toast.error).toHaveBeenLastCalledWith(
+        expect.any(String),
+        access === "reopen"
+          ? expect.objectContaining({ duration: Number.POSITIVE_INFINITY })
+          : expect.not.objectContaining({ duration: expect.anything() }),
       );
       expect(new Set(phases)).toEqual(new Set(["idle"]));
       expect(mocks.open).not.toHaveBeenCalled();

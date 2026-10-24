@@ -54,6 +54,7 @@ async function send(to = sessionId) {
     await newMessage({ chatId, modelURI, prompt: "Hello", sessionId: to })
   )._unsafeUnwrap();
   if (!message || !("role" in message)) throw new Error("expected a message");
+  (await ChatWrites.saveMessageWithParts(message, chatId))._unsafeUnwrap();
   return message;
 }
 

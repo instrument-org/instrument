@@ -59,11 +59,13 @@ export namespace SessionMessageDataPart {
    *   (`last-told.ts`): the baseline's metadata and the notes since, each
    *   carrying what it brought the model up to.
    * - `state`: the whole current picture, stored on every message whose
-   *   writer could read it, an empty picture included. `stateNotes` is the
-   *   one place that decides what of it the model hears: nothing when it
-   *   reads as the last note said, and nothing for an empty picture before
-   *   anything was said. Every message carrying the whole is what lets a fork
-   *   or a rollover read the picture from the messages it kept.
+   *   writer could read it, an empty picture included once the session's
+   *   history has had something in it (`goesUnsaid`): before that, an empty
+   *   one and a missing one both say nothing. `stateNotes` is the one place
+   *   that decides what of it the model hears: nothing when it reads as the
+   *   last note said, and nothing for an empty picture before anything was
+   *   said. Every message carrying the whole is what lets a fork or a
+   *   rollover read the picture from the messages it kept.
    * - `unwritten`: nothing writes it. `fileChanges` and `chatContext` are
    *   retired, and `unknown` is what an unreadable payload becomes.
    */

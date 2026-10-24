@@ -16,6 +16,7 @@ import { createBackgroundProcessesPart } from "./create-background-processes-par
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
 import { createSetupNewsPart } from "./setup-news";
+import { goesUnsaid } from "./state-notes";
 import { readWorkspaceInstructions } from "./workspace-instructions";
 import { detectDateChange } from "./date-change";
 import { detectEnvironmentChange } from "./environment";
@@ -271,8 +272,8 @@ export async function newMessage({
       parts.push(messageGap.value);
     }
 
-    // The chat's topic, or none, rides on every message sent in it; see the
-    // `state` cadence for what the model hears of it.
+    // The chat's topic, or none once it has had one, rides on every message
+    // sent in it; see the `state` cadence for what the model hears of it.
     const topicPart = await createTopicPart({
       createdAt,
       messageId,
@@ -339,6 +340,9 @@ export async function newMessage({
     parts.push(folderChanges.value);
   }
 
+  // An empty picture the session never had anything in says nothing to any
+  // reader, so it is not stored; one that cannot be checked is.
+  const history = await ChatReads.history({ chatId, sessionId });
   const message: SessionMessage.UserWithParts = {
     id: messageId,
     metadata: {
@@ -346,7 +350,9 @@ export async function newMessage({
       ...(fromDraft ? { fromDraft } : {}),
       sessionId,
     },
-    parts,
+    parts: history.isOk()
+      ? parts.filter((part) => !goesUnsaid(part, history.value))
+      : parts,
     role: "user",
   };
 

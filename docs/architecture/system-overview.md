@@ -80,7 +80,7 @@ Rooted at the workspace folder ([`get-workspace-folder`](../../apps/studio/src/e
 
 ## Workspace instructions
 
-An optional `AGENTS.md` at the workspace root supplies standing user instructions for every chat and task. Nested instruction files are not discovered. Each new message records a snapshot, limited by the same 20,000-character inline budget as topic instructions, with the full file's path when cut short. Unchanged snapshots are rendered to the model once; edits and removal are announced on the next message without rewriting the cached session baseline. Forks inherit the recorded instructions, and a task's later messages capture their current contents. Topic instructions are more specific, and direct user requests take precedence. A missing or empty file adds no instructions; a read failure is reported internally and leaves the previous instructions in force.
+An optional `AGENTS.md` at the workspace root supplies standing user instructions for every chat and task. Nested instruction files are not discovered. Each new message records a snapshot, limited by the same 20,000-character inline budget as topic instructions, with the full file's path when cut short; while the file has been missing or empty for the whole session, a message records none. Unchanged snapshots are rendered to the model once; edits and removal are announced on the next message without rewriting the cached session baseline. Forks inherit the recorded instructions, and a task's later messages capture their current contents. Topic instructions are more specific, and direct user requests take precedence. A missing or empty file adds no instructions; a read failure is reported internally and leaves the previous instructions in force.
 
 ## An agent turn, end to end
 

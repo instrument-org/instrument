@@ -158,9 +158,16 @@ export async function redeemApiSignIn({
   await store.saveTokens(slug, { origin, value: tokens });
 }
 
-// One refresh per app at a time: the vendor rotates refresh tokens, so two
-// requests refreshing at once would each spend the same one.
+// One refresh per sign-in at a time: the vendor rotates refresh tokens, so
+// two requests refreshing at once would each spend the same one. Keyed by the
+// refresh token too, so a sign-in made while an older one's refresh is out
+// starts its own.
 const refreshing = new Map<string, Promise<string>>();
+
+// How long a refresh may take before every caller sharing it is told it
+// failed. Each caller also stops waiting when its own request is canceled,
+// which leaves the refresh running for the others.
+const REFRESH_TIMEOUT_MS = 30_000;
 
 /**
  * The access token an API app's request sends, or with `fresh`, a new one
@@ -171,7 +178,7 @@ const refreshing = new Map<string, Promise<string>>();
 async function apiAccessToken(
   slug: string,
   manifest: ApiAppManifest,
-  { fresh }: { fresh: boolean },
+  { fresh, signal }: { fresh: boolean; signal: AbortSignal },
 ): Promise<string> {
   const oauth = getWorkspaceConfig().apps.oauth;
   if (!oauth) {
@@ -197,35 +204,92 @@ async function apiAccessToken(
   if (refreshToken === undefined) {
     throw new SignInNeededError({ manifest, slug });
   }
-  const running = refreshing.get(slug);
+  const key = `${slug}\n${refreshToken}`;
+  const running = refreshing.get(key);
   if (running) {
-    return running;
+    return untilAborted(running, signal);
   }
+  // The sign-in in the store now, where it is no longer the one this refresh
+  // started from: a disconnect, or a new sign-in made while it was out.
+  const replaced = async () => {
+    const stored = boundTo(await oauth.store.getTokens(slug), origin);
+    return stored?.access_token === tokens.access_token &&
+      stored.refresh_token === refreshToken
+      ? undefined
+      : { stored };
+  };
   const refresh = (async () => {
+    const deadline = AbortSignal.timeout(REFRESH_TIMEOUT_MS);
     try {
       const next = await refreshAuthorization(client.authorizationEndpoint, {
         clientInformation: { client_id: client.clientId },
-        fetchFn: fetchForMcp,
+        fetchFn: (input, init) =>
+          fetchForMcp(input, {
+            ...init,
+            signal: init?.signal
+              ? AbortSignal.any([init.signal, deadline])
+              : deadline,
+          }),
         metadata: signInMetadata(client, oauth.relayTokenUrl),
         refreshToken,
       });
+      const newer = await replaced();
+      if (newer) {
+        // What the store holds now wins over this refresh's answer.
+        if (newer.stored === undefined) {
+          throw new SignInNeededError({ manifest, slug });
+        }
+        return newer.stored.access_token;
+      }
       await oauth.store.saveTokens(slug, { origin, value: next });
       return next.access_token;
     } catch (error) {
+      if (error instanceof SignInNeededError) {
+        throw error;
+      }
       // A refresh token the vendor no longer honors (revoked, expired, the
       // password changed) is gone for good; anything else, such as our API
-      // being unreachable, leaves the sign-in for the next try.
+      // being unreachable, leaves the sign-in for the next try. A newer
+      // sign-in saved meanwhile is left alone and used.
       if (error instanceof InvalidGrantError) {
-        await oauth.store.clearTokens(slug);
+        const newer = await replaced();
+        if (newer?.stored) {
+          return newer.stored.access_token;
+        }
+        if (!newer) {
+          await oauth.store.clearTokens(slug);
+        }
         throw new SignInNeededError({ manifest, slug }, { cause: error });
       }
       throw new RefreshFailedError({ manifest, slug }, { cause: error });
     }
   })().finally(() => {
-    refreshing.delete(slug);
+    refreshing.delete(key);
   });
-  refreshing.set(slug, refresh);
-  return refresh;
+  refreshing.set(key, refresh);
+  return untilAborted(refresh, signal);
+}
+
+/** `promise`, or its signal's reason once the caller's signal aborts first. */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      const reason: unknown = signal.reason;
+      reject(
+        reason instanceof Error
+          ? reason
+          : new Error("The request was canceled.", { cause: reason }),
+      );
+    };
+    void promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener("abort", onAbort);
+    });
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 /**
@@ -243,10 +307,16 @@ export async function performSignedInRequest({
   result: Result<AppResponse, AppRequestError>;
   token: string;
 }> {
-  let token = await apiAccessToken(slug, request.manifest, { fresh: false });
+  let token = await apiAccessToken(slug, request.manifest, {
+    fresh: false,
+    signal: request.signal,
+  });
   let result = await performAppRequest({ ...request, credential: token });
   if (result.isOk() && result.value.status === 401) {
-    token = await apiAccessToken(slug, request.manifest, { fresh: true });
+    token = await apiAccessToken(slug, request.manifest, {
+      fresh: true,
+      signal: request.signal,
+    });
     result = await performAppRequest({ ...request, credential: token });
   }
   return { result, token };

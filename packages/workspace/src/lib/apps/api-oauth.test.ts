@@ -81,6 +81,10 @@ function serveMicrosoft() {
   const refreshTokens = new Map([
     ["rt-1", { access_token: "at-2", refresh_token: "rt-2" }],
   ]);
+  // A refresh token whose answer waits for its promise, and a promise each
+  // request for one resolves once it has arrived.
+  const held = new Map<string, Promise<void>>();
+  const arrived = new Map<string, () => void>();
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const url = input instanceof Request ? input.url : input.toString();
     if (url === "https://api.example/oauth/outlook/token") {
@@ -90,6 +94,9 @@ function serveMicrosoft() {
         ),
       );
       tokenRequests.push(body);
+      const refreshToken = body.refresh_token ?? "";
+      arrived.get(refreshToken)?.();
+      await held.get(refreshToken);
       // Our token route down, which says nothing about the sign-in itself.
       if (body.refresh_token === "rt-unreachable") {
         return new Response("Service Unavailable", { status: 503 });
@@ -132,7 +139,20 @@ function serveMicrosoft() {
     }
     return new Response(null, { status: 404 });
   });
-  return { graph, refreshTokens, tokenRequests };
+  const hold = (refreshToken: string) => {
+    let release = () => {};
+    held.set(
+      refreshToken,
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const reached = new Promise<void>((resolve) => {
+      arrived.set(refreshToken, resolve);
+    });
+    return { reached, release: () => release() };
+  };
+  return { graph, hold, refreshTokens, tokenRequests };
 }
 
 describe("an API app signed in with Instrument's Microsoft client", () => {
@@ -445,5 +465,78 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
       }),
     ).rejects.toThrow("sign in again");
     expect(microsoft.graph.authorizations).toEqual([]);
+  });
+
+  const outlook = {
+    auth: { kind: "oauth" },
+    service: "outlook",
+    test: { path: "/me" },
+    type: "api",
+    url: "https://graph.microsoft.com/v1.0",
+  } satisfies ApiAppManifest;
+  const meRequest = (signal: AbortSignal) =>
+    performSignedInRequest({
+      body: undefined,
+      manifest: outlook,
+      method: "GET",
+      params: {},
+      path: "/me",
+      signal,
+      slug: "outlook",
+    });
+
+  it("stops waiting on a refresh once the request is canceled", async () => {
+    const microsoft = serveMicrosoft();
+    microsoft.graph.accepts = "at-none";
+    const held = microsoft.hold("rt-held");
+    await store.saveTokens("outlook", {
+      origin: "https://graph.microsoft.com",
+      value: {
+        access_token: "at-1",
+        refresh_token: "rt-held",
+        token_type: "Bearer",
+      },
+    });
+
+    const canceled = new AbortController();
+    const request = meRequest(canceled.signal);
+    await held.reached;
+    canceled.abort(new Error("canceled"));
+
+    await expect(request).rejects.toThrow("canceled");
+    held.release();
+  });
+
+  it("keeps a sign-in made while an older one's refresh was out", async () => {
+    const microsoft = serveMicrosoft();
+    microsoft.graph.accepts = "at-new";
+    const held = microsoft.hold("rt-superseded");
+    await store.saveTokens("outlook", {
+      origin: "https://graph.microsoft.com",
+      value: {
+        access_token: "at-old",
+        refresh_token: "rt-superseded",
+        token_type: "Bearer",
+      },
+    });
+
+    const request = meRequest(AbortSignal.timeout(5000));
+    await held.reached;
+    const newer = {
+      access_token: "at-new",
+      refresh_token: "rt-new",
+      token_type: "Bearer",
+    };
+    await store.saveTokens("outlook", {
+      origin: "https://graph.microsoft.com",
+      value: newer,
+    });
+    // Microsoft refuses the old refresh token, which the new sign-in spent.
+    held.release();
+
+    const { result, token } = await request;
+    expect(result._unsafeUnwrap().status).toBe(200);
+    expect(token).toBe("at-new");
+    expect((await store.getTokens("outlook"))?.value).toEqual(newer);
   });
 });

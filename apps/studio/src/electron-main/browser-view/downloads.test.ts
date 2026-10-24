@@ -58,8 +58,7 @@ vi.mock("@/electron-main/stores/workspace/downloads", () => ({
   }),
 }));
 
-const SESSION_ID = StoreId.newSessionId();
-const TARGET_ID = browserTargetOf(SESSION_ID);
+const TARGET_ID = browserTargetOf(StoreId.newTabId());
 
 beforeEach(() => {
   home.dir = fs.mkdtempSync(path.join(os.tmpdir(), "downloads-test-"));
@@ -404,7 +403,7 @@ describe("routeGuestDownloads", () => {
     authorized.eventListeners.add(authorizedEvents);
     entries.set(TARGET_ID, authorized);
 
-    const otherTargetId = browserTargetOf(StoreId.newSessionId());
+    const otherTargetId = browserTargetOf(StoreId.newTabId());
     const other = makeEntry(otherTargetId);
     const otherEvents = vi.fn();
     other.eventListeners.add(otherEvents);
@@ -441,7 +440,7 @@ describe("routeGuestDownloads", () => {
     const live = makeEntry();
     live.authorizedDownloadPath = "/tmp/dl";
     entries.set(TARGET_ID, live);
-    const gone = makeEntry(browserTargetOf(StoreId.newSessionId()));
+    const gone = makeEntry(browserTargetOf(StoreId.newTabId()));
 
     const { session, trigger } = makeSession();
     routeGuestDownloads(session, lookupIn(entries));

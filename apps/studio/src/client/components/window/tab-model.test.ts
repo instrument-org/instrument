@@ -114,6 +114,43 @@ describe("normalizeWindowTabs", () => {
     ]);
   });
 
+  it("reads the ids earlier builds gave tabs as tab ids, the same one everywhere a tab is named", () => {
+    const read = normalizeWindowTabs({
+      activeByGroup: {
+        [CHAT]: "ses_01M4RWA7GR6BXSMR9XJM4MRCJ9",
+        [OTHER]: "screen-1",
+      },
+      tabs: [
+        {
+          group: CHAT,
+          id: "ses_01M4RWA7GR6BXSMR9XJM4MRCJ9",
+          kind: "page",
+          openedAt: 1,
+          past: [{ href: "/files", id: "screen-1", kind: "screen" }],
+        },
+        { group: OTHER, href: "/files", id: "screen-1", kind: "screen" },
+      ],
+    });
+    const screenId = read.activeByGroup[OTHER];
+    expect(screenId).toMatch(/^tab_/);
+    expect(read).toEqual({
+      activeByGroup: {
+        [CHAT]: "tab_01M4RWA7GR6BXSMR9XJM4MRCJ9",
+        [OTHER]: screenId,
+      },
+      tabs: [
+        {
+          group: CHAT,
+          id: "tab_01M4RWA7GR6BXSMR9XJM4MRCJ9",
+          kind: "page",
+          openedAt: 1,
+          past: [{ href: "/files", id: screenId, kind: "screen" }],
+        },
+        { group: OTHER, href: "/files", id: screenId, kind: "screen" },
+      ],
+    });
+  });
+
   it("reads nothing kept as no tabs", () => {
     expect(normalizeWindowTabs({})).toEqual({ activeByGroup: {}, tabs: [] });
   });

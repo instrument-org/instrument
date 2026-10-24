@@ -7,7 +7,7 @@ import {
   isAgentDrivenCommand,
 } from "./focus-guard";
 
-const TARGET_ID = browserTargetOf(StoreId.newSessionId());
+const TARGET_ID = browserTargetOf(StoreId.newTabId());
 
 const COMMAND_TAIL_MS = 500;
 

@@ -192,7 +192,7 @@ describe("createAgentBrowserCommand", () => {
   describe("adblock", () => {
     const unblocked = new Set<string>();
     let workspaceBlocking = true;
-    const driven = browserTargetOf(StoreId.newSessionId());
+    const driven = browserTargetOf(StoreId.newTabId());
 
     beforeEach(async () => {
       unblocked.clear();

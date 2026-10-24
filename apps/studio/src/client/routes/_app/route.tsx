@@ -216,7 +216,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
         setPaneOpen(chat, true);
       }}
       tabs={tabs}
-      targetOf={(tab) => browserTargetOf(StoreId.SessionSchema.parse(tab.id))}
+      targetOf={(tab) => browserTargetOf(tab.id)}
       taskTitles={shell.childTitles}
     />
   );

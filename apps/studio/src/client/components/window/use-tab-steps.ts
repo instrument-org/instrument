@@ -5,7 +5,6 @@ import { goGuest } from "@/client/lib/browser-pool";
 import {
   type BrowserTargetId,
   browserTargetOf,
-  StoreId,
 } from "@instrument-org/workspace/client";
 import {
   useCanGoBack,
@@ -166,10 +165,7 @@ function usePageGuest(page: undefined | WindowTab): {
   target: BrowserTargetId | undefined;
 } {
   const attached = useBrowserTargets();
-  const target =
-    page?.kind === "page"
-      ? browserTargetOf(StoreId.SessionSchema.parse(page.id))
-      : undefined;
+  const target = page?.kind === "page" ? browserTargetOf(page.id) : undefined;
   const isAttached = target !== undefined && attached.has(target);
   const guest = useGuestNavigation(isAttached ? target : null);
   return { guest: isAttached ? guest : undefined, target };

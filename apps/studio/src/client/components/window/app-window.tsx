@@ -49,11 +49,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type Tab, type TabId } from "@/shared/tabs";
-import {
-  type ChatId,
-  browserTargetOf,
-  StoreId,
-} from "@instrument-org/workspace/client";
+import { type ChatId, browserTargetOf } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
   QueryClientProvider,
@@ -768,7 +764,7 @@ function WindowShell({
       return;
     }
     return () => {
-      getGuest(browserTargetOf(StoreId.SessionSchema.parse(page.id)))?.reload();
+      getGuest(browserTargetOf(page.id))?.reload();
     };
   };
 

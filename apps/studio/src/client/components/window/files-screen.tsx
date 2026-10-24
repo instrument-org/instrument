@@ -37,7 +37,6 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import {
   browserTargetOf,
   type ComputerRefusal,
-  StoreId,
 } from "@instrument-org/workspace/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -413,9 +412,7 @@ export function FilesScreen({
   // becomes the page at that address and back returns here. A step past
   // either end of the page's history is the tab's own.
   useHostedPageNavigation(
-    hostedTabId === undefined
-      ? undefined
-      : browserTargetOf(StoreId.SessionSchema.parse(hostedTabId)),
+    hostedTabId === undefined ? undefined : browserTargetOf(hostedTabId),
     hostedFile === undefined ? undefined : fileUrlOf(hostedFile),
     (step) => {
       if (step.kind === "back") {

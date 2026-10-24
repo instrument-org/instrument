@@ -42,7 +42,7 @@ async function writeJson(file: string, record: unknown): Promise<void> {
 /** A tab the chat holds, as the state file keeps one. */
 function heldTab(): HeldTab {
   return {
-    id: BrowserTargetIdSchema.parse(StoreId.newSessionId()),
+    id: BrowserTargetIdSchema.parse(StoreId.newTabId()),
     inWindow: true,
     openedBy: "handed",
   };

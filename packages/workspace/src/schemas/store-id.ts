@@ -7,6 +7,7 @@ const PREFIXES = {
   message: "msg_",
   part: "prt_",
   session: "ses_",
+  tab: "tab_",
 } as const;
 
 // via https://github.com/colinhacks/zod/blob/2c333e268c316deef829c736b8c46ec95ee03e39/packages/zod/src/v4/core/regexes.ts#L3
@@ -45,6 +46,10 @@ export namespace StoreId {
   );
   export type Part = z.output<typeof PartSchema>;
 
+  /** A tab of the window: a page, a folder, a file, any screen it shows. */
+  export const TabSchema = createIdSchema(PREFIXES.tab, "WindowTabId");
+  export type Tab = z.output<typeof TabSchema>;
+
   export const ToolCallSchema = z.string().brand("ToolCallId");
   export type ToolCall = z.output<typeof ToolCallSchema>;
 
@@ -58,5 +63,9 @@ export namespace StoreId {
 
   export function newSessionId() {
     return StoreId.SessionSchema.parse(`${PREFIXES.session}${ulid()}`);
+  }
+
+  export function newTabId() {
+    return StoreId.TabSchema.parse(`${PREFIXES.tab}${ulid()}`);
   }
 }

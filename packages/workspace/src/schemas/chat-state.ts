@@ -3,6 +3,11 @@ import { z } from "zod";
 import { BrowserTargetIdSchema } from "../types";
 import { StoreId } from "./store-id";
 
+/** A tab's id as an earlier build saved it, read as the tab's id now: the same ULID under `tab_`. */
+function tabIdOfEarlierBuilds(id: string) {
+  return id.replace(/^window\//, "").replace(/^ses_/, "tab_");
+}
+
 /**
  * A tab of the window one of the chat's sessions drives: one the
  * conversation handed a task, which is the user's and outlives the task, or
@@ -15,12 +20,9 @@ const HeldTabSchema = z.object({
    * chat when it finishes.
    */
   driver: StoreId.SessionSchema.optional(),
-  // Held tabs saved before a target id was the tab's id alone name it
-  // `window/<tab>`.
-  id: z
-    .string()
-    .transform((id) => id.replace(/^window\//, ""))
-    .pipe(BrowserTargetIdSchema),
+  // Held tabs earlier builds saved name it `window/<tab>`, or by a `ses_`
+  // id from before tabs had ids of their own.
+  id: z.string().transform(tabIdOfEarlierBuilds).pipe(BrowserTargetIdSchema),
   /**
    * Whether the tab is in the chat's tabs in the window. A page an agent asks
    * for with no address is made with no tab, and gets one as it first goes
@@ -48,7 +50,7 @@ export const CHAT_HIDDEN_TAB_CAP = 20;
 const ClosedTabSchema = z.object({
   /** The session that drove it, as `HeldTab.driver`. */
   driver: StoreId.SessionSchema.optional(),
-  id: z.string(),
+  id: z.string().transform(tabIdOfEarlierBuilds),
   /** Why: the chat had more tabs it opened itself out of sight than it may keep. */
   reason: z.literal("tabCap"),
   title: z.string().optional(),

@@ -27,7 +27,7 @@ vi.mock(import("./chat/children"), async (importOriginal) => ({
     sessionId === CHAT_SESSION ? "chat" : "task",
 }));
 
-const tab = () => browserTargetOf(StoreId.newSessionId());
+const tab = () => browserTargetOf(StoreId.newTabId());
 
 let chatId: ChatId;
 let root: string;

@@ -185,7 +185,7 @@ describe("a task's tab", () => {
   });
 
   it("connects a task to the tabs it holds", async () => {
-    const own = browserTargetOf(StoreId.newSessionId());
+    const own = browserTargetOf(StoreId.newTabId());
     live.add(own);
     await holdTabs([{ id: own, inWindow: true, openedBy: "task" }]);
 
@@ -198,10 +198,10 @@ describe("a task's tab", () => {
   });
 
   it("says so once when its own tabs were closed, then goes on", async () => {
-    const chats = browserTargetOf(StoreId.newSessionId());
+    const chats = browserTargetOf(StoreId.newTabId());
     await holdTabs([
       {
-        id: browserTargetOf(StoreId.newSessionId()),
+        id: browserTargetOf(StoreId.newTabId()),
         inWindow: true,
         openedBy: "task",
       },
@@ -230,7 +230,7 @@ describe("a task's tab", () => {
   it("drops a page with no tab whose guest went, saying nothing of it", async () => {
     await holdTabs([
       {
-        id: browserTargetOf(StoreId.newSessionId()),
+        id: browserTargetOf(StoreId.newTabId()),
         inWindow: false,
         openedBy: "task",
       },
@@ -245,7 +245,7 @@ describe("a task's tab", () => {
   it("is never replaced when it was handed over and the user closed it", async () => {
     await holdTabs([
       {
-        id: browserTargetOf(StoreId.newSessionId()),
+        id: browserTargetOf(StoreId.newTabId()),
         inWindow: true,
         openedBy: "handed",
       },

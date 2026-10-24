@@ -4,6 +4,7 @@ import {
   type WindowTab,
 } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
+import { StoreId } from "@instrument-org/workspace/client";
 
 /**
  * Where a screen tab's router has been, oldest first, and where along it the
@@ -113,7 +114,7 @@ function leftBehind(
 function newTabVisit(group: string | undefined): TabVisit {
   return {
     href: newTabHrefOf(group),
-    id: `screen-${crypto.randomUUID()}`,
+    id: StoreId.newTabId(),
     kind: "screen",
   };
 }

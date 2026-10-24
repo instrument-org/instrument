@@ -204,9 +204,9 @@ describe("where a chat's tasks open", () => {
 });
 
 describe("chatOfAskingPage", () => {
-  const chatPage = StoreId.newSessionId();
-  const taskPage = StoreId.newSessionId();
-  const sitePage = StoreId.newSessionId();
+  const chatPage = StoreId.newTabId();
+  const taskPage = StoreId.newTabId();
+  const sitePage = StoreId.newTabId();
   const tabs = [
     { group: CHAT, id: chatPage },
     { group: CHAT, id: taskPage },
@@ -217,7 +217,7 @@ describe("chatOfAskingPage", () => {
     ["a chat's own page", browserTargetOf(chatPage), CHAT],
     ["a task's page in a chat", browserTargetOf(taskPage), CHAT],
     ["a page of the window's own", browserTargetOf(sitePage), undefined],
-    ["a page no tab holds", browserTargetOf(StoreId.newSessionId()), undefined],
+    ["a page no tab holds", browserTargetOf(StoreId.newTabId()), undefined],
     ["an unreadable target", "nonsense", undefined],
   ])("names the chat for %s", (_case, targetId, expected) => {
     expect(chatOfAskingPage(targetId, tabs)).toBe(expected);

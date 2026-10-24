@@ -240,7 +240,7 @@ describe("openTargetSession on a local page", () => {
   const own = fileUrl(path.join(TASK, "output", "confine.html"));
   const secret = fileUrl(path.resolve("/Users/me/other/secret.txt"));
   const targetId = BrowserTargetIdSchema.parse(
-    "ses_00000000018888888888888888",
+    "tab_00000000018888888888888888",
   );
 
   function connect(target = targetId) {
@@ -519,7 +519,7 @@ describe("openTargetSession on a local page", () => {
 
   it("hands the main process no folders for a connection that closed before its layout arrived", async () => {
     const target = BrowserTargetIdSchema.parse(
-      "ses_0000000001888888888888888A",
+      "tab_0000000001888888888888888A",
     );
     const early = connect(target);
     early.close();
@@ -683,7 +683,7 @@ describe("openTargetSession on a local page", () => {
 
   it("releases interception and forgets the agent's folders when its last connection closes", async () => {
     const target = BrowserTargetIdSchema.parse(
-      "ses_00000000018888888888888889",
+      "tab_00000000018888888888888889",
     );
     const first = connect(target);
     const second = connect(target);
@@ -711,7 +711,7 @@ describe("openTargetSession with a frame in a process of its own", () => {
   /** A connection to a page of its own, so no other test's connection shares it. */
   function connect() {
     const target = BrowserTargetIdSchema.parse(
-      `ses_0000000001777777777777777${String(++targets)}`,
+      `tab_0000000001777777777777777${String(++targets)}`,
     );
     const guest = { url: page as string | undefined };
     const sent: { id?: number; method?: string; sessionId?: string }[] = [];

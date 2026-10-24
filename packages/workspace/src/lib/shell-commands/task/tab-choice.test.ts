@@ -6,9 +6,9 @@ import { browserTargetOf } from "../../../types";
 import { resolveTabs } from "./tab-choice";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
-const OWN = browserTargetOf(StoreId.newSessionId());
-const FILE = browserTargetOf(StoreId.newSessionId());
-const THEIRS = browserTargetOf(StoreId.newSessionId());
+const OWN = browserTargetOf(StoreId.newTabId());
+const FILE = browserTargetOf(StoreId.newTabId());
+const THEIRS = browserTargetOf(StoreId.newTabId());
 
 // The window: the chat's tabs, whichever have a guest up.
 vi.mock(import("../../chat/window-tab"), async (importOriginal) => ({

@@ -26,7 +26,7 @@ function makeGuest(frames: unknown[] = []) {
 function makeEntry(guest: WebContents): BrowserEntry {
   const entry = createEntry({
     partitionDir: "/tmp/partition" as AbsolutePath,
-    targetId: browserTargetOf(StoreId.newSessionId()),
+    targetId: browserTargetOf(StoreId.newTabId()),
   });
   entry.phase = "live";
   entry.webContents = guest;

@@ -70,19 +70,19 @@ export interface BrowserTabsHandle {
    * in that group, behind whatever is up when the group is not the one on
    * screen.
    */
-  open: (url?: string, options?: OpenOptions) => StoreId.Session;
+  open: (url?: string, options?: OpenOptions) => StoreId.Tab;
   /**
    * Opens a page tab in a chat's group without showing it: the tab joins the
    * group's list and nothing on screen changes, the pane included. What an
    * agent's own work opens, which the user finds in the list when they want
    * to watch. Returns the tab.
    */
-  openBehind: (url: string | undefined, group: string) => StoreId.Session;
+  openBehind: (url: string | undefined, group: string) => StoreId.Tab;
   /**
    * Gives a page an agent made with no tab a tab in a chat's group, behind
    * whatever is up, under the page's own id, as the page goes somewhere.
    */
-  adopt: (id: StoreId.Session, url: string, group: string) => void;
+  adopt: (id: StoreId.Tab, url: string, group: string) => void;
   /**
    * Opens a page in the group on screen or the group given, or shows the tab
    * already on it when the address is a file's. Given a tab to replace, a
@@ -95,7 +95,7 @@ export interface BrowserTabsHandle {
    * sits in the strip and whether it was up. Returns the page's tab, which
    * has an id of its own.
    */
-  pageInPlaceOf: (tab: WindowTab, url: string) => StoreId.Session;
+  pageInPlaceOf: (tab: WindowTab, url: string) => StoreId.Tab;
   /**
    * Reads the page on screen as it is at that moment, or the page in the tab
    * named, for a host drawing a tab of its own; undefined while there is
@@ -237,7 +237,7 @@ export function BrowserTabs({
   const attached = useBrowserTargets();
 
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
-    browserTargetOf(StoreId.SessionSchema.parse(tab.id));
+    browserTargetOf(tab.id);
   // The page the group on screen has up, when what it has up is a page.
   const up = windowTabs.active;
   const active = up?.kind === "page" ? up : undefined;
@@ -300,7 +300,7 @@ export function BrowserTabs({
       if (!id) {
         return;
       }
-      const target = browserTargetOf(StoreId.SessionSchema.parse(id));
+      const target = browserTargetOf(id);
       if (!attached.has(target)) {
         return;
       }
@@ -409,7 +409,7 @@ export function BrowserTabs({
     url?: string,
     { group: into, replacing, show = false }: OpenOptions = {},
   ) => {
-    const id = StoreId.newSessionId();
+    const id = StoreId.newTabId();
     const page = {
       id,
       openedAt: Date.now(),
@@ -429,7 +429,7 @@ export function BrowserTabs({
       }),
     );
     void rpcClient.workspace.browser.open.call({
-      targetId: browserTargetOf(StoreId.SessionSchema.parse(id)),
+      targetId: browserTargetOf(id),
       ...(url ? { url } : {}),
     });
     return id;
@@ -460,7 +460,7 @@ export function BrowserTabs({
           return;
         }
         void rpcClient.workspace.browser.open.call({
-          targetId: browserTargetOf(StoreId.SessionSchema.parse(tab.id)),
+          targetId: browserTargetOf(tab.id),
           url,
         });
       },
@@ -476,7 +476,7 @@ export function BrowserTabs({
       },
       open: (url, options) => openTab(url, options),
       openBehind: (url, into) => {
-        const id = StoreId.newSessionId();
+        const id = StoreId.newTabId();
         change((current) =>
           addPages(current, [
             {
@@ -527,7 +527,7 @@ export function BrowserTabs({
         return openTab(url, fresh ? { ...options, replacing: fresh } : options);
       },
       pageInPlaceOf: (tab, url) => {
-        const id = StoreId.newSessionId();
+        const id = StoreId.newTabId();
         const page = visitInTab(tab, {
           id,
           kind: "page",
@@ -622,7 +622,7 @@ export function BrowserTabs({
           return false;
         }
         void rpcClient.workspace.browser.open.call({
-          targetId: browserTargetOf(StoreId.SessionSchema.parse(tab.id)),
+          targetId: browserTargetOf(tab.id),
           ...(tab.url && tab.url !== "about:blank"
             ? { restoreUrl: tab.url }
             : {}),
@@ -742,7 +742,7 @@ export function BrowserTabs({
                 },
               })}
           restoreUrl={active.url}
-          sessionId={StoreId.SessionSchema.parse(active.id)}
+          tabId={StoreId.TabSchema.parse(active.id)}
         />
       ) : null}
       {/* A page's file keeps its asks at its foot while viewed; in Edit the
@@ -815,7 +815,7 @@ function ComposePagePanel({
         {...(host.layer === undefined ? {} : { layer: host.layer })}
         relayoutKey={place}
         restoreUrl={tab.url}
-        sessionId={StoreId.SessionSchema.parse(tab.id)}
+        tabId={StoreId.TabSchema.parse(tab.id)}
       />
     </ActiveTabProvider>,
     host.into,

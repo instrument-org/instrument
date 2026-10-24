@@ -80,7 +80,7 @@ vi.mock("../../../lib/chat/window-tab", () => ({
       show: options.show,
       target: { kind: "page", ...(options.url ? { url: options.url } : {}) },
     });
-    return Promise.resolve(StoreId.newSessionId());
+    return Promise.resolve(StoreId.newTabId());
   },
 }));
 
@@ -234,7 +234,7 @@ async function flush(): Promise<void> {
 
 /** A tab of the window, open, by its id. */
 function tab(openedBy: HeldTab["openedBy"] = "handed") {
-  const tabId = StoreId.newSessionId();
+  const tabId = StoreId.newTabId();
   return {
     held: {
       id: browserTargetOf(tabId),
@@ -380,7 +380,7 @@ describe("a task's browser", () => {
 
     const attached = await command("Target.attachToTarget", {
       flatten: true,
-      targetId: StoreId.newSessionId(),
+      targetId: StoreId.newTabId(),
     });
 
     expect(attached.error?.message).toContain("not one of this task's tabs");
@@ -424,7 +424,7 @@ describe("a task's browser", () => {
       url: "about:blank",
     });
     const targetId = browserTargetOf(
-      StoreId.SessionSchema.parse(created.result?.targetId),
+      StoreId.TabSchema.parse(created.result?.targetId),
     );
 
     expect(asked).toEqual([]);

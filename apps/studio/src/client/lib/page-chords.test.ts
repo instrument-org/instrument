@@ -24,8 +24,8 @@ vi.mock("@/client/lib/foreground-browser-registry", () => ({
   foregroundBrowser,
 }));
 
-const TYPED_IN = browserTargetOf(StoreId.newSessionId());
-const LOOKED_AT = browserTargetOf(StoreId.newSessionId());
+const TYPED_IN = browserTargetOf(StoreId.newTabId());
+const LOOKED_AT = browserTargetOf(StoreId.newTabId());
 
 function where({
   keyboard,

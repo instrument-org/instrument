@@ -98,7 +98,7 @@ async function pass(duration: number) {
   await vi.advanceTimersByTimeAsync(duration);
 }
 
-const tab = () => browserTargetOf(StoreId.newSessionId());
+const tab = () => browserTargetOf(StoreId.newTabId());
 
 beforeEach(() => {
   vi.useFakeTimers();

@@ -70,7 +70,7 @@ describe("browser state", () => {
 });
 
 describe("restoring a reopened tab", () => {
-  const targetId = browserTargetOf(sessionId);
+  const targetId = browserTargetOf(StoreId.newTabId());
 
   function withTargets(targets: BrowserTarget[]) {
     const sendCommand = vi.fn(() => Promise.resolve({}));

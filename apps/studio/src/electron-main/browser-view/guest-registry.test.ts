@@ -57,7 +57,7 @@ function entryFor(targetId: BrowserTargetId = randomTarget()) {
 }
 
 function randomTarget() {
-  return browserTargetOf(StoreId.newSessionId());
+  return browserTargetOf(StoreId.newTabId());
 }
 
 describe("createGuestRegistry", () => {

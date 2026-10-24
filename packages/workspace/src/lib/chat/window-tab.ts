@@ -85,7 +85,7 @@ export async function requestWindowTab({
   show: boolean;
   timeoutMs?: number;
   url?: string;
-}): Promise<StoreId.Session | undefined> {
+}): Promise<StoreId.Tab | undefined> {
   const answer = await askWindow({
     action: {
       kind: "open",
@@ -96,7 +96,7 @@ export async function requestWindowTab({
     group,
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
   });
-  const tabId = StoreId.SessionSchema.safeParse(answer?.tabId);
+  const tabId = StoreId.TabSchema.safeParse(answer?.tabId);
   return tabId.success ? tabId.data : undefined;
 }
 

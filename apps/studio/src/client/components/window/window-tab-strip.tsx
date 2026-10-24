@@ -95,7 +95,7 @@ export function WindowTabStrip({
           key={id}
           onChange={reportDriven}
           tabId={id}
-          targetId={browserTargetOf(StoreId.SessionSchema.parse(id))}
+          targetId={browserTargetOf(id)}
         />
       ))}
       <TabStrip

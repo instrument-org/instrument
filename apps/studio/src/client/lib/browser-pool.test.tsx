@@ -17,7 +17,7 @@ import {
   showOverSlot,
 } from "./browser-pool";
 
-const target = browserTargetOf(StoreId.newSessionId());
+const target = browserTargetOf(StoreId.newTabId());
 
 // A stream that stays open without ever yielding, as the pool's event
 // subscriptions are while nothing happens.

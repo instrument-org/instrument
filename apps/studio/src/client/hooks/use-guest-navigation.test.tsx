@@ -12,8 +12,8 @@ const { useGuest } = vi.hoisted(() => ({ useGuest: vi.fn() }));
 
 vi.mock("@/client/hooks/use-browser-targets", () => ({ useGuest }));
 
-const FIRST = browserTargetOf(StoreId.newSessionId());
-const SECOND = browserTargetOf(StoreId.newSessionId());
+const FIRST = browserTargetOf(StoreId.newTabId());
+const SECOND = browserTargetOf(StoreId.newTabId());
 
 /** A stand-in guest handle whose history the test moves by hand. */
 function fakeGuest(url: string, targetId: BrowserTargetId = FIRST) {

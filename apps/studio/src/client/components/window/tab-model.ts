@@ -5,6 +5,7 @@ import {
   type WindowTab,
 } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
+import { StoreId } from "@instrument-org/workspace/client";
 
 import { computerTabOf } from "./file-tabs";
 import { groupScreenTabsOnly } from "./group-screen";
@@ -53,11 +54,35 @@ type ScreenHistory = NonNullable<ScreenTab["history"]>;
  * and a screen no group's tab may stand on is dropped with its history.
  */
 export function normalizeWindowTabs(stored: StoredWindowTabs): WindowTabs {
-  const activeByGroup = { ...stored.activeByGroup };
+  const idOf = tabIdsOfEarlierBuilds();
+  const activeByGroup = Object.fromEntries(
+    Object.entries(stored.activeByGroup ?? {}).map(([group, id]) => [
+      group,
+      idOf(id),
+    ]),
+  );
   if (stored.group !== undefined && stored.activeId) {
-    activeByGroup[stored.group] = stored.activeId;
+    activeByGroup[stored.group] = idOf(stored.activeId);
   }
-  const tabs = (stored.tabs ?? []).map((tab): WindowTab => {
+  const tabs = (stored.tabs ?? []).map((kept): WindowTab => {
+    const tab = {
+      ...kept,
+      id: idOf(kept.id),
+      ...(kept.stripKey === undefined ? {} : { stripKey: idOf(kept.stripKey) }),
+      ...(kept.past === undefined
+        ? {}
+        : {
+            past: kept.past.map((visit) => ({ ...visit, id: idOf(visit.id) })),
+          }),
+      ...(kept.future === undefined
+        ? {}
+        : {
+            future: kept.future.map((visit) => ({
+              ...visit,
+              id: idOf(visit.id),
+            })),
+          }),
+    };
     if (
       tab.kind !== "screen" ||
       (tab.trail === undefined && tab.at === undefined)
@@ -78,6 +103,30 @@ export function normalizeWindowTabs(stored: StoredWindowTabs): WindowTabs {
     };
   });
   return { activeByGroup, tabs: groupScreenTabsOnly(tabs) };
+}
+
+/**
+ * A tab's id as this build mints them, from one an earlier build kept: a
+ * page's `ses_` id keeps its ULID under `tab_`, and a screen's `screen-` id
+ * gets a fresh one, the same for every place the kept tabs name it.
+ */
+function tabIdsOfEarlierBuilds() {
+  const fresh = new Map<string, string>();
+  return (id: string): string => {
+    if (StoreId.SessionSchema.safeParse(id).success) {
+      return `tab_${id.slice("ses_".length)}`;
+    }
+    if (!id.startsWith("screen-")) {
+      return id;
+    }
+    const known = fresh.get(id);
+    if (known !== undefined) {
+      return known;
+    }
+    const minted = StoreId.newTabId();
+    fresh.set(id, minted);
+    return minted;
+  };
 }
 
 /** A group's tabs, in strip order. */

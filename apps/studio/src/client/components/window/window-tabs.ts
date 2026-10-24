@@ -3,6 +3,7 @@ import { atom, useAtomValue, useSetAtom } from "jotai";
 
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { keptAtom } from "@/client/lib/kept-state";
+import { StoreId } from "@instrument-org/workspace/client";
 
 import { appTabsAtom, groupOfHref } from "./app-tabs";
 import {
@@ -105,7 +106,7 @@ export function useWindowTabsChange() {
 
 /** A fresh id for a screen tab. */
 export function newScreenId() {
-  return `screen-${crypto.randomUUID()}`;
+  return StoreId.newTabId();
 }
 
 /**

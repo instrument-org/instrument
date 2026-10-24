@@ -129,9 +129,7 @@ export function useOpeners({
         // A page taking the place of what the person was in takes the
         // keyboard with it; one an agent asked for a tab of its own does not.
         if (replacing && !options.ownTab && id !== undefined) {
-          takeKeyboardOnArrival(
-            browserTargetOf(StoreId.SessionSchema.parse(id)),
-          );
+          takeKeyboardOnArrival(browserTargetOf(id));
         }
         return id;
       }
@@ -147,9 +145,7 @@ export function useOpeners({
         const id = browser?.open(url, { group });
         appTabs.navigate(pageHrefOf(group), { replace: placement.replace });
         if (!options.ownTab && id !== undefined) {
-          takeKeyboardOnArrival(
-            browserTargetOf(StoreId.SessionSchema.parse(id)),
-          );
+          takeKeyboardOnArrival(browserTargetOf(id));
         }
         return id;
       }
@@ -406,7 +402,7 @@ export function useOpeners({
       return { tabId };
     }
     if (action.kind === "adopt") {
-      const id = StoreId.SessionSchema.safeParse(action.tabId);
+      const id = StoreId.TabSchema.safeParse(action.tabId);
       if (group === undefined || !id.success) {
         return { error: "only a chat's page can be given a tab." };
       }

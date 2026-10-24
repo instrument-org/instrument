@@ -372,7 +372,7 @@ export function handleTaskCdpClient(
     if (address === undefined) {
       // A page with nothing at it yet: a guest with no tab, which the chat
       // is not shown until it goes somewhere (see intoWindow).
-      const targetId = browserTargetOf(StoreId.newSessionId());
+      const targetId = browserTargetOf(StoreId.newTabId());
       const made = await browser
         .createTarget(targetId, getBrowserSessionDir())
         .then(() => true)

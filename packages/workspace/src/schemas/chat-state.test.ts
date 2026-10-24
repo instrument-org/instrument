@@ -3,12 +3,30 @@ import { describe, expect, it } from "vitest";
 import { StoredChatStateSchema } from "./chat-state";
 
 describe("a chat's held tabs", () => {
-  it("reads a tab saved under its old `window/` target id as the tab itself", () => {
-    const tab = "ses_01M4RWA7GR6BXSMR9XJM4MRCJ9";
+  it.each([
+    ["its old `window/` target id", "window/ses_01M4RWA7GR6BXSMR9XJM4MRCJ9"],
+    [
+      "the session id tabs had before ids of their own",
+      "ses_01M4RWA7GR6BXSMR9XJM4MRCJ9",
+    ],
+    ["its own id", "tab_01M4RWA7GR6BXSMR9XJM4MRCJ9"],
+  ])("reads a tab saved under %s as the tab itself", (_, saved) => {
     expect(
       StoredChatStateSchema.parse({
-        browserTabs: [{ id: `window/${tab}`, openedBy: "handed" }],
-      }).browserTabs,
-    ).toEqual([{ id: tab, inWindow: true, openedBy: "handed" }]);
+        browserTabs: [{ id: saved, openedBy: "handed" }],
+        closedTabs: [
+          { id: saved, reason: "tabCap", url: "https://example.com/" },
+        ],
+      }),
+    ).toMatchObject({
+      browserTabs: [
+        {
+          id: "tab_01M4RWA7GR6BXSMR9XJM4MRCJ9",
+          inWindow: true,
+          openedBy: "handed",
+        },
+      ],
+      closedTabs: [{ id: "tab_01M4RWA7GR6BXSMR9XJM4MRCJ9" }],
+    });
   });
 });

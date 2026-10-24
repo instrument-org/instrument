@@ -11,11 +11,11 @@ import {
   reconcileGuests,
 } from "./reconcile-guests";
 
-const open = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMF");
-const closed = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMG");
-const visited = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMH");
+const open = StoreId.TabSchema.parse("tab_01M3G55N35541T2M6SWPS72GMF");
+const closed = StoreId.TabSchema.parse("tab_01M3G55N35541T2M6SWPS72GMG");
+const visited = StoreId.TabSchema.parse("tab_01M3G55N35541T2M6SWPS72GMH");
 
-const windowGuest = (session: StoreId.Session) => browserTargetOf(session);
+const windowGuest = (tab: StoreId.Tab) => browserTargetOf(tab);
 
 function reconcile(
   attached: BrowserTargetId[],
@@ -41,7 +41,7 @@ describe("reconcileGuests", () => {
     });
     expect(result.close).toMatchInlineSnapshot(`
       [
-        "ses_01M3G55N35541T2M6SWPS72GMG",
+        "tab_01M3G55N35541T2M6SWPS72GMG",
       ]
     `);
   });

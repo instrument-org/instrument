@@ -142,10 +142,9 @@ export interface BrowserTarget {
 }
 
 // The bridge routing key for one browser view: the id of the window tab it
-// is drawn in, which is a session id. Branded apart from a session id so a
-// chat's or task's session is never taken for a tab.
-export const BrowserTargetIdSchema =
-  StoreId.SessionSchema.brand("BrowserTargetId");
+// is drawn in. Branded apart from a tab id, since a tab showing a screen of
+// the app has no browser view.
+export const BrowserTargetIdSchema = StoreId.TabSchema.brand("BrowserTargetId");
 
 export type BrowserTargetId = z.output<typeof BrowserTargetIdSchema>;
 
@@ -428,7 +427,7 @@ type CdpSendArgs<M extends CdpMethod> =
         : never;
 
 /** The browser view drawn in the window tab with this id. */
-export function browserTargetOf(tabId: StoreId.Session): BrowserTargetId {
+export function browserTargetOf(tabId: string): BrowserTargetId {
   return BrowserTargetIdSchema.parse(tabId);
 }
 

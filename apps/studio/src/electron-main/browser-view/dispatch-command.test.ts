@@ -23,8 +23,7 @@ import {
 } from "./guest-surface";
 import { log } from "./log";
 
-const SESSION_ID = StoreId.newSessionId();
-const TARGET_ID = browserTargetOf(SESSION_ID);
+const TARGET_ID = browserTargetOf(StoreId.newTabId());
 
 interface FakeDebugger {
   isAttached: () => boolean;

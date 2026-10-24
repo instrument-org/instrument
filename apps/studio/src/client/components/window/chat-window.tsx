@@ -7,7 +7,6 @@ import {
   type ChatId,
   browserTargetOf,
   type SessionMessageDataPart,
-  StoreId,
 } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -359,7 +358,7 @@ export function ChatWindow({
           }
         }}
         tabs={tabs}
-        targetOf={(tab) => browserTargetOf(StoreId.SessionSchema.parse(tab.id))}
+        targetOf={(tab) => browserTargetOf(tab.id)}
         taskTitles={taskTitles}
       />
     </div>

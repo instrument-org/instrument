@@ -20,9 +20,9 @@ const layout = buildWorkspaceFsLayout({
   chatHostRoot: WorkDirSchema.parse(chatFolder),
 });
 
-// A page tab, by the session id the window's page tabs carry, and the
+// A page tab, by its id, and the
 // addresses the browser reports it showing, one per ask, the last repeating.
-const pageTab = StoreId.newSessionId();
+const pageTab = StoreId.newTabId();
 let pageUrls: string[];
 
 // Which task is at work in which tab, as the chat's tasks' records would say.

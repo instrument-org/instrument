@@ -3,7 +3,7 @@ import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { useGroupTabRouter } from "@/client/lib/group-tab-router-registry";
-import { browserTargetOf, StoreId } from "@instrument-org/workspace/client";
+import { browserTargetOf } from "@instrument-org/workspace/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import {
@@ -99,10 +99,7 @@ export function GroupItem({
     },
     [],
   );
-  const targetId =
-    up.kind === "page"
-      ? browserTargetOf(StoreId.SessionSchema.parse(up.id))
-      : undefined;
+  const targetId = up.kind === "page" ? browserTargetOf(up.id) : undefined;
   const page = targetId ? getGuest(targetId) : null;
   // Back walks what is up (the page's own history, the screen's trail),
   // then what the tab showed before it, then, for a tab that is a site of

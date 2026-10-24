@@ -148,7 +148,7 @@ export function BrowserPanel({
   pageControls,
   relayoutKey,
   restoreUrl,
-  sessionId,
+  tabId,
 }: {
   active: boolean;
   /**
@@ -195,9 +195,9 @@ export function BrowserPanel({
    * at, which brings the page back after a launch or a reap.
    */
   restoreUrl?: string | undefined;
-  sessionId: StoreId.Session;
+  tabId: StoreId.Tab;
 }) {
-  const targetId = browserTargetOf(sessionId);
+  const targetId = browserTargetOf(tabId);
   const inputRef = useRef<HTMLInputElement>(null);
   const isVisible = useIsTaskPageVisible();
   const [draftUrl, setDraftUrl] = useState("");
@@ -566,7 +566,7 @@ export function BrowserPanel({
   // window's own, as a copy at its address; the chat keeps its page. A
   // browser tab has Duplicate Tab in the bar for the same.
   const group = useAtomValue(windowTabsAtom).tabs.find(
-    (tab) => tab.id === sessionId,
+    (tab) => tab.id === tabId,
   )?.group;
   const openInBrowserTab =
     windowContext && group !== undefined && !isSiteGroup(group)

@@ -38,12 +38,12 @@ export function createStandInWindow() {
       target.kind === "page"
         ? {
             at: target.url ?? "about:blank",
-            id: StoreId.newSessionId(),
+            id: StoreId.newTabId(),
             kind: "page",
           }
         : {
             at: target.path,
-            id: `screen-${crypto.randomUUID()}`,
+            id: StoreId.newTabId(),
             kind: "screen",
           };
     tabs.set(tab.id, tab);
@@ -122,11 +122,11 @@ export function createStandInWindow() {
         listTargets: async () => [
           ...(await base.listTargets()),
           ...[...tabs.values()].flatMap((tab) => {
-            const sessionId = StoreId.SessionSchema.safeParse(tab.id);
-            return tab.kind === "page" && sessionId.success
+            const tabId = StoreId.TabSchema.safeParse(tab.id);
+            return tab.kind === "page" && tabId.success
               ? [
                   {
-                    id: browserTargetOf(sessionId.data),
+                    id: browserTargetOf(tabId.data),
                     title: "",
                     type: "page" as const,
                     url: tab.at,
@@ -165,9 +165,8 @@ export function createStandInWindow() {
           tabs.set(tab.id, {
             at: tab.at,
             id: tab.id,
-            kind: StoreId.SessionSchema.safeParse(tab.id).success
-              ? "page"
-              : "screen",
+            // A page is at an address; a file or a screen at a path or route.
+            kind: /^[a-z][a-z+.-]*:/i.test(tab.at) ? "page" : "screen",
           });
         }
       }

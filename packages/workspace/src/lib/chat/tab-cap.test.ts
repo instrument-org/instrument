@@ -54,7 +54,7 @@ function heldTab(
   minutes: null | number,
   extra: Partial<HeldTab> = {},
 ): HeldTab {
-  const id = browserTargetOf(StoreId.newSessionId());
+  const id = browserTargetOf(StoreId.newTabId());
   lifetimes.set(id, {
     drawn: minutes === null,
     hiddenForMs: minutes === null ? null : minutes * 60_000,
@@ -109,7 +109,7 @@ describe("closeTabsOverCap", () => {
 
   it("closes an unloaded tab before any with a page", async () => {
     const unloaded: HeldTab = {
-      id: browserTargetOf(StoreId.newSessionId()),
+      id: browserTargetOf(StoreId.newTabId()),
       inWindow: true,
       openedBy: "task",
     };

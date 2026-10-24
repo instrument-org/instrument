@@ -17,8 +17,7 @@ import {
   subscribeEvents,
 } from "./entry";
 
-const SESSION_ID = StoreId.newSessionId();
-const TARGET_ID = browserTargetOf(SESSION_ID);
+const TARGET_ID = browserTargetOf(StoreId.newTabId());
 
 function makeEntry(targetId: BrowserTargetId = TARGET_ID): BrowserEntry {
   return createEntry({

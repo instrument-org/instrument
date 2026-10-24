@@ -334,10 +334,9 @@ describe("app test and the guide skeleton", () => {
     // A hosted MCP server that takes a key carries it, or the card it makes
     // offers a sign-in the server cannot do.
     ["render", "--mcp https://mcp.render.com/mcp --auth bearer"],
-    // One whose sign-in needs a client Instrument has not registered falls
-    // through to a key the user can make on a page the directory names...
-    ["asana", "--api https://app.asana.com/api/1.0 --auth bearer"],
-    // ...and past a token that takes building an app first, to the web.
+    // One whose sign-in is Instrument's own client gets the card.
+    ["asana", "--mcp https://mcp.asana.com/v2/mcp\n"],
+    // One whose token takes building an app first goes to the web.
     ["hubspot", "--web https://app.hubspot.com"],
     // Slack, until the directory gives it a client, goes to the web too.
     ["slack", "--web https://app.slack.com"],

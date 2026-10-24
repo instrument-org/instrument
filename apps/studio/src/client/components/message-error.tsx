@@ -50,6 +50,8 @@ interface MessageErrorProps {
    * the actions, with our sentence and the provider's account under Details.
    */
   compact?: boolean;
+  /** No reply of the agent's followed it before the user wrote again. */
+  endedTurn?: boolean;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isLastMessage: boolean;
@@ -77,6 +79,7 @@ interface MessageErrorProps {
  */
 export function MessageError({
   compact = false,
+  endedTurn = false,
   isAgentRunning,
   isDeveloperMode,
   isLastMessage,
@@ -129,11 +132,13 @@ export function MessageError({
     "classification" in error ? error.classification : undefined;
   // Each of these describes a problem the user no longer has: a turn they
   // stopped themselves, or a throttle the machine waited out before the turn
-  // that followed succeeded.
+  // that followed succeeded. One the turn ended on was never waited out, and
+  // stays where it happened after the user writes again.
   const isHiddenFromReader =
     error.kind === "aborted" ||
     ((classification === "rate-limit" || classification === "transient") &&
-      !isLastMessage);
+      !isLastMessage &&
+      !endedTurn);
   if (isHiddenFromReader && !isDeveloperMode) {
     return null;
   }
@@ -246,7 +251,9 @@ export function MessageError({
         {showDetails && (
           <div className="flex flex-col gap-1 pl-5.5 text-muted-foreground">
             <p>{body}</p>
-            {providerLine && <p className="text-muted-foreground/80">{providerLine}</p>}
+            {providerLine && (
+              <p className="text-muted-foreground/80">{providerLine}</p>
+            )}
             {canReadProviderText && (
               <ErrorDetails error={error} message={message} />
             )}

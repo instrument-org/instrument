@@ -653,6 +653,7 @@ export function ChatStream({
       ) {
         messageElements.push(
           <MessageError
+            endedTurn={regularMessages[messageIndex + 1]?.role !== "assistant"}
             isAgentRunning={isAgentRunning}
             isDeveloperMode={isDeveloperMode}
             isLastMessage={isLastMessage}

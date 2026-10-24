@@ -176,6 +176,7 @@ type BubbleRow =
   | { kind: "card"; part: SessionMessagePart.ToolPart }
   | { kind: "chips"; chips: SessionMessageDataPart.SentChip[] }
   | {
+      endedTurn: boolean;
       isAgentRunning: boolean;
       isDeveloperMode: boolean;
       isLastMessage: boolean;
@@ -359,6 +360,7 @@ function bubbleBoxes(
       !isSameRefusal(message, regular[index + 1])
     ) {
       turn.rows.push({
+        endedTurn: regular[index + 1]?.role !== "assistant",
         isAgentRunning,
         isDeveloperMode,
         isLastMessage,
@@ -592,6 +594,7 @@ function sameRow(a: BubbleRow, b: BubbleRow | undefined): boolean {
       return (
         b.kind === "error" &&
         a.message === b.message &&
+        a.endedTurn === b.endedTurn &&
         a.isAgentRunning === b.isAgentRunning &&
         a.isDeveloperMode === b.isDeveloperMode &&
         a.isLastMessage === b.isLastMessage
@@ -875,6 +878,7 @@ const BubbleRowView = memo(function BubbleRowView({
       return (
         <MessageError
           compact
+          endedTurn={row.endedTurn}
           isAgentRunning={row.isAgentRunning}
           isDeveloperMode={row.isDeveloperMode}
           isLastMessage={row.isLastMessage}

@@ -54,7 +54,7 @@ const MONTH_YEAR = new Intl.DateTimeFormat("en-US", {
 });
 
 /** A month's heading: its name this year, with the year before that. */
-export function monthLabel(date: Date, now: Date) {
+function monthLabel(date: Date, now: Date) {
   return date.getFullYear() === now.getFullYear()
     ? MONTH.format(date)
     : MONTH_YEAR.format(date);

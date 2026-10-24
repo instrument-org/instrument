@@ -156,7 +156,7 @@ function isSubagentFile(file: string): boolean {
 }
 
 /** Reads one log: everything a listing shows, and the messages when `keepText`. */
-export async function scanFile(
+async function scanFile(
   file: string,
   { homeDir, keepText }: { homeDir: string; keepText: boolean },
 ): Promise<Scanned | undefined> {

@@ -37,7 +37,7 @@ describe("localSources", () => {
     expect(await localSources(home)).toEqual([]);
   });
 
-  it("leaves out an agent whose folder has no chats", async () => {
+  it("leaves out an agent whose folder has no logs", async () => {
     await fs.mkdir(path.join(home, ".claude", "projects"), { recursive: true });
     await fs.mkdir(path.join(home, ".codex", "sessions"), { recursive: true });
 

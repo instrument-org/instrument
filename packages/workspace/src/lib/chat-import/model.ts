@@ -19,7 +19,7 @@ import { ChatIdSchema } from "../../schemas/chat-id";
  * again skips it.
  */
 
-export const ImportSourceKindSchema = z.enum([
+const ImportSourceKindSchema = z.enum([
   "claude-code",
   "codex",
   "cursor",
@@ -27,13 +27,13 @@ export const ImportSourceKindSchema = z.enum([
   "claude-export",
 ]);
 
-export type ImportSourceKind = z.output<typeof ImportSourceKindSchema>;
+type ImportSourceKind = z.output<typeof ImportSourceKindSchema>;
 
 /**
  * Where an import reads from: a coding agent on this computer, found in the
  * home folder, or an export file the person picked.
  */
-export const ImportFromSchema = z.discriminatedUnion("type", [
+const ImportFromSchema = z.discriminatedUnion("type", [
   z.object({
     kind: ImportSourceKindSchema.extract(["claude-code", "codex", "cursor"]),
     type: z.literal("local"),
@@ -48,7 +48,7 @@ export const ImportFromSchema = z.discriminatedUnion("type", [
 export type ImportFrom = z.output<typeof ImportFromSchema>;
 
 /** A source there is something to import from, as a picker offers it. */
-export const ImportSourceSchema = z.object({
+const ImportSourceSchema = z.object({
   from: ImportFromSchema,
   kind: ImportSourceKindSchema,
   /** The product's name, as its own users say it: "ChatGPT", "Claude Code". */
@@ -62,7 +62,7 @@ export const ImportSourceSchema = z.object({
 export type ImportSource = z.output<typeof ImportSourceSchema>;
 
 /** One chat a source has, listed without reading it in full. */
-export const ImportCandidateSchema = z.object({
+const ImportCandidateSchema = z.object({
   kind: ImportSourceKindSchema,
   /** The chat's id in the source, stable across exports and listings. */
   sourceId: z.string().min(1),
@@ -95,7 +95,7 @@ export type ImportCandidate = z.output<typeof ImportCandidateSchema>;
  * What a message had that does not come across as text, said in the
  * imported message so the chat is honest about what it lost.
  */
-export const ImportOmittedSchema = z.object({
+const ImportOmittedSchema = z.object({
   /** Images and files the message had, by count. */
   attachments: z.number().int().positive().optional(),
   /** Tool calls the reply made, by the tool's name in the source. */
@@ -104,7 +104,7 @@ export const ImportOmittedSchema = z.object({
 
 export type ImportOmitted = z.output<typeof ImportOmittedSchema>;
 
-export const ImportedMessageSchema = z.object({
+const ImportedMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   /** Markdown, as the source had it. */
   text: z.string(),
@@ -121,7 +121,7 @@ export type ImportedMessage = z.output<typeof ImportedMessageSchema>;
  * branch of it where the source kept edits and regenerations as branches
  * (the one the person last saw).
  */
-export const ImportedTranscriptSchema = ImportCandidateSchema.extend({
+const ImportedTranscriptSchema = ImportCandidateSchema.extend({
   messages: z.array(ImportedMessageSchema),
 });
 
@@ -165,7 +165,7 @@ export const ListSourcesOutputSchema = ImportSourceSchema.array();
 /** `chatImport.list`: every chat a source has, newest first. */
 export const ListCandidatesInputSchema = z.object({ from: ImportFromSchema });
 
-export const ListedCandidateSchema = ImportCandidateSchema.extend({
+const ListedCandidateSchema = ImportCandidateSchema.extend({
   /** The chat it was already imported as, or null. */
   imported: ChatIdSchema.nullable(),
 });

@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -46,27 +47,75 @@ export function openLocalSource(
   return source;
 }
 
-/** The coding agents here with at least one chat to import. */
+/**
+ * The coding agents here that have kept a chat log. Only whether a log is
+ * there is checked, so the answer is quick; listing each one starts behind
+ * it, so the picker's listing finds it read.
+ */
 export async function localSources(
   homeDir: string = os.homedir(),
 ): Promise<ImportSource[]> {
   const found = await Promise.all(
-    KNOWN.map(async ({ kind, name, site }): Promise<ImportSource | undefined> => {
-      const candidates = await openLocalSource(kind, homeDir)
-        .list()
-        .catch(() => []);
-      return candidates.length > 0
-        ? {
-            from: { kind, type: "local" },
-            kind,
-            location: homeRelative(locationOf(kind, homeDir), homeDir),
-            name,
-            site,
-          }
-        : undefined;
-    }),
+    KNOWN.map(
+      async ({ kind, name, site }): Promise<ImportSource | undefined> => {
+        if (!(await hasLogs(kind, homeDir))) {
+          return undefined;
+        }
+        void openLocalSource(kind, homeDir)
+          .list()
+          .catch(() => []);
+        return {
+          from: { kind, type: "local" },
+          kind,
+          location: homeRelative(locationOf(kind, homeDir), homeDir),
+          name,
+          site,
+        };
+      },
+    ),
   );
   return found.flatMap((source) => (source ? [source] : []));
+}
+
+/** Whether the agent has written a log: a session file, or Cursor's database. */
+async function hasLogs(kind: LocalKind, homeDir: string): Promise<boolean> {
+  if (kind === "cursor") {
+    return exists(
+      path.join(cursorUserDir(homeDir), "globalStorage", "state.vscdb"),
+    );
+  }
+  const root =
+    kind === "claude-code"
+      ? path.join(homeDir, ".claude", "projects")
+      : path.join(homeDir, ".codex", "sessions");
+  return holdsFile(root, kind === "claude-code" ? 1 : 3);
+}
+
+/** Whether a file is in `dir` or in its folders down to `depth` levels. */
+async function holdsFile(dir: string, depth: number): Promise<boolean> {
+  const entries = await fs
+    .readdir(dir, { withFileTypes: true })
+    .catch(() => []);
+  for (const entry of entries) {
+    if (entry.isFile() && !entry.name.startsWith(".")) {
+      return true;
+    }
+    if (
+      entry.isDirectory() &&
+      depth > 0 &&
+      (await holdsFile(path.join(dir, entry.name), depth - 1))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function exists(file: string): Promise<boolean> {
+  return fs
+    .access(file)
+    .then(() => true)
+    .catch(() => false);
 }
 
 function locationOf(kind: LocalKind, homeDir: string): string {

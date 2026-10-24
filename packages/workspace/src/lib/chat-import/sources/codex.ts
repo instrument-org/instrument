@@ -180,7 +180,7 @@ async function threadNames(home: string): Promise<Map<string, string>> {
   return names;
 }
 
-export async function scanRollout(
+async function scanRollout(
   file: string,
   options: { homeDir: string; keepText: boolean },
 ): Promise<Scanned | undefined> {

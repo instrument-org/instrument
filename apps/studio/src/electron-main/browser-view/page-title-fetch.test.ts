@@ -27,8 +27,8 @@ describe("isPublicPage", () => {
 describe("titleIn", () => {
   it.each([
     [
-      "<title>Caf&eacute; de Flore &ndash; Wikipedia</title>",
-      "Café de Flore – Wikipedia",
+      "<title>Fish &amp; Chips &#8211; Wikipedia</title>",
+      "Fish & Chips – Wikipedia",
     ],
     ["<title>\n  Spread\n  over lines </title>", "Spread over lines"],
     ["<svg><title>An icon</title></svg><title>The page</title>", "The page"],

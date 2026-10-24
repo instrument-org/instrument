@@ -17,7 +17,7 @@ import {
   resolveMicrophone,
 } from "@/client/lib/dictation-microphone";
 import { toast } from "@/client/lib/toast";
-import { isMacOS } from "@/client/lib/utils";
+import { isMacOS, osConventions } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -282,6 +282,7 @@ function MicrophoneAccessCard({
     rpcClient.dictation.access.reopen.mutationOptions(),
   );
   const mac = isMacOS();
+  const { thisComputer } = osConventions();
   const detail = {
     denied: mac
       ? // oxlint-disable-next-line studio/no-os-words -- only on macOS
@@ -290,8 +291,7 @@ function MicrophoneAccessCard({
         "Turned off in Windows privacy settings.",
     "not-determined": "Needed for dictation.",
     reopen: `Reopen ${APP_NAME} to start using it.`,
-    // oxlint-disable-next-line studio/no-os-words -- macOS alone restricts it
-    restricted: "This Mac doesn't allow it.",
+    restricted: `${thisComputer.charAt(0).toUpperCase()}${thisComputer.slice(1)} doesn't allow it.`,
   }[state];
   const openSettingsButton = (
     <Button

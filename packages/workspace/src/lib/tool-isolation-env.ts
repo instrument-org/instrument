@@ -210,6 +210,9 @@ function uvToolsEnvIn(
 ): Record<string, string> {
   return {
     PIP_CONFIG_FILE: os.devNull,
+    // Bytecode for a module imported from the person's folders is kept here
+    // rather than in a `__pycache__` beside it, where it would sync.
+    PYTHONPYCACHEPREFIX: path.join(caches, "pycache"),
     UV_CACHE_DIR: path.join(caches, "uv"),
     UV_EXCLUDE_NEWER: new Date(
       now.getTime() - RELEASE_AGE_DAYS * 24 * 60 * 60 * 1000,

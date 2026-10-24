@@ -37,6 +37,7 @@ describe("the runtime folder", () => {
       .toMatchInlineSnapshot(`
         {
           "PIP_CONFIG_FILE": "<devNull>",
+          "PYTHONPYCACHEPREFIX": "<runtime>/caches/pycache",
           "UV_CACHE_DIR": "<runtime>/caches/uv",
           "UV_EXCLUDE_NEWER": "2026-10-06T00:00:00.000Z",
           "UV_NO_CONFIG": "1",
@@ -176,6 +177,7 @@ describe("the runtime folder", () => {
         "MPLCONFIGDIR": "<runtime>/build/caches/matplotlib",
         "PIP_CONFIG_FILE": "<devNull>",
         "PNPM_HOME": "<runtime>/build/caches/pnpm-home",
+        "PYTHONPYCACHEPREFIX": "<runtime>/build/caches/pycache",
         "UV_CACHE_DIR": "<runtime>/build/caches/uv",
         "UV_EXCLUDE_NEWER": "2026-10-06T00:00:00.000Z",
         "UV_NO_CONFIG": "1",

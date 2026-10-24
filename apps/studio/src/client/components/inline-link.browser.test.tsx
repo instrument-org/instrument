@@ -354,4 +354,18 @@ describe("An inline link in a browser", () => {
     expect(siteIcon()).not.toBeNull();
     expect(paragraph.getBoundingClientRect().height).toBe(lineHeight);
   });
+
+  // A bare address is drawn short, with the whole of it a hover away.
+  it("draws a bare address short", async () => {
+    const href =
+      "https://www.giro.com/product/fixture-mips-ii-youth-helmet/100000001400000351.html";
+    await renderReply(`Does ${href} fit?`);
+
+    await hoverLink((element) => {
+      expect(element.textContent).toBe(href);
+    });
+    expect(document.querySelector("a")?.textContent).toBe(
+      "giro.com/product/fixture-mips-ii-youth…",
+    );
+  });
 });

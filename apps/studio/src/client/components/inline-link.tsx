@@ -11,6 +11,7 @@ import {
   mailtoAddress,
   webUrl,
 } from "@/client/lib/link-target";
+import { type TidyLink, tidyLink } from "@/client/lib/tidy-link";
 import { cn } from "@/client/lib/utils";
 import { settingsPathOf } from "@/client/components/settings/settings-index";
 import { type InstrumentLink, instrumentLinkOf } from "@instrument-org/shared";
@@ -449,6 +450,20 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
 }
 
 /**
+ * A link written as its own address, drawn short. Copy Link on its menu gives
+ * the whole address, and so does its tooltip.
+ */
+function TidyLabel({ tidy }: { tidy: TidyLink }) {
+  return tidy.cut ? `${tidy.shown}…` : tidy.shown;
+}
+
+/** A label that is plain text, as a bare address always is. */
+function textOf(children: ReactNode): string | undefined {
+  const [only, ...others] = Children.toArray(children);
+  return typeof only === "string" && others.length === 0 ? only : undefined;
+}
+
+/**
  * A link to a page: the site's icon, then the label.
  *
  * The sentence carries nothing else: a link in a reply is read inside a
@@ -460,7 +475,8 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
  * The alternative was a chip wherever the label happened to be exactly an
  * origin, and the rule deciding that was invisible to anyone who did not
  * already know it: two links a line apart, one boxed and one not, with nothing
- * on screen saying why.
+ * on screen saying why. A label that is the address itself is drawn short
+ * ({@link TidyLabel}), since the tooltip has the rest of it.
  *
  * The whole thing is one anchor, so a click anywhere on it opens the same URL,
  * and the label is wrapped in `bdi` so a right-to-left one cannot reorder
@@ -480,6 +496,8 @@ function WebLink({
   ...props
 }: React.ComponentProps<"a"> & { href: string }) {
   const url = webUrl(href);
+  const label = textOf(children);
+  const tidy = label === undefined ? undefined : tidyLink(href, label);
 
   const anchor = (
     <ExternalLink
@@ -502,7 +520,7 @@ function WebLink({
         <bdi
           className={cn("whitespace-normal", INLINE_LINK_UNDERLINE_CLASS_NAME)}
         >
-          {children}
+          {tidy ? <TidyLabel tidy={tidy} /> : children}
         </bdi>
       </span>
     </ExternalLink>

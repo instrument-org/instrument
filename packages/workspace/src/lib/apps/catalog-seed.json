@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-10-22T16:46:38.690Z",
-  "entriesHash": "5c1a0a6ddd216889",
+  "revision": "2026-10-24T11:35:38.317Z",
+  "entriesHash": "1852f8a075f4c6f1",
   "entries": [
     {
       "slug": "ahrefs",
@@ -385,13 +385,13 @@
         "What’s assigned to me that’s overdue?",
         "How are my projects going?"
       ],
-      "description": "Coordinate work across teams while connecting AI insights to real deliverables. Reached through Asana's MCP server once Instrument's Asana client is open to everyone; until then through the REST API with a personal access token, or the web app.",
+      "description": "Coordinate work across teams while connecting AI insights to real deliverables. Reached through Asana's MCP server after you sign in with Asana, or through the REST API with a personal access token.",
       "domain": "asana.com",
       "authMethods": [
         {
           "type": "oauth2",
           "label": "Asana sign-in",
-          "note": "Needs Instrument's own sign-in client, which isn't open to everyone yet; until then a personal access token, or the user signs in on the web."
+          "note": "Signs in with OAuth in the browser through Instrument's own Asana client, so there is no key to paste."
         },
         {
           "type": "pat",
@@ -405,6 +405,7 @@
           "name": "Asana MCP server",
           "endpoint": "https://mcp.asana.com/v2/mcp",
           "auth": "oauth-client",
+          "clientId": "1219780662598165",
           "tokenExchange": "api"
         },
         {

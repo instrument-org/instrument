@@ -66,8 +66,8 @@ describe("a Google product the directory gives no client", () => {
 
 describe("HubSpot's and Asana's MCP sign-in", () => {
   const servers = [
-    ["hubspot", "https://mcp.hubspot.com", "web"],
-    ["asana", "https://mcp.asana.com/v2/mcp", "api"],
+    ["hubspot", "https://mcp.hubspot.com"],
+    ["asana", "https://mcp.asana.com/v2/mcp"],
   ] as const;
   const entry = (slug: string) => {
     const found = getAppCatalog().find((candidate) => candidate.slug === slug);
@@ -81,15 +81,22 @@ describe("HubSpot's and Asana's MCP sign-in", () => {
     resetServedAppCatalog();
   });
 
-  // The client is served only to admins; everyone else keeps a token or the web.
-  it.each(servers)(
-    "leaves %s off its MCP server without the client",
-    (slug, endpoint, fallback) => {
-      expect(catalogEndpointNeedsClient(endpoint)).toBe(true);
-      expect(catalogRegisteredClient(endpoint)).toBeUndefined();
-      expect(catalogWayIn(entry(slug)).kind).toBe(fallback);
-    },
-  );
+  // HubSpot's client is served only to admins; everyone else keeps the web.
+  it("leaves hubspot off its MCP server without the client", () => {
+    expect(catalogEndpointNeedsClient("https://mcp.hubspot.com")).toBe(true);
+    expect(catalogRegisteredClient("https://mcp.hubspot.com")).toBeUndefined();
+    expect(catalogWayIn(entry("hubspot")).kind).toBe("web");
+  });
+
+  it("signs asana in to its MCP server with the directory's own client", () => {
+    expect(catalogWayIn(entry("asana"))).toMatchObject({
+      endpoint: "https://mcp.asana.com/v2/mcp",
+      kind: "mcp",
+    });
+    expect(
+      catalogRegisteredClient("https://mcp.asana.com/v2/mcp"),
+    ).toMatchObject({ clientId: "1219780662598165", tokenExchange: "api" });
+  });
 
   it.each(servers)(
     "signs %s in to its MCP server with the client and the API token route",

@@ -1,6 +1,6 @@
 # Importing chats from other AI apps
 
-Status: in progress. The contract (`packages/workspace/src/lib/chat-import/model.ts`) is in; sources, the writer, the agent command and the picker are being built against it.
+Status: built. Sources, writer, `chatImport` RPC, `instrument import` and the picker in Settings > Memory work end to end on Claude Code, Codex and a synthetic ChatGPT export. Open: a real ChatGPT and Claude export, a real Cursor install, and a run of the `chat-import` eval case.
 
 ## What it is
 

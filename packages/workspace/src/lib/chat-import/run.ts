@@ -162,5 +162,11 @@ async function importFrom(
       finish(sourceId, sourceId);
     }
   }
+  // In the order asked for, rather than the order the writes landed in.
+  const order = new Map(wanted.map((sourceId, index) => [sourceId, index]));
+  const byOrder = (a: { sourceId: string }, b: { sourceId: string }) =>
+    (order.get(a.sourceId) ?? 0) - (order.get(b.sourceId) ?? 0);
+  output.imported.sort(byOrder);
+  output.failed.sort(byOrder);
   return output;
 }

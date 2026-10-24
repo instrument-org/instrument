@@ -60,6 +60,7 @@ import {
 } from "./shell-commands/ffprobe";
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
 import { createMailCommand, MAIL_COMMAND } from "./shell-commands/mail";
+import { createImportCommand, IMPORT_COMMAND } from "./shell-commands/import";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
 import {
   createMessagesCommand,
@@ -74,7 +75,11 @@ import {
   routeProgram,
 } from "./shell-commands/native-text";
 import { withNativeReach } from "./native-sandbox";
-import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
+import {
+  SHELL_PATH,
+  shellPath,
+  unsandboxedOperandRefusal,
+} from "./workspace-fs-layout";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
 import { closedAppServices } from "./permissions/apps";
 import {
@@ -909,7 +914,7 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
  * reports to the chat, which has them.
  */
 const CHAT_ONLY_SUBCOMMANDS: Record<string, string> = Object.fromEntries(
-  [MEMORY_COMMAND, TAB_COMMAND, TASK_COMMAND].map((command) => [
+  [IMPORT_COMMAND, MEMORY_COMMAND, TAB_COMMAND, TASK_COMMAND].map((command) => [
     command.word,
     "only the chat has this. Say in your report what the chat should do with it.",
   ]),
@@ -988,6 +993,13 @@ export async function createLocalBashEnv({
       { ...X_COMMAND, command: createXCommand({ chatId, sessionId }) },
       ...(role === "chat"
         ? [
+            {
+              ...IMPORT_COMMAND,
+              command: createImportCommand({
+                refusal: (named) =>
+                  unsandboxedOperandRefusal(layout, named, "read"),
+              }),
+            },
             {
               ...MEMORY_COMMAND,
               command: createMemoryCommand({ chatId }),

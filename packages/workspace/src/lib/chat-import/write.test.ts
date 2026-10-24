@@ -297,7 +297,9 @@ describe("writeImportedChat", () => {
         messages: [{ createdAt: at(3), role: "assistant", text: "Hello." }],
       }),
     );
-    expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(`"It has no message from the person to start it."`);
+    expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
+      `"It has no message from the person to start it."`,
+    );
     expect(fs.existsSync(path.join(root, "chats"))).toBe(false);
   });
 });

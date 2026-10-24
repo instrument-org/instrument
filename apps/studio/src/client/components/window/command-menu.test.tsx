@@ -55,6 +55,15 @@ vi.mock("@/client/components/window/shell-context", () => ({
   }),
 }));
 
+vi.mock("@/client/bookmarks/store", async () => {
+  const { atom } = await import("jotai");
+  return {
+    bookmarksAtom: atom([
+      { title: "Weather Radar", url: "https://radar.example.com/" },
+    ]),
+  };
+});
+
 vi.mock("@/client/components/theme-provider", () => ({
   useTheme: () => ({ setTheme: () => undefined, theme: "system" }),
 }));
@@ -167,5 +176,65 @@ describe("a path the command menu found nothing at", () => {
 
     expect(screen.queryByText("There’s nothing at “/nowhere/x”.")).toBeNull();
     expect(screen.getByRole("button", { name: "/nowhere/x" })).toBeTruthy();
+  });
+});
+
+// Folders are the Files sidebar's, found by name; a page bookmarked is
+// listed once, as a bookmark, however often it was visited.
+describe("folders and bookmarks in the command menu", () => {
+  it("finds the sidebar's folders by name", async () => {
+    answers.set("workspace.computer.places", {
+      pinned: [
+        {
+          kind: "output",
+          name: "Instrument",
+          path: "/Users/mac-user/Instrument",
+        },
+        {
+          kind: "folder",
+          name: "Documents",
+          path: "/Users/mac-user/Documents",
+        },
+      ],
+      volumes: [
+        { kind: "drive", name: "Backup Disk", path: "/Volumes/Backup Disk" },
+      ],
+    });
+    renderWithProviders(<MenuRows words="doc" />);
+
+    expect(
+      await screen.findByRole("button", { name: "Documents" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Folders")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Backup Disk" })).toBeNull();
+  });
+
+  it("lists a bookmarked page under Bookmarks alone", async () => {
+    answers.set("history.live.recent", [
+      {
+        favicon: undefined,
+        title: "Weather Radar",
+        url: "https://radar.example.com/",
+      },
+      {
+        favicon: undefined,
+        title: "Weather Today",
+        url: "https://today.example.com/",
+      },
+    ]);
+    renderWithProviders(<MenuRows words="weather" />);
+
+    await screen.findByRole("button", { name: "Weather Today" });
+    expect(screen.getAllByRole("listitem").map((item) => item.textContent))
+      .toMatchInlineSnapshot(`
+      [
+        "Bookmarks",
+        "Weather Radar",
+        "Recent pages",
+        "Weather Today",
+        "Web",
+        "Search the web for “weather”",
+      ]
+    `);
   });
 });

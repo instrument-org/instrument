@@ -29,12 +29,16 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { PLACES } from "@/client/components/window/app-rail";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
+import { ChatMarkDot } from "@/client/components/window/chat-mark";
+import { TopicPill } from "@/client/components/window/chat-row";
 import {
   byLastUserMessage,
   type Chat,
+  railMarkOf,
   type Topic,
   topicSearch,
 } from "@/client/components/window/chats";
+import { FolderMark } from "@/client/components/window/folder-mark";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useShell } from "@/client/components/window/shell-context";
 import { TopicMark } from "@/client/components/window/topic-mark";
@@ -87,6 +91,7 @@ import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { StarIcon } from "@phosphor-icons/react/Star";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -106,7 +111,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { displayHostPath } from "@instrument-org/shared";
+import { displayHostPath, folderNameFromPath } from "@instrument-org/shared";
+import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { toast } from "@/client/lib/toast";
 
 const fuzzy = boundedFuzzy({ intraMode: 1 });
@@ -114,6 +120,7 @@ const fuzzy = boundedFuzzy({ intraMode: 1 });
 /** Rows per kind past which a search stops listing: enough to choose from, few enough to read. */
 const APPS_SHOWN = 6;
 const PAGES_SHOWN = 6;
+const FOLDERS_SHOWN = 6;
 const FILES_SHOWN = 6;
 /** How long a search has to be before the decision model is asked what it means. */
 const MEANING_MIN_LENGTH = 3;
@@ -144,6 +151,8 @@ export const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
 type Item = {
   chord?: ShortcutAccelerator;
   detail?: string | undefined;
+  /** The dot a chat wears on its icon in a tab: a reply not yet seen, or a question waiting. */
+  dot?: "unread" | "waiting" | undefined;
   icon: ReactNode;
   id: string;
   label: string;
@@ -155,6 +164,8 @@ type Item = {
   leavesItself?: true;
   ranges: null | number[];
   run: () => void;
+  /** Marks past the label, as a chat's row in the list wears its topic and star. */
+  trailing?: ReactNode;
   type: "item";
 };
 
@@ -218,6 +229,7 @@ export function useCommandMenuRows({
   // Described only while the menu is up: each file is looked at on the disk.
   const recentFiles = useRecentFiles({ enabled: active }).files;
   const bookmarks = useAtomValue(bookmarksAtom);
+  const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
 
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -387,21 +399,43 @@ export function useCommandMenuRows({
       ]
     : [];
 
-  const pages = unique(
-    [
-      ...bookmarks.map((bookmark) => ({
-        favicon: undefined,
-        title: bookmark.title,
-        url: bookmark.url,
-      })),
-      ...visited.map((page) => ({
+  const bookmarkPages = unique(
+    bookmarks.map((bookmark) => ({
+      favicon: undefined,
+      title: bookmark.title,
+      url: bookmark.url,
+    })),
+    (page) => page.url,
+  );
+  const bookmarked = new Set(bookmarkPages.map((page) => page.url));
+  const recentPages = unique(
+    visited
+      .filter((page) => !bookmarked.has(page.url))
+      .map((page) => ({
         favicon: page.favicon,
         title: page.title,
         url: page.url,
       })),
-    ],
     (page) => page.url,
   );
+  const pages = [...bookmarkPages, ...recentPages];
+
+  // The folders the Files sidebar lists, in its order: the Instrument
+  // folder, then Pinned as the person left it, then the disks and the cloud
+  // services' folders.
+  const sidebarPlaces = preferences.data?.sidebarPlaces ?? NO_SIDEBAR_CHANGES;
+  const instrumentPlace = places.data?.pinned.find(
+    (place) => place.kind === "output",
+  );
+  const folders = [
+    ...(instrumentPlace ? [instrumentPlace] : []),
+    ...pinnedPlaces(
+      (places.data?.pinned ?? []).filter((place) => place !== instrumentPlace),
+      sidebarPlaces,
+      (path) => ({ name: folderNameFromPath(path), path }),
+    ),
+    ...(places.data?.volumes ?? []),
+  ];
 
   const isSearch = words !== "" && !isBang;
   const typedPath = isSearch ? typedPathHere(words) : undefined;
@@ -593,24 +627,27 @@ export function useCommandMenuRows({
           label: "Apps",
         },
         {
-          items: fuzzyMatch(
-            pages,
-            (page) => [page.title || bareAddress(page.url), page.url],
-            words,
-          )
-            .slice(0, PAGES_SHOWN)
-            .map(({ item: page, ranges }) => ({
-              detail: page.title ? bareAddress(page.url) : undefined,
-              icon: <PageFavicon favicon={page.favicon} url={page.url} />,
-              id: `page:${page.url}`,
-              label: page.title || bareAddress(page.url),
+          items: pageItems(bookmarkPages),
+          label: "Bookmarks",
+        },
+        {
+          items: pageItems(recentPages),
+          label: "Recent pages",
+        },
+        {
+          items: fuzzyMatch(folders, (folder) => [folder.name], words)
+            .slice(0, FOLDERS_SHOWN)
+            .map(({ item: folder, ranges }) => ({
+              icon: <FolderMark path={folder.path} />,
+              id: `folder:${folder.path}`,
+              label: folder.name,
               ranges,
               run: () => {
-                openPage(page.url);
+                openScreen(folderHref(folder.path));
               },
               type: "item",
             })),
-          label: "Recent pages",
+          label: "Folders",
         },
         {
           items: fuzzyMatch(
@@ -747,9 +784,36 @@ export function useCommandMenuRows({
     };
   }
 
+  function pageItems(
+    list: { favicon: string | undefined; title: string; url: string }[],
+  ): Item[] {
+    return fuzzyMatch(
+      list,
+      (page) => [page.title || bareAddress(page.url), page.url],
+      words,
+    )
+      .slice(0, PAGES_SHOWN)
+      .map(({ item: page, ranges }) => ({
+        detail: page.title ? bareAddress(page.url) : undefined,
+        icon: <PageFavicon favicon={page.favicon} url={page.url} />,
+        id: `page:${page.url}`,
+        label: page.title || bareAddress(page.url),
+        ranges,
+        run: () => {
+          openPage(page.url);
+        },
+        type: "item",
+      }));
+  }
+
+  // A chat's row wears what its row in the list does: the dot its tab
+  // would, then its topic and its star past the title.
   function chatItem(chat: Chat, ranges: null | number[]): Item {
+    const topic = shell.topics.find((each) => each.id === chat.topic);
+    const mark = railMarkOf([chat]);
     return {
       detail: chat.archived ? "Archived" : undefined,
+      dot: mark === "working" ? undefined : mark,
       icon: <ChatCircleIcon />,
       id: `chat:${chat.id}`,
       label: chat.title,
@@ -757,6 +821,20 @@ export function useCommandMenuRows({
       run: () => {
         openScreen(`${CHATS_HREF}/${chat.id}`);
       },
+      trailing:
+        topic || chat.starred ? (
+          <>
+            {topic && <TopicPill quiet topic={topic} />}
+            {chat.starred && (
+              <StarIcon
+                aria-label="Starred"
+                className="size-3.5 text-warning-500"
+                role="img"
+                weight="fill"
+              />
+            )}
+          </>
+        ) : undefined,
       type: "item",
     };
   }
@@ -1194,8 +1272,14 @@ function ResultRows({
                   }}
                   role="option"
                 >
-                  <span className="flex size-4 shrink-0 items-center justify-center opacity-60">
-                    {row.icon}
+                  {/* The dot outside the icon's fade, so it reads as it does in a tab. */}
+                  <span className="relative flex shrink-0">
+                    <span className="flex size-4 shrink-0 items-center justify-center opacity-60">
+                      {row.icon}
+                    </span>
+                    {row.dot ? (
+                      <ChatMarkDot className="size-2 ring-0" mark={row.dot} />
+                    ) : null}
                   </span>
                   <span className="min-w-0 flex-1 truncate">
                     <FuzzyHighlight ranges={row.ranges} text={row.label} />
@@ -1205,6 +1289,11 @@ function ResultRows({
                       </span>
                     ) : null}
                   </span>
+                  {row.trailing ? (
+                    <span className="flex shrink-0 items-center gap-1">
+                      {row.trailing}
+                    </span>
+                  ) : null}
                   {row.chord === undefined ? null : (
                     <CommandShortcut>
                       {formatAcceleratorText(row.chord)}

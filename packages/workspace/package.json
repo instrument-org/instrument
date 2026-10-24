@@ -61,6 +61,7 @@
     "@orpc/server": "catalog:",
     "@types/ws": "^8.18.1",
     "@vscode/ripgrep": "^1.18.0",
+    "@zip.js/zip.js": "^2.8.14",
     "agent-browser": "^0.39.1",
     "ai": "catalog:",
     "date-fns": "^4.1.0",

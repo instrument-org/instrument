@@ -260,6 +260,7 @@ describe("instrument", () => {
       "Usage: instrument <command> ...
 
         app     Connect services and call their tools.
+        import  Bring in the user's chats from other AI apps.
         memory  What you keep about the user for every chat.
         tab     Open, show, read and close the tabs of the user's window.
         task    Start, message, stop and read your tasks.

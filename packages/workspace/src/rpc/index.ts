@@ -1,5 +1,6 @@
 import { activity } from "./routes/activity";
 import { browser } from "./routes/browser";
+import { chatImport } from "./routes/chat-import";
 import { chats } from "./routes/chats";
 import { computer } from "./routes/computer";
 import { debug } from "./routes/debug";
@@ -17,6 +18,7 @@ import { window } from "./routes/window";
 export const router = {
   activity,
   browser,
+  chatImport,
   chats,
   computer,
   debug,

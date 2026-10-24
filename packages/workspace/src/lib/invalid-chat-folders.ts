@@ -12,6 +12,7 @@ import {
   chatSessionIn,
   chatsDir,
   forgetChat,
+  isStagingFolderName,
   sessionOfChat,
 } from "./record-folders";
 
@@ -39,6 +40,9 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
   const root = chatsDir();
   const invalid: InvalidChatFolder[] = [];
   for (const name of listDirs(root)) {
+    if (isStagingFolderName(name)) {
+      continue;
+    }
     const id = ChatIdSchema.safeParse(name);
     if (!id.success) {
       invalid.push({ name, reason: REASONS["bad-name"] });

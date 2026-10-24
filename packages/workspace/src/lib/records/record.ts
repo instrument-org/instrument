@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { ImportedFromSchema } from "../chat-import/model";
 import { Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
@@ -71,6 +72,12 @@ const SessionHeaderSchema = z.object({
    * from. Absent on the log that began the session.
    */
   continues: z.record(LogStemSchema, z.number().int().nonnegative()).optional(),
+  /**
+   * On a chat brought in from another AI app, which chat of which source it
+   * was, which every log of the session repeats. One this build cannot read
+   * (a source added since) reads as none rather than refusing the header.
+   */
+  imported: ImportedFromSchema.optional().catch(undefined),
 });
 
 export type SessionHeader = z.output<typeof SessionHeaderSchema>;

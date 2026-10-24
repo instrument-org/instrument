@@ -125,7 +125,7 @@ The tests are here for the agents working in this repo: they are how a change ge
 
 ## Commit trailers
 
-A commit that makes a choice ends with decision trailers, so the reasoning outlives the session that held it: `Rejected: <alternative> | <reason>`, `Commits-to: <contract later code must keep>`, `Not-tested: <what was not checked>`, `Related: <sha>`, and `Tested:` only for checks beyond the unit suites. Each line must make sense to a reader who never saw the session; leave one out rather than pad it. A commit that makes no choice carries none. Vocabulary and examples: `instrument-commit-message` skill. A brief for a subagent that commits points at that skill rather than listing trailers or pasting example ones, which the subagent reads as required.
+A commit that makes a choice ends with decision trailers, so the reasoning outlives the session that held it: `Rejected: <alternative> | <reason>`, `Commits-to: <contract later code must keep>`, `Not-tested: <what was not checked>`, `Related: <sha>`, `Follow-up: docs/follow-ups/<file>.md` on a commit that installs logging or another signal to look at later, and `Tested:` only for checks beyond the unit suites. Each line must make sense to a reader who never saw the session; leave one out rather than pad it. A commit that makes no choice carries none. Vocabulary and examples: `instrument-commit-message` skill. A brief for a subagent that commits points at that skill rather than listing trailers or pasting example ones, which the subagent reads as required.
 
 ## Repository knowledge base
 
@@ -135,6 +135,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/` — evergreen maps of a subsystem or domain and how it layers together, edited in place as the code changes. One file per subsystem.
 - `docs/findings/` — non-obvious issues, what we tried, what might resolve them later. One file per finding.
 - `docs/plans/` — execution plans for non-trivial work (`active/` vs `completed/`). One file per plan.
+- `docs/follow-ups/`: checks we owe later, each with the signal to look for and a date to look. A change that ships logging, a counter or a cap to learn from later adds one in the same commit. When working in an area, check its index for a follow-up past its date.
 - `docs/decisions/` — why we chose one approach over another, dated. One file per decision.
 - `docs/changes/`: dated, screenshot-backed summaries of user-facing changes for design follow-up and possible changelog input.
 - `docs/reviews/`: code reviews, the range each read and what came of each finding. Read before reviewing; a fix for a finding carries a `Review:` trailer.

@@ -15,6 +15,7 @@ Each has its own README carrying the section's conventions and a full index of i
 | [`findings/`](findings/README.md) | Non-obvious issues, what we tried, what might resolve them | Carries a `**Status:**` line |
 | [`plans/`](plans/README.md) | Execution plans for non-trivial work | Carries a `Status:` line; `active/` then `completed/` |
 | [`changes/`](changes/README.md) | Screenshot-backed summaries of user-facing changes | Dated snapshots, preserved as written |
+| [`follow-ups/`](follow-ups/README.md) | Checks we owe later: what we are waiting to learn and the evidence that will answer it | Carries a `**Status:**` and a `**Check after:**`; closed with a result |
 | [`reviews/`](reviews/README.md) | Code reviews: what range each read and what came of each finding | Dated; each finding's `Status:` updated as it is fixed or declined |
 
 The distinction that matters most: **architecture is corrected, decisions and changes are superseded.** If an architecture doc says something no longer true, fix the sentence. If a decision turned out wrong, write a new dated one that references it and add a pointer to the old one — the original reasoning stays intact, because the reason a choice looked right at the time is the thing worth keeping.

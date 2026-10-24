@@ -11,8 +11,8 @@
 // - Previews: fences Studio draws as something other than code (a message
 //   card, a files block, a Mermaid diagram) and ```math fences. "Edit" on the
 //   block shows the source.
+import { syntaxLanguages } from "@/shared/syntax-highlight";
 import { LanguageDescription } from "@codemirror/language";
-import { languages as cmLanguages } from "@codemirror/language-data";
 import { computePosition, flip, offset, shift } from "@floating-ui/dom";
 import { codeBlockSchema } from "@milkdown/kit/preset/commonmark";
 import { type Node as PMNode } from "@milkdown/kit/prose/model";
@@ -109,7 +109,7 @@ const extra = [
     name: "Studio block",
   }),
 ];
-export const languages = [...cmLanguages, ...extra];
+export const languages = [...syntaxLanguages, ...extra];
 
 // What the fence is written as: the short, conventional tag.
 const PREFERRED: Record<string, string> = {

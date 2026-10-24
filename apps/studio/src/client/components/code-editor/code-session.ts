@@ -17,6 +17,7 @@ import {
 } from "@/client/lib/live-file";
 import { logger } from "@/client/lib/logger";
 import { rpcClient } from "@/client/rpc/client";
+import { syntaxLanguages } from "@/shared/syntax-highlight";
 import { history } from "@codemirror/commands";
 import {
   bracketMatching,
@@ -26,7 +27,6 @@ import {
   LanguageDescription,
   syntaxHighlighting,
 } from "@codemirror/language";
-import { languages } from "@codemirror/language-data";
 import { search } from "@codemirror/search";
 import {
   Annotation,
@@ -517,7 +517,7 @@ export function createCodeSession(options: CodeSessionOptions) {
   // The language is read from the file's name and loaded on demand; the file
   // is on screen as plain text until it arrives.
   const description = LanguageDescription.matchFilename(
-    languages,
+    syntaxLanguages,
     options.filename,
   );
   if (description && options.variant === "code") {

@@ -93,6 +93,37 @@ export const syntaxClassHighlighter = tagHighlighter(
 );
 
 /**
+ * Every grammar the app has: CodeMirror's own set, and community ones for
+ * languages it lacks, each loaded the first time it is asked for.
+ */
+export const syntaxLanguages: readonly LanguageDescription[] = [
+  ...languages,
+  LanguageDescription.of({
+    alias: ["ex", "exs"],
+    extensions: ["ex", "exs"],
+    load: async () => (await import("codemirror-lang-elixir")).elixir(),
+    name: "Elixir",
+  }),
+  LanguageDescription.of({
+    extensions: ["nix"],
+    load: async () => (await import("@replit/codemirror-lang-nix")).nix(),
+    name: "Nix",
+  }),
+  LanguageDescription.of({
+    alias: ["sol"],
+    extensions: ["sol"],
+    load: async () =>
+      (await import("@replit/codemirror-lang-solidity")).solidity,
+    name: "Solidity",
+  }),
+  LanguageDescription.of({
+    extensions: ["svelte"],
+    load: async () => (await import("@replit/codemirror-lang-svelte")).svelte(),
+    name: "Svelte",
+  }),
+];
+
+/**
  * What callers name a language by that the grammars do not: ids from the
  * extension table and fence words a reply uses. Anything else is matched by
  * the grammar's own name and aliases, and then by its file extensions, which
@@ -101,6 +132,7 @@ export const syntaxClassHighlighter = tagHighlighter(
 const ALIASES: Record<string, string> = {
   console: "shell",
   docker: "dockerfile",
+  fish: "shell",
   jsonc: "json",
   matlab: "octave",
   mdx: "markdown",
@@ -124,8 +156,10 @@ export function syntaxLanguage(
   }
   const asked = ALIASES[lower] ?? lower;
   return (
-    LanguageDescription.matchLanguageName(languages, asked, false) ??
-    languages.find((description) => description.extensions.includes(asked))
+    LanguageDescription.matchLanguageName(syntaxLanguages, asked, false) ??
+    syntaxLanguages.find((description) =>
+      description.extensions.includes(asked),
+    )
   );
 }
 

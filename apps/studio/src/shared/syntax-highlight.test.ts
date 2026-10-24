@@ -18,6 +18,12 @@ describe("syntaxLanguage", () => {
     ["yml", "YAML"],
     ["Dockerfile", "Dockerfile"],
     ["ps1", "PowerShell"],
+    ["fish", "Shell"],
+    ["elixir", "Elixir"],
+    ["exs", "Elixir"],
+    ["nix", "Nix"],
+    ["sol", "Solidity"],
+    ["svelte", "Svelte"],
   ])("reads %s as %s", (name, grammar) => {
     expect(syntaxLanguage(name)?.name).toBe(grammar);
   });
@@ -53,6 +59,21 @@ describe("highlightLines", () => {
     const [first] = (await highlightLines('{ "a": 1 }', "json")) ?? [];
     expect(first).toMatch(/^<pre class="code-highlight" data-language="json">/);
   });
+
+  it.each([
+    ["elixir", 'defmodule Hello do\n  def hi, do: "hi"\nend'],
+    ["nix", '{ pkgs }: pkgs.mkShell { name = "dev"; }'],
+    ["solidity", "contract Box { uint256 value; }"],
+    ["svelte", "<script>let count = 0;</script>\n<button>{count}</button>"],
+  ])(
+    "loads the community %s grammar and marks its tokens",
+    async (language, code) => {
+      const lines = await highlightLines(code, language);
+      expect(lines?.join("\n")).toMatch(
+        /class="syntax-(keyword|string|tag|constant)"/,
+      );
+    },
+  );
 
   it("has nothing for a language with no grammar", async () => {
     expect(await highlightLines("hello", "text")).toBeUndefined();

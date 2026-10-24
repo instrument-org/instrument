@@ -9,6 +9,7 @@ import {
   INTERRUPTED_TOOL_CALL_ERROR_TEXT,
 } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
+import { type ImportedFrom } from "../chat-import/model";
 import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
@@ -78,6 +79,8 @@ export interface SessionStart {
   forkedAt?: StoreId.Message;
   handle?: string;
   id: StoreId.Session;
+  /** On a chat brought in from another AI app, where it came from. */
+  imported?: ImportedFrom;
   parent?: StoreId.Session;
   startedAs?: string;
 }
@@ -1124,6 +1127,7 @@ export class ChatRecords {
       ...(start.forkedAt !== undefined && { forkedAt: start.forkedAt }),
       ...(start.handle !== undefined && { handle: start.handle }),
       ...(start.startedAs !== undefined && { startedAs: start.startedAs }),
+      ...(start.imported !== undefined && { imported: start.imported }),
       ...(Object.keys(continues).length > 0 && { continues }),
     };
   }
@@ -1531,6 +1535,7 @@ function startOf(session: FoldedSession): SessionStart {
     ...(session.forkedAt !== undefined && { forkedAt: session.forkedAt }),
     ...(session.handle !== undefined && { handle: session.handle }),
     ...(session.startedAs !== undefined && { startedAs: session.startedAs }),
+    ...(session.imported !== undefined && { imported: session.imported }),
   };
 }
 
@@ -1827,6 +1832,7 @@ function startedSession(
     forkedAt,
     handle,
     id,
+    imported,
     parent,
     startedAs,
   }: SessionStart & {
@@ -1842,6 +1848,7 @@ function startedSession(
     ...(forkedAt !== undefined && { forkedAt }),
     ...(handle !== undefined && { handle }),
     id,
+    ...(imported !== undefined && { imported }),
     messages: [],
     ...(parent !== undefined && { parent }),
     settings: {},

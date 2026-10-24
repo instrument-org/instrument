@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { type Stopper } from "../../schemas/stop-notice";
 
 import { type ChatId } from "../../schemas/chat-id";
+import { type ImportedFrom } from "../chat-import/model";
 import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -88,6 +89,8 @@ export interface FoldedSession {
   sites?: string[];
   /** The title the session was started with: a task's name, a chat's opening words. */
   startedAs?: string;
+  /** On a chat brought in from another AI app, where it came from. */
+  imported?: ImportedFrom;
   /** When the session's newest record was written. */
   updatedAt: Date;
   /**
@@ -534,6 +537,7 @@ function folded(
     ...(session.sites && { sites: session.sites.value }),
     ...(session.stopped && { stopped: session.stopped.value }),
     ...(header.startedAs === undefined ? {} : { startedAs: header.startedAs }),
+    ...(header.imported === undefined ? {} : { imported: header.imported }),
     updatedAt: new Date(session.updatedAt),
     writtenBy,
   };

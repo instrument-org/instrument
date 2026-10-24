@@ -117,6 +117,15 @@ export function forgetChat(id: ChatId): void {
   }
 }
 
+/**
+ * Whether a folder under `chats/` is a chat still being written rather than a
+ * chat: named `.~<what>.tmp`, which sync engines skip, and renamed to the
+ * chat's id once it is whole (`chat-import/write.ts`).
+ */
+export function isStagingFolderName(name: string): boolean {
+  return name.startsWith(".~") && name.endsWith(".tmp");
+}
+
 /** Reads the index from disk again on its next use. */
 export function forgetChatFolders(): void {
   index = undefined;
@@ -365,6 +374,9 @@ function read(): Index {
   const known: Index = { chats: new Map(), root, sessions: new Map() };
   const skipped: string[] = [];
   for (const name of listDirs(root)) {
+    if (isStagingFolderName(name)) {
+      continue;
+    }
     if (addChatFrom(known, path.join(root, name)) === undefined) {
       skipped.push(name);
     }

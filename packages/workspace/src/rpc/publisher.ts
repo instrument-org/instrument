@@ -1,6 +1,7 @@
 import { EventPublisher } from "@orpc/server";
 
 import { type AppEvent } from "../lib/apps/changed";
+import { type ImportProgress } from "../lib/chat-import/model";
 import { type SignInEnd } from "../lib/apps/connection";
 import { type RecordChanged } from "../lib/record-changes";
 import { type StoreId } from "../schemas/store-id";
@@ -69,6 +70,11 @@ export const publisher = new EventPublisher<{
     id: ChatId;
     sessionId: StoreId.Session;
   };
+  /**
+   * An import of chats from another AI app finished one more chat, landed
+   * or failed. Published by `runImport`.
+   */
+  "chatImport.progress": ImportProgress;
   /**
    * A chat's own folder under `Chats/` moved to its title. Published by
    * `followTitle` once the new name is recorded; what a chat's messages

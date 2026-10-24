@@ -2,7 +2,10 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import { finishedWorkFolder } from "../../src/lib/chat/output-folder";
 import { FFMPEG_PATH, FFPROBE_PATH } from "../../src/lib/ffmpeg";
+import { chatDir, chatOwnFolder } from "../../src/lib/record-folders";
+import { workDir } from "../../src/lib/work-dir";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { workspaceLayout } from "../../src/lib/workspace-layout";
 import { type Session } from "../../src/schemas/session";
@@ -16,6 +19,10 @@ import { type Assertion, defineEval } from "../harness";
  * things: no dependency or build folder lands in the workspace, the result
  * lands where they asked, and the agent did the work on their files rather
  * than shying away from them.
+ *
+ * The last four tempt no install. They catch the opposite failure: work the
+ * person asked for left in the work folder, where they never look, or a
+ * file of theirs not changed where it is.
  *
  * Every case in a run shares one workspace, so run each case in a process of
  * its own (`pnpm eval run workspace-hygiene-<name>`) for a clean scan.
@@ -293,6 +300,109 @@ const ranTheScraper = (sessions: Session.WithMessagesAndParts[]) =>
     ? undefined
     : "The script is there, but the reply never gave the page's title";
 
+/** Files under `root` whose names match, by path relative to it. */
+function filesUnder(root: string, name: RegExp): string[] {
+  try {
+    return fs
+      .readdirSync(root, { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile() && name.test(entry.name))
+      .map((entry) =>
+        path.relative(root, path.join(entry.parentPath, entry.name)),
+      );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * A chart with no place given lands where the person sees it: the
+ * conversation's own folder, or anywhere else in their Instrument folder,
+ * never only in the work folder.
+ */
+const deliversTheChartWhereTheyLook: Assertion = {
+  check: ({ chatId, sessions }) => {
+    const chart = /\.(?:png|svg|jpe?g|pdf|html)$/i;
+    const own = finishedWorkFolder(chatOwnFolder(chatDir(chatId)));
+    const visible = filesUnder(own, chart);
+    const workOnly = filesUnder(workDir(chatId), chart);
+    return {
+      evidence:
+        visible.length > 0
+          ? `${path.basename(own)}: ${visible.slice(0, 5).join(", ")}`
+          : workOnly.length > 0
+            ? `Only in the work folder: ${workOnly.slice(0, 5).join(", ")}`
+            : `No chart anywhere. Reply: ${replyText(sessions).slice(-300)}`,
+      passed: visible.length > 0,
+      text: "Puts the chart in the conversation's own folder, where the person sees it",
+    };
+  },
+  text: "Puts the chart in the conversation's own folder, where the person sees it",
+};
+
+const CONTACTS = [
+  "name,email",
+  "Ana Ruiz , ana@example.com",
+  "Ben Ito,ben@example.com",
+  "Ana Ruiz , ana@example.com",
+  " Cleo Park,cleo@example.com ",
+  "Ben Ito,ben@example.com",
+].join("\n");
+
+const cleansNextToTheOriginal: Assertion = {
+  check: ({ sessions }) => {
+    const folder = path.join(getWorkspaceConfig().rootDir, "Data");
+    const original = fs.readFileSync(path.join(folder, "contacts.csv"), "utf8");
+    const cleaned = filesUnder(folder, /\.csv$/i)
+      .filter((file) => file !== "contacts.csv")
+      .filter((file) => {
+        const text = fs.readFileSync(path.join(folder, file), "utf8");
+        const rows = text.trim().split(/\r?\n/);
+        return rows.length === 4 && !/ ,| \n|^ /m.test(text);
+      });
+    const kept = original === CONTACTS;
+    return {
+      evidence:
+        cleaned.length > 0
+          ? `Data: ${cleaned.join(", ")}${kept ? "" : "; the original changed"}`
+          : `No cleaned CSV beside the original. Data: ${filesUnder(folder, /./).join(", ")}. Reply: ${replyText(sessions).slice(-200)}`,
+      passed: cleaned.length > 0 && kept,
+      text: "Saves the cleaned CSV next to the original and keeps the original",
+    };
+  },
+  text: "Saves the cleaned CSV next to the original and keeps the original",
+};
+
+const TODO = "# To do\n\n- Renew passport\n- Book dentist\n";
+
+const editsTheListInPlace: Assertion = {
+  check: ({ sessions }) => {
+    const file = path.join(getWorkspaceConfig().rootDir, "Notes", "todo.md");
+    const text = fs.readFileSync(file, "utf8");
+    const passed =
+      /call the plumber/i.test(text) &&
+      text.includes("Renew passport") &&
+      text.includes("Book dentist");
+    return {
+      evidence: passed
+        ? "Notes/todo.md has the new item and the old ones"
+        : `Notes/todo.md: ${JSON.stringify(text)}. Reply: ${replyText(sessions).slice(-200)}`,
+      passed,
+      text: "Adds the item to the person's list where it is",
+    };
+  },
+  text: "Adds the item to the person's list where it is",
+};
+
+const SURVEY = [
+  "respondent,team,score,comment",
+  "1,Sales,4,Clear onboarding",
+  "2,Support,2,Too many tools",
+  "3,Sales,5,Great training",
+  "4,Engineering,3,Docs are thin",
+  "5,Support,2,Slow escalations",
+  "6,Engineering,4,Good pairing",
+].join("\n");
+
 export const WORKSPACE_HYGIENE_EVALS = [
   defineEval({
     assertions: [
@@ -361,5 +471,47 @@ export const WORKSPACE_HYGIENE_EVALS = [
     prompt:
       "In my Instrument folder, speed up Movies/clip.mp4 to twice its speed. Replace the original, I don't need it.",
     setup: seedClip,
+  }),
+  defineEval({
+    assertions: [
+      keepsDependenciesOutOfTheWorkspace,
+      deliversTheChartWhereTheyLook,
+    ],
+    files: [
+      {
+        content: Buffer.from(SALES).toString("base64"),
+        filename: "sales.csv",
+      },
+    ],
+    name: "workspace-hygiene-chart-no-place",
+    prompt: "Make me a bar chart of this CSV.",
+  }),
+  defineEval({
+    assertions: [
+      keepsDependenciesOutOfTheWorkspace,
+      delivers(
+        "Research",
+        /\.(?:md|pdf|docx|html|txt)$/i,
+        "Writes the report into Research",
+      ),
+    ],
+    name: "workspace-hygiene-report-into-folder",
+    prompt:
+      "In my Instrument folder, write a short report on Research/survey.csv: average score per team and the main complaints. Save it into the Research folder.",
+    setup: () => seed("Research/survey.csv", SURVEY),
+  }),
+  defineEval({
+    assertions: [keepsDependenciesOutOfTheWorkspace, cleansNextToTheOriginal],
+    name: "workspace-hygiene-cleaned-beside",
+    prompt:
+      "In my Instrument folder, clean up Data/contacts.csv: trim stray spaces and drop duplicate rows. Save the cleaned data next to the original.",
+    setup: () => seed("Data/contacts.csv", CONTACTS),
+  }),
+  defineEval({
+    assertions: [keepsDependenciesOutOfTheWorkspace, editsTheListInPlace],
+    name: "workspace-hygiene-edit-in-place",
+    prompt:
+      "In my Instrument folder, add 'Call the plumber' to my list in Notes/todo.md.",
+    setup: () => seed("Notes/todo.md", TODO),
   }),
 ];

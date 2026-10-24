@@ -170,11 +170,10 @@ Four advisories cover `<=7.3.4`: `server.fs.deny` bypass with queries and on Win
 
 ### Audit entries that are not exposure
 
-Worth recording so the next reader does not re-derive it: `undici@7.27.2` comes from `@electron/get` and only runs at install time; `postcss` is build-time under `@tailwindcss/postcss`; `kysely` and `drizzle-orm` arrive under `db0`/`unstorage` and `better-auth`, not through query paths we write; `js-yaml@4.1.1` is inside electron-updater parsing our own release feed; `fast-uri` is under `ajv` under `conf` under `electron-store`; `mdast-util-to-hast` comes from shiki 3's HTML renderer and goes away with shiki 4.
+Worth recording so the next reader does not re-derive it: `undici@7.27.2` comes from `@electron/get` and only runs at install time; `postcss` is build-time under `@tailwindcss/postcss`; `kysely` and `drizzle-orm` arrive under `db0`/`unstorage` and `better-auth`, not through query paths we write; `js-yaml@4.1.1` is inside electron-updater parsing our own release feed; `fast-uri` is under `ajv` under `conf` under `electron-store`; `mdast-util-to-hast` comes from shiki 3's HTML renderer, which the app no longer uses and only `@pierre/theming` still pulls in.
 
 ## Tier 3: capability we would get nearly free
 
-- `@shikijs/stream` (shiki 4.2.0) renders highlighted code incrementally from a stream. We stream model output containing code blocks and currently highlight after the fact.
 - `@parcel/watcher` 2.6.0 accepts `RegExp` in `ignore`, which fits our two ignore dialects better than glob strings. Ergonomics only: measured against 2.5.1 and 2.6.0 on the fs-events backend, neither globs, paths, nor regexes suppressed events for files created directly in the watched root, so this changes how patterns are written, not what gets filtered.
 - agent-browser `a11y` (axe-core) is a ready-made audit surface for a product whose users build UIs, and HAR response bodies make network capture actually useful for the derive-client pattern.
 - execa `killDescendants` replaces hand-rolled process-tree cleanup.

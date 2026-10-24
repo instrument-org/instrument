@@ -1,8 +1,6 @@
-@import "./code-colors.css";
-
 /* A code or text file open in CodeMirror, drawn as Studio's highlighted code
-   view draws it: the app's monospace at 14px on a 20px line, and the colors
-   of Shiki's GitHub Light and GitHub Dark themes (code-colors.css). A
+   view draws it: the app's monospace at 14px on a 20px line, and the code
+   colors every view shares (styles/code-colors.css). A
    plain text file keeps the reading type its static view had. Scoped under
    `.code-editor`; CodeMirror's panels and tooltips mount inside it. */
 

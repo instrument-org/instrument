@@ -1,29 +1,8 @@
 import { renderInBrowser } from "@/tests/render-browser";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { FileToolCard } from "./file-tool-card";
 import { ToolCallSessionProvider } from "./tool-call-session";
-
-// The card asks which theme to highlight against, which the real provider
-// answers over an RPC round trip the browser project has no main process for.
-// Every case here is about the box the card draws, which is the same box
-// whether the text came back highlighted or as the plain fallback.
-vi.mock("@/client/components/theme-provider", () => ({
-  useTheme: () => ({ resolvedTheme: "light" }),
-}));
-
-vi.mock("@/client/rpc/client", () => ({
-  rpcClient: {
-    syntax: {
-      highlightCode: {
-        queryOptions: () => ({ queryFn: () => [], queryKey: ["highlight"] }),
-      },
-      supportedLanguages: {
-        queryOptions: () => ({ queryFn: () => [], queryKey: ["languages"] }),
-      },
-    },
-  },
-}));
 
 const renderCard = (content: string) =>
   renderInBrowser(

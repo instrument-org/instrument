@@ -29,7 +29,7 @@ export function ToolUnavailable({
         <ToolCardSection collapsedHeight={256} copyText={prettyJson}>
           {highlightedHtml ? (
             <div
-              className="font-mono text-xs [&_.shiki]:bg-transparent [&_pre]:break-all [&_pre]:whitespace-pre-wrap"
+              className="font-mono text-xs [&_pre]:break-all [&_pre]:whitespace-pre-wrap"
               dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
             />
           ) : (

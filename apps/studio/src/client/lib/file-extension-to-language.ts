@@ -1,7 +1,3 @@
-import type { RPCOutput } from "@/client/rpc/client";
-
-type SupportedLanguage = RPCOutput["syntax"]["supportedLanguages"][number];
-
 export const EXTENSION_MAP = {
   abap: "abap",
   ada: "ada",
@@ -114,11 +110,9 @@ export const EXTENSION_MAP = {
   yml: "yaml",
   zig: "zig",
   zsh: "bash",
-} as const satisfies Record<string, SupportedLanguage>;
+} as const satisfies Record<string, string>;
 
-export function getLanguageFromFilePath(
-  filePath: string,
-): SupportedLanguage | undefined {
+export function getLanguageFromFilePath(filePath: string): string | undefined {
   const ext = filePath.split(".").pop()?.toLowerCase();
   if (!ext) {
     return undefined;
@@ -189,13 +183,4 @@ export function getLanguageDisplayName(language: string): string {
   const lower = language.toLowerCase();
   const id = ids[lower] ?? lower;
   return LANGUAGE_NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
-}
-
-export function toSupportedLanguage(
-  language: string,
-  supportedLanguages: SupportedLanguage[],
-): SupportedLanguage | undefined {
-  return supportedLanguages.includes(language as SupportedLanguage)
-    ? (language as SupportedLanguage)
-    : undefined;
 }

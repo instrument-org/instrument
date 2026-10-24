@@ -1,0 +1,97 @@
+/* Code's colors, after GitHub's light and dark themes, for every place code is
+   drawn: the CodeMirror that edits a code file and the one in a Markdown
+   document's code blocks, and the static markup of a reply's code blocks,
+   commands, notebook cells and thumbnails (`.code-highlight`). Each token
+   carries a `syntax-<kind>` class from `shared/syntax-highlight.ts`; the
+   rules below color the kinds, so a theme is this file alone. */
+
+:is(.code-editor, .md-editor, .md-popover, .code-highlight) {
+  --cm-keyword: #cf222e;
+  --cm-string: #0a3069;
+  --cm-constant: #0550ae;
+  --cm-comment: #6e7781;
+  --cm-function: #8250df;
+  --cm-entity: #953800;
+  --cm-tag: #116329;
+  --cm-invalid: #82071e;
+}
+
+.dark :is(.code-editor, .md-editor, .md-popover, .code-highlight),
+.dark.md-popover {
+  --cm-keyword: #ff7b72;
+  --cm-string: #a5d6ff;
+  --cm-constant: #79c0ff;
+  --cm-comment: #8b949e;
+  --cm-function: #d2a8ff;
+  --cm-entity: #ffa657;
+  --cm-tag: #7ee787;
+  --cm-invalid: #ffa198;
+}
+
+.syntax-keyword {
+  color: var(--cm-keyword);
+}
+.syntax-string {
+  color: var(--cm-string);
+}
+.syntax-constant {
+  color: var(--cm-constant);
+}
+.syntax-comment {
+  color: var(--cm-comment);
+}
+.syntax-function {
+  color: var(--cm-function);
+}
+.syntax-entity {
+  color: var(--cm-entity);
+}
+.syntax-tag {
+  color: var(--cm-tag);
+}
+.syntax-invalid {
+  color: var(--cm-invalid);
+  font-style: italic;
+}
+.syntax-deleted {
+  color: var(--cm-invalid);
+}
+.syntax-heading {
+  color: var(--cm-constant);
+  font-weight: bold;
+}
+.syntax-emphasis {
+  font-style: italic;
+}
+.syntax-strong {
+  font-weight: bold;
+}
+.syntax-strikethrough {
+  text-decoration: line-through;
+}
+.syntax-link {
+  color: var(--cm-string);
+  text-decoration: underline;
+}
+
+/* Property names take the color GitHub's themes give them in each language: a
+   key in a data file is a tag's green, a CSS property a constant's blue, and a
+   property in code the text's own color. The editor sets these per file in
+   theme.ts. */
+.code-highlight:is(
+    [data-language="json"],
+    [data-language="yaml"],
+    [data-language="toml"]
+  )
+  .syntax-property {
+  color: var(--cm-tag);
+}
+.code-highlight:is(
+    [data-language="css"],
+    [data-language="scss"],
+    [data-language="sass"],
+    [data-language="less"]
+  )
+  .syntax-property {
+  color: var(--cm-constant);
+}

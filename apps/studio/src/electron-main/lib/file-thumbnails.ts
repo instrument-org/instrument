@@ -56,7 +56,7 @@ const PAGE_SHAPED = /\.(?:csv|htm|html|json|markdown|md|rtf|txt)$/i;
 /** A page's width over its height, as the renderer draws a page. */
 const PAGE_ASPECT = 0.78;
 /** Part of the key, so pictures drawn before a change to how they are drawn are drawn again. */
-const DRAWING = "10";
+const DRAWING = "11";
 
 /** How many are kept on disk; past it the least recently drawn go. */
 const KEPT = 4000;

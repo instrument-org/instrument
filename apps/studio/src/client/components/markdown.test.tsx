@@ -63,25 +63,14 @@ vi.mock("./file-actions-menu", () => ({
 // A chip is drawn from its path, so nothing under `workspace` may be reached
 // while rendering one. `utils` stays real enough for the external-link path,
 // which is a different question and still needs the main process.
-// A code block asks which theme to highlight against, and the real provider
-// answers through `matchMedia` and an RPC round trip, neither of which is here.
+// A diagram asks which theme to draw in, and the real provider answers
+// through `matchMedia`, which is not here.
 vi.mock("@/client/components/theme-provider", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }));
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
-    // No language is supported here, so every block renders as the plain text
-    // it falls back to while the highlighter is still being asked. What the
-    // highlighted markup does with the same classes is a browser test.
-    syntax: {
-      highlightCode: {
-        queryOptions: () => ({ queryFn: () => [], queryKey: ["highlight"] }),
-      },
-      supportedLanguages: {
-        queryOptions: () => ({ queryFn: () => [], queryKey: ["languages"] }),
-      },
-    },
     utils: {
       openExternalLink: { mutationOptions: () => ({ mutationFn: vi.fn() }) },
     },

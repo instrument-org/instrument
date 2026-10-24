@@ -8,7 +8,7 @@ import { render } from "vitest-browser-react";
 import "../../styles/globals.css";
 import { useFindHighlights } from "./use-find-highlights";
 
-/** A code cell as the viewer builds one: Shiki's per-token spans, and the
+/** A code cell as the viewer builds one: the highlighter's per-token spans, and the
  * execution-count gutter the container query hides on a narrow panel. */
 function CodeCell({ label, tokens }: { label: string; tokens: string[] }) {
   return (

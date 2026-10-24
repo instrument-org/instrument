@@ -39,7 +39,7 @@ export function BashCommandPreview({
       {highlightedHtml ? (
         <div
           className={cn(
-            "min-w-0 [&_.shiki]:bg-transparent",
+            "min-w-0",
             singleLine &&
               "overflow-hidden [&_.line]:block [&_.line]:truncate [&_pre]:overflow-hidden",
           )}

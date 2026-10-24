@@ -1,5 +1,3 @@
-@import "../code-editor/code-colors.css";
-
 /* The Markdown editor (Milkdown's Crepe) drawn in Studio's tokens and set as a
    page to read and write on: a size above the interface's, open leading, and
    a measure its host caps (markdown-editor.tsx). Scoped under `.md-editor`;

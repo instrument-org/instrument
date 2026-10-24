@@ -1,82 +1,14 @@
 // How a code file looks in the editor: the same type, measure and colors as
-// the highlighted view Studio draws a code file with elsewhere (Shiki's GitHub
-// Light and GitHub Dark themes), so a file reads the same whether it is being
-// glanced at or edited. The colors are CSS variables set in code-colors.css,
+// every view that only shows code, so a file reads the same whether it is
+// being glanced at or edited. Tokens carry the shared `syntax-*` classes
+// (shared/syntax-highlight.ts), colored by CSS variables in code-colors.css,
 // so the theme follows the app's light and dark without a reconfigure.
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { syntaxClassHighlighter } from "@/shared/syntax-highlight";
+import { syntaxHighlighting } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 
-export const codeHighlighting = syntaxHighlighting(
-  HighlightStyle.define([
-    {
-      color: "var(--cm-keyword)",
-      tag: [
-        t.keyword,
-        t.modifier,
-        t.controlKeyword,
-        t.operatorKeyword,
-        t.definitionKeyword,
-        t.moduleKeyword,
-        t.operator,
-      ],
-    },
-    {
-      color: "var(--cm-string)",
-      tag: [t.string, t.special(t.string), t.regexp, t.docString],
-    },
-    { color: "var(--cm-keyword)", tag: [t.escape, t.character] },
-    {
-      color: "var(--cm-constant)",
-      tag: [
-        t.number,
-        t.bool,
-        t.null,
-        t.atom,
-        t.self,
-        t.constant(t.variableName),
-        t.standard(t.variableName),
-        t.standard(t.typeName),
-        t.special(t.variableName),
-        t.unit,
-        t.color,
-        t.url,
-      ],
-    },
-    { color: "var(--cm-comment)", tag: [t.comment, t.meta] },
-    {
-      color: "var(--cm-function)",
-      tag: [
-        t.function(t.variableName),
-        t.function(t.propertyName),
-        t.function(t.definition(t.variableName)),
-        t.macroName,
-      ],
-    },
-    {
-      color: "var(--cm-entity)",
-      tag: [
-        t.typeName,
-        t.className,
-        t.namespace,
-        t.definition(t.typeName),
-        t.labelName,
-      ],
-    },
-    { color: "var(--cm-tag)", tag: [t.tagName, t.quote] },
-    { color: "var(--cm-constant)", tag: t.attributeName },
-    { color: "var(--cm-invalid)", fontStyle: "italic", tag: t.invalid },
-    { color: "var(--cm-constant)", fontWeight: "bold", tag: t.heading },
-    { fontStyle: "italic", tag: t.emphasis },
-    { fontWeight: "bold", tag: t.strong },
-    { tag: t.strikethrough, textDecoration: "line-through" },
-    { color: "var(--cm-string)", tag: t.link, textDecoration: "underline" },
-    { color: "var(--cm-constant)", tag: t.monospace },
-    { color: "var(--cm-tag)", tag: t.inserted },
-    { color: "var(--cm-invalid)", tag: t.deleted },
-    { color: "var(--cm-entity)", tag: t.changed },
-  ]),
-);
+export const codeHighlighting = syntaxHighlighting(syntaxClassHighlighter);
 
 /**
  * Property names take the color the GitHub themes give them in each language:

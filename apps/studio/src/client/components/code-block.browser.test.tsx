@@ -7,27 +7,6 @@ import { ImageViewer } from "./image-viewer";
 import { SessionMarkdown } from "./session-markdown";
 import { TranscriptScrollContext } from "./transcript-scroll-context";
 
-// A block asks which theme to highlight against, and the real provider answers
-// through an RPC round trip the browser project has no main process for. Every
-// case here is about the box the block draws, which is the same box whether the
-// code inside it came back highlighted or as the plain text it falls back to.
-vi.mock("@/client/components/theme-provider", () => ({
-  useTheme: () => ({ resolvedTheme: "light" }),
-}));
-
-vi.mock("@/client/rpc/client", () => ({
-  rpcClient: {
-    syntax: {
-      highlightCode: {
-        queryOptions: () => ({ queryFn: () => [], queryKey: ["highlight"] }),
-      },
-      supportedLanguages: {
-        queryOptions: () => ({ queryFn: () => [], queryKey: ["languages"] }),
-      },
-    },
-  },
-}));
-
 // A 1x1 transparent gif, which is enough to get the viewer past its load gate.
 const PIXEL =
   "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";

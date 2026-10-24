@@ -1,4 +1,6 @@
+import CODE_COLORS from "@/client/styles/code-colors.css?raw";
 import { frontMatterTitle, isMapping } from "@/shared/front-matter";
+import { highlightLines } from "@/shared/syntax-highlight";
 import { splitFrontMatter } from "@instrument-org/shared";
 import {
   BrowserWindow,
@@ -11,7 +13,6 @@ import {
 import fs from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { sleep } from "radashi";
-import { type BundledLanguage, bundledLanguages } from "shiki";
 import { parse } from "yaml";
 
 import { captureFrame } from "../browser-view/capture-frame";
@@ -23,7 +24,6 @@ import {
   type RenderedKind,
   renderedKindOf,
 } from "./rendered-kinds";
-import { getHighlighter } from "./shiki-highlighter";
 
 const log = createScopedLogger("RenderedPictures");
 
@@ -295,23 +295,15 @@ async function documentOf(
   // Whole lines, wrapped as the viewer wraps them: a line cut short can leave
   // a string open, and the grammar then reads the rest of the file as broken.
   const lines = code.split(/\r?\n/).slice(0, CODE_LINES).join("\n");
-  const language = languageOf(extension);
   const unreadable = lines
     .split("\n")
     .some((line) => line.length > HIGHLIGHT_LINE_MAX);
-  if (!language || unreadable) {
-    return sheet("code", `<pre><code>${escapeHtml(lines)}</code></pre>`, theme);
-  }
-  const highlighter = await getHighlighter();
-  if (!highlighter.getLoadedLanguages().includes(language)) {
-    await highlighter.loadLanguage(bundledLanguages[language]);
-  }
+  const highlighted = unreadable
+    ? undefined
+    : await highlightLines(lines, extension);
   return sheet(
     "code",
-    highlighter.codeToHtml(lines, {
-      lang: language,
-      theme: theme === "dark" ? "github-dark-default" : "github-light-default",
-    }),
+    highlighted?.join("\n") ?? `<pre><code>${escapeHtml(lines)}</code></pre>`,
     theme,
   );
 }
@@ -349,13 +341,6 @@ function frontMatterPanel(fm: string) {
   const count = Object.keys(parsed).length;
   const title = frontMatterTitle(parsed) ?? "Properties";
   return `<div class="front-matter"><span class="caret"></span><span class="title">${escapeHtml(title)}</span><span class="count">${count === 1 ? "1 property" : `${count} properties`}</span></div>`;
-}
-
-function languageOf(extension: string): BundledLanguage | undefined {
-  // Aliases (`ts`, `yml`, `py`) are keys of their own here.
-  return extension in bundledLanguages
-    ? (extension as BundledLanguage)
-    : undefined;
 }
 
 /** A JSON file as it reads laid out, when it came on one line and is small enough to parse. */
@@ -470,9 +455,9 @@ function sheet(
   body: string,
   theme: "dark" | "light",
 ) {
-  return `<!doctype html><html><head><meta charset="utf-8">
+  return `<!doctype html><html class="${theme}"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
-<style>${SHEET_COLORS[theme]}${SHEET_STYLE}</style></head><body class="${kind}">${body}</body></html>`;
+<style>${SHEET_COLORS[theme]}${SHEET_STYLE}${CODE_COLORS}</style></head><body class="${kind}">${body}</body></html>`;
 }
 
 let sessionReady = false;

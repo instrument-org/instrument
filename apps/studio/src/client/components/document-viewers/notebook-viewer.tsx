@@ -36,7 +36,7 @@ import {
  * execution counts in the gutter, outputs under the code that produced them.
  *
  * Almost nothing here is new. Markdown cells are the same renderer the
- * transcript uses, code cells the same Shiki highlighting, and the chrome the
+ * transcript uses, code cells the same highlighting, and the chrome the
  * same toolbar every other document viewer has -- what a notebook needed that
  * Studio did not already own is the parsing, which lives in
  * `notebook-format.ts`.
@@ -193,9 +193,9 @@ function NotebookCellView({
 /**
  * One code cell, highlighted once it has been scrolled near.
  *
- * Highlighting is an RPC to the main process per call, so a notebook with a few
- * hundred code cells would otherwise open by issuing a few hundred of them at
- * once. The gate is on the highlighting alone, not on the cell: the code is in
+ * Highlighting builds a span per token, so a notebook with a few hundred code
+ * cells would otherwise open by highlighting every one of them at once. The
+ * gate is on the highlighting alone, not on the cell: the code is in
  * the DOM as plain text from the first paint, which is what keeps find able to
  * reach every cell rather than only the ones someone has scrolled past.
  */
@@ -210,9 +210,10 @@ function NotebookCode({ code, language }: { code: string; language: string }) {
   return (
     <div className={cn(OUTPUT_BLOCK_CLASS, "min-w-0 flex-1")} ref={ref}>
       {highlightedHtml ? (
-        // The markup is Shiki's, produced by our own main process from this
-        // text -- not anything the notebook file supplied. Output the file did
-        // supply goes through the sanitizer in `notebook-html.tsx` instead.
+        // The markup is our own highlighter's, produced in this window from
+        // this text -- not anything the notebook file supplied. Output the
+        // file did supply goes through the sanitizer in `notebook-html.tsx`
+        // instead.
         <div dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }} />
       ) : (
         <pre>{code}</pre>

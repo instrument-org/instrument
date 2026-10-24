@@ -92,9 +92,9 @@ export function detectFolderChanges({
 
       const currentPaths = new Set(current.map((folder) => folder.path));
       const toldPaths = new Set(told.map((folder) => folder.path));
-      // A folder granted since: sent with a message, allowed from a card, or
-      // added with `task folder --add`. The mount is already live -- the
-      // sandbox is built from the chat's grants every turn -- so what this
+      // A folder granted since: attached to a message or allowed from a
+      // card. The mount is already live -- the sandbox is built from the
+      // chat's grants every turn -- so what this
       // carries is the telling, without which the model has a folder it was
       // never told it had and a standing list that contradicts it.
       const added = current.filter((folder) => !toldPaths.has(folder.path));

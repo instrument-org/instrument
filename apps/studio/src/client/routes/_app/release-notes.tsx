@@ -1,4 +1,5 @@
 import { displayLocale } from "@/client/lib/display-locale";
+import { shortenCompareLinks } from "@/client/lib/shorten-compare-links";
 import { ExternalLink } from "@/client/components/external-link";
 import { Markdown } from "@/client/components/markdown";
 import { Badge } from "@/client/components/ui/badge";
@@ -150,8 +151,8 @@ function RouteComponent() {
                 </CardHeader>
                 <CardContent className="border-t border-border/50 px-6 py-6">
                   {release.body ? (
-                    <div className="prose prose-custom prose-sm dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
-                      <Markdown markdown={release.body} />
+                    <div className="prose prose-custom prose-sm dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm wrap-break-word">
+                      <Markdown markdown={shortenCompareLinks(release.body)} />
                     </div>
                   ) : (
                     <p className="text-muted-foreground italic">

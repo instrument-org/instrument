@@ -60,6 +60,7 @@ import {
   savedScreenshotPath,
 } from "./agent-browser-follow-up";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
+import { listsTabs, withTabIds } from "./agent-browser-tab-ids";
 import { recordProgramStart } from "./command-runs";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 import { workDir } from "../work-dir";
@@ -1007,10 +1008,30 @@ export function createAgentBrowserCommand({
       });
     }
 
+    // The labels agent-browser prints for tabs are its own; the ids beside
+    // them are the ones `instrument tab` and `--tab` take.
+    let stdout = result.stdout;
+    if (exitCode === 0 && !browserFreeRead && listsTabs(resolvedArgs)) {
+      const listed = await runAgentBrowser({
+        ...spawnOptions,
+        args: [
+          ...commandArgs.slice(0, commandArgs.length - resolvedArgs.length),
+          "tab",
+          "list",
+          "--json",
+        ],
+        cancelSignal: ctx.signal,
+        input: undefined,
+      });
+      if (listed.exitCode === 0) {
+        stdout = withTabIds(stdout, listed.stdout);
+      }
+    }
+
     const output = {
       exitCode,
       stderr: scrub(result.stderr),
-      stdout: scrub(result.stdout),
+      stdout: scrub(stdout),
     };
     return cappedWait
       ? cappedWaitResult(cappedWait, output, elapsedMs)

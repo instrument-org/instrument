@@ -261,7 +261,7 @@ describe("instrument", () => {
 
         app     Connect services and call their tools.
         memory  What you keep about the user for every chat.
-        tab     Open, show, read and close the tabs of the user's window.
+        tab     List, open, show, read and close this chat's tabs, or ask for one of the user's.
         task    Start, message, stop and read your tasks.
         x       Search posts on X through the user's Grok account.
 

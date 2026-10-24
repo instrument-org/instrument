@@ -733,13 +733,16 @@ export namespace SessionMessageDataPart {
 
   /**
    * The person's answer to a card the agent's work raised: a folder that asks
-   * first, or an app it may not use. Like an app event, it wakes the session
-   * that ran into it, or joins its turn if it is still going.
+   * first, an app it may not use, or a tab of theirs it asked to work in.
+   * Like an app event, it wakes the session that ran into it, or joins its
+   * turn if it is still going. `gone` is a tab closed before the answer.
    */
   export const PermissionAnswerDataPartSchema = z.object({
-    answer: z.enum(["allowed", "always", "declined"]),
-    kind: z.enum(["app", "folder"]),
-    /** The folder's path, or the app's name. */
+    answer: z.enum(["allowed", "always", "declined", "gone"]),
+    kind: z.enum(["app", "folder", "tab"]),
+    /** A tab's page as the card showed it. */
+    page: z.object({ title: z.string(), url: z.string() }).optional(),
+    /** The folder's path, the app's name, or the tab's id. */
     target: z.string(),
     /**
      * Where the yes went when it was not to Instrument's own rules: Windows'
@@ -803,9 +806,14 @@ export namespace SessionMessageDataPart {
     /** Where the user's cursor is on the page: the focused control, described. */
     focus: z.string().optional(),
     selection: z.string().optional(),
-    /** The tab on screen, by the id a task can be handed. */
+    /** The tab on screen, by its id. */
     tab: z.string().optional(),
-    /** Every tab open in the window's browser, on screen or not. */
+    /**
+     * Whether that tab is the person's own, outside the chat: one the chat
+     * may ask them for (`tab request`), not one it may name or hand a task.
+     */
+    theirs: z.boolean().optional(),
+    /** The chat's other tabs, on screen or not. */
     tabs: z
       .array(
         z.object({

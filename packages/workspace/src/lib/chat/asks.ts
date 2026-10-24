@@ -27,18 +27,23 @@ export interface Asker {
  * joins the card, to be woken with its answer too. `macos` raises it, or
  * turns the card already up, into one about the system's own answer (macOS,
  * or Windows' ransomware protection, with the `programs` it blocked), for a
- * thing the person's rules already allow. Answers the card's id.
+ * thing the person's rules already allow. A tab's card carries its `page`.
+ * Answers the card's id.
  */
 export async function recordAsk(
   asker: Asker & { reason?: string },
   kind: PermissionAsk["kind"],
   target: string,
-  macos?: {
-    allowed: "allowed" | "always";
-    programs?: string[];
-    status: MacosAskStatus;
-  },
+  extra?:
+    | {
+        allowed: "allowed" | "always";
+        programs?: string[];
+        status: MacosAskStatus;
+      }
+    | { page: NonNullable<PermissionAsk["page"]> },
 ): Promise<string> {
+  const macos = extra && "status" in extra ? extra : undefined;
+  const page = extra && "page" in extra ? extra : undefined;
   const joining = {
     ...(asker.partId && { partId: asker.partId }),
     ...(asker.reason && { reason: asker.reason }),
@@ -61,6 +66,7 @@ export async function recordAsk(
             status: "open" as const,
             target,
             ...macos,
+            ...page,
           },
         ],
       };
@@ -115,6 +121,9 @@ export function sortAsks<T extends Ask>(asks: T[]): T[] {
 export function cardLine(card: Ask): string {
   if (card.kind === "question") {
     return card.question.trim() || "Waiting for you to answer";
+  }
+  if (card.kind === "tab") {
+    return `Waiting for you to move your tab “${card.page?.title || "a page"}” here`;
   }
   const name = askTargetName(card.kind, card.target);
   switch (card.status) {

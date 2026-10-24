@@ -94,7 +94,10 @@ const PermissionAskSchema = z.object({
    */
   askers: z.array(AskerSchema),
   id: z.string(),
-  kind: z.enum(["app", "folder"]),
+  /** A folder, a Mac app, or a tab of the person's outside the chat, which `Move tab here` moves into it. */
+  kind: z.enum(["app", "folder", "tab"]),
+  /** A tab's page as it was when the agent asked, for the card and the note that answers it. */
+  page: z.object({ title: z.string(), url: z.string() }).optional(),
   /**
    * The programs Windows' ransomware protection kept out of the folder, by
    * their paths, which the card's Allow lets through: on a
@@ -121,7 +124,7 @@ const PermissionAskSchema = z.object({
       "windows-blocked",
     ])
     .default("open"),
-  /** The folder's absolute path, or the app's name. */
+  /** The folder's absolute path, the app's name, or the tab's id. */
   target: z.string(),
 });
 

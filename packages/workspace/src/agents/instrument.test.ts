@@ -126,6 +126,27 @@ describe("shouldContinueAfterHandingOff", () => {
     ).resolves.toBe(false);
   });
 
+  it("ends the turn on a card a bash command raised, with no step after it", async () => {
+    const request = "instrument tab request tab_01K4M8C2B5N7R0T3V6X9Z1D4F7";
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("add the cart to my order")),
+          assistant((messageId) => {
+            const part = bash(
+              request,
+              "Asked the user to move tab …\n",
+            )(messageId);
+            return part.type === "tool-bash" &&
+              part.state === "output-available"
+              ? { ...part, output: { ...part.output, asks: ["ask-1"] } }
+              : part;
+          }),
+        ],
+      }),
+    ).resolves.toBe(false);
+  });
+
   it("carries on when the folder asked for was already allowed", async () => {
     await expect(
       shouldContinueAfterHandingOff({

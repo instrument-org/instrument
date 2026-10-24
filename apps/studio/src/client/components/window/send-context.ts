@@ -10,6 +10,7 @@ import {
 import ms from "ms";
 
 import { type AppsBySlug } from "./apps-by-slug";
+import { isSiteGroup } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { heldChipOf } from "./context-chip";
 import {
@@ -165,8 +166,10 @@ export function contextReaders({
   /**
    * What one tab says about itself: a page by its words, a file by where it
    * is, a folder or an app as its screen reports it, and otherwise as much as
-   * its address says. A page's tab id goes only for a tab of the sending
-   * group's own, which is the only kind the conversation may hand a task.
+   * its address says. A page's tab id goes for a tab of the sending group's
+   * own, which the conversation may hand a task, and for one of the
+   * person's own outside every chat, marked theirs, which it may ask them
+   * for; a page of another chat's goes without one.
    */
   const tabContext = async (
     tab: WindowTab,
@@ -188,7 +191,11 @@ export function contextReaders({
             const { tab: _read, tabs: _readTabs, ...words } = read;
             return {
               ...words,
-              ...(owned ? { tab: tab.id } : {}),
+              ...(owned
+                ? { tab: tab.id }
+                : tab.group === undefined || isSiteGroup(tab.group)
+                  ? { tab: tab.id, theirs: true }
+                  : {}),
               tabs: ownTabs,
             };
           })()

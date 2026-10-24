@@ -28,12 +28,25 @@ import { type SessionMessageDataPart } from "../../src/schemas/session/message-d
 import { type Assertion, defineEval } from "../harness";
 
 const JAR = "https://en.wikipedia.org/wiki/Jar";
-const JAR_TAB = "ses_01M3AX9RF3C2E9RTATMB602W0C";
-const EXAMPLE_TAB = "ses_01M3AX9RF3C2E9RTATMB602W0D";
-const IANA_TAB = "ses_01M3AX9RF3C2E9RTATMB602W0E";
-const HOME_TAB = "screen-3c1d7e0a-5a1b-4c2e-9f11-0a6c1f2b7d10";
+const JAR_TAB = "tab_01M3AX9RF3C2E9RTATMB602W0C";
+const EXAMPLE_TAB = "tab_01M3AX9RF3C2E9RTATMB602W0D";
+const IANA_TAB = "tab_01M3AX9RF3C2E9RTATMB602W0E";
+const HOME_TAB = "tab_01M3AX9RF3C2E9RTATMB602W0G";
 const CART = "https://unscentedco.com/en-us/cart";
-const CART_TAB = "ses_01M3AX9RF3C2E9RTATMB602W0F";
+const CART_TAB = "tab_01M3AX9RF3C2E9RTATMB602W0F";
+const THEIR_TAB = "tab_01M3AX9RF3C2E9RTATMB602W0H";
+
+/** The user's own page, outside the chat, as the note on their message names it. */
+function theirPage(
+  title: string,
+  url: string,
+): SessionMessageDataPart.ViewContextDataPart {
+  return {
+    page: { tab: THEIR_TAB, tabs: [], theirs: true, title, url },
+    screen: "browser",
+    url,
+  };
+}
 
 /** Every bash command the conversation ran, in order. */
 function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
@@ -141,6 +154,33 @@ function handedTab(tabId: string): Assertion {
     text,
   };
 }
+
+/**
+ * Every tab a task was handed is one of the chat's own: a tab_ id, never
+ * agent-browser's `t1`, and never the user's own tab, which only a request
+ * brings into the chat.
+ */
+const handedOnlyChatTabs: Assertion = {
+  check: ({ sessions }) => {
+    const handed = bashCommands(sessions)
+      .filter((command) => STARTS_A_TASK.test(command))
+      .flatMap((command) =>
+        [...command.matchAll(/--tab[ =]['"]?([^\s'"]+)/g)].map(
+          (match) => match[1] ?? "",
+        ),
+      );
+    const wrong = handed.filter(
+      (id) => !id.startsWith("tab_") || id === THEIR_TAB,
+    );
+    return {
+      evidence:
+        handed.length > 0 ? `--tab ${handed.join(", --tab ")}` : "no --tab",
+      passed: wrong.length === 0,
+      text: "Handed a task only the chat's own tabs",
+    };
+  },
+  text: "Handed a task only the chat's own tabs",
+};
 
 /** Everything the conversation said, in order. */
 function replies(sessions: Session.WithMessagesAndParts[]): string {
@@ -283,6 +323,40 @@ export const WINDOW_TABS_EVALS = [
     prompt:
       "https://unscentedco.com/\n\nAlright, I want to purchase unscented body wash at the best price from here based on price per ounce. And I'm also interested in getting a cart that's at least $105 because that's a subscription, and I think we also use their conditioner and their shampoo. So we might as well do a set if there's an incentive for savings. Also, I'm willing to consider the subscribe and save stuff too",
     viewing: homeWith([]),
+  }),
+
+  defineEval({
+    // The beta.102 run that prompted tab requests, in the words it was typed
+    // in: the user's own Amazon tab behind the draft. A copy of the page in
+    // a tab of the chat's own does as well as the tab itself here, so the
+    // case scores only that no task was handed an id that was not the
+    // chat's, which is where that run went wrong.
+    assertions: [browsedOrForked, handedOnlyChatTabs],
+    kind: "chat",
+    name: "window-tabs-their-page",
+    prompt:
+      "check my recent history of ordres on amazon, find protein shakes. i want best price ones added to cart based on current deals. i really like the can ones i just got recentlh, but also open to others.\n\nif you find really good deals, that's fine to top prioritze. i do like vanilla a lot",
+    viewing: theirPage(
+      "Amazon.com. Spend less. Smile more.",
+      "https://www.amazon.com/?ref_=nav_signin",
+    ),
+  }),
+
+  defineEval({
+    // What is on the page exists only in the user's tab, so the tab itself
+    // is what the work needs, and asking for it is the way to it.
+    assertions: [
+      ranTab("request", { matching: new RegExp(`^${THEIR_TAB}$`) }),
+      handedOnlyChatTabs,
+    ],
+    kind: "chat",
+    name: "window-tabs-their-tab-as-it-stands",
+    prompt:
+      "I filled in most of this return form already. Finish it for me and pick a refund to my card.",
+    viewing: theirPage(
+      "Return or replace items",
+      "https://www.amazon.com/spr/returns/cart?orderId=114-0000000-0000000",
+    ),
   }),
 
   defineEval({

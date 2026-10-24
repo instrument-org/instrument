@@ -59,6 +59,7 @@ import {
   HandOffSchema,
   withHandOffs,
 } from "../lib/shell-commands/task-hand-off";
+import { withRaisedAsks } from "../lib/shell-commands/raised-asks";
 import { systemNote } from "../lib/system-note";
 import { sessionToolFs } from "../lib/tool-fs";
 import {
@@ -214,6 +215,8 @@ const bashOutputSchema = z.object({
   durationMs: z.number().default(0),
   /** Absent when the command was still running when the call returned. */
   exitCode: z.number().optional(),
+  /** The cards the call's commands raised for the person to answer, by their ids. */
+  asks: z.array(z.string()).optional(),
   /** The tasks the call's `task` commands handed work to, when any did. */
   handOffs: z.array(HandOffSchema).optional(),
   /**
@@ -312,6 +315,7 @@ export const BashTool = setupTool({
     let commands: string[] = [];
     const browserFollowUp = new BrowserFollowUp();
     const handOffs: HandOff[] = [];
+    const asks: string[] = [];
     const appGuides: RecordedAppGuide[] = [];
     const commandRuns = new CommandRuns();
     const ran = () => {
@@ -327,9 +331,11 @@ export const BashTool = setupTool({
         try {
           const result = await withCommandRuns(commandRuns, () =>
             withHandOffs(handOffs, () =>
-              withAppGuideHandOffs(appGuides, () =>
-                withBrowserFollowUp(browserFollowUp, () =>
-                  bash.exec(input.command, { signal: runSignal }),
+              withRaisedAsks(asks, () =>
+                withAppGuideHandOffs(appGuides, () =>
+                  withBrowserFollowUp(browserFollowUp, () =>
+                    bash.exec(input.command, { signal: runSignal }),
+                  ),
                 ),
               ),
             ),
@@ -496,6 +502,7 @@ export const BashTool = setupTool({
       durationMs,
       exitCode: outcome.exitCode,
       ...(handOffs.length > 0 ? { handOffs } : {}),
+      ...(asks.length > 0 ? { asks } : {}),
       omittedBytes: 0,
       output: outcome.output,
       ...(pageAfter ? { pageAfter } : {}),

@@ -820,10 +820,10 @@ function raisedAnAsk(part: SessionMessagePart.Type): boolean {
 
 interface AskRecord {
   /** How the case answered it; absent while the card is still up. */
-  answer?: "allowed" | "always" | "declined";
+  answer?: "allowed" | "always" | "declined" | "gone";
   /** When the answer reached the agent, for ordering against tool calls. */
   answeredAt?: number;
-  kind: "app" | "folder";
+  kind: "app" | "folder" | "tab";
   target: string;
 }
 

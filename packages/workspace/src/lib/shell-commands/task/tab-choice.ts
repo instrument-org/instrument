@@ -24,9 +24,7 @@ function resolveTab(
 ): BrowserTargetId {
   const listed = chatTabs.find((entry) => entry.id === tab);
   if (!listed) {
-    throw new Error(
-      `Tab ${tab} is not one of this chat's tabs; the note on the user's message lists the ones it has.`,
-    );
+    throw new Error(notTheChatsTab(tab, chatTabs));
   }
   const targetId = parseBrowserTargetId(tab);
   if (listed.kind !== "page" || targetId === null) {
@@ -40,6 +38,25 @@ function resolveTab(
     );
   }
   return targetId;
+}
+
+/**
+ * Why a tab id is not one to hand a task, with the chat's own tabs to pick
+ * from: agent-browser's `t1` is its label for a tab, a `tab_` id outside the
+ * chat is the user's to move in, and anything else is no tab.
+ */
+function notTheChatsTab(tab: string, chatTabs: readonly ChatTab[]): string {
+  const pages = chatTabs.filter((entry) => entry.kind === "page");
+  const own =
+    pages.length > 0
+      ? ` This chat's tabs: ${pages.map((entry) => `${entry.id} ("${entry.title || entry.url}")`).join(", ")}.`
+      : " This chat has no tabs yet.";
+  const why = /^t\d+$/i.test(tab)
+    ? `"${tab}" is agent-browser's label for a tab, not its id.`
+    : parseBrowserTargetId(tab) === null
+      ? `"${tab}" is not a tab id; tab ids start with tab_.`
+      : `Tab ${tab} is not one of this chat's tabs. A tab of the user's that the note on their message named outside this chat comes in with \`instrument tab request ${tab}\`.`;
+  return `${why}${own} \`instrument tab list\` names them.`;
 }
 
 /** Several tab ids, each resolved, without repeats; `closedIsFine` for ids only being let go of. */
@@ -76,7 +93,7 @@ async function tabTargetOf(tab: string): Promise<BrowserTargetId> {
   const targetId = parseBrowserTargetId(tab);
   if (targetId === null) {
     throw new Error(
-      `"${tab}" is not a tab id; the note on the user's message lists them.`,
+      `"${tab}" is not a tab id; tab ids start with tab_, and \`instrument tab list\` names this chat's.`,
     );
   }
   return targetId;

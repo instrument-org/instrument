@@ -1,4 +1,6 @@
+import { composeAtom, composeKeyOf } from "@/client/atoms/window";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
+import { useSetAtom } from "jotai";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
@@ -15,7 +17,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { toast } from "@/client/lib/toast";
 
-import { newSiteGroup, pageHrefOf, type useAppTabs } from "./app-tabs";
+import {
+  isSiteGroup,
+  newSiteGroup,
+  pageHrefOf,
+  type useAppTabs,
+} from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { type Chat } from "./chats";
 import { type OpenOptions } from "./context";
@@ -72,6 +79,7 @@ export function useOpeners({
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
   const queryClient = useQueryClient();
+  const setCompose = useSetAtom(composeAtom);
   const { active } = windowTabs;
   /** The window as an open is placed against, read at the ask. */
   const placing: PlacementContext = {
@@ -408,6 +416,46 @@ export function useOpeners({
       }
       browser?.adopt(id.data, action.url, group);
       return { tabId: id.data };
+    }
+    if (action.kind === "theirs" || action.kind === "take") {
+      const theirs = windowTabs.allTabs.find(
+        (entry) =>
+          entry.id === action.tabId &&
+          entry.kind === "page" &&
+          (entry.group === undefined || isSiteGroup(entry.group)),
+      );
+      if (theirs?.kind !== "page") {
+        return {
+          error: `no tab ${action.tabId} of the user's is open outside a chat.`,
+        };
+      }
+      if (action.kind === "theirs") {
+        return {
+          tabs: [
+            {
+              id: theirs.id,
+              kind: "page" as const,
+              title: theirs.title ?? "",
+              url: theirs.url ?? "about:blank",
+            },
+          ],
+        };
+      }
+      if (group === undefined) {
+        return { error: "only a chat can be given a tab." };
+      }
+      // The tab leaves the person's own tabs for the chat's, guest and all,
+      // and the window goes to the chat with it up, so the page they were on
+      // is still in front of them. The chat's floating window comes down,
+      // since the chat now fills the window under it.
+      windowTabs.moveToGroup(theirs.id, group);
+      windowTabs.select(theirs.id);
+      setPaneOpen(group, true);
+      setCompose((current) =>
+        current.filter((entry) => composeKeyOf(entry) !== group),
+      );
+      goToChatOf(group);
+      return { tabId: theirs.id };
     }
     if (action.kind === "list") {
       return group === undefined

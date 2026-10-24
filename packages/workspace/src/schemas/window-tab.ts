@@ -46,6 +46,17 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
    */
   z.object({ kind: z.literal("adopt"), tabId: z.string(), url: z.string() }),
   /**
+   * A page tab of the person's own, outside every chat, which a note on
+   * their message named: its title and address, for the card that asks for
+   * it. Answered with `tabs`, or an error when no such tab is open.
+   */
+  z.object({ kind: z.literal("theirs"), tabId: z.string() }),
+  /**
+   * Moves a page tab of the person's own into the chat, guest, history and
+   * all, and puts it up there: their answer to a card asking for it.
+   */
+  z.object({ kind: z.literal("take"), tabId: z.string() }),
+  /**
    * The chat's tabs, which are the only tabs it may name, hand to a task, or
    * have an agent drive. Asked at the moment a tab is named, so it is never
    * a copy that could be out of date, and answered whether or not a page's

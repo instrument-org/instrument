@@ -20,13 +20,16 @@ import {
   subcommand,
 } from "./subcommands";
 import { TAB_COMMAND } from "./tab-command";
+import { recordRaisedAsk } from "./raised-asks";
+import { recordAsk } from "../chat/asks";
 import { type ChatId } from "../../schemas/chat-id";
+import { type StoreId } from "../../schemas/store-id";
 
 const TAB_NAME = TAB_COMMAND.name;
 
 const NO_WINDOW = "the window did not answer, so no tab changed.";
 
-const USAGE = `Usage: ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <id> <url or path> | ${TAB_NAME} close <id>... | ${TAB_NAME} show <id> | ${TAB_NAME} read <id>`;
+const USAGE = `Usage: ${TAB_NAME} list | ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <id> <url or path> | ${TAB_NAME} close <id>... | ${TAB_NAME} show <id> | ${TAB_NAME} read <id> | ${TAB_NAME} request <id> --reason '<one sentence to the user>'`;
 
 /**
  * The conversation's hands on the window's tabs. The window keeps the tabs
@@ -38,13 +41,19 @@ const USAGE = `Usage: ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <i
  * opened goes beside that chat and an id is looked up among that chat's tabs.
  */
 export function createTabCommand({
+  callPartId,
   chatId,
   layout,
+  sessionId,
   timeoutMs = WINDOW_TAB_TIMEOUT_MS,
 }: {
+  /** The bash call it runs in, which a card it raises names as the ask. */
+  callPartId?: StoreId.Part;
   chatId: ChatId;
   /** The chat's shell layout: a local page outside it is not the chat's to read. */
   layout: WorkspaceFsLayout;
+  /** The chat's own session, which a card it raises wakes. */
+  sessionId: StoreId.Session;
   timeoutMs?: number;
 }) {
   const ask = (action: WindowTabAction) =>
@@ -63,6 +72,12 @@ export function createTabCommand({
     name: TAB_NAME,
     subcommands: {
       close: subcommand({ run: ({ positional }) => close(positional) }),
+      list: subcommand({ positional: 0, run: () => list() }),
+      request: subcommand({
+        flags: ["reason"],
+        positional: 1,
+        run: (input) => request(input.positional[0], input.value("reason")),
+      }),
       open: subcommand({
         run: ({ positional }, _, ctx) => open(positional, ctx),
       }),
@@ -74,6 +89,77 @@ export function createTabCommand({
     },
     usage: USAGE,
   });
+
+  /** The chat's tabs, one line each: the id every other subcommand and `--tab` take, then what it shows and who is at work in it. */
+  async function list() {
+    const answer = await ask({ kind: "list" });
+    if (!answer) {
+      return fail(NO_WINDOW);
+    }
+    if (answer.error) {
+      return fail(answer.error);
+    }
+    const tabs = answer.tabs ?? [];
+    if (tabs.length === 0) {
+      return `This chat has no tabs. \`${TAB_NAME} open <url>\` opens one.\n`;
+    }
+    const holders = await tabHolders(chatId);
+    return `${tabs
+      .map((tab) => {
+        const holder = holders.get(tab.id);
+        const shows =
+          tab.kind === "page"
+            ? `"${tab.title || tab.url}" ${tab.url}`
+            : "a screen of the app, not a page";
+        return `${tab.id}  ${shows}${holder ? `  (task ${holder.id} is working in it)` : ""}`;
+      })
+      .join("\n")}\n`;
+  }
+
+  /**
+   * Asks the user to move a tab of theirs, outside this chat, into it: the
+   * page a note on their message showed. The card waits on them above the
+   * chat's box, and their answer wakes the chat.
+   */
+  async function request(tabId: string | undefined, reason?: string) {
+    if (!tabId) {
+      return fail(`request takes one tab id. ${USAGE}`);
+    }
+    if (!reason?.trim()) {
+      return fail(
+        `request needs --reason '<one sentence to the user>', which the card shows them.`,
+      );
+    }
+    const own = await ask({ kind: "list" });
+    if (own?.tabs?.some((tab) => tab.id === tabId)) {
+      return fail(
+        `tab ${tabId} is already this chat's: \`${TAB_NAME} read ${tabId}\` reads it, and \`instrument task new --tab ${tabId}\` hands it to a task.`,
+      );
+    }
+    const answer = await ask({ kind: "theirs", tabId });
+    if (!answer) {
+      return fail(NO_WINDOW);
+    }
+    const page = answer.tabs?.[0];
+    if (answer.error || page?.kind !== "page") {
+      return fail(
+        `no tab ${tabId} of the user's is open outside this chat. A request names the tab a note on the user's message showed as theirs.`,
+      );
+    }
+    const askId = await recordAsk(
+      {
+        chatId,
+        ...(callPartId && { partId: callPartId }),
+        reason: reason.trim(),
+        sessionId,
+      },
+      "tab",
+      tabId,
+      { page: { title: page.title, url: page.url } },
+    );
+    recordRaisedAsk(askId);
+    return `Asked the user to move tab ${tabId} ("${page.title || page.url}") into this chat. The card shows your reason with Move tab here and Skip. Your turn ends here; their answer wakes you.\n`;
+  }
 
   async function close(rest: string[]) {
     if (rest.length === 0) {

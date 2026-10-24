@@ -35,6 +35,19 @@ vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
   tabHolders: () => Promise.resolve(holders),
 }));
 
+// The cards a request raised, as the chat's state would keep them.
+const raised: unknown[][] = [];
+vi.mock(import("../chat/asks"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  recordAsk: (...args: unknown[]) => {
+    raised.push(args);
+    return Promise.resolve("ask-1");
+  },
+}));
+
+// A tab of the user's own, outside the chat, which a note named.
+const theirTab = StoreId.newTabId();
+
 let asked: { action: WindowTabAction; chatId?: ChatId }[];
 let stopAnswering: () => void;
 
@@ -56,16 +69,40 @@ function answeringWindow() {
         ? { tabId: `made-${asked.length}` }
         : action.kind === "list"
           ? {
-              tabs: [...known].map((id) => ({ id, kind: "screen" as const })),
+              tabs: [...known].map((id) =>
+                id === pageTab
+                  ? {
+                      id,
+                      kind: "page" as const,
+                      title: "Suite plans",
+                      url: "https://www.zendesk.com/pricing/",
+                    }
+                  : { id, kind: "screen" as const },
+              ),
             }
-          : known.has(action.tabId)
-            ? {
-                tabId: action.tabId,
-                ...(action.kind === "read"
-                  ? { text: "Jar\nA rigid container." }
-                  : {}),
-              }
-            : { error: `no tab ${action.tabId} is open in this chat.` };
+          : action.kind === "theirs"
+            ? action.tabId === theirTab
+              ? {
+                  tabs: [
+                    {
+                      id: theirTab,
+                      kind: "page" as const,
+                      title: "Shopping Cart",
+                      url: "https://www.amazon.com/gp/cart/view.html",
+                    },
+                  ],
+                }
+              : {
+                  error: `no tab ${action.tabId} of the user's is open outside a chat.`,
+                }
+            : known.has(action.tabId)
+              ? {
+                  tabId: action.tabId,
+                  ...(action.kind === "read"
+                    ? { text: "Jar\nA rigid container." }
+                    : {}),
+                }
+              : { error: `no tab ${action.tabId} is open in this chat.` };
     publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,
@@ -77,7 +114,12 @@ function answeringWindow() {
 function run(options: { timeoutMs?: number }, ...args: string[]) {
   const fsTree = new InMemoryFs();
   fsTree.writeFileSync("/Users/me/Instrument/report.md", "# report");
-  return createTabCommand({ chatId, layout, ...options }).execute(
+  return createTabCommand({
+    chatId,
+    layout,
+    sessionId: StoreId.newSessionId(),
+    ...options,
+  }).execute(
     args,
     createCommandContext({
       cwd: layout.chat.shellRoot,
@@ -90,6 +132,7 @@ function run(options: { timeoutMs?: number }, ...args: string[]) {
 
 beforeEach(() => {
   asked = [];
+  raised.length = 0;
   holders.clear();
   pageUrls = [];
   const config = getWorkspaceConfig();
@@ -289,11 +332,11 @@ describe("tab close, replace and show", () => {
     const result = await run({});
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Usage: instrument tab open");
+    expect(result.stdout).toContain("Usage: instrument tab list");
   });
 
   it.each([
-    { args: ["list"] },
+    { args: ["request"] },
     { args: ["close"] },
     { args: ["show"] },
     { args: ["replace", "tab-known"] },
@@ -301,6 +344,76 @@ describe("tab close, replace and show", () => {
     const result = await run({}, ...args);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Usage: instrument tab open");
+    expect(result.stderr).toContain("Usage: instrument tab list");
+  });
+});
+
+describe("tab list", () => {
+  it("names the chat's tabs by the ids the other subcommands and --tab take", async () => {
+    holders.set(pageTab, {
+      id: ChatIdSchema.parse("t1"),
+      title: "Compare plans",
+    });
+    const result = await run({}, "list");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+      "tab-known  a screen of the app, not a page
+      <page>  "Suite plans" https://www.zendesk.com/pricing/  (task t1 is working in it)
+      "
+    `);
+  });
+});
+
+describe("tab request", () => {
+  it("raises a card for a tab of the user's a note named, and says the turn ends on it", async () => {
+    const result = await run(
+      {},
+      "request",
+      theirTab,
+      "--reason",
+      "So I can pick up your cart where you left it.",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.replaceAll(theirTab, "<theirs>"))
+      .toMatchInlineSnapshot(`
+      "Asked the user to move tab <theirs> ("Shopping Cart") into this chat. The card shows your reason with Move tab here and Skip. Your turn ends here; their answer wakes you.
+      "
+    `);
+    expect(raised).toEqual([
+      [
+        expect.objectContaining({
+          reason: "So I can pick up your cart where you left it.",
+        }),
+        "tab",
+        theirTab,
+        {
+          page: {
+            title: "Shopping Cart",
+            url: "https://www.amazon.com/gp/cart/view.html",
+          },
+        },
+      ],
+    ]);
+  });
+
+  it.each([
+    ["a tab already the chat's", () => [pageTab, "--reason", "To read it."]],
+    [
+      "a tab no note named",
+      () => ["tab_01M5Q0AAAAAAAAAAAAAAAAAAAA", "--reason", "To read it."],
+    ],
+    ["no reason", () => [theirTab]],
+  ])("refuses %s, raising nothing", async (_, args) => {
+    const result = await run({}, "request", ...args());
+
+    expect(result.exitCode).toBe(1);
+    expect(
+      result.stderr
+        .replaceAll(pageTab, "<page>")
+        .replaceAll(theirTab, "<theirs>"),
+    ).toMatchSnapshot();
+    expect(raised).toEqual([]);
   });
 });

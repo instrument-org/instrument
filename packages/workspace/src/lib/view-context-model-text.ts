@@ -1,5 +1,6 @@
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { APP_COMMAND } from "./shell-commands/app-command";
+import { TAB_COMMAND } from "./shell-commands/tab-command";
 import { systemNote } from "./system-note";
 
 type ViewContext = SessionMessageDataPart.ViewContextDataPart;
@@ -128,14 +129,23 @@ function pageNote(data: ViewContext) {
   const words = page.selection ? ` Selected on it: "${page.selection}".` : "";
   const focus = page.focus ? ` Their cursor is in ${page.focus}.` : "";
   const shown = page.tabs?.find((other) => other.id === page.tab);
-  const tab = page.tab ? ` (tab ${page.tab}${heldClause(shown?.heldBy)})` : "";
+  const theirs = page.tab !== undefined && page.theirs === true;
+  const tab =
+    page.tab === undefined
+      ? ""
+      : theirs
+        ? `, in their own tab ${page.tab}, outside this chat`
+        : ` (this chat's tab ${page.tab}${heldClause(shown?.heldBy)})`;
+  const ways = theirs
+    ? ` To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to, or \`${TAB_COMMAND.name} request ${page.tab}\` asks them to move this tab into the chat as it stands.`
+    : "";
   const others = (page.tabs ?? []).filter((other) => other.id !== page.tab);
   const tabs =
     others.length > 0
-      ? `Other tabs open but not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id}${heldClause(other.heldBy)})`).join("; ")}.`
-      : "No other tabs are open.";
+      ? `This chat's ${theirs ? "" : "other "}tabs, not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id}${heldClause(other.heldBy)})`).join("; ")}.`
+      : `This chat has no ${theirs ? "" : "other "}tabs.`;
   return systemNote`
-    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it.${words}${focus}
+    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it.${words}${focus}${ways}
     ${tabs}
   `;
 }

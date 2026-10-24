@@ -994,7 +994,12 @@ export async function createLocalBashEnv({
             },
             {
               ...TAB_COMMAND,
-              command: createTabCommand({ chatId, layout }),
+              command: createTabCommand({
+                callPartId,
+                chatId,
+                layout,
+                sessionId,
+              }),
             },
             {
               ...TASK_COMMAND,

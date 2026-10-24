@@ -38,6 +38,9 @@ import { allowThroughProtection } from "../../lib/permissions/windows-protection
 import { grantFolder } from "../../lib/chat/grants";
 import { setDenied } from "../../lib/permissions/denials";
 import { wakeAskers } from "../../lib/chat/wake";
+import { askWindow } from "../../lib/chat/window-tab";
+import { updateHeldTabs } from "../../lib/held-tabs";
+import { parseBrowserTargetId } from "../../types";
 import { hostPathWithin } from "../../lib/host-path";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
@@ -338,6 +341,10 @@ const answer = base
       await decline(input.id, ask, context.workspaceRef);
       return;
     }
+    if (ask.kind === "tab") {
+      await moveTabIn(input.id, ask, context.workspaceRef);
+      return;
+    }
     await grant(input.id, ask, input.decision);
     await settle(input.id, ask, input.decision, context.workspaceRef);
   });
@@ -435,10 +442,64 @@ async function decline(
   if (!closed) {
     return;
   }
-  await setDenied(chatId, ask.kind, ask.target, true);
+  // A tab kept is the person's to keep; asking again later is no worse for it.
+  if (ask.kind !== "tab") {
+    await setDenied(chatId, ask.kind, ask.target, true);
+  }
   await wakeAskers(
     {
-      data: { answer: "declined", kind: ask.kind, target: ask.target },
+      data: {
+        answer: "declined",
+        kind: ask.kind,
+        ...(ask.page && { page: ask.page }),
+        target: ask.target,
+      },
+      type: "data-permissionAnswer",
+    },
+    workspaceRef,
+    chatId,
+    closed.askers.map((asker) => asker.sessionId),
+  );
+}
+
+/**
+ * Moves the tab a card asked for out of the person's own tabs and into the
+ * chat, page and all, and wakes the askers. The first to ask drives it, as
+ * a tab handed over: the person's, never closed by the agent. A tab closed
+ * before the answer wakes them with that instead.
+ */
+async function moveTabIn(
+  chatId: ChatId,
+  ask: PermissionAsk,
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  const closed = await closeAsk(chatId, ask.id);
+  if (!closed) {
+    return;
+  }
+  const answer = await askWindow({
+    action: { kind: "take", tabId: ask.target },
+    askedBy: chatId,
+    group: chatId,
+  });
+  const tabId = parseBrowserTargetId(ask.target);
+  const driver = closed.askers[0]?.sessionId;
+  const moved =
+    answer !== undefined && answer.error === undefined && tabId !== null;
+  if (moved && driver !== undefined) {
+    await updateHeldTabs(chatId, driver, (tabs) => [
+      ...tabs.filter((tab) => tab.id !== tabId),
+      { id: tabId, inWindow: true, openedBy: "handed" },
+    ]);
+  }
+  await wakeAskers(
+    {
+      data: {
+        answer: moved ? "allowed" : "gone",
+        kind: "tab",
+        ...(ask.page && { page: ask.page }),
+        target: ask.target,
+      },
       type: "data-permissionAnswer",
     },
     workspaceRef,
@@ -453,9 +514,13 @@ async function grant(
   ask: PermissionAsk,
   decision: "allowed" | "always",
 ): Promise<void> {
-  const { target } = ask;
-  await setDenied(chatId, ask.kind, target, false);
-  if (ask.kind === "folder") {
+  const { kind, target } = ask;
+  // A tab is moved, never granted (`moveTabIn`).
+  if (kind === "tab") {
+    return;
+  }
+  await setDenied(chatId, kind, target, false);
+  if (kind === "folder") {
     await grantFolder({ chatId, path: target, source: "card" });
     if (decision === "always") {
       const folder = AbsolutePathSchema.parse(target);

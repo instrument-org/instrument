@@ -294,16 +294,25 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
       return `Switched the model from ${from.name ?? from.modelId} to ${to.name ?? to.modelId}.`;
     }
     case "data-permissionAnswer": {
-      const { answer, target } = part.data;
+      const { answer, kind, page, target } = part.data;
+      const name =
+        kind === "tab" ? `your tab “${page?.title || target}”` : target;
       switch (answer) {
         case "allowed": {
-          return `You allowed ${target}.`;
+          return kind === "tab"
+            ? `You moved ${name} into this chat.`
+            : `You allowed ${name}.`;
         }
         case "always": {
-          return `You allowed ${target} from now on.`;
+          return `You allowed ${name} from now on.`;
         }
         case "declined": {
-          return `You said no to ${target}.`;
+          return kind === "tab"
+            ? `You kept ${name}.`
+            : `You said no to ${name}.`;
+        }
+        case "gone": {
+          return `${name[0]?.toUpperCase()}${name.slice(1)} closed before you answered.`;
         }
       }
     }

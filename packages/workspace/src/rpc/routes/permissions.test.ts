@@ -6,6 +6,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setChatModel } from "../../lib/chat-settings";
+import { heldTabs } from "../../lib/held-tabs";
+import { publisher } from "../publisher";
 import { appRefusal } from "../../lib/permissions/apps";
 import { recordAsk } from "../../lib/chat/asks";
 import { openAsks } from "../../lib/chat/open-asks";
@@ -225,6 +227,83 @@ describe("permissions.answer", () => {
       ]),
     );
     expect(await openAsks(chatId)).toEqual([]);
+  });
+
+  describe("a tab of the user's the chat asked for", () => {
+    const tab = StoreId.newTabId();
+    const page = {
+      title: "Shopping Cart",
+      url: "https://www.amazon.com/gp/cart/view.html",
+    };
+    let stop = () => {};
+    afterEach(() => {
+      stop();
+    });
+
+    /** A window that answers a Move with the tab, or that it is gone. */
+    function windowWith(open: boolean) {
+      stop = publisher.subscribe("window.tab", (ask) => {
+        publisher.publish("window.tabDone", {
+          id: ask.id,
+          requestId: ask.requestId,
+          ...(open
+            ? { tabId: tab }
+            : { error: `no tab ${tab} of the user's is open outside a chat.` }),
+        });
+      });
+    }
+
+    it.each([
+      [true, "allowed", [{ id: tab, inWindow: true, openedBy: "handed" }]],
+      [false, "gone", []],
+    ] as const)(
+      "moves it in on Move when it is open (%s), and wakes the chat with %s",
+      async (open, answer, held) => {
+        windowWith(open);
+        const { chatId, own } = await chatWithTask();
+        await recordAsk(
+          { chatId, reason: "To pick up the cart.", sessionId: own },
+          "tab",
+          tab,
+          { page },
+        );
+        const [card] = await openAsks(chatId);
+        expect(card).toMatchObject({ kind: "tab", page, target: tab });
+        const sentBefore = sent.length;
+
+        await call(
+          permissions.answer,
+          { askId: card?.id ?? "", decision: "allowed", id: chatId },
+          { context: context() },
+        );
+
+        expect(wokenSince(sentBefore)).toEqual([
+          { answer: [answer], sessionId: own },
+        ]);
+        expect(await heldTabs(chatId, own)).toEqual(held);
+        expect(await openAsks(chatId)).toEqual([]);
+      },
+    );
+
+    it("leaves the tab where it is on Skip, and records no denial", async () => {
+      windowWith(true);
+      const { chatId, own } = await chatWithTask();
+      await recordAsk({ chatId, sessionId: own }, "tab", tab, { page });
+      const [card] = await openAsks(chatId);
+      const sentBefore = sent.length;
+
+      await call(
+        permissions.answer,
+        { askId: card?.id ?? "", decision: "declined", id: chatId },
+        { context: context() },
+      );
+
+      expect(wokenSince(sentBefore)).toEqual([
+        { answer: ["declined"], sessionId: own },
+      ]);
+      expect(await heldTabs(chatId, own)).toEqual([]);
+      expect(await chatDenials(chatId)).toEqual([]);
+    });
   });
 
   // "Not now" is the chat's, whoever asked: one denial, and every asker

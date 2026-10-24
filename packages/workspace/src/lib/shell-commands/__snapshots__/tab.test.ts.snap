@@ -1,0 +1,16 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`tab request > refuses a tab already the chat's, raising nothing 1`] = `
+"instrument tab: tab <page> is already this chat's: \`instrument tab read <page>\` reads it, and \`instrument task new --tab <page>\` hands it to a task.
+"
+`;
+
+exports[`tab request > refuses a tab no note named, raising nothing 1`] = `
+"instrument tab: no tab tab_01M5Q0AAAAAAAAAAAAAAAAAAAA of the user's is open outside this chat. A request names the tab a note on the user's message showed as theirs.
+"
+`;
+
+exports[`tab request > refuses no reason, raising nothing 1`] = `
+"instrument tab: request needs --reason '<one sentence to the user>', which the card shows them.
+"
+`;

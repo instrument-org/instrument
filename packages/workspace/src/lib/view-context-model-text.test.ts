@@ -87,7 +87,7 @@ describe("viewContextModelNote", () => {
           {
             at: "https://example.com/",
             heldBy: { id: "read-the-page", title: "Read the page" },
-            id: "ses_01M3AX9RF3C2E9RTATMB602W0B",
+            id: "tab_01M3AX9RF3C2E9RTATMB602W0B",
             title: "Example",
           },
         ],
@@ -97,7 +97,28 @@ describe("viewContextModelNote", () => {
       <instrument-system-note>
       When the user sent this, the window showed a new tab: the box that opens any screen or asks you. Nothing in particular is in view.
       </instrument-system-note>
-      Tabs open in the window: "New tab" at /new-tab (tab screen-1); "Example" at https://example.com/ (tab ses_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it)."
+      Tabs open in the window: "New tab" at /new-tab (tab screen-1); "Example" at https://example.com/ (tab tab_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it)."
+    `);
+  });
+
+  it("names a page of the user's own outside the chat by its tab, and the two ways to work in it", () => {
+    expect(
+      viewContextModelNote({
+        page: {
+          tab: "tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA",
+          tabs: [],
+          theirs: true,
+          title: "Amazon.com. Spend less. Smile more.",
+          url: "https://www.amazon.com/?ref_=nav_signin",
+        },
+        screen: "browser",
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      When the user sent this, the browser showed "Amazon.com. Spend less. Smile more." at https://www.amazon.com/?ref_=nav_signin, in their own tab tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA, outside this chat. "This page", "this site", "this" and "here" refer to it. To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to, or \`instrument tab request tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA\` asks them to move this tab into the chat as it stands.
+      This chat has no tabs.
+      </instrument-system-note>"
     `);
   });
 
@@ -105,17 +126,17 @@ describe("viewContextModelNote", () => {
     expect(
       viewContextModelNote({
         page: {
-          tab: "ses_01M3AX9RF3C2E9RTATMB602W0B",
+          tab: "tab_01M3AX9RF3C2E9RTATMB602W0B",
           tabs: [
             {
               heldBy: { id: "read-the-page", title: "Read the page" },
-              id: "ses_01M3AX9RF3C2E9RTATMB602W0B",
+              id: "tab_01M3AX9RF3C2E9RTATMB602W0B",
               title: "Example",
               url: "https://example.com/",
             },
             {
               heldBy: { id: "compare-prices", title: "Compare prices" },
-              id: "ses_01M3AX9RF3C2E9RTATMB602W0C",
+              id: "tab_01M3AX9RF3C2E9RTATMB602W0C",
               title: "Shop",
               url: "https://shop.example/",
             },
@@ -128,8 +149,8 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the browser showed "Example" at https://example.com/ (tab ses_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it). "This page", "this site", "this" and "here" refer to it.
-      Other tabs open but not on screen: "Shop" at https://shop.example/ (tab ses_01M3AX9RF3C2E9RTATMB602W0C, task compare-prices is working in it).
+      When the user sent this, the browser showed "Example" at https://example.com/ (this chat's tab tab_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it). "This page", "this site", "this" and "here" refer to it.
+      This chat's other tabs, not on screen: "Shop" at https://shop.example/ (tab tab_01M3AX9RF3C2E9RTATMB602W0C, task compare-prices is working in it).
       </instrument-system-note>"
     `);
   });

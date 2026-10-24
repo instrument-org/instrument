@@ -32,6 +32,8 @@ export interface StandInTab {
 
 export function createStandInWindow() {
   const tabs = new Map<string, StandInTab>();
+  /** The user's own tabs outside the chat that a note named, which `tab request` asks for and a Move takes into `tabs`. */
+  const theirs = new Map<string, StandInTab>();
 
   const add = (target: WindowTabTarget): StandInTab => {
     const tab: StandInTab =
@@ -70,6 +72,22 @@ export function createStandInWindow() {
         kind: "page",
       });
       return { tabId: action.tabId };
+    }
+    if (action.kind === "theirs" || action.kind === "take") {
+      const own = theirs.get(action.tabId);
+      if (!own) {
+        return {
+          error: `no tab ${action.tabId} of the user's is open outside a chat.`,
+        };
+      }
+      if (action.kind === "theirs") {
+        return {
+          tabs: [{ id: own.id, kind: "page", title: "", url: own.at }],
+        };
+      }
+      theirs.delete(own.id);
+      tabs.set(own.id, own);
+      return { tabId: own.id };
     }
     const tab = tabs.get(action.tabId);
     if (!tab) {
@@ -154,6 +172,10 @@ export function createStandInWindow() {
     },
     /** Opens the tabs a case's note names, under the ids the note gives them. */
     seed(viewing: SessionMessageDataPart.ViewContextDataPart | undefined) {
+      const page = viewing?.page;
+      if (page?.tab !== undefined && page.theirs === true) {
+        theirs.set(page.tab, { at: page.url, id: page.tab, kind: "page" });
+      }
       for (const tab of [
         ...(viewing?.tabs ?? []),
         ...(viewing?.page?.tabs ?? []).map((page) => ({

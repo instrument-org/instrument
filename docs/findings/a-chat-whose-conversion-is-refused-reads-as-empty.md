@@ -16,5 +16,5 @@ For a transient failure that resolves itself on the next launch. For a refusal t
 ## What is already true
 
 - The database is never deleted or moved for a refused chat, so the conversation is recoverable by hand today.
-- The acceptance run converted 392 real chats with no refusal.
+- The acceptance run converted 392 real chats with no refusal, and the first real upgrade (396 chats, checked 2026-10-24) refused none either.
 - A chat that fails for a reason that passes (a locked file, a disk that filled) converts on the next launch with no one involved.

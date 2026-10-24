@@ -67,7 +67,7 @@ This is evidence-backed but not required to land the web-search fix. The current
 
 1. Change the default `maxCharacters` from 50,000 to 20,000 while retaining 50,000 as the schema maximum for an explicit request.
 2. Keep the existing spill file behavior and tell the agent it can request a larger prefix or read the spill file when the first 20,000 characters are insufficient.
-3. Measure whether agents immediately repeat fetches at 50,000. If they do, improve the retrieval guidance or add focused extraction rather than silently lowering the cap again.
+3. Measure whether agents immediately repeat fetches at 50,000. If they do, improve the retrieval guidance or add focused extraction rather than silently lowering the cap again. Checked 2026-10-24 over one install's 398 chats: 9 `web_fetch` calls, none asking for more than the default and none fetching the same address again. Too little use to say more.
 
 No current evidence justifies lowering `read_file`, skill-content, bash, or image limits. Nothing covers their stacking behavior, which is the gap Phase 2 was going to close and no longer does.
 

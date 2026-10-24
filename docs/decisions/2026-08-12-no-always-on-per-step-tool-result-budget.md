@@ -34,4 +34,4 @@ The audit that motivated it also does not describe an overflow. The worst case f
 
 - A step that makes many large calls at once can still spend a large fraction of the window. The per-call caps bound each one; nothing bounds the sum. That is accepted until the context-fit work lands.
 - The trailing half of a trimmed result no longer needs preserving, so the tail-safe truncation helper that existed for it went too. Anything that trims a bounded block in future has to keep the block's closing marker, or every message after it reads as quoted page content.
-- If the per-call caps turn out to be set too high, per-tool clip telemetry is the thing to read, not a step aggregate that no longer exists.
+- If the per-call caps turn out to be set too high, per-tool clip telemetry is the thing to read, not a step aggregate that no longer exists. (That telemetry went with the analytics removal in 2c47cdab0, so nothing reports clips today; a check of the caps needs a log line first.)

@@ -29,4 +29,11 @@ Open first, earliest check first.
 
 | Follow-up | Check after | Status |
 | --- | --- | --- |
+| [Why some Windows differential updates fail](windows-differential-update-failures.md) | next session with the Windows test host on | open, delta size answered |
+| [How often and how long the main thread stalls](main-thread-stalls.md) | 2026-11-07, once stall attribution is fixed | open, signal needs fixing |
+| [Which processes stay busy, and whether tab sleep ended the hidden-tab cost](sustained-cpu-and-tab-sleep.md) | 2026-11-07, after a week on beta 102 | open |
+| [Why Claude account sessions cold-start](claude-account-cold-starts.md) | 2026-11-07, after a week of Claude account chats | open |
 | [Why an agent-browser command sometimes never comes back](stuck-agent-browser-commands.md) | 2026-11-21, after a week on the test hosts | open |
+| [Whether the step and output caps ever trip](step-and-output-caps.md) | 2026-11-21 | open |
+| [Whether ChatGPT citation markers are common enough to strip](chatgpt-citation-marker-rate.md) | 2026-11-21 | open |
+| [A third sighting of the quit-teardown livelock](quit-teardown-livelock.md) | 2026-12-01 | open, passive |

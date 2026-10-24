@@ -34,7 +34,7 @@ Two things to build the step against:
 - **The sweeps run only while the workspace is in the app's own data**, since a folder the person picked was never one of those (`create-workspace-actor.ts`). A move that happened before they ran would leave them skipped for good, so a recorded move waits for the launch that finishes them and is made by the one after (`finishPendingMove`). The step may therefore take a pick at any point; what it must not do is wait for the move itself before letting the person on.
 - **Settings' refusal is not the step's refusal.** Settings › Storage refuses a pick while the workspace is unsettled and says to quit and reopen, which inside onboarding is a dead end. The step either waits for the sweeps with a line about what is happening, or takes the pick and leaves the move to the restart that ends onboarding.
 
-What is unmeasured: how long the conversion takes for a workspace with a few hundred chats. It runs before the pick either way, and only an install that upgraded pays it.
+Measured 2026-10-24 on one real upgrade: converting 396 chats took 5.1 s, and writing their chat folders another 0.4 s. It runs before the pick either way, and only an install that upgraded pays it.
 
 ## When the folder is not there, or cannot be read
 

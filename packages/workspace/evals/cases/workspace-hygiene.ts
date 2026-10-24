@@ -74,7 +74,7 @@ function countFiles(root: string, limit = 100_000): number {
  * what makes it, a virtualenv by any name (it has a `pyvenv.cfg`), or a Cargo
  * `target/`.
  */
-export function dependencyDirsIn(root: string): Found[] {
+function dependencyDirsIn(root: string): Found[] {
   const config = getWorkspaceConfig();
   const skipped = new Set([
     workspaceLayout(root).dataDir,

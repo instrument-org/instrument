@@ -1,4 +1,4 @@
-import { type DefaultTreeAdapterTypes, parse } from "parse5";
+import { type DefaultTreeAdapterTypes, html as markup, parse } from "parse5";
 
 /** How long a page has to answer with its title. */
 const TIMEOUT_MS = 8000;
@@ -133,10 +133,7 @@ function findTitle(
     if (!("tagName" in child)) {
       continue;
     }
-    if (
-      child.tagName === "title" &&
-      child.namespaceURI === "http://www.w3.org/1999/xhtml"
-    ) {
+    if (child.tagName === "title" && child.namespaceURI === markup.NS.HTML) {
       return child;
     }
     const found = findTitle(child);

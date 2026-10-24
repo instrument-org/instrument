@@ -1,6 +1,6 @@
-import { composeAtom, composeKeyOf } from "@/client/atoms/window";
+import { BROWSER_HREF } from "@/client/atoms/window";
+import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
-import { useSetAtom } from "jotai";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
@@ -79,7 +79,6 @@ export function useOpeners({
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
   const queryClient = useQueryClient();
-  const setCompose = useSetAtom(composeAtom);
   const { active } = windowTabs;
   /** The window as an open is placed against, read at the ask. */
   const placing: PlacementContext = {
@@ -444,17 +443,21 @@ export function useOpeners({
       if (group === undefined) {
         return { error: "only a chat can be given a tab." };
       }
-      // The tab leaves the person's own tabs for the chat's, guest and all,
-      // and the window goes to the chat with it up, so the page they were on
-      // is still in front of them. The chat's floating window comes down,
-      // since the chat now fills the window under it.
+      // The window tab that showed the page goes back to the Browser's
+      // start, still a browser of the person's, and the page itself, guest
+      // and all, becomes the chat's tab, up in its pane. Nothing else on
+      // screen moves.
+      const site = theirs.group;
+      const shownIn =
+        site === undefined
+          ? undefined
+          : appTabs.model.tabs.find((tab) => tab.pathname === pageHrefOf(site));
+      if (shownIn) {
+        getTabRouter(shownIn.id)?.history.replace(BROWSER_HREF);
+      }
       windowTabs.moveToGroup(theirs.id, group);
       windowTabs.select(theirs.id);
       setPaneOpen(group, true);
-      setCompose((current) =>
-        current.filter((entry) => composeKeyOf(entry) !== group),
-      );
-      goToChatOf(group);
       return { tabId: theirs.id };
     }
     if (action.kind === "list") {

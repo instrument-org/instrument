@@ -53,7 +53,7 @@ const appWindow: WindowContextValue = {
 };
 
 function renderPage({ atWindowLevel }: { atWindowLevel: boolean }) {
-  const id = StoreId.newSessionId();
+  const id = StoreId.newTabId();
   renderWithProviders(
     <WindowContext value={appWindow}>
       <GroupItem

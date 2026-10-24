@@ -1607,6 +1607,57 @@ describe("ChatStream's developer card for what was on screen", () => {
   });
 });
 
+// A temporary provider error is hidden once a reply of the agent's follows
+// it, which means the turn waited it out; one the turn ended on stays where
+// it happened after the user writes again.
+describe("ChatBubbles and a provider error", () => {
+  const providerError = {
+    error: {
+      classification: "transient",
+      kind: "api-call",
+      message: "fetch failed",
+      name: "AI_APICallError",
+      url: "https://example.com/v1/responses",
+    },
+    finishedAt: new Date(1),
+  };
+
+  it.each([
+    {
+      after: [userMessage("Try again")],
+      drawn: true,
+      name: "keeps one the turn ended on",
+    },
+    {
+      after: [assistantMessage([prose("Done.")], { finishedAt: new Date(2) })],
+      drawn: false,
+      name: "hides one a reply followed",
+    },
+  ])("$name", ({ after, drawn }) => {
+    renderMessages(
+      [
+        userMessage("Add an ellipse"),
+        assistantMessage([], providerError),
+        ...after,
+      ],
+      { presentation: "chat" },
+    );
+
+    expect(screen.queryByText("Provider problem") !== null).toBe(drawn);
+  });
+
+  it("draws the last one as a line with its actions", () => {
+    renderMessages(
+      [userMessage("Add an ellipse"), assistantMessage([], providerError)],
+      { presentation: "chat" },
+    );
+
+    expect(screen.getByRole("alert").textContent).toMatchInlineSnapshot(
+      `"Provider problemTry againDetails"`,
+    );
+  });
+});
+
 // The dots promise a reply: they stand from the user's message until the
 // agent has said something under it, and after that only while a step is
 // writing words; every other kind of working is said under the chat's title.

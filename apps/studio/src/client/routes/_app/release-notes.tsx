@@ -151,7 +151,7 @@ function RouteComponent() {
                 </CardHeader>
                 <CardContent className="border-t border-border/50 px-6 py-6">
                   {release.body ? (
-                    <div className="prose prose-custom prose-sm dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm wrap-break-word">
+                    <div className="prose prose-custom prose-sm wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
                       <Markdown markdown={shortenCompareLinks(release.body)} />
                     </div>
                   ) : (

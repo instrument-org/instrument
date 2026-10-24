@@ -237,7 +237,7 @@ function PermissionAskCard({
       ) : null}
       {/* A chat too narrow for the three in a row stacks them, each the
       card's width, rather than wrapping into a ragged pair. */}
-      <div className="mt-3 flex items-center gap-2 @max-md/asks:flex-col @max-md/asks:items-stretch @max-md/asks:gap-1.5">
+      <div className="mt-3 flex items-center gap-2 @max-xs/asks:flex-col @max-xs/asks:items-stretch @max-xs/asks:gap-1.5">
         {refused ? (
           <MacFixes ask={ask} busy={busy} chatId={chatId} />
         ) : blocked ? (
@@ -256,7 +256,7 @@ function PermissionAskCard({
         )}
         <AnswerButton
           {...choice("declined")}
-          className="ml-auto text-muted-foreground @max-md/asks:ml-0"
+          className="ml-auto text-muted-foreground @max-xs/asks:ml-0"
           variant="ghost"
         >
           {isTab ? "Skip" : isPrivate ? "OK" : "Don’t allow"}

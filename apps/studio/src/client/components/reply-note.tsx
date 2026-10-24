@@ -71,10 +71,10 @@ export function ReplyNote({
             iconClassName,
           )}
         />
-        <span className="min-w-0 flex-1 py-1 leading-snug text-pretty @max-md/note:basis-[calc(100%-1.5rem)]">
+        <span className="min-w-0 flex-1 py-1 leading-snug text-pretty @max-xs/note:basis-[calc(100%-1.5rem)]">
           {children}
         </span>
-        <div className="flex shrink-0 items-center gap-1.5 @max-md/note:ml-6 @max-md/note:pb-1">
+        <div className="flex shrink-0 items-center gap-1.5 @max-xs/note:ml-6 @max-xs/note:pb-1">
           {action}
           {onDismiss && (
             <button

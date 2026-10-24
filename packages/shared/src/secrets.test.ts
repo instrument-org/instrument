@@ -34,6 +34,13 @@ describe("redactSecrets", () => {
     ["AWS access key", `AKIA${run(16, "ABCDEFGHJKLMNPQRSTUVWXYZ234567")}`],
     ["Databricks token", `dapi${run(32, HEX)}`],
     ["Figma token", `figd_${run(44)}`],
+    ["OpenRouter key", `sk-or-v1-${run(64, HEX)}`],
+    ["MiniMax key", `sk-api-${run(80)}`],
+    ["xAI key", `xai-${run(80)}`],
+    ["Cerebras key", `csk-${run(48, "abcdefghijklmnopqrstuvwxyz0123456789")}`],
+    ["Fireworks key", `fw_${run(24)}`],
+    ["API key", `sk-${run(32, HEX)}`],
+    ["API key", `sk-${run(48)}`],
   ])("finds a %s", (label, secret) => {
     expect(redactSecrets(`TOKEN=${secret}\nDEBUG=true`)).toBe(
       `TOKEN=[secret: ${label}]\nDEBUG=true`,
@@ -92,6 +99,8 @@ describe("redactSecrets", () => {
     'access: MountedFolder.Access; key: "disable-model-invocation"',
     "sk-spinner-wave-rect-element is a CSS class",
     "The user's token count went past 120,000 tokens.",
+    "fw_updateconfigurationsettings is a function name",
+    "sk-thisisalongcssclassnamewithoutdigits",
   ])("leaves ordinary code and prose alone: %s", (text) => {
     expect(findSecrets(text)).toEqual([]);
   });

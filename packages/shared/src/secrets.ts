@@ -37,6 +37,11 @@ function isPlaceholder(value: string) {
   );
 }
 
+/** Whether a run has both letters and digits, as a generated key does. */
+function isMixed(value: string) {
+  return /\d/.test(value) && /[A-Za-z]/.test(value);
+}
+
 const SECRET_RULES: readonly SecretRule[] = [
   {
     keywords: ["T3BlbkFJ"],
@@ -50,6 +55,37 @@ const SECRET_RULES: readonly SecretRule[] = [
     keywords: ["sk-ant-"],
     label: "Anthropic key",
     pattern: /(?<!\p{L})sk-ant-[a-z]{3}\d{2}-[A-Za-z0-9_-]{32,}/gu,
+  },
+  // The AI providers the app takes a key for, by the prefix each one's keys
+  // start with (`keyFormat` in ai-gateway's provider metadata). A key the
+  // person pasted into a chat or a `.env` is theirs to keep out of a report.
+  {
+    keywords: ["sk-or-"],
+    label: "OpenRouter key",
+    pattern: /(?<!\p{L})sk-or-v\d+-[A-Za-z0-9]{32,}(?![A-Za-z0-9])/gu,
+  },
+  {
+    keywords: ["sk-api-"],
+    label: "MiniMax key",
+    pattern: /(?<!\p{L})sk-api-[A-Za-z0-9_-]{32,}(?![A-Za-z0-9_-])/gu,
+  },
+  {
+    keywords: ["xai-"],
+    label: "xAI key",
+    pattern: /(?<!\p{L})xai-[A-Za-z0-9]{32,}(?![A-Za-z0-9])/gu,
+    plausible: isMixed,
+  },
+  {
+    keywords: ["csk-"],
+    label: "Cerebras key",
+    pattern: /(?<!\p{L})csk-[A-Za-z0-9]{32,}(?![A-Za-z0-9])/gu,
+    plausible: isMixed,
+  },
+  {
+    keywords: ["fw_"],
+    label: "Fireworks key",
+    pattern: /(?<!\p{L})fw_[A-Za-z0-9]{20,}(?![A-Za-z0-9])/gu,
+    plausible: isMixed,
   },
   {
     keywords: ["gsk_"],
@@ -245,6 +281,14 @@ const SECRET_RULES: readonly SecretRule[] = [
     pattern:
       /["'`]?(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)["'`]?\s*[:=]\s*["'`]([^"'`\s]{16,})["'`]/gi,
     plausible: (secret) => !isPlaceholder(secret),
+  },
+  {
+    // Last, so a key a rule above names keeps its own label: an older OpenAI
+    // key, and DeepSeek's and OpenCode Zen's, are `sk-` and a run.
+    keywords: ["sk-"],
+    label: "API key",
+    pattern: /(?<!\p{L})sk-[A-Za-z0-9]{32,}(?![A-Za-z0-9])/gu,
+    plausible: isMixed,
   },
 ];
 

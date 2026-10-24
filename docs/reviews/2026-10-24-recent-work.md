@@ -17,7 +17,7 @@ The starting point is the head the 10-22 review recorded. Five blind readers too
 
 ### B. The secret rules miss the key formats Instrument's own providers use
 
-- Status: open
+- Status: fixed `30ce660da`
 - Where: [secrets.ts:40](/packages/shared/src/secrets.ts#L40), [secret-scan.ts:89](/packages/workspace/src/lib/apps/secret-scan.ts#L89)
 - What: `findSecrets` has no rule for `sk-or-` (OpenRouter), `xai-` (Grok), `csk-` (Cerebras), `fw_` (Fireworks), `sk-api-` (MiniMax), or a plain `sk-` key (DeepSeek, OpenCode Zen, older OpenAI keys); its OpenAI rule needs `T3BlbkFJ`. These are the formats `ai-gateway`'s provider metadata lists for bring-your-own-key. So `cat .env` with an OpenRouter key reaches a problem report's chat files and the app log unredacted, `memory save` and `app guide` accept it, and an app folder holding it passes the scan that the old `\bsk-[\w-]{16,}\b` pattern, dropped in `4da821ad5`, used to catch.
 - Verification: the secrets reader's probe got `[]` from `findSecrets` for each format. The rule list and the removed pattern were confirmed by reading.
@@ -44,7 +44,7 @@ The starting point is the head the 10-22 review recorded. Five blind readers too
 
 ### E. A Windows home folder with a space or accent survives in a crash report's raw stack
 
-- Status: open
+- Status: fixed `5def57dcd`
 - Where: [home-folder.ts:10](/packages/shared/src/home-folder.ts#L10), [build-event.ts:125](/packages/shared/src/exceptions/build-event.ts#L125)
 - What: renderer stack frames spell the home as a percent-encoded `file:///C:/Users/Jos%C3%A9%20Garc%C3%ADa/...`. `homeSpellings` has no encoded spelling, so the parsed frames come out as `~/...` (the parser decodes them) while `rawStack` keeps the full path and the account name, the leak `ec4781796` set out to close.
 - Verification: the secrets reader's probe showed `rawStack` with the encoded path; the missing spelling was confirmed by reading.
@@ -53,7 +53,7 @@ The starting point is the head the 10-22 review recorded. Five blind readers too
 
 ### F. The log-in dialog counts a sign-in from an earlier opening as finishing the next one
 
-- Status: open
+- Status: fixed `b99f7f162`
 - Where: [login-modal.tsx:46](/apps/studio/src/client/components/studio-modals/login-modal.tsx#L46)
 - What: `signedIn` is a ref on the once-mounted modal, cleared only in `complete()`. `onDismiss` calls `setState(null)` directly, so after a Google sign-in that ends on the plan pages and leaves by Back then Done, the next caller to open the dialog gets its `onCompleted` when the person merely closes it: a tool card flips to Retry or Settings reopens unasked.
 - Verification: the sign-in reader's probe rendered the real modal and saw the second opening's `onCompleted` fire on close; the missing reset was confirmed by reading.
@@ -67,6 +67,7 @@ The starting point is the head the 10-22 review recorded. Five blind readers too
 - What: Electron on Windows answers `restricted` when system-wide microphone access is off. The card for `restricted` has no button, says "This Mac doesn't allow it.", and hides the microphone, language and sound settings. If Windows answers `not-determined`, Allow does nothing off macOS and the card never clears.
 - Verification: static trace and Electron's Windows source only; not run on Windows. Medium confidence.
 - History: `bafc2b9b5`, which carries `Not-tested: the Windows card and toast on a real Windows host`.
+- Note: `461e4bab2` names the computer from the OS conventions in place of "This Mac"; the card offering no way forward on Windows waits for a check on the Windows test host.
 
 ### H. Nits
 

@@ -112,4 +112,33 @@ describe("dialog sizing under zoom", () => {
 
     expect(rectOf(screen, "dialog-content").width).toBe(expected);
   });
+
+  // A line that truncates (a long path, say) has a min-content width as long as
+  // its whole text, so a dialog laid out on an `auto` column widens to it and
+  // clips everything past its own edge, the buttons included.
+  it.each([
+    ["dialog-content", Dialog, DialogContent, DialogTitle],
+    ["alert-dialog-content", AlertDialog, AlertDialogContent, AlertDialogTitle],
+  ] as const)(
+    "keeps a truncating line inside %s",
+    async (slot, Root, Content, Title) => {
+      const screen = await renderAtZoom(
+        <Root open>
+          <Content aria-describedby={undefined} maxWidth="20rem">
+            <Title>Narrow</Title>
+            <div className="space-y-1">
+              <div className="flex min-w-0">
+                <span className="truncate">{"Folder/".repeat(40)}</span>
+              </div>
+            </div>
+          </Content>
+        </Root>,
+        1,
+      );
+      const content = screen.container.ownerDocument.querySelector(
+        `[data-slot='${slot}']`,
+      );
+      expect(content?.scrollWidth).toBe(content?.clientWidth);
+    },
+  );
 });

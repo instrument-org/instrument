@@ -272,6 +272,25 @@ function createValidateProductionEnv(
   };
 }
 
+// react-xlsx parses a workbook's XML in its worker only when `DOMParser`
+// exists there, which it never does in a worker. This prepends the module that
+// supplies one to the worker's entry, in dev (where the worker is served as a
+// module) and in the build (where it is bundled through `worker.plugins`).
+function xlsxWorkerDom(): Plugin {
+  const shim = path.resolve(
+    "src/client/components/document-viewers/xlsx-worker-dom.ts",
+  );
+  return {
+    name: "xlsx-worker-dom",
+    transform(code, id) {
+      if (!/@extend-ai[/\\]react-xlsx[/\\]dist[/\\]xlsx-worker\.js$/.test(id)) {
+        return null;
+      }
+      return { code: `import ${JSON.stringify(shim)};\n${code}`, map: null };
+    },
+  };
+}
+
 // just-bash starts its `sqlite3` WebAssembly runtime in a worker it finds
 // beside its own module (`sqlite3-worker.js`), so it has to run from its own
 // package folder. The build externalizes it with the
@@ -457,6 +476,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
           "@extend-ai/react-docx > utif",
           "@extend-ai/react-pptx > regl",
           "@extend-ai/react-xlsx > regl",
+          "@xmldom/xmldom",
           "react-dom/server",
         ],
         rolldownOptions: {
@@ -487,6 +507,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         react(),
         reactCompilerBabel,
         tailwindcss(),
+        xlsxWorkerDom(),
         ...(isProduction ? [recordBundledPackages("renderer")] : []),
       ],
       resolve,
@@ -505,7 +526,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
       // The document viewers' parser workers are module workers whose entries
       // code-split, which the default IIFE worker format cannot express, so the
       // build fails without this.
-      worker: { format: "es" },
+      worker: { format: "es", plugins: () => [xlsxWorkerDom()] },
     },
   };
 });

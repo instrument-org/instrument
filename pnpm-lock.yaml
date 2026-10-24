@@ -540,6 +540,9 @@ importers:
       '@vitest/browser-playwright':
         specifier: ^5.0.3
         version: 5.0.3(msw@2.7.5(@types/node@24.13.1)(typescript@7.0.2))(playwright@1.57.0)(vite@8.3.4(@types/node@24.13.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.39.0)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.3)
+      '@xmldom/xmldom':
+        specifier: 0.9.12
+        version: 0.9.12
       '@zip.js/zip.js':
         specifier: ^2.8.14
         version: 2.8.14
@@ -4997,6 +5000,10 @@ packages:
     resolution: {integrity: sha512-2WALfTl4xo2SkGCYRt6rDTFfk9R1czmBvUQy12gK2KuRKIpWEhcbbzy8EZXtz/jkRqHX8bFEc6FC1HjX4TUWYw==}
     engines: {node: '>=10.0.0'}
     deprecated: this version has critical issues, please update to the latest version
+
+  '@xmldom/xmldom@0.9.12':
+    resolution: {integrity: sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A==}
+    engines: {node: '>=14.6'}
 
   '@zip.js/zip.js@2.8.14':
     resolution: {integrity: sha512-BZ7OyJLA5cjYwf2jVjvZCK10swzIc6sDOLpkPjJXfXgx/IHF5y61PyL3Ko5/q3bUU5GvIhk6tzKDUcDJ7rhzbg==}
@@ -13432,6 +13439,8 @@ snapshots:
   '@workflow/serde@4.1.0': {}
 
   '@xmldom/xmldom@0.8.10': {}
+
+  '@xmldom/xmldom@0.9.12': {}
 
   '@zip.js/zip.js@2.8.14': {}
 

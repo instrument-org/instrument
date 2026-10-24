@@ -1,4 +1,5 @@
 import { MacAppIcon } from "@/client/components/mac-app-icon";
+import { PageFavicon } from "@/client/components/favicon";
 import { rpcClient } from "@/client/rpc/client";
 import { FolderRow } from "@/client/components/folder-row";
 import { isInside, segmentsOf } from "@/client/components/window/host-path";
@@ -14,7 +15,6 @@ import { useEffect, useState } from "react";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { privacyPaneForApp } from "@/client/lib/privacy-pane";
 import { cn } from "@/client/lib/utils";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
@@ -210,7 +210,11 @@ function PermissionAskCard({
       ) : isTab ? (
         <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2">
           <span className="grid size-8 shrink-0 place-items-center text-muted-foreground">
-            <GlobeIcon className="size-5" />
+            <PageFavicon
+              className="size-5"
+              hasTooltip={false}
+              url={ask.page?.url}
+            />
           </span>
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-sm">
@@ -531,7 +535,11 @@ export function PermissionAnswerNote({
     const page = `“${data.page?.title || hostOf(data.page?.url) || "your tab"}”`;
     return (
       <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <GlobeIcon className="size-3.5 shrink-0" />
+        <PageFavicon
+          className="size-3.5"
+          hasTooltip={false}
+          url={data.page?.url}
+        />
         <span>
           {data.answer === "allowed"
             ? `You moved ${page} into this chat.`

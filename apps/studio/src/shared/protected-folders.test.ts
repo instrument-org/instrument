@@ -26,6 +26,11 @@ describe("isProtectedFolder", () => {
     ["/private/tmp", true],
     ["/private/var/folders/xy/T/files-route-1", false],
     ["/tmp/scratch", false],
+    ["/Users/mac-user//Documents", true],
+    ["/Users/mac-user/Desktop/../Documents", true],
+    ["/Users/mac-user/Documents/.", true],
+    ["/System/Volumes/Data/Users/mac-user", true],
+    ["/System/Volumes/Data/Users/mac-user/code/project", false],
   ])("on a Mac, %s is %s", (path, expected) => {
     expect(
       isProtectedFolder(path, { home: "/Users/mac-user", os: "mac" }),
@@ -44,6 +49,14 @@ describe("isProtectedFolder", () => {
     ["\\\\server\\share", true],
     ["C:\\Users\\windows-user\\Documents\\Taxes", false],
     ["\\\\server\\share\\folder", false],
+    ["C:\\Users\\windows-user\\Desktop\\..", true],
+    ["\\\\?\\C:\\Users\\windows-user", true],
+    ["C:\\Users\\windows-user\\Desktop.", true],
+    ["C:\\Users", true],
+    ["D:\\Users\\Public", true],
+    ["C:\\Users\\windows-user\\OneDrive - Example Corp", true],
+    ["C:\\Users\\windows-user\\OneDrive - Example Corp\\Reports", false],
+    ["C:\\Users\\windows-user\\iCloudDrive", true],
   ])("on Windows, %s is %s", (path, expected) => {
     expect(
       isProtectedFolder(path, {

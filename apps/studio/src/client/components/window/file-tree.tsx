@@ -27,7 +27,12 @@ import { useAtomValue } from "jotai";
 import { ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { fileActionFailed, FolderMenu, refusalLine } from "./computer-page";
+import {
+  fileActionFailed,
+  FolderMenu,
+  isKeptInPlace,
+  refusalLine,
+} from "./computer-page";
 import { useWindow } from "./context";
 import { isInside, segmentsOf } from "./host-path";
 
@@ -144,6 +149,7 @@ export function FileTree({
       </ContextMenuTrigger>
       <FolderMenu
         item={menuItem}
+        kept={menuHostPath !== "" && isKeptInPlace(menuHostPath)}
         onCopy={() => {
           run("Couldn't copy that", () =>
             rpcClient.files.copyToClipboard.call({ paths: [menuHostPath] }),

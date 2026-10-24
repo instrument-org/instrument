@@ -1,6 +1,6 @@
 import { call, os } from "@orpc/server";
 import fs from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -92,6 +92,15 @@ vi.mock(
   }),
 );
 
+// The home folder, a folder of the test's own, so a refusal that failed
+// would change that one and never the developer's.
+const fakeHome = vi.hoisted(() => ({ path: "/nowhere/home" }));
+vi.mock("node:os", async (importOriginal) => {
+  const real = await importOriginal<typeof import("node:os")>();
+  const homedir = () => fakeHome.path;
+  return { ...real, default: { ...real, homedir }, homedir };
+});
+
 // The folder the workspace is kept in, which a test sets.
 const workspace = vi.hoisted(() => ({ folder: "/nowhere/workspace" }));
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
@@ -109,6 +118,7 @@ beforeEach(async () => {
 afterEach(async () => {
   closedFolders.length = 0;
   workspace.folder = "/nowhere/workspace";
+  fakeHome.path = "/nowhere/home";
   protection.block = undefined;
   await fs.rm(dir, { force: true, recursive: true });
 });
@@ -130,23 +140,50 @@ it("neither reads nor writes the app's own data", async () => {
 });
 
 it("leaves the home folder and the workspace's folder where they are", async () => {
+  const home = path.join(dir, "Users", "mac-user");
+  fakeHome.path = home;
+  await fs.mkdir(path.join(home, "Documents"), { recursive: true });
+  // The home folder's Documents reached through a link to the folder above it.
+  await fs.symlink(path.join(dir, "Users"), path.join(dir, "disk"));
+  const linked = path.join(dir, "disk", "mac-user", "Documents");
   const around = path.join(dir, "projects");
   workspace.folder = path.join(around, "Instrument");
   await fs.mkdir(workspace.folder, { recursive: true });
   const into = path.join(dir, "elsewhere");
   await fs.mkdir(into);
 
+  // Each made only when the one before it is refused, so a refusal that
+  // failed leaves the rest unsent.
   for (const attempt of [
-    call(files.rename, { name: "Gone", path: homedir() }, options),
-    call(files.duplicate, { path: homedir() }, options),
-    call(files.trash, { path: homedir() }, options),
-    call(files.rename, { name: "Moved", path: around }, options),
-    call(files.moveInto, { folder: into, paths: [around] }, options),
-    call(files.trash, { path: workspace.folder }, options),
+    () => call(files.rename, { name: "Gone", path: home }, options),
+    () => call(files.duplicate, { path: home }, options),
+    () => call(files.trash, { path: `${home}/Desktop/../Documents/` }, options),
+    () => call(files.rename, { name: "Gone", path: linked }, options),
+    () =>
+      call(
+        files.copyInto,
+        {
+          folder: path.join(dir, "disk", "mac-user"),
+          paths: [path.join(dir, "elsewhere", "Documents")],
+          resolutions: {
+            [path.join(dir, "elsewhere", "Documents")]: "replace",
+          },
+        },
+        options,
+      ),
+    () => call(files.rename, { name: "Moved", path: around }, options),
+    () => call(files.moveInto, { folder: into, paths: [around] }, options),
+    () => call(files.trash, { path: workspace.folder }, options),
   ]) {
-    await expect(attempt).rejects.toMatchObject({ code: "PROTECTED" });
+    await expect(attempt()).rejects.toMatchObject({ code: "PROTECTED" });
   }
-  expect(await fs.readdir(dir)).toEqual(["elsewhere", "projects"]);
+  expect(await fs.readdir(dir)).toEqual([
+    "Users",
+    "disk",
+    "elsewhere",
+    "projects",
+  ]);
+  expect(await fs.readdir(home)).toEqual(["Documents"]);
   expect(await fs.readdir(around)).toEqual(["Instrument"]);
 });
 

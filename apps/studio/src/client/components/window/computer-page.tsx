@@ -3332,7 +3332,7 @@ function macosAsksFirst(hostPath: string) {
 }
 
 /** One of the computer's own folders, which Files never trashes, renames, duplicates or moves. */
-function isKeptInPlace(item: FileSystemItem | string) {
+export function isKeptInPlace(item: FileSystemItem | string) {
   const hostPath = typeof item === "string" ? item : hostPathOfItem(item);
   return (
     hostPath !== "" &&

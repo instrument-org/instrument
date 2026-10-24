@@ -38,7 +38,7 @@ import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { pageConnection } from "@/client/lib/page-connection";
-import { cn } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type WindowShortcutId } from "@/shared/window-shortcuts";
 import { expandHomePath } from "@instrument-org/shared";
@@ -169,9 +169,11 @@ export function TabLocationRow({
           openIn && "pr-2",
         )}
         onPointerDown={(event) => {
-          // Only a primary press edits: a right press on the place is its menu.
+          // Only a primary press edits: a right press on the place is its
+          // menu, and so is a Control press on a Mac.
           if (
             event.button !== 0 ||
+            (event.ctrlKey && isMacOS()) ||
             (event.target instanceof Element && event.target.closest("button"))
           ) {
             return;

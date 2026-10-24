@@ -120,9 +120,24 @@ const PROTECTED_ERRORS = {
   },
 } as const;
 
-/** Why a path is left alone, as the person reads it, or undefined when it may change. */
-async function keptInPlace(at: string): Promise<string | undefined> {
-  if (isProtectedFolder(at, { home: os.homedir(), os: OS })) {
+/**
+ * Why a path is left alone, as the person reads it, or undefined when it may
+ * change. It is judged as spelled and as reached, the folders above it (and
+ * the home folder) followed through their links (`/Volumes/Macintosh HD` is the boot disk's
+ * top), while the last name stays itself: a link is only a link.
+ */
+async function keptInPlace(asked: string): Promise<string | undefined> {
+  const at = path.resolve(asked);
+  const reached = await fs.realpath(path.dirname(at)).then(
+    (folder) => path.join(folder, path.basename(at)),
+    () => at,
+  );
+  const home = os.homedir();
+  const reachedHome = await fs.realpath(home).catch(() => home);
+  if (
+    isProtectedFolder(at, { home, os: OS }) ||
+    isProtectedFolder(reached, { home: reachedHome, os: OS })
+  ) {
     return PROTECTED_ERRORS.PROTECTED.message;
   }
   const isLink = await fs.lstat(at).then(

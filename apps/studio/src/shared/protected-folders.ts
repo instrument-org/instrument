@@ -15,31 +15,42 @@ import { type Os } from "./os-conventions";
  */
 export function isProtectedFolder(
   hostPath: string,
-  { home, os }: { home: string; os: Os },
+  facts: { home: string; os: Os },
 ): boolean {
+  const { home, os } = facts;
   const windows = os === "windows";
   const separator = windows ? "\\" : "/";
-  // The Mac's disks and Windows' compare names whatever their case, so a
-  // path typed in another case is the same folder.
-  const key = (path: string) => {
-    const trimmed =
-      path.length > 1 && path.endsWith(separator) && !/^[a-z]:\\$/i.test(path)
-        ? path.slice(0, -1)
-        : path;
-    return os === "linux" ? trimmed : trimmed.toLowerCase();
-  };
-  const at = key(windows ? hostPath.replaceAll("/", "\\") : hostPath);
+  const at = normalized(hostPath, os);
+  // The Mac's data volume shows the same folders again under its own path.
+  const onData = os === "mac" && /^\/system\/volumes\/data(\/.*)?$/.exec(at);
+  if (onData) {
+    return onData[1] === undefined || isProtectedFolder(onData[1], facts);
+  }
   const join = (...parts: string[]) => parts.join(separator);
-  const homeKey = key(home);
+  const homeKey = normalized(home, os);
   const fixed = [...EXACT[os], ...HOME[os].map((name) => join(home, name))];
-  if (at === homeKey || fixed.some((path) => key(path) === at)) {
+  if (at === homeKey || fixed.some((path) => normalized(path, os) === at)) {
+    return true;
+  }
+  // OneDrive names a work account's folder for the organization.
+  if (
+    windows &&
+    at.startsWith(`${homeKey}\\onedrive - `) &&
+    !at.slice(homeKey.length + 1).includes("\\")
+  ) {
     return true;
   }
   // Windows' own folders are on whichever drive it was installed on.
   const onDrive = windows ? at.replace(/^[a-z]:/, "") : at;
   if (
+    windows &&
+    WINDOWS_ANY_DRIVE.some((path) => path.toLowerCase() === onDrive)
+  ) {
+    return true;
+  }
+  if (
     INSIDE[os].some((root) => {
-      const rootKey = key(root);
+      const rootKey = normalized(root, os);
       return (
         onDrive === rootKey || onDrive.startsWith(`${rootKey}${separator}`)
       );
@@ -50,17 +61,54 @@ export function isProtectedFolder(
   // A drive's top on Windows, and each place a disk or a cloud drive is
   // attached: its folder is the whole of it.
   if (windows) {
-    return /^[a-z]:\\?$/.test(at) || /^\\\\[^\\]+\\[^\\]+$/.test(at);
+    return /^[a-z]:\\$/.test(at) || /^\\\\[^\\]+\\[^\\]+$/.test(at);
   }
   return ATTACHED[os].some(({ at: parent, depth }) => {
-    const parentKey = key(
+    const parentKey = normalized(
       parent.startsWith("~") ? home + parent.slice(1) : parent,
+      os,
     );
     if (!at.startsWith(`${parentKey}/`)) {
       return false;
     }
     return at.slice(parentKey.length + 1).split("/").length <= depth;
   });
+}
+
+/**
+ * A path the one way it can be spelled, so a folder is known however it was
+ * written: `.` and `..` walked, doubled and trailing separators gone, and on
+ * Windows the long-path prefix dropped, `/` read as `\`, and the dots and
+ * spaces Windows ignores at a name's end taken off. The Mac's disks and
+ * Windows' compare names whatever their case, so there it is lowercased.
+ */
+function normalized(hostPath: string, os: Os): string {
+  if (os !== "windows") {
+    const names: string[] = [];
+    for (const name of hostPath.split("/")) {
+      if (name === "..") {
+        names.pop();
+      } else if (name !== "" && name !== ".") {
+        names.push(name);
+      }
+    }
+    const path = `/${names.join("/")}`;
+    return os === "mac" ? path.toLowerCase() : path;
+  }
+  const spelled = hostPath.replaceAll("/", "\\").replace(/^\\\\[?.]\\/, "");
+  const drive = /^[a-z]:/i.exec(spelled)?.[0];
+  const isShare = drive === undefined && spelled.startsWith("\\\\");
+  const names: string[] = [];
+  for (const raw of spelled.slice(drive?.length ?? 0).split("\\")) {
+    const name = raw === "." || raw === ".." ? raw : raw.replace(/[. ]+$/, "");
+    if (name === "..") {
+      names.pop();
+    } else if (name !== "" && name !== ".") {
+      names.push(name);
+    }
+  }
+  const lead = drive ? `${drive}\\` : isShare ? "\\\\" : "\\";
+  return `${lead}${names.join("\\")}`.toLowerCase();
 }
 
 /** The folders that are protected themselves, by their whole path. */
@@ -94,6 +142,9 @@ const EXACT: Record<Os, string[]> = {
   ],
   windows: [],
 };
+
+/** Folders protected themselves on whichever drive they are, by their path past it. */
+const WINDOWS_ANY_DRIVE = ["\\Users", "\\Users\\Public"];
 
 /** The folders protected along with everything in them: the system's own. */
 const INSIDE: Record<Os, string[]> = {
@@ -174,6 +225,7 @@ const HOME: Record<Os, string[]> = {
     "Documents",
     "Downloads",
     "Favorites",
+    "iCloudDrive",
     "Links",
     "Music",
     "OneDrive",

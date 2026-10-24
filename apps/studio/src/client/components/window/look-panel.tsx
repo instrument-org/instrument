@@ -1,5 +1,10 @@
-import { type FileTab } from "@/client/atoms/window";
+import { computerHiddenFilesAtom, type FileTab } from "@/client/atoms/window";
+import {
+  FileSystemFolderGlyph,
+  formatTimestamp,
+} from "@/client/components/extend/file-system";
 import { FileViewer } from "@/client/components/file-viewer";
+import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,10 +15,15 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { dialogMaxSize } from "@/client/hooks/use-app-zoom";
-import { useAtom } from "jotai";
+import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
+import { WINDOW_ID } from "@instrument-org/workspace/client";
+import { XIcon } from "@phosphor-icons/react/X";
+import { useQuery } from "@tanstack/react-query";
+import { useAtom, useAtomValue } from "jotai";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
-import { lookAtAtom, type LookTarget } from "./look-at";
+import { type LookFolder, lookAtAtom, type LookTarget } from "./look-at";
 import { useHostedPage } from "./hosted-page";
 
 /** The group a page looked at is kept under while the panel is up, off every strip. */
@@ -58,9 +68,13 @@ export function LookPanel({
   if (target !== null && target !== last) {
     setLast(target);
   }
-  const lastFile = last?.tab ?? null;
-  const file =
-    target?.tab ?? (lastFile && !isPageFile(lastFile.name) ? lastFile : null);
+  const shown =
+    target ??
+    (last && !(last.kind === "file" && isPageFile(last.tab.name))
+      ? last
+      : null);
+  const file = shown?.kind === "file" ? shown.tab : null;
+  const folder = shown?.kind === "folder" ? shown.folder : null;
   // Watched while the panel is up, so a write shows in it.
   const fileUrl = useWatchedFileUrl(file?.hostPath);
   const pageUrl =
@@ -72,9 +86,9 @@ export function LookPanel({
   const [video, setVideo] = useState<VideoShape | null>(null);
   const videoShape = video && video.hostPath === file?.hostPath ? video : null;
   // Read from the element's own callbacks, which are made once per panel.
-  const latest = useRef({ file, from, pageUrl });
+  const latest = useRef({ file, from, pageUrl, shown });
   useLayoutEffect(() => {
-    latest.current = { file, from, pageUrl };
+    latest.current = { file, from, pageUrl, shown };
   });
   const content = useRef<HTMLDivElement | null>(null);
   const setContent = (node: HTMLDivElement | null) => {
@@ -113,7 +127,7 @@ export function LookPanel({
   };
   useLayoutEffect(() => {
     const node = content.current;
-    if (!open && node && latest.current.file) {
+    if (!open && node && latest.current.shown) {
       flyFrom(node, latest.current.from?.(), "exit");
     }
   }, [open]);
@@ -135,16 +149,22 @@ export function LookPanel({
         // none to grow from or for a page: a page is drawn over the panel's
         // box where it is measured, and a box still growing would put the
         // page where the panel is not yet.
-        className="z-45 h-full gap-0 p-0 ease-[cubic-bezier(0.2,0.8,0.2,1)] outline-none [--guest-bottom-radius:var(--radius-3xl)] data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100"
+        className={cn(
+          "z-45 gap-0 p-0 ease-[cubic-bezier(0.2,0.8,0.2,1)] outline-none [--guest-bottom-radius:var(--radius-3xl)] data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100",
+          // A folder's card is as tall as what it says.
+          !folder && "h-full",
+        )}
         // Most of the window, the way Quick Look fills it, whatever the zoom.
         maxHeight={LOOK_HEIGHT}
         // A document's shape rather than the window's: on a wide screen
         // the panel would otherwise stretch a page into a banner. A video
         // takes its own shape, the way the Finder's Quick Look sizes one.
         maxWidth={
-          videoShape
-            ? videoWidth(videoShape)
-            : "min(calc(88vw / var(--content-zoom)), calc(85vh * 1.25 / var(--content-zoom)), 64rem)"
+          folder
+            ? "30rem"
+            : videoShape
+              ? videoWidth(videoShape)
+              : "min(calc(88vw / var(--content-zoom)), calc(85vh * 1.25 / var(--content-zoom)), 64rem)"
         }
         ref={setContent}
         {...(videoShape ? { style: { height: videoHeight(videoShape) } } : {})}
@@ -173,7 +193,10 @@ export function LookPanel({
         // The viewer's own head closes it, beside the file's actions.
         showCloseButton={false}
       >
-        <DialogTitle className="sr-only">{file?.name ?? "Preview"}</DialogTitle>
+        <DialogTitle className="sr-only">
+          {(file ?? folder)?.name ?? "Preview"}
+        </DialogTitle>
+        {folder ? <FolderCard folder={folder} onClose={onClose} /> : null}
         {file && fileUrl !== undefined ? (
           <FileViewer
             className="h-full"
@@ -198,6 +221,66 @@ export function LookPanel({
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * A folder, the way the Finder's Quick Look shows one: its icon beside its
+ * name, how many items it has and when it was last changed. Its size is
+ * left out, since knowing it means walking everything inside.
+ */
+function FolderCard({
+  folder,
+  onClose,
+}: {
+  folder: LookFolder;
+  onClose: () => void;
+}) {
+  const showHidden = useAtomValue(computerHiddenFilesAtom);
+  // The listing the folder opens with, so looking first makes opening it quicker.
+  const listing = useQuery(
+    rpcClient.workspace.computer.list.queryOptions({
+      input: { id: WINDOW_ID, path: folder.hostPath },
+      retry: false,
+    }),
+  );
+  const data = listing.data;
+  const count =
+    data?.kind === "listing"
+      ? data.entries.filter((entry) => showHidden || !entry.hidden).length
+      : undefined;
+  const modified = formatTimestamp(folder.modifiedAt);
+  return (
+    <div className="relative flex items-center gap-5 p-6 pr-12">
+      <FileSystemFolderGlyph
+        className="size-24 shrink-0"
+        {...(folder.glyphSrc ? { src: folder.glyphSrc } : {})}
+      />
+      <div className="min-w-0 space-y-1">
+        <div className="truncate text-base font-semibold">{folder.name}</div>
+        <div className="text-sm text-muted-foreground">
+          {count === undefined
+            ? data?.kind === "refused"
+              ? "Can’t be read"
+              : "Folder"
+            : `${count.toLocaleString()}${data?.kind === "listing" && data.truncated ? "+" : ""} ${count === 1 ? "item" : "items"}`}
+        </div>
+        {modified ? (
+          <div className="text-sm text-muted-foreground">
+            Modified {modified}
+          </div>
+        ) : null}
+      </div>
+      <Button
+        aria-label="Close"
+        className="absolute top-3 right-3"
+        onClick={onClose}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <XIcon className="size-4" />
+      </Button>
+    </div>
   );
 }
 

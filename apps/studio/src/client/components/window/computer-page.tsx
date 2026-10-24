@@ -140,6 +140,7 @@ import { PlaceMenu } from "./place-menu";
 import { FileThumbnail } from "./file-thumbnail";
 import { ComputerOverview } from "./computer-overview";
 import { FolderMark } from "./folder-mark";
+import { lookPathOf, type LookTarget } from "./look-at";
 import { FolderNameMenu } from "./folder-name-menu";
 import { GlyphButton } from "./glyph-button";
 import {
@@ -313,9 +314,9 @@ export function ComputerPage({
   /** A file the user opened, when a granted folder covers it. */
   onOpenFile: (file: FileTab) => void;
   /** The selected file, on Space. Left out, Space is not watched for at all. */
-  onQuickLook?: (file: FileTab, from?: () => Element | null) => void;
+  onQuickLook?: (target: LookTarget, from?: () => Element | null) => void;
   /** The file the selection moved to while Quick Look is up, for it to show. */
-  onQuickLookFollow?: (file: FileTab, from?: () => Element | null) => void;
+  onQuickLookFollow?: (target: LookTarget, from?: () => Element | null) => void;
   path: string;
   /** What the folder opens searched for: this step's search, from the address. */
   query?: string;
@@ -1613,10 +1614,10 @@ export function ComputerPage({
     onOpenFile(tab);
   };
 
-  // Space on a selected file, the way the Finder shows one over everything.
-  const selectedFile = selectedItem?.kind === "file" ? selectedItem : undefined;
-  const quickLookTab = selectedFile ? fileTabOf(selectedFile) : undefined;
-  const quickLookKey = quickLookTab?.hostPath;
+  // Space on a selected file or folder, the way the Finder shows one over
+  // everything.
+  const quickLookTab = selectedItem ? lookTargetOf(selectedItem) : undefined;
+  const quickLookKey = quickLookTab && lookPathOf(quickLookTab);
   useEffect(() => {
     // No panel to show one in, no key taken from the rest of the page, and
     // none from a tab that is not up.
@@ -1974,20 +1975,20 @@ export function ComputerPage({
     onOpenInNewTab: () => {
       openInTabs(item ? [item] : [], { behind: true });
     },
-    onQuickLook:
-      onQuickLook &&
-      (() => {
-        const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
-        if (tab) {
-          onQuickLook(tab, () =>
-            item
-              ? (browserRef.current?.querySelector(
+    onQuickLook: (() => {
+      const target = item ? lookTargetOf(item) : undefined;
+      return onQuickLook && item && target
+        ? () => {
+            onQuickLook(
+              target,
+              () =>
+                browserRef.current?.querySelector(
                   `[data-file-system-item="${CSS.escape(item.path)}"]`,
-                ) ?? null)
-              : null,
-          );
-        }
-      }),
+                ) ?? null,
+            );
+          }
+        : undefined;
+    })(),
     onShowPackageContents: (() => {
       const packagePath = hostPathOfItem(item);
       return packagePath && packagePaths.has(packagePath)
@@ -3054,7 +3055,7 @@ function FolderMenuItems({
             <span>Duplicate</span>
             {keys.duplicate ? <Shortcut>{keys.duplicate}</Shortcut> : null}
           </Item>
-          {file && onQuickLook ? (
+          {!several && onQuickLook ? (
             <Item onClick={onQuickLook}>
               <EyeIcon className="size-4" />
               <span>Preview</span>
@@ -3747,6 +3748,27 @@ function selectedRowIn(browser: HTMLElement | null) {
     browser?.querySelector<HTMLElement>('[role="option"][tabindex="0"]') ??
     null
   );
+}
+
+/** What Quick Look shows for an item: a file as its tab, a folder as its card. */
+function lookTargetOf(item: FileSystemItem): LookTarget | undefined {
+  if (item.kind === "file") {
+    const tab = fileTabOf(item);
+    return tab && { kind: "file", tab };
+  }
+  const hostPath = hostPathOfItem(item);
+  if (!hostPath) {
+    return;
+  }
+  return {
+    folder: {
+      ...(item.glyphSrc ? { glyphSrc: item.glyphSrc } : {}),
+      hostPath,
+      ...(item.updatedAt ? { modifiedAt: item.updatedAt } : {}),
+      name: item.name ?? folderNameFromPath(hostPath),
+    },
+    kind: "folder",
+  };
 }
 
 function fileTabOf(file: FileSystemFileItem): FileTab | undefined {

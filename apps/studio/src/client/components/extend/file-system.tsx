@@ -739,7 +739,8 @@ const TIME_FORMAT = new Intl.DateTimeFormat(displayLocale, {
   hour: "numeric",
   minute: "2-digit",
 });
-function formatTimestamp(value: string | undefined) {
+/** A time as the Information table says it: `Oct 24, 2026 at 11:11 AM`. */
+export function formatTimestamp(value: string | undefined) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;

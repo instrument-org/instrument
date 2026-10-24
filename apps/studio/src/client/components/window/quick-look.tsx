@@ -1,10 +1,11 @@
 import { type FileTab } from "@/client/atoms/window";
 import { type ReactNode, useRef, useState } from "react";
 
+import { lookPathOf, type LookTarget } from "./look-at";
 import { LookPanel } from "./look-panel";
 
 /**
- * Space on a selected file, showing it over the whole window the way the
+ * Space on a selected file or folder, showing it over the whole window the way the
  * Finder's Quick Look does.
  *
  * A hook rather than a component because the browser it belongs to has to be
@@ -22,13 +23,16 @@ export function useQuickLook({
   dialog: ReactNode;
   /** Spread onto the folder browser. */
   props: {
-    /** `from` finds the file's place on screen, for the panel to grow out of. */
-    onQuickLook: (tab: FileTab, from?: () => Element | null) => void;
-    onQuickLookFollow: (tab: FileTab, from?: () => Element | null) => void;
+    /** `from` finds the item's place on screen, for the panel to grow out of. */
+    onQuickLook: (target: LookTarget, from?: () => Element | null) => void;
+    onQuickLookFollow: (
+      target: LookTarget,
+      from?: () => Element | null,
+    ) => void;
     quickLookOpen: boolean;
   };
 } {
-  const [file, setFile] = useState<FileTab | null>(null);
+  const [target, setTarget] = useState<LookTarget | null>(null);
   // Where the keyboard was when the panel opened, so closing it puts the
   // keyboard back on the row rather than at the top of the screen.
   const origin = useRef<HTMLElement | null>(null);
@@ -39,32 +43,34 @@ export function useQuickLook({
       <LookPanel
         from={() => place.current?.() ?? null}
         onClose={() => {
-          setFile(null);
+          setTarget(null);
         }}
         onClosed={() => {
           origin.current?.focus();
         }}
         onExpand={(tab) => {
-          setFile(null);
+          setTarget(null);
           openFile(tab);
         }}
-        target={file ? { kind: "file", tab: file } : null}
+        target={target}
       />
     ),
     props: {
-      onQuickLook: (tab, from) => {
+      onQuickLook: (next, from) => {
         place.current = from;
         if (document.activeElement instanceof HTMLElement) {
           origin.current = document.activeElement;
         }
-        // The same file again puts the panel away, the way Space does twice.
-        setFile((current) => (current?.hostPath === tab.hostPath ? null : tab));
+        // The same item again puts the panel away, the way Space does twice.
+        setTarget((current) =>
+          current && lookPathOf(current) === lookPathOf(next) ? null : next,
+        );
       },
-      onQuickLookFollow: (tab, from) => {
+      onQuickLookFollow: (next, from) => {
         place.current = from;
-        setFile(tab);
+        setTarget(next);
       },
-      quickLookOpen: file !== null,
+      quickLookOpen: target !== null,
     },
   };
 }

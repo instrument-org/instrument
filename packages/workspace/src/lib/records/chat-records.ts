@@ -44,7 +44,7 @@ import {
   type SessionHeader,
 } from "./record";
 import { type Unsequenced } from "./record-writer";
-import { sessionOf } from "./session-of";
+import { sessionOf, startedTitle } from "./session-of";
 
 /**
  * A chat's records as this process writes and reads them: one service per
@@ -443,13 +443,28 @@ export class ChatRecords {
   /**
    * A session's row as records: its header the first time, and after that
    * only what changed, since one row stands for a header, a rollover, a stop
-   * and the session's settings.
+   * and the session's settings. A new session's header starts it as
+   * `startedAs` when given, else as its row's title.
    */
-  async saveSession(chatId: ChatId, saved: Session.Type): Promise<void> {
+  async saveSession(
+    chatId: ChatId,
+    saved: Session.Type,
+    startedAs?: string,
+  ): Promise<void> {
     const read = await this.read(chatId);
     const known = read.chat.sessions.find(({ id }) => id === saved.id);
-    if (!known) {
-      await this.startSession(chatId, headerOf(saved));
+    // A session just started has the title its header reads as and no
+    // settings, so a row titled apart from that writes its title setting.
+    let was: Settled;
+    if (known) {
+      was = sessionOf(known);
+    } else {
+      const header = {
+        ...headerOf(saved),
+        ...(startedAs !== undefined && { startedAs }),
+      };
+      await this.startSession(chatId, header);
+      was = { title: startedTitle(header) };
     }
     if (
       saved.rolledOverAfterMessageId !== undefined &&
@@ -471,8 +486,6 @@ export class ChatRecords {
     if (saved.stoppedBy !== undefined) {
       await this.stopped(chatId, saved.id, saved.stoppedBy);
     }
-    // A session just started has the title its header carries and no settings.
-    const was = known ? sessionOf(known) : { title: saved.title };
     for (const change of settingsBetween(was, saved)) {
       await this.setting(chatId, saved.id, change);
     }

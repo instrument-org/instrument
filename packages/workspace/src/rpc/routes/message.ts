@@ -124,7 +124,10 @@ const create = base
 
         // The chat's own session is written with the chat; a chat from
         // before that gets it here, whichever of its sessions is named.
-        const chatSession = await ensureChatSession(chatId);
+        const chatSession = await ensureChatSession(
+          chatId,
+          sessionId ? undefined : prompt,
+        );
         if (chatSession.isErr()) {
           throw toORPCError(chatSession.error, errors);
         }

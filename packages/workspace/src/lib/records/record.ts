@@ -59,7 +59,11 @@ const SessionHeaderSchema = z.object({
   forkedAt: StoreId.MessageSchema.optional(),
   /** On a task, its short name in the chat (`t1`). */
   handle: z.string().optional(),
-  /** On a task, the title it was started with, apart from the `title` setting the person changes. */
+  /**
+   * The title the session was started with, apart from the `title` setting
+   * that names it later: a task's name, or on a chat's own session the first
+   * words of its opening ask (the untitled placeholder when it had none).
+   */
   startedAs: z.string().optional(),
   /**
    * Every other log of the session this one's writer had read when it began,

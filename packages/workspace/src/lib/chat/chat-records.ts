@@ -49,6 +49,7 @@ export async function ensureChat(
   });
   const made = await initializeChat({
     chatId,
+    opening: firstWords,
     sessionId,
   });
   if (made.isErr()) {

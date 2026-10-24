@@ -22,5 +22,14 @@ export function shownTitle(
   const said = (root?.parts ?? [])
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n");
-  return placeholderTitle(excerptOf(said, ROOT_EXCERPT_MAX)) || title;
+  return openingTitle(said) || title;
+}
+
+/**
+ * The first words of an opening ask, held to a title's length: what an
+ * untitled chat is shown by, and what its own session's header starts it
+ * as. Empty when the ask has no words.
+ */
+export function openingTitle(said: string): string {
+  return placeholderTitle(excerptOf(said, ROOT_EXCERPT_MAX));
 }

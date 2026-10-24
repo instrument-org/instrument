@@ -232,6 +232,27 @@ describe("a chat written through its records", () => {
     expect(conversationView(read, sessionId)).toEqual([kept]);
   });
 
+  it("keeps the title a chat's own session is first saved with, as a setting", async () => {
+    const sessionId = StoreId.newSessionId();
+    const chatId = await chatFor(sessionId);
+    const now = new Date();
+
+    (
+      await ChatWrites.saveSession(
+        { createdAt: now, id: sessionId, title: "Trip plans", updatedAt: now },
+        chatId,
+      )
+    )._unsafeUnwrap();
+
+    const read = await records.service.read(chatId);
+    expect(read.chat.sessions[0]?.settings.title?.value).toEqual({
+      auto: true,
+      text: "Trip plans",
+    });
+    const session = await ChatReads.session({ chatId, sessionId });
+    expect(session._unsafeUnwrap().title).toBe("Trip plans");
+  });
+
   it("starts a task's log from the chat it was forked from", async () => {
     const { chatId, sessionId } = await startChat();
     const asked = userMessage(sessionId, "Find three hotels.");

@@ -32,6 +32,7 @@ import {
   waitFor,
 } from "xstate";
 
+import { UNTITLED_CHAT_TITLE } from "../constants";
 import { ChatReads } from "../lib/chat-reads";
 import { ChatWrites } from "../lib/chat-writes";
 import { TypedError } from "../lib/errors";
@@ -228,7 +229,7 @@ describe("llmRequestLogic", () => {
       {
         createdAt: mockDate,
         id: sessionId,
-        title: "Test session",
+        title: UNTITLED_CHAT_TITLE,
       },
       taskConfig,
     );

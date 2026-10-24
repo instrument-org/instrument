@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createActor, waitFor } from "xstate";
 
+import { UNTITLED_CHAT_TITLE } from "../constants";
 import { ChatReads } from "../lib/chat-reads";
 import { ChatWrites } from "../lib/chat-writes";
 import { type SessionMessagePart } from "../schemas/session/message-part";
@@ -111,7 +112,7 @@ describe("executeToolCallMachine", () => {
       {
         createdAt: mockDate,
         id: sessionId,
-        title: "Test session",
+        title: UNTITLED_CHAT_TITLE,
       },
       taskConfig,
     );

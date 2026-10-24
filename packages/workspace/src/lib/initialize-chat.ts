@@ -15,14 +15,18 @@ import { forgetChat, placeChat } from "./record-folders";
  */
 export function initializeChat({
   chatId,
+  opening,
   sessionId,
 }: {
   chatId: ChatId;
+  /** What the chat's first message says, which its session is started as. */
+  opening?: string | undefined;
   sessionId: StoreId.Session;
 }) {
   return initializeRecord({
     place: () => placeChat(chatId, sessionId),
     chatId,
+    opening,
     sessionId,
   });
 }
@@ -30,10 +34,12 @@ export function initializeChat({
 async function initializeRecord({
   place,
   chatId,
+  opening,
   sessionId,
 }: {
   place: () => ChatDir;
   chatId: ChatId;
+  opening: string | undefined;
   sessionId: StoreId.Session;
 }) {
   // Lets go of the id reserved below when any later step fails, so a chat
@@ -79,7 +85,7 @@ async function initializeRecord({
 
     // The chat's own session is made with it: its log's header is what says
     // which session is the chat's own, when it began, and on which build.
-    yield* await createSession({ chatId, sessionId });
+    yield* await createSession({ chatId, opening, sessionId });
 
     return ok({ chatId });
   }).mapErr((error) => {

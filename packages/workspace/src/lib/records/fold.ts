@@ -86,7 +86,7 @@ export interface FoldedSession {
   stopped?: { at: Date; by: Stopper };
   /** The hosts the session's browser has been on, from its newest `sites` record. */
   sites?: string[];
-  /** On a task, the title it was started with. */
+  /** The title the session was started with: a task's name, a chat's opening words. */
   startedAs?: string;
   /** When the session's newest record was written. */
   updatedAt: Date;

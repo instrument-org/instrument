@@ -133,6 +133,30 @@ describe("sessionOf", () => {
     ).toBe(UNTITLED_CHAT_TITLE);
   });
 
+  it("reads a chat started as its opening words as untitled until a setting names it", () => {
+    const opened = [
+      header(0, {
+        device: DEVICE_A,
+        id: chatSession,
+        startedAs: "Find a quiet dishwasher",
+      }),
+    ];
+
+    expect(sessionOf(folded(opened)).title).toBe(UNTITLED_CHAT_TITLE);
+    expect(
+      sessionOf(
+        folded(opened, [
+          {
+            at: at(1),
+            field: "title",
+            session: chatSession,
+            value: { auto: true, text: "Quiet dishwasher picks" },
+          },
+        ]),
+      ).title,
+    ).toBe("Quiet dishwasher picks");
+  });
+
   it.each([
     {
       case: "the app's name",

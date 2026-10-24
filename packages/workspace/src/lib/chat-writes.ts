@@ -29,13 +29,18 @@ import {
  * across by changing the name it calls.
  */
 export namespace ChatWrites {
-  /** The session's row: its header the first time, its changes after. */
+  /**
+   * The session's row: its header the first time, its changes after.
+   * `startedAs` is the title a new session's header starts it as, when that
+   * is not its row's title.
+   */
   export function saveSession(
     session: Session.Type,
     chatId: ChatId,
+    startedAs?: string,
   ): ResultAsync<Session.Type, TypedError.Storage> {
     return records(chatId).andThen((writing) =>
-      wrote(writing.saveSession(chatId, session), session),
+      wrote(writing.saveSession(chatId, session, startedAs), session),
     );
   }
 

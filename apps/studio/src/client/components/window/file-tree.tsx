@@ -151,7 +151,7 @@ export function FileTree({
       </ContextMenuTrigger>
       <FolderMenu
         item={menuItem}
-        kept={menuHostPath !== "" && keptInPlace(menuHostPath) !== undefined}
+        kept={menuHostPath === "" ? undefined : keptInPlace(menuHostPath)}
         onCopy={() => {
           run("Couldn't copy that", () =>
             rpcClient.files.copyToClipboard.call({ paths: [menuHostPath] }),

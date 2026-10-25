@@ -1881,7 +1881,7 @@ export function ComputerPage({
     const picked = group ?? (item ? [item] : []);
     return {
       ...menuActionsForOne(item),
-      kept: picked.some((each) => keptInPlace(each) !== undefined),
+      kept: picked.map(keptInPlace).find(Boolean),
       onCopy: () => void copyFiles(picked),
       onDuplicate: () => void duplicate(picked),
       onNewDraft:
@@ -2754,11 +2754,11 @@ function ICloudAccessBanner() {
 /** What a row's menus do, by the menu's own components; see `FolderMenu`. */
 type FolderMenuActions = {
   /**
-   * A folder Files leaves in place among what the menu acts on
+   * Why a folder among what the menu acts on stays where it is
    * (`keptInPlaceOf`): Move to Trash, Rename and Duplicate are there, and
-   * off.
+   * off, and the reason is said at the menu's foot.
    */
-  kept?: boolean;
+  kept?: string | undefined;
   onCopy: () => void;
   onCopyPath: () => void;
   onDuplicate: () => void;
@@ -2916,7 +2916,7 @@ function FolderOverflowMenu({
 function FolderMenuItems({
   emptyTail,
   item,
-  kept = false,
+  kept,
   menuComponents,
   newFolderFirst = false,
   onCopy,
@@ -3042,14 +3042,18 @@ function FolderMenuItems({
             </Item>
           ) : null}
           <Separator />
-          <Item disabled={kept} onClick={onTrash} variant="destructive">
+          <Item
+            disabled={kept !== undefined}
+            onClick={onTrash}
+            variant="destructive"
+          >
             <TrashIcon className="size-4" />
             <span>Move to {osConventions().trash}</span>
             <Shortcut>{keys.trash}</Shortcut>
           </Item>
           <Separator />
           {onRename ? (
-            <Item disabled={kept} onClick={onRename}>
+            <Item disabled={kept !== undefined} onClick={onRename}>
               <PencilSimpleIcon className="size-4" />
               <span>Rename</span>
               <Shortcut>{keys.rename}</Shortcut>
@@ -3060,7 +3064,7 @@ function FolderMenuItems({
             <span>Copy</span>
             <Shortcut>{keys.copy}</Shortcut>
           </Item>
-          <Item disabled={kept} onClick={onDuplicate}>
+          <Item disabled={kept !== undefined} onClick={onDuplicate}>
             <CopyIcon className="size-4" />
             <span>Duplicate</span>
             {keys.duplicate ? <Shortcut>{keys.duplicate}</Shortcut> : null}
@@ -3101,6 +3105,16 @@ function FolderMenuItems({
                   </span>
                 </Item>
               ) : null}
+            </>
+          )}
+          {/* Said up front, since a turned-off item cannot be pointed at
+              for a tooltip. */}
+          {kept === undefined ? null : (
+            <>
+              <Separator />
+              <p className="max-w-60 px-2 py-1.5 text-xs text-muted-foreground">
+                {kept}
+              </p>
             </>
           )}
         </>

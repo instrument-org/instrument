@@ -6,6 +6,27 @@ import {
 import { TOOL_NAMES } from "../tools/name";
 import { systemNote } from "./system-note";
 
+/**
+ * A time zone by its region's name ("Central Time") rather than its IANA id
+ * ("America/Chicago"): the id names a city the user may not live in, and a
+ * model told it repeats the city as theirs. An id the runtime cannot name is
+ * given as it is.
+ */
+export function timeZoneRegion(timeZone: string): string {
+  try {
+    return (
+      new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        timeZoneName: "longGeneric",
+      })
+        .formatToParts(new Date())
+        .find((part) => part.type === "timeZoneName")?.value ?? timeZone
+    );
+  } catch {
+    return timeZone;
+  }
+}
+
 /** The folders the system prompt names by variable, and what each is called. */
 const VARIABLE_FOLDERS = [
   ["outputFolder", "The output folder", FOLDER_VARIABLES.output],
@@ -79,7 +100,7 @@ export function environmentChangeModelNote(
 ): null | string {
   const facts = [
     change.computer && `- The computer: ${change.computer}`,
-    change.timeZone && `- Time zone: ${change.timeZone}`,
+    change.timeZone && `- Time zone: ${timeZoneRegion(change.timeZone)}`,
     change.homeFolder && `- The user's home folder: \`${change.homeFolder}\``,
     ...VARIABLE_FOLDERS.map(
       ([fact, name, variable]) =>

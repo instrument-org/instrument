@@ -226,12 +226,12 @@ describe("environmentChangeModelNote", () => {
   it("leaves out the warning about old paths when only the time zone moved", () => {
     expect(environmentChangeModelNote({ timeZone: "Europe/Lisbon" }))
       .toMatchInlineSnapshot(`
-      "
-      <instrument-system-note>
-      These facts about the computer changed since the system information above was written, which they supersede:
-      - Time zone: Europe/Lisbon
-      </instrument-system-note>"
-    `);
+        "
+        <instrument-system-note>
+        These facts about the computer changed since the system information above was written, which they supersede:
+        - Time zone: Western European Time
+        </instrument-system-note>"
+      `);
   });
 });
 

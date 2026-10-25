@@ -5,6 +5,7 @@ import {
   computerToolsText,
   folderVariablesText,
   platformGuidance,
+  timeZoneRegion,
 } from "../lib/environment-model-text";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
@@ -132,7 +133,7 @@ export function getSystemInfoText({
     ${folderVariablesText(environment)}
     ${computerToolsText(environment)}
     Current date: ${formatContextDate(contextDateKey(now))} -- the day this session started. A session that runs past midnight is told the new date on the turn it happens; until then, this is today.
-    Time zone: ${environment.timeZone}, the computer's and so a fair guide to where the user is. This session started at ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} local time; \`date\` in your shell gives the time now.
+    Time zone: ${timeZoneRegion(environment.timeZone)}, the computer's and so a fair guide to the region the user is in. This session started at ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} local time; \`date\` in your shell gives the time now.
     </system_info>
   `.trim();
 }

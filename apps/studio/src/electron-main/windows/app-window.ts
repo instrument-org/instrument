@@ -58,6 +58,13 @@ let appWindow: BrowserWindow | null = null;
 let isSetupSized = false;
 
 /**
+ * Whether boot has opened the window yet. It opens the first once setup's
+ * facts are known, so an ask that arrives before then waits for that one
+ * rather than opening a window of its own.
+ */
+let hasOpened = false;
+
+/**
  * Asks from outside, in order: several files handed over at once arrive one
  * by one while the window is still opening. The window's command stream
  * starts empty at subscribe time, so a command published while the renderer
@@ -116,6 +123,7 @@ export function openAppWindow(): BrowserWindow {
     return appWindow;
   }
 
+  hasOpened = true;
   watchSetup();
   const remembered = rememberedAppWindowState();
   // Someone new meets setup in a window its own size; someone shown one new
@@ -397,9 +405,10 @@ export function askAppWindow(ask: AppWindowAsk) {
     return;
   }
   asks.ask(ask);
-  // An ask that launched the app arrives before it is ready to make a window;
-  // boot opens this one itself, and the ask waits for it.
-  if (app.isReady()) {
+  // An ask that launched the app arrives before boot has made a window, and
+  // a link's can arrive after ready, while boot still waits on setup; boot
+  // opens this one itself, and the ask waits for it.
+  if (hasOpened) {
     openAppWindow();
   }
 }

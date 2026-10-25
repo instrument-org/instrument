@@ -1,7 +1,11 @@
 import { type WindowTab } from "@/client/atoms/window";
-import { dismissedChipsAtom } from "@/client/drafts/dismissed-chips";
+import {
+  dismissedChipsAtom,
+  linkDraftsAtom,
+} from "@/client/drafts/dismissed-chips";
 import { type ChosenItem, type Draft, draftGroupOf } from "@/shared/drafts";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
+import { useEffect } from "react";
 
 import {
   contextKeyOf,
@@ -31,6 +35,7 @@ export function useDraftChips({
   onChange: (update: (draft: Draft) => Draft) => void;
 }) {
   const [dismissed, setDismissed] = useAtom(dismissedChipsAtom);
+  const linkDrafts = useAtomValue(linkDraftsAtom);
   const items = draftContextItems({
     allTabs,
     bandUp,
@@ -40,6 +45,28 @@ export function useDraftChips({
     group: draftGroupOf(draft.id),
     inView,
   });
+  // A draft a link made goes with only what the person chose: each chip of
+  // the screen is dismissed as it comes, the way a press on its ✕ would.
+  const screenKeys = linkDrafts.has(draft.id)
+    ? items
+        .filter(
+          (item) =>
+            !(draft.context ?? []).some(
+              (entry) => contextKeyOf(entry) === item.key,
+            ),
+        )
+        .map((item) => item.key)
+        .join("\n")
+    : "";
+  useEffect(() => {
+    if (screenKeys === "") {
+      return;
+    }
+    setDismissed((current) => ({
+      ...current,
+      [draft.id]: [...(current[draft.id] ?? []), ...screenKeys.split("\n")],
+    }));
+  }, [draft.id, screenKeys, setDismissed]);
   const leaveOut = (item: ContextItem) => {
     if (
       (draft.context ?? []).some((entry) => contextKeyOf(entry) === item.key)

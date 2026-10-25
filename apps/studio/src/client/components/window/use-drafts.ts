@@ -2,7 +2,10 @@ import {
   draftKeyString,
   draftSnapshotsAtom,
 } from "@/client/atoms/prompt-value";
-import { dismissedChipsAtom } from "@/client/drafts/dismissed-chips";
+import {
+  dismissedChipsAtom,
+  linkDraftsAtom,
+} from "@/client/drafts/dismissed-chips";
 import { cancelWords } from "@/client/drafts/settle-words";
 import {
   claimDraftAtom,
@@ -94,6 +97,7 @@ export function useDrafts({
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
   const setDismissedChips = useSetAtom(dismissedChipsAtom);
+  const setLinkDrafts = useSetAtom(linkDraftsAtom);
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
   const { remove: removeAsks, returnTo: returnAsks } = useStagedAskActions();
@@ -184,10 +188,16 @@ export function useDrafts({
   /**
    * A new chat a link from outside asked for, with its words: a draft of its
    * own beside any already open, so nothing the person wrote is replaced,
-   * filed under the topic it names only when there is one by that id.
+   * filed under the topic it names only when there is one by that id, and
+   * taking nothing of what was on screen when it opened.
    */
-  const draftFromLink = (words: string, topicId?: string) =>
-    startDraft(topics.find((topic) => topic.id === topicId)?.id, words);
+  const draftFromLink = (words: string, topicId?: string) => {
+    const id = startDraft(
+      topics.find((topic) => topic.id === topicId)?.id,
+      words,
+    );
+    setLinkDrafts((current) => new Set(current).add(id));
+  };
   // What a draft's composer held is kept only as long as the draft: a
   // composer unmounting keeps its snapshot as it goes, so a draft sent or
   // thrown away is pruned here, after that.

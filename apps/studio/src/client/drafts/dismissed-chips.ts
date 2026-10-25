@@ -9,3 +9,10 @@ import { atom } from "jotai";
 export const dismissedChipsAtom = atom<
   Readonly<Record<string, readonly string[]>>
 >({});
+
+/**
+ * Drafts a link from outside made. What is on screen may be the site's doing
+ * (a folder a link had just opened), so such a draft takes none of it while
+ * the app runs, only what the person chooses to add.
+ */
+export const linkDraftsAtom = atom<ReadonlySet<string>>(new Set<string>());

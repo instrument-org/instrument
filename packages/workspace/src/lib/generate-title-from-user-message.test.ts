@@ -9,7 +9,10 @@ import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
-import { generateTitleFromUserMessage } from "./generate-title-from-user-message";
+import {
+  generateTitleFromUserMessage,
+  withoutUnaskedYears,
+} from "./generate-title-from-user-message";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -325,6 +328,27 @@ describe("generateTitleFromUserMessage", () => {
     );
   });
 
+  it.each([
+    [
+      'Current title "Next daylight saving time change"',
+      "Next daylight saving time change",
+    ],
+    [
+      "Current title: Next daylight saving time change",
+      "Next daylight saving time change",
+    ],
+    [
+      "Clips stitched together, trimmed, and exported without audio, then uploaded",
+      "Clips stitched together, trimmed, and exported without audio",
+    ],
+  ])("cleans %s", async (generated, expected) => {
+    const { generate } = setupTest(generated);
+
+    const result = await generate();
+
+    expect(result._unsafeUnwrap()).toBe(expected);
+  });
+
   it("should trim whitespace from generated title", async () => {
     const { generate } = setupTest("  Todo Manager  ");
 
@@ -477,6 +501,35 @@ describe("generateTitleFromUserMessage with a current title", () => {
 
     expect(user).not.toContain("Current title:");
     expect(system).not.toContain("<current_title>");
+  });
+});
+
+describe("withoutUnaskedYears", () => {
+  it.each([
+    [
+      "Daylight saving time end date in 2025",
+      "when is daylight savings",
+      "Daylight saving time end date",
+    ],
+    [
+      "Daylight saving time end date in Chicago 2026",
+      "when is daylight savings",
+      "Daylight saving time end date in Chicago",
+    ],
+    [
+      "2026 holiday schedule",
+      "what's the holiday schedule",
+      "holiday schedule",
+    ],
+    ["Taxes for 2025", "help me file my 2025 taxes", "Taxes for 2025"],
+    [
+      "Invoice totals for 2024",
+      "Files attached by user: invoices-2024.pdf",
+      "Invoice totals for 2024",
+    ],
+    ["Model 3000 manual", "find the model 3000 manual", "Model 3000 manual"],
+  ])("%s, asked as %s", (title, opening, expected) => {
+    expect(withoutUnaskedYears(title, opening)).toBe(expected);
   });
 });
 

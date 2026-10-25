@@ -176,11 +176,18 @@ export function generateTitleFromUserMessage({
         /^\s*(?:title|name|task|app):\s*/i,
         "",
       );
+      // Echoing the label it was handed, and the title quoted after it.
+      cleanedTitle = cleanedTitle.replace(/^\s*current title:?\s*["'`]*/i, "");
       cleanedTitle = cleanedTitle.trim();
       cleanedTitle = cleanedTitle.split("\n")[0]?.trim() ?? "";
+      cleanedTitle = withoutUnaskedYears(cleanedTitle, opening);
 
       const words = cleanedTitle.split(/\s+/).filter(Boolean);
-      const limitedTitle = words.slice(0, MAX_TITLE_WORDS).join(" ");
+      // A cut mid-sentence leaves the comma that led into the next word.
+      const limitedTitle = words
+        .slice(0, MAX_TITLE_WORDS)
+        .join(" ")
+        .replace(/[,;:]+$/, "");
 
       // An answer made entirely of formatting. Failing here leaves the
       // placeholder standing, which is the user's own opening words.
@@ -203,6 +210,21 @@ export function generateTitleFromUserMessage({
     }
     workspaceConfig.captureException(originalError);
   });
+}
+
+/**
+ * `title` without a year the user's own words never named. A model fills one
+ * in from its training ("end date in 2025") or from the reply, and either way
+ * it is true of nearly every chat, so it tells this one apart from none. The
+ * word that led into it goes with it.
+ */
+export function withoutUnaskedYears(title: string, opening: string): string {
+  return title
+    .replaceAll(
+      /(?:,?\s+(?:in|for|of|from))?,?\s*\b((?:19|20)\d{2})\b/gi,
+      (match, year: string) => (opening.includes(year) ? match : ""),
+    )
+    .trim();
 }
 
 function titleSourceText(message: SessionMessage.UserWithParts): string {
@@ -347,6 +369,7 @@ function buildSystemPrompt({
     ${replySection}${currentTitleSection}${otherTitlesSection}${rejectedSection}<rules>
     - Specific over short. Prefer concrete nouns and the distinguishing detail -- the file, the folder, the site, the format, the number -- over a vague label that would fit a hundred other messages
     - Specific enough to be recognized later: "Check the weather" could have been "Check the weather for Friday". A detail earns its place by telling the work apart, so a date or a time goes in only when the work is about one or another chat needs telling apart from it
+    - Only details the message or the reply states, and of those, none true of nearly every chat the user has, such as where they live or the current year: it tells nothing apart
     - Maximum ${MAX_TITLE_WORDS} words. It is a ceiling, not a target, but do not drop the distinguishing detail to come in under it
     - Rarely one word, and never a bare category noun ("Video", "Skill", "Data")
     - Every word earns its place: no filler, no throat-clearing

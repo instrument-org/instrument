@@ -12,10 +12,12 @@
  * The cases, each against the same seeded list:
  *
  * - `weather-again`: "What's the weather?" beside earlier weather chats gets a
- *   title none of them has, at both moments.
+ *   title none of them has, and no year, at both moments.
  * - `unique-topic`: a subject nothing else in the list shares gets no date.
  * - `content-free`: "hey" is still left unnamed.
  * - `retry`: a name handed back as taken comes back different.
+ * - `assumed-details`: "when is daylight savings", answered for the user's
+ *   city and this year, gets neither the city nor a year, at both moments.
  */
 import "./lib/sandbox-home";
 import "dotenv/config";
@@ -163,8 +165,9 @@ const CASES: Case[] = [
         workspaceConfig,
       });
       const names = await taken(chatId);
+      // The year is true of every chat, so it tells this one apart from none.
       const collides = (title: string | null) =>
-        title === null || names.has(nameKey(title));
+        title === null || names.has(nameKey(title)) || /\b\d{4}\b/.test(title);
       return {
         evidence: `opening: ${opening ?? "(none)"} · settled: ${settled ?? "(none)"}`,
         passed: !collides(opening) && !collides(settled),
@@ -224,6 +227,33 @@ const CASES: Case[] = [
       return {
         evidence: `taken: ${rejected} · again: ${again ?? "(none)"}`,
         passed: again !== null && nameKey(again) !== nameKey(rejected),
+      };
+    },
+  },
+  {
+    name: "assumed-details",
+    run: async ({ ask, model, workspaceConfig }) => {
+      const { chatId, message } = await ask("when is daylight savings");
+      const opening = await NAMER({ chatId, message, model, workspaceConfig });
+      const settled = await NAMER({
+        chatId,
+        currentTitle: opening ?? undefined,
+        message,
+        model,
+        reply:
+          "In Chicago, daylight saving time ends Sunday, November 1, 2026, and clocks go back one hour at 2 a.m. It starts again Sunday, March 14, 2027.",
+        workspaceConfig,
+      });
+      // Before any reply, a day in the title is the titler answering the
+      // question itself.
+      const assumed =
+        (opening !== null && DATED.test(opening)) ||
+        [opening, settled].some(
+          (title) => title === null || /\bchicago\b|\b\d{4}\b/i.test(title),
+        );
+      return {
+        evidence: `opening: ${opening ?? "(none)"} · settled: ${settled ?? "(none)"}`,
+        passed: !assumed,
       };
     },
   },

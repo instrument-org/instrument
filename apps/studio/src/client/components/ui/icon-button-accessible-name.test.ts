@@ -1,3 +1,5 @@
+// land: every landing. It reads source as text, which `vitest related` cannot
+// trace to the change that breaks it, so scripts/land.sh always runs it.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";

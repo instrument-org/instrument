@@ -6,8 +6,9 @@
 #   scripts/land.sh [--keep]    run from inside a linked worktree
 #
 # The checks are the ones CI would fail on for what the branch changed:
-# types in the packages it touched, lint and unused code (knip) in the files it
-# changed, and the tests that import them (vitest related). When main moves
+# types in the packages it touched, lint in the files it changed, unused code
+# (knip) anywhere, the tests that import what it changed (vitest related), and
+# the tests marked to run on every landing. When main moves
 # during the checks it rebases and checks again, and it waits for another
 # session's uncommitted edits to files the branch changes rather than touch
 # them. --keep leaves the worktree and branch in place after landing. Nothing
@@ -116,40 +117,19 @@ run_checks() {
     # shellcheck disable=SC2086
     pnpm exec oxlint --type-aware --quiet --no-error-on-unmatched-pattern $lintable
   fi
-  # Unused code in what the branch changed, and dependency findings in the
-  # manifests of the packages it touched; what other work left unused elsewhere
-  # on main is not this branch's to fix.
-  pnpm exec knip --reporter json --no-exit-code > "${TMPDIR:-/tmp}/land-knip.json" || true
-  CHANGED="$changed" node -e '
-    const fs = require("node:fs");
-    const path = require("node:path");
-    const changed = new Set(process.env.CHANGED.split("\n").filter(Boolean));
-    const packages = new Set([...changed].map((file) => file.split("/").slice(0, 2).join("/")));
-    const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8") || "{}");
-    const found = [];
-    for (const issue of report.issues ?? []) {
-      const isManifest = path.basename(issue.file) === "package.json";
-      const touched = isManifest
-        ? packages.has(path.dirname(issue.file)) || changed.has(issue.file)
-        : changed.has(issue.file);
-      if (!touched) continue;
-      for (const [kind, entries] of Object.entries(issue)) {
-        if (!Array.isArray(entries)) continue;
-        for (const entry of entries) {
-          found.push(`${issue.file}: ${kind} ${entry.name ?? JSON.stringify(entry)}`);
-        }
-      }
-    }
-    if (found.length > 0) {
-      console.error("land: knip finds unused code in what this branch changed:\n" + found.join("\n"));
-      process.exit(1);
-    }
-  ' "${TMPDIR:-/tmp}/land-knip.json"
+  # Unused code anywhere, as CI checks it: deleting a caller leaves an export
+  # unused in a file the branch never opened. Each finding is a line to fix.
+  pnpm exec knip || fail "knip finds unused code; fix it before landing, wherever it is"
 
-  # The tests that import a changed source file, run in the package that owns
-  # it and in the projects its test:ci runs (Studio's browser project is not).
+  # The tests that import a changed source file, and the ones marked
+  # `// land: every landing`, which read source as text and so are related to
+  # no change, run in the package that owns them and in the projects its
+  # test:ci runs (Studio's browser project is not).
   for package in apps/studio packages/workspace packages/ai-gateway packages/shared; do
-    files=$(grep -E "^$package/.*\.(ts|tsx)$" <<< "$changed" | sed "s#^$package/##" || true)
+    files=$({
+      grep -E "^$package/.*\.(ts|tsx)$" <<< "$changed" || true
+      git grep -l '^// land: every landing' -- "$package" || true
+    } | sed "s#^$package/##" | sort -u)
     if [[ -n "$files" && -f "$package/vitest.config.ts" ]]; then
       projects=()
       if [[ "$package" == "apps/studio" ]]; then

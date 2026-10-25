@@ -143,6 +143,12 @@ export interface PromptInputRef {
   focus: () => void;
   /** Insert at the caret, spaced off from whatever it lands between; a token's wire form becomes its chip. */
   insertText: (text: string) => void;
+  /**
+   * Follows a change made to what the box holds from outside it, such as a
+   * file put into a draft's folder or taken out of it: adds each item whose
+   * path the box does not have yet, and drops each one at a path in `gone`.
+   */
+  mergeItems: (change: { added: AttachedItem[]; gone: string[] }) => void;
   /** Opens the file chooser, the way the plus menu's "Add files" does. */
   pickFiles: () => void;
   /** Opens the folder chooser, the way the plus menu's "Work in a local folder" does. */
@@ -206,6 +212,8 @@ interface PromptInputProps {
   onDictatingChange?: (dictating: boolean) => void;
   /** What the box holds besides the words, each time that changes after it first draws. */
   onItemsChange?: (items: AttachedItem[]) => void;
+  /** An item the person took out of the box, by its chip or by putting its words back in the message. */
+  onItemRemoved?: (item: AttachedItem) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onSubmit: (value: {
     files?: FileUpload.Input[];
@@ -242,6 +250,7 @@ export const PromptInput = ({
   note,
   onDictatingChange,
   onItemsChange,
+  onItemRemoved,
   onModelChange,
   onSubmit,
   placeholder,
@@ -629,9 +638,13 @@ export const PromptInput = ({
   });
 
   const removeAttachedItem = (attachedItemId: string) => {
+    const removed = attachedItems.find((item) => item.id === attachedItemId);
     setAttachedItems((prev) =>
       prev.filter((item) => item.id !== attachedItemId),
     );
+    if (removed) {
+      onItemRemoved?.(removed);
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -693,6 +706,23 @@ export const PromptInput = ({
     },
     insertText: (text) => {
       promptEditorRef.current?.insertText(text);
+    },
+    mergeItems: ({ added, gone }) => {
+      const leaving = new Set(gone);
+      setAttachedItems((prev) => {
+        const kept = prev.filter(
+          (item) => !("path" in item && leaving.has(item.path)),
+        );
+        const held = new Set(
+          kept.flatMap((item) => ("path" in item ? [item.path] : [])),
+        );
+        const arriving = added.filter(
+          (item) => !("path" in item && held.has(item.path)),
+        );
+        return kept.length === prev.length && arriving.length === 0
+          ? prev
+          : [...kept, ...arriving];
+      });
     },
     pickFiles: () => {
       fileInputRef.current?.click();

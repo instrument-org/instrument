@@ -4,6 +4,7 @@ import {
   type DraftOpBatch,
   type DraftsSnapshot,
   type DraftStageRequest,
+  type DraftTrashRequest,
 } from "@/shared/drafts";
 import {
   DRAFT_FILE_NAME,
@@ -11,6 +12,7 @@ import {
   type DraftOnDisk,
   draftsFolderDir,
   ensureDraftFolder,
+  isDraftFolderItem,
   isEmptyDraft,
   parseDraftFile,
   readDrafts,
@@ -24,7 +26,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { logger } from "../lib/electron-logger";
-import { draftFileOf, draftOf } from "./draft-record";
+import { draftFileOf, draftOf, withFolderOf } from "./draft-record";
 
 /** An id a window made, which one draft or one pasted item is known by. */
 const IdSchema = z.string().regex(/^[\w-]+$/);
@@ -42,10 +44,18 @@ const StageRequestSchema = z.object({
     ),
 }) satisfies z.ZodType<DraftStageRequest>;
 
+/** A file or folder in one draft's folder, to move to the Trash. */
+const TrashRequestSchema = z.object({
+  draftId: IdSchema,
+  path: z.string().min(1),
+}) satisfies z.ZodType<DraftTrashRequest>;
+
 /** Where a draft's file is, and what this store last wrote there or read from it. */
 interface OnDisk {
   dir: string;
   file: string;
+  /** What the draft's folder had beside the file when last read, as {@link folderKeyOf} writes it. */
+  folder: string;
   /** The file as {@link textOf} renders it, which is how a change made elsewhere is told from this store's own. */
   text: string;
 }
@@ -58,7 +68,9 @@ interface OnDisk {
  * by sending ops, which this applies, writes through at once, and answers by
  * telling every window what the drafts are now. A change made in the folder
  * by anything else (a file manager, a sync engine bringing another device's
- * edit) is read back in and told the same way.
+ * edit) is read back in and told the same way, and so is a file put into a
+ * draft's folder or taken out of it, since the folder is what goes with the
+ * message.
  *
  * Each draft's file is written only when what it says changed, and a file is
  * made for a draft only once there is something in it, so a box opened and
@@ -74,6 +86,7 @@ export function createDraftStore({
   onChange,
   rootDir,
   timeZone,
+  moveToTrash,
 }: {
   /** Called with the drafts each time they change, from a window or from disk. */
   onChange: (snapshot: DraftsSnapshot) => void;
@@ -81,6 +94,11 @@ export function createDraftStore({
   rootDir: string;
   /** The zone a new draft's folder is named in: this computer's own. */
   timeZone: string;
+  /**
+   * Moves a file or folder to the system's Trash: how something the person
+   * may have only the one copy of leaves a draft's folder.
+   */
+  moveToTrash: (target: string) => Promise<void>;
 }) {
   let drafts: Draft[] = [];
   const onDisk = new Map<string, OnDisk>();
@@ -113,24 +131,34 @@ export function createDraftStore({
     );
   };
 
-  /** A draft taken in from its file, still on its way where a window here has it on its way. */
-  const takeIn = (entry: DraftOnDisk) => {
+  /**
+   * A draft taken in from its file and its folder, still on its way where a
+   * window here has it on its way. Where only the folder changed, the draft
+   * is the one this store has, with what the folder has now.
+   */
+  const takeIn = (entry: DraftOnDisk, read = draftOf(entry, rootDir)) => {
     const id = entry.draft.id;
+    const text = textOf(entry.draft);
+    const known = onDisk.get(id);
     onDisk.set(id, {
       dir: entry.dir,
       file: entry.file,
-      text: textOf(entry.draft),
+      folder: folderKeyOf(read),
+      text,
     });
-    const read = draftOf(entry, rootDir);
     const current = drafts.find((draft) => draft.id === id);
     if (current === undefined) {
       drafts = [...drafts, read];
       return;
     }
+    const taken =
+      known?.file === entry.file && known.text === text
+        ? withFolderOf(current, read, entry.dir)
+        : read;
     const next =
       sending.has(id) && current.sendingTo !== undefined
-        ? { ...read, sendingTo: current.sendingTo }
-        : read;
+        ? { ...taken, sendingTo: current.sendingTo }
+        : taken;
     drafts = drafts.map((draft) => (draft.id === id ? next : draft));
   };
 
@@ -181,6 +209,7 @@ export function createDraftStore({
         onDisk.set(draft.id, {
           dir: made.dir,
           file: made.file,
+          folder: folderKeyOf({}),
           text: textOf(file),
         });
       }
@@ -207,15 +236,14 @@ export function createDraftStore({
   };
 
   /**
-   * A draft taken away: every file holding it, conflict copies too, what was
-   * pasted into it, and its folder once that leaves it empty.
+   * A draft taken away: every file holding it, conflict copies too, and its
+   * folder once that leaves it empty. What a sent draft's folder had went to
+   * the chat; what a thrown-away one's had goes to the Trash, since it may be
+   * the only copy of something the person put there.
    */
   const forget = (id: string) => {
     onDisk.delete(id);
     sending.delete(id);
-    const pasted = [...staged].flatMap(([key, file]) =>
-      key.startsWith(`${id}/`) ? [file] : [],
-    );
     for (const key of staged.keys()) {
       if (key.startsWith(`${id}/`)) {
         staged.delete(key);
@@ -226,16 +254,24 @@ export function createDraftStore({
         (entry) => entry.draft.id === id,
       );
       for (const entry of entries) {
-        removeDraft(entry);
-      }
-      // What was pasted before the draft said so is the draft's all the same.
-      for (const file of pasted) {
-        fs.rmSync(file, { force: true });
-        removeIfEmpty(path.dirname(file));
+        const left = removeDraft(entry, { sent: sent.has(id) });
+        if (left.length > 0) {
+          void throwAway(entry.dir, left);
+        }
       }
     } catch (error) {
       logger.error(`Could not take away draft ${id}`, error);
     }
+  };
+
+  /** What a thrown-away draft's folder had, to the Trash, and the folder after it. */
+  const throwAway = async (dir: string, items: { path: string }[]) => {
+    for (const item of items) {
+      await moveToTrash(item.path).catch((error: unknown) => {
+        logger.error(`Could not move ${item.path} to the Trash`, error);
+      });
+    }
+    removeIfEmpty(dir);
   };
 
   return {
@@ -302,7 +338,7 @@ export function createDraftStore({
         if (sent.has(id)) {
           for (const entry of entries) {
             try {
-              removeDraft(entry);
+              removeDraft(entry, { sent: true });
             } catch (error) {
               logger.error(`Could not take away sent draft ${id}`, error);
             }
@@ -318,10 +354,15 @@ export function createDraftStore({
           continue;
         }
         const entry = pick(id, entries);
-        if (known?.file === entry.file && known.text === textOf(entry.draft)) {
+        const read = draftOf(entry, rootDir);
+        if (
+          known?.file === entry.file &&
+          known.text === textOf(entry.draft) &&
+          known.folder === folderKeyOf(read)
+        ) {
           continue;
         }
-        takeIn(entry);
+        takeIn(entry, read);
       }
       for (const [id, known] of onDisk) {
         if (!found.has(id) && !fs.existsSync(known.file)) {
@@ -368,6 +409,21 @@ export function createDraftStore({
     },
 
     /**
+     * Moves a file or folder in a draft's folder to the Trash, for a chip the
+     * person took off: it may be their only copy of something they dragged
+     * in. Anything else, a file the draft names where it lies above all, is
+     * left alone. The folder's watch brings the change back in.
+     */
+    async trash(asked: unknown): Promise<void> {
+      const request = TrashRequestSchema.parse(asked);
+      const known = onDisk.get(request.draftId);
+      if (known === undefined || !isDraftFolderItem(known.dir, request.path)) {
+        return;
+      }
+      await moveToTrash(request.path);
+    },
+
+    /**
      * Calls back when what the drafts folder holds changes. This store's own
      * writes call back too; {@link reconcile} is what tells them apart. A
      * workspace with no drafts has no folder, and the first draft's making
@@ -389,6 +445,11 @@ function byDraft(entries: DraftOnDisk[]): Map<string, DraftOnDisk[]> {
     found.set(entry.draft.id, [...(found.get(entry.draft.id) ?? []), entry]);
   }
   return found;
+}
+
+/** What a draft's folder has beside its file, as one string that changes when that does. */
+function folderKeyOf({ inFolder }: Pick<Draft, "inFolder">): string {
+  return JSON.stringify(inFolder ?? []);
 }
 
 /** A draft's file read on its own, or nothing where it is gone or names no draft. */

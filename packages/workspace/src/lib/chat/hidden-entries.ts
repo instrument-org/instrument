@@ -2,12 +2,13 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import { promisify } from "node:util";
 
+import { MAC_CUSTOM_ICON } from "../system-clutter";
+
 const run = promisify(execFile);
 
 const NOTHING: ReadonlySet<string> = new Set();
 
-/** The file holding a folder's custom icon, which Finder never shows. */
-const MAC_HIDDEN: ReadonlySet<string> = new Set(["Icon\r"]);
+const MAC_HIDDEN: ReadonlySet<string> = new Set([MAC_CUSTOM_ICON]);
 
 /** How many folders' answers are kept at once. */
 const CACHE_MAX = 64;

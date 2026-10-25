@@ -40,9 +40,10 @@ export interface DraftFile {
   /** The chat a reply goes into, by its id. Absent on a draft that opens a chat of its own. */
   chat?: string;
   /**
-   * What goes with the message besides the words, one line each, as the
-   * file writes them (`context-line.ts`). Filled as the draft is made and
-   * changed only by the person, so a line left out stays out.
+   * What from outside the draft's folder goes with the message besides the
+   * words, one line each, as the file writes them (`context-line.ts`).
+   * Everything in the folder goes too, without a line. Filled as the draft
+   * is made and changed only by the person, so a line left out stays out.
    */
   context?: string[];
   /** When the draft was started, which its folder is named for. */

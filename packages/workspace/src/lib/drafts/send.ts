@@ -96,7 +96,7 @@ export async function finishSentDrafts({
       });
       continue;
     }
-    removeDraft(entry);
+    removeDraft(entry, { sent: true });
     finished.push(entry.draft.id);
   }
   return { finished, left };

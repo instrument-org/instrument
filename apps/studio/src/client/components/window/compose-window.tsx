@@ -2,11 +2,7 @@ import {
   draftSnapshotsAtom,
   storedWordsAtom,
 } from "@/client/atoms/prompt-value";
-import {
-  type Draft,
-  type DraftAttachment,
-  draftGroupOf,
-} from "@/shared/drafts";
+import { type Draft, draftGroupOf } from "@/shared/drafts";
 import {
   APPS_HREF,
   BROWSER_HREF,
@@ -17,7 +13,6 @@ import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
-  type AttachedItem,
   PromptInput,
   type PromptInputRef,
 } from "@/client/components/prompt-input";
@@ -31,7 +26,11 @@ import {
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
-import { useDraftStaging } from "@/client/components/draft-staging";
+import {
+  itemsOf,
+  useDraftStaging,
+  useFolderItems,
+} from "@/client/components/draft-staging";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { type FileUpload } from "@instrument-org/workspace/client";
@@ -44,7 +43,6 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
 import { motion } from "motion/react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
-import { ulid } from "ulid";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { AskPills } from "./ask-pills";
@@ -96,20 +94,6 @@ const WORDS_MAX_HEIGHT = 192;
 const COMPOSE_HEIGHT = 640;
 
 const NO_TITLES = new Map<never, never>();
-
-/** A kept attachment back in the composer, drawn by its icon until it is given again. */
-function itemOf(attachment: DraftAttachment): AttachedItem {
-  return attachment.kind === "folder"
-    ? { id: ulid(), path: attachment.path, type: "folder" }
-    : {
-        id: ulid(),
-        mimeType: attachment.mediaType,
-        name: attachment.name,
-        path: attachment.path,
-        size: attachment.size,
-        type: "file",
-      };
-}
 
 /**
  * The marks of what a group holds, for a window put down to a bar: a site's
@@ -279,12 +263,13 @@ export function ComposeWindow({
   const [dictating, setDictating] = useState(false);
 
   // What the box holds besides its words, kept with the draft.
-  const { asStaged, keepItems } = useDraftStaging({
+  const { asStaged, keepItems, knows, removeItem } = useDraftStaging({
     draftFor: () => draft.id,
     onChange: (_draftId, update) => {
       onChange(update);
     },
   });
+  useFolderItems({ draft, input: inputRef, knows });
   // Layout rather than passive effects: on the way in the box's handle is
   // set by then and on the way out it is still there, which a passive
   // cleanup would find already gone.
@@ -293,8 +278,11 @@ export function ComposeWindow({
     const input = inputRef.current;
     if (snapshot) {
       input?.restore({ ...snapshot, prompt: words });
-    } else if (draft.attached && draft.attached.length > 0) {
-      input?.restore({ items: draft.attached.map(itemOf), prompt: words });
+    } else {
+      const items = itemsOf(draft);
+      if (items.length > 0) {
+        input?.restore({ items, prompt: words });
+      }
     }
     return () => {
       const kept = input?.snapshot();
@@ -639,6 +627,7 @@ export function ComposeWindow({
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
                   onDictatingChange={setDictating}
+                  onItemRemoved={removeItem}
                   onItemsChange={keepItems}
                   // The window becomes the chat's at the press, so the
                   // box is never left waiting on a send.

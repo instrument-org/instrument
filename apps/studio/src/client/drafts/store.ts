@@ -11,6 +11,7 @@ import {
   type DraftOp,
   type DraftsBridge,
   type DraftsSnapshot,
+  type DraftTrashRequest,
   draftUpdateOf,
   holdsSomething,
   repliesOf,
@@ -47,6 +48,7 @@ const bridge: DraftsBridge & { reset?: (drafts: Draft[]) => void } = globalThis
       path: `/drafts/${request.draftId}/${request.name}`,
       size: request.content.length,
     }),
+  trash: () => Promise.resolve(),
 };
 
 const showDrafts = (snapshot: DraftsSnapshot, pending: DraftOp[]) =>
@@ -89,6 +91,11 @@ export function stageIntoDraft(request: {
   name: string;
 }): Promise<{ path: string; size: number }> {
   return bridge.stage(request);
+}
+
+/** Moves something taken out of a draft to the Trash, where it is in the draft's folder. */
+export function trashFromDraft(request: DraftTrashRequest): Promise<void> {
+  return bridge.trash(request);
 }
 
 /** A draft made, with what it starts with. */

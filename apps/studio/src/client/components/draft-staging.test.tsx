@@ -1,16 +1,22 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDraftStaging } from "./draft-staging";
-import { type AttachedItem } from "./prompt-input";
+import { type Draft } from "@/shared/drafts";
+
+import { itemsOf, useDraftStaging, useFolderItems } from "./draft-staging";
+import { type AttachedItem, type PromptInputRef } from "./prompt-input";
 
 // Made with the mock rather than beside it: the factory below is hoisted
 // above everything this file declares.
-const { stage } = vi.hoisted(() => ({
+const { stage, trash } = vi.hoisted(() => ({
   stage: vi.fn<(input: unknown) => Promise<{ path: string; size: number }>>(),
+  trash: vi.fn<(input: unknown) => Promise<void>>(),
 }));
 
-vi.mock("@/client/drafts/store", () => ({ stageIntoDraft: stage }));
+vi.mock("@/client/drafts/store", () => ({
+  stageIntoDraft: stage,
+  trashFromDraft: trash,
+}));
 
 /** What the composer holds for bytes that arrived without a file. */
 function pasted(id: string, name: string): AttachedItem {
@@ -45,6 +51,8 @@ async function settle() {
 
 beforeEach(() => {
   stage.mockReset();
+  trash.mockReset();
+  trash.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -97,5 +105,113 @@ describe("a draft's pasted files at send", () => {
     }).files;
 
     expect(file).toMatchObject({ path: "/ws/Drafts/d/image 2.png" });
+  });
+});
+
+describe("an item taken out of the box", () => {
+  it("goes to the Trash by its path", () => {
+    const { result } = staging();
+    result.current.removeItem({
+      id: "f",
+      mimeType: "application/pdf",
+      name: "quote.pdf",
+      path: "/ws/Drafts/d/quote.pdf",
+      size: 4,
+      type: "file",
+    });
+    expect(trash).toHaveBeenCalledWith({
+      draftId: "d1",
+      path: "/ws/Drafts/d/quote.pdf",
+    });
+  });
+
+  it("goes to the Trash once its paste lands, where it was taken out while being written", async () => {
+    let land = (_: { path: string; size: number }) => {};
+    stage.mockReturnValue(
+      new Promise((resolve) => {
+        land = resolve;
+      }),
+    );
+    const { result } = staging();
+    const item = pasted("i1", "image.png");
+    act(() => {
+      result.current.keepItems([item]);
+    });
+    result.current.removeItem(item);
+    expect(trash).not.toHaveBeenCalled();
+
+    land({ path: "/ws/Drafts/d/image.png", size: 2 });
+    await settle();
+
+    expect(trash).toHaveBeenCalledWith({
+      draftId: "d1",
+      path: "/ws/Drafts/d/image.png",
+    });
+    expect(result.current.knows("/ws/Drafts/d/image.png")).toBe(false);
+  });
+});
+
+describe("a box following its draft's folder", () => {
+  const file = (name: string) => ({
+    kind: "file" as const,
+    mediaType: "image/png",
+    name,
+    path: `/ws/Drafts/d/${name}`,
+    size: 2,
+  });
+  const withFolder = (names: string[]): Draft => ({
+    createdAt: 1,
+    id: "d1",
+    ...(names.length > 0 ? { inFolder: names.map(file) } : {}),
+    updatedAt: 1,
+    words: "",
+  });
+
+  function follow(knows: (path: string) => boolean = () => false) {
+    const mergeItems = vi.fn<PromptInputRef["mergeItems"]>();
+    const input = { current: { mergeItems } };
+    const hook = renderHook(
+      ({ draft }: { draft: Draft }) => {
+        useFolderItems({ draft, input, knows });
+      },
+      { initialProps: { draft: withFolder(["a.png"]) } },
+    );
+    return { hook, mergeItems };
+  }
+
+  it("adds a file dropped into the folder and drops one taken out, not what it opened with", () => {
+    const { hook, mergeItems } = follow();
+    expect(mergeItems).not.toHaveBeenCalled();
+
+    hook.rerender({ draft: withFolder(["a.png", "b.png"]) });
+    expect(mergeItems).toHaveBeenLastCalledWith({
+      added: [expect.objectContaining({ path: "/ws/Drafts/d/b.png" })],
+      gone: [],
+    });
+
+    hook.rerender({ draft: withFolder(["b.png"]) });
+    expect(mergeItems).toHaveBeenLastCalledWith({
+      added: [],
+      gone: ["/ws/Drafts/d/a.png"],
+    });
+  });
+
+  it("leaves out a paste the box already shows by its bytes", () => {
+    const { hook, mergeItems } = follow(
+      (path) => path === "/ws/Drafts/d/pasted.png",
+    );
+    hook.rerender({ draft: withFolder(["a.png", "pasted.png"]) });
+    expect(mergeItems).not.toHaveBeenCalled();
+  });
+
+  it("opens with what the composer was given and what the folder has, each once", () => {
+    const items = itemsOf({
+      ...withFolder(["a.png", "b.png"]),
+      attached: [file("a.png")],
+    });
+    expect(items.map((item) => ("path" in item ? item.path : ""))).toEqual([
+      "/ws/Drafts/d/a.png",
+      "/ws/Drafts/d/b.png",
+    ]);
   });
 });

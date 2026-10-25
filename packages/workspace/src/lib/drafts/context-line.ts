@@ -15,12 +15,14 @@ import {
 } from "../workspace-relative-path";
 
 /**
- * One line of a draft's `context`: one thing that goes with the message
- * besides the words, written so a person reading the file can tell what it
- * is, and the same on every computer the workspace syncs to where it can be.
+ * One line of a draft's `context`: one thing from outside the draft's folder
+ * that goes with the message besides the words, written so a person reading
+ * the file can tell what it is, and the same on every computer the workspace
+ * syncs to where it can be. What is in the draft's folder goes with it
+ * without a line (`draftFolderItems`).
  *
- * - A file pasted into the draft, by its path inside the draft's folder
- *   (`receipt.png`), so it moves with the folder.
+ * - A file in the draft's folder, by its path inside it (`receipt.png`), only
+ *   in a folder another draft shares, where the folder cannot say whose it is.
  * - A file or folder in the workspace, from the workspace's top level
  *   (`workspace:/Kitchen plans/`), the form chat records use.
  * - Anything else on this computer, at its absolute path.
@@ -105,8 +107,8 @@ export function contextEntryOf(
 }
 
 /**
- * The path inside the draft's folder a line names, for a file pasted into
- * the draft; nothing for a line naming anything else.
+ * The path inside the draft's folder a line names, for a file in the draft's
+ * folder; nothing for a line naming anything else.
  */
 export function pastedPathOf(raw: string): string | undefined {
   const line = raw.trim();
@@ -124,7 +126,7 @@ export function pastedPathOf(raw: string): string | undefined {
 }
 
 /**
- * A file pasted into a draft as a composer shows it: its type, read from its
+ * A file in a draft's folder as a composer shows it: its type, read from its
  * name, its name and its size, which is nothing where the file is gone.
  */
 export function pastedFileOf(file: string): {

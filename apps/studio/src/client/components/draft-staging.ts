@@ -1,11 +1,12 @@
-import { stageIntoDraft } from "@/client/drafts/store";
+import { stageIntoDraft, trashFromDraft } from "@/client/drafts/store";
+import { toast } from "@/client/lib/toast";
 import { type Draft, type DraftAttachment } from "@/shared/drafts";
 import type { FileUpload } from "@instrument-org/workspace/client";
-import { isEqual } from "radashi";
-import { useRef } from "react";
+import { isEqual, unique } from "radashi";
+import { type RefObject, useEffect, useRef } from "react";
 import { ulid } from "ulid";
 
-import { type AttachedItem } from "./prompt-input";
+import { type AttachedItem, type PromptInputRef } from "./prompt-input";
 
 /**
  * The name at the end of a path this computer wrote, whichever way it
@@ -28,7 +29,9 @@ interface Sending {
  * them (a pasted image, a long paste made a file) are written into the
  * draft's own folder as they arrive and kept by that path, so they outlast a
  * relaunch, and the one copy in the draft's folder is the copy that goes to
- * the chat when the draft is sent.
+ * the chat when the draft is sent. Taking an item out of the box takes it out
+ * of the draft's folder too, to the Trash, since everything in the folder
+ * goes with the message.
  */
 export function useDraftStaging({
   draftFor,
@@ -46,6 +49,14 @@ export function useDraftStaging({
 }) {
   const staged = useRef(new Map<string, DraftAttachment | null>());
   const latestItems = useRef<AttachedItem[]>([]);
+  /** Pastes taken out of the box before their write landed, by item id, with the draft they were for. */
+  const takenOut = useRef(new Map<string, string>());
+
+  const trash = (draftId: string, path: string) => {
+    trashFromDraft({ draftId, path }).catch((error: unknown) => {
+      toast.error("Couldn't move that file to the Trash", { cause: error });
+    });
+  };
 
   const keepAttached = (draftId: string, items: AttachedItem[]) => {
     latestItems.current = items;
@@ -133,6 +144,13 @@ export function useDraftStaging({
           name: item.name,
         })
           .then(({ path, size }) => {
+            const outOf = takenOut.current.get(item.id);
+            if (outOf !== undefined) {
+              takenOut.current.delete(item.id);
+              staged.current.delete(item.id);
+              trash(outOf, path);
+              return;
+            }
             staged.current.set(item.id, {
               kind: "file",
               mediaType: item.mimeType,
@@ -148,23 +166,105 @@ export function useDraftStaging({
       }
       keepAttached(draftId, items);
     },
+
+    /** Whether a path is a paste this box wrote, which the box already shows by its bytes. */
+    knows: (path: string) =>
+      [...staged.current.values()].some((written) => written?.path === path),
+
+    /**
+     * An item the person took out of the box, out of the draft's folder too,
+     * where it is in it: main moves it to the Trash and leaves a file the
+     * draft names where it lies alone. A paste still being written is moved
+     * once its write lands.
+     */
+    removeItem: (item: AttachedItem) => {
+      const draftId = draftFor(false);
+      if (draftId === undefined) {
+        return;
+      }
+      if ("path" in item) {
+        trash(draftId, item.path);
+        return;
+      }
+      const written = staged.current.get(item.id);
+      if (written === null) {
+        takenOut.current.set(item.id, draftId);
+      } else if (written !== undefined) {
+        staged.current.delete(item.id);
+        trash(draftId, written.path);
+      }
+    },
   };
 }
 
-/** What a draft holds, back in a composer, drawn by its icon until it is given again. */
-export function itemsOf(draft: Draft | undefined): AttachedItem[] {
-  return (draft?.attached ?? []).map((attachment) =>
-    attachment.kind === "folder"
-      ? { id: ulid(), path: attachment.path, type: "folder" as const }
-      : {
-          id: ulid(),
-          mimeType: attachment.mediaType,
-          name: attachment.name,
-          path: attachment.path,
-          size: attachment.size,
-          type: "file" as const,
-        },
+/**
+ * Keeps an open box in step with its draft's folder: a file put into the
+ * folder from outside the app turns up in the box, and one taken out of it
+ * goes. Only changes count, so what the box showed as it opened, and what
+ * the person took out since, stay as they are.
+ */
+export function useFolderItems({
+  draft,
+  input,
+  knows,
+}: {
+  draft: Draft | undefined;
+  input: RefObject<null | Pick<PromptInputRef, "mergeItems">>;
+  /** Whether the box already shows the file at a path some other way: a paste it wrote. */
+  knows: (path: string) => boolean;
+}) {
+  const seen = useRef<{ id: string; paths: Set<string> } | undefined>(
+    undefined,
   );
+  const inFolder = draft?.inFolder;
+  const id = draft?.id;
+  useEffect(() => {
+    const was = seen.current;
+    const now = inFolder ?? [];
+    seen.current =
+      id === undefined
+        ? undefined
+        : { id, paths: new Set(now.map((item) => item.path)) };
+    if (was === undefined || was.id !== id) {
+      return;
+    }
+    const added = now.filter(
+      (item) => !was.paths.has(item.path) && !knows(item.path),
+    );
+    const gone = [...was.paths].filter(
+      (path) => !now.some((item) => item.path === path),
+    );
+    if (added.length > 0 || gone.length > 0) {
+      input.current?.mergeItems({ added: added.map(itemOf), gone });
+    }
+    // Each time main reads the folder anew; `knows` and the box are read as they are then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, inFolder]);
+}
+
+/**
+ * What a draft holds, back in a composer, drawn by its icon until it is
+ * given again: what its composer was given, and whatever else its folder has.
+ */
+export function itemsOf(draft: Draft | undefined): AttachedItem[] {
+  return unique(
+    [...(draft?.attached ?? []), ...(draft?.inFolder ?? [])],
+    (item) => item.path,
+  ).map(itemOf);
+}
+
+/** A kept attachment back in a composer. */
+function itemOf(attachment: DraftAttachment): AttachedItem {
+  return attachment.kind === "folder"
+    ? { id: ulid(), path: attachment.path, type: "folder" }
+    : {
+        id: ulid(),
+        mimeType: attachment.mediaType,
+        name: attachment.name,
+        path: attachment.path,
+        size: attachment.size,
+        type: "file",
+      };
 }
 
 /** What of an item in the composer is kept with the draft: its path, for one that has a place on disk. */

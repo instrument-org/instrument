@@ -53,15 +53,13 @@ function draft(more: Partial<DraftFile> = {}): DraftFile {
 }
 
 /**
- * Step 1 of a send: the draft, with something pasted into it, as the person
- * left it when they pressed Send.
+ * Step 1 of a send: the draft, with a file dropped into its folder, which
+ * goes with it without a line naming it, as the person left it when they
+ * pressed Send.
  */
 function waitingDraft(more: Partial<DraftFile> = {}) {
   const made = ensureDraftFolder({
-    draft: draft({
-      context: ["sink.png"],
-      ...more,
-    }),
+    draft: draft(more),
     rootDir,
     timeZone: ZONE,
   });

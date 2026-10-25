@@ -9,6 +9,9 @@ import {
   draftsFolderDir,
   ensureDraftFolder,
   findDraft,
+  draftFolderItems,
+  isDraftFolderItem,
+  ownsDraftFolder,
   readDrafts,
   removeDraft,
   writeDraftFile,
@@ -228,16 +231,27 @@ describe("the drafts folder", () => {
     ]);
   });
 
-  it("takes a draft away with what was pasted into it", () => {
+  it("takes a sent draft away with the files its folder had, and leaves a folder it sent where it lies", () => {
     const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     fs.writeFileSync(path.join(made.dir, "pasted-image.png"), "bytes");
-    const with_ = {
-      ...made.draft,
-      context: ["pasted-image.png", "/Users/someone/Documents/quote.pdf"],
-    };
-    writeDraftFile(made.file, with_);
-    removeDraft({ ...made, draft: with_ });
-    expect(fs.existsSync(made.dir)).toBe(false);
+    fs.writeFileSync(path.join(made.dir, "dropped.pdf"), "dragged in");
+    fs.mkdirSync(path.join(made.dir, "Photos"));
+    expect(removeDraft(made, { sent: true })).toEqual([]);
+    expect(fs.readdirSync(made.dir)).toEqual(["Photos"]);
+  });
+
+  it("hands back what a thrown-away draft's folder had, for the Trash, and deletes none of it", () => {
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    fs.writeFileSync(path.join(made.dir, "dropped.pdf"), "the only copy");
+    fs.writeFileSync(path.join(made.dir, ".DS_Store"), "");
+    const left = removeDraft(made, { sent: false });
+    expect(left.map((item) => path.basename(item.path))).toEqual([
+      "dropped.pdf",
+    ]);
+    expect(fs.readdirSync(made.dir).toSorted()).toEqual([
+      ".DS_Store",
+      "dropped.pdf",
+    ]);
   });
 
   it("leaves a folder of the person's that a draft names above its own", () => {
@@ -251,7 +265,7 @@ describe("the drafts folder", () => {
     };
     writeDraftFile(made.file, with_);
 
-    removeDraft({ ...made, draft: with_ });
+    removeDraft({ ...made, draft: with_ }, { sent: true });
 
     expect(fs.existsSync(path.join(victim, "report.txt"))).toBe(true);
     expect(fs.existsSync(made.file)).toBe(false);
@@ -272,13 +286,13 @@ describe("the drafts folder", () => {
       const with_ = { ...made.draft, context: [named] };
       writeDraftFile(made.file, with_);
 
-      removeDraft({ ...made, draft: with_ });
+      removeDraft({ ...made, draft: with_ }, { sent: true });
 
       expect(fs.existsSync(other)).toBe(true);
     },
   );
 
-  it("leaves what a draft names through a link out of its folder", () => {
+  it("takes only the link to a folder outside, never what it leads to", () => {
     const victim = path.join(rootDir, "valuable-work");
     fs.mkdirSync(victim, { recursive: true });
     fs.writeFileSync(path.join(victim, "report.txt"), "the person's");
@@ -290,25 +304,24 @@ describe("the drafts folder", () => {
     };
     writeDraftFile(made.file, with_);
 
-    removeDraft({ ...made, draft: with_ });
+    removeDraft({ ...made, draft: with_ }, { sent: true });
 
     expect(fs.existsSync(path.join(victim, "report.txt"))).toBe(true);
   });
 
-  it("keeps a pasted file another draft in the folder still names", () => {
+  it("keeps a file another draft in a shared folder still names", () => {
     const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     const pasted = path.join(made.dir, "pasted-image.png");
     fs.writeFileSync(pasted, "bytes");
     const context = ["pasted-image.png"];
     const mine = { ...made.draft, context };
     writeDraftFile(made.file, mine);
-    // A sync engine's conflict copy of the same draft, naming the same file.
     writeDraftFile(path.join(made.dir, "DRAFT 2.md"), {
       ...draft({ id: "d2" }),
       context,
     });
 
-    removeDraft({ ...made, draft: mine });
+    removeDraft({ ...made, draft: mine }, { sent: true });
 
     expect(fs.existsSync(pasted)).toBe(true);
   });
@@ -316,16 +329,9 @@ describe("the drafts folder", () => {
   it("leaves the folder where another draft is still in it", () => {
     const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     writeDraftFile(path.join(made.dir, "DRAFT 2.md"), draft({ id: "d2" }));
-    removeDraft(made);
+    removeDraft(made, { sent: true });
     expect(fs.readdirSync(made.dir)).toEqual(["DRAFT 2.md"]);
     expect(readDrafts(rootDir).map((entry) => entry.draft.id)).toEqual(["d2"]);
-  });
-
-  it("leaves the folder where the person put something of their own in it", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
-    fs.writeFileSync(path.join(made.dir, "my-notes.txt"), "mine");
-    removeDraft(made);
-    expect(fs.readdirSync(made.dir)).toEqual(["my-notes.txt"]);
   });
 
   it("reads nothing from a workspace with no drafts folder", () => {
@@ -338,5 +344,80 @@ describe("the drafts folder", () => {
     writeDraftFile(made.file, draft({ words: "second thoughts" }));
     expect(fs.readdirSync(made.dir)).toEqual(["DRAFT.md"]);
     expect(findDraft(rootDir, "d1")?.draft.words).toBe("second thoughts");
+  });
+});
+
+describe("what a draft's folder has that goes with it", () => {
+  const names = (entry: Pick<DraftOnDisk, "dir" | "draft">) =>
+    draftFolderItems(entry).map(
+      (item) => `${item.kind}:${path.basename(item.path)}`,
+    );
+
+  it("is every file and folder dropped in beside the draft, whatever the draft names", () => {
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    fs.writeFileSync(path.join(made.dir, "receipt.png"), "bytes");
+    fs.mkdirSync(path.join(made.dir, "Plans"));
+    expect(names(made)).toEqual(["folder:Plans", "file:receipt.png"]);
+  });
+
+  it.each([
+    ".DS_Store",
+    "._receipt.png",
+    ".localized",
+    "desktop.ini",
+    "Thumbs.db",
+    "ehthumbs.db",
+    "Icon\r",
+    "~$Report.docx",
+    "movie.mp4.crdownload",
+    "movie.mp4.part",
+    "movie.mp4.download",
+    "save.tmp",
+  ])("passes over %j", (clutter) => {
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    fs.writeFileSync(path.join(made.dir, clutter), "");
+    expect(names(made)).toEqual([]);
+  });
+
+  it("counts a file a line names inside the folder once", () => {
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    fs.writeFileSync(path.join(made.dir, "receipt.png"), "bytes");
+    const with_ = { ...made.draft, context: ["receipt.png"] };
+    expect(names({ ...made, draft: with_ })).toEqual(["file:receipt.png"]);
+  });
+
+  it("is the draft's own in a folder with its conflict copy", () => {
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    writeDraftFile(path.join(made.dir, "DRAFT 2.md"), draft());
+    fs.writeFileSync(path.join(made.dir, "receipt.png"), "bytes");
+    expect(ownsDraftFolder(made.dir, "d1")).toBe(true);
+    expect(names(made)).toEqual(["file:receipt.png"]);
+  });
+
+  it("is only what each draft names where two drafts share the folder", () => {
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const other = { ...draft({ id: "d2" }), context: ["theirs.png"] };
+    writeDraftFile(path.join(made.dir, "DRAFT 2.md"), other);
+    for (const name of ["mine.png", "theirs.png", "loose.png"]) {
+      fs.writeFileSync(path.join(made.dir, name), "bytes");
+    }
+    const mine = { ...made.draft, context: ["mine.png"] };
+    expect(ownsDraftFolder(made.dir, "d1")).toBe(false);
+    expect(names({ ...made, draft: mine })).toEqual(["file:mine.png"]);
+    expect(names({ dir: made.dir, draft: other })).toEqual(["file:theirs.png"]);
+  });
+
+  it("tells a file in the folder from the draft's own file and from one outside", () => {
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    const inside = path.join(made.dir, "receipt.png");
+    fs.writeFileSync(inside, "bytes");
+    const outside = path.join(rootDir, "notes.txt");
+    fs.writeFileSync(outside, "mine");
+    expect(isDraftFolderItem(made.dir, inside)).toBe(true);
+    expect(isDraftFolderItem(made.dir, made.file)).toBe(false);
+    expect(isDraftFolderItem(made.dir, outside)).toBe(false);
+    expect(isDraftFolderItem(made.dir, path.join(made.dir, "gone.png"))).toBe(
+      false,
+    );
   });
 });

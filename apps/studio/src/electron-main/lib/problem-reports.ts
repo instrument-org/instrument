@@ -14,6 +14,10 @@ import {
   type PendingProblem,
   type ReportInput,
 } from "@/shared/problem-reports";
+import {
+  checkFeedbackImages,
+  type FeedbackImageType,
+} from "@/shared/feedback-images";
 import { osConventionsFor } from "@/shared/os-conventions";
 import { app } from "electron";
 import {
@@ -327,18 +331,79 @@ function reportBody(input: ReportInput): string {
   return body;
 }
 
+/** An image feedback can't carry, said in the dialog's words. */
+export class FeedbackImageRefusedError extends Error {}
+
+/** An image a report carries beside its JSON, its type read from its bytes. */
+export type ReportImage = {
+  bytes: Uint8Array<ArrayBuffer>;
+  name: string;
+  type: FeedbackImageType;
+};
+
+/**
+ * A report's body and headers: the JSON alone, or, when it has images, a
+ * multipart body with the JSON as its `report` part and each image as an
+ * `image` part, `fetch` setting the boundary.
+ */
+export function reportRequestBody(
+  json: string,
+  images: readonly ReportImage[],
+): { body: FormData | string; headers: Record<string, string> } {
+  if (images.length === 0) {
+    return {
+      body: json,
+      headers: {
+        ...getPlatformApiHeaders(),
+        "content-type": "application/json",
+      },
+    };
+  }
+  const form = new FormData();
+  form.append("report", json);
+  for (const image of images) {
+    form.append(
+      "image",
+      new Blob([image.bytes], { type: image.type }),
+      image.name,
+    );
+  }
+  return { body: form, headers: getPlatformApiHeaders() };
+}
+
+/**
+ * The images the dialog sent, read and checked again here: at most four,
+ * each a PNG, JPEG, WebP or GIF by its own bytes and within the size cap.
+ * Throws the dialog's words for the first one refused.
+ */
+export async function readFeedbackImages(
+  images: readonly { data: Blob; name: string }[],
+): Promise<ReportImage[]> {
+  const read = await Promise.all(
+    images.map(async (image) => {
+      const bytes = new Uint8Array(await image.data.arrayBuffer());
+      return { bytes, head: bytes, name: image.name, size: bytes.byteLength };
+    }),
+  );
+  const { accepted, problems } = checkFeedbackImages(0, read);
+  if (problems[0]) {
+    throw new FeedbackImageRefusedError(problems[0]);
+  }
+  return accepted.map(({ bytes, name, type }) => ({ bytes, name, type }));
+}
+
 /**
  * Sends one report to the API, which hands it to the reports service, and
  * answers its id. A signed-in report carries the account's token, the way every request to us does, so
- * it can be answered; one from someone not signed in goes without.
+ * it can be answered; one from someone not signed in goes without. Images
+ * make it a multipart request; without them it is JSON.
  */
-export async function sendReport(input: ReportInput): Promise<{ id: string }> {
+export async function sendReport(
+  input: ReportInput,
+  images: readonly ReportImage[] = [],
+): Promise<{ id: string }> {
   const response = await fetch(new URL("/reports", platformApiBaseUrl()), {
-    body: reportBody(input),
-    headers: {
-      ...getPlatformApiHeaders(),
-      "content-type": "application/json",
-    },
+    ...reportRequestBody(reportBody(input), images),
     method: "POST",
   });
   if (!response.ok) {

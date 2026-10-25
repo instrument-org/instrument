@@ -15,9 +15,16 @@ import {
   toggleItem,
   togglePart,
 } from "@/client/lib/feedback-selection";
+import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { SENT_CLOSE_MS } from "@/client/lib/problem-reports";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import {
+  checkFeedbackImages,
+  FEEDBACK_IMAGE_TYPES,
+  IMAGE_HEAD_BYTES,
+  MAX_FEEDBACK_IMAGES,
+} from "@/shared/feedback-images";
 import {
   FEEDBACK_TOO_LARGE,
   type FeedbackItem,
@@ -32,12 +39,14 @@ import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
+import { ImageIcon } from "@phosphor-icons/react/Image";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { ScrollIcon } from "@phosphor-icons/react/Scroll";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 const ITEM_ICONS: Record<FeedbackItem["kind"], Icon> = {
   about: InfoIcon,
@@ -62,11 +71,66 @@ type Part = {
   title: string;
 };
 
+/** An image the person attached: a picked, pasted or dropped file. */
+type AttachedImage = {
+  file: Blob;
+  id: string;
+  name: string;
+  size: number;
+  /** A data URL, so a picture shown needs nothing released when it goes. */
+  src: string;
+};
+
+function readDataUrl(file: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      resolve(typeof reader.result === "string" ? reader.result : "");
+    });
+    reader.addEventListener("error", () => {
+      reject(reader.error ?? new Error("The image couldn't be read"));
+    });
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
- * Feedback: the person's comments, then what goes with them in parts (the
- * chat, when there is one, and the diagnostics), each a box over its files
- * that opens to list them, every file with its own box and a way to read it
- * as it will be sent. Everything starts checked.
+ * The files offered that can be attached after `already` images, each with
+ * an id and its picture, and a line for each one left out.
+ */
+async function offerImages(already: number, files: readonly File[]) {
+  const candidates = await Promise.all(
+    files.map(async (file) => ({
+      file,
+      head: new Uint8Array(await file.slice(0, IMAGE_HEAD_BYTES).arrayBuffer()),
+      id: crypto.randomUUID(),
+      name: file.name || "Pasted image",
+      size: file.size,
+    })),
+  );
+  const { accepted, problems } = checkFeedbackImages(already, candidates);
+  return {
+    accepted: await Promise.all(
+      accepted.map(
+        async ({ file, id, name, size }): Promise<AttachedImage> => ({
+          file,
+          id,
+          name,
+          size,
+          src: await readDataUrl(file),
+        }),
+      ),
+    ),
+    problems,
+  };
+}
+
+/**
+ * Feedback: the person's comments and the images they attach, then what
+ * goes with them in parts (the images, the chat, when there is one, and the
+ * diagnostics), each a box over its files that opens to list them, every
+ * file with its own box and a way to read it as it will be sent. Everything
+ * starts checked.
  */
 export function FeedbackDialogContent({
   onClose,
@@ -81,7 +145,21 @@ export function FeedbackDialogContent({
   const [note, setNote] = useState("");
   const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(new Set());
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
-  const [viewing, setViewing] = useState<FeedbackItem | null>(null);
+  const [viewing, setViewing] = useState<AttachedImage | FeedbackItem | null>(
+    null,
+  );
+  const [images, setImages] = useState<AttachedImage[]>([]);
+  const [imageProblems, setImageProblems] = useState<string[]>([]);
+  const pickerRef = useRef<HTMLInputElement>(null);
+
+  const addImages = async (files: readonly File[]) => {
+    if (files.length === 0) {
+      return;
+    }
+    const { accepted, problems } = await offerImages(images.length, files);
+    setImages((current) => [...current, ...accepted]);
+    setImageProblems(problems);
+  };
 
   // Read once per opening: what the dialog shows is what Send sends.
   const described = useQuery({
@@ -122,6 +200,7 @@ export function FeedbackDialogContent({
     mutationFn: () => {
       const trimmed = note.trim();
       return rpcClient.problems.sendFeedback.call({
+        images: images.map((image) => ({ data: image.file, name: image.name })),
         items: going,
         note: trimmed || undefined,
         surface: request.surface,
@@ -192,15 +271,27 @@ export function FeedbackDialogContent({
             <ArrowLeftIcon className="size-4" />
           </Button>
           <DialogTitle className="min-w-0 flex-1 truncate text-sm font-medium">
-            {viewing.label}
+            {"files" in viewing ? viewing.label : viewing.name}
           </DialogTitle>
           <DialogDescription className="shrink-0 text-xs text-muted-foreground">
-            {formatSize(viewing.bytes)} · read only
+            {"files" in viewing
+              ? `${formatSize(viewing.bytes)} · read only`
+              : formatSize(viewing.size)}
           </DialogDescription>
         </div>
-        <pre className="min-h-0 flex-1 overflow-auto px-4 py-3 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap text-foreground/80 select-text">
-          {itemText(viewing)}
-        </pre>
+        {"files" in viewing ? (
+          <pre className="min-h-0 flex-1 overflow-auto px-4 py-3 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap text-foreground/80 select-text">
+            {itemText(viewing)}
+          </pre>
+        ) : (
+          <div className="flex min-h-0 flex-1 items-center justify-center bg-muted/40 p-4">
+            <img
+              alt={viewing.name}
+              className="max-h-full max-w-full object-contain"
+              src={viewing.src}
+            />
+          </div>
+        )}
         <div className="flex justify-end border-t border-border px-4 py-3">
           <Button
             onClick={() => {
@@ -228,7 +319,35 @@ export function FeedbackDialogContent({
       className="flex flex-col overflow-hidden"
       maxHeight={DIALOG_SIZE.height}
       maxWidth={DIALOG_SIZE.width}
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes("Files")) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }
+      }}
+      onDrop={(event) => {
+        if (event.dataTransfer.files.length > 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          void addImages([...event.dataTransfer.files]);
+        }
+      }}
       onExitComplete={onExitComplete}
+      onPaste={(event) => {
+        const text = event.clipboardData.getData("text/plain");
+        const files = [...event.clipboardData.items]
+          .filter((item) =>
+            shouldAttachClipboardItem({
+              hasText: text.trim().length > 0,
+              item,
+            }),
+          )
+          .flatMap((item) => item.getAsFile() ?? []);
+        if (files.length > 0) {
+          event.preventDefault();
+          void addImages(files);
+        }
+      }}
       showCloseButton={false}
       style={{ height: DIALOG_SIZE.height }}
     >
@@ -256,8 +375,79 @@ export function FeedbackDialogContent({
         />
       </div>
 
+      <div className="flex shrink-0 flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {images.map((image) => (
+            <div className="relative" key={image.id}>
+              <button
+                aria-label={`View ${image.name}`}
+                className="block size-14 overflow-hidden rounded-md border border-border bg-muted"
+                onClick={() => {
+                  setViewing(image);
+                }}
+                type="button"
+              >
+                <img
+                  alt=""
+                  className="size-full object-cover"
+                  src={image.src}
+                />
+              </button>
+              <button
+                aria-label={`Remove ${image.name}`}
+                className="absolute -top-1.5 -right-1.5 grid size-4.5 place-items-center rounded-full bg-foreground text-background hover:bg-foreground/80"
+                onClick={() => {
+                  setImages((current) =>
+                    current.filter((other) => other.id !== image.id),
+                  );
+                  setImageProblems([]);
+                }}
+                type="button"
+              >
+                <XIcon className="size-2.5" weight="bold" />
+              </button>
+            </div>
+          ))}
+          <Button
+            disabled={images.length >= MAX_FEEDBACK_IMAGES}
+            onClick={() => {
+              pickerRef.current?.click();
+            }}
+            size="sm"
+            variant="outline"
+          >
+            <ImageIcon />
+            Add images
+          </Button>
+          <input
+            accept={FEEDBACK_IMAGE_TYPES.join(",")}
+            className="hidden"
+            multiple
+            onChange={(event) => {
+              const files = [...(event.target.files ?? [])];
+              event.target.value = "";
+              void addImages(files);
+            }}
+            ref={pickerRef}
+            type="file"
+          />
+        </div>
+        {imageProblems.map((line) => (
+          <p
+            className="flex items-start gap-1.5 text-xs text-destructive"
+            key={line}
+          >
+            <WarningCircleIcon className="mt-px size-3.5 shrink-0" />
+            {line}
+          </p>
+        ))}
+      </div>
+
       {/* What goes takes the room left, and scrolls in it. */}
       <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+        {images.length > 0 && (
+          <ImagesPart images={images} onView={setViewing} />
+        )}
         {described.isPending && (
           <p className="text-sm text-muted-foreground">
             Gathering the details…
@@ -299,7 +489,7 @@ export function FeedbackDialogContent({
             described.isPending ||
             chatTooLarge ||
             send.isPending ||
-            (going.length === 0 && note.trim() === "")
+            (going.length === 0 && images.length === 0 && note.trim() === "")
           }
           onClick={() => {
             send.mutate();
@@ -319,6 +509,59 @@ export function FeedbackDialogContent({
         </Button>
       </div>
     </DialogContent>
+  );
+}
+
+/**
+ * The images attached, as the first part of what goes. Each goes as it is
+ * while it is attached, so the part has no boxes; the × on its picture
+ * takes one out.
+ */
+function ImagesPart({
+  images,
+  onView,
+}: {
+  images: readonly AttachedImage[];
+  onView: (image: AttachedImage) => void;
+}) {
+  return (
+    <div className="mb-2 rounded-lg border border-border px-3 py-2.5">
+      <div className="flex items-start gap-2">
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-sm">
+            {images.length === 1 ? "Image" : `${images.length} images`}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {images.length === 1
+              ? "The picture you attached"
+              : "The pictures you attached"}
+          </span>
+        </span>
+        <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">
+          {formatSize(images.reduce((sum, image) => sum + image.size, 0))}
+        </span>
+      </div>
+      <div className="mt-1 ml-0.5 flex flex-col border-l border-border pl-2">
+        {images.map((image) => (
+          <button
+            aria-label={`View ${image.name}`}
+            className="flex min-w-0 items-center gap-2.5 rounded-md px-2 py-1 text-left text-[13px] hover:bg-accent"
+            key={image.id}
+            onClick={() => {
+              onView(image);
+            }}
+            type="button"
+          >
+            <ImageIcon className="size-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate">{image.name}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {formatSize(image.size)}
+            </span>
+            <CaretRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

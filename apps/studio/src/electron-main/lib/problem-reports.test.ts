@@ -462,3 +462,79 @@ describe("feedback", () => {
     ).toThrow(reports.FeedbackTooLargeError);
   });
 });
+
+describe("feedback images", () => {
+  beforeEach(async () => {
+    userData.dir = fs.mkdtempSync(path.join(os.tmpdir(), "problem-reports-"));
+    vi.resetModules();
+    reports = await import("./problem-reports");
+    return () => {
+      fs.rmSync(userData.dir, { force: true, recursive: true });
+    };
+  });
+
+  const PNG = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2,
+  ]);
+
+  it("sends JSON alone when there are no images", () => {
+    const { body, headers } = reports.reportRequestBody('{"a":1}', []);
+    expect(body).toBe('{"a":1}');
+    expect(headers["content-type"]).toBe("application/json");
+  });
+
+  it("sends the report part and each image part as multipart", async () => {
+    const { body, headers } = reports.reportRequestBody('{"kind":"feedback"}', [
+      { bytes: PNG, name: "limit note.png", type: "image/png" },
+      { bytes: PNG, name: "second.png", type: "image/png" },
+    ]);
+    // `fetch` sets the multipart type with its boundary.
+    expect(headers).not.toHaveProperty("content-type");
+    const request = new Request("http://reports.test/reports", {
+      body,
+      method: "POST",
+    });
+    expect(request.headers.get("content-type")).toMatch(
+      /^multipart\/form-data; boundary=/,
+    );
+    const form = await request.formData();
+    expect(form.get("report")).toBe('{"kind":"feedback"}');
+    const parts = form.getAll("image").filter((part) => part instanceof File);
+    expect(parts.map((part) => [part.name, part.type, part.size])).toEqual([
+      ["limit note.png", "image/png", PNG.length],
+      ["second.png", "image/png", PNG.length],
+    ]);
+    const first = parts[0];
+    expect(first && new Uint8Array(await first.arrayBuffer())).toEqual(PNG);
+  });
+
+  it("reads the images' types from their bytes", async () => {
+    const images = await reports.readFeedbackImages([
+      { data: new Blob([PNG], { type: "application/pdf" }), name: "a.png" },
+    ]);
+    expect(images.map(({ name, type }) => [name, type])).toEqual([
+      ["a.png", "image/png"],
+    ]);
+  });
+
+  it("refuses what the dialog would have left out", async () => {
+    await expect(
+      reports.readFeedbackImages([
+        {
+          data: new Blob(["%PDF-1.7"], { type: "image/png" }),
+          name: "notes.pdf",
+        },
+      ]),
+    ).rejects.toThrow(
+      "“notes.pdf” isn't an image, so we left it out. You can attach PNG, JPEG, WebP or GIF.",
+    );
+    await expect(
+      reports.readFeedbackImages(
+        Array.from({ length: 5 }, (_, index) => ({
+          data: new Blob([PNG]),
+          name: `${index}.png`,
+        })),
+      ),
+    ).rejects.toThrow(reports.FeedbackImageRefusedError);
+  });
+});

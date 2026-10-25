@@ -4,11 +4,14 @@ import {
   clearPendingProblem,
   describeFeedback,
   describeProblem,
+  FeedbackImageRefusedError,
   FeedbackTooLargeError,
   feedbackReportInput,
   listPendingProblems,
+  readFeedbackImages,
   sendReport,
 } from "@/electron-main/lib/problem-reports";
+import { MAX_FEEDBACK_IMAGES } from "@/shared/feedback-images";
 import { findExceptionEvent } from "@/electron-main/lib/exception-store";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -107,11 +110,21 @@ const describeFeedbackRoute = base
 
 /**
  * Sends feedback: the note and the items the person kept checked, as the
- * dialog was given them, trimmed to the service's cap.
+ * dialog was given them, trimmed to the service's cap, and the images they
+ * attached, as Blobs the RPC link carries as binary.
  */
 const sendFeedback = base
   .input(
     z.object({
+      images: z
+        .array(
+          z.object({
+            data: z.instanceof(Blob),
+            name: z.string().min(1).max(200),
+          }),
+        )
+        .max(MAX_FEEDBACK_IMAGES)
+        .optional(),
       items: z.array(FeedbackItemSchema),
       note: z.string().max(5000).optional(),
       surface: ReportInputSchema.shape.surface,
@@ -120,9 +133,13 @@ const sendFeedback = base
   )
   .handler(async ({ errors, input }) => {
     try {
-      return await sendReport(feedbackReportInput(input));
+      const images = await readFeedbackImages(input.images ?? []);
+      return await sendReport(feedbackReportInput(input), images);
     } catch (error) {
-      if (!(error instanceof FeedbackTooLargeError)) {
+      if (
+        !(error instanceof FeedbackTooLargeError) &&
+        !(error instanceof FeedbackImageRefusedError)
+      ) {
         captureServerException(error);
       }
       // `fetch` throws a TypeError only when the request never got an answer.

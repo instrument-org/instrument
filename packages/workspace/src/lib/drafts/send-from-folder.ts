@@ -4,6 +4,7 @@ import path from "node:path";
 import { type FileUpload } from "../../schemas/file-upload";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { getMimeType } from "../get-mime-type";
+import { removeFolderLeftEmpty } from "../system-clutter";
 import {
   draftFolderItems,
   findDraft,
@@ -146,11 +147,8 @@ export function removeSentFromDraft(sent: SentFromDraft): string[] {
     }
   }
   for (const folder of sent.folders) {
-    try {
-      fs.rmdirSync(folder);
-    } catch {
-      // Something the send did not carry is still in it.
-    }
+    // Something the send did not carry, still in it, keeps it.
+    removeFolderLeftEmpty(folder);
   }
   return stuck;
 }

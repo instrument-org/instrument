@@ -249,6 +249,33 @@ describe("the drafts folder", () => {
     ]);
   });
 
+  it.each([[[".DS_Store"]], [["._DRAFT.md", "desktop.ini", "Thumbs.db"]]])(
+    "takes the folder away when only a file manager's records %j are left",
+    (records) => {
+      const made = ensureDraftFolder({
+        draft: draft(),
+        rootDir,
+        timeZone: ZONE,
+      });
+      for (const name of records) {
+        fs.writeFileSync(path.join(made.dir, name), "");
+      }
+      expect(removeDraft(made)).toEqual([]);
+      expect(fs.existsSync(made.dir)).toBe(false);
+    },
+  );
+
+  it("keeps the folder while a download is still arriving in it", () => {
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    fs.writeFileSync(path.join(made.dir, ".DS_Store"), "");
+    fs.writeFileSync(path.join(made.dir, "report.pdf.crdownload"), "half");
+    removeDraft(made);
+    expect(fs.readdirSync(made.dir).toSorted()).toEqual([
+      ".DS_Store",
+      "report.pdf.crdownload",
+    ]);
+  });
+
   it("moves what was left to the Trash and takes the folder after it, keeping what will not move", async () => {
     const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     fs.writeFileSync(path.join(made.dir, "dropped.pdf"), "the only copy");

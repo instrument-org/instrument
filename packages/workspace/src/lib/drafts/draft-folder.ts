@@ -5,7 +5,7 @@ import { ulid } from "ulid";
 
 import { DRAFT_FILE_NAME, DRAFTS_FOLDER_NAME } from "../../constants";
 import { claimFolderNamedSync, safeName } from "../chat-folders/folder-name";
-import { isSystemClutter } from "../system-clutter";
+import { isSystemClutter, removeFolderLeftEmpty } from "../system-clutter";
 import { pastedPathOf } from "./context-line";
 import {
   type DraftFile,
@@ -321,12 +321,9 @@ export function removeDraft(entry: DraftOnDisk): DraftFolderItem[] {
   const others = namedByOtherDrafts(dir, draft.id);
   const mine = draftFolderItems(entry).filter((item) => !others.has(item.path));
   fs.rmSync(file, { force: true });
-  try {
-    fs.rmdirSync(dir);
-  } catch {
-    // Something else is in the folder: another draft, or what is left for
-    // the Trash.
-  }
+  // Something else in the folder keeps it: another draft, or what is left
+  // for the Trash.
+  removeFolderLeftEmpty(dir);
   return mine;
 }
 
@@ -353,11 +350,8 @@ export async function trashLeftInDraft({
       kept.push({ error, path: item.path });
     }
   }
-  try {
-    fs.rmdirSync(dir);
-  } catch {
-    // Something is still in it: another draft, or what could not be moved.
-  }
+  // Something still in it keeps it: another draft, or what could not be moved.
+  removeFolderLeftEmpty(dir);
   return kept;
 }
 

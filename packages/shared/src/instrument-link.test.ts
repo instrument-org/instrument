@@ -6,6 +6,8 @@ import {
   filePathOfInstrumentLink,
   instrumentLinkOf,
   instrumentUrlOf,
+  OUTSIDE_WORDS_MAX,
+  outsideLinkOf,
 } from "./instrument-link";
 
 describe("instrumentLinkOf", () => {
@@ -20,14 +22,6 @@ describe("instrumentLinkOf", () => {
     ],
     [
       "instrument://chat/ses_01J9",
-      {
-        href: "/chats/ses_01J9",
-        kind: "chat",
-        name: "ses_01J9",
-      },
-    ],
-    [
-      "instrument://thread/ses_01J9",
       {
         href: "/chats/ses_01J9",
         kind: "chat",
@@ -95,6 +89,8 @@ describe("instrumentLinkOf", () => {
     ["a name with a path under it", "instrument://task/ses_01J9TASK/files"],
     ["a name with characters no name has", "instrument://memory/no%20stevia"],
     ["a noun the app has no screen for", "instrument://topic/general"],
+    ["a chat by its old name", "instrument://thread/ses_01J9"],
+    ["a name every object has", "instrument://constructor/x"],
     ["the file channel", "instrument://computer-abc123/Users/me/notes.md"],
     ["a web address", "https://instrument.page/task/ses_01J9TASK"],
     ["a path", "work/report.md"],
@@ -152,6 +148,63 @@ describe("filePathOfInstrumentLink", () => {
     ["https://file/Users/sam/a.md", undefined],
   ])("%s", (url, path) => {
     expect(filePathOfInstrumentLink(url)).toBe(path);
+  });
+});
+
+describe("outsideLinkOf", () => {
+  it.each([
+    ["instrument://chat/ses_01J9", { href: "/chats/ses_01J9", kind: "screen" }],
+    [
+      "instrument://file/Users/sam/My%20Notes/a.md",
+      { kind: "file", path: "/Users/sam/My Notes/a.md" },
+    ],
+    [
+      "instrument://file/C:/Users/sam/a.md",
+      { kind: "file", path: "/C:/Users/sam/a.md" },
+    ],
+    [
+      "instrument://new?text=Plan%20my%20week",
+      { kind: "new", words: "Plan my week" },
+    ],
+    [
+      "instrument://new/?text=Plan&topic=01JTOPIC",
+      { kind: "new", topic: "01JTOPIC", words: "Plan" },
+    ],
+    [
+      "instrument://new?text=Plan&topic=not%20a%20name",
+      { kind: "new", words: "Plan" },
+    ],
+    ["instrument://new", { kind: "new", words: "" }],
+    [
+      "instrument://NEW?text=%20%20spaced%20%20",
+      { kind: "new", words: "spaced" },
+    ],
+    [
+      // A zero-width space, a right-to-left override and a tag character.
+      "instrument://new?text=a%E2%80%8Bb%E2%80%AEc%F3%A0%80%81d",
+      { kind: "new", words: "abcd" },
+    ],
+    [
+      // The astronaut keeps the joiner it is made with.
+      "instrument://new?text=%F0%9F%91%A8%E2%80%8D%F0%9F%9A%80",
+      { kind: "new", words: "👨‍🚀" },
+    ],
+    [
+      `instrument://new?text=${"a".repeat(OUTSIDE_WORDS_MAX)}`,
+      { kind: "new", words: "a".repeat(OUTSIDE_WORDS_MAX) },
+    ],
+  ])("reads %s", (url, expected) => {
+    expect(outsideLinkOf(url)).toEqual(expected);
+  });
+
+  it.each([
+    ["words past the limit", `instrument://new?text=${"a".repeat(2001)}`],
+    ["a verb with a path under it", "instrument://new/more?text=Plan"],
+    ["a web page", "instrument://browser?url=https://example.com"],
+    ["another scheme", "https://new?text=Plan"],
+    ["a noun with no name", "instrument://chat"],
+  ])("opens nothing for %s", (_case, url) => {
+    expect(outsideLinkOf(url)).toBeUndefined();
   });
 });
 

@@ -181,6 +181,13 @@ export function useDrafts({
       typeof words === "string" ? words : "",
       chosen,
     );
+  /**
+   * A new chat a link from outside asked for, with its words: a draft of its
+   * own beside any already open, so nothing the person wrote is replaced,
+   * filed under the topic it names only when there is one by that id.
+   */
+  const draftFromLink = (words: string, topicId?: string) =>
+    startDraft(topics.find((topic) => topic.id === topicId)?.id, words);
   // What a draft's composer held is kept only as long as the draft: a
   // composer unmounting keeps its snapshot as it goes, so a draft sent or
   // thrown away is pruned here, after that.
@@ -418,6 +425,7 @@ export function useDrafts({
     closeDraft,
     discardDraft,
     discardingIds,
+    draftFromLink,
     newDraft,
     sentWords,
     showDraft,

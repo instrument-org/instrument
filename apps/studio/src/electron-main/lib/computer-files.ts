@@ -98,6 +98,20 @@ export function hostPathOfComputerFileUrl(
   } catch {
     return;
   }
+  return hostPathOfUrlPath(decoded, hostPaths);
+}
+
+/**
+ * The host path a URL's decoded path names, by the same rules as the
+ * channel's: absolute, with no traversal, no doubled separator (which is how
+ * a network share is spelled) and, wherever a backslash separates, no
+ * backslash, and none of a workspace's records. `/C:/Users/...` is a Windows
+ * path, its leading slash the URL form's.
+ */
+export function hostPathOfUrlPath(
+  decoded: string,
+  hostPaths: path.PlatformPath = path,
+): string | undefined {
   const hostPath = /^\/[A-Z]:\//i.test(decoded) ? decoded.slice(1) : decoded;
   // A backslash separates names in a Windows path, and in every path on
   // Windows. Anywhere else it is a character a name can hold, and the system

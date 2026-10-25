@@ -38,6 +38,7 @@ function Commands({
       forward: vi.fn(),
       goToPlace: vi.fn(),
       newChat: vi.fn(),
+      newChatFromLink: vi.fn(),
       newTab,
       openFile: vi.fn(),
       openScreen: vi.fn(),

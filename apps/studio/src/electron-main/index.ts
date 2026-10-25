@@ -18,6 +18,7 @@ import {
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
+import { openOutsideLink } from "@/electron-main/lib/outside-links";
 import { setupStateKnown } from "@/electron-main/lib/setup-state";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
@@ -25,10 +26,11 @@ import { finishPlacingLeftovers } from "@/electron-main/rpc/routes/files";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
+  askAppWindow,
   openAppFile,
-  openAppScreen,
   openAppWindow,
   updateAppWindowBackgroundColor,
+  waitingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
@@ -38,12 +40,7 @@ import {
   isDevInstanceColor,
 } from "@/shared/dev-instance-colors";
 import { is, optimizer } from "@electron-toolkit/utils";
-import {
-  APP_NAME,
-  APP_FLAVOR,
-  APP_PROTOCOL,
-  instrumentLinkOf,
-} from "@instrument-org/shared";
+import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
 import {
   BrowserWindow,
   app,
@@ -135,7 +132,7 @@ if (gotTheLock) {
     }
     focusForegroundWindow();
 
-    const url = commandLine.find((arg) => arg.startsWith(`${APP_PROTOCOL}://`));
+    const url = linkInArgv(commandLine);
     if (url) {
       handleDeepLink(url);
     }
@@ -156,11 +153,26 @@ if (gotTheLock) {
     }
   });
 
-  // The same hand-over on Windows and Linux, for a launch that starts the app.
-  for (const filePath of getWorkspaceRefusal()
-    ? []
-    : filesInArgv(process.argv, { defaultApp: process.defaultApp })) {
-    openAppFile(filePath);
+  // A link handed over from outside, listened for before ready for the same
+  // reason: the link that launches the app arrives before it is.
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    if (!getWorkspaceRefusal()) {
+      handleDeepLink(url);
+    }
+  });
+
+  // The same hand-overs on Windows and Linux, for a launch that starts the app.
+  if (!getWorkspaceRefusal()) {
+    for (const filePath of filesInArgv(process.argv, {
+      defaultApp: process.defaultApp,
+    })) {
+      openAppFile(filePath);
+    }
+    const url = linkInArgv(process.argv);
+    if (url) {
+      handleDeepLink(url);
+    }
   }
 
   void app.whenReady().then(bootstrapPrimaryInstance).catch(handleBootFailure);
@@ -385,10 +397,6 @@ async function bootstrapPrimaryInstance() {
       openAppWindow();
     }
   });
-  app.on("open-url", (event, url) => {
-    event.preventDefault();
-    handleDeepLink(url);
-  });
 }
 
 /**
@@ -418,15 +426,22 @@ function focusForegroundWindow() {
 
 /**
  * A link from outside the app: the website's "Try in Instrument", a reply's
- * address pasted somewhere else. What it names is a screen of the window,
- * read the way a reply's link is.
+ * address pasted somewhere else, a note linking a file. The window comes
+ * forward only for one that opens something (`outside-links.ts`).
  */
 function handleDeepLink(url: string) {
-  focusForegroundWindow();
-  const link = instrumentLinkOf(url);
-  if (link) {
-    openAppScreen(link.href);
-  }
+  void openOutsideLink(url, {
+    ask: (ask) => {
+      focusForegroundWindow();
+      askAppWindow(ask);
+    },
+    waiting: () => waitingAppWindowAsks().length,
+  });
+}
+
+/** The link a launch was handed, by the scheme this build answers to. */
+function linkInArgv(argv: readonly string[]) {
+  return argv.find((arg) => arg.startsWith(`${APP_PROTOCOL}://`));
 }
 
 // Closing the last window quits outside macOS, where the window's own close

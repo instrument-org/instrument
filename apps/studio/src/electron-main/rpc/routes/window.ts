@@ -1,15 +1,16 @@
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import {
-  takePendingAppWindowAsks,
-  waitingAppWindowAsks,
-} from "@/electron-main/windows/app-window";
-import { eventIterator } from "@orpc/server";
+import { takePendingAppWindowAsks } from "@/electron-main/windows/app-window";
 import { z } from "zod";
 
 const AskSchema = z.discriminatedUnion("type", [
   z.object({ hostPath: z.string(), type: z.literal("openFile") }),
   z.object({ href: z.string(), type: z.literal("openScreen") }),
+  z.object({
+    topic: z.string().optional(),
+    type: z.literal("newChat"),
+    words: z.string(),
+  }),
 ]);
 
 const events = {
@@ -41,26 +42,7 @@ const takePending = base
   .output(z.array(AskSchema))
   .handler(() => takePendingAppWindowAsks());
 
-const live = {
-  /**
-   * What from outside waits for the window, as of now and each time more
-   * arrives or goes: what setup tells the person opens once they are
-   * through.
-   */
-  waiting: base
-    .output(eventIterator(z.array(AskSchema)))
-    .handler(async function* ({ signal }) {
-      yield [...waitingAppWindowAsks()];
-      for await (const _ of publisher.subscribe("window.asks-waiting", {
-        signal,
-      })) {
-        yield [...waitingAppWindowAsks()];
-      }
-    }),
-};
-
 export const window = {
   events,
-  live,
   takePending,
 };

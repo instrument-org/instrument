@@ -28,8 +28,7 @@ type InstrumentLinkKind =
 
 /**
  * The nouns an address may lead with, each with the screen prefix its thing
- * lives under. `thread` is what a chat was called when older replies linked
- * one, and those replies are still in transcripts.
+ * lives under.
  */
 const HOSTS = {
   app: { kind: "app", prefix: "/apps" },
@@ -39,7 +38,6 @@ const HOSTS = {
   settings: { kind: "settings", prefix: "/settings" },
   skill: { kind: "skill", prefix: "/skills" },
   task: { kind: "task", prefix: "/tasks" },
-  thread: { kind: "chat", prefix: "/chats" },
 } as const satisfies Record<
   string,
   { kind: InstrumentLinkKind; prefix: string }
@@ -47,7 +45,7 @@ const HOSTS = {
 
 type Host = keyof typeof HOSTS;
 
-const isHost = (host: string): host is Host => host in HOSTS;
+const isHost = (host: string): host is Host => Object.hasOwn(HOSTS, host);
 
 /**
  * A name as it may appear in an address: one path segment of the characters
@@ -88,6 +86,68 @@ export function filePathOfInstrumentLink(url: string): string | undefined {
   // the absolute path the reply had in hand.
   const path = decoded(parsed.pathname).replace(/^\/+/, "/");
   return path === "/" ? undefined : path;
+}
+
+/**
+ * What a link from outside the app asks for: a screen one of the nouns
+ * names, a file or folder by its path (spelled as the address has it, which
+ * the opener still checks), or a new chat with words already written.
+ */
+export type OutsideLink =
+  | { href: string; kind: "screen" }
+  | { kind: "file"; path: string }
+  | { kind: "new"; topic?: string; words: string };
+
+/** The longest words a `new` link may bring; a longer one opens nothing. */
+export const OUTSIDE_WORDS_MAX = 2000;
+
+/**
+ * Characters that change nothing a person sees but reach the model: zero
+ * width spaces and joiners other than the emoji joiner, the marks that turn
+ * text around, the soft hyphen and the byte-order mark, and the tag block,
+ * which spells whole hidden sentences.
+ */
+const UNSEEN =
+  /[\u00AD\u200B\u200C\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\u{E0000}-\u{E007F}]/gu;
+
+/**
+ * Reads a link handed to the app from outside: a browser, another app, a
+ * note. Everything a noun names is a screen, `file` a path, and `new` the
+ * one verb, `instrument://new?text=<words>&topic=<id>`, a new chat's draft
+ * that is never sent for the person.
+ */
+export function outsideLinkOf(url: string): OutsideLink | undefined {
+  const link = instrumentLinkOf(url);
+  if (link) {
+    return { href: link.href, kind: "screen" };
+  }
+  const path = filePathOfInstrumentLink(url);
+  if (path !== undefined) {
+    return { kind: "file", path };
+  }
+  if (!URL.canParse(url)) {
+    return undefined;
+  }
+  const parsed = new URL(url);
+  if (
+    !SCHEMES.has(parsed.protocol) ||
+    parsed.host.toLowerCase() !== "new" ||
+    !["", "/"].includes(parsed.pathname)
+  ) {
+    return undefined;
+  }
+  const words = (parsed.searchParams.get("text") ?? "")
+    .replaceAll(UNSEEN, "")
+    .trim();
+  if (words.length > OUTSIDE_WORDS_MAX) {
+    return undefined;
+  }
+  const topic = parsed.searchParams.get("topic") ?? undefined;
+  return {
+    kind: "new",
+    ...(topic !== undefined && NAME.test(topic) ? { topic } : {}),
+    words,
+  };
 }
 
 /** A chat's address, which is how a file names the chat it belongs to. */

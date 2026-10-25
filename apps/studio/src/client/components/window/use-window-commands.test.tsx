@@ -45,6 +45,7 @@ const handlers = {
   forward: vi.fn(),
   goToPlace: vi.fn(),
   newChat: vi.fn(),
+  newChatFromLink: vi.fn(),
   newTab: vi.fn(),
   openFile: vi.fn(),
   openScreen: vi.fn(),
@@ -79,6 +80,17 @@ describe("useWindowCommands", () => {
       expect(handlers.openScreen).toHaveBeenCalledWith("/chats/abc");
     });
     expect(handlers.openFile).toHaveBeenCalledWith("/Users/mac-user/a.pdf");
+  });
+
+  it("starts a new chat's draft with the words a link brought", async () => {
+    renderWithDefaultStore(<Window />);
+    stream.push({ topic: "01JTOPIC", type: "newChat", words: "Plan my week" });
+    await vi.waitFor(() => {
+      expect(handlers.newChatFromLink).toHaveBeenCalledWith(
+        "Plan my week",
+        "01JTOPIC",
+      );
+    });
   });
 
   it("leaves the search chord to what holds the window", () => {

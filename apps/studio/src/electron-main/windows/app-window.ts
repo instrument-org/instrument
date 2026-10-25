@@ -65,9 +65,6 @@ let isSetupSized = false;
  * While setup is up they wait for it, and go to the window when it is done.
  */
 const asks = createAppWindowAsks({
-  changed: () => {
-    publisher.publish("window.asks-waiting", null);
-  },
   deliver: (ask) => {
     publisher.publish("window.command", ask);
   },
@@ -317,10 +314,7 @@ function rememberedAppWindowState() {
   });
 }
 
-/**
- * What waits for the window without taking it: what setup names, so the
- * person knows it opens once they are through.
- */
+/** What waits for the window without taking it yet. */
 export function waitingAppWindowAsks(): readonly AppWindowAsk[] {
   return asks.waiting;
 }
@@ -389,7 +383,11 @@ export function updateAppWindowBackgroundColor() {
   }
 }
 
-function askAppWindow(ask: AppWindowAsk) {
+/**
+ * Puts up what something outside the window asked for, in the window that is
+ * open or the one this opens, once it can show it.
+ */
+export function askAppWindow(ask: AppWindowAsk) {
   const window = getAppWindow();
   if (window) {
     if (!isHeldOffScreen(window)) {

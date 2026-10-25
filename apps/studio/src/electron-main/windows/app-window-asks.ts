@@ -1,11 +1,12 @@
 /**
  * What something outside the window asks it to put up: a screen by its
- * route, from a link, or a file handed to the app, which the window places
- * itself.
+ * route, from a link, a file handed to the app, which the window places
+ * itself, or a new chat's draft with the words a link brought.
  */
 export type AppWindowAsk =
   | { hostPath: string; type: "openFile" }
-  | { href: string; type: "openScreen" };
+  | { href: string; type: "openScreen" }
+  | { topic?: string; type: "newChat"; words: string };
 
 /**
  * Where asks from outside the window wait until it can take them: while its
@@ -13,15 +14,12 @@ export type AppWindowAsk =
  * `isHeld` says the window is not the person's to use (setup is up). They go
  * out in order, through `deliver`, once both are past: the page asks for what
  * waited when it is up (`take`), and `release` sends what waited when the
- * hold lifts. `changed` is told whenever what waits changes, for whoever
- * names it.
+ * hold lifts.
  */
 export function createAppWindowAsks({
-  changed,
   deliver,
   isHeld,
 }: {
-  changed: () => void;
   deliver: (ask: AppWindowAsk) => void;
   isHeld: () => boolean;
 }) {
@@ -34,9 +32,6 @@ export function createAppWindowAsks({
   const handOver = () => {
     const asks = pending;
     pending = [];
-    if (asks.length > 0) {
-      changed();
-    }
     return asks;
   };
 
@@ -47,7 +42,6 @@ export function createAppWindowAsks({
         return;
       }
       pending.push(ask);
-      changed();
     },
     /** The window lifted its hold: what waited goes to a page listening. */
     release() {
@@ -67,7 +61,7 @@ export function createAppWindowAsks({
       isTaking = true;
       return isHeld() ? [] : handOver();
     },
-    /** What waits, for the page to name while it is held. */
+    /** What waits, which a link from outside is let go past a few of. */
     get waiting(): readonly AppWindowAsk[] {
       return pending;
     },

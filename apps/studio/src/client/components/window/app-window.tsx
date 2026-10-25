@@ -597,6 +597,7 @@ function WindowShell({
     closeDraft,
     discardDraft,
     discardingIds,
+    draftFromLink,
     newDraft,
     sentWords,
     showDraft,
@@ -668,6 +669,7 @@ function WindowShell({
       },
       goToPlace: choosePlace,
       newChat: newDraft,
+      newChatFromLink: draftFromLink,
       newTab: appTabs.openNewTab,
       // A file from outside the app is the person's own, in a tab of its own.
       openFile: (hostPath) => {

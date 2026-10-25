@@ -15,13 +15,11 @@ const link: AppWindowAsk = { href: "/chats/abc", type: "openScreen" };
 function asks({ held = false } = {}) {
   const state = { held };
   const deliver = vi.fn<(ask: AppWindowAsk) => void>();
-  const changed = vi.fn();
   const queue = createAppWindowAsks({
-    changed,
     deliver,
     isHeld: () => state.held,
   });
-  return { changed, deliver, queue, state };
+  return { deliver, queue, state };
 }
 
 describe("createAppWindowAsks", () => {
@@ -42,19 +40,17 @@ describe("createAppWindowAsks", () => {
   });
 
   it("holds asks while held, names them, and delivers them on release", () => {
-    const { changed, deliver, queue, state } = asks({ held: true });
+    const { deliver, queue, state } = asks({ held: true });
     expect(queue.take()).toEqual([]);
     queue.ask(file);
     queue.ask(link);
     expect(deliver).not.toHaveBeenCalled();
     expect(queue.waiting).toEqual([file, link]);
-    expect(changed).toHaveBeenCalledTimes(2);
 
     state.held = false;
     queue.release();
     expect(deliver.mock.calls).toEqual([[file], [link]]);
     expect(queue.waiting).toEqual([]);
-    expect(changed).toHaveBeenCalledTimes(3);
   });
 
   it("leaves what waited for a reloading page to take on release", () => {

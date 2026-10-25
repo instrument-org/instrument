@@ -22,13 +22,17 @@ export interface DraftsSettled {
  * folder names are read in this computer's own zone, which is the zone the
  * person opening the folder is in.
  */
-export async function settleDrafts(rootDir: string): Promise<DraftsSettled> {
+export async function settleDrafts(
+  rootDir: string,
+  { moveToTrash }: { moveToTrash: (target: string) => Promise<void> },
+): Promise<DraftsSettled> {
   const moved = await migrateDraftsToFolder({
     rootDir,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
   const finished = await finishSentDrafts({
     chatsDir: workspaceLayout(rootDir).chatsDir,
+    moveToTrash,
     rootDir,
   });
   return { finished, moved };

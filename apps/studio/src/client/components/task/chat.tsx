@@ -371,7 +371,7 @@ export function ChatConversation({
   useFolderItems({
     draft: replyDraft,
     input: promptInputRef,
-    knows: staging.knows,
+    staging,
   });
   /**
    * Puts one of the chat's other waiting replies in the box: the box writes

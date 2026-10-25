@@ -146,7 +146,8 @@ export interface PromptInputRef {
   /**
    * Follows a change made to what the box holds from outside it, such as a
    * file put into a draft's folder or taken out of it: adds each item whose
-   * path the box does not have yet, and drops each one at a path in `gone`.
+   * path the box does not have yet, and drops each one whose path or id is
+   * in `gone`.
    */
   mergeItems: (change: { added: AttachedItem[]; gone: string[] }) => void;
   /** Opens the file chooser, the way the plus menu's "Add files" does. */
@@ -711,7 +712,9 @@ export const PromptInput = ({
       const leaving = new Set(gone);
       setAttachedItems((prev) => {
         const kept = prev.filter(
-          (item) => !("path" in item && leaving.has(item.path)),
+          (item) =>
+            !leaving.has(item.id) &&
+            !("path" in item && leaving.has(item.path)),
         );
         const held = new Set(
           kept.flatMap((item) => ("path" in item ? [item.path] : [])),

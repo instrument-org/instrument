@@ -19,7 +19,7 @@ import {
   settleWorkspaceDb,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
-import { app } from "electron";
+import { app, shell } from "electron";
 
 import { appConnectionStore } from "../stores/workspace/app-connections";
 import { captureServerException } from "./capture-server-exception";
@@ -297,7 +297,9 @@ async function writeConvertedChatFolders(
  */
 async function settleWorkspaceDrafts(rootDir: string) {
   try {
-    const { finished, moved } = await settleDrafts(rootDir);
+    const { finished, moved } = await settleDrafts(rootDir, {
+      moveToTrash: (target) => shell.trashItem(target),
+    });
     for (const step of moved.done) {
       logger.info(`Drafts: ${step}`);
     }
@@ -308,6 +310,9 @@ async function settleWorkspaceDrafts(rootDir: string) {
       logger.info(
         `Drafts: finished sending ${finished.finished.join(", ")}, whose messages were already written`,
       );
+    }
+    for (const { path: where, reason } of finished.untrashed) {
+      logger.warn(`Drafts: left ${where} where it is: ${reason}`);
     }
   } catch (error) {
     captureServerException(error);

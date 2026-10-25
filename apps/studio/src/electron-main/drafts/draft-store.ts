@@ -12,11 +12,13 @@ import {
   type DraftOnDisk,
   draftsFolderDir,
   ensureDraftFolder,
-  isDraftFolderItem,
+  draftFolderItemAt,
   isEmptyDraft,
+  namedByOtherDrafts,
   parseDraftFile,
   readDrafts,
   removeDraft,
+  trashLeftInDraft,
   renderDraftFile,
   writeDraftFile,
 } from "@instrument-org/workspace/drafts";
@@ -237,9 +239,10 @@ export function createDraftStore({
 
   /**
    * A draft taken away: every file holding it, conflict copies too, and its
-   * folder once that leaves it empty. What a sent draft's folder had went to
-   * the chat; what a thrown-away one's had goes to the Trash, since it may be
-   * the only copy of something the person put there.
+   * folder once that leaves it empty. What a sent draft sent, the send moved
+   * out of the folder already; whatever is left there, of a sent draft or a
+   * thrown-away one, goes to the Trash, since it may be the only copy of
+   * something the person put there.
    */
   const forget = (id: string) => {
     onDisk.delete(id);
@@ -250,13 +253,9 @@ export function createDraftStore({
       }
     }
     try {
-      const entries = readDrafts(rootDir).filter(
-        (entry) => entry.draft.id === id,
-      );
-      for (const entry of entries) {
-        const left = removeDraft(entry, { sent: sent.has(id) });
-        if (left.length > 0) {
-          void throwAway(entry.dir, left);
+      for (const entry of readDrafts(rootDir)) {
+        if (entry.draft.id === id) {
+          throwAway(entry);
         }
       }
     } catch (error) {
@@ -264,14 +263,17 @@ export function createDraftStore({
     }
   };
 
-  /** What a thrown-away draft's folder had, to the Trash, and the folder after it. */
-  const throwAway = async (dir: string, items: { path: string }[]) => {
-    for (const item of items) {
-      await moveToTrash(item.path).catch((error: unknown) => {
-        logger.error(`Could not move ${item.path} to the Trash`, error);
-      });
-    }
-    removeIfEmpty(dir);
+  /** A draft's file taken away, and what its folder still had to the Trash. */
+  const throwAway = (entry: DraftOnDisk) => {
+    void trashLeftInDraft({
+      dir: entry.dir,
+      left: removeDraft(entry),
+      moveToTrash,
+    }).then((kept) => {
+      for (const { error, path: where } of kept) {
+        logger.error(`Could not move ${where} to the Trash`, error);
+      }
+    });
   };
 
   return {
@@ -338,7 +340,7 @@ export function createDraftStore({
         if (sent.has(id)) {
           for (const entry of entries) {
             try {
-              removeDraft(entry, { sent: true });
+              throwAway(entry);
             } catch (error) {
               logger.error(`Could not take away sent draft ${id}`, error);
             }
@@ -412,15 +414,26 @@ export function createDraftStore({
      * Moves a file or folder in a draft's folder to the Trash, for a chip the
      * person took off: it may be their only copy of something they dragged
      * in. Anything else, a file the draft names where it lies above all, is
-     * left alone. The folder's watch brings the change back in.
+     * left alone, and so is one another draft in a folder they share still
+     * names: taking the chip off takes only this draft's line. What is moved
+     * is the entry as it was checked, never the path as the window sent it.
+     * The folder's watch brings the change back in.
      */
     async trash(asked: unknown): Promise<void> {
       const request = TrashRequestSchema.parse(asked);
       const known = onDisk.get(request.draftId);
-      if (known === undefined || !isDraftFolderItem(known.dir, request.path)) {
+      const at =
+        known === undefined
+          ? undefined
+          : draftFolderItemAt(known.dir, request.path);
+      if (
+        known === undefined ||
+        at === undefined ||
+        namedByOtherDrafts(known.dir, request.draftId).has(at)
+      ) {
         return;
       }
-      await moveToTrash(request.path);
+      await moveToTrash(at);
     },
 
     /**
@@ -460,14 +473,6 @@ function readFile(file: string): DraftFile | undefined {
     });
   } catch {
     return undefined;
-  }
-}
-
-function removeIfEmpty(dir: string) {
-  try {
-    fs.rmdirSync(dir);
-  } catch {
-    // Something else is in the folder, which is not the draft's to take.
   }
 }
 

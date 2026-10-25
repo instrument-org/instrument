@@ -31,9 +31,11 @@ export {
   draftsFolderDir,
   ensureDraftFolder,
   findDraft,
-  isDraftFolderItem,
+  draftFolderItemAt,
+  namedByOtherDrafts,
   ownsDraftFolder,
   readDrafts,
   removeDraft,
+  trashLeftInDraft,
   writeDraftFile,
 } from "./draft-folder";

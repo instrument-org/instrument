@@ -417,7 +417,8 @@ async function runLaunchMigrations(): Promise<void> {
   await convertTopicsToTopicFiles(clone);
   await convertAppsToAppFiles(clone, { connections: forgottenConnections() });
   await giveChatsTheirFolders(clone, machineDir, converted);
-  await settleDrafts(clone);
+  // A rehearsal moves nothing out of the clone: what a draft left stays.
+  await settleDrafts(clone, { moveToTrash: () => Promise.resolve() });
 }
 
 /**

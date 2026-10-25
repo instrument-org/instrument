@@ -10,7 +10,9 @@ import {
   ensureDraftFolder,
   findDraft,
   draftFolderItems,
-  isDraftFolderItem,
+  draftFolderItemAt,
+  namedByOtherDrafts,
+  trashLeftInDraft,
   ownsDraftFolder,
   readDrafts,
   removeDraft,
@@ -231,27 +233,42 @@ describe("the drafts folder", () => {
     ]);
   });
 
-  it("takes a sent draft away with the files its folder had, and leaves a folder it sent where it lies", () => {
-    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
-    fs.writeFileSync(path.join(made.dir, "pasted-image.png"), "bytes");
-    fs.writeFileSync(path.join(made.dir, "dropped.pdf"), "dragged in");
-    fs.mkdirSync(path.join(made.dir, "Photos"));
-    expect(removeDraft(made, { sent: true })).toEqual([]);
-    expect(fs.readdirSync(made.dir)).toEqual(["Photos"]);
-  });
-
-  it("hands back what a thrown-away draft's folder had, for the Trash, and deletes none of it", () => {
+  it("hands back what the folder still has, for the Trash, and deletes none of it", () => {
     const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     fs.writeFileSync(path.join(made.dir, "dropped.pdf"), "the only copy");
+    fs.mkdirSync(path.join(made.dir, "Photos"));
     fs.writeFileSync(path.join(made.dir, ".DS_Store"), "");
-    const left = removeDraft(made, { sent: false });
-    expect(left.map((item) => path.basename(item.path))).toEqual([
-      "dropped.pdf",
-    ]);
+    const left = removeDraft(made);
+    expect(
+      left.map((item) => `${item.kind}:${path.basename(item.path)}`),
+    ).toEqual(["folder:Photos", "file:dropped.pdf"]);
     expect(fs.readdirSync(made.dir).toSorted()).toEqual([
       ".DS_Store",
+      "Photos",
       "dropped.pdf",
     ]);
+  });
+
+  it("moves what was left to the Trash and takes the folder after it, keeping what will not move", async () => {
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    fs.writeFileSync(path.join(made.dir, "dropped.pdf"), "the only copy");
+    fs.writeFileSync(path.join(made.dir, "stuck.pdf"), "locked");
+    const trashDir = fs.mkdtempSync(path.join(rootDir, "trash-"));
+    const kept = await trashLeftInDraft({
+      dir: made.dir,
+      left: removeDraft(made),
+      moveToTrash: (target) =>
+        path.basename(target) === "stuck.pdf"
+          ? Promise.reject(new Error("locked"))
+          : Promise.resolve(
+              fs.renameSync(target, path.join(trashDir, path.basename(target))),
+            ),
+    });
+    expect(kept.map((entry) => path.basename(entry.path))).toEqual([
+      "stuck.pdf",
+    ]);
+    expect(fs.readdirSync(trashDir)).toEqual(["dropped.pdf"]);
+    expect(fs.readdirSync(made.dir)).toEqual(["stuck.pdf"]);
   });
 
   it("leaves a folder of the person's that a draft names above its own", () => {
@@ -265,7 +282,7 @@ describe("the drafts folder", () => {
     };
     writeDraftFile(made.file, with_);
 
-    removeDraft({ ...made, draft: with_ }, { sent: true });
+    removeDraft({ ...made, draft: with_ });
 
     expect(fs.existsSync(path.join(victim, "report.txt"))).toBe(true);
     expect(fs.existsSync(made.file)).toBe(false);
@@ -286,7 +303,7 @@ describe("the drafts folder", () => {
       const with_ = { ...made.draft, context: [named] };
       writeDraftFile(made.file, with_);
 
-      removeDraft({ ...made, draft: with_ }, { sent: true });
+      removeDraft({ ...made, draft: with_ });
 
       expect(fs.existsSync(other)).toBe(true);
     },
@@ -304,7 +321,7 @@ describe("the drafts folder", () => {
     };
     writeDraftFile(made.file, with_);
 
-    removeDraft({ ...made, draft: with_ }, { sent: true });
+    removeDraft({ ...made, draft: with_ });
 
     expect(fs.existsSync(path.join(victim, "report.txt"))).toBe(true);
   });
@@ -321,7 +338,7 @@ describe("the drafts folder", () => {
       context,
     });
 
-    removeDraft({ ...made, draft: mine }, { sent: true });
+    removeDraft({ ...made, draft: mine });
 
     expect(fs.existsSync(pasted)).toBe(true);
   });
@@ -329,7 +346,7 @@ describe("the drafts folder", () => {
   it("leaves the folder where another draft is still in it", () => {
     const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
     writeDraftFile(path.join(made.dir, "DRAFT 2.md"), draft({ id: "d2" }));
-    removeDraft(made, { sent: true });
+    removeDraft(made);
     expect(fs.readdirSync(made.dir)).toEqual(["DRAFT 2.md"]);
     expect(readDrafts(rootDir).map((entry) => entry.draft.id)).toEqual(["d2"]);
   });
@@ -413,11 +430,39 @@ describe("what a draft's folder has that goes with it", () => {
     fs.writeFileSync(inside, "bytes");
     const outside = path.join(rootDir, "notes.txt");
     fs.writeFileSync(outside, "mine");
-    expect(isDraftFolderItem(made.dir, inside)).toBe(true);
-    expect(isDraftFolderItem(made.dir, made.file)).toBe(false);
-    expect(isDraftFolderItem(made.dir, outside)).toBe(false);
-    expect(isDraftFolderItem(made.dir, path.join(made.dir, "gone.png"))).toBe(
-      false,
+    expect(draftFolderItemAt(made.dir, inside)).toBe(
+      path.join(fs.realpathSync(made.dir), "receipt.png"),
     );
+    for (const refused of [
+      made.file,
+      outside,
+      path.join(made.dir, "gone.png"),
+      path.join(made.dir, ".."),
+      path.join(made.dir, "."),
+      `${made.dir}/..`,
+      `${made.dir}/.`,
+    ]) {
+      expect(draftFolderItemAt(made.dir, refused)).toBeUndefined();
+    }
+  });
+
+  it("reads a folder a draft names in a shared folder by its line ending in a slash", () => {
+    const made = ensureDraftFolder({ draft: draft(), rootDir, timeZone: ZONE });
+    writeDraftFile(path.join(made.dir, "DRAFT 2.md"), {
+      ...draft({ id: "d2" }),
+      context: ["Shared/"],
+    });
+    fs.mkdirSync(path.join(made.dir, "Photos"));
+    fs.mkdirSync(path.join(made.dir, "Shared"));
+    const mine = { ...made.draft, context: ["Photos/", "Shared/"] };
+    expect(names({ ...made, draft: mine })).toEqual([
+      "folder:Photos",
+      "folder:Shared",
+    ]);
+    expect(
+      [...namedByOtherDrafts(made.dir, "d1")].map((named) =>
+        path.basename(named),
+      ),
+    ).toEqual(["Shared"]);
   });
 });

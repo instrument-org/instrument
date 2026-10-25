@@ -1,6 +1,6 @@
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { extractSkillMentions } from "@instrument-org/shared/skill-mention";
-import { ok } from "neverthrow";
+import { err, ok, ResultAsync } from "neverthrow";
 
 import { type FileUpload } from "../schemas/file-upload";
 import { type MountedFolder } from "../schemas/mounted-folder";
@@ -32,7 +32,11 @@ import { grantFile, grantFolder } from "./chat/grants";
 import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
-import { writeUploadedAttachments } from "./write-uploaded-attachments";
+import { TypedError } from "./errors";
+import {
+  copyDraftFolders,
+  writeUploadedAttachments,
+} from "./write-uploaded-attachments";
 
 export async function newMessage({
   asks,
@@ -175,24 +179,37 @@ export async function newMessage({
     if (uploadResult.isErr()) {
       return uploadResult;
     }
+    const sentFolders = await ResultAsync.fromPromise(
+      copyDraftFolders({ folders: folders ?? [], recordDir: chatDir(chatId) }),
+      (error) =>
+        new TypedError.FileSystem(
+          error instanceof Error ? error.message : "Unknown error",
+          { cause: error },
+        ),
+    );
+    if (sentFolders.isErr()) {
+      return err(sentFolders.error);
+    }
 
     for (const file of files ?? []) {
       if ("path" in file) {
         await grantFile({ chatId, path: file.path });
       }
     }
-    for (const folder of folders ?? []) {
+    for (const folder of sentFolders.value) {
       await grantAttachedFolder(chatId, folder.path);
     }
 
     const { part } = uploadResult.value;
     parts.push(
-      part.type === "data-attachments" && folders && folders.length > 0
+      part.type === "data-attachments" && sentFolders.value.length > 0
         ? {
             ...part,
             data: {
               ...part.data,
-              folders: folders.map((folder) => ({ path: folder.path })),
+              folders: sentFolders.value.map((folder) => ({
+                path: folder.path,
+              })),
             },
           }
         : part,

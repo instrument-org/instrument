@@ -167,6 +167,20 @@ export function useDraftStaging({
       keepAttached(draftId, items);
     },
 
+    /**
+     * The pastes written to a path whose file has left the draft's folder,
+     * by their ids in the box, forgotten so a send no longer names that path.
+     */
+    forget: (path: string) => {
+      const ids = [...staged.current].flatMap(([id, written]) =>
+        written?.path === path ? [id] : [],
+      );
+      for (const id of ids) {
+        staged.current.delete(id);
+      }
+      return ids;
+    },
+
     /** Whether a path is a paste this box wrote, which the box already shows by its bytes. */
     knows: (path: string) =>
       [...staged.current.values()].some((written) => written?.path === path),
@@ -200,18 +214,23 @@ export function useDraftStaging({
 /**
  * Keeps an open box in step with its draft's folder: a file put into the
  * folder from outside the app turns up in the box, and one taken out of it
- * goes. Only changes count, so what the box showed as it opened, and what
- * the person took out since, stay as they are.
+ * goes, a paste the box shows by its bytes included. As the box takes up a
+ * draft, what the folder has that the box does not show is added, since a
+ * box put back from where it was put away shows what it had then. After
+ * that only changes count, so what the person took out stays out.
  */
 export function useFolderItems({
   draft,
   input,
-  knows,
+  staging,
 }: {
   draft: Draft | undefined;
-  input: RefObject<null | Pick<PromptInputRef, "mergeItems">>;
-  /** Whether the box already shows the file at a path some other way: a paste it wrote. */
-  knows: (path: string) => boolean;
+  input: RefObject<null | Pick<PromptInputRef, "mergeItems" | "snapshot">>;
+  /** The box's pastes: which path one was written to, and forgetting one whose file went. */
+  staging: {
+    forget: (path: string) => string[];
+    knows: (path: string) => boolean;
+  };
 }) {
   const seen = useRef<{ id: string; paths: Set<string> } | undefined>(
     undefined,
@@ -225,19 +244,44 @@ export function useFolderItems({
       id === undefined
         ? undefined
         : { id, paths: new Set(now.map((item) => item.path)) };
+    if (id === undefined) {
+      return;
+    }
     if (was === undefined || was.id !== id) {
+      const box = input.current;
+      if (box === null) {
+        return;
+      }
+      const held = box.snapshot().items;
+      const missing = now.filter(
+        (item) =>
+          !staging.knows(item.path) &&
+          !held.some((other) =>
+            "path" in other
+              ? other.path === item.path
+              : other.name === writtenName(item.path),
+          ),
+      );
+      if (missing.length > 0) {
+        box.mergeItems({ added: missing.map(itemOf), gone: [] });
+      }
       return;
     }
     const added = now.filter(
-      (item) => !was.paths.has(item.path) && !knows(item.path),
+      (item) => !was.paths.has(item.path) && !staging.knows(item.path),
     );
-    const gone = [...was.paths].filter(
+    const gonePaths = [...was.paths].filter(
       (path) => !now.some((item) => item.path === path),
     );
+    // A paste the box shows by its bytes goes by its id.
+    const gone = [
+      ...gonePaths,
+      ...gonePaths.flatMap((path) => staging.forget(path)),
+    ];
     if (added.length > 0 || gone.length > 0) {
       input.current?.mergeItems({ added: added.map(itemOf), gone });
     }
-    // Each time main reads the folder anew; `knows` and the box are read as they are then.
+    // Each time main reads the folder anew; the staging and the box are read as they are then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, inFolder]);
 }

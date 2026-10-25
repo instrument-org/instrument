@@ -281,60 +281,93 @@ export function draftFolderItems({
 }
 
 /**
- * Whether `target` is something in the draft's folder that goes with it, and
- * so something taking its chip off may move to the Trash: an entry directly
- * in the folder, reached without a link on the way, other than a draft's file.
+ * Where `target` really is, when it is something in the draft's folder that
+ * goes with it, and so something taking its chip off may move to the Trash:
+ * an entry directly in the folder, reached without a link on the way, other
+ * than a draft's file or the folder itself. Nothing for anything else, which
+ * a path a window sent can name.
  */
-export function isDraftFolderItem(dir: string, target: string): boolean {
+export function draftFolderItemAt(
+  dir: string,
+  target: string,
+): string | undefined {
   const name = path.basename(target);
-  if (isDraftFileName(name)) {
-    return false;
+  if (name === "" || name === "." || name === ".." || isDraftFileName(name)) {
+    return undefined;
   }
   const holder = realPathOf(path.dirname(target));
-  return (
-    holder !== undefined &&
-    holder === realPathOf(dir) &&
-    kindOf(path.join(holder, name)) !== undefined
-  );
+  if (holder === undefined || holder !== realPathOf(dir)) {
+    return undefined;
+  }
+  const at = path.join(holder, name);
+  return kindOf(at) === undefined ? undefined : at;
 }
 
 /**
  * Takes away a draft: its own file, and its folder once that leaves it empty.
  *
- * A draft that was `sent` sent everything its folder held, and the chat has
- * its own copy of each file, so those files go with it. A folder in it was
- * sent where it lies and the chat still reaches it there, so it stays. A
- * draft thrown away leaves what its folder held, since that may be the only
- * copy of something the person dragged in: those are handed back for the
- * caller to move to the Trash, after which the folder can go.
+ * Nothing else in the folder is deleted here. A send moves what it sent out
+ * of the folder itself (`removeSentFromDraft`), so whatever is still there
+ * was never sent: something that arrived after the send read the folder, or
+ * the whole of a draft thrown away. Any of it may be the only copy of
+ * something the person dragged in, so it is handed back for the caller to
+ * move to the Trash, after which the folder can go.
  *
  * In a folder another draft shares, only what this draft's lines name and
  * the other's do not is this draft's.
  */
-export function removeDraft(
-  entry: DraftOnDisk,
-  { sent }: { sent: boolean },
-): DraftFolderItem[] {
+export function removeDraft(entry: DraftOnDisk): DraftFolderItem[] {
   const { dir, draft, file } = entry;
-  const others = ownsDraftFolder(dir, draft.id)
-    ? new Set<string>()
-    : pastedIntoOthers(dir, draft.id);
+  const others = namedByOtherDrafts(dir, draft.id);
   const mine = draftFolderItems(entry).filter((item) => !others.has(item.path));
   fs.rmSync(file, { force: true });
-  if (sent) {
-    for (const item of mine) {
-      if (item.kind === "file") {
-        fs.rmSync(item.path, { force: true });
-      }
+  try {
+    fs.rmdirSync(dir);
+  } catch {
+    // Something else is in the folder: another draft, or what is left for
+    // the Trash.
+  }
+  return mine;
+}
+
+/**
+ * What {@link removeDraft} handed back, to the Trash one by one, and the
+ * draft's folder after them once that leaves it empty. One that cannot be
+ * moved stays where it is, never deleted outright, and is named in what this
+ * answers.
+ */
+export async function trashLeftInDraft({
+  dir,
+  left,
+  moveToTrash,
+}: {
+  dir: string;
+  left: readonly DraftFolderItem[];
+  moveToTrash: (target: string) => Promise<void>;
+}): Promise<{ error: unknown; path: string }[]> {
+  const kept: { error: unknown; path: string }[] = [];
+  for (const item of left) {
+    try {
+      await moveToTrash(item.path);
+    } catch (error) {
+      kept.push({ error, path: item.path });
     }
   }
   try {
     fs.rmdirSync(dir);
   } catch {
-    // Something else is in the folder: another draft, a folder the chat was
-    // sent where it lies, or what a thrown-away draft leaves for the Trash.
+    // Something is still in it: another draft, or what could not be moved.
   }
-  return sent ? [] : mine;
+  return kept;
+}
+
+/**
+ * What the folder's other drafts name inside it, by where it really is, in a
+ * folder this draft does not own; nothing in one it does, where every draft
+ * file is this draft.
+ */
+export function namedByOtherDrafts(dir: string, id: string): Set<string> {
+  return ownsDraftFolder(dir, id) ? new Set() : pastedIntoOthers(dir, id);
 }
 
 /**
@@ -348,7 +381,8 @@ export function removeDraft(
  * read as naming something that is not the draft's.
  */
 function pastedIntoThisDraft(dir: string, line: string): string | undefined {
-  const named = pastedPathOf(line);
+  // A folder's line ends in `/`, and names the folder all the same.
+  const named = pastedPathOf(line.trim().replace(/(?<=.)[/\\]+$/, ""));
   if (named === undefined) {
     return undefined;
   }

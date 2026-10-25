@@ -263,13 +263,14 @@ export function ComposeWindow({
   const [dictating, setDictating] = useState(false);
 
   // What the box holds besides its words, kept with the draft.
-  const { asStaged, keepItems, knows, removeItem } = useDraftStaging({
+  const staging = useDraftStaging({
     draftFor: () => draft.id,
     onChange: (_draftId, update) => {
       onChange(update);
     },
   });
-  useFolderItems({ draft, input: inputRef, knows });
+  const { asStaged, keepItems, removeItem } = staging;
+  useFolderItems({ draft, input: inputRef, staging });
   // Layout rather than passive effects: on the way in the box's handle is
   // set by then and on the way out it is still there, which a passive
   // cleanup would find already gone.

@@ -167,12 +167,29 @@ describe("a box following its draft's folder", () => {
     words: "",
   });
 
-  function follow(knows: (path: string) => boolean = () => false) {
+  function follow({
+    held = [file("a.png")].map((item) => ({
+      id: "held",
+      mimeType: item.mediaType,
+      name: item.name,
+      path: item.path,
+      size: item.size,
+      type: "file" as const,
+    })),
+    knows = () => false,
+    forget = () => [],
+  }: {
+    forget?: (path: string) => string[];
+    held?: AttachedItem[];
+    knows?: (path: string) => boolean;
+  } = {}) {
     const mergeItems = vi.fn<PromptInputRef["mergeItems"]>();
-    const input = { current: { mergeItems } };
+    const input = {
+      current: { mergeItems, snapshot: () => ({ items: held, prompt: "" }) },
+    };
     const hook = renderHook(
       ({ draft }: { draft: Draft }) => {
-        useFolderItems({ draft, input, knows });
+        useFolderItems({ draft, input, staging: { forget, knows } });
       },
       { initialProps: { draft: withFolder(["a.png"]) } },
     );
@@ -197,11 +214,30 @@ describe("a box following its draft's folder", () => {
   });
 
   it("leaves out a paste the box already shows by its bytes", () => {
-    const { hook, mergeItems } = follow(
-      (path) => path === "/ws/Drafts/d/pasted.png",
-    );
+    const { hook, mergeItems } = follow({
+      knows: (path) => path === "/ws/Drafts/d/pasted.png",
+    });
     hook.rerender({ draft: withFolder(["a.png", "pasted.png"]) });
     expect(mergeItems).not.toHaveBeenCalled();
+  });
+
+  it("adds what the folder has that a box put back from where it was put away does not show", () => {
+    const { mergeItems } = follow({ held: [] });
+    expect(mergeItems).toHaveBeenCalledWith({
+      added: [expect.objectContaining({ path: "/ws/Drafts/d/a.png" })],
+      gone: [],
+    });
+  });
+
+  it("takes out a paste the box shows by its bytes when its file leaves the folder", () => {
+    const { hook, mergeItems } = follow({
+      forget: (path) => (path === "/ws/Drafts/d/a.png" ? ["paste-1"] : []),
+    });
+    hook.rerender({ draft: withFolder([]) });
+    expect(mergeItems).toHaveBeenLastCalledWith({
+      added: [],
+      gone: ["/ws/Drafts/d/a.png", "paste-1"],
+    });
   });
 
   it("opens with what the composer was given and what the folder has, each once", () => {

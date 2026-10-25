@@ -631,14 +631,40 @@ describe("a draft's folder as what goes with it", () => {
     expect(fs.existsSync(fileOf())).toBe(true);
   });
 
-  it("takes the files a sent draft's folder had with it, since the chat has its own copies", async () => {
+  it("moves what a sent draft's folder still has to the Trash, since the send took out what it sent", async () => {
     const { apply, dir } = written();
-    fs.writeFileSync(path.join(dir, "quote.pdf"), "%PDF");
+    // Landed after the send read the folder, so it never went.
+    fs.writeFileSync(path.join(dir, "late.pdf"), "%PDF");
     apply({ at: DAY, chatId: CHAT, id: "a", type: "claim", words: "Look" });
     apply({ id: "a", type: "sent" });
     await settle();
 
     expect(tree()).toEqual([]);
+    expect(trashed()).toEqual(["late.pdf"]);
+  });
+
+  it.each(["..", "."])(
+    "never moves the folder itself or the one around it, by %j",
+    async (name) => {
+      const { dir, store } = written();
+      await store.trash({ draftId: "a", path: `${dir}/${name}` });
+      expect(trashed()).toEqual([]);
+      expect(fs.existsSync(fileOf())).toBe(true);
+    },
+  );
+
+  it("leaves a file another draft in a shared folder still names", async () => {
+    const { dir, store } = written();
+    const shared = path.join(dir, "receipt.pdf");
+    fs.writeFileSync(shared, "%PDF");
+    fs.writeFileSync(
+      path.join(dir, "DRAFT 2.md"),
+      '---\nid: "b"\ncontext:\n  - "receipt.pdf"\n---\n\nTheirs\n',
+    );
+
+    await store.trash({ draftId: "a", path: shared });
+
     expect(trashed()).toEqual([]);
+    expect(fs.existsSync(shared)).toBe(true);
   });
 });

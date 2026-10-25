@@ -81,6 +81,16 @@ export const POLL_INTERVAL_MS = ms("1 hour");
 // waiting than when there is nothing to go stale.
 export const STAGED_POLL_INTERVAL_MS = ms("15 minutes");
 
+// A check that failed is usually a network that dropped or was still coming
+// up, as it is through the brief wakes a sleeping Mac makes, so it is tried
+// again well before the next full interval.
+export const FAILED_POLL_RETRY_MS = ms("5 minutes");
+
+// How long after the computer wakes the next check runs. A laptop opened after
+// a night asleep has missed every poll since, and its Wi-Fi takes a few seconds
+// to rejoin.
+export const WAKE_CHECK_DELAY_MS = ms("10 seconds");
+
 // How long an install request will wait for the download that superseded the
 // staged build before giving up and handing back a deferral. Generous on
 // purpose: a click that spins for a while and then installs is the outcome the
@@ -147,9 +157,14 @@ export function isSameStatus(
 
 export function nextPollDelayMs({
   hasStagedUpdate,
+  lastCheckFailed,
 }: {
   hasStagedUpdate: boolean;
+  lastCheckFailed: boolean;
 }) {
+  if (lastCheckFailed) {
+    return FAILED_POLL_RETRY_MS;
+  }
   return hasStagedUpdate ? STAGED_POLL_INTERVAL_MS : POLL_INTERVAL_MS;
 }
 

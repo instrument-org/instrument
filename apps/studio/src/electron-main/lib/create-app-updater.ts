@@ -15,9 +15,12 @@ import {
   resolveStatus,
   SUPERSEDING_DOWNLOAD_WAIT_MS,
   VERIFY_TIMEOUT_MS,
+  WAKE_CHECK_DELAY_MS,
 } from "./update-status";
 
 export interface AppUpdaterHandle {
+  // Brings the next poll forward to just after the computer wakes.
+  checkAfterWake: () => void;
   checkForUpdates: (options?: { notify?: boolean }) => Promise<void>;
   getStatus: () => AppUpdaterStatus | null;
   pollForUpdates: () => void;
@@ -114,6 +117,7 @@ export function createAppUpdater({
   let installRequest: null | Promise<InstallOutcome> = null;
   let pollTimer: NodeJS.Timeout | undefined;
   let polling = false;
+  let lastCheckFailed = false;
   // Set by the `failed` handler when an install attempt reports an error.
   // electron-updater catches a missing installer or a failed launch, emits
   // `error`, and returns normally instead of throwing, so this is the only
@@ -309,7 +313,9 @@ export function createAppUpdater({
 
     try {
       await runCheck();
+      lastCheckFailed = false;
     } catch (error) {
+      lastCheckFailed = true;
       // The `failed` event already published this; the throw is the same failure
       // arriving a second way.
       log.error("Error checking for updates:", error);
@@ -528,20 +534,28 @@ export function createAppUpdater({
     schedulePoll();
   };
 
-  function schedulePoll() {
+  function schedulePoll(
+    delayMs = nextPollDelayMs({
+      hasStagedUpdate: phase.staged !== null,
+      lastCheckFailed,
+    }),
+  ) {
     if (!polling) {
       return;
     }
     clearTimeout(pollTimer);
-    pollTimer = setTimeout(
-      () => {
-        void runPoll();
-      },
-      nextPollDelayMs({ hasStagedUpdate: phase.staged !== null }),
-    );
+    pollTimer = setTimeout(() => {
+      void runPoll();
+    }, delayMs);
   }
 
   return {
+    checkAfterWake: () => {
+      if (polling) {
+        log.info("Woke from sleep, checking for updates shortly");
+        schedulePoll(WAKE_CHECK_DELAY_MS);
+      }
+    },
     checkForUpdates,
     getStatus: () => status,
 

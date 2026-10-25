@@ -326,6 +326,7 @@ async function bootstrapPrimaryInstance() {
   });
   if (process.env.DISABLE_AUTO_UPDATE_POLLING !== "true") {
     updater.pollForUpdates();
+    powerMonitor.on("resume", updater.checkAfterWake);
   }
 
   registerFileDragHandler();

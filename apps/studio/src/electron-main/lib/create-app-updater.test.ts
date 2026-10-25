@@ -13,10 +13,12 @@ import {
 } from "./create-app-updater";
 import {
   type AppUpdaterStatus,
+  FAILED_POLL_RETRY_MS,
   POLL_INTERVAL_MS,
   STAGED_POLL_INTERVAL_MS,
   SUPERSEDING_DOWNLOAD_WAIT_MS,
   VERIFY_TIMEOUT_MS,
+  WAKE_CHECK_DELAY_MS,
 } from "./update-status";
 
 const CURRENT = "1.4.0";
@@ -772,6 +774,51 @@ describe("pollForUpdates", () => {
 
     h.stage(STAGED);
     await vi.advanceTimersByTimeAsync(STAGED_POLL_INTERVAL_MS);
+    expect(h.checks).toHaveBeenCalledTimes(3);
+  });
+
+  it("checks shortly after the computer wakes", async () => {
+    const h = createHarness();
+    h.respondWith(undefined);
+
+    h.updater.pollForUpdates();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.checks).toHaveBeenCalledTimes(1);
+
+    h.updater.checkAfterWake();
+    await vi.advanceTimersByTimeAsync(WAKE_CHECK_DELAY_MS);
+    expect(h.checks).toHaveBeenCalledTimes(2);
+
+    // Back on the normal interval from there.
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS - 1000);
+    expect(h.checks).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(h.checks).toHaveBeenCalledTimes(3);
+  });
+
+  it("ignores a wake before polling starts", async () => {
+    const h = createHarness();
+    h.updater.checkAfterWake();
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    expect(h.checks).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed check before the next full interval", async () => {
+    const h = createHarness();
+    h.respondWithFailure(new Error("net::ERR_NETWORK_CHANGED"));
+
+    h.updater.pollForUpdates();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.checks).toHaveBeenCalledTimes(1);
+
+    h.respondWith(undefined);
+    await vi.advanceTimersByTimeAsync(FAILED_POLL_RETRY_MS);
+    expect(h.checks).toHaveBeenCalledTimes(2);
+
+    // The retry succeeded, so the next one is a full interval away.
+    await vi.advanceTimersByTimeAsync(FAILED_POLL_RETRY_MS);
+    expect(h.checks).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
     expect(h.checks).toHaveBeenCalledTimes(3);
   });
 

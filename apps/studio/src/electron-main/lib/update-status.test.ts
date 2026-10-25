@@ -6,6 +6,7 @@ import {
   createUpdatePhase,
   isNewerVersion,
   isSameStatus,
+  FAILED_POLL_RETRY_MS,
   nextPollDelayMs,
   POLL_INTERVAL_MS,
   resolveInstallDecision,
@@ -336,10 +337,22 @@ describe("isSameStatus", () => {
 
 describe("nextPollDelayMs", () => {
   it("polls harder while an update is waiting to be installed", () => {
-    expect(nextPollDelayMs({ hasStagedUpdate: true })).toBe(
-      STAGED_POLL_INTERVAL_MS,
-    );
-    expect(nextPollDelayMs({ hasStagedUpdate: false })).toBe(POLL_INTERVAL_MS);
+    expect(
+      nextPollDelayMs({ hasStagedUpdate: true, lastCheckFailed: false }),
+    ).toBe(STAGED_POLL_INTERVAL_MS);
+    expect(
+      nextPollDelayMs({ hasStagedUpdate: false, lastCheckFailed: false }),
+    ).toBe(POLL_INTERVAL_MS);
     expect(STAGED_POLL_INTERVAL_MS).toBeLessThan(POLL_INTERVAL_MS);
   });
+
+  it.each([true, false])(
+    "retries a failed check soonest (staged: %s)",
+    (hasStagedUpdate) => {
+      expect(nextPollDelayMs({ hasStagedUpdate, lastCheckFailed: true })).toBe(
+        FAILED_POLL_RETRY_MS,
+      );
+      expect(FAILED_POLL_RETRY_MS).toBeLessThan(STAGED_POLL_INTERVAL_MS);
+    },
+  );
 });

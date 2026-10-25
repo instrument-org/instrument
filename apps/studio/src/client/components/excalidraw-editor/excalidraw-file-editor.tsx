@@ -153,8 +153,8 @@ function LiveCanvas({
         <Excalidraw
           excalidrawAPI={setApi}
           initialData={initialData}
-          onChange={(elements) => {
-            sessionRef.current?.onCanvasChange(elements);
+          onChange={(elements, appState) => {
+            sessionRef.current?.onCanvasChange(elements, appState);
           }}
           theme={resolvedTheme}
           UIOptions={{

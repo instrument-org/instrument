@@ -16,13 +16,20 @@
 //    person's. An element the agent dropped (by omission or by tombstone) is
 //    deleted unless the person changed it; one the agent added is added.
 //    Excalidraw's own `reconcileElements` is not used: it is last writer wins
-//    by `version`, which a script editing the JSON never bumps.
+//    by `version`, which a script editing the JSON never bumps. The order of
+//    the elements (which is in front) takes the agent's when only the agent
+//    changed it.
+// 3. The board's own settings in `appState` (background and grid) merge the
+//    same way, key by key; the rest of `appState` is the view, which stays
+//    the person's and is never written.
 //
 // Pure, with Excalidraw's `restoreElements` handed in, since the package
 // cannot load outside a browser.
 import {
+  applyEdits,
   findNodeAtLocation,
   getNodeValue,
+  modify,
   type Node,
   parseTree,
 } from "jsonc-parser";
@@ -57,12 +64,50 @@ export function sizedText(element: SceneElement): SceneElement {
   return { ...element, height: 1, width: 1 };
 }
 
-/** A disk text read as a scene: its restored elements and its images. */
+/** The keys of `appState` that are the board's, not the view's. */
+const SETTINGS = [
+  "viewBackgroundColor",
+  "gridSize",
+  "gridStep",
+  "gridModeEnabled",
+] as const;
+
+export type SceneSettings = Partial<Record<(typeof SETTINGS)[number], unknown>>;
+
+/** The board's settings out of an app state, the canvas's or the file's. */
+export function settingsOf(appState: unknown): SceneSettings {
+  if (!isRecord(appState)) {
+    return {};
+  }
+  return Object.fromEntries(
+    SETTINGS.flatMap((key) =>
+      appState[key] === undefined ? [] : [[key, appState[key]]],
+    ),
+  );
+}
+
+/** The settings `next` has that differ from `previous`. */
+export function changedSettings(
+  previous: SceneSettings,
+  next: SceneSettings,
+): SceneSettings {
+  return Object.fromEntries(
+    SETTINGS.flatMap((key) =>
+      next[key] !== undefined &&
+      stableJson(next[key]) !== stableJson(previous[key])
+        ? [[key, next[key]]]
+        : [],
+    ),
+  );
+}
+
+/** A disk text read as a scene: its restored elements, its images and its settings. */
 export interface DiskScene {
   elements: readonly SceneElement[];
   files: Record<string, SceneFile>;
   /** Ids of elements the file names itself; one without gets one here, and is written in full on the next save. */
   ownIds: ReadonlySet<string>;
+  settings: SceneSettings;
   text: string;
 }
 
@@ -85,7 +130,7 @@ const BOOKKEEPING = new Set([
  */
 export function readScene(text: string, restore: Restore): DiskScene | null {
   if (text.trim() === "") {
-    return { elements: [], files: {}, ownIds: new Set(), text };
+    return { elements: [], files: {}, ownIds: new Set(), settings: {}, text };
   }
   let data: unknown;
   try {
@@ -121,6 +166,7 @@ export function readScene(text: string, restore: Restore): DiskScene | null {
     elements: restore(named).filter((element) => !element.isDeleted),
     files,
     ownIds,
+    settings: settingsOf(data.appState),
     text,
   };
 }
@@ -224,7 +270,61 @@ export function mergeScene({
     previous = t.id;
   }
 
-  return { changed, conflicts, elements };
+  const ordered = inTheirOrder({ base, elements, ours, reached, theirs });
+  return { changed: [...new Set(changed)], conflicts, elements: ordered };
+}
+
+/**
+ * The merged elements in the agent's order, when the agent reordered the
+ * elements both sides have and the person did not; otherwise as they are.
+ * What the agent's file does not have (tombstones, the person's new
+ * elements) stays after the element it followed. Every element that moved
+ * is reached, so the canvas redraws it.
+ */
+function inTheirOrder({
+  base,
+  elements,
+  ours,
+  reached,
+  theirs,
+}: {
+  base: readonly SceneElement[];
+  elements: SceneElement[];
+  ours: readonly SceneElement[];
+  reached: (element: SceneElement) => SceneElement;
+  theirs: readonly SceneElement[];
+}) {
+  const live = (list: readonly SceneElement[]) =>
+    new Set(list.filter((e) => !e.isDeleted).map((e) => e.id));
+  const ids = [live(base), live(ours), live(theirs)];
+  const shared = (list: readonly SceneElement[]) =>
+    list
+      .filter((e) => !e.isDeleted && ids.every((set) => set.has(e.id)))
+      .map((e) => e.id)
+      .join("\n");
+  const baseOrder = shared(base);
+  if (shared(ours) !== baseOrder || shared(theirs) === baseOrder) {
+    return elements;
+  }
+  const merged = new Map(elements.map((element) => [element.id, element]));
+  const ordered = theirs.flatMap((t) => merged.get(t.id) ?? []);
+  const placed = new Set(ordered.map((element) => element.id));
+  let previous: string | undefined;
+  for (const element of elements) {
+    if (!placed.has(element.id)) {
+      const after =
+        previous === undefined
+          ? -1
+          : ordered.findIndex((candidate) => candidate.id === previous);
+      ordered.splice(after + 1, 0, element);
+      placed.add(element.id);
+    }
+    previous = element.id;
+  }
+  const before = elements.map((element) => element.id);
+  return ordered.map((element, index) =>
+    element.id === before[index] ? element : reached(element),
+  );
 }
 
 /** The images on disk the canvas does not have yet. */
@@ -247,10 +347,13 @@ export function spliceScene({
   disk,
   elements,
   files,
+  settings = {},
 }: {
   disk: DiskScene;
   elements: readonly SceneElement[];
   files: Readonly<Record<string, SceneFile>>;
+  /** Settings the person changed on the canvas, written into `appState`. */
+  settings?: SceneSettings;
 }): null | string {
   const root = disk.text.trim() === "" ? undefined : parseTree(disk.text);
   if (root?.type !== "object") {
@@ -350,6 +453,17 @@ export function spliceScene({
   );
   if (added.length > 0) {
     text = addFiles(text, added, unit);
+  }
+  for (const [key, value] of Object.entries(settings)) {
+    text = applyEdits(
+      text,
+      modify(text, ["appState", key], value, {
+        formattingOptions: {
+          insertSpaces: !unit.includes("\t"),
+          tabSize: unit.includes("\t") ? 1 : unit.length,
+        },
+      }),
+    );
   }
   return text;
 }

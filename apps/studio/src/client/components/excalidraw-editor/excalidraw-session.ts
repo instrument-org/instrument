@@ -17,6 +17,7 @@ import {
 import { type ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 import {
+  changedSettings,
   type DiskScene,
   mergeScene,
   newFiles,
@@ -24,6 +25,8 @@ import {
   type Restore,
   type SceneElement,
   type SceneFile,
+  type SceneSettings,
+  settingsOf,
   sizedText,
   spliceScene,
 } from "./scene-sync";
@@ -57,6 +60,12 @@ export function createExcalidrawSession(options: {
   let disk = { scene: options.initial.scene, version: options.initial.version };
   let destroyed = false;
   let seenVersion = sceneVersion(api.getSceneElementsIncludingDeleted());
+  // The board's settings as the canvas had them when it last matched the
+  // file: what differs from these is the person's change to write. Read off
+  // the canvas rather than the file, so a default the file leaves out is not
+  // taken for an edit.
+  let syncedSettings: SceneSettings = settingsOf(api.getAppState());
+  let seenSettings = JSON.stringify(syncedSettings);
   let busyTimer: ReturnType<typeof setTimeout> | undefined;
 
   const saves = createSaveQueue({
@@ -70,7 +79,15 @@ export function createExcalidrawSession(options: {
       api.getSceneElementsIncludingDeleted() as unknown as readonly SceneElement[];
     const files = api.getFiles() as unknown as Record<string, SceneFile>;
     return (
-      spliceScene({ disk: disk.scene, elements, files }) ??
+      spliceScene({
+        disk: disk.scene,
+        elements,
+        files,
+        settings: changedSettings(
+          syncedSettings,
+          settingsOf(api.getAppState()),
+        ),
+      }) ??
       serializeAsJSON(
         api.getSceneElements(),
         api.getAppState(),
@@ -93,6 +110,7 @@ export function createExcalidrawSession(options: {
       path: hostPath,
     });
     if (result.ok) {
+      syncedSettings = settingsOf(api.getAppState());
       disk = {
         scene: readScene(text, restore) ?? disk.scene,
         version: result.version,
@@ -126,9 +144,27 @@ export function createExcalidrawSession(options: {
       theirs: theirs.elements,
     });
     const files = newFiles({ ours: api.getFiles(), theirs: theirs.files });
+    // The agent's settings, where the person left theirs as they were.
+    const canvasSettings = settingsOf(api.getAppState());
+    const personChanged = changedSettings(syncedSettings, canvasSettings);
+    const agentChanged = Object.fromEntries(
+      Object.entries(
+        changedSettings(disk.scene.settings, theirs.settings),
+      ).filter(([key]) => !(key in personChanged)),
+    );
     disk = { scene: theirs, version };
     if (files.length > 0) {
       api.addFiles(files as unknown as Parameters<Api["addFiles"]>[0]);
+    }
+    if (Object.keys(agentChanged).length > 0) {
+      syncedSettings = { ...syncedSettings, ...agentChanged };
+      seenSettings = JSON.stringify(
+        settingsOf({ ...canvasSettings, ...agentChanged }),
+      );
+      api.updateScene({
+        appState: agentChanged as Parameters<Api["updateScene"]>[0]["appState"],
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
     }
     if (merged.changed.length > 0) {
       seenVersion = sceneVersion(merged.elements);
@@ -172,15 +208,20 @@ export function createExcalidrawSession(options: {
   };
 
   /** The canvas changed; a scroll or a selection is not a change to the file. */
-  const onCanvasChange = (elements: readonly { version: number }[]) => {
+  const onCanvasChange = (
+    elements: readonly { version: number }[],
+    appState: unknown,
+  ) => {
     if (destroyed) {
       return;
     }
     const version = sceneVersion(elements);
-    if (version === seenVersion) {
+    const settings = JSON.stringify(settingsOf(appState));
+    if (version === seenVersion && settings === seenSettings) {
       return;
     }
     seenVersion = version;
+    seenSettings = settings;
     saves.schedule();
   };
 

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  changedSettings,
   mergeScene,
   newFiles,
   readScene,
   type Restore,
   type SceneElement,
+  settingsOf,
   spliceScene,
 } from "./scene-sync";
 
@@ -219,6 +221,43 @@ describe("mergeScene", () => {
     expect(again.changed).toEqual([]);
   });
 
+  it("takes the agent's order when only the agent changed it", () => {
+    const base = scene(file([rect("a"), rect("b"), rect("c")]));
+    const ours = edit(base.elements, { a: { x: 5 } });
+    const theirs = scene(file([rect("c"), rect("a"), rect("b")]));
+    const merged = mergeScene({
+      base: base.elements,
+      ours,
+      theirs: theirs.elements,
+    });
+    expect(merged.elements.map((element) => element.id)).toEqual([
+      "c",
+      "a",
+      "b",
+    ]);
+    // Moved, so redrawn; the person's edit rides along.
+    expect(get(merged.elements, "a")).toMatchObject({ x: 5 });
+    expect(merged.changed).toEqual(["c", "a", "b"]);
+  });
+
+  it("keeps the person's order when both reordered", () => {
+    const base = scene(file([rect("a"), rect("b"), rect("c")]));
+    const ours = [base.elements[1], base.elements[0], base.elements[2]].filter(
+      (element) => element !== undefined,
+    );
+    const theirs = scene(file([rect("c"), rect("a"), rect("b")]));
+    const merged = mergeScene({
+      base: base.elements,
+      ours,
+      theirs: theirs.elements,
+    });
+    expect(merged.elements.map((element) => element.id)).toEqual([
+      "b",
+      "a",
+      "c",
+    ]);
+  });
+
   it("leaves the canvas alone when the disk did not change", () => {
     const base = scene(file([rect("a")]));
     const ours = edit(base.elements, { a: { x: 9 } });
@@ -336,6 +375,28 @@ describe("spliceScene", () => {
     expect(
       written(out).elements.map((element: SceneElement) => element.id),
     ).toEqual(["a", "t"]);
+  });
+
+  it("writes the settings the person changed into appState, and nothing else", () => {
+    const text = file([rect("a")]);
+    const disk = scene(text);
+    const out = spliceScene({
+      disk,
+      elements: disk.elements,
+      files: {},
+      settings: changedSettings(
+        { gridSize: 20, viewBackgroundColor: "#ffffff" },
+        settingsOf({
+          gridSize: 20,
+          viewBackgroundColor: "#fff3bf",
+          zoom: { value: 2 },
+        }),
+      ),
+    });
+    expect(JSON.parse(out ?? "")).toMatchObject({
+      appState: { viewBackgroundColor: "#fff3bf" },
+    });
+    expect(out?.replace("#fff3bf", "#ffffff")).toBe(text);
   });
 
   it("hands an empty file back to the caller to serialize whole", () => {

@@ -1,10 +1,12 @@
 import { execa } from "execa";
 import ms from "ms";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { readdirSync, readFileSync } from "node:fs";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 import { noop } from "radashi";
 
 import { getCurrentDate } from "./get-current-date";
+import { parseProcStat } from "./own-processes";
 
 const GRACEFUL_EXIT_MS = ms("1 second");
 const FORCE_EXIT_MS = ms("4 seconds");
@@ -71,9 +73,7 @@ export async function terminateSubprocessTree(pid: number): Promise<boolean> {
     return !processExists(pid);
   }
 
-  if (!signalProcessGroup(pid, "SIGTERM")) {
-    return true;
-  }
+  signalProcessGroup(programGroup(pid), "SIGTERM");
   if (await waitForProcessGroupExit(pid, GRACEFUL_EXIT_MS)) {
     return true;
   }
@@ -147,6 +147,38 @@ export function watchSubprocessTree({
     }
     await termination;
   };
+}
+
+/**
+ * The process group a signal for the tree `pid` leads is sent to. On Linux a
+ * sandboxed program runs under bubblewrap, which stays its parent, passes no
+ * signal on, and takes the program down with it when a signal ends it, so a
+ * signal sent to bubblewrap never reaches the program as itself. The first
+ * process of the sandbox leads the program's own session in there, so the
+ * signal goes to that group instead. Anywhere else, and before bubblewrap
+ * has made its sandbox, it is the tree's own group.
+ */
+export function programGroup(pid: number): number {
+  if (process.platform !== "linux" || procText(pid, "comm") !== "bwrap") {
+    return pid;
+  }
+  for (const entry of readdirSync("/proc")) {
+    const stat = /^\d+$/.test(entry) ? procText(entry, "stat") : undefined;
+    const row = stat === undefined ? undefined : parseProcStat(stat);
+    if (row && row.ppid === pid && row.pgid === row.pid) {
+      return row.pid;
+    }
+  }
+  return pid;
+}
+
+/** A `/proc/<pid>/` file, undefined once the process has ended. */
+function procText(pid: number | string, file: string): string | undefined {
+  try {
+    return readFileSync(`/proc/${pid}/${file}`, "utf8").trim();
+  } catch {
+    return undefined;
+  }
 }
 
 function isNoSuchProcess(error: unknown) {

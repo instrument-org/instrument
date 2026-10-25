@@ -368,14 +368,17 @@ describe("bash background processes, end to end", () => {
       const processId = started.processId ?? "";
       expect(processId).not.toBe("");
       const pids = await Promise.all(
-        names.map(async (name) =>
-          Number(
+        names.map(async (name) => {
+          const written = Number(
             await fs.readFile(
               path.join(chatRoot, "work", `${name}.pid`),
               "utf8",
             ),
-          ),
-        ),
+          );
+          return process.platform === "linux"
+            ? await hostPidOf(`work/linger.js\0${name}\0`)
+            : written;
+        }),
       );
       expect(pids.every(processExists)).toBe(true);
 
@@ -389,6 +392,23 @@ describe("bash background processes, end to end", () => {
     30_000,
   );
 });
+
+/**
+ * The pid this computer knows a program by, found by its command line: on
+ * Linux bubblewrap runs it in a pid namespace of its own, so the pid it sees
+ * for itself is not one.
+ */
+async function hostPidOf(commandLine: string): Promise<number> {
+  for (const entry of await fs.readdir("/proc")) {
+    const line = await fs
+      .readFile(`/proc/${entry}/cmdline`, "utf8")
+      .catch(() => "");
+    if (/^\d+$/.test(entry) && line.includes(commandLine)) {
+      return Number(entry);
+    }
+  }
+  return 0;
+}
 
 function processExists(pid: number) {
   try {

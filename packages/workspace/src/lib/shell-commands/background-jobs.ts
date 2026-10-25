@@ -12,7 +12,11 @@ import {
   sessionPrograms,
 } from "../background-processes";
 import { jobOwning, readProcessTable } from "../own-processes";
-import { processExists, terminateProcess } from "../subprocess-tree";
+import {
+  processExists,
+  programGroup,
+  terminateProcess,
+} from "../subprocess-tree";
 import { interruptibleWait } from "../wait-interrupts";
 import {
   FG_COMMAND,
@@ -366,7 +370,7 @@ async function signalJob({
   // To the whole job, the way a shell signals `%1`: each program it started
   // leads its own process group on macOS and Linux.
   const errors = info.pids.flatMap((pid) =>
-    sendSignal(process.platform === "win32" ? pid : -pid, signal),
+    sendSignal(process.platform === "win32" ? pid : -programGroup(pid), signal),
   );
   return errors.length > 0
     ? {
@@ -434,7 +438,9 @@ async function signalPid({
     return { failed: true, text: [notOwnProcess(pid)] };
   }
   if (!STOP_SIGNALS.has(signal)) {
-    const errors = sendSignal(pid, signal);
+    // A program bubblewrap holds is reached through its sandbox's group.
+    const group = programGroup(pid);
+    const errors = sendSignal(group === pid ? pid : -group, signal);
     return errors.length > 0
       ? {
           failed: true,

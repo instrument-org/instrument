@@ -2,7 +2,6 @@ import { openReportDialog } from "@/client/atoms/report-dialog";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { openLogin } from "@/client/atoms/login-modal";
 import { openAccount, openPlans } from "@/client/lib/billing-website";
-import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import {
   type BillingNoticeAction,
   featurePause,
@@ -26,7 +25,7 @@ import {
   type DictationStreamEvent,
   type DictationSurface,
 } from "@/shared/dictation";
-import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
+import { APP_NAME } from "@instrument-org/shared";
 import { safe } from "@orpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -207,7 +206,6 @@ export function useDictation({
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
   const queryClient = useQueryClient();
-  const openLink = useOpenExternalLink();
 
   // Read when a recording starts, not when this rendered.
   const latest = useRef({ hasToken, onText, preferences });
@@ -300,10 +298,6 @@ export function useDictation({
       case "choose-plan":
       case "start-trial": {
         openPlans();
-        break;
-      }
-      case "contact-support": {
-        openLink(SUPPORT_URL);
         break;
       }
       case "continue": {

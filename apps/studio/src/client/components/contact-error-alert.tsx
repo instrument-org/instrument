@@ -1,7 +1,7 @@
-import { SUPPORT_URL } from "@instrument-org/shared";
+import { openReportDialog } from "@/client/atoms/report-dialog";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 
-import { ExternalLink } from "./external-link";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
 
@@ -26,12 +26,15 @@ export function ContactErrorAlert({
             <div>{children}</div>
             <div className="text-xs text-muted-foreground">
               Need help?{" "}
-              <ExternalLink
+              <button
                 className="inline underline hover:no-underline"
-                href={SUPPORT_URL}
+                onClick={() => {
+                  openReportDialog(feedbackReport({ surface: "error-alert" }));
+                }}
+                type="button"
               >
                 Contact us
-              </ExternalLink>
+              </button>
             </div>
           </AlertDescription>
         </div>

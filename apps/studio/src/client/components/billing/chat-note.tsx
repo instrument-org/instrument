@@ -2,7 +2,6 @@ import { openReportDialog } from "@/client/atoms/report-dialog";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { ReplyNote, ReplyNoteButton } from "@/client/components/reply-note";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
-import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import {
   accountNotice,
   type BillingNotice,
@@ -31,7 +30,7 @@ import {
 } from "@/client/lib/plan-account-stop";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { OUR_MODELS, SUPPORT_URL } from "@instrument-org/shared";
+import { OUR_MODELS } from "@instrument-org/shared";
 import {
   type ChatId,
   type SessionMessage,
@@ -148,7 +147,6 @@ export function useChatNote({
       (model) => model.params.provider !== OUR_MODELS.providerType,
     ) ?? false;
   const signIn = useInstrumentConnect();
-  const openLink = useOpenExternalLink();
   // When Start free trial sent the person to the website, so the trial
   // that starts there leads back into the chat.
   const [trialStartedAt, setTrialStartedAt] = useState<number>();
@@ -258,10 +256,6 @@ export function useChatNote({
     switch (kind) {
       case "choose-plan": {
         openPlans();
-        break;
-      }
-      case "contact-support": {
-        openLink(SUPPORT_URL);
         break;
       }
       case "continue": {

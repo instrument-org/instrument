@@ -20,8 +20,7 @@ import {
 import { openAccount } from "@/client/lib/billing-website";
 import { showConnectToast } from "@/client/lib/connect-toast";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
-import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
+import { APP_NAME } from "@instrument-org/shared";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -283,7 +282,6 @@ function AccountNoticePage({
   status: Status | undefined;
 }) {
   const [now] = useState(() => new Date());
-  const openLink = useOpenExternalLink();
   const step = nextStepFor(
     { blocked: "models", notice, offer, otherModelCan: false, status },
     now,
@@ -310,9 +308,7 @@ function AccountNoticePage({
         <Button
           className="mt-8 h-10 px-5 text-base"
           onClick={() => {
-            if (step.action?.kind === "contact-support") {
-              openLink(SUPPORT_URL);
-            } else if (step.action?.kind === "send-feedback") {
+            if (step.action?.kind === "send-feedback") {
               openReportDialog(feedbackReport({ surface: "usage-limit" }));
             } else {
               openAccount();

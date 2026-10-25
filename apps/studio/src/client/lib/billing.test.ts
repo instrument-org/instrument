@@ -372,7 +372,7 @@ it("offers support rather than a plan when access was revoked", () => {
   expect(copy({ kind: "access-revoked" }, noPlan)).toMatchInlineSnapshot(`
     {
       "action": {
-        "kind": "contact-support",
+        "kind": "send-feedback",
         "label": "Contact support",
       },
       "changeModel": true,
@@ -1136,7 +1136,7 @@ describe("nextStep", () => {
         "no plan, a search: Choose a plan to use Instrument's web search. [Choose a plan→choose-plan]",
         "trial ended: Your free trial has ended. [Choose a plan→choose-plan]",
         "card failed: Your payment didn't go through. Update your card to keep going. [Update card→update-card]",
-        "access revoked: Instrument isn't available on this account. Get in touch and we'll sort it out. [Contact support→contact-support]",
+        "access revoked: Instrument isn't available on this account. Get in touch and we'll sort it out. [Contact support→send-feedback]",
         "usage back: Your usage limit has reset. [Continue→continue]",
         "subscribed since: You're subscribed. [Continue→continue]",
         "trial started since: Your free trial has started. [Continue→continue]",

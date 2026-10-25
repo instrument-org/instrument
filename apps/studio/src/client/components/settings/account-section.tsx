@@ -1,3 +1,4 @@
+import { openReportDialog } from "@/client/atoms/report-dialog";
 import { AccountInfo } from "@/client/components/account-info";
 import { SettingsSection } from "@/client/components/settings/general-section";
 import { settingAnchor } from "@/client/components/settings/settings-index";
@@ -7,7 +8,6 @@ import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
-import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import {
   canStartTrial,
   checkoutTrialLine,
@@ -26,9 +26,10 @@ import {
   windowLabel,
 } from "@/client/lib/billing";
 import { openAccount, openPlans } from "@/client/lib/billing-website";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
+import { APP_NAME } from "@instrument-org/shared";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
@@ -102,7 +103,6 @@ function PlanAndLimits() {
 
 function PlanGroup({ status }: { status: Status }) {
   const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
-  const openLink = useOpenExternalLink();
   const now = new Date();
   const plan = subscribedPlan(status, offer);
   const change = scheduledPlanChange(status, offer);
@@ -129,7 +129,9 @@ function PlanGroup({ status }: { status: Status }) {
             >
               <Button
                 onClick={() => {
-                  openLink(SUPPORT_URL);
+                  openReportDialog(
+                    feedbackReport({ surface: "access-revoked" }),
+                  );
                 }}
                 size="sm"
               >

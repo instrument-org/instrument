@@ -468,7 +468,6 @@ export function accountNotice(
 /** What a notice's buttons do. */
 export type BillingNoticeAction =
   | "choose-plan"
-  | "contact-support"
   | "continue"
   | "send-feedback"
   | "sign-in"
@@ -606,7 +605,7 @@ export function nextStep(
   switch (notice.kind) {
     case "access-revoked": {
       return {
-        action: { kind: "contact-support", label: "Contact support" },
+        action: { kind: "send-feedback", label: "Contact support" },
         changeModel,
         line: "Get in touch and we'll sort it out.",
         title: `${APP_NAME} isn't available on this account.`,

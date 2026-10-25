@@ -46,6 +46,7 @@ import { WORKER_EVALS } from "./worker";
 import { WORK_FOLDER_EVALS } from "./work-folder";
 import { WORKSPACE_HYGIENE_EVALS } from "./workspace-hygiene";
 import { WORKSPACE_PARTS_EVALS } from "./workspace-parts";
+import { WHITEBOARD_EVALS } from "./whiteboard";
 
 export const EVALS = [
   ...WORKSPACE_INSTRUCTIONS_EVALS,
@@ -65,6 +66,7 @@ export const EVALS = [
   ...DISCRETION_EVALS,
   ...DOCUMENT_DESIGN_EVALS,
   ...FILES_FENCE_EVALS,
+  ...WHITEBOARD_EVALS,
   ...HANDOFF_EVALS,
   ...IMAGE_BUDGET_EVALS,
   ...IMAGE_OPTIONS_EVALS,

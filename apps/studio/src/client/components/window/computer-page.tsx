@@ -3353,7 +3353,7 @@ function macosAsksFirst(hostPath: string) {
  * folders Instrument runs on in `workspace` (`keptInPlaceReason`, which the
  * files routes also check).
  */
-export function keptInPlaceOf(
+function keptInPlaceOf(
   item: FileSystemItem | string,
   workspace: string | undefined,
 ): string | undefined {

@@ -206,8 +206,6 @@ const create = base
         if (written.isErr()) {
           throw toORPCError(written.error, errors);
         }
-        // The chat has its own copies now, so sending moved them.
-        removeSentFromDraft(sending.sent);
         context.workspaceConfig.lookUpSentLinkTitles?.(prompt);
         // The chat's `CHAT.md` takes the message the person just sent,
         // without the send waiting on it, unless what they sent is still to
@@ -230,6 +228,21 @@ const create = base
             sessionId: message.metadata.sessionId,
           },
         });
+        // The chat has its own copies now, so sending moved them. Last, and
+        // never failing the send, which is done: what cannot be taken out
+        // stays, for the draft's removal to move to the Trash.
+        try {
+          const stuck = removeSentFromDraft(sending.sent);
+          if (stuck.length > 0) {
+            context.workspaceConfig.captureException(
+              new Error(
+                `Left ${stuck.length.toString()} sent file(s) in the draft's folder`,
+              ),
+            );
+          }
+        } catch (error) {
+          context.workspaceConfig.captureException(error);
+        }
 
         return { sessionId: message.metadata.sessionId };
       }),

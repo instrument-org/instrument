@@ -5,8 +5,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { type DraftFile } from "./draft-file";
-import { ensureDraftFolder } from "./draft-folder";
-import { removeSentFromDraft, withDraftFolder } from "./send-from-folder";
+import { ensureDraftFolder, writeDraftFile } from "./draft-folder";
+import {
+  removeSentFromDraft,
+  type SentFromDraft,
+  withDraftFolder,
+} from "./send-from-folder";
 
 let rootDir: string;
 
@@ -27,6 +31,12 @@ function made(more: Partial<DraftFile> = {}) {
   });
 }
 
+/** What a manifest names, by each entry's path inside `dir`. */
+const named = (dir: string, sent: SentFromDraft) => ({
+  files: sent.files.map((at) => path.relative(dir, at)).toSorted(),
+  folders: sent.folders.map((at) => path.relative(dir, at)),
+});
+
 describe("a message sent from a draft", () => {
   it("carries a file that landed in the folder after the window last heard of it", () => {
     const { dir } = made();
@@ -44,6 +54,7 @@ describe("a message sent from a draft", () => {
     // Lands a beat before the press, before the watcher told any window.
     fs.writeFileSync(path.join(dir, "late.png"), "png");
     fs.mkdirSync(path.join(dir, "Photos"));
+    fs.writeFileSync(path.join(dir, "Photos", "a.jpg"), "jpg");
     fs.writeFileSync(path.join(dir, ".DS_Store"), "");
 
     const sending = withDraftFolder({ files: given, fromDraft: "d1", rootDir });
@@ -53,23 +64,55 @@ describe("a message sent from a draft", () => {
     ).toEqual(["seen.pdf", "late.png"]);
     expect(sending.files[1]).toMatchObject({ mimeType: "image/png", size: 3 });
     expect(sending.folders).toEqual([{ path: path.join(dir, "Photos") }]);
-    expect(sending.sent.map((at) => path.basename(at)).toSorted()).toEqual([
-      "Photos",
-      "late.png",
-      "seen.pdf",
-    ]);
+    expect(named(dir, sending.sent)).toEqual({
+      files: ["Photos/a.jpg", "late.png", "seen.pdf"],
+      folders: ["Photos"],
+    });
   });
 
-  it("sends a paste the window sends as bytes once, under its name in the folder", () => {
+  it("counts a paste the window sends as bytes once, by its bytes", () => {
     const { dir } = made();
-    fs.writeFileSync(path.join(dir, "image.png"), "png");
+    fs.writeFileSync(path.join(dir, "image 2.png"), "png");
     const sending = withDraftFolder({
       files: [{ content: "cG5n", filename: "image.png" }],
       fromDraft: "d1",
       rootDir,
     });
     expect(sending.files).toEqual([{ content: "cG5n", filename: "image.png" }]);
-    expect(sending.sent).toEqual([path.join(dir, "image.png")]);
+    expect(named(dir, sending.sent).files).toEqual(["image 2.png"]);
+  });
+
+  it("still sends a dropped file that only shares a paste's name", () => {
+    const { dir } = made();
+    fs.writeFileSync(path.join(dir, "image.png"), "a different picture");
+    const sending = withDraftFolder({
+      files: [{ content: "cG5n", filename: "image.png" }],
+      fromDraft: "d1",
+      rootDir,
+    });
+    expect(
+      sending.files.map((file) => ("path" in file ? file.path : "bytes")),
+    ).toEqual(["bytes", path.join(dir, "image.png")]);
+    expect(named(dir, sending.sent).files).toEqual(["image.png"]);
+  });
+
+  it("sends a file another draft in a shared folder names, and leaves it for that draft", () => {
+    const { dir, file } = made();
+    const shared = path.join(dir, "receipt.pdf");
+    fs.writeFileSync(shared, "%PDF");
+    const real = fs.realpathSync(shared);
+    writeDraftFile(file, { ...made().draft, context: ["receipt.pdf"] });
+    writeDraftFile(path.join(dir, "DRAFT 2.md"), {
+      ...made().draft,
+      context: ["receipt.pdf"],
+      id: "d2",
+    });
+
+    const sending = withDraftFolder({ fromDraft: "d1", rootDir });
+    removeSentFromDraft(sending.sent);
+
+    expect(sending.files).toMatchObject([{ path: real }]);
+    expect(fs.existsSync(shared)).toBe(true);
   });
 
   it("is what the window handed over where there is no draft", () => {
@@ -79,23 +122,31 @@ describe("a message sent from a draft", () => {
         fromDraft: "gone",
         rootDir,
       }),
-    ).toEqual({ files: [], folders: [{ path: "/x" }], sent: [] });
-    expect(withDraftFolder({ fromDraft: undefined, rootDir }).sent).toEqual([]);
+    ).toEqual({
+      files: [],
+      folders: [{ path: "/x" }],
+      sent: { files: [], folders: [] },
+    });
   });
 
-  it("takes out what it sent once the message is written, and leaves what came after", () => {
+  it("takes out only what it read, inside a folder it sent too, and leaves what came after", () => {
     const { dir, file } = made();
     fs.writeFileSync(path.join(dir, "sent.png"), "png");
-    fs.mkdirSync(path.join(dir, "Photos"));
-    fs.writeFileSync(path.join(dir, "Photos", "a.jpg"), "jpg");
+    fs.mkdirSync(path.join(dir, "Photos", "Trip"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "Photos", "Trip", "a.jpg"), "jpg");
     const { sent } = withDraftFolder({ fromDraft: "d1", rootDir });
     fs.writeFileSync(path.join(dir, "after.png"), "png");
+    fs.writeFileSync(path.join(dir, "Photos", "Trip", "late.jpg"), "jpg");
 
-    removeSentFromDraft(sent);
+    expect(removeSentFromDraft(sent)).toEqual([]);
 
     expect(fs.readdirSync(dir).toSorted()).toEqual([
       path.basename(file),
+      "Photos",
       "after.png",
+    ]);
+    expect(fs.readdirSync(path.join(dir, "Photos", "Trip"))).toEqual([
+      "late.jpg",
     ]);
   });
 });

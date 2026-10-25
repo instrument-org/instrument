@@ -64,6 +64,24 @@ describe("instrumentFolderOf", () => {
   });
 });
 
+// A workspace at a disk's top, which setup warns of but allows.
+it.each<[Os, string, string, string | undefined]>([
+  ["windows", "D:\\", "D:\\Topics", "key:Topics"],
+  ["windows", "D:\\", "d:\\.instrument", "private"],
+  ["windows", "D:\\", "D:\\Projects\\Topics", undefined],
+  ["linux", "/", "/Skills", "key:Skills"],
+  ["mac", "/", "/Chats", "key:Chats"],
+  ["mac", "/", "/Users", undefined],
+])(
+  "on %s with the workspace at %s, %s is %s",
+  (os, workspace, hostPath, expected) => {
+    const folder = instrumentFolderOf(hostPath, { os, workspace });
+    expect(
+      folder && (folder.kind === "key" ? `key:${folder.name}` : folder.kind),
+    ).toBe(expected);
+  },
+);
+
 describe("keptInPlaceReason", () => {
   const facts = {
     home: "/Users/mac-user",

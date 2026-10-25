@@ -43,8 +43,11 @@ export function instrumentFolderOf(
   if (root.startsWith(atAsParent)) {
     return { kind: "around" };
   }
+  // Parents compared with their trailing separator, so a workspace at a
+  // disk's top (`/`, `D:\`) finds its children too.
   const cut = at.lastIndexOf(separator);
-  if (at.slice(0, cut) !== root) {
+  const rootAsParent = root.endsWith(separator) ? root : `${root}${separator}`;
+  if (at.slice(0, cut + 1) !== rootAsParent) {
     return undefined;
   }
   const name = at.slice(cut + 1);

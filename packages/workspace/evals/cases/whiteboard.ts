@@ -275,8 +275,10 @@ const editsInPlace: Assertion = {
     const missing = ORIGINAL_IDS.filter(
       (id) => !elements.some((element) => element.id === id),
     );
+    // A new element: rewording an existing label is not adding a note.
     const note = elements.find(
       (element) =>
+        !ORIGINAL_IDS.includes(element.id) &&
         element.type === "text" &&
         typeof element.text === "string" &&
         /faucet/iu.test(element.text),
@@ -284,7 +286,7 @@ const editsInPlace: Assertion = {
     const all = [
       ...problems,
       ...(missing.length > 0 ? [`lost ${missing.join(", ")}`] : []),
-      ...(note ? [] : ["no text mentions the faucet"]),
+      ...(note ? [] : ["no new text mentions the faucet"]),
     ];
     return {
       evidence:

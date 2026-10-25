@@ -6,6 +6,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { AgentFilesBlock } from "./agent-files-block";
 import { FilesLayoutContext } from "./files-layout-context";
 import { MarkdownChatContext } from "./markdown-chat-context";
+import { ThemeProvider } from "./theme-provider";
 
 // Where the chat's files are, answered without a chat: every path under one
 // folder, so the fence has somewhere to read a file from.
@@ -56,18 +57,20 @@ function drawFence(
   }: { isStreaming?: boolean; layout?: "grid" | "list"; width?: number } = {},
 ) {
   return renderInBrowser(
-    <div style={{ width }}>
-      <MarkdownChatContext
-        value={{
-          isStreaming,
-          chatId: ChatIdSchema.parse("quarterly-numbers"),
-        }}
-      >
-        <FilesLayoutContext.Provider value={layout}>
-          <AgentFilesBlock content={content} />
-        </FilesLayoutContext.Provider>
-      </MarkdownChatContext>
-    </div>,
+    <ThemeProvider>
+      <div style={{ width }}>
+        <MarkdownChatContext
+          value={{
+            isStreaming,
+            chatId: ChatIdSchema.parse("quarterly-numbers"),
+          }}
+        >
+          <FilesLayoutContext.Provider value={layout}>
+            <AgentFilesBlock content={content} />
+          </FilesLayoutContext.Provider>
+        </MarkdownChatContext>
+      </div>
+    </ThemeProvider>,
   );
 }
 
@@ -268,4 +271,42 @@ test("gives one file the column and a set of them a grid", async () => {
       },
     }
   `);
+});
+
+test("draws a drawing a reply names as a picture of it, in a media tile", async () => {
+  // The scene a reply hands over, as an agent writes one: terse, no versions.
+  const scene = {
+    elements: [
+      { height: 80, id: "box", type: "rectangle", width: 160, x: 0, y: 0 },
+      { id: "label", text: "Phone", type: "text", x: 20, y: 30 },
+    ],
+    type: "excalidraw",
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) =>
+      Promise.resolve(
+        (typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url
+        ).endsWith(".excalidraw")
+          ? Response.json(scene)
+          : new Response(null, { status: 404 }),
+      ),
+    ),
+  );
+
+  const { container } = await drawFence("output/board.excalidraw");
+
+  await expect
+    .poll(
+      () =>
+        container.querySelector(
+          "[data-slot='files-grid-media'] svg rect, [data-slot='files-grid-media'] svg path",
+        ) !== null,
+      { timeout: 20_000 },
+    )
+    .toBe(true);
 });

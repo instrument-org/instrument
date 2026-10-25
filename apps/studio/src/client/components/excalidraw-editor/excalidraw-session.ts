@@ -10,6 +10,7 @@ import {
 import { rpcClient } from "@/client/rpc/client";
 import {
   CaptureUpdateAction,
+  FONT_FAMILY,
   restoreElements,
   serializeAsJSON,
 } from "@excalidraw/excalidraw";
@@ -23,6 +24,7 @@ import {
   type Restore,
   type SceneElement,
   type SceneFile,
+  sizedText,
   spliceScene,
 } from "./scene-sync";
 
@@ -37,20 +39,6 @@ const restore: Restore = (raw) =>
     null,
     { refreshDimensions: true, repairBindings: true },
   ) as unknown as readonly SceneElement[];
-
-/**
- * A text an agent wrote with no size is dropped by `restoreElements` as
- * invisibly small; given a placeholder one, it is measured instead.
- */
-function sizedText(element: SceneElement): SceneElement {
-  if (
-    element.type !== "text" ||
-    (typeof element.width === "number" && element.width > 0)
-  ) {
-    return element;
-  }
-  return { ...element, height: 1, width: 1 };
-}
 
 type Api = ExcalidrawImperativeAPI;
 type CanvasElements = Parameters<Api["updateScene"]>[0]["elements"];
@@ -197,6 +185,54 @@ export function createExcalidrawSession(options: {
   };
 
   const stopFlushOnLeave = flushOnLeave(saves.flush);
+
+  /**
+   * Text is measured when it is restored, which on open is before the canvas
+   * has loaded its fonts, so a text sized by whoever wrote the file (an agent
+   * measuring with some other font) or by the fallback font comes out clipped.
+   * Once the fonts the drawing uses are in, every text is measured again. The
+   * versions stay as they are, so this alone is no edit and saves nothing.
+   */
+  async function remeasureTextOnceFontsLoad() {
+    const names = new Map(
+      Object.entries(FONT_FAMILY).map(([name, id]) => [id, name]),
+    );
+    const used = new Set<string>();
+    for (const element of api.getSceneElements()) {
+      const name =
+        element.type === "text" ? names.get(element.fontFamily) : undefined;
+      if (name) {
+        used.add(name);
+      }
+    }
+    if (used.size === 0) {
+      return;
+    }
+    await Promise.all(
+      [...used].map((name) =>
+        document.fonts.load(`20px "${name}"`).catch(() => []),
+      ),
+    );
+    if (destroyed) {
+      return;
+    }
+    const elements = api.getSceneElementsIncludingDeleted();
+    const measured = restoreElements(elements, null, {
+      refreshDimensions: true,
+    });
+    const resized = measured.some(
+      (element, index) =>
+        element.width !== elements[index]?.width ||
+        element.height !== elements[index]?.height,
+    );
+    if (resized) {
+      api.updateScene({
+        captureUpdate: CaptureUpdateAction.NEVER,
+        elements: measured,
+      });
+    }
+  }
+  void remeasureTextOnceFontsLoad();
 
   return {
     canvasText,

@@ -43,6 +43,20 @@ export interface SceneFile {
 /** Fills in what a terse element leaves out, as Excalidraw's `restoreElements(x, null)` does. */
 export type Restore = (raw: SceneElement[]) => readonly SceneElement[];
 
+/**
+ * A text an agent wrote with no size is dropped by `restoreElements` as
+ * invisibly small; given a placeholder one, it is measured instead.
+ */
+export function sizedText(element: SceneElement): SceneElement {
+  if (
+    element.type !== "text" ||
+    (typeof element.width === "number" && element.width > 0)
+  ) {
+    return element;
+  }
+  return { ...element, height: 1, width: 1 };
+}
+
 /** A disk text read as a scene: its restored elements and its images. */
 export interface DiskScene {
   elements: readonly SceneElement[];

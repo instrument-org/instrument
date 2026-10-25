@@ -69,6 +69,7 @@ import { FilePreviewFallback } from "./file-preview-fallback";
 import { ShowInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageViewer } from "./image-viewer";
 import { MarkdownDocument } from "./markdown-outline";
+import { loadExcalidraw } from "./excalidraw-editor/load-excalidraw";
 import { MessageCard } from "./message-card";
 import { OpenInAppMenuItems } from "./open-in-app";
 import { OpenFileButton } from "./open-file-button";
@@ -117,17 +118,11 @@ const CodeFileEditor = lazy(() =>
 );
 
 // The drawing canvas (Excalidraw) loads the first time a drawing is opened
-// where it can be edited. Its fonts are served beside the renderer bundle
-// (`excalidrawFonts` in electron.vite.config.ts), not from its CDN, which the
-// renderer's policy refuses.
-const ExcalidrawFileEditor = lazy(() => {
-  window.EXCALIDRAW_ASSET_PATH = new URL(
-    "/excalidraw-assets/",
-    window.location.href,
-  ).href;
-  return import("./excalidraw-editor/excalidraw-file-editor").then(
-    (module) => ({ default: module.ExcalidrawFileEditor }),
-  );
+// where it can be edited, after `loadExcalidraw` has pointed it at its fonts.
+const ExcalidrawFileEditor = lazy(async () => {
+  await loadExcalidraw();
+  const module = await import("./excalidraw-editor/excalidraw-file-editor");
+  return { default: module.ExcalidrawFileEditor };
 });
 
 /**

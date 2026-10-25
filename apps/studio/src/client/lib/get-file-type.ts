@@ -561,7 +561,10 @@ export function isMediaFile(file: {
 }): boolean {
   const fileType = getFileType(file);
 
-  return fileType === "image" || fileType === "video";
+  // A drawing is a picture to the reader, drawn from its scene.
+  return (
+    fileType === "image" || fileType === "video" || fileType === "excalidraw"
+  );
 }
 
 function isMarkdown({

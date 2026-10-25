@@ -21,6 +21,7 @@ import { useRef, useState } from "react";
 
 import { usePrefetchFileOpenTarget } from "../hooks/use-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
+import { DrawingPicture } from "./excalidraw-editor/drawing-picture";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
 import { SystemFolderIcon } from "./icons/folder-glyph";
@@ -94,6 +95,13 @@ export function FilePreviewCard({
   const card =
     fileType === "image" ? (
       <ImagePreviewCard
+        file={file}
+        isMissing={isMissing}
+        onClick={onClick}
+        shape={shape}
+      />
+    ) : fileType === "excalidraw" ? (
+      <DrawingPreviewCard
         file={file}
         isMissing={isMissing}
         onClick={onClick}
@@ -377,6 +385,81 @@ function ImagePreviewCard({
           src={url}
         />
       </div>
+    </MediaCardShell>
+  );
+}
+
+/**
+ * A drawing as a media tile: the picture Excalidraw draws of it, which is what
+ * a reply naming one is handing over. It opens on a click like an image; its
+ * canvas is where it is edited.
+ */
+function DrawingPreviewCard({
+  file,
+  isMissing,
+  onClick,
+  shape,
+}: {
+  file: ViewerFile;
+  isMissing?: boolean;
+  onClick: () => void;
+  shape?: MediaCardShape;
+}) {
+  const fileActions = useFileActionVisibility(file);
+  const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
+  const openControl = useFileOpenControl(resolveOpenTarget ? file : undefined);
+  const hasActions = fileActions.showDownload || openControl.showOpen;
+
+  return (
+    <MediaCardShell
+      bottomBar={isMissing ? <MissingBadge /> : undefined}
+      canCopy={false}
+      className={cn(isMissing && "opacity-60")}
+      disabled={isMissing}
+      file={file}
+      onClick={onClick}
+      onMouseEnter={() => {
+        setResolveOpenTarget(true);
+      }}
+      overlayActions={
+        hasActions && !isMissing ? (
+          <>
+            {fileActions.showDownload && (
+              <MediaOverlayButton
+                icon={<ArrowLineDownIcon className="size-3.5 shrink-0" />}
+                label="Save as…"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void downloadFile(file);
+                }}
+              />
+            )}
+            <OpenFileButton
+              className="max-w-44"
+              control={openControl}
+              dropdownClassName="h-6 rounded-lg"
+              file={file}
+              iconClassName="size-3.5 shrink-0"
+              labelClassName="truncate"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+              size="xs"
+            />
+          </>
+        ) : undefined
+      }
+      scrim={<div className="absolute inset-0 bg-black/20" />}
+      shape={shape}
+    >
+      <DrawingPicture
+        fallback={
+          <div className="flex size-full items-center justify-center">
+            <FileThumbnail file={file} isActive={false} variant="primary" />
+          </div>
+        }
+        url={file.url}
+      />
     </MediaCardShell>
   );
 }

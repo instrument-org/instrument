@@ -5,7 +5,6 @@ import { useState } from "react";
 import { chatContextItems, type ContextItem } from "./context-items";
 import { tabSurfaceAtom } from "./tab-surface";
 import { useTabInView } from "./use-tab-in-view";
-import { chatOfGroup } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -15,14 +14,18 @@ import { useWindowTabs } from "./window-tabs";
  * chip: it is on screen beside the conversation, often the page the agent
  * was just working in, so a chip would only say again what is in view. What
  * stands behind a chat popped out over another screen gets one, since that
- * is something else. A chip left out stays out until what it named is no
- * longer there, since a new thing comes with a new key.
+ * is something else, unless it is another chat; a chat in the tab's place
+ * has nothing behind it. A chip left out stays out until what it named is
+ * no longer there, since a new thing comes with a new key.
  */
 export function useChatContext({
   chatId,
+  isPoppedOut,
   isViewOpen,
 }: {
   chatId: ChatId;
+  /** Whether the chat is in a window of its own over another screen, rather than in the tab's place. */
+  isPoppedOut: boolean;
   /** Whether the chat's view of its tab up is open where the message is written. */
   isViewOpen: boolean;
 }): {
@@ -36,9 +39,8 @@ export function useChatContext({
   const [leftOut, setLeftOut] = useState<readonly string[]>([]);
   const items = chatContextItems({
     chatId,
-    chatOnScreen: chatOfGroup(windowTabs.groupOnScreen),
     finderOf: (id) => surfaces[id]?.finder ?? null,
-    inView: isViewOpen ? undefined : inView,
+    inView: isPoppedOut && !isViewOpen ? inView : undefined,
     leftOut,
     up: isViewOpen ? windowTabs.selectedTabIn(chatId) : undefined,
   });

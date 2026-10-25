@@ -25,7 +25,7 @@ import { screenLocation, screenPresentation } from "./screen-presentation";
 import { type Volume } from "./tab-location";
 import { isFreshTab, isHomeTab } from "./tab-model";
 import { type TabSurface } from "./tab-surface";
-import { chatOfGroup, matchScreen } from "./window-href";
+import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
 /** The longest a send waits on a page's words: a guest that never answers (mid-navigation, parked, hung) costs the conversation the page's text, not the send. */
@@ -389,15 +389,19 @@ export function contextReaders({
   };
   /**
    * What goes with a message in a chat: the chat's tab up while its view of
-   * it is open, or what the window has in view behind it, each unless left
-   * out; and the chat's own tabs, by the ids a task can be handed.
+   * it is open, or, for a popped-out chat, what the window has in view
+   * behind it, each unless left out; and the chat's own tabs, by the ids a
+   * task can be handed.
    */
   const sendContext = async ({
     chatId,
+    isPoppedOut,
     isViewOpen,
     leftOut,
   }: {
     chatId: ChatId;
+    /** Whether the chat is in a window of its own over another screen, rather than in the tab's place. */
+    isPoppedOut: boolean;
     /** Whether the chat's view of its tab up is open where the message is written. */
     isViewOpen: boolean;
     leftOut: readonly string[];
@@ -406,9 +410,8 @@ export function contextReaders({
       chatId,
       chatContextItems({
         chatId,
-        chatOnScreen: chatOfGroup(windowTabs.groupOnScreen),
         finderOf,
-        inView: isViewOpen ? undefined : inView,
+        inView: isPoppedOut && !isViewOpen ? inView : undefined,
         leftOut,
         up: isViewOpen ? windowTabs.selectedTabIn(chatId) : undefined,
       }),

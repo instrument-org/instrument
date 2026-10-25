@@ -399,7 +399,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
 /**
  * A chat's screen in the window's place, with the chips over its composer
  * for what goes with a reply: the chat's own tab while its pane is open,
- * and otherwise what the window has in view, each until left out.
+ * until left out, and nothing else, since nothing stands behind it.
  */
 function ChatScreenInPlace({
   chatId,
@@ -415,7 +415,7 @@ function ChatScreenInPlace({
   tiles: ReactNode;
 }) {
   const shell = useShell();
-  const context = useChatContext({ chatId, isViewOpen });
+  const context = useChatContext({ chatId, isPoppedOut: false, isViewOpen });
   return (
     <ChatScreen
       chatId={chatId}
@@ -427,7 +427,12 @@ function ChatScreenInPlace({
       isUp={isUp}
       onGone={onGone}
       sendContext={() =>
-        shell.sendContext({ chatId, isViewOpen, leftOut: context.leftOut })
+        shell.sendContext({
+          chatId,
+          isPoppedOut: false,
+          isViewOpen,
+          leftOut: context.leftOut,
+        })
       }
       sentPrompt={shell.sentWords.get(chatId)}
       tiles={tiles}

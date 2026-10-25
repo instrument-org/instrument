@@ -78,6 +78,7 @@ export function ComposeLayer({
   /** What goes with a reply sent from a chat's small view: its own tab up while its view is open, what the window has up behind it otherwise. */
   sendContext: (options: {
     isViewOpen: boolean;
+    isPoppedOut: boolean;
     chatId: ChatId;
     leftOut: readonly string[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
@@ -219,7 +220,9 @@ export function ComposeLayer({
                 }}
                 placement={entry.placement}
                 right={entry.right}
-                sendContext={(options) => sendContext({ ...options, chatId })}
+                sendContext={(options) =>
+                  sendContext({ ...options, chatId, isPoppedOut: true })
+                }
                 sentWords={sentWords.get(chatId)}
                 chatId={chatId}
                 topics={topics}

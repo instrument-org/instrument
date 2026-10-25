@@ -21,7 +21,6 @@ const page = (id: string, group: string): WindowTab => ({
 function itemsFor(tab: WindowTab, { up = false } = {}) {
   return chatContextItems({
     chatId: CHAT,
-    chatOnScreen: undefined,
     finderOf: () => null,
     inView: up ? undefined : tab,
     leftOut: [],
@@ -39,24 +38,23 @@ describe("chatContextItems", () => {
       true,
     ],
     ["a page of the window's own", page("site", "site:1"), false, "tab", false],
-    ["another chat's tab", page("theirs", OTHER), false, "chat", undefined],
   ])("carries %s as a %s item", (_name, tab, up, kind, owned) => {
     const [item] = itemsFor(tab, { up });
     expect(item?.kind).toBe(kind);
     expect(item?.kind === "tab" ? item.owned : undefined).toBe(owned);
   });
 
-  it("names another chat by its id alone, never its tab", () => {
-    expect(itemsFor(page("theirs", OTHER))).toEqual([
-      { chat: OTHER, key: "tab:theirs", kind: "chat" },
-    ]);
+  it("carries nothing for another chat's tab", () => {
+    expect(itemsFor(page("theirs", OTHER))).toEqual([]);
+    expect(
+      itemsFor({ href: `/chats/${OTHER}`, id: "chat", kind: "screen" }),
+    ).toEqual([]);
   });
 
   it("carries nothing it was told to leave out", () => {
     expect(
       chatContextItems({
         chatId: CHAT,
-        chatOnScreen: undefined,
         finderOf: () => null,
         inView: page("site", "site:1"),
         leftOut: ["tab:site"],
@@ -137,23 +135,5 @@ describe("a draft's chips", () => {
       href: "/apps/notion",
       kind: "screen",
     });
-  });
-});
-
-describe("a chat on screen", () => {
-  it("is a chat chip behind a popped-out chat, and nothing behind itself", () => {
-    const behind = (chatOnScreen: typeof CHAT) =>
-      chatContextItems({
-        chatId: CHAT,
-        chatOnScreen,
-        finderOf: () => null,
-        inView: undefined,
-        leftOut: [],
-        up: undefined,
-      });
-    expect(behind(OTHER)).toEqual([
-      { chat: OTHER, key: `chat:${OTHER}`, kind: "chat" },
-    ]);
-    expect(behind(CHAT)).toEqual([]);
   });
 });

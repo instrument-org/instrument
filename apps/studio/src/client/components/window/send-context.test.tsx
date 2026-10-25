@@ -95,7 +95,12 @@ describe("sendContext", () => {
       windowOf({ windowTabs: tabsOf([SITE], CHAT) }),
     );
     await expect(
-      sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }),
+      sendContext({
+        chatId: CHAT,
+        isPoppedOut: false,
+        isViewOpen: true,
+        leftOut: [],
+      }),
     ).resolves.toMatchObject({
       page: { selection: "Words on the page" },
       screen: "browser",
@@ -107,8 +112,14 @@ describe("sendContext", () => {
     const { sendContext } = contextReaders(
       windowOf({ windowTabs: tabsOf([SITE], CHAT) }),
     );
-    await expect(sendContext({ chatId: CHAT, isViewOpen: false, leftOut: [] }))
-      .resolves.toMatchInlineSnapshot(`
+    await expect(
+      sendContext({
+        chatId: CHAT,
+        isPoppedOut: false,
+        isViewOpen: false,
+        leftOut: [],
+      }),
+    ).resolves.toMatchInlineSnapshot(`
       {
         "screen": "conversation",
         "tabs": [
@@ -122,7 +133,7 @@ describe("sendContext", () => {
     `);
   });
 
-  it("tells a popped-out chat about the page up in the chat on screen", async () => {
+  it("tells a popped-out chat nothing about the chat on screen", async () => {
     const other = ChatIdSchema.parse("2026-10-02-other");
     const { sendContext } = contextReaders(
       windowOf({
@@ -130,24 +141,33 @@ describe("sendContext", () => {
         windowTabs: tabsOf([SITE], CHAT),
       }),
     );
-    await expect(sendContext({ chatId: other, isViewOpen: false, leftOut: [] }))
-      .resolves.toMatchInlineSnapshot(`
-      {
-        "attached": [
-          {
-            "id": "2026-10-01-lisbon",
-            "kind": "chat",
-            "title": "Lisbon",
-          },
-        ],
-        "chat": {
-          "id": "2026-10-01-lisbon",
-          "title": "Lisbon",
-        },
-        "screen": "chat",
-        "tabs": [],
-      }
-    `);
+    await expect(
+      sendContext({
+        chatId: other,
+        isPoppedOut: true,
+        isViewOpen: false,
+        leftOut: [],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("tells a chat in the tab's place nothing about what else is in view", async () => {
+    const site: WindowTab = { ...SITE, group: "site:1", id: "site" };
+    const { sendContext } = contextReaders(
+      windowOf({
+        paneOpenByGroup: { "site:1": true },
+        windowTabs: tabsOf([site], "site:1"),
+      }),
+    );
+    const send = (isPoppedOut: boolean) =>
+      sendContext({
+        chatId: CHAT,
+        isPoppedOut,
+        isViewOpen: false,
+        leftOut: [],
+      });
+    await expect(send(false)).resolves.toBeUndefined();
+    await expect(send(true)).resolves.toMatchObject({ screen: "browser" });
   });
 
   it("sends nothing before the chat's state is read", async () => {
@@ -159,7 +179,12 @@ describe("sendContext", () => {
       }),
     );
     await expect(
-      sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }),
+      sendContext({
+        chatId: CHAT,
+        isPoppedOut: false,
+        isViewOpen: true,
+        leftOut: [],
+      }),
     ).resolves.toBeUndefined();
   });
 
@@ -176,8 +201,14 @@ describe("sendContext", () => {
         windowTabs: tabsOf([SITE, chat], CHAT),
       }),
     );
-    await expect(sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }))
-      .resolves.toMatchInlineSnapshot(`
+    await expect(
+      sendContext({
+        chatId: CHAT,
+        isPoppedOut: false,
+        isViewOpen: true,
+        leftOut: [],
+      }),
+    ).resolves.toMatchInlineSnapshot(`
       {
         "page": {
           "selection": "Words on the page",
@@ -226,8 +257,14 @@ describe("sendContext", () => {
         windowTabs: tabsOf([file], CHAT),
       }),
     );
-    await expect(sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }))
-      .resolves.toMatchInlineSnapshot(`
+    await expect(
+      sendContext({
+        chatId: CHAT,
+        isPoppedOut: false,
+        isViewOpen: true,
+        leftOut: [],
+      }),
+    ).resolves.toMatchInlineSnapshot(`
       {
         "file": {
           "mount": "/Users/casey/Downloads/receipt.pdf",
@@ -257,7 +294,12 @@ describe("sendContext", () => {
         windowTabs: tabsOf([SITE], CHAT),
       }),
     );
-    const sent = sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] });
+    const sent = sendContext({
+      chatId: CHAT,
+      isPoppedOut: false,
+      isViewOpen: true,
+      leftOut: [],
+    });
     await vi.advanceTimersByTimeAsync(5000);
     await expect(sent).resolves.toMatchInlineSnapshot(`
       {
@@ -298,8 +340,14 @@ describe("sendContext", () => {
         windowTabs: tabsOf([tasksTab, SITE], CHAT),
       }),
     );
-    await expect(sendContext({ chatId: CHAT, isViewOpen: true, leftOut: [] }))
-      .resolves.toMatchInlineSnapshot(`
+    await expect(
+      sendContext({
+        chatId: CHAT,
+        isPoppedOut: false,
+        isViewOpen: true,
+        leftOut: [],
+      }),
+    ).resolves.toMatchInlineSnapshot(`
       {
         "screen": "tasks",
         "tabs": [

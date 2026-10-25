@@ -25,7 +25,8 @@ const CHOSEN_KEY = "chosen:";
  *   `items` is what it points at on this computer, when that is something.
  *   A page or an app a draft names by its address is a tab too: the
  *   window's own showing it, or one standing for it.
- * - `chat`: another chat, by its id alone: what is in it is that chat's.
+ * - `chat`: another chat a draft names in its `context`, by its id alone:
+ *   what is in it is that chat's. Nothing on screen becomes one.
  */
 export type ContextItem =
   | { item: ChosenItem; key: string; kind: "chosen" }
@@ -39,7 +40,7 @@ export type ContextItem =
       tab: WindowTab;
     };
 
-/** Where a tab stands for a composer of `group`: the chat it is in, when that is another chat, or the tab itself. */
+/** The item a tab is for a composer of `group`: nothing when it belongs to another chat, which is that chat's. */
 function itemOfTab(
   tab: WindowTab,
   {
@@ -63,9 +64,7 @@ function itemOfTab(
       : (chatOfGroup(tab.group) ??
         (tab.kind === "screen" ? chatOfHref(tab.href) : undefined));
   if (otherChat !== undefined) {
-    return otherChat === chatOfGroup(group)
-      ? undefined
-      : { chat: otherChat, key, kind: "chat" };
+    return;
   }
   // The sending group's own screens (a chat's tasks, say) say what they
   // show; anyone else's go only as a page, a file or folder, or an app.
@@ -149,7 +148,6 @@ export function draftContextItems({
     });
     if (
       item &&
-      item.kind !== "chat" &&
       ![...chosen, ...screen].some((entry) => entry.key === item.key)
     ) {
       screen.push(item);
@@ -213,35 +211,24 @@ function contextItemOf(
 
 /**
  * What a chat's composer carries: the chat's own tab up while its view of
- * it is open, and otherwise what the window has in view behind the chat,
- * unless left out.
+ * it is open, and otherwise what the window has in view behind a popped-out
+ * chat, unless left out. Another chat is never one of them.
  */
 export function chatContextItems({
   chatId,
-  chatOnScreen,
   finderOf,
   inView,
   leftOut,
   up,
 }: {
   chatId: ChatId;
-  /** The chat the window has on screen, its pane open or not. */
-  chatOnScreen: ChatId | undefined;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
-  /** What the window has in view, as the chat's own view of its tab is closed. */
+  /** What the window has in view behind the chat, while it is popped out with its own view closed. */
   inView: undefined | WindowTab;
   leftOut: readonly string[];
   /** The chat's tab up, while the chat's view of it is open. */
   up: undefined | WindowTab;
 }): ContextItem[] {
-  // Another chat on screen behind this one is that chat, its pane open or
-  // not; this chat's own screen says nothing more than its tabs do.
-  if (up === undefined && chatOnScreen !== undefined) {
-    const key = `chat:${chatOnScreen}`;
-    return chatOnScreen === chatId || leftOut.includes(key)
-      ? []
-      : [{ chat: chatOnScreen, key, kind: "chat" }];
-  }
   const tab = up ?? (inView?.group === chatId ? undefined : inView);
   const key = keyOfTab(tab);
   if (!tab || leftOut.includes(key)) {

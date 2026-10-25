@@ -278,7 +278,11 @@ export function ChatWindow({
   // composer: the chat's own tab while the window shows it, and otherwise
   // what is in view behind the chat, each until its x is pressed. The send
   // reads the same list at the press.
-  const context = useChatContext({ chatId, isViewOpen: showsItem });
+  const context = useChatContext({
+    chatId,
+    isPoppedOut: true,
+    isViewOpen: showsItem,
+  });
   const contextRef = useRef({
     isViewOpen: showsItem,
     leftOut: context.leftOut,

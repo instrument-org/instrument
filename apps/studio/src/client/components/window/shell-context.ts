@@ -48,6 +48,7 @@ export interface WindowShell {
   /** What goes with a message in a chat; see `contextReaders`. */
   sendContext: (options: {
     chatId: ChatId;
+    isPoppedOut: boolean;
     isViewOpen: boolean;
     leftOut: readonly string[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;

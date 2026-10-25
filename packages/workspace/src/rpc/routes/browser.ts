@@ -67,10 +67,13 @@ const open = base
         });
     // The tab is open, which is what was asked for; it just came up blank. A
     // navigate that timed out is a slow server rather than a bug, and the load
-    // carries on in the guest, so only other failures are reported.
+    // carries on in the guest, so only other failures are reported. A tab
+    // closed while its navigate was in flight fails it too, and is gone as
+    // asked.
     if (
       navigated.isErr() &&
-      !(navigated.error instanceof CdpCommandTimeoutError)
+      !(navigated.error instanceof CdpCommandTimeoutError) &&
+      context.workspaceConfig.browser.getTargetMeta(targetId) !== null
     ) {
       context.workspaceConfig.captureException(navigated.error);
     }

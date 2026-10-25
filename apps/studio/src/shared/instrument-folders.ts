@@ -68,7 +68,7 @@ const KEY_FOLDER_WORDS = {
 } satisfies Record<KeyFolderName, string>;
 
 /** Why Files leaves one of Instrument's folders where it is, as the person reads it. */
-export function instrumentFolderReason(folder: InstrumentFolder): string {
+function instrumentFolderReason(folder: InstrumentFolder): string {
   switch (folder.kind) {
     case "around": {
       return "Your Instrument workspace is inside this folder, so it stays put.";

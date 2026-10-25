@@ -65,8 +65,8 @@ describe("a message sent from a draft", () => {
 
     expect(
       sending.files.map((file) => ("path" in file ? file.filename : "")),
-    ).toEqual(["seen.pdf", "late.png"]);
-    expect(sending.files[1]).toMatchObject({ mimeType: "image/png", size: 3 });
+    ).toEqual(["late.png", "seen.pdf"]);
+    expect(sending.files[0]).toMatchObject({ mimeType: "image/png", size: 3 });
     expect(sending.folders).toEqual([{ path: path.join(dir, "Photos") }]);
     expect(named(dir, sending.sent)).toEqual({
       files: ["Photos/a.jpg", "late.png", "seen.pdf"],
@@ -117,6 +117,33 @@ describe("a message sent from a draft", () => {
 
     expect(sending.files).toMatchObject([{ path: real }]);
     expect(fs.existsSync(shared)).toBe(true);
+  });
+
+  it("sends a file in the folder as it is now, not as the window last saw it, and not at all once it left", () => {
+    const { dir } = made();
+    const edited = path.join(dir, "notes.txt");
+    fs.writeFileSync(edited, "longer than it was");
+    const stale = (at: string) => ({
+      filename: path.basename(at),
+      mimeType: "text/plain",
+      path: AbsolutePathSchema.parse(at),
+      size: 2,
+    });
+
+    const sending = withDraftFolder({
+      files: [stale(edited), stale(path.join(dir, "gone.txt"))],
+      fromDraft: "d1",
+      rootDir,
+    });
+
+    expect(sending.files).toEqual([
+      {
+        filename: "notes.txt",
+        mimeType: "text/plain",
+        path: edited,
+        size: 18,
+      },
+    ]);
   });
 
   it("is what the window handed over where there is no draft", () => {

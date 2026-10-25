@@ -214,6 +214,9 @@ export function createDraftStore({
           folder: folderKeyOf({}),
           text: textOf(file),
         });
+        drafts = drafts.map((entry) =>
+          entry.id === draft.id ? { ...entry, folder: made.dir } : entry,
+        );
       }
       return save(draft);
     } catch (error) {

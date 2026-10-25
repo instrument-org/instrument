@@ -74,6 +74,8 @@ export interface Draft {
    */
   context?: DraftContextItem[];
   createdAt: number;
+  /** Where the draft's folder is, once it has one. Main's alone, as `inFolder` is. */
+  folder?: string;
   id: string;
   /**
    * What the draft's folder has that goes with the message, as main last
@@ -102,7 +104,10 @@ export interface Draft {
 }
 
 /** The fields an update may set; the draft's identity, its send and its folder are not among them. */
-type DraftFields = Omit<Draft, "createdAt" | "id" | "inFolder" | "sendingTo">;
+type DraftFields = Omit<
+  Draft,
+  "createdAt" | "folder" | "id" | "inFolder" | "sendingTo"
+>;
 
 /**
  * One change to the drafts. Each names the draft it changes and carries
@@ -301,6 +306,7 @@ function isField(key: string): key is keyof DraftFields {
   return (
     key !== "createdAt" &&
     key !== "id" &&
+    key !== "folder" &&
     key !== "inFolder" &&
     key !== "sendingTo" &&
     key !== "updatedAt"

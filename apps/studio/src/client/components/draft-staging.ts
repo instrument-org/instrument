@@ -17,6 +17,11 @@ function writtenName(at: string): string {
   return at.split(/[/\\]/).pop() ?? at;
 }
 
+/** Whether `at` is something inside `folder`, whichever way this computer writes a path. */
+function isInside(folder: string, at: string): boolean {
+  return at.startsWith(folder) && /^[/\\]./.test(at.slice(folder.length));
+}
+
 /** What a composer hands over to be sent: the files among it are what this is about. */
 interface Sending {
   files?: FileUpload.Input[];
@@ -269,8 +274,20 @@ export function useFolderItems({
               : other.name === writtenName(item.path),
           ),
       );
-      if (missing.length > 0) {
-        box.mergeItems({ added: missing.map(itemOf), gone: [] });
+      // A file that left the folder while the box was put away is no longer
+      // there, so the box drops it, whatever it was put back with.
+      const there = new Set(now.map((item) => item.path));
+      const folder = draft?.folder;
+      if (missing.length > 0 || folder !== undefined) {
+        box.mergeItems({
+          added: missing.map(itemOf),
+          gone: [],
+          keep: (at) =>
+            folder === undefined ||
+            !isInside(folder, at) ||
+            there.has(at) ||
+            staging.knows(at),
+        });
       }
       return;
     }

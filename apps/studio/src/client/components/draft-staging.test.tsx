@@ -223,10 +223,31 @@ describe("a box following its draft's folder", () => {
 
   it("adds what the folder has that a box put back from where it was put away does not show", () => {
     const { mergeItems } = follow({ held: [] });
-    expect(mergeItems).toHaveBeenCalledWith({
-      added: [expect.objectContaining({ path: "/ws/Drafts/d/a.png" })],
-      gone: [],
+    expect(mergeItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        added: [expect.objectContaining({ path: "/ws/Drafts/d/a.png" })],
+        gone: [],
+      }),
+    );
+  });
+
+  it("drops a file that left the folder while the box was put away", () => {
+    const mergeItems = vi.fn<PromptInputRef["mergeItems"]>();
+    const input = {
+      current: { mergeItems, snapshot: () => ({ items: [], prompt: "" }) },
+    };
+    renderHook(() => {
+      useFolderItems({
+        draft: { ...withFolder(["kept.png"]), folder: "/ws/Drafts/d" },
+        input,
+        staging: { forget: () => [], knows: () => false },
+      });
     });
+    const keep = mergeItems.mock.calls[0]?.[0].keep;
+    expect(keep?.("/ws/Drafts/d/removed.png")).toBe(false);
+    expect(keep?.("/ws/Drafts/d/kept.png")).toBe(true);
+    expect(keep?.("/Users/sam/notes.txt")).toBe(true);
+    expect(keep?.("/ws/Drafts/d 2/other.png")).toBe(true);
   });
 
   it("leaves out what the draft records the box was given, which a restore has not drawn yet", () => {

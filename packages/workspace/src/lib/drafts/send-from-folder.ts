@@ -50,13 +50,22 @@ export function withDraftFolder({
   fromDraft: string | undefined;
   rootDir: string;
 }): Sending & { sent: SentFromDraft } {
-  const given = { files: files ?? [], folders: folders ?? [] };
   const sent: SentFromDraft = { files: [], folders: [] };
   const entry =
     fromDraft === undefined ? undefined : findDraft(rootDir, fromDraft);
   if (entry === undefined) {
-    return { ...given, sent };
+    return { files: files ?? [], folders: folders ?? [], sent };
   }
+  // What the window says of a file in the folder is as old as its chip; the
+  // folder as read now is what goes, so its own entries are read here
+  // instead, and one that has left the folder is not sent.
+  const inFolder = (at: string) => path.dirname(at) === entry.dir;
+  const given = {
+    files: (files ?? []).filter(
+      (file) => !("path" in file && inFolder(file.path)),
+    ),
+    folders: (folders ?? []).filter((folder) => !inFolder(folder.path)),
+  };
   const shared = namedByOtherDrafts(entry.dir, entry.draft.id);
   const byPath = new Set([
     ...given.files.flatMap((file) => ("path" in file ? [file.path] : [])),

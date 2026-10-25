@@ -103,6 +103,7 @@ export function draftOf({ dir, draft }: DraftOnDisk, rootDir: string): Draft {
     ...(chat.success ? { chatId: chat.data } : {}),
     ...(context.length > 0 ? { context } : {}),
     createdAt: draft.created.getTime(),
+    folder: dir,
     id: draft.id,
     ...(sending.success ? { sendingTo: sending.data } : {}),
     ...(draft.topic === undefined ? {} : { topicId: draft.topic }),
@@ -122,10 +123,16 @@ export function withFolderOf(current: Draft, read: Draft, dir: string): Draft {
   const attached = (current.attached ?? []).filter(
     (item) => !isInside(dir, item.path) || now.has(item.path),
   );
-  const { attached: _attached, inFolder: _inFolder, ...rest } = current;
+  const {
+    attached: _attached,
+    folder: _folder,
+    inFolder: _inFolder,
+    ...rest
+  } = current;
   return {
     ...rest,
     ...(attached.length > 0 ? { attached } : {}),
+    ...(read.folder === undefined ? {} : { folder: read.folder }),
     ...(read.inFolder === undefined ? {} : { inFolder: read.inFolder }),
   };
 }

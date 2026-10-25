@@ -215,6 +215,7 @@ describe("a window's ops", () => {
     expect(reopened).toEqual(
       draft("a", {
         attached: [image],
+        folder: path.dirname(pasted.path),
         inFolder: [image],
         context: [
           { chat: CHAT, kind: "chat" },
@@ -254,7 +255,9 @@ describe("a window's ops", () => {
     apply({ id: "a", type: "release" });
 
     expect(read()).not.toContain("sending:");
-    expect(store.snapshot().drafts[0]).toEqual(draft("a", { words: "hi" }));
+    expect(store.snapshot().drafts[0]).toEqual(
+      draft("a", { folder: path.dirname(fileOf()), words: "hi" }),
+    );
   });
 
   it("keep front matter another program left", () => {
@@ -275,7 +278,9 @@ describe("a window's ops", () => {
       ].join("\n"),
     );
     const { apply, store } = open();
-    expect(store.snapshot().drafts[0]).toEqual(draft("a", { words: "Plan" }));
+    expect(store.snapshot().drafts[0]).toEqual(
+      draft("a", { folder: path.dirname(fileOf()), words: "Plan" }),
+    );
 
     apply({
       at: DAY,

@@ -21,6 +21,12 @@ const SEPARATOR_GAP_MS = HOUR_MS;
  */
 export interface ChatSeparator {
   at: Date;
+  /**
+   * Whether the line shows the day and time: above the chat's first message
+   * and after a gap, but not on a switch of model within the hour, where the
+   * line names only the new model.
+   */
+  timed: boolean;
   /** Absent on a separator that only marks a gap in time. */
   usage?: ModelUsage;
 }
@@ -32,7 +38,7 @@ export interface ChatSeparator {
  * One above the first message, naming the model. One above any message sent
  * {@link SEPARATOR_GAP_MS} or more after the one before it, or on a later day,
  * with the time alone. One above the first message after a switch of model,
- * naming the new one, gap or not.
+ * naming the new one, with the time only when it also follows a gap.
  *
  * A user message carries no model; the one it went to is the model its reply
  * asked for, so a separator names nothing until the reply's first message
@@ -65,12 +71,15 @@ export function chatSeparators(
       const switched =
         model !== undefined && lastModel !== undefined && model !== lastModel;
 
+      const gap =
+        previous !== undefined && isGap(previous.metadata.createdAt, at);
+
       if (isFirst || switched) {
         named = { replies: [], userId: message.id };
         runs.push(named);
-        separators.set(message.id, { at });
-      } else if (previous && isGap(previous.metadata.createdAt, at)) {
-        separators.set(message.id, { at });
+        separators.set(message.id, { at, timed: isFirst || gap });
+      } else if (gap) {
+        separators.set(message.id, { at, timed: true });
       }
       lastModel = model ?? lastModel;
     }

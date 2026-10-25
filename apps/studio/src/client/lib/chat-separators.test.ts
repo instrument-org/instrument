@@ -68,6 +68,7 @@ const describeSeparators = (messages: SessionMessage.WithParts[]) =>
   [...chatSeparators(messages)].map(([id, separator]) => ({
     at: messages.findIndex((message) => message.id === id),
     model: separator.usage?.requested?.name,
+    timed: separator.timed,
   }));
 
 describe("chatSeparators", () => {
@@ -84,6 +85,7 @@ describe("chatSeparators", () => {
         {
           "at": 0,
           "model": "GLM 5.3 Prime",
+          "timed": true,
         },
       ]
     `);
@@ -106,40 +108,53 @@ describe("chatSeparators", () => {
         {
           "at": 0,
           "model": "GLM 5.3 Prime",
+          "timed": true,
         },
         {
           "at": 2,
           "model": undefined,
+          "timed": true,
         },
         {
           "at": 4,
           "model": undefined,
+          "timed": true,
         },
         {
           "at": 6,
           "model": undefined,
+          "timed": true,
         },
       ]
     `);
   });
 
-  it("names the new model above the first message after a switch, gap or not", () => {
+  it("names the new model above the first message after a switch, timed only after a gap", () => {
     expect(
       describeSeparators([
         sent("2026-09-26T16:12:00"),
         reply("2026-09-26T16:12:05", glm),
         sent("2026-09-26T16:31:00"),
         reply("2026-09-26T16:31:05", sonnet),
+        sent("2026-09-26T18:00:00"),
+        reply("2026-09-26T18:00:05", glm),
       ]),
     ).toMatchInlineSnapshot(`
       [
         {
           "at": 0,
           "model": "GLM 5.3 Prime",
+          "timed": true,
         },
         {
           "at": 2,
           "model": "Claude Sonnet 5",
+          "timed": false,
+        },
+        {
+          "at": 4,
+          "model": "GLM 5.3 Prime",
+          "timed": true,
         },
       ]
     `);
@@ -175,13 +190,14 @@ describe("chatSeparators", () => {
   it("names nothing until the reply exists", () => {
     expect(describeSeparators([sent("2026-09-26T16:12:00")]))
       .toMatchInlineSnapshot(`
-      [
-        {
-          "at": 0,
-          "model": undefined,
-        },
-      ]
-    `);
+        [
+          {
+            "at": 0,
+            "model": undefined,
+            "timed": true,
+          },
+        ]
+      `);
   });
 });
 

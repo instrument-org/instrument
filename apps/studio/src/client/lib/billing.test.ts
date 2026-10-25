@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import {
   accountNotice,
   canStartTrial,
-  checkoutTrialLine,
   describeWhen,
   featurePause,
   freeAllowancePause,
@@ -20,7 +19,6 @@ import {
   nextStepFor,
   refusalNotice,
   stopLineText,
-  subscriptionPhaseLine,
   trialOption,
   upgradePlan,
   usageWarning,
@@ -56,7 +54,7 @@ const offer: Offer = {
       price: { currency: "usd", interval: "month", unitAmount: 4000 },
     },
   ],
-  trial: { available: true, cardRequired: false, days: 7 },
+  trial: { available: true, days: 7 },
 };
 
 // Local time throughout, so the words do not depend on the machine's zone.
@@ -513,7 +511,7 @@ describe("isTrialHeldBack", () => {
     {
       held: false,
       name: "a trial offered",
-      trial: { available: true, cardRequired: false, days: 7 },
+      trial: { available: true, days: 7 },
     },
   ])("$name: $held", ({ held, trial }) => {
     expect(isTrialHeldBack(trialAvailable, { ...offer, trial })).toBe(held);
@@ -550,104 +548,6 @@ describe("isAccessRevoked", () => {
     },
   ])("$name: $expected", ({ expected, status }) => {
     expect(isAccessRevoked(status)).toBe(expected);
-  });
-});
-
-describe("checkoutTrialLine", () => {
-  const intro = {
-    available: true,
-    cardRequired: true,
-    days: 7,
-    intro: { months: 1, price: { currency: "usd", unitAmount: 100 } },
-    mode: "intro" as const,
-  };
-
-  it.each([
-    {
-      expected: "Your first month is $1.",
-      label: "an intro month",
-      trial: intro,
-    },
-    {
-      expected: "Your first 3 months are $1 each.",
-      label: "intro months",
-      trial: { ...intro, intro: { ...intro.intro, months: 3 } },
-    },
-    {
-      expected:
-        "Free for 7 days. You won't be charged if you cancel before it ends.",
-      label: "a card trial",
-      trial: { ...intro, intro: undefined, mode: "card" as const },
-    },
-    {
-      expected: undefined,
-      label: "a no-card trial",
-      trial: {
-        available: true,
-        cardRequired: false,
-        days: 7,
-        mode: "no_card" as const,
-      },
-    },
-    {
-      expected: undefined,
-      label: "a trial already used",
-      trial: { ...intro, available: false },
-    },
-  ])("$label", ({ expected, trial }) => {
-    expect(checkoutTrialLine({ ...offer, trial })).toBe(expected);
-  });
-
-  it("feeds the card-required notice", () => {
-    const notice = refusalNotice({
-      now: NOW,
-      offer: { ...offer, trial: intro },
-      refusal: { code: "subscription-required", reason: "card-required" },
-      refusedAt: NOW,
-      status: undefined,
-      statusReadAt: 0,
-    });
-
-    expect(
-      notice && copy(notice, undefined, { ...offer, trial: intro }),
-    ).toMatchObject({
-      action: { kind: "choose-plan", label: "Start for $1" },
-      line: "Your first month is $1.",
-      title: "Start your trial to use Instrument's models.",
-    });
-  });
-});
-
-describe("subscriptionPhaseLine", () => {
-  const subscribed = (phase: NonNullable<Status["subscription"]>["phase"]) =>
-    ({
-      canSubscribe: false,
-      plan: "basic",
-      subscription: { cancelAtPeriodEnd: false, phase, status: "active" },
-      trial: { state: "ended" },
-      windows: [],
-    }) satisfies Status;
-
-  it.each([
-    {
-      expected: "Free trial until October 12, then $10 a month",
-      phase: {
-        endsAt: new Date(2026, 9, 12, 9, 0).toISOString(),
-        key: "trialing" as const,
-      },
-    },
-    {
-      expected: "Intro price until November 5, then $10 a month",
-      phase: {
-        endsAt: new Date(2026, 10, 5, 9, 0).toISOString(),
-        key: "intro" as const,
-      },
-    },
-    { expected: undefined, phase: undefined },
-  ])("$phase.key", ({ expected, phase }) => {
-    expect(subscriptionPhaseLine(subscribed(phase), "$10 a month", NOW)).toBe(
-      expected,
-    );
   });
 });
 
@@ -746,18 +646,9 @@ describe("the free allowance", () => {
       name: "trial used",
       offer: {
         ...offer,
-        trial: { available: false, cardRequired: false, days: 7 },
+        trial: { available: false, days: 7 },
       },
       status: { ...onFree(), trial: { state: "ended" } } satisfies Status,
-    },
-    {
-      expected: false,
-      name: "card trial",
-      offer: {
-        ...offer,
-        trial: { available: true, cardRequired: true, days: 7 },
-      },
-      status: onFree(),
     },
     {
       expected: false,
@@ -810,36 +701,8 @@ describe("the free allowance", () => {
 });
 
 describe("trialOption", () => {
-  const intro = {
-    available: true,
-    cardRequired: true,
-    days: 0,
-    intro: { months: 1, price: { currency: "usd", unitAmount: 100 } },
-    mode: "intro" as const,
-  };
   it.each([
     { expected: "in-app", name: "a no-card trial", offer, status: onFree() },
-    {
-      expected:
-        "checkout: Free for 7 days. You won't be charged if you cancel before it ends.",
-      name: "a card trial",
-      offer: {
-        ...offer,
-        trial: {
-          available: true,
-          cardRequired: true,
-          days: 7,
-          mode: "card" as const,
-        },
-      },
-      status: onFree(),
-    },
-    {
-      expected: "checkout $1: Your first month is $1.",
-      name: "an intro price",
-      offer: { ...offer, trial: intro },
-      status: onFree(),
-    },
     {
       expected: "held-back",
       name: "trials held back",
@@ -881,25 +744,13 @@ describe("trialOption", () => {
     reason?: string;
     status: Status | undefined;
   }[])("$name: $expected", (row) => {
-    const option = trialOption(row.status, row.offer, row.reason);
-    expect(
-      option.kind === "checkout"
-        ? `checkout${option.intro ? ` ${option.intro}` : ""}: ${option.line}`
-        : option.kind,
-    ).toBe(row.expected);
+    expect(trialOption(row.status, row.offer, row.reason).kind).toBe(
+      row.expected,
+    );
   });
 });
 
 describe("nextStep", () => {
-  const cardTrial = {
-    kind: "checkout",
-    line: "Free for 7 days. You won't be charged if you cancel before it ends.",
-  } as const;
-  const introTrial = {
-    intro: "$1",
-    kind: "checkout",
-    line: "Your first month is $1.",
-  } as const;
   const resetsAt = new Date(2026, 9, 6, 9, 12);
   const pro = offer.plans.find((plan) => plan.key === "pro");
 
@@ -919,22 +770,6 @@ describe("nextStep", () => {
         notice: { kind: "plan-limit", resetsAt },
         plan: "free",
         trial: { kind: "in-app" },
-      },
-    ],
-    [
-      "free, spent, card trial",
-      {
-        notice: { kind: "plan-limit", resetsAt },
-        plan: "free",
-        trial: cardTrial,
-      },
-    ],
-    [
-      "free, spent, $1 trial",
-      {
-        notice: { kind: "plan-limit", resetsAt },
-        plan: "free",
-        trial: introTrial,
       },
     ],
     [
@@ -974,22 +809,6 @@ describe("nextStep", () => {
         notice: { kind: "plan-required", reason: "trial-available" },
         plan: "free",
         trial: { kind: "in-app" },
-      },
-    ],
-    [
-      "no plan, card trial",
-      {
-        notice: { kind: "plan-required", reason: "card-required" },
-        plan: "free",
-        trial: cardTrial,
-      },
-    ],
-    [
-      "no plan, $1 trial",
-      {
-        notice: { kind: "plan-required", reason: "card-required" },
-        plan: "free",
-        trial: introTrial,
       },
     ],
     [
@@ -1120,16 +939,12 @@ describe("nextStep", () => {
         "signed out, an image: Make images with a free Instrument account. It works in any chat, whatever AI you use. [Continue with Google→sign-in]",
         "signed out, dictation: Sign in to use dictation. [Continue with Google→sign-in]",
         "free, spent, no-card trial: Images are paused until tomorrow at 9:12 AM. Your free Instrument usage ran out. [Start free trial→start-trial]",
-        "free, spent, card trial: Images are paused until tomorrow at 9:12 AM. Your free Instrument usage ran out. [Start free trial→choose-plan]",
-        "free, spent, $1 trial: Images are paused until tomorrow at 9:12 AM. Your free Instrument usage ran out. [Start for $1→choose-plan]",
         "free, spent, trials held back: Images are paused until tomorrow at 9:12 AM. Your free Instrument usage ran out. [Choose a plan→choose-plan]",
         "free, spent, trial taken: Images are paused for now. Your free Instrument usage ran out. [Choose a plan→choose-plan]",
         "on the trial, spent: Images are paused until tomorrow at 9:12 AM. Your free trial's usage ran out. [Choose a plan→choose-plan]",
         "on a plan, spent, bigger plan: Images are paused until tomorrow at 9:12 AM. Your plan's usage ran out. [Upgrade→upgrade]",
         "on the biggest plan, spent: Images are paused until tomorrow at 9:12 AM. Your plan's usage ran out. [Contact us→send-feedback]",
         "no plan, no-card trial: Start your free trial to make images. [Start free trial→start-trial]",
-        "no plan, card trial: Start your free trial to make images. Free for 7 days. You won't be charged if you cancel before it ends. [Start free trial→choose-plan]",
-        "no plan, $1 trial: Start your trial to make images. Your first month is $1. [Start for $1→choose-plan]",
         "no plan, trials paused, refused for it: Free trials aren't available right now. [Choose a plan→choose-plan]",
         "no plan, trials held back, not refused for it: Choose a plan to make images. [Choose a plan→choose-plan]",
         "no plan, trial taken: Choose a plan to make images. [Choose a plan→choose-plan]",

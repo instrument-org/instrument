@@ -378,19 +378,19 @@ function readyLine(provider: ConnectProvider, modelName: string | undefined) {
 
 /**
  * How the Instrument way in reads beside the subscriptions, from the
- * server's trial offer: a free trial when one can start without paying
- * first (no card, or a card trial), otherwise signing in to choose a plan.
- * Setup's rows, the Add a provider sheet and the sign-in screen use it.
+ * server's trial offer: a free trial when one can start, otherwise signing
+ * in to choose a plan. Setup's rows, the Add a provider sheet and the
+ * sign-in screen use it.
  */
 export function instrumentWayCopy(
   offer: RPCOutput["billing"]["offer"] | undefined,
 ): { action: string; isTrial: boolean; line: string; title: string } {
   const trial = offer?.trial;
-  if (trial && trial.available !== false && trial.mode !== "intro") {
+  if (trial && trial.available !== false) {
     return {
       action: "Start free trial",
       isTrial: true,
-      line: `Sign in with Google and get ${String(trial.days)} days free.${trial.cardRequired ? "" : " No card needed."}`,
+      line: `Sign in with Google and get ${String(trial.days)} days free. No card needed.`,
       title: `Try ${APP_NAME} free`,
     };
   }

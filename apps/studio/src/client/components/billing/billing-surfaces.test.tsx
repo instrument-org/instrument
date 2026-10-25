@@ -150,7 +150,7 @@ const OFFER: Offer = {
       price: { currency: "usd", interval: "month", unitAmount: 4000 },
     },
   ],
-  trial: { available: false, cardRequired: false, days: 7 },
+  trial: { available: false, days: 7 },
 };
 
 const SOON = new Date(Date.now() + 3 * 3_600_000).toISOString();
@@ -212,7 +212,7 @@ const onFree = (paused?: { resetsAt: string }): Status => ({
 
 const OFFER_WITH_TRIAL: Offer = {
   ...OFFER,
-  trial: { available: true, cardRequired: false, days: 7 },
+  trial: { available: true, days: 7 },
 };
 
 const onTrial = (): Status => ({

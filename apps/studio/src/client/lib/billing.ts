@@ -49,52 +49,6 @@ export function formatPriceInWords(price: OfferPlan["price"]) {
 }
 
 /**
- * The trial a new subscriber gets through Checkout, in one line, or nothing
- * when the offer has none for this account (or its trial starts in the app).
- */
-export function checkoutTrialLine(offer: Offer | undefined) {
-  const trial = offer?.trial;
-  if (!trial || trial.available === false) {
-    return undefined;
-  }
-  if (trial.mode === "intro" && trial.intro) {
-    const amount = formatAmount({ ...trial.intro.price, interval: null });
-    return trial.intro.months === 1
-      ? `Your first month is ${amount}.`
-      : `Your first ${trial.intro.months} months are ${amount} each.`;
-  }
-  if (
-    trial.mode === "card" ||
-    (trial.mode === undefined && trial.cardRequired)
-  ) {
-    return `Free for ${trial.days} days. You won't be charged if you cancel before it ends.`;
-  }
-  return undefined;
-}
-
-/**
- * A subscription's Stripe trial or intro price, while it runs: what the plan
- * row says in place of its renewal date.
- */
-export function subscriptionPhaseLine(
-  status: Status | undefined,
-  price: string,
-  now: Date,
-) {
-  const phase = status?.subscription?.phase;
-  if (!phase) {
-    return undefined;
-  }
-  const until = phase.endsAt
-    ? ` until ${describeDate(new Date(phase.endsAt), now)}`
-    : "";
-  const then = price ? `, then ${price}` : "";
-  return phase.key === "trialing"
-    ? `Free trial${until}${then}`
-    : `Intro price${until}${then}`;
-}
-
-/**
  * A trial refused for now rather than used up: the month's trials are spent
  * (`trial-capacity`) or new ones are paused (`trial-paused`). Only a plan
  * gets this account going until they open again.
@@ -311,7 +265,7 @@ export type BillingNotice =
   | { kind: "plan-limit"; resetsAt?: Date; upgradeTo?: OfferPlan }
   | {
       kind: "plan-required";
-      /** What the refusal said would unlock it (`trial-available`, `card-required`, ...). */
+      /** What the refusal said would unlock it (`trial-available`, `trial-paused`, ...). */
       reason?: string;
     }
   | {
@@ -483,16 +437,10 @@ export type BlockedThing = "dictation" | "images" | "models" | "search";
 
 /**
  * The trial this account could start now, as the offer has it: in the app
- * with no card (`in-app`), through Checkout (`checkout`, free with a card or
- * at an intro price), held back while trials are paused or the month's are
- * spent, or none to start (taken, running, or never offered).
+ * with no card (`in-app`), held back while trials are paused or the month's
+ * are spent, or none to start (taken, running, or never offered).
  */
 export type TrialOption =
-  | {
-      kind: "checkout";
-      /** The intro price, `$1`, when it isn't free. */ intro?: string;
-      line: string;
-    }
   | { kind: "held-back" }
   | { kind: "in-app" }
   | { kind: "none" };
@@ -520,27 +468,14 @@ export function trialOption(
     }
   } else if (isTrialHeldBackReason(reason)) {
     return { kind: "held-back" };
-  } else if (reason !== "trial-available" && reason !== "card-required") {
+  } else if (reason !== "trial-available") {
     return { kind: "none" };
   }
   const trial = offer?.trial;
   if (!trial) {
     return reason === "trial-available" ? { kind: "in-app" } : { kind: "none" };
   }
-  if (trial.available === false) {
-    return { kind: "none" };
-  }
-  const line = checkoutTrialLine(offer);
-  if (!line) {
-    return { kind: "in-app" };
-  }
-  return trial.mode === "intro" && trial.intro
-    ? {
-        intro: formatAmount({ ...trial.intro.price, interval: null }),
-        kind: "checkout",
-        line,
-      }
-    : { kind: "checkout", line };
+  return trial.available === false ? { kind: "none" } : { kind: "in-app" };
 }
 
 /** The words after "to" for what was held back: "make images". */
@@ -681,14 +616,6 @@ export function nextStep(
     }
     case "plan-required": {
       switch (trial.kind) {
-        case "checkout": {
-          return {
-            action: trialAction(trial) ?? choosePlan,
-            changeModel,
-            line: trial.line,
-            title: `Start your ${trial.intro ? "" : "free "}trial to ${purpose}.`,
-          };
-        }
         case "held-back": {
           // Said only once a refusal names it; before that, a plan is the
           // way in, and trials go unmentioned.
@@ -765,12 +692,6 @@ export function nextStep(
 /** The button that starts the trial on offer, when there is one to start. */
 function trialAction(trial: TrialOption) {
   switch (trial.kind) {
-    case "checkout": {
-      return {
-        kind: "choose-plan" as const,
-        label: trial.intro ? `Start for ${trial.intro}` : "Start free trial",
-      };
-    }
     case "in-app": {
       return { kind: "start-trial" as const, label: "Start free trial" };
     }
@@ -831,9 +752,6 @@ export function stopLineText(refusal: BillingRefusal) {
       switch (refusal.reason) {
         case "access-revoked": {
           return `Stopped: ${APP_NAME} isn't available on this account.`;
-        }
-        case "card-required": {
-          return "Stopped: choose a plan to start.";
         }
         case "payment-failed": {
           return "Stopped: your payment didn't go through.";
@@ -1004,8 +922,7 @@ export function canStartTrial(
     status.plan !== "trial" &&
     status.trial.state === "available" &&
     !status.subscription &&
-    offer?.trial?.available === true &&
-    !offer.trial.cardRequired
+    offer?.trial?.available === true
   );
 }
 

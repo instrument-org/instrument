@@ -265,7 +265,7 @@ function RouteComponent() {
                   [
                     "trial",
                     offer.data.trial
-                      ? `${offer.data.trial.days} days, card ${offer.data.trial.cardRequired ? "required" : "not required"}, available ${String(offer.data.trial.available ?? "-")}`
+                      ? `${offer.data.trial.days} days, available ${String(offer.data.trial.available ?? "-")}`
                       : "none",
                   ],
                 ]}

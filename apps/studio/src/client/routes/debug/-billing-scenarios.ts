@@ -36,11 +36,6 @@ export const billingScenarios = [
       "a Pro subscriber who chose to move down to Basic at the period's end",
   },
   {
-    name: "card-trial",
-    state: "a Basic subscriber in a trial that took a card",
-  },
-  { name: "intro-month", state: "a Basic subscriber in their $1 first month" },
-  {
     name: "revoked",
     state: "a subscriber whose payment was disputed, so hosted models are off",
   },

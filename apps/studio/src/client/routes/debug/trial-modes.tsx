@@ -276,7 +276,7 @@ function FixtureQueries({
 /**
  * The note over a chat's reply box on Instrument's models: before any turn
  * is refused, as the status reads, or after one the platform refused with
- * the mode's reason, which is where a card trial's line shows.
+ * the mode's reason.
  */
 function ChatNoteSample({
   mode,

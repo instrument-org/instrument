@@ -10,7 +10,6 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import {
   canStartTrial,
-  checkoutTrialLine,
   describeDate,
   describeDay,
   describeWhen,
@@ -22,7 +21,6 @@ import {
   scheduledPlanChange,
   subscribedPlan,
   subscriptionEndsAt,
-  subscriptionPhaseLine,
   windowLabel,
 } from "@/client/lib/billing";
 import { openAccount, openPlans } from "@/client/lib/billing-website";
@@ -161,7 +159,6 @@ function PlanGroup({ status }: { status: Status }) {
       : undefined;
     const price = plan ? formatPriceInWords(plan.price) : "";
     const paymentFailed = hasPaymentFailed(status);
-    const phaseLine = subscriptionPhaseLine(status, price, now);
     return (
       <SettingsSection title="Plan">
         <StateArrival state={arrival}>
@@ -191,11 +188,9 @@ function PlanGroup({ status }: { status: Status }) {
                     ? `Ends ${describeDate(endsAt, now)}`
                     : change
                       ? `Switches to ${change.name} on ${describeDate(change.at, now)}. You keep ${plan?.name ?? "this plan"} until then.`
-                      : phaseLine
-                        ? phaseLine
-                        : renewsAt
-                          ? `Renews ${describeDate(renewsAt, now)}`
-                          : undefined
+                      : renewsAt
+                        ? `Renews ${describeDate(renewsAt, now)}`
+                        : undefined
               }
               // Status names no plan while a payment is owed, since none is in
               // effect; the row then says only that there is a subscription.
@@ -278,9 +273,9 @@ function PlanGroup({ status }: { status: Status }) {
                   ? `Ends ${describeDay(trialEndsAt)}`
                   : undefined
                 : [
-                    offerTrial && days
-                      ? `Your free trial gives you ${days} days of ${APP_NAME}'s models, with no card needed.`
-                      : checkoutTrialLine(offer),
+                    offerTrial &&
+                      days &&
+                      `Your free trial gives you ${days} days of ${APP_NAME}'s models, with no card needed.`,
                     `${APP_NAME}'s models need a plan. Your ChatGPT, Claude or Grok account, or your own key, works without one.`,
                   ]
                     .filter(Boolean)

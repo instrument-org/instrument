@@ -8,6 +8,7 @@ export type FileType =
   | "code"
   | "csv"
   | "docx"
+  | "excalidraw"
   | "html"
   | "image"
   | "iwork"
@@ -40,6 +41,9 @@ export function fileKindLabel(fileType: FileType): string {
     }
     case "docx": {
       return "Word document";
+    }
+    case "excalidraw": {
+      return "Excalidraw drawing";
     }
     case "html": {
       return "HTML";
@@ -105,6 +109,7 @@ const EXTENSION_KIND_LABELS: Record<string, string> = {
   dotm: "Word template",
   dotx: "Word template",
   eml: "Email message",
+  excalidraw: "Excalidraw drawing",
   epub: "E-book",
   geojson: "GeoJSON data",
   gml: "XML data",
@@ -320,6 +325,8 @@ export const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   db: "sqlite",
   docm: "docx",
   docx: "docx",
+  // JSON underneath, drawn on a live canvas rather than shown as its text.
+  excalidraw: "excalidraw",
   ipynb: "notebook",
   jsonl: "jsonl",
   // The iWork formats are zip containers around Apple's own IWA payload, which

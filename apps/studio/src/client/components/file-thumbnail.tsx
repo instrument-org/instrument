@@ -19,6 +19,7 @@ const HAS_LINE_THUMBNAIL: Record<FileType, boolean> = {
   code: true,
   csv: true,
   docx: false,
+  excalidraw: false,
   html: false,
   image: false,
   iwork: false,

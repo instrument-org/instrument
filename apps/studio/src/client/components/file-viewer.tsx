@@ -116,6 +116,20 @@ const CodeFileEditor = lazy(() =>
   })),
 );
 
+// The drawing canvas (Excalidraw) loads the first time a drawing is opened
+// where it can be edited. Its fonts are served beside the renderer bundle
+// (`excalidrawFonts` in electron.vite.config.ts), not from its CDN, which the
+// renderer's policy refuses.
+const ExcalidrawFileEditor = lazy(() => {
+  window.EXCALIDRAW_ASSET_PATH = new URL(
+    "/excalidraw-assets/",
+    window.location.href,
+  ).href;
+  return import("./excalidraw-editor/excalidraw-file-editor").then(
+    (module) => ({ default: module.ExcalidrawFileEditor }),
+  );
+});
+
 /**
  * Wrapping is entirely ours to decide: the highlighter hands back tokens as
  * inline spans inside one `<pre>`, so it reflows like any other markup and
@@ -456,6 +470,28 @@ const VIEWERS = {
     ),
     scrolls: "self",
   },
+  excalidraw: {
+    hasToolbar: false,
+    render: (context) =>
+      context.editable ? (
+        <ViewerSurface
+          fallback={context.fallback}
+          resetKey={context.file.hostPath}
+        >
+          <div className="absolute inset-0">
+            <Suspense fallback={<FileLoading />}>
+              <ExcalidrawFileEditor
+                hostPath={context.file.hostPath}
+                key={context.file.hostPath}
+              />
+            </Suspense>
+          </div>
+        </ViewerSurface>
+      ) : (
+        renderCode(context)
+      ),
+    scrolls: "container",
+  },
   // A page is what a browser is for, and a file tab shows one in a guest.
   // Here the file is its text, edited where the surface allows it, unless the
   // surface around the viewer hands over the page drawn.
@@ -736,6 +772,9 @@ function richViewName(
     case "jsonl": {
       return "table";
     }
+    case "excalidraw": {
+      return "drawing";
+    }
     case "html": {
       return hasPage ? "page" : undefined;
     }
@@ -887,6 +926,7 @@ export function FileViewer({
     (showsSource ||
       fileType === "code" ||
       fileType === "csv" ||
+      fileType === "excalidraw" ||
       fileType === "markdown" ||
       fileType === "text" ||
       (fileType === "html" && page === undefined));

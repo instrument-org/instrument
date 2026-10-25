@@ -234,6 +234,73 @@ function copyVendorAssets(): Plugin {
   };
 }
 
+const EXCALIDRAW_ASSETS = "excalidraw-assets";
+// The CJK hand-drawn face is 12 MB of the 13; without it, Chinese and
+// Japanese text in a drawing falls back to a system font.
+const EXCALIDRAW_SKIPPED_FONTS = new Set(["Xiaolai"]);
+
+/**
+ * Excalidraw's fonts, served from the renderer's own origin under
+ * `/excalidraw-assets/fonts/`, where `window.EXCALIDRAW_ASSET_PATH` points
+ * (`client/components/file-viewer.tsx`): the dev server answers from the
+ * package, and a build emits them beside the bundle. Its default is a CDN,
+ * which `font-src 'self'` refuses.
+ */
+function excalidrawFonts(): Plugin {
+  const require = createRequire(import.meta.url);
+  const fontsDir = path.join(
+    path.dirname(require.resolve("@excalidraw/excalidraw")),
+    "fonts",
+  );
+  const fontFiles = async () => {
+    const files: string[] = [];
+    for (const family of await fs.readdir(fontsDir)) {
+      if (EXCALIDRAW_SKIPPED_FONTS.has(family)) {
+        continue;
+      }
+      for (const name of await fs.readdir(path.join(fontsDir, family))) {
+        if (name.endsWith(".woff2")) {
+          files.push(`${family}/${name}`);
+        }
+      }
+    }
+    return files;
+  };
+  return {
+    configureServer(server) {
+      const prefix = `/${EXCALIDRAW_ASSETS}/fonts/`;
+      server.middlewares.use((request, response, next) => {
+        const url = request.url?.split("?")[0] ?? "";
+        const relative = url.startsWith(prefix) ? url.slice(prefix.length) : "";
+        if (!/^\w+\/[\w.-]+\.woff2$/.test(relative)) {
+          next();
+          return;
+        }
+        fs.readFile(path.join(fontsDir, relative)).then(
+          (bytes) => {
+            response.setHeader("Content-Type", "font/woff2");
+            response.end(bytes);
+          },
+          () => {
+            response.statusCode = 404;
+            response.end();
+          },
+        );
+      });
+    },
+    async generateBundle() {
+      for (const file of await fontFiles()) {
+        this.emitFile({
+          fileName: `${EXCALIDRAW_ASSETS}/fonts/${file}`,
+          source: await fs.readFile(path.join(fontsDir, file)),
+          type: "asset",
+        });
+      }
+    },
+    name: "excalidraw-fonts",
+  };
+}
+
 /**
  * Creates a plugin to validate production environment variables based on context.
  *
@@ -508,6 +575,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         reactCompilerBabel,
         tailwindcss(),
         xlsxWorkerDom(),
+        excalidrawFonts(),
         ...(isProduction ? [recordBundledPackages("renderer")] : []),
       ],
       resolve,

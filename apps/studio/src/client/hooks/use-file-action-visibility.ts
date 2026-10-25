@@ -15,6 +15,7 @@ const IS_TEXT_LIKE: Record<FileType, boolean> = {
   code: true,
   csv: true,
   docx: false,
+  excalidraw: true,
   html: true,
   image: false,
   iwork: false,

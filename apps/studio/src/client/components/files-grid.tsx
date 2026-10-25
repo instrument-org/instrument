@@ -241,6 +241,7 @@ const ROW_CARD_PREVIEW: Record<FileType, boolean> = {
   code: true,
   csv: true,
   docx: true,
+  excalidraw: true,
   html: true,
   image: false,
   iwork: true,

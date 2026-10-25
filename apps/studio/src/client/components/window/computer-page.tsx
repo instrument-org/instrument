@@ -1707,9 +1707,7 @@ export function ComputerPage({
           reread();
           selectUndone(undone);
         })
-        .catch((error: unknown) => {
-          fileActionFailed("Couldn't undo that", error);
-        });
+        .catch(undoFailed);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
@@ -3249,6 +3247,17 @@ export function fileActionFailed(title: string, error: unknown) {
     cause: error,
     description: spokenMessage(error, SPOKEN_FILE_ERRORS),
   });
+}
+
+/**
+ * Says ⌘Z couldn't take the last action back. With nothing left to take
+ * back it says nothing, as the system's file manager does.
+ */
+export function undoFailed(error: unknown) {
+  if (error instanceof ORPCError && error.code === "NOTHING_TO_UNDO") {
+    return;
+  }
+  fileActionFailed("Couldn't undo that", error);
 }
 
 /** What Windows' ransomware protection kept out, from a files route's error. */

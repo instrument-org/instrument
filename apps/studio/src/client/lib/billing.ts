@@ -470,6 +470,7 @@ export type BillingNoticeAction =
   | "choose-plan"
   | "contact-support"
   | "continue"
+  | "send-feedback"
   | "sign-in"
   | "start-trial"
   | "update-card"
@@ -599,6 +600,9 @@ export function nextStep(
   const changeModel = otherModelCan && notice.kind !== "resumed";
   const purpose = PURPOSE[blocked];
   const choosePlan = { kind: "choose-plan" as const, label: "Choose a plan" };
+  // The top plan's limit has no bigger plan past it, so the way on is to
+  // tell us.
+  const contactUs = { kind: "send-feedback" as const, label: "Contact us" };
   switch (notice.kind) {
     case "access-revoked": {
       return {
@@ -630,7 +634,9 @@ export function nextStep(
               ? choosePlan
               : notice.upgradeTo
                 ? { kind: "upgrade" as const, label: "Upgrade" }
-                : undefined;
+                : plan === undefined
+                  ? undefined
+                  : contactUs;
         return {
           ...(action && { action }),
           changeModel,
@@ -666,9 +672,9 @@ export function nextStep(
         };
       }
       return {
-        ...(notice.upgradeTo && {
-          action: { kind: "upgrade" as const, label: "Upgrade" },
-        }),
+        ...(notice.upgradeTo
+          ? { action: { kind: "upgrade" as const, label: "Upgrade" } }
+          : plan !== undefined && { action: contactUs }),
         changeModel,
         line,
         title: "You've reached your plan's limit for now.",

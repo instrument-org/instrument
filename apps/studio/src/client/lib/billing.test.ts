@@ -327,7 +327,7 @@ describe("refusalNotice", () => {
       `);
   });
 
-  it("offers nothing but the reset on the biggest plan", () => {
+  it("offers to contact us on the biggest plan", () => {
     const limit = notice(
       {
         code: "usage-limit-exceeded",
@@ -339,6 +339,10 @@ describe("refusalNotice", () => {
     expect(limit && copy(limit, onPlan("pro", {}, [30, 100, 20])))
       .toMatchInlineSnapshot(`
         {
+          "action": {
+            "kind": "send-feedback",
+            "label": "Contact us",
+          },
           "changeModel": true,
           "line": "It resets October 12.",
           "title": "You've reached your plan's limit for now.",
@@ -1122,7 +1126,7 @@ describe("nextStep", () => {
         "free, spent, trial taken: Images are paused for now. Your free Instrument usage ran out. [Choose a plan→choose-plan]",
         "on the trial, spent: Images are paused until tomorrow at 9:12 AM. Your free trial's usage ran out. [Choose a plan→choose-plan]",
         "on a plan, spent, bigger plan: Images are paused until tomorrow at 9:12 AM. Your plan's usage ran out. [Upgrade→upgrade]",
-        "on the biggest plan, spent: Images are paused until tomorrow at 9:12 AM. Your plan's usage ran out.",
+        "on the biggest plan, spent: Images are paused until tomorrow at 9:12 AM. Your plan's usage ran out. [Contact us→send-feedback]",
         "no plan, no-card trial: Start your free trial to make images. [Start free trial→start-trial]",
         "no plan, card trial: Start your free trial to make images. Free for 7 days. You won't be charged if you cancel before it ends. [Start free trial→choose-plan]",
         "no plan, $1 trial: Start your trial to make images. Your first month is $1. [Start for $1→choose-plan]",
@@ -1142,7 +1146,7 @@ describe("nextStep", () => {
         "a search, free, spent: Web search through Instrument is paused until tomorrow at 9:12 AM. Your free Instrument usage ran out. [Start free trial→start-trial]",
         "dictation, free, spent: You've reached your free account's limit for now. It resets tomorrow at 9:12 AM. [Start free trial→start-trial]",
         "a turn, free, spent: You've reached your free account's limit for now. It resets tomorrow at 9:12 AM. [Choose a plan→choose-plan]",
-        "a turn, another model to use: You've reached your plan's limit for now. It resets tomorrow at 9:12 AM. [Change model]",
+        "a turn, another model to use: You've reached your plan's limit for now. It resets tomorrow at 9:12 AM. [Contact us→send-feedback] [Change model]",
         "a turn, only Instrument's models: Start your free trial to use Instrument's models. [Start free trial→start-trial]",
         "a turn back, another model to use: Your usage limit has reset. [Continue→continue]",
       ]

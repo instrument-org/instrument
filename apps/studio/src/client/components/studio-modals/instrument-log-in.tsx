@@ -1,3 +1,5 @@
+import { openReportDialog } from "@/client/atoms/report-dialog";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import { BrandMark } from "@/client/components/brand-mark";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { ConnectButton } from "@/client/components/connect-button";
@@ -310,6 +312,8 @@ function AccountNoticePage({
           onClick={() => {
             if (step.action?.kind === "contact-support") {
               openLink(SUPPORT_URL);
+            } else if (step.action?.kind === "send-feedback") {
+              openReportDialog(feedbackReport({ surface: "usage-limit" }));
             } else {
               openAccount();
             }

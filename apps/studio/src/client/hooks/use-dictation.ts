@@ -1,3 +1,5 @@
+import { openReportDialog } from "@/client/atoms/report-dialog";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import { openLogin } from "@/client/atoms/login-modal";
 import { openAccount, openPlans } from "@/client/lib/billing-website";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
@@ -305,6 +307,10 @@ export function useDictation({
         break;
       }
       case "continue": {
+        break;
+      }
+      case "send-feedback": {
+        openReportDialog(feedbackReport({ surface: "usage-limit" }));
         break;
       }
       case "sign-in": {

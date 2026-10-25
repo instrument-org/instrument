@@ -314,6 +314,7 @@ export function ChatConversation({
   };
 
   const note = useChatNote({
+    chatId: id,
     isAgentRunning,
     messages,
     modelURI: selectedModelURI,

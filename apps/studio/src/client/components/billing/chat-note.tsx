@@ -1,3 +1,4 @@
+import { openReportDialog } from "@/client/atoms/report-dialog";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { ReplyNote, ReplyNoteButton } from "@/client/components/reply-note";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
@@ -21,6 +22,7 @@ import {
 import { openAccount, openPlans } from "@/client/lib/billing-website";
 import { keptAtom } from "@/client/lib/kept-state";
 import { parsePlatformApiError } from "@/client/lib/parse-platform-api-error";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import {
   hasUsageReturned,
   lastPlanAccountStop,
@@ -30,7 +32,10 @@ import {
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS, SUPPORT_URL } from "@instrument-org/shared";
-import { type SessionMessage } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  type SessionMessage,
+} from "@instrument-org/workspace/client";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { GaugeIcon } from "@phosphor-icons/react/Gauge";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -107,11 +112,14 @@ function providerOf(modelURI: AIGatewayModelURI.Type | undefined) {
  * always a way out.
  */
 export function useChatNote({
+  chatId,
   isAgentRunning,
   messages,
   modelURI,
   onContinue,
 }: {
+  /** The chat a "Contact us" from the note sends feedback about. */
+  chatId?: ChatId;
   isAgentRunning: boolean;
   messages: SessionMessage.WithParts[];
   modelURI: AIGatewayModelURI.Type | undefined;
@@ -258,6 +266,10 @@ export function useChatNote({
       }
       case "continue": {
         onContinue?.();
+        break;
+      }
+      case "send-feedback": {
+        openReportDialog(feedbackReport({ chatId, surface: "usage-limit" }));
         break;
       }
       case "sign-in": {

@@ -2,6 +2,7 @@ import {
   APP_NAME,
   OUR_MODELS,
   OUR_PROVIDER_CONFIG,
+  type PlanRefusal,
 } from "@instrument-org/shared";
 import { RelativePathSchema } from "@instrument-org/workspace/client";
 
@@ -186,9 +187,7 @@ export function imageRefused({
   explanation?: string;
   filePath: string;
   prompt: string;
-  refusal:
-    | { code: "subscription-required"; reason?: string }
-    | { code: "usage-limit-exceeded"; resetsAt?: string };
+  refusal: PlanRefusal;
 }): ToolCall {
   return call({
     input: { explanation, filePath, prompt },

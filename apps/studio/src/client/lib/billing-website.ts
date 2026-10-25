@@ -17,6 +17,14 @@ export function openPlans(plan?: string) {
   openWebsite({ page: "plans", ...(plan && { plan }) });
 }
 
+/**
+ * A page of the website the platform named for a next step this build does
+ * not know, with `plan` leading when given.
+ */
+export function openWebsitePage(page: string, plan?: string) {
+  openWebsite({ page, ...(plan && { plan }) });
+}
+
 /** The account's own page: its plan, changing or resuming it, and billing. */
 export function openAccount() {
   openWebsite({ page: "account" });

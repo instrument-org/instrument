@@ -119,31 +119,49 @@ function toastOptions(call: unknown[] | undefined) {
   };
 }
 
+const UPGRADE = {
+  action: "upgrade",
+  label: "Upgrade",
+  page: "/welcome",
+  plan: "max",
+};
+const CHOOSE_PLAN = {
+  action: "choose-plan",
+  label: "Choose a plan",
+  page: "/welcome",
+};
+
 /** A paid account with a bigger plan on offer and its usage window spent. */
 const SPENT_PLAN = {
   billingStatus: {
+    account: { next: UPGRADE, state: "limit-reached", tier: "paid" },
     canSubscribe: false,
+    features: {
+      dictation: {
+        available: false,
+        code: "usage-limit-exceeded",
+        next: UPGRADE,
+        outcome: "limit-reached",
+      },
+    },
     plan: "pro",
     subscription: { cancelAtPeriodEnd: false, plan: "pro", status: "active" },
     trial: { state: "ended" },
     windows: [{ key: "5h", percentUsed: 100 }],
-  },
-  offer: {
-    plans: [
-      { allowance: { multiple: 1, windows: [] }, key: "pro" },
-      { allowance: { multiple: 4, windows: [] }, key: "max" },
-    ],
   },
 };
 
 /** A free account billing refuses dictation for until it has a plan. */
 const NEEDS_PLAN = {
   billingStatus: {
+    account: { next: CHOOSE_PLAN, state: "plan-required", tier: "free" },
     canSubscribe: true,
     features: {
       dictation: {
         available: false,
         code: "subscription-required",
+        next: CHOOSE_PLAN,
+        outcome: "plan-required",
         reason: "no-plan",
       },
     },
@@ -151,7 +169,6 @@ const NEEDS_PLAN = {
     trial: { state: "ended" },
     windows: [],
   },
-  offer: { plans: [] },
 };
 
 /** A recording whose length and stop are the test's to decide. */
@@ -631,7 +648,11 @@ describe("useDictation", () => {
     mocks.transcribe.mockResolvedValueOnce({
       failure: {
         kind: "billing-refused",
-        refusal: { code: "usage-limit-exceeded" },
+        refusal: {
+          code: "usage-limit-exceeded",
+          next: UPGRADE,
+          outcome: "limit-reached",
+        },
       },
       ok: false,
     });
@@ -675,7 +696,12 @@ describe("useDictation", () => {
     mocks.transcribe.mockResolvedValueOnce({
       failure: {
         kind: "billing-refused",
-        refusal: { code: "subscription-required", reason: "no-plan" },
+        refusal: {
+          code: "subscription-required",
+          next: CHOOSE_PLAN,
+          outcome: "plan-required",
+          reason: "no-plan",
+        },
       },
       ok: false,
     });
@@ -696,7 +722,7 @@ describe("useDictation", () => {
     act(() => {
       options.action.onClick({ preventDefault: vi.fn() });
     });
-    expect(mocks.openPlans).toHaveBeenCalledWith();
+    expect(mocks.openPlans).toHaveBeenCalledWith(undefined);
   });
 
   it("asks a signed-out person to log in instead of recording", async () => {
@@ -919,7 +945,12 @@ describe("useDictation with a live stream", () => {
       stream.send({
         failure: {
           kind: "billing-refused",
-          refusal: { code: "subscription-required", reason: "no-plan" },
+          refusal: {
+            code: "subscription-required",
+            next: CHOOSE_PLAN,
+            outcome: "plan-required",
+            reason: "no-plan",
+          },
         },
         type: "unavailable",
       });

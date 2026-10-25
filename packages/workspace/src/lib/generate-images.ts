@@ -8,7 +8,6 @@ import {
   type ImageGenerationProviderType,
   imageModelSupportsStreaming,
   namesSameModel,
-  type PlanRefusal,
   planRefusalIn,
   resolveImageParameters,
   selectImageProviderConfigs,
@@ -18,6 +17,7 @@ import {
 import {
   APP_NAME,
   OUR_MODELS,
+  type PlanRefusal,
   type WorkspaceServerURL,
 } from "@instrument-org/shared";
 import {

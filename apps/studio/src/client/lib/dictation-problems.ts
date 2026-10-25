@@ -1,11 +1,11 @@
 import {
-  type BillingNoticeAction,
   type NextStep,
   nextStepFor,
+  type NoticeAction,
   refusalNotice,
 } from "@/client/lib/billing";
 import { type RPCOutput } from "@/client/rpc/client";
-import { type PlanRefusal } from "@/shared/billing";
+import { type PlanRefusal } from "@instrument-org/shared";
 import { type DictationFailure } from "@/shared/dictation";
 import { type Os } from "@/shared/os-conventions";
 import { APP_NAME } from "@instrument-org/shared";
@@ -38,7 +38,7 @@ export type DictationNotice = {
     | "retry"
     | "sign-in"
     /** Billing's own way forward, as the chat's billing note offers it. */
-    | { kind: BillingNoticeAction; label: string };
+    | NoticeAction;
   description?: string;
   /** Whether the recording is held for the retry the toast offers. */
   keepsRecording: boolean;
@@ -52,7 +52,6 @@ export type DictationNotice = {
  * was read after `refusedAt`, and only then is it trusted.
  */
 export type DictationBilling = {
-  offer?: RPCOutput["billing"]["offer"];
   refusedAt: Date;
   status?: RPCOutput["billing"]["status"];
   statusReadAt: number;
@@ -70,9 +69,15 @@ function describeBillingRefusal(
 ): DictationNotice {
   const now = billing?.refusedAt ?? new Date();
   const notice = refusalNotice({
+    blocked: "dictation",
     now,
-    offer: billing?.offer,
-    refusal: refusal ?? { code: "usage-limit-exceeded" },
+    refusal: refusal ?? {
+      code: "usage-limit-exceeded",
+      ...(billing?.status?.account.next && {
+        next: billing.status.account.next,
+      }),
+      outcome: "limit-reached",
+    },
     refusedAt: now,
     status: billing?.status,
     statusReadAt: refusal ? (billing?.statusReadAt ?? 0) : 0,
@@ -82,7 +87,6 @@ function describeBillingRefusal(
         {
           blocked: "dictation",
           notice,
-          offer: billing?.offer,
           otherModelCan: false,
           status: billing?.status,
         },

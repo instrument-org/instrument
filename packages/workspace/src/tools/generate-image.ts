@@ -7,7 +7,7 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, PlanRefusalSchema } from "@instrument-org/shared";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { waitForSignIn } from "../lib/chat/sign-in-wake";
@@ -117,13 +117,7 @@ export const GenerateImage = setupTool({
         "provider-limitation",
         "refused",
       ]),
-      refusal: z
-        .object({
-          code: z.enum(["subscription-required", "usage-limit-exceeded"]),
-          reason: z.string().optional(),
-          resetsAt: z.string().optional(),
-        })
-        .optional(),
+      refusal: PlanRefusalSchema.optional(),
       responseBody: z.string().optional(),
       state: z.literal("failure"),
     }),

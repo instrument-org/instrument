@@ -3,30 +3,54 @@ import { type RPCOutput } from "@/client/rpc/client";
 type Offer = RPCOutput["billing"]["offer"];
 type Status = RPCOutput["billing"]["status"];
 
+const START_TRIAL = {
+  action: "start-trial",
+  label: "Start free trial",
+  page: "/welcome",
+};
+const CHOOSE_PLAN = {
+  action: "choose-plan",
+  label: "Choose a plan",
+  page: "/welcome",
+};
+
 /**
  * The ways the platform can offer the free trial, and the beta offer, as `billing.offer`
  * and `billing.status` answer for an account that has never had one. The
- * `reason` is what the platform gives for refusing Instrument's models on the
- * free plan in that mode (`trial-available`, `trial-paused`).
+ * `reason`, `outcome` and `next` are what the platform gives for refusing
+ * Instrument's models on the free plan in that mode.
  */
 export const trialModes = [
   {
     id: "no-card",
     label: "No card",
+    next: START_TRIAL,
+    outcome: "plan-required",
     reason: "trial-available",
-    trial: { days: 7 },
+    trial: { cardRequired: false, days: 7 },
   },
-  { id: "paused", label: "Paused", reason: "trial-paused", trial: null },
+  {
+    id: "paused",
+    label: "Paused",
+    next: CHOOSE_PLAN,
+    outcome: "trials-unavailable",
+    reason: "trial-paused",
+    trial: null,
+  },
   // A beta tester's offer: Pro's free months, over the no-card trial.
   {
     id: "beta",
     label: "Beta offer",
+    next: START_TRIAL,
+    outcome: "plan-required",
     reason: "trial-available",
-    trial: { days: 7 },
+    trial: { cardRequired: false, days: 7 },
   },
 ] as const satisfies readonly {
   id: string;
   label: string;
+  next: { action: string; label: string; page: string };
+  outcome: string;
   reason: string;
   trial: Omit<NonNullable<Offer["trial"]>, "available"> | null;
 }[];
@@ -80,20 +104,31 @@ export function trialModeOffer(mode: TrialModeId, signedIn: boolean): Offer {
 
 /** A signed-in account on the free plan that has never started its trial. */
 export function trialModeStatus(mode: TrialModeId): Status {
+  const { next, outcome, reason } = getTrialMode(mode);
   return {
+    account: { next, state: outcome, tier: "free" },
     canSubscribe: true,
     features: {
       decisions: { available: true },
       models: {
         available: false,
         code: "subscription-required",
-        reason: getTrialMode(mode).reason,
+        next,
+        outcome,
+        reason,
       },
       search: { available: true },
     },
     plan: "free",
     trial: { state: "available" },
-    windows: [{ key: "free", percentUsed: 10 }],
+    windows: [
+      {
+        key: "free",
+        label: "Free usage",
+        percentUsed: 10,
+        period: "your free usage",
+      },
+    ],
   };
 }
 

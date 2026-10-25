@@ -1,6 +1,6 @@
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { getToken } from "@/electron-main/platform-api/utils";
-import { PlanRefusalResponseSchema } from "@/shared/billing";
+import { PlanRefusalBodySchema } from "@instrument-org/shared";
 import {
   type DictationFailure,
   type DictationLanguage,
@@ -40,7 +40,7 @@ export function dictationFailureOf(
   } catch {
     parsed = undefined;
   }
-  const refusal = PlanRefusalResponseSchema.safeParse(parsed).data?.error;
+  const refusal = PlanRefusalBodySchema.safeParse(parsed).data?.error;
   if (refusal) {
     return { kind: "billing-refused", refusal };
   }

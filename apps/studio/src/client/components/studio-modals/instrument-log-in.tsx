@@ -25,7 +25,6 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-type Offer = RPCOutput["billing"]["offer"];
 type Status = RPCOutput["billing"]["status"];
 
 /** Where a dialog goes once someone has signed in to Instrument with Google. */
@@ -37,18 +36,19 @@ type InstrumentSignInNext =
 
 export function nextAfterInstrumentSignIn({
   hasOwnAI,
-  offer,
   status,
 }: {
   hasOwnAI: boolean;
-  offer: Offer | undefined;
   status: Status | undefined;
 }): InstrumentSignInNext {
-  const notice = accountNotice(status, offer);
-  if (notice?.kind === "access-revoked" || notice?.kind === "payment-failed") {
+  const notice = accountNotice(status);
+  if (
+    notice?.kind === "blocked" &&
+    (notice.outcome === "access-revoked" || notice.outcome === "payment-failed")
+  ) {
     return { kind: "notice", notice };
   }
-  if (status?.subscription !== undefined || status?.trial.state === "active") {
+  if (status?.account.tier === "paid" || status?.account.tier === "trial") {
     return { kind: "finish" };
   }
   return hasOwnAI ? { kind: "finish" } : { kind: "plans" };
@@ -107,7 +107,7 @@ export function InstrumentLogInPage({
 export type AfterSignInPage = Exclude<
   InstrumentSignInNext,
   { kind: "finish" }
-> & { offer: Offer | undefined; status: Status | undefined };
+> & { status: Status | undefined };
 
 /**
  * Reads the account after a Google sign-in in a dialog and says once where
@@ -138,7 +138,6 @@ export function InstrumentSignInCheck({
       staleTime: 0,
     }),
   );
-  const offer = useQuery(rpcClient.billing.offer.queryOptions());
   const hasOwnAI = useHasOwnAI();
 
   // Decided once: starting a trial or subscribing on the website changes
@@ -148,16 +147,9 @@ export function InstrumentSignInCheck({
     next === undefined &&
     status.isFetchedAfterMount &&
     !status.isFetching &&
-    !offer.isPending &&
     hasOwnAI !== undefined
   ) {
-    setNext(
-      nextAfterInstrumentSignIn({
-        hasOwnAI,
-        offer: offer.data,
-        status: status.data,
-      }),
-    );
+    setNext(nextAfterInstrumentSignIn({ hasOwnAI, status: status.data }));
   }
 
   const told = useRef(false);
@@ -170,9 +162,9 @@ export function InstrumentSignInCheck({
       showConnectToast(result, "instrument");
       onFinish();
     } else {
-      onNext({ ...next, offer: offer.data, status: status.data });
+      onNext({ ...next, status: status.data });
     }
-  }, [next, offer.data, onFinish, onNext, result, status.data]);
+  }, [next, onFinish, onNext, result, status.data]);
   return null;
 }
 
@@ -202,7 +194,6 @@ export function AfterInstrumentSignIn({
   ) : (
     <AccountNoticePage
       notice={next.notice}
-      offer={next.offer}
       onFinish={finishSignedIn}
       status={next.status}
     />
@@ -272,18 +263,16 @@ function SeePlansPage({
  */
 function AccountNoticePage({
   notice,
-  offer,
   onFinish,
   status,
 }: {
   notice: BillingNotice;
-  offer: Offer | undefined;
   onFinish: () => void;
   status: Status | undefined;
 }) {
   const [now] = useState(() => new Date());
   const step = nextStepFor(
-    { blocked: "models", notice, offer, otherModelCan: false, status },
+    { blocked: "models", notice, otherModelCan: false, status },
     now,
   );
   return (
@@ -308,7 +297,7 @@ function AccountNoticePage({
         <Button
           className="mt-8 h-10 px-5 text-base"
           onClick={() => {
-            if (step.action?.kind === "send-feedback") {
+            if (step.action?.kind === "contact") {
               openReportDialog(feedbackReport({ surface: "usage-limit" }));
             } else {
               openAccount();

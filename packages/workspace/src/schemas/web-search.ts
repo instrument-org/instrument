@@ -1,3 +1,4 @@
+import { type PlanRefusal } from "@instrument-org/shared";
 import { z } from "zod";
 
 const WebSearchRequestSchema = z.object({
@@ -49,11 +50,7 @@ export type WebSearchClientResult =
     };
 
 /** Why the platform refused a search for the account's plan, as it said. */
-export type PlatformSearchRefusal = {
-  code: "subscription-required" | "usage-limit-exceeded";
-  reason?: string;
-  resetsAt?: string;
-};
+export type PlatformSearchRefusal = PlanRefusal;
 
 export type WebSearchRequest = z.output<typeof WebSearchRequestSchema>;
 

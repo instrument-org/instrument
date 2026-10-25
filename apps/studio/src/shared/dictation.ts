@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { type PlanRefusal } from "./billing";
+import { type PlanRefusal } from "@instrument-org/shared";
 
 /**
  * Where a dictation was made, sent with it so the API can say which surfaces

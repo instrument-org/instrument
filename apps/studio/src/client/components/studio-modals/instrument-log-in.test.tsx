@@ -68,21 +68,41 @@ vi.mock("@/client/lib/toast", () => ({
   toast: { error: vi.fn(), success: toastSuccess },
 }));
 
+const RUNS = { available: true };
+const features = { decisions: RUNS, models: RUNS, search: RUNS };
 const trialRunning: Status = {
+  account: { state: "active", tier: "trial" },
   canSubscribe: true,
+  features,
   plan: "trial",
   trial: { endsAt: "2099-01-01T00:00:00Z", percentUsed: 0, state: "active" },
   windows: [],
 };
 const noPlan: Status = {
+  account: {
+    next: {
+      action: "start-trial",
+      label: "Start free trial",
+      page: "/welcome",
+    },
+    state: "plan-required",
+    tier: "free",
+  },
   canSubscribe: true,
+  features,
   plan: "free",
   trial: { state: "available" },
   windows: [],
 };
 const paymentFailed: Status = {
+  account: {
+    next: { action: "update-card", label: "Update card", page: "/account" },
+    state: "payment-failed",
+    tier: "free",
+  },
   canSubscribe: false,
-  plan: "none",
+  features,
+  plan: "free",
   subscription: {
     cancelAtPeriodEnd: false,
     currentPeriodEnd: "2099-01-01T00:00:00Z",
@@ -93,6 +113,7 @@ const paymentFailed: Status = {
 };
 const subscribed: Status = {
   ...paymentFailed,
+  account: { state: "active", tier: "paid" },
   plan: "basic",
   subscription: {
     cancelAtPeriodEnd: false,
@@ -133,12 +154,19 @@ describe("nextAfterInstrumentSignIn", () => {
       hasOwnAI: true,
       name: "revoked access",
       next: "notice",
-      status: { ...noPlan, canSubscribe: false, plan: "none" },
+      status: {
+        ...noPlan,
+        account: {
+          next: { action: "contact", label: "Contact us" },
+          state: "access-revoked",
+          tier: "none",
+        },
+        canSubscribe: false,
+        plan: "none",
+      },
     },
   ])("$name goes to $next", ({ hasOwnAI, next, status }) => {
-    expect(
-      nextAfterInstrumentSignIn({ hasOwnAI, offer: undefined, status }).kind,
-    ).toBe(next);
+    expect(nextAfterInstrumentSignIn({ hasOwnAI, status }).kind).toBe(next);
   });
 });
 

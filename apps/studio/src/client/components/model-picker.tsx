@@ -22,16 +22,12 @@ import {
   rowsForSearch,
 } from "@/client/lib/model-picker-rows";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
-import {
-  autoIncludedLine,
-  canStartTrial,
-  hasNoPlan,
-} from "@/client/lib/billing";
+import { autoIncludedLine, offersTrial } from "@/client/lib/billing";
 import { openPlans } from "@/client/lib/billing-website";
 import { type ModelAction, type ModelNotice } from "@/client/lib/model-status";
 import { cn } from "@/client/lib/utils";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { type RPCOutput } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
@@ -46,7 +42,6 @@ import { InfoIcon } from "@phosphor-icons/react/Info";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
-import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   type PointerEvent,
@@ -1001,14 +996,11 @@ function FailedConnection({
  */
 export function PlanNeeded() {
   const { data: status, isSignedIn } = useBillingStatus();
-  const { data: offer } = useQuery({
-    ...rpcClient.billing.offer.queryOptions(),
-    enabled: isSignedIn,
-  });
-  if (!isSignedIn || !hasNoPlan(status)) {
+  const tier = status?.account.tier;
+  if (!isSignedIn || (tier !== "free" && tier !== "none")) {
     return null;
   }
-  const offerTrial = canStartTrial(status, offer);
+  const offerTrial = offersTrial(status);
   return (
     <div
       className="mx-1 mb-2 flex items-center gap-3 rounded-xl bg-muted/60 px-3 py-2.5"

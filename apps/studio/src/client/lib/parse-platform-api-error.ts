@@ -1,4 +1,8 @@
-import { OUR_MODELS } from "@instrument-org/shared";
+import {
+  type BillingNextStep,
+  BillingNextStepSchema,
+  OUR_MODELS,
+} from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
 import { z } from "zod";
 
@@ -20,6 +24,8 @@ const platformApiErrorResponseSchema = z
       error: z.object({
         code: z.string(),
         message: z.string().optional(),
+        next: BillingNextStepSchema.optional(),
+        outcome: z.string().optional(),
         reason: z.string().optional(),
         resetsAt: z.string().optional(),
         retryable: z.boolean().optional(),
@@ -31,11 +37,13 @@ const platformApiErrorResponseSchema = z
 /**
  * A refusal from our own platform, read off the response body. `reason` comes
  * with `subscription-required` (`trial-ended`, `no-plan`, ...); `window` and
- * `resetsAt` with `usage-limit-exceeded`.
+ * `resetsAt` with `usage-limit-exceeded`; `outcome` and `next` with both.
  */
 interface PlatformApiError {
   code: PlatformApiErrorCode;
   message?: string;
+  next?: BillingNextStep;
+  outcome?: string;
   reason?: string;
   resetsAt?: string;
   retryable?: boolean;

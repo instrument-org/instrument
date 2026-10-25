@@ -8,20 +8,18 @@ import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
+import { displayLocale } from "@/client/lib/display-locale";
 import {
-  canStartTrial,
   describeDate,
   describeDay,
   describeWhen,
   formatPriceInWords,
   freeAllowancePause,
-  hasPaymentFailed,
-  isAccessRevoked,
-  isTrialHeldBack,
+  type HostedFeature,
+  offersTrial,
   scheduledPlanChange,
   subscribedPlan,
   subscriptionEndsAt,
-  windowLabel,
 } from "@/client/lib/billing";
 import { openAccount, openPlans } from "@/client/lib/billing-website";
 import { feedbackReport } from "@/client/lib/problem-reports";
@@ -102,19 +100,20 @@ function PlanAndLimits() {
 function PlanGroup({ status }: { status: Status }) {
   const { data: offer } = useQuery(rpcClient.billing.offer.queryOptions());
   const now = new Date();
+  const { account, subscription } = status;
   const plan = subscribedPlan(status, offer);
   const change = scheduledPlanChange(status, offer);
-  const subscription = status.subscription;
   // The plan settles in when a change made on the website lands as the
   // window takes focus.
   const arrival = [
-    status.plan,
-    subscription?.status,
+    account.tier,
+    account.state,
+    account.paymentDue,
     subscriptionEndsAt(status)?.toISOString(),
     subscription?.scheduledChange?.plan,
   ].join(" ");
 
-  if (isAccessRevoked(status)) {
+  if (account.state === "access-revoked") {
     return (
       <SettingsSection title="Plan">
         <StateArrival state={arrival}>
@@ -152,26 +151,31 @@ function PlanGroup({ status }: { status: Status }) {
     );
   }
 
-  if (subscription) {
+  // A plan someone else pays for has no subscription of the person's own,
+  // so it has nothing to change or pay for here.
+  if (subscription || account.tier === "paid") {
     const endsAt = subscriptionEndsAt(status);
-    const renewsAt = subscription.currentPeriodEnd
+    const renewsAt = subscription?.currentPeriodEnd
       ? new Date(subscription.currentPeriodEnd)
       : undefined;
+    const name = account.planName ?? plan?.name;
     const price = plan ? formatPriceInWords(plan.price) : "";
-    const paymentFailed = hasPaymentFailed(status);
+    const paymentFailed = account.state === "payment-failed";
+    const paymentDue = paymentFailed || account.paymentDue === true;
     return (
       <SettingsSection title="Plan">
         <StateArrival state={arrival}>
           <Card className="gap-0 overflow-hidden p-0">
-            {paymentFailed && (
+            {paymentDue && (
               <div
                 className="flex items-center gap-3 border-b border-border px-4 py-3"
                 data-billing-row="payment-failed"
               >
                 <WarningIcon className="size-4 shrink-0 text-warning-700 dark:text-warning-300" />
                 <p className="min-w-0 flex-1 text-sm">
-                  Your payment didn&rsquo;t go through. {APP_NAME}&rsquo;s AI is
-                  paused until it does.
+                  {paymentFailed
+                    ? `Your payment didn't go through. ${APP_NAME}'s AI is paused until it does.`
+                    : "Your payment didn't go through. Update your card to keep your plan."}
                 </p>
                 <Button onClick={openAccount} size="sm">
                   Update card
@@ -187,39 +191,37 @@ function PlanGroup({ status }: { status: Status }) {
                   : endsAt
                     ? `Ends ${describeDate(endsAt, now)}`
                     : change
-                      ? `Switches to ${change.name} on ${describeDate(change.at, now)}. You keep ${plan?.name ?? "this plan"} until then.`
+                      ? `Switches to ${change.name} on ${describeDate(change.at, now)}. You keep ${name ?? "this plan"} until then.`
                       : renewsAt
                         ? `Renews ${describeDate(renewsAt, now)}`
                         : undefined
               }
-              // Status names no plan while a payment is owed, since none is in
-              // effect; the row then says only that there is a subscription.
               title={
-                plan
-                  ? [plan.name, price].filter(Boolean).join(" · ")
-                  : "Your subscription"
+                name
+                  ? [name, price].filter(Boolean).join(" · ")
+                  : subscription
+                    ? "Your subscription"
+                    : "Your plan"
               }
             >
-              {paymentFailed ? null : endsAt ? (
+              {!subscription || paymentFailed ? null : (
                 <Button onClick={openAccount} size="sm">
-                  Keep my plan
-                </Button>
-              ) : (
-                <Button onClick={openAccount} size="sm">
-                  {change ? "Keep my plan" : "Change plan"}
+                  {endsAt || change ? "Keep my plan" : "Change plan"}
                 </Button>
               )}
             </Row>
-            <Row
-              {...settingAnchor("billing-portal")}
-              data-billing-row="billing"
-              detail="Your card and invoices, in Stripe"
-              title="Payment method and invoices"
-            >
-              <Button onClick={openAccount} size="sm">
-                Manage billing
-              </Button>
-            </Row>
+            {subscription && (
+              <Row
+                {...settingAnchor("billing-portal")}
+                data-billing-row="billing"
+                detail="Your card and invoices, in Stripe"
+                title="Payment method and invoices"
+              >
+                <Button onClick={openAccount} size="sm">
+                  Manage billing
+                </Button>
+              </Row>
+            )}
           </Card>
         </StateArrival>
       </SettingsSection>
@@ -229,11 +231,9 @@ function PlanGroup({ status }: { status: Status }) {
   const trialEndsAt = status.trial.endsAt
     ? new Date(status.trial.endsAt)
     : undefined;
-  const trialHeldBack = isTrialHeldBack(status, offer);
-  const isTrial =
-    status.plan === "trial" && status.trial.state !== "ended" && !trialHeldBack;
-  const days = offer?.trial?.days;
-  const offerTrial = canStartTrial(status, offer);
+  const isTrial = account.tier === "trial" && status.trial.state !== "ended";
+  const offerTrial = offersTrial(status);
+  const trial = offer?.trial;
   const freePause = freeAllowancePause(status, now);
   const actions = (
     <Button
@@ -257,9 +257,11 @@ function PlanGroup({ status }: { status: Status }) {
             >
               <WarningIcon className="size-4 shrink-0 text-warning-700 dark:text-warning-300" />
               <p className="min-w-0 flex-1 text-sm">
-                {freePause.resetsAt
-                  ? `You've used your free web search, images and suggestions until ${describeDate(freePause.resetsAt, now)}.`
-                  : "You've used your free web search, images and suggestions for now."}
+                {`You've used your free ${listFeatures(freePause.features)} ${
+                  freePause.resetsAt
+                    ? `until ${describeDate(freePause.resetsAt, now)}`
+                    : "for now"
+                }.`}
               </p>
               {actions}
             </div>
@@ -274,8 +276,10 @@ function PlanGroup({ status }: { status: Status }) {
                   : undefined
                 : [
                     offerTrial &&
-                      days &&
-                      `Your free trial gives you ${days} days of ${APP_NAME}'s models, with no card needed.`,
+                      trial &&
+                      (trial.cardRequired
+                        ? `Your free trial gives you ${trial.days} days of ${APP_NAME}'s models.`
+                        : `Your free trial gives you ${trial.days} days of ${APP_NAME}'s models, with no card needed.`),
                     `${APP_NAME}'s models need a plan. Your ChatGPT, Claude or Grok account, or your own key, works without one.`,
                   ]
                     .filter(Boolean)
@@ -302,9 +306,26 @@ function PlanGroup({ status }: { status: Status }) {
   );
 }
 
+/** What each free feature is called in a sentence. */
+const FEATURE_WORDS = {
+  decisions: "suggestions",
+  dictation: "dictation",
+  images: "images",
+  models: `${APP_NAME}'s models`,
+  search: "web search",
+} satisfies Record<HostedFeature, string>;
+
+/** "web search, images and suggestions" */
+function listFeatures(features: HostedFeature[]) {
+  return new Intl.ListFormat(displayLocale, {
+    style: "long",
+    type: "conjunction",
+  }).format(features.map((feature) => FEATURE_WORDS[feature]));
+}
+
 function UsageGroup({ status }: { status: Status }) {
   const now = new Date();
-  if (status.plan === "trial") {
+  if (status.account.tier === "trial") {
     if (status.trial.state !== "active") {
       return null;
     }
@@ -328,7 +349,7 @@ function UsageGroup({ status }: { status: Status }) {
     );
   }
   // The free allowance's window is said in Plan, only once it is spent.
-  if (status.windows.length === 0 || status.plan === "free") {
+  if (status.windows.length === 0 || status.account.tier === "free") {
     return null;
   }
   return (
@@ -342,7 +363,7 @@ function UsageGroup({ status }: { status: Status }) {
                 : "Starts with your next message"
             }
             key={window.key}
-            label={windowLabel(window.key)}
+            label={window.label}
             percent={window.percentUsed}
           />
         ))}

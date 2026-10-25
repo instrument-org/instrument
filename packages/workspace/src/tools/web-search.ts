@@ -1,6 +1,7 @@
 import ms from "ms";
 import { ok } from "neverthrow";
 import { dedent } from "radashi";
+import { PlanRefusalSchema } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
@@ -131,13 +132,7 @@ export const WebSearch = setupTool({
       // Our endpoint refused the search for the account's plan, and another
       // search stood in (a basic one, or the model's own provider's): what
       // the platform said, for the chat to show.
-      platformRefusal: z
-        .object({
-          code: z.enum(["subscription-required", "usage-limit-exceeded"]),
-          reason: z.string().optional(),
-          resetsAt: z.string().optional(),
-        })
-        .optional(),
+      platformRefusal: PlanRefusalSchema.optional(),
       results: z.discriminatedUnion("kind", [
         ExcerptResultsSchema,
         SummaryResultsSchema,

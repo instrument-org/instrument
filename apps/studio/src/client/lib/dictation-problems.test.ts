@@ -76,16 +76,24 @@ describe("describeDictationProblem", () => {
 
 describe("billing refusals", () => {
   const refusedAt = new Date("2026-10-13T18:30:00.000Z");
+  const upgrade = {
+    action: "upgrade",
+    label: "Upgrade",
+    page: "/welcome",
+    plan: "max",
+  };
+  const spent = {
+    available: false,
+    code: "usage-limit-exceeded",
+    next: upgrade,
+    outcome: "limit-reached",
+  };
   const spentPlan = {
-    offer: {
-      plans: [
-        { allowance: { multiple: 1, windows: [] }, key: "pro" },
-        { allowance: { multiple: 4, windows: [] }, key: "max" },
-      ],
-    },
     refusedAt,
     status: {
+      account: { next: upgrade, state: "limit-reached", tier: "paid" },
       canSubscribe: false,
+      features: { dictation: spent, models: spent },
       plan: "pro",
       subscription: { cancelAtPeriodEnd: false, plan: "pro", status: "active" },
       trial: { state: "ended" },
@@ -98,14 +106,26 @@ describe("billing refusals", () => {
   const cases: [string, DictationProblem, DictationBilling | undefined][] = [
     [
       "upload over the plan's limit",
-      { kind: "billing-refused", refusal: { code: "usage-limit-exceeded" } },
+      {
+        kind: "billing-refused",
+        refusal: {
+          code: "usage-limit-exceeded",
+          next: upgrade,
+          outcome: "limit-reached",
+        },
+      },
       spentPlan,
     ],
     [
       "upload with no plan",
       {
         kind: "billing-refused",
-        refusal: { code: "subscription-required", reason: "no-plan" },
+        refusal: {
+          code: "subscription-required",
+          next: { action: "choose-plan", label: "Choose a plan" },
+          outcome: "plan-required",
+          reason: "no-plan",
+        },
       },
       undefined,
     ],
@@ -113,7 +133,12 @@ describe("billing refusals", () => {
       "upload with a trial to start",
       {
         kind: "billing-refused",
-        refusal: { code: "subscription-required", reason: "trial-available" },
+        refusal: {
+          code: "subscription-required",
+          next: { action: "start-trial", label: "Start free trial" },
+          outcome: "plan-required",
+          reason: "trial-available",
+        },
       },
       undefined,
     ],
@@ -121,7 +146,12 @@ describe("billing refusals", () => {
       "stream refused for a failed payment",
       {
         kind: "billing-stopped",
-        refusal: { code: "subscription-required", reason: "payment-failed" },
+        refusal: {
+          code: "subscription-required",
+          next: { action: "update-card", label: "Update card" },
+          outcome: "payment-failed",
+          reason: "payment-failed",
+        },
       },
       undefined,
     ],

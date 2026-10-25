@@ -20,7 +20,6 @@ import { websitePageUrl } from "@/electron-main/platform-api/web-link";
 import { getToken } from "@/electron-main/platform-api/utils";
 import { authenticated, base, devOnly } from "@/electron-main/rpc/base";
 import { setSessionToken } from "@/electron-main/stores/workspace/session";
-import { PAYMENT_FAILED_STATUSES } from "@/shared/billing";
 import { readPlatformRefusal } from "@instrument-org/ai-gateway";
 import { app } from "electron";
 import { z } from "zod";
@@ -62,11 +61,9 @@ let lastTrouble: string | undefined;
 async function readStatus() {
   const read = await platformApiRpcClient.billing.status.call();
   recordHostedFeatures(read.features);
-  const trouble = PAYMENT_FAILED_STATUSES.has(read.subscription?.status ?? "")
-    ? "payment-failed"
-    : !read.subscription && read.trial.state === "ended"
-      ? "trial-ended"
-      : undefined;
+  const { state } = read.account;
+  const trouble =
+    state === "payment-failed" || state === "trial-ended" ? state : undefined;
   if (trouble && trouble !== lastTrouble) {
     void fetchNotices();
   }
@@ -85,14 +82,19 @@ const WEBSITE_PAGES = { account: "/account", plans: "/welcome" } as const;
  * Opens a page of the website in the system browser, signed in as this
  * account when there is one: `plans` to choose a plan or start a trial
  * (`plan` leading), `account` to change or resume the plan and reach
- * Stripe's billing portal. Both offer a way back through the loopback's
- * `/open`. With `wait`, waits on the website the way a sign-in it took over
- * does, for `auth.finishOnWeb` to say when a plan lands.
+ * Stripe's billing portal, or a path of the site the platform named for a
+ * next step this build does not know. Each offers a way back through the
+ * loopback's `/open`. With `wait`, waits on the website the way a sign-in
+ * it took over does, for `auth.finishOnWeb` to say when a plan lands.
  */
 const openWebsite = base
   .input(
     z.object({
-      page: z.enum(["account", "plans"]),
+      page: z.union([
+        z.enum(["account", "plans"]),
+        // A path on the website, never another host's address.
+        z.string().regex(/^\/(?!\/)[\w\-/]*$/),
+      ]),
       plan: z.string().optional(),
       wait: z.boolean().optional(),
     }),
@@ -107,7 +109,11 @@ const openWebsite = base
       query.set("plan", input.plan);
     }
     const search = query.size > 0 ? `?${query.toString()}` : "";
-    const url = await websitePageUrl(`${WEBSITE_PAGES[input.page]}${search}`);
+    const path =
+      input.page === "account" || input.page === "plans"
+        ? WEBSITE_PAGES[input.page]
+        : input.page;
+    const url = await websitePageUrl(`${path}${search}`);
     if (input.wait) {
       waitOnWebsite();
     }

@@ -2,7 +2,7 @@ import { noteHostedRefusal } from "@/electron-main/lib/hosted-features";
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { systemCountry } from "@/electron-main/lib/system-country";
 import { getToken } from "@/electron-main/platform-api/utils";
-import { PlanRefusalResponseSchema } from "@/shared/billing";
+import { PlanRefusalBodySchema } from "@instrument-org/shared";
 import {
   type PlatformSearchRefusal,
   type WebSearchClient,
@@ -58,7 +58,7 @@ export const searchWeb: WebSearchClient = async ({ input, signal }) => {
       if (parsedError.success) {
         errorMessage = parsedError.data.error;
       }
-      const parsedRefusal = PlanRefusalResponseSchema.safeParse(errorJson);
+      const parsedRefusal = PlanRefusalBodySchema.safeParse(errorJson);
       if (parsedRefusal.success) {
         refusal = parsedRefusal.data.error;
       }

@@ -1,3 +1,4 @@
+import { BillingNextStepSchema } from "@instrument-org/shared";
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 
@@ -14,11 +15,14 @@ const base = oc.errors({
 /**
  * Whether one hosted feature would run now, and if not, the refusal a request
  * for it would get: `subscription-required` with what unlocks it, or
- * `usage-limit-exceeded` with when it comes back.
+ * `usage-limit-exceeded` with when it comes back, with the `outcome` a client
+ * words and the `next` step past it.
  */
 const FeatureAvailabilitySchema = z.object({
   available: z.boolean(),
   code: z.string().optional(),
+  next: BillingNextStepSchema.optional(),
+  outcome: z.string().optional(),
   reason: z.string().optional(),
   resetsAt: z.string().optional(),
 });
@@ -32,30 +36,45 @@ export type FeatureAvailability = z.output<typeof FeatureAvailabilitySchema>;
  * every signed-in account gets without a plan or a running trial.
  */
 const BillingStatusSchema = z.object({
+  /**
+   * The account as the app shows it, as the platform decided it. `tier` is
+   * `none`, `free`, `trial` or `paid`; `state` is `active` while
+   * Instrument's models run, or the outcome a request for them gets
+   * (`plan-required`, `limit-reached`, `payment-failed`, ...), with `next`
+   * the way past it and `resetsAt` when a spent window comes back.
+   * `paymentDue` marks a failed payment the plan still runs through,
+   * `planName` the plan paid for, and `upgradeTo` the offered plan above it.
+   * Strings rather than enums, so a newer platform's value never fails the
+   * read.
+   */
+  account: z.object({
+    next: BillingNextStepSchema.optional(),
+    paymentDue: z.boolean().optional(),
+    planName: z.string().optional(),
+    resetsAt: z.string().optional(),
+    state: z.string(),
+    tier: z.string(),
+    upgradeTo: z.string().optional(),
+  }),
   binding: z.string().optional(),
   canSubscribe: z.boolean(),
-  /**
-   * Which hosted features would run now. Absent from a platform that
-   * predates it, and then each is taken as available.
-   */
-  features: z
-    .object({
-      decisions: FeatureAvailabilitySchema,
-      /** Absent from a platform that predates dictation's metering. */
-      dictation: FeatureAvailabilitySchema.optional(),
-      /** Absent from a platform that predates the free account's images. */
-      images: FeatureAvailabilitySchema.optional(),
-      models: FeatureAvailabilitySchema,
-      search: FeatureAvailabilitySchema.extend({
-        /**
-         * Whether searches from a model on the person's own provider go
-         * through the platform too while search is available. Absent from
-         * a platform that predates it, and then taken as false.
-         */
-        forEveryModel: z.boolean().optional(),
-      }),
-    })
-    .optional(),
+  /** Which hosted features would run now. */
+  features: z.object({
+    decisions: FeatureAvailabilitySchema,
+    /** Absent from a platform that predates dictation's metering. */
+    dictation: FeatureAvailabilitySchema.optional(),
+    /** Absent from a platform that predates the free account's images. */
+    images: FeatureAvailabilitySchema.optional(),
+    models: FeatureAvailabilitySchema,
+    search: FeatureAvailabilitySchema.extend({
+      /**
+       * Whether searches from a model on the person's own provider go
+       * through the platform too while search is available. Absent from
+       * a platform that predates it, and then taken as false.
+       */
+      forEveryModel: z.boolean().optional(),
+    }),
+  }),
   plan: z.string(),
   subscription: z
     .object({
@@ -83,10 +102,16 @@ const BillingStatusSchema = z.object({
     percentUsed: z.number().optional(),
     state: z.enum(["active", "available", "ended"]),
   }),
+  /**
+   * Each enabled window: `label` heads its meter ("This week") and `period`
+   * finishes a sentence ("this week").
+   */
   windows: z.array(
     z.object({
       key: z.string(),
+      label: z.string(),
       percentUsed: z.number(),
+      period: z.string(),
       resetsAt: z.string().optional(),
     }),
   ),
@@ -128,12 +153,13 @@ const BillingOfferSchema = z.object({
     }),
   ),
   /**
-   * The no-card trial, which starts in the app. The API also sends `mode`
-   * and `cardRequired` for older clients, which nothing here reads.
+   * The trial on offer, started on the website: how long it runs, and
+   * whether it asks for a card.
    */
   trial: z
     .object({
       available: z.boolean().optional(),
+      cardRequired: z.boolean(),
       days: z.number(),
     })
     .nullable(),

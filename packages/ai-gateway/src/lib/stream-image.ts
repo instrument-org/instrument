@@ -1,5 +1,6 @@
 import {
   OUR_PROVIDER_CONFIG,
+  type PlanRefusal,
   type WorkspaceServerURL,
 } from "@instrument-org/shared";
 import { parseJsonEventStream } from "ai";
@@ -9,7 +10,7 @@ import { CLIENT_SESSION_ID_HEADER } from "../constants";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { internalURL } from "./internal-url";
 import { internalAPIKey } from "./key-for-provider";
-import { type PlanRefusal, planRefusalIn } from "./read-platform-refusal";
+import { planRefusalIn } from "./read-platform-refusal";
 
 /**
  * The header Instrument's platform names an image's generated quality in:

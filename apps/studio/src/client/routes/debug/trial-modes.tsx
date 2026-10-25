@@ -92,13 +92,13 @@ const surfaces = [
   {
     id: "chat-note-image",
     label: "Chat note after a refused image",
-    render: () => <ImageNoteSample />,
+    render: (mode: TrialModeId) => <ImageNoteSample mode={mode} />,
     signedIn: true,
   },
   {
     id: "chat-note-image-signed-out",
     label: "Chat note for an image, signed out",
-    render: () => <ImageNoteSample signedOut />,
+    render: (mode: TrialModeId) => <ImageNoteSample mode={mode} signedOut />,
     signedIn: false,
   },
   {
@@ -295,6 +295,8 @@ function ChatNoteSample({
                 classification: "usage-limit",
                 code: "subscription-required",
                 details: {
+                  next: getTrialMode(mode).next,
+                  outcome: getTrialMode(mode).outcome,
                   reason: getTrialMode(mode).reason,
                 },
                 message: "Choose a plan to keep going.",
@@ -327,7 +329,13 @@ function ChatNoteSample({
  * account: spent for now, which offers the mode's trial, or nothing to make
  * images with while signed out.
  */
-function ImageNoteSample({ signedOut = false }: { signedOut?: boolean }) {
+function ImageNoteSample({
+  mode,
+  signedOut = false,
+}: {
+  mode: TrialModeId;
+  signedOut?: boolean;
+}) {
   const [messages] = useState(
     () =>
       buildFrames(
@@ -343,6 +351,8 @@ function ImageNoteSample({ signedOut = false }: { signedOut?: boolean }) {
                 prompt: "A help desk team, flat illustration",
                 refusal: {
                   code: "usage-limit-exceeded",
+                  next: getTrialMode(mode).next,
+                  outcome: "limit-reached",
                   resetsAt: new Date(Date.now() + 21 * 3_600_000).toISOString(),
                 },
               }),

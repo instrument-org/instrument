@@ -1,3 +1,7 @@
+import {
+  type PlanRefusal,
+  PlanRefusalBodySchema,
+} from "@instrument-org/shared";
 import { z } from "zod";
 
 import { type PlatformRefusal } from "../types";
@@ -41,21 +45,6 @@ export async function readPlatformRefusal(
     status: response.status,
   };
 }
-
-const PlanRefusalBodySchema = z.object({
-  error: z.object({
-    code: z.enum(["subscription-required", "usage-limit-exceeded"]),
-    reason: z.string().optional(),
-    resetsAt: z.string().optional(),
-  }),
-});
-
-/**
- * Our platform turning a hosted request away for the account's plan: no
- * plan for it (402 `subscription-required`, with `reason`), or its usage
- * spent until `resetsAt` (429 `usage-limit-exceeded`).
- */
-export type PlanRefusal = z.output<typeof PlanRefusalBodySchema>["error"];
 
 /**
  * The plan refusal a response body says, from its text. Undefined for any

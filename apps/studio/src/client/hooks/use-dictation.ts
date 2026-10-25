@@ -1,12 +1,12 @@
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { openLogin } from "@/client/atoms/login-modal";
-import { openAccount, openPlans } from "@/client/lib/billing-website";
 import {
-  type BillingNoticeAction,
-  featurePause,
-  upgradePlan,
-} from "@/client/lib/billing";
+  openAccount,
+  openPlans,
+  openWebsitePage,
+} from "@/client/lib/billing-website";
+import { featurePause, type NoticeAction } from "@/client/lib/billing";
 import { MicCapture, MicrophoneError } from "@/client/lib/dictation-capture";
 import {
   microphoneName,
@@ -276,35 +276,28 @@ export function useDictation({
    */
   const readBilling = async (): Promise<DictationBilling> => {
     const refusedAt = new Date();
-    const [status, offer] = await Promise.all([
-      queryClient
-        .fetchQuery({
-          ...rpcClient.billing.status.queryOptions(),
-          staleTime: 0,
-        })
-        .catch(() => undefined),
-      queryClient
-        .fetchQuery(rpcClient.billing.offer.queryOptions())
-        .catch(() => undefined),
-    ]);
-    return { offer, refusedAt, status, statusReadAt: Date.now() };
+    const status = await queryClient
+      .fetchQuery({
+        ...rpcClient.billing.status.queryOptions(),
+        staleTime: 0,
+      })
+      .catch(() => undefined);
+    return { refusedAt, status, statusReadAt: Date.now() };
   };
 
-  const actOnBilling = (
-    kind: BillingNoticeAction,
-    billing: DictationBilling | undefined,
-  ) => {
-    switch (kind) {
+  const actOnBilling = (action: NoticeAction) => {
+    switch (action.kind) {
       case "choose-plan":
-      case "start-trial": {
-        openPlans();
+      case "start-trial":
+      case "upgrade": {
+        openPlans(action.plan);
+        break;
+      }
+      case "contact": {
+        openReportDialog(feedbackReport({ surface: "usage-limit" }));
         break;
       }
       case "continue": {
-        break;
-      }
-      case "send-feedback": {
-        openReportDialog(feedbackReport({ surface: "usage-limit" }));
         break;
       }
       case "sign-in": {
@@ -315,12 +308,14 @@ export function useDictation({
         openAccount();
         break;
       }
-      case "upgrade": {
-        openPlans(upgradePlan(billing?.offer, billing?.status)?.key);
+      case "website": {
+        if (action.page) {
+          openWebsitePage(action.page, action.plan);
+        }
         break;
       }
       default: {
-        kind satisfies never;
+        action.kind satisfies never;
       }
     }
   };
@@ -344,7 +339,7 @@ export function useDictation({
             if (notice.keepsRecording && retry) {
               event.preventDefault();
             }
-            actOnBilling(billingAction.kind, billing);
+            actOnBilling(billingAction);
           },
         }
       : notice.action === "retry" && retry
@@ -463,6 +458,8 @@ export function useDictation({
           code === "usage-limit-exceeded") && {
           refusal: {
             code,
+            ...(pause?.next && { next: pause.next }),
+            outcome: pause?.outcome,
             reason: pause?.reason,
             resetsAt: pause?.resetsAt?.toISOString(),
           },

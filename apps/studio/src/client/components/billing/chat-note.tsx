@@ -8,17 +8,21 @@ import {
   type BillingRefusal,
   isNoteDismissed,
   noteDismissalKey,
+  noticeName,
   withNoteDismissed,
   featurePause,
-  type BillingNoticeAction,
   type NextStep,
   nextStepFor,
+  type NoticeAction,
   refusalNotice,
-  upgradePlan,
   usageWarning,
   usageWarningText,
 } from "@/client/lib/billing";
-import { openAccount, openPlans } from "@/client/lib/billing-website";
+import {
+  openAccount,
+  openPlans,
+  openWebsitePage,
+} from "@/client/lib/billing-website";
 import { keptAtom } from "@/client/lib/kept-state";
 import { parsePlatformApiError } from "@/client/lib/parse-platform-api-error";
 import { feedbackReport } from "@/client/lib/problem-reports";
@@ -134,10 +138,6 @@ export function useChatNote({
     isSignedOut,
     refetch,
   } = useBillingStatus();
-  const { data: offer } = useQuery({
-    ...rpcClient.billing.offer.queryOptions(),
-    enabled: isSignedIn,
-  });
   // Whether a model on another connection could take a refused turn instead.
   const { data: modelsData } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
@@ -200,8 +200,8 @@ export function useChatNote({
   const fromRefusal =
     refused && refusal
       ? refusalNotice({
+          blocked: "models",
           now,
-          offer,
           refusal,
           refusedAt: new Date(refused.metadata.createdAt),
           status,
@@ -212,17 +212,13 @@ export function useChatNote({
   // the status has it running, whatever the stopped turn's record says.
   const startedTrial =
     trialStartedAt !== undefined &&
-    status?.plan === "trial" &&
-    status.trial.state === "active"
-      ? ({
-          after: "trial-started",
-          kind: "resumed",
-          subscribed: false,
-        } satisfies BillingNotice)
+    status?.account.tier === "trial" &&
+    status.account.state === "active"
+      ? ({ after: "trial-started", kind: "resumed" } satisfies BillingNotice)
       : undefined;
   const billing = isOurs
     ? (fromRefusal ??
-      (isSignedIn ? accountNotice(status, offer) : undefined) ??
+      (isSignedIn ? accountNotice(status) : undefined) ??
       startedTrial)
     : undefined;
   const planStop = lastPlanAccountStop({ isAgentRunning, messages });
@@ -232,7 +228,7 @@ export function useChatNote({
   // A note that names a reset redraws itself once it passes, so "until 3:40
   // PM" turns into Continue without waiting on anything else to change.
   const resetsAt =
-    billing?.kind === "plan-limit"
+    billing?.kind === "blocked"
       ? billing.resetsAt
       : plan?.stop.kind === "usage-limit"
         ? plan.stop.resetsAt
@@ -252,18 +248,19 @@ export function useChatNote({
     };
   }, [resetsAt, refetch]);
 
-  const act = (kind: BillingNoticeAction) => {
-    switch (kind) {
-      case "choose-plan": {
-        openPlans();
+  const act = (action: NoticeAction) => {
+    switch (action.kind) {
+      case "choose-plan":
+      case "upgrade": {
+        openPlans(action.plan);
+        break;
+      }
+      case "contact": {
+        openReportDialog(feedbackReport({ chatId, surface: "usage-limit" }));
         break;
       }
       case "continue": {
         onContinue?.();
-        break;
-      }
-      case "send-feedback": {
-        openReportDialog(feedbackReport({ chatId, surface: "usage-limit" }));
         break;
       }
       case "sign-in": {
@@ -272,42 +269,44 @@ export function useChatNote({
       }
       case "start-trial": {
         setTrialStartedAt(Date.now());
-        openPlans();
+        openPlans(action.plan);
         break;
       }
       case "update-card": {
         openAccount();
         break;
       }
-      case "upgrade": {
-        openPlans(upgradePlan(offer, status)?.key);
+      case "website": {
+        if (action.page) {
+          openWebsitePage(action.page, action.plan);
+        }
         break;
       }
       default: {
-        kind satisfies never;
+        action.kind satisfies never;
       }
     }
   };
 
   if (billing) {
-    const key = `${refused?.id ?? (billing === startedTrial ? `trial:${trialStartedAt ?? 0}` : "account")}:${billing.kind}`;
+    const key = `${refused?.id ?? (billing === startedTrial ? `trial:${trialStartedAt ?? 0}` : "account")}:${noticeName(billing)}`;
     const isReady = billing.kind === "resumed";
     if (!(isReady && dismissed === key)) {
       return {
         holdsSend:
-          !isReady && isSignedIn && accountNotice(status, offer) !== undefined,
+          !isReady && isSignedIn && accountNotice(status) !== undefined,
         rank: isReady ? "ready" : "stop",
         render: (context) => (
           <BillingNote
             context={context}
             isReady={isReady}
-            kind={billing.kind}
-            onAct={(kind) => {
-              if (kind === "continue") {
+            name={noticeName(billing)}
+            onAct={(action) => {
+              if (action.kind === "continue") {
                 setDismissed(key);
                 setTrialStartedAt(undefined);
               }
-              act(kind);
+              act(action);
             }}
             onDismiss={
               isReady
@@ -321,7 +320,6 @@ export function useChatNote({
               {
                 blocked: "models",
                 notice: billing,
-                offer,
                 otherModelCan: hasOtherModel,
                 status,
               },
@@ -373,8 +371,8 @@ export function useChatNote({
         : undefined
       : image && refused
         ? refusalNotice({
+            blocked: "images",
             now,
-            offer,
             refusal: image.refusal,
             refusedAt: new Date(refused.metadata.createdAt),
             status,
@@ -382,12 +380,12 @@ export function useChatNote({
           })
         : undefined;
   const imageKey =
-    imageNotice && refused && `${refused.id}:image:${imageNotice.kind}`;
+    imageNotice && refused && `${refused.id}:image:${noticeName(imageNotice)}`;
   // Dismissing an offer holds a week for the reason, across chats; a ready
   // note goes for this turn alone.
   const imageOffer =
     imageNotice && imageNotice.kind !== "resumed"
-      ? noteDismissalKey("images", imageNotice.kind)
+      ? noteDismissalKey("images", noticeName(imageNotice))
       : undefined;
   if (
     imageNotice &&
@@ -406,12 +404,12 @@ export function useChatNote({
           isBusy={signIn.waiting}
           isReady={isReady}
           quiet
-          kind={imageNotice.kind}
-          onAct={(kind) => {
-            if (kind === "continue") {
+          name={noticeName(imageNotice)}
+          onAct={(action) => {
+            if (action.kind === "continue") {
               setDismissed(imageKey);
             }
-            act(kind);
+            act(action);
           }}
           onDismiss={() => {
             if (imageOffer) {
@@ -424,7 +422,6 @@ export function useChatNote({
             {
               blocked: "images",
               notice: imageNotice,
-              offer,
               otherModelCan: false,
               status,
             },
@@ -451,7 +448,7 @@ export function useChatNote({
           context={context}
           icon={MagnifyingGlassIcon}
           isReady={false}
-          kind="plan-limit"
+          name="limit-reached"
           onAct={act}
           onDismiss={() => {
             dismissOffer(searchOffer);
@@ -461,10 +458,12 @@ export function useChatNote({
             {
               blocked: "search",
               notice: {
-                kind: "plan-limit",
+                kind: "blocked",
+                ...(searchPause.next && { next: searchPause.next }),
+                outcome: "limit-reached",
+                refused: true,
                 ...(searchPause.resetsAt && { resetsAt: searchPause.resetsAt }),
               },
-              offer,
               otherModelCan: false,
               status,
             },
@@ -481,8 +480,8 @@ export function useChatNote({
   if (!warning || warning.key === dismissedWarning) {
     return undefined;
   }
-  const canGoUp =
-    warning.kind === "trial" || upgradePlan(offer, status) !== undefined;
+  const upgradeTo = status?.account.upgradeTo;
+  const canGoUp = warning.kind === "trial" || upgradeTo !== undefined;
   return {
     holdsSend: false,
     rank: "quiet",
@@ -492,11 +491,7 @@ export function useChatNote({
           canGoUp && (
             <ReplyNoteButton
               onClick={() => {
-                openPlans(
-                  warning.kind === "trial"
-                    ? undefined
-                    : upgradePlan(offer, status)?.key,
-                );
+                openPlans(warning.kind === "trial" ? undefined : upgradeTo);
               }}
             >
               See plans
@@ -517,17 +512,17 @@ export function useChatNote({
 }
 
 /**
- * A note about Instrument's account: the next step `nextStep` decided, and
- * Change model beside it where another model could do the job. A ready one,
- * or one that asks nothing of the chat (signing in), is neutral; the rest
- * are a warning.
+ * A note about Instrument's account: what `nextStep` says and the way
+ * forward it offers, and Change model beside it where another model could do
+ * the job. A ready one, or one that asks nothing of the chat (signing in),
+ * is neutral; the rest are a warning.
  */
 function BillingNote({
   context,
   icon,
   isBusy = false,
   isReady,
-  kind,
+  name,
   onAct,
   onDismiss,
   quiet = false,
@@ -538,9 +533,9 @@ function BillingNote({
   /** A sign-in under way, which holds its button. */
   isBusy?: boolean;
   isReady: boolean;
-  /** What the note is about, for tests and the debug pages to find it by. */
-  kind: BillingNotice["kind"];
-  onAct: (kind: BillingNoticeAction) => void;
+  /** What the note is about (`noticeName`), for tests and the debug pages to find it by. */
+  name: string;
+  onAct: (action: NoticeAction) => void;
   onDismiss?: () => void;
   /**
    * Something that stopped on its own while the chat goes on (an image, a
@@ -562,10 +557,11 @@ function BillingNote({
                 action.kind === "choose-plan" ||
                 action.kind === "sign-in" ||
                 action.kind === "start-trial" ||
-                action.kind === "update-card"
+                action.kind === "update-card" ||
+                action.kind === "website"
               }
               onClick={() => {
-                onAct(action.kind);
+                onAct(action);
               }}
             >
               {action.kind === "sign-in" && (
@@ -581,7 +577,7 @@ function BillingNote({
           )}
         </>
       }
-      data-billing-notice={kind}
+      data-billing-notice={name}
       icon={icon ?? (isReady ? CheckCircleIcon : WarningIcon)}
       nudge={context.nudge}
       onDismiss={onDismiss}
@@ -670,7 +666,8 @@ function PlanAccountNote({
 /**
  * The pause behind the conversation's last turn's web search, when our
  * endpoint refused it for the spent free allowance and the status still says
- * search is paused (or has not said, and the refusal's reset is ahead).
+ * search is paused (or has not said, and the refusal's reset is ahead), with
+ * the way past it the platform gave.
  */
 function lastSearchPause(
   messages: SessionMessage.WithParts[],
@@ -692,15 +689,16 @@ function lastSearchPause(
   const refusedUntil = refusal.resetsAt
     ? new Date(refusal.resetsAt)
     : undefined;
-  const pause = status?.features
+  const pause = status
     ? featurePause(status, "search", now)
     : refusedUntil && refusedUntil > now
-      ? { resetsAt: refusedUntil }
+      ? { next: refusal.next, resetsAt: refusedUntil }
       : undefined;
   if (!pause) {
     return undefined;
   }
-  return { resetsAt: pause.resetsAt };
+  const next = pause.next ?? refusal.next;
+  return { ...(next && { next }), resetsAt: pause.resetsAt };
 }
 
 /**

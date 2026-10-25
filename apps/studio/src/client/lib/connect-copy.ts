@@ -390,7 +390,7 @@ export function instrumentWayCopy(
     return {
       action: "Start free trial",
       isTrial: true,
-      line: `Sign in with Google and get ${String(trial.days)} days free. No card needed.`,
+      line: `Sign in with Google and get ${String(trial.days)} days free.${trial.cardRequired ? "" : " No card needed."}`,
       title: `Try ${APP_NAME} free`,
     };
   }

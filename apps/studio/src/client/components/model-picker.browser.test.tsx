@@ -25,7 +25,13 @@ vi.mock("@/client/hooks/use-billing-status", () => ({
 }));
 
 const onBasic: Status = {
+  account: { state: "active", tier: "paid" },
   canSubscribe: false,
+  features: {
+    decisions: { available: true },
+    models: { available: true },
+    search: { available: true },
+  },
   plan: "basic",
   subscription: { cancelAtPeriodEnd: false, status: "active" },
   trial: { state: "ended" },
@@ -202,7 +208,7 @@ describe("ModelPicker in a browser", () => {
         - button "Add a provider"
       - listbox "Suggestions":
         - img
-        - text: Auto Recommended Included with your subscription
+        - text: Auto Recommended Included with your plan
         - option "Auto (chosen)" [selected]: In use"
     `);
   });
@@ -212,7 +218,9 @@ describe("ModelPicker in a browser", () => {
       expected: "AutoRecommendedIncluded with your free trialIn use",
       state: "the trial",
       status: {
+        account: { state: "active", tier: "trial" },
         canSubscribe: true,
+        features: onBasic.features,
         plan: "trial",
         trial: { state: "active" },
         windows: [],
@@ -222,7 +230,9 @@ describe("ModelPicker in a browser", () => {
       expected: "AutoRecommendedIn use",
       state: "the free allowance",
       status: {
+        account: { state: "plan-required", tier: "free" },
         canSubscribe: true,
+        features: onBasic.features,
         plan: "free",
         trial: { state: "available" },
         windows: [],
@@ -232,7 +242,9 @@ describe("ModelPicker in a browser", () => {
       expected: "AutoRecommendedIn use",
       state: "a trial that has ended",
       status: {
+        account: { state: "trial-ended", tier: "free" },
         canSubscribe: true,
+        features: onBasic.features,
         plan: "free",
         trial: { state: "ended" },
         windows: [],
@@ -244,7 +256,7 @@ describe("ModelPicker in a browser", () => {
       await openPicker(autoModel);
       const row = document.querySelector("[data-slot=command] [role=listbox]");
       expect(row?.textContent).toContain(expected);
-      expect(row?.textContent).not.toContain("Included with your subscription");
+      expect(row?.textContent).not.toContain("Included with your plan");
     } finally {
       account.status = onBasic;
     }

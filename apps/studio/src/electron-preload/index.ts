@@ -21,6 +21,7 @@ import {
   type DraftOpBatch,
   type DraftsSnapshot,
   type DraftStageRequest,
+  type DraftTrashRequest,
 } from "@/shared/drafts";
 import { type SetupState } from "@/shared/setup";
 import { electronAPI } from "@electron-toolkit/preload";
@@ -216,6 +217,9 @@ const api: Window["api"] = {
       );
       // Main's answer to the stage it was asked for.
       return answer as { path: string; size: number };
+    },
+    trash: async (request: DraftTrashRequest) => {
+      await ipcRenderer.invoke(DRAFTS_CHANNEL.trash, request);
     },
   },
   getFilePath: (file: File) => webUtils.getPathForFile(file),

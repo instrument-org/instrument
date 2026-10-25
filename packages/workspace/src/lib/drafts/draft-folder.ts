@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
+import { unique } from "radashi";
 import { ulid } from "ulid";
 
 import { DRAFT_FILE_NAME, DRAFTS_FOLDER_NAME } from "../../constants";
 import { claimFolderNamedSync, safeName } from "../chat-folders/folder-name";
+import { isSystemClutter } from "../system-clutter";
 import { pastedPathOf } from "./context-line";
 import {
   type DraftFile,
@@ -14,7 +16,8 @@ import {
 
 /**
  * Where the person's drafts are: `Drafts/<date>/`, a folder per draft with
- * the draft in it and what was pasted into it beside the draft.
+ * the draft in it and everything that goes with its message beside the
+ * draft ({@link draftFolderItems}).
  *
  * The folder is named for the day the draft was started, numbered beside the
  * ones already there (`2026-10-14`, then `2026-10-14 2`), because a name from
@@ -38,7 +41,7 @@ import {
 
 /** A draft and where it is. */
 export interface DraftOnDisk {
-  /** The folder the draft is in, which what it pasted is beside. */
+  /** The folder the draft is in, which what goes with it is beside. */
   dir: string;
   draft: DraftFile;
   /** The draft's own file, which is only one of what the folder may hold. */
@@ -199,41 +202,187 @@ function withOthersKept(file: string, draft: DraftFile): DraftFile {
   return Object.keys(others).length > 0 ? { ...draft, others } : draft;
 }
 
+/** A file or folder in a draft's folder that goes with its message. */
+export interface DraftFolderItem {
+  kind: "file" | "folder";
+  path: string;
+}
+
 /**
- * Takes a draft away: its own file, what was pasted into it, and its folder
- * once that leaves it empty. The folder stays where it holds another draft or
- * anything the person put there themselves.
+ * Whether the files beside a draft in its folder are that draft's: every
+ * `DRAFT*.md` there is this one draft (a sync engine's conflict copy is the
+ * same draft again). A folder holding two different drafts says nothing about
+ * which of them a loose file is for, so in one like that each draft has only
+ * what its own `context` lines name inside the folder, and a file no line
+ * names goes with neither.
  */
-export function removeDraft({ dir, draft, file }: DraftOnDisk): void {
-  const otherDrafts = pastedIntoOthers(dir, file);
-  for (const line of draft.context ?? []) {
-    const pasted = pastedIntoThisDraft(dir, line);
-    if (pasted !== undefined && !otherDrafts.has(pasted)) {
-      fs.rmSync(pasted, { force: true, recursive: true });
-    }
+export function ownsDraftFolder(dir: string, id: string): boolean {
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir).filter((name) => isDraftFileName(name));
+  } catch {
+    return true;
   }
+  if (names.length <= 1) {
+    return true;
+  }
+  return names.every((name) => {
+    const file = path.join(dir, name);
+    try {
+      return (
+        parseDraftFile(fs.readFileSync(file, "utf8"), {
+          at: fs.statSync(file).mtime,
+        })?.id === id
+      );
+    } catch {
+      // Gone since the listing: one draft fewer to share with.
+      return true;
+    }
+  });
+}
+
+/**
+ * What in a draft's folder goes with its message: every file and folder
+ * beside its `DRAFT*.md` but the system's clutter, in a folder the draft owns
+ * ({@link ownsDraftFolder}), and otherwise what its lines name there. The
+ * folder is the record of what was attached, so a file dropped in from a
+ * file manager is attached and one taken out is not.
+ */
+export function draftFolderItems({
+  dir,
+  draft,
+}: Pick<DraftOnDisk, "dir" | "draft">): DraftFolderItem[] {
+  if (!ownsDraftFolder(dir, draft.id)) {
+    return unique(
+      (draft.context ?? []).flatMap((line) => {
+        const target = pastedIntoThisDraft(dir, line);
+        const kind = target === undefined ? undefined : kindOf(target);
+        return target === undefined || kind === undefined
+          ? []
+          : [{ kind, path: target }];
+      }),
+      (item) => item.path,
+    );
+  }
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return names
+    .filter((name) => !isDraftFileName(name) && !isSystemClutter(name))
+    .toSorted()
+    .flatMap((name) => {
+      const target = path.join(dir, name);
+      const kind = kindOf(target);
+      return kind === undefined ? [] : [{ kind, path: target }];
+    });
+}
+
+/**
+ * Where `target` really is, when it is something in the draft's folder that
+ * goes with it, and so something taking its chip off may move to the Trash:
+ * an entry directly in the folder, reached without a link on the way, other
+ * than a draft's file or the folder itself. Nothing for anything else, which
+ * a path a window sent can name.
+ */
+export function draftFolderItemAt(
+  dir: string,
+  target: string,
+): string | undefined {
+  const name = path.basename(target);
+  if (name === "" || name === "." || name === ".." || isDraftFileName(name)) {
+    return undefined;
+  }
+  const holder = realPathOf(path.dirname(target));
+  if (holder === undefined || holder !== realPathOf(dir)) {
+    return undefined;
+  }
+  const at = path.join(holder, name);
+  return kindOf(at) === undefined ? undefined : at;
+}
+
+/**
+ * Takes away a draft: its own file, and its folder once that leaves it empty.
+ *
+ * Nothing else in the folder is deleted here. A send moves what it sent out
+ * of the folder itself (`removeSentFromDraft`), so whatever is still there
+ * was never sent: something that arrived after the send read the folder, or
+ * the whole of a draft thrown away. Any of it may be the only copy of
+ * something the person dragged in, so it is handed back for the caller to
+ * move to the Trash, after which the folder can go.
+ *
+ * In a folder another draft shares, only what this draft's lines name and
+ * the other's do not is this draft's.
+ */
+export function removeDraft(entry: DraftOnDisk): DraftFolderItem[] {
+  const { dir, draft, file } = entry;
+  const others = namedByOtherDrafts(dir, draft.id);
+  const mine = draftFolderItems(entry).filter((item) => !others.has(item.path));
   fs.rmSync(file, { force: true });
   try {
     fs.rmdirSync(dir);
   } catch {
-    // Something else is in the folder: another draft, or the person's own
-    // file. Theirs to keep.
+    // Something else is in the folder: another draft, or what is left for
+    // the Trash.
   }
+  return mine;
 }
 
 /**
- * Where a file this draft holds really is, when the draft is the one that
- * pasted it: a name inside the draft's own folder. Nothing for a file of the
- * person's own, which a draft names by its whole path and reads where it
- * lies, and nothing for a name that leads anywhere else.
+ * What {@link removeDraft} handed back, to the Trash one by one, and the
+ * draft's folder after them once that leaves it empty. One that cannot be
+ * moved stays where it is, never deleted outright, and is named in what this
+ * answers.
+ */
+export async function trashLeftInDraft({
+  dir,
+  left,
+  moveToTrash,
+}: {
+  dir: string;
+  left: readonly DraftFolderItem[];
+  moveToTrash: (target: string) => Promise<void>;
+}): Promise<{ error: unknown; path: string }[]> {
+  const kept: { error: unknown; path: string }[] = [];
+  for (const item of left) {
+    try {
+      await moveToTrash(item.path);
+    } catch (error) {
+      kept.push({ error, path: item.path });
+    }
+  }
+  try {
+    fs.rmdirSync(dir);
+  } catch {
+    // Something is still in it: another draft, or what could not be moved.
+  }
+  return kept;
+}
+
+/**
+ * What the folder's other drafts name inside it, by where it really is, in a
+ * folder this draft does not own; nothing in one it does, where every draft
+ * file is this draft.
+ */
+export function namedByOtherDrafts(dir: string, id: string): Set<string> {
+  return ownsDraftFolder(dir, id) ? new Set() : pastedIntoOthers(dir, id);
+}
+
+/**
+ * Where a file this draft names really is, when its line names a place
+ * inside the draft's own folder, which is how a draft in a folder it shares
+ * says what is its own. Nothing for a line naming anything else.
  *
  * A draft file is a document someone can edit, so `../../their-work` is a
  * path it can hold, and a folder on the way can be a link out. Taking the
  * draft away must not take anything but the draft's with it, so both are
- * read as naming something that is not the draft's to remove.
+ * read as naming something that is not the draft's.
  */
 function pastedIntoThisDraft(dir: string, line: string): string | undefined {
-  const named = pastedPathOf(line);
+  // A folder's line ends in `/`, and names the folder all the same.
+  const named = pastedPathOf(line.trim().replace(/(?<=.)[/\\]+$/, ""));
   if (named === undefined) {
     return undefined;
   }
@@ -256,6 +405,15 @@ function pastedIntoThisDraft(dir: string, line: string): string | undefined {
   return path.join(holder, path.basename(target));
 }
 
+/** A folder's entry as a file or a folder, by the entry itself, or nothing where it is gone. */
+function kindOf(target: string): DraftFolderItem["kind"] | undefined {
+  try {
+    return fs.lstatSync(target).isDirectory() ? "folder" : "file";
+  } catch {
+    return undefined;
+  }
+}
+
 /** Whether `target` is something inside `folder` rather than the folder itself. */
 function inFolder(folder: string, target: string): boolean {
   const within = path.relative(folder, target);
@@ -271,12 +429,10 @@ function realPathOf(target: string): string | undefined {
 }
 
 /**
- * The pasted files the folder's other drafts hold, which this one shares
- * rather than owns: a folder can hold several drafts, and a sync engine's
- * conflict copy of one names everything the original does. Taking one draft
- * away leaves what another still names.
+ * What the folder's other drafts name inside it, which this one shares rather
+ * than owns. Taking one draft away leaves what another still names.
  */
-function pastedIntoOthers(dir: string, file: string): Set<string> {
+function pastedIntoOthers(dir: string, id: string): Set<string> {
   const shared = new Set<string>();
   let names: string[];
   try {
@@ -285,11 +441,11 @@ function pastedIntoOthers(dir: string, file: string): Set<string> {
     return shared;
   }
   for (const name of names) {
-    const other = path.join(dir, name);
-    if (other === file) {
+    const other = readDraftFile(path.join(dir, name));
+    if (other === undefined || other.id === id) {
       continue;
     }
-    for (const line of readDraftFile(other)?.context ?? []) {
+    for (const line of other.context ?? []) {
       const pasted = pastedIntoThisDraft(dir, line);
       if (pasted !== undefined) {
         shared.add(pasted);

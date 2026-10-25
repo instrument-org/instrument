@@ -18,7 +18,11 @@ import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
-import { itemsOf, useDraftStaging } from "@/client/components/draft-staging";
+import {
+  itemsOf,
+  useDraftStaging,
+  useFolderItems,
+} from "@/client/components/draft-staging";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn, osConventions } from "@/client/lib/utils";
 import { PermissionAsksFoot } from "@/client/components/permission-asks";
@@ -364,6 +368,11 @@ export function ChatConversation({
       updateDraft({ id: draftId, update });
     },
   });
+  useFolderItems({
+    draft: replyDraft,
+    input: promptInputRef,
+    staging,
+  });
   /**
    * Puts one of the chat's other waiting replies in the box: the box writes
    * into it from here, and is given its words and what was attached to it.
@@ -454,6 +463,7 @@ export function ChatConversation({
       modelURI={selectedModelURI}
       note={note}
       onDictatingChange={setComposerDictating}
+      onItemRemoved={draftKey.scope === "chat" ? staging.removeItem : undefined}
       onItemsChange={draftKey.scope === "chat" ? staging.keepItems : undefined}
       onModelChange={setSelectedModelURI}
       onSubmit={(sending) => {

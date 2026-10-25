@@ -25,11 +25,17 @@ export {
   renderDraftFile,
 } from "./draft-file";
 export {
+  draftFolderItems,
+  type DraftFolderItem,
   type DraftOnDisk,
   draftsFolderDir,
   ensureDraftFolder,
   findDraft,
+  draftFolderItemAt,
+  namedByOtherDrafts,
+  ownsDraftFolder,
   readDrafts,
   removeDraft,
+  trashLeftInDraft,
   writeDraftFile,
 } from "./draft-folder";

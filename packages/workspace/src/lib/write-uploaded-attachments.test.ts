@@ -17,7 +17,10 @@ import { StoreId } from "../schemas/store-id";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
 import { workspaceHostPath } from "./workspace-relative-path";
-import { writeUploadedAttachments } from "./write-uploaded-attachments";
+import {
+  copyDraftFolders,
+  writeUploadedAttachments,
+} from "./write-uploaded-attachments";
 
 const CONTENT = "a photo, as far as the record is concerned";
 
@@ -186,6 +189,34 @@ describe("writeUploadedAttachments", () => {
     ).resolves.toBe(CONTENT);
     // The draft's own copy is left for the draft to take away.
     await expect(fs.readFile(pasted, "utf8")).resolves.toBe(CONTENT);
+  });
+
+  it("copies a folder in a draft into the chat's attachments and leaves one elsewhere where it lies", async () => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      rootDir: WorkspaceDirSchema.parse(path.join(root, "workspace")),
+    });
+    const inDraft = path.join(
+      root,
+      "workspace",
+      "Drafts",
+      "2026-10-17",
+      "Photos",
+    );
+    await writeSourceFile(path.join(inDraft, "a.jpg"));
+
+    const sent = await copyDraftFolders({
+      folders: [{ path: inDraft }, { path: outsideDir }],
+      recordDir,
+    });
+
+    const copy = path.join(recordDir, CHAT_FOLDER_NAMES.attachments, "Photos");
+    expect(sent).toEqual([{ path: copy }, { path: outsideDir }]);
+    await expect(fs.readFile(path.join(copy, "a.jpg"), "utf8")).resolves.toBe(
+      CONTENT,
+    );
+    // The draft's own is left for the send to take away once it is written.
+    await expect(fs.readdir(inDraft)).resolves.toEqual(["a.jpg"]);
   });
 
   it("writes pasted bytes into the chat's own folder", async () => {

@@ -74,7 +74,16 @@ export interface Draft {
    */
   context?: DraftContextItem[];
   createdAt: number;
+  /** Where the draft's folder is, once it has one. Main's alone, as `inFolder` is. */
+  folder?: string;
   id: string;
+  /**
+   * What the draft's folder has that goes with the message, as main last
+   * read the folder: everything in it but the draft's own file and the
+   * system's clutter, whoever put it there. Main's alone, so a window never
+   * changes it; a composer shows what turns up here and drops what goes.
+   */
+  inFolder?: DraftAttachment[];
   /**
    * The chat the draft is on its way into, from the press until the message
    * is written or the send fails. A draft being sent is neither a reply
@@ -94,8 +103,11 @@ export interface Draft {
   words: string;
 }
 
-/** The fields an update may set; the draft's identity and its send are not among them. */
-type DraftFields = Omit<Draft, "createdAt" | "id" | "sendingTo">;
+/** The fields an update may set; the draft's identity, its send and its folder are not among them. */
+type DraftFields = Omit<
+  Draft,
+  "createdAt" | "folder" | "id" | "inFolder" | "sendingTo"
+>;
 
 /**
  * One change to the drafts. Each names the draft it changes and carries
@@ -150,15 +162,22 @@ export interface DraftOpBatch {
 /**
  * The IPC channels between a window and main's drafts: `load` is the
  * preload's synchronous read as the window loads, `apply` a batch of ops,
- * `stage` bytes pasted into a draft, and `changed` main telling every window
- * what the drafts are now.
+ * `stage` bytes pasted into a draft, `trash` a file taken out of a draft's
+ * folder, and `changed` main telling every window what the drafts are now.
  */
 export const DRAFTS_CHANNEL = {
   apply: "drafts:apply",
   changed: "drafts:changed",
   load: "drafts:load",
   stage: "drafts:stage",
+  trash: "drafts:trash",
 } as const;
+
+/** What `trash` is given: a file or folder in one draft's folder, by its path. */
+export interface DraftTrashRequest {
+  draftId: string;
+  path: string;
+}
 
 /** What `stage` is given: bytes with no file behind them, base64, for one draft. */
 export interface DraftStageRequest {
@@ -180,6 +199,8 @@ export interface DraftsBridge {
   stage: (
     request: DraftStageRequest,
   ) => Promise<{ path: string; size: number }>;
+  /** Moves something in the draft's folder to the Trash; nothing for a path outside it. */
+  trash: (request: DraftTrashRequest) => Promise<void>;
 }
 
 /** Applies ops in order. A draft not changed keeps its object, so a list can tell what changed. */
@@ -280,11 +301,13 @@ export function draftUpdateOf(
   };
 }
 
-/** The keys an update may carry: every key but the draft's identity, its send, and its stamp. */
+/** The keys an update may carry: every key but the draft's identity, its send, its folder, and its stamp. */
 function isField(key: string): key is keyof DraftFields {
   return (
     key !== "createdAt" &&
     key !== "id" &&
+    key !== "folder" &&
+    key !== "inFolder" &&
     key !== "sendingTo" &&
     key !== "updatedAt"
   );
@@ -294,9 +317,13 @@ function isOptionalField(key: keyof DraftFields): key is OptionalField {
   return key !== "words";
 }
 
-/** Whether a draft has anything in it worth keeping: words, or something attached. */
+/** Whether a draft has anything in it worth keeping: words, or something attached or in its folder. */
 export function holdsSomething(draft: Draft): boolean {
-  return draft.words.trim() !== "" || (draft.attached ?? []).length > 0;
+  return (
+    draft.words.trim() !== "" ||
+    (draft.attached ?? []).length > 0 ||
+    (draft.inFolder ?? []).length > 0
+  );
 }
 
 /** A chat's replies waiting, the ones on their way left out. */

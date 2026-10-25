@@ -18,6 +18,10 @@ import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { nameChat } from "../../lib/chat/chat-name";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
+import {
+  removeSentFromDraft,
+  withDraftFolder,
+} from "../../lib/drafts/send-from-folder";
 import { newMessage } from "../../lib/new-message";
 import { attendChatArrivals } from "../../lib/records/take-arrivals";
 import { setChatTopic } from "../../lib/chat/chats";
@@ -147,10 +151,18 @@ const create = base
         const isFirstMessageInSession =
           messageIdsBeforeResult.value.length === 0;
 
-        const messageResult = await newMessage({
-          asks,
+        // A draft's folder is read now, so what landed in it a beat before
+        // the press goes too, whatever the window had seen of it.
+        const sending = withDraftFolder({
           files,
           folders,
+          fromDraft,
+          rootDir: context.workspaceConfig.rootDir,
+        });
+        const messageResult = await newMessage({
+          asks,
+          files: sending.files,
+          folders: sending.folders,
           ...(fromDraft ? { fromDraft } : {}),
           modelURI,
           prompt,
@@ -216,6 +228,21 @@ const create = base
             sessionId: message.metadata.sessionId,
           },
         });
+        // The chat has its own copies now, so sending moved them. Last, and
+        // never failing the send, which is done: what cannot be taken out
+        // stays, for the draft's removal to move to the Trash.
+        try {
+          const stuck = removeSentFromDraft(sending.sent);
+          if (stuck.length > 0) {
+            context.workspaceConfig.captureException(
+              new Error(
+                `Left ${stuck.length.toString()} sent file(s) in the draft's folder`,
+              ),
+            );
+          }
+        } catch (error) {
+          context.workspaceConfig.captureException(error);
+        }
 
         return { sessionId: message.metadata.sessionId };
       }),

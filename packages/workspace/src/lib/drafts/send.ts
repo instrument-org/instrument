@@ -6,6 +6,7 @@ import {
   type DraftOnDisk,
   readDrafts,
   removeDraft,
+  trashLeftInDraft,
   writeDraftFile,
 } from "./draft-folder";
 
@@ -35,6 +36,8 @@ export interface DraftsFinished {
   finished: string[];
   /** Each draft left to be sent again, with why it could not be read as sent. */
   left: { id: string; reason: string }[];
+  /** What a finished draft's folder still had that could not be moved to the Trash, left where it is. */
+  untrashed: { path: string; reason: string }[];
 }
 
 /**
@@ -46,14 +49,20 @@ export interface DraftsFinished {
  * Runs over the chats' record folders rather than through the records
  * service, so it can run before the workspace is up, and comes to the same
  * answer however often it runs: a draft whose folder is already gone is not
- * there to find.
+ * there to find. What its folder still has goes to the Trash: a send stopped
+ * before it moved what it sent out of the folder leaves the chat's copy and
+ * this one, and something that arrived after the send read the folder was
+ * never sent at all.
  */
 export async function finishSentDrafts({
   chatsDir,
+  moveToTrash,
   rootDir,
 }: {
   /** The workspace's record folders, `.instrument/chats/`. */
   chatsDir: string;
+  /** Moves a file or folder to the system's Trash. */
+  moveToTrash: (target: string) => Promise<void>;
   /** The workspace's own folder, which `Drafts/` is at the top of. */
   rootDir: string;
 }): Promise<DraftsFinished> {
@@ -65,6 +74,7 @@ export async function finishSentDrafts({
   const waiting = drafts.filter((entry) => chatOf(entry) !== undefined);
   const finished: string[] = [];
   const left: DraftsFinished["left"] = [];
+  const untrashed: DraftsFinished["untrashed"] = [];
   const sentInto = new Map<string, Promise<Set<string> | string>>();
   for (const entry of waiting) {
     const chat = chatOf(entry) ?? "";
@@ -96,10 +106,17 @@ export async function finishSentDrafts({
       });
       continue;
     }
-    removeDraft(entry);
+    const kept = await trashLeftInDraft({
+      dir: entry.dir,
+      left: removeDraft(entry),
+      moveToTrash,
+    });
+    for (const { error, path: where } of kept) {
+      untrashed.push({ path: where, reason: String(error) });
+    }
     finished.push(entry.draft.id);
   }
-  return { finished, left };
+  return { finished, left, untrashed };
 }
 
 /**

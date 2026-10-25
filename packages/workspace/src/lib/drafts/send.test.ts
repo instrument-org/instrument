@@ -38,14 +38,30 @@ const ZONE = "America/New_York";
 const WORDS = "Find a quiet dishwasher under $900.";
 
 let rootDir: string;
+/** Where the test's Trash is, outside the workspace. */
+let trashDir: string;
 
 beforeEach(() => {
   rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "drafts-send-"));
+  trashDir = fs.mkdtempSync(path.join(os.tmpdir(), "drafts-send-trash-"));
 });
 
 afterEach(() => {
   fs.rmSync(rootDir, { force: true, recursive: true });
+  fs.rmSync(trashDir, { force: true, recursive: true });
 });
+
+/** The launch's sweep over the drafts, with the test's Trash. */
+function finish() {
+  return finishSentDrafts({
+    chatsDir: chatsDir(),
+    moveToTrash: (target) => {
+      fs.renameSync(target, path.join(trashDir, path.basename(target)));
+      return Promise.resolve();
+    },
+    rootDir,
+  });
+}
 
 function draft(more: Partial<DraftFile> = {}): DraftFile {
   const created = new Date("2026-10-14T18:22:04.000Z");
@@ -53,15 +69,13 @@ function draft(more: Partial<DraftFile> = {}): DraftFile {
 }
 
 /**
- * Step 1 of a send: the draft, with something pasted into it, as the person
- * left it when they pressed Send.
+ * Step 1 of a send: the draft, with a file dropped into its folder, which
+ * goes with it without a line naming it, as the person left it when they
+ * pressed Send.
  */
 function waitingDraft(more: Partial<DraftFile> = {}) {
   const made = ensureDraftFolder({
-    draft: draft({
-      context: ["sink.png"],
-      ...more,
-    }),
+    draft: draft(more),
     rootDir,
     timeZone: ZONE,
   });
@@ -125,9 +139,10 @@ describe("a send stopped between its steps", () => {
   it("leaves the draft whole when it stops before the draft names its chat", async () => {
     const made = waitingDraft();
 
-    expect(await finishSentDrafts({ chatsDir: chatsDir(), rootDir })).toEqual({
+    expect(await finish()).toEqual({
       finished: [],
       left: [],
+      untrashed: [],
     });
     expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
     expect(pastedStillThere(made.dir)).toBe(true);
@@ -137,7 +152,7 @@ describe("a send stopped between its steps", () => {
     const made = waitingDraft();
     pointAtChat("d1");
 
-    const finished = await finishSentDrafts({ chatsDir: chatsDir(), rootDir });
+    const finished = await finish();
 
     expect(finished.finished).toEqual([]);
     expect(finished.left).toMatchInlineSnapshot(`
@@ -159,10 +174,13 @@ describe("a send stopped between its steps", () => {
     pointAtChat("d1");
     messageNaming("d1");
 
-    expect(await finishSentDrafts({ chatsDir: chatsDir(), rootDir })).toEqual({
+    expect(await finish()).toEqual({
       finished: ["d1"],
       left: [],
+      untrashed: [],
     });
+    // Never moved out by the send that stopped, so it goes to the Trash.
+    expect(fs.readdirSync(trashDir)).toEqual(["sink.png"]);
     expect(drafts()).toEqual([]);
     expect(fs.existsSync(made.dir)).toBe(false);
   });
@@ -171,11 +189,12 @@ describe("a send stopped between its steps", () => {
     waitingDraft();
     pointAtChat("d1");
     messageNaming("d1");
-    await finishSentDrafts({ chatsDir: chatsDir(), rootDir });
+    await finish();
 
-    expect(await finishSentDrafts({ chatsDir: chatsDir(), rootDir })).toEqual({
+    expect(await finish()).toEqual({
       finished: [],
       left: [],
+      untrashed: [],
     });
     expect(fs.readdirSync(path.join(rootDir, "Drafts"))).toEqual([]);
   });
@@ -186,9 +205,9 @@ describe("a send stopped between its steps", () => {
     pointAtChat("d1");
     messageNaming("d1");
 
-    const once = await finishSentDrafts({ chatsDir: chatsDir(), rootDir });
+    const once = await finish();
     const left = drafts();
-    const again = await finishSentDrafts({ chatsDir: chatsDir(), rootDir });
+    const again = await finish();
 
     expect(once.finished).toEqual(["d1"]);
     expect(again.finished).toEqual([]);
@@ -207,9 +226,7 @@ describe("finishing the sends a launch finds", () => {
     }
     messageNaming("d2");
 
-    expect(
-      (await finishSentDrafts({ chatsDir: chatsDir(), rootDir })).finished,
-    ).toEqual(["d2"]);
+    expect((await finish()).finished).toEqual(["d2"]);
     expect(drafts().map((entry) => entry.id)).toEqual(["d1", "d3"]);
   });
 
@@ -218,9 +235,7 @@ describe("finishing the sends a launch finds", () => {
     pointAtChat("d1");
     messageNaming("some-other-draft");
 
-    expect(
-      (await finishSentDrafts({ chatsDir: chatsDir(), rootDir })).finished,
-    ).toEqual([]);
+    expect((await finish()).finished).toEqual([]);
     expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
   });
 
@@ -229,9 +244,7 @@ describe("finishing the sends a launch finds", () => {
     pointAtChat("d1");
     messageNaming(undefined);
 
-    expect(
-      (await finishSentDrafts({ chatsDir: chatsDir(), rootDir })).finished,
-    ).toEqual([]);
+    expect((await finish()).finished).toEqual([]);
     expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
   });
 
@@ -239,7 +252,7 @@ describe("finishing the sends a launch finds", () => {
     waitingDraft();
     pointAtChat("d1");
 
-    const finished = await finishSentDrafts({ chatsDir: chatsDir(), rootDir });
+    const finished = await finish();
 
     expect(finished.finished).toEqual([]);
     expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
@@ -249,9 +262,10 @@ describe("finishing the sends a launch finds", () => {
     waitingDraft();
     messageNaming("d1");
 
-    expect(await finishSentDrafts({ chatsDir: chatsDir(), rootDir })).toEqual({
+    expect(await finish()).toEqual({
       finished: [],
       left: [],
+      untrashed: [],
     });
     expect(drafts()).toEqual([{ id: "d1", words: WORDS }]);
   });
@@ -265,7 +279,7 @@ describe("finishing the sends a launch finds", () => {
     // cannot read at all.
     fs.writeFileSync(dir, "not a folder");
 
-    const finished = await finishSentDrafts({ chatsDir: chatsDir(), rootDir });
+    const finished = await finish();
 
     expect(finished.finished).toEqual([]);
     expect(finished.left[0]?.reason).toContain(
@@ -278,7 +292,7 @@ describe("finishing the sends a launch finds", () => {
     const made = waitingDraft();
     writeDraftFile(made.file, { ...made.draft, chat: "../elsewhere" });
 
-    const finished = await finishSentDrafts({ chatsDir: chatsDir(), rootDir });
+    const finished = await finish();
 
     expect(finished.left).toMatchInlineSnapshot(`
       [

@@ -20,14 +20,24 @@ const CHAT = "2026-10-19-what-s-my-latest-tweet" as ChatId;
 const DAY = Date.parse("2026-10-19T12:00:00.000Z");
 
 let root: string;
+/** Where the test's Trash is, outside the workspace. */
+let trashDir: string;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "draft-store-"));
+  trashDir = fs.mkdtempSync(path.join(os.tmpdir(), "draft-store-trash-"));
 });
 
 afterEach(() => {
   fs.rmSync(root, { force: true, recursive: true });
+  fs.rmSync(trashDir, { force: true, recursive: true });
 });
+
+/** What went to the Trash, by name. */
+const trashed = () => fs.readdirSync(trashDir).toSorted();
+
+/** Lets the moves to the Trash a removal started finish. */
+const settle = () => new Promise((done) => setImmediate(done));
 
 const draft = (id: string, more: Partial<Draft> = {}): Draft => ({
   createdAt: DAY,
@@ -41,6 +51,10 @@ const draft = (id: string, more: Partial<Draft> = {}): Draft => ({
 function open() {
   const told: DraftsSnapshot[] = [];
   const store = createDraftStore({
+    moveToTrash: (target) => {
+      fs.renameSync(target, path.join(trashDir, path.basename(target)));
+      return Promise.resolve();
+    },
     onChange: (snapshot) => told.push(snapshot),
     rootDir: root,
     timeZone: "UTC",
@@ -100,7 +114,7 @@ describe("a window's ops", () => {
     });
   });
 
-  it("take a draft away with what was pasted into it", () => {
+  it("take a thrown-away draft away, with what was pasted into it moved to the Trash", async () => {
     const { apply, store } = open();
     apply({ draft: draft("a"), type: "create" });
     const pasted = store.stage({
@@ -125,11 +139,14 @@ describe("a window's ops", () => {
       },
       type: "update",
     });
-    expect(read()).toContain('- "image.png"');
+    // In the draft's own folder, so it goes with the draft without a line.
+    expect(read()).not.toContain("image.png");
 
     apply({ id: "a", type: "remove" });
+    await settle();
 
     expect(tree()).toEqual([]);
+    expect(trashed()).toEqual(["image.png"]);
   });
 
   it("write what goes with the message as context, and read it back as chips and the composer's", () => {
@@ -178,7 +195,6 @@ describe("a window's ops", () => {
       created: 2026-10-19T12:00:00Z
       updated: 2026-10-19T12:00:00Z
       context:
-        - "image.png"
         - "instrument://chat/2026-10-19-what-s-my-latest-tweet"
         - "workspace:/Kitchen plans/"
         - "https://example.com/"
@@ -189,17 +205,18 @@ describe("a window's ops", () => {
     `);
 
     const reopened = open().store.snapshot().drafts[0];
+    const image = {
+      kind: "file" as const,
+      mediaType: "image/png",
+      name: "image.png",
+      path: pasted.path,
+      size: 3,
+    };
     expect(reopened).toEqual(
       draft("a", {
-        attached: [
-          {
-            kind: "file",
-            mediaType: "image/png",
-            name: "image.png",
-            path: pasted.path,
-            size: 3,
-          },
-        ],
+        attached: [image],
+        folder: path.dirname(pasted.path),
+        inFolder: [image],
         context: [
           { chat: CHAT, kind: "chat" },
           { kind: "folder", path: plans },
@@ -238,7 +255,9 @@ describe("a window's ops", () => {
     apply({ id: "a", type: "release" });
 
     expect(read()).not.toContain("sending:");
-    expect(store.snapshot().drafts[0]).toEqual(draft("a", { words: "hi" }));
+    expect(store.snapshot().drafts[0]).toEqual(
+      draft("a", { folder: path.dirname(fileOf()), words: "hi" }),
+    );
   });
 
   it("keep front matter another program left", () => {
@@ -259,7 +278,9 @@ describe("a window's ops", () => {
       ].join("\n"),
     );
     const { apply, store } = open();
-    expect(store.snapshot().drafts[0]).toEqual(draft("a", { words: "Plan" }));
+    expect(store.snapshot().drafts[0]).toEqual(
+      draft("a", { folder: path.dirname(fileOf()), words: "Plan" }),
+    );
 
     apply({
       at: DAY,
@@ -514,14 +535,16 @@ describe("a paste into a draft", () => {
     },
   );
 
-  it("goes with its draft even when the draft was thrown away before it said so", () => {
+  it("goes with its draft even when the draft was thrown away before it said so", async () => {
     const { apply, store } = open();
     apply({ draft: draft("d3", { words: "see this" }), type: "create" });
     store.stage({ content: PNG, draftId: "d3", itemId: "a", name: "a.png" });
 
     apply({ id: "d3", type: "remove" });
+    await settle();
 
     expect(tree()).toEqual([]);
+    expect(trashed()).toEqual(["a.png"]);
   });
 
   it("refuses a draft the store does not have", () => {
@@ -529,5 +552,124 @@ describe("a paste into a draft", () => {
     expect(() =>
       store.stage({ content: PNG, draftId: "gone", itemId: "a", name: "a" }),
     ).toThrow();
+  });
+});
+
+describe("a draft's folder as what goes with it", () => {
+  /** A draft with words, on disk, and its folder. */
+  function written() {
+    const opened = open();
+    opened.apply({ draft: draft("a", { words: "Look" }), type: "create" });
+    return { ...opened, dir: path.dirname(fileOf()) };
+  }
+
+  it("takes in a file dropped into the folder from outside the app, and lets it go when it is taken out", () => {
+    const { dir, store, told } = written();
+    const dropped = path.join(dir, "quote.pdf");
+    fs.writeFileSync(dropped, "%PDF");
+    fs.writeFileSync(path.join(dir, ".DS_Store"), "");
+
+    store.reconcile();
+    const quote = {
+      kind: "file",
+      mediaType: "application/pdf",
+      name: "quote.pdf",
+      path: dropped,
+      size: 4,
+    };
+    expect(store.snapshot().drafts[0]?.inFolder).toEqual([quote]);
+    // Nothing in the folder is written as a line.
+    expect(read()).not.toContain("quote.pdf");
+
+    const heard = told.length;
+    store.reconcile();
+    expect(told.length).toBe(heard);
+
+    fs.rmSync(dropped);
+    store.reconcile();
+    expect(store.snapshot().drafts[0]?.inFolder).toBeUndefined();
+  });
+
+  it("keeps the words a window gave it when only the folder changed", () => {
+    const { apply, dir, store } = written();
+    const outside = path.join(root, "notes.txt");
+    fs.writeFileSync(outside, "mine");
+    apply({
+      id: "a",
+      set: {
+        attached: [
+          {
+            kind: "file",
+            mediaType: "text/plain",
+            name: "notes.txt",
+            path: outside,
+            size: 4,
+          },
+        ],
+      },
+      type: "update",
+    });
+    fs.writeFileSync(path.join(dir, "dropped.png"), "png");
+
+    store.reconcile();
+
+    const now = store.snapshot().drafts[0];
+    expect(now?.attached?.map((item) => item.path)).toEqual([outside]);
+    expect(now?.inFolder?.map((item) => item.path)).toEqual([
+      path.join(dir, "dropped.png"),
+    ]);
+  });
+
+  it("moves a file whose chip was taken off to the Trash, and nothing outside the folder", async () => {
+    const { dir, store } = written();
+    const dropped = path.join(dir, "quote.pdf");
+    fs.writeFileSync(dropped, "%PDF");
+    const outside = path.join(root, "notes.txt");
+    fs.writeFileSync(outside, "mine");
+
+    await store.trash({ draftId: "a", path: outside });
+    await store.trash({ draftId: "a", path: fileOf() });
+    await store.trash({ draftId: "a", path: dropped });
+
+    expect(trashed()).toEqual(["quote.pdf"]);
+    expect(fs.existsSync(outside)).toBe(true);
+    expect(fs.existsSync(fileOf())).toBe(true);
+  });
+
+  it("moves what a sent draft's folder still has to the Trash, since the send took out what it sent", async () => {
+    const { apply, dir } = written();
+    // Landed after the send read the folder, so it never went.
+    fs.writeFileSync(path.join(dir, "late.pdf"), "%PDF");
+    apply({ at: DAY, chatId: CHAT, id: "a", type: "claim", words: "Look" });
+    apply({ id: "a", type: "sent" });
+    await settle();
+
+    expect(tree()).toEqual([]);
+    expect(trashed()).toEqual(["late.pdf"]);
+  });
+
+  it.each(["..", "."])(
+    "never moves the folder itself or the one around it, by %j",
+    async (name) => {
+      const { dir, store } = written();
+      await store.trash({ draftId: "a", path: `${dir}/${name}` });
+      expect(trashed()).toEqual([]);
+      expect(fs.existsSync(fileOf())).toBe(true);
+    },
+  );
+
+  it("leaves a file another draft in a shared folder still names", async () => {
+    const { dir, store } = written();
+    const shared = path.join(dir, "receipt.pdf");
+    fs.writeFileSync(shared, "%PDF");
+    fs.writeFileSync(
+      path.join(dir, "DRAFT 2.md"),
+      '---\nid: "b"\ncontext:\n  - "receipt.pdf"\n---\n\nTheirs\n',
+    );
+
+    await store.trash({ draftId: "a", path: shared });
+
+    expect(trashed()).toEqual([]);
+    expect(fs.existsSync(shared)).toBe(true);
   });
 });

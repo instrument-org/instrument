@@ -4,7 +4,7 @@ import {
   type DraftOpBatch,
   type DraftsSnapshot,
 } from "@/shared/drafts";
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, ipcMain, shell } from "electron";
 
 import { createDraftStore } from "./draft-store";
 
@@ -29,6 +29,7 @@ export function openDrafts() {
     return;
   }
   STORE = createDraftStore({
+    moveToTrash: (target) => shell.trashItem(target),
     onChange: tellWindows,
     rootDir: getWorkspaceFolder(),
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -52,9 +53,10 @@ function tellWindows(snapshot: DraftsSnapshot) {
 /**
  * Answers the windows about the drafts: all of them, synchronously, for a
  * preload that is loading; each batch of ops a window sends, answered once it
- * is on disk; and bytes pasted into a draft. Every change, whichever window
- * or file manager made it, reaches every window. Registered before any window
- * exists; until the workspace opens (`openDrafts`) there are none.
+ * is on disk; bytes pasted into a draft; and a file taken out of one. Every
+ * change, whichever window or file manager made it, reaches every window.
+ * Registered before any window exists; until the workspace opens
+ * (`openDrafts`) there are none.
  */
 export function serveDrafts() {
   ipcMain.on(DRAFTS_CHANNEL.load, (event) => {
@@ -69,6 +71,9 @@ export function serveDrafts() {
   ipcMain.handle(DRAFTS_CHANNEL.stage, (_event, request: unknown) => {
     return getStore().stage(request);
   });
+  ipcMain.handle(DRAFTS_CHANNEL.trash, (_event, request: unknown) =>
+    getStore().trash(request),
+  );
 }
 
 /**

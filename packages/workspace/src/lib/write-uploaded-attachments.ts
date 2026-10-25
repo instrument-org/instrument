@@ -127,6 +127,58 @@ export async function writeUploadedAttachments({
   });
 }
 
+/**
+ * The folders a message is sent with, each one in a draft's folder copied
+ * into the chat's `attachments/` beside its files and named by that copy.
+ * A folder the person pointed at elsewhere is sent where it lies; one in a
+ * draft's folder goes with the draft once the message is written, so a
+ * message left pointing at it would point at nothing.
+ */
+export async function copyDraftFolders({
+  folders,
+  recordDir,
+}: {
+  folders: { path: string }[];
+  recordDir: ChatDir;
+}): Promise<{ path: string }[]> {
+  if (!folders.some((folder) => pastedIntoADraft(folder.path))) {
+    return folders;
+  }
+  const sentTo = chatFolderTheyOpen(chatOwnFolder(recordDir)) ?? recordDir;
+  const inputDir = absolutePathJoin(sentTo, CHAT_FOLDER_NAMES.attachments);
+  const takenIn = [
+    ...new Set([
+      inputDir,
+      absolutePathJoin(recordDir, CHAT_FOLDER_NAMES.attachments),
+    ]),
+  ];
+  await fs.mkdir(inputDir, { recursive: true });
+  const reserved = new Set<string>();
+  const copied: { path: string }[] = [];
+  for (const folder of folders) {
+    if (!pastedIntoADraft(folder.path)) {
+      copied.push(folder);
+      continue;
+    }
+    const name = await getUniqueFilename(
+      takenIn,
+      sanitizeFilename(path.basename(folder.path)),
+      reserved,
+    );
+    reserved.add(name);
+    const to = path.join(inputDir, name);
+    // Links inside are copied as links rather than followed out of the folder.
+    await fs.cp(folder.path, to, {
+      errorOnExist: true,
+      force: false,
+      recursive: true,
+      verbatimSymlinks: true,
+    });
+    copied.push({ path: to });
+  }
+  return copied;
+}
+
 function fileSystemError(error: unknown) {
   return new TypedError.FileSystem(
     error instanceof Error ? error.message : "Unknown error",

@@ -108,12 +108,9 @@ async function moveDraftFolder({
     ),
     pasted,
   );
-  const context = attached.map((item) =>
-    path.isAbsolute(item.path)
-      ? contextLineOf(item, { dir, rootDir })
-      : item.kind === "folder"
-        ? `${item.path}/`
-        : item.path,
+  // What was moved into the new folder goes with the draft by being there.
+  const context = attached.flatMap((item) =>
+    path.isAbsolute(item.path) ? [contextLineOf(item, { dir, rootDir })] : [],
   );
   writeDraftFile(file, {
     ...draft,

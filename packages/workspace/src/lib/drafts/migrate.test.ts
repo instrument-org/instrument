@@ -100,7 +100,7 @@ describe("bringing the hidden drafts out", () => {
       `);
   });
 
-  it("moves what was pasted into the draft beside it, and keeps the path pointing at it", async () => {
+  it("moves what was pasted into the draft beside it, where it goes with the draft without a line", async () => {
     hiddenDraft("01KFD1", {
       pasted: { "pasted-image.png": "the bytes" },
       record: {
@@ -124,7 +124,7 @@ describe("bringing the hidden drafts out", () => {
         "Drafts/2026-10-14/pasted-image.png",
       ]
     `);
-    expect(readDrafts(rootDir)[0]?.draft.context).toEqual(["pasted-image.png"]);
+    expect(readDrafts(rootDir)[0]?.draft.context).toBeUndefined();
   });
 
   it("leaves a file the draft attached where it is on disk", async () => {

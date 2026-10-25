@@ -229,6 +229,25 @@ describe("a box following its draft's folder", () => {
     });
   });
 
+  it("leaves out what the draft records the box was given, which a restore has not drawn yet", () => {
+    const mergeItems = vi.fn<PromptInputRef["mergeItems"]>();
+    // The box's snapshot still reads the render before the restore.
+    const input = {
+      current: { mergeItems, snapshot: () => ({ items: [], prompt: "" }) },
+    };
+    renderHook(() => {
+      useFolderItems({
+        draft: {
+          ...withFolder(["image 2.png"]),
+          attached: [file("image 2.png")],
+        },
+        input,
+        staging: { forget: () => [], knows: () => false },
+      });
+    });
+    expect(mergeItems).not.toHaveBeenCalled();
+  });
+
   it("takes out a paste the box shows by its bytes when its file leaves the folder", () => {
     const { hook, mergeItems } = follow({
       forget: (path) => (path === "/ws/Drafts/d/a.png" ? ["paste-1"] : []),

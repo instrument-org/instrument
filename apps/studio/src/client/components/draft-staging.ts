@@ -252,10 +252,17 @@ export function useFolderItems({
       if (box === null) {
         return;
       }
+      // What a restore just handed the box is not in its snapshot until it
+      // draws again, so what the draft records the box was given counts too:
+      // a paste is recorded by the path it was written to.
       const held = box.snapshot().items;
+      const recorded = new Set(
+        (draft?.attached ?? []).map((item) => item.path),
+      );
       const missing = now.filter(
         (item) =>
           !staging.knows(item.path) &&
+          !recorded.has(item.path) &&
           !held.some((other) =>
             "path" in other
               ? other.path === item.path

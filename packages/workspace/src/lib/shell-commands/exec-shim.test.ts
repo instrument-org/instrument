@@ -7,6 +7,8 @@ import { describe, expect, it } from "vitest";
 import {
   execShim,
   mapStreams,
+  openRefusalNote,
+  selfSandboxNote,
   setuidRefusalNote,
   shimOutput,
   signalRefusalNote,
@@ -152,6 +154,58 @@ describe("signalRefusalNote", () => {
       signalRefusalNote("/usr/bin/pkill", "Operation not permitted"),
     ).toMatchInlineSnapshot(
       `"pkill reaches only processes started in this same command. Stop one you started earlier with the shell's \`kill <pid>\` or \`kill bg_1\`; any other process belongs to the person."`,
+    );
+  });
+});
+
+describe.runIf(process.platform === "darwin")("selfSandboxNote", () => {
+  it.each([
+    [
+      "/usr/bin/qlmanage",
+      "sandbox initialization failed: Operation not permitted",
+      true,
+    ],
+    ["/usr/bin/log", "log: Cannot run while sandboxed", true],
+    [
+      "/usr/bin/python3",
+      "sandbox initialization failed: Operation not permitted",
+      true,
+    ],
+    ["/bin/cat", "cat: x: Operation not permitted", false],
+  ])("%s with %s", (file, output, noted) => {
+    expect(selfSandboxNote(file, output) !== undefined).toBe(noted);
+  });
+
+  it("says the program can't run here and to use another", () => {
+    expect(
+      selfSandboxNote("/usr/bin/log", "log: Cannot run while sandboxed"),
+    ).toMatchInlineSnapshot(
+      `"\`log\` (or a program it started) can't run here: it won't run inside another sandbox, and every command here runs in one, so trying again or asking the person won't help. Use another program for the same work."`,
+    );
+  });
+});
+
+describe.runIf(process.platform === "darwin")("openRefusalNote", () => {
+  it.each([
+    [
+      "/usr/bin/open",
+      "_LSOpenURLsWithCompletionHandler() failed with error -54 for the file /tmp/a.txt.",
+      true,
+    ],
+    ["/usr/bin/open", "The file /tmp/b.txt does not exist.", false],
+    ["/bin/cat", "_LSOpenURLsWithCompletionHandler() failed", false],
+  ])("%s with %s", (file, output, noted) => {
+    expect(openRefusalNote(file, output) !== undefined).toBe(noted);
+  });
+
+  it("points at the chat's tabs", () => {
+    expect(
+      openRefusalNote(
+        "/usr/bin/open",
+        "_LSOpenURLsWithCompletionHandler() failed with error -54",
+      ),
+    ).toMatchInlineSnapshot(
+      `"\`open\` can't start apps from here. To show the person a file, folder or page, use \`instrument tab open <path or url>\`."`,
     );
   });
 });

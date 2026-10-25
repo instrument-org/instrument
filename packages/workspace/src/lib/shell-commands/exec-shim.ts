@@ -17,6 +17,7 @@ import {
 } from "../native-sandbox";
 
 import { watchSubprocessTree } from "../subprocess-tree";
+import { TAB_COMMAND } from "./tab-command";
 import {
   collectAndForward,
   currentShellOutputSink,
@@ -242,8 +243,9 @@ export function binaryStdout(
 
 /**
  * A finished program's exit code and stderr with what the app adds to them:
- * the notes for a package.json, a setuid program or a signal the sandbox
- * refused, and the note for a developer tool stub on a Mac without the tools.
+ * the notes for a package.json, a setuid program, a signal, a program that
+ * sandboxes itself or an `open` the sandbox refused, and the note for a
+ * developer tool stub on a Mac without the tools.
  */
 export function withShimNotes({
   exitCode,
@@ -270,6 +272,11 @@ export function withShimNotes({
     exitCode === 0
       ? undefined
       : signalRefusalNote(file, `${stderr}\n${stdout}`);
+  const selfSandbox =
+    exitCode === 0
+      ? undefined
+      : (selfSandboxNote(file, `${stderr}\n${stdout}`) ??
+        openRefusalNote(file, `${stderr}\n${stdout}`));
   // A program that reached a developer tool stub on a Mac without the tools
   // fails with the stub's own error, which does not say what to do.
   // `xcode-select --install` reports a request the sandbox refused and still
@@ -285,6 +292,7 @@ export function withShimNotes({
     ...(packageScope ? [`${packageScope}\n`] : []),
     ...(setuid ? [`${setuid}\n`] : []),
     ...(signals ? [`${signals}\n`] : []),
+    ...(selfSandbox ? [`${selfSandbox}\n`] : []),
     ...(missingTools ? [missingTools] : []),
   ].join("");
   return {
@@ -323,6 +331,47 @@ export function signalRefusalNote(
   return refused
     ? `${name} reaches only processes started in this same command. Stop one you started earlier with the shell's \`kill <pid>\` or \`kill bg_1\`; any other process belongs to the person.`
     : undefined;
+}
+
+/**
+ * What a program prints when it sandboxes itself and macOS refuses it inside
+ * Seatbelt, which does not nest: Quick Look's `qlmanage` and every program
+ * that calls `sandbox_init`, and `log`, which checks first and declines.
+ */
+const SELF_SANDBOX_REFUSALS =
+  /sandbox initialization failed: Operation not permitted|Cannot run while sandboxed/;
+
+/**
+ * The note for a program that could not start because it puts itself in a
+ * sandbox of its own, which no rule or card can open, so the agent moves to
+ * another program rather than retrying or asking for a folder.
+ */
+export function selfSandboxNote(
+  file: string,
+  output: string,
+): string | undefined {
+  if (process.platform !== "darwin" || !SELF_SANDBOX_REFUSALS.test(output)) {
+    return undefined;
+  }
+  return `\`${path.basename(file)}\` (or a program it started) can't run here: it won't run inside another sandbox, and every command here runs in one, so trying again or asking the person won't help. Use another program for the same work.`;
+}
+
+/**
+ * The note for macOS `open`, which the sandbox keeps from starting apps and
+ * which then reports only a Launch Services error code.
+ */
+export function openRefusalNote(
+  file: string,
+  output: string,
+): string | undefined {
+  if (
+    process.platform !== "darwin" ||
+    path.basename(file) !== "open" ||
+    !output.includes("_LSOpen")
+  ) {
+    return undefined;
+  }
+  return `\`open\` can't start apps from here. To show the person a file, folder or page, use \`${TAB_COMMAND.name} open <path or url>\`.`;
 }
 
 /**

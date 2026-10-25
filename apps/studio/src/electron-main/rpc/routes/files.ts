@@ -10,7 +10,7 @@ import {
 } from "@/electron-main/lib/file-journal";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
-import { pathWithin } from "@/electron-main/lib/path-identity";
+import { pathKey } from "@/electron-main/lib/path-identity";
 import {
   executePlacing,
   fileSystemOps,
@@ -45,7 +45,10 @@ import {
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getMachineState } from "@/electron-main/stores/machine/state";
 import { copyName, newFolderName, osOf } from "@/shared/os-conventions";
-import { isProtectedFolder } from "@/shared/protected-folders";
+import {
+  keptInPlaceReason,
+  SYSTEM_FOLDER_REASON,
+} from "@/shared/instrument-folders";
 import { moveSidebarPlaces } from "@/shared/sidebar-places";
 import { resolveThroughAliases } from "@instrument-org/workspace/electron";
 import { eventIterator, ORPCError } from "@orpc/server";
@@ -108,45 +111,36 @@ const HostPathSchema = z.string().refine((value) => path.isAbsolute(value), {
 
 /**
  * Refused to every action here but making a folder: the folders the system
- * keeps (`isProtectedFolder`), and the workspace's own folder or one around
- * it, which the app is running from. Checked here as well as in the menus,
- * so a press that reaches a route the person did not mean to still changes
- * nothing. A link is only a link, and goes wherever it points.
+ * keeps, and the folders Instrument runs on (`keptInPlaceReason`). Checked
+ * here as well as in the menus, so a press that reaches a route the person
+ * did not mean to still changes nothing. A link is only a link, and goes
+ * wherever it points.
  */
 const PROTECTED_ERRORS = {
-  PROTECTED: {
-    message:
-      "That’s one of your computer’s own folders, so Instrument leaves it alone.",
-  },
+  PROTECTED: { message: SYSTEM_FOLDER_REASON },
 } as const;
 
 /**
  * Why a path is left alone, as the person reads it, or undefined when it may
  * change. It is judged as spelled and as reached, the folders above it (and
- * the home folder) followed through their links (`/Volumes/Macintosh HD` is the boot disk's
- * top), while the last name stays itself: a link is only a link.
+ * the home folder and the workspace) followed through their links
+ * (`/Volumes/Macintosh HD` is the boot disk's top) and spelled the way their
+ * volume compares names (`pathKey`), while the last name stays itself: a
+ * link is only a link.
  */
 async function keptInPlace(asked: string): Promise<string | undefined> {
   const at = path.resolve(asked);
-  const reached = await fs.realpath(path.dirname(at)).then(
-    (folder) => path.join(folder, path.basename(at)),
-    () => at,
-  );
+  const reached = path.join(pathKey(path.dirname(at)), path.basename(at));
   const home = os.homedir();
   const reachedHome = await fs.realpath(home).catch(() => home);
-  if (
-    isProtectedFolder(at, { home, os: OS }) ||
-    isProtectedFolder(reached, { home: reachedHome, os: OS })
-  ) {
-    return PROTECTED_ERRORS.PROTECTED.message;
-  }
-  const isLink = await fs.lstat(at).then(
-    (stats) => stats.isSymbolicLink(),
-    () => false,
+  return (
+    keptInPlaceReason(at, { home, os: OS }) ??
+    keptInPlaceReason(reached, {
+      home: reachedHome,
+      os: OS,
+      workspace: pathKey(getWorkspaceFolder()),
+    })
   );
-  return !isLink && pathWithin(getWorkspaceFolder(), at)
-    ? "Instrument keeps its workspace in that folder, so it leaves it alone."
-    : undefined;
 }
 
 const NAME_ERRORS = {

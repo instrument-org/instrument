@@ -1,4 +1,4 @@
-import { call, os } from "@orpc/server";
+import { call, os, ORPCError } from "@orpc/server";
 import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -185,6 +185,90 @@ it("leaves the home folder and the workspace's folder where they are", async () 
   ]);
   expect(await fs.readdir(home)).toEqual(["Documents"]);
   expect(await fs.readdir(around)).toEqual(["Instrument"]);
+});
+
+it("leaves the workspace's key folders and records where they are, and what is in them editable", async () => {
+  const real = path.join(dir, "Instrument");
+  for (const folder of [
+    "Topics/Travel",
+    "Chats",
+    ".instrument",
+    "Projects/Skills",
+  ]) {
+    await fs.mkdir(path.join(real, folder), { recursive: true });
+  }
+  // The workspace named through a link, and Topics reached through another.
+  await fs.symlink(real, path.join(dir, "linked"));
+  workspace.folder = path.join(dir, "linked");
+  const elsewhere = path.join(dir, "elsewhere");
+  await fs.mkdir(elsewhere);
+
+  const refusal = (attempt: Promise<unknown>) =>
+    attempt.then(
+      () => "done",
+      (error: unknown) =>
+        error instanceof ORPCError
+          ? `${String(error.code)}: ${error.message}`
+          : String(error),
+    );
+  expect(
+    await Promise.all([
+      refusal(
+        call(
+          files.rename,
+          { name: "Subjects", path: path.join(real, "Topics") },
+          options,
+        ),
+      ),
+      refusal(
+        call(files.trash, { path: path.join(dir, "linked", "Chats") }, options),
+      ),
+      refusal(
+        call(
+          files.duplicate,
+          { path: path.join(real, ".instrument") },
+          options,
+        ),
+      ),
+      refusal(
+        call(
+          files.moveInto,
+          { folder: elsewhere, paths: [path.join(real, "Topics")] },
+          options,
+        ),
+      ),
+    ]),
+  ).toMatchInlineSnapshot(`
+    [
+      "PROTECTED: Instrument keeps your topics in this folder, so it stays put.",
+      "PROTECTED: Instrument keeps your chats in this folder, so it stays put.",
+      "PROTECTED: Instrument keeps its own records in this folder, so it stays put.",
+      "PROTECTED: Instrument keeps your topics in this folder, so it stays put.",
+    ]
+  `);
+  expect((await fs.readdir(real)).toSorted()).toEqual([
+    ".instrument",
+    "Chats",
+    "Projects",
+    "Topics",
+  ]);
+
+  // Inside a key folder, and a key folder's name deeper down, are the person's.
+  await call(
+    files.rename,
+    { name: "Trips", path: path.join(real, "Topics", "Travel") },
+    options,
+  );
+  await call(
+    files.rename,
+    { name: "Tools", path: path.join(real, "Projects", "Skills") },
+    options,
+  );
+  expect(await fs.readdir(path.join(real, "Topics"))).toEqual(["Trips"]);
+  expect(await fs.readdir(path.join(real, "Projects"))).toEqual(["Tools"]);
+  // Taken back, so the journal the tests share is as this one found it.
+  await call(files.undo, undefined, options);
+  await call(files.undo, undefined, options);
 });
 
 it("lets only one of two writers holding the same version write", async () => {

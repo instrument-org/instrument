@@ -27,7 +27,7 @@ import {
 } from "@/client/components/extend/file-system";
 import { listingKeys } from "@/client/components/extend/file-system-keys";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { outputFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
+import { instrumentFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { IconWithFallback } from "@/client/components/icon-with-fallback";
@@ -86,9 +86,10 @@ import {
   isMacOS,
   osConventions,
 } from "@/client/lib/utils";
+import { useWorkspaceFolder } from "@/client/lib/output-folder";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { COMPUTER_ROOT, fileHref, folderHref } from "@/shared/computer-href";
-import { isProtectedFolder } from "@/shared/protected-folders";
+import { keptInPlaceReason } from "@/shared/instrument-folders";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { expandHomePath, folderNameFromPath } from "@instrument-org/shared";
 import {
@@ -357,6 +358,8 @@ export function ComputerPage({
     computerHiddenFilesAtom,
   );
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
+  const workspaceFolder = useWorkspaceFolder();
+  const keptInPlace = useKeptInPlace();
   // The recents stand where a root folder stands, and are listed the way a
   // folder is, so everything the browser does to a folder it does to them.
   const isRecents = root === RECENTS_ROOT;
@@ -570,9 +573,12 @@ export function ComputerPage({
           if (entry.kind === "folder") {
             return {
               ...stamps,
-              ...(entry.path === instrumentPath
-                ? { glyphSrc: outputFolderGlyphUrl() }
-                : {}),
+              ...withGlyph(
+                instrumentFolderGlyphUrl(entry.path, {
+                  outputFolder: instrumentPath,
+                  workspace: workspaceFolder,
+                }),
+              ),
               hasChildren: true,
               kind: "folder",
               metadata: { hostPath: entry.path },
@@ -729,8 +735,9 @@ export function ComputerPage({
     reread();
   };
   const duplicate = async (picked: FileSystemItem[]) => {
-    if (picked.some(isKeptInPlace)) {
-      keptInPlaceToast("Couldn't make a copy");
+    const kept = picked.map(keptInPlace).find(Boolean);
+    if (kept) {
+      keptInPlaceToast("Couldn't make a copy", kept);
       return;
     }
     try {
@@ -787,8 +794,12 @@ export function ComputerPage({
     if (hostPaths.length === 0) {
       return;
     }
-    if (hostPaths.some(isKeptInPlace)) {
-      keptInPlaceToast(`Couldn't move that to the ${osConventions().trash}`);
+    const kept = hostPaths.map(keptInPlace).find(Boolean);
+    if (kept) {
+      keptInPlaceToast(
+        `Couldn't move that to the ${osConventions().trash}`,
+        kept,
+      );
       return;
     }
     // What went, by the journal entries that bring each back: the toast's
@@ -868,11 +879,12 @@ export function ComputerPage({
     if (sources.length === 0) {
       return;
     }
-    if (
-      mode === "move" &&
-      sources.some((source) => isKeptInPlace(source.hostPath))
-    ) {
-      keptInPlaceToast("Couldn't move that");
+    const kept =
+      mode === "move"
+        ? sources.map((source) => keptInPlace(source.hostPath)).find(Boolean)
+        : undefined;
+    if (kept) {
+      keptInPlaceToast("Couldn't move that", kept);
       return;
     }
     const paths = sources.map((source) => source.hostPath);
@@ -1871,7 +1883,7 @@ export function ComputerPage({
     const picked = group ?? (item ? [item] : []);
     return {
       ...menuActionsForOne(item),
-      kept: picked.some(isKeptInPlace),
+      kept: picked.some((each) => keptInPlace(each) !== undefined),
       onCopy: () => void copyFiles(picked),
       onDuplicate: () => void duplicate(picked),
       onNewDraft:
@@ -2495,7 +2507,7 @@ export function ComputerPage({
                   onPathChange={setCurrent}
                   onOpenFolderChange={isRecents ? undefined : changeOpenFolder}
                   onRenameCommit={rename}
-                  canRenameItem={(item) => !isKeptInPlace(item)}
+                  canRenameItem={(item) => keptInPlace(item) === undefined}
                   onSearchChange={setSearchText}
                   onSelectionChange={(item, all) => {
                     setSelectedPath(item?.path ?? null);
@@ -2744,9 +2756,9 @@ function ICloudAccessBanner() {
 /** What a row's menus do, by the menu's own components; see `FolderMenu`. */
 type FolderMenuActions = {
   /**
-   * One of the computer's own folders among what the menu acts on
-   * (`isProtectedFolder`): Move to Trash, Rename and Duplicate are there,
-   * and off.
+   * A folder Files leaves in place among what the menu acts on
+   * (`keptInPlaceOf`): Move to Trash, Rename and Duplicate are there, and
+   * off.
    */
   kept?: boolean;
   onCopy: () => void;
@@ -3301,6 +3313,11 @@ function protectionBlocked({
 }
 // oxlint-enable studio/no-os-words
 
+/** A folder's own glyph as an item's field, when it has one. */
+function withGlyph(glyphSrc: string | undefined) {
+  return glyphSrc === undefined ? {} : { glyphSrc };
+}
+
 /** Where an item the browser is showing sits on the Mac. */
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
@@ -3330,24 +3347,40 @@ function macosAsksFirst(hostPath: string) {
   );
 }
 
-/** One of the computer's own folders, which Files never trashes, renames, duplicates or moves. */
-export function isKeptInPlace(item: FileSystemItem | string) {
+/**
+ * Why Files never trashes, renames, duplicates or moves an item, or
+ * undefined when it may: one of the computer's own folders, or one of the
+ * folders Instrument runs on in `workspace` (`keptInPlaceReason`, which the
+ * files routes also check).
+ */
+export function keptInPlaceOf(
+  item: FileSystemItem | string,
+  workspace: string | undefined,
+): string | undefined {
   const hostPath = typeof item === "string" ? item : hostPathOfItem(item);
-  return (
-    hostPath !== "" &&
-    isProtectedFolder(expandHomePath(hostPath, window.api.homeDir), {
-      home: window.api.homeDir,
-      os: currentOs(),
-    })
-  );
+  if (hostPath === "") {
+    return undefined;
+  }
+  const home = window.api.homeDir;
+  return keptInPlaceReason(expandHomePath(hostPath, home), {
+    home,
+    os: currentOs(),
+    workspace,
+  });
 }
 
-/** Says an action was left undone because it would change one of the computer's own folders. */
-function keptInPlaceToast(title: string) {
-  toast.error(title, {
-    description:
-      "That’s one of your computer’s own folders, so Instrument leaves it alone.",
-  });
+/**
+ * Why Files leaves an item where it is, by the workspace the window runs on
+ * (`keptInPlaceOf`).
+ */
+export function useKeptInPlace() {
+  const workspace = useWorkspaceFolder();
+  return (item: FileSystemItem | string) => keptInPlaceOf(item, workspace);
+}
+
+/** Says an action was left undone, and why the folder stays where it is. */
+function keptInPlaceToast(title: string, reason: string) {
+  toast.error(title, { description: reason });
 }
 
 /**

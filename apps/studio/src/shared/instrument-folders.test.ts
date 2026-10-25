@@ -1,0 +1,121 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  instrumentFolderOf,
+  keptInPlaceReason,
+  SYSTEM_FOLDER_REASON,
+} from "./instrument-folders";
+import { type Os } from "./os-conventions";
+
+const WORKSPACES: Record<Os, string> = {
+  linux: "/home/linux-user/Instrument",
+  mac: "/Users/mac-user/Instrument",
+  windows: "C:\\Users\\windows-user\\Instrument",
+};
+
+describe("instrumentFolderOf", () => {
+  it.each<[Os, string, string | undefined]>([
+    ["mac", "/Users/mac-user/Instrument", "workspace"],
+    ["mac", "/Users/mac-user/Instrument/", "workspace"],
+    ["mac", "/users/MAC-USER/instrument", "workspace"],
+    ["mac", "/Users/mac-user", "around"],
+    ["mac", "/", "around"],
+    ["mac", "/Users/mac-user/Instrument/Topics", "key:Topics"],
+    ["mac", "/Users/mac-user/Instrument/topics", "key:Topics"],
+    ["mac", "/Users/mac-user/Instrument/MEMORY", "key:Memory"],
+    ["mac", "/Users/mac-user/Instrument/.instrument", "private"],
+    ["mac", "/Users/mac-user/Instrument/.Instrument", "private"],
+    ["mac", "/Users/mac-user/Instrument/Topics/Travel", undefined],
+    ["mac", "/Users/mac-user/Instrument/Projects/Chats", undefined],
+    ["mac", "/Users/mac-user/Instrument/.instrument/chats", undefined],
+    ["mac", "/Users/mac-user/Instrument/Notes", undefined],
+    ["mac", "/Users/mac-user/Instrument Old", undefined],
+    ["mac", "/Users/mac-user/Instrument Old/Chats", undefined],
+    ["mac", "/Users/mac-user/Instrument/Projects/../Skills", "key:Skills"],
+    ["windows", "C:\\Users\\windows-user\\Instrument", "workspace"],
+    ["windows", "c:/users/windows-user/instrument/", "workspace"],
+    ["windows", "C:\\Users", "around"],
+    ["windows", "C:\\", "around"],
+    ["windows", "C:\\Users\\windows-user\\Instrument\\Drafts", "key:Drafts"],
+    ["windows", "C:\\Users\\windows-user\\Instrument\\apps.", "key:Apps"],
+    [
+      "windows",
+      "\\\\?\\C:\\Users\\windows-user\\Instrument\\Chats",
+      "key:Chats",
+    ],
+    ["windows", "C:\\Users\\windows-user\\Instrument\\Work\\Chats", undefined],
+    ["windows", "D:\\Users\\windows-user\\Instrument\\Chats", undefined],
+    ["linux", "/home/linux-user/Instrument", "workspace"],
+    ["linux", "/home/linux-user", "around"],
+    ["linux", "/home/linux-user/Instrument/Skills", "key:Skills"],
+    // Another case is another folder on Linux, and the person's.
+    ["linux", "/home/linux-user/Instrument/skills", undefined],
+    ["linux", "/home/linux-user/instrument", undefined],
+    ["linux", "/home/linux-user/Instrument/.instrument", "private"],
+    ["linux", "/home/linux-user/Instrument/Apps/Calendar", undefined],
+  ])("on %s, %s is %s", (os, hostPath, expected) => {
+    const folder = instrumentFolderOf(hostPath, {
+      os,
+      workspace: WORKSPACES[os],
+    });
+    expect(
+      folder && (folder.kind === "key" ? `key:${folder.name}` : folder.kind),
+    ).toBe(expected);
+  });
+});
+
+describe("keptInPlaceReason", () => {
+  const facts = {
+    home: "/Users/mac-user",
+    os: "mac",
+    workspace: WORKSPACES.mac,
+  } as const;
+
+  it("says why each folder stays put", () => {
+    expect(
+      [
+        "/Users/mac-user/Documents",
+        "/Users/mac-user/Instrument",
+        "/Users/mac-user/Projects",
+        "/Users/mac-user/Instrument/Topics",
+        "/Users/mac-user/Instrument/memory",
+        "/Users/mac-user/Instrument/.instrument",
+        "/Users/mac-user/Instrument/Topics/Travel",
+      ].map((hostPath) => keptInPlaceReason(hostPath, facts)),
+    ).toMatchInlineSnapshot(`
+      [
+        "That’s one of your computer’s own folders, so Instrument leaves it alone.",
+        "Instrument keeps your workspace in this folder, so it stays put.",
+        undefined,
+        "Instrument keeps your topics in this folder, so it stays put.",
+        "Instrument keeps your memories in this folder, so it stays put.",
+        "Instrument keeps its own records in this folder, so it stays put.",
+        undefined,
+      ]
+    `);
+  });
+
+  it("knows the system's folders before the workspace is known", () => {
+    expect(
+      keptInPlaceReason("/Users/mac-user/Desktop", {
+        home: "/Users/mac-user",
+        os: "mac",
+      }),
+    ).toBe(SYSTEM_FOLDER_REASON);
+    expect(
+      keptInPlaceReason("/Users/mac-user/Instrument", {
+        home: "/Users/mac-user",
+        os: "mac",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("finds a workspace inside a system folder kept as a system folder", () => {
+    expect(
+      keptInPlaceReason("/Users/mac-user/Documents", {
+        ...facts,
+        workspace: "/Users/mac-user/Documents/Instrument",
+      }),
+    ).toBe(SYSTEM_FOLDER_REASON);
+  });
+});

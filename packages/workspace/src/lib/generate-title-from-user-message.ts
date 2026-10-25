@@ -30,6 +30,26 @@ class UnnameableMessage extends Error {
   readonly type = "workspace-unnameable-message-error";
 }
 
+// A model reached through an agent harness (the Claude account's CLI frames
+// every call as an agent answering a user) sometimes answers with a remark
+// about the message rather than a title. Like an empty answer, it leaves the
+// placeholder standing, and it is the model's habit rather than a fault here.
+class CommentaryAnswer extends Error {
+  readonly type = "workspace-title-commentary-error";
+}
+
+/**
+ * Whether `title` has a shape seen in remarks about the message: talk of
+ * "the message" or "the user", a title called a chat, or a quote opened and
+ * never closed, left by a sentence that quoted the title it meant.
+ */
+export function looksLikeCommentary(title: string): boolean {
+  return (
+    /^(?:the message|the user)\b|\bthe user's\b|\schat$/i.test(title) ||
+    (title.match(/"/g)?.length ?? 0) % 2 === 1
+  );
+}
+
 export function generateTitleFromUserMessage({
   currentTitle,
   message,
@@ -181,6 +201,9 @@ export function generateTitleFromUserMessage({
       cleanedTitle = cleanedTitle.trim();
       cleanedTitle = cleanedTitle.split("\n")[0]?.trim() ?? "";
       cleanedTitle = withoutUnaskedYears(cleanedTitle, opening);
+      if (looksLikeCommentary(cleanedTitle)) {
+        throw new CommentaryAnswer(`Commentary, not a title: ${cleanedTitle}`);
+      }
 
       const words = cleanedTitle.split(/\s+/).filter(Boolean);
       // A cut mid-sentence leaves the comma that led into the next word.
@@ -204,6 +227,7 @@ export function generateTitleFromUserMessage({
   ).orTee(({ originalError }) => {
     if (
       originalError instanceof UnnameableMessage ||
+      originalError instanceof CommentaryAnswer ||
       isNonRetryableGatewayError(originalError)
     ) {
       return;

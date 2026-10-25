@@ -11,6 +11,7 @@ import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model"
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import {
   generateTitleFromUserMessage,
+  looksLikeCommentary,
   withoutUnaskedYears,
 } from "./generate-title-from-user-message";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
@@ -501,6 +502,21 @@ describe("generateTitleFromUserMessage with a current title", () => {
 
     expect(user).not.toContain("Current title:");
     expect(system).not.toContain("<current_title>");
+  });
+});
+
+// Titles a model reached through the Claude account's CLI actually returned.
+describe("looksLikeCommentary", () => {
+  it.each([
+    ['DST dates" is still accurate for the subject', true],
+    ['The message is "summarize this for the board', true],
+    ["Weather today in the Sunday, October 25 chat", true],
+    ["Weather today in the user's location", true],
+    ["Daylight saving time dates", false],
+    ['Notes on "Dune" for book club', false],
+    ["Chat app prototype", false],
+  ])("%s", (title, expected) => {
+    expect(looksLikeCommentary(title)).toBe(expected);
   });
 });
 

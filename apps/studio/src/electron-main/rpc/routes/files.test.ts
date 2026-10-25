@@ -271,6 +271,28 @@ it("leaves the workspace's key folders and records where they are, and what is i
   await call(files.undo, undefined, options);
 });
 
+it("leaves a folder renamed into a key folder's name there when asked to undo", async () => {
+  workspace.folder = path.join(dir, "Instrument");
+  const old = path.join(workspace.folder, "Old");
+  await fs.mkdir(old, { recursive: true });
+  const { path: renamed } = await call(
+    files.rename,
+    { name: "Topics", path: old },
+    options,
+  );
+  await expect(call(files.undo, undefined, options)).rejects.toMatchObject({
+    code: "CANNOT_UNDO",
+    message:
+      "Instrument saves your topics in this folder, so you can’t rename or delete it.",
+  });
+  expect(await fs.readdir(workspace.folder)).toEqual(["Topics"]);
+  expect(renamed).toBe(path.join(workspace.folder, "Topics"));
+  // Its entry is gone, so the next ⌘Z does not meet it again.
+  await expect(call(files.undo, undefined, options)).rejects.toMatchObject({
+    code: "NOTHING_TO_UNDO",
+  });
+});
+
 it("lets only one of two writers holding the same version write", async () => {
   const file = path.join(dir, "doc.txt");
   await fs.writeFile(file, "base");

@@ -4,6 +4,7 @@ import {
   findInTrash,
   type Identity,
   identityOf,
+  type JournalEntry,
   type NewJournalEntry,
   undoEntry,
   UndoRefusedError,
@@ -141,6 +142,31 @@ async function keptInPlace(asked: string): Promise<string | undefined> {
       workspace: pathKey(getWorkspaceFolder()),
     })
   );
+}
+
+/** The paths taking `entry` back would move or remove. */
+function takenAwayByUndo(entry: JournalEntry): string[] {
+  switch (entry.kind) {
+    case "copy": {
+      return entry.made.map((each) => each.path);
+    }
+    case "duplicate":
+    case "new-folder": {
+      return [entry.made];
+    }
+    case "move": {
+      return [
+        ...entry.moved.map((each) => each.to),
+        ...entry.made.map((each) => each.path),
+      ];
+    }
+    case "rename": {
+      return [entry.to];
+    }
+    case "trash": {
+      return [];
+    }
+  }
 }
 
 const NAME_ERRORS = {
@@ -785,6 +811,15 @@ const undo = base
           : fileJournal.byId(input.journalId);
       if (!entry) {
         throw errors.NOTHING_TO_UNDO();
+      }
+      // What became one of the folders kept in place since, by a move or a
+      // rename into its name, stays there: the app may be using it now.
+      for (const at of takenAwayByUndo(entry)) {
+        const kept = await keptInPlace(at);
+        if (kept) {
+          fileJournal.remove(entry.id);
+          throw errors.CANNOT_UNDO({ message: kept });
+        }
       }
       try {
         const undone = await undoEntry(entry, {

@@ -69,6 +69,7 @@ import { FilePreviewFallback } from "./file-preview-fallback";
 import { ShowInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageViewer } from "./image-viewer";
 import { MarkdownDocument } from "./markdown-outline";
+import { DrawingPicture } from "./excalidraw-editor/drawing-picture";
 import { loadExcalidraw } from "./excalidraw-editor/load-excalidraw";
 import { MessageCard } from "./message-card";
 import { OpenInAppMenuItems } from "./open-in-app";
@@ -483,7 +484,7 @@ const VIEWERS = {
           </div>
         </ViewerSurface>
       ) : (
-        renderCode(context)
+        <DrawingPicture fallback={renderCode(context)} url={context.file.url} />
       ),
     scrolls: "container",
   },

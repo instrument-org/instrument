@@ -20,6 +20,7 @@ const {
   placedMessage,
   rootParentSearch,
   rowPress,
+  undoFailed,
 } = await import("./computer-page");
 const { listingCommandOf } = await import("../extend/file-system-keys");
 
@@ -89,6 +90,17 @@ it("says why ⌘Z cannot put something back, outside developer mode", () => {
       title: "Couldn't undo that",
     },
   ]);
+});
+
+// The system's file manager does nothing on ⌘Z with nothing to take back.
+it("says nothing when ⌘Z has nothing to undo, and why when an undo fails", () => {
+  shown.length = 0;
+  undoFailed(
+    new ORPCError("NOTHING_TO_UNDO", { message: "There is nothing to undo" }),
+  );
+  expect(shown).toEqual([]);
+  undoFailed(new ORPCError("CANNOT_UNDO", { message: "It is gone." }));
+  expect(shown.map((each) => each.title)).toEqual(["Couldn't undo that"]);
 });
 
 // The Finder's Copy leaves each file on an item of its own, which the page's

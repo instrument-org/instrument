@@ -10,10 +10,12 @@ import {
 } from "@/client/components/extend/file-type-glyphs";
 import {
   folderGlyphUrl,
+  keyFolderGlyphUrl,
   outputFolderGlyphUrl,
 } from "@/client/components/icons/folder-glyph";
 import { Input } from "@/client/components/ui/input";
 import { EXTENSION_MAP } from "@/client/lib/file-extension-to-language";
+import { KEY_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { getBuiltInSpriteSheet } from "@pierre/trees";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -367,6 +369,22 @@ function RouteComponent() {
                     className="h-13 w-auto drop-shadow-sm"
                     src={outputFolderGlyphUrl(os)}
                   />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {KEY_FOLDER_NAMES.map((name) => (
+                    <FileSystemFolderGlyph
+                      className="h-9 w-auto drop-shadow-sm"
+                      key={name}
+                      src={keyFolderGlyphUrl(name, os)}
+                    />
+                  ))}
+                  {KEY_FOLDER_NAMES.map((name) => (
+                    <FileSystemFolderGlyph
+                      className="h-3.5 w-auto"
+                      key={name}
+                      src={keyFolderGlyphUrl(name, os)}
+                    />
+                  ))}
                 </div>
                 <span className="font-mono text-[11px] text-muted-foreground">
                   {os} · icons/folder-glyph.tsx

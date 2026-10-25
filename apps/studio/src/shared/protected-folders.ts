@@ -82,7 +82,7 @@ export function isProtectedFolder(
  * spaces Windows ignores at a name's end taken off. The Mac's disks and
  * Windows' compare names whatever their case, so there it is lowercased.
  */
-function normalized(hostPath: string, os: Os): string {
+export function normalized(hostPath: string, os: Os): string {
   if (os !== "windows") {
     const names: string[] = [];
     for (const name of hostPath.split("/")) {

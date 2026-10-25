@@ -1,8 +1,11 @@
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { outputFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
+import { instrumentFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { useOutputFolder } from "@/client/lib/output-folder";
+import {
+  useOutputFolder,
+  useWorkspaceFolder,
+} from "@/client/lib/output-folder";
 import { expandHomePath, isHomeDir } from "@instrument-org/shared";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
@@ -32,6 +35,7 @@ export function FolderMark({
 }) {
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const outputFolder = useOutputFolder();
+  const workspace = useWorkspaceFolder();
   const home = window.api.homeDir;
   const iconClassName = cn(
     "shrink-0 text-muted-foreground",
@@ -63,7 +67,9 @@ export function FolderMark({
         "w-auto shrink-0",
         { large: "h-3.5", row: "h-5", small: "h-3" }[size],
       )}
-      {...(hostPath === outputFolder ? { src: outputFolderGlyphUrl() } : {})}
+      {...withSrc(
+        instrumentFolderGlyphUrl(hostPath, { outputFolder, workspace }),
+      )}
     />
   );
 }
@@ -80,4 +86,9 @@ export function FoldersMark() {
       <FileSystemFolderGlyph className="absolute top-1 left-0 h-4 w-auto" />
     </span>
   );
+}
+
+/** A folder's own glyph as the image's source, when it has one. */
+function withSrc(src: string | undefined) {
+  return src === undefined ? {} : { src };
 }

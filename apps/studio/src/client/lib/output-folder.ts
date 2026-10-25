@@ -29,3 +29,11 @@ export function useOutputFolder(): string | undefined {
 export function outputFolderHref(outputFolder: string | undefined): string {
   return folderHref(outputFolder ?? "~");
 }
+
+/**
+ * The workspace's own folder, where its key folders and `.instrument` are.
+ * Undefined until the main process answers.
+ */
+export function useWorkspaceFolder(): string | undefined {
+  return useQuery(storageLocationQueryOptions()).data?.rootDir;
+}

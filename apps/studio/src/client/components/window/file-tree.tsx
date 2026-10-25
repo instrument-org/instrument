@@ -6,7 +6,7 @@ import {
   MENU_TARGET_CLASSNAME,
   SELECTED_ROW_CLASSNAME,
 } from "@/client/components/extend/file-system";
-import { outputFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
+import { instrumentFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   ContextMenu,
@@ -15,6 +15,7 @@ import {
 import { Delayed } from "@/client/components/ui/delayed";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
+import { useWorkspaceFolder } from "@/client/lib/output-folder";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -30,7 +31,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   fileActionFailed,
   FolderMenu,
-  isKeptInPlace,
+  useKeptInPlace,
   refusalLine,
 } from "./computer-page";
 import { useWindow } from "./context";
@@ -102,6 +103,7 @@ export function FileTree({
       fileActionFailed(title, error);
     });
   };
+  const keptInPlace = useKeptInPlace();
   const menuHostPath =
     typeof menuItem?.metadata?.hostPath === "string"
       ? menuItem.metadata.hostPath
@@ -149,7 +151,7 @@ export function FileTree({
       </ContextMenuTrigger>
       <FolderMenu
         item={menuItem}
-        kept={menuHostPath !== "" && isKeptInPlace(menuHostPath)}
+        kept={menuHostPath === "" ? undefined : keptInPlace(menuHostPath)}
         onCopy={() => {
           run("Couldn't copy that", () =>
             rpcClient.files.copyToClipboard.call({ paths: [menuHostPath] }),
@@ -267,11 +269,15 @@ function Folder({
 }) {
   const showsHidden = useAtomValue(computerHiddenFilesAtom);
   const open = rows.isOpen(path);
-  // The Instrument folder wears its own glyph here as it does in the Finder.
+  // The Instrument folder and the key folders in the workspace wear their
+  // own glyphs here as they do in the Finder.
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
-  const isOutputFolder = places.data?.pinned.some(
-    (place) => place.kind === "output" && place.path === path,
-  );
+  const workspace = useWorkspaceFolder();
+  const glyphSrc = instrumentFolderGlyphUrl(path, {
+    outputFolder: places.data?.pinned.find((place) => place.kind === "output")
+      ?.path,
+    workspace,
+  });
   const listing = useQuery(
     rpcClient.workspace.computer.list.queryOptions({
       enabled: open,
@@ -297,7 +303,7 @@ function Folder({
         glyph={
           <FileSystemFolderGlyph
             className="h-3.5 w-auto shrink-0"
-            {...(isOutputFolder ? { src: outputFolderGlyphUrl() } : {})}
+            {...(glyphSrc === undefined ? {} : { src: glyphSrc })}
           />
         }
         isExpanded={open}

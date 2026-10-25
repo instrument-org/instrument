@@ -46,6 +46,12 @@ paths=$(cut -f1 <<< "$specs" | sort -u)
 index_dir=$(mktemp -d)
 trap 'rm -rf "$index_dir"' EXIT
 subject=$(head -1 "$message")
+# commit-tree is plumbing and ignores commit.gpgsign, so a commit is signed
+# only when asked for here, the way `git commit` would sign it.
+sign=()
+if [[ "$(git config --bool commit.gpgsign || true)" == "true" ]]; then
+  sign=(-S)
+fi
 
 for attempt in 1 2 3 4 5; do
   base=$(git rev-parse HEAD)
@@ -67,11 +73,12 @@ for attempt in 1 2 3 4 5; do
       git update-index --add --cacheinfo "${mode:-100644},$(git hash-object -w -- "$copy"),$file"
     fi
   done <<< "$specs"
-  staged=$(git diff --cached --name-only "$base")
+  # Without renames, so a renamed file's old path counts as the deletion it is.
+  staged=$(git diff --cached --name-only --no-renames "$base")
   [[ -n "$staged" ]] || fail "none of the named paths differ from HEAD"
   unchanged=$(comm -23 <(echo "$paths") <(echo "$staged"))
   [[ -z "$unchanged" ]] || fail "these named paths do not differ from HEAD: $unchanged"
-  commit=$(git commit-tree "$(git write-tree)" -p "$base" -F "$message")
+  commit=$(git commit-tree ${sign[@]+"${sign[@]}"} "$(git write-tree)" -p "$base" -F "$message")
   unset GIT_INDEX_FILE
 
   # Moves the branch only if it is still at the commit's parent.

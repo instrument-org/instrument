@@ -53,15 +53,17 @@ function gradient(id: string, [top, bottom]: Gradient) {
 }
 
 /**
- * The six key folders at the workspace's top level: the system's folder in
- * the app's brand green, with the mark the app draws for what each keeps
- * (Phosphor's bold weight, the icons the rail and settings use) on the
- * front, so the folders Instrument runs on read apart from the person's own.
+ * The six key folders at the workspace's top level are the system's own
+ * folder with the mark the app draws for what each keeps (Phosphor's bold
+ * weight, the icons the rail and settings use) pressed into the front, the
+ * way the Finder marks Desktop and Documents: in a darker tone of the
+ * folder's own color, over a faint light edge below it.
  */
-const KEY_COLORS = {
-  back: ["#3f9a8b", "#0b6056"],
-  front: ["#79c2b2", "#1f8a79"],
-} satisfies { back: Gradient; front: Gradient };
+const KEY_MARK_TONES: Record<Os, string> = {
+  linux: "#9a2e0a",
+  mac: "#1673c4",
+  windows: "#b97c00",
+};
 
 /** Each key folder's mark, as Phosphor's bold paths on its 256-unit square. */
 const KEY_MARKS = {
@@ -71,7 +73,7 @@ const KEY_MARKS = {
   Drafts:
     "M232.49,55.51l-32-32a12,12,0,0,0-17,0l-96,96A12,12,0,0,0,84,128v32a12,12,0,0,0,12,12h32a12,12,0,0,0,8.49-3.51l96-96A12,12,0,0,0,232.49,55.51ZM192,49l15,15L196,75,181,60Zm-69,99H108V133l56-56,15,15Zm105-7.43V208a20,20,0,0,1-20,20H48a20,20,0,0,1-20-20V48A20,20,0,0,1,48,28h67.43a12,12,0,0,1,0,24H52V204H204V140.57a12,12,0,0,1,24,0Z",
   Memory:
-    "M160,128a224.48,224.48,0,0,1-26.37,105.54,12,12,0,1,1-21.16-11.32A200.33,200.33,0,0,0,136,128a8,8,0,0,0-16,0,12,12,0,0,1-24,0,32,32,0,0,1,64,0ZM128,56a12,12,0,1,0,0,24,48.05,48.05,0,0,1,48,48c0,7.62-.36,15.32-1.07,22.87A12,12,0,0,0,185.74,164c.38,0,.76,0,1.14,0a12,12,0,0,0,11.93-10.87c.79-8.3,1.18-16.76,1.18-25.13A72.08,72.080,0,0,0,128,56ZM96,92.23A12,12,0,0,0,80,74.35,72.1,72.1,0,0,0,56,128a120.11,120.11,0,0,1-15.12,58.37,12,12,0,0,0,21,11.69A144.14,144.14,0,0,0,80,128,48.08,48.08,0,0,1,96,92.23Zm10.1,64.1a12,12,0,0,0-14.46,8.9,158.61,158.61,0,0,1-18.88,45.86,12,12,0,0,0,20.5,12.48A182.86,182.86,0,0,0,115,170.79,12,12,0,0,0,106.1,156.33Zm76.73,24.07A12,12,0,0,0,168.19,189a241.5,241.5,0,0,1-8,24.87,12,12,0,0,0,6.91,15.49,11.76,11.76,0,0,0,4.29.8,12,12,0,0,0,11.21-7.71,260.2,260.2,0,0,0,8.79-27.37A12,12,0,0,0,182.83,180.4ZM128,16A112.12,112.12,0,0,0,16,127.44c0,.19,0,.38,0,.57a79.81,79.81,0,0,1-5,27.82,12,12,0,1,0,22.5,8.35A103.59,103.59,0,0,0,40,128.58c0-.19,0-.38,0-.57a88,88,0,0,1,176-.5c0,.16,0,.33,0,.5a282.12,282.12,0,0,1-6.74,61.38,12,12,0,0,0,9.09,14.33A11.84,11.84,0,0,0,221,204a12,12,0,0,0,11.7-9.38A305.87,305.87,0,0,0,240,128.55c0-.18,0-.36,0-.54A112.13,112.13,0,0,0,128,16Z",
+    "M160,128a224.48,224.48,0,0,1-26.37,105.54,12,12,0,1,1-21.16-11.32A200.33,200.33,0,0,0,136,128a8,8,0,0,0-16,0,12,12,0,0,1-24,0,32,32,0,0,1,64,0ZM128,56a12,12,0,1,0,0,24,48.05,48.05,0,0,1,48,48c0,7.62-.36,15.32-1.07,22.87A12,12,0,0,0,185.74,164c.38,0,.76,0,1.14,0a12,12,0,0,0,11.93-10.87c.79-8.3,1.18-16.76,1.18-25.13A72.08,72.08,0,0,0,128,56ZM96,92.23A12,12,0,0,0,80,74.35,72.1,72.1,0,0,0,56,128a120.11,120.11,0,0,1-15.12,58.37,12,12,0,0,0,21,11.69A144.14,144.14,0,0,0,80,128,48.08,48.08,0,0,1,96,92.23Zm10.1,64.1a12,12,0,0,0-14.46,8.9,158.61,158.61,0,0,1-18.88,45.86,12,12,0,0,0,20.5,12.48A182.86,182.86,0,0,0,115,170.79,12,12,0,0,0,106.1,156.33Zm76.73,24.07A12,12,0,0,0,168.19,189a241.5,241.5,0,0,1-8,24.87,12,12,0,0,0,6.91,15.49,11.76,11.76,0,0,0,4.29.8,12,12,0,0,0,11.21-7.71,260.2,260.2,0,0,0,8.79-27.37A12,12,0,0,0,182.83,180.4ZM128,16A112.12,112.12,0,0,0,16,127.44c0,.19,0,.38,0,.57a79.81,79.81,0,0,1-5,27.82,12,12,0,1,0,22.5,8.35A103.59,103.59,0,0,0,40,128.58c0-.19,0-.38,0-.57a88,88,0,0,1,176-.5c0,.16,0,.33,0,.5a282.12,282.12,0,0,1-6.74,61.38,12,12,0,0,0,9.09,14.33A11.84,11.84,0,0,0,221,204a12,12,0,0,0,11.7-9.38A305.87,305.87,0,0,0,240,128.55c0-.18,0-.36,0-.54A112.13,112.13,0,0,0,128,16Z",
   Skills:
     "M225.6,62.64l-88-48.17a19.91,19.91,0,0,0-19.2,0l-88,48.17A20,20,0,0,0,20,80.19v95.62a20,20,0,0,0,10.4,17.55l88,48.17a19.89,19.89,0,0,0,19.2,0l88-48.17A20,20,0,0,0,236,175.81V80.19A20,20,0,0,0,225.6,62.64ZM128,36.57,200,76,128,115.4,56,76ZM44,96.79l72,39.4v76.67L44,173.44Zm96,116.07V136.19l72-39.4v76.65Z",
   Topics:
@@ -79,13 +81,13 @@ const KEY_MARKS = {
 } satisfies Record<KeyFolderName, string>;
 
 /**
- * A key folder's mark on the front: white, with a darker copy a half pixel
- * under it so it reads as pressed in, about 17 units square in the front's
- * middle.
+ * A key folder's mark, 20 units square in the middle of the front. Below 28
+ * pixels wide, a list row's size, the mark is left off: it cannot be read
+ * there, and the folder alone looks cleaner.
  */
-function keyMarkUses(name: KeyFolderName) {
+function keyMarkUses(os: Os, name: KeyFolderName) {
   const d = KEY_MARKS[name];
-  return `<g transform="translate(23.6 22.9) scale(0.066)"><path d="${d}" transform="translate(0 8)" fill="#0a4a42" opacity="0.45"/><path d="${d}" fill="#ffffff" opacity="0.95"/></g>`;
+  return `<style>@media (max-width: 28px) { .mark { display: none } }</style><g class="mark" transform="translate(22 21.5) scale(0.078)"><path d="${d}" transform="translate(0 7)" fill="#ffffff" opacity="0.4"/><path d="${d}" fill="${KEY_MARK_TONES[os]}" opacity="0.7"/></g>`;
 }
 
 /** What a folder glyph stands for: any folder, Instrument's output folder, or one of the key folders. */
@@ -93,19 +95,14 @@ type GlyphKind = "folder" | "output" | KeyFolderName;
 
 /** The folder drawn for `os`, as an SVG document, in the look of `kind`. */
 function folderGlyphSvg(os: Os, kind: GlyphKind) {
-  const { back, front } =
-    kind === "folder"
-      ? COLORS[os]
-      : kind === "output"
-        ? OUTPUT_COLORS
-        : KEY_COLORS;
+  const { back, front } = kind === "output" ? OUTPUT_COLORS : COLORS[os];
   const defs = kind === "output" ? OUTPUT_MARK : "";
   const mark =
     kind === "folder"
       ? ""
       : kind === "output"
         ? OUTPUT_MARK_USES
-        : keyMarkUses(kind);
+        : keyMarkUses(os, kind);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 50" width="64" height="50"><defs>${gradient("back", back)}${gradient("front", front)}${defs}</defs><path d="${BACK}" fill="url(#back)"/><path d="${SHAPES[os]}" fill="url(#front)"/>${mark}</svg>`;
 }
 

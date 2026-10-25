@@ -33,9 +33,13 @@ function made(more: Partial<DraftFile> = {}) {
 
 /** What a manifest names, by each entry's path inside `dir`. */
 const named = (dir: string, sent: SentFromDraft) => ({
-  files: sent.files.map((at) => path.relative(dir, at)).toSorted(),
-  folders: sent.folders.map((at) => path.relative(dir, at)),
+  files: sent.files.map((at) => relativeOf(dir, at)).toSorted(),
+  folders: sent.folders.map((at) => relativeOf(dir, at)),
 });
+
+/** A path inside `dir` with `/` between its names, whichever way this computer writes one. */
+const relativeOf = (dir: string, at: string) =>
+  path.relative(dir, at).split(path.sep).join("/");
 
 describe("a message sent from a draft", () => {
   it("carries a file that landed in the folder after the window last heard of it", () => {

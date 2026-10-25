@@ -384,7 +384,8 @@ describe("what a draft's folder has that goes with it", () => {
     "desktop.ini",
     "Thumbs.db",
     "ehthumbs.db",
-    "Icon\r",
+    // A Mac's name for a folder's icon, which Windows cannot name a file.
+    ...(process.platform === "win32" ? [] : ["Icon\r"]),
     "~$Report.docx",
     "movie.mp4.crdownload",
     "movie.mp4.part",

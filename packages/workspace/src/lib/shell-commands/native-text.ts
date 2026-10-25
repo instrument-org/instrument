@@ -42,6 +42,7 @@ import {
   type ProcessLister,
   systemOwned,
 } from "./unsandboxed-process-list";
+import { classifyLog, type LogCall } from "./unsandboxed-log";
 import { classifyUnsandboxed, type TierBFixup } from "./unsandboxed-uutils";
 import { unsandboxedEnv } from "./unsandboxed-uutils-env";
 import { uutilsBinaryReviewed } from "./unsandboxed-uutils-integrity";
@@ -92,11 +93,17 @@ interface NativeTextRoute {
   /** Variables the program runs with besides the shell's own. */
   env?: Record<string, string>;
   /**
-   * Lists the person's processes: runs outside the sandbox, with only the
-   * options `unsandboxed-process-list.ts` allows, and is refused otherwise.
+   * Reads what the sandbox would hide or keep it from starting (the person's
+   * processes, the system log): runs outside the sandbox, from a program the
+   * system owns, with only the calls this allows, and is refused otherwise.
    */
-  listsProcesses?: ProcessLister;
+  outsideSandbox?: (args: readonly string[]) => LogCall;
 }
+
+const listsProcesses =
+  (name: ProcessLister) =>
+  (args: readonly string[]): LogCall =>
+    classifyProcessList(name, args);
 
 const UNIX: NodeJS.Platform[] = ["darwin", "linux"];
 
@@ -341,25 +348,35 @@ const NATIVE_TEXT_ROUTES: readonly NativeTextRoute[] = [
   // only read (unsandboxed-process-list.ts).
   {
     binary: "system",
-    listsProcesses: "ps",
     name: "ps",
+    outsideSandbox: listsProcesses("ps"),
     platforms: UNIX,
     system: { darwin: () => ["/bin/ps"], linux: () => linuxBin("ps") },
   },
   {
     binary: "system",
-    listsProcesses: "top",
     name: "top",
+    outsideSandbox: listsProcesses("top"),
     platforms: UNIX,
     system: { darwin: () => ["/usr/bin/top"], linux: () => linuxBin("top") },
+  },
+  // macOS `log` declines to run inside a sandbox, so the system log is read
+  // outside it, with the verbs and options that only read
+  // (unsandboxed-log.ts). Linux's journalctl runs sandboxed as it is.
+  {
+    binary: "system",
+    name: "log",
+    outsideSandbox: classifyLog,
+    platforms: ["darwin"],
+    system: { darwin: () => ["/usr/bin/log"] },
   },
   // Under MXC a program sees only the processes in its own container, so
   // `tasklist` runs outside it too, with options that only read. `taskkill`
   // stays a program on the PATH, held like any other.
   {
     binary: "system",
-    listsProcesses: "tasklist",
     name: "tasklist",
+    outsideSandbox: listsProcesses("tasklist"),
     platforms: ["win32"],
     system: {
       win32: () => [
@@ -758,7 +775,7 @@ function unsandboxedRun(
   layout: WorkspaceFsLayout,
   resolvePath: (arg: string) => string,
 ): UnsandboxedRun | undefined {
-  if (route.listsProcesses !== undefined) {
+  if (route.outsideSandbox !== undefined) {
     return { args };
   }
   if (
@@ -829,10 +846,7 @@ export function createNativeTextCommand(
     // find's arguments after its start points are an expression, patterns
     // rather than paths.
     const starts = route.name === "find" ? splitFind(args).starts : undefined;
-    const listing =
-      route.listsProcesses === undefined
-        ? undefined
-        : classifyProcessList(route.listsProcesses, args);
+    const listing = route.outsideSandbox?.(args);
     if (listing?.allowed === false) {
       return { exitCode: 2, stderr: `${listing.reason}\n`, stdout: "" };
     }

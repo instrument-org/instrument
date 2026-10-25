@@ -180,7 +180,7 @@ describe.runIf(process.platform === "darwin")("selfSandboxNote", () => {
     expect(
       selfSandboxNote("/usr/bin/log", "log: Cannot run while sandboxed"),
     ).toMatchInlineSnapshot(
-      `"\`log\` (or a program it started) can't run here: it won't run inside another sandbox, and every command here runs in one, so trying again or asking the person won't help. Use another program for the same work."`,
+      `"Run \`log\` as a shell command of its own (\`log show --last 1h\`), where it reads the system log; a program, a script or \`/usr/bin/log\` can't start it."`,
     );
   });
 });

@@ -60,6 +60,7 @@ The commands below run the bundled uutils (MIT; `apps/studio/scripts/download-uu
 | `head` | uutils | uutils | uutils | uutils coreutils |  |
 | `id` | uutils | uutils | PATH | uutils coreutils |  |
 | `join` | uutils | uutils | uutils | uutils coreutils |  |
+| `log` | system | PATH | PATH | system |  |
 | `md5sum` | uutils | uutils | uutils | uutils coreutils |  |
 | `nl` | uutils | uutils | uutils | uutils coreutils |  |
 | `nproc` | uutils | uutils | uutils | uutils coreutils |  |
@@ -180,6 +181,8 @@ The workspace config's `uutilsOutsideSandbox` turns this on; Studio, `run-bash` 
 - **Linux `top`**: batch mode only, `-b` with `-n <iterations>` of at least one, plus `-1 -c -H -h -i -O -S -s -V` and the values of `-d -E -e -o -p -U -u`, and `-w` with or without its width.
 
 A call with anything else is refused before it runs, with a line naming what was refused and what the command takes; it never falls back to the sandbox, where on macOS it cannot start. A program or script that starts `ps` or `top` itself still runs under the profile and is refused, and `setuidRefusalNote` tells the agent to run the command in the shell instead. Windows has neither route: `ps` there is a program on the PATH.
+
+macOS `log` skips the sandbox too (`shell-commands/unsandboxed-log.ts`): it declines to run inside one ("Cannot run while sandboxed"), and the unified log is where a hang that left no crash report shows up. It runs from `/usr/bin/log` under the same ownership check and environment as `ps`, with the verbs that read (`show`, `stats`, `stream`, `help`) and each one's options from `log help <verb>`, spelled in full or as a lone short letter, since getopt_long would take a prefix (`--arch` for `--archive`) or a cluster. Nothing that names a file runs: not `--archive`, `--directory`, `--file` or an operand, and not `--pager`, which starts `less`. A predicate holding `FUNCTION(`, `CAST(` or `SUBQUERY(` is refused, though `log` rejects those forms itself, since NSPredicate reaches Objective-C through them. Private fields stay redacted as macOS redacts them for any reader. Linux's `journalctl` runs sandboxed as it is. A program that starts `log` itself runs under the profile, and `selfSandboxNote` says why it fails.
 
 `tasklist` is Windows' route of the same kind, since under MXC a program sees only the processes in its own container, `Get-Process` and `tasklist` alike. It runs from `%SystemRoot%\System32\tasklist.exe`, refused unless it is in `System32` (the owner and mode `stat` reports there say nothing about who may write), with the same environment, and only with `/v`, `/svc`, `/m [module]`, `/apps`, `/fi <filter>`, `/fo table|list|csv`, `/nh` and `/?`, after `/` or `-` in any case. Not `/s`, `/u` or `/p`, which reach another computer with an account and password. `taskkill` stays a program on the PATH, held like any other, so it still cannot end a process outside its container.
 

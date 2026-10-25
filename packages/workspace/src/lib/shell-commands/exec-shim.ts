@@ -360,6 +360,10 @@ export function selfSandboxNote(
   if (!SELF_SANDBOX_REFUSALS[process.platform]?.test(output)) {
     return undefined;
   }
+  // The shell runs `log` by name outside the sandbox (unsandboxed-log.ts).
+  if (process.platform === "darwin" && output.includes("log: Cannot run")) {
+    return "Run `log` as a shell command of its own (`log show --last 1h`), where it reads the system log; a program, a script or `/usr/bin/log` can't start it.";
+  }
   return `\`${path.basename(file)}\` (or a program it started) can't run here: it won't run inside another sandbox, and every command here runs in one, so trying again or asking the person won't help. Use another program for the same work.`;
 }
 

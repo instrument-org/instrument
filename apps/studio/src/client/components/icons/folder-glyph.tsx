@@ -55,15 +55,33 @@ function gradient(id: string, [top, bottom]: Gradient) {
 /**
  * The six key folders at the workspace's top level are the system's own
  * folder with the mark the app draws for what each keeps (Phosphor's bold
- * weight, the icons the rail and settings use) pressed into the front, the
- * way the Finder marks Desktop and Documents: in a darker tone of the
- * folder's own color, over a faint light edge below it.
+ * weight) pressed into the front, the way the Finder marks Desktop and
+ * Documents: in a darker tone of the folder's own color, over a faint light
+ * edge below it.
  */
 const KEY_MARK_TONES: Record<Os, string> = {
   linux: "#9a2e0a",
   mac: "#1673c4",
   windows: "#b97c00",
 };
+
+/**
+ * At a row's size a key folder is its mark alone, in a solid tone of the
+ * system's folder color that reads on light and dark rows alike.
+ */
+const KEY_ROW_TONES: Record<Os, string> = {
+  linux: COLORS.linux.front[1],
+  mac: COLORS.mac.back[1],
+  windows: COLORS.windows.back[1],
+};
+
+/**
+ * The widest a glyph draws at a row's size, in pixels: a list or Columns
+ * row, the file tree, a tab or the sidebar. A 64×50 glyph is 18 pixels
+ * wide in a 14-pixel row and 26 in a 20-pixel one; the Icons view's are
+ * far wider.
+ */
+const ROW_WIDTH = 28;
 
 /** Each key folder's mark, as Phosphor's bold paths on its 256-unit square. */
 const KEY_MARKS = {
@@ -77,17 +95,18 @@ const KEY_MARKS = {
   Skills:
     "M225.6,62.64l-88-48.17a19.91,19.91,0,0,0-19.2,0l-88,48.17A20,20,0,0,0,20,80.19v95.62a20,20,0,0,0,10.4,17.55l88,48.17a19.89,19.89,0,0,0,19.2,0l88-48.17A20,20,0,0,0,236,175.81V80.19A20,20,0,0,0,225.6,62.64ZM128,36.57,200,76,128,115.4,56,76ZM44,96.79l72,39.4v76.67L44,173.44Zm96,116.07V136.19l72-39.4v76.65Z",
   Topics:
-    "M224,84H180.2l7.61-41.85a12,12,0,0,0-23.62-4.3L155.8,84H116.2l7.61-41.85a12,12,0,1,0-23.62-4.3L91.8,84H48a12,12,0,0,0,0,24H87.44l-7.27,40H32a12,12,0,0,0,0,24H75.8l-7.61,41.85a12,12,0,0,0,9.66,14A11.43,11.43,0,0,0,80,228a12,12,0,0,0,11.8-9.86L100.2,172h39.6l-7.61,41.85a12,12,0,0,0,9.66,14,11.43,11.43,0,0,0,2.16.2,12,12,0,0,0,11.8-9.86L164.2,172H208a12,12,0,0,0,0-24H168.56l7.27-40H224a12,12,0,0,0,0-24Zm-79.83,64H104.56l7.27-40h39.61Z",
+    "M246.15,133.18,146.83,33.86A19.85,19.85,0,0,0,132.69,28H40A12,12,0,0,0,28,40v92.69a19.85,19.85,0,0,0,5.86,14.14l99.32,99.32a20,20,0,0,0,28.28,0l84.69-84.69A20,20,0,0,0,246.15,133.18Zm-98.83,93.17L52,131V52h79l95.32,95.32ZM104,88A16,16,0,1,1,88,72,16,16,0,0,1,104,88Z",
 } satisfies Record<KeyFolderName, string>;
 
 /**
- * A key folder's mark, 20 units square in the middle of the front. Below 28
- * pixels wide, a list row's size, the mark is left off: it cannot be read
- * there, and the folder alone looks cleaner.
+ * A key folder's mark, two ways in one image, picked by the size it is
+ * drawn at: pressed 20 units square into the middle of the front, and at a
+ * row's size (`ROW_WIDTH`) alone and filling the glyph's height, the folder
+ * left off, since a mark that small on a folder cannot be read.
  */
 function keyMarkUses(os: Os, name: KeyFolderName) {
   const d = KEY_MARKS[name];
-  return `<style>@media (max-width: 28px) { .mark { display: none } }</style><g class="mark" transform="translate(22 21.5) scale(0.078)"><path d="${d}" transform="translate(0 7)" fill="#ffffff" opacity="0.4"/><path d="${d}" fill="${KEY_MARK_TONES[os]}" opacity="0.7"/></g>`;
+  return `<style>.row-mark { display: none } @media (max-width: ${ROW_WIDTH}px) { .folder, .mark { display: none } .row-mark { display: inline } }</style><g class="mark" transform="translate(22 21.5) scale(0.078)"><path d="${d}" transform="translate(0 7)" fill="#ffffff" opacity="0.4"/><path d="${d}" fill="${KEY_MARK_TONES[os]}" opacity="0.7"/></g><path class="row-mark" d="${d}" transform="translate(7 0) scale(0.1953)" fill="${KEY_ROW_TONES[os]}"/>`;
 }
 
 /** What a folder glyph stands for: any folder, Instrument's output folder, or one of the key folders. */
@@ -103,7 +122,7 @@ function folderGlyphSvg(os: Os, kind: GlyphKind) {
       : kind === "output"
         ? OUTPUT_MARK_USES
         : keyMarkUses(os, kind);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 50" width="64" height="50"><defs>${gradient("back", back)}${gradient("front", front)}${defs}</defs><path d="${BACK}" fill="url(#back)"/><path d="${SHAPES[os]}" fill="url(#front)"/>${mark}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 50" width="64" height="50"><defs>${gradient("back", back)}${gradient("front", front)}${defs}</defs><g class="folder"><path d="${BACK}" fill="url(#back)"/><path d="${SHAPES[os]}" fill="url(#front)"/></g>${mark}</svg>`;
 }
 
 const urls = new Map<string, string>();

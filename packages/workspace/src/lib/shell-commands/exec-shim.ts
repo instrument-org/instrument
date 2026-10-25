@@ -334,12 +334,19 @@ export function signalRefusalNote(
 }
 
 /**
- * What a program prints when it sandboxes itself and macOS refuses it inside
- * Seatbelt, which does not nest: Quick Look's `qlmanage` and every program
- * that calls `sandbox_init`, and `log`, which checks first and declines.
+ * What a program prints when it sandboxes itself and is refused inside the
+ * shell's sandbox. On macOS Seatbelt does not nest: Quick Look's `qlmanage`
+ * and every program that calls `sandbox_init` fail, and `log` checks first
+ * and declines. On Linux bubblewrap's user namespace leaves no room for
+ * another: a nested `bwrap` (Flatpak, Chromium's sandbox) blames the kernel,
+ * and `snap-confine` refuses every snap.
  */
-const SELF_SANDBOX_REFUSALS =
-  /sandbox initialization failed: Operation not permitted|Cannot run while sandboxed/;
+const SELF_SANDBOX_REFUSALS: Partial<Record<NodeJS.Platform, RegExp>> = {
+  darwin:
+    /sandbox initialization failed: Operation not permitted|Cannot run while sandboxed/,
+  linux:
+    /No permissions to create a new namespace|snap-confine has elevated permissions and is not confined/,
+};
 
 /**
  * The note for a program that could not start because it puts itself in a
@@ -350,28 +357,31 @@ export function selfSandboxNote(
   file: string,
   output: string,
 ): string | undefined {
-  if (process.platform !== "darwin" || !SELF_SANDBOX_REFUSALS.test(output)) {
+  if (!SELF_SANDBOX_REFUSALS[process.platform]?.test(output)) {
     return undefined;
   }
   return `\`${path.basename(file)}\` (or a program it started) can't run here: it won't run inside another sandbox, and every command here runs in one, so trying again or asking the person won't help. Use another program for the same work.`;
 }
 
 /**
- * The note for macOS `open`, which the sandbox keeps from starting apps and
- * which then reports only a Launch Services error code.
+ * The note for an opener the sandbox keeps from starting apps: macOS `open`,
+ * which then reports only a Launch Services error code, and Linux
+ * `xdg-open`, which finds no desktop session and reports each text browser
+ * it fell back to as not found.
  */
 export function openRefusalNote(
   file: string,
   output: string,
 ): string | undefined {
-  if (
-    process.platform !== "darwin" ||
-    path.basename(file) !== "open" ||
-    !output.includes("_LSOpen")
-  ) {
-    return undefined;
-  }
-  return `\`open\` can't start apps from here. To show the person a file, folder or page, use \`${TAB_COMMAND.name} open <path or url>\`.`;
+  const name = path.basename(file);
+  const refused =
+    (process.platform === "darwin" &&
+      name === "open" &&
+      output.includes("_LSOpen")) ||
+    (process.platform === "linux" && name === "xdg-open");
+  return refused
+    ? `\`${name}\` can't start apps from here. To show the person a file, folder or page, use \`${TAB_COMMAND.name} open <path or url>\`.`
+    : undefined;
 }
 
 /**

@@ -210,6 +210,36 @@ describe.runIf(process.platform === "darwin")("openRefusalNote", () => {
   });
 });
 
+describe.runIf(process.platform === "linux")("Linux refusal notes", () => {
+  it.each([
+    [
+      "/usr/bin/bwrap",
+      "bwrap: No permissions to create a new namespace, likely because the kernel does not allow non-privileged user namespaces.",
+      true,
+    ],
+    [
+      "/usr/bin/snap",
+      "snap-confine has elevated permissions and is not confined but should be. Refusing to continue to avoid permission escalation attacks",
+      true,
+    ],
+    ["/bin/cat", "cat: x: Operation not permitted", false],
+  ])("selfSandboxNote: %s with %s", (file, output, noted) => {
+    expect(selfSandboxNote(file, output) !== undefined).toBe(noted);
+  });
+
+  it.each([
+    ["/usr/bin/xdg-open", true],
+    ["/usr/bin/open", false],
+  ])("openRefusalNote: %s", (file, noted) => {
+    expect(
+      openRefusalNote(
+        file,
+        "/usr/bin/xdg-open: 882: www-browser: not found",
+      ) !== undefined,
+    ).toBe(noted);
+  });
+});
+
 describe.runIf(process.platform === "darwin")("setuidRefusalNote", () => {
   it("says a program can't start ps, and that the shell can", () => {
     expect(

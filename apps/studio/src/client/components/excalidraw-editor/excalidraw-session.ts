@@ -67,6 +67,10 @@ export function createExcalidrawSession(options: {
   let syncedSettings: SceneSettings = settingsOf(api.getAppState());
   let seenSettings = JSON.stringify(syncedSettings);
   let busyTimer: ReturnType<typeof setTimeout> | undefined;
+  // The canvas as it last reported itself, which is what a save writes:
+  // Excalidraw empties its scene as it unmounts, before the save on close
+  // runs, so reading the canvas then would find nothing to write.
+  let canvas = readCanvas();
 
   const saves = createSaveQueue({
     label: "excalidraw editor",
@@ -74,28 +78,27 @@ export function createExcalidrawSession(options: {
     save,
   });
 
-  const canvasText = () => {
-    const elements =
-      api.getSceneElementsIncludingDeleted() as unknown as readonly SceneElement[];
-    const files = api.getFiles() as unknown as Record<string, SceneFile>;
-    return (
-      spliceScene({
-        disk: disk.scene,
-        elements,
-        files,
-        settings: changedSettings(
-          syncedSettings,
-          settingsOf(api.getAppState()),
-        ),
-      }) ??
-      serializeAsJSON(
-        api.getSceneElements(),
-        api.getAppState(),
-        api.getFiles(),
-        "local",
-      )
+  function readCanvas() {
+    return {
+      appState: api.getAppState(),
+      elements: api.getSceneElementsIncludingDeleted(),
+      files: api.getFiles(),
+    };
+  }
+
+  const canvasText = () =>
+    spliceScene({
+      disk: disk.scene,
+      elements: canvas.elements as unknown as readonly SceneElement[],
+      files: canvas.files as unknown as Record<string, SceneFile>,
+      settings: changedSettings(syncedSettings, settingsOf(canvas.appState)),
+    }) ??
+    serializeAsJSON(
+      canvas.elements.filter((element) => !element.isDeleted),
+      canvas.appState,
+      canvas.files,
+      "local",
     );
-  };
 
   async function save() {
     const text = canvasText();
@@ -110,7 +113,7 @@ export function createExcalidrawSession(options: {
       path: hostPath,
     });
     if (result.ok) {
-      syncedSettings = settingsOf(api.getAppState());
+      syncedSettings = settingsOf(canvas.appState);
       disk = {
         scene: readScene(text, restore) ?? disk.scene,
         version: result.version,
@@ -155,6 +158,7 @@ export function createExcalidrawSession(options: {
     disk = { scene: theirs, version };
     if (files.length > 0) {
       api.addFiles(files as unknown as Parameters<Api["addFiles"]>[0]);
+      canvas = readCanvas();
     }
     if (Object.keys(agentChanged).length > 0) {
       syncedSettings = { ...syncedSettings, ...agentChanged };
@@ -165,6 +169,7 @@ export function createExcalidrawSession(options: {
         appState: agentChanged as Parameters<Api["updateScene"]>[0]["appState"],
         captureUpdate: CaptureUpdateAction.NEVER,
       });
+      canvas = readCanvas();
     }
     if (merged.changed.length > 0) {
       seenVersion = sceneVersion(merged.elements);
@@ -174,6 +179,7 @@ export function createExcalidrawSession(options: {
         captureUpdate: CaptureUpdateAction.NEVER,
         elements: merged.elements as unknown as CanvasElements,
       });
+      canvas = readCanvas();
       options.onExternalChange({
         changed: merged.changed.length,
         conflicts: merged.conflicts,
@@ -208,15 +214,13 @@ export function createExcalidrawSession(options: {
   };
 
   /** The canvas changed; a scroll or a selection is not a change to the file. */
-  const onCanvasChange = (
-    elements: readonly { version: number }[],
-    appState: unknown,
-  ) => {
+  const onCanvasChange = (reported: ReturnType<typeof readCanvas>) => {
     if (destroyed) {
       return;
     }
-    const version = sceneVersion(elements);
-    const settings = JSON.stringify(settingsOf(appState));
+    canvas = reported;
+    const version = sceneVersion(reported.elements);
+    const settings = JSON.stringify(settingsOf(reported.appState));
     if (version === seenVersion && settings === seenSettings) {
       return;
     }
@@ -271,6 +275,7 @@ export function createExcalidrawSession(options: {
         captureUpdate: CaptureUpdateAction.NEVER,
         elements: measured,
       });
+      canvas = readCanvas();
     }
   }
   void remeasureTextOnceFontsLoad();

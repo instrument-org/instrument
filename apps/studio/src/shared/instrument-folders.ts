@@ -71,23 +71,23 @@ const KEY_FOLDER_WORDS = {
 function instrumentFolderReason(folder: InstrumentFolder): string {
   switch (folder.kind) {
     case "around": {
-      return "Your Instrument workspace is inside this folder, so it stays put.";
+      return "Your Instrument workspace is in this folder, so you can’t rename or delete it.";
     }
     case "key": {
-      return `Instrument keeps your ${KEY_FOLDER_WORDS[folder.name]} in this folder, so it stays put.`;
+      return `Instrument saves your ${KEY_FOLDER_WORDS[folder.name]} in this folder, so you can’t rename or delete it.`;
     }
     case "private": {
-      return "Instrument keeps its own records in this folder, so it stays put.";
+      return "Instrument saves its own data in this folder, so you can’t rename or delete it.";
     }
     case "workspace": {
-      return "Instrument keeps your workspace in this folder, so it stays put.";
+      return "This is your Instrument workspace, so you can’t rename or delete it.";
     }
   }
 }
 
 /** Why Files leaves one of the computer's own folders alone, as the person reads it. */
 export const SYSTEM_FOLDER_REASON =
-  "That’s one of your computer’s own folders, so Instrument leaves it alone.";
+  "Your computer needs this folder, so you can’t rename or delete it.";
 
 /**
  * Why Files never renames, duplicates, trashes or moves `hostPath`, or

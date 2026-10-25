@@ -240,10 +240,10 @@ it("leaves the workspace's key folders and records where they are, and what is i
     ]),
   ).toMatchInlineSnapshot(`
     [
-      "PROTECTED: Instrument keeps your topics in this folder, so it stays put.",
-      "PROTECTED: Instrument keeps your chats in this folder, so it stays put.",
-      "PROTECTED: Instrument keeps its own records in this folder, so it stays put.",
-      "PROTECTED: Instrument keeps your topics in this folder, so it stays put.",
+      "PROTECTED: Instrument saves your topics in this folder, so you can’t rename or delete it.",
+      "PROTECTED: Instrument saves your chats in this folder, so you can’t rename or delete it.",
+      "PROTECTED: Instrument saves its own data in this folder, so you can’t rename or delete it.",
+      "PROTECTED: Instrument saves your topics in this folder, so you can’t rename or delete it.",
     ]
   `);
   expect((await fs.readdir(real)).toSorted()).toEqual([

@@ -71,7 +71,7 @@ describe("keptInPlaceReason", () => {
     workspace: WORKSPACES.mac,
   } as const;
 
-  it("says why each folder stays put", () => {
+  it("says why each folder can’t be renamed or deleted", () => {
     expect(
       [
         "/Users/mac-user/Documents",
@@ -84,12 +84,12 @@ describe("keptInPlaceReason", () => {
       ].map((hostPath) => keptInPlaceReason(hostPath, facts)),
     ).toMatchInlineSnapshot(`
       [
-        "That’s one of your computer’s own folders, so Instrument leaves it alone.",
-        "Instrument keeps your workspace in this folder, so it stays put.",
+        "Your computer needs this folder, so you can’t rename or delete it.",
+        "This is your Instrument workspace, so you can’t rename or delete it.",
         undefined,
-        "Instrument keeps your topics in this folder, so it stays put.",
-        "Instrument keeps your memories in this folder, so it stays put.",
-        "Instrument keeps its own records in this folder, so it stays put.",
+        "Instrument saves your topics in this folder, so you can’t rename or delete it.",
+        "Instrument saves your memories in this folder, so you can’t rename or delete it.",
+        "Instrument saves its own data in this folder, so you can’t rename or delete it.",
         undefined,
       ]
     `);

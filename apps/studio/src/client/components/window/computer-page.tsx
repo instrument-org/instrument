@@ -92,6 +92,7 @@ import { isProtectedFolder } from "@/shared/protected-folders";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { expandHomePath, folderNameFromPath } from "@instrument-org/shared";
 import {
+  type BrowserTargetId,
   type ComputerFolder,
   type ComputerRefusal,
   WINDOW_ID,
@@ -134,6 +135,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { spokenMessage, toast } from "@/client/lib/toast";
+import { giveKeyboardTo, onPageEdge } from "@/client/lib/browser-pool";
 
 import { useWindow } from "./context";
 import { PlaceMenu } from "./place-menu";
@@ -304,6 +306,13 @@ export function ComputerPage({
     isResizing: boolean;
     /** Everything picked, a folder the columns stand in included, whenever it changes. */
     onPick: (picked: ChosenItem[]) => void;
+    /**
+     * The page the file is shown as, for a page's file: → on the file puts
+     * the keyboard in it, and an up or down arrow it has no use for walks
+     * the folder to the file before or after, the keyboard staying in the
+     * page that file shows as.
+     */
+    page?: BrowserTargetId;
     /** Where Ask and the menu for several picked go, in the file's section of the row. */
     pickedInto: HTMLElement | null;
     toggle: ReactNode;
@@ -1553,6 +1562,23 @@ export function ComputerPage({
     // The selection by its key: the rows are rebuilt on every re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [display, hostPath, mount, onFolderChange, selectedKey, walked]);
+  // The arrows a page beside the folder had no use for walk the folder, and
+  // the keyboard goes on into the page the next file shows as.
+  const besidePage = isBesideOpen ? beside.page : undefined;
+  const keyboardInPage = useRef(false);
+  useEffect(() => {
+    if (besidePage === undefined) {
+      keyboardInPage.current = false;
+      return;
+    }
+    if (keyboardInPage.current) {
+      keyboardInPage.current = false;
+      giveKeyboardTo(besidePage);
+    }
+    return onPageEdge(besidePage, (direction) => {
+      keyboardInPage.current = fileSystemRef.current?.step(direction) === true;
+    });
+  }, [besidePage]);
   // Beside a file, everything picked by where it is: the folder on screen
   // leaves out the folder the columns stand in, which is still a pick.
   const pickedBeside = selectedItems.flatMap((item): ChosenItem[] => {
@@ -2505,6 +2531,14 @@ export function ComputerPage({
                   onShowHiddenFilesChange={setShowHiddenFiles}
                   onSortChange={sortBy}
                   onLeaveRoot={isRecents ? undefined : leaveRoot}
+                  {...(besidePage
+                    ? {
+                        onKeyIntoFile: () => {
+                          giveKeyboardTo(besidePage);
+                          return true;
+                        },
+                      }
+                    : {})}
                   onNewFolder={
                     folderOnScreenPath === undefined
                       ? undefined

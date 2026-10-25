@@ -5,7 +5,10 @@ import {
   type BrowserGuestTarget,
   browserPartition,
 } from "@/shared/browser";
-import { PAGE_THUMB_CHANNEL } from "@/shared/page-editor-channels";
+import {
+  PAGE_EDGE_CHANNEL,
+  PAGE_THUMB_CHANNEL,
+} from "@/shared/page-editor-channels";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { sleep } from "radashi";
 
@@ -241,17 +244,42 @@ export function takeKeyboardOnArrival(targetId: BrowserTargetId) {
   });
 }
 
+/**
+ * Pages the person sent the keyboard into from the keys, by target, with
+ * when the send lapses: an arrow into the page beside a folder, or one that
+ * stepped from a page to the next file's. Unlike an heir's, the claim holds
+ * wherever the keyboard is meanwhile (the step itself focuses the folder's
+ * row), and only a press of the pointer in the window calls it off.
+ */
+const keyboardSends = new Map<BrowserTargetId, number>();
+
+/** Puts the keyboard in the page now, or as it comes on screen and ready. */
+export function giveKeyboardTo(targetId: BrowserTargetId) {
+  keyboardSends.set(targetId, Date.now() + HEIR_WAIT_MS);
+  passKeyboardTo(targetId);
+}
+
 function passKeyboardTo(targetId: BrowserTargetId) {
-  const lapses = keyboardHeirs.get(targetId);
   const pooled = pool.get(targetId);
-  if (lapses === undefined || !pooled?.handle || !paintOwners.has(targetId)) {
+  if (!pooled?.handle || !paintOwners.has(targetId)) {
     return;
   }
+  const sent = keyboardSends.get(targetId);
+  const lapses = keyboardHeirs.get(targetId);
+  keyboardSends.delete(targetId);
   keyboardHeirs.delete(targetId);
-  if (Date.now() > lapses || !isKeyboardOffScreen()) {
+  if (sent !== undefined && Date.now() <= sent) {
+    pooled.webview.focus({ preventScroll: true });
+    return;
+  }
+  if (lapses === undefined || Date.now() > lapses || !isKeyboardOffScreen()) {
     return;
   }
   pooled.webview.focus({ preventScroll: true });
+}
+
+function callOffKeyboardSends() {
+  keyboardSends.clear();
 }
 
 /**
@@ -436,6 +464,7 @@ export function initBrowserPool(): () => void {
   const controller = new AbortController();
   const { signal } = controller;
   document.addEventListener("focusin", recordHostFocus);
+  document.addEventListener("pointerdown", callOffKeyboardSends, true);
   document.addEventListener("fullscreenchange", onFullScreenChange);
   window.addEventListener("resize", onWindowResize);
 
@@ -570,6 +599,7 @@ export function initBrowserPool(): () => void {
   return () => {
     controller.abort();
     document.removeEventListener("focusin", recordHostFocus);
+    document.removeEventListener("pointerdown", callOffKeyboardSends, true);
     document.removeEventListener("fullscreenchange", onFullScreenChange);
     window.removeEventListener("resize", onWindowResize);
   };
@@ -623,6 +653,31 @@ export function onPageThumb(
   return () => {
     if (thumbHandlers.get(targetId) === handler) {
       thumbHandlers.delete(targetId);
+    }
+  };
+}
+
+/**
+ * Who hears the up and down arrows each page had no use for (see
+ * `PAGE_EDGE_CHANNEL`), by the page's target.
+ */
+const edgeHandlers = new Map<
+  BrowserTargetId,
+  (direction: "down" | "up") => void
+>();
+
+/**
+ * Takes the arrows one page had no use for, until the returned function lets
+ * them go. The latest surface to ask has them.
+ */
+export function onPageEdge(
+  targetId: BrowserTargetId,
+  handler: (direction: "down" | "up") => void,
+): () => void {
+  edgeHandlers.set(targetId, handler);
+  return () => {
+    if (edgeHandlers.get(targetId) === handler) {
+      edgeHandlers.delete(targetId);
     }
   };
 }
@@ -818,13 +873,18 @@ function ensureWebview(
     void rpcClient.browser.syncFocus.call({ focused: false, targetId });
   });
   // A thumb button pressed over the page, which steps it as a history chord
-  // pressed in it does.
+  // pressed in it does; and an arrow it had no use for, for whoever walks
+  // what it is shown beside.
   webview.addEventListener("ipc-message", (event) => {
     // The guest's message, as Electron's `<webview>` fires it.
     const { args, channel } = event as Event & {
       args?: unknown[];
       channel?: string;
     };
+    if (channel === PAGE_EDGE_CHANNEL) {
+      edgeHandlers.get(targetId)?.(args?.[0] === "up" ? "up" : "down");
+      return;
+    }
     if (channel !== PAGE_THUMB_CHANNEL) {
       return;
     }

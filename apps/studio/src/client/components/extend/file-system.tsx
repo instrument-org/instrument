@@ -300,6 +300,12 @@ export type FileSystemProps = {
    */
   onLeaveRoot?: () => void;
   /**
+   * → on the one file selected, where the view has nowhere further to go:
+   * the keyboard into what shows the file beside the folder. True when it
+   * went; left out, or false, → is the view's alone.
+   */
+  onKeyIntoFile?: () => boolean;
+  /**
    * A new folder asked for by ⇧⌘N or Ctrl+Shift+N, made by the page in the
    * folder on screen. Left out, the key is nobody's here.
    */
@@ -415,6 +421,8 @@ export type FileSystemHandle = {
    * last of them, or null when they were the last.
    */
   rowAfter: (paths: readonly string[]) => null | string;
+  /** The selection one row up or down, as the arrow walks it; false where it did not move. */
+  step: (direction: "down" | "up") => boolean;
 };
 export type FileSystemView = "columns" | "gallery" | "icons" | "list";
 type FileEntry = FileSystemFileItem & {
@@ -1814,6 +1822,7 @@ export function FileSystem({
   onListColumnsChange,
   onListColumnWidthsChange,
   onLeaveRoot,
+  onKeyIntoFile,
   onNewFolder,
   onOpenSeveral,
   onPathChange,
@@ -2636,6 +2645,15 @@ export function FileSystem({
         commitSelection(selectExactly(selectOnly(null), paths));
       },
       startRename,
+      step: (direction) => {
+        const before = selectionRef.current.lead;
+        runListingCommandRef.current({
+          direction,
+          extend: false,
+          type: "move",
+        });
+        return selectionRef.current.lead !== before;
+      },
     }),
     [commitSelection, startRename],
   );
@@ -2867,7 +2885,20 @@ export function FileSystem({
       }
       case "move": {
         const moved = nav.move(command.direction);
-        if (typeof moved === "boolean") return moved;
+        if (typeof moved === "boolean") {
+          const isOneFile =
+            lead?.kind === "file" &&
+            selectedPathsOf(selectionRef.current).length === 1;
+          if (
+            command.direction === "right" &&
+            !command.extend &&
+            isOneFile &&
+            onKeyIntoFile?.()
+          ) {
+            return true;
+          }
+          return moved;
+        }
         selectAndPrefetchEntry(
           moved.entry,
           command.extend && moved.order
@@ -2940,6 +2971,10 @@ export function FileSystem({
       }
     }
   };
+  const runListingCommandRef = React.useRef(runListingCommand);
+  React.useLayoutEffect(() => {
+    runListingCommandRef.current = runListingCommand;
+  });
   const currentEntries = sortedIndex.children.get(currentPath) ?? [];
   const currentFolderName =
     currentPath === "" ? title : pathName(currentPath) || title;

@@ -19,3 +19,11 @@ export const PAGE_EDITOR_CHANNEL = "page-editor";
  * through its own history alone.
  */
 export const PAGE_THUMB_CHANNEL = "page-thumb";
+
+/**
+ * An up or down arrow a local page had no use for, from the guest to the
+ * window that embeds it: `"up"` or `"down"`. The page neither answered it nor
+ * had anything left to scroll that way, so a surface walking a folder beside
+ * the page takes it as a step to the file before or after.
+ */
+export const PAGE_EDGE_CHANNEL = "page-edge";

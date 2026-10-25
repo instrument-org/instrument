@@ -738,6 +738,9 @@ export function FilesScreen({
                       isFolderShown,
                       isResizing: draggedWidth !== null,
                       onPick: onBesidePick,
+                      ...(hostedTabId === undefined
+                        ? {}
+                        : { page: browserTargetOf(hostedTabId) }),
                       pickedInto: pickedSlot,
                       toggle: (
                         <TreeToggle

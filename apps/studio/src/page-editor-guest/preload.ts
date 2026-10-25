@@ -1,12 +1,14 @@
 import {
   PAGE_EDITOR_BOOT_CHANNEL,
+  PAGE_EDGE_CHANNEL,
   PAGE_EDITOR_CHANNEL,
   PAGE_THUMB_CHANNEL,
 } from "@/shared/page-editor-channels";
 import { type PageEditorGuestMessage } from "@/shared/page-editor-messages";
 /**
  * The preload of every browser guest. On every page it hands the mouse's
- * thumb buttons to the window. Otherwise it does nothing unless the guest is
+ * thumb buttons to the window, and on a local page the arrows it had no use
+ * for. Otherwise it does nothing unless the guest is
  * showing a page's file being edited in place, and on a site it does not even
  * ask: the question is one synchronous message to the main process, made
  * before the page's first script so the editor can watch the page build
@@ -112,6 +114,121 @@ function handThumbsToWindow() {
   );
 }
 
+/**
+ * On a local page, hands the window an up or down arrow the page had no use
+ * for: pressed alone and fresh rather than held, outside anything typed in,
+ * not answered by the page's own scripts, and with nothing the press would
+ * scroll able to go further that way. Whether it could scroll is read before
+ * the press is dispatched, and whether the page answered it after.
+ */
+function handEdgeArrowsToWindow() {
+  if (location.protocol !== "file:") {
+    return;
+  }
+  // Where Chromium scrolls from when nothing is focused: the last place the
+  // pointer went down.
+  let pressedAt: Element | null = null;
+  window.addEventListener(
+    "pointerdown",
+    (event) => {
+      pressedAt = event.target instanceof Element ? event.target : null;
+    },
+    { capture: true },
+  );
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      const direction =
+        event.key === "ArrowUp"
+          ? "up"
+          : event.key === "ArrowDown"
+            ? "down"
+            : null;
+      if (
+        !direction ||
+        event.repeat ||
+        event.isComposing ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        isTyping(event.target)
+      ) {
+        return;
+      }
+      const focused = document.activeElement;
+      const from =
+        focused &&
+        focused !== document.body &&
+        focused !== document.documentElement
+          ? focused
+          : pressedAt?.isConnected
+            ? pressedAt
+            : null;
+      if (canScrollFrom(from, direction)) {
+        return;
+      }
+      setTimeout(() => {
+        if (!event.defaultPrevented) {
+          ipcRenderer.sendToHost(PAGE_EDGE_CHANNEL, direction);
+        }
+      });
+    },
+    { capture: true },
+  );
+}
+
+/** Whether a press is typing: in a field, a menu of options, or editable text. */
+function isTyping(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target.closest("input, textarea, select") !== null)
+  );
+}
+
+/**
+ * Whether anything from `from` up to the page itself can still scroll that
+ * way, which is where Chromium's arrow scroll looks, passing to the box
+ * around one that has reached its end.
+ */
+function canScrollFrom(from: Element | null, direction: "down" | "up") {
+  const root = document.scrollingElement ?? document.documentElement;
+  for (let at = from; at && at !== root; at = at.parentElement) {
+    if (at === document.body) {
+      continue;
+    }
+    const { overflowY } = getComputedStyle(at);
+    if (
+      /^(?:auto|scroll|overlay)$/.test(overflowY) &&
+      hasRoom(at.scrollTop, at.clientHeight, at.scrollHeight, direction)
+    ) {
+      return true;
+    }
+  }
+  // The page itself, unless it hides its overflow: `html`'s, or the body's
+  // where `html` leaves it to the body.
+  const htmlOverflow = getComputedStyle(document.documentElement).overflowY;
+  const overflow =
+    htmlOverflow === "visible" && document.body
+      ? getComputedStyle(document.body).overflowY
+      : htmlOverflow;
+  return (
+    overflow !== "hidden" &&
+    overflow !== "clip" &&
+    hasRoom(window.scrollY, window.innerHeight, root.scrollHeight, direction)
+  );
+}
+
+function hasRoom(
+  top: number,
+  height: number,
+  scrollHeight: number,
+  direction: "down" | "up",
+) {
+  return direction === "up" ? top > 0.5 : top + height < scrollHeight - 0.5;
+}
+
 /** Whether a press is one of the mouse's thumb buttons, back or forward. */
 function isThumb(event: MouseEvent) {
   return event.button === 3 || event.button === 4;
@@ -131,4 +248,5 @@ function swallow(event: MouseEvent) {
 }
 
 handThumbsToWindow();
+handEdgeArrowsToWindow();
 boot();

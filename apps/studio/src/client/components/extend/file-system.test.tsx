@@ -542,6 +542,51 @@ describe("FileSystem", () => {
       expect(handle.current?.rowAfter(["e.txt"])).toBeNull();
     });
 
+    it("steps the selection for the page, saying whether it moved", () => {
+      const handle = React.createRef<FileSystemHandle>();
+      renderWithProviders(
+        <FileSystem
+          defaultSelectedPath="d.txt"
+          defaultView="list"
+          items={FILES}
+          ref={handle}
+        />,
+      );
+
+      const step = (direction: "down" | "up") => {
+        let moved: boolean | undefined;
+        React.act(() => {
+          moved = handle.current?.step(direction);
+        });
+        return moved;
+      };
+      expect(step("down")).toBe(true);
+      expect(step("down")).toBe(false);
+      expect(step("up")).toBe(true);
+    });
+
+    it("hands → on one file to what shows it, and keeps it on several", () => {
+      const onKeyIntoFile = vi.fn(() => true);
+      renderWithProviders(
+        <FileSystem
+          defaultView="list"
+          items={FILES}
+          onKeyIntoFile={onKeyIntoFile}
+        />,
+      );
+      const row = (name: string) => screen.getByRole("option", { name });
+
+      fireEvent.click(row("b.txt"));
+      fireEvent.keyDown(row("b.txt"), { key: "ArrowRight", shiftKey: true });
+      expect(onKeyIntoFile).not.toHaveBeenCalled();
+      fireEvent.keyDown(row("b.txt"), { key: "ArrowRight" });
+      expect(onKeyIntoFile).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(row("c.txt"), { metaKey: true });
+      fireEvent.keyDown(row("c.txt"), { key: "ArrowRight" });
+      expect(onKeyIntoFile).toHaveBeenCalledTimes(1);
+    });
+
     it("draws every selected row as selected", () => {
       const { row, selected } = renderList();
 

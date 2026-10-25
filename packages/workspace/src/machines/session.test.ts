@@ -1561,7 +1561,8 @@ describe("sessionMachine", () => {
 
   // The chat's folder is written as each turn ends (`on-turn-end.ts`), from
   // the records on disk, so the words a stopped reply had reached have to be
-  // written by then.
+  // written by then. Read once this session is done, not on the first
+  // `session.done` the process publishes, which any session can send.
   it("writes a stopped reply's words before its turn ends", async () => {
     const stream = createManualModelStream();
     const result = await createActorAndTask({
@@ -1574,23 +1575,24 @@ describe("sessionMachine", () => {
       }),
     });
     const rootDir = MOCK_WORKSPACE_DIRS.root;
-    let transcript: Promise<string> | undefined;
-    const unsubscribe = publisher.subscribe("session.done", ({ id }) => {
-      transcript ??= writeChatFolder({
+    let folder: string | undefined;
+    const transcript = async () => {
+      const written = await writeChatFolder({
         chatsDir: MOCK_WORKSPACE_DIRS.chats,
-        id,
+        id: result.chatId,
         machineDir: MOCK_WORKSPACE_DIRS.machine,
         rootDir,
-      }).then((written) => {
-        if (written.kind !== "written") {
-          throw new Error(`Expected a written folder, got ${written.kind}`);
-        }
-        return fs.readFile(
-          path.join(rootDir, CHATS_FOLDER_NAME, written.folder, CHAT_FILE_NAME),
-          "utf8",
-        );
       });
-    });
+      if (written.kind === "written") {
+        folder = written.folder;
+      } else if (written.kind !== "already-there" || folder === undefined) {
+        throw new Error(`Expected a written folder, got ${written.kind}`);
+      }
+      return fs.readFile(
+        path.join(rootDir, CHATS_FOLDER_NAME, folder, CHAT_FILE_NAME),
+        "utf8",
+      );
+    };
     result.actor.start();
     stream.push({ id: "1", type: "text-start" });
     stream.push({ delta: "Half of the answer", id: "1", type: "text-delta" });
@@ -1610,9 +1612,25 @@ describe("sessionMachine", () => {
 
     result.actor.send({ type: "stop" });
     await waitFor(result.actor, (state) => state.status === "done");
-    unsubscribe();
 
-    await expect(transcript).resolves.toContain("Half of the answer");
+    const atDone = await transcript();
+    if (!atDone.includes("Half of the answer")) {
+      // Which of two causes: the words landing after the turn ended, or
+      // never landing at all.
+      const landedLater = await vi
+        .waitFor(async () => {
+          expect(await transcript()).toContain("Half of the answer");
+        })
+        .then(
+          () => true,
+          () => false,
+        );
+      expect.fail(
+        landedLater
+          ? "The stopped reply's words reached the disk only after its session was done."
+          : `The stopped reply's words never reached the disk:\n${atDone}`,
+      );
+    }
   });
 
   it("should retry and fail on timeout", async () => {

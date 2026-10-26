@@ -35,10 +35,14 @@ import { useState } from "react";
 import { toast } from "@/client/lib/toast";
 import { folderRefusalSentence } from "@/shared/workspace-folder-refusal";
 import {
-  type Destination,
   DestinationRow,
+  showRefusal,
   useFolderPick,
 } from "@/client/components/instrument-folder";
+import {
+  type Destination,
+  destinationStep,
+} from "@/client/components/instrument-folder-steps";
 import { ProhibitIcon } from "@phosphor-icons/react/Prohibit";
 
 type InvalidFolder =
@@ -225,26 +229,6 @@ function UnrecognizedFolders() {
   );
 }
 
-type FolderVerdict = RPCOutput["workspaces"]["checkFolder"];
-export type MoveRefusal = Extract<FolderVerdict, { kind: "refused" }>["reason"];
-
-/** Why a folder the person picked can't take their Instrument folder, said to them. */
-export const REFUSALS: Record<MoveRefusal, string> = {
-  home: folderRefusalSentence("home"),
-  "other-workspace": folderRefusalSentence("other-workspace"),
-  "own-data": folderRefusalSentence("own-data"),
-  around: "Your Instrument folder is inside that folder.",
-  current: "That’s where your Instrument folder already is.",
-  inside: "That folder is inside your Instrument folder.",
-  missing: "That folder isn’t there anymore.",
-  newer: `A newer version of ${APP_NAME} made that folder. Update ${APP_NAME} to open it.`,
-  "not-absolute": "That folder isn’t there anymore.",
-  pinned: `This copy of ${APP_NAME} is set to keep its folder where it is.`,
-  taken: `It already has a folder named .instrument that ${APP_NAME} didn’t make.`,
-  unfinished: `${APP_NAME} is still updating your folder from an earlier version. Quit and reopen ${APP_NAME}, then try again.`,
-  unwritable: `${APP_NAME} doesn’t have permission to save files there.`,
-};
-
 /**
  * Where the person's Instrument folder is, and moving it: a folder picked
  * in the system's own panel puts it in a folder named for it inside the
@@ -263,9 +247,12 @@ function InstrumentFolder() {
   // which a closed dialog would read as nothing happening.
   const [restarting, setRestarting] = useState(false);
   const pick = useFolderPick((destination) => {
-    const { verdict } = destination;
-    if (verdict.kind === "refused" && folder) {
-      refuse(verdict.reason, destination.path, folder.path);
+    const step = destinationStep(destination, { opens: false });
+    if (step.type === "refused") {
+      showRefusal(step.reason, {
+        current: folder?.path,
+        path: destination.path,
+      });
       return;
     }
     setTo(destination);
@@ -294,7 +281,7 @@ function InstrumentFolder() {
     if (verdict.kind === "workspace") {
       setOpening(choice.path);
     } else if (verdict.kind === "refused" && verdict.reason !== "missing") {
-      refuse(verdict.reason, choice.path, folder.path);
+      showRefusal(verdict.reason, { current: folder.path, path: choice.path });
     } else {
       toast.error(`“${folderLabel(choice.path)}” isn’t an Instrument folder`, {
         description: "Choose the folder that has your chats in it.",
@@ -303,14 +290,21 @@ function InstrumentFolder() {
   };
 
   const moveThere = async (destination: Destination) => {
+    const step = destinationStep(destination, { opens: false });
+    if (step.type !== "move") {
+      return;
+    }
     setRestarting(true);
     try {
       const moved = await rpcClient.workspaces.move.call({
-        create: destination.contents === "new",
+        create: step.create,
         path: destination.path,
       });
       if (moved.kind === "refused") {
-        refuse(moved.reason, destination.path, folder.path);
+        showRefusal(moved.reason, {
+          current: folder.path,
+          path: destination.path,
+        });
       } else if (moved.kind === "on-next-launch") {
         toast.info(`Quit ${APP_NAME} and open it again to move your folder.`);
       }
@@ -349,7 +343,9 @@ function InstrumentFolder() {
     }
   };
 
-  const isOtherWorkspace = to?.verdict.kind === "workspace";
+  const isOtherWorkspace =
+    to !== null &&
+    destinationStep(to, { opens: false }).type === "other-workspace";
   const choose = () => {
     void pick.choose(to ? folderOf(to.path) : folder.suggested);
   };
@@ -437,6 +433,7 @@ function InstrumentFolder() {
                       Change
                     </Button>
                   }
+                  path={to.path}
                 />
               </div>
             )}
@@ -505,38 +502,4 @@ function InstrumentFolder() {
       </AlertDialog>
     </section>
   );
-}
-
-/**
- * Says why a folder can't take the Instrument folder. Where the folder
- * already is is nothing to do rather than a refusal, and the two folders
- * that can't take it by where they are say which one was picked.
- */
-function refuse(reason: MoveRefusal, picked: string, current: string) {
-  const name = folderLabel(picked);
-  switch (reason) {
-    case "current": {
-      toast.info(
-        `Your Instrument folder is already in “${folderLabel(folderOf(current))}”.`,
-      );
-      return;
-    }
-    case "inside": {
-      toast.error("Choose a folder outside your Instrument folder", {
-        description: `“${name}” is inside it.`,
-      });
-      return;
-    }
-    case "around": {
-      toast.error(`${APP_NAME} can’t move your folder there`, {
-        description: `Your Instrument folder is inside “${name}”.`,
-      });
-      return;
-    }
-    default: {
-      toast.error(`${APP_NAME} can’t move your folder there`, {
-        description: REFUSALS[reason],
-      });
-    }
-  }
 }

@@ -1,15 +1,19 @@
 import {
-  type Destination,
-  DestinationLine,
+  showRefusal,
   useFolderPick,
 } from "@/client/components/instrument-folder";
-import { REFUSALS } from "@/client/components/settings/storage-section";
+import {
+  type Destination,
+  destinationStep,
+  type MoveRefusal,
+  suggestedDestination,
+} from "@/client/components/instrument-folder-steps";
 import { Spinner } from "@/client/components/ui/spinner";
 import { folderOf } from "@/client/components/window/host-path";
 import { toast } from "@/client/lib/toast";
 import { displayPath } from "@/client/lib/path-utils";
 import { isMacOS } from "@/client/lib/utils";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -27,12 +31,6 @@ const RESTART_NOTICE_MS = 3000;
 
 /** A note under the folder, for what Continue ran into. */
 type Note = { kind: "denied" } | { kind: "unfinished" };
-
-/** Why Continue can't keep the folder where it is on screen. */
-type Refusal = Extract<
-  RPCOutput["workspaces"]["move"],
-  { kind: "refused" }
->["reason"];
 
 /**
  * Where the Instrument folder lives (frames 05 to 09). A new folder in
@@ -88,7 +86,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
           : { path: offered.inDocuments },
     }),
   );
-  const suggested = suggestedPick && asSuggested(suggestedPick.folder);
+  const suggested = suggestedPick && suggestedDestination(suggestedPick.folder);
   // The folder on screen: the one picked, or the one in Documents setup
   // suggests, once the offered folders have loaded.
   const shown = picked ?? suggested;
@@ -98,7 +96,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
   const refuse = async (
     current: { inDocuments: string; inHome: string },
     path: string,
-    reason: Refusal,
+    reason: MoveRefusal,
   ) => {
     setMoving(null);
     if (reason === "unfinished") {
@@ -115,9 +113,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
       setPicked(home.folder);
       setNote(reason === "unwritable" ? { kind: "denied" } : null);
     } else {
-      toast.error(`${APP_NAME} can’t keep your folder there`, {
-        description: REFUSALS[reason],
-      });
+      showRefusal(reason, { current: undefined, path });
     }
   };
 
@@ -217,19 +213,19 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
       const seen = picked ?? suggested;
       const destination =
         seen ??
-        asSuggested(
+        suggestedDestination(
           (
             await rpcClient.workspaces.checkPick.call({
               path: offered.inDocuments,
             })
           ).folder,
         );
-      const { verdict } = destination;
-      if (verdict.kind === "refused") {
-        await refuse(offered, destination.path, verdict.reason);
+      const step = destinationStep(destination, { opens: true });
+      if (step.type === "refused") {
+        await refuse(offered, destination.path, step.reason);
         return;
       }
-      if (seen === undefined && verdict.kind === "workspace") {
+      if (seen === undefined && step.type === "open") {
         setPicked(destination);
         return;
       }
@@ -237,13 +233,9 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
         pick.settle({ folder: destination }, folderOf(destination.path));
         return;
       }
-      await go(
-        offered,
-        destination.path,
-        verdict.kind === "workspace"
-          ? { type: "open" }
-          : { create: destination.contents === "new", type: "move" },
-      );
+      if (step.type === "open" || step.type === "move") {
+        await go(offered, destination.path, step);
+      }
     } catch (error) {
       toast.error(`${APP_NAME} couldn’t check that folder`, { cause: error });
     } finally {
@@ -251,7 +243,9 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
     }
   };
 
-  const opens = shown?.verdict.kind === "workspace";
+  const opens =
+    shown !== undefined &&
+    destinationStep(shown, { opens: true }).type === "open";
   return (
     <SetupPageSwitch
       depth={moving === null ? 0 : 1}
@@ -294,11 +288,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
         >
           <div className="mt-8 flex w-140 max-w-full flex-col">
             <FolderLocation
-              line={
-                shown === undefined ? undefined : (
-                  <DestinationLine destination={shown} />
-                )
-              }
+              destination={shown}
               onChange={
                 target === undefined
                   ? undefined
@@ -351,20 +341,6 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
       )}
     </SetupPageSwitch>
   );
-}
-
-/**
- * The folder setup suggests, checked as it is rather than as a pick to put
- * a folder in, so nothing in Documents is read before it has to be: one
- * that isn't there yet is the new folder Continue makes. A Documents folder
- * that isn't there either is still refused, and Continue falls back to the
- * home folder.
- */
-function asSuggested(folder: Destination): Destination {
-  const { verdict } = folder;
-  return verdict.kind === "refused" && verdict.reason === "missing"
-    ? { ...folder, contents: "new", verdict: { kind: "movable" } }
-    : folder;
 }
 
 /**

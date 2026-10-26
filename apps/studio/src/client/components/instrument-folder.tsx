@@ -13,8 +13,15 @@ import { FolderMark } from "@/client/components/window/folder-mark";
 import { folderOf, nameOf } from "@/client/components/window/host-path";
 import { locationCrumbs } from "@/client/components/window/tab-location";
 import { useComputerVolumes } from "@/client/components/window/computer-volumes";
+import {
+  type Destination,
+  type FolderPick,
+  type MoveRefusal,
+  refusalToast,
+} from "@/client/components/instrument-folder-steps";
+import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { rpcClient } from "@/client/rpc/client";
 import { folderWarningSentence } from "@/shared/workspace-folder-refusal";
 import { APP_NAME } from "@instrument-org/shared";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
@@ -28,8 +35,18 @@ import { type ReactNode, useState } from "react";
  * question a pick can raise is asked in a small dialog straight after it.
  */
 
-export type FolderPick = RPCOutput["workspaces"]["checkPick"];
-export type Destination = FolderPick["folder"];
+/** Says why a folder can't take the Instrument folder, in a toast (`refusalToast`). */
+export function showRefusal(
+  reason: MoveRefusal,
+  where: { current: string | undefined; path: string },
+) {
+  const { description, title, tone } = refusalToast(reason, where);
+  if (tone === "info") {
+    toast.info(title, { description });
+  } else {
+    toast.error(title, { description });
+  }
+}
 
 /** A folder's name as Files names it: iCloud Drive rather than its folder on disk. */
 function useFolderName(path: string) {
@@ -50,7 +67,7 @@ function useFolderName(path: string) {
  * an empty one, one with other files in it, or an Instrument folder and its
  * chats; and what the place is warned of, where that wasn't asked already.
  */
-export function DestinationLine({
+function DestinationLine({
   className,
   destination,
 }: {
@@ -87,26 +104,38 @@ export function DestinationLine({
 }
 
 /**
- * A destination as one row: its mark, its whole path, what it already is,
- * and `end` (Change, or Show in a question).
+ * A destination as one row, the same in setup's Location card, the move
+ * confirmation and the questions: its mark, its whole path, what it already
+ * is, and `end` (Change, or Show in a question). A `path` with no
+ * `destination` is one not looked at yet, which says nothing under it.
  */
 export function DestinationRow({
   className,
   destination,
   end,
+  path,
+  trailClassName,
 }: {
   className?: string;
-  destination: Destination;
+  destination?: Destination | undefined;
   end?: ReactNode;
+  path: string;
+  trailClassName?: string;
 }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-3 p-3", className)}>
       <span className="flex w-7 shrink-0 justify-center">
-        <FolderMark path={destination.path} size="row" />
+        <FolderMark path={path} size="row" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <FolderTrail className="text-sm" path={destination.path} wrap />
-        <DestinationLine destination={destination} />
+        <FolderTrail
+          className={cn("text-sm", trailClassName)}
+          path={path}
+          wrap
+        />
+        {destination === undefined ? null : (
+          <DestinationLine destination={destination} />
+        )}
       </span>
       {end}
     </div>
@@ -247,6 +276,7 @@ function MakeQuestion({
         <DestinationRow
           destination={itself}
           end={<ShowButton path={itself.path} />}
+          path={itself.path}
         />
       </div>
       <AlertDialogFooter>
@@ -291,6 +321,7 @@ function HasFilesQuestion({
         <DestinationRow
           destination={folder}
           end={<ShowButton path={folder.path} />}
+          path={folder.path}
         />
       </div>
       <AlertDialogFooter>

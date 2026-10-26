@@ -274,6 +274,12 @@ export function useOpeners({
       setPaneOpen(owner, true);
       return;
     }
+    // A task stands only in its chat, so one whose chat is not named and
+    // not on screen has nowhere to open, and never takes a window tab.
+    if (tasks) {
+      sayNoChat();
+      return;
+    }
     const placement = screenPlacementOf(href, options, placing);
     switch (placement.kind) {
       case "group-behind": {

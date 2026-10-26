@@ -66,18 +66,23 @@ export function folderRefusalSentence(refusal: FolderRefusal): string {
   return `${why}, so ${instead}.`;
 }
 
-/** What makes the folder a risky place, said under it where the person picks it. */
-export const FOLDER_WARNING_COPY: Record<FolderWarning, string> = {
-  "apps-data": "Apps keep their settings and data here.",
-  "around-home": "Your home folder is inside this one.",
-  drive: "This is the top of a disk.",
-  personal: "This folder has lots of your other files in it.",
-  "sign-ins": "Other apps keep sign-ins or startup settings here.",
-  system: "Your computer keeps its system files here.",
-  temporary: "Your computer may empty this folder on its own.",
+/**
+ * What the folder that holds a picked one is for, and what that risks, said
+ * under the folder where the person picks it. Only the places where
+ * something goes wrong without the person noticing are said at all.
+ */
+export const FOLDER_WARNING_COPY: Partial<Record<FolderWarning, string>> = {
+  "apps-data":
+    "This is inside a folder where apps keep their own settings and data. Chats could change them.",
+  "sign-ins":
+    "This is inside a folder where other apps keep sign-ins or settings that run when you log in. Chats could change them.",
+  temporary:
+    "This is inside a temporary folder, which your computer empties on its own. Your chats could be deleted.",
 };
 
-/** The warning for a folder the person picked. */
-export function folderWarningSentence(warning: FolderWarning): string {
+/** The warning for a folder the person picked, where it has one worth saying. */
+export function folderWarningSentence(
+  warning: FolderWarning,
+): string | undefined {
   return FOLDER_WARNING_COPY[warning];
 }

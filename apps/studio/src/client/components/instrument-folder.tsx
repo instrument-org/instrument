@@ -90,8 +90,9 @@ function DestinationLine({
       ? "Has other files in it"
       : undefined;
   const { warning } = destination.verdict;
-  const warned = warning !== undefined && warning !== "personal";
-  if (line === undefined && !warned) {
+  const warned =
+    warning === undefined ? undefined : folderWarningSentence(warning);
+  if (line === undefined && warned === undefined) {
     return null;
   }
   return (
@@ -99,11 +100,9 @@ function DestinationLine({
       {line === undefined ? null : (
         <span className="text-muted-foreground">{line}</span>
       )}
-      {warned ? (
-        <span className="text-warning-700 dark:text-warning-300">
-          {folderWarningSentence(warning)}
-        </span>
-      ) : null}
+      {warned === undefined ? null : (
+        <span className="text-warning-700 dark:text-warning-300">{warned}</span>
+      )}
     </span>
   );
 }
@@ -284,9 +283,9 @@ function MakeQuestion({
       </div>
       <AlertDialogFooter>
         <AlertDialogAction onClick={onUseItself} variant="outline">
-          Don’t Make One
+          Don’t make one
         </AlertDialogAction>
-        <AlertDialogAction onClick={onMake}>Make Folder</AlertDialogAction>
+        <AlertDialogAction onClick={onMake}>Make folder</AlertDialogAction>
       </AlertDialogFooter>
     </>
   );
@@ -329,9 +328,9 @@ function HasFilesQuestion({
       </div>
       <AlertDialogFooter>
         <AlertDialogAction onClick={onChooseAnother} variant="outline">
-          Choose Another…
+          Choose another…
         </AlertDialogAction>
-        <AlertDialogAction onClick={onUse}>Use It Anyway</AlertDialogAction>
+        <AlertDialogAction onClick={onUse}>Use it anyway</AlertDialogAction>
       </AlertDialogFooter>
     </>
   );

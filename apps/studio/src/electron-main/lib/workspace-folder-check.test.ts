@@ -294,12 +294,13 @@ describe("folder copy", () => {
     }
   });
 
-  it("says why a place is risky in one short sentence", () => {
-    expect(folderWarningSentence("system")).toMatchInlineSnapshot(
-      `"Your computer keeps its system files here."`,
+  it("says what the folder holding a pick is for, and only where that risks something", () => {
+    expect(folderWarningSentence("temporary")).toMatchInlineSnapshot(
+      `"This is inside a temporary folder, which your computer empties on its own. Your chats could be deleted."`,
     );
+    expect(folderWarningSentence("system")).toBeUndefined();
     for (const why of Object.values(FOLDER_WARNING_COPY)) {
-      expect(why).toMatch(/^[A-Z].*\.$/);
+      expect(why).toMatch(/^This is inside .*\.$/);
     }
   });
 });

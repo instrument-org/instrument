@@ -652,11 +652,16 @@ function WindowShell({
    * The tab up to one of the rail's places, from the rail, its chords, or the
    * command menu. Chat asked for is the inbox asked for too, even where the
    * row is narrow enough that it stepped aside. Peeked out already, the list
-   * stays where it is drawn rather than sliding in again under it. A place
-   * asked for in a tab of its own waits behind, the way a bookmark
+   * stays where it is drawn rather than sliding in again under it. The
+   * place the tab is already in takes it back to its root (the inbox, the
+   * Instrument folder, the browser's start, the apps), except that a chat
+   * with its inbox put away gets the inbox back first and stays open. A
+   * place asked for in a tab of its own waits behind, the way a bookmark
    * middle-clicked in a browser does.
    */
   const choosePlace = (next: AppPlace, { newTab = false } = {}) => {
+    const bringsInboxBack =
+      next === "chat" && chatUp !== undefined && !isInboxOpen;
     if (next === "chat") {
       if (inboxPeek.isOpen) {
         setInboxLandsAtOnce(true);
@@ -664,6 +669,9 @@ function WindowShell({
       setInboxOpen(true);
     }
     if (next === place && !newTab) {
+      if (!bringsInboxBack) {
+        appTabs.goToPlace(next, { root: true });
+      }
       return;
     }
     appTabs.goToPlace(next, { behind: newTab, newTab });

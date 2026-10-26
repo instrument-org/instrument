@@ -233,8 +233,15 @@ export function useAppTabs() {
       );
     },
     go,
-    goToPlace: (place: AppPlace, { behind = false, newTab = false } = {}) => {
-      go(placeHrefOf(place, lastChat, outputFolder), { behind, newTab });
+    /** The tab up to a place, at the chat it last had open unless asked for the place's root, the inbox. */
+    goToPlace: (
+      place: AppPlace,
+      { behind = false, newTab = false, root = false } = {},
+    ) => {
+      go(placeHrefOf(place, root ? null : lastChat, outputFolder), {
+        behind,
+        newTab,
+      });
     },
     model,
     navigate,

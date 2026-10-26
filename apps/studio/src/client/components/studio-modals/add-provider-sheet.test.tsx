@@ -28,8 +28,13 @@ vi.mock("@/client/hooks/use-connect", () => ({
   useGrokConnect: () => ({ ...flow("grok"), userCode: undefined }),
   useInstrumentConnect: () => flow("instrument"),
 }));
+const plans = vi.hoisted(() => ({
+  chatgpt: false,
+  claude: false,
+  grok: false,
+}));
 vi.mock("@/client/hooks/use-connected-plans", () => ({
-  useConnectedPlans: () => ({ chatgpt: false, claude: false, grok: false }),
+  useConnectedPlans: () => plans,
 }));
 
 const live = vi.hoisted(() => (key: string, value: unknown) => ({
@@ -49,7 +54,33 @@ vi.mock("@/client/rpc/client", () => ({
         }),
       },
     },
-    providerConfig: { live: { list: live("keys", []) } },
+    chatgptAccount: {
+      live: {
+        status: live("chatgpt", {
+          accounts: [
+            {
+              email: "sam@example.com",
+              id: "a1",
+              label: "Sam",
+              state: "signed-in",
+            },
+          ],
+        }),
+      },
+    },
+    claudeAccount: { live: { status: live("claude", { kind: "signed-out" }) } },
+    grokAccount: { live: { status: live("grok", { accounts: [] }) } },
+    providerConfig: {
+      live: {
+        list: live("keys", [
+          {
+            id: "k1",
+            maskedApiKey: "sk-o····4f2a",
+            type: "openrouter",
+          },
+        ]),
+      },
+    },
   },
 }));
 
@@ -62,6 +93,19 @@ const sheet = (
 );
 
 describe("AddProviderSheet", () => {
+  it("lists what is connected and offers only the rest", async () => {
+    plans.chatgpt = true;
+    phases.chatgpt = "idle";
+    renderWithProviders(sheet);
+    expect(await screen.findByText("sam@example.com")).toBeTruthy();
+    expect(screen.getByText("Key ending in 4f2a")).toBeTruthy();
+    expect(document.querySelector('[data-connect-row="chatgpt"]')).toBeNull();
+    expect(
+      document.querySelector('[data-connect-row="claude"]'),
+    ).not.toBeNull();
+    plans.chatgpt = false;
+  });
+
   it("lists the ways in while nothing is being checked", () => {
     phases.chatgpt = "signing-in";
     renderWithProviders(sheet);

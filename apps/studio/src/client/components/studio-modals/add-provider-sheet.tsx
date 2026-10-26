@@ -8,7 +8,10 @@ import {
   grokWaitingLine,
 } from "@/client/components/connect-button";
 import { type LastConnection } from "@/client/components/setup/last-connection";
+import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { Button } from "@/client/components/ui/button";
+import { openSettings } from "@/client/atoms/settings-modal";
+import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { Spinner } from "@/client/components/ui/spinner";
 import {
   useChatGPTConnect,
@@ -48,6 +51,7 @@ import { ClockIcon } from "@phosphor-icons/react/Clock";
 import { KeyIcon } from "@phosphor-icons/react/Key";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
 import { type AIProviderConfigId } from "@instrument-org/shared";
 import { type ReactNode, useState } from "react";
 
@@ -275,9 +279,12 @@ export function AddProviderSheet({
       <p className="mt-1 text-sm text-muted-foreground">
         Use a plan you already pay for, or a key from an AI company.
       </p>
+      <ConnectedList />
       <div className="mt-6 space-y-2">
         {trialRow}
-        {PLAN_PROVIDERS.map((provider) => rowFor(provider))}
+        {PLAN_PROVIDERS.filter((provider) => !connected?.[provider]).map(
+          (provider) => rowFor(provider),
+        )}
         <KeyRow onAdd={openKey} />
       </div>
     </SheetFrame>
@@ -359,6 +366,116 @@ function ReturningView({
         </div>
       </div>
     </SheetFrame>
+  );
+}
+
+/** One plan account or key that is connected, as the sheet lists it. */
+type Connection = {
+  detail?: string;
+  icon: ReactNode;
+  id: string;
+  name: string;
+};
+
+/**
+ * What is connected already, plan accounts and keys alike, one line each
+ * with the account's email or the key's last four characters, so a plan
+ * that is connected reads as connected before anyone signs in to it again.
+ * Changing any of them is Settings' job, which Manage opens.
+ */
+function ConnectedList() {
+  const { data: chatgpt } = useQuery(
+    rpcClient.chatgptAccount.live.status.experimental_liveOptions(),
+  );
+  const { data: claude } = useQuery(
+    rpcClient.claudeAccount.live.status.experimental_liveOptions(),
+  );
+  const { data: grok } = useQuery(
+    rpcClient.grokAccount.live.status.experimental_liveOptions(),
+  );
+  const { data: keys } = useQuery(
+    rpcClient.providerConfig.live.list.experimental_liveOptions(),
+  );
+  const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
+
+  const planIcon = (provider: PlanProvider) => (
+    <ConnectIcon className="size-4" provider={provider} />
+  );
+  const connections: Connection[] = [
+    ...(chatgpt?.accounts ?? [])
+      .filter((account) => account.state === "signed-in")
+      .map((account) => ({
+        detail: account.email ?? account.label,
+        icon: planIcon("chatgpt"),
+        id: `chatgpt:${account.id}`,
+        name: CONNECT_NAMES.chatgpt,
+      })),
+    ...(claude?.kind === "signed-in"
+      ? [
+          {
+            detail: claude.email,
+            icon: planIcon("claude"),
+            id: "claude",
+            name: CONNECT_NAMES.claude,
+          },
+        ]
+      : []),
+    ...(grok?.accounts ?? [])
+      .filter((account) => account.state === "signed-in")
+      .map((account) => ({
+        detail: account.email ?? account.label,
+        icon: planIcon("grok"),
+        id: `grok:${account.id}`,
+        name: CONNECT_NAMES.grok,
+      })),
+    ...(keys ?? []).map((config) => ({
+      detail: config.maskedApiKey
+        ? `Key ending in ${config.maskedApiKey.slice(-4)}`
+        : undefined,
+      icon: <AIProviderIcon className="size-4" type={config.type} />,
+      id: config.id,
+      name:
+        config.displayName ||
+        providerMetadataMap.get(config.type)?.name ||
+        config.type,
+    })),
+  ];
+  if (connections.length === 0) {
+    return null;
+  }
+  return (
+    <div className="mt-5 rounded-xl bg-muted px-4 py-2">
+      <div className="flex items-center justify-between py-1">
+        <p className="text-[13px] font-medium text-muted-foreground">
+          Connected
+        </p>
+        <Button
+          className="h-7 px-2 text-[13px]"
+          onClick={() => {
+            openSettings({ tab: "Providers" });
+          }}
+          variant="ghost"
+        >
+          Manage
+        </Button>
+      </div>
+      <ul className="max-h-36 overflow-y-auto">
+        {connections.map((connection) => (
+          <li
+            className="flex items-center gap-2.5 py-1.5 text-[13px]"
+            key={connection.id}
+          >
+            {connection.icon}
+            <span className="shrink-0 font-medium text-foreground">
+              {connection.name}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-muted-foreground">
+              {connection.detail}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

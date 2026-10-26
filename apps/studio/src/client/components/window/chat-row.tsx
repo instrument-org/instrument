@@ -511,7 +511,7 @@ function HoldsInChat({
  * in muted. Nothing when an idle or stopped chat has said nothing yet. One
  * line that truncates.
  */
-function Peek({
+export function Peek({
   chat,
   className,
   search = "",

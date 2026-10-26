@@ -3,6 +3,11 @@ import {
   ContextMenu,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { cn } from "@/client/lib/utils";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -31,6 +36,12 @@ export interface StripTab {
   isWorking?: boolean;
   key: string;
   title: string;
+  /**
+   * What hovering the tab says in place of its bare name: the whole name
+   * (`title` may be a shortened one) over a line the tab has no room for,
+   * such as where it is. Without it the name alone is the tab's tooltip.
+   */
+  tooltip?: { detail?: ReactNode; title: string };
 }
 
 // The strip's measurements, in layout px. `GAP` is the `gap-1` between tabs.
@@ -653,23 +664,42 @@ function Tab({
     role: "tab",
     style: surface,
     tabIndex: isClosing || !isSelected ? -1 : 0,
-    title: tab.title,
+    ...(tab.tooltip ? {} : { title: tab.title }),
   };
 
-  return value === undefined ? (
-    <div {...handlers}>{contents}</div>
-  ) : (
-    <Reorder.Item
-      {...handlers}
-      as="div"
-      layout="position"
-      onDragEnd={onDragEnd}
-      onDragStart={onDragStart}
-      transition={isReordering ? undefined : LAND_IN_PLACE}
-      value={value}
-    >
-      {contents}
-    </Reorder.Item>
+  const element =
+    value === undefined ? (
+      <div {...handlers}>{contents}</div>
+    ) : (
+      <Reorder.Item
+        {...handlers}
+        as="div"
+        layout="position"
+        onDragEnd={onDragEnd}
+        onDragStart={onDragStart}
+        transition={isReordering ? undefined : LAND_IN_PLACE}
+        value={value}
+      >
+        {contents}
+      </Reorder.Item>
+    );
+
+  // A tab on its way out or being carried has nothing to say.
+  if (!tab.tooltip || isClosing || isDragging) {
+    return element;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{element}</TooltipTrigger>
+      <TooltipContent maxWidth="28rem" side="bottom">
+        <div className="font-medium break-words">{tab.tooltip.title}</div>
+        {tab.tooltip.detail ? (
+          <div className="mt-0.5 text-muted-foreground">
+            {tab.tooltip.detail}
+          </div>
+        ) : null}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

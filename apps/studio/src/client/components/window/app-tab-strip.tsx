@@ -17,6 +17,10 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { displayPath } from "@/client/lib/path-utils";
+import { COMPUTER_ROOT } from "@/shared/computer-href";
+import { expandHomePath } from "@instrument-org/shared";
+import { useQuery } from "@tanstack/react-query";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
@@ -31,8 +35,18 @@ import { ChatMarkIcon } from "./chat-mark";
 import { chatTabMark, type RailChatMark } from "./chats";
 import { useAppTabPresentation, useClosedAppTabs } from "./closed-app-tabs";
 import { ClosedTabsMenu } from "./closed-tabs-menu";
+import { chatListOptions } from "./chat-list-query";
+import { Peek } from "./chat-row";
+import { RECENTS_ROOT } from "./computer-page";
+import {
+  folderOf,
+  joinHostPath,
+  parentFolderOf,
+  segmentsOf,
+} from "./host-path";
 import { siteTabTitles } from "./site-tab-titles";
-import { TabStrip } from "./tab-strip";
+import { type StripTab, TabStrip } from "./tab-strip";
+import { matchScreen } from "./window-href";
 
 /**
  * The window's tabs across its bar, each named for where it stands: a chat
@@ -93,11 +107,16 @@ export function AppTabStrip({
       chatMarks,
       { isUp: tab.key === selectedId },
     );
+    const tooltip = tabTooltip(
+      tabs[index]?.pathname || INBOX_HREF,
+      whole[index],
+    );
     return {
       ...tab,
       icon: <ChatMarkIcon dot={dot} icon={tab.icon} />,
       isWorking,
       title: short.get(tab.key) ?? tab.title,
+      ...(tooltip ? { tooltip } : {}),
     };
   });
   // The window is called what its tab up is, alone, as a document window is:
@@ -185,6 +204,55 @@ export function AppTabStrip({
       </DropdownMenu>
     </>
   );
+}
+
+/**
+ * What hovering a window tab says: its whole name over what the tab has no
+ * room for. A page's address, a file's or folder's folder, a chat's latest
+ * line. A tab that says all it has (Chats, Apps, Browser, a new tab) keeps
+ * the bare name.
+ */
+export function tabTooltip(
+  href: string,
+  presentation: { title: string; url?: string | undefined } | undefined,
+): StripTab["tooltip"] {
+  if (!presentation) {
+    return undefined;
+  }
+  const { title, url } = presentation;
+  if (url !== undefined) {
+    return { detail: url.replace(/^https?:\/\//, ""), title };
+  }
+  const screen = matchScreen(href);
+  if (screen.kind === "chat") {
+    return { detail: <ChatTabLine chat={screen.chat} />, title };
+  }
+  if (screen.kind !== "computer") {
+    return undefined;
+  }
+  const home = window.api.homeDir;
+  let folder: null | string;
+  if (screen.file !== undefined) {
+    folder = folderOf(expandHomePath(screen.file, home));
+  } else if (screen.root === COMPUTER_ROOT || screen.root === RECENTS_ROOT) {
+    // The computer and Recents are no folder, so they are in none.
+    return undefined;
+  } else {
+    // The top of a disk is in no folder either.
+    folder = parentFolderOf(
+      expandHomePath(joinHostPath(screen.root, screen.path), home),
+    );
+  }
+  return folder === null
+    ? undefined
+    : { detail: segmentsOf(displayPath(folder)).join(" › "), title };
+}
+
+/** A chat's latest line, as its row in the inbox says it. */
+function ChatTabLine({ chat }: { chat: ChatId }) {
+  const chats = useQuery(chatListOptions());
+  const found = chats.data?.find((each) => each.id === chat);
+  return found ? <Peek chat={found} /> : null;
 }
 
 /**

@@ -642,6 +642,13 @@ function Tab({
         focusSiblingTab(event.currentTarget, direction);
       }
     },
+    // A click selects the tab without taking the keyboard from the screen,
+    // which the tab coming up hands back to where it was in that tab.
+    onMouseDown: (event: React.MouseEvent) => {
+      if (event.button === 0) {
+        event.preventDefault();
+      }
+    },
     onPointerDown,
     role: "tab",
     style: surface,

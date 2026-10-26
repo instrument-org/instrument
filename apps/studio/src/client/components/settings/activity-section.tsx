@@ -489,6 +489,13 @@ const columnDefs: ColumnDef<Row>[] = COLUMN_IDS.map((id) => {
  * Settings > Activity: every model request the app made, newest first, as a
  * log you can filter, sort, and open an entry from to see everything recorded
  * about it.
+ *
+ * It is there so the person can see how the app uses AI on their behalf:
+ * which model answered, for what, and how many tokens it took. The rows are
+ * read from their own workspace and this computer's index and are never sent
+ * anywhere (`packages/workspace/src/lib/activity/record.ts`), and none holds
+ * what was said. Saving a CSV is the only way they leave, and the person
+ * does that.
  */
 export function ActivitySection() {
   const [openId, setOpenId] = useState<null | string>(null);
@@ -621,7 +628,7 @@ function ActivityLog({
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold">Activity</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {`Everything ${APP_NAME} asked an AI model to do, with the model that answered and the tokens it used. It's kept in your Instrument folder, and what was said isn't.`}
+            {`A log of every AI request ${APP_NAME} makes: the model, what it was for, and the tokens it used.`}
           </p>
         </div>
         <Button

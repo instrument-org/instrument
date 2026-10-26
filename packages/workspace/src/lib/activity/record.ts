@@ -22,6 +22,15 @@ import {
 } from "./schema";
 import { insertActivity } from "./store";
 
+/**
+ * The activity log is the person's own record of what the app asked AI models
+ * to do, for Settings > Activity. Its rows go to the workspace's device files
+ * (`log-file.ts`) and this computer's `workspace.db` (`store.ts`), and nowhere
+ * else: nothing here sends them to Instrument's API or any other service, and
+ * they never hold what was said. "Telemetry" below is only the AI SDK's name
+ * for the per-call hook the rows are read from.
+ */
+
 /** What a call site knows about a request that the request itself does not carry. */
 export interface ActivityCall {
   /** The chat the request was for. */

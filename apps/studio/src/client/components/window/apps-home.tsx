@@ -183,6 +183,8 @@ export function AppsHome({
     <div
       className="@container/apps h-full min-h-0 overflow-y-auto"
       data-find-surface
+      // The keyboard lands on the first app as the screen comes up.
+      data-keyboard-home
     >
       {/* As a page, a centered column and head with room around it. Inside
         a draft, the narrower column the draft's frame allows. */}

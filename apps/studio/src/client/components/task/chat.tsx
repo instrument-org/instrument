@@ -23,6 +23,7 @@ import {
   useDraftStaging,
   useFolderItems,
 } from "@/client/components/draft-staging";
+import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn, osConventions } from "@/client/lib/utils";
 import { PermissionAsksFoot } from "@/client/components/permission-asks";
@@ -420,9 +421,10 @@ export function ChatConversation({
     // Every render until the box is there to draw into, and once per chat.
   });
   // A chat coming on screen is a place to reply from, so the caret lands
-  // in the field as it opens.
+  // in the field as it opens, unless it opened as the person walked the
+  // chat list with the arrows (`mayTakeKeyboard`).
   useLayoutEffect(() => {
-    if (!isActiveTab) {
+    if (!isActiveTab || !mayTakeKeyboard()) {
       return;
     }
     promptEditor?.focus();
@@ -460,6 +462,7 @@ export function ChatConversation({
       alwaysOpen
       attachmentsLead={asks?.pills}
       autoFocus
+      keyboardHome
       className="relative z-10"
       draftKey={draftKey}
       hasAttachmentsLead={asks?.pills != null}

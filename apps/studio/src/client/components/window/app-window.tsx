@@ -38,6 +38,7 @@ import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { getGuest } from "@/client/lib/browser-pool";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
+import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
@@ -220,8 +221,9 @@ function AppTabView({
 }) {
   const setModel = useSetAtom(appTabsAtom);
   // Where the keyboard was in this tab, which it goes back to as the tab
-  // comes up, unless it is somewhere on screen by then (the tab strip's own
-  // arrows, a field a command opened).
+  // comes up, or the screen's home where it was nowhere yet, unless it is
+  // somewhere on screen by then (the tab strip's own arrows, a field a
+  // command opened).
   const lastFocused = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!isActive) {
@@ -236,8 +238,13 @@ function AppTabView({
         opacityProperty: true,
         visibilityProperty: true,
       });
-    if (!isOnScreen && kept?.isConnected) {
+    if (isOnScreen) {
+      return;
+    }
+    if (kept?.isConnected) {
       kept.focus({ preventScroll: true });
+    } else {
+      focusScreenHome({ leaving: false });
     }
   }, [isActive]);
   useEffect(() => {

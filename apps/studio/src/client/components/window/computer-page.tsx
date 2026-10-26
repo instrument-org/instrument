@@ -2508,6 +2508,7 @@ export function ComputerPage({
                 ) : null}
                 <FileSystem
                   className="h-full rounded-none border-0"
+                  keyboardHome
                   columnWidth={columnWidth}
                   contextMenuPath={
                     dropInto !== null && dropInto !== current

@@ -272,7 +272,36 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       </ChatColumn>
       {chat === undefined && <NoChatOpen onNew={shell.newDraft} />}
       {chat !== undefined && (
-        <main className="relative flex min-w-0 flex-1 flex-col">
+        <main
+          className="relative flex min-w-0 flex-1 flex-col"
+          // Escape in an empty composer goes back out to the chat's row in
+          // the list, ahead of the editor, which would take it to select
+          // what holds the caret. A composer with words in it keeps Escape.
+          onKeyDownCapture={(event) => {
+            const target = event.target;
+            if (
+              event.key !== "Escape" ||
+              event.altKey ||
+              event.ctrlKey ||
+              event.metaKey ||
+              event.shiftKey ||
+              event.defaultPrevented ||
+              !(target instanceof HTMLElement) ||
+              !target.isContentEditable ||
+              (target.textContent ?? "").trim() !== ""
+            ) {
+              return;
+            }
+            const row = document.querySelector<HTMLElement>(
+              "[data-app-tab-active] [data-chat-list] [data-open]",
+            );
+            if (!row?.checkVisibility()) {
+              return;
+            }
+            event.preventDefault();
+            row.focus();
+          }}
+        >
           <div className="flex min-h-0 flex-1">
             <div className="relative min-w-0 flex-1">
               <RightPane

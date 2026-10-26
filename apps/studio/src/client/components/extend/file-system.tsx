@@ -181,6 +181,8 @@ export type FileSystemItem = FileSystemFileItem | FileSystemFolderItem;
 export type FileSystemListColumn = "createdAt" | "kind" | "size" | "updatedAt";
 export type FileSystemProps = {
   className?: string;
+  /** Whether the screen showing the browser is worked from it, so the keyboard lands on it as the screen comes up (`keyboard-home.ts`). */
+  keyboardHome?: boolean;
   /**
    * How wide the columns view's columns are, in px, when the caller holds
    * it. Left out, the browser keeps its own, which lasts as long as this
@@ -1802,6 +1804,7 @@ export function FileSystem({
   className,
   columnWidth: columnWidthProp,
   contextMenuPath = null,
+  keyboardHome = false,
   defaultPath = "",
   defaultSearch = "",
   defaultSelectedPath,
@@ -3179,6 +3182,7 @@ export function FileSystem({
         className,
       )}
       data-find-surface
+      data-keyboard-home={keyboardHome ? "1" : undefined}
       data-slot="file-system"
       onClickCapture={dragArea.onClickCapture}
       onContextMenu={(event) => {

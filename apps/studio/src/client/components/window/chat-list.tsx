@@ -1,5 +1,6 @@
 import { type Draft } from "@/shared/drafts";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { keepKeyboardInList, letGoOfList } from "@/client/lib/keyboard-home";
 import { cn } from "@/client/lib/utils";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -221,7 +222,12 @@ export function ChatList({
   useLayoutEffect(() => {
     ref.current?.scrollTo({ top: 0 });
   }, [scrollSignal]);
-  const rows: { key: string; node: () => ReactNode }[] = drafts
+  const rows: {
+    key: string;
+    node: () => ReactNode;
+    /** Opens the row's chat beside the list; a draft's row has none. */
+    open?: () => void;
+  }[] = drafts
     ? byActivity(drafts).map((draft) => ({
         key: draft.id,
         node: () => (
@@ -240,6 +246,9 @@ export function ChatList({
       }))
     : byLastUserMessage(chats).map((chat) => ({
         key: chat.id,
+        open: () => {
+          handlers.current.onOpen(chat);
+        },
         node: () => (
           <ListedChat
             actionsFor={actionsFor}
@@ -289,6 +298,25 @@ export function ChatList({
     }
   });
   const isScrollable = useIsScrollable(ref, rows.length);
+  // The keyboard onto a row once it is drawn, which a row scrolled to may
+  // not be yet.
+  const focusRowWhenDrawn = (index: number) => {
+    let frames = 0;
+    const attempt = () => {
+      const row = listRef.current?.querySelector<HTMLElement>(
+        `[data-index="${index}"]`,
+      );
+      if (row) {
+        row.focus({ preventScroll: true });
+        return;
+      }
+      frames += 1;
+      if (frames < DRAW_WAIT_FRAMES) {
+        requestAnimationFrame(attempt);
+      }
+    };
+    attempt();
+  };
   return (
     // Fading into the search over it once there is anything scrolled under
     // it, and at its foot while there is more below. The top pad is the
@@ -298,6 +326,49 @@ export function ChatList({
         "min-h-0 flex-1 overflow-y-auto pt-1 pb-4",
         isScrollable && "scroll-fade-y",
       )}
+      data-chat-list
+      // After the composer of the chat open beside it.
+      data-keyboard-home="2"
+      // Up and down walk the rows, opening each chat as the keyboard passes
+      // it while the keyboard stays in the list; Return goes on into the
+      // chat's composer.
+      onKeyDown={(event) => {
+        const row =
+          event.target instanceof HTMLElement &&
+          event.target.dataset.index !== undefined
+            ? event.target
+            : null;
+        if (
+          !row ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey
+        ) {
+          return;
+        }
+        const at = Number(row.dataset.index);
+        if (event.key === "Enter") {
+          letGoOfList();
+          if (rows[at]?.open) {
+            focusComposerWhenDrawn();
+          }
+          return;
+        }
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+          return;
+        }
+        event.preventDefault();
+        const next = at + (event.key === "ArrowDown" ? 1 : -1);
+        const entry = rows[next];
+        if (!entry) {
+          return;
+        }
+        keepKeyboardInList(event.currentTarget);
+        entry.open?.();
+        virtualizer.scrollToIndex(next);
+        focusRowWhenDrawn(next);
+      }}
       ref={ref}
     >
       {rows.length === 0 ? (
@@ -348,6 +419,31 @@ export function ChatList({
       )}
     </div>
   );
+}
+
+/** How long a row or a composer has to be drawn before the keyboard is put on it, in frames. */
+const DRAW_WAIT_FRAMES = 30;
+
+/**
+ * The keyboard into the composer of the chat open beside the list, once it
+ * is drawn: the one already open, or the one Return just opened.
+ */
+function focusComposerWhenDrawn() {
+  let frames = 0;
+  const attempt = () => {
+    const words = document.querySelector<HTMLElement>(
+      '[data-app-tab-active] [data-keyboard-home="1"] [contenteditable="true"]',
+    );
+    if (words?.checkVisibility()) {
+      words.focus();
+      return;
+    }
+    frames += 1;
+    if (frames < DRAW_WAIT_FRAMES) {
+      requestAnimationFrame(attempt);
+    }
+  };
+  requestAnimationFrame(attempt);
 }
 
 /**

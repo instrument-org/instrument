@@ -19,6 +19,7 @@ import {
   openFindForKeyboard,
 } from "@/client/lib/find-targets";
 import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
+import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { runPageChord } from "@/client/lib/page-chords";
 import { commandKeyHeld, isLinux } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -270,18 +271,22 @@ export function useWindowCommands(
             }
             case "goToApps": {
               latest.current.goToPlace("apps");
+              focusScreenHome({ leaving: true });
               break;
             }
             case "goToBrowser": {
               latest.current.goToPlace("browser");
+              focusScreenHome({ leaving: true });
               break;
             }
             case "goToChat": {
               latest.current.goToPlace("chat");
+              focusScreenHome({ leaving: true });
               break;
             }
             case "goToFiles": {
               latest.current.goToPlace("files");
+              focusScreenHome({ leaving: true });
               break;
             }
             case "newChat": {

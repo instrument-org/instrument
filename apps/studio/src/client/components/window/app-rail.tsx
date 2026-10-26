@@ -12,6 +12,7 @@ import {
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { getInitials } from "@/client/lib/get-initials";
+import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
@@ -85,6 +86,10 @@ export function AppRail({
             label={entry.label}
             onChoose={(newTab) => {
               onChoose(entry.id, { newTab });
+              // A new tab hands the keyboard over as it comes up.
+              if (!newTab) {
+                focusScreenHome({ leaving: place !== entry.id });
+              }
             }}
             {...(entry.id === "chat" && onHoverChat
               ? { onHover: onHoverChat }
@@ -154,6 +159,12 @@ function RailEntry({
       }}
       onClick={(event) => {
         onChoose(wantsNewTab(event));
+      }}
+      // The press goes to the screen it brings up, never to the button.
+      onMouseDown={(event) => {
+        if (event.button === 0) {
+          event.preventDefault();
+        }
       }}
       onContextMenu={(event) => {
         event.preventDefault();

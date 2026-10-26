@@ -25,6 +25,7 @@ import {
   matchComposerCommands,
 } from "@/client/lib/app-commands";
 import { matchComposerActions } from "@/client/lib/composer-action-search";
+import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { baseKeymap, splitBlock } from "prosemirror-commands";
@@ -513,7 +514,8 @@ export function PromptEditor({
       }),
     });
     viewRef.current = view;
-    if (initialProps.autoFocus) {
+    // Not while the person walks a list with the arrows (`mayTakeKeyboard`).
+    if (initialProps.autoFocus && mayTakeKeyboard()) {
       view.focus();
     }
     return () => {

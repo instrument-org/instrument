@@ -41,6 +41,7 @@ import {
   type ComposerCommand,
   FEEDBACK_COMMAND_ALIASES,
 } from "@/client/lib/app-commands";
+import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import {
   type ModelAction,
@@ -194,6 +195,8 @@ interface PromptInputProps {
   /** What goes with the words besides files, drawn first in the row attached files land in: places marked in a file, say. */
   attachmentsLead?: React.ReactNode;
   autoFocus?: boolean;
+  /** Whether the screen showing the box is worked from it, so the keyboard lands in it as the screen comes up (`keyboard-home.ts`). */
+  keyboardHome?: boolean;
   /** Where the box stops growing and the draft starts scrolling. Defaults by variant; null leaves the cap to the host's layout. */
   autoResizeMaxHeight?: null | number;
   className?: string;
@@ -244,6 +247,7 @@ export const PromptInput = ({
   alwaysOpen,
   attachmentsLead,
   autoFocus = false,
+  keyboardHome = false,
   autoResizeMaxHeight,
   className,
   draftKey,
@@ -526,7 +530,9 @@ export const PromptInput = ({
   }, [transientDraftId]);
 
   useLayoutEffect(() => {
-    if (!autoFocus || !isActiveTab) {
+    // Not while the person walks a list with the arrows: each chat they pass
+    // opens with its composer, and the keyboard stays in the list.
+    if (!autoFocus || !isActiveTab || !mayTakeKeyboard()) {
       return;
     }
     promptEditorRef.current?.focus();
@@ -1061,7 +1067,10 @@ export const PromptInput = ({
   };
 
   return (
-    <div className={cn("relative flex flex-col", className)}>
+    <div
+      className={cn("relative flex flex-col", className)}
+      data-keyboard-home={keyboardHome ? "1" : undefined}
+    >
       {pillNote && (
         <div className="mb-2" data-slot="reply-note-slot">
           {pillNote}

@@ -1,6 +1,6 @@
 # Why the stopped-reply test fails on Linux CI
 
-**Status:** open · **Check after:** 2026-11-08, or the next CI failure of the test · **Last checked:** never
+**Status:** closed 2026-10-26 · **Check after:** 2026-11-08, or the next CI failure of the test · **Last checked:** 2026-10-26
 
 ## What we're waiting to learn
 
@@ -28,4 +28,4 @@ CI runs on main, the "Check and Test" job's workspace `test:ci` output.
 
 ## Result
 
-Open.
+Neither cause the signal named: the test's own wait. It waited for any text in the session before sending Stop, and the user's message and the session's context are text from the start, so on a slow runner Stop went out before the request had read a chunk and there were no words to write. A model stream held back 200 ms before its first chunk reproduced the failure every run, with the same CHAT.md and the same ~1.1 s. The wait now looks for the reply's own words. The product was never in question: a reply stopped before any words arrived has none to keep.

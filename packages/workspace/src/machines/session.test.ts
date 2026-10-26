@@ -1597,6 +1597,8 @@ describe("sessionMachine", () => {
     stream.push({ id: "1", type: "text-start" });
     stream.push({ delta: "Half of the answer", id: "1", type: "text-delta" });
     // Held by the turn, which every read sees and nothing has written yet.
+    // The reply's own words: the user's message and the session's context
+    // are text too, and are there before the request has read a chunk.
     await vi.waitFor(async () => {
       const messages = await ChatReads.transcript({
         chatId: result.chatId,
@@ -1605,8 +1607,12 @@ describe("sessionMachine", () => {
       expect(
         messages
           ._unsafeUnwrap()
+          .filter((message) => message.role === "assistant")
           .flatMap((message) => message.parts)
-          .some((part) => part.type === "text" && part.text.length > 0),
+          .some(
+            (part) =>
+              part.type === "text" && part.text.includes("Half of the answer"),
+          ),
       ).toBe(true);
     });
 

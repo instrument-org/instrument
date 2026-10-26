@@ -16,8 +16,10 @@ const offers = new Map<string, number | string>();
 export function toastWithUndo(
   message: string,
   offer: null | { journalIds: readonly string[]; undo: () => void },
+  { description }: { description?: string } = {},
 ) {
   const toastId = toast(message, {
+    description,
     action:
       offer === null
         ? undefined

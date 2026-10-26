@@ -80,6 +80,11 @@ function comparable(name: string): string {
   return name.normalize("NFC");
 }
 
+/** The chat the `CHAT.md` in `folder` names, if it has one of ours. */
+export function chatLinkedInFolder(folder: string): ChatId | undefined {
+  return chatLinkedInFileSync(path.join(folder, CHAT_FILE_NAME));
+}
+
 function chatLinkedInFileSync(file: string): ChatId | undefined {
   let handle: number | undefined;
   try {

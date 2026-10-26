@@ -12,7 +12,11 @@ import {
 } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { WINDOW_ID } from "../schemas/window-id";
-import { chatFolderNames, folderLinkedTo } from "./chat-folders/own-folder";
+import {
+  chatFolderNames,
+  chatLinkedInFolder,
+  folderLinkedTo,
+} from "./chat-folders/own-folder";
 import { parseRecordFileName } from "./records/file-names";
 import { TypedError } from "./errors";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -191,6 +195,21 @@ export function chatOwnFolder(chatFolder: string): AbsolutePath | undefined {
   return own === undefined
     ? undefined
     : AbsolutePathSchema.parse(path.join(chats, own));
+}
+
+/**
+ * The chat whose own folder `at` is: a folder whose `CHAT.md` names a chat
+ * that is still there and that the chat takes as its own (`chatOwnFolder`).
+ * A copy of one names the chat too and is only files, so it has none.
+ */
+export function chatOfOwnFolder(at: string): ChatId | undefined {
+  const named = chatLinkedInFolder(at);
+  const id = named && resolveChat(named);
+  const own = id && chatOwnFolder(chatDir(id));
+  const comparable = (each: string) => path.resolve(each).normalize("NFC");
+  return own !== undefined && comparable(own) === comparable(at)
+    ? id
+    : undefined;
 }
 
 /**

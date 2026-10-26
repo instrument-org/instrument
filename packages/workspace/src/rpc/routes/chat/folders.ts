@@ -5,6 +5,7 @@ import { folderReach } from "../../../lib/chat/folder-reach";
 import { recordChanges } from "../../../lib/record-changes";
 import {
   chatDir,
+  chatOfOwnFolder,
   chatOwnFolder,
   resolveChat,
 } from "../../../lib/record-folders";
@@ -67,6 +68,20 @@ export const liveChatOwnFolder = base
       }),
     );
   });
+
+/**
+ * Which of `paths` are a chat's own folder (`chatOfOwnFolder`), with the
+ * chat each is. Files asks before trashing, to offer deleting the chat.
+ */
+export const chatsOfFolders = base
+  .input(z.object({ paths: z.array(z.string()) }))
+  .output(z.array(z.object({ id: ChatIdSchema, path: z.string() })))
+  .handler(({ input }) =>
+    input.paths.flatMap((at) => {
+      const id = chatOfOwnFolder(at);
+      return id === undefined ? [] : [{ id, path: at }];
+    }),
+  );
 
 async function reachedFolders(chatId: ChatId) {
   return Object.fromEntries(

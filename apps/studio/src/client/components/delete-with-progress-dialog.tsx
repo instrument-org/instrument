@@ -19,6 +19,10 @@ import {
 import { Spinner } from "./ui/spinner";
 
 interface DeleteWithProgressDialogProps<T> {
+  /** The delete button's label, Move to Trash unless given. */
+  actionLabel?: string;
+  /** A second way out beside Cancel, which closes the dialog and runs. */
+  alternative?: { label: string; onSelect: () => void };
   content?: ReactNode;
   description: string;
   items: T[];
@@ -30,6 +34,8 @@ interface DeleteWithProgressDialogProps<T> {
 }
 
 export function DeleteWithProgressDialog<T>({
+  actionLabel,
+  alternative,
   content,
   description,
   items,
@@ -63,6 +69,8 @@ export function DeleteWithProgressDialog<T>({
       >
         {bodyVisible && (
           <DeleteWithProgressDialogBody
+            actionLabel={actionLabel}
+            alternative={alternative}
             content={content}
             description={description}
             items={items}
@@ -81,6 +89,8 @@ export function DeleteWithProgressDialog<T>({
 }
 
 function DeleteWithProgressDialogBody<T>({
+  actionLabel,
+  alternative,
   content,
   description,
   items,
@@ -165,6 +175,15 @@ function DeleteWithProgressDialogBody<T>({
       </AlertDialogHeader>
       <AlertDialogFooter>
         <AlertDialogCancel>Cancel</AlertDialogCancel>
+        {alternative && (
+          <AlertDialogCancel
+            onClick={() => {
+              alternative.onSelect();
+            }}
+          >
+            {alternative.label}
+          </AlertDialogCancel>
+        )}
         <AlertDialogAction
           onClick={async (e) => {
             e.preventDefault();
@@ -172,7 +191,7 @@ function DeleteWithProgressDialogBody<T>({
           }}
           variant="destructive"
         >
-          Move to {trashTerminology}
+          {actionLabel ?? `Move to ${trashTerminology}`}
         </AlertDialogAction>
       </AlertDialogFooter>
     </>

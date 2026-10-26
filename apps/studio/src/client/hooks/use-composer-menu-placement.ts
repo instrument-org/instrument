@@ -101,14 +101,16 @@ export function useComposerMenuPlacement({
         roomBelow >= maxHeight * zoom || roomBelow >= box.top
           ? "bottom"
           : "top";
-      const width = Math.min(
-        Math.max(box.width, minWidth * zoom),
-        window.innerWidth - 2 * gap,
-      );
-      const left = Math.max(
-        gap,
-        Math.min(box.left, window.innerWidth - gap - width),
-      );
+      // A composer at least as wide as the menu's minimum sets its width and
+      // edge as they are; only a menu wider than the composer is kept off the
+      // window's edges.
+      const widened = minWidth * zoom > box.width;
+      const width = widened
+        ? Math.min(minWidth * zoom, window.innerWidth - 2 * gap)
+        : box.width;
+      const left = widened
+        ? Math.max(gap, Math.min(box.left, window.innerWidth - gap - width))
+        : box.left;
       const next: ComposerMenuPlacement = {
         alignOffset: left - anchorBox.left,
         side,

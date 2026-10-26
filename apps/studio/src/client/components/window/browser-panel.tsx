@@ -127,6 +127,10 @@ import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "@/client/lib/toast";
 
+/** How many times a page on screen is opened inside `AUTO_OPEN_WINDOW_MS` before its crashing is shown instead. */
+const AUTO_OPENS = 3;
+const AUTO_OPEN_WINDOW_MS = 30_000;
+
 /**
  * A page of the in-app browser, hosted in the artifact panel. The guest `<webview>`
  * lives in the body-mounted pool; {@link useBrowserSlot} measures a slot and
@@ -308,29 +312,47 @@ export function BrowserPanel({
     rpcClient.workspace.browser.open.mutationOptions(),
   );
 
-  // Targets this panel has already auto-opened while on screen, so a guest
-  // that goes while the page is up (a crash) is not re-created in a loop:
-  // the user re-opens it with the "Reopen browser" button. A guest discarded
-  // while the page was off screen comes back by itself, since leaving the
-  // screen forgets the open.
-  const autoOpenedRef = useRef<Set<BrowserTargetId>>(new Set());
-  useEffect(() => {
-    if (active || autoOpenedRef.current.has(targetId)) {
-      return;
-    }
-    autoOpenedRef.current.add(targetId);
+  // The target whose page crashed again each time it was opened, so the
+  // panel stopped opening it and says so; stamped like `failure`.
+  const [crashed, setCrashed] = useState<BrowserTargetId | null>(null);
+  // The guest comes up at the address the tab remembers, which a guest that
+  // was discarded or crashed no longer has.
+  const openHere = () => {
+    setCrashed(null);
     openBrowser({
       targetId,
       ...(restoreUrl && restoreUrl !== "about:blank" ? { restoreUrl } : {}),
     });
-    // Once per target: the address is only where a blank guest goes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, openBrowser, targetId]);
+  };
+  // A page on screen with no guest gets one, and only a page on screen does,
+  // so a guest discarded out of sight stays gone until its page is shown
+  // again. A guest can only go while its page is drawn by crashing, and one
+  // that crashes again each time it opens would open forever, so after
+  // `AUTO_OPENS` opens inside `AUTO_OPEN_WINDOW_MS` the panel stops and shows
+  // the crash. Leaving the screen forgets the opens.
+  const autoOpensRef = useRef(new Map<BrowserTargetId, number[]>());
   useEffect(() => {
+    const opens = autoOpensRef.current;
     if (!isVisible) {
-      autoOpenedRef.current.delete(targetId);
+      opens.delete(targetId);
+      return;
     }
-  }, [isVisible, targetId]);
+    if (active) {
+      return;
+    }
+    const at = performance.now();
+    const recent = (opens.get(targetId) ?? []).filter(
+      (openedAt) => at - openedAt < AUTO_OPEN_WINDOW_MS,
+    );
+    if (recent.length >= AUTO_OPENS) {
+      setCrashed(targetId);
+      return;
+    }
+    opens.set(targetId, [...recent, at]);
+    openHere();
+    // The address is only where a blank guest goes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, isVisible, openBrowser, targetId]);
 
   // Track main-frame load failures so we can show a light error state.
   const guest = useGuest(active ? targetId : null);
@@ -464,11 +486,11 @@ export function BrowserPanel({
   }, [guest, targetId]);
 
   // Focus the URL bar on a blank page ONLY when this panel opened the browser
-  // (autoOpenedRef), i.e. a user-initiated open, so they can type immediately.
+  // (autoOpensRef), i.e. a user-initiated open, so they can type immediately.
   // For an agent-initiated open we must not steal focus: a focused bar reads as
   // "user editing" and would block the agent's navigation from syncing into it.
   useEffect(() => {
-    if (!active || !focusAddress || !autoOpenedRef.current.has(targetId)) {
+    if (!active || !focusAddress || !autoOpensRef.current.has(targetId)) {
       return;
     }
     const url = getGuest(targetId)?.url();
@@ -1132,34 +1154,16 @@ export function BrowserPanel({
           )}
         </div>
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
+        <div className="relative flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
           {openStatus === "error" ? (
             <>
               <span>Couldn’t open the browser.</span>
-              <Button
-                onClick={() => {
-                  openBrowser({
-                    targetId,
-                  });
-                }}
-                size="sm"
-                variant="outline"
-              >
+              <Button onClick={openHere} size="sm" variant="outline">
                 Try again
               </Button>
             </>
-          ) : openStatus === "success" ? (
-            <Button
-              onClick={() => {
-                openBrowser({
-                  targetId,
-                });
-              }}
-              size="sm"
-              variant="outline"
-            >
-              Reopen browser
-            </Button>
+          ) : crashed === targetId ? (
+            <CrashedPageNotice onReload={openHere} />
           ) : (
             // Most pages open well inside a beat, and a line flashed up and
             // away for them reads as a flicker rather than as progress.
@@ -1187,6 +1191,27 @@ function PageLease({ targetId }: { targetId: BrowserTargetId }) {
     }),
   );
   return null;
+}
+
+/** What the panel says over a page that crashed each time it was opened, the way a browser says it over a crashed tab. */
+function CrashedPageNotice({ onReload }: { onReload: () => void }) {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card p-6 text-center">
+      <WarningCircleIcon className="size-8 text-muted-foreground" />
+      <div className="max-w-md space-y-1.5">
+        <p className="text-base font-medium text-foreground">
+          This page crashed
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Something went wrong while showing it. Reloading usually brings it
+          back.
+        </p>
+      </div>
+      <Button onClick={onReload} size="sm" variant="outline">
+        Reload
+      </Button>
+    </div>
+  );
 }
 
 /**

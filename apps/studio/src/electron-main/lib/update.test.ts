@@ -255,14 +255,15 @@ function stageOnLinux(
     throw new Error("createStudioAppUpdater built no updater");
   }
   const updaterPort = port;
-  updaterPort.subscribe({
+  const handlers = {
     available: vi.fn(),
     canceled: vi.fn(),
     downloaded: vi.fn(),
     failed: vi.fn(),
     notAvailable: vi.fn(),
     progress: vi.fn(),
-  });
+  };
+  updaterPort.subscribe(handlers);
   const downloaded = autoUpdater.on.mock.calls.findLast(
     ([event]) => event === "update-downloaded",
   )?.[1];
@@ -275,7 +276,11 @@ function stageOnLinux(
     version: "2.0.0",
   });
   const quit = app.on.mock.calls.findLast(([event]) => event === "quit")?.[1];
-  return { install: () => updaterPort.install(), quit: () => quit?.() };
+  return {
+    downloaded: handlers.downloaded,
+    install: () => updaterPort.install(),
+    quit: () => quit?.(),
+  };
 }
 
 describe("installing a staged Linux update", () => {
@@ -372,36 +377,34 @@ describe("installing a staged Linux update", () => {
   // electron-updater's download lands first, then Squirrel fetches and unpacks
   // it again, deleting the build it staged before; a quit in between relaunches
   // the version that was running.
-  it("waits on macOS for Squirrel to stage a build that replaced the one it had", () => {
-    vi.mocked(os.platform).mockReturnValue("darwin");
-    stageOnLinux("", stagedArtifact("Instrument-2.0.0-mac.zip", "zip"));
-    emitNative("update-downloaded");
-    const downloaded = autoUpdater.on.mock.calls.findLast(
-      ([event]) => event === "update-downloaded",
-    )?.[1];
-    downloaded?.({ downloadedFile: "/cache/pending/Instrument-2.0.1-mac.zip" });
-    if (!port) {
-      throw new Error("createStudioAppUpdater built no updater");
-    }
-
-    port.install();
-    expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
-
-    emitNative("update-downloaded");
-    expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce();
-  });
-
-  it("drops a held macOS install when Squirrel fails", () => {
+  it("reports a macOS download only once Squirrel has staged it, and refuses to install before", () => {
     vi.mocked(os.platform).mockReturnValue("darwin");
     const staged = stageOnLinux(
       "",
       stagedArtifact("Instrument-2.0.0-mac.zip", "zip"),
     );
 
-    staged.install();
+    expect(staged.downloaded).not.toHaveBeenCalled();
+    expect(() => staged.install()).toThrow("still getting the update ready");
+    expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+
+    emitNative("update-downloaded");
+    expect(staged.downloaded).toHaveBeenCalledOnce();
+    expect(staged.downloaded.mock.calls[0]?.[0]).toMatchObject({
+      version: "2.0.0",
+    });
+  });
+
+  it("drops a macOS download Squirrel failed to stage", () => {
+    vi.mocked(os.platform).mockReturnValue("darwin");
+    const staged = stageOnLinux(
+      "",
+      stagedArtifact("Instrument-2.0.0-mac.zip", "zip"),
+    );
+
     emitNative("error");
     emitNative("update-downloaded");
 
-    expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+    expect(staged.downloaded).not.toHaveBeenCalled();
   });
 });

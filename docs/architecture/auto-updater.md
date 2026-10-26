@@ -61,15 +61,15 @@ The waiter reports _why_ it woke, and that reason cannot be recovered afterwards
 
 ### When the newer download fails
 
-Nothing is installable, and the UI says so. The old artifact was deleted when the newer download started, so there is no fallback to offer — a retry keeps chasing the newer build rather than running an installer that is no longer on disk. On macOS the previous build does survive in Squirrel's own staging directory and will apply on quit, but we deliberately do not advertise it: understating what is available is safe, overstating it is not.
+Nothing is installable, and the UI says so. The old artifact was deleted when the newer download started, so there is no fallback to offer — a retry keeps chasing the newer build rather than running an installer that is no longer on disk. On macOS the previous build survives in Squirrel's own staging directory only until electron-updater hands Squirrel the newer zip, so we never advertise it: understating what is available is safe, overstating it is not.
 
-## Why the staged build can still be behind on macOS
+## Downloaded means staged by Squirrel on macOS
 
-electron-updater's `MacUpdater` hands each completed download to Squirrel immediately (`autoInstallOnAppQuit` defaults to true) and tracks it with a `squirrelDownloadedUpdate` latch that is never cleared. Once Squirrel has staged something, it applies on quit whether or not we asked.
+electron-updater's `MacUpdater` hands each completed download to Squirrel immediately (`autoInstallOnAppQuit` defaults to true): it emits `update-downloaded` once the zip is in its cache, then Squirrel fetches it again through a local proxy and unpacks it. Starting that fetch deletes whatever Squirrel unpacked before. `MacUpdater` tracks Squirrel's part with a `squirrelDownloadedUpdate` latch that is never cleared, so after a first staging `quitAndInstall` calls straight through, and a quit before Squirrel finishes leaves ShipIt with no bundle: it relaunches the version that was running ([the finding](../findings/update-check-un-stages-the-macos-build.md)).
 
-That the latch is sticky is also what makes a lost staging silent: it stays true across a later download pass that restarted Squirrel from zero, so `quitAndInstall` calls straight through and the app quits with nothing to apply.
+So on macOS `update.ts` holds electron-updater's `update-downloaded` back and reports it to the updater on Electron's own `autoUpdater` `update-downloaded`, Squirrel's signal. `staged` therefore means installable on every platform, a superseding download is waited out through Squirrel's part too, under the same deadline, and a Squirrel error reaches the user through electron-updater's `error`. `installStagedUpdate` refuses outright if Squirrel still has a handed-over build in progress, which the gating makes unreachable.
 
-We cannot un-stage it deliberately. What we can do is never _offer_ it: the pre-install check means an explicit install always reflects the newest known build. The remaining exposure is quitting the app during the window where a newer build is still downloading, which applies the older Squirrel-staged one. That is self-healing (the next launch immediately finds and downloads the newer build) and it is still an upgrade over what was running, so it is accepted rather than worked around.
+Quitting the app while a newer build is still downloading applies the older Squirrel-staged one if Squirrel has not been handed the newer zip yet, and nothing if it has. Both are self-healing (the next launch finds and downloads the newer build again).
 
 Windows and Linux have no equivalent survival: `pending/` is already empty by then, so an on-quit install in that window fails harmlessly instead of installing something stale.
 

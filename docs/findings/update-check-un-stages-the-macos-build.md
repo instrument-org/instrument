@@ -1,6 +1,6 @@
 # A macOS update check un-stages the build it just confirmed
 
-**Status:** resolved in `create-app-updater.ts` (a check downloads only when nothing is staged), with `createAutoUpdaterLogger` in `update.ts`; guidance for anything that calls `autoUpdater.checkForUpdates()`. Recorded 2026-07-31; checked 2026-10-02.
+**Status:** resolved in `create-app-updater.ts` (a check downloads only when nothing is staged) and `update.ts` (on macOS a download is reported only once Squirrel.Mac has staged it), with `createAutoUpdaterLogger` in `update.ts`; guidance for anything that calls `autoUpdater.checkForUpdates()`. Recorded 2026-07-31; checked 2026-10-26.
 
 ## Symptom
 
@@ -30,10 +30,23 @@ The user's log reads as a clean reproduction, one process per boot:
 
 The second attempt gave Squirrel about eleven seconds before the same teardown and won.
 
+## The same gap, through a newer build
+
+Gating the check closed the re-download of a staged build, but not a newer build replacing it. With 2.0.0-beta.107 staged by a poll, clicking Install found beta.108 on the pre-install check, downloaded it, and installed on electron-updater's `update-downloaded`. Squirrel began fetching 108 and, in starting, deleted the bundle it had unpacked for 107. `squirrelDownloadedUpdate` was still true from 107, since it is never cleared, so `quitAndInstall()` quit at once instead of parking. The ShipIt process waiting since 107 was staged then ran:
+
+```
+16:46:04.307  <hash>.zip requested by Squirrel.Mac, pipe .../Instrument-2.0.0-beta.108-arm64-mac.zip
+16:46:04.373  Quitting to install the staged update
+16:46:05.309  ShipIt: Update bundle .../update.SUypIYp/Instrument.app no longer exists, aborting update
+16:46:05.350  ShipIt: Successfully launched application at file:///Applications/Instrument.app/
+```
+
+So the app reports a macOS download to the updater only on Squirrel's own `update-downloaded` (Electron's `autoUpdater`, which `MacUpdater` wraps and anyone can listen to). The updater already waits out a superseding download with a deadline and handles its failure; Squirrel's part is now inside that wait instead of after it.
+
 ## Guidance
 
 - **Never re-run the download pass for a build that is already staged.** A check is only allowed to download when there is something to fetch: nothing staged yet, or a version strictly newer than what is on disk. Scope `autoDownload` to the individual check rather than setting it once — electron-updater reads it synchronously inside `doCheckForUpdates`, so setting it around the awaited call is enough — and call `downloadUpdate()` explicitly when a check that was held back does find something newer.
-- **"Downloaded" is not "ready to install" on macOS.** Our `update-downloaded` fires when electron-updater has the artifact and the proxy is up; Squirrel has not staged anything yet. Nothing outside `MacUpdater` can observe that flag, so treat the gap as real and never do anything that disturbs the proxy while it might be open. `quitAndInstall()` handles the gap on its own by parking on the native event, but only if the server it is streaming from stays up.
+- **"Downloaded" is not "ready to install" on macOS.** electron-updater's `update-downloaded` fires when it has the artifact and the proxy is up; Squirrel has not staged anything yet. Electron's own `autoUpdater` emits `update-downloaded` when Squirrel has, and that is the event that means installable. Never trust `quitAndInstall()` to park on it: `squirrelDownloadedUpdate` is never cleared, so after a first staging it calls straight through whatever Squirrel is doing.
 - **A cached artifact still costs a full restage.** `executeDownload` returning early is not a fast path in any sense that matters here; it reaches the same `done()` hook. Cheap-looking checks are not cheap once a build is staged.
 - **Keep electron-updater's debug output.** The proxy lifecycle and the native `update-downloaded` event are logged at `debug`, which the production file transport drops, so the one signal that says whether Squirrel ever staged the build was invisible. `createAutoUpdaterLogger` routes them to `info` for this reason; a handful of lines per download buys a diagnosable failure.
 - **Builds carrying the bug cannot be fixed from the feed.** The broken code runs in the version being upgraded *from*, so anything released while it is in the field may need a second click to take. That is the argument for shipping the fix quickly rather than for shipping it cleverly.

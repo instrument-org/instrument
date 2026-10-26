@@ -41,14 +41,14 @@ const MACOS_INTEL_CHANNEL = "latest-x64";
 // install also hands it to dpkg itself.
 let staged: undefined | { file: string; info: UpdateInfo };
 
-// macOS only. electron-updater's `update-downloaded` means the zip is in its
-// cache; Squirrel.Mac then fetches it again through a local proxy and unpacks
-// it, and only its own `update-downloaded` means there is a build to install.
-// Starting that fetch deletes the build Squirrel unpacked before, while
-// electron-updater's flag for "Squirrel has it" stays true from that earlier
-// build, so quitting in between relaunches the old version.
-let squirrelStaged = false;
-let installWhenSquirrelStaged = false;
+// macOS only: the download electron-updater has finished and handed to
+// Squirrel.Mac, which Squirrel has not staged yet. electron-updater's
+// `update-downloaded` means the zip is in its cache; Squirrel then fetches it
+// again through a local proxy and unpacks it, and starting that fetch deletes
+// the build it staged before. Only Squirrel's own `update-downloaded` means
+// there is a build to install, while electron-updater's flag for it stays true
+// from the earlier one, so a quit in between relaunches the running version.
+let awaitingSquirrel: undefined | UpdateInfo;
 
 export function createStudioAppUpdater({
   confirmQuit,
@@ -75,23 +75,6 @@ export function createStudioAppUpdater({
   // Registered before electron-updater adds its own, which it does once a
   // download finishes, so this runs first on the same quit.
   app.on("quit", checkBeforeInstallOnQuit);
-  if (os.platform() === "darwin") {
-    nativeUpdater.on("update-downloaded", () => {
-      squirrelStaged = true;
-      if (installWhenSquirrelStaged) {
-        installWhenSquirrelStaged = false;
-        scopedLogger.info(
-          "Squirrel.Mac staged the update, quitting to install",
-        );
-        autoUpdater.quitAndInstall();
-      }
-    });
-    // A Squirrel failure reaches the user through electron-updater's `error`;
-    // the install it was holding must not fire on some later download.
-    nativeUpdater.on("error", () => {
-      installWhenSquirrelStaged = false;
-    });
-  }
 
   const port: UpdaterPort = {
     checkForUpdates: async ({ download }) => {
@@ -119,6 +102,8 @@ export function createStudioAppUpdater({
     isActive: () =>
       APP_FLAVOR.kind !== "preview" && autoUpdater.isUpdaterActive(),
     subscribe: (handlers) => {
+      const macOS = os.platform() === "darwin";
+      let handedToSquirrel: undefined | UpdateInfo;
       autoUpdater.on("download-progress", handlers.progress);
       autoUpdater.on("error", handlers.failed);
       autoUpdater.on("update-available", handlers.available);
@@ -129,12 +114,31 @@ export function createStudioAppUpdater({
         // cache-directory name, which the app and the build it is updating from
         // do not always agree on.
         staged = { file: event.downloadedFile, info: event };
-        // electron-updater hands Squirrel.Mac this artifact right after this
-        // event, so whatever Squirrel staged before is about to be replaced.
-        squirrelStaged = false;
+        if (macOS) {
+          // Reported once Squirrel.Mac has it, so the updater waits out
+          // Squirrel's part of the download exactly as it waits out the rest.
+          awaitingSquirrel = event;
+          handedToSquirrel = event;
+          return;
+        }
         handlers.downloaded(event);
       });
       autoUpdater.on("update-not-available", handlers.notAvailable);
+      if (macOS) {
+        nativeUpdater.on("update-downloaded", () => {
+          const info = handedToSquirrel;
+          handedToSquirrel = undefined;
+          awaitingSquirrel = undefined;
+          if (info) {
+            handlers.downloaded(info);
+          }
+        });
+        // electron-updater reports Squirrel's errors as its own `error`.
+        nativeUpdater.on("error", () => {
+          handedToSquirrel = undefined;
+          awaitingSquirrel = undefined;
+        });
+      }
     },
   };
 
@@ -398,10 +402,13 @@ function installStagedUpdate() {
       `The update ${APP_NAME} downloaded doesn't match the one that was published, so it wasn't installed. Check for updates to download it again.`,
     );
   }
-  if (os.platform() === "darwin" && !squirrelStaged) {
-    scopedLogger.info("Waiting for Squirrel.Mac to stage the update");
-    installWhenSquirrelStaged = true;
-    return;
+  // Unreachable while the updater reports a download only once Squirrel.Mac
+  // has staged it, and kept so a path that hands Squirrel a build without
+  // clearing what was staged fails loudly rather than relaunching this version.
+  if (awaitingSquirrel) {
+    throw new Error(
+      `${APP_NAME} is still getting the update ready. Try again in a moment.`,
+    );
   }
   if (!installedFromDeb()) {
     autoUpdater.quitAndInstall();

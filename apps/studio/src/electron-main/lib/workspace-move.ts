@@ -235,7 +235,7 @@ function hasOtherFiles(dir: string) {
  * the move makes: in a folder that is there and can be written to, and
  * anywhere `checkPlace` allows.
  */
-export function checkNewFolderTarget({
+function checkNewFolderTarget({
   target,
   temporaryDirs = systemTemporaryDirs(),
   userDataDir,

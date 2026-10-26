@@ -119,7 +119,7 @@ function LoginModalContent({
   return (
     <DialogContent
       aria-describedby={undefined}
-      className="flex w-full flex-col gap-0 overflow-hidden bg-background p-0 shadow-2xl outline-none focus:outline-none focus-visible:outline-none"
+      className="flex w-full flex-col gap-0 overflow-hidden bg-background p-0 outline-none focus:outline-none focus-visible:outline-none"
       maxWidth={isSheet ? "560px" : "760px"}
       onExitComplete={onExitComplete}
       // Radix auto-focuses the first focusable element on open, painting a

@@ -143,9 +143,29 @@ const noTransitionColors = defineRule({
 });
 
 // A class list that floats (`fixed`, or the popover surface) wearing the shared
-// ramp's ringed shadow, whose dark-mode hairline is translucent white.
+// ramp's ringed shadow, whose dark-mode hairline is translucent white. A class
+// handed to an overlay primitive's content floats too, and `cn` lets its
+// shadow replace the primitive's own.
 const floatingSurface = /(?:^|\s)(?:fixed|bg-popover)(?:\s|$)/;
 const sharedRingShadow = /(?:^|\s)shadow-(?:xs|sm|md|lg|xl|2xl|3xl)(?:\s|$)/;
+const floatingContent = /^(?:AlertDialog|Dialog|Popover|Sheet)Content$/;
+
+function isFloatingContentClass(node: ESTree.Node): boolean {
+  const attribute = node.parent;
+  if (
+    attribute?.type !== "JSXAttribute" ||
+    attribute.name.type !== "JSXIdentifier" ||
+    attribute.name.name !== "className"
+  ) {
+    return false;
+  }
+  const element = attribute.parent;
+  return (
+    element?.type === "JSXOpeningElement" &&
+    element.name.type === "JSXIdentifier" &&
+    floatingContent.test(element.name.name)
+  );
+}
 
 const noSharedShadowOnFloat = defineRule({
   create(context) {
@@ -153,7 +173,7 @@ const noSharedShadowOnFloat = defineRule({
       Literal(node) {
         if (
           typeof node.value === "string" &&
-          floatingSurface.test(node.value) &&
+          (floatingSurface.test(node.value) || isFloatingContentClass(node)) &&
           sharedRingShadow.test(node.value)
         ) {
           context.report({ messageId: "sharedShadowOnFloat", node });

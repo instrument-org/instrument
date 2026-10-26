@@ -40,7 +40,7 @@ const ramps: { description: string; levels: Level[]; title: string }[] = [
         name: "xl",
         usedBy: "The inbox peek, drop targets",
       },
-      { className: "shadow-2xl", name: "2xl", usedBy: "The sign-in modal" },
+      { className: "shadow-2xl", name: "2xl" },
       { className: "shadow-3xl", name: "3xl" },
     ],
     title: "With a ring",

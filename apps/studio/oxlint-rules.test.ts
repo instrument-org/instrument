@@ -45,3 +45,25 @@ new RuleTester({
     `console.log("Opened " + "Quick Look");`,
   ],
 });
+
+const shadowRule = plugin.rules["no-shared-shadow-on-float"];
+if (!shadowRule) {
+  throw new Error("The plugin has no studio/no-shared-shadow-on-float rule");
+}
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "tsx" } },
+}).run("no-shared-shadow-on-float", shadowRule, {
+  invalid: [
+    `const c = "fixed inset-0 shadow-lg";`,
+    `const c = "rounded-md bg-popover shadow-md";`,
+    `const c = <DialogContent className="p-0 shadow-2xl" />;`,
+    `const c = <AlertDialogContent className="shadow-xl" />;`,
+  ].map((code) => ({ code, errors: [{ messageId: "sharedShadowOnFloat" }] })),
+  valid: [
+    `const c = "fixed inset-0 shadow-float-lg";`,
+    `const c = "rounded-md border shadow-xs";`,
+    `const c = <DialogContent className="p-0 shadow-float-lg" />;`,
+    `const c = <div className="p-0 shadow-2xl" />;`,
+  ],
+});

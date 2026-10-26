@@ -68,7 +68,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
  * rather than fitted to the list, so moving between connections does not
  * resize the panel under the pointer.
  */
-const PANEL_WIDTH = "42.5rem";
+const PANEL_WIDTH_REM = 42.5;
+const PANEL_WIDTH = `${String(PANEL_WIDTH_REM)}rem`;
 const PANEL_HEIGHT_REM = 32.5;
 const PANEL_HEIGHT = `${String(PANEL_HEIGHT_REM)}rem`;
 /** The narrower panel shown while there is nothing to pick. */
@@ -153,6 +154,7 @@ export function ModelPicker({
     anchorRef,
     bounds: bounds ?? null,
     maxHeight: PANEL_HEIGHT_REM * 16,
+    minWidth: PANEL_WIDTH_REM * 16,
     open: isOpen,
   });
   const hangsOff = bounds != null;

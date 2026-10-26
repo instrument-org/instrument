@@ -136,7 +136,12 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { spokenMessage, toast } from "@/client/lib/toast";
-import { giveKeyboardTo, onPageEdge } from "@/client/lib/browser-pool";
+import {
+  drivePage,
+  giveKeyboardTo,
+  onPageEdge,
+  pageHasLayer,
+} from "@/client/lib/browser-pool";
 
 import { useWindow } from "./context";
 import { PlaceMenu } from "./place-menu";
@@ -1587,10 +1592,56 @@ export function ComputerPage({
       keyboardInPage.current = false;
       giveKeyboardTo(besidePage);
     }
-    return onPageEdge(besidePage, (direction) => {
-      keyboardInPage.current = fileSystemRef.current?.step(direction) === true;
+    return onPageEdge(besidePage, (edge) => {
+      if (edge === "escape") {
+        fileSystemRef.current?.focusSelection();
+        return;
+      }
+      keyboardInPage.current = fileSystemRef.current?.step(edge) === true;
     });
   }, [besidePage]);
+  // With the keyboard in the folder, the page beside it is driven from
+  // here, the way a remote drives a screen: Space and ⇧Space page through
+  // it, and Escape closes what the page has open before it puts the file
+  // away. The arrows' share is the listing's (`onArrowBesideFile`). Caught
+  // on the way down, ahead of the file's own Escape.
+  useEffect(() => {
+    if (besidePage === undefined || !isActiveTab) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      const inFolder =
+        event.target instanceof Node &&
+        frameRef.current?.contains(event.target) === true;
+      if (
+        !inFolder ||
+        event.defaultPrevented ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        isTypingTarget(event.target)
+      ) {
+        return;
+      }
+      if (event.key === " ") {
+        event.preventDefault();
+        drivePage(besidePage, { by: event.shiftKey ? -1 : 1, type: "scroll" });
+        return;
+      }
+      if (
+        event.key === "Escape" &&
+        !event.shiftKey &&
+        pageHasLayer(besidePage)
+      ) {
+        event.preventDefault();
+        drivePage(besidePage, { type: "close-layer" });
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [besidePage, isActiveTab]);
   // Beside a file, everything picked by where it is: the folder on screen
   // leaves out the folder the columns stand in, which is still a pick.
   const pickedBeside = selectedItems.flatMap((item): ChosenItem[] => {
@@ -2543,8 +2594,12 @@ export function ComputerPage({
                   onLeaveRoot={isRecents ? undefined : leaveRoot}
                   {...(besidePage
                     ? {
-                        onKeyIntoFile: () => {
-                          giveKeyboardTo(besidePage);
+                        onArrowBesideFile: (direction) => {
+                          drivePage(besidePage, {
+                            key:
+                              direction === "left" ? "ArrowLeft" : "ArrowRight",
+                            type: "key",
+                          });
                           return true;
                         },
                       }

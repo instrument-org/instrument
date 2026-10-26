@@ -300,11 +300,11 @@ export type FileSystemProps = {
    */
   onLeaveRoot?: () => void;
   /**
-   * → on the one file selected, where the view has nowhere further to go:
-   * the keyboard into what shows the file beside the folder. True when it
-   * went; left out, or false, → is the view's alone.
+   * ← or → on the one file selected, where the view has nowhere to go that
+   * way: for what shows the file beside the folder. True when it took the
+   * press; left out, or false, the press is the view's alone.
    */
-  onKeyIntoFile?: () => boolean;
+  onArrowBesideFile?: (direction: "left" | "right") => boolean;
   /**
    * A new folder asked for by ⇧⌘N or Ctrl+Shift+N, made by the page in the
    * folder on screen. Left out, the key is nobody's here.
@@ -421,6 +421,8 @@ export type FileSystemHandle = {
    * last of them, or null when they were the last.
    */
   rowAfter: (paths: readonly string[]) => null | string;
+  /** The keyboard onto the row it is on, as a click on it would put it. */
+  focusSelection: () => void;
   /** The selection one row up or down, as the arrow walks it; false where it did not move. */
   step: (direction: "down" | "up") => boolean;
 };
@@ -1822,7 +1824,7 @@ export function FileSystem({
   onListColumnsChange,
   onListColumnWidthsChange,
   onLeaveRoot,
-  onKeyIntoFile,
+  onArrowBesideFile,
   onNewFolder,
   onOpenSeveral,
   onPathChange,
@@ -2645,6 +2647,11 @@ export function FileSystem({
         commitSelection(selectExactly(selectOnly(null), paths));
       },
       startRename,
+      focusSelection: () => {
+        const nav = listingNavRef.current;
+        const lead = effectsRef.current.entryOf(selectionRef.current.lead);
+        if (nav && lead) nav.reveal(lead);
+      },
       step: (direction) => {
         const before = selectionRef.current.lead;
         runListingCommandRef.current({
@@ -2889,11 +2896,12 @@ export function FileSystem({
           const isOneFile =
             lead?.kind === "file" &&
             selectedPathsOf(selectionRef.current).length === 1;
+          const { direction } = command;
           if (
-            command.direction === "right" &&
+            (direction === "left" || direction === "right") &&
             !command.extend &&
             isOneFile &&
-            onKeyIntoFile?.()
+            onArrowBesideFile?.(direction)
           ) {
             return true;
           }

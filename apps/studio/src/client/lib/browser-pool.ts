@@ -7,7 +7,10 @@ import {
 } from "@/shared/browser";
 import {
   PAGE_EDGE_CHANNEL,
+  PAGE_LAYER_CHANNEL,
+  PAGE_REMOTE_CHANNEL,
   PAGE_THUMB_CHANNEL,
+  type PageRemoteMessage,
 } from "@/shared/page-editor-channels";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { sleep } from "radashi";
@@ -657,22 +660,37 @@ export function onPageThumb(
   };
 }
 
-/**
- * Who hears the up and down arrows each page had no use for (see
- * `PAGE_EDGE_CHANNEL`), by the page's target.
- */
-const edgeHandlers = new Map<
-  BrowserTargetId,
-  (direction: "down" | "up") => void
->();
+type PageEdge = "down" | "escape" | "up";
 
 /**
- * Takes the arrows one page had no use for, until the returned function lets
+ * Who hears the keys each page had no use for (see `PAGE_EDGE_CHANNEL`), by
+ * the page's target.
+ */
+const edgeHandlers = new Map<BrowserTargetId, (edge: PageEdge) => void>();
+
+/** Pages with something of their own open over them that Escape closes (see `PAGE_LAYER_CHANNEL`). */
+const layeredPages = new Set<BrowserTargetId>();
+
+/** Whether the page has something of its own open over it that Escape closes. */
+export function pageHasLayer(targetId: BrowserTargetId) {
+  return layeredPages.has(targetId);
+}
+
+/** Drives a local page while the keyboard stays beside it; see `PAGE_REMOTE_CHANNEL`. */
+export function drivePage(
+  targetId: BrowserTargetId,
+  message: PageRemoteMessage,
+) {
+  getGuest(targetId)?.send(PAGE_REMOTE_CHANNEL, message);
+}
+
+/**
+ * Takes the keys one page had no use for, until the returned function lets
  * them go. The latest surface to ask has them.
  */
 export function onPageEdge(
   targetId: BrowserTargetId,
-  handler: (direction: "down" | "up") => void,
+  handler: (edge: PageEdge) => void,
 ): () => void {
   edgeHandlers.set(targetId, handler);
   return () => {
@@ -831,6 +849,7 @@ function disposeWebview(targetId: BrowserTargetId) {
   paintOwners.delete(targetId);
   slotClaims.delete(targetId);
   keyboardHeirs.delete(targetId);
+  layeredPages.delete(targetId);
 }
 
 // Guest creation happens only here, driven by `reconcile` off the main
@@ -882,13 +901,29 @@ function ensureWebview(
       channel?: string;
     };
     if (channel === PAGE_EDGE_CHANNEL) {
-      edgeHandlers.get(targetId)?.(args?.[0] === "up" ? "up" : "down");
+      const [edge] = args ?? [];
+      if (edge === "up" || edge === "down" || edge === "escape") {
+        edgeHandlers.get(targetId)?.(edge);
+      }
+      return;
+    }
+    if (channel === PAGE_LAYER_CHANNEL) {
+      if (args?.[0] === true) {
+        layeredPages.add(targetId);
+      } else {
+        layeredPages.delete(targetId);
+      }
       return;
     }
     if (channel !== PAGE_THUMB_CHANNEL) {
       return;
     }
     stepPage(targetId, args?.[0] === "forward" ? "forward" : "back");
+  });
+
+  // A new document has nothing of its own open until it says so.
+  webview.addEventListener("did-navigate", () => {
+    layeredPages.delete(targetId);
   });
 
   container.append(webview);

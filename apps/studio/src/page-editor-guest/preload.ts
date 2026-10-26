@@ -2,13 +2,16 @@ import {
   PAGE_EDITOR_BOOT_CHANNEL,
   PAGE_EDGE_CHANNEL,
   PAGE_EDITOR_CHANNEL,
+  PAGE_LAYER_CHANNEL,
+  PAGE_REMOTE_CHANNEL,
   PAGE_THUMB_CHANNEL,
+  type PageRemoteMessage,
 } from "@/shared/page-editor-channels";
 import { type PageEditorGuestMessage } from "@/shared/page-editor-messages";
 /**
  * The preload of every browser guest. On every page it hands the mouse's
- * thumb buttons to the window, and on a local page the arrows it had no use
- * for. Otherwise it does nothing unless the guest is
+ * thumb buttons to the window, and on a local page the keys it had no use
+ * for, and takes the keys the window drives it with. Otherwise it does nothing unless the guest is
  * showing a page's file being edited in place, and on a site it does not even
  * ask: the question is one synchronous message to the main process, made
  * before the page's first script so the editor can watch the page build
@@ -115,13 +118,18 @@ function handThumbsToWindow() {
 }
 
 /**
- * On a local page, hands the window an up or down arrow the page had no use
- * for: pressed alone and fresh rather than held, outside anything typed in,
- * not answered by the page's own scripts, and with nothing the press would
- * scroll able to go further that way. Whether it could scroll is read before
- * the press is dispatched, and whether the page answered it after.
+ * On a local page, hands the window the keys the page had no use for, and
+ * takes the window's keys while the keyboard stays beside the page:
+ *
+ * - An up or down arrow pressed alone and fresh rather than held, outside
+ *   anything typed in, not answered by the page's own scripts, and with
+ *   nothing the press would scroll able to go further that way. Whether it
+ *   could scroll is read before the press is dispatched, and whether the
+ *   page answered it after.
+ * - Escape, the same way, pressed with nothing of the page's open.
+ * - Whether something of the page's is open, each time that changes.
  */
-function handEdgeArrowsToWindow() {
+function handKeysToWindow() {
   if (location.protocol !== "file:") {
     return;
   }
@@ -138,14 +146,17 @@ function handEdgeArrowsToWindow() {
   window.addEventListener(
     "keydown",
     (event) => {
-      const direction =
+      const edge =
         event.key === "ArrowUp"
           ? "up"
           : event.key === "ArrowDown"
             ? "down"
-            : null;
+            : event.key === "Escape"
+              ? "escape"
+              : null;
       if (
-        !direction ||
+        !edge ||
+        !event.isTrusted ||
         event.repeat ||
         event.isComposing ||
         event.altKey ||
@@ -156,25 +167,130 @@ function handEdgeArrowsToWindow() {
       ) {
         return;
       }
-      const focused = document.activeElement;
-      const from =
-        focused &&
-        focused !== document.body &&
-        focused !== document.documentElement
-          ? focused
-          : pressedAt?.isConnected
-            ? pressedAt
-            : null;
-      if (canScrollFrom(from, direction)) {
+      if (edge === "escape" ? hasLayer() : canScrollFrom(scrollStart(), edge)) {
         return;
       }
       setTimeout(() => {
         if (!event.defaultPrevented) {
-          ipcRenderer.sendToHost(PAGE_EDGE_CHANNEL, direction);
+          ipcRenderer.sendToHost(PAGE_EDGE_CHANNEL, edge);
         }
       });
     },
     { capture: true },
+  );
+  function scrollStart() {
+    const focused = document.activeElement;
+    return focused &&
+      focused !== document.body &&
+      focused !== document.documentElement
+      ? focused
+      : pressedAt?.isConnected
+        ? pressedAt
+        : null;
+  }
+  ipcRenderer.on(PAGE_REMOTE_CHANNEL, (_event, message: PageRemoteMessage) => {
+    if (message.type === "key") {
+      // Where the page's own key would land. Built here, so the page sees an
+      // untrusted event, the way a page sees any key a script sent it.
+      const target = document.activeElement ?? document.body;
+      const init = {
+        bubbles: true,
+        cancelable: true,
+        code: message.key,
+        composed: true,
+        key: message.key,
+      };
+      target.dispatchEvent(new KeyboardEvent("keydown", init));
+      target.dispatchEvent(new KeyboardEvent("keyup", init));
+      return;
+    }
+    if (message.type === "scroll") {
+      scrollByScreen(scrollStart(), message.by);
+      return;
+    }
+    closeLayer();
+  });
+  let layered = false;
+  const tellLayer = () => {
+    const now = hasLayer();
+    if (now !== layered) {
+      layered = now;
+      ipcRenderer.sendToHost(PAGE_LAYER_CHANNEL, now);
+    }
+  };
+  document.addEventListener("fullscreenchange", tellLayer);
+  document.addEventListener("toggle", tellLayer, { capture: true });
+  new MutationObserver(tellLayer).observe(document, {
+    attributeFilter: ["open"],
+    subtree: true,
+  });
+}
+
+/** What of the page's is open over it, which Escape would close: full screen, a modal dialog, or a popover. */
+function topLayer(): Element | null {
+  return (
+    document.fullscreenElement ??
+    [...document.querySelectorAll("dialog:modal, :popover-open")].at(-1) ??
+    null
+  );
+}
+
+function hasLayer() {
+  return topLayer() !== null;
+}
+
+/**
+ * Closes what of the page's is open, as Escape would: a dialog hears its
+ * `cancel` first and may keep itself open.
+ */
+function closeLayer() {
+  const layer = topLayer();
+  if (!layer) {
+    return;
+  }
+  if (layer === document.fullscreenElement) {
+    void document.exitFullscreen();
+    return;
+  }
+  if (layer instanceof HTMLDialogElement) {
+    if (layer.dispatchEvent(new Event("cancel", { cancelable: true }))) {
+      layer.close();
+    }
+    return;
+  }
+  if (layer instanceof HTMLElement) {
+    layer.hidePopover();
+  }
+}
+
+/** Scrolls what an arrow would by most of a screen, the way Space pages. */
+function scrollByScreen(from: Element | null, by: -1 | 1) {
+  const direction = by === 1 ? "down" : "up";
+  const root = document.scrollingElement ?? document.documentElement;
+  for (let at = from; at && at !== root; at = at.parentElement) {
+    if (at !== document.body && isScroller(at) && hasRoomIn(at, direction)) {
+      at.scrollBy({ behavior: "smooth", top: by * at.clientHeight * 0.85 });
+      return;
+    }
+  }
+  if (!topLayer()) {
+    window.scrollBy({
+      behavior: "smooth",
+      top: by * window.innerHeight * 0.85,
+    });
+  }
+}
+
+function isScroller(element: Element) {
+  return /^(?:auto|scroll|overlay)$/.test(getComputedStyle(element).overflowY);
+}
+
+function hasRoomIn(element: Element, direction: "down" | "up") {
+  return hasRoom(
+    element.scrollTop,
+    element.clientHeight,
+    element.scrollHeight,
+    direction,
   );
 }
 
@@ -198,16 +314,16 @@ function canScrollFrom(from: Element | null, direction: "down" | "up") {
     if (at === document.body) {
       continue;
     }
-    const { overflowY } = getComputedStyle(at);
-    if (
-      /^(?:auto|scroll|overlay)$/.test(overflowY) &&
-      hasRoom(at.scrollTop, at.clientHeight, at.scrollHeight, direction)
-    ) {
+    if (isScroller(at) && hasRoomIn(at, direction)) {
       return true;
     }
   }
-  // The page itself, unless it hides its overflow: `html`'s, or the body's
-  // where `html` leaves it to the body.
+  // The page itself, unless something of the page's is open over it, which
+  // keeps the keys from what is behind, or it hides its overflow: `html`'s,
+  // or the body's where `html` leaves it to the body.
+  if (hasLayer()) {
+    return false;
+  }
   const htmlOverflow = getComputedStyle(document.documentElement).overflowY;
   const overflow =
     htmlOverflow === "visible" && document.body
@@ -248,5 +364,5 @@ function swallow(event: MouseEvent) {
 }
 
 handThumbsToWindow();
-handEdgeArrowsToWindow();
+handKeysToWindow();
 boot();

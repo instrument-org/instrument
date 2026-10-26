@@ -565,26 +565,27 @@ describe("FileSystem", () => {
       expect(step("up")).toBe(true);
     });
 
-    it("hands → on one file to what shows it, and keeps it on several", () => {
-      const onKeyIntoFile = vi.fn(() => true);
+    it("hands ← and → on one file to what shows it, and keeps them on several", () => {
+      const onArrowBesideFile = vi.fn(() => true);
       renderWithProviders(
         <FileSystem
           defaultView="list"
           items={FILES}
-          onKeyIntoFile={onKeyIntoFile}
+          onArrowBesideFile={onArrowBesideFile}
         />,
       );
       const row = (name: string) => screen.getByRole("option", { name });
 
       fireEvent.click(row("b.txt"));
       fireEvent.keyDown(row("b.txt"), { key: "ArrowRight", shiftKey: true });
-      expect(onKeyIntoFile).not.toHaveBeenCalled();
+      expect(onArrowBesideFile).not.toHaveBeenCalled();
       fireEvent.keyDown(row("b.txt"), { key: "ArrowRight" });
-      expect(onKeyIntoFile).toHaveBeenCalledTimes(1);
+      fireEvent.keyDown(row("b.txt"), { key: "ArrowLeft" });
+      expect(onArrowBesideFile.mock.calls).toEqual([["right"], ["left"]]);
 
       fireEvent.click(row("c.txt"), { metaKey: true });
       fireEvent.keyDown(row("c.txt"), { key: "ArrowRight" });
-      expect(onKeyIntoFile).toHaveBeenCalledTimes(1);
+      expect(onArrowBesideFile).toHaveBeenCalledTimes(2);
     });
 
     it("draws every selected row as selected", () => {

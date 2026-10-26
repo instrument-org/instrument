@@ -10,6 +10,7 @@ export type ActivityKind = z.output<typeof ActivityKindSchema>;
  * is recorded as, so a call site that forgot to say shows up as a gap.
  */
 const ACTIVITY_PURPOSES = [
+  "account-check",
   "chat",
   "task",
   "chat-title",

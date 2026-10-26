@@ -189,6 +189,7 @@ const KIND_LABELS: Record<Row["kind"], string> = {
 };
 
 const PURPOSE_LABELS: Record<Row["purpose"], string> = {
+  "account-check": "Account check",
   "app-search": "App search",
   chat: "Chat",
   "chat-search": "Chat search",

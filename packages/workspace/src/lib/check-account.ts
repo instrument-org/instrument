@@ -1,11 +1,9 @@
-import {
-  type AIGatewayModelURI,
-  fetchAISDKModel,
-} from "@instrument-org/ai-gateway";
+import { AIGatewayModelURI, fetchAISDKModel } from "@instrument-org/ai-gateway";
 import { APICallError, generateText } from "ai";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type WorkspaceConfig } from "../types";
+import { activityTelemetry, connectionFor } from "./activity/record";
 import {
   classifyProviderError,
   providerErrorCodes,
@@ -61,12 +59,22 @@ export async function checkAccountWithRequest({
   if (!model.ok) {
     return readAccountCheckFailure(model.error);
   }
+  const parsed = AIGatewayModelURI.parse(modelURI);
   try {
     await generateText({
       abortSignal: signal,
       maxRetries: 0,
       model: model.value,
       prompt: "Reply with OK.",
+      telemetry: activityTelemetry({
+        connection: parsed.ok
+          ? connectionFor(
+              workspaceConfig.getAIProviderConfigs(),
+              parsed.value.params.providerConfigId,
+            )
+          : undefined,
+        purpose: "account-check",
+      }),
     });
     return { state: "ready" };
   } catch (error) {

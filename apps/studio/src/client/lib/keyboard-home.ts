@@ -47,7 +47,7 @@ export function focusScreenHome({ leaving }: { leaving: boolean }) {
 }
 
 /** The element the screen on show is worked from, or null while it has none drawn. */
-export function homeTarget(): HTMLElement | null {
+function homeTarget(): HTMLElement | null {
   const homes = [
     ...document.querySelectorAll<HTMLElement>(
       `${ACTIVE_TAB} [data-keyboard-home]`,

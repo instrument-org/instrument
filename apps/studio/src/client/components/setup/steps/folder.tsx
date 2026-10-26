@@ -8,6 +8,8 @@ import {
   type MoveRefusal,
   suggestedDestination,
 } from "@/client/components/instrument-folder-steps";
+import { TermsFooter } from "@/client/components/terms-footer";
+import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { folderOf } from "@/client/components/window/host-path";
 import { toast } from "@/client/lib/toast";
@@ -42,8 +44,9 @@ type Note = { kind: "denied" } | { kind: "unfinished" };
  * and Fix; an Instrument folder already there is opened rather than moved
  * into, and Continue says Open.
  *
- * On a first launch it is setup's first page, Welcome with the folder
- * (frame 26): Continue makes the folder there, or opens the Instrument
+ * On a first launch it is setup's first step, and opens on Welcome, what
+ * the app is with Get started, before the folder: Continue makes the folder
+ * there, or opens the Instrument
  * folder already in it, and the app starts in it with no restart; the
  * window loads again on the next step. When the folder a workspace had went
  * missing, or can't be read, the page says where it was, and the person
@@ -68,6 +71,8 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
   // What Continue is doing to the folder while it is made, or while the app
   // restarts for it.
   const [moving, setMoving] = useState<"move" | "open" | null>(null);
+  // A first launch opens on Welcome, and Get started brings the folder.
+  const [started, setStarted] = useState(!isFirst);
   const pick = useFolderPick((destination) => {
     setPicked(destination);
     setNote(null);
@@ -248,10 +253,16 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
     destinationStep(shown, { opens: true }).type === "open";
   return (
     <SetupPageSwitch
-      depth={moving === null ? 0 : 1}
-      page={moving === null ? "folder" : "moving"}
+      depth={!started ? 0 : moving === null ? 1 : 2}
+      page={!started ? "welcome" : moving === null ? "folder" : "moving"}
     >
-      {moving !== null ? (
+      {!started ? (
+        <WelcomePage
+          onStart={() => {
+            setStarted(true);
+          }}
+        />
+      ) : moving !== null ? (
         <MovingPage how={moving} hasChats={hasChats} restarts={!isUnplaced} />
       ) : (
         <SetupPage
@@ -259,32 +270,22 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
             <SetupFooter
               label={opens ? "Open" : "Continue"}
               next={target === undefined ? "off" : "primary"}
-              onBack={onBack}
+              onBack={
+                isFirst
+                  ? () => {
+                      setStarted(false);
+                    }
+                  : onBack
+              }
               onContinue={() => {
                 void proceed();
               }}
               pending={busy}
             />
           }
-          hero={
-            isFirst ? (
-              <div className="mb-2">
-                <WelcomeBurst />
-              </div>
-            ) : (
-              <PackedFolder />
-            )
-          }
-          subtitle={
-            isFirst
-              ? `First, choose where ${APP_NAME} keeps your chats, topics and the files it makes.`
-              : `This is where ${APP_NAME} keeps your chats, topics and the files it makes.`
-          }
-          title={
-            isFirst
-              ? `Welcome to ${APP_NAME}`
-              : "Where should your Instrument folder live?"
-          }
+          hero={<PackedFolder />}
+          subtitle={`This is where ${APP_NAME} keeps your chats, topics and the files it makes. Most people put it in their Documents folder.`}
+          title="Where should your Instrument folder live?"
         >
           <div className="mt-8 flex w-140 max-w-full flex-col">
             <FolderLocation
@@ -340,6 +341,34 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
         </SetupPage>
       )}
     </SetupPageSwitch>
+  );
+}
+
+/**
+ * A first launch's first page: what the app is, and Get started, before
+ * anything is asked of the person.
+ */
+function WelcomePage({ onStart }: { onStart: () => void }) {
+  return (
+    <SetupPage
+      align="center"
+      footer={<TermsFooter className="px-8 pt-5 pb-6" />}
+      hero={
+        <div className="mb-2">
+          <WelcomeBurst />
+        </div>
+      }
+      subtitle={`${APP_NAME} is a desktop app for doing your best work with AI. It works in your files and its own browser, and connects with all your favorite apps.`}
+      title={`Welcome to ${APP_NAME}`}
+    >
+      <Button
+        className="mt-10 h-10 w-95 max-w-full bg-white/30 text-base text-foreground dark:bg-white/5"
+        onClick={onStart}
+        variant="outline"
+      >
+        Get started
+      </Button>
+    </SetupPage>
   );
 }
 

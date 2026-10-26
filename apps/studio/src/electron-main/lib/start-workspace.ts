@@ -1,5 +1,17 @@
 import { openBookmarks } from "../bookmarks/serve-bookmarks";
-import { openDrafts } from "../drafts/serve-drafts";
+import { call } from "@orpc/server";
+import {
+  chatModelURI,
+  workspaceRouter,
+} from "@instrument-org/workspace/electron";
+
+import { startSendingAskedDrafts } from "../drafts/send-asked-drafts";
+import {
+  applyDraftOpsInMain,
+  openDrafts,
+  watchDrafts,
+} from "../drafts/serve-drafts";
+import { getDefaultModelURI } from "../stores/workspace/preferences";
 import { getAppWindow } from "../windows/app-window";
 import { revealChat } from "../windows/reveal-chat";
 import { startAgentCompletionNotifications } from "./agent-completion-notifications";
@@ -32,6 +44,24 @@ export function startWorkspace(): Promise<void> {
     // loads.
     await timeBootStep("serveBookmarks", () => openBookmarks(deviceId));
     openDrafts();
+    // A reply a phone asked this computer to send, which it sends on the
+    // chat's own model as the chat's box would.
+    startSendingAskedDrafts({
+      apply: applyDraftOpsInMain,
+      deviceId,
+      send: async ({ chatId, draftId, words }) => {
+        const modelURI = (await chatModelURI(chatId)) ?? getDefaultModelURI();
+        if (!modelURI) {
+          throw new Error("No model is chosen to send with");
+        }
+        await call(
+          workspaceRouter.message.create,
+          { fromDraft: draftId, id: chatId, modelURI, prompt: words },
+          { context: { workspaceConfig, workspaceRef } },
+        );
+      },
+      watch: watchDrafts,
+    });
     startAgentCompletionNotifications({
       // With no window, a notification's click opens one where the app stays
       // running; elsewhere no window means the app is quitting.

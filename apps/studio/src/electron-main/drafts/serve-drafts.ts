@@ -1,6 +1,7 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import {
   DRAFTS_CHANNEL,
+  type DraftOp,
   type DraftOpBatch,
   type DraftsSnapshot,
 } from "@/shared/drafts";
@@ -12,6 +13,13 @@ import { createDraftStore } from "./draft-store";
 const NO_DRAFTS: DraftsSnapshot = { acks: {}, drafts: [] };
 
 let STORE: null | ReturnType<typeof createDraftStore> = null;
+
+/** Main's own readers of the drafts, told of each change as the windows are. */
+const listeners = new Set<(snapshot: DraftsSnapshot) => void>();
+
+/** The batches main sends as a writer of its own, numbered as a window's are. */
+const MAIN_CLIENT = "main";
+let mainSeq = 0;
 
 function getStore() {
   if (!STORE) {
@@ -30,7 +38,7 @@ export function openDrafts() {
   }
   STORE = createDraftStore({
     moveToTrash: (target) => shell.trashItem(target),
-    onChange: tellWindows,
+    onChange: tell,
     rootDir: getWorkspaceFolder(),
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
@@ -39,7 +47,36 @@ export function openDrafts() {
     getStore().reconcile();
   });
   // A window that loaded before the workspace opened read none.
-  tellWindows(STORE.snapshot());
+  tell(STORE.snapshot());
+}
+
+/**
+ * Hears the drafts as they are now and at each change, until the answer is
+ * called: what main's own work on the drafts reads, as a window does.
+ */
+export function watchDrafts(
+  listener: (snapshot: DraftsSnapshot) => void,
+): () => void {
+  listeners.add(listener);
+  if (STORE) {
+    listener(STORE.snapshot());
+  }
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** Changes the drafts from main, as a window's batch of ops would. */
+export function applyDraftOpsInMain(ops: DraftOp[]): void {
+  mainSeq += 1;
+  getStore().apply({ client: MAIN_CLIENT, ops, seq: mainSeq });
+}
+
+function tell(snapshot: DraftsSnapshot) {
+  tellWindows(snapshot);
+  for (const listener of listeners) {
+    listener(snapshot);
+  }
 }
 
 function tellWindows(snapshot: DraftsSnapshot) {

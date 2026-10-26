@@ -123,6 +123,7 @@ export {
   type WorkspaceConversion,
 } from "./lib/records/convert/convert-chat";
 export { convertChatSettingsFiles } from "./lib/records/convert/convert-chat-settings";
+export { chatModelURI } from "./lib/chat-settings";
 export { giveChatsTheirFolders } from "./lib/chat-folders/first-folders";
 export { type DraftsSettled, settleDrafts } from "./lib/drafts/boot";
 export { type MemoriesMoved, moveMemoriesToFolder } from "./lib/memory/move";

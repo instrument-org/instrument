@@ -2,7 +2,7 @@
 
 A draft is a chat not yet started, or a reply waiting in a chat. Both live in the workspace's `Drafts/`, a folder per draft holding a `DRAFT.md` (plain YAML front matter over the person's words) and every file and folder that goes with its message. A reply names its chat by its address (`chat: instrument://chat/<id>`; a bare id reads the same); a new chat's draft does not. A draft being sent names the chat it is going into as `sending:`, whichever kind it is. The folder is the record: a file manager, a sync engine bringing another device's edit, the phone app, or a newer build can change it, and every window has to follow.
 
-The front matter is `id`, `created` and `updated` (ISO 8601 UTC to the second), `chat`, `sending`, `topic` (the topic's id, written only when the person picked one), and `context`. Every key but `id` is optional: a `DRAFT.md` with no `id`, or with no front matter at all, is a draft someone wrote by hand, and the first read gives it an id and writes it into the file (`readDrafts`). An empty file is not a draft, since that is what an editor partway through a save leaves. A key this build does not write is kept as it was found.
+The front matter is `id`, `created` and `updated` (ISO 8601 UTC to the second), `chat`, `send`, `sending`, `topic` (the topic's id, written only when the person picked one), and `context`. Every key but `id` is optional: a `DRAFT.md` with no `id`, or with no front matter at all, is a draft someone wrote by hand, and the first read gives it an id and writes it into the file (`readDrafts`). An empty file is not a draft, since that is what an editor partway through a save leaves. A key this build does not write is kept as it was found.
 
 ## Layers
 
@@ -60,6 +60,10 @@ A message names the draft it came from (`fromDraft`), and that message is what s
 3. **Sent or released.** On success, `sent` removes the draft. Whatever its folder still has was never sent (it arrived after the send read the folder), so it goes to the Trash rather than being deleted, and the store refuses to take that id back for as long as it runs, so a sync engine bringing the file back cannot offer it again. On failure, `release` clears `sendingTo`, and the draft is the person's again, as it was. A new chat's draft goes back to naming no chat.
 
 A launch finishes any send step 3 never reached (`finishSentDrafts`), moving what the draft's folder still has to the Trash. A draft still marked `sending:` whose chat has no message from it was never sent: the launch clears the mark, and the draft is the person's again, as the kind of draft it was.
+
+### A reply another device asks this one to send
+
+A phone cannot run the agent, so its Send leaves a reply naming its chat with `send:` naming the computer that last worked in the chat (its device id). That computer sends it as soon as it has it, through the same three steps (`electron-main/drafts/send-asked-drafts.ts`), on the chat's own model or else the default. Naming one device keeps two computers from both sending it. The ask holds for ten minutes from the draft's `updated`: one found later, by a launch the next day say, or one whose send fails, loses its `send` and waits in the chat's box like any other reply, so nothing goes out long after it was written or more than once.
 
 ## A chat's box
 

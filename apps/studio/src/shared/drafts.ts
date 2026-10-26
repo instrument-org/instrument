@@ -85,6 +85,12 @@ export interface Draft {
    */
   inFolder?: DraftAttachment[];
   /**
+   * The device another device asked to send this reply as soon as it has it,
+   * by its id (its file's `send`): a reply left from a phone, which this
+   * computer sends while the ask is fresh (`send-asked-drafts.ts`).
+   */
+  sendOn?: string;
+  /**
    * The chat the draft is on its way into, from the press until the message
    * is written or the send fails. A draft being sent is neither a reply
    * waiting nor a draft to list: it is the message about to arrive. Its file

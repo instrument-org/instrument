@@ -31,6 +31,7 @@ const OWN_KEYS = new Set([
   "context",
   "created",
   "id",
+  "send",
   "sending",
   "topic",
   "updated",
@@ -56,6 +57,13 @@ export interface DraftFile {
    * silently, so what comes in unrecognized goes back out.
    */
   others?: Record<string, unknown>;
+  /**
+   * The device asked to send the reply as soon as it has it, by its id: what
+   * a phone's Send writes, naming the computer that last worked in the chat,
+   * since the phone cannot send it itself. Naming one device keeps two
+   * computers from both sending it. Written by the asking device only.
+   */
+  send?: string;
   /**
    * The chat the draft is on its way into, by its id, from the press until
    * the message naming it is written: what a launch after a crash looks in
@@ -122,6 +130,7 @@ export function parseDraftFile(
   );
   const chat = chatOf(front.chat);
   const sending = chatOf(front.sending);
+  const send = typeof front.send === "string" ? front.send.trim() : "";
   const context = linesOf(front.context);
   const body = split.body.replaceAll("\r\n", "\n");
   return {
@@ -130,6 +139,7 @@ export function parseDraftFile(
     created,
     id,
     ...(Object.keys(others).length > 0 ? { others } : {}),
+    ...(send === "" ? {} : { send }),
     ...(sending === undefined ? {} : { sending }),
     ...(typeof front.topic === "string" && front.topic
       ? { topic: front.topic }
@@ -154,6 +164,9 @@ export function renderDraftFile(draft: DraftFile): string {
   lines.push(`updated: ${utcStamp(draft.updated)}`);
   if (draft.chat !== undefined) {
     lines.push(`chat: ${chatAddressOf(draft.chat)}`);
+  }
+  if (draft.send !== undefined) {
+    lines.push(`send: ${JSON.stringify(draft.send)}`);
   }
   if (draft.sending !== undefined) {
     lines.push(`sending: ${chatAddressOf(draft.sending)}`);

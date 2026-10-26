@@ -90,7 +90,7 @@ describe("InstrumentFolder", () => {
     expect(screen.getByLabelText("sam › Notes › Instrument")).toBeDefined();
     // A folder still to be made says nothing under its path.
     expect(screen.queryByText("Has other files in it")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Restart and Move" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restart and move" }));
     await vi.waitFor(() => {
       expect(move).toHaveBeenCalledWith({
         create: true,
@@ -135,7 +135,7 @@ describe("InstrumentFolder", () => {
     ).toBeDefined();
     expect(
       screen
-        .getByRole("button", { name: "Restart and Move" })
+        .getByRole("button", { name: "Restart and move" })
         .hasAttribute("disabled"),
     ).toBe(true);
   });

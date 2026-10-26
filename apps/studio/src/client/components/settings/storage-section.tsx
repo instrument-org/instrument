@@ -456,7 +456,7 @@ function InstrumentFolder() {
                 }
               }}
             >
-              {restarting ? "Restarting…" : "Restart and Move"}
+              {restarting ? "Restarting…" : "Restart and move"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -495,7 +495,7 @@ function InstrumentFolder() {
                 }
               }}
             >
-              {restarting ? "Restarting…" : "Restart and Open"}
+              {restarting ? "Restarting…" : "Restart and open"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

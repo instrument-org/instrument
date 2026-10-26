@@ -204,7 +204,8 @@ function PlanGroup({ status }: { status: Status }) {
                     : "Your plan"
               }
             >
-              {!subscription || paymentFailed ? null : (
+              {/* A plan changes only once it's paid up, so the card comes first. */}
+              {!subscription || paymentDue ? null : (
                 <Button onClick={openAccount} size="sm">
                   {endsAt || change ? "Keep my plan" : "Change plan"}
                 </Button>

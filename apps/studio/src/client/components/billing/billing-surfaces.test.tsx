@@ -508,7 +508,8 @@ describe("Settings > Account", () => {
     expect(
       await screen.findByText(/Update your card to keep your plan/),
     ).toBeDefined();
-    expect(screen.getByRole("button", { name: "Change plan" })).toBeDefined();
+    // The platform changes a plan only once it's paid up.
+    expect(screen.queryByRole("button", { name: "Change plan" })).toBeNull();
   });
 
   it("names a plan someone else pays for, with nothing to buy or manage", async () => {

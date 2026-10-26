@@ -18,6 +18,7 @@
 //   node's source, and only that node's.
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { logger } from "@/client/lib/logger";
+import { commandKeyHeld } from "@/client/lib/utils";
 import {
   autoUpdate,
   computePosition,
@@ -625,7 +626,7 @@ export function openSourcePopover(
     if (e.key === "Escape") {
       e.preventDefault();
       closeSourcePopover();
-    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    } else if (e.key === "Enter" && commandKeyHeld(e)) {
       e.preventDefault();
       commit();
     }

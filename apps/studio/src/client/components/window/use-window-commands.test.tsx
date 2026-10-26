@@ -105,4 +105,21 @@ describe("useWindowCommands", () => {
     press();
     expect(handlers.search).toHaveBeenCalledTimes(1);
   });
+
+  // The tests run as a Mac, where Ctrl+K, Ctrl+L and Ctrl+E are the text
+  // system's own: delete to the end of the line, center, end of the line.
+  it.each(["k", "l", "e"])("leaves ⌃%s to the text field on a Mac", (key) => {
+    renderWithDefaultStore(<Window />);
+    const press = (held: { ctrlKey?: boolean; metaKey?: boolean }) => {
+      const event = new KeyboardEvent("keydown", {
+        cancelable: true,
+        key,
+        ...held,
+      });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(press({ ctrlKey: true })).toBe(false);
+    expect(press({ metaKey: true })).toBe(true);
+  });
 });

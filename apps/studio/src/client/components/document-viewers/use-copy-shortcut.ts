@@ -1,3 +1,4 @@
+import { commandKeyHeld } from "@/client/lib/utils";
 import { useEffect, useEffectEvent } from "react";
 
 /**
@@ -35,7 +36,7 @@ export function useCopyShortcut({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "c" || !(event.metaKey || event.ctrlKey)) {
+      if (event.key !== "c" || !commandKeyHeld(event)) {
         return;
       }
       if (!container.contains(document.activeElement)) {

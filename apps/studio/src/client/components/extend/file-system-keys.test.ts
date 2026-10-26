@@ -30,7 +30,6 @@ describe("listingCommandOf", () => {
     ["⇧ArrowUp", { direction: "up", extend: true, type: "move" }],
     ["⌥ArrowLeft", { direction: "left", extend: false, type: "move" }],
     ["⌘ArrowDown", { type: "open" }],
-    ["⌃ArrowDown", { type: "open" }],
     ["⌘o", { type: "open" }],
     ["⌘a", { type: "select-all" }],
     // The Finder's Enclosing Folder and New Folder.
@@ -45,6 +44,7 @@ describe("listingCommandOf", () => {
     ["é", { char: "é", type: "type-ahead" }],
     // Left to whoever else wants them.
     ["⇧⌘ArrowUp", null],
+    ["⌃ArrowDown", null],
     ["⌘N", null],
     ["⌘ArrowLeft", null],
     ["⌘Enter", null],

@@ -4,6 +4,7 @@ import { useAppTabs } from "@/client/components/window/app-tabs";
 // oxlint-disable-next-line studio/no-router-link
 import { Link, type LinkProps, useRouter } from "@tanstack/react-router";
 import { type MouseEvent } from "react";
+import { commandKeyHeld } from "@/client/lib/utils";
 
 /**
  * A link to a route: a click moves the tab it is in, and a middle click or a
@@ -71,7 +72,7 @@ export function InternalLink(
   };
 
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    if (e.button === 0 && (e.ctrlKey || e.metaKey) && allowOpenNewTab) {
+    if (e.button === 0 && commandKeyHeld(e) && allowOpenNewTab) {
       e.preventDefault();
       openInNewTab(true);
     }

@@ -2,7 +2,7 @@ import { displayLocale } from "@/client/lib/display-locale";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { logger } from "@/client/lib/logger";
-import { cn } from "@/client/lib/utils";
+import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { type ReferenceElement } from "@floating-ui/dom";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
@@ -520,7 +520,7 @@ export function DataGrid({
     if (!edit) {
       return false;
     }
-    const mod = event.metaKey || event.ctrlKey;
+    const mod = commandKeyHeld(event);
     if (mod && event.key.toLowerCase() === "z") {
       event.preventDefault();
       if (event.shiftKey) {
@@ -602,13 +602,12 @@ export function DataGrid({
       case "End": {
         to = {
           column: visibleColumns.length - 1,
-          row:
-            event.ctrlKey || event.metaKey ? visibleRows.length - 1 : from.row,
+          row: commandKeyHeld(event) ? visibleRows.length - 1 : from.row,
         };
         break;
       }
       case "Home": {
-        to = { column: 0, row: event.ctrlKey || event.metaKey ? 0 : from.row };
+        to = { column: 0, row: commandKeyHeld(event) ? 0 : from.row };
         break;
       }
       default: {

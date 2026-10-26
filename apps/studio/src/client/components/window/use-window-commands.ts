@@ -20,7 +20,7 @@ import {
 } from "@/client/lib/find-targets";
 import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
 import { runPageChord } from "@/client/lib/page-chords";
-import { isLinux } from "@/client/lib/utils";
+import { commandKeyHeld, isLinux } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { useRouter } from "@tanstack/react-router";
@@ -143,7 +143,7 @@ export function useWindowCommands(
     // whose keys never reach here.
     const onKeyDown = (event: KeyboardEvent) => {
       if (
-        (event.metaKey || event.ctrlKey) &&
+        commandKeyHeld(event) &&
         !event.altKey &&
         !event.shiftKey &&
         event.key.toLowerCase() === "l" &&
@@ -155,7 +155,7 @@ export function useWindowCommands(
         latest.current.search();
       }
       if (
-        (event.metaKey || event.ctrlKey) &&
+        commandKeyHeld(event) &&
         !event.altKey &&
         !event.shiftKey &&
         event.key.toLowerCase() === "k"
@@ -166,7 +166,7 @@ export function useWindowCommands(
       // Edit on the page on screen, for a key the main process did not take
       // first.
       if (
-        (event.metaKey || event.ctrlKey) &&
+        commandKeyHeld(event) &&
         !event.altKey &&
         !event.shiftKey &&
         event.key.toLowerCase() === "e"

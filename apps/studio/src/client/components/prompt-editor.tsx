@@ -26,7 +26,7 @@ import {
 } from "@/client/lib/app-commands";
 import { matchComposerActions } from "@/client/lib/composer-action-search";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
-import { cn } from "@/client/lib/utils";
+import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { baseKeymap, splitBlock } from "prosemirror-commands";
 import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import { closeHistory, history, redo, undo } from "prosemirror-history";
@@ -390,7 +390,7 @@ export function PromptEditor({
         // through the composer's paste handler, which makes a long paste
         // an attachment.
         if (
-          (event.metaKey || event.ctrlKey) &&
+          commandKeyHeld(event) &&
           event.shiftKey &&
           !event.altKey &&
           event.key.toLowerCase() === "v"

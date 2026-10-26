@@ -160,15 +160,20 @@ export function listingCommandOf(
     return { type: "duplicate" };
   }
   if (isParentPress(press, conventions)) return { type: "parent" };
-  const command = press.metaKey || press.ctrlKey;
+  const command = press[conventions.commandKey];
   if (command && (press.key === "o" || press.key === "ArrowDown")) {
     return { type: "open" };
   }
+  // Ctrl on a Mac, the Windows key elsewhere: nothing here is held with it.
+  const other =
+    press[conventions.commandKey === "metaKey" ? "ctrlKey" : "metaKey"];
   const direction = DIRECTIONS[press.key];
   if (direction) {
-    return command ? null : { direction, extend: press.shiftKey, type: "move" };
+    return command || other
+      ? null
+      : { direction, extend: press.shiftKey, type: "move" };
   }
-  if (command || press.altKey) return null;
+  if (command || other || press.altKey) return null;
   const { renameKey } = conventions.files;
   if (press.key === "Enter") {
     return renameKey === "Enter" ? { type: "return" } : { type: "open" };

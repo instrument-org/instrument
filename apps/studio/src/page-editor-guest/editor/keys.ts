@@ -1,8 +1,8 @@
 /**
  * The keys the editor's hints and tooltips name, written the way the system
  * the app runs on writes them: `⇧⌘Z` on a Mac, `Ctrl+Shift+Z` elsewhere. The
- * chords are the ones `input.ts` and the rich text keymap answer to. Those
- * take ⌘ and Ctrl alike, so a hint names the one the system expects.
+ * chords are the ones `input.ts` and the rich text keymap answer to, held
+ * with the system's command key (`command`): ⌘ on a Mac, Ctrl elsewhere.
  */
 import { formatAcceleratorTextFor } from "@/shared/format-accelerator";
 import { type Os, OS_CONVENTIONS } from "@/shared/os-conventions";
@@ -15,6 +15,8 @@ export function editorKeys(os: Os) {
     formatAcceleratorTextFor({ accelerator, os });
   return {
     bold: chord("CmdOrCtrl+B"),
+    /** The modifier the chords are held with. */
+    command: OS_CONVENTIONS[os].commandKey,
     delete: OS_CONVENTIONS[os].deleteKey,
     /** The window's Edit Page chord, which leaves the editor as it entered it. */
     done: chord(WINDOW_SHORTCUTS.editPage.accelerator),

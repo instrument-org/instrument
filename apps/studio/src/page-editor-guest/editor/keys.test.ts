@@ -21,6 +21,7 @@ describe("editorKeys", () => {
       {
         "linux": {
           "bold": "Ctrl+B",
+          "command": "ctrlKey",
           "delete": "Del",
           "done": "Ctrl+E",
           "duplicate": "Ctrl+D",
@@ -36,6 +37,7 @@ describe("editorKeys", () => {
         },
         "mac": {
           "bold": "⌘B",
+          "command": "metaKey",
           "delete": "⌫",
           "done": "⌘E",
           "duplicate": "⌘D",
@@ -51,6 +53,7 @@ describe("editorKeys", () => {
         },
         "windows": {
           "bold": "Ctrl+B",
+          "command": "ctrlKey",
           "delete": "Del",
           "done": "Ctrl+E",
           "duplicate": "Ctrl+D",

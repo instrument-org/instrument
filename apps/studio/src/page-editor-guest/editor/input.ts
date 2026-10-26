@@ -65,7 +65,7 @@ export function createInput(ed: Editor): InputApi {
     const t = e.composedPath()[0];
     const inField =
       t instanceof Element && t.closest("input,textarea,[contenteditable]");
-    const mod = e.metaKey || e.ctrlKey;
+    const mod = e[ed.keys.command];
     const { info, sel } = state;
     if (mod && !inField && e.key.toLowerCase() === "z") {
       e.preventDefault();

@@ -8,7 +8,7 @@ import {
 import { RadioGroup } from "@/client/components/ui/radio-group";
 import { Spinner } from "@/client/components/ui/spinner";
 import { connectionsOf } from "@/client/lib/model-picker-rows";
-import { cn } from "@/client/lib/utils";
+import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
@@ -234,7 +234,7 @@ function LongList({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (
-        (event.metaKey || event.ctrlKey) &&
+        commandKeyHeld(event) &&
         !event.altKey &&
         !event.shiftKey &&
         event.key.toLowerCase() === "l"

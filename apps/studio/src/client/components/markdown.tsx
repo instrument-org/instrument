@@ -702,7 +702,7 @@ const MarkdownLink = ({
           onClick={(event) => {
             event.preventDefault();
             openFile(hostPath, {
-              newTab: event.metaKey || event.ctrlKey || event.shiftKey,
+              newTab: wantsNewTab(event) || event.shiftKey,
             });
           }}
           title={hostPath}

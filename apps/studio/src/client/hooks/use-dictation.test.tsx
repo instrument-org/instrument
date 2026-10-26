@@ -75,7 +75,8 @@ vi.mock(import("@/client/rpc/client"), () => ({
       live: {
         get: {
           experimental_liveOptions: () => ({
-            queryFn: () => Promise.resolve(mocks.preferences),
+            queryFn: () =>
+              new Promise((r) => setTimeout(() => r(mocks.preferences), 20)),
             queryKey: ["preferences"],
           }),
         },
@@ -221,12 +222,16 @@ function fakeStream() {
   };
 }
 
+/** The latest `setup`'s client, whose queries a press waits for. */
+let queries: QueryClient | undefined;
+
 function setup({
   finishOnUnmount = false,
   phases,
 }: { finishOnUnmount?: boolean; phases?: DictationPhase["kind"][] } = {}) {
   const onText = vi.fn();
   const client = new QueryClient();
+  queries = client;
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
@@ -248,7 +253,12 @@ function setup({
 async function startRecording(result: {
   current: ReturnType<typeof useDictation>;
 }) {
-  // Lets the signed-in query settle before the press reads it.
+  // Lets the signed-in and preference queries settle before the press reads
+  // them. The query client hands a result to React a timer after the fetch
+  // ends, so the tick is taken once nothing is fetching, never before.
+  await waitFor(() => {
+    expect(queries?.isFetching()).toBe(0);
+  });
   await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
   act(() => {
     result.current.start();

@@ -127,14 +127,18 @@ describe("CreatedTaskCard", () => {
     );
   });
 
-  it.each([
-    { kind: "failed" as const, line: "The model returned an error" },
-    { kind: "waiting" as const, line: "Waiting for you to answer" },
-  ])("says a $kind task's line in the warning tone", async ({ kind, line }) => {
-    renderFinished({ kind, line });
+  it("says a failed task's line in the warning tone", async () => {
+    renderFinished({ kind: "failed", line: "The model returned an error" });
 
-    const said = await screen.findByText(line);
+    const said = await screen.findByText("The model returned an error");
     expect(said.className).toContain("text-warning-700");
+  });
+
+  it("says a waiting task's line in the card's own gray", async () => {
+    renderFinished({ kind: "waiting", line: "Waiting for you to answer" });
+
+    const said = await screen.findByText("Waiting for you to answer");
+    expect(said.className).not.toContain("text-warning");
   });
 
   it("offers a stop beside a working task that halts it without opening it", async () => {

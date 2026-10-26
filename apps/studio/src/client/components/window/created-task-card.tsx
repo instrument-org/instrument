@@ -61,10 +61,9 @@ export function CreatedTaskCard({ chatId }: { chatId: string }) {
   const title = status?.title ?? "Task";
   const isWorking = status?.isWorking !== false;
   const line = isWorking ? status?.step : standing?.line;
-  // The line is in the warning tone when the task did not get to the end of
-  // its work: it failed, it was stopped, or it is waiting on the user.
-  const needsAttention =
-    !isWorking && (standing?.kind === "failed" || standing?.kind === "waiting");
+  // The line is in the warning tone when the task failed. Waiting on the user
+  // is no problem, so that line stays the card's own gray.
+  const needsAttention = !isWorking && standing?.kind === "failed";
 
   return (
     // `mt-2` on top of the reply's own 8px gap is the boundary the transcript

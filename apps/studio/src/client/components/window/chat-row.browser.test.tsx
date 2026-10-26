@@ -540,7 +540,7 @@ describe("ChatRow", () => {
     expect(pills.map((pill) => pill.textContent)).toEqual(["💸Money"]);
   });
 
-  it("shows the step in brand while working, and the question behind the amber glyph while waiting", async () => {
+  it("shows the step in brand while working, and the question behind a gray question mark while waiting", async () => {
     const { rows } = await renderRows([
       chat({
         // The workspace names a working chat's step in `latest`, the same
@@ -578,7 +578,7 @@ describe("ChatRow", () => {
     expect(peekOf(working)?.textContent).toBe("Reading the automation");
     const peek = peekOf(waiting);
     expect(peek?.textContent).toBe("Reuse the old CSR, or generate a new one?");
-    expect(peek?.querySelector("svg.text-warning-700")).not.toBeNull();
+    expect(peek?.querySelector("svg.text-foreground\\/80")).not.toBeNull();
   });
 
   it("shows only Instrument is working until a task starts", async () => {

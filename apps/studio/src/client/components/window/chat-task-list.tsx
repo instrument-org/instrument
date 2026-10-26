@@ -34,7 +34,7 @@ export interface TaskListItem {
  * A chat's tasks, in the pane beside it: headed Tasks, newest first, one
  * row each with the title and when anything last happened at its right,
  * then the task's own line under it, the running step behind a brand dot in
- * the shimmer, what it waits on in amber, who stopped it when the user or
+ * the shimmer, what it waits on in gray, who stopped it when the user or
  * the chat did, and how it ended otherwise. No day
  * heads, no filters, no search: a chat has a handful, and the row says
  * where each stands. A row pressed opens the task in the pane's place.
@@ -143,7 +143,7 @@ export function ChatTaskList({
                       item.standing === "running"
                         ? "brand-shiny-text"
                         : item.standing === "waiting"
-                          ? "text-warning-700 dark:text-warning-300"
+                          ? "text-foreground/80"
                           : item.standing === "failed"
                             ? "text-error-700 dark:text-error-300"
                             : "text-muted-foreground",

@@ -396,9 +396,63 @@ const noOsWords = defineRule({
   },
 });
 
+/** The modifier names a `||` chain reads, by the property it reads them through. */
+const modifiersRead = (node: ESTree.Expression): string[] => {
+  if (node.type === "LogicalExpression" && node.operator === "||") {
+    return [...modifiersRead(node.left), ...modifiersRead(node.right)];
+  }
+  if (
+    node.type === "MemberExpression" &&
+    !node.computed &&
+    node.property.type === "Identifier"
+  ) {
+    return [node.property.name];
+  }
+  return [];
+};
+
+/**
+ * ⌘ or Ctrl as one key is a chord macOS reads as two: Ctrl+K, Ctrl+E and
+ * Ctrl+A are the text system's own line keys there, so a listener taking
+ * either swallows them. A chain that reads Alt too is asking whether any
+ * modifier is held, which is not a chord.
+ */
+const noEitherCommandKey = defineRule({
+  create(context) {
+    return {
+      LogicalExpression(node) {
+        if (
+          node.operator !== "||" ||
+          (node.parent.type === "LogicalExpression" &&
+            node.parent.operator === "||")
+        ) {
+          return;
+        }
+        const read = modifiersRead(node);
+        if (
+          read.includes("metaKey") &&
+          read.includes("ctrlKey") &&
+          !read.includes("altKey")
+        ) {
+          context.report({ messageId: "eitherCommandKey", node });
+        }
+      },
+    };
+  },
+  meta: {
+    messages: {
+      eitherCommandKey:
+        "`metaKey || ctrlKey` takes Ctrl chords on macOS that belong to the text system (Ctrl+K deletes to the end of the line). Use `commandKeyHeld(event)` from client/lib/utils, or `event[conventions.commandKey]` where the OS conventions are passed in.",
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 export default definePlugin({
   meta: { name: "studio" },
   rules: {
+    "no-either-command-key": noEitherCommandKey,
     "no-os-words": noOsWords,
     "no-raw-anchor": noRawAnchor,
     "no-raw-webview": noRawWebview,

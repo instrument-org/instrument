@@ -67,3 +67,23 @@ new RuleTester({
     `const c = <div className="p-0 shadow-2xl" />;`,
   ],
 });
+
+const commandKeyRule = plugin.rules["no-either-command-key"];
+if (!commandKeyRule) {
+  throw new Error("The plugin has no studio/no-either-command-key rule");
+}
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "tsx" } },
+}).run("no-either-command-key", commandKeyRule, {
+  invalid: [
+    `if ((event.metaKey || event.ctrlKey) && event.key === "k") {}`,
+    `const mod = e.ctrlKey || e.metaKey;`,
+    `const newTab = event.metaKey || event.ctrlKey || event.shiftKey;`,
+  ].map((code) => ({ code, errors: [{ messageId: "eitherCommandKey" }] })),
+  valid: [
+    `const mod = event[conventions.commandKey];`,
+    `if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {}`,
+    `if (event.metaKey && event.ctrlKey) {}`,
+  ],
+});

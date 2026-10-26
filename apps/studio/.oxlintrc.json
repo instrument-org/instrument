@@ -36,6 +36,7 @@
     {
       "files": ["src/**"],
       "rules": {
+        "studio/no-either-command-key": "error",
         "studio/no-os-words": "error"
       }
     },

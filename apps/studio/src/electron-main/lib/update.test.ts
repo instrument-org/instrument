@@ -39,7 +39,19 @@ const app = vi.hoisted(() => ({
 }));
 app.getPath = () => userData;
 
-vi.mock("electron", () => ({ app }));
+// Electron's own updater, which is Squirrel.Mac on macOS.
+const nativeUpdater = vi.hoisted(() => ({
+  on: vi.fn<(event: string, listener: () => void) => void>(),
+}));
+const emitNative = (event: string) => {
+  for (const [name, listener] of nativeUpdater.on.mock.calls) {
+    if (name === event) {
+      listener();
+    }
+  }
+};
+
+vi.mock("electron", () => ({ app, autoUpdater: nativeUpdater }));
 
 // The Debian install hands its script to `sh`, which a test must not run.
 const spawn = vi.hoisted(() =>
@@ -349,9 +361,47 @@ describe("installing a staged Linux update", () => {
     vi.mocked(os.platform).mockReturnValue("darwin");
     const artifact = stagedArtifact("Instrument-2.0.0-mac.zip", "zip", "x");
 
-    stageOnLinux("", artifact).install();
+    const staged = stageOnLinux("", artifact);
+    emitNative("update-downloaded");
+    staged.install();
 
     expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce();
     expect(fs.existsSync(artifact.file)).toBe(true);
+  });
+
+  // electron-updater's download lands first, then Squirrel fetches and unpacks
+  // it again, deleting the build it staged before; a quit in between relaunches
+  // the version that was running.
+  it("waits on macOS for Squirrel to stage a build that replaced the one it had", () => {
+    vi.mocked(os.platform).mockReturnValue("darwin");
+    stageOnLinux("", stagedArtifact("Instrument-2.0.0-mac.zip", "zip"));
+    emitNative("update-downloaded");
+    const downloaded = autoUpdater.on.mock.calls.findLast(
+      ([event]) => event === "update-downloaded",
+    )?.[1];
+    downloaded?.({ downloadedFile: "/cache/pending/Instrument-2.0.1-mac.zip" });
+    if (!port) {
+      throw new Error("createStudioAppUpdater built no updater");
+    }
+
+    port.install();
+    expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+
+    emitNative("update-downloaded");
+    expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce();
+  });
+
+  it("drops a held macOS install when Squirrel fails", () => {
+    vi.mocked(os.platform).mockReturnValue("darwin");
+    const staged = stageOnLinux(
+      "",
+      stagedArtifact("Instrument-2.0.0-mac.zip", "zip"),
+    );
+
+    staged.install();
+    emitNative("error");
+    emitNative("update-downloaded");
+
+    expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
   });
 });

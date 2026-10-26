@@ -489,10 +489,26 @@ async function refuseTrashedBack(item: Trashed, platform: NodeJS.Platform) {
   }
   if ((await identityOf(path.dirname(item.from))) === null) {
     throw new UndoRefusedError(
-      `The folder ${nameOf(item.from)} was in is gone.`,
+      `The folder ${nameOf(item.from)} was in is gone. ${stillInTrash(platform)}`,
       { permanent: true },
     );
   }
+}
+
+/** Says where something an undo could not put back still is. */
+function stillInTrash(platform: NodeJS.Platform) {
+  return `It’s still in the ${osConventionsFor(platform).trash}.`;
+}
+
+/**
+ * Why something moved to the Trash did not come back, for a failure that is
+ * no refusal: whatever went wrong, it is still in the Trash.
+ */
+export function trashedNotBack(
+  item: Pick<Trashed, "from">,
+  platform: NodeJS.Platform = process.platform,
+) {
+  return `${APP_NAME} couldn't put ${nameOf(item.from)} back. ${stillInTrash(platform)}`;
 }
 
 /** Moves something back out of the Trash, once `refuseTrashedBack` has passed it. */
@@ -702,7 +718,7 @@ export async function undoEntry(
       await refuseTrashedBack(entry, platform);
       if (!(await isFreeFor(entry.from, entry.identity))) {
         throw new UndoRefusedError(
-          `Something named ${nameOf(entry.from)} is already there.`,
+          `Something named ${nameOf(entry.from)} is already there. ${stillInTrash(platform)}`,
           { permanent: false },
         );
       }

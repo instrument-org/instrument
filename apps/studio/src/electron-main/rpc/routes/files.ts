@@ -6,6 +6,7 @@ import {
   identityOf,
   type JournalEntry,
   type NewJournalEntry,
+  trashedNotBack,
   undoEntry,
   UndoRefusedError,
 } from "@/electron-main/lib/file-journal";
@@ -860,7 +861,11 @@ const undo = base
         }
         throw errors.CANNOT_UNDO({
           message:
-            error instanceof UndoRefusedError ? error.message : undefined,
+            error instanceof UndoRefusedError
+              ? error.message
+              : entry.kind === "trash"
+                ? trashedNotBack(entry)
+                : undefined,
         });
       }
     }

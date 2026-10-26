@@ -259,6 +259,40 @@ describe("undoing a move to the Trash", () => {
     ).rejects.toMatchObject({ permanent });
   });
 
+  // Anything still in the Trash after a refusal is said to be there, so the
+  // person knows where to get it back by hand.
+  it.each([
+    [
+      "the folder it was in is gone",
+      "gone/notes.txt",
+      "The folder “notes.txt” was in is gone. It’s still in the Trash.",
+    ],
+    [
+      "something has taken its name",
+      "notes.txt",
+      "Something named “notes.txt” is already there. It’s still in the Trash.",
+    ],
+  ])("says it is still in the Trash when %s", async (_case, from, reason) => {
+    await fs.writeFile(at("notes.txt"), "trashed");
+    const before = await identity("notes.txt");
+    await moveToTrash(at("notes.txt"));
+    await fs.writeFile(at("notes.txt"), "someone else's");
+
+    await expect(
+      undoEntry(
+        {
+          at: 0,
+          from: at(from),
+          id: "entry",
+          identity: before,
+          kind: "trash",
+          trashed: at(".trash/notes.txt 12.00.00"),
+        },
+        { platform: "darwin", trash },
+      ),
+    ).rejects.toThrow(reason);
+  });
+
   it("names the Recycle Bin on Windows when what was trashed has left it", async () => {
     await expect(
       undoEntry(

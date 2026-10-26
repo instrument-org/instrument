@@ -44,7 +44,7 @@ const DONE = "Done";
  * voice the chat's row in the list uses: while anything runs, the step it is
  * on beside the planning dot, the chat's own work and its tasks' alike, so
  * this is the chat's only loading state; while a card or a question waits on
- * the user, that it does, behind the amber question, whatever else still
+ * the user, that it does, behind the question mark, whatever else still
  * runs; and at rest, a check beside the task that finished last or that the
  * chat's own work is done, so the line stays once work is done. Nothing
  * once the user stopped the chat's turn, or the user or the chat stopped
@@ -202,7 +202,7 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
     case "wait": {
       return (
         <QuestionIcon
-          className="size-3.5 shrink-0 text-warning-700 dark:text-warning-300"
+          className="size-3.5 shrink-0 text-foreground/80"
           weight="bold"
         />
       );

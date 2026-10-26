@@ -32,16 +32,19 @@ function MessageScroller({
 // self-disables (inert, hidden) when there is nothing to scroll toward. `busy`
 // rings the button with a spinner, so a reader scrolled away from the end can
 // see that content is still arriving there; the caret stays put underneath it,
-// since the button does the same thing either way.
+// since the button does the same thing either way. `waiting` puts a dot on its
+// corner instead, for a question down there that the work is stopped on.
 function MessageScrollerButton({
   busy = false,
   children,
   className,
   direction = "end",
   render,
+  waiting = false,
   ...props
 }: React.ComponentProps<typeof MessageScrollerPrimitive.Button> & {
   busy?: boolean;
+  waiting?: boolean;
 }) {
   return (
     <MessageScrollerPrimitive.Button
@@ -78,6 +81,9 @@ function MessageScrollerButton({
               delay={0}
               thickness={1.5}
             />
+          ) : null}
+          {waiting ? (
+            <span className="pointer-events-none absolute -top-0.5 -right-0.5 size-2 rounded-full bg-foreground/70 ring-2 ring-background" />
           ) : null}
           <span className="sr-only">
             {direction === "end" ? "Scroll to latest" : "Scroll to start"}

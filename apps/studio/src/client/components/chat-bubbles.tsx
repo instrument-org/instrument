@@ -35,6 +35,10 @@ import { TailFirst, TypingRow } from "./chat-stream";
 import { MessageError } from "./message-error";
 import { ToolCallBody } from "./message-part/tool-call";
 import { SentReplyQuote } from "./reply-quote";
+import {
+  scrollToReplyStart,
+  useReleaseAutoScroll,
+} from "./transcript-scroll-context";
 import { SentFoldersCard } from "./sent-folders-card";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -810,13 +814,30 @@ function Arriving({
   signature: string;
 }) {
   const arrivals = use(ArrivalsContext);
+  const releaseAutoScroll = useReleaseAutoScroll();
+  const ref = useRef<HTMLDivElement>(null);
   // Decided once, as the row mounts: a row redrawn later is not arriving.
   const [isArriving] = useState(() => arrivals.isArriving(signature));
   useEffect(() => {
     arrivals.see(signature);
   }, [arrivals, signature]);
+  // A reply taller than the pane is read from its first line, so the end it
+  // would follow to is left for the reader to scroll down to, which follows
+  // the end again. Before the scroller sees the row: it reads the new
+  // content after layout effects have run, already out of follow.
+  useLayoutEffect(() => {
+    if (
+      isArriving &&
+      side === "assistant" &&
+      ref.current &&
+      scrollToReplyStart(ref.current)
+    ) {
+      releaseAutoScroll();
+    }
+  }, [isArriving, releaseAutoScroll, side]);
   return (
     <div
+      ref={ref}
       className={cn(
         className,
         isArriving && ARRIVE,

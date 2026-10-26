@@ -72,7 +72,7 @@ const PICKER_LEAVE_MS = 250;
  * with the time in the row's bottom corner. A starred chat wears a filled
  * star past its topic. Where the chat
  * stands is said by the latest line alone: shimmering while it works, behind
- * an amber glyph while it waits on the user. No avatar,
+ * a question mark while it waits on the user. No avatar,
  * no name: every row here is the user's. The marks, the tag
  * control that stands in front of the title while the pointer is on the
  * row, and the actions that stand over the corner then (putting the chat
@@ -506,7 +506,7 @@ function HoldsInChat({
 /**
  * The agent's latest line: the step while it works, in brand; that its turn
  * stopped on an error, behind a red warning glyph; the question while it
- * waits, behind an amber glyph with the words themselves in gray; and
+ * waits, behind a question mark, both in gray; and
  * otherwise, a chat the user stopped included, the last reply's first words,
  * in muted. Nothing when an idle or stopped chat has said nothing yet. One
  * line that truncates.
@@ -556,7 +556,7 @@ function Peek({
       ) : isWaiting ? (
         <>
           <QuestionIcon
-            className="size-3.5 shrink-0 text-warning-700 dark:text-warning-300"
+            className="size-3.5 shrink-0 text-foreground/80"
             weight="bold"
           />
           <span className="min-w-0 truncate text-foreground/80">

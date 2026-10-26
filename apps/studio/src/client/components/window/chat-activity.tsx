@@ -519,7 +519,7 @@ function Row({
 }
 
 /**
- * A task's line: what holds it from starting, in the amber a waiting chat
+ * A task's line: what holds it from starting, in the gray a waiting chat
  * wears, or the step it is on in the shimmer that says something is
  * happening.
  */
@@ -530,7 +530,7 @@ function WorkLine({
 }) {
   if (task.waiting) {
     return (
-      <span className="min-w-0 truncate text-warning-700 dark:text-warning-300">
+      <span className="min-w-0 truncate text-foreground/80">
         {task.waiting}
       </span>
     );

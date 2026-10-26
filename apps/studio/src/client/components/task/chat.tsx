@@ -59,7 +59,10 @@ import { PromptInput, type PromptInputRef } from "../prompt-input";
 import { RepliesWaiting } from "../replies-waiting";
 import { ReplyContext } from "../reply-context";
 import { ComposerReplyQuote } from "../reply-quote";
-import { TranscriptScrollContext } from "../transcript-scroll-context";
+import {
+  TRANSCRIPT_PREVIOUS_TURN_PEEK,
+  TranscriptScrollContext,
+} from "../transcript-scroll-context";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import {
@@ -73,6 +76,7 @@ import {
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { UserMessage } from "../user-message";
+import { chatListOptions } from "../window/chat-list-query";
 import { WindowContext } from "../window/context";
 import {
   type PendingPrompt,
@@ -86,12 +90,6 @@ import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 // session has to justify it. Long enough to cover starting a turn, short enough
 // that a submit that never becomes one hands the idle transcript back.
 const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
-
-// Where an anchored turn comes to rest, measured from the top of the viewport.
-// Less than the primitive's default, because the transcript fades its own top
-// 24px: the previous turn showing through the fade is the whole point of the
-// band, and past that it is just a gap above the turn being read.
-const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
 
 /**
  * A chat's conversation: its transcript and its composer.
@@ -263,6 +261,14 @@ export function ChatConversation({
   }
 
   const isSettlingTurn = useTurnSettleWindow(isAgentAlive);
+
+  // A question the chat is stopped on, which a reader scrolled back from the
+  // end is told about by the scroll button rather than taken down to.
+  const { data: isWaiting = false } = useQuery({
+    ...chatListOptions(),
+    select: (chats) =>
+      chats.find((chat) => chat.id === id)?.state === "waiting",
+  });
 
   // A submit that never becomes a turn would otherwise leave an idle transcript
   // following forever.
@@ -668,6 +674,7 @@ export function ChatConversation({
                 <MessageScrollerButton
                   busy={isAgentRunning}
                   className="pointer-events-auto"
+                  waiting={isWaiting}
                 />
               </div>
             </MessageScroller>

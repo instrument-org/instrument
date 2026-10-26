@@ -9,6 +9,8 @@ import { AIGatewayModel } from "../schemas/model";
 import { AIGatewayModelURI } from "../schemas/model-uri";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { addHeuristicTags } from "./add-heuristic-tags";
+import { demoteSupersededModels } from "./demote-superseded-models";
+import { demoteVariantsOfListedModels } from "./demote-variants-of-listed-models";
 
 const mockConfig: AIGatewayProviderConfig.Type = {
   apiKey: "NOT_NEEDED",
@@ -182,10 +184,44 @@ describe("addHeuristicTags", () => {
       id: AIProviderConfigIdSchema.parse("openai"),
       type: "openai",
     };
-    const model = createMockModel("openai/gpt-5.6-terra");
-    const result = addHeuristicTags(model, openaiConfig);
-    expect(result.tags).toContain("default");
+    const tagsOf = (id: string) =>
+      addHeuristicTags(createMockModel(id), openaiConfig).tags;
+    expect(tagsOf("openai/gpt-6.1-sol")).toContain("default");
+    expect(tagsOf("openai/gpt-6.1-sol-pro")).not.toContain("default");
+    expect(tagsOf("openai/gpt-5.6-terra")).not.toContain("default");
   });
+
+  it.each([
+    {
+      canonicalIds: ["gpt-6.1-sol", "gpt-6-sol", "gpt-5.6-sol"],
+      type: "chatgpt-account",
+    },
+    {
+      canonicalIds: [
+        "claude-sonnet-5.5",
+        "claude-sonnet-5",
+        "claude-sonnet-4.6",
+      ],
+      type: "claude-account",
+    },
+  ] as const)(
+    "should add default tag to every release of the line on $type",
+    ({ canonicalIds, type }) => {
+      const config: AIGatewayProviderConfig.Type = {
+        apiKey: "NOT_NEEDED",
+        cacheIdentifier: type,
+        id: AIProviderConfigIdSchema.parse(type),
+        type,
+      };
+      const tagsOf = (id: string) =>
+        addHeuristicTags(createMockModel(id), config).tags;
+      for (const id of canonicalIds) {
+        expect(tagsOf(id)).toContain("default");
+      }
+      expect(tagsOf("gpt-6-luna")).not.toContain("default");
+      expect(tagsOf("claude-opus-5.5")).not.toContain("default");
+    },
+  );
 
   it("should add default tag for anthropic provider defaults", () => {
     const anthropicConfig: AIGatewayProviderConfig.Type = {
@@ -245,9 +281,11 @@ describe("addHeuristicTags", () => {
       id: AIProviderConfigIdSchema.parse("google"),
       type: "google",
     };
-    const model = createMockModel("google/gemini-3.7-flash");
-    const result = addHeuristicTags(model, googleConfig);
-    expect(result.tags).toContain("default");
+    const tagsOf = (id: string) =>
+      addHeuristicTags(createMockModel(id), googleConfig).tags;
+    expect(tagsOf("google/gemini-3.8-flash")).toContain("default");
+    expect(tagsOf("google/gemini-3.8-flash-tts")).not.toContain("default");
+    expect(tagsOf("google/gemini-3.5-flash-lite")).not.toContain("default");
   });
 
   it.each([
@@ -290,5 +328,109 @@ describe("addHeuristicTags", () => {
     const model = createMockModel("test-author/gpt-5.5", ["new"]);
     const result = addHeuristicTags(model, mockConfig);
     expect(result.tags).toEqual(["new", "coding", "recommended"]);
+  });
+});
+
+describe("the default a provider's list leads with", () => {
+  // Lists as each provider served them, run through the same rules
+  // `fetchModels` applies to a whole list.
+  it.each([
+    {
+      ids: [
+        "claude-opus-5.5",
+        "claude-fable-5.1",
+        "claude-sonnet-5.5",
+        "claude-haiku-4.5",
+        "claude-sonnet-5",
+        "claude-opus-5",
+        "claude-fable-5",
+        "claude-opus-4.8",
+        "claude-sonnet-4.6",
+      ],
+      expected: "claude-sonnet-5.5",
+      type: "claude-account",
+    },
+    {
+      ids: [
+        "gpt-6.1-sol",
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+      ],
+      expected: "gpt-6.1-sol",
+      type: "chatgpt-account",
+    },
+    {
+      ids: [
+        "grok-4.20-0309-non-reasoning",
+        "grok-4.20-0309-reasoning",
+        "grok-4.20-multi-agent-0309",
+        "grok-4.3",
+        "grok-4.5",
+        "grok-4.6",
+        "grok-4.7",
+        "grok-build-0.1",
+      ],
+      expected: "grok-4.7",
+      type: "grok-account",
+    },
+    {
+      ids: [
+        "claude-sonnet-4",
+        "claude-sonnet-4.5",
+        "claude-sonnet-4.6",
+        "claude-sonnet-5",
+        "claude-sonnet-5.5",
+        "claude-opus-5.5",
+      ],
+      expected: "claude-sonnet-5.5",
+      type: "anthropic",
+    },
+    {
+      ids: [
+        "gpt-5.6-terra",
+        "gpt-5.6-sol",
+        "gpt-6-sol",
+        "gpt-6-sol-pro",
+        "gpt-6.1-sol",
+        "gpt-6.1-sol-pro",
+        "gpt-6-luna",
+        "gpt-6-astra",
+      ],
+      expected: "gpt-6.1-sol",
+      type: "openai",
+    },
+    {
+      ids: [
+        "gemini-3.1-pro-preview",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-tts",
+      ],
+      expected: "gemini-3.8-flash",
+      type: "google",
+    },
+  ] as const)("on $type is $expected alone", ({ expected, ids, type }) => {
+    const config: AIGatewayProviderConfig.Type = {
+      apiKey: "NOT_NEEDED",
+      cacheIdentifier: type,
+      id: AIProviderConfigIdSchema.parse(type),
+      type,
+    };
+    const models = demoteSupersededModels(
+      demoteVariantsOfListedModels(
+        ids.map((id) => addHeuristicTags(createMockModel(id), config)),
+      ),
+    );
+    expect(
+      models
+        .filter((model) => model.tags.includes("default"))
+        .map((model) => model.canonicalId),
+    ).toEqual([expected]);
   });
 });

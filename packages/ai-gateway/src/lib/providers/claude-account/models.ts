@@ -67,11 +67,6 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
     const author = "anthropic";
     const params = { provider: config.type, providerConfigId: config.id };
     const seen = new Set<string>();
-    // The model the CLI recommends, which a fresh connection makes the default.
-    const recommended = listed.find(
-      (model) => model.value === "default",
-    )?.resolvedModel;
-    const recommendedId = recommended && canonicalIdOf(recommended);
 
     return listed.flatMap((model) => {
       // The CLI's recommendation, which is also listed under its own name.
@@ -114,7 +109,7 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
                   mandatory: false,
                 }
               : undefined,
-            tags: canonicalId === recommendedId ? ["default"] : [],
+            tags: [],
             uri: AIGatewayModelURI.fromModel({ author, canonicalId, params }),
           },
           config,

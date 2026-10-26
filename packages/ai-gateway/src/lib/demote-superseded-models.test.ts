@@ -208,6 +208,30 @@ describe("demoteSupersededModels", () => {
     `);
   });
 
+  it("takes the default off a release below the floor that matches a line's pattern", () => {
+    // An Anthropic key's default pattern matches every Sonnet, and a legacy
+    // Sonnet carries no recommendation to be ranked by.
+    expect(
+      demoteSupersededModels([
+        createModel("anthropic/claude-sonnet-4.6", ["coding", "default"]),
+        createModel("anthropic/claude-sonnet-5.5", [
+          "coding",
+          "recommended",
+          "default",
+        ]),
+        createModel("z-ai/glm-4.7-flash", ["default"]),
+        createModel("z-ai/glm-5.3-flash", ["coding", "recommended", "default"]),
+      ])
+        .filter((model) => model.tags.includes("default"))
+        .map((model) => model.canonicalId),
+    ).toMatchInlineSnapshot(`
+      [
+        "claude-sonnet-5.5",
+        "glm-5.3-flash",
+      ]
+    `);
+  });
+
   it("leaves a model nothing in the list supersedes", () => {
     expect(
       stillRecommended([

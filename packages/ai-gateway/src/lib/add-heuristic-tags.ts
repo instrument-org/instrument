@@ -16,6 +16,9 @@ const MODEL_TAGS: Record<string, AIGatewayModel.ModelTag[]> = {
  */
 const GROK_RELEASE = /^grok-(?:4\.[5-9]|[5-9](?:\.\d+)?)$/;
 
+/** Every numbered GPT Sol, OpenAI's middle tier and the counterpart of Sonnet. */
+const GPT_SOL = /^gpt-\d+(?:\.\d+)?-sol$/;
+
 /**
  * The model each kind of provider leads its list with. A pattern rather than
  * an id where the line is what matters: every Sonnet matches, and
@@ -26,10 +29,12 @@ const DEFAULT_MODELS_BY_CONFIG_TYPE: Partial<
 > = {
   anthropic: /^claude-sonnet-/,
   cerebras: /^gpt-oss-120b$/,
-  google: /^gemini-3\.7-flash$/,
+  "chatgpt-account": GPT_SOL,
+  "claude-account": /^claude-sonnet-/,
+  google: /^gemini-\d+(?:\.\d+)?-flash$/,
   "grok-account": GROK_RELEASE,
   groq: /^gpt-oss-120b$/,
-  openai: /^gpt-5\.6-terra$/,
+  openai: GPT_SOL,
   "x-ai": GROK_RELEASE,
   "z-ai": /^glm-5\.3$/,
 };

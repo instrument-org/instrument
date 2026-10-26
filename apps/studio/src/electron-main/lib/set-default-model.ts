@@ -49,8 +49,8 @@ export async function setChatGPTAccountDefaultModel({
 
 /**
  * Connecting a Claude account is asked for to use the subscription, so it
- * makes the model Claude Code recommends the default. Answers with the
- * model's name, so the connection can say what changed.
+ * makes the account's default-tagged model (the newest Sonnet) the default.
+ * Answers with the model's name, so the connection can say what changed.
  */
 export async function setClaudeAccountDefaultModel(): Promise<
   string | undefined

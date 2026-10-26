@@ -104,12 +104,16 @@ export function demoteSupersededModels(
   });
 }
 
-// Only a model this build put forward as a recommendation is ranked against the
-// rest of the list. Everything else either has no recommendation to lose or
-// carries one nothing here is in a position to second-guess.
+// Only a model this build put forward, as a recommendation or as a provider's
+// default, is ranked against the rest of the list. A default pattern names a
+// line (every Sonnet), so a release below the floor matches it too and would
+// otherwise keep the tag beside the newest one. Everything else either has
+// nothing to lose or carries a tag nothing here is in a position to
+// second-guess.
 function isRankedAgainstTheList(model: AIGatewayModel.Type): boolean {
   return (
-    model.tags.includes("recommended") && model.author !== OUR_MODELS.author
+    (model.tags.includes("recommended") || model.tags.includes("default")) &&
+    model.author !== OUR_MODELS.author
   );
 }
 

@@ -510,12 +510,26 @@ function WindowShell({
   }, [pageHost, stage]);
 
   /**
-   * Takes a chat out of the corner: the window goes and the chat comes
-   * up in the tab on screen, whole, its pane as it was.
+   * Takes a chat out of the corner: the window goes and the chat comes up in
+   * a tab of the window's own, the one that already has it or a new one, its
+   * pane opened when the window asked for something to be shown.
    */
-  const landChat = (chatId: ChatId) => {
+  const expandChat = (
+    chatId: ChatId,
+    { showsPane }: { showsPane: boolean },
+  ) => {
     compose.remove(chatId);
-    appTabs.navigate(chatHref(chatId));
+    const tab = appTabs.model.tabs.find(
+      (candidate) => chatOfHref(candidate.pathname) === chatId,
+    );
+    if (tab) {
+      appTabs.select(tab.id);
+    } else {
+      appTabs.open(chatHref(chatId));
+    }
+    if (showsPane) {
+      setPaneOpen(chatId, true);
+    }
   };
 
   const { openNamedPath, openPage, openScreen } = useOpeners({
@@ -922,6 +936,7 @@ function WindowShell({
                 }}
                 onCloseDraft={closeDraft}
                 onDiscardDraft={discardDraft}
+                onExpandChat={expandChat}
                 onCloseTab={requestClose}
                 onModelChange={setDefaultModelURI}
                 onNewChatTopic={(chatId, name) => {
@@ -930,7 +945,6 @@ function WindowShell({
                 onNewTopic={(draftId, name) => {
                   setNewTopic({ draftId, ...(name ? { name } : {}) });
                 }}
-                onOpenChat={landChat}
                 onSetChatTopic={setChatTopic}
                 onStart={startChat}
                 sendContext={(options) => sendContextRef.current(options)}

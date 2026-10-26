@@ -16,7 +16,6 @@ import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId } from "@instrument-org/workspace/client";
-import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
@@ -66,7 +65,6 @@ export function ChatHeader({
   onArchived,
   onDeleted,
   onNewTopic,
-  onOpenInChats,
   onOpenTask,
   onSetTopic,
   onViewTasks,
@@ -85,8 +83,6 @@ export function ChatHeader({
   onDeleted: () => void;
   /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewTopic: (name?: string) => void;
-  /** Opens the chat among the chats, from its menu, where the head is not already there. */
-  onOpenInChats?: () => void;
   /** Opens one of the chat's tasks beside it, from the list under its title. */
   onOpenTask: (sessionId: StoreId.Session) => void;
   onSetTopic: (topic: null | string) => void;
@@ -138,7 +134,7 @@ export function ChatHeader({
               <ChatHeading
                 centered
                 chat={chat}
-                menu={{ onArchived, onOpenInChats, onViewTasks }}
+                menu={{ onArchived, onViewTasks }}
                 onDelete={() => {
                   setDeleting(true);
                 }}
@@ -238,10 +234,7 @@ function ChatHeading({
   centered?: boolean;
   chat: Chat;
   /** What the menu offers beyond what every head's does. */
-  menu: Pick<
-    ComponentProps<typeof ChatMenu>,
-    "onArchived" | "onOpenInChats" | "onViewTasks"
-  >;
+  menu: Pick<ComponentProps<typeof ChatMenu>, "onArchived" | "onViewTasks">;
   onDelete: () => void;
   /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewTopic: (name?: string) => void;
@@ -338,7 +331,6 @@ function ChatMenu({
   chat,
   onArchived,
   onDelete,
-  onOpenInChats,
   onViewTasks,
   rename,
   topicMenu,
@@ -348,8 +340,6 @@ function ChatMenu({
   /** After the chat is archived from this menu, for a head that should go with it. */
   onArchived?: () => void;
   onDelete: () => void;
-  /** Opens the chat in Chats, for a head that is not already there. */
-  onOpenInChats?: () => void;
   /** Opens the chat's tasks, when the head can reach them. */
   onViewTasks?: () => void;
   rename: ChatRename;
@@ -390,15 +380,6 @@ function ChatMenu({
           }
         }}
       >
-        {onOpenInChats && (
-          <>
-            <DropdownMenuItem onSelect={onOpenInChats}>
-              <ChatsCircleIcon className="size-3.5" />
-              Open in Chats
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
         {chat.state === "working" && (
           <>
             <DropdownMenuItem

@@ -27,7 +27,7 @@ import { parseHref } from "./window-href";
  * chat and the places stay in reach beside them. A window or a bar
  * arrives and leaves with a motion of its own, so a draft opening is seen
  * to open; a draft becoming a chat keeps its window, since it is the same
- * window in the same corner. A grown window stands over a scrim that holds
+ * window in the same corner. A grown draft's window stands over a scrim that holds
  * the rest of the window still, like a dialog: pressing the scrim or Escape
  * shrinks it back to the foot.
  */
@@ -42,10 +42,10 @@ export function ComposeLayer({
   onCloseDraft,
   onCloseTab,
   onDiscardDraft,
+  onExpandChat,
   onModelChange,
   onNewChatTopic,
   onNewTopic,
-  onOpenChat,
   onSetChatTopic,
   onStart,
   sendContext,
@@ -66,16 +66,16 @@ export function ComposeLayer({
   onCloseTab: (id: string) => void;
   /** A draft thrown away from its window's head. */
   onDiscardDraft: (id: string) => void;
+  /** A popped-out chat expanded: the window goes and the chat comes up in a tab of the window's own, its pane open when asked. */
+  onExpandChat: (chatId: ChatId, options: { showsPane: boolean }) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** A topic asked for from a draft's head, with what was typed: the topic it makes files that draft. */
   /** Makes a topic from a popped-out chat's head, filing that chat under it. */
   onNewChatTopic: (chatId: ChatId, name?: string) => void;
   onNewTopic: (draftId: string, name: string) => void;
-  /** A popped-out chat asked to open in Chats, from its title: the window goes and the chat is selected. */
-  onOpenChat: (chatId: ChatId) => void;
   onSetChatTopic: (chatId: ChatId, topic: null | string) => void;
   onStart: (id: string, send: DraftSend) => void;
-  /** What goes with a reply sent from a chat's small view: its own tab up while its view is open, what the window has up behind it otherwise. */
+  /** What goes with a reply sent from a chat's small view: what the window has up behind it. */
   sendContext: (options: {
     isViewOpen: boolean;
     isPoppedOut: boolean;
@@ -105,7 +105,10 @@ export function ComposeLayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orphanKey]);
 
-  const grown = compose.placed.find((entry) => entry.placement === "expanded");
+  // Only a draft grows; a chat expands into a tab of its own.
+  const grown = compose.placed.find(
+    (entry) => entry.kind === "draft" && entry.placement === "expanded",
+  );
   const isGrown = grown !== undefined;
   const shrink = () => {
     if (grown) {
@@ -203,22 +206,18 @@ export function ComposeLayer({
                   onCloseChat(chatId);
                 }}
                 onCloseTab={onCloseTab}
+                onExpand={(options) => {
+                  onExpandChat(chatId, options);
+                }}
                 onMinimize={() => {
                   compose.setPlacement(chatId, "bar");
                 }}
                 onNewTopic={(name) => {
                   onNewChatTopic(chatId, name);
                 }}
-                onOpenInChats={() => {
-                  onOpenChat(chatId);
-                }}
-                onPlacementChange={(placement) => {
-                  compose.setPlacement(chatId, placement);
-                }}
                 onSetTopic={(next) => {
                   onSetChatTopic(chatId, next);
                 }}
-                placement={entry.placement}
                 right={entry.right}
                 sendContext={(options) =>
                   sendContext({ ...options, chatId, isPoppedOut: true })

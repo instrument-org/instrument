@@ -240,3 +240,57 @@ describe("ComposerFrame as a pill", () => {
     },
   );
 });
+
+describe("a chip at the head of the composer", () => {
+  // A chip's ring is drawn a pixel outside its box, so a clip along the
+  // chip's own edge cut the ring off its top and left.
+  it.each(["bare", "pill"] as const)(
+    "keeps its ring clear of every clip in a %s",
+    async (layout) => {
+      const chip = (
+        <span
+          className="inline-flex h-6 items-center self-center rounded-full pl-2 ring-1 ring-border"
+          data-testid="chip"
+        >
+          plan.md
+        </span>
+      );
+      await render(
+        <div style={{ padding: 40, width: 480 }}>
+          <ComposerFrame
+            actions={<button type="button">Send</button>}
+            {...(layout === "pill" ? { extras: chip } : { attachments: chip })}
+            layout={layout}
+            maxHeight={400}
+          >
+            <div>words</div>
+          </ComposerFrame>
+        </div>,
+      );
+      const chipElement = document.querySelector<HTMLElement>(
+        '[data-testid="chip"]',
+      );
+      if (!chipElement) {
+        throw new Error("the chip is not mounted");
+      }
+      const ring = chipElement.getBoundingClientRect();
+      const cuts: string[] = [];
+      for (
+        let clip = chipElement.parentElement;
+        clip;
+        clip = clip.parentElement
+      ) {
+        const style = getComputedStyle(clip);
+        if (style.overflowX === "visible" && style.overflowY === "visible") {
+          continue;
+        }
+        const box = clip.getBoundingClientRect();
+        if (ring.left - 1 < box.left || ring.top - 1 < box.top) {
+          cuts.push(clip.className);
+        }
+      }
+
+      expect(cuts).toEqual([]);
+    },
+  );
+});

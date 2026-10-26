@@ -115,9 +115,11 @@ export function ComposerFrame({
             </motion.div>
           ) : null}
           {extras ? (
+            // The padding, given back by the margin, keeps the clip clear of
+            // the chips' rings along the row's top.
             <motion.div
               animate={{ height: "auto", opacity: 1 }}
-              className="overflow-hidden"
+              className="-mt-1 overflow-hidden pt-1"
               exit={{ height: 0, opacity: 0 }}
               initial={{ height: 0, opacity: 0 }}
               key="extras"
@@ -233,7 +235,10 @@ export function ComposerFrame({
           clips, as the attachments did when they were the row themselves, so
           a long list of files gives way under the cap; the notice is one line
           and keeps its height. */}
-      <div className="row-start-1 flex min-h-0 min-w-0 flex-col overflow-hidden">
+      {/* The row's padding, given back by its margin, moves its clip out to
+          where the attachments' own negative margin reaches, so the chips'
+          rings and remove buttons are not cut along it. */}
+      <div className="row-start-1 -mx-2 -mt-2 flex min-h-0 min-w-0 flex-col overflow-hidden px-2 pt-2">
         <AnimatePresence initial={false}>
           {notice && (
             <motion.div

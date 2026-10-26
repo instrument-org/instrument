@@ -298,6 +298,19 @@ export function ChatList({
     }
   });
   const isScrollable = useIsScrollable(ref, rows.length);
+  // The chat a held arrow stopped on, opened as the key is let go of.
+  const pendingOpen = useRef<null | { open: () => void; timer: number }>(null);
+  const clearPending = () => {
+    if (pendingOpen.current) {
+      window.clearTimeout(pendingOpen.current.timer);
+      pendingOpen.current = null;
+    }
+  };
+  const openPending = () => {
+    const pending = pendingOpen.current;
+    clearPending();
+    pending?.open();
+  };
   // The keyboard onto a row once it is drawn, which a row scrolled to may
   // not be yet.
   const focusRowWhenDrawn = (index: number) => {
@@ -349,6 +362,7 @@ export function ChatList({
         }
         const at = Number(row.dataset.index);
         if (event.key === "Enter") {
+          openPending();
           letGoOfList();
           if (rows[at]?.open) {
             focusComposerWhenDrawn();
@@ -365,9 +379,24 @@ export function ChatList({
           return;
         }
         keepKeyboardInList(event.currentTarget);
-        entry.open?.();
+        // Held down, the rows go by as fast as the key repeats, and the
+        // chat the key stops on opens once it is let go of (or rests).
+        clearPending();
+        if (event.repeat && entry.open) {
+          pendingOpen.current = {
+            open: entry.open,
+            timer: window.setTimeout(openPending, HELD_OPEN_REST_MS),
+          };
+        } else {
+          entry.open?.();
+        }
         virtualizer.scrollToIndex(next);
         focusRowWhenDrawn(next);
+      }}
+      onKeyUp={(event) => {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          openPending();
+        }
       }}
       ref={ref}
     >
@@ -420,6 +449,9 @@ export function ChatList({
     </div>
   );
 }
+
+/** How long a held arrow rests on a row before its chat opens, in ms. */
+const HELD_OPEN_REST_MS = 150;
 
 /** How long a row or a composer has to be drawn before the keyboard is put on it, in frames. */
 const DRAW_WAIT_FRAMES = 30;

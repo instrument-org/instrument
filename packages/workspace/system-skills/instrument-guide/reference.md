@@ -101,10 +101,21 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 ### Chats
 
+- Back to List: Esc / Esc
 - Next Chat: ⌥⌘↓ / Alt+Shift+↓
+- Next Chat in List: ↓ / ↓
 - Paste as Text: ⇧⌘V / Ctrl+Shift+V
 - Previous Chat: ⌥⌘↑ / Alt+Shift+↑
+- Previous Chat in List: ↑ / ↑
+- Reply to Chat: ↩ / Enter
 - Toggle Inbox: ⌘B / Ctrl+B
+
+### Files
+
+- Back in Page: ← / ←
+- Close Page Viewer or File: Esc / Esc
+- Forward in Page: → / →
+- Scroll Page: Space / Space
 
 ### Tabs
 

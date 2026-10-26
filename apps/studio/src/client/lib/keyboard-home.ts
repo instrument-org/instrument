@@ -1,18 +1,37 @@
 /**
- * Where the keyboard goes when a screen comes up. Each screen marks the part
- * it is worked from with `data-keyboard-home`: a list, whose open or selected
- * row takes the keyboard (its first row when none is), a composer, whose
- * words do, or the element itself. A lower value wins where a screen marks more than one, so a chat's
- * composer goes ahead of the chat list beside it.
+ * Where the keyboard is in the app window, kept by three rules:
  *
- * Coming up by the rail or a place's chord puts the keyboard there, never
- * on the button pressed, so the arrows work on the screen at once.
+ * - Each screen marks the parts it is worked from with `data-keyboard-home`:
+ *   a list, whose open or selected row takes the keyboard (its first row
+ *   when none is), a composer, whose words do, or the element itself. A
+ *   lower value wins where more than one is on show, so a chat's composer
+ *   goes ahead of the chat list beside it, and the file list ahead of the
+ *   page beside it. A part the window cannot focus itself (a page, drawn by
+ *   a guest of its own) says how with `setHomeFocus`.
+ * - A press of the pointer on a button leaves the keyboard where it was, as
+ *   a Mac's buttons do: the rail, a toolbar's toggle, a tab. Tab still
+ *   reaches every one.
+ * - The keyboard left on nothing a person can see (a column put away, a
+ *   screen gone) goes to the home of the screen on show.
  */
 
 /** How long a screen has to draw its home after it is asked for, in frames. */
 const HOME_WAIT_FRAMES = 30;
 
 const ACTIVE_TAB = "[data-app-tab-active]";
+
+/** Homes the window cannot put the keyboard in by focusing them, with how to. */
+const homeFocus = new WeakMap<Element, () => void>();
+
+/** How to put the keyboard in a home that is not focusable itself, such as the element a page is drawn into. */
+export function setHomeFocus(home: Element, focus: () => void) {
+  homeFocus.set(home, focus);
+  return () => {
+    if (homeFocus.get(home) === focus) {
+      homeFocus.delete(home);
+    }
+  };
+}
 
 /**
  * Puts the keyboard in the screen on show once it has drawn, unless
@@ -33,9 +52,16 @@ export function focusScreenHome({ leaving }: { leaving: boolean }) {
     if (!isOldScreen && isInScreen(now)) {
       return;
     }
-    const home = isOldScreen ? null : homeTarget();
-    if (home) {
-      home.focus({ preventScroll: true });
+    const home = isOldScreen ? null : homeOnShow();
+    const focus = home && homeFocus.get(home);
+    if (focus) {
+      focus();
+      return;
+    }
+    // A home whose rows are still on their way is waited for too.
+    const target = home && targetIn(home);
+    if (target) {
+      target.focus({ preventScroll: true });
       return;
     }
     frames += 1;
@@ -46,8 +72,8 @@ export function focusScreenHome({ leaving }: { leaving: boolean }) {
   requestAnimationFrame(attempt);
 }
 
-/** The element the screen on show is worked from, or null while it has none drawn. */
-function homeTarget(): HTMLElement | null {
+/** The part of the screen on show it is worked from, or null while it has none drawn. */
+function homeOnShow(): HTMLElement | null {
   const homes = [
     ...document.querySelectorAll<HTMLElement>(
       `${ACTIVE_TAB} [data-keyboard-home]`,
@@ -57,10 +83,11 @@ function homeTarget(): HTMLElement | null {
     (a, b) =>
       Number(a.dataset.keyboardHome || 1) - Number(b.dataset.keyboardHome || 1),
   );
-  const [home] = homes;
-  if (!home) {
-    return null;
-  }
+  return homes[0] ?? null;
+}
+
+/** Where in a home the keyboard goes. */
+function targetIn(home: HTMLElement): HTMLElement | null {
   return (
     first(home, '[data-open], [role="option"][aria-selected="true"]') ??
     first(home, '[contenteditable="true"]') ??
@@ -70,12 +97,16 @@ function homeTarget(): HTMLElement | null {
   );
 }
 
-/** Whether the keyboard is somewhere a person can see in the screen on show. */
+/**
+ * Whether the keyboard is somewhere a person can see in the screen on show,
+ * a page beside it included, whose guest is drawn outside the screen's own
+ * elements.
+ */
 function isInScreen(element: Element | null): element is HTMLElement {
   return (
     element instanceof HTMLElement &&
     element !== document.body &&
-    element.closest(ACTIVE_TAB) !== null &&
+    (element.closest(ACTIVE_TAB) !== null || element.tagName === "WEBVIEW") &&
     isShown(element)
   );
 }
@@ -86,11 +117,15 @@ function first(root: HTMLElement, selector: string) {
   );
 }
 
+/** Drawn, and not in a part of the screen put out of reach (`inert`). */
 function isShown(element: HTMLElement) {
-  return element.checkVisibility({
-    opacityProperty: true,
-    visibilityProperty: true,
-  });
+  return (
+    element.closest("[inert]") === null &&
+    element.checkVisibility({
+      opacityProperty: true,
+      visibilityProperty: true,
+    })
+  );
 }
 
 /**
@@ -116,6 +151,78 @@ export function mayTakeKeyboard() {
   );
 }
 
-if (typeof window !== "undefined") {
-  window.addEventListener("pointerdown", letGoOfList, { capture: true });
+/**
+ * The window's side of the rules above, for the app window to install once:
+ * a button pressed leaves the keyboard where it was, and a keyboard left on
+ * nothing a person can see goes home.
+ */
+export function installKeyboardHome() {
+  const controller = new AbortController();
+  const { signal } = controller;
+  // Whether the press now ending was on a button, which leaves the keyboard
+  // where it was; a page beside the screen loses it all the same, since its
+  // guest gives the keyboard up to any press in the window.
+  let pressedButton = false;
+  window.addEventListener("pointerdown", letGoOfList, {
+    capture: true,
+    signal,
+  });
+  window.addEventListener(
+    "mousedown",
+    (event) => {
+      const button =
+        event.button === 0 && event.target instanceof Element
+          ? event.target.closest("button")
+          : null;
+      // A button that drags, as a tab of the strip does, needs the press.
+      if (button && !button.closest('[draggable="true"]')) {
+        event.preventDefault();
+        pressedButton = true;
+      }
+    },
+    { capture: true, signal },
+  );
+  // Only for a keyboard whose place went away. One let go onto nothing by a
+  // press on the screen's own words (to select them) stays let go.
+  const isGone = (element: EventTarget | null) =>
+    element instanceof HTMLElement &&
+    (!element.isConnected || !isShown(element));
+  // A press that put away the part the keyboard is in, which keeps the
+  // keyboard while it is out of sight, once the press has done its work.
+  window.addEventListener(
+    "click",
+    () => {
+      const wasButton = pressedButton;
+      pressedButton = false;
+      requestAnimationFrame(() => {
+        const focused = document.activeElement;
+        if (
+          isGone(focused) ||
+          (wasButton && (focused === null || focused === document.body))
+        ) {
+          focusScreenHome({ leaving: false });
+        }
+      });
+    },
+    { capture: true, signal },
+  );
+  // A part taken away with the keyboard in it, which leaves it on nothing.
+  document.addEventListener(
+    "focusout",
+    (event) => {
+      if (event.relatedTarget !== null) {
+        return;
+      }
+      const left = event.target;
+      requestAnimationFrame(() => {
+        if (document.activeElement === document.body && isGone(left)) {
+          focusScreenHome({ leaving: false });
+        }
+      });
+    },
+    { signal },
+  );
+  return () => {
+    controller.abort();
+  };
 }

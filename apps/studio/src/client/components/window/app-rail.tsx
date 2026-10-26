@@ -160,12 +160,6 @@ function RailEntry({
       onClick={(event) => {
         onChoose(wantsNewTab(event));
       }}
-      // The press goes to the screen it brings up, never to the button.
-      onMouseDown={(event) => {
-        if (event.button === 0) {
-          event.preventDefault();
-        }
-      }}
       onContextMenu={(event) => {
         event.preventDefault();
         void rpcClient.utils.showContextMenu

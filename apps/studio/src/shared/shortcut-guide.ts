@@ -19,6 +19,7 @@ export const SHORTCUT_GUIDE = {
 export type ShortcutGuideGroup =
   | "Chats"
   | "Developer"
+  | "Files"
   | "General"
   | "Pages"
   | "Tabs"
@@ -28,6 +29,7 @@ export type ShortcutGuideGroup =
 export const SHORTCUT_GUIDE_GROUPS: ShortcutGuideGroup[] = [
   "General",
   "Chats",
+  "Files",
   "Tabs",
   "Pages",
   "View",
@@ -98,6 +100,62 @@ const PASTE_AS_TEXT = {
 } as const;
 
 /**
+ * The keys of the chat list and of a page open beside a folder, which the
+ * list or the folder answers while it has the keyboard (`chat-list.tsx`,
+ * `computer-page.tsx`), not a menu or the window.
+ */
+const LIST_KEYS: ShortcutGuideEntry[] = [
+  {
+    accelerator: "Down",
+    group: "Chats",
+    id: "nextChatInList",
+    label: "Next Chat in List",
+  },
+  {
+    accelerator: "Up",
+    group: "Chats",
+    id: "previousChatInList",
+    label: "Previous Chat in List",
+  },
+  {
+    accelerator: "Return",
+    group: "Chats",
+    id: "replyFromList",
+    label: "Reply to Chat",
+  },
+  {
+    accelerator: "Escape",
+    group: "Chats",
+    id: "backToList",
+    label: "Back to List",
+  },
+  {
+    accelerator: "Right",
+    group: "Files",
+    id: "pageForward",
+    label: "Forward in Page",
+  },
+  {
+    accelerator: "Left",
+    group: "Files",
+    id: "pageBack",
+    label: "Back in Page",
+  },
+  {
+    accelerator: "Space",
+    group: "Files",
+    id: "pageScroll",
+    label: "Scroll Page",
+  },
+  {
+    accelerator: "Escape",
+    group: "Files",
+    id: "pageClose",
+    label: "Close Page Viewer or File",
+  },
+];
+
+/**
  * Every chord the app window answers to, read off the tables the menus and
  * key binders are built from, so the guide cannot list a chord the window
  * lacks or miss one it has. Key order carries no meaning; the guide orders
@@ -106,6 +164,7 @@ const PASTE_AS_TEXT = {
 export const SHORTCUT_GUIDE_ENTRIES: ShortcutGuideEntry[] = [
   { ...SHORTCUT_GUIDE, group: "General", id: "shortcutGuide" },
   { ...PASTE_AS_TEXT, group: "Chats", id: "pasteAsText" },
+  ...LIST_KEYS,
   ...Object.entries(WINDOW_CHORDS).map(([id, { accelerator, label }]) => ({
     accelerator,
     // `Object.entries` widens the keys to `string`; they are the tables' ids.

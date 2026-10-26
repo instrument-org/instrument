@@ -30,6 +30,8 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { COMPUTER_FILE_REFUSAL_HEADER } from "@/shared/computer-file-refusal";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
+import { giveKeyboardTo } from "@/client/lib/browser-pool";
+import { setHomeFocus } from "@/client/lib/keyboard-home";
 import { cn } from "@/client/lib/utils";
 import { useTheme } from "@/client/components/theme-provider";
 import { rpcClient } from "@/client/rpc/client";
@@ -406,6 +408,18 @@ export function FilesScreen({
     },
     url: hostedFile === undefined ? undefined : fileUrlOf(hostedFile),
   });
+  // The element the page is drawn into, which the window hands the keyboard
+  // to by handing it to the page (`keyboard-home.ts`).
+  const [pageSlot, setPageSlot] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!pageSlot || hostedTabId === undefined) {
+      return;
+    }
+    const target = browserTargetOf(hostedTabId);
+    return setHomeFocus(pageSlot, () => {
+      giveKeyboardTo(target);
+    });
+  }, [pageSlot, hostedTabId]);
   // A link the page follows moves the tab: to another file, which the tab
   // shows in this one's place while the step stays in the page's own
   // history (which back walks first), or off the computer, where the tab
@@ -655,7 +669,13 @@ export function FilesScreen({
                   ? "h-full [--guest-bottom-radius:0_var(--pane-bottom-right-radius,var(--radius-2xl))]"
                   : "h-full"
               }
-              ref={setSlot}
+              // After the file list: the page has the keyboard when the
+              // folder beside it is put away.
+              data-keyboard-home="2"
+              ref={(element) => {
+                setSlot(element);
+                setPageSlot(element);
+              }}
             />
           ),
         };

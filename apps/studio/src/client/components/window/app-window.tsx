@@ -38,7 +38,10 @@ import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { getGuest } from "@/client/lib/browser-pool";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
-import { focusScreenHome } from "@/client/lib/keyboard-home";
+import {
+  focusScreenHome,
+  installKeyboardHome,
+} from "@/client/lib/keyboard-home";
 import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
@@ -315,6 +318,7 @@ function WindowShell({
   const appTabs = useAppTabs();
   useRefreshSkillsOnChange();
   useRefreshTopicsOnChange();
+  useEffect(() => installKeyboardHome(), []);
   // Where the tab up stands, read off its own router, which the context above
   // is: the rail lights its place and the group on screen follows it.
   const activeHref = useRouterState({

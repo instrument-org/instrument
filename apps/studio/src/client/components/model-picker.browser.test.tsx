@@ -249,7 +249,7 @@ describe("ModelPicker in a browser", () => {
     trial: { state: state === "trial-ended" ? "ended" : "available" },
     windows: [],
   });
-  const lineup = () => [
+  const ourLineup = () => [
     autoModel,
     instrument({ canonicalId: "claude", name: "Claude" }),
   ];
@@ -260,7 +260,7 @@ describe("ModelPicker in a browser", () => {
       label: "Start free trial",
     });
     try {
-      const tree = await openPicker(autoModel, { models: lineup() });
+      const tree = await openPicker(autoModel, { models: ourLineup() });
       expect(await tree()).toMatchInlineSnapshot(`
         "- text: Search models
         - combobox "Search models" [expanded]
@@ -285,7 +285,7 @@ describe("ModelPicker in a browser", () => {
       label: "Choose a plan",
     });
     try {
-      const tree = await openPicker(autoModel, { models: lineup() });
+      const tree = await openPicker(autoModel, { models: ourLineup() });
       expect(await tree()).toMatchInlineSnapshot(`
         "- text: Search models
         - combobox "Search models" [expanded]

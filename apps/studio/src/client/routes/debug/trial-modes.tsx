@@ -6,6 +6,7 @@ import { FreeAccountPage } from "@/client/components/setup/steps/free-account";
 import { ChooseAI } from "@/client/components/setup/steps/choose-ai";
 import { AddProviderSheet } from "@/client/components/studio-modals/add-provider-sheet";
 import { Button } from "@/client/components/ui/button";
+import { modelsHeldBack } from "@/client/lib/billing";
 import { rpcClient } from "@/client/rpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -68,11 +69,19 @@ const surfaces = [
   {
     id: "model-picker",
     label: "Model picker",
-    render: () => (
-      <div className="w-100 rounded-xl border border-border bg-popover pt-2">
-        <PlanNeeded />
-      </div>
-    ),
+    render: (mode: TrialModeId) => {
+      const step = modelsHeldBack(trialModeStatus(mode), new Date());
+      return (
+        <div className="w-100 rounded-xl border border-border bg-popover pt-2">
+          {step && (
+            <PlanNeeded
+              models={["Auto", "ChatGPT", "Claude", "Gemini"]}
+              step={step}
+            />
+          )}
+        </div>
+      );
+    },
     signedIn: true,
   },
   {

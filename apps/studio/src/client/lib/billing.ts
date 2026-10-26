@@ -763,6 +763,28 @@ export function offersTrial(status: Status | undefined) {
 }
 
 /**
+ * What the model picker says in place of Instrument's models while the
+ * account has no way to use them: the platform's outcome and next step.
+ * Undefined while they run, and while only a usage window is spent, which
+ * passes on its own.
+ */
+export function modelsHeldBack(status: Status | undefined, now: Date) {
+  const notice = accountNotice(status);
+  if (notice?.kind !== "blocked" || notice.outcome === "limit-reached") {
+    return undefined;
+  }
+  return nextStep(
+    {
+      blocked: "models",
+      notice,
+      otherModelCan: false,
+      tier: status?.account.tier,
+    },
+    now,
+  );
+}
+
+/**
  * What Auto's row in the model picker says about paying for it: that the
  * plan or the free trial includes it, and nothing while the account has
  * neither, or before its status is read.

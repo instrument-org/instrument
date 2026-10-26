@@ -22,8 +22,19 @@ import {
   rowsForSearch,
 } from "@/client/lib/model-picker-rows";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
-import { autoIncludedLine, offersTrial } from "@/client/lib/billing";
-import { openPlans } from "@/client/lib/billing-website";
+import { openReportDialog } from "@/client/atoms/report-dialog";
+import {
+  autoIncludedLine,
+  modelsHeldBack,
+  type NextStep,
+  type NoticeAction,
+} from "@/client/lib/billing";
+import {
+  openAccount,
+  openPlans,
+  openWebsitePage,
+} from "@/client/lib/billing-website";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import { type ModelAction, type ModelNotice } from "@/client/lib/model-status";
 import { cn } from "@/client/lib/utils";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
@@ -390,10 +401,19 @@ function PickerPanel({
     }
   };
 
+  const { data: billingStatus } = useBillingStatus();
+  const heldBack = modelsHeldBack(billingStatus, new Date());
   const opened = rail.find((entry) => entry.id === openId);
   const searching = query.trim().length > 0;
   const rows: PickerRow[] = searching
-    ? rowsForSearch({ models, query })
+    ? rowsForSearch({
+        models: heldBack
+          ? models.filter(
+              (model) => model.params.provider !== OUR_MODELS.providerType,
+            )
+          : models,
+        query,
+      })
     : opened && !opened.failed
       ? rowsForConnection({ connectionId: opened.id, models, showAll })
       : [];
@@ -527,29 +547,33 @@ function PickerPanel({
               >
                 <AddProviderButton onClick={onAddProvider} />
               </EmptyMessage>
+            ) : heldBack &&
+              !searching &&
+              opened?.provider === OUR_MODELS.providerType ? (
+              <PlanNeeded
+                models={rows.flatMap((row) =>
+                  row.type === "auto" || row.type === "model"
+                    ? [row.model.name.trim()]
+                    : [],
+                )}
+                step={heldBack}
+              />
+            ) : autoOnly ? (
+              <AutoOnly
+                chosen={selectedModel?.uri === autoOnly.model.uri}
+                model={autoOnly.model}
+                onPick={onPick}
+              />
             ) : (
-              <>
-                {!searching && opened?.provider === OUR_MODELS.providerType && (
-                  <PlanNeeded />
-                )}
-                {autoOnly ? (
-                  <AutoOnly
-                    chosen={selectedModel?.uri === autoOnly.model.uri}
-                    model={autoOnly.model}
-                    onPick={onPick}
-                  />
-                ) : (
-                  <VirtualRows
-                    offer={offer}
-                    onAction={onAction}
-                    onPick={onPick}
-                    onShowAll={setShowAll}
-                    rows={rows}
-                    scrollRef={scrollRef}
-                    selectedModel={selectedModel}
-                  />
-                )}
-              </>
+              <VirtualRows
+                offer={offer}
+                onAction={onAction}
+                onPick={onPick}
+                onShowAll={setShowAll}
+                rows={rows}
+                scrollRef={scrollRef}
+                selectedModel={selectedModel}
+              />
             )}
           </CommandList>
         </div>
@@ -989,38 +1013,89 @@ function FailedConnection({
 }
 
 /**
- * Over Instrument's models while the account has no plan for them (the free
- * allowance covers search and suggestions alone): the website's plans, led
- * by the free trial while it can start. Picking one stays possible; the chat says
- * the same if a message is sent on it.
+ * In place of Instrument's models while the account has no way to use them:
+ * what stands in the way and the platform's next step, naming the models it
+ * opens up. Nothing to pick, since every turn on one would be refused.
  */
-export function PlanNeeded() {
-  const { data: status, isSignedIn } = useBillingStatus();
-  const tier = status?.account.tier;
-  if (!isSignedIn || (tier !== "free" && tier !== "none")) {
-    return null;
-  }
-  const offerTrial = offersTrial(status);
+export function PlanNeeded({
+  models,
+  step,
+}: {
+  models: string[];
+  step: NextStep;
+}) {
+  const named = new Intl.ListFormat("en", { type: "conjunction" }).format(
+    models,
+  );
+  const line =
+    step.line ??
+    (models.length === 0
+      ? undefined
+      : step.action?.kind === "start-trial"
+        ? `${named} ${models.length === 1 ? "works" : "work"} as soon as it starts.`
+        : `Every plan includes ${named}.`);
   return (
     <div
-      className="mx-1 mb-2 flex items-center gap-3 rounded-xl bg-muted/60 px-3 py-2.5"
+      className="flex flex-col items-center gap-3 px-8 py-8 text-center"
       data-billing-picker="plan-needed"
     >
-      <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-        {offerTrial
-          ? `Start your free trial to use ${APP_NAME}'s models.`
-          : `${APP_NAME}'s models need a plan.`}
-      </p>
-      <Button
-        onClick={() => {
-          openPlans();
-        }}
-        size="sm"
-      >
-        {offerTrial ? "Start free trial" : "Choose a plan"}
-      </Button>
+      <div aria-hidden>
+        <AIProviderIcon
+          className="size-7"
+          colored
+          type={OUR_MODELS.providerType}
+        />
+      </div>
+      <p className="text-base font-medium">{step.title}</p>
+      {line && (
+        <p className="text-sm text-balance text-muted-foreground">{line}</p>
+      )}
+      {step.action && (
+        <Button
+          onClick={() => {
+            if (step.action) {
+              actOnPlan(step.action);
+            }
+          }}
+          variant="brand"
+        >
+          {step.action.label}
+        </Button>
+      )}
     </div>
   );
+}
+
+function actOnPlan(action: NoticeAction) {
+  switch (action.kind) {
+    case "choose-plan":
+    case "start-trial":
+    case "upgrade": {
+      openPlans(action.plan);
+      break;
+    }
+    case "contact": {
+      openReportDialog(feedbackReport({ surface: "usage-limit" }));
+      break;
+    }
+    case "update-card": {
+      openAccount();
+      break;
+    }
+    case "website": {
+      if (action.page) {
+        openWebsitePage(action.page, action.plan);
+      }
+      break;
+    }
+    case "continue":
+    case "sign-in": {
+      break;
+    }
+    default: {
+      action.kind satisfies never;
+    }
+  }
 }
 
 /**

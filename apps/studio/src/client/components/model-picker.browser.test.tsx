@@ -226,30 +226,6 @@ describe("ModelPicker in a browser", () => {
         windows: [],
       } satisfies Status,
     },
-    {
-      expected: "AutoRecommendedIn use",
-      state: "the free allowance",
-      status: {
-        account: { state: "plan-required", tier: "free" },
-        canSubscribe: true,
-        features: onBasic.features,
-        plan: "free",
-        trial: { state: "available" },
-        windows: [],
-      } satisfies Status,
-    },
-    {
-      expected: "AutoRecommendedIn use",
-      state: "a trial that has ended",
-      status: {
-        account: { state: "trial-ended", tier: "free" },
-        canSubscribe: true,
-        features: onBasic.features,
-        plan: "free",
-        trial: { state: "ended" },
-        windows: [],
-      } satisfies Status,
-    },
   ])("says what includes Auto on $state", async ({ expected, status }) => {
     account.status = status;
     try {
@@ -257,6 +233,87 @@ describe("ModelPicker in a browser", () => {
       const row = document.querySelector("[data-slot=command] [role=listbox]");
       expect(row?.textContent).toContain(expected);
       expect(row?.textContent).not.toContain("Included with your plan");
+    } finally {
+      account.status = onBasic;
+    }
+  });
+
+  const freeAllowance = (
+    state: string,
+    next: { action: string; label: string },
+  ): Status => ({
+    account: { next, state, tier: "free" },
+    canSubscribe: true,
+    features: onBasic.features,
+    plan: "free",
+    trial: { state: state === "trial-ended" ? "ended" : "available" },
+    windows: [],
+  });
+  const lineup = () => [
+    autoModel,
+    instrument({ canonicalId: "claude", name: "Claude" }),
+  ];
+
+  it("offers the free trial in place of models it can't use yet", async () => {
+    account.status = freeAllowance("plan-required", {
+      action: "start-trial",
+      label: "Start free trial",
+    });
+    try {
+      const tree = await openPicker(autoModel, { models: lineup() });
+      expect(await tree()).toMatchInlineSnapshot(`
+        "- text: Search models
+        - combobox "Search models" [expanded]
+        - navigation "Providers":
+          - button "Instrument models (has the chosen model)":
+            - img
+            - text: Instrument models (has the chosen model)
+          - button "Add a provider"
+        - listbox "Suggestions":
+          - paragraph: Start your free trial to use Instrument's models.
+          - paragraph: Auto and Claude work as soon as it starts.
+          - button "Start free trial""
+      `);
+    } finally {
+      account.status = onBasic;
+    }
+  });
+
+  it("offers a plan in place of models once the trial has ended", async () => {
+    account.status = freeAllowance("trial-ended", {
+      action: "choose-plan",
+      label: "Choose a plan",
+    });
+    try {
+      const tree = await openPicker(autoModel, { models: lineup() });
+      expect(await tree()).toMatchInlineSnapshot(`
+        "- text: Search models
+        - combobox "Search models" [expanded]
+        - navigation "Providers":
+          - button "Instrument models (has the chosen model)":
+            - img
+            - text: Instrument models (has the chosen model)
+          - button "Add a provider"
+        - listbox "Suggestions":
+          - paragraph: Your free trial has ended.
+          - paragraph: Every plan includes Auto and Claude.
+          - button "Choose a plan""
+      `);
+    } finally {
+      account.status = onBasic;
+    }
+  });
+
+  it("leaves Instrument's models out of a search while the account can't use them", async () => {
+    account.status = freeAllowance("plan-required", {
+      action: "start-trial",
+      label: "Start free trial",
+    });
+    try {
+      await openPicker(autoModel);
+      await userEvent.keyboard("auto");
+      const list = document.querySelector("[data-slot=command] [role=listbox]");
+      expect(list?.textContent ?? "").not.toContain("Auto");
     } finally {
       account.status = onBasic;
     }

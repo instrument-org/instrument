@@ -48,14 +48,13 @@ const states = [
   },
   {
     title: "Chat with pane",
-    note: "Once its tasks finish, the chat's header keeps a checklist that lists them. The chat's tiles sit in a row above the reply box, and we ring the one that's open in the pane, which sits right beside the chat with Ask, its menu, Expand and × at the end of its location row.",
+    note: "The chat's tiles sit in a row above the reply box, and we ring the one that's open in the pane, which sits right beside the chat with Ask, its menu, Expand and × at the end of its location row.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
       body:
         inboxCol({ on: 0, w: 280 }) +
         thread({
           body: pricing(3),
-          tasks: true,
           tiles: chatTiles(
             [
               { file: "comparison" },

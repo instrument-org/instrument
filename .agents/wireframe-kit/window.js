@@ -330,11 +330,9 @@ const inboxCol = ({
  * equally wide so the title stands in the middle. At the left the inbox toggle; in the
  * middle the title with its caret (which opens the chat's menu) and, under it, the one
  * line saying where the chat's work stands (`line`, from statusLine), its only loading
- * state; at the right the tasks mark (`tasks`: "running" for the planning dot alone,
- * true for the checklist once they finish), the pop-out glyph, then `right` (the pane
- * toggle while the pane is shut). A chat that filed no task has no mark.
+ * state, which also opens the chat's tasks; at the right the pop-out glyph, then `right`.
  */
-const threadHead = (title, { right = "", line = "", tasks = false } = {}) => `
+const threadHead = (title, { right = "", line = "" } = {}) => `
   <div class="grid h-14 shrink-0 grid-cols-[96px_minmax(0,1fr)_96px] items-start gap-x-2 bg-background px-3 pt-2">
     <div class="flex h-8 items-center"><span class="grid size-8 shrink-0 place-items-center text-foreground/80"><i class="ph ph-sidebar-simple text-[16px]"></i></span></div>
     <div class="flex min-w-0 flex-col items-center">
@@ -342,7 +340,6 @@ const threadHead = (title, { right = "", line = "", tasks = false } = {}) => `
       <div class="-mt-1 flex h-4 max-w-full min-w-0 justify-center">${line}</div>
     </div>
     <div class="flex h-8 items-center justify-end gap-x-1">
-      ${tasks === "running" ? `<span class="grid size-8 shrink-0 place-items-center">${planningDot}</span>` : tasks ? tasksMark : ""}
       <span class="grid size-8 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-picture-in-picture text-[16px]"></i></span>
       ${right}
     </div>
@@ -364,9 +361,6 @@ const statusLine = (text, { tone = "run" } = {}) => {
   }[tone];
   return `<span class="flex max-w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[12px] leading-5">${mark}<span class="min-w-0 truncate ${color}">${text}</span></span>`;
 };
-
-/** The checklist a head keeps once a chat's tasks have finished; pressed, it lists them. */
-const tasksMark = `<span class="grid size-8 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-list-checks text-[16px]"></i></span>`;
 
 /** The agent at work (planning-dot.tsx): a 10px brand sphere with its ring traveling out, in a 20px box. */
 const planningDot = `<span class="relative grid size-5 shrink-0 place-items-center"><span class="absolute size-3.5 rounded-full border-2 border-brand-400/40"></span><span class="size-2.5 rounded-full bg-gradient-to-br from-brand-400 to-brand-700"></span></span>`;
@@ -392,13 +386,6 @@ const fileRow = (key) => `
 /** A page the agent opened, as a thin row in the transcript. */
 const pageRow = (site) => `
   <div class="flex max-w-[85%] items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-[12px]">${SITES[site].mark()}<span class="truncate">${SITES[site].title}</span></div>`;
-
-/** The work in flight, at a chat head's right while its tasks run: the breathing planning dot and the step the newest is on in the brand's shimmer, or with `compact` (a head too narrow for the step) the dot alone. Pressed, it lists the chat's tasks. */
-const workLine = (
-  text = "Reading plans on zendesk.com",
-  { compact = false } = {},
-) => `
-  <span class="flex h-8 min-w-0 shrink items-center gap-1.5 rounded-md px-2 text-[12px]">${planningDot}${compact ? "" : `<span class="truncate text-brand-600">${text}</span>`}</span>`;
 
 /** The plus that opens the reply box's menu: a 28px round on the stone ground. */
 const plusButton = `<span class="grid size-7 shrink-0 place-items-center rounded-full bg-gray-100"><i class="ph ph-plus text-[16px] text-foreground/60"></i></span>`;
@@ -435,12 +422,11 @@ const pricing = (stage = 1) =>
     .filter(Boolean)
     .join("");
 
-/** A chat column: header (the step under the title while `working` names one, and the tasks mark per `tasks`), the centered transcript, then its tiles (`tiles`, from chatTiles) over the reply box. */
+/** A chat column: header (the step under the title while `working` names one), the centered transcript, then its tiles (`tiles`, from chatTiles) over the reply box. */
 const thread = ({
   title = PRICING_TITLE,
   body = pricing(2),
   working = "",
-  tasks = false,
   tiles = "",
   head = "",
   foot = "",
@@ -448,7 +434,7 @@ const thread = ({
   replyEl = "",
 } = {}) => `
   <div class="flex min-w-0 flex-1 flex-col">
-    ${head || threadHead(title, { line: working ? statusLine(working) : "", tasks })}
+    ${head || threadHead(title, { line: working ? statusLine(working) : "" })}
     <div class="min-h-0 flex-1 overflow-hidden"><div class="mx-auto flex w-full max-w-3xl flex-col gap-2 p-4">${body}</div></div>
     <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${tiles}${foot}${replyEl || replyBox(reply)}</div>
   </div>`;
@@ -933,25 +919,26 @@ const finder = ({ pick = -1 } = {}) =>
 
 // ---- floating ------------------------------------------------------------------
 
-/** The small view: a chat popped out over whatever place is up, docked like the draft (420x560, 20px from the right, flush to the window's foot), its tiles over its reply box. Its head is the chat's own: title and caret, what is in flight (`working`, or `tasks` once they finish), minimize, expand and ×. `peek` is the index of the tile peeked at, drawn in a card over the conversation. */
+/** The small view: a chat popped out over whatever place is up, docked like the draft (420x560, 20px from the right, flush to the window's foot), its tiles over its reply box. Its head is the main chat's head (chat-window.tsx renders the same ChatHeader) with nothing at its left: the title and caret centered over the step while `working` names one, then minimize, expand and ×. `peek` is the index of the tile peeked at, drawn in a card over the conversation. */
 const smallChat = ({
   title = PRICING_TITLE,
   tabs = [],
   peek = -1,
   body = pricing(2),
   working = "",
-  tasks = false,
   right = 20,
   w = 420,
   h = 560,
   reply = {},
 } = {}) => `
   <div class="absolute bottom-0 z-40 flex flex-col overflow-hidden rounded-t-2xl bg-background shadow-2xl ring-1 ring-black/5" style="right:${right}px;width:${w}px;height:${h}px">
-    <div class="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
-      <i class="ph ph-chats text-[16px] text-muted-foreground"></i>
-      <span class="flex min-w-0 flex-1 items-center gap-1 text-[13px] font-semibold"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] font-normal text-muted-foreground"></i></span>
-      ${working ? workLine(working, { compact: true }) : tasks ? tasksMark : ""}
-      <span class="flex items-center gap-0.5 text-muted-foreground">${["minus", "arrows-out-simple", "x"].map((i) => `<span class="grid size-7 place-items-center"><i class="ph ph-${i} text-[16px]"></i></span>`).join("")}</span>
+    <div class="grid h-14 shrink-0 grid-cols-[96px_minmax(0,1fr)_96px] items-start gap-x-2 bg-background px-3 pt-2">
+      <div></div>
+      <div class="flex min-w-0 flex-col items-center">
+        <span class="flex h-8 min-w-0 max-w-full items-center gap-1 text-sm font-medium"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] text-muted-foreground"></i></span>
+        <div class="-mt-1 flex h-4 max-w-full min-w-0 justify-center">${working ? statusLine(working) : ""}</div>
+      </div>
+      <span class="flex h-8 items-center justify-end gap-0.5 text-muted-foreground">${["minus", "arrows-out-simple", "x"].map((i) => `<span class="grid size-8 place-items-center"><i class="ph ph-${i} text-[16px]"></i></span>`).join("")}</span>
     </div>
     <div class="relative flex min-h-0 flex-1 flex-col">
       <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-3 pt-3 text-[13px]">${body}</div>

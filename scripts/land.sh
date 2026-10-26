@@ -46,14 +46,20 @@ branch=$(git branch --show-current)
 uncommitted() {
   git -C "$worktree_root" status --porcelain --ignore-submodules=untracked
 }
-[[ -z "$(uncommitted)" ]] ||
-  fail "commit or drop the worktree's changes first, new files included"
+if [[ -n "$(uncommitted)" ]]; then
+  echo "land: commit or drop the worktree's changes first, new files included:" >&2
+  uncommitted >&2
+  exit 1
+fi
 
 # Main may have moved since the worktree started; commits it already holds
 # under other hashes drop out of the rebase.
 rebase_onto_main() {
   git rebase --quiet main ||
     fail "rebasing $branch onto main stopped on a conflict; resolve it in $worktree_root, git rebase --continue, then rerun"
+  # A rebase moves registry/'s pin without checking it out, which would leave
+  # the worktree reading as changed and refuse the next run.
+  git submodule update --quiet --init registry
 }
 rebase_onto_main
 checked_base=$(git rev-parse main)

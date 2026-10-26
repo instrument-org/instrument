@@ -42,6 +42,8 @@ import {
 } from "./chats";
 import { updateSessionTitle } from "../update-session-title";
 import { liveChatList } from "./live-chat-list";
+import { CHAT_LIST_FILE_NAME, startChatListFile } from "./chat-list-file";
+import { workspaceLayout } from "../workspace-layout";
 import { createTopic } from "./topics";
 
 const running = vi.hoisted(() => {
@@ -1639,6 +1641,51 @@ describe("liveChatList", () => {
       });
     } finally {
       await live.clear();
+    }
+  });
+});
+
+describe("startChatListFile", () => {
+  it("writes this device's chat list once it is read, and again once a row changes", async () => {
+    const chatId = await freshChat();
+    const groceries = await session(chatId, "Groceries", 1);
+    await userSays(chatId, groceries, "make me a grocery list", 1);
+    const config = getWorkspaceConfig();
+    const file = path.join(
+      workspaceLayout(config.rootDir).devicesDir,
+      config.deviceId,
+      CHAT_LIST_FILE_NAME,
+    );
+    const read = () =>
+      JSON.parse(fs.readFileSync(file, "utf8")) as {
+        chats: Record<string, unknown>[];
+        device: string;
+        format: number;
+      };
+    const controller = new AbortController();
+    startChatListFile({ signal: controller.signal, writeAfterMs: 10 });
+    try {
+      await vi.waitFor(() => {
+        expect(fs.existsSync(file)).toBe(true);
+      });
+      const written = read();
+      expect(written.format).toBe(1);
+      expect(written.device).toBe(config.deviceId);
+      expect(written.chats.map((chat) => chat.title)).toEqual(["Groceries"]);
+      // What only a running process knows, and the opening message, stay out.
+      expect(Object.keys(written.chats[0] ?? {})).not.toContain("root");
+      expect(Object.keys(written.chats[0] ?? {})).not.toContain("working");
+
+      const [chat] = await listChats();
+      if (!chat) {
+        throw new Error("The chat is not listed");
+      }
+      await setChatStarred(chat.id, true);
+      await vi.waitFor(() => {
+        expect(read().chats[0]?.starred).toBe(true);
+      });
+    } finally {
+      controller.abort();
     }
   });
 });

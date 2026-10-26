@@ -20,7 +20,9 @@ describe("SentFoldersCard", () => {
       <SentFoldersCard folders={[folder("/Users/sam/Downloads")]} />,
     );
 
-    expect(screen.getByText("Downloads")).toBeTruthy();
+    expect(
+      screen.getByTitle("sam › Downloads").previousElementSibling?.textContent,
+    ).toBe("Downloads");
   });
 
   it("reads a path under the home directory from the home folder's name", () => {
@@ -28,15 +30,15 @@ describe("SentFoldersCard", () => {
       <SentFoldersCard folders={[folder("/Users/sam/Downloads")]} />,
     );
 
-    expect(screen.getByTitle("sam/Downloads")).toBeTruthy();
+    expect(screen.getByTitle("sam › Downloads")).toBeTruthy();
   });
 
-  it("shows a path outside the home directory in full", () => {
+  it("shows a path outside the home directory from its top", () => {
     renderWithProviders(
       <SentFoldersCard folders={[folder("/Volumes/Archive/2026")]} />,
     );
 
-    expect(screen.getByTitle("/Volumes/Archive/2026")).toBeTruthy();
+    expect(screen.getByTitle("Volumes › Archive › 2026")).toBeTruthy();
   });
 
   it("opens the folder where the surface opens files", () => {

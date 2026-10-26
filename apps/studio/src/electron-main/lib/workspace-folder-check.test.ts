@@ -15,7 +15,6 @@ import {
   folderConcern,
   folderConcernHere,
   type FolderFacts,
-  folderInstead,
   type FolderPlatform,
   installDirOf,
 } from "./workspace-folder-check";
@@ -227,44 +226,6 @@ describe("folderConcern", () => {
       reason: "system",
     });
     expect(folderConcern("C:\\Windows", facts)).toBeUndefined();
-  });
-});
-
-describe("folderInstead", () => {
-  it.each<[FolderPlatform, string, string | undefined]>([
-    ["darwin", "/Users/casey", "/Users/casey/Instrument"],
-    ["darwin", "/Users", "/Users/casey/Instrument"],
-    ["darwin", "/", "/Users/casey/Instrument"],
-    ["darwin", "/Users/casey/Documents", "/Users/casey/Documents/Instrument"],
-    ["darwin", "/Users/casey/Desktop", "/Users/casey/Desktop/Instrument"],
-    [
-      "darwin",
-      "/Users/casey/Library/Mobile Documents/com~apple~CloudDocs",
-      "/Users/casey/Library/Mobile Documents/com~apple~CloudDocs/Instrument",
-    ],
-    ["darwin", "/Users/casey/Library", undefined],
-    ["darwin", "/Volumes/Backup", undefined],
-    ["darwin", "/Users/casey/Notes", undefined],
-    ["linux", "/home/casey", "/home/casey/Instrument"],
-    ["linux", "/home", "/home/casey/Instrument"],
-    ["linux", "/home/casey/Downloads", "/home/casey/Downloads/Instrument"],
-    ["linux", "/tmp", undefined],
-    ["win32", "C:\\Users\\casey", "C:\\Users\\casey\\Instrument"],
-    ["win32", "C:\\", "C:\\Users\\casey\\Instrument"],
-    [
-      "win32",
-      "C:\\Users\\casey\\Documents",
-      "C:\\Users\\casey\\Documents\\Instrument",
-    ],
-    ["win32", "D:\\", undefined],
-  ])("%s offers for %s: %s", (platform, folder, instead) => {
-    expect(folderInstead(folder, FACTS[platform])).toBe(instead);
-  });
-
-  it("offers the flavor's own folder", () => {
-    expect(folderInstead("/Users/casey", FACTS.darwin, "Instrument Dev")).toBe(
-      "/Users/casey/Instrument Dev",
-    );
   });
 });
 

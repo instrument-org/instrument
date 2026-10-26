@@ -1,5 +1,4 @@
-import { FolderPath } from "@/client/components/folder-row";
-import { displayPath } from "@/client/lib/path-utils";
+import { FolderTrail } from "@/client/components/folder-trail";
 import { hasFilesView, showInFolder } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -50,13 +49,7 @@ export function RevealPath({
       type="button"
     >
       {hideIcon ? null : <FolderOpenIcon className="size-4 shrink-0" />}
-      {allowWrap ? (
-        <span className="text-left break-all whitespace-normal">
-          {displayPath(path)}
-        </span>
-      ) : (
-        <FolderPath path={path} />
-      )}
+      <FolderTrail className="text-left" path={path} wrap={allowWrap} />
     </button>
   );
 }

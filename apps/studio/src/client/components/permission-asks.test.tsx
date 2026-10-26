@@ -41,17 +41,17 @@ afterEach(installWindowStubs);
 
 describe("PermissionAsksFoot", () => {
   it.each([
-    ["/Users/sam/Desktop", "Desktop", "sam/Desktop"],
+    ["/Users/sam/Desktop", "Desktop", "sam › Desktop"],
     // A backslash is a character a name can hold on a Mac or Linux.
-    ["/Users/sam/Documents/a\\b", "a\\b", "sam/Documents/a\\b"],
-    ["D:\\Projects\\Clients", "Clients", "D:\\Projects\\Clients"],
+    ["/Users/sam/Documents/a\\b", "a\\b", "sam › Documents › a\\b"],
+    ["D:\\Projects\\Clients", "Clients", "D: › Projects › Clients"],
   ])(
     "names %s as %s over its path from the home folder's name",
     async (target, name, shown) => {
       showAsks([{ target }]);
 
-      expect(await screen.findByText(name)).toBeDefined();
-      expect(screen.getByTitle(shown)).toBeDefined();
+      const path = await screen.findByTitle(shown);
+      expect(path.previousElementSibling?.textContent).toBe(name);
     },
   );
 
@@ -92,7 +92,7 @@ describe("PermissionAsksFoot", () => {
     ]);
 
     expect(await screen.findByText("1 of 3")).toBeDefined();
-    expect(screen.getByText("Desktop")).toBeDefined();
+    expect(screen.getByTitle("sam › Desktop")).toBeDefined();
     expect(screen.queryByText("Downloads")).toBeNull();
     expect(
       screen.getByRole("button", { name: "Don’t allow any of these" }),
@@ -102,7 +102,7 @@ describe("PermissionAsksFoot", () => {
   it("offers no answer to all for one ask alone", async () => {
     showAsks([{ target: "/Users/sam/Desktop" }]);
 
-    await screen.findByText("Desktop");
+    await screen.findByTitle("sam › Desktop");
     expect(screen.queryByText(/ of /)).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Don’t allow any of these" }),

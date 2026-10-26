@@ -5,21 +5,14 @@ import childProcess, { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  onTestFinished,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { startLiveProcess } from "../../tests/live-process";
 import { createHistoryStore } from "../browser-view/history-store";
 import { registerAppStoredPaths } from "./app-stored-paths";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
+  checkFolderPick,
   checkMoveTarget,
   finishPendingMove,
   checkPlace,
@@ -119,14 +112,6 @@ function placeOf(
   });
 }
 
-/** Has `os.homedir()` answer `dir` until the test ends. */
-function homeAt(dir: string) {
-  const spy = vi.spyOn(os, "homedir").mockReturnValue(dir);
-  onTestFinished(() => {
-    spy.mockRestore();
-  });
-}
-
 function check(target: string, at: ResolvedWorkspace = workspace) {
   return checkMoveTarget({
     target,
@@ -181,21 +166,18 @@ describe("checkMoveTarget", () => {
   });
 
   const home = (...names: string[]) => path.join(os.homedir(), ...names);
-  it.each<{ instead?: string; name: string; target: string; warning: string }>([
+  it.each<{ name: string; target: string; warning: string }>([
     {
-      instead: home("Documents", "Instrument"),
       name: "Documents itself",
       target: home("Documents"),
       warning: "personal",
     },
     {
-      instead: home("Desktop", "Instrument"),
       name: "Desktop itself",
       target: home("Desktop"),
       warning: "personal",
     },
     {
-      instead: home("Downloads", "Instrument"),
       name: "Downloads itself",
       target: home("Downloads"),
       warning: "personal",
@@ -214,12 +196,6 @@ describe("checkMoveTarget", () => {
     ...(process.platform === "darwin"
       ? [
           {
-            instead: home(
-              "Library",
-              "Mobile Documents",
-              "com~apple~CloudDocs",
-              "Instrument",
-            ),
             name: "iCloud Drive itself",
             target: home("Library", "Mobile Documents", "com~apple~CloudDocs"),
             warning: "personal",
@@ -236,75 +212,14 @@ describe("checkMoveTarget", () => {
           },
         ]
       : []),
-  ])("warns of $name and lets it through", ({ instead, target, warning }) => {
-    expect(placeOf(target, { temporaryDirs: [] })).toEqual({
-      instead,
-      warning,
-    });
+  ])("warns of $name and lets it through", ({ target, warning }) => {
+    expect(placeOf(target, { temporaryDirs: [] })).toEqual({ warning });
   });
 
-  it("refuses the home folder, offering a folder of its own inside", () => {
+  it("refuses the home folder", () => {
     expect(placeOf(os.homedir(), { temporaryDirs: [] })).toEqual({
-      instead: home("Instrument"),
       refusal: "home",
     });
-  });
-
-  it("offers a new folder inside Documents for Documents itself, saying what it has in it", () => {
-    const documents = path.join(root, "Documents");
-    const atHome = { ...workspace, path: path.join(root, "Elsewhere") };
-    fs.mkdirSync(atHome.path);
-    const pickDocuments = () =>
-      checkMoveTarget({
-        target: documents,
-        temporaryDirs: [],
-        userDataDir,
-        workspace: atHome,
-      });
-    homeAt(root);
-    expect(pickDocuments()).toEqual({
-      instead: { holds: "files", path: picked },
-      kind: "movable",
-      warning: "personal",
-    });
-    fs.rmSync(path.join(picked, "report.pdf"));
-    fs.writeFileSync(path.join(picked, ".DS_Store"), "");
-    expect(pickDocuments().instead).toEqual({ holds: "nothing", path: picked });
-    fs.rmSync(picked, { recursive: true });
-    expect(pickDocuments().instead).toEqual({ holds: "nothing", path: picked });
-    fs.mkdirSync(picked);
-    writeWorkspaceIdentity(picked, {
-      ...settled("01K00000000000000000OTHER"),
-      name: "Lab",
-    });
-    expect(pickDocuments().instead).toEqual({
-      holds: "workspace",
-      path: picked,
-    });
-    // Once this computer knows it, Documents is around another workspace,
-    // which no workspace can be, but the one inside is still there to open.
-    updateRegistry(userDataDir, (registry) => ({
-      ...registry,
-      workspaces: [...registry.workspaces, { id: "lab", path: picked }],
-    }));
-    expect(pickDocuments()).toEqual({
-      instead: { holds: "workspace", path: picked },
-      kind: "refused",
-      reason: "other-workspace",
-    });
-  });
-
-  it("offers no folder the workspace could not go to", () => {
-    homeAt(root);
-    // The workspace is already the folder that would be offered.
-    expect(
-      checkMoveTarget({
-        target: path.join(root, "Documents"),
-        temporaryDirs: [],
-        userDataDir,
-        workspace: { ...workspace, path: picked },
-      }),
-    ).toEqual({ kind: "refused", reason: "current", warning: "personal" });
   });
 
   it.each(
@@ -324,10 +239,7 @@ describe("checkMoveTarget", () => {
           ]
         : [["a system folder", "C:\\Windows\\Instrument", "system"]],
   )("warns of %s and lets it through", (_name, target, warning) => {
-    expect(placeOf(target, { temporaryDirs: [] })).toEqual({
-      instead: warning === "around-home" ? home("Instrument") : undefined,
-      warning,
-    });
+    expect(placeOf(target, { temporaryDirs: [] })).toEqual({ warning });
   });
 
   it("carries the warning into the verdict", () => {
@@ -377,16 +289,6 @@ describe("checkMoveTarget", () => {
     });
   });
 
-  it("calls the folder around the workspace where it would go anyway where it already is", () => {
-    homeAt(root);
-    const at = { ...workspace, path: picked };
-    // Documents offers Documents/Instrument, which is the workspace itself.
-    expect(check(path.join(root, "Documents"), at)).toMatchObject({
-      kind: "refused",
-      reason: "current",
-    });
-  });
-
   it("refuses a folder holding or inside another workspace this computer knows", () => {
     const other = path.join(root, "Documents", "Other");
     fs.mkdirSync(path.join(other, "inside"), { recursive: true });
@@ -413,6 +315,102 @@ describe("checkMoveTarget", () => {
     expect(check(picked, { ...workspace, pinned: true })).toEqual({
       kind: "refused",
       reason: "pinned",
+    });
+  });
+});
+
+describe("checkFolderPick", () => {
+  function pick(dir: string, at: ResolvedWorkspace = workspace) {
+    return checkFolderPick({
+      name: "Instrument",
+      picked: dir,
+      temporaryDirs: [],
+      userDataDir,
+      workspace: at,
+    });
+  }
+  const folderIn = (...names: string[]) => {
+    const dir = path.join(root, ...names);
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  };
+
+  it("makes a folder named Instrument inside an empty folder, asking nothing", () => {
+    const empty = folderIn("Work");
+    fs.writeFileSync(path.join(empty, ".DS_Store"), "");
+    expect(pick(empty)).toEqual({
+      folder: {
+        contents: "new",
+        path: path.join(empty, "Instrument"),
+        verdict: { kind: "movable" },
+      },
+    });
+  });
+
+  it("offers the folder itself beside a new one when it has other files", () => {
+    const notes = folderIn("Notes");
+    fs.writeFileSync(path.join(notes, "plan.md"), "plan");
+    expect(pick(notes)).toEqual({
+      folder: {
+        contents: "new",
+        path: path.join(notes, "Instrument"),
+        verdict: { kind: "movable" },
+      },
+      itself: { contents: "files", path: notes, verdict: { kind: "movable" } },
+    });
+  });
+
+  it("uses the Instrument folder already in the pick, saying it has files", () => {
+    expect(pick(path.join(root, "Documents"))).toEqual({
+      folder: { contents: "files", path: picked, verdict: { kind: "movable" } },
+    });
+  });
+
+  it("keeps a pick already named Instrument, whatever its case", () => {
+    const named = folderIn("Dropbox", "instrument");
+    expect(pick(named)).toEqual({
+      folder: { contents: "empty", path: named, verdict: { kind: "movable" } },
+    });
+  });
+
+  it("keeps a pick that is already an Instrument folder, by any name", () => {
+    const lab = folderIn("Lab");
+    writeWorkspaceIdentity(lab, {
+      ...settled("01K00000000000000000OTHER"),
+      name: "Lab",
+    });
+    expect(pick(lab).folder).toMatchObject({
+      path: lab,
+      verdict: { kind: "workspace", name: "Lab" },
+    });
+  });
+
+  it("finds an Instrument folder in the pick to open, never one to move into", () => {
+    const inside = folderIn("Dropbox", "Instrument");
+    writeWorkspaceIdentity(inside, {
+      ...settled("01K00000000000000000OTHER"),
+      name: "Lab",
+    });
+    const found = pick(path.join(root, "Dropbox"));
+    expect(found.folder.verdict).toEqual({ kind: "workspace", name: "Lab" });
+    expect(found.itself).toBeUndefined();
+  });
+
+  it("says the folder around the workspace is where it already is", () => {
+    expect(
+      pick(path.join(root, "Documents"), { ...workspace, path: picked }).folder
+        .verdict,
+    ).toEqual({ kind: "refused", reason: "current" });
+  });
+
+  it("answers a pick that isn't there with the pick itself", () => {
+    const gone = path.join(root, "Gone");
+    expect(pick(gone)).toEqual({
+      folder: {
+        contents: "empty",
+        path: gone,
+        verdict: { kind: "refused", reason: "missing" },
+      },
     });
   });
 });

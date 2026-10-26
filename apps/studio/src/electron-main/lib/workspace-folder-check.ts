@@ -1,4 +1,4 @@
-import { HOME_DATA_FOLDER_NAMES, HOME_FOLDERS } from "@instrument-org/shared";
+import { HOME_DATA_FOLDER_NAMES } from "@instrument-org/shared";
 import { placePaths, startupPaths } from "@instrument-org/workspace/electron";
 import os from "node:os";
 import path from "node:path";
@@ -19,9 +19,7 @@ import { pathKey } from "./path-identity";
  * Every other
  * place whose contents are more than the person's own work, which every chat
  * may change from the workspace's top level, is a warning they can go past,
- * since a refusal that is wrong strands them. For the home folder, a folder
- * around it, and Documents, Desktop or Downloads themselves, the better
- * choice is a folder of its own inside (`folderInstead`).
+ * since a refusal that is wrong strands them.
  *
  * `folderConcern` is pure, so it answers for any of the three systems on any
  * of them; `folderConcernHere` feeds it this computer's facts with every path
@@ -242,25 +240,6 @@ export function folderConcern(
   return undefined;
 }
 
-/**
- * The obvious better place for the Instrument folder than `folder`, where
- * there is one: a folder named for the app's flavor (`HOME_FOLDERS`) in the
- * home folder, for the home folder or a folder around it, and one inside
- * Documents, Desktop, Downloads or iCloud Drive, for one of those. Whether
- * the folder offered could take the workspace is the caller's to check.
- */
-export function folderInstead(
-  folder: string,
-  facts: Pick<FolderFacts, "home" | "platform">,
-  name = HOME_FOLDERS.instrument,
-): string | undefined {
-  const { paths, within } = spelling(facts.platform);
-  if (within(facts.home, folder)) {
-    return paths.join(facts.home, name);
-  }
-  return isPersonalFolder(folder, facts) ? paths.join(folder, name) : undefined;
-}
-
 function isPersonalFolder(
   folder: string,
   { home, platform }: Pick<FolderFacts, "home" | "platform">,
@@ -345,16 +324,6 @@ export function folderConcernHere({
     systemDrive: process.env.SystemDrive,
     temporaryDirs: temporaryDirs.map(pathKey),
     userDataDir: pathKey(userDataDir),
-  });
-}
-
-/** `folderInstead` for this computer. */
-export function folderInsteadHere(folder: string): string | undefined {
-  // Spelled as the person and the system spell them, since the folder
-  // offered is shown, and made where it is not there yet.
-  return folderInstead(folder, {
-    home: os.homedir(),
-    platform: platformHere(),
   });
 }
 

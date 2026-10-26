@@ -12,9 +12,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { FolderTrail } from "@/client/components/folder-trail";
 import { FolderMark } from "@/client/components/window/folder-mark";
-import { nameOf } from "@/client/components/window/host-path";
-import { displayPath, folderLabel } from "@/client/lib/path-utils";
+import { folderLabel } from "@/client/lib/path-utils";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
@@ -37,38 +37,6 @@ export async function copyFolderPath(hostPath: string) {
   } catch (error) {
     toast.error("Couldn't copy the path", { cause: error });
   }
-}
-
-/**
- * A path as a person reads it, from their home folder's own name, cut in the
- * middle when it doesn't fit so where it starts and the folder's own name
- * both stay; the whole of it is the title.
- */
-export function FolderPath({
-  className,
-  path,
-}: {
-  className?: string;
-  path: string;
-}) {
-  const shown = displayPath(path);
-  const name = nameOf(path);
-  // The separator before the folder's own name goes with the name, so the
-  // ellipsis lands inside the folders above it.
-  const cut =
-    name && shown.endsWith(name) ? shown.length - name.length - 1 : -1;
-  return (
-    <span className={cn("flex min-w-0 select-text", className)} title={shown}>
-      {cut > 0 ? (
-        <>
-          <span className="truncate">{shown.slice(0, cut)}</span>
-          <span className="shrink-0 whitespace-pre">{shown.slice(cut)}</span>
-        </>
-      ) : (
-        <span className="truncate">{shown}</span>
-      )}
-    </span>
-  );
 }
 
 /**
@@ -123,7 +91,7 @@ export function FolderRow({
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
         <span className="truncate text-sm">{label}</span>
         {line === undefined ? (
-          <FolderPath className="text-xs text-muted-foreground" path={path} />
+          <FolderTrail className="text-xs text-muted-foreground" path={path} />
         ) : line === null ? null : (
           <span className="truncate text-xs text-muted-foreground">{line}</span>
         )}

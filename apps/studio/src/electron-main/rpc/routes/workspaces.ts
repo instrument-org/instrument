@@ -37,7 +37,9 @@ import {
   whyNotDeletable,
 } from "@/electron-main/lib/workspace-management";
 import {
+  checkFolderPick,
   checkMoveTarget,
+  FolderPickSchema,
   MoveVerdictSchema,
   NotMovableSchema,
   requestWorkspaceMove,
@@ -468,6 +470,23 @@ const checkFolder = base
   );
 
 /**
+ * Where a folder the person picked puts their Instrument folder
+ * (`checkFolderPick`): in a folder named for the build inside it, unless it
+ * already has that name or already is an Instrument folder.
+ */
+const checkPick = base
+  .input(z.object({ path: z.string() }))
+  .output(FolderPickSchema)
+  .handler(({ input }) =>
+    checkFolderPick({
+      name: HOME_FOLDERS.instrument,
+      picked: input.path,
+      userDataDir: getUserDataDir(),
+      workspace: workspaceToPlace(),
+    }),
+  );
+
+/**
  * Give an unplaced workspace its folder, from setup's folder step: the
  * folder the person picked or found, checked as a move to it would be, then
  * a new workspace made there or the one already there opened. One this
@@ -534,7 +553,7 @@ const place = base
  * nothing open (`workspace-move.ts`). A folder it cannot move to answers
  * as `checkFolder` would; a restart the person declines over running
  * agents records nothing. With `create`, a folder not there yet is made
- * first (the better folder `checkFolder` offered), and taken away again,
+ * first (the folder `checkPick` names inside a pick), and taken away again,
  * still empty, when nothing is recorded to move into it.
  */
 const move = base
@@ -644,6 +663,7 @@ const open = base
 
 export const workspaces = {
   checkFolder,
+  checkPick,
   create,
   current,
   folder,

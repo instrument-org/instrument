@@ -9,7 +9,20 @@ const { showFolderPicker } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/client/rpc/client", () => ({
-  rpcClient: { utils: { showFolderPicker: { call: showFolderPicker } } },
+  rpcClient: {
+    utils: { showFolderPicker: { call: showFolderPicker } },
+    // A folder's path names the places the computer has.
+    workspace: {
+      computer: {
+        places: {
+          queryOptions: () => ({
+            queryFn: () => ({ pinned: [], volumes: [] }),
+            queryKey: ["places"],
+          }),
+        },
+      },
+    },
+  },
 }));
 // The decision model is out of reach here: no mark follows the name and no
 // chats are offered for filing.
@@ -48,7 +61,7 @@ function instructionsField() {
 
 async function addFolder() {
   fireEvent.click(screen.getByRole("button", { name: "Add folder" }));
-  await screen.findByText("Garden");
+  await screen.findByTitle("Users › me › Garden");
 }
 
 describe("TopicDialog", () => {

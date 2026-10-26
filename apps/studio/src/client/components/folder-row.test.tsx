@@ -12,17 +12,10 @@ afterEach(() => {
 });
 
 describe("FolderRow", () => {
-  it("reads its path from the home folder's name, with the folder's own name kept apart for the cut", () => {
+  it("reads its path from the home folder's name, a folder at a time", () => {
     renderWithProviders(<FolderRow path="/Users/sam/Documents/Taxes" />);
 
-    const path = screen.getByTitle("sam/Documents/Taxes");
-    expect([...path.children].map((part) => part.textContent))
-      .toMatchInlineSnapshot(`
-      [
-        "sam/Documents",
-        "/Taxes",
-      ]
-    `);
+    expect(screen.getByTitle("sam › Documents › Taxes")).toBeTruthy();
   });
 
   it("opens in Files first, copies the real path, then lists what the row adds", () => {
@@ -37,7 +30,7 @@ describe("FolderRow", () => {
       />,
     );
 
-    fireEvent.contextMenu(screen.getByText("Taxes"));
+    fireEvent.contextMenu(screen.getByTitle("sam › Documents › Taxes"));
 
     expect(screen.getAllByRole("menuitem").map((item) => item.textContent))
       .toMatchInlineSnapshot(`

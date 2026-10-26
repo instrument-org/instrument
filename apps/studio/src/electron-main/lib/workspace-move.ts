@@ -32,7 +32,6 @@ import { pathWithin, samePath } from "./path-identity";
 import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
   folderConcernHere,
-  folderInsteadHere,
   systemTemporaryDirs,
 } from "./workspace-folder-check";
 import {
@@ -91,22 +90,8 @@ const MoveRefusalSchema = z.enum([
 
 type MoveRefusal = z.output<typeof MoveRefusalSchema>;
 
-/**
- * The obvious better folder than the one picked (`folderInstead`), offered
- * where it could take the workspace: what is in it already, nothing (not
- * there yet, or empty), files of the person's, or a workspace to open.
- */
-const InsteadSchema = z.object({
-  holds: z.enum(["nothing", "files", "workspace"]),
-  path: z.string(),
-});
-
-/**
- * What the person is warned of before they go ahead (`folderConcern`), and
- * the better folder to offer them.
- */
+/** What the person is warned of before they go ahead (`folderConcern`). */
 const WarningField = {
-  instead: InsteadSchema.optional(),
   warning: FolderWarningSchema.optional(),
 };
 
@@ -142,11 +127,145 @@ export const MoveVerdictSchema = z.discriminatedUnion("kind", [
 
 export type MoveVerdict = z.output<typeof MoveVerdictSchema>;
 
+/** A folder the Instrument folder could be, what is in it already, and what it would be to the workspace. */
+const DestinationSchema = z.object({
+  /** Not there yet (`new`), there with nothing in it, or there with other files. */
+  contents: z.enum(["new", "empty", "files"]),
+  path: z.string(),
+  verdict: MoveVerdictSchema,
+});
+
+/**
+ * Where a folder the person picked puts their Instrument folder
+ * (`checkFolderPick`): the folder it would be, and the pick itself where
+ * using it as it is is a choice to ask about.
+ */
+export const FolderPickSchema = z.object({
+  folder: DestinationSchema,
+  itself: DestinationSchema.optional(),
+});
+
+export type FolderPick = z.output<typeof FolderPickSchema>;
+
+/**
+ * Refusals of a pick that a folder made inside it would only meet again,
+ * so the pick itself is answered with them.
+ */
+const PICK_ITSELF_REFUSALS = new Set<MoveRefusal>([
+  "current",
+  "missing",
+  "newer",
+  "not-absolute",
+  "pinned",
+  "unfinished",
+  "unwritable",
+]);
+
 /**
  * What a file manager leaves in a folder it showed, which is no one's work:
  * removed rather than carried along, so the old folder empties.
  */
 const FILE_MANAGER_RECORDS = new Set([".DS_Store", "desktop.ini", "Thumbs.db"]);
+
+type TargetFacts = {
+  /** The folders the system empties on its own (`systemTemporaryDirs`). */
+  temporaryDirs?: string[];
+  userDataDir: string;
+  workspace: Pick<ResolvedWorkspace, "id" | "pinned"> & {
+    path: string | undefined;
+  };
+};
+
+/**
+ * Where a folder the person picked puts their Instrument folder: in a folder
+ * named for it (`name`) inside the pick, or the pick itself where it already
+ * has that name, already is an Instrument folder, or is refused for
+ * something a folder inside it would meet as well. Where the folder inside
+ * isn't there yet and the pick has other files in it that it could take the
+ * Instrument folder beside, the pick itself comes back too, for the person
+ * to choose between them.
+ */
+export function checkFolderPick({
+  name,
+  picked,
+  ...facts
+}: TargetFacts & { name: string; picked: string }): FolderPick {
+  const describe = (dir: string, made = false): FolderPick["folder"] => {
+    if (made && !entryExists(dir) && isDirectorySync(path.dirname(dir))) {
+      return {
+        contents: "new",
+        path: dir,
+        verdict: checkNewFolderTarget({ target: dir, ...facts }),
+      };
+    }
+    return {
+      contents: hasOtherFiles(dir) ? "files" : "empty",
+      path: dir,
+      verdict: checkMoveTarget({ target: dir, ...facts }),
+    };
+  };
+  const itself = describe(picked);
+  const keepsPick =
+    path.basename(picked).toLowerCase() === name.toLowerCase() ||
+    itself.verdict.kind === "workspace" ||
+    (itself.verdict.kind === "refused" &&
+      PICK_ITSELF_REFUSALS.has(itself.verdict.reason));
+  if (keepsPick) {
+    return { folder: itself };
+  }
+  const folder = describe(path.join(picked, name), true);
+  return folder.contents === "new" &&
+    itself.contents === "files" &&
+    itself.verdict.kind === "movable"
+    ? { folder, itself }
+    : { folder };
+}
+
+/** Whether a folder has anything in it but a file manager's own records. */
+function hasOtherFiles(dir: string) {
+  try {
+    return fs.readdirSync(dir).some((name) => !FILE_MANAGER_RECORDS.has(name));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the workspace could move to `target`, a folder not there yet that
+ * the move makes: in a folder that is there and can be written to, and
+ * anywhere `checkPlace` allows.
+ */
+export function checkNewFolderTarget({
+  target,
+  temporaryDirs = systemTemporaryDirs(),
+  userDataDir,
+  workspace,
+}: TargetFacts & { target: string }): MoveVerdict {
+  if (workspace.pinned) {
+    return { kind: "refused", reason: "pinned" };
+  }
+  if (!path.isAbsolute(target)) {
+    return { kind: "refused", reason: "not-absolute" };
+  }
+  const { refusal, warning } = checkPlace({
+    from: workspace.path,
+    id: workspace.id,
+    target,
+    temporaryDirs,
+    userDataDir,
+  });
+  const warned = warning === undefined ? {} : { warning };
+  if (refusal !== undefined) {
+    return { kind: "refused", reason: refusal, ...warned };
+  }
+  if (!canWrite(path.dirname(target))) {
+    return { kind: "refused", reason: "unwritable", ...warned };
+  }
+  if (isUnsettled(workspace, userDataDir)) {
+    return { kind: "refused", reason: "unfinished", ...warned };
+  }
+  return { kind: "movable", ...warned };
+}
 
 /**
  * Whether the workspace could move to `target`. A folder with other things
@@ -160,15 +279,7 @@ export function checkMoveTarget({
   temporaryDirs = systemTemporaryDirs(),
   userDataDir,
   workspace,
-}: {
-  target: string;
-  /** The folders the system empties on its own (`systemTemporaryDirs`). */
-  temporaryDirs?: string[];
-  userDataDir: string;
-  workspace: Pick<ResolvedWorkspace, "id" | "pinned"> & {
-    path: string | undefined;
-  };
-}): MoveVerdict {
+}: TargetFacts & { target: string }): MoveVerdict {
   const refused = (reason: MoveRefusal): MoveVerdict => ({
     kind: "refused",
     reason,
@@ -188,50 +299,14 @@ export function checkMoveTarget({
   if (!stats.isDirectory()) {
     return refused("missing");
   }
-  const place = (dir: string) =>
-    checkPlace({
-      from: workspace.path,
-      id: workspace.id,
-      target: dir,
-      temporaryDirs,
-      userDataDir,
-    });
-  const unsettled =
-    workspace.path !== undefined &&
-    pathWithin(workspace.path, userDataDir) &&
-    !isSettled(workspace.path);
-  /** The better folder, offered only where the workspace could go. */
-  const insteadOf = (dir: string): MoveVerdict["instead"] => {
-    if (!entryExists(dir)) {
-      return place(dir).refusal === undefined && !unsettled
-        ? { holds: "nothing", path: dir }
-        : undefined;
-    }
-    const verdict = checkMoveTarget({
-      target: dir,
-      temporaryDirs,
-      userDataDir,
-      workspace,
-    });
-    if (verdict.kind === "refused") {
-      return undefined;
-    }
-    return {
-      holds:
-        verdict.kind === "workspace"
-          ? "workspace"
-          : fs.readdirSync(dir).some((name) => !FILE_MANAGER_RECORDS.has(name))
-            ? "files"
-            : "nothing",
-      path: dir,
-    };
-  };
-  const { instead, refusal, warning } = place(target);
-  const offered = instead === undefined ? undefined : insteadOf(instead);
-  const warned = {
-    ...(offered === undefined ? {} : { instead: offered }),
-    ...(warning === undefined ? {} : { warning }),
-  };
+  const { refusal, warning } = checkPlace({
+    from: workspace.path,
+    id: workspace.id,
+    target,
+    temporaryDirs,
+    userDataDir,
+  });
+  const warned = warning === undefined ? {} : { warning };
   if (refusal !== undefined) {
     return { kind: "refused", reason: refusal, ...warned };
   }
@@ -250,10 +325,22 @@ export function checkMoveTarget({
   if (!canWrite(target)) {
     return refused("unwritable");
   }
-  if (unsettled) {
+  if (isUnsettled(workspace, userDataDir)) {
     return refused("unfinished");
   }
   return { kind: "movable", ...warned };
+}
+
+/** Whether a workspace in the app's own data has layout sweeps still to finish there. */
+function isUnsettled(
+  workspace: TargetFacts["workspace"],
+  userDataDir: string,
+): boolean {
+  return (
+    workspace.path !== undefined &&
+    pathWithin(workspace.path, userDataDir) &&
+    !isSettled(workspace.path)
+  );
 }
 
 /**
@@ -262,9 +349,7 @@ export function checkMoveTarget({
  * workspace's own folder or one around or inside it, or anywhere no
  * workspace can be (`folderConcern`). Anywhere `folderConcern` only warns
  * of, and the photo and media libraries apps keep for themselves, is
- * answered with the warning to show, and the home folder, a folder around
- * it, and Documents, Desktop or Downloads themselves with the better folder
- * to offer (`folderInstead`). Asked when the person picks the folder and
+ * answered with the warning to show. Asked when the person picks the folder and
  * again when the move is made, since the folder can change in between; the
  * move goes past a warning, which the person saw when they picked.
  */
@@ -281,7 +366,7 @@ export function checkPlace({
   target: string;
   temporaryDirs: string[];
   userDataDir: string;
-}): { instead?: string; refusal?: MoveRefusal; warning?: FolderWarning } {
+}): { refusal?: MoveRefusal; warning?: FolderWarning } {
   if (from !== undefined && samePath(target, from)) {
     return { refusal: "current" };
   }
@@ -298,9 +383,8 @@ export function checkPlace({
     temporaryDirs,
     userDataDir,
   });
-  const instead = folderInsteadHere(target);
   if (concern?.kind === "refused") {
-    return { instead, refusal: concern.reason };
+    return { refusal: concern.reason };
   }
   const warning =
     concern?.reason ??
@@ -312,20 +396,15 @@ export function checkPlace({
       ? "apps-data"
       : undefined);
   if (from === undefined) {
-    return { instead, warning };
+    return { warning };
   }
   if (pathWithin(target, from)) {
-    return { instead, refusal: "inside", warning };
+    return { refusal: "inside", warning };
   }
   if (pathWithin(from, target)) {
-    return {
-      instead,
-      refusal:
-        instead !== undefined && samePath(instead, from) ? "current" : "around",
-      warning,
-    };
+    return { refusal: "around", warning };
   }
-  return { instead, warning };
+  return { warning };
 }
 
 /**

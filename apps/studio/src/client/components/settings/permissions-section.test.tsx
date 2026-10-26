@@ -42,12 +42,17 @@ describe("PermissionsSection", () => {
 
   it.each([
     // A backslash is a character a name can hold on a Mac or Linux.
-    ["/Users/sam", "/Users/sam/Documents/a\\b", "a\\b", "sam/Documents/a\\b"],
+    [
+      "/Users/sam",
+      "/Users/sam/Documents/a\\b",
+      "a\\b",
+      "sam › Documents › a\\b",
+    ],
     [
       "C:\\Users\\sam",
       "C:\\Users\\sam\\Documents\\Clients",
       "Clients",
-      "sam\\Documents\\Clients",
+      "sam › Documents › Clients",
     ],
   ])(
     "with home at %s, lists %s as %s at %s",
@@ -62,8 +67,9 @@ describe("PermissionsSection", () => {
       expect(
         await screen.findByRole("combobox", { name: `Access for ${name}` }),
       ).toBeDefined();
-      expect(screen.getByText(name)).toBeDefined();
-      expect(screen.getByTitle(where)).toBeDefined();
+      expect(screen.getByTitle(where).previousElementSibling?.textContent).toBe(
+        name,
+      );
       window.api.homeDir = "/Users/sam";
     },
   );
@@ -161,16 +167,22 @@ describe("PermissionsSection", () => {
       const rows = await screen.findAllByText(
         /^(Instrument folder|Each chat’s files|Past chats|Caches)$/,
       );
+      const folderRows = rows.map((row) => row.closest(".group\\/folder-row"));
       expect(
-        rows.map((row) =>
-          row.closest(".group\\/folder-row")?.textContent?.trim(),
-        ),
+        folderRows.map((row) => [
+          row?.querySelector("[title]")?.getAttribute("title"),
+          row?.querySelector("[role=combobox], [data-level]")?.textContent ??
+            row?.lastElementChild?.textContent,
+        ]),
       ).toEqual([
-        "Instrument foldersam/InstrumentAlways allowed",
-        "Each chat’s filessam/.instrument/workAlways allowed",
-        "Past chatssam/Instrument/.instrument/chatsRead only",
-        `Cachessam/Library/Caches, sam/.cache${caches}`,
+        ["sam › Instrument", "Always allowed"],
+        ["sam › .instrument › work", "Always allowed"],
+        ["sam › Instrument › .instrument › chats", "Read only"],
+        [undefined, caches],
       ]);
+      expect(folderRows[3]?.textContent).toContain(
+        "sam/Library/Caches, sam/.cache",
+      );
       expect(screen.queryByText(/names, sizes and dates/) !== null).toBe(
         listed,
       );
@@ -199,7 +211,7 @@ describe("PermissionsSection", () => {
       folders: ["/Users/sam/Desktop"],
     });
 
-    await screen.findByText("Pricing");
+    await screen.findByTitle("sam › Desktop › Pricing");
     expect(screen.getAllByText("Your Mac is blocking this.")).toHaveLength(2);
   });
 });

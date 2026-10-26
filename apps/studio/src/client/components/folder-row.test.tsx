@@ -15,7 +15,19 @@ describe("FolderRow", () => {
   it("reads its path from the home folder's name, a folder at a time", () => {
     renderWithProviders(<FolderRow path="/Users/sam/Documents/Taxes" />);
 
-    expect(screen.getByTitle("sam › Documents › Taxes")).toBeTruthy();
+    expect(screen.getByLabelText("sam › Documents › Taxes")).toBeTruthy();
+  });
+
+  it("shows the whole path, start to end on one line, under the pointer", async () => {
+    renderWithProviders(<FolderRow path="/Users/sam/Documents/Taxes" />);
+
+    fireEvent.pointerMove(screen.getByLabelText("sam › Documents › Taxes"), {
+      pointerType: "mouse",
+    });
+
+    expect(
+      (await screen.findByRole("tooltip")).textContent,
+    ).toMatchInlineSnapshot(`"sam › Documents › Taxes"`);
   });
 
   it("opens in Files first, copies the real path, then lists what the row adds", () => {
@@ -30,7 +42,7 @@ describe("FolderRow", () => {
       />,
     );
 
-    fireEvent.contextMenu(screen.getByTitle("sam › Documents › Taxes"));
+    fireEvent.contextMenu(screen.getByLabelText("sam › Documents › Taxes"));
 
     expect(screen.getAllByRole("menuitem").map((item) => item.textContent))
       .toMatchInlineSnapshot(`

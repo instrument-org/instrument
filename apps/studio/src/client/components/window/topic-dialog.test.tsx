@@ -61,7 +61,7 @@ function instructionsField() {
 
 async function addFolder() {
   fireEvent.click(screen.getByRole("button", { name: "Add folder" }));
-  await screen.findByTitle("Users › me › Garden");
+  await screen.findByLabelText("Users › me › Garden");
 }
 
 describe("TopicDialog", () => {

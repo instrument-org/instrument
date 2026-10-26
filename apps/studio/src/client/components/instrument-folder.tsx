@@ -128,11 +128,7 @@ export function DestinationRow({
         <FolderMark path={path} size="row" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <FolderTrail
-          className={cn("text-sm", trailClassName)}
-          path={path}
-          wrap
-        />
+        <FolderTrail className={cn("text-sm", trailClassName)} path={path} />
         {destination === undefined ? null : (
           <DestinationLine destination={destination} />
         )}

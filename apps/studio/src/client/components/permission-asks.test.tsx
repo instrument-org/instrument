@@ -50,7 +50,7 @@ describe("PermissionAsksFoot", () => {
     async (target, name, shown) => {
       showAsks([{ target }]);
 
-      const path = await screen.findByTitle(shown);
+      const path = await screen.findByLabelText(shown);
       expect(path.previousElementSibling?.textContent).toBe(name);
     },
   );
@@ -92,7 +92,7 @@ describe("PermissionAsksFoot", () => {
     ]);
 
     expect(await screen.findByText("1 of 3")).toBeDefined();
-    expect(screen.getByTitle("sam › Desktop")).toBeDefined();
+    expect(screen.getByLabelText("sam › Desktop")).toBeDefined();
     expect(screen.queryByText("Downloads")).toBeNull();
     expect(
       screen.getByRole("button", { name: "Don’t allow any of these" }),
@@ -102,7 +102,7 @@ describe("PermissionAsksFoot", () => {
   it("offers no answer to all for one ask alone", async () => {
     showAsks([{ target: "/Users/sam/Desktop" }]);
 
-    await screen.findByTitle("sam › Desktop");
+    await screen.findByLabelText("sam › Desktop");
     expect(screen.queryByText(/ of /)).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Don’t allow any of these" }),

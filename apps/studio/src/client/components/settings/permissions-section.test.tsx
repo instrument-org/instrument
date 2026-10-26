@@ -67,9 +67,9 @@ describe("PermissionsSection", () => {
       expect(
         await screen.findByRole("combobox", { name: `Access for ${name}` }),
       ).toBeDefined();
-      expect(screen.getByTitle(where).previousElementSibling?.textContent).toBe(
-        name,
-      );
+      expect(
+        screen.getByLabelText(where).previousElementSibling?.textContent,
+      ).toBe(name);
       window.api.homeDir = "/Users/sam";
     },
   );
@@ -170,7 +170,7 @@ describe("PermissionsSection", () => {
       const folderRows = rows.map((row) => row.closest(".group\\/folder-row"));
       expect(
         folderRows.map((row) => [
-          row?.querySelector("[title]")?.getAttribute("title"),
+          row?.querySelector('[aria-label*="›"]')?.getAttribute("aria-label"),
           row?.querySelector("[role=combobox], [data-level]")?.textContent ??
             row?.lastElementChild?.textContent,
         ]),
@@ -211,7 +211,7 @@ describe("PermissionsSection", () => {
       folders: ["/Users/sam/Desktop"],
     });
 
-    await screen.findByTitle("sam › Desktop › Pricing");
+    await screen.findByLabelText("sam › Desktop › Pricing");
     expect(screen.getAllByText("Your Mac is blocking this.")).toHaveLength(2);
   });
 });

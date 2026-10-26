@@ -49,7 +49,7 @@ export function RevealPath({
       type="button"
     >
       {hideIcon ? null : <FolderOpenIcon className="size-4 shrink-0" />}
-      <FolderTrail className="text-left" path={path} wrap={allowWrap} />
+      <FolderTrail className="text-left" path={path} />
     </button>
   );
 }

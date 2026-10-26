@@ -97,7 +97,8 @@ const COLUMNS: Record<ColumnId, ColumnSpec> = {
     field: "startedAt",
     label: "Date",
     min: 96,
-    size: 112,
+    // Fits the widest date and time a row shows ("Dec 28, 12:59 PM").
+    size: 148,
     sort: "startedAt",
   },
   durationMs: {

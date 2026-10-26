@@ -5,6 +5,7 @@ import {
   type AppUpdaterStatus,
   createUpdatePhase,
   isNewerVersion,
+  launchOutcome,
   isSameStatus,
   FAILED_POLL_RETRY_MS,
   nextPollDelayMs,
@@ -269,6 +270,48 @@ describe("resolveInstallDecision", () => {
       }),
     ).toEqual({ type: "install", version: "1.5.0" });
   });
+});
+
+describe("launchOutcome", () => {
+  it.each([
+    // An install the person asked for that landed.
+    [
+      "2.0.0-beta.106",
+      "2.0.0-beta.108",
+      "2.0.0-beta.108",
+      { asked: true, from: "2.0.0-beta.106", type: "updated" },
+    ],
+    // One that landed on an ordinary quit.
+    [
+      "2.0.0-beta.106",
+      "2.0.0-beta.108",
+      undefined,
+      { asked: false, from: "2.0.0-beta.106", type: "updated" },
+    ],
+    // A newer release than the one asked for landed instead.
+    [
+      "2.0.0-beta.106",
+      "2.0.0-beta.109",
+      "2.0.0-beta.108",
+      { asked: true, from: "2.0.0-beta.106", type: "updated" },
+    ],
+    // Relaunched on the version it was replacing.
+    [
+      "2.0.0-beta.106",
+      "2.0.0-beta.106",
+      "2.0.0-beta.108",
+      { to: "2.0.0-beta.108", type: "install-failed" },
+    ],
+    ["2.0.0-beta.106", "2.0.0-beta.106", undefined, { type: "none" }],
+    // A first launch, or a downgrade, says nothing.
+    [undefined, "2.0.0-beta.106", undefined, { type: "none" }],
+    ["2.0.0-beta.108", "2.0.0-beta.106", undefined, { type: "none" }],
+  ])(
+    "from %s to %s, asked for %s",
+    (previous, current, requested, expected) => {
+      expect(launchOutcome({ current, previous, requested })).toEqual(expected);
+    },
+  );
 });
 
 describe("isNewerVersion", () => {

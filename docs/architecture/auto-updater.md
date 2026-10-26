@@ -47,6 +47,12 @@ Two ordering details that are easy to undo by accident:
 
 The decision is also re-run from local state after the quit confirmation. That dialog is something the user can sit on, and the pre-install check is raced against a timeout rather than cancelled, so the release it was fetching can still land while the dialog is open and take the chosen artifact with it. A deferral at that point is reported rather than waited out: the user has already agreed to quit, and holding a confirmed quit open for minutes is worse than asking for a second click.
 
+### Restarting, and saying whether it landed
+
+From the press on, the toolbar pill and Settings show "Restarting" with a spinner (`use-install-update.ts`), over the pre-install check's own status, so a click never flashes "Checking" first; a superseding download still shows as itself. Once the install is decided, `farewell` holds that for `RESTART_HOLD_MS` and fades the windows out before the quit (`update.ts`), so the app does not vanish mid-click. Linux has no window opacity and only holds. Every path that abandons the install brings the windows back, and a timer does too should the quit never come.
+
+Right before quitting, the adapter records the version it is installing (`installRequested` in the machine state). The next launch compares it with the version running (`launchOutcome` in `update-status.ts`): an update that landed toasts "updated to" with the release notes when the person asked for it, and stays a dot on the bell when it landed on an ordinary quit; an install that came back on the older version says it didn't install. That is the only place a failure after the quit can surface, since the process that asked is gone by then: ShipIt finding no bundle, an installer that refused, a declined authentication prompt on Linux.
+
 ### Waiting out a superseding download
 
 A `defer` before the quit prompt does not end the request. Being superseded is a race the user never asked to manage: the replacement is already downloading, so the request parks on that download for up to `SUPERSEDING_DOWNLOAD_WAIT_MS` and installs whatever lands. On a fast connection this is invisible: the badge shows progress for a few seconds and the app restarts, which is what clicking install asked for. Only a download that outlasts the deadline falls back to reporting the deferral and waiting for a second click.

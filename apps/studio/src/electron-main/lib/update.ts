@@ -12,7 +12,7 @@ import {
   APP_UPDATER_CACHE_DIR_NAME,
   RELEASES_BUCKET_URL,
 } from "@instrument-org/shared";
-import { app, autoUpdater as nativeUpdater } from "electron";
+import { app, BrowserWindow, autoUpdater as nativeUpdater } from "electron";
 import pkg, { type UpdateInfo } from "electron-updater";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -21,7 +21,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { getMachinePreferences } from "../stores/machine/preferences";
-import { setLastUpdateCheck } from "../stores/machine/state";
+import {
+  recordInstallRequest,
+  setLastUpdateCheck,
+} from "../stores/machine/state";
 
 // Returns false to abort the install when the user cancels the running-agents
 // warning.
@@ -144,7 +147,12 @@ export function createStudioAppUpdater({
 
   const updater = createAppUpdater({
     confirmQuit,
-    withdrawQuit,
+    farewell: fadeOutBeforeInstall,
+    withdrawQuit: () => {
+      recordInstallRequest(null);
+      restoreWindows();
+      withdrawQuit?.();
+    },
     getCurrentVersion: () => app.getVersion(),
     installNotice: getInstallNotice(),
     log: scopedLogger,
@@ -396,6 +404,44 @@ export function deferInstallOnQuit() {
   autoUpdater.autoInstallOnAppQuit = false;
 }
 
+// How long "Restarting" shows before the windows fade, so a click reads as
+// taken, and how long the fade takes.
+const RESTART_HOLD_MS = 700;
+const FADE_MS = 200;
+const FADE_STEPS = 10;
+// Brings the windows back should the quit not come, so a stalled install
+// never leaves the app running unseen.
+const FADE_RESTORE_MS = 10_000;
+
+async function fadeOutBeforeInstall() {
+  await sleep(RESTART_HOLD_MS);
+  // Linux has no window opacity, so its windows go when the app does.
+  if (os.platform() === "linux") {
+    return;
+  }
+  for (let step = 1; step <= FADE_STEPS; step++) {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        window.setOpacity(1 - step / FADE_STEPS);
+      }
+    }
+    await sleep(FADE_MS / FADE_STEPS);
+  }
+  setTimeout(restoreWindows, FADE_RESTORE_MS).unref();
+}
+
+function restoreWindows() {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.setOpacity(1);
+    }
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function installStagedUpdate() {
   if (rejectedStagedArtifact() !== undefined) {
     throw new StagedUpdateRejectedError(
@@ -409,6 +455,9 @@ function installStagedUpdate() {
     throw new Error(
       `${APP_NAME} is still getting the update ready. Try again in a moment.`,
     );
+  }
+  if (staged) {
+    recordInstallRequest(staged.info.version);
   }
   if (!installedFromDeb()) {
     autoUpdater.quitAndInstall();

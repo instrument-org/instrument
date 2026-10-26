@@ -51,7 +51,11 @@ const emitNative = (event: string) => {
   }
 };
 
-vi.mock("electron", () => ({ app, autoUpdater: nativeUpdater }));
+vi.mock("electron", () => ({
+  app,
+  autoUpdater: nativeUpdater,
+  BrowserWindow: { getAllWindows: () => [] },
+}));
 
 // The Debian install hands its script to `sh`, which a test must not run.
 const spawn = vi.hoisted(() =>
@@ -84,7 +88,11 @@ vi.mock("@/electron-main/lib/electron-logger", () => ({
 vi.mock("@/electron-main/stores/machine/preferences", () => ({
   getMachinePreferences: () => ({ get: vi.fn() }),
 }));
+const recordInstallRequest = vi.hoisted(() =>
+  vi.fn<(to: null | string) => void>(),
+);
 vi.mock("@/electron-main/stores/machine/state", () => ({
+  recordInstallRequest,
   setLastUpdateCheck: vi.fn(),
 }));
 
@@ -372,6 +380,8 @@ describe("installing a staged Linux update", () => {
 
     expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce();
     expect(fs.existsSync(artifact.file)).toBe(true);
+    // So the next launch can say whether it landed.
+    expect(recordInstallRequest).toHaveBeenCalledWith("2.0.0");
   });
 
   // electron-updater's download lands first, then Squirrel fetches and unpacks

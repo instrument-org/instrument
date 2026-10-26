@@ -57,11 +57,25 @@ const NoticesStoreSchema = z.object({
     .default({})
     .catch({}),
   /**
-   * The last update this computer launched into. One slot, so a newer update
-   * takes the place of one whose notice was never read.
+   * An install the person asked for that relaunched on the version it was
+   * meant to replace. One slot, cleared by the next update that lands.
+   */
+  installFailed: z
+    .object({ at: z.number(), from: z.string(), to: z.string() })
+    .optional()
+    .catch(undefined),
+  /**
+   * The last update this computer launched into, and whether the person asked
+   * for it then, which is when it toasts. One slot, so a newer update takes
+   * the place of one whose notice was never read.
    */
   updated: z
-    .object({ at: z.number(), from: z.string(), to: z.string() })
+    .object({
+      asked: z.boolean().optional(),
+      at: z.number(),
+      from: z.string(),
+      to: z.string(),
+    })
     .optional(),
 });
 

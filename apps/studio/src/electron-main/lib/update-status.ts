@@ -115,6 +115,42 @@ export function createUpdatePhase(): UpdatePhase {
 
 // Unparsable versions never win. A malformed feed entry must not displace a
 // known-good staged build, nor read as an upgrade over the running app.
+/**
+ * What a launch says about the version change since the last one: an update
+ * landed (`asked` when the person asked for that install), an install they
+ * asked for came back on an older version, or nothing to say.
+ */
+export function launchOutcome({
+  current,
+  previous,
+  requested,
+}: {
+  current: string;
+  previous: string | undefined;
+  requested: string | undefined;
+}):
+  | { asked: boolean; from: string; type: "updated" }
+  | { to: string; type: "install-failed" }
+  | { type: "none" } {
+  if (
+    previous &&
+    semver.valid(previous) &&
+    semver.valid(current) &&
+    semver.gt(current, previous)
+  ) {
+    return { asked: requested !== undefined, from: previous, type: "updated" };
+  }
+  if (
+    requested &&
+    semver.valid(requested) &&
+    semver.valid(current) &&
+    semver.gt(requested, current)
+  ) {
+    return { to: requested, type: "install-failed" };
+  }
+  return { type: "none" };
+}
+
 export function isNewerVersion({
   baseline,
   candidate,

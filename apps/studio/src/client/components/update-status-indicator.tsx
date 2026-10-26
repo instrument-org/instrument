@@ -10,8 +10,11 @@ import { useAppTabs } from "@/client/components/window/app-tabs";
 import { useNow } from "@/client/components/window/use-now";
 import { formatRelativeTime } from "@/client/lib/relative-time";
 import { cn } from "@/client/lib/utils";
+import {
+  showsAsRestarting,
+  useInstallUpdate,
+} from "@/client/components/use-install-update";
 import { rpcClient } from "@/client/rpc/client";
-import { safe } from "@orpc/client";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -86,7 +89,7 @@ const BADGE_META = {
   },
   installing: {
     className: MUTED_TRIGGER_CLASS_NAME,
-    label: "Installing",
+    label: "Restarting",
     manualOnly: false,
   },
   "not-available": {
@@ -104,6 +107,7 @@ export function UpdateStatusIndicator() {
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
+  const { install, restarting } = useInstallUpdate();
   // A manual "up to date" result auto-hides after a beat so it's transient
   // feedback, not persistent chrome.
   const [dismissedNotAvailable, setDismissedNotAvailable] = useState(false);
@@ -152,9 +156,7 @@ export function UpdateStatusIndicator() {
   const handleClick = () => {
     void (async () => {
       if (updateState?.type === "downloaded") {
-        const [error, result] = await safe(
-          rpcClient.preferences.quitAndInstall.call(),
-        );
+        const [error, result] = await install();
         if (error) {
           // Settings' update section holds the retry and manual-download recourse.
           toast.error("Couldn't install the update", {
@@ -187,11 +189,15 @@ export function UpdateStatusIndicator() {
 
   // Hidden when: no badge for this status; a silent background poll of a
   // manual-only status; or the auto-dismissed manual "up to date" pill.
-  const visibleBadge =
-    updateState &&
-    badgeState &&
-    !(BADGE_META[badgeState.type].manualOnly && !updateState.notifyUser) &&
-    !(dismissedNotAvailable && isManualNotAvailable)
+  const visibleBadge: null | UpdateStatusBadgeState = showsAsRestarting(
+    restarting,
+    updateState?.type,
+  )
+    ? { type: "installing" }
+    : updateState &&
+        badgeState &&
+        !(BADGE_META[badgeState.type].manualOnly && !updateState.notifyUser) &&
+        !(dismissedNotAvailable && isManualNotAvailable)
       ? badgeState
       : null;
 
@@ -279,7 +285,7 @@ function getAriaLabel(state: UpdateStatusBadgeState) {
         : "Update failed";
     }
     case "installing": {
-      return "Installing update";
+      return "Restarting to update";
     }
     case "not-available": {
       return "No updates available";

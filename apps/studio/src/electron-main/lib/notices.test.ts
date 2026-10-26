@@ -266,6 +266,50 @@ describe("notices", () => {
     expect(notices.listNotices()).toEqual([]);
   });
 
+  it("toasts an update the person asked for, and keeps one that landed on quit in the bell", async () => {
+    const notices = await load();
+    env.version = "2.0.0-beta.61";
+    notices.noteUpdate({ from: "2.0.0-beta.60", to: "2.0.0-beta.61" });
+    expect(notices.listNotices()).toMatchObject([{ severity: "info" }]);
+
+    notices.noteUpdate({
+      asked: true,
+      from: "2.0.0-beta.60",
+      to: "2.0.0-beta.61",
+    });
+    const [updated] = notices.listNotices();
+    expect(updated?.severity).toBe("important");
+    expect(notices.claimNoticeToast(updated?.id ?? "")).toBe(true);
+  });
+
+  it("says an install the person asked for didn't land, until an update does", async () => {
+    const notices = await load();
+    env.version = "2.0.0-beta.106";
+    notices.noteInstallFailed({
+      from: "2.0.0-beta.106",
+      to: "2.0.0-beta.108",
+    });
+
+    expect(notices.listNotices()).toMatchObject([
+      {
+        body: "You're still on version 2.0.0-beta.106. Use the Update button to try again.",
+        kind: "update",
+        severity: "important",
+        title: "Version 2.0.0-beta.108 didn't install",
+      },
+    ]);
+
+    env.version = "2.0.0-beta.108";
+    notices.noteUpdate({
+      asked: true,
+      from: "2.0.0-beta.106",
+      to: "2.0.0-beta.108",
+    });
+    expect(notices.listNotices()).toMatchObject([
+      { title: "Instrument updated to 2.0.0-beta.108" },
+    ]);
+  });
+
   it("warns loudly while the agent's programs have no sandbox, and comes back with the next build", async () => {
     const notices = await load();
     sandbox.off = "user-namespaces-closed";

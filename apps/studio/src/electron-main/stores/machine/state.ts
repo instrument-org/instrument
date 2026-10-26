@@ -1,11 +1,11 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { noteUpdate } from "@/electron-main/lib/notices";
+import { noteInstallFailed, noteUpdate } from "@/electron-main/lib/notices";
+import { launchOutcome } from "@/electron-main/lib/update-status";
 import { MACHINE_STATE_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { SetupRecordSchema } from "@/shared/setup";
 import { app } from "electron";
 import Store from "electron-store";
-import semver from "semver";
 import { z } from "zod";
 
 /**
@@ -21,6 +21,11 @@ const MachineStateSchema = z.object({
    */
   deviceId: z.string().optional(),
   hardwareId: z.string().optional(),
+  /**
+   * The version an install the person asked for was quitting to put in place,
+   * for the next launch to say whether it did; see `checkRecentVersionBump`.
+   */
+  installRequested: z.object({ to: z.string() }).optional().catch(undefined),
   lastLaunchedVersion: z.string().optional(),
   lastUpdateCheck: z.number().optional(),
   /**
@@ -92,10 +97,24 @@ export function setLastUpdateCheck(): void {
   getMachineState().set("lastUpdateCheck", Date.now());
 }
 
+/**
+ * Records that the app is quitting to install `to` because the person asked,
+ * or forgets it when that install did not go ahead.
+ */
+export function recordInstallRequest(to: null | string): void {
+  if (to === null) {
+    getMachineState().delete("installRequested");
+  } else {
+    getMachineState().set("installRequested", { to });
+  }
+}
+
 // Compares the version we last launched with the version running now. A
 // strictly-newer running version means the app was updated since the last
-// launch, which the bell's notices say. Persists the current version so the
-// next launch has a baseline.
+// launch, which the bell's notices say, with a toast when the person asked for
+// that install. An install they asked for that left an older version running
+// failed after the app quit, where nothing else could say so. Persists the
+// current version so the next launch has a baseline.
 //
 // Only packaged builds can be updated, and only there does the version track
 // installs: unpackaged builds read it from the checked-out package.json, so
@@ -111,17 +130,16 @@ export function checkRecentVersionBump(): void {
 
   const store = getMachineState();
   const previous = store.get("lastLaunchedVersion");
+  const requested = store.get("installRequested")?.to;
   const current = app.getVersion();
 
-  if (
-    previous &&
-    previous !== current &&
-    semver.valid(previous) &&
-    semver.valid(current) &&
-    semver.gt(current, previous)
-  ) {
-    noteUpdate({ from: previous, to: current });
+  const outcome = launchOutcome({ current, previous, requested });
+  if (outcome.type === "updated") {
+    noteUpdate({ asked: outcome.asked, from: outcome.from, to: current });
+  } else if (outcome.type === "install-failed") {
+    noteInstallFailed({ from: current, to: outcome.to });
   }
 
+  store.delete("installRequested");
   store.set("lastLaunchedVersion", current);
 }

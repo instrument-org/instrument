@@ -88,6 +88,7 @@ interface UpdaterLogger {
 
 export function createAppUpdater({
   confirmQuit,
+  farewell,
   getCurrentVersion,
   withdrawQuit,
   installNotice,
@@ -99,6 +100,9 @@ export function createAppUpdater({
   // Returns false to abort the install when the user cancels the running-agents
   // warning.
   confirmQuit?: () => Promise<boolean>;
+  // Runs once the install is decided and shown, before the quit: long enough
+  // for the person to see the app restarting rather than vanish mid-click.
+  farewell?: () => Promise<void>;
   getCurrentVersion: () => string;
   // Platform copy shown while the install runs, where it takes long enough to
   // need explaining.
@@ -492,6 +496,7 @@ export function createAppUpdater({
         notifyUser: true,
         type: "installing",
       });
+      await farewell?.();
       log.info("Quitting to install the staged update");
       updater.install();
     } catch (error) {

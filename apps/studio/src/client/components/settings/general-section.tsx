@@ -24,6 +24,11 @@ import {
 import { Input } from "@/client/components/ui/input";
 import { Label } from "@/client/components/ui/label";
 import { Progress } from "@/client/components/ui/progress";
+import { Spinner } from "@/client/components/ui/spinner";
+import {
+  showsAsRestarting,
+  useInstallUpdate,
+} from "@/client/components/use-install-update";
 import {
   Select,
   SelectContent,
@@ -89,10 +94,6 @@ export function SettingsSection({
   );
 }
 
-const handleInstallUpdate = () => {
-  void rpcClient.preferences.quitAndInstall.call();
-};
-
 export function GeneralSection() {
   return (
     <div className="space-y-4">
@@ -127,6 +128,10 @@ function About() {
   const { data: updateState } = useQuery(
     rpcClient.updates.live.status.experimental_liveOptions(),
   );
+  const { install, restarting } = useInstallUpdate();
+  // The status the main process publishes on the way to a restart, said as
+  // the restart from the press on.
+  const showRestarting = showsAsRestarting(restarting, updateState?.type);
 
   const developerMode = useDeveloperMode();
 
@@ -181,7 +186,17 @@ function About() {
     ? new Date(preferences.lastUpdateCheck)
     : null;
 
+  const restartingNote = (
+    <div className="text-xs text-muted-foreground">
+      {(updateState?.type === "installing" && updateState.notice) ||
+        `${APP_NAME} is restarting to finish the update.`}
+    </div>
+  );
+
   const getUpdateStatusContent = () => {
+    if (showRestarting) {
+      return restartingNote;
+    }
     switch (updateState?.type) {
       case "available": {
         return (
@@ -249,11 +264,7 @@ function About() {
         );
       }
       case "installing": {
-        return (
-          <div className="text-xs text-muted-foreground">
-            {updateState.notice ?? "Update is installing..."}
-          </div>
-        );
+        return restartingNote;
       }
       case "not-available": {
         return (
@@ -281,7 +292,17 @@ function About() {
     </Button>
   );
 
+  const restartingButton = (
+    <Button disabled>
+      <Spinner className="size-3.5" delay={0} />
+      Restarting…
+    </Button>
+  );
+
   const getActionButton = () => {
+    if (showRestarting) {
+      return restartingButton;
+    }
     switch (updateState?.type) {
       case "available":
       case "checking":
@@ -298,7 +319,15 @@ function About() {
         return <Button onClick={handleCheckForUpdates}>Try again</Button>;
       }
       case "downloaded": {
-        return <Button onClick={handleInstallUpdate}>Install now</Button>;
+        return (
+          <Button
+            onClick={() => {
+              void install();
+            }}
+          >
+            Install now
+          </Button>
+        );
       }
       case "error": {
         return (
@@ -331,7 +360,7 @@ function About() {
         return checkForUpdatesButton;
       }
       case "installing": {
-        return <Button disabled>Installing...</Button>;
+        return restartingButton;
       }
       default: {
         return checkForUpdatesButton;

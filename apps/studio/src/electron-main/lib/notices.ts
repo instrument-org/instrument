@@ -139,12 +139,15 @@ export function startNotices() {
 
 /** The notices the bell shows: not dismissed and not past their end. */
 export function listNotices(now = Date.now()): BellNotice[] {
-  const { marks, notices, updated } = getNoticesStore().store;
+  const { installFailed, marks, notices, updated } = getNoticesStore().store;
   const all: Omit<BellNotice, "seen">[] = [...notices];
   // Only while it's still the build running, so a later downgrade or a
   // simulated bump in development doesn't leave it behind.
   if (updated && updated.to === app.getVersion()) {
     all.push(updatedNotice(updated));
+  }
+  if (installFailed && installFailed.from === app.getVersion()) {
+    all.push(installFailedNotice(installFailed));
   }
   const off = nativeSandboxOff();
   if (off === "windows") {
@@ -176,6 +179,7 @@ export function listNotices(now = Date.now()): BellNotice[] {
  * downgrade is new rather than already dismissed.
  */
 function updatedNotice({
+  asked,
   at,
   from,
   to,
@@ -186,8 +190,28 @@ function updatedNotice({
     id: `updated-${to}-${at}`,
     kind: "update",
     publishedAt: new Date(at).toISOString(),
-    severity: "info",
+    // An install the person asked for is one they are waiting to see land.
+    severity: asked ? "important" : "info",
     title: `${APP_NAME} updated to ${to}`,
+  };
+}
+
+/**
+ * The notice for an install the person asked for that came back on the
+ * version it was replacing, which the app makes itself.
+ */
+function installFailedNotice({
+  at,
+  from,
+  to,
+}: NonNullable<NoticesStore["installFailed"]>): Omit<BellNotice, "seen"> {
+  return {
+    body: `You're still on version ${from}. Use the Update button to try again.`,
+    id: `install-failed-${to}-${at}`,
+    kind: "update",
+    publishedAt: new Date(at).toISOString(),
+    severity: "important",
+    title: `Version ${to} didn't install`,
   };
 }
 
@@ -410,8 +434,25 @@ export function noteChatsLeftBehind(count: number): void {
  * Records that this computer launched into a newer build, replacing whatever
  * update it recorded before, read or not, so the bell holds one at most.
  */
-export function noteUpdate({ from, to }: { from: string; to: string }) {
-  getNoticesStore().set("updated", { at: Date.now(), from, to });
+export function noteUpdate({
+  asked,
+  from,
+  to,
+}: {
+  asked?: boolean;
+  from: string;
+  to: string;
+}) {
+  getNoticesStore().set("updated", { asked, at: Date.now(), from, to });
+  getNoticesStore().delete("installFailed");
+}
+
+/**
+ * Records that an install the person asked for relaunched on `from` rather
+ * than `to`.
+ */
+export function noteInstallFailed({ from, to }: { from: string; to: string }) {
+  getNoticesStore().set("installFailed", { at: Date.now(), from, to });
 }
 
 export function dismissNotice(id: string) {

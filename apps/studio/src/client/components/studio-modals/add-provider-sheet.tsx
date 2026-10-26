@@ -7,7 +7,9 @@ import {
   claudeWaitingLine,
   grokWaitingLine,
 } from "@/client/components/connect-button";
+import { type LastConnection } from "@/client/components/setup/last-connection";
 import { Button } from "@/client/components/ui/button";
+import { Spinner } from "@/client/components/ui/spinner";
 import {
   useChatGPTConnect,
   useClaudeConnect,
@@ -27,6 +29,7 @@ import {
   CONNECT_PLANS,
   connectPageCopy,
   instrumentWayCopy,
+  waitingPageCopy,
 } from "@/client/lib/connect-copy";
 import { showConnectToast } from "@/client/lib/connect-toast";
 import {
@@ -45,6 +48,7 @@ import { ClockIcon } from "@phosphor-icons/react/Clock";
 import { KeyIcon } from "@phosphor-icons/react/Key";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
+import { type AIProviderConfigId } from "@instrument-org/shared";
 import { type ReactNode, useState } from "react";
 
 const PLAN_PROVIDERS: PlanProvider[] = ["chatgpt", "claude", "grok"];
@@ -53,8 +57,8 @@ type View =
   | { kind: "answer"; outcome: ConnectOutcome; provider: ConnectProvider }
   | { kind: "key" }
   | { kind: "list" }
-  /** A way in connected or a key was added: the main model, as setup asks it. */
-  | { kind: "model" };
+  /** A way in connected or a key was added: its main model, as setup asks it. */
+  | { kind: "model"; connection?: LastConnection };
 
 /**
  * The Add a provider sheet: the plans people already pay for (ChatGPT,
@@ -93,6 +97,22 @@ export function AddProviderSheet({
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
   const [view, setView] = useState<View>({ kind: "list" });
+  // The keys from before the key page, so the one the form adds is the new one.
+  const [knownKeys, setKnownKeys] = useState<Set<AIProviderConfigId>>();
+  const keyAdded = async () => {
+    const list = await rpcClient.providerConfig.list
+      .call({})
+      .catch(() => undefined);
+    const fresh = list?.find((config) => !knownKeys?.has(config.id));
+    setView({
+      kind: "model",
+      connection: fresh && { kind: "key", providerConfigId: fresh.id },
+    });
+  };
+  const openKey = () => {
+    setKnownKeys(new Set(providerConfigs?.map((config) => config.id)));
+    setView({ kind: "key" });
+  };
 
   const settle = (provider: ConnectProvider, result: ConnectResult) => {
     const { outcome } = result;
@@ -105,7 +125,7 @@ export function AddProviderSheet({
     }
     if (outcome.kind === "ready") {
       showConnectToast(result, provider);
-      setView({ kind: "model" });
+      setView({ kind: "model", connection: { kind: "sign-in", provider } });
       return;
     }
     setView({ kind: "answer", outcome, provider });
@@ -152,7 +172,26 @@ export function AddProviderSheet({
   const trialRow = hasToken === false && rowFor("instrument");
 
   if (view.kind === "model") {
-    return <ModelView onDone={onComplete} />;
+    return <ModelView connection={view.connection} onDone={onComplete} />;
+  }
+
+  // Back from the browser while the plan is checked: the sheet waits with
+  // it, as setup does, rather than leaving the wait to one line in a row.
+  const returning = PLAN_PROVIDERS.find(
+    (provider) =>
+      flows[provider].phase === "checking" ||
+      (provider === "claude" &&
+        flows.claude.phase === "signing-in" &&
+        flows.claude.status?.finishing),
+  );
+  if (returning) {
+    return (
+      <ReturningView
+        line={waitingLineFor(returning, flows)}
+        onCancel={flows[returning].cancel}
+        provider={returning}
+      />
+    );
   }
 
   if (view.kind === "key") {
@@ -163,7 +202,7 @@ export function AddProviderSheet({
             setView({ kind: "list" });
           }}
           onSuccess={() => {
-            setView({ kind: "model" });
+            void keyAdded();
           }}
           providers={providerConfigs ?? []}
           submitLabel="Add"
@@ -216,11 +255,7 @@ export function AddProviderSheet({
               rowFor(provider, `Use ${CONNECT_NAMES[provider]} instead`),
           )}
           {view.provider !== "instrument" && trialRow}
-          <KeyRow
-            onAdd={() => {
-              setView({ kind: "key" });
-            }}
-          />
+          <KeyRow onAdd={openKey} />
         </div>
       </SheetFrame>
     );
@@ -243,11 +278,7 @@ export function AddProviderSheet({
       <div className="mt-6 space-y-2">
         {trialRow}
         {PLAN_PROVIDERS.map((provider) => rowFor(provider))}
-        <KeyRow
-          onAdd={() => {
-            setView({ kind: "key" });
-          }}
-        />
+        <KeyRow onAdd={openKey} />
       </div>
     </SheetFrame>
   );
@@ -258,8 +289,15 @@ export function AddProviderSheet({
  * leaving the default where it is and Done making the one picked the
  * default for new chats.
  */
-function ModelView({ onDone }: { onDone: () => void }) {
-  const choice = useMainModelChoice();
+function ModelView({
+  connection,
+  onDone,
+}: {
+  /** What was just connected, whose models the list holds to. */
+  connection?: LastConnection;
+  onDone: () => void;
+}) {
+  const choice = useMainModelChoice(connection);
   return (
     <SheetFrame
       footer={
@@ -284,6 +322,42 @@ function ModelView({ onDone }: { onDone: () => void }) {
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">{choice.subtitle}</p>
       <MainModelList choice={choice} className="mt-6" />
+    </SheetFrame>
+  );
+}
+
+/** Signed in and back from the browser, while the plan is checked. */
+function ReturningView({
+  line,
+  onCancel,
+  provider,
+}: {
+  line: ReactNode;
+  onCancel: () => void;
+  provider: PlanProvider;
+}) {
+  const copy = waitingPageCopy(provider, "back");
+  return (
+    <SheetFrame
+      footer={
+        <Button onClick={onCancel} variant="ghost">
+          Cancel
+        </Button>
+      }
+    >
+      <div className="flex flex-col items-center py-6 text-center">
+        <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-muted">
+          <ConnectIcon className="size-7" provider={provider} />
+        </div>
+        <h2 className="font-serif text-[22px] font-medium text-foreground">
+          {copy.title}
+        </h2>
+        <p className="mt-2 text-sm text-muted-foreground">{copy.subtitle}</p>
+        <div className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
+          <Spinner className="size-4 shrink-0" delay={0} />
+          <span data-waiting-line>{line}</span>
+        </div>
+      </div>
     </SheetFrame>
   );
 }

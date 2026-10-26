@@ -84,9 +84,8 @@ const SIGN_IN_TYPES: Record<ConnectProvider, string> = {
 };
 
 /**
- * The models of the connection setup just made, or every connection's when
- * it connected none (the person came with their own) or its models haven't
- * listed yet.
+ * The models of the connection setup just made, none until they list, or
+ * every connection's when it connected none (the person came with their own).
  */
 export function modelsOfConnection(
   models: AIGatewayModel.Type[],
@@ -100,7 +99,7 @@ export function modelsOfConnection(
       ? model.params.providerConfigId === connection.providerConfigId
       : model.params.provider === SIGN_IN_TYPES[connection.provider],
   );
-  return own.length > 0 ? own : models;
+  return own;
 }
 
 /**

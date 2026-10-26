@@ -220,10 +220,10 @@ describe("setup's model choices", () => {
       modelsOfConnection(models, { kind: "key", providerConfigId: key }),
     ).toHaveLength(8);
     expect(modelsOfConnection(models, undefined)).toBe(models);
-    // Grok's models not listed yet: every connection's rather than none.
+    // Grok's models not listed yet: none, which the model step waits on.
     expect(
       modelsOfConnection(models, { kind: "sign-in", provider: "grok" }),
-    ).toBe(models);
+    ).toEqual([]);
   });
 
   it("groups several connections' long list by connection", () => {

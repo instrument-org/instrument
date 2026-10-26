@@ -98,14 +98,6 @@ export function useMainModelChoice(connection?: LastConnection) {
   if (entry === undefined && !isDefaultPending) {
     setEntry({ defaultURI });
   }
-  const models = modelsOfConnection(
-    choosableModels(list?.models ?? []),
-    connection,
-  );
-  const recommended = recommendedModel(models, entry?.defaultURI);
-  const [picked, setPicked] = useState<string | undefined>(undefined);
-  const chosen = picked ?? recommended?.uri;
-  const isShort = isShortList(models);
   // A list still loading after a while offers a way on, so it never traps.
   const [isSlow, setIsSlow] = useState(false);
   useEffect(() => {
@@ -116,6 +108,16 @@ export function useMainModelChoice(connection?: LastConnection) {
       window.clearTimeout(timer);
     };
   }, []);
+  const choosable = choosableModels(list?.models ?? []);
+  const own = modelsOfConnection(choosable, connection);
+  // The connection's models list a moment after it connects, so the list
+  // waits for them, and offers every connection's once it is slow.
+  const isWaitingOnOwn = connection !== undefined && own.length === 0;
+  const models = isWaitingOnOwn && isSlow ? choosable : own;
+  const recommended = recommendedModel(models, entry?.defaultURI);
+  const [picked, setPicked] = useState<string | undefined>(undefined);
+  const chosen = picked ?? recommended?.uri;
+  const isShort = isShortList(models);
 
   const connections = connectionsOf(models);
   const [only] = connections;
@@ -139,7 +141,7 @@ export function useMainModelChoice(connection?: LastConnection) {
 
   return {
     chosen,
-    isLoading,
+    isLoading: isLoading || (isWaitingOnOwn && !isSlow),
     isSaving: isPending,
     isShort,
     isSlow,

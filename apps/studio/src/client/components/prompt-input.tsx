@@ -1216,7 +1216,13 @@ export const PromptInput = ({
             </AnimatePresence>
           )
         }
-        extras={pillOpen ? lead : undefined}
+        // What goes with the message is said while the person is writing it:
+        // shown always, it comes and goes with every tab they move between.
+        extras={
+          pillOpen && (pillFocused || pickerOpen || menuView !== null)
+            ? lead
+            : undefined
+        }
         layout={variant}
         // A pill shows it only while open, with the rest of its second row;
         // a draft always has room over its words.

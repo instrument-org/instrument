@@ -82,7 +82,7 @@ describe("InstrumentFolder", () => {
     expect(
       await screen.findByText("Make a folder for Instrument in “Notes”?"),
     ).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: "Make Folder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Make folder" }));
 
     expect(
       await screen.findByText("Move your Instrument folder?"),
@@ -111,7 +111,7 @@ describe("InstrumentFolder", () => {
     await pickNotes();
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Don’t Make One" }),
+      await screen.findByRole("button", { name: "Don’t make one" }),
     );
 
     expect(await screen.findByLabelText("sam › Notes")).toBeDefined();

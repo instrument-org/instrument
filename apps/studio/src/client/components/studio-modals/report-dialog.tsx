@@ -33,7 +33,7 @@ import { useEffect, useId, useState } from "react";
 
 /**
  * The one report dialog, modeled on the Mac's own problem report: the
- * person's note, the details behind Show details, Don't Send or Send. Every
+ * person's note, the details behind Show details, Don't send or Send. Every
  * report goes through it, whatever started it. Reads `reportDialogAtom`.
  */
 export function ReportDialog() {
@@ -269,7 +269,7 @@ function ReportDialogContent({
 
       <DialogFooter>
         <Button onClick={onClose} variant="outline">
-          Don't Send
+          Don't send
         </Button>
         <Button
           // Waits for dictated words, so the note goes with them.

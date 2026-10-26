@@ -294,9 +294,9 @@ describe("folder copy", () => {
     }
   });
 
-  it("says why a place is risky and why that matters", () => {
+  it("says why a place is risky in one short sentence", () => {
     expect(folderWarningSentence("system")).toMatchInlineSnapshot(
-      `"Your computer keeps its system files in that folder. Chats can change anything in your Instrument folder, so it’s safer to use a folder just for Instrument."`,
+      `"Your computer keeps its system files here."`,
     );
     for (const why of Object.values(FOLDER_WARNING_COPY)) {
       expect(why).toMatch(/^[A-Z].*\.$/);

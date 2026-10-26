@@ -18,15 +18,20 @@ import {
  * the place itself is the part that has to be readable. How many fold is
  * measured off a copy of the trail at its natural width, drawn out of sight,
  * so `labelClassName` and `foldMark` are what a part's padding and the
- * fold's mark look like for that measure.
+ * fold's mark look like for that measure, and `reserve` is room the parts
+ * take beyond their names (a mark before the first). `keepBeforeLast` off
+ * lets the one before the last fold too, for a trail where only where it
+ * starts and what it names matter.
  */
 export function FoldingTrail({
   className,
   fold,
   foldMark,
+  keepBeforeLast = true,
   labelClassName,
   labels,
   part,
+  reserve = 0,
   separator,
 }: {
   className?: string;
@@ -34,11 +39,14 @@ export function FoldingTrail({
   fold: (indexes: number[]) => ReactNode;
   /** The fold's mark alone, measured for the room it takes. */
   foldMark: ReactNode;
+  keepBeforeLast?: boolean;
   /** Each part's padding, measured with its name. */
   labelClassName?: string;
   labels: string[];
   /** The part at an index, keyed, with the separator before it when it is not the first. */
   part: (index: number) => ReactNode;
+  /** Pixels the parts take beyond their measured names. */
+  reserve?: number;
   separator: ReactNode;
 }) {
   const box = useRef<HTMLSpanElement>(null);
@@ -82,7 +90,7 @@ export function FoldingTrail({
       const widths = widthOf("[data-crumb]");
       const separatorWidth = widthOf("[data-separator]")[0] ?? 0;
       const more = widthOf("[data-more]")[0] ?? 0;
-      const foldable = Math.max(0, widths.length - 3);
+      const foldable = Math.max(0, widths.length - (keepBeforeLast ? 3 : 2));
       const widthWith = (count: number) =>
         widths.reduce(
           (sum, width, index) =>
@@ -90,7 +98,8 @@ export function FoldingTrail({
           0,
         ) +
         separatorWidth * (widths.length - count - 1) +
-        (count > 0 ? separatorWidth + more : 0);
+        (count > 0 ? separatorWidth + more : 0) +
+        reserve;
       let count = 0;
       while (count < foldable && widthWith(count) > element.clientWidth + 1) {
         count += 1;
@@ -103,7 +112,7 @@ export function FoldingTrail({
     return () => {
       observer.disconnect();
     };
-  }, [trail]);
+  }, [keepBeforeLast, reserve, trail]);
   const hidden = labels.slice(1, 1 + folded).map((_, index) => index + 1);
   return (
     <span

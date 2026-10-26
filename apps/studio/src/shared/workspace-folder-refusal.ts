@@ -66,19 +66,15 @@ export function folderRefusalSentence(refusal: FolderRefusal): string {
   return `${why}, so ${instead}.`;
 }
 
-/** Why a place with more than the person's work in it is risky for the folder every chat can change. */
-const SAFER = `Chats can change anything in your Instrument folder, so it’s safer to use a folder just for ${APP_NAME}.`;
-
-/** What makes the folder a risky place, and why that matters, said where the person picks it. */
+/** What makes the folder a risky place, said under it where the person picks it. */
 export const FOLDER_WARNING_COPY: Record<FolderWarning, string> = {
-  "apps-data": `Apps keep their settings and data in that folder. ${SAFER}`,
-  "around-home": `That folder has your home folder in it. ${SAFER}`,
-  drive: `That’s the top of a disk. ${SAFER}`,
-  personal: `That folder has lots of your other files in it. ${SAFER}`,
-  "sign-ins": `Other apps keep sign-ins or startup settings in that folder. ${SAFER}`,
-  system: `Your computer keeps its system files in that folder. ${SAFER}`,
-  temporary:
-    "Your computer may empty that folder on its own, so your chats could disappear.",
+  "apps-data": "Apps keep their settings and data here.",
+  "around-home": "Your home folder is inside this one.",
+  drive: "This is the top of a disk.",
+  personal: "This folder has lots of your other files in it.",
+  "sign-ins": "Other apps keep sign-ins or startup settings here.",
+  system: "Your computer keeps its system files here.",
+  temporary: "Your computer may empty this folder on its own.",
 };
 
 /** The warning for a folder the person picked. */

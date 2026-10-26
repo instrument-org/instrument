@@ -16,6 +16,9 @@ import { HouseIcon } from "@phosphor-icons/react/House";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
 
+/** The place's mark before the first name, and the gap after it, in pixels. */
+const PLACE_MARK_ROOM = 18;
+
 /**
  * A folder's path as a person reads it, the way Files' location bar names
  * it: from the place it is in (iCloud Drive, a disk, or the home folder by
@@ -38,9 +41,7 @@ export function FolderTrail({
     { kind: "folder", path },
     { home, ...(volumes ? { volumes } : {}) },
   ).map((crumb) => crumb.label);
-  const lead = (
-    <PlaceMark path={expandHomePath(path, home)} volumes={volumes} />
-  );
+  const Lead = placeIcon(expandHomePath(path, home), volumes);
   // Its room is padding rather than a gap, so the trail's measure of it
   // counts the room too.
   const separator = (
@@ -57,7 +58,9 @@ export function FolderTrail({
           : "shrink-0",
       )}
     >
-      {at === 0 ? lead : null}
+      {at === 0 && Lead ? (
+        <Lead aria-hidden className="size-3.5 shrink-0" />
+      ) : null}
       <span className="truncate">{labels[at]}</span>
     </span>
   );
@@ -79,8 +82,13 @@ export function FolderTrail({
                 …
               </span>
             )}
-            foldMark="…"
+            foldMark={<span className="px-1">…</span>}
+            // Only where it starts and the folder it names have to stay
+            // whole, so the one before the last folds too before any name is
+            // cut; the place's mark is room the measure of the names misses.
+            keepBeforeLast={false}
             labels={labels}
+            reserve={Lead ? PLACE_MARK_ROOM : 0}
             part={(at) => (
               <Fragment key={`${String(at)}:${labels[at] ?? ""}`}>
                 {at > 0 ? separator : null}
@@ -102,33 +110,24 @@ export function FolderTrail({
 
 /**
  * The mark of the place a path starts at: the cloud or the drive for a place
- * the Files sidebar lists, the house for the home folder.
+ * the Files sidebar lists, the house for the home folder, or none.
  */
-function PlaceMark({
-  path,
-  volumes = [],
-}: {
-  path: string;
-  volumes?: { kind: string; path: string }[] | undefined;
-}) {
+function placeIcon(
+  path: string,
+  volumes: { kind: string; path: string }[] = [],
+): typeof HouseIcon | undefined {
   const home = window.api.homeDir;
   const place = volumes
     .filter((volume) => isInside(path, volume.path))
     .toSorted((a, b) => b.path.length - a.path.length)[0];
-  const className = "size-3.5 shrink-0";
   // A place inside the home folder, iCloud Drive or a cloud service's folder,
   // starts the path; any other place holds the home folder, which does.
   const inPlace =
     place !== undefined &&
     (!isInside(path, home) ||
       (place.path !== home && isInside(place.path, home)));
-  if (inPlace && place.kind === "cloud") {
-    return <CloudIcon aria-hidden className={className} />;
-  }
   if (inPlace) {
-    return <HardDriveIcon aria-hidden className={className} />;
+    return place.kind === "cloud" ? CloudIcon : HardDriveIcon;
   }
-  return isInside(path, home) ? (
-    <HouseIcon aria-hidden className={className} />
-  ) : null;
+  return isInside(path, home) ? HouseIcon : undefined;
 }

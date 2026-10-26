@@ -11,7 +11,11 @@ import {
   readFeedbackImages,
   sendReport,
 } from "@/electron-main/lib/problem-reports";
-import { MAX_FEEDBACK_IMAGES } from "@/shared/feedback-images";
+import {
+  MAX_FEEDBACK_IMAGE_BYTES,
+  MAX_FEEDBACK_IMAGES,
+} from "@/shared/feedback-images";
+import { webContents } from "electron";
 import { findExceptionEvent } from "@/electron-main/lib/exception-store";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -155,6 +159,23 @@ const sendFeedback = base
     }
   });
 
+/**
+ * The calling window as it is drawn, for feedback to attach: a PNG, or a
+ * JPEG where the PNG is over what one feedback image may be. The dialog
+ * hides itself first, so the picture is of what the person was looking at.
+ */
+const captureWindow = base.handler(async ({ context }) => {
+  const contents = webContents.fromId(context.webContentsId);
+  if (!contents) {
+    throw new Error("The window to capture is gone");
+  }
+  const image = await contents.capturePage();
+  const png = image.toPNG();
+  return png.byteLength <= MAX_FEEDBACK_IMAGE_BYTES
+    ? new Blob([new Uint8Array(png)], { type: "image/png" })
+    : new Blob([new Uint8Array(image.toJPEG(85))], { type: "image/jpeg" });
+});
+
 /** Takes a waiting problem out of the bell without sending it. */
 const dismiss = base
   .input(z.object({ fingerprint: z.string() }))
@@ -169,6 +190,7 @@ const setSendAutomatically = base
   });
 
 export const problems = {
+  captureWindow,
   describe,
   describeFeedback: describeFeedbackRoute,
   dismiss,

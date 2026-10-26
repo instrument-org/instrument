@@ -55,12 +55,14 @@ export function modelChangeSincePreviousTurn({
         contextLength: message.metadata.aiGatewayModel?.contextLength,
         modelId: message.metadata.modelId,
         name: message.metadata.aiGatewayModel?.name,
+        provider: message.metadata.aiGatewayModel?.params.provider,
         providerName: message.metadata.aiGatewayModel?.providerName,
       },
       to: {
         contextLength: model.contextLength,
         modelId: model.canonicalId,
         name: model.name,
+        provider: model.params.provider,
         providerName: model.providerName,
       },
     };

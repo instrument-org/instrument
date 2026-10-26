@@ -13,7 +13,7 @@ function change(
 }
 
 function noteText() {
-  return screen.getByText(/Switched model/).textContent;
+  return screen.getByText(/Switched from/).textContent;
 }
 
 describe("ModelChangeNote", () => {
@@ -27,9 +27,7 @@ describe("ModelChangeNote", () => {
       />,
     );
 
-    expect(noteText()).toBe(
-      "Switched model from Auto to Gemini 3.1 Pro Preview",
-    );
+    expect(noteText()).toBe("Switched from Auto to Gemini 3.1 Pro Preview");
   });
 
   // The gateway hands these names over with a leading space, so an untrimmed
@@ -44,30 +42,31 @@ describe("ModelChangeNote", () => {
       />,
     );
 
-    expect(noteText()).toBe("Switched model from Auto to GPT-5.6 Luna");
+    expect(noteText()).toBe("Switched from Auto to GPT-5.6 Luna");
   });
 
-  it("names the providers when the move was between them", () => {
-    renderWithProviders(
+  it("draws each side with its provider's mark rather than its name", () => {
+    const { container } = renderWithProviders(
       <ModelChangeNote
         data={change(
           {
-            modelId: "gpt-6-luna",
-            name: "GPT-6 Luna",
+            modelId: "auto",
+            name: "Auto",
+            provider: "instrument",
             providerName: "Instrument",
           },
           {
-            modelId: "gpt-5.6-luna",
-            name: "GPT-5.6-Luna",
+            modelId: "gpt-6.1-sol",
+            name: "GPT-6.1 Sol",
+            provider: "chatgpt-account",
             providerName: "ChatGPT account",
           },
         )}
       />,
     );
 
-    expect(noteText()).toBe(
-      "Switched model from GPT-6 Luna on Instrument to GPT-5.6-Luna on ChatGPT account",
-    );
+    expect(noteText()).toBe("Switched from Auto to GPT-6.1 Sol");
+    expect(container.querySelectorAll("svg")).toHaveLength(2);
   });
 
   it("names a side from its id when no name was recorded", () => {
@@ -80,7 +79,7 @@ describe("ModelChangeNote", () => {
       />,
     );
 
-    expect(noteText()).toBe("Switched model from Claude Haiku 5.5 to Auto");
+    expect(noteText()).toBe("Switched from Claude Haiku 5.5 to Auto");
   });
 
   it("names a side from its id when the name is only whitespace", () => {
@@ -93,6 +92,6 @@ describe("ModelChangeNote", () => {
       />,
     );
 
-    expect(noteText()).toBe("Switched model from Older Model to Auto");
+    expect(noteText()).toBe("Switched from Older Model to Auto");
   });
 });

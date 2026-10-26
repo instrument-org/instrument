@@ -1,53 +1,30 @@
-import {
-  type AIGatewayModel,
-  modelDisplayName,
-} from "@instrument-org/ai-gateway/client";
+import { type AIProviderType } from "@instrument-org/shared";
 
 import { AIProviderIcon } from "./ai-provider-icon";
 
-interface ModelChipProps {
-  aiGatewayModel?: AIGatewayModel.Type;
-  className?: string;
-  modelId?: string;
-  /**
-   * The model that answered, on a turn where the provider served something
-   * other than what was asked for. It takes the requested name's place; the
-   * chip's card says what was asked for.
-   *
-   * The requested model's mark stays: a provider can only substitute within
-   * its own catalog, so the one that answered carries the same one.
-   */
-  answeredBy?: string;
-}
-
+/**
+ * A model as the transcript names it: its provider's mark and its name. The
+ * chips that say more (`ModelUsageChip`, `RecordedModelChip`) wrap this in
+ * their card, so every model named in a chat reads the same.
+ */
 export function ModelChip({
-  aiGatewayModel,
-  answeredBy,
   className = "",
-  modelId,
-}: ModelChipProps) {
-  const displayName =
-    answeredBy ??
-    (modelId === undefined
-      ? aiGatewayModel?.name
-      : modelDisplayName(modelId, aiGatewayModel?.name));
-  const provider = aiGatewayModel?.params.provider;
-
-  if (!displayName) {
-    return null;
-  }
-
+  name,
+  provider,
+}: {
+  className?: string;
+  name: string;
+  provider?: AIProviderType;
+}) {
   return (
-    <div className={`flex items-center gap-1 ${className}`}>
+    <div className={`flex min-w-0 items-center gap-1 ${className}`}>
       {provider && (
         <AIProviderIcon
           className="size-3.5 shrink-0 opacity-70"
           type={provider}
         />
       )}
-      <span className="truncate text-xs text-muted-foreground">
-        {displayName}
-      </span>
+      <span className="truncate text-xs text-muted-foreground">{name}</span>
     </div>
   );
 }

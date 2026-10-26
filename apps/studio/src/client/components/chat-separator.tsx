@@ -3,6 +3,7 @@ import {
   separatorDayLabel,
   separatorTimeLabel,
 } from "../lib/chat-separators";
+import { ModelSwitch } from "./model-change-note";
 import { ModelUsageChip } from "./model-usage-chip";
 import { useNow } from "./window/use-now";
 
@@ -13,21 +14,21 @@ import { useNow } from "./window/use-now";
  */
 export function ChatSeparatorRow({ separator }: { separator: ChatSeparator }) {
   const now = useNow();
-  const { at, timed, usage } = separator;
+  const { at, change, timed, usage } = separator;
 
   return (
-    <div className="flex min-w-0 items-center justify-center gap-1.5 pt-1.5 pb-3 text-xs text-muted-foreground">
+    <div className="flex min-w-0 flex-wrap items-center justify-center gap-1.5 pt-1.5 pb-3 text-xs text-muted-foreground">
       {timed && (
         <span className="shrink-0">
           <span className="font-medium">{separatorDayLabel(at, now)}</span>{" "}
           {separatorTimeLabel(at)}
         </span>
       )}
-      {usage && (
-        <>
-          {timed && <span aria-hidden="true">·</span>}
-          <ModelUsageChip usage={usage} />
-        </>
+      {(change ?? usage) && timed && <span aria-hidden="true">·</span>}
+      {change ? (
+        <ModelSwitch from={change.from} to={change.to} />
+      ) : (
+        usage && <ModelUsageChip usage={usage} />
       )}
     </div>
   );

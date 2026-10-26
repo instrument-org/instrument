@@ -467,7 +467,12 @@ function userRows(
       }
       rows.push({ kind: "text", part, role: "user" });
       bubbles.push(part.metadata.id);
-    } else if (isDataPart(part) && drawsInChat(part, chatInfo, undefined)) {
+    } else if (
+      // A switch of model is drawn by the separator over the message.
+      part.type !== "data-modelChange" &&
+      isDataPart(part) &&
+      drawsInChat(part, chatInfo, undefined)
+    ) {
       rows.push({ kind: "note", part, pathsAlreadyShown: undefined });
     }
   }

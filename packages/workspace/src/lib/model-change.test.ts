@@ -13,7 +13,9 @@ const assistant = (modelId: string, contextLength?: number, name?: string) =>
   ({
     metadata: {
       aiGatewayModel:
-        contextLength === undefined ? undefined : { contextLength, name },
+        contextLength === undefined
+          ? undefined
+          : { contextLength, name, params: { provider: "openai" } },
       modelId,
     },
     parts: [],
@@ -58,11 +60,13 @@ describe("modelChangeSincePreviousTurn", () => {
         contextLength: 1_000_000,
         modelId: "roomier-model",
         name: "Roomier Model",
+        provider: "openai",
       },
       to: {
         contextLength: 200_000,
         modelId: "current-model",
         name: "Mock Model",
+        provider: "instrument",
         providerName: "Test Provider",
       },
     });
@@ -73,6 +77,7 @@ describe("modelChangeSincePreviousTurn", () => {
       metadata: {
         aiGatewayModel: {
           name: "Mock Model",
+          params: { provider: "openrouter" },
           providerName: "Other Provider",
           uri: "author/current-model?provider=other&providerConfigId=other",
         },

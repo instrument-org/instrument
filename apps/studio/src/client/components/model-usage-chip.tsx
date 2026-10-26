@@ -1,4 +1,6 @@
 import { modelDisplayName } from "@instrument-org/ai-gateway/client";
+import { type AIProviderType } from "@instrument-org/shared";
+import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { sift } from "radashi";
 
 import { modelName, type ModelUsage } from "../lib/models-answered";
@@ -9,7 +11,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 /**
  * The model a run of replies ran on, as a chip whose card says the rest: the
  * router's pick, what was asked for when a provider served another, the ids.
- * A substitute is named on the chip itself, since it is what answered.
+ * A substitute is named on the chip itself, since it is what answered. The
+ * requested model's mark stays: a provider can only substitute within its own
+ * catalog, so the one that answered carries the same one.
  */
 export function ModelUsageChip({
   className,
@@ -19,20 +23,68 @@ export function ModelUsageChip({
   usage: ModelUsage;
 }) {
   return (
+    <ModelCardChip
+      className={className}
+      name={
+        substitutedBy(usage) ??
+        modelDisplayName(usage.modelId, usage.requested?.name)
+      }
+      provider={usage.requested?.params.provider}
+      rows={getModelInfoRows(usage)}
+    />
+  );
+}
+
+/**
+ * A model as a switch recorded it, for a side of the switch no reply has
+ * answered on yet: the name, the provider and the id stored with the switch.
+ */
+export function RecordedModelChip({
+  className,
+  model,
+}: {
+  className?: string;
+  model: SessionMessageDataPart.ModelChangeDataPart["from"];
+}) {
+  const name = modelDisplayName(model.modelId, model.name);
+  return (
+    <ModelCardChip
+      className={className}
+      name={name}
+      provider={model.provider}
+      rows={sift([
+        { label: "Model:", value: name },
+        model.providerName && {
+          label: "Provider:",
+          value: model.providerName.trim(),
+        },
+        name !== model.modelId && { label: "Model ID:", value: model.modelId },
+      ])}
+    />
+  );
+}
+
+function ModelCardChip({
+  className,
+  name,
+  provider,
+  rows,
+}: {
+  className?: string;
+  name: string;
+  provider?: AIProviderType;
+  rows: { label: string; value: string }[];
+}) {
+  return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div className="min-w-0">
-          <ModelChip
-            aiGatewayModel={usage.requested}
-            answeredBy={substitutedBy(usage)}
-            className={className}
-            modelId={usage.modelId}
-          />
+          <ModelChip className={className} name={name} provider={provider} />
         </div>
       </TooltipTrigger>
       <TooltipContent align="start" className="p-3 text-xs" side="top">
         <div className="space-y-2">
-          {getModelInfoRows(usage).map((row, rowIndex) => (
+          {rows.map((row, rowIndex) => (
             <TooltipRow key={`${row.label}-${rowIndex}`} {...row} />
           ))}
         </div>
@@ -104,9 +156,9 @@ function getModelInfoRows(usage: ModelUsage): {
 
   return sift([
     ...identity,
-    requested?.params.provider && {
+    requested && {
       label: "Provider:",
-      value: requested.params.provider,
+      value: requested.providerName.trim(),
     },
     // Only where the id says something the name above it did not. A model the
     // catalog has no record of is displayed by its id already, so an id row

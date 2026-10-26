@@ -1,51 +1,47 @@
-import { modelDisplayName } from "@instrument-org/ai-gateway/client";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 
+import { type ModelSide } from "../lib/chat-separators";
+import { ModelUsageChip, RecordedModelChip } from "./model-usage-chip";
+
 /**
- * The turn where the task started asking a different model.
+ * The turn where the chat started asking a different model, on a line of its
+ * own across the column: what it marks is a boundary in the conversation, so
+ * it belongs between two turns rather than attached to either.
  *
- * Centered across the column rather than beside a message. What it marks is a
- * boundary in the conversation, and everything after it is answered by a
- * different model, so it belongs between two turns rather than attached to
- * either. Right-aligning it under the user's turn, where the other slim notes
- * sit, read as something the user had attached to that message.
- *
- * A sentence rather than a diagram. An arrow between two names is a shape the
- * reader has to decode before it says anything, and it invites being read as a
- * control; ordinary words are read at a glance and cannot be mistaken for
- * something to operate.
- *
- * Shown to everyone rather than kept for developer mode, unlike the rollover
- * that sits beside it. A rollover has no faithful short description that is not
- * a description of our request assembly; this one has an obvious one, because
- * the model the user picked is a thing the user picked. It reads as a note
- * about their own action rather than as an admission about ours.
- *
- * Each side shows the display name recorded with the change, or one derived
- * from the id when none was stored (`modelDisplayName`). The name is what the
- * user chose the model by, so it is what they recognize.
+ * Above a message the person sent, the switch is drawn by the separator over
+ * it (`ChatSeparatorRow`), which this line would only repeat. This one is for
+ * the switch nothing sits over: a reply asked again on another model, and a
+ * model picked in the composer and not sent yet.
  */
 export function ModelChangeNote({
   data,
 }: {
   data: SessionMessageDataPart.ModelChangeDataPart;
 }) {
-  // The provider is named only when it changed: the same model from two
-  // providers, or two models with one name, would otherwise read as no move.
-  const providers =
-    data.from.providerName &&
-    data.to.providerName &&
-    data.from.providerName.trim() !== data.to.providerName.trim()
-      ? { from: data.from.providerName.trim(), to: data.to.providerName.trim() }
-      : undefined;
   return (
-    <div className="my-4 w-full px-4 text-center text-xs text-balance text-muted-foreground">
-      Switched model from {modelDisplayName(data.from.modelId, data.from.name)}
-      {providers && ` on ${providers.from}`} to{" "}
-      <span className="font-medium text-muted-foreground">
-        {modelDisplayName(data.to.modelId, data.to.name)}
-        {providers && ` on ${providers.to}`}
-      </span>
+    <div className="my-4 flex w-full justify-center px-4 text-xs text-muted-foreground">
+      <ModelSwitch from={{ recorded: data.from }} to={{ recorded: data.to }} />
     </div>
+  );
+}
+
+/**
+ * A switch of model as a sentence with the two models in it, each drawn the
+ * way every model in the chat is. Ordinary words read at a glance where an
+ * arrow between two names is a shape to decode first.
+ */
+export function ModelSwitch({ from, to }: { from: ModelSide; to: ModelSide }) {
+  return (
+    <span className="flex min-w-0 flex-wrap items-center justify-center gap-x-1.5 gap-y-1">
+      Switched from <SideChip side={from} /> to <SideChip side={to} />
+    </span>
+  );
+}
+
+function SideChip({ side }: { side: ModelSide }) {
+  return side.usage ? (
+    <ModelUsageChip usage={side.usage} />
+  ) : (
+    <RecordedModelChip model={side.recorded} />
   );
 }

@@ -1,3 +1,4 @@
+import { AIProviderTypeSchema } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { DeviceIdSchema } from "../device-id";
@@ -319,7 +320,8 @@ export namespace SessionMessageDataPart {
     modelId: z.string(),
     name: z.string().optional(),
     // Who served it, so a move between two providers of one model reads as
-    // a move at all.
+    // a move at all, and the provider's mark it is drawn with.
+    provider: AIProviderTypeSchema.optional(),
     providerName: z.string().optional(),
   });
   const ModelChangeDataPartSchema = z.object({

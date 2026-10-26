@@ -7,7 +7,7 @@ import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { expect, it } from "vitest";
 import { page } from "vitest/browser";
 
-import { ModelChip } from "./model-chip";
+import { ModelUsageChip } from "./model-usage-chip";
 
 const params = {
   provider: "anthropic" as const,
@@ -32,7 +32,14 @@ const fable = AIGatewayModel.Schema.parse({
 
 it("names the model that answered in place of the one asked for", async () => {
   await renderInBrowser(
-    <ModelChip aiGatewayModel={fable} answeredBy="Opus 5" />,
+    <ModelUsageChip
+      usage={{
+        kind: "substituted",
+        modelId: "fable-5",
+        requested: fable,
+        served: [{ providerId: "Opus 5" }],
+      }}
+    />,
   );
 
   await expect.element(page.getByText("Opus 5")).toBeVisible();
@@ -40,7 +47,16 @@ it("names the model that answered in place of the one asked for", async () => {
 });
 
 it("names the model asked for when the provider served it", async () => {
-  await renderInBrowser(<ModelChip aiGatewayModel={fable} />);
+  await renderInBrowser(
+    <ModelUsageChip
+      usage={{
+        kind: "ordinary",
+        modelId: "fable-5",
+        requested: fable,
+        served: [],
+      }}
+    />,
+  );
 
   await expect.element(page.getByText("Fable 5")).toBeVisible();
 });

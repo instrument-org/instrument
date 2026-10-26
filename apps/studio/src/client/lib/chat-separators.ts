@@ -1,5 +1,6 @@
 import {
   type SessionMessage,
+  type SessionMessageDataPart,
   type StoreId,
 } from "@instrument-org/workspace/client";
 import { format, isSameDay } from "date-fns";
@@ -21,13 +22,24 @@ const SEPARATOR_GAP_MS = HOUR_MS;
  */
 export interface ChatSeparator {
   at: Date;
+  /** The switch of model the message was sent with, as its turn recorded it. */
+  change?: { from: ModelSide; to: ModelSide };
   /**
    * Whether the line shows the day and time: above the chat's first message
    * and after a gap, but not on a switch of model within the hour, where the
-   * line names only the new model.
+   * line names only the models.
    */
   timed: boolean;
-  /** Absent on a separator that only marks a gap in time. */
+  /** The model the chat starts on, above its first message, once a reply asked it. */
+  usage?: ModelUsage;
+}
+
+/**
+ * One side of a switch: what the turn recorded at the moment of the switch,
+ * and what the replies on that model did, once there are any.
+ */
+export interface ModelSide {
+  recorded: SessionMessageDataPart.ModelChangeDataPart["from"];
   usage?: ModelUsage;
 }
 
@@ -37,65 +49,98 @@ export interface ChatSeparator {
  *
  * One above the first message, naming the model. One above any message sent
  * {@link SEPARATOR_GAP_MS} or more after the one before it, or on a later day,
- * with the time alone. One above the first message after a switch of model,
- * naming the new one, with the time only when it also follows a gap.
+ * with the time alone. One above every message its turn recorded a switch of
+ * model on (`data-modelChange`), naming both models, with the time only when it
+ * also follows a gap.
  *
- * A user message carries no model; the one it went to is the model its reply
- * asked for, so a separator names nothing until the reply's first message
- * exists. The card behind a named model covers every reply up to the next
- * switch, which is how a router's picks across that run reach it without each
- * pick drawing a line of its own: the person chose the router, and a new line
- * is for a choice they made.
+ * A switch is placed by the record its turn wrote, never inferred from which
+ * model the replies around a message asked: those are read in landing order,
+ * which moves while replies are still being written, so an inferred switch
+ * lands on one message live and another once the chat is opened again. The
+ * replies only fill in the card behind each model, which covers every reply up
+ * to the next switch: a router's picks reach it without each pick drawing a
+ * line of its own, since the person chose the router and a line is for a
+ * choice they made.
  */
 export function chatSeparators(
   messages: readonly SessionMessage.WithParts[],
 ): Map<StoreId.Message, ChatSeparator> {
   const separators = new Map<StoreId.Message, ChatSeparator>();
-  // The replies under the latest separator that named a model, collected until
-  // the next one does.
-  let named:
+  // The replies after the first message and after each switch, collected
+  // until the next switch.
+  let run:
     | undefined
     | { replies: SessionMessage.AssistantWithParts[]; userId: StoreId.Message };
-  const runs: NonNullable<typeof named>[] = [];
-  let lastModel: string | undefined;
+  const runs: NonNullable<typeof run>[] = [];
   let previous: SessionMessage.WithParts | undefined;
 
-  for (const [index, message] of messages.entries()) {
+  for (const message of messages) {
     if (message.role === "assistant") {
-      named?.replies.push(message);
+      run?.replies.push(message);
     }
     if (message.role === "user") {
-      const model = replyModel(messages, index);
       const at = message.metadata.createdAt;
       const isFirst = runs.length === 0;
-      const switched =
-        model !== undefined && lastModel !== undefined && model !== lastModel;
-
+      const change = message.parts.find(
+        (part) => part.type === "data-modelChange",
+      );
       const gap =
         previous !== undefined && isGap(previous.metadata.createdAt, at);
 
-      if (isFirst || switched) {
-        named = { replies: [], userId: message.id };
-        runs.push(named);
-        separators.set(message.id, { at, timed: isFirst || gap });
+      if (isFirst || change) {
+        run = { replies: [], userId: message.id };
+        runs.push(run);
+        separators.set(message.id, {
+          at,
+          change: change && {
+            from: { recorded: change.data.from },
+            to: { recorded: change.data.to },
+          },
+          timed: isFirst || gap,
+        });
       } else if (gap) {
         separators.set(message.id, { at, timed: true });
       }
-      lastModel = model ?? lastModel;
     }
     if (message.role !== "session-context") {
       previous = message;
     }
   }
 
-  for (const run of runs) {
-    const [usage] = modelsAnswering(run.replies);
-    const separator = separators.get(run.userId);
-    if (separator && usage) {
-      separator.usage = usage;
+  for (const [index, { replies, userId }] of runs.entries()) {
+    const separator = separators.get(userId);
+    if (separator?.change) {
+      // The model moved from is the one the run before last asked.
+      separator.change.from.usage = runUsage(runs[index - 1]?.replies, "last");
+      separator.change.to.usage = runUsage(replies, "first");
+    } else if (separator) {
+      separator.usage = runUsage(replies, "first");
     }
   }
   return separators;
+}
+
+/**
+ * What the run's first or last asked model did across every reply of the run
+ * that asked it.
+ */
+function runUsage(
+  replies: readonly SessionMessage.AssistantWithParts[] | undefined,
+  which: "first" | "last",
+): ModelUsage | undefined {
+  const asked = (reply: SessionMessage.AssistantWithParts) =>
+    reply.metadata.aiGatewayModel?.uri ?? reply.metadata.modelId;
+  const counted = (replies ?? []).filter(
+    (reply) => reply.metadata.modelId && !reply.metadata.synthetic,
+  );
+  const pick = which === "first" ? counted.at(0) : counted.at(-1);
+  if (!pick) {
+    return undefined;
+  }
+  const [usage] = modelsAnswering(
+    counted.filter((reply) => asked(reply) === asked(pick)),
+  );
+  return usage;
 }
 
 /**
@@ -133,24 +178,4 @@ function isGap(before: Date, after: Date): boolean {
     after.getTime() - before.getTime() >= SEPARATOR_GAP_MS ||
     !isSameDay(before, after)
   );
-}
-
-/** The model the reply to the user message at `index` asked for, once it has one. */
-function replyModel(
-  messages: readonly SessionMessage.WithParts[],
-  index: number,
-): string | undefined {
-  for (const message of messages.slice(index + 1)) {
-    if (message.role === "user") {
-      return undefined;
-    }
-    if (
-      message.role === "assistant" &&
-      message.metadata.modelId &&
-      !message.metadata.synthetic
-    ) {
-      return message.metadata.aiGatewayModel?.uri ?? message.metadata.modelId;
-    }
-  }
-  return undefined;
 }

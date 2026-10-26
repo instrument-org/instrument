@@ -375,6 +375,22 @@ describe("views", () => {
     ]);
   });
 
+  // A reply stopped before it said anything changes only its metadata, so a
+  // reader that shared the request's object saw no change and never drew the
+  // stop.
+  it("hand a reader a copy of the running reply, which the request goes on changing", async () => {
+    await throughRecords(records.service);
+    const running = assistantMessage(chatSession, messageId(9), at(9), {
+      finishReason: "unknown",
+    });
+    records.service.live(CHAT, chatSession).setMessage(running);
+    const [shown] = liveView(await records.service.read(CHAT), chatSession);
+
+    Object.assign(running.metadata, { finishReason: "aborted" });
+
+    expect(shown?.metadata).toMatchObject({ finishReason: "unknown" });
+  });
+
   it("send the model the bytes a call returned only past the rollover that holds", async () => {
     const read = await throughRecords(records.service);
     const readFile = (messages: SessionMessage.WithParts[]) => {

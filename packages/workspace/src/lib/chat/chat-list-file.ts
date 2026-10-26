@@ -1,6 +1,7 @@
 import path from "node:path";
 import { isEqual, pick } from "radashi";
 
+import { publisher } from "../../rpc/publisher";
 import { updateJsonRecord } from "../json-record-file";
 import { type DeviceId } from "../records/device-id";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -35,6 +36,13 @@ const CHAT_LIST_FORMAT = 1;
  * chat's records, so the file only has to be close.
  */
 const WRITE_AFTER_MS = 10_000;
+
+/**
+ * How long after a turn ends the file is written, whatever the wait above
+ * says: a finished reply is the change a person looks at their phone for,
+ * and the moment gives the list time to take in the turn's last records.
+ */
+const TURN_END_WRITE_MS = 1000;
 
 /**
  * What a row in the file carries: what a list shows of a chat at rest.
@@ -85,13 +93,19 @@ function chatListFile(
 /**
  * Writes the file from the live chat list for as long as the process runs:
  * once the list is first read, then at most every `WRITE_AFTER_MS` while it
- * moves, and not at all for a move that leaves every row the file carries
- * as it was (a step a running turn is on, say). Stops with `signal`.
+ * moves and a moment after any turn ends, and not at all for a move that
+ * leaves every row the file carries as it was (a step a running turn is on,
+ * say). Stops with `signal`.
  */
 export function startChatListFile({
   signal,
+  turnEndWriteMs = TURN_END_WRITE_MS,
   writeAfterMs = WRITE_AFTER_MS,
-}: { signal?: AbortSignal; writeAfterMs?: number } = {}): void {
+}: {
+  signal?: AbortSignal;
+  turnEndWriteMs?: number;
+  writeAfterMs?: number;
+} = {}): void {
   const config = getWorkspaceConfig();
   const file = path.join(
     workspaceLayout(config.rootDir).devicesDir,
@@ -102,7 +116,12 @@ export function startChatListFile({
   let written: ChatListRow[] | undefined;
   let timer: NodeJS.Timeout | undefined;
 
+  const stopHearingTurns = publisher.subscribe("session.done", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => void write(), turnEndWriteMs);
+  });
   signal?.addEventListener("abort", () => {
+    stopHearingTurns();
     clearTimeout(timer);
   });
 

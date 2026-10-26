@@ -1688,4 +1688,47 @@ describe("startChatListFile", () => {
       controller.abort();
     }
   });
+
+  it("writes a moment after a turn ends, without waiting out the wait between writes", async () => {
+    const chatId = await freshChat();
+    const groceries = await session(chatId, "Groceries", 1);
+    await userSays(chatId, groceries, "make me a grocery list", 1);
+    const config = getWorkspaceConfig();
+    const file = path.join(
+      workspaceLayout(config.rootDir).devicesDir,
+      config.deviceId,
+      CHAT_LIST_FILE_NAME,
+    );
+    const starred = () =>
+      (
+        JSON.parse(fs.readFileSync(file, "utf8")) as {
+          chats: { starred: boolean }[];
+        }
+      ).chats[0]?.starred;
+    const controller = new AbortController();
+    startChatListFile({
+      signal: controller.signal,
+      turnEndWriteMs: 10,
+      writeAfterMs: 60_000,
+    });
+    try {
+      await vi.waitFor(() => {
+        expect(fs.existsSync(file)).toBe(true);
+      });
+      const [chat] = await listChats();
+      if (!chat) {
+        throw new Error("The chat is not listed");
+      }
+      await setChatStarred(chat.id, true);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(starred()).toBe(false);
+
+      publisher.publish("session.done", { id: chat.id, sessionId: groceries });
+      await vi.waitFor(() => {
+        expect(starred()).toBe(true);
+      });
+    } finally {
+      controller.abort();
+    }
+  });
 });

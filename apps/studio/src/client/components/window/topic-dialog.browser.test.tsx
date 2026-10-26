@@ -4,7 +4,20 @@ import { expect, it, vi } from "vitest";
 import { TopicDialog } from "./topic-dialog";
 
 vi.mock("@/client/rpc/client", () => ({
-  rpcClient: { utils: { showFolderPicker: { call: vi.fn() } } },
+  rpcClient: {
+    utils: { showFolderPicker: { call: vi.fn() } },
+    // A folder's path names the places the computer has.
+    workspace: {
+      computer: {
+        places: {
+          queryOptions: () => ({
+            queryFn: () => ({ pinned: [], volumes: [] }),
+            queryKey: ["places"],
+          }),
+        },
+      },
+    },
+  },
 }));
 // The decision model is out of reach here: no mark follows the name and no
 // chats are offered for filing.

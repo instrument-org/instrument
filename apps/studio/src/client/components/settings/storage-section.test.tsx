@@ -88,7 +88,8 @@ describe("InstrumentFolder", () => {
       await screen.findByText("Move your Instrument folder?"),
     ).toBeDefined();
     expect(screen.getByLabelText("sam › Notes › Instrument")).toBeDefined();
-    expect(screen.getByText("New folder")).toBeDefined();
+    // A folder still to be made says nothing under its path.
+    expect(screen.queryByText("Has other files in it")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Restart and Move" }));
     await vi.waitFor(() => {
       expect(move).toHaveBeenCalledWith({

@@ -9,7 +9,7 @@ import {
   AlertDialogTitle,
 } from "@/client/components/ui/alert-dialog";
 import { Button } from "@/client/components/ui/button";
-import { FolderMark } from "@/client/components/window/folder-mark";
+import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { folderOf, nameOf } from "@/client/components/window/host-path";
 import { locationCrumbs } from "@/client/components/window/tab-location";
 import { useComputerVolumes } from "@/client/components/window/computer-volumes";
@@ -63,9 +63,10 @@ function useFolderName(path: string) {
 }
 
 /**
- * What a destination already is, under its path: a folder still to be made,
- * an empty one, one with other files in it, or an Instrument folder and its
- * chats; and what the place is warned of, where that wasn't asked already.
+ * What a destination already is, under its path, where that is worth
+ * saying: one with other files in it, or an Instrument folder and its chats.
+ * A folder still to be made, or an empty one, says nothing. And what the
+ * place is warned of, where that wasn't asked already.
  */
 function DestinationLine({
   className,
@@ -85,16 +86,20 @@ function DestinationLine({
     ? chats > 0
       ? `${APP_NAME} folder with ${String(chats)} ${chats === 1 ? "chat" : "chats"}`
       : `${APP_NAME} folder`
-    : {
-        empty: "Empty folder",
-        files: "Has other files in it",
-        new: "New folder",
-      }[destination.contents];
+    : destination.contents === "files"
+      ? "Has other files in it"
+      : undefined;
   const { warning } = destination.verdict;
+  const warned = warning !== undefined && warning !== "personal";
+  if (line === undefined && !warned) {
+    return null;
+  }
   return (
     <span className={cn("flex flex-col gap-0.5 text-xs", className)}>
-      <span className="text-muted-foreground">{line}</span>
-      {warning !== undefined && warning !== "personal" ? (
+      {line === undefined ? null : (
+        <span className="text-muted-foreground">{line}</span>
+      )}
+      {warned ? (
         <span className="text-warning-700 dark:text-warning-300">
           {folderWarningSentence(warning)}
         </span>
@@ -105,9 +110,11 @@ function DestinationLine({
 
 /**
  * A destination as one row, the same in setup's Location card, the move
- * confirmation and the questions: its mark, its whole path, what it already
- * is, and `end` (Change, or Show in a question). A `path` with no
- * `destination` is one not looked at yet, which says nothing under it.
+ * confirmation and the questions: a folder, its whole path, what it already
+ * is, and `end` (Change, or Show in a question). The mark is always the
+ * folder, since the path already leads with its place's own (iCloud Drive's
+ * cloud, a disk). A `path` with no `destination` is one not looked at yet,
+ * which says nothing under it.
  */
 export function DestinationRow({
   className,
@@ -125,7 +132,7 @@ export function DestinationRow({
   return (
     <div className={cn("flex min-w-0 items-center gap-3 p-3", className)}>
       <span className="flex w-7 shrink-0 justify-center">
-        <FolderMark path={path} size="row" />
+        <FileSystemFolderGlyph className="h-5 w-auto shrink-0" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <FolderTrail className={cn("text-sm", trailClassName)} path={path} />

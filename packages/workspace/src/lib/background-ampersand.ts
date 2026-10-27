@@ -70,20 +70,55 @@ function collect(node: unknown, into: object[]): void {
 
 /**
  * The script a command hands the shell's own interpreter: `bash -c` and
- * `sh -c` as just-bash reads them (`-c` first), and `eval`. A part known only
- * when it runs (`$VAR`) reads as a placeholder; the `&` around it is what
- * counts. `/bin/bash` is the computer's own bash, whose `&` works.
+ * `sh -c` with any options around the `-c` (`-lc`, `-euo pipefail -c`,
+ * `-c -e`), and `eval`. A part known only when it runs (`$VAR`) reads as a
+ * placeholder; the `&` around it is what counts. `/bin/bash` is the
+ * computer's own bash, whose `&` works.
  */
 function shellScript(node: SimpleCommandNode): string | undefined {
   const name = node.name ? wordText(node.name) : undefined;
   const args = node.args.map(wordText);
-  if ((name === "bash" || name === "sh") && args[0] === "-c") {
-    return args[1];
+  if (name === "bash" || name === "sh") {
+    return commandString(args);
   }
   if (name === "eval") {
     return args.join(" ");
   }
   return undefined;
+}
+
+/**
+ * The `-c` script among a shell's arguments, read as bash reads them: options
+ * run up to the first word not starting with `-` or `+` (or `--`), letters
+ * combine, `-o`/`-O` and `--rcfile`/`--init-file` take the next word, and
+ * `-c` makes the first operand the script.
+ */
+function commandString(args: string[]): string | undefined {
+  let command = false;
+  let i = 0;
+  while (i < args.length) {
+    const arg = args[i] ?? "";
+    if (arg === "--" || arg === "-") {
+      i++;
+      break;
+    }
+    if (arg.startsWith("--")) {
+      i += arg === "--rcfile" || arg === "--init-file" ? 2 : 1;
+      continue;
+    }
+    if (arg.length < 2 || (!arg.startsWith("-") && !arg.startsWith("+"))) {
+      break;
+    }
+    i++;
+    for (const flag of arg.slice(1)) {
+      if (flag === "c" && arg.startsWith("-")) {
+        command = true;
+      } else if (flag === "o" || flag === "O") {
+        i++;
+      }
+    }
+  }
+  return command ? args[i] : undefined;
 }
 
 function wordText(word: WordNode): string {

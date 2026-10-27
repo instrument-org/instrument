@@ -1363,6 +1363,7 @@ export function FileTypeGlyph({
 function FileVisual({
   className,
   file,
+  generic,
   pageable = false,
   previewAspectRatio,
   previewClassName,
@@ -1370,6 +1371,8 @@ function FileVisual({
 }: {
   className?: string;
   file: FileEntry;
+  /** What stands in for a file with no picture; its type's icon on a page unless given. */
+  generic?: React.ReactNode;
   /** Show a hover pager over multi-page thumbnails. */
   pageable?: boolean;
   /**
@@ -1412,10 +1415,10 @@ function FileVisual({
       // under the loading placeholder and show through as the image fades in.
       previewClassName={cn(!isIcon && "[&>img]:bg-white", previewClassName)}
       previewContent={
-        previewUrl ? undefined : <FileGenericPreview file={file} />
+        previewUrl ? undefined : (generic ?? <FileGenericPreview file={file} />)
       }
       previewImageUrl={previewUrl ?? undefined}
-      previewUnavailableContent={<FileGenericPreview file={file} />}
+      previewUnavailableContent={generic ?? <FileGenericPreview file={file} />}
       style={showPager ? undefined : style}
     />
   );
@@ -1488,12 +1491,15 @@ function FittedFileVisual({
   box,
   className,
   file,
+  generic,
   pageClassName,
 }: {
   /** The room the thumbnail has, in rem. */
   box: { height: number; width: number };
   className?: string;
   file: FileEntry;
+  /** What stands in for a file with no picture, as `FileVisual` takes it. */
+  generic?: React.ReactNode;
   /** The width of a thumbnail drawn as a page. */
   pageClassName: string;
 }) {
@@ -1502,6 +1508,7 @@ function FittedFileVisual({
     <FileVisual
       className={cn(className, aspectRatio === undefined && pageClassName)}
       file={file}
+      generic={generic}
       previewAspectRatio={0.78}
       style={
         aspectRatio === undefined
@@ -2021,20 +2028,27 @@ export function FileSystem({
   // The kinds search offers: those the folder on screen has, folders first,
   // then the most common.
   const offeredKinds = (() => {
-    const counts = new Map<string, number>();
+    const counts = new Map<
+      string,
+      { count: number; sample: FileSystemEntry }
+    >();
     for (const entry of index.children.get(currentPath) ?? []) {
       const kind = kindOf(entry);
-      counts.set(kind, (counts.get(kind) ?? 0) + 1);
+      const seen = counts.get(kind);
+      counts.set(kind, {
+        count: (seen?.count ?? 0) + 1,
+        sample: seen?.sample ?? entry,
+      });
     }
     return [...counts]
       .sort(
         ([leftKind, left], [rightKind, right]) =>
           Number(rightKind === FOLDER_KIND) -
             Number(leftKind === FOLDER_KIND) ||
-          right - left ||
+          right.count - left.count ||
           leftKind.localeCompare(rightKind),
       )
-      .map(([kind]) => kind);
+      .map(([kind, { sample }]) => ({ kind, sample }));
   })();
   const visibleIndex = React.useMemo(() => {
     if (!visiblePaths) return index;
@@ -3563,8 +3577,8 @@ function FileSystemSearchField({
   /** The kinds the search narrows to, shown as tokens before the words. */
   kinds: readonly string[];
   layout: "compact" | "full" | "minimal" | "row";
-  /** The kinds the folder has, offered under the field while it has no words. */
-  offeredKinds: readonly string[];
+  /** The kinds the folder has, each with a row of it for its icon, offered under the field while it has no words. */
+  offeredKinds: ReadonlyArray<{ kind: string; sample: FileSystemEntry }>;
   onExpandedChange: (isExpanded: boolean) => void;
   onKindsChange: (kinds: readonly string[]) => void;
   onValueChange: (value: string) => void;
@@ -3577,8 +3591,20 @@ function FileSystemSearchField({
   // Offered while the field is open and empty: the kinds not yet picked.
   const suggestions =
     layout === "row" && isExpanded && value === ""
-      ? offeredKinds.filter((kind) => !kinds.includes(kind))
+      ? offeredKinds
+          .filter(({ kind }) => !kinds.includes(kind))
+          .map(({ kind }) => kind)
       : [];
+  const sampleOf = (kind: string) =>
+    offeredKinds.find((offered) => offered.kind === kind)?.sample;
+  const kindGlyph = (kind: string) => {
+    const sample = sampleOf(kind);
+    return sample ? (
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        <FileSystemRowGlyph entry={sample} />
+      </span>
+    ) : null;
+  };
   const [highlight, setHighlight] = React.useState(-1);
   const highlighted =
     highlight >= 0 && highlight < suggestions.length ? highlight : -1;
@@ -3598,13 +3624,15 @@ function FileSystemSearchField({
       <Search className="pointer-events-none size-3.5 shrink-0 text-muted-foreground" />
       {kinds.map((kind) => (
         <span
-          className="flex h-5 shrink-0 items-center gap-0.5 rounded-sm bg-foreground/10 pr-0.5 pl-1.5 text-xs"
+          className="flex h-5 min-w-0 shrink items-center gap-1 rounded-sm bg-foreground/10 pr-0.5 pl-1 text-xs"
           key={kind}
+          title={kind}
         >
-          {kind}
+          {kindGlyph(kind)}
+          <span className="min-w-0 truncate">{kind}</span>
           <button
             aria-label={`Remove ${kind}`}
-            className="flex size-4 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground"
+            className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground"
             onClick={() => onKindsChange(kinds.filter((each) => each !== kind))}
             // The field keeps the keyboard, so it stays open.
             onMouseDown={(event) => event.preventDefault()}
@@ -3616,7 +3644,7 @@ function FileSystemSearchField({
       ))}
       <input
         aria-label="Search files"
-        className="h-full w-full min-w-8 flex-1 rounded-[inherit] bg-transparent outline-none placeholder:text-muted-foreground"
+        className="h-full w-full min-w-12 flex-1 rounded-[inherit] bg-transparent outline-none placeholder:text-muted-foreground"
         onChange={(event) => onValueChange(event.target.value)}
         onKeyDown={(event) => {
           if (suggestions.length > 0 && event.key === "ArrowDown") {
@@ -3763,7 +3791,7 @@ function FileSystemSearchField({
       <Popover open={suggestions.length > 0}>
         <PopoverAnchor asChild>
           <div
-            className="flex min-w-32 flex-1 items-center"
+            className="flex w-56 max-w-full min-w-0 items-center"
             onBlur={(event) => {
               if (
                 !(
@@ -3794,7 +3822,7 @@ function FileSystemSearchField({
               <div
                 aria-selected={at === highlighted}
                 className={cn(
-                  "flex h-7 items-center rounded-md px-2 text-sm",
+                  "flex h-7 items-center gap-2 rounded-md px-2 text-sm",
                   at === highlighted && "bg-accent",
                 )}
                 key={kind}
@@ -3803,6 +3831,7 @@ function FileSystemSearchField({
                 onMouseEnter={() => setHighlight(at)}
                 role="option"
               >
+                {kindGlyph(kind)}
                 {kind}
               </div>
             ))}
@@ -5907,6 +5936,9 @@ function FileSystemListView({
               box={{ height: 2.375, width: 2 }}
               className="rounded-xs shadow-xs"
               file={entry}
+              // A blank sheet: the line under the title already says
+              // what kind of file it is.
+              generic={<div className="size-full bg-muted" />}
               pageClassName="w-7.5"
             />
           )}

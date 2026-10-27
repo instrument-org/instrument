@@ -1278,15 +1278,15 @@ describe("FileSystem's List", () => {
       [
         [
           "Pricing against competitors",
-          "htmlPricing against competitorsa.html--",
+          "Pricing against competitorsa.html--",
         ],
         [
           "Zendesk tiers",
-          "mdZendesk tiersb.md--",
+          "Zendesk tiersb.md--",
         ],
         [
           "c.csv",
-          "csvc.csvCSV Document--",
+          "c.csvCSV Document--",
         ],
       ]
     `);

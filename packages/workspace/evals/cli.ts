@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { parseArgs } from "node:util";
-import { list } from "radashi";
+import { list, parallel } from "radashi";
 import { z } from "zod";
 
 import { EVALS } from "./cases";
@@ -231,7 +231,7 @@ if (
     "                   --max-run-seconds <n> caps one run's wall clock (0 disables)\n",
   );
   process.stderr.write(
-    "                   --repeat <n> runs every case n times per model, each trial in trial-<n>/,\n                   and summary.json gives each case's min/median/max cost and tokens\n",
+    "                   --repeat <n> runs every case n times per model, each in trial-<n>/<case>/,\n                   and summary.json gives each case's min/median/max cost and tokens\n",
   );
   process.stderr.write(
     `                   --effort <${REASONING_EFFORTS.join("|")}> asks every task to think that hard\n`,
@@ -586,8 +586,16 @@ switch (subcommand) {
       write("\n");
     }
 
-    if (repeat > 1 && process.env.INSTRUMENT_EVAL_TRIAL === undefined) {
-      process.exit(await runTrialsApart());
+    if (
+      (repeat > 1 || filteredEvals.length > 1) &&
+      !dryRun &&
+      process.env.INSTRUMENT_EVAL_TRIAL === undefined
+    ) {
+      process.exit(
+        await runCasesApart(
+          adHocEval ? [] : filteredEvals.map((evalCase) => evalCase.name),
+        ),
+      );
     }
 
     sweepOldRuns();
@@ -633,44 +641,69 @@ switch (subcommand) {
 }
 
 /**
- * `--repeat` runs each trial as a run of its own, in a child process with a
- * home of its own. The product reads the home from HOME, once per process, so
- * trials in one process share every file a case plants and every file a run
- * writes, and a case that checks a file's time reads another trial's. Each
- * child prints its own narration and results and writes them to `trial-<n>/`
- * in this run's directory; this writes the run's `summary.json` over every
- * trial, with each case's spread across them, and prints the spread.
+ * A run of more than one case, or of one case more than once, runs each case
+ * of each trial as a run of its own, in a child process with a home and a
+ * workspace of its own. The product reads the home from HOME, once per
+ * process, and keeps memories in the workspace, so cases in one process
+ * share every file a case plants, every file a run writes, and every memory
+ * a case saves: a case that checks a file's time reads another's, and a
+ * memory case is scored against what the case before it remembered. Each
+ * child prints its own narration and results and writes them to
+ * `trial-<n>/<case>/` in this run's directory; this writes the run's
+ * `summary.json` over every child, with each case's spread across its trials,
+ * and prints the spread.
  */
-async function runTrialsApart(): Promise<number> {
+async function runCasesApart(caseNames: readonly string[]): Promise<number> {
   // Always set by `lib/sandbox-home`, imported first, to the home this run
   // was given or the one it made itself.
   const baseHome = process.env.INSTRUMENT_EVAL_HOME ?? os.tmpdir();
   const script = process.argv[1] ?? "";
+  // The patterns come off and each child is named its one case; an ad hoc
+  // `--prompt` run has no patterns and keeps its arguments as they are.
+  const patterns = positionals.slice(1);
   const args = withoutOptions(process.argv.slice(2), [
     "--concurrency",
     "--repeat",
-  ]).filter((arg) => arg !== "--json" && arg !== "--yes" && arg !== "-y");
-  const perTrial = Math.max(1, Math.ceil(concurrency / repeat));
-  const trials = await Promise.all(
-    list(1, repeat).map(async (trial) => {
+  ]).filter((arg) => {
+    if (arg === "--json" || arg === "--yes" || arg === "-y") {
+      return false;
+    }
+    const pattern = patterns.indexOf(arg);
+    if (pattern === -1) {
+      return true;
+    }
+    patterns.splice(pattern, 1);
+    return false;
+  });
+  const names: (string | undefined)[] =
+    caseNames.length === 0 ? [undefined] : [...caseNames];
+  const units = list(1, repeat).flatMap((trial) =>
+    names.map((caseName) => ({ caseName, trial })),
+  );
+  const trials = await parallel(
+    Math.max(1, concurrency),
+    units,
+    async ({ caseName, trial }) => {
+      const dir = path.join(`trial-${trial}`, caseName ?? "");
       const child = await execa(
         process.execPath,
         [
           ...process.execArgv,
           script,
           ...args,
+          ...(caseName === undefined ? [] : [caseName]),
           "--repeat",
           "1",
           "--concurrency",
-          String(perTrial),
+          "1",
           "--json",
           "--yes",
         ],
         {
           env: {
             ...process.env,
-            INSTRUMENT_EVAL_HOME: `${baseHome}-trial-${trial}`,
-            INSTRUMENT_EVAL_OUTPUT_DIR: path.join(outputDir, `trial-${trial}`),
+            INSTRUMENT_EVAL_HOME: `${baseHome}-trial-${trial}${caseName === undefined ? "" : `-${caseName}`}`,
+            INSTRUMENT_EVAL_OUTPUT_DIR: path.join(outputDir, dir),
             INSTRUMENT_EVAL_TRIAL: String(trial),
           },
           reject: false,
@@ -683,8 +716,8 @@ async function runTrialsApart(): Promise<number> {
         .find((line) => line.startsWith("{"));
       // The child's own `--json` report, written by this same CLI.
       const rollup = report ? (JSON.parse(report) as Rollup) : undefined;
-      return { exitCode: child.exitCode ?? 1, rollup, trial };
-    }),
+      return { caseName, dir, exitCode: child.exitCode ?? 1, rollup, trial };
+    },
   );
   const combined = combineTrials(trials);
   await fs.mkdir(outputDir, { recursive: true });
@@ -705,11 +738,12 @@ async function runTrialsApart(): Promise<number> {
     [
       "",
       `${c.dim}┌─ Trials ────────────────────────────────────────────${c.reset}`,
-      ...trials.map(({ rollup, trial }) =>
-        rollup
-          ? `${c.dim}│${c.reset}  trial ${trial}: ${rollup.assertions.passed}/${rollup.assertions.total} assertions passed`
-          : `${c.dim}│${c.reset}  trial ${trial}: ${c.yellow}no report${c.reset}`,
-      ),
+      ...trials.map(({ caseName, rollup, trial }) => {
+        const unit = caseName === undefined ? "" : ` ${caseName}`;
+        return rollup
+          ? `${c.dim}│${c.reset}  trial ${trial}${unit}: ${rollup.assertions.passed}/${rollup.assertions.total} assertions passed`
+          : `${c.dim}│${c.reset}  trial ${trial}${unit}: ${c.yellow}no report${c.reset}`;
+      }),
       `${c.dim}│${c.reset}  all: ${passed}/${total} assertions passed`,
       ...costLines(combined),
       `${c.dim}├─ Spread, min / median / max ────────────────────────${c.reset}`,

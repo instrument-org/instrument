@@ -727,24 +727,26 @@ function spreadOf(results: readonly RunReport[]): CaseSpread[] {
 }
 
 /**
- * Each trial's own report, made in a directory of its own under the run's
- * (`trial-<n>/`), as one: results keep their trial number and point into
- * that directory, and the totals are over every trial.
+ * Each child run's own report, made in a directory of its own under the
+ * run's (`dir`, else `trial-<n>/`), as one: results keep their trial number
+ * and point into that directory, and the totals are over every child.
  */
 export function combineTrials(
   trials: readonly {
+    /** Where the child wrote its results, under the run's directory. */
+    dir?: string;
     exitCode: number;
     rollup?: RollupSummary;
     trial: number;
   }[],
 ): TrialsSummary {
-  const rollups = trials.flatMap(({ rollup, trial }) =>
-    rollup ? [{ rollup, trial }] : [],
+  const rollups = trials.flatMap(({ dir, rollup, trial }) =>
+    rollup ? [{ dir: dir ?? `trial-${String(trial)}`, rollup, trial }] : [],
   );
-  const results = rollups.flatMap(({ rollup, trial }) =>
+  const results = rollups.flatMap(({ dir, rollup, trial }) =>
     rollup.results.map((result) => ({
       ...result,
-      outputDir: path.join(`trial-${String(trial)}`, result.outputDir),
+      outputDir: path.join(dir, result.outputDir),
       trial,
     })),
   );

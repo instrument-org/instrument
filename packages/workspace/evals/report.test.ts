@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../src/schemas/session/message";
@@ -116,9 +117,10 @@ describe("combineTrials", () => {
     expect(
       combined.results.map(({ outputDir, trial }) => ({ outputDir, trial })),
     ).toEqual([
-      { outputDir: "trial-1/a/m", trial: 1 },
-      { outputDir: "trial-2/a/m", trial: 2 },
-      { outputDir: "trial-3/a/m", trial: 3 },
+      // Joined the way the platform spells a path.
+      { outputDir: path.join("trial-1", "a", "m"), trial: 1 },
+      { outputDir: path.join("trial-2", "a", "m"), trial: 2 },
+      { outputDir: path.join("trial-3", "a", "m"), trial: 3 },
     ]);
     expect(combined.trials.at(-1)).toEqual({
       exitCode: 1,

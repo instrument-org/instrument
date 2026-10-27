@@ -29,7 +29,9 @@ describe("isInside", () => {
   });
 });
 
-describe("stopProcessesIn", () => {
+// Read through `lsof` or `/proc`, which Windows has neither of; there the
+// guard finds nothing and stops nothing.
+describe.skipIf(process.platform === "win32")("stopProcessesIn", () => {
   it("stops a program left running in the folder, and only it", async () => {
     const folder = await fs.mkdtemp(path.join(os.tmpdir(), "process-guard-"));
     const other = await fs.mkdtemp(path.join(os.tmpdir(), "process-guard-"));

@@ -3,6 +3,7 @@ import { APP_ACCOUNTS_EVALS } from "./app-accounts";
 import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
 import { APP_OTHER_COMPUTER_EVALS } from "./app-other-computer";
 import { APP_SCRIPTING_EVALS } from "./app-scripting";
+import { APP_SCRIPTING_API_EVALS } from "./app-scripting-api";
 import { APP_SIGN_IN_REFUSED_EVALS } from "./app-sign-in-refused";
 import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { PROCESS_CONTROL_EVALS } from "./process-control";
@@ -55,6 +56,7 @@ export const EVALS = [
   ...APP_IMPORT_FILE_EVALS,
   ...APP_OTHER_COMPUTER_EVALS,
   ...APP_SCRIPTING_EVALS,
+  ...APP_SCRIPTING_API_EVALS,
   ...APP_SIGN_IN_REFUSED_EVALS,
   ...BACKGROUND_PROCESS_EVALS,
   ...PROCESS_CONTROL_EVALS,

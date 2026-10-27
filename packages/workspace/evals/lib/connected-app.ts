@@ -34,8 +34,42 @@ export interface StandInService {
   about: string;
   /** The guide's endpoint list, a line each. */
   endpoints: string[];
-  /** The JSON body for a request, or `undefined` for a 404. */
-  respond: (method: string, pathname: string) => unknown;
+  /**
+   * The JSON body for a request, or `undefined` for a 404. A
+   * `StandInStatus` answers with its own status, for a refusal the guide
+   * describes. The request's query and its JSON body (`undefined` where it
+   * sent none or one that does not parse) come third.
+   */
+  respond: (
+    method: string,
+    pathname: string,
+    request: { body: unknown; query: URLSearchParams },
+  ) => unknown;
+}
+
+/** A stand-in's answer with a status other than 200. */
+export class StandInStatus {
+  constructor(
+    readonly status: number,
+    readonly body: unknown,
+  ) {}
+}
+
+/** The request's body as JSON, or `undefined` for none or one that does not parse. */
+async function jsonBody(request: http.IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+  }
+  const text = Buffer.concat(chunks).toString("utf8");
+  if (text.trim() === "") {
+    return undefined;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -90,17 +124,28 @@ export async function seedConnectedApps(
     }
     const { service } = fixture;
     const server = http.createServer((request, response) => {
-      const url = request.url ?? "/";
-      const method = request.method ?? "GET";
-      const body = service
-        ? url === "/health"
-          ? { ok: true }
-          : service.respond(method, url.split("?")[0] ?? "/")
-        : respondTo(method, url);
-      response.writeHead(body === undefined ? 404 : 200, {
-        "content-type": "application/json",
-      });
-      response.end(JSON.stringify(body ?? { error: "not found" }));
+      void (async () => {
+        const url = request.url ?? "/";
+        const method = request.method ?? "GET";
+        const parsed = new URL(url, "http://stand-in");
+        const answer = service
+          ? url === "/health"
+            ? { ok: true }
+            : service.respond(method, parsed.pathname, {
+                body: await jsonBody(request),
+                query: parsed.searchParams,
+              })
+          : respondTo(method, url);
+        const status =
+          answer instanceof StandInStatus
+            ? answer.status
+            : answer === undefined
+              ? 404
+              : 200;
+        const body = answer instanceof StandInStatus ? answer.body : answer;
+        response.writeHead(status, { "content-type": "application/json" });
+        response.end(JSON.stringify(body ?? { error: "not found" }));
+      })();
     });
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", resolve);

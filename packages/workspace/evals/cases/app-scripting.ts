@@ -29,7 +29,7 @@ const CREATED_ISSUE_URL = new RegExp(
 
 const BEACON: AppFixture = { kind: "mcp", name: "Beacon", slug: "beacon" };
 
-function toolInputs(sessions: Session.WithMessagesAndParts[]): string[] {
+export function toolInputs(sessions: Session.WithMessagesAndParts[]): string[] {
   return sessions.flatMap((session) =>
     session.messages.flatMap((message) =>
       message.parts.flatMap((part) =>
@@ -41,7 +41,9 @@ function toolInputs(sessions: Session.WithMessagesAndParts[]): string[] {
   );
 }
 
-function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
+export function bashCommands(
+  sessions: Session.WithMessagesAndParts[],
+): string[] {
   return sessions.flatMap((session) =>
     session.messages.flatMap((message) =>
       message.parts.flatMap((part) => {
@@ -124,7 +126,7 @@ const noScript: Assertion = {
   text: "answers a single lookup without a script",
 };
 
-function answers(
+export function answers(
   text: string,
   check: (reply: string) => { missing: string[]; wrong: string[] },
 ): Assertion {
@@ -174,46 +176,69 @@ const urgentByTeam = Object.entries(
   ),
 ).map(([team, count]) => ({ count, team }));
 
+/** The fan-out's first half, scored against the tracker's own data. */
+export const NAMES_TOP_LABELS = answers(
+  "names the three busiest labels with their counts",
+  (reply) => ({
+    missing: topLabels
+      .filter(
+        ({ count, label }) =>
+          !new RegExp(`\\b${label}\\b[^\\n]{0,60}\\b${count}\\b`, "i").test(
+            reply,
+          ),
+      )
+      .map(({ count, label }) => `${label} ${count}`),
+    wrong: [],
+  }),
+);
+
+/** The fan-out's second half: a count per issue, where off by one lets a near miss in. */
+export const LISTS_BUSY_BUGS = answers(
+  "lists exactly the open bugs with more than 3 comments",
+  (reply) => ({
+    missing: busyBugs
+      .filter((issue) => !mentions(reply, issue.id))
+      .map((issue) => issue.id),
+    // A near miss named as left out ("BCN-9 has exactly 3, so not
+    // counted") is right; one named anywhere else is not.
+    wrong: nearMisses
+      .filter((issue) =>
+        reply
+          .split("\n")
+          .some(
+            (line) =>
+              mentions(line, issue.id) &&
+              !/exclu|exactly 3|at 3\b|only 3\b|not (?:more|over)/i.test(line),
+          ),
+      )
+      .map((issue) => issue.id),
+  }),
+);
+
+/** The join: issues to their assignees' teams. */
+export const COUNTS_URGENT_BY_TEAM = answers(
+  "counts open urgent issues per team",
+  (reply) => {
+    const lines = reply.split("\n");
+    return {
+      missing: urgentByTeam
+        .filter(
+          ({ count, team }) =>
+            !lines.some(
+              (line) =>
+                line.includes(team) && new RegExp(`\\b${count}\\b`).test(line),
+            ),
+        )
+        .map(({ count, team }) => `${team} ${count}`),
+      wrong: [],
+    };
+  },
+);
+
 export const APP_SCRIPTING_EVALS = [
   defineEval({
     apps: [BEACON],
-    assertions: [
-      answers("names the three busiest labels with their counts", (reply) => ({
-        missing: topLabels
-          .filter(
-            ({ count, label }) =>
-              !new RegExp(`\\b${label}\\b[^\\n]{0,60}\\b${count}\\b`, "i").test(
-                reply,
-              ),
-          )
-          .map(({ count, label }) => `${label} ${count}`),
-        wrong: [],
-      })),
-      answers(
-        "lists exactly the open bugs with more than 3 comments",
-        (reply) => ({
-          missing: busyBugs
-            .filter((issue) => !mentions(reply, issue.id))
-            .map((issue) => issue.id),
-          // A near miss named as left out ("BCN-9 has exactly 3, so not
-          // counted") is right; one named anywhere else is not.
-          wrong: nearMisses
-            .filter((issue) =>
-              reply
-                .split("\n")
-                .some(
-                  (line) =>
-                    mentions(line, issue.id) &&
-                    !/exclu|exactly 3|at 3\b|only 3\b|not (?:more|over)/i.test(
-                      line,
-                    ),
-                ),
-            )
-            .map((issue) => issue.id),
-        }),
-      ),
-      mechanism,
-    ],
+    assertions: [NAMES_TOP_LABELS, LISTS_BUSY_BUGS, mechanism],
     name: "app-scripting-fans-out-over-a-tracker",
     prompt:
       "Using our Beacon tracker: which three labels have the most open issues (with counts), and which open bugs have more than 3 comments?",
@@ -238,25 +263,7 @@ export const APP_SCRIPTING_EVALS = [
   }),
   defineEval({
     apps: [BEACON],
-    assertions: [
-      answers("counts open urgent issues per team", (reply) => {
-        const lines = reply.split("\n");
-        return {
-          missing: urgentByTeam
-            .filter(
-              ({ count, team }) =>
-                !lines.some(
-                  (line) =>
-                    line.includes(team) &&
-                    new RegExp(`\\b${count}\\b`).test(line),
-                ),
-            )
-            .map(({ count, team }) => `${team} ${count}`),
-          wrong: [],
-        };
-      }),
-      mechanism,
-    ],
+    assertions: [COUNTS_URGENT_BY_TEAM, mechanism],
     name: "app-scripting-joins-across-tools",
     prompt:
       "In Beacon, how many open urgent issues does each team have assigned to its members?",

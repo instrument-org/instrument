@@ -28,6 +28,7 @@ export {
   nameAppAccount,
   recordConnection,
   type SignInEnd,
+  waitInChat,
 } from "./lib/apps/connection";
 export {
   type AppManifest,

@@ -33,7 +33,10 @@ type AppEventLine = SessionMessageDataPart.AppEventDataPart["events"][number];
  * the answer that settles the last one wakes the chat with every app on the
  * card, read from their connections, and takes the chat off all of them. A
  * failure still wakes at once, with the card as it stands, since the agent
- * may have something to say about it.
+ * may have something to say about it. Once the chat has heard the card
+ * settle, a sign-in to an app the user skipped on it (the card's row puts
+ * the chat back on the app's waiting list, `waitInChat`) wakes it on its
+ * own, with that one event.
  *
  * A disconnect or a removal is the user putting an app away, not answering
  * anything, so it wakes no chat; each chat hears of it on the next message
@@ -79,11 +82,13 @@ async function answerChat(
   chatId: ChatId,
 ): Promise<void> {
   const card = await cardOf(chatId, event.slug);
-  if (card === undefined || card.length < 2) {
+  // A card of one app, or one the chat already heard settle: the user came
+  // back to an app on it they had skipped, which is news of its own.
+  if (card === undefined || card.apps.length < 2 || card.toldSettled) {
     await wakeChatForApp([event], workspaceRef, chatId);
     return;
   }
-  const progress = await signInProgress(card);
+  const progress = await signInProgress(card.apps);
   if (progress === undefined) {
     await wakeChatForApp([event], workspaceRef, chatId);
     return;

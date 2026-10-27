@@ -45,8 +45,10 @@ import {
   appCatalogChanges,
   appChanged,
   appListChanges,
+  ChatIdSchema,
   findAppIcon,
   type AppManifest,
+  waitInChat,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -586,9 +588,18 @@ async function requireShownOrigin({
  * opening it: the window opens it in its own browser, where the callback
  * lands too.
  */
+/** An app answered on a card or a page: the chat, for a card, which hears the answer. */
+const AnsweredOnCardSchema = z.object({
+      /** The chat whose card this was answered on, which hears the answer. */
+      chatId: ChatIdSchema.optional(),
+  slug: AppSlugSchema,
+});
+
 const startOAuth = base
   .input(
     z.object({
+      /** The chat whose card this was answered on, which hears the answer. */
+      chatId: ChatIdSchema.optional(),
       /** Where the page opens, so the callback can land the right way. */
       opensIn: z.enum(["app", "external"]).default("app"),
       /** The server origin the card showed the user. */
@@ -609,6 +620,9 @@ const startOAuth = base
       origin: input.origin,
       slug: input.slug,
     });
+    if (input.chatId !== undefined) {
+      await waitInChat(input.slug, input.chatId);
+    }
     // The callback server is what the provider sends the browser back to, so
     // it has to be up, on a port this redirect names, before the flow starts.
     await startAuthCallbackServer();
@@ -701,6 +715,8 @@ const signInOnWeb = base
 const setCredential = base
   .input(
     z.object({
+      /** The chat whose card this was answered on, which hears the answer. */
+      chatId: ChatIdSchema.optional(),
       /** Where the card told the user the key would go. */
       origin: z.string().min(1),
       slug: AppSlugSchema,
@@ -716,6 +732,9 @@ const setCredential = base
       origin: input.origin,
       slug: input.slug,
     });
+    if (input.chatId !== undefined) {
+      await waitInChat(input.slug, input.chatId);
+    }
     setAppCredential(input.slug, { origin: input.origin, value: input.value });
     const report = await runAppTest({
       appsDir: context.workspaceConfig.appsDir,
@@ -742,11 +761,14 @@ const setCredential = base
  * that follows installs the package and starts the server for the first time.
  */
 const allow = base
-  .input(z.object({ slug: AppSlugSchema }))
+  .input(AnsweredOnCardSchema)
   .handler(async ({ context, errors, input, signal }) => {
     const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
     if (loaded.isErr()) {
       throw errors.NOT_FOUND({ message: loaded.error.message });
+    }
+    if (input.chatId !== undefined) {
+      await waitInChat(input.slug, input.chatId);
     }
     await settleConnection(input.slug, {
       approvedManifestHash: loaded.value.manifestHash,
@@ -776,11 +798,14 @@ const allow = base
  * later asks again; the chat is woken the way a finished sign-in wakes it.
  */
 const markWebSignedIn = base
-  .input(z.object({ slug: AppSlugSchema }))
+  .input(AnsweredOnCardSchema)
   .handler(async ({ context, errors, input }) => {
     const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
     if (loaded.isErr()) {
       throw errors.NOT_FOUND({ message: loaded.error.message });
+    }
+    if (input.chatId !== undefined) {
+      await waitInChat(input.slug, input.chatId);
     }
     const { manifest } = loaded.value;
     if (manifest.type !== "web") {

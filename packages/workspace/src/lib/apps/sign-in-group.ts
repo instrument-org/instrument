@@ -18,15 +18,38 @@ interface CardApp {
   slug: string;
 }
 
+/** A sign-in card in a session's history. */
+interface SignInCard {
+  apps: CardApp[];
+  /**
+   * Whether the session was already woken with the card settled, after which
+   * an answer on it is news of its own rather than the card's.
+   */
+  toldSettled: boolean;
+}
+
 /**
  * The sign-in cards in a session's history, oldest first: each `connect_app`
  * call's apps that needed the user. An app asked for again on a later card
  * belongs to that one, so it leaves the earlier card's rows.
  */
-function signInCardsIn(messages: SessionMessage.WithParts[]): CardApp[][] {
-  const cards: CardApp[][] = [];
+function signInCardsIn(messages: SessionMessage.WithParts[]): SignInCard[] {
+  const cards: SignInCard[] = [];
   for (const message of messages) {
     for (const part of message.parts) {
+      if (
+        part.type === "data-appEvent" &&
+        part.data.signIns !== undefined &&
+        signInsSettled(part.data.signIns)
+      ) {
+        const told = new Set(part.data.signIns.map((app) => app.slug));
+        for (const card of cards) {
+          if (card.apps.some((app) => told.has(app.slug))) {
+            card.toldSettled = true;
+          }
+        }
+        continue;
+      }
       if (
         part.type !== "tool-connect_app" ||
         part.state !== "output-available"
@@ -41,22 +64,22 @@ function signInCardsIn(messages: SessionMessage.WithParts[]): CardApp[][] {
         continue;
       }
       const asked = new Set(rows.map((row) => row.slug));
-      for (const [index, card] of cards.entries()) {
-        cards[index] = card.filter((app) => !asked.has(app.slug));
+      for (const card of cards) {
+        card.apps = card.apps.filter((app) => !asked.has(app.slug));
       }
-      cards.push(rows);
+      cards.push({ apps: rows, toldSettled: false });
     }
   }
-  return cards.filter((card) => card.length > 0);
+  return cards.filter((card) => card.apps.length > 0);
 }
 
 /** The card in a session's history that `slug` has its row on, if any. */
 export function signInCardOf(
   messages: SessionMessage.WithParts[],
   slug: string,
-): CardApp[] | undefined {
+): SignInCard | undefined {
   return signInCardsIn(messages).find((card) =>
-    card.some((app) => app.slug === slug),
+    card.apps.some((app) => app.slug === slug),
   );
 }
 
@@ -125,7 +148,7 @@ async function openSignIns(
 ): Promise<SignInProgress | undefined> {
   const open: SignInProgress[number][] = [];
   for (const card of signInCardsIn(messages)) {
-    const progress = await signInProgress(card);
+    const progress = await signInProgress(card.apps);
     if (progress !== undefined && !signInsSettled(progress)) {
       open.push(...progress);
     }

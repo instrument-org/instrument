@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ChatIdSchema } from "../../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type AbsolutePath } from "../../schemas/paths";
 import { getWorkspaceConfig } from "../workspace-config";
 import { appChanged } from "./changed";
@@ -153,6 +153,27 @@ export async function nameAppAccount(
     });
   }
   return manifest;
+}
+
+/**
+ * Puts a chat on an app's waiting list, for an answer given on that chat's
+ * card after the card stopped waiting: a sign-in to an app the user skipped
+ * there. The answer then wakes the chat the way one the card asked for does.
+ * Nothing for an app with no record, which no card asked for.
+ */
+export async function waitInChat(slug: string, chatId: ChatId): Promise<void> {
+  const connection = await readConnection(slug);
+  if (connection === undefined) {
+    return;
+  }
+  const waiting = connection.waitingChats ?? [];
+  if (waiting.includes(chatId)) {
+    return;
+  }
+  await getWorkspaceConfig().apps.connections.set(slug, {
+    ...connection,
+    waitingChats: [...waiting, chatId],
+  });
 }
 
 export async function readConnection(

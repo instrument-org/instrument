@@ -6,6 +6,7 @@ import { WindowContext } from "@/client/components/window/context";
 import { signInsWaitingAtom } from "@/client/components/window/use-sign-in-landing";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type ReactNode, useContext, useState } from "react";
@@ -31,6 +32,7 @@ type SignInDestination = "app" | "external";
  */
 export function ConnectControls({
   alongside,
+  askedIn,
   compact = false,
   describesDestination = true,
   dismissible = false,
@@ -44,6 +46,8 @@ export function ConnectControls({
 }: {
   /** One more control at the end of the row: the app's page puts its way to ask the agent here. */
   alongside?: ReactNode;
+  /** For a card in a chat, the chat, which hears what the user does here even after the card stopped waiting. */
+  askedIn?: ChatId;
   /**
    * For a sign-in, the two buttons a row of a card with several apps has
    * room for: the sign-in in the window's browser, and "Skip" when
@@ -71,6 +75,7 @@ export function ConnectControls({
   slug: string;
 }) {
   const appWindow = useContext(WindowContext);
+  const inChat = askedIn === undefined ? {} : { chatId: askedIn };
   const openExternalLink = useOpenExternalLink();
   const [value, setValue] = useState("");
   // Whether a web app's site has been opened from here, after which the
@@ -126,7 +131,12 @@ export function ConnectControls({
       return;
     }
     startOAuth.mutate(
-      { opensIn: appWindow?.browser ? where : "external", origin, slug },
+      {
+        ...inChat,
+        opensIn: appWindow?.browser ? where : "external",
+        origin,
+        slug,
+      },
       {
         onSuccess: (result) => {
           if (result.status === "started") {
@@ -194,7 +204,7 @@ export function ConnectControls({
           <Button
             disabled={busy}
             onClick={() => {
-              allow.mutate({ slug });
+              allow.mutate({ ...inChat, slug });
             }}
             size="sm"
           >
@@ -246,7 +256,7 @@ export function ConnectControls({
               <Button
                 disabled={busy}
                 onClick={() => {
-                  markWebSignedIn.mutate({ slug });
+                  markWebSignedIn.mutate({ ...inChat, slug });
                 }}
                 size="sm"
               >
@@ -395,7 +405,7 @@ export function ConnectControls({
 
   const save = () => {
     if (value.trim() !== "" && origin !== undefined) {
-      setCredential.mutate({ origin, slug, value: value.trim() });
+      setCredential.mutate({ ...inChat, origin, slug, value: value.trim() });
     }
   };
   // Where the directory says the key is made, so the card says where to go

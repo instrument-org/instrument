@@ -11,7 +11,11 @@ import { ChatWrites } from "../chat-writes";
 import { questionAnswerModelNote } from "../question-answer-model-text";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { type AppConnectionStatus, readConnection } from "./connection";
+import {
+  type AppConnectionStatus,
+  readConnection,
+  waitInChat,
+} from "./connection";
 import { startAppEvents } from "./events";
 import { AppSlugSchema } from "./manifest";
 import { createMemoryAppsConfig } from "./memory-config";
@@ -312,4 +316,37 @@ describe("a card asking for several apps", () => {
     await answerRow("gmail", "connected");
     expect(await openSignInsOf(chatId, sessionId)).toBeUndefined();
   });
+
+  it("wakes once more, with that one app, for a sign-in to a skipped app after the card settled", async () => {
+    const { chatId, sessionId } = await chatWithCard();
+    await answerRow("drive", "connected");
+    await answerRow("docs", "declined");
+    await answerRow("gmail", "connected");
+    // The settling wake's note, as the real wake writes it.
+    await writeMessage(chatId, sessionId, "user", [
+      {
+        data: {
+          apps: {},
+          events: [{ event: "connected", name: "Gmail", slug: "gmail" }],
+          signIns: [
+            { name: "Google Drive", slug: "drive", standing: "connected" },
+            { name: "Google Docs", slug: "docs", standing: "declined" },
+            { name: "Gmail", slug: "gmail", standing: "connected" },
+          ],
+        },
+        type: "data-appEvent",
+      },
+    ]);
+    woken.mockClear();
+
+    // Sign in on the folded card's row for the skipped app.
+    await waitInChat("docs", chatId);
+    await answerRow("docs", "connected");
+
+    expect(wakes()).toEqual([
+      { chatId, events: ["docs connected"], signIns: undefined },
+    ]);
+    expect((await readConnection("docs"))?.waitingChats).toBeUndefined();
+  });
 });
+

@@ -2,6 +2,7 @@ import { Button } from "@/client/components/ui/button";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { ConnectControls } from "@/client/components/window/connect-controls";
+import { WindowContext } from "@/client/components/window/context";
 import { signInsWaitingAtom } from "@/client/components/window/use-sign-in-landing";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
@@ -10,7 +11,7 @@ import { type CardRow } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { useContext, useState } from "react";
 
 import { ToolCard } from "./tool-card";
 
@@ -249,6 +250,7 @@ function GroupRow({
   standing: RowStanding;
 }) {
   const drawn = useAppsBySlug().get(row.slug);
+  const askedIn = useContext(WindowContext)?.chatId;
   const [expanded, setExpanded] = useState(false);
   const live =
     standing === "open" || standing === "waiting" || standing === "failed";
@@ -284,6 +286,7 @@ function GroupRow({
           <CheckIcon className="size-4 shrink-0 text-muted-foreground" />
         ) : !actionable ? null : row.kind === "sign-in" ? (
           <ConnectControls
+            askedIn={askedIn}
             compact={{ primary }}
             dismissible={!signInAgain}
             kind="sign-in"
@@ -313,6 +316,7 @@ function GroupRow({
       {expanded && actionable && row.kind !== "sign-in" ? (
         <div className="pb-3">
           <ConnectControls
+            askedIn={askedIn}
             dismissible={!signInAgain}
             kind={row.kind}
             name={row.name}

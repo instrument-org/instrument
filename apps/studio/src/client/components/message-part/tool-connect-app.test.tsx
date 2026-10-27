@@ -4,7 +4,7 @@ import {
   type WindowContextValue,
 } from "@/client/components/window/context";
 import { renderWithProviders } from "@/tests/render";
-import { StoreId } from "@instrument-org/workspace/client";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,7 +15,8 @@ const { mocks, mutation, query } = vi.hoisted(() => ({
     apps: vi.fn<() => Promise<unknown>>(),
     dismiss: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
     signInOnWeb: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
-    startOAuth: vi.fn<(input: { opensIn: string }) => Promise<unknown>>(),
+    startOAuth:
+      vi.fn<(input: { chatId?: string; opensIn: string }) => Promise<unknown>>(),
   },
   mutation: (mutationFn = () => Promise.resolve()) => ({
     mutationOptions: (options: object) => ({ ...options, mutationFn }),
@@ -322,6 +323,7 @@ function renderGroupCard() {
   const window = {
     ask: vi.fn(),
     browser: {} as BrowserTabsHandle,
+    chatId: ChatIdSchema.parse("2026-10-27-google"),
     focusComposer: vi.fn(),
     openPage,
     openPath: vi.fn(),
@@ -427,5 +429,22 @@ describe("the card asking for several apps", () => {
         "[Sign in]",
       ]
     `);
+  });
+
+  it("signs in to a skipped app from the folded card on behalf of its chat, so the chat hears it", async () => {
+    mocks.apps.mockResolvedValue(
+      google({ docs: "declined", drive: "connected", gmail: "connected" }),
+    );
+    mocks.startOAuth.mockResolvedValue({ status: "started", url: "https://login.example" });
+    renderGroupCard();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    await waitFor(() => {
+      expect(mocks.startOAuth).toHaveBeenCalled();
+    });
+    expect(mocks.startOAuth.mock.calls[0]?.[0]).toMatchObject({
+      chatId: "2026-10-27-google",
+      slug: "docs",
+    });
   });
 });

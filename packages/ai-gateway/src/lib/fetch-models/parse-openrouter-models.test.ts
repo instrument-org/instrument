@@ -180,6 +180,52 @@ describe("parseOpenRouterModelsList", () => {
       }));
   }
 
+  it("reads the prompt size a hosted model's price rises at", () => {
+    const [auto] = parseOpenRouterModelsList({
+      config: ourConfig,
+      data: {
+        data: [
+          {
+            ...ourModel("auto", {
+              name: "Auto",
+              recommended: true,
+              sourceModelId: "anthropic/claude-haiku-5.5",
+            }),
+            context_length: 1_000_000,
+            pricing: {
+              completion: "0.0000005",
+              input_cache_read: "0.00000001",
+              overrides: [
+                {
+                  completion: "0.0000025",
+                  input_cache_read: "0.00000005",
+                  min_prompt_tokens: 100_000,
+                  prompt: "0.0000005",
+                },
+              ],
+              prompt: "0.0000001",
+            },
+          },
+        ],
+      },
+    }).getOrThrow();
+    expect({
+      canonicalId: auto?.canonicalId,
+      pricing: auto?.pricing,
+      sourceModelId: auto?.sourceModelId,
+    }).toMatchInlineSnapshot(`
+      {
+        "canonicalId": "auto",
+        "pricing": {
+          "higherPriceFromPromptTokens": 100000,
+          "input": 0.1,
+          "output": 0.5,
+        },
+        "sourceModelId": "anthropic/claude-haiku-5.5",
+      }
+    `);
+  });
+
   // One snapshot over both shapes, since an inline snapshot cannot sit inside
   // `it.each`: the gateway that curates the lineup, and the one production
   // runs until it does.

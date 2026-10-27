@@ -4,6 +4,10 @@
 # fetch. Push the skills commit first. `git push --no-verify` skips this.
 set -euo pipefail
 
+# Git sets GIT_DIR for a hook, absolute in a linked worktree, where it would
+# point `git -C registry` at this repository rather than the submodule.
+unset GIT_DIR GIT_WORK_TREE
+
 registry=registry
 [[ -e "$registry/.git" ]] || exit 0
 

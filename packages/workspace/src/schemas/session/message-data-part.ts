@@ -40,6 +40,7 @@ export namespace SessionMessageDataPart {
     "outputLimit",
     "reply",
     "taskEvent",
+    "toolResultsCleared",
     "chatContext",
     "topic",
     "unknown",
@@ -105,6 +106,7 @@ export namespace SessionMessageDataPart {
     signedIn: "event",
     skillMentions: "event",
     taskEvent: "event",
+    toolResultsCleared: "event",
     topic: "state",
     unknown: "unwritten",
     viewContext: "state",
@@ -286,6 +288,19 @@ export namespace SessionMessageDataPart {
   export type ContextRolloverDataPart = z.output<
     typeof ContextRolloverDataPartSchema
   >;
+
+  /**
+   * The point up to which assembly sends a placeholder for each tool result
+   * rather than the result (`lib/tool-result-clearing.ts`): every result in a
+   * message up to and including `through`. Written on the newest message when
+   * the clearing is decided, and read back by every later request, so the
+   * history sent is the same until the next one. `results` is how many were
+   * cleared, for the developer card.
+   */
+  const ToolResultsClearedDataPartSchema = z.object({
+    results: z.number().int().nonnegative(),
+    through: StoreId.MessageSchema,
+  });
 
   /**
    * The turn where this session started asking a different model, and the two
@@ -1257,6 +1272,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.signedIn]: SignedInDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
+    [NameSchema.enum.toolResultsCleared]: ToolResultsClearedDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,
     [NameSchema.enum.viewContext]: ViewContextDataPartSchema,
     [NameSchema.enum.workspaceInstructions]:

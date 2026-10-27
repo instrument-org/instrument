@@ -46,6 +46,7 @@ import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning
 import { sanitizeModelText } from "./sanitize-model-text";
 import { sessionBaseline } from "./session-baseline";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
+import { clearOldToolResults } from "./tool-result-clearing";
 import { shellPath } from "./workspace-fs-layout";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -365,7 +366,17 @@ export async function prepareModelMessages({
     },
   );
 
-  const nonEmptyModelMessages = modelMessages.filter(
+  // Sized from what each result is sent as, before any of it is filtered or
+  // resized, so the bytes a clearing replaces are the ones it measured.
+  const clearedModelMessages = await clearOldToolResults({
+    chatId,
+    messages: nonContextMessages,
+    model,
+    modelMessages,
+    sessionId,
+  });
+
+  const nonEmptyModelMessages = clearedModelMessages.filter(
     (message) => message.content.length > 0 || Boolean(message.providerOptions),
   );
 

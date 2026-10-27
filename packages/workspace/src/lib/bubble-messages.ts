@@ -83,6 +83,11 @@ function keepsPart(part: SessionMessagePart.Type, composing: boolean) {
           ))
       );
     }
+    // An offer draws only once the app showed its card; a refused one is
+    // the agent's alone.
+    case "tool-offer_feedback": {
+      return part.state === "output-available" && part.output.offered;
+    }
     // An image call that ran into a sign-in or the account's plan, and a
     // search Instrument turned away for the plan, for the note over the reply
     // box to read: it offers the way forward, and the bubbles draw no card

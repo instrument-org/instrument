@@ -256,6 +256,11 @@ export interface WorkspaceConfig {
    */
   isPlatformSearchForEveryModel?: () => boolean;
   /**
+   * Whether the person lets the agent offer to send the team a problem it
+   * found in the app (`offer_feedback`). Absent means it may.
+   */
+  mayOfferFeedback?: () => boolean;
+  /**
    * Who is signed in, for the agents to know whose work it is: the account's
    * email and, when the account gives one, name, or undefined while nobody is. Read when a session's
    * context is built rather than at boot, since a sign-in comes and goes;

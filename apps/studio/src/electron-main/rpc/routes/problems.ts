@@ -180,6 +180,12 @@ const setSendAutomatically = base
     getMachinePreferences().set("sendErrorReportsAutomatically", input.enabled);
   });
 
+const setOfferFeedback = base
+  .input(z.object({ enabled: z.boolean() }))
+  .handler(({ input }) => {
+    getMachinePreferences().set("offerFeedback", input.enabled);
+  });
+
 export const problems = {
   describe,
   describeFeedback: describeFeedbackRoute,
@@ -187,5 +193,6 @@ export const problems = {
   live,
   send,
   sendFeedback,
+  setOfferFeedback,
   setSendAutomatically,
 };

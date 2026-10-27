@@ -16,11 +16,10 @@ export const SENT_CLOSE_MS = 1600;
  * reply box, about that chat, or from the Help menu or a new draft, with no
  * chat to send.
  */
-export function feedbackReport({
-  chatId,
-  surface,
-}: Omit<FeedbackRequest, "kind">): FeedbackRequest {
-  return { chatId, kind: "feedback", surface };
+export function feedbackReport(
+  request: Omit<FeedbackRequest, "kind">,
+): FeedbackRequest {
+  return { ...request, kind: "feedback" };
 }
 
 /** Feedback from the Help menu, about no chat in particular. */

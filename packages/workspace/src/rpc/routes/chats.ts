@@ -412,9 +412,47 @@ const answerQuestionRoute = base
     );
   });
 
+/**
+ * What the person did with the agent's offer to send the team a problem:
+ * sent it or put it away. Written onto the call for the card to draw, and
+ * never wakes the chat, so the agent never hears how it went.
+ */
+const settleFeedbackOfferRoute = base
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      messageId: StoreId.MessageSchema,
+      outcome: z.enum(["sent", "dismissed"]),
+      partId: StoreId.PartSchema,
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(z.void())
+  .handler(async ({ errors, input }) => {
+    const written = await ChatWrites.updatePart(
+      {
+        chatId: input.id,
+        messageId: input.messageId,
+        partId: input.partId,
+        sessionId: input.sessionId,
+      },
+      (part) =>
+        part.type === "tool-offer_feedback" &&
+        part.state === "output-available" &&
+        part.output.offered &&
+        part.output.outcome === undefined
+          ? { ...part, output: { ...part.output, outcome: input.outcome } }
+          : part,
+    );
+    if (written.isErr()) {
+      throw toORPCError(written.error, errors);
+    }
+  });
+
 export const chats = {
   ...chatRoutes,
   answerQuestion: answerQuestionRoute,
+  settleFeedbackOffer: settleFeedbackOfferRoute,
   archive: archiveChatRoute,
   byId: chatByIdRoute,
   ensure: ensureChatRoute,

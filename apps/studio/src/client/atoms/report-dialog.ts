@@ -19,6 +19,8 @@ export type FeedbackRequest = {
   onSent?: () => void;
   /** Where it started: "chat-menu", "slash-command", "help-menu", ... */
   surface: string;
+  /** What the agent wrote up when it offered this, sent as a part of its own. */
+  writeup?: { text: string; title: string };
 };
 
 /**

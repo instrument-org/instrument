@@ -35,6 +35,9 @@ export const MachinePreferencesSchema = z.object({
   // Set from a report's own checkbox, and turned off in Settings: crashes and
   // app errors are then sent without asking. Chats never are.
   sendErrorReportsAutomatically: z.boolean().catch(false),
+  // Whether the agent may offer, on a card in a chat, to send the team a
+  // problem it found in the app. Turned off from that card or in Settings.
+  offerFeedback: z.boolean().catch(true).default(true),
   // Set in Settings › Permissions where no sandbox can hold the programs the
   // agent runs: they run anyway, reaching any file the person can. Off, they
   // don't run. A choice about this computer, so it never travels with a

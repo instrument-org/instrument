@@ -97,7 +97,15 @@ export const FeedbackItemSchema = z.object({
   events: z.array(ExceptionEventSchema).max(MAX_REPORT_EVENTS).optional(),
   files: z.array(ReportFileSchema),
   id: z.string(),
-  kind: z.enum(["chat", "task", "settings", "about", "errors", "log"]),
+  kind: z.enum([
+    "chat",
+    "task",
+    "settings",
+    "about",
+    "errors",
+    "log",
+    "writeup",
+  ]),
   label: z.string(),
 });
 

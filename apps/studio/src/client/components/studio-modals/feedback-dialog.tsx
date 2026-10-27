@@ -55,6 +55,7 @@ import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { ImageIcon } from "@phosphor-icons/react/Image";
+import { NoteIcon } from "@phosphor-icons/react/Note";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { ScrollIcon } from "@phosphor-icons/react/Scroll";
@@ -70,7 +71,20 @@ const ITEM_ICONS: Record<FeedbackItem["kind"], Icon> = {
   log: ScrollIcon,
   settings: GearSixIcon,
   task: ListChecksIcon,
+  writeup: NoteIcon,
 };
+
+/** The agent's write-up as one file of what goes, for the dialog to offer like the rest. */
+function writeupItem(writeup: { text: string; title: string }): FeedbackItem {
+  const content = `# ${writeup.title}\n\n${writeup.text}\n`;
+  return {
+    bytes: new TextEncoder().encode(content).byteLength,
+    files: [{ content, path: "writeup.md" }],
+    id: "writeup",
+    kind: "writeup",
+    label: "writeup.md",
+  };
+}
 
 /**
  * One width for every step. The form grows with what it shows up to the
@@ -196,6 +210,16 @@ export function FeedbackDialogContent({
 
   const parts: Part[] = described.data
     ? [
+        ...(request.writeup
+          ? [
+              {
+                id: "writeup",
+                items: [writeupItem(request.writeup)],
+                sub: "Written by the agent in this chat",
+                title: `${APP_NAME}'s write-up`,
+              },
+            ]
+          : []),
         ...(described.data.chat
           ? [
               {
@@ -230,6 +254,7 @@ export function FeedbackDialogContent({
         surface: request.surface,
         title:
           trimmed.split("\n")[0]?.slice(0, 300) ||
+          request.writeup?.title ||
           (request.chatId ? "Feedback about a chat" : "Feedback"),
       });
     },
@@ -354,7 +379,11 @@ export function FeedbackDialogContent({
               onChange={(event) => {
                 setNote(event.target.value);
               }}
-              placeholder="What happened, and what did you expect?"
+              placeholder={
+                request.writeup
+                  ? "Anything to add? You can also send it as it is."
+                  : "What happened, and what did you expect?"
+              }
               value={note}
             />
           </div>

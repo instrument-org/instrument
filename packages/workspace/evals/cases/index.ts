@@ -17,6 +17,7 @@ import { COST_STUDY_EVALS } from "./cost-study";
 import { CREATE_PAGE_SKILL_EVALS } from "./create-page-skill";
 import { DEVELOPER_TOOLS_EVALS } from "./developer-tools";
 import { DOCUMENT_DESIGN_EVALS } from "./document-design";
+import { FEEDBACK_OFFER_EVALS } from "./feedback-offers";
 import { FILES_FENCE_EVALS } from "./files-fence";
 import { HANDOFF_EVALS } from "./handoff";
 import { IMAGE_BUDGET_EVALS } from "./image-budget";
@@ -75,6 +76,7 @@ export const EVALS = [
   ...DEVELOPER_TOOLS_EVALS,
   ...DISCRETION_EVALS,
   ...DOCUMENT_DESIGN_EVALS,
+  ...FEEDBACK_OFFER_EVALS,
   ...FILES_FENCE_EVALS,
   ...WHITEBOARD_EVALS,
   ...HANDOFF_EVALS,

@@ -7,6 +7,7 @@ import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
 import { PlugsConnectedIcon } from "@phosphor-icons/react/PlugsConnected";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { TerminalIcon } from "@phosphor-icons/react/Terminal";
@@ -21,6 +22,7 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   edit_file: "Edited",
   generate_image: "Generated image",
   load_skill: "Loaded skill",
+  offer_feedback: "Offered to send feedback",
   read_file: "Read",
   unavailable: "Used unknown tool",
   web_fetch: "Read web page",
@@ -36,6 +38,7 @@ const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   edit_file: "Editing a file",
   generate_image: "Generating an image",
   load_skill: "Loading skill",
+  offer_feedback: "Writing up a problem",
   read_file: "Reading file",
   unavailable: "Using unknown tool",
   web_fetch: "Reading web page",
@@ -54,6 +57,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   edit_file: "Editing",
   generate_image: "Generating",
   load_skill: "Loading skill",
+  offer_feedback: TOOL_STREAMING_DISPLAY_NAMES.offer_feedback,
   read_file: "Reading",
   unavailable: TOOL_STREAMING_DISPLAY_NAMES.unavailable,
   web_fetch: "Reading",
@@ -69,6 +73,7 @@ const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   edit_file: "Tried to edit file",
   generate_image: "Tried to generate image",
   load_skill: "Tried to load skill",
+  offer_feedback: "Tried to offer feedback",
   read_file: "Tried to read file",
   unavailable: "Tried unknown tool",
   web_fetch: "Tried to read web page",
@@ -100,6 +105,7 @@ const TOOL_SUMMARY_PHRASES: Record<
     singular: "generated an image",
   },
   load_skill: { singular: "loaded a skill" },
+  offer_feedback: { singular: "offered to send feedback" },
   read_file: {
     plural: (count) => `read ${count} files`,
     singular: "read a file",
@@ -124,6 +130,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   edit_file: CodeIcon,
   generate_image: ImageIcon,
   load_skill: BookOpenIcon,
+  offer_feedback: MegaphoneSimpleIcon,
   read_file: EyeIcon,
   unavailable: WrenchIcon,
   web_fetch: GlobeIcon,

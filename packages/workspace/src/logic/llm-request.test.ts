@@ -1151,7 +1151,7 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, unavailable, web_fetch, web_search, write_file.",
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, offer_feedback, read_file, unavailable, web_fetch, web_search, write_file.",
               "input": {
                 "unknown": "params",
               },
@@ -1233,7 +1233,7 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, unavailable, web_fetch, web_search, write_file.",
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, offer_feedback, read_file, unavailable, web_fetch, web_search, write_file.",
               "input": {
                 "filePath": "test.txt",
               },
@@ -1310,7 +1310,7 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, unavailable, web_fetch, web_search, write_file.",
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, offer_feedback, read_file, unavailable, web_fetch, web_search, write_file.",
               "input": {
                 "filePath": "test.txt",
               },

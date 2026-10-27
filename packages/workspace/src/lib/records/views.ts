@@ -51,6 +51,7 @@ const CONVERSATION_PARTS = new Set<string>([
   "text",
   `tool-${TOOL_NAMES.choose}`,
   `tool-${TOOL_NAMES.connectApp}`,
+  `tool-${TOOL_NAMES.offerFeedback}`,
 ]);
 
 /** How many bytes of blobs the steps view keeps read, across chats. */

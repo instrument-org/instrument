@@ -11,6 +11,7 @@ import { ToolCallSummary } from "./tool-call-summary";
 import { hasTerminalToolState, isToolCallVisible } from "./tool-call-utils";
 import { ToolChoose } from "./tool-choose";
 import { ToolConnectApp } from "./tool-connect-app";
+import { ToolOfferFeedback } from "./tool-offer-feedback";
 import { ToolEditFile } from "./tool-edit-file";
 import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolLoadSkill } from "./tool-load-skill";
@@ -134,6 +135,9 @@ export function ToolCallBody({
     }
     case "tool-load_skill": {
       return <ToolLoadSkill part={part} />;
+    }
+    case "tool-offer_feedback": {
+      return <ToolOfferFeedback chatId={chatInfo.id} part={part} />;
     }
     case "tool-read_file": {
       return <ToolReadFile part={part} />;

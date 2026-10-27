@@ -100,6 +100,7 @@ export const instrumentAgent = setupAgent({
     "EditFile",
     "GenerateImage",
     "LoadSkill",
+    "OfferFeedback",
     "ReadFile",
     "WebFetch",
     "WebSearch",

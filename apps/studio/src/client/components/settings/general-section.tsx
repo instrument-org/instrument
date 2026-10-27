@@ -850,6 +850,7 @@ function DiagnosticLog() {
           />
         </div>
         <AutomaticErrorReports />
+        <FeedbackOffers />
       </div>
 
       <Dialog onOpenChange={setViewerOpen} open={viewerOpen}>
@@ -988,6 +989,43 @@ function AutomaticErrorReports() {
         disabled={setSendAutomatically.isPending}
         onCheckedChange={(enabled) => {
           setSendAutomatically.mutate({ enabled });
+        }}
+      />
+    </label>
+  );
+}
+
+/**
+ * Whether the agent may offer, on a card in a chat, to send the team a problem
+ * it found. Turned off from the card itself, so this is where it comes back.
+ */
+function FeedbackOffers() {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setOfferFeedback = useMutation(
+    rpcClient.problems.setOfferFeedback.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't change that setting", { cause: error });
+      },
+    }),
+  );
+  return (
+    <label className="flex items-start justify-between gap-4 border-t border-border pt-3">
+      <span className="space-y-1">
+        <span className="block text-sm font-medium">
+          Offer to report problems
+        </span>
+        <span className="block text-xs text-muted-foreground">
+          When something in {APP_NAME} breaks during a chat, it can offer to
+          send us what happened. Nothing is sent unless you say so.
+        </span>
+      </span>
+      <Switch
+        checked={preferences?.offerFeedback !== false}
+        disabled={setOfferFeedback.isPending}
+        onCheckedChange={(enabled) => {
+          setOfferFeedback.mutate({ enabled });
         }}
       />
     </label>

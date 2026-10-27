@@ -9,6 +9,7 @@ import { ConnectApp } from "./connect-app";
 import { EditFile } from "./edit-file";
 import { GenerateImage } from "./generate-image";
 import { LoadSkill } from "./load-skill";
+import { OfferFeedback } from "./offer-feedback";
 import { ReadFile } from "./read-file";
 import { Unavailable } from "./unavailable";
 import { WebFetch } from "./web-fetch";
@@ -23,6 +24,7 @@ export const TOOLS = {
   EditFile,
   GenerateImage,
   LoadSkill,
+  OfferFeedback,
   ReadFile,
   Unavailable,
   WebFetch,
@@ -40,6 +42,7 @@ export const TOOLS_BY_NAME = {
   [TOOLS.EditFile.name]: TOOLS.EditFile,
   [TOOLS.GenerateImage.name]: TOOLS.GenerateImage,
   [TOOLS.LoadSkill.name]: TOOLS.LoadSkill,
+  [TOOLS.OfferFeedback.name]: TOOLS.OfferFeedback,
   [TOOLS.ReadFile.name]: TOOLS.ReadFile,
   [TOOLS.Unavailable.name]: TOOLS.Unavailable,
   [TOOLS.WebFetch.name]: TOOLS.WebFetch,

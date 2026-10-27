@@ -332,7 +332,8 @@ export function buildTranscriptLayout({
         if (
           (isRunning && opensOnSight(part)) ||
           part.type === "tool-choose" ||
-          part.type === "tool-connect_app"
+          part.type === "tool-connect_app" ||
+          part.type === "tool-offer_feedback"
         ) {
           selfOpeningRowIds.push(id);
         }

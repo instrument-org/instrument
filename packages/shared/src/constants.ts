@@ -158,6 +158,11 @@ export const WORKSPACE_MACHINE_ENTRIES = {
    * device's activity log, rebuilt from the workspace whenever it is missing.
    */
   database: "workspace.db",
+  /**
+   * When the agent last offered to send the team a problem it found, so
+   * offers stay days apart across every chat.
+   */
+  feedbackOffers: "feedback-offers.json",
   /** Provider keys, the account sign-in, ChatGPT accounts, app credentials and connections. */
   keys: "keys",
   /**

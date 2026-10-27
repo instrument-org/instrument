@@ -292,6 +292,7 @@ describe("instrumentAgent", () => {
         TOOL_NAMES.editFile,
         TOOL_NAMES.generateImage,
         TOOL_NAMES.loadSkill,
+        TOOL_NAMES.offerFeedback,
         TOOL_NAMES.readFile,
         TOOL_NAMES.webFetch,
         TOOL_NAMES.webSearch,

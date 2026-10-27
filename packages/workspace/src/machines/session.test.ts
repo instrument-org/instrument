@@ -870,7 +870,7 @@ describe("sessionMachine", () => {
                 "filePath": "test.txt"
               }
             </input>
-            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, web_fetch, web_search, write_file.</error>
+            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: ask_permission, bash, choose, connect_app, edit_file, generate_image, load_skill, offer_feedback, read_file, web_fetch, web_search, write_file.</error>
           </tool>
         </assistant>
         <session-context instrument realRole="system" />

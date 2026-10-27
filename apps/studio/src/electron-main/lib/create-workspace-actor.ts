@@ -191,6 +191,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       nativeSandbox: true,
       isHostedFeatureAvailable,
       isPlatformSearchForEveryModel,
+      mayOfferFeedback: () => getMachinePreferences().get("offerFeedback"),
       pnpmBinPath: getPNPMBinPath(),
       reportPlatformRefusal: recordPlatformRefusal,
       refreshExpiredCredentials: async (providerConfigId) => {

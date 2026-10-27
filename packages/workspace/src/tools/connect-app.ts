@@ -46,7 +46,7 @@ const MAX_APPS_PER_CARD = 12;
  * finishing task does, and the credential itself never passes through the
  * model.
  */
-export const connectAppCapability = defineCapability({
+const connectAppCapability = defineCapability({
   input: z.object({
     reason: z.string().trim().min(1).max(300).meta({
       description:

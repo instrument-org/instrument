@@ -80,6 +80,7 @@ function answering(
 function run(args: string[]) {
   return createXCommand({
     chatId: ChatIdSchema.parse("x-command-test"),
+    role: "task",
     sessionId: StoreId.newSessionId(),
   }).execute(
     args,
@@ -94,6 +95,34 @@ function run(args: string[]) {
 
 beforeEach(() => {
   getXSearchModel.mockReset();
+});
+
+describe("instrument x", () => {
+  it("prints its usage from the x capabilities", async () => {
+    expect((await run(["help"])).stdout).toMatchInlineSnapshot(`
+      "Usage: instrument x <subcommand> ...
+
+        These take --json, for the posts as JSON, and --out <file>, to write them there:
+        instrument x search [<query>]... [--from <from>]... [--exclude <exclude>]... [--since <since>] [--until <until>] [--limit <limit>] [--media]
+            Posts on X about the words, newest first, found by Grok on the user's Grok account; --from <handle> alone for that account's latest.
+            Every post printed is one xAI's search returned and cited; its url is the
+            post's own. Each search is a request on the user's Grok plan, and a
+            search with --limit past one page makes up to 5. --json prints the
+            posts as a JSON array of {"handle", "date", "text", "url"}, to pipe into jq
+            or save to a file.
+            --from: Only posts by these accounts (up to 10).
+            --exclude: No posts by these accounts, in a search not limited to accounts.
+            --since: Only posts from this day on, YYYY-MM-DD.
+            --until: Only posts up to and including this day, YYYY-MM-DD.
+            --limit: At most this many posts (10 unless given, up to 50).
+            --media: Grok also looks at the images and video in posts, so what a picture shows can match and is described in the post's text. Slower, and costs more of the plan.
+        instrument x thread <url> [--limit <limit>] [--media]
+            The conversation a post is in, oldest first: the posts it replies to, the post, and its replies.
+            --limit: At most this many posts (10 unless given, up to 50).
+            --media: Grok also looks at the images and video in posts, so what a picture shows can match and is described in the post's text. Slower, and costs more of the plan.
+      "
+    `);
+  });
 });
 
 describe("instrument x search", () => {

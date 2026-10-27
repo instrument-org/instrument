@@ -15,7 +15,7 @@ import { type ExecuteError } from "../execute-error";
  * Where a call comes from: `instrument` in the shell, a script over its
  * channel, or the model calling a tool.
  */
-export type Surface = "cli" | "script" | "tool";
+type Surface = "cli" | "script" | "tool";
 
 /** Whose session a call runs in: the chat's own, or one of its tasks. */
 export type Role = "chat" | "task";
@@ -142,7 +142,7 @@ export type ToolInputSchema<In extends z.ZodObject> = ReturnType<
 export type ToolInput<In extends z.ZodObject> = z.output<ToolInputSchema<In>>;
 
 /** One model tool call, as the session hands it to the tool. */
-export interface ToolCall<Input> {
+interface ToolCall<Input> {
   chatId: ChatId;
   input: Input;
   messageId: StoreId.Message;

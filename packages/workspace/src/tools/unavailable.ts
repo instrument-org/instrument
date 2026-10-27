@@ -6,7 +6,7 @@ import { executeError } from "../lib/execute-error";
 import { defineCapability } from "../lib/capabilities/define";
 import { modelTool } from "../lib/capabilities/tool";
 
-export const unavailableCapability = defineCapability({
+const unavailableCapability = defineCapability({
   input: z.looseObject({}),
   name: "tools.unavailable",
   summary: "Stands in for a recorded call to a tool this build does not have.",

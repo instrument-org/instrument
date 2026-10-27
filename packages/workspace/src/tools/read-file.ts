@@ -360,7 +360,7 @@ async function handleMediaFile({
   });
 }
 
-export const readFileCapability = defineCapability({
+const readFileCapability = defineCapability({
   input: z.object({
     [INPUT_PARAMS.filePath]: z.string().meta({
       description: `Path to the file to read, relative to your work folder or the full path of a file in one of the user's folders`,

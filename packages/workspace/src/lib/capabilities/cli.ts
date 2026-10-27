@@ -1,9 +1,10 @@
-import { type ExecResult } from "just-bash";
+import { type Command, defineCommand, type ExecResult } from "just-bash";
 import { isPlainObject } from "radashi";
 import { z } from "zod";
 
 import { INSTRUMENT_COMMAND } from "../shell-commands/instrument-command";
 import {
+  defineSubcommands,
   type Subcommand,
   type SubcommandInput,
   type SubcommandShell,
@@ -31,6 +32,10 @@ type FieldKind = "boolean" | "json" | "list" | "number" | "pairs" | "value";
 interface Field {
   /** Whether a JSON field may also be plain text, as a request's body may. */
   acceptsText: boolean;
+  /** The words a field takes, where its schema lists them. */
+  choices?: string[];
+  /** What the schema says of it, for its line in the usage. */
+  description?: string;
   flag: string;
   kind: FieldKind;
   name: string;
@@ -112,7 +117,15 @@ function fieldsOf(capability: Capability): Field[] {
   const fields = Object.entries(schema.properties).map(([name, node]) => {
     const target = resolved(node, defs);
     const kind = kindOf(target);
+    const choices = JsonSchemaNode.safeParse(target).data?.enum;
+    const description = z
+      .looseObject({ description: z.string().optional() })
+      .safeParse(node).data?.description;
     return {
+      ...(description === undefined ? {} : { description }),
+      ...(choices?.every((choice) => typeof choice === "string")
+        ? { choices }
+        : {}),
       // A JSON value that may also be a string, as a request's body may,
       // takes text that is not JSON as it is.
       acceptsText:
@@ -141,35 +154,70 @@ function synopsisWord(field: Field, positional: boolean): string {
     case "boolean":
       return `[--${field.flag}]`;
     case "list":
-      return `[--${field.flag} <value>]...`;
+      return `[--${field.flag} <${field.flag}>]...`;
     case "pairs":
       return `[--${field.flag} <key>=<value>]...`;
     case "json":
       return `[--${field.flag} '<json>']`;
-    default:
+    default: {
+      const value = field.choices?.join("|") ?? `<${field.flag}>`;
       return field.required
-        ? `--${field.flag} <${field.name}>`
-        : `[--${field.flag} <${field.name}>]`;
+        ? `--${field.flag} ${value}`
+        : `[--${field.flag} ${value}]`;
+    }
   }
+}
+
+/**
+ * The fields the command line takes as flags: every one not a positional
+ * word, and not one read from stdin alone, which a heredoc gives.
+ */
+function flaggedFields(capability: Capability): Field[] {
+  const cli = capability.surfaces.cli;
+  const positional: readonly string[] = cli?.positional ?? [];
+  return fieldsOf(capability).filter(
+    (field) => !positional.includes(field.name) && field.name !== cli?.stdin,
+  );
 }
 
 /** A capability's lines in its command's usage: the synopsis, the summary, its help. */
 function cliUsage(capability: Capability): string {
   const cli = capability.surfaces.cli;
   const [command, word] = cli?.words ?? ["", ""];
-  const positional = cli?.positional ?? [];
+  const positional: readonly string[] = cli?.positional ?? [];
   const fields = fieldsOf(capability);
+  const flagged = flaggedFields(capability);
+  const heredoc =
+    cli?.stdin !== undefined && !positional.includes(cli.stdin)
+      ? ["[<<'EOF' ... EOF]"]
+      : [];
   const words = [
-    ...positional.flatMap((name) => {
+    ...positional.flatMap((name, index) => {
       const field = fields.find((each) => each.name === name);
-      return field ? [synopsisWord(field, true)] : [];
+      const shown = field ? synopsisWord(field, true) : undefined;
+      return shown === undefined
+        ? []
+        : [
+            cli?.rest === true && index === positional.length - 1
+              ? `${shown}...`
+              : shown,
+          ];
     }),
-    ...fields
-      .filter((field) => !positional.includes(field.name))
-      .map((field) => synopsisWord(field, false)),
+    ...flagged.map((field) => synopsisWord(field, false)),
+    ...heredoc,
   ];
   const lead = `${INSTRUMENT_COMMAND.name} ${command} ${[word, ...(cli?.aliases ?? [])].join("|")}`;
-  const help = [capability.summary, ...(cli?.help ? cli.help.split("\n") : [])];
+  // A flag's own line says what it is for, from its schema's description.
+  const flags = flagged.flatMap((field) =>
+    field.description === undefined
+      ? []
+      : [`--${field.flag}: ${field.description}`],
+  );
+  const help = [
+    capability.summary,
+    ...(cli?.help ? cli.help.split("\n") : []),
+    ...flags,
+  ];
   return [
     `  ${[lead, ...words].join(" ")}`,
     ...help.map((line) => (line === "" ? "" : `      ${line}`)),
@@ -206,9 +254,13 @@ function rawInput(
       : field.kind === "number"
         ? Number(text)
         : text;
-  (cli?.positional ?? []).forEach((name, index) => {
+  const positional = cli?.positional ?? [];
+  positional.forEach((name, index) => {
     const field = fields.find((each) => each.name === name);
-    const word = input.positional[index];
+    const word =
+      cli?.rest === true && index === positional.length - 1
+        ? input.positional.slice(index).join(" ")
+        : input.positional[index];
     if (field && word !== undefined && word.trim() !== "") {
       raw[name] = read(field, word.trim());
     }
@@ -290,9 +342,8 @@ function cliSubcommand(
   capability: Capability,
   registry: readonly Capability[] = CAPABILITIES,
 ): Subcommand<CapabilityScope> {
-  const fields = fieldsOf(capability);
   const positional = capability.surfaces.cli?.positional ?? [];
-  const flagged = fields.filter((field) => !positional.includes(field.name));
+  const flagged = flaggedFields(capability);
   const valued = flagged.filter((field) => field.kind !== "boolean");
   return {
     booleans: [
@@ -302,12 +353,16 @@ function cliSubcommand(
         .map((field) => field.flag),
     ],
     flags: ["out", ...valued.map((field) => field.flag)],
-    positional: positional.length,
+    ...(capability.surfaces.cli?.rest === true
+      ? {}
+      : { positional: positional.length }),
     repeatable: valued
       .filter((field) => field.kind === "list" || field.kind === "pairs")
       .map((field) => field.flag),
     run: async (input, scope, shell): Promise<ExecResult> => {
-      const ctx = capabilityContexts(scope, "cli")(shell.signal, shell);
+      const ctx = capabilityContexts(scope, "cli", (named) =>
+        shell.fs.readFileBuffer(shell.fs.resolvePath(shell.cwd, named)),
+      )(shell.signal, shell);
       const answer = await dispatch(
         capability.name,
         rawInput(capability, input, shell.stdin),
@@ -393,4 +448,34 @@ export function cliSubcommands(
     ),
     usage: own.map((capability) => cliUsage(capability)),
   };
+}
+
+/**
+ * An `instrument` command whose every subcommand the registry generates,
+ * with its usage around the lines they make: `instrument x`, `instrument app`.
+ */
+export function generatedCommand(
+  {
+    name,
+    scope,
+    usage,
+    word,
+  }: {
+    /** The command as the shell names it: `instrument app`. */
+    name: string;
+    scope: CapabilityScope;
+    /** The whole usage, from each generated subcommand's lines. */
+    usage: (generated: string[]) => string;
+    /** The capabilities' first CLI word: `app`. */
+    word: string;
+  },
+  registry: readonly Capability[] = CAPABILITIES,
+): Command {
+  const generated = cliSubcommands(word, registry);
+  const run = defineSubcommands<CapabilityScope>({
+    name,
+    subcommands: generated.subcommands,
+    usage: usage(generated.usage),
+  });
+  return defineCommand(name, (args, ctx) => run(args, scope, ctx));
 }

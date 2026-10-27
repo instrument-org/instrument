@@ -731,7 +731,7 @@ function replace(
   );
 }
 
-export const editFileCapability = defineCapability({
+const editFileCapability = defineCapability({
   input: z.object({
     [INPUT_PARAMS.filePath]: z.string().meta({
       description: `Relative path to the file to modify. Generate this after ${TOOL_EXPLANATION_PARAM_NAME}.`,

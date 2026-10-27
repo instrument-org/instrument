@@ -254,7 +254,7 @@ const bashOutputSchema = z.object({
   spillFilePath: RelativePathSchema.optional(),
 });
 
-export const bashCapability = defineCapability({
+const bashCapability = defineCapability({
   input: z.object({
     command: z.string().meta({ description: "The bash command to run" }),
     yieldMs: z

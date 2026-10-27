@@ -250,7 +250,7 @@ describe("the generated command line", () => {
 
   it("lists each capability in the usage from its schema", async () => {
     expect((await cli(["help"])).stdout).toMatchInlineSnapshot(`
-      "  instrument test echo <app> ['<data>'] [--count <count>] [--labels <value>]... [--param <key>=<value>]... [--start-time <start_time>] [--verbose]
+      "  instrument test echo <app> ['<data>'] [--count <count>] [--labels <labels>]... [--param <key>=<value>]... [--start-time <start-time>] [--verbose]
             Hands its input back.
             For tests.
         instrument test chat-only
@@ -356,6 +356,61 @@ describe("dispatch", () => {
       { name: "test.echo", positional: ["app"] },
       { name: "test.camel", positional: ["url"] },
     ]);
+  });
+});
+
+describe("the registry", () => {
+  const script = capabilityContexts(scope, "script")();
+
+  // Setting an app up is the agent's own step, with its output in front of
+  // it, and the turn-enders are model tools that end the turn: neither is a
+  // script's to call. Reads and the web and image tools are.
+  it("puts reads and the web and image tools on the script surface, and app setup off it", () => {
+    expect(
+      describeCapabilities(script)
+        .map(({ name }) => name)
+        .toSorted(),
+    ).toMatchInlineSnapshot(`
+        [
+          "apps.call",
+          "apps.list",
+          "apps.request",
+          "apps.tools",
+          "images.generate",
+          "web.fetch",
+          "web.search",
+          "x.search",
+          "x.thread",
+        ]
+      `);
+  });
+
+  it("generates every app and x subcommand", () => {
+    expect({
+      app: Object.keys(cliSubcommands("app").subcommands).toSorted(),
+      x: Object.keys(cliSubcommands("x").subcommands).toSorted(),
+    }).toMatchInlineSnapshot(`
+      {
+        "app": [
+          "account",
+          "call",
+          "catalog",
+          "disconnect",
+          "guide",
+          "icon",
+          "list",
+          "new",
+          "request",
+          "test",
+          "tool",
+          "tools",
+        ],
+        "x": [
+          "search",
+          "thread",
+        ],
+      }
+    `);
   });
 });
 

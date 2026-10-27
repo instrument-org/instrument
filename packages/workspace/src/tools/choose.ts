@@ -26,7 +26,7 @@ const NoteSchema = z.string().trim().min(1).optional();
  * The answered outputs are what a call returned when the turn waited on the
  * card, which transcripts from then still hold.
  */
-export const chooseCapability = defineCapability({
+const chooseCapability = defineCapability({
   input: z.object({
     choices: z.array(z.string()).min(2).meta({
       description: "Array of choice options for the user to select from",

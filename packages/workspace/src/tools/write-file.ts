@@ -16,7 +16,7 @@ const INPUT_PARAMS = {
   filePath: "filePath",
 } as const;
 
-export const writeFileCapability = defineCapability({
+const writeFileCapability = defineCapability({
   input: z.object({
     // Sorting the file path first to attempt to get model to generate it first
     [INPUT_PARAMS.filePath]: z.string().meta({

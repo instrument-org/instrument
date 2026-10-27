@@ -39,7 +39,9 @@ function snakeCase(key: string): string {
 }
 
 function camelCase(key: string): string {
-  return key.replaceAll(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+  return key.replaceAll(/_([a-z])/g, (_, letter: string) =>
+    letter.toUpperCase(),
+  );
 }
 
 /**

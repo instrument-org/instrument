@@ -4,7 +4,6 @@ import {
   type XSearchOptions,
 } from "@instrument-org/ai-gateway";
 import { APICallError, generateText, Output } from "ai";
-import { defineCommand } from "just-bash";
 import { dedent } from "radashi";
 import { z } from "zod";
 
@@ -15,16 +14,7 @@ import { activityTelemetry } from "../activity/record";
 import { NO_ALLOWANCE_PATTERN } from "../classify-provider-error";
 import { getCurrentDate } from "../get-current-date";
 import { getWorkspaceConfig } from "../workspace-config";
-import {
-  defineSubcommands,
-  type SubcommandInput,
-  subcommand,
-} from "./subcommands";
-import { X_COMMAND } from "./x-command";
-
-export { X_COMMAND } from "./x-command";
-
-const NAME = X_COMMAND.name;
+import { defineCapability } from "./define";
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
@@ -32,37 +22,6 @@ const MAX_LIMIT = 50;
 const MAX_PAGES = 5;
 /** Accounts xAI takes in one search, allowed or excluded. */
 const MAX_HANDLES = 10;
-
-const USAGE = `Usage: ${NAME} search ["<words>"] [--from <handle>] [--exclude <handle>] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--limit <n>] [--media] [--json]
-       ${NAME} thread <post url> [--limit <n>] [--media] [--json]
-
-  ${NAME} search "<words>"
-      Posts on X about the words, newest first, found by Grok on the user's
-      Grok account. Grok searches by keyword and by meaning, so the words can
-      be plain language or X's search operators (min_faves:100,
-      filter:media, lang:en, "exact phrase").
-  ${NAME} search --from <handle>
-      That account's latest posts.
-  ${NAME} thread <post url>
-      The conversation a post is in, oldest first: the posts it replies to,
-      the post, and its replies.
-
-      --from <handle>     Only posts by this account (repeat, up to ${String(MAX_HANDLES)}).
-      --exclude <handle>  No posts by this account (repeat; not with --from).
-      --since <date>      Only posts from this day on.
-      --until <date>      Only posts up to and including this day.
-      --limit <n>         At most this many posts (${String(DEFAULT_LIMIT)} unless given, up to ${String(MAX_LIMIT)}).
-      --media             Grok also looks at the images and video in posts, so
-                          what a picture shows can match and is described in
-                          the post's text. Slower, and costs more of the plan.
-      --json              Print the posts as a JSON array of
-                          {"handle", "date", "text", "url"} instead of text,
-                          to pipe into jq or save to a file.
-
-  Every post printed is one xAI's search returned and cited; its url is the
-  post's own. Each search is a request on the user's Grok plan, and a
-  search with --limit past one page makes up to ${String(MAX_PAGES)}.
-`;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -86,41 +45,11 @@ const PostsSchema = z.object({
 });
 type Post = z.output<typeof PostsSchema>["posts"][number];
 
-/** What `x` needs from the `bash` call it runs inside. */
-export interface XCommandContext {
+/** The chat and session a search is made for, which its record of model requests files it under. */
+interface SearchContext {
   chatId: ChatId;
   sessionId: StoreId.Session;
 }
-
-/**
- * X search as a command rather than a tool: it is there in every shell on
- * every model, so the tool definitions a provider caches never change with
- * whether a Grok account is signed in, and a missing account, a usage limit
- * or a refusal reaches the agent as the reason it failed. Its posts are data
- * the agent can pipe and keep, which a tool's result is not.
- */
-export function createXCommand(context: XCommandContext) {
-  return defineCommand(NAME, (args, ctx) => runX(args, context, ctx));
-}
-
-const runX = defineSubcommands<XCommandContext>({
-  name: NAME,
-  subcommands: {
-    search: subcommand({
-      booleans: ["json", "media"],
-      flags: ["exclude", "from", "limit", "since", "until"],
-      repeatable: ["exclude", "from"],
-      run: (input, context, { signal }) => search(input, context, signal),
-    }),
-    thread: subcommand({
-      booleans: ["json", "media"],
-      flags: ["limit"],
-      positional: 1,
-      run: (input, context, { signal }) => thread(input, context, signal),
-    }),
-  },
-  usage: USAGE,
-});
 
 function instructions() {
   const today = getCurrentDate().toLocaleDateString("en-US", {
@@ -136,137 +65,195 @@ function instructions() {
   `;
 }
 
-async function search(
-  input: SubcommandInput,
-  context: XCommandContext,
-  signal: AbortSignal | undefined,
-) {
-  const query = input.positional.join(" ").trim();
-  const from = handlesOf(input.all("from"), "from");
-  const exclude = handlesOf(input.all("exclude"), "exclude");
-  const since = dateOf(input.value("since"), "since");
-  const until = dateOf(input.value("until"), "until");
-  const count = limitOf(input.value("limit"));
-  if (!query && from.length === 0) {
-    throw new Error(
-      `search: what to search for? Give words, --from <handle>, or both.`,
-    );
-  }
-  if (from.length > 0 && exclude.length > 0) {
-    throw new Error("--from and --exclude can't be used together.");
-  }
-  const media = input.has("media");
-  const authors = from.map((handle) => `@${handle}`).join(", ");
+/** A handle as X shows it, `@` and all, as xAI takes it: without the `@`. */
+const Handles = z
+  .array(z.string().transform((handle) => handle.replace(/^@/, "")))
+  .max(
+    MAX_HANDLES,
+    `takes up to ${String(MAX_HANDLES)} accounts in one search.`,
+  )
+  .default([]);
 
-  // One search answers with the newest page of posts however often it is
-  // repeated, so the next page is asked for as the posts up to the oldest day
-  // found so far, until there are enough or a page brings nothing new.
-  const posts: Post[] = [];
-  let through = until;
-  for (let page = 0; page < MAX_PAGES && posts.length < count; page++) {
-    const wanted = count - posts.length;
-    const found = await searchOnce({
-      context,
-      options: {
-        ...(from.length > 0 && { allowedXHandles: from }),
-        ...(exclude.length > 0 && { excludedXHandles: exclude }),
-        ...(since && { fromDate: since }),
-        // xAI's end date is exclusive.
-        ...(through && { toDate: nextDay(through) }),
-        ...(media && {
-          enableImageUnderstanding: true,
-          enableVideoUnderstanding: true,
-        }),
-      },
-      prompt: [
-        query ? `Posts about: ${query}` : `The latest posts by ${authors}.`,
-        query && from.length > 0 && `Only posts by ${authors}.`,
-        since && `Posted on or after ${since}.`,
-        through && `Posted on or before ${through}.`,
-        `Newest first, at most ${String(wanted)} posts.`,
-      ],
-      signal,
+const Day = (field: string) =>
+  z
+    .string()
+    .regex(DATE, `${field} takes a day as YYYY-MM-DD.`)
+    .optional()
+    .meta({
+      description: `${field === "since" ? "Only posts from this day on" : "Only posts up to and including this day"}, YYYY-MM-DD.`,
     });
-    const seen = new Set(posts.map((post) => post.url));
-    const fresh = found.filter((post) => !seen.has(post.url));
-    if (fresh.length === 0) {
-      break;
-    }
-    posts.push(...fresh);
-    through = fresh.map((post) => post.date).toSorted()[0];
-  }
-  posts.sort((a, b) => b.date.localeCompare(a.date));
-  return print(posts.slice(0, count), input.has("json"));
-}
 
-async function thread(
-  input: SubcommandInput,
-  context: XCommandContext,
-  signal: AbortSignal | undefined,
-) {
-  const url = input.positional[0] ?? "";
-  if (!statusId(url)) {
-    throw new Error(
-      `thread: which post? Give its link, https://x.com/<handle>/status/<id>.`,
-    );
-  }
-  const count = limitOf(input.value("limit"));
-  const posts = await searchOnce({
-    context,
-    options: input.has("media")
-      ? { enableImageUnderstanding: true, enableVideoUnderstanding: true }
-      : {},
-    prompt: [
-      `The thread of this post: ${url}`,
-      "The posts it replies to, the post itself, and its replies, oldest first.",
-      `At most ${String(count)} posts.`,
-    ],
-    signal,
+const Limit = z
+  .number({
+    error: `limit takes a number of posts up to ${String(MAX_LIMIT)}.`,
+  })
+  .int(`limit takes a number of posts up to ${String(MAX_LIMIT)}.`)
+  .min(1, `limit takes a number of posts up to ${String(MAX_LIMIT)}.`)
+  .max(MAX_LIMIT, `limit takes a number of posts up to ${String(MAX_LIMIT)}.`)
+  .default(DEFAULT_LIMIT)
+  .meta({
+    description: `At most this many posts (${String(DEFAULT_LIMIT)} unless given, up to ${String(MAX_LIMIT)}).`,
   });
-  posts.sort((a, b) => a.date.localeCompare(b.date));
-  return print(posts.slice(0, count), input.has("json"));
-}
 
-function print(posts: Post[], json: boolean) {
-  if (json) {
-    return `${JSON.stringify(posts, null, 2)}\n`;
-  }
+const Media = z.boolean().default(false).meta({
+  description:
+    "Grok also looks at the images and video in posts, so what a picture shows can match and is described in the post's text. Slower, and costs more of the plan.",
+});
+
+const PostsOutput = PostsSchema.shape.posts;
+
+/**
+ * The posts as text, one after another, each with its author, date and
+ * link; `--json` prints them as the array instead.
+ */
+function postsText(posts: readonly Post[]): string {
   if (posts.length === 0) {
-    return "No posts found.\n";
+    return "No posts found.";
   }
-  return `${posts
+  return posts
     .map((post) => `@${post.handle} · ${post.date}\n${post.text}\n${post.url}`)
-    .join("\n\n")}\n`;
+    .join("\n\n");
 }
 
-function handlesOf(given: string[], flag: string): string[] {
-  const handles = given.map((handle) => handle.replace(/^@/, ""));
-  if (handles.length > MAX_HANDLES) {
-    throw new Error(
-      `--${flag} takes up to ${String(MAX_HANDLES)} accounts in one search.`,
-    );
-  }
-  return handles;
-}
+const FLAG_HELP = `Every post printed is one xAI's search returned and cited; its url is the
+post's own. Each search is a request on the user's Grok plan, and a
+search with --limit past one page makes up to ${String(MAX_PAGES)}. --json prints the
+posts as a JSON array of {"handle", "date", "text", "url"}, to pipe into jq
+or save to a file.`;
 
-function dateOf(value: string | undefined, flag: string) {
-  if (value !== undefined && !DATE.test(value)) {
-    throw new Error(`--${flag} takes a day as YYYY-MM-DD, not "${value}".`);
-  }
-  return value;
-}
+/**
+ * X search as a command rather than a tool: it is there in every shell on
+ * every model, so the tool definitions a provider caches never change with
+ * whether a Grok account is signed in, and a missing account, a usage limit
+ * or a refusal reaches the agent as the reason it failed. Its posts are data
+ * the agent can pipe and keep, which a tool's result is not.
+ */
+export const xSearch = defineCapability({
+  input: z.object({
+    query: z.string().default("").meta({
+      description:
+        'The words to search for: plain language, or X\'s search operators (min_faves:100, filter:media, lang:en, "exact phrase").',
+    }),
+    by: Handles.meta({
+      description: `Only posts by these accounts (up to ${String(MAX_HANDLES)}).`,
+    }),
+    exclude: Handles.meta({
+      description:
+        "No posts by these accounts, in a search not limited to accounts.",
+    }),
+    since: Day("since"),
+    until: Day("until"),
+    limit: Limit,
+    media: Media,
+  }),
+  name: "x.search",
+  output: PostsOutput,
+  async run({ by, exclude, limit, media, query, since, until }, ctx) {
+    const words = query.trim();
+    if (!words && by.length === 0) {
+      throw new Error(
+        `search: what to search for? Give words, --from <handle>, or both.`,
+      );
+    }
+    if (by.length > 0 && exclude.length > 0) {
+      throw new Error("--from and --exclude can't be used together.");
+    }
+    const authors = by.map((handle) => `@${handle}`).join(", ");
 
-function limitOf(value: string | undefined): number {
-  if (
-    value !== undefined &&
-    (!/^[1-9]\d*$/.test(value) || Number(value) > MAX_LIMIT)
-  ) {
-    throw new Error(
-      `--limit takes a number of posts up to ${String(MAX_LIMIT)}, not "${value}".`,
-    );
-  }
-  return Number(value ?? DEFAULT_LIMIT);
-}
+    // One search answers with the newest page of posts however often it is
+    // repeated, so the next page is asked for as the posts up to the oldest day
+    // found so far, until there are enough or a page brings nothing new.
+    const posts: Post[] = [];
+    let through = until;
+    for (let page = 0; page < MAX_PAGES && posts.length < limit; page++) {
+      const wanted = limit - posts.length;
+      const found = await searchOnce({
+        context: ctx,
+        options: {
+          ...(by.length > 0 && { allowedXHandles: by }),
+          ...(exclude.length > 0 && { excludedXHandles: exclude }),
+          ...(since && { fromDate: since }),
+          // xAI's end date is exclusive.
+          ...(through && { toDate: nextDay(through) }),
+          ...(media && {
+            enableImageUnderstanding: true,
+            enableVideoUnderstanding: true,
+          }),
+        },
+        prompt: [
+          words ? `Posts about: ${words}` : `The latest posts by ${authors}.`,
+          words && by.length > 0 && `Only posts by ${authors}.`,
+          since && `Posted on or after ${since}.`,
+          through && `Posted on or before ${through}.`,
+          `Newest first, at most ${String(wanted)} posts.`,
+        ],
+        signal: ctx.signal,
+      });
+      const seen = new Set(posts.map((post) => post.url));
+      const fresh = found.filter((post) => !seen.has(post.url));
+      if (fresh.length === 0) {
+        break;
+      }
+      posts.push(...fresh);
+      through = fresh.map((post) => post.date).toSorted()[0];
+    }
+    posts.sort((a, b) => b.date.localeCompare(a.date));
+    return posts.slice(0, limit);
+  },
+  summary:
+    "Posts on X about the words, newest first, found by Grok on the user's Grok account; --from <handle> alone for that account's latest.",
+  surfaces: {
+    cli: {
+      flagNames: { by: "from" },
+      help: FLAG_HELP,
+      positional: ["query"],
+      rest: true,
+      words: ["x", "search"],
+    },
+    script: { positional: ["query"] },
+  },
+  text: postsText,
+});
+
+export const xThread = defineCapability({
+  input: z.object({
+    url: z.string().meta({
+      description: "The post's link, https://x.com/<handle>/status/<id>.",
+    }),
+    limit: Limit,
+    media: Media,
+  }),
+  name: "x.thread",
+  output: PostsOutput,
+  async run({ limit, media, url }, ctx) {
+    if (!statusId(url)) {
+      throw new Error(
+        `thread: which post? Give its link, https://x.com/<handle>/status/<id>.`,
+      );
+    }
+    const posts = await searchOnce({
+      context: ctx,
+      options: media
+        ? { enableImageUnderstanding: true, enableVideoUnderstanding: true }
+        : {},
+      prompt: [
+        `The thread of this post: ${url}`,
+        "The posts it replies to, the post itself, and its replies, oldest first.",
+        `At most ${String(limit)} posts.`,
+      ],
+      signal: ctx.signal,
+    });
+    posts.sort((a, b) => a.date.localeCompare(b.date));
+    return posts.slice(0, limit);
+  },
+  summary:
+    "The conversation a post is in, oldest first: the posts it replies to, the post, and its replies.",
+  surfaces: {
+    cli: { help: "", positional: ["url"], words: ["x", "thread"] },
+    script: { positional: ["url"] },
+  },
+  text: postsText,
+});
 
 function nextDay(day: string): string {
   const date = new Date(`${day}T00:00:00Z`);
@@ -281,7 +268,7 @@ async function searchOnce({
   prompt,
   signal,
 }: {
-  context: XCommandContext;
+  context: SearchContext;
   options: XSearchOptions;
   prompt: (false | string | undefined)[];
   signal: AbortSignal | undefined;

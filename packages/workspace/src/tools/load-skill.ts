@@ -67,7 +67,7 @@ const SkillInstallResultSchema = z.discriminatedUnion("state", [
   }),
 ]);
 
-export const loadSkillCapability = defineCapability({
+const loadSkillCapability = defineCapability({
   input: z.object({
     name: z.string().meta({
       description: "The name of the skill to load.",

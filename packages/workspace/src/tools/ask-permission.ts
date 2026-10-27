@@ -39,7 +39,7 @@ import { modelTool } from "../lib/capabilities/tool";
  * one a refusal would name (`askableFolder`), so no call opens the home
  * folder, a disk, or the app's own data whole.
  */
-export const askPermissionCapability = defineCapability({
+const askPermissionCapability = defineCapability({
   input: z.object({
     kind: z.enum(["app", "folder"]).meta({
       description: "A folder, or a Mac app such as Shortcuts.",

@@ -938,7 +938,7 @@ export async function createLocalBashEnv({
         ...APP_COMMAND,
         command: createAppCommand(scope),
       },
-      { ...X_COMMAND, command: createXCommand({ chatId, sessionId }) },
+      { ...X_COMMAND, command: createXCommand(scope) },
       {
         ...MEMORY_COMMAND,
         command: createMemoryCommand({ chatId, role }),

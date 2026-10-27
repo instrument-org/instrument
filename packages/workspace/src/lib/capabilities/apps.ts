@@ -41,7 +41,7 @@ const REQUEST_TIMEOUT_MS = ms("2 minutes");
 
 const METHODS = ["DELETE", "GET", "PATCH", "POST", "PUT"] as const;
 
-const AppField = z
+export const AppField = z
   .string({
     error: `an app slug is required. See \`${APP_COMMAND.name} list\`.`,
   })

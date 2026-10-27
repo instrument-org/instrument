@@ -130,6 +130,13 @@ An end-to-end pass of the packaged app rather than a read of the code: a fresh-i
 - What: `sendCommand error … Target.setAutoAttach error=Target filter should be empty when disabling auto-attach` when a sleeping guest wakes. Also in beta 109's own logs.
 - Note: when the agent's last connection to a tab closes, the bridge turns the page's frame auto-attach off, and it sent the frames-only filter with `autoAttach: false`, which the browser refuses; an agent's own `setAutoAttach` off got the same filter. A command to a sleeping tab wakes it first, hence the wake just before each line. Turning it off now carries no filter.
 
+### R. A launch after an unclean exit reads the ChatGPT accounts before they can be decrypted
+
+- Status: fixed
+- Where: [register-crash-diagnostics.ts](/apps/studio/src/electron-main/lib/register-crash-diagnostics.ts) (`registerCrashDiagnostics`)
+- What: found in the log sweep. Every launch whose previous session did not exit cleanly logged `(chatgpt-account) Failed to read the ChatGPT account store Error: Encryption is not available` four times, on Windows as well as Linux, where `safeStorage` always works once the app is ready: 4 per unclean launch in beta 103, 109 and the preview on the Windows test host, 12 for 3 on the Linux test host, which is the line H saw and put down to a missing keyring. The problem report for that session was composed at module load, before ready, and its redactor asks the ChatGPT store who is signed in, so the report was redacted without that account's email or name.
+- Note: the report is now composed once the app is ready. The Instrument account's own email is still unknown at that point, which is S.
+
 ## Rerun after the fixes
 
 A fresh preview of b2f9926a8 on the Windows test host: I passed in the same first session (the Browser rail and `agent-browser open` both loaded example.com), J passed for the address bar though Chrome's history still keeps an untitled row with the spent token, L read "preview", and M put Settings' test toast and the Start menu shortcut under the build's own app ID. On the Linux test host: I passed in the same first session, B passed with the link launched directly (and the new `(outside-link)` lines said what each link did), L read "preview", J's address bar was clean in Firefox too, and A failed (see its note).

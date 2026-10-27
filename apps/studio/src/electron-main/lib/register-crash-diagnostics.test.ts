@@ -71,11 +71,17 @@ const crashRecordPath = () => path.join(crashDir, "last-crash.json");
 const sessionMarkerPath = () => path.join(crashDir, "app.lock");
 const crashDumpsDir = () => path.join(crashDir, "Crashpad");
 
-// Test double for the two `Electron.App` events this module subscribes to; the
-// real interface is far too large to implement.
+// Test double for the two `Electron.App` events this module subscribes to and
+// its readiness, which `ready` settles; the real interface is far too large to
+// implement.
 function createFakeApp(userData = crashDir) {
   const listeners = new Map<string, ((...args: unknown[]) => void)[]>();
+  let ready = () => {};
+  const whenReady = new Promise<void>((resolve) => {
+    ready = resolve;
+  });
   const app = {
+    whenReady: () => whenReady,
     getPath: (name: string) =>
       name === "crashDumps" ? path.join(userData, "Crashpad") : userData,
     getVersion: () => "2.0.0",
@@ -89,7 +95,7 @@ function createFakeApp(userData = crashDir) {
       listener(...args);
     }
   };
-  return { app: app as unknown as Electron.App, emit };
+  return { app: app as unknown as Electron.App, emit, ready };
 }
 
 function createFakeWebContents(type: string) {
@@ -637,7 +643,7 @@ describe("registerCrashDiagnostics", () => {
     expect(log.error).not.toHaveBeenCalled();
   });
 
-  it("hands how the last session ended to the problem reports", () => {
+  it("hands how the last session ended to the problem reports once the app is ready", async () => {
     fs.writeFileSync(
       sessionMarkerPath(),
       JSON.stringify({
@@ -649,8 +655,16 @@ describe("registerCrashDiagnostics", () => {
     const event = eventFor(new Error("boom"));
     fs.writeFileSync(crashRecordPath(), JSON.stringify(event));
 
-    registerCrashDiagnostics(createFakeApp().app);
+    const { app, ready } = createFakeApp();
+    registerCrashDiagnostics(app);
 
+    // Before ready the stores naming the signed-in accounts can't be
+    // decrypted, so the report's redaction would miss them.
+    expect(recordEndedSession).not.toHaveBeenCalled();
+    ready();
+    await vi.waitFor(() => {
+      expect(recordEndedSession).toHaveBeenCalled();
+    });
     expect(recordEndedSession).toHaveBeenCalledWith(
       expect.objectContaining({
         crashRecord: event,

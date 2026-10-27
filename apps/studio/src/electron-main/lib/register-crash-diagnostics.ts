@@ -83,13 +83,23 @@ export function registerCrashDiagnostics(app: Electron.App) {
   const crashRecord = reportPreviousCrash(app);
   const exit = reportUncleanExit(app);
   const dumps = reportNewCrashDumps(app);
-  recordEndedSession({
-    crashRecord,
-    dumps,
-    endedAt: Date.now(),
-    previousVersion: exit.previousVersion,
-    unclean: exit.unclean,
-  });
+  const endedAt = Date.now();
+  // Once ready, because the report is redacted with the accounts signed in,
+  // and the stores naming them can only be decrypted then.
+  void app
+    .whenReady()
+    .then(() => {
+      recordEndedSession({
+        crashRecord,
+        dumps,
+        endedAt,
+        previousVersion: exit.previousVersion,
+        unclean: exit.unclean,
+      });
+    })
+    .catch((error: unknown) => {
+      log.error("Could not record how the last session ended", error);
+    });
 
   const gate = createFaultGate();
   // The event the monitor built for the throw the listener is about to get,

@@ -123,6 +123,27 @@ const states = [
     }),
   },
   {
+    title: "New tab",
+    note: "A new window tab opens on a greeting over the command menu, already open, so you can go anywhere or start something from the keyboard.",
+    body: appWindow({
+      on: "",
+      bar: winBar({ tabs: [{ chats: true }, { newtab: true }], active: 1 }),
+      body: newTabPage(),
+    }),
+  },
+  {
+    title: "Apps",
+    note: "Apps with nothing open lists the popular services under a search that also takes any service's name.",
+    body: appWindow({
+      on: "apps",
+      bar: winBar({
+        tabs: [{ chats: true }, { title: "Apps", apps: true }],
+        active: 1,
+      }),
+      body: appsPlace({ connected: ["Gmail"] }),
+    }),
+  },
+  {
     title: "Browser home",
     note: "Browser with no page open is the omnibar over your bookmarks and the pages you visited lately.",
     body: appWindow({
@@ -204,11 +225,15 @@ const states = [
   },
   {
     title: "Floating chat expanded",
-    note: "Expand grows the floating chat into one large card over the dimmed window, with the chat's own head and only minimize, collapse and × at its right.",
+    note: "Expand on a floating chat puts the floating window away and brings the chat up in a window tab of its own, the one already showing it or a new one.",
     body: appWindow({
-      bar: winBar({ tabs: [{ chats: true }] }),
-      body: inboxCol({ on: -1 }) + noChatOpen(),
-      over: expandedChat(),
+      bar: winBar({
+        tabs: [{ folder: "Instrument" }, { chats: true, title: PRICING_TITLE }],
+        active: 1,
+      }),
+      body:
+        inboxCol({ on: 0 }) +
+        thread({ working: "Reading plans on zendesk.com" }),
     }),
   },
   {

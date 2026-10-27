@@ -6,7 +6,8 @@
 // a chat's tiles stand in a row over its reply box, and its pane sits flush beside
 // it. Tiles, pane and peek re-measured off the documents fixture (2026-10-05); the inbox
 // head and rows, the chat head, the location rows, Files' places, the floating chat, the
-// draft's head and the plus menu (2026-10-10). Window tabs live in the bar. Setup fills the window at its own 1080x720. build.mjs pastes this whole file,
+// draft's head and the plus menu (2026-10-10); the rail's Files mark, the bar's bell, Files'
+// row and foot, the New tab page and Apps (2026-10-27). Window tabs live in the bar. Setup fills the window at its own 1080x720. build.mjs pastes this whole file,
 // after brands.js, into the wireframe template's kit section.
 
 const brand = (key, cls = "size-4") =>
@@ -67,11 +68,11 @@ const fileMark = (kind, cls = "text-[13px]") =>
       md: `<span class="text-[0.72em] font-bold tracking-tighter text-[#3f9d52]">M↓</span>`,
       csv: `<i class="ph ph-table text-[#2f8f5b]"></i>`,
       pdf: `<i class="ph ph-file-pdf text-[#d14b3f]"></i>`,
-      folder: `<i class="ph ph-folder text-[#4a9ff5]"></i>`,
+      folder: `<svg class="size-[1.1em]" viewBox="0 0 16 16"><path d="M1.5 4a1.5 1.5 0 0 1 1.5-1.5h3.2l1.4 1.4h5.4A1.5 1.5 0 0 1 14.5 5.4v6.6a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 12Z" fill="#69b1f5"/><path d="M1.5 5.6h13" stroke="#4a9ff5" stroke-width=".6"/></svg>`,
     }[kind]
   }</span>`;
 
-/** A tab is {site}, {file}, {folder: name} (Files open on a folder), {browser: true} (Browser with no page) or {newtab: true}; `agent` marks one the task is driving. */
+/** A tab is {site}, {file}, {folder: name} (Files open on a folder), {browser: true} (Browser with no page), {apps: true, title} or {newtab: true}; `agent` marks one the task is driving. */
 const tabMark = (t, size) =>
   t.site
     ? SITES[t.site].mark(size)
@@ -81,7 +82,9 @@ const tabMark = (t, size) =>
         ? fileMark("folder", "text-[15px]")
         : t.browser
           ? `<i class="ph ph-globe shrink-0 text-[14px]"></i>`
-          : `<i class="ph ph-magnifying-glass shrink-0 text-[14px]"></i>`;
+          : t.apps
+            ? `<i class="ph ph-shapes shrink-0 text-[14px]"></i>`
+            : `<i class="ph ph-magnifying-glass shrink-0 text-[14px]"></i>`;
 const tabTitle = (t) =>
   t.site
     ? SITES[t.site].title
@@ -111,18 +114,14 @@ const winBar = ({ tabs = [{ chats: true }], active = 0, right = "" } = {}) => `
       ${tabs.map((t, i) => barTab(t, { on: i === active })).join(`<span class="h-4 w-px shrink-0 bg-gray-300"></span>`)}
       <span class="grid size-8 shrink-0 place-items-center rounded-xl"><i class="ph ph-plus text-[16px]"></i></span>
     </div>
-    <div class="flex shrink-0 items-center gap-2">${right}</div>
+    <div class="flex shrink-0 items-center gap-2">${right}<span class="grid size-7 place-items-center text-foreground/80"><i class="ph ph-bell text-[16px]"></i></span></div>
   </div>`;
-
-/** Files' mark on the Mac: the Finder's face as a line glyph on Phosphor's grid (finder-icon.tsx), since Phosphor has no Finder. */
-const finderGlyph = (cls = "size-6") =>
-  `<svg class="${cls} shrink-0" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"><path d="M64 32h128a32 32 0 0 1 32 32v128a32 32 0 0 1-32 32H64a32 32 0 0 1-32-32V64a32 32 0 0 1 32-32ZM140 32q-28 60-36 116h28q-4 40 4 76M84 88v20M172 88v20M80 172q48 26 96 0"/></svg>`;
 
 // The starter loads Phosphor's regular weight only, so a lit place keeps its outline
 // icon and takes the brand color, where the app also swaps to the fill weight.
 const RAIL = [
   ["chat", "Chat", `<i class="ph ph-chat-circle text-[24px]"></i>`],
-  ["files", "Files", finderGlyph()],
+  ["files", "Files", `<i class="ph ph-folder-simple text-[24px]"></i>`],
   ["browser", "Browser", `<i class="ph ph-globe text-[24px]"></i>`],
   ["apps", "Apps", `<i class="ph ph-shapes text-[24px]"></i>`],
 ];
@@ -725,7 +724,10 @@ const finderSidebar = ({
     `<div class="flex h-7 items-center gap-2 rounded-lg px-2 ${name === on ? "bg-foreground/8" : ""}">${icon}<span class="truncate">${name}</span></div>`;
   const placeIcon = (n) =>
     n === "Instrument"
-      ? `<i class="ph ph-folder-simple shrink-0 text-[15px] text-[#3f9d8a]"></i>`
+      ? fileMark(
+          "folder",
+          "text-[15px] [&_path:first-child]:fill-[#5fae9c] [&_path:last-child]:stroke-[#3f9d8a]",
+        )
       : n === "mac-user"
         ? `<i class="ph ph-house shrink-0 text-[15px] text-muted-foreground"></i>`
         : fileMark("folder", "text-[15px]");
@@ -764,11 +766,11 @@ const finderHeader = ({
 
 /** The Finder's list view: Name, Date Modified, Size and Kind over 24px striped rows, a folder led by its disclosure caret, the picked row filled in the brand color. Rows are [kind, name, modified, size, kindText]. `cols` false keeps only Name, for a narrow pane. */
 const finderListView = (rows, { pick = -1, cols = true } = {}) => {
-  const tpl = cols ? "1fr 170px 70px 110px" : "1fr";
+  const tpl = cols ? "1fr 170px 70px 150px" : "1fr";
   return `
   <div class="text-[13px]">
-    <div class="grid h-7 items-center border-b border-border px-3 text-[12px] text-muted-foreground" style="grid-template-columns:${tpl}"><span class="pl-6">Name <i class="ph ph-caret-up text-[9px]"></i></span>${cols ? `<span>Date Modified</span><span class="text-right">Size</span><span class="pl-3">Kind</span>` : ""}</div>
-    ${rows.map(([k, n, d, sz, kt], i) => `<div class="mx-1 grid h-6 items-center rounded-md px-2 ${i === pick ? "bg-brand-600 text-white" : i % 2 ? "bg-foreground/[0.03]" : ""}" style="grid-template-columns:${tpl}"><span class="flex min-w-0 items-center gap-1.5">${k === "folder" ? `<i class="ph ph-caret-right w-3 text-[10px] ${i === pick ? "" : "text-muted-foreground"}"></i>` : `<span class="w-3"></span>`}${fileMark(k)}<span class="truncate">${n}</span></span>${cols ? `<span class="${i === pick ? "" : "text-muted-foreground"}">${d}</span><span class="text-right ${i === pick ? "" : "text-muted-foreground"}">${sz}</span><span class="pl-3 ${i === pick ? "" : "text-muted-foreground"}">${kt}</span>` : ""}</div>`).join("")}
+    <div class="grid h-7 items-center border-b border-border px-3 text-[12px] text-muted-foreground" style="grid-template-columns:${tpl}"><span class="pl-6 font-medium text-foreground">Name <i class="ph ph-caret-up text-[9px]"></i></span>${cols ? `<span class="border-l border-border pl-2">Date Modified</span><span class="border-l border-border pr-2 text-right">Size</span><span class="border-l border-border pl-3">Kind</span>` : ""}</div>
+    ${rows.map(([k, n, d, sz, kt], i) => `<div class="mx-1 grid h-6 items-center rounded-md px-2 ${i === pick ? "bg-brand-600 text-white" : i % 2 ? "bg-foreground/[0.03]" : ""}" style="grid-template-columns:${tpl}"><span class="flex min-w-0 items-center gap-1.5">${k === "folder" ? `<i class="ph ph-caret-right w-3 text-[10px] ${i === pick ? "" : "text-muted-foreground"}"></i>` : `<span class="w-3"></span>`}${fileMark(k)}<span class="truncate">${n}</span></span>${cols ? `<span class="${i === pick ? "" : "text-muted-foreground"}">${d}</span><span class="text-right ${i === pick ? "" : "text-muted-foreground"}">${sz}</span><span class="truncate pl-3 ${i === pick ? "" : "text-muted-foreground"}">${kt}</span>` : ""}</div>`).join("")}
   </div>`;
 };
 
@@ -779,10 +781,11 @@ const fileTree = (rows, { on = "" } = {}) => `
   </div>`;
 
 /**
- * Files' one 40px row, as main draws it (measured 2026-10-16): over the places (`side`,
- * 175px, or folded) the sidebar toggle; then the views, sort, more and search; then the
+ * Files' one 40px row, as main draws it (measured 2026-10-27): over the places (`side`,
+ * 175px, or folded) the sidebar toggle; then the views, and sort, more and search as
+ * 32px buttons on the card's white with a hairline ring; then the
  * omnibar across the rest, a folder (or `mark`) leading the path and the open-in pill at
- * its end; then Ask. There is no header under it. `narrow` drops Ask's word and the sort
+ * its end; then Ask, a ringed button like the others. There is no header under it. `narrow` drops Ask's word and the sort
  * caret, for a pane.
  */
 const filesRow = ({
@@ -793,29 +796,33 @@ const filesRow = ({
   side = true,
   narrow = false,
 } = {}) => {
-  const btn = (inner) =>
-    `<span class="flex h-7 min-w-7 shrink-0 items-center justify-center gap-0.5 rounded-lg px-1.5 text-muted-foreground">${inner}</span>`;
+  const btn = (inner, ring = true) =>
+    `<span class="flex h-8 min-w-8 shrink-0 items-center justify-center gap-0.5 rounded-lg px-1.5 text-foreground/70 ${ring ? "bg-card ring-1 ring-border" : ""}">${inner}</span>`;
   return `
-  <div class="flex h-10 shrink-0 items-center gap-1 border-b border-border pr-1.5">
-    <div class="flex h-full shrink-0 items-center ${side ? "w-[175px] border-r border-border" : ""} px-1.5"><span class="grid size-7 place-items-center rounded-lg text-muted-foreground"><i class="ph ph-sidebar-simple text-[16px]"></i></span></div>
-    <span class="ml-1 flex h-7 shrink-0 items-center rounded-lg bg-foreground/6 p-0.5">${[
+  <div class="flex h-10 shrink-0 items-center gap-1.5 border-b border-border pr-1.5">
+    <div class="flex h-full shrink-0 items-center ${side ? "w-[175px] border-r border-border" : ""} px-1.5"><span class="grid size-8 place-items-center rounded-lg text-muted-foreground"><i class="ph ph-sidebar-simple text-[17px]"></i></span></div>
+    <span class="ml-0.5 flex h-8 shrink-0 items-center rounded-lg bg-foreground/8 p-0.5">${[
       ["icons", "ph-squares-four"],
       ["list", "ph-rows"],
       ["columns", "ph-columns"],
     ]
       .map(
         ([k, i]) =>
-          `<span class="grid h-6 w-7 place-items-center rounded-md ${k === view ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"}"><i class="ph ${i} text-[14px]"></i></span>`,
+          `<span class="grid h-7 w-9 place-items-center rounded-md ${k === view ? "bg-background text-foreground shadow-xs" : "text-foreground/60"}"><i class="ph ${i} text-[16px]"></i></span>`,
       )
       .join("")}</span>
-    ${btn(`<i class="ph ph-arrows-down-up text-[15px]"></i>${narrow ? "" : `<i class="ph ph-caret-down text-[9px]"></i>`}`)}${btn(`<i class="ph ph-dots-three text-[15px]"></i>`)}${btn(`<i class="ph ph-magnifying-glass text-[15px]"></i>`)}
-    <div class="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-card pr-1 pl-2.5 text-[12px]">
+    ${btn(`<i class="ph ph-arrows-down-up text-[16px]"></i>${narrow ? "" : `<i class="ph ph-caret-down text-[9px] text-muted-foreground"></i>`}`)}${btn(`<i class="ph ph-dots-three text-[16px]"></i>`)}${btn(`<i class="ph ph-magnifying-glass text-[16px]"></i>`)}
+    <div class="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-card pr-1.5 pl-3 text-[13px]">
       ${mark}${crumbs.map((c, i) => `<span class="${i === crumbs.length - 1 ? "shrink-0 text-foreground" : "min-w-0 truncate text-muted-foreground"}">${c}</span>`).join(`<i class="ph ph-caret-right shrink-0 text-[9px] text-muted-foreground/60"></i>`)}
       <span class="flex-1"></span>${openIn(open)}
     </div>
-    <span class="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-[12px] font-medium text-foreground/80">${brand("instrumentglyph", "size-4")}${narrow ? "" : "Ask"}</span>
+    ${btn(`${brand("instrumentglyph", "size-4")}${narrow ? "" : `<span class="pr-1 pl-1 text-[13px] font-medium text-foreground">Ask</span>`}`)}
   </div>`;
 };
+
+/** The count Files shows under a folder's listing, on a 24px foot. */
+const filesFoot = (n) =>
+  `<div class="flex h-6 shrink-0 items-center justify-center border-t border-border text-[11px] text-muted-foreground">${n} ${n === 1 ? "item" : "items"}</div>`;
 
 /**
  * A file open beside its folder in Files, as main draws it (measured 2026-10-16): the
@@ -886,12 +893,13 @@ const filesPlace = ({
   side = finderSidebar(),
   head = "",
   body = "",
+  foot = "",
 } = {}) => `
   <div class="flex min-w-0 flex-1 flex-col">
     ${top}
     <div class="flex min-h-0 flex-1">
       ${side}
-      <div class="relative flex min-w-0 flex-1 flex-col">${head}<div class="relative min-h-0 flex-1 overflow-hidden">${body}</div></div>
+      <div class="relative flex min-w-0 flex-1 flex-col">${head}<div class="relative min-h-0 flex-1 overflow-hidden">${body}</div>${foot}</div>
     </div>
   </div>`;
 
@@ -908,14 +916,105 @@ const finder = ({ pick = -1 } = {}) =>
         k === "folder" ? "--" : `${12 + i * 7} KB`,
         {
           folder: "Folder",
-          html: "text/html",
-          md: "text/markdown",
-          csv: "text/csv",
+          html: "HTML Document",
+          md: "Markdown Document",
+          csv: "CSV Document",
         }[k],
       ]),
       { pick },
     ),
+    foot: filesFoot(FINDER_FILES.length),
   });
+
+/** A command row in the New tab page's list: icon, words, and the shortcut at the right. */
+const cmdRow = (icon, label, keys = "", { on = false } = {}) =>
+  `<div class="flex h-8 items-center gap-2.5 rounded-lg px-3 text-sm ${on ? "bg-foreground/8" : ""}"><i class="ph ph-${icon} text-[15px] text-muted-foreground"></i><span class="flex-1">${label}</span><span class="text-[11px] text-muted-foreground">${keys}</span></div>`;
+
+/** What a new window tab opens on (new-tab-page.tsx): the greeting over the command menu's list, open, with the ⌘K hint under it. `recent` names the recent chats. */
+const newTabPage = ({
+  greeting = "Good morning",
+  recent = [PRICING_TITLE],
+} = {}) => `
+  <div class="flex min-w-0 flex-1 flex-col items-center pt-[134px]">
+    <h1 class="mb-6 text-[22px] font-medium">${greeting}</h1>
+    <div class="w-[640px] overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+      <div class="flex h-12 items-center gap-2.5 border-b border-border px-4 text-sm text-muted-foreground"><i class="ph ph-magnifying-glass text-[15px]"></i>Search or type an address</div>
+      <div class="px-1 pb-1.5">
+        <div class="px-3 pt-2.5 pb-1 text-[12px] text-muted-foreground">Go to</div>
+        ${cmdRow("chat-circle", "Chat", "⌃⌘1 ↩", { on: true })}${cmdRow("folder-simple", "Files", "⌃⌘2")}${cmdRow("globe", "Browser", "⌃⌘3")}${cmdRow("shapes", "Apps", "⌃⌘4")}
+        <div class="px-3 pt-2.5 pb-1 text-[12px] text-muted-foreground">Commands</div>
+        ${cmdRow("note-pencil", "New chat", "⌘N")}${cmdRow("gear", "Settings", "⌘,")}${cmdRow("keyboard", "Keyboard shortcuts", "?")}
+        <div class="px-3 pt-2.5 pb-1 text-[12px] text-muted-foreground">Recent chats</div>
+        ${recent.map((r) => cmdRow("chat-circle", r)).join("")}
+      </div>
+    </div>
+    <p class="mt-6 text-[13px] text-muted-foreground">Press <span class="rounded bg-foreground/8 px-1 text-[11px]">⌘K</span> to search from anywhere.</p>
+  </div>`;
+
+// The Apps directory's first rows, as the API seeds it. [mark, name, line]; a mark is a brands.js key or a letter mark.
+const APP_ROWS = [
+  [
+    letterMark("D", "bg-[#1fa463]", "size-9 text-[15px]"),
+    "Google Drive",
+    "Files, Docs, Sheets, and Slides.",
+  ],
+  [
+    letterMark("S", "bg-[#23a566]", "size-9 text-[15px]"),
+    "Google Sheets",
+    "Spreadsheets, tabs, and cells.",
+  ],
+  [brand("gmail", "size-9"), "Gmail", "Mail, threads, labels, and drafts."],
+  [
+    letterMark("31", "bg-[#4285f4]", "size-9 text-[13px]"),
+    "Google Calendar",
+    "Events, invites, and availability.",
+  ],
+  [
+    letterMark("#", "bg-[#4a154b]", "size-9 text-[15px]"),
+    "Slack",
+    "Read, search, and send messages where your team talks.",
+  ],
+  [
+    letterMark("C", "bg-[#7d2ae8]", "size-9 text-[15px]"),
+    "Canva",
+    "Designs, brand kits, and exports.",
+  ],
+  [
+    letterMark("H", "bg-[#ff7a59]", "size-9 text-[15px]"),
+    "HubSpot",
+    "Contacts, companies, deals, and tickets.",
+  ],
+  [brand("notion", "size-9"), "Notion", "Pages, databases, and comments."],
+  [
+    brand("figma", "size-9"),
+    "Figma",
+    "Design files, components, and variables.",
+  ],
+  [
+    letterMark("A", "bg-[#f06a6a]", "size-9 text-[15px]"),
+    "Asana",
+    "Tasks, projects, and goals across the work.",
+  ],
+];
+
+/** Apps filling the card with nothing open: the serif title and its line, the search, then Popular as two columns of rows with Connect. `connected` names rows that show Open instead. */
+const appsPlace = ({ connected = [] } = {}) => `
+  <div class="min-w-0 flex-1 overflow-hidden px-[126px] pt-14">
+    <h1 class="font-serif text-[32px] text-brand-700">Apps</h1>
+    <p class="mt-2 max-w-[570px] text-[15px] leading-[26px] text-muted-foreground">Connect the services you already use. Instrument does the setup, then works in them from your chats.</p>
+    <div class="mt-12 flex h-11 items-center gap-2.5 rounded-xl border border-border bg-card px-4 text-[15px] text-muted-foreground"><i class="ph ph-magnifying-glass text-[16px]"></i>Search apps, or name any service</div>
+    <div class="mt-8 flex items-center gap-3 text-sm text-muted-foreground">Popular<span class="h-px flex-1 bg-border"></span></div>
+    <div class="mt-4 grid grid-cols-2 gap-3">
+      ${APP_ROWS.map(
+        ([mark, name, line]) => `
+        <div class="flex h-[72px] items-center gap-3 rounded-2xl border border-border bg-card px-5">
+          ${mark}
+          <div class="min-w-0 flex-1"><div class="text-[15px] font-medium">${name}</div><div class="truncate text-[13px] text-muted-foreground">${line}</div></div>
+          <span class="flex h-8 items-center gap-1.5 rounded-lg bg-card px-2.5 text-[13px] font-medium ring-1 ring-border">${brand("instrumentglyph", "size-3.5")}${connected.includes(name) ? "Open" : "Connect"}</span>
+        </div>`,
+      ).join("")}
+    </div>
+  </div>`;
 
 // ---- floating ------------------------------------------------------------------
 
@@ -952,37 +1051,6 @@ const chatPeek = (t, { bottom = 180 } = {}) => `
   <div class="absolute inset-x-2 top-2 z-10 flex flex-col overflow-hidden rounded-xl bg-background shadow-xl ring-1 ring-gray-300" style="bottom:${bottom}px">
     ${locRow(t, { close: true, expand: true })}
     <div class="relative min-h-0 flex-1 overflow-hidden">${page(t)}</div>
-  </div>`;
-
-/**
- * The floating chat expanded (measured 2026-10-16): one rounded card over the dimmed
- * window, 80px in from the window's left and right edges and 40px from its top and foot,
- * its head the chat's own (title and caret centered over `line`) with minimize, collapse
- * and × at the right and nothing at the left, the transcript centered, the reply box at
- * its foot. Pass it as appWindow's `over`. `body` replaces the inside under the head.
- */
-const expandedChat = ({
-  title = PRICING_TITLE,
-  line = statusLine("Reading plans on zendesk.com"),
-  transcript = pricing(2),
-  body = "",
-} = {}) => `
-  <div class="absolute inset-0 z-40 bg-black/25">
-    <div class="absolute flex flex-col overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-black/5" style="left:80px;right:80px;top:40px;bottom:40px">
-      <div class="grid h-14 shrink-0 grid-cols-[120px_minmax(0,1fr)_120px] items-start px-3 pt-2">
-        <span></span>
-        <div class="flex min-w-0 flex-col items-center">
-          <span class="flex h-8 max-w-full min-w-0 items-center gap-1 text-sm font-medium"><span class="truncate">${title}</span><i class="ph ph-caret-down shrink-0 text-[12px] text-muted-foreground"></i></span>
-          <div class="-mt-1 flex h-5 max-w-full min-w-0 justify-center">${line}</div>
-        </div>
-        <div class="flex h-8 items-center justify-end gap-1 text-muted-foreground">${["minus", "arrows-in-simple", "x"].map((i) => `<span class="grid size-8 place-items-center"><i class="ph ph-${i} text-[16px]"></i></span>`).join("")}</div>
-      </div>
-      ${
-        body ||
-        `<div class="min-h-0 flex-1 overflow-hidden"><div class="mx-auto flex w-full max-w-3xl flex-col gap-2 p-4">${transcript}</div></div>
-      <div class="mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">${replyBox()}</div>`
-      }
-    </div>
   </div>`;
 
 /**

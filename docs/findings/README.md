@@ -82,6 +82,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Task file links resolve at render time](task-file-links-resolve-at-render-time.md) | resolved |
 | [Task attention state must be persisted](task-attention-state-persistence.md) — not derived from live status | moot, unread marks removed |
 | [Route preloading does not pay](route-preloading-does-not-pay.md): a local chunk costs single-digit milliseconds, so slow screens wait on data or rendering | closed, measured |
+| [A thumbnail request nobody wants is still drawn](a-thumbnail-request-nobody-wants-is-still-drawn.md): the protocol never hears an image's request cancelled, so the renderer asks only for what was seen | contained, measured |
 
 ### App lifecycle and platform
 

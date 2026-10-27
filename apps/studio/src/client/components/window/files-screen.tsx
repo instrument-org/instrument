@@ -111,6 +111,8 @@ const BESIDE_BOUNDS: RailBounds = {
  * px. A tab narrower than that opens the file with them folded away.
  */
 const FILE_ROOM = 420;
+/** How long a held arrow rests on a file before it shows, as the chat list does. */
+const HELD_SHOW_REST_MS = 150;
 /** How the file fades as it slides away, as long as the folder takes to widen. */
 const BESIDE_EXIT_TRANSITION = {
   duration: 0.38,
@@ -324,6 +326,29 @@ export function FilesScreen({
       JSON.stringify(current) === JSON.stringify(next) ? current : next,
     );
   };
+  const isArrowHeld = useRef(false);
+  const heldShow = useRef<{ path: string; timer: number } | null>(null);
+  const clearHeldShow = () => {
+    if (heldShow.current) {
+      window.clearTimeout(heldShow.current.timer);
+      heldShow.current = null;
+    }
+  };
+  const showHeld = () => {
+    const held = heldShow.current;
+    clearHeldShow();
+    if (held) {
+      showFile(held.path, { replace: true });
+    }
+  };
+  useEffect(
+    () => () => {
+      if (heldShow.current) {
+        window.clearTimeout(heldShow.current.timer);
+      }
+    },
+    [],
+  );
   // One click (or an arrow) on another file shows it, in the step already
   // up, the way the columns preview it; several show as a pile. A folder
   // picked, or none, leaves the file where it is: walking from folder to
@@ -336,8 +361,18 @@ export function FilesScreen({
       JSON.stringify(current) === JSON.stringify(picked) ? current : picked,
     );
     const [only] = picked;
+    clearHeldShow();
     if (picked.length === 1 && only?.kind === "file" && only.path !== file) {
-      showFile(only.path, { replace: true });
+      // Held down, the arrows walk the folder as fast as the key repeats,
+      // and the file the key stops on shows once it is let go of (or rests).
+      if (isArrowHeld.current) {
+        heldShow.current = {
+          path: only.path,
+          timer: window.setTimeout(showHeld, HELD_SHOW_REST_MS),
+        };
+      } else {
+        showFile(only.path, { replace: true });
+      }
     }
   };
   // A file arriving with no layout of its own, as one opened into a tab of
@@ -721,6 +756,9 @@ export function FilesScreen({
           // tab answered it first: a field being typed in, or a menu or
           // Quick Look, which sit outside this element.
           onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              isArrowHeld.current = event.repeat;
+            }
             if (
               event.key !== "Escape" ||
               !isFileOpen ||
@@ -737,6 +775,12 @@ export function FilesScreen({
             }
             event.preventDefault();
             closeBeside();
+          }}
+          onKeyUp={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              isArrowHeld.current = false;
+              showHeld();
+            }
           }}
           ref={setLayout}
         >
